@@ -1,21 +1,23 @@
 <script lang="ts">
 	// Images (#6): every image of the selected environment (or all), with
-	// its tags and short ID, whether containers use it, its size and age;
-	// untagged (dangling) images are marked. Searched by tag, ID, digest or
-	// label; an "Unused" switch and the environment filter the list
-	// (ListCard). Pull (#19 registry connection preview), tag and remove
-	// (in-use check) from here; builds (#33) have their own page.
+	// its tags and short ID, whether containers use it, its size and age.
+	// Tagged images come first; untagged (dangling) ones are folded into a
+	// section at the end ("30 untagged images"). Searched by tag, ID,
+	// digest or label; an "Unused" switch and the environment filter the
+	// list (ListCard). Pull (#19 registry connection preview), tag and
+	// remove (in-use check) from here, removal of selected images in bulk
+	// (ObjectBulk); builds (#33) have their own page in the navigation.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Box from '@lucide/svelte/icons/box';
 	import Download from '@lucide/svelte/icons/download';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import Hammer from '@lucide/svelte/icons/hammer';
 	import { imagesQuery, type Image } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
 		Button,
+		formatDateTime,
 		DeniedState,
 		EmptyState,
 		ErrorState,
@@ -32,10 +34,12 @@
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ImageActionHost from '$lib/features/resources/ImageActionHost.svelte';
+	import ObjectBulk from '$lib/features/resources/ObjectBulk.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
-	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
+	import ProtectionMark from '$lib/features/resources/ProtectionMark.svelte';
 	import PullImageDialog from '$lib/features/resources/PullImageDialog.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import {
@@ -46,7 +50,7 @@
 		listSummary
 	} from '$lib/features/resources/filters';
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
-	import { shortDigest } from '$lib/features/resources/model';
+	import { shortDigest, splitUntagged } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
@@ -69,6 +73,11 @@
 	const pullable = $derived(scope.creatable('image.pull'));
 	const totalSize = $derived(rows.reduce((n, im) => n + (im.size ?? 0), 0));
 	const key = (im: Image) => `${im.environmentId}/${im.id}`;
+	const groups = $derived(splitUntagged(rows));
+	const untaggedSize = $derived(groups.untagged.reduce((n, im) => n + (im.size ?? 0), 0));
+	let selected = $state<string[]>([]);
+	// Bulk removal runs on the selected rows the filters still show.
+	const chosen = $derived(rows.filter((im) => selected.includes(key(im))));
 	const tracker = new ChangeTracker<Image>(key, (im) => `${im.repoTags.join(',')}/${im.inUse}`);
 	$effect(() => {
 		if (list.data) tracker.update(list.data.items);
@@ -78,6 +87,11 @@
 		const out: MenuEntry[] = [{ label: 'Open', href: routes.image(im.environmentId, im.id) }];
 		if (can(im.actions, 'image.tag'))
 			out.push({ label: 'Tag…', onSelect: () => host?.request(im, 'tag') });
+		if (im.repoTags[0] && scope.can('container.create', im.environmentId))
+			out.push({
+				label: 'Create container',
+				href: routes.newContainer(im.environmentId, im.repoTags[0])
+			});
 		if (can(im.actions, 'image.remove'))
 			out.push(
 				{ separator: true },
@@ -91,7 +105,9 @@
 			id: 'ref',
 			header: 'Image',
 			cell: refCell,
-			sortValue: (im) => im.repoTags[0] ?? '~',
+			sortValue: (im) => im.repoTags[0] ?? shortDigest(im.id),
+			maxWidth: '360px',
+			title: (im) => im.repoTags.join('\n') || im.id,
 			stack: 'title'
 		},
 		{
@@ -109,7 +125,8 @@
 						id: 'env',
 						header: 'Environment',
 						cell: envCell,
-						sortValue: (im: Image) => scope.name(im.environmentId)
+						sortValue: (im: Image) => scope.name(im.environmentId),
+						stack: 'hidden'
 					} satisfies Column<Image>
 				]),
 		{
@@ -125,7 +142,8 @@
 			header: 'Created',
 			cell: createdCell,
 			sortValue: (im) => im.createdAt ?? '',
-			width: '130px'
+			width: '130px',
+			stack: 'hidden'
 		},
 		{
 			id: 'actions',
@@ -134,29 +152,24 @@
 			cell: actionsCell,
 			width: '56px',
 			align: 'end',
-			stack: 'actions'
+			pin: 'end',
+			stack: 'head'
 		}
 	]);
 </script>
 
 {#snippet refCell(im: Image)}
 	<div class="name-cell">
-		<a class="name mono" href={routes.image(im.environmentId, im.id)}
-			>{im.repoTags[0] ?? shortDigest(im.id)}</a
-		>
-		{#if im.repoTags.length}
-			<span class="sub"
-				><span class="mono" title={im.id}>{shortDigest(im.id)}</span
-				>{#if im.repoTags.length > 1}<span title={im.repoTags.slice(1).join('\n')}>
-						· +{im.repoTags.length - 1} more tags</span
-					>{/if}</span
+		<span class="title-line">
+			<a class="name mono" href={routes.image(im.environmentId, im.id)}
+				>{im.repoTags[0] ?? shortDigest(im.id)}</a
 			>
-		{/if}
-		{#if im.repoTags.length === 0 || im.protection}
-			<span class="tags">
-				{#if im.repoTags.length === 0}<Badge tone="warn">Untagged</Badge>{/if}
-				{#if im.protection}<ProtectionBadge protection={im.protection} />{/if}
-			</span>
+			{#if im.protection}<ProtectionMark protection={im.protection} />{/if}
+		</span>
+		{#if im.repoTags.length > 1}
+			<span class="sub">+{im.repoTags.length - 1} more tags</span>
+		{:else if im.repoTags.length === 0}
+			<span class="sub">Untagged</span>
 		{/if}
 	</div>
 {/snippet}
@@ -170,7 +183,8 @@
 {#snippet sizeCell(im: Image)}<span class="num">{im.size ? formatBytes(im.size) : '—'}</span
 	>{/snippet}
 {#snippet createdCell(im: Image)}
-	{#if im.createdAt}<span class="muted" title={im.createdAt}>{formatRelative(im.createdAt)}</span
+	{#if im.createdAt}<span class="muted" title={formatDateTime(im.createdAt)}
+			>{formatRelative(im.createdAt)}</span
 		>{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet actionsCell(im: Image)}
@@ -211,9 +225,6 @@
 		>
 			{#snippet actions()}
 				<PruneButton target="images" {scope} />
-				{#if scope.hasAny('image.build')}
-					<Button variant="secondary" icon={Hammer} href={routes.builds()}>Builds</Button>
-				{/if}
 				{#if pullable.length}
 					<Button variant="primary" icon={Download} onclick={() => (pullOpen = true)}
 						>Pull image</Button
@@ -245,20 +256,28 @@
 					: undefined}
 				label="Filter images"
 				searchLabel="Search images"
-				placeholder="Search by tag, ID, digest or label"
+				placeholder="Search tag, ID or label"
 				filters={defs}
 				store={filters}
 			>
+				<ObjectBulk
+					selected={{ kind: 'image', items: chosen }}
+					environmentName={(id) => scope.name(id)}
+					onclear={() => (selected = [])}
+				/>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
-				{:else}
+				{:else if groups.tagged.length || !groups.untagged.length}
 					<Table
 						label="Images"
-						{rows}
+						rows={groups.tagged}
 						{columns}
 						rowKey={key}
 						changed={tracker.changed}
 						sort={{ column: 'ref', direction: 'asc' }}
+						selectable
+						bind:selected
+						rowLabel={(im) => `Select ${im.repoTags[0] ?? shortDigest(im.id)}`}
 					>
 						{#snippet empty()}
 							{#if filtered}
@@ -292,6 +311,32 @@
 						{/snippet}
 					</Table>
 				{/if}
+				{#if list.data && groups.untagged.length}
+					<div class="untagged" class:alone={!groups.tagged.length}>
+						<Disclosure
+							summary="{groups.untagged.length} untagged {groups.untagged.length === 1
+								? 'image'
+								: 'images'}, {formatBytes(untaggedSize)}"
+							open={!groups.tagged.length}
+						>
+							<p class="hint">
+								Older versions whose tag moved to a newer image. Unused ones are
+								safe to remove.
+							</p>
+							<Table
+								label="Untagged images"
+								rows={groups.untagged}
+								{columns}
+								rowKey={key}
+								changed={tracker.changed}
+								sort={{ column: 'created', direction: 'desc' }}
+								selectable
+								bind:selected
+								rowLabel={(im) => `Select ${shortDigest(im.id)}`}
+							/>
+						</Disclosure>
+					</div>
+				{/if}
 			</ListCard>
 		{/if}
 	</Page>
@@ -305,10 +350,19 @@
 		min-width: 0;
 	}
 
+	.title-line {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
 	.name {
+		overflow: hidden;
 		color: var(--text-strong);
 		text-decoration: none;
-		overflow-wrap: anywhere;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.name:hover {
@@ -320,11 +374,24 @@
 		font-size: var(--text-caption);
 	}
 
-	.tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
-		margin-top: 2px;
+	.untagged {
+		padding: var(--space-3) var(--space-4);
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.untagged.alone {
+		border-top: 0;
+	}
+
+	/* The untagged table spans the card like the main one. */
+	.untagged :global(.scroll) {
+		margin: 0 calc(-1 * var(--space-4));
+	}
+
+	.hint {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
 	}
 
 	.loading {

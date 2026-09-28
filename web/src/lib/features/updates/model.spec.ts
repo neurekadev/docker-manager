@@ -2,16 +2,26 @@ import { describe, expect, it } from 'vitest';
 import {
 	candidateStatus,
 	containerPolicy,
+	containerTargetName,
+	coveredTargets,
 	daysText,
+	imageLabel,
+	inactiveReason,
 	isClock,
 	policiesByTarget,
+	policySchedulesText,
+	policyStatusText,
 	reasonLabel,
 	recoveryText,
 	runnable,
 	summarizeTargets,
 	summaryState,
 	summaryText,
+	targetState,
+	targetsUpdateText,
+	updatesText,
 	windowText,
+	withExclusions,
 	type UpdateCandidate,
 	type UpdatePolicy
 } from './model';
@@ -164,11 +174,165 @@ describe('target summaries', () => {
 		]);
 		expect(out).toEqual({
 			withUpdates: 1,
+			images: 1,
 			failing: 1,
 			upToDate: 1,
 			unchecked: 2,
 			lastCheckAt: at
 		});
+	});
+});
+
+describe('update counts and coverage (#20)', () => {
+	it('names the images and where they are', () => {
+		expect(updatesText(6, { stacks: 5, containers: 0 })).toBe('6 images in 5 stacks');
+		expect(updatesText(1, { stacks: 0, containers: 1 })).toBe('1 image in 1 container');
+		expect(updatesText(3, { stacks: 1, containers: 1 })).toBe(
+			'3 images in 2 stacks and containers'
+		);
+		expect(updatesText(0, { stacks: 0, containers: 0 })).toBe('Nothing waiting');
+	});
+
+	it('counts the images of the stacks and containers with updates', () => {
+		const at = '2026-09-25T12:00:00Z';
+		const s = (available: number, failed = 0) => ({
+			available,
+			failed,
+			ineligible: 0,
+			quarantined: 0,
+			unchecked: 0,
+			upToDate: 0,
+			lastCheckAt: at
+		});
+		expect(
+			targetsUpdateText([
+				{ type: 'stack', candidateSummary: s(2) },
+				{ type: 'stack', candidateSummary: s(1) },
+				// A failing target counts as failing, not as an update.
+				{ type: 'stack', candidateSummary: s(4, 1) },
+				{ type: 'stack', candidateSummary: s(0) }
+			])
+		).toBe('3 images in 2 stacks');
+	});
+
+	it('keeps covered targets once, in the selected environment', () => {
+		const t = (policyId: string, environmentId: string, inactive = false) => ({
+			policyId,
+			environmentId,
+			inactive
+		});
+		const lists = [[t('a', 'e1'), t('b', 'e2'), t('c', 'e1', true)], [t('a', 'e1')], undefined];
+		expect(coveredTargets(lists, null).map((x) => x.policyId)).toEqual(['a', 'b']);
+		expect(coveredTargets(lists, 'e2').map((x) => x.policyId)).toEqual(['b']);
+	});
+
+	it('names containers, never by their Engine ID', () => {
+		const id = 'a'.repeat(64);
+		const list = [{ id, name: 'pihole' }];
+		expect(containerTargetName('pihole', list)).toEqual({ name: 'pihole', found: true });
+		expect(containerTargetName(id, list)).toEqual({ name: 'pihole', found: true });
+		expect(containerTargetName('b'.repeat(64), list).name).toBe('Removed container');
+		expect(containerTargetName('nginx')).toEqual({ name: 'nginx', found: true });
+		expect(containerTargetName('nginx', list).found).toBe(false);
+	});
+
+	it('tells excluded targets from ones that are gone', () => {
+		const one = {
+			scope: 'environment' as const,
+			excludeStacks: ['s1'],
+			excludeContainers: ['pihole']
+		};
+		const t = (type: string, id: string, inactive = true) => ({
+			inactive,
+			type,
+			id,
+			environmentId: 'e1'
+		});
+		expect(inactiveReason(t('stack', 's1', false), one)).toBeNull();
+		expect(inactiveReason(t('stack', 's1'), one)).toBe('excluded');
+		expect(inactiveReason(t('stack', 's2'), one)).toBe('gone');
+		expect(inactiveReason(t('container', 'pihole'), one)).toBe('excluded');
+		const all = { ...one, scope: 'all' as const, excludeContainers: ['e1/pihole'] };
+		expect(inactiveReason(t('container', 'pihole'), all)).toBe('excluded');
+		expect(inactiveReason(t('container', 'nginx'), all)).toBe('gone');
+		expect(targetState(undefined, 'gone').label).toBe('No longer found');
+		expect(targetState(undefined, 'excluded').label).toBe('Excluded');
+		expect(targetState(undefined, null).label).toBe('Not checked yet');
+	});
+
+	it('lists exclusions that never got a target record', () => {
+		const empty = {
+			available: 0,
+			upToDate: 0,
+			quarantined: 0,
+			ineligible: 0,
+			failed: 0,
+			unchecked: 0
+		};
+		const known = {
+			policyId: 'p1',
+			environmentId: 'e1',
+			type: 'stack' as const,
+			id: 's1',
+			inactive: true,
+			candidateSummary: empty
+		};
+		const rows = withExclusions(
+			[known],
+			{
+				scope: 'all',
+				excludeStacks: ['s1', 's2', 'gone'],
+				excludeContainers: ['e2/pihole']
+			},
+			(id) => (id === 'gone' ? undefined : 'e1')
+		);
+		expect(rows.map((r) => `${r.environmentId}/${r.type}/${r.id}`)).toEqual([
+			'e1/stack/s1',
+			'e1/stack/s2',
+			'e2/container/pihole'
+		]);
+		expect(rows.every((r) => r.inactive)).toBe(true);
+	});
+
+	it('says what an update policy needs in one sentence', () => {
+		const t = (x: Partial<ReturnType<typeof summarizeTargets>>) => ({
+			withUpdates: 0,
+			images: 0,
+			failing: 0,
+			upToDate: 0,
+			unchecked: 0,
+			...x
+		});
+		expect(policyStatusText(t({}), 0, '')).toBe('Nothing in scope to update yet.');
+		expect(policyStatusText(t({ unchecked: 3 }), 3, '')).toMatch(/^Not checked yet/);
+		expect(policyStatusText(t({ withUpdates: 5 }), 20, '6 images in 5 stacks')).toBe(
+			'Newer images: 6 images in 5 stacks. Preview them to update.'
+		);
+		expect(policyStatusText(t({ failing: 1 }), 20, '')).toBe(
+			'1 stack or container failed the last check or update.'
+		);
+		expect(policyStatusText(t({ upToDate: 20 }), 20, '')).toBe(
+			'Everything it covers is up to date.'
+		);
+	});
+
+	it('reads both schedules of a policy in one sentence', () => {
+		const on = (cron: string, timeZone = 'UTC') => ({ cron, timeZone, enabled: true });
+		const off = { cron: '0 4 * * *', timeZone: 'UTC', enabled: false };
+		expect(policySchedulesText(on('0 * * * *'), on('0 4 * * *'), 'Europe/Berlin')).toBe(
+			'Checks every hour, updates daily at 04:00 (UTC)'
+		);
+		expect(policySchedulesText(on('0 3 * * *'), off, 'UTC')).toBe(
+			'Checks daily at 03:00, updates only by hand'
+		);
+		expect(policySchedulesText(off, off, 'UTC')).toBe('Checks and updates only by hand');
+	});
+
+	it('shows images without the implied Docker Hub prefix', () => {
+		expect(imageLabel({ reference: 'docker.io/library/nginx:1.27' })).toBe('nginx:1.27');
+		expect(imageLabel({ reference: 'ghcr.io/silo/web:latest' })).toBe(
+			'ghcr.io/silo/web:latest'
+		);
 	});
 });
 

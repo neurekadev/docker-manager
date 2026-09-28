@@ -119,13 +119,126 @@ export function jobTitle(job: Pick<Job, 'kind' | 'targets'>, nameOf?: NameOf): s
 	return n ? `${kind} ${n}` : kind;
 }
 
-/** Where the policy that started a job is managed, by job kind. */
-export function policyPage(kind: string): { href: string; label: string } {
-	if (kind.startsWith('prune.')) return { href: routes.maintenance(), label: 'Prune policy' };
-	if (kind.startsWith('update.')) return { href: routes.updates(), label: 'Update policy' };
+/** A job row's two lines: what it acts on first, then what it does. */
+export interface JobHeadline {
+	/** The target's human name ("zerobyte", "Silo and 2 more"), else the kind. */
+	title: string;
+	/** The kind ("Check for updates") when the title is a name, else `fallback` or "". */
+	subtitle: string;
+}
+
+/** The last segment of a path target ("/srv/app/compose.yaml" → "compose.yaml"). */
+function pathName(p: string): string {
+	const parts = p.split('/').filter(Boolean);
+	return parts.length ? parts[parts.length - 1] : p;
+}
+
+/**
+ * The headline of a job row, leading with the target's name:
+ * `{ title: 'zerobyte', subtitle: 'Check for updates' }`. Targets are named
+ * by `nameOf` (stack IDs through `stackNames(stacks)`, policies by the
+ * page's policy list), else by their ID when it is a name (containers,
+ * volumes, networks, images; paths by their last segment). Jobs without a
+ * nameable target (a prune policy's run) lead with the kind, and the
+ * subtitle is `fallback` (e.g. the environment's name).
+ */
+export function jobHeadline(
+	job: Pick<Job, 'kind' | 'targets'>,
+	options: { nameOf?: NameOf; fallback?: string } = {}
+): JobHeadline {
+	const kind = jobKindLabel(job.kind);
+	const t = job.targets ?? [];
+	const first = t[0];
+	let name = first ? options.nameOf?.(first.type, first.id) : undefined;
+	if (!name && first && !UUID.test(first.id))
+		name =
+			first.type === 'path' || first.type === 'destination_path'
+				? pathName(first.id)
+				: first.id;
+	if (!name) return { title: kind, subtitle: options.fallback ?? '' };
+	return { title: t.length > 1 ? `${name} and ${t.length - 1} more` : name, subtitle: kind };
+}
+
+/**
+ * The policy that started a job: its own page when the job names it
+ * (`policyId`), else the section where policies of the kind are managed.
+ */
+export function policyPage(kind: string, policyId?: string): { href: string; label: string } {
+	if (kind.startsWith('prune.'))
+		return {
+			href: policyId ? routes.maintenancePolicy(policyId) : routes.maintenance(),
+			label: 'Maintenance policy'
+		};
+	if (kind.startsWith('update.'))
+		return {
+			href: policyId ? routes.updatePolicy(policyId) : routes.updates(),
+			label: 'Update policy'
+		};
+	if (kind === 'backup.verify' || kind === 'manager.verify')
+		return {
+			href: policyId ? routes.backupRepository(policyId) : routes.backupRepositories(),
+			label: 'Backup repository'
+		};
 	if (kind.startsWith('backup.') || kind.startsWith('manager.'))
-		return { href: routes.backupPolicies(), label: 'Backup policy' };
+		return {
+			href: policyId ? routes.backupPolicy(policyId) : routes.backupPolicies(),
+			label: 'Backup policy'
+		};
 	return { href: routes.schedules(), label: 'Policy' };
+}
+
+/** A failed job's error class as a headline (the engine's message goes below it). */
+const ERROR_HEADLINES: Record<string, string> = {
+	agent_offline: 'The environment was offline',
+	authorization_revoked: 'The permission to run it was withdrawn',
+	step_failed: 'A step failed',
+	unknown_outcome: 'It is unknown whether the last step finished',
+	journal_lost: 'The environment lost track of the job',
+	resume_limit: 'It was interrupted too often',
+	rejected: 'The environment refused the job',
+	compensation_failed: 'Cleaning up after a failure failed',
+	executor_restarted: 'It stopped when its runner restarted',
+	cancelled: 'It was cancelled',
+	credential_unavailable: 'A credential it needs is gone',
+	policy_rejected: 'Its policy refused the run'
+};
+
+/** "A step failed"; unknown classes read as "The job failed". */
+export function jobErrorHeadline(error: { class: string } | undefined, state: string): string {
+	if (state === 'cancelled') return 'It was cancelled';
+	return (
+		(error && ERROR_HEADLINES[error.class]) ??
+		(state === 'partial' ? 'It partly failed' : 'The job failed')
+	);
+}
+
+/**
+ * Where to run a finished job again: GET /jobs has no retry, so this is the
+ * page of the action that started it (the stack, the container, the
+ * policy, the build), or null when there is none.
+ */
+export function jobAgain(
+	job: Pick<Job, 'id' | 'kind' | 'targets' | 'environmentId' | 'policyId'>
+): { href: string; label: string } | null {
+	const t = job.targets?.[0];
+	if (job.policyId && /^(update|prune|backup|manager)\./.test(job.kind))
+		return {
+			href: policyPage(job.kind, job.policyId).href,
+			label: 'Open the policy to run it again'
+		};
+	if (job.kind === 'image.build' && job.environmentId)
+		return {
+			href: routes.build(job.environmentId, job.id),
+			label: 'Open the build to build again'
+		};
+	if (t?.type === 'stack')
+		return { href: routes.stack(t.id), label: 'Open the stack to try again' };
+	if (t?.type === 'container' && job.environmentId && !job.kind.endsWith('.remove'))
+		return {
+			href: routes.container(t.environmentId ?? job.environmentId, t.id),
+			label: 'Open the container to try again'
+		};
+	return null;
 }
 
 /** "container homeassistant" (the noun helps where kinds are mixed). */
@@ -184,5 +297,44 @@ export function blockedText(b: NonNullable<Job['blockedBy']>): string {
 			return 'Waiting for another job on the same resources to finish.';
 		default:
 			return 'Waiting for a free slot: this environment runs a limited number of pulls and builds at once.';
+	}
+}
+
+/** "Sep 27, 2026, 16:54:03": a job timeline's instants, to the second ("—" if absent). */
+export function timelineTime(iso: string | undefined | null, timeZone?: string): string {
+	if (!iso) return '—';
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '—';
+	return new Intl.DateTimeFormat('en', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hourCycle: 'h23',
+		timeZone
+	}).format(d);
+}
+
+/** A job target's page, where it has one (stacks, containers, volumes, networks). */
+export function targetHref(
+	t: { type: string; id: string; environmentId?: string },
+	environmentId: string | undefined
+): string | undefined {
+	const env = t.environmentId ?? environmentId;
+	switch (t.type) {
+		case 'stack':
+			return routes.stack(t.id);
+		case 'container':
+			return env ? routes.container(env, t.id) : undefined;
+		case 'volume':
+			return env ? routes.volume(env, t.id) : undefined;
+		case 'network':
+			return env ? routes.network(env, t.id) : undefined;
+		case 'maintenance_policy':
+			return routes.maintenancePolicy(t.id);
+		default:
+			return undefined;
 	}
 }

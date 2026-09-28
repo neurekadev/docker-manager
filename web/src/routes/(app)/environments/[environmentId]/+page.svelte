@@ -1,20 +1,21 @@
 <script lang="ts">
-	// Environment detail (#3, #5, #34): identity and status, usage and
-	// metrics charts (live, gaps visible), system information with the
-	// agent's compatibility, transport and diagnostics, the agents with
-	// credential rotation and removal, recent jobs, edit (name, service
+	// Environment detail (#3, #5, #34): identity and status (one sentence,
+	// or one notice when offline, archived or with an outdated agent), usage
+	// KPIs, Docker object counts linking to this environment's lists,
+	// filesystems and metrics charts (live, gaps visible), system
+	// information with identifiers under "Advanced", the agents with
+	// credential rotation and removal, the jobs (paged), edit (name, service
 	// address) and archive with the removal preview. The tab lives in the
 	// URL (?tab=system|agents|jobs).
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { createQuery } from '@tanstack/svelte-query';
-	import Activity from '@lucide/svelte/icons/activity';
+	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import Gauge from '@lucide/svelte/icons/gauge';
 	import Globe from '@lucide/svelte/icons/globe';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
+	import Layers from '@lucide/svelte/icons/layers';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
 	import MonitorCog from '@lucide/svelte/icons/monitor-cog';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -22,23 +23,35 @@
 	import Timer from '@lucide/svelte/icons/timer';
 	import Truck from '@lucide/svelte/icons/truck';
 	import Undo2 from '@lucide/svelte/icons/undo-2';
+	import type { EnvironmentSystem } from '$lib/api/client';
 	import {
 		environmentCapacityQuery,
 		environmentQuery,
 		environmentSystemQuery,
+		jobsInfiniteQuery,
 		myPermissionsQuery,
-		recentJobsQuery
+		stacksSummaryQuery
 	} from '$lib/api/queries';
+	import Columns from '$lib/features/common/Columns.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
+	import Page from '$lib/features/common/Page.svelte';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import AgentsPanel from '$lib/features/environments/AgentsPanel.svelte';
 	import ArchiveEnvironmentDialog from '$lib/features/environments/ArchiveEnvironmentDialog.svelte';
 	import EditEnvironmentDialog from '$lib/features/environments/EditEnvironmentDialog.svelte';
 	import MetricsPanel from '$lib/features/environments/MetricsPanel.svelte';
 	import SystemPanel from '$lib/features/environments/SystemPanel.svelte';
-	import { environmentStatus, mountLabel } from '$lib/features/environments/model';
+	import {
+		connectionSummary,
+		environmentStatus,
+		mountLabel
+	} from '$lib/features/environments/model';
 	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
+	import { stackNames } from '$lib/features/jobs/labels';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
-	import { accessOf } from '$lib/shell/nav';
+	import { accessOf, hasAny } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
@@ -56,13 +69,14 @@
 		StatusBadge,
 		Tabs,
 		formatBytes,
-		formatDateTime,
 		formatDuration,
 		formatPercent,
 		formatRelative,
 		type MenuEntry,
 		type MetaItem
 	} from '$lib/ui';
+
+	const JOBS_PER_PAGE = 20;
 
 	const id = $derived(page.params.environmentId ?? '');
 	const env = createQuery(() => environmentQuery(id));
@@ -76,6 +90,7 @@
 	const perms = createQuery(() => myPermissionsQuery());
 	const access = $derived(accessOf(perms.data));
 	const canEnroll = $derived(access.owner || access.allowed.has('agent.enroll'));
+	const only = singleEnvironment();
 	const can = (key: string) => !!e?.actions.includes(key);
 	const archived = $derived(e?.status === 'archived');
 
@@ -92,10 +107,16 @@
 		...environmentCapacityQuery(id),
 		enabled: !!e && can('environment.metrics.read') && !archived
 	}));
-	const jobs = createQuery(() => ({
-		...recentJobsQuery(50, { environmentId: id }),
+	const jobs = createInfiniteQuery(() => ({
+		...jobsInfiniteQuery({ environmentId: id }, JOBS_PER_PAGE),
 		enabled: !!e && !archived && tab === 'jobs'
 	}));
+	const jobRows = $derived(jobs.data?.pages.flatMap((p) => p.items) ?? []);
+	const stacks = createQuery(() => ({
+		...stacksSummaryQuery(),
+		enabled: !!e && tab === 'jobs' && hasAny(access, 'stack.')
+	}));
+	const nameOf = $derived(stackNames(stacks.data));
 
 	const tabItems = $derived(
 		[
@@ -119,22 +140,26 @@
 	const cap = $derived(capacity.data);
 	const docker = $derived(system.data?.docker);
 	const dockerDisk = $derived(cap?.disks.find((d) => d.mount === 'docker'));
+	// The Docker data disk is a KPI; the other filesystems get meters.
+	const otherDisks = $derived((cap?.disks ?? []).filter((d) => d.mount !== 'docker'));
+	const summary = $derived(e ? connectionSummary(e, Date.now()) : undefined);
 	const meta = $derived.by<MetaItem[]>(() => {
 		const out: MetaItem[] = [];
 		const host = system.data?.host;
 		const engine = system.data?.engine;
-		if (host)
+		// The host name only when it differs from the environment's name.
+		if (host && host.hostname !== e?.name)
 			out.push({
 				icon: MonitorCog,
 				label: host.hostname,
 				mono: true,
-				title: 'Engine host name'
+				title: 'Host name'
 			});
 		if (engine)
 			out.push({
 				icon: Server,
 				label: `Docker ${engine.version}`,
-				title: `Engine API ${engine.apiVersion}`
+				title: `Docker Engine ${engine.version}`
 			});
 		if (host) out.push({ label: `${host.os}/${host.arch}` });
 		if (e?.serviceAddress)
@@ -145,14 +170,11 @@
 				title: 'Service address'
 			});
 		if (e?.agentVersion) out.push({ label: `Agent ${e.agentVersion}` });
-		const up = capacity.data?.uptimeSeconds ?? host?.uptimeSeconds;
-		if (up !== undefined && e?.online)
-			out.push({ icon: Timer, label: `Up ${formatDuration(up)}` });
 		return out;
 	});
 	const menu = $derived.by<MenuEntry[]>(() => {
 		const out: MenuEntry[] = [];
-		if (can('environment.read'))
+		if (can('environment.read') && !only.current)
 			out.push({
 				label: 'Migrate stacks',
 				icon: Truck,
@@ -161,13 +183,8 @@
 					void goto(routes.stacks());
 				}
 			});
-		out.push({
-			label: 'View jobs',
-			icon: Activity,
-			href: `${routes.jobs()}?environment=${encodeURIComponent(id)}`
-		});
 		if (can('environment.remove')) {
-			out.push({ separator: true });
+			if (out.length) out.push({ separator: true });
 			out.push({
 				label: 'Archive environment',
 				icon: Archive,
@@ -177,7 +194,14 @@
 		}
 		return out;
 	});
+	type DockerCounts = NonNullable<EnvironmentSystem['docker']>;
+	// The lists open scoped to this environment.
+	const scope = () => environmentSelection.select(id);
 </script>
+
+{#snippet countLink(href: string, text: string)}
+	<a class="count" {href} onclick={scope}>{text}</a>
+{/snippet}
 
 {#if env.isError}
 	<ErrorState
@@ -186,14 +210,22 @@
 		onretry={() => env.refetch()}
 	/>
 {:else if !e}
-	<div class="page" aria-busy="true">
-		<Skeleton height="72px" radius="lg" />
-		<Skeleton height="96px" radius="lg" />
-		<Skeleton height="320px" radius="lg" />
-	</div>
+	<Page>
+		<div class="loading" aria-busy="true">
+			<Skeleton height="72px" radius="lg" />
+			<Skeleton height="96px" radius="lg" />
+			<Skeleton height="320px" radius="lg" />
+		</div>
+	</Page>
 {:else}
-	<div class="page">
-		<PageHeader title={e.name} icon={Server} color={e.online ? 'blue' : 'slate'} {meta}>
+	<Page>
+		<PageHeader
+			title={e.name}
+			description={summary}
+			icon={Server}
+			color={e.online ? 'blue' : 'slate'}
+			{meta}
+		>
 			{#snippet status()}<StatusBadge status={environmentStatus(e)} />{/snippet}
 			{#snippet actions()}
 				{#if archived}
@@ -203,28 +235,35 @@
 						>
 					{/if}
 				{:else}
+					{#if hasAny(access, 'stack.')}
+						<Button icon={Layers} href={routes.stacks()} onclick={scope}>Stacks</Button>
+					{/if}
 					{#if can('environment.manage')}
 						<Button icon={Pencil} onclick={() => (editOpen = true)}>Edit</Button>
 					{/if}
-					<Menu items={menu} label="More actions for {e.name}">
-						{#snippet trigger(props)}
-							<IconButton
-								{...props}
-								label="More actions"
-								icon={Ellipsis}
-								variant="secondary"
-							/>
-						{/snippet}
-					</Menu>
+					{#if menu.length}
+						<Menu items={menu} label="More actions for {e.name}">
+							{#snippet trigger(props)}
+								<IconButton
+									{...props}
+									label="More actions"
+									icon={Ellipsis}
+									variant="secondary"
+								/>
+							{/snippet}
+						</Menu>
+					{/if}
 				{/if}
 			{/snippet}
 		</PageHeader>
 
+		<!-- One notice at most about the connection (the shell's offline banner
+		     stays away from this page), and the agent's version once. -->
 		{#if archived}
 			<Notice tone="info" title="{e.name} is archived" live="none">
 				Archived {e.archivedAt ? formatRelative(e.archivedAt) : ''}: hidden from operations;
-				its stacks, history and backups are kept. Re-attach it by enrolling an agent on the
-				same Docker Engine.
+				its stacks, history and backups are kept. Re-attach it by running an agent on the
+				same host.
 			</Notice>
 		{:else if !e.online}
 			<OfflineEnvironment name={e.name} since={e.connectionChangedAt} />
@@ -237,13 +276,16 @@
 					: `The agent ${e.agentVersion ?? ''} is outdated`}
 				live="none"
 			>
-				{e.upgradeInstructions ??
-					'Upgrade the agent container on the host (there is no in-app self-update).'}
-				{#snippet actions()}
-					{#if tab !== 'system'}<Button size="sm" onclick={() => selectTab('system')}
-							>Upgrade instructions</Button
-						>{/if}
-				{/snippet}
+				{e.compatibility === 'unsupported'
+					? 'It cannot connect until you upgrade it on the host.'
+					: 'It works, but upgrade it soon: the next Docker Manager release will refuse it.'}
+				{#if e.upgradeInstructions}
+					<Disclosure summary="How to upgrade">
+						<pre class="mono instructions">{e.upgradeInstructions}</pre>
+					</Disclosure>
+				{:else}
+					Upgrade the agent container on the host; it does not update itself.
+				{/if}
 			</Notice>
 		{/if}
 
@@ -252,115 +294,158 @@
 				{#if t === 'overview'}
 					<div class="stack">
 						{#if can('environment.metrics.read') && !archived}
-							<section
-								class="kpis"
-								aria-label="Current usage"
-								aria-busy={capacity.isPending}
-							>
-								{#if !cap}
-									{#each [0, 1, 2, 3] as i (i)}<div class="kpi-skeleton">
-											<Skeleton height="64px" radius="lg" />
-										</div>{/each}
-								{:else}
-									<KpiCard
-										label="CPU"
-										value={formatPercent(cap.cpuPercent)}
-										icon={Cpu}
-										color="cyan"
-										secondary="{cap.cpus} {cap.cpus === 1 ? 'core' : 'cores'}"
-									/>
-									<KpiCard
-										label="Memory"
-										value={formatBytes(cap.memoryUsedBytes)}
-										unit={cap.memoryTotalBytes
-											? `/ ${formatBytes(cap.memoryTotalBytes)}`
-											: undefined}
-										icon={MemoryStick}
-										color="indigo"
-									>
-										{#snippet bar()}
-											{#if cap.memoryUsedBytes !== undefined && cap.memoryTotalBytes}
-												<Meter
-													value={cap.memoryUsedBytes}
-													max={cap.memoryTotalBytes}
-													label="Memory in use"
-													valueText="{formatBytes(
-														cap.memoryUsedBytes
-													)} of {formatBytes(cap.memoryTotalBytes)}"
-												/>
-											{/if}
-										{/snippet}
-									</KpiCard>
-									{#if dockerDisk}
+							<section aria-label="Current usage" aria-busy={capacity.isPending}>
+								<KpiRow>
+									{#if !cap}
+										{#each [0, 1, 2, 3] as i (i)}<div class="kpi-skeleton">
+												<Skeleton height="64px" radius="lg" />
+											</div>{/each}
+									{:else}
 										<KpiCard
-											label="Docker data disk"
-											value={formatBytes(dockerDisk.usedBytes)}
-											unit="/ {formatBytes(dockerDisk.totalBytes)}"
-											icon={HardDrive}
-											color="teal"
+											label="CPU"
+											value={formatPercent(cap.cpuPercent)}
+											icon={Cpu}
+											color="cyan"
+											secondary="Across {cap.cpus} {cap.cpus === 1
+												? 'CPU'
+												: 'CPUs'}"
+										/>
+										<KpiCard
+											label="Memory"
+											value={formatBytes(cap.memoryUsedBytes)}
+											unit={cap.memoryTotalBytes
+												? `/ ${formatBytes(cap.memoryTotalBytes)}`
+												: undefined}
+											icon={MemoryStick}
+											color="indigo"
 										>
 											{#snippet bar()}
-												<Meter
-													value={dockerDisk.usedBytes}
-													max={dockerDisk.totalBytes}
-													label="Docker data disk in use"
-													valueText="{formatBytes(
-														dockerDisk.usedBytes
-													)} of {formatBytes(dockerDisk.totalBytes)}"
-												/>
+												{#if cap.memoryUsedBytes !== undefined && cap.memoryTotalBytes}
+													<Meter
+														value={cap.memoryUsedBytes}
+														max={cap.memoryTotalBytes}
+														label="Memory in use"
+														valueText="{formatBytes(
+															cap.memoryUsedBytes
+														)} of {formatBytes(cap.memoryTotalBytes)}"
+													/>
+												{/if}
 											{/snippet}
 										</KpiCard>
+										{#if dockerDisk}
+											<KpiCard
+												label="Docker data disk"
+												value={formatBytes(dockerDisk.usedBytes)}
+												unit="/ {formatBytes(dockerDisk.totalBytes)}"
+												icon={HardDrive}
+												color="teal"
+											>
+												{#snippet bar()}
+													<Meter
+														value={dockerDisk.usedBytes}
+														max={dockerDisk.totalBytes}
+														label="Docker data disk in use"
+														valueText="{formatBytes(
+															dockerDisk.usedBytes
+														)} of {formatBytes(dockerDisk.totalBytes)}"
+													/>
+												{/snippet}
+											</KpiCard>
+										{/if}
+										<KpiCard
+											label="Uptime"
+											value={cap.uptimeSeconds !== undefined && e.online
+												? formatDuration(cap.uptimeSeconds)
+												: '—'}
+											icon={Timer}
+											color="green"
+											secondary={e.online
+												? 'Since the host started'
+												: 'Offline'}
+										/>
 									{/if}
-									<KpiCard
-										label="Load"
-										value={cap.load1 !== undefined ? cap.load1.toFixed(2) : '—'}
-										icon={Gauge}
-										color="violet"
-										secondary={cap.load5 !== undefined &&
-										cap.load15 !== undefined
-											? `${cap.load5.toFixed(2)} (5 min), ${cap.load15.toFixed(2)} (15 min)`
-											: undefined}
-									/>
-								{/if}
+								</KpiRow>
 							</section>
 						{/if}
 
 						{#if docker}
-							<Card title="Docker objects">
-								<dl class="counts">
-									<div>
-										<dt>Containers</dt>
-										<dd class="num">
-											{docker.containersRunning} running, {docker.containersStopped}
-											stopped{docker.containersPaused
-												? `, ${docker.containersPaused} paused`
-												: ''}
-										</dd>
-									</div>
-									<div>
-										<dt>Images</dt>
-										<dd class="num">{docker.images}</dd>
-									</div>
-									<div>
-										<dt>Volumes</dt>
-										<dd class="num">{docker.volumes}</dd>
-									</div>
-									<div>
-										<dt>Networks</dt>
-										<dd class="num">{docker.networks}</dd>
-									</div>
-								</dl>
-								{#if cap?.disks.length}
-									<p class="muted small">
-										Filesystems: {cap.disks
-											.map(
-												(d) =>
-													`${mountLabel(d.mount)} ${formatBytes(d.usedBytes)} of ${formatBytes(d.totalBytes)}`
-											)
-											.join('; ')}.
-									</p>
-								{/if}
-							</Card>
+							{#snippet objects(d: DockerCounts)}
+								<Card title="Docker objects">
+									<dl class="counts">
+										<div>
+											<dt>Containers</dt>
+											<dd class="num">
+												{@render countLink(
+													routes.containers(),
+													`${d.containersRunning} running, ${d.containersStopped} stopped${
+														d.containersPaused
+															? `, ${d.containersPaused} paused`
+															: ''
+													}`
+												)}
+											</dd>
+										</div>
+										<div>
+											<dt>Images</dt>
+											<dd class="num">
+												{@render countLink(
+													routes.images(),
+													String(d.images)
+												)}
+											</dd>
+										</div>
+										<div>
+											<dt>Volumes</dt>
+											<dd class="num">
+												{@render countLink(
+													routes.volumes(),
+													String(d.volumes)
+												)}
+											</dd>
+										</div>
+										<div>
+											<dt>Networks</dt>
+											<dd class="num">
+												{@render countLink(
+													routes.networks(),
+													String(d.networks)
+												)}
+											</dd>
+										</div>
+									</dl>
+								</Card>
+							{/snippet}
+							{#if otherDisks.length}
+								<Columns ratio="equal">
+									{@render objects(docker)}
+									<Card title="Filesystems">
+										<ul class="disks" role="list">
+											{#each otherDisks as d (d.mount)}
+												<li>
+													<p class="disk-line">
+														<span>{mountLabel(d.mount)}</span>
+														<span class="num muted"
+															>{formatBytes(d.usedBytes)} of {formatBytes(
+																d.totalBytes
+															)}</span
+														>
+													</p>
+													<Meter
+														value={d.usedBytes}
+														max={d.totalBytes}
+														label="{mountLabel(d.mount)} in use"
+														valueText="{formatBytes(
+															d.usedBytes
+														)} of {formatBytes(d.totalBytes)}"
+													/>
+												</li>
+											{/each}
+										</ul>
+									</Card>
+								</Columns>
+							{:else}
+								{@render objects(docker)}
+							{/if}
 						{/if}
 
 						{#if can('environment.metrics.read')}
@@ -373,8 +458,8 @@
 						{:else if !docker}
 							<Card>
 								<EmptyState
-									title="Nothing to show here for your access."
-									description="Metrics need the environment.metrics.read permission; Docker counts need environment.system.read."
+									title="You don't have access to this environment's metrics."
+									description="Ask the owner of this Docker Manager."
 									level={3}
 									compact
 								/>
@@ -401,7 +486,7 @@
 							<a
 								class="small"
 								href="{routes.jobs()}?environment={encodeURIComponent(e.id)}"
-								>Filter all jobs</a
+								>All jobs with filters</a
 							>
 						{/snippet}
 						{#if jobs.isPending}
@@ -412,11 +497,12 @@
 									error={jobs.error}
 									title="The jobs could not be loaded."
 									onretry={() => jobs.refetch()}
+									bare
 									compact
 								/>
 							</div>
 						{:else}
-							<JobsTable jobs={jobs.data?.items ?? []} label="Jobs on {e.name}">
+							<JobsTable jobs={jobRows} label="Jobs on {e.name}" {nameOf}>
 								{#snippet empty()}
 									<EmptyState
 										title="No jobs on {e.name} yet."
@@ -426,43 +512,31 @@
 									/>
 								{/snippet}
 							</JobsTable>
+							{#if jobs.hasNextPage}
+								<div class="more">
+									<Button
+										loading={jobs.isFetchingNextPage}
+										onclick={() => jobs.fetchNextPage()}>Load more jobs</Button
+									>
+								</div>
+							{/if}
 						{/if}
 					</Card>
 				{/if}
 			{/snippet}
 		</Tabs>
-
-		<p class="muted small">
-			Created {e.createdAt ? formatDateTime(e.createdAt) : '—'}{e.lastSeenAt
-				? `, last seen ${formatRelative(e.lastSeenAt)}`
-				: ''}. ID <span class="mono">{e.id}</span>
-		</p>
-	</div>
+	</Page>
 
 	<EditEnvironmentDialog env={e} bind:open={editOpen} />
 	<ArchiveEnvironmentDialog env={e} bind:open={archiveOpen} />
 {/if}
 
 <style>
-	.page,
+	.loading,
 	.stack {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-	}
-
-	.kpis {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-		gap: var(--space-4);
-	}
-
-	/* Phones: two compact KPI cards per row (KpiCard's compact layout). */
-	@media (max-width: 767px) {
-		.kpis {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: var(--space-3);
-		}
 	}
 
 	.kpi-skeleton {
@@ -486,19 +560,46 @@
 
 	.counts dd {
 		margin: 0;
-		color: var(--text-strong);
 		font-weight: var(--weight-medium);
+	}
+
+	.count {
+		color: var(--text-strong);
+	}
+
+	.disks {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.disk-line {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-bottom: var(--space-1);
+	}
+
+	.instructions {
+		margin: 0;
+		white-space: pre-wrap;
 	}
 
 	.small {
 		font-size: var(--text-caption);
 	}
 
-	.counts + .small {
-		margin-top: var(--space-4);
-	}
-
 	.pad {
 		padding: var(--space-4) var(--space-5) var(--space-5);
+	}
+
+	.more {
+		display: flex;
+		justify-content: center;
+		padding: var(--space-3);
+		border-top: 1px solid var(--border-subtle);
 	}
 </style>

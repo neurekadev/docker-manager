@@ -3,8 +3,12 @@
 	// predecessors. Rotate the active agent's credential (the old one stays
 	// valid until the agent confirms the new one) or remove it (revokes the
 	// credential; the environment stays offline and detached until a new
-	// agent re-attaches it). Actions follow each agent's `actions`.
+	// agent re-attaches it). Actions follow each agent's `actions` and sit
+	// in the row's menu, Remove last after a separator. A connected agent
+	// reads "Connected now" (its stored last-seen time is only written on
+	// connect and disconnect); the agent ID is the name's tooltip.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { api, unwrap, unwrapEmpty, type Agent, type Environment } from '$lib/api/client';
@@ -19,15 +23,16 @@
 		DestructiveConfirm,
 		EmptyState,
 		ErrorState,
+		IconButton,
+		Menu,
 		Skeleton,
 		StatusBadge,
 		Table,
-		formatDateTime,
-		formatRelative,
 		toast,
-		type Column
+		type Column,
+		type MenuEntry
 	} from '$lib/ui';
-	import { COMPATIBILITY, agentLabel } from './model';
+	import { COMPATIBILITY, agentContact, agentLabel } from './model';
 
 	let { env, now }: { env: Environment; now?: Date } = $props();
 
@@ -92,23 +97,48 @@
 		{ id: 'agent', header: 'Agent', cell: agentCell, stack: 'title' },
 		{ id: 'status', header: 'Status', cell: statusCell, width: '150px', stack: 'status' },
 		{ id: 'version', header: 'Version', cell: versionCell, width: '200px' },
-		{ id: 'seen', header: 'Last seen', cell: seenCell, width: '150px' },
+		{ id: 'seen', header: 'Last seen', cell: seenCell, width: '160px' },
 		{
 			id: 'actions',
 			header: 'Actions',
 			cell: actionsCell,
 			hideHeader: true,
 			align: 'end',
-			width: '290px',
+			width: '64px',
 			stack: 'actions'
 		}
 	];
+
+	function menuFor(a: Agent): MenuEntry[] {
+		const out: MenuEntry[] = [];
+		if (a.actions.includes('agent.manage'))
+			out.push({
+				label: 'Rotate credential',
+				icon: KeyRound,
+				onSelect: () => {
+					target = a;
+					rotateOpen = true;
+				}
+			});
+		if (a.actions.includes('agent.remove')) {
+			if (out.length) out.push({ separator: true });
+			out.push({
+				label: 'Remove agent',
+				icon: Trash2,
+				tone: 'danger',
+				onSelect: () => {
+					target = a;
+					removeOpen = true;
+				}
+			});
+		}
+		return out;
+	}
 </script>
 
 {#snippet agentCell(a: Agent)}
 	<div class="agent">
-		<span class="strong">{agentLabel(a)}</span>
-		<span class="muted small mono">{a.id}</span>
+		<span class="strong" title="Agent ID {a.id}">{agentLabel(a)}</span>
 		{#if a.rotationPending}<span class="small warn">New credential waiting for the agent</span
 			>{/if}
 	</div>
@@ -134,41 +164,24 @@
 	</div>
 {/snippet}
 {#snippet seenCell(a: Agent)}
-	{#if a.revokedAt}
-		<time datetime={a.revokedAt} title={formatDateTime(a.revokedAt)}
-			>Removed {formatRelative(a.revokedAt, now)}</time
-		>
-	{:else if a.lastSeenAt}
-		<time datetime={a.lastSeenAt} title={formatDateTime(a.lastSeenAt)}
-			>{formatRelative(a.lastSeenAt, now)}</time
-		>
-	{:else}<span class="muted">—</span>{/if}
+	{@const c = agentContact(a, now)}
+	{#if c.at}
+		<time datetime={c.at} title={c.title}>{c.text}</time>
+	{:else}<span class:muted={c.text === '—'}>{c.text}</span>{/if}
 {/snippet}
 {#snippet actionsCell(a: Agent)}
-	{#if a.status === 'active'}
-		<div class="actions">
-			{#if a.actions.includes('agent.manage')}
-				<Button
-					size="sm"
-					icon={KeyRound}
-					onclick={() => {
-						target = a;
-						rotateOpen = true;
-					}}>Rotate credential</Button
-				>
-			{/if}
-			{#if a.actions.includes('agent.remove')}
-				<Button
-					size="sm"
-					variant="danger-soft"
-					icon={Trash2}
-					onclick={() => {
-						target = a;
-						removeOpen = true;
-					}}>Remove</Button
-				>
-			{/if}
-		</div>
+	{@const items = a.status === 'active' ? menuFor(a) : []}
+	{#if items.length}
+		<Menu {items} label="Actions for {agentLabel(a)}">
+			{#snippet trigger(props)}
+				<IconButton
+					{...props}
+					label="Actions for {agentLabel(a)}"
+					icon={Ellipsis}
+					variant="ghost"
+				/>
+			{/snippet}
+		</Menu>
 	{/if}
 {/snippet}
 
@@ -181,6 +194,7 @@
 				error={agents.error}
 				title="The agents could not be loaded."
 				onretry={() => agents.refetch()}
+				bare
 				compact
 			/>
 		</div>
@@ -263,13 +277,6 @@
 
 	.warn {
 		color: var(--warn);
-	}
-
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: flex-end;
-		gap: var(--space-2);
 	}
 
 	.pad {

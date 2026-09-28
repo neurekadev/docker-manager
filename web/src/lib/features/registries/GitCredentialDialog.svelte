@@ -2,6 +2,7 @@
 	// Add or edit a Git credential (#33): an HTTPS username and access token
 	// for private build contexts, handled like registry connections
 	// (write-only token, sealed, sent only to the build that needs it).
+	// Editing shows the stored token's fingerprint (not in the list).
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap } from '$lib/api/client';
@@ -12,11 +13,13 @@
 		Checkbox,
 		Dialog,
 		PasswordField,
+		Notice,
 		TextField,
 		errorMessage,
 		fieldError,
 		toast
 	} from '$lib/ui';
+	import { maskFingerprint } from './model';
 
 	interface Props {
 		open?: boolean;
@@ -151,6 +154,18 @@
 			autocomplete="off"
 			description="For GitHub and GitLab tokens any name works, e.g. x-access-token or oauth2."
 		/>
+		{#if credential}
+			<div class="full">
+				<Notice tone="info" title="{credential.host}, stored token" live="none">
+					{#if credential.secret?.set}Fingerprint <span
+							class="mono"
+							title="Version {credential.secret.version}"
+							>{maskFingerprint(credential.secret.fingerprint)}</span
+						>. The token is write-only: use Rotate token to replace it.{:else}No token
+						is stored. Use Rotate token to add one.{/if}
+				</Notice>
+			</div>
+		{/if}
 		{#if !credential}
 			<PasswordField
 				label="Access token"

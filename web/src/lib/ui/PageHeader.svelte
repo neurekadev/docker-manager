@@ -31,6 +31,11 @@
 		actions?: Snippet;
 		/** Replaces the icon tile (e.g. a template's image icon). */
 		media?: Snippet;
+		/**
+		 * Keep a long title (an image reference) on one line, cut with an
+		 * ellipsis and the full title as its tooltip, instead of wrapping.
+		 */
+		truncate?: boolean;
 	}
 
 	let {
@@ -41,21 +46,22 @@
 		meta = [],
 		status,
 		actions,
-		media
+		media,
+		truncate = false
 	}: Props = $props();
 </script>
 
 <header class="page-header">
 	{#if media}{@render media()}{:else if icon}<IconTile {icon} {color} size="lg" />{/if}
 	<div class="main">
-		<div class="title-row">
-			<h1>{title}</h1>
+		<div class="title-row" class:truncate>
+			<h1 class:truncate title={truncate ? title : undefined}>{title}</h1>
 			{#if status}{@render status()}{/if}
 		</div>
 		{#if description}<p class="desc">{description}</p>{/if}
 		{#if meta.length}
 			<ul class="meta" role="list">
-				{#each meta as m (m.label)}
+				{#each meta as m, i (`${i}:${m.label}`)}
 					{@const Icon = m.icon}
 					<li title={m.title}>
 						{#if Icon}<Icon size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
@@ -95,6 +101,23 @@
 		letter-spacing: -0.01em;
 	}
 
+	/* The status stays beside a cut title. */
+	.title-row.truncate {
+		flex-wrap: nowrap;
+	}
+
+	.title-row.truncate > :global(:not(h1)) {
+		flex: none;
+	}
+
+	h1.truncate {
+		min-width: 0;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	.desc {
 		margin-top: 2px;
 		color: var(--text-muted);
@@ -113,8 +136,18 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+		max-width: 100%;
+		min-width: 0;
 		padding: 0 var(--space-4);
 		border-left: 1px solid var(--border-strong);
+		white-space: nowrap;
+	}
+
+	/* Each item stays on one line; a long one is cut (its title has it all). */
+	.meta li > span {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.meta li:first-child {
@@ -131,8 +164,8 @@
 
 	@media (max-width: 767px) {
 		h1 {
-			font-size: 22px;
-			line-height: 28px;
+			font-size: var(--text-title-sm);
+			line-height: var(--leading-title-sm);
 		}
 
 		.meta {

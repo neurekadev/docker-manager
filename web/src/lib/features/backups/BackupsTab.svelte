@@ -1,8 +1,10 @@
 <script lang="ts">
-	// The Backups tab of a stack or volume (#10): its backups, newest first,
-	// each restorable whole or file by file. Browsing opens the file picker
-	// (a lazily listed tree); every restore is previewed and confirmed with
-	// a danger button that says what is replaced.
+	// The Backups tab of a stack or volume (#10): which policy covers it and
+	// when that runs next, then its backups, newest first, each restorable
+	// whole or file by file. Browsing opens the file picker (a lazily listed
+	// tree); every restore is previewed and confirmed with a danger button
+	// that says what is replaced. Without backups yet, the covering
+	// policy's recent runs say whether they included it and how that went.
 	import { createQuery } from '@tanstack/svelte-query';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
@@ -21,12 +23,23 @@
 		type Column
 	} from '$lib/ui';
 	import { has } from '$lib/features/common/access';
+	import { stacksQuery } from '$lib/features/common/data';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
 	import FilePickerDialog from './FilePickerDialog.svelte';
 	import RestoreDialog from './RestoreDialog.svelte';
-	import { CONSISTENCY_LABEL, type Backup } from './model';
-	import { backupsQuery, type BackupFilter } from './queries';
+	import {
+		CONSISTENCY_LABEL,
+		memberRuns,
+		memberState,
+		policyCovers,
+		scheduleWords,
+		sentenceCase,
+		type Backup,
+		type CoverageTarget,
+		type MemberRun
+	} from './model';
+	import { backupPoliciesWithSetsQuery, backupsQuery, type BackupFilter } from './queries';
 	import type { RestorePlan } from './restore';
 
 	interface Props {
@@ -43,12 +56,30 @@
 
 	const backups = createQuery(() => backupsQuery(filter));
 	const perms = createQuery(() => myPermissionsQuery());
+	const policies = createQuery(() => backupPoliciesWithSetsQuery());
+	const stacks = createQuery(() => ({ ...stacksQuery(), enabled: !!filter.stackId }));
 	const canCreatePolicy = $derived(canAnywhere(perms.data, 'backup_policy.manage'));
 	const rows = $derived(
 		[...(backups.data ?? [])]
 			.filter((b) => b.kind !== 'manager_state')
 			.sort((a, b) => b.snapshotTime.localeCompare(a.snapshotTime))
 	);
+
+	// What is asked about: the stack (its environment from the stack list)
+	// or the volume of one environment.
+	const target = $derived.by((): CoverageTarget | null => {
+		if (filter.stackId) {
+			const env = stacks.data?.find((s) => s.id === filter.stackId)?.environmentId;
+			return env ? { environmentId: env, stackId: filter.stackId } : null;
+		}
+		if (filter.volume && filter.environmentId)
+			return { environmentId: filter.environmentId, volume: filter.volume };
+		return null;
+	});
+	const covering = $derived(
+		target ? (policies.data ?? []).filter((p) => policyCovers(p, target)) : []
+	);
+	const runs = $derived(target ? memberRuns(covering, target).slice(0, 5) : []);
 
 	let picking = $state<Backup | null>(null);
 	let pickerOpen = $state(false);
@@ -80,7 +111,8 @@
 			id: 'consistency',
 			header: 'Consistency',
 			cell: consistencyCell,
-			width: '160px'
+			width: '190px',
+			stack: 'hidden'
 		},
 		{ id: 'state', header: 'State', cell: stateCell, width: '120px', stack: 'status' },
 		{
@@ -89,7 +121,8 @@
 			cell: sizeCell,
 			numeric: true,
 			width: '100px',
-			sortValue: (b) => b.bytes ?? 0
+			sortValue: (b) => b.bytes ?? 0,
+			stack: 'meta'
 		},
 		{
 			id: 'actions',
@@ -97,6 +130,26 @@
 			hideHeader: true,
 			cell: actionsCell,
 			width: '300px',
+			pin: 'end',
+			stack: 'actions'
+		}
+	];
+
+	const runColumns: Column<MemberRun>[] = [
+		{
+			id: 'when',
+			header: 'Run',
+			cell: runWhenCell,
+			sortValue: (r) => r.startedAt,
+			stack: 'title'
+		},
+		{ id: 'state', header: 'Result', cell: runStateCell, width: '200px', stack: 'status' },
+		{
+			id: 'job',
+			header: 'Job',
+			hideHeader: true,
+			cell: runJobCell,
+			width: '90px',
 			stack: 'actions'
 		}
 	];
@@ -130,27 +183,88 @@
 		{/if}
 	</span>
 {/snippet}
+{#snippet runWhenCell(r: MemberRun)}
+	<span class="when">
+		<span class="num" title={formatDateTime(r.startedAt)}>{formatRelative(r.startedAt)}</span>
+		<a class="ago" href={routes.backupPolicy(r.policyId)}>{r.policyName}</a>
+	</span>
+{/snippet}
+{#snippet runStateCell(r: MemberRun)}
+	{@const s = memberState(r.member.state)}
+	<span class="result">
+		<Badge tone={s.tone} dot>{s.label}</Badge>
+		{#if r.member.errorClass}<span class="ago"
+				>{sentenceCase(r.member.errorClass.replaceAll('_', ' '))}</span
+			>{/if}
+	</span>
+{/snippet}
+{#snippet runJobCell(r: MemberRun)}
+	{#if r.member.jobId}<a href={routes.job(r.member.jobId)}>Open job</a>{/if}
+{/snippet}
 
 <Card
 	title="Backups"
 	subtitle="Restoring stops the containers that use the data and starts the ones that were running again afterwards."
 	padding="none"
 >
+	{#if covering.length}
+		<ul class="coverage" role="list" aria-label="Backup policies covering {subject}">
+			{#each covering as p (p.id)}
+				<li>
+					<DatabaseBackup size={16} aria-hidden="true" />
+					<span>
+						Covered by <a href={routes.backupPolicy(p.id)}>{p.name}</a
+						>{#if p.schedule?.enabled}, {scheduleWords(
+								p.schedule.cron,
+								p.schedule.timeZone
+							)}{#if p.schedule.nextRun}; next run <span
+									class="num"
+									title={formatDateTime(p.schedule.nextRun)}
+									>{formatRelative(p.schedule.nextRun)}</span
+								>{/if}.{:else}; it runs only when started.{/if}
+					</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 	<QueryView query={backups} errorTitle="The backups could not be loaded.">
 		{#if rows.length === 0}
-			<EmptyState
-				icon={DatabaseBackup}
-				color="teal"
-				level={3}
-				title="No backups of {subject} yet"
-				description="A backup policy that covers {subject} creates them on its schedule or when you run it."
-			>
-				{#snippet actions()}
-					{#if canCreatePolicy}<Button href={routes.backupPolicyNew()} variant="primary"
-							>Create a backup policy</Button
-						>{/if}
-				{/snippet}
-			</EmptyState>
+			{#if covering.length}
+				<EmptyState
+					icon={DatabaseBackup}
+					color="teal"
+					level={3}
+					title="No backups of {subject} yet"
+					description={runs.length
+						? 'The recent runs below say how backing it up went.'
+						: 'The first backup appears after the next run of the policy.'}
+					compact
+				/>
+				{#if runs.length}
+					<Table
+						label="Recent runs that included {subject}"
+						rows={runs}
+						columns={runColumns}
+						rowKey={(r) => `${r.setId}-${r.member.item}`}
+						sort={{ column: 'when', direction: 'desc' }}
+					/>
+				{/if}
+			{:else}
+				<EmptyState
+					icon={DatabaseBackup}
+					color="teal"
+					level={3}
+					title="No backups of {subject} yet"
+					description="No backup policy covers {subject}. A policy creates backups on its schedule or when you run it."
+				>
+					{#snippet actions()}
+						{#if canCreatePolicy}<Button
+								href={routes.backupPolicyNew()}
+								variant="primary">Create backup policy</Button
+							>{/if}
+					{/snippet}
+				</EmptyState>
+			{/if}
 		{:else}
 			<Table
 				label="Backups of {subject}"
@@ -187,6 +301,28 @@
 {/if}
 
 <style>
+	.coverage {
+		display: grid;
+		gap: var(--space-1);
+		margin: 0;
+		padding: var(--space-3) var(--space-4);
+		border-bottom: 1px solid var(--border-subtle);
+		list-style: none;
+	}
+
+	.coverage li {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+		color: var(--text-default);
+	}
+
+	.coverage li :global(svg) {
+		flex: none;
+		margin-top: 2px;
+		color: var(--ok);
+	}
+
 	.when {
 		display: grid;
 		color: var(--text-strong);
@@ -195,6 +331,13 @@
 	.ago {
 		color: var(--text-muted);
 		font-size: var(--text-caption);
+	}
+
+	.result {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1) var(--space-2);
 	}
 
 	.acts {

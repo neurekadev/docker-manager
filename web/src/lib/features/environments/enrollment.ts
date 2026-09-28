@@ -30,22 +30,44 @@ export const TOKEN_LIFETIMES = [
 	{ value: '86400', label: '24 hours' }
 ];
 
-/** Order and titles of the generated install commands. */
-export const INSTALL_VARIANTS: Record<string, { order: number; heading: string }> = {
-	colocated: { order: 0, heading: 'On the Docker Manager host' },
-	remote: { order: 1, heading: 'On another Docker host' },
-	remote_compose: { order: 2, heading: 'On another Docker host, with Compose' }
+/**
+ * Order, titles and plain-words descriptions of the generated install
+ * commands (the server's own descriptions name configuration variables
+ * and files; they are the fallback for variants this client does not know).
+ */
+export const INSTALL_VARIANTS: Record<
+	string,
+	{ order: number; heading: string; description: string }
+> = {
+	colocated: {
+		order: 0,
+		heading: 'On the Docker Manager host',
+		description:
+			'Run it in the folder with Docker Manager’s compose.yaml. The agent there is already running; it connects within seconds.'
+	},
+	remote: {
+		order: 1,
+		heading: 'On another Docker host',
+		description:
+			'Starts the agent on that host and hands it the one-time token. The agent controls Docker on the host, so run it only on hosts you manage.'
+	},
+	remote_compose: {
+		order: 2,
+		heading: 'On another Docker host, with Compose',
+		description:
+			'Put these lines in the .env file next to the agent’s compose.yaml, then start it. Remove the token from the file once the host shows as connected.'
+	}
 };
 
 /** Enrollment rejection codes in the user's words (the agent got a 409). */
 export const REJECTIONS: Record<string, string> = {
 	engine_already_enrolled:
-		'This Docker Engine already has an agent. Remove that agent first, or create a token that replaces it.',
+		'Docker on this host is already connected through another agent. Remove that agent first.',
 	engine_identity_conflict:
-		'Another environment reports the same Engine ID (a cloned machine?). Create a token that allows a duplicate Engine ID if this is a different host.',
+		'Docker Manager already knows a host that looks exactly like this one (a cloned machine?). If it is a different host, create a new command with “This host is a clone” under More options.',
 	environment_archived: 'The environment is archived. Re-attach it from the archived list.',
-	environment_detached: 'The environment has no agent. Re-attach it with a new token.',
-	engine_mismatch:
-		'The agent runs on a different Engine than the environment it should re-attach.',
-	enrollment_target_unavailable: 'The environment or agent this token targets no longer exists.'
+	environment_detached: 'The environment has no agent. Re-attach it with a new command.',
+	engine_mismatch: 'The agent runs on a different host than the environment it should re-attach.',
+	enrollment_target_unavailable:
+		'The environment or agent this command was made for no longer exists.'
 };

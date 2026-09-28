@@ -1,19 +1,17 @@
 <script lang="ts">
 	// The actions of one scope (#17): plain-language capability names
-	// grouped by resource type, high-risk ones marked, less common ones
-	// collapsed. Groups set Allow or Deny (no rule = deny); users override
-	// with Inherit / Allow / Deny and see what they inherit; API tokens
-	// (#31) grant a subset of what the caller holds. Several actions can be
-	// changed at once after a confirmation preview.
-	import {
-		Badge,
-		Button,
-		Checkbox,
-		ConfirmDialog,
-		TextField,
-		TriState,
-		type TriValue
-	} from '$lib/ui';
+	// grouped by resource type in collapsible sections (open by default
+	// only where rules are set), high-risk ones marked once, less common
+	// ones collapsed. Groups set Allow or Deny (no rule = deny); users
+	// override with Inherit / Allow / Deny and see what they inherit; API
+	// tokens (#31) grant a subset of what the caller holds. Groups and
+	// tokens can start from a preset (Viewer, Operator, Admin), and every
+	// section can allow or clear all of its actions at once. All of it only
+	// changes the draft: the page saves, after a preview.
+	import { untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import { Badge, Button, Checkbox, Select, TextField, TriState, type TriValue } from '$lib/ui';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import {
 		capabilitiesAt,
@@ -23,11 +21,19 @@
 		scopeConsequence,
 		setRule,
 		type Capability,
+		type CapabilityGroup,
 		type Catalog,
-		type Effect,
 		type Rule,
 		type ScopeNode
 	} from './permissions';
+	import {
+		PRESETS,
+		applyPreset,
+		matchingPreset,
+		sectionCounts,
+		setMany,
+		type PresetId
+	} from './presets';
 
 	interface Props {
 		catalog: Catalog;
@@ -58,9 +64,6 @@
 	}: Props = $props();
 
 	let filter = $state('');
-	let picked = $state<string[]>([]);
-	let bulk = $state<{ effect: Effect | null; label: string } | null>(null);
-	let bulkOpen = $state(false);
 
 	const available = $derived(
 		capabilitiesAt(catalog, node).filter((c) => mode !== 'token' || !held || held.has(c.key))
@@ -68,12 +71,34 @@
 	const groups = $derived(groupCapabilities(catalog, available, filter));
 	const envId = $derived(node.environmentId ?? node.scope.environmentId);
 	const envLabel = $derived(envId ? environmentName?.(envId) : undefined);
+	const preset = $derived(matchingPreset(rules, node.scope, available));
+	const presetInfo = $derived(PRESETS.find((p) => p.id === preset));
 
-	// A selection belongs to one scope: choosing another node clears it.
+	// Sections open by default where the scope has rules when it is shown;
+	// the user's own toggles win until another scope is chosen.
+	const toggled = new SvelteMap<string, boolean>();
+	const openAtFirst = $derived.by(() => {
+		const scope = node.scope;
+		return untrack(
+			() =>
+				new Set(
+					groupCapabilities(catalog, available)
+						.filter((g) => {
+							const n = sectionCounts(rules, scope, [...g.common, ...g.advanced]);
+							return n.allow + n.deny > 0;
+						})
+						.map((g) => g.type)
+				)
+		);
+	});
 	$effect.pre(() => {
 		void node.key;
-		picked = [];
+		untrack(() => toggled.clear());
 	});
+	const isOpen = (type: string) => !!filter || (toggled.get(type) ?? openAtFirst.has(type));
+
+	const allowWord = $derived(mode === 'token' ? 'Grant' : 'Allow');
+	const clearWord = $derived(mode === 'user' ? 'Inherit all' : 'Clear');
 
 	function value(c: Capability): TriValue {
 		return effectAt(rules, c.key, node.scope) ?? 'inherit';
@@ -99,53 +124,32 @@
 		return `group ${groupName ?? ''}, rule for ${where}`.replace('  ', ' ');
 	}
 
-	function togglePick(key: string, on: boolean) {
-		picked = on ? [...picked, key] : picked.filter((k) => k !== key);
+	const sectionActions = (g: CapabilityGroup) => [...g.common, ...g.advanced];
+	// "Containers" → "containers" inside a sentence; names stay ("Docker
+	// Manager", "API tokens", "Git credentials").
+	const inSentence = (label: string) =>
+		/^(Docker|Git)\b/.test(label) || !/^[A-Z][a-z]+( [a-z(].*)?$/.test(label)
+			? label
+			: label[0].toLowerCase() + label.slice(1);
+
+	function summary(g: CapabilityGroup): string {
+		const all = sectionActions(g);
+		const n = sectionCounts(rules, node.scope, all);
+		const parts: string[] = [];
+		if (n.allow) parts.push(`${n.allow} ${mode === 'token' ? 'granted' : 'allowed'}`);
+		if (n.deny) parts.push(`${n.deny} denied`);
+		const of = `${all.length} ${all.length === 1 ? 'action' : 'actions'}`;
+		return parts.length ? `${parts.join(', ')} of ${of}` : of;
 	}
 
-	function askBulk(effect: Effect | null, label: string) {
-		bulk = { effect, label };
-		bulkOpen = true;
-	}
-
-	const bulkLines = $derived(
-		picked.map((k) => {
-			const c = catalog.capabilities.find((x) => x.key === k);
-			const before = effectAt(rules, k, node.scope);
-			const after = bulk?.effect ?? null;
-			const word = (e: Effect | null) =>
-				e === 'allow'
-					? 'Allow'
-					: e === 'deny'
-						? 'Deny'
-						: mode === 'user'
-							? 'Inherit'
-							: 'No rule';
-			return `${c?.label ?? k}: ${word(before)} → ${word(after)}`;
-		})
-	);
-
-	function applyBulk() {
-		// Only actions this scope offers (stack.create is never per stack).
-		const valid = new Set(available.map((c) => c.key));
-		let next = rules;
-		for (const k of picked)
-			if (valid.has(k)) next = setRule(next, k, node.scope, bulk?.effect ?? null);
-		onchange(next);
-		picked = [];
+	function startFrom(id: string) {
+		if (!PRESETS.some((p) => p.id === id)) return;
+		onchange(applyPreset(rules, id as PresetId, node.scope, available));
 	}
 </script>
 
 {#snippet row(c: Capability)}
-	<li class="row" class:high={c.risk === 'high'}>
-		{#if !readonly}
-			<Checkbox
-				label="Select {c.label}"
-				hideLabel
-				checked={picked.includes(c.key)}
-				onchange={(e) => togglePick(c.key, e.currentTarget.checked)}
-			/>
-		{/if}
+	<li class="row">
 		<div class="what">
 			<span class="name">{c.label}</span>
 			{#if c.risk === 'high'}<Badge tone="warn">High risk</Badge>{/if}
@@ -165,7 +169,6 @@
 					label="{c.label} for {node.label}"
 					variant="rule"
 					value={value(c)}
-					highRisk={c.risk === 'high'}
 					disabled={readonly}
 					onchange={(v) => set(c, v)}
 				/>
@@ -175,7 +178,6 @@
 					value={value(c)}
 					inherited={inherited(c).effect}
 					inheritedFrom={inheritedText(c)}
-					highRisk={c.risk === 'high'}
 					disabled={readonly}
 					onchange={(v) => set(c, v)}
 				/>
@@ -190,32 +192,32 @@
 		<p class="muted">{scopeConsequence(node, envLabel)}</p>
 	</header>
 	<div class="tools">
-		<TextField
-			label="Filter actions"
-			hideLabel
-			placeholder="Filter actions"
-			type="search"
-			bind:value={filter}
-		/>
-		{#if !readonly && picked.length}
-			<div class="bulk" role="group" aria-label="Change {picked.length} selected actions">
-				<span class="muted">{picked.length} selected</span>
-				<Button
-					size="sm"
-					onclick={() => askBulk('allow', mode === 'token' ? 'Grant' : 'Allow')}
-					>{mode === 'token' ? 'Grant' : 'Allow'}</Button
-				>
-				{#if mode !== 'token'}<Button size="sm" onclick={() => askBulk('deny', 'Deny')}
-						>Deny</Button
-					>{/if}
-				<Button
-					size="sm"
-					variant="ghost"
-					onclick={() => askBulk(null, mode === 'user' ? 'Reset to inherit' : 'Clear')}
-					>{mode === 'user' ? 'Reset to inherit' : 'Clear'}</Button
-				>
+		{#if mode !== 'user' && !readonly && available.length}
+			<div class="preset">
+				<Select
+					label="Start from"
+					placeholder="Choose a starting point"
+					options={[
+						...PRESETS.map((p) => ({ value: p.id, label: p.label })),
+						{ value: 'custom', label: 'Custom', disabled: true }
+					]}
+					value={preset ?? ''}
+					description={presetInfo
+						? presetInfo.description
+						: 'Sets every action below at once. Nothing is saved until you save.'}
+					onchange={startFrom}
+				/>
 			</div>
 		{/if}
+		<div class="filter">
+			<TextField
+				label="Filter actions"
+				hideLabel
+				placeholder="Filter actions"
+				type="search"
+				bind:value={filter}
+			/>
+		</div>
 	</div>
 
 	{#if groups.length === 0}
@@ -227,38 +229,68 @@
 					: 'No action can be granted at this scope.'}
 		</p>
 	{/if}
-	{#each groups as g (g.type)}
-		<div class="group">
-			<h4>{g.label}</h4>
-			{#if g.common.length}<ul role="list">
-					{#each g.common as c (c.key)}{@render row(c)}{/each}
-				</ul>{/if}
-			{#if g.advanced.length}
-				<Disclosure
-					summary="{g.advanced.length} less common {g.advanced.length === 1
-						? 'action'
-						: 'actions'}"
-					open={!!filter || g.advanced.some((c) => value(c) !== 'inherit')}
-				>
-					<ul role="list">
-						{#each g.advanced as c (c.key)}{@render row(c)}{/each}
-					</ul>
-				</Disclosure>
-			{/if}
-		</div>
-	{/each}
+	<div class="sections">
+		{#each groups as g (g.type)}
+			{@const open = isOpen(g.type)}
+			<div class="section">
+				<div class="section-head">
+					<h4>
+						<button
+							type="button"
+							class="toggle"
+							aria-expanded={open}
+							onclick={() => toggled.set(g.type, !open)}
+						>
+							<ChevronRight size={14} aria-hidden="true" class={open ? 'open' : ''} />
+							<span class="label">{g.label}</span>
+							<span class="count">{summary(g)}</span>
+						</button>
+					</h4>
+					{#if !readonly}
+						<div class="section-actions">
+							<Button
+								size="sm"
+								variant="ghost"
+								aria-label="{allowWord} all {inSentence(g.label)}"
+								onclick={() =>
+									onchange(
+										setMany(rules, sectionActions(g), node.scope, 'allow')
+									)}>{allowWord} all</Button
+							>
+							<Button
+								size="sm"
+								variant="ghost"
+								aria-label="{clearWord} {inSentence(g.label)}"
+								onclick={() =>
+									onchange(setMany(rules, sectionActions(g), node.scope, null))}
+								>{clearWord}</Button
+							>
+						</div>
+					{/if}
+				</div>
+				{#if open}
+					{#if g.common.length}<ul role="list" class="rows">
+							{#each g.common as c (c.key)}{@render row(c)}{/each}
+						</ul>{/if}
+					{#if g.advanced.length}
+						<div class="advanced">
+							<Disclosure
+								summary="{g.advanced.length} less common {g.advanced.length === 1
+									? 'action'
+									: 'actions'}"
+								open={!!filter || g.advanced.some((c) => value(c) !== 'inherit')}
+							>
+								<ul role="list" class="rows">
+									{#each g.advanced as c (c.key)}{@render row(c)}{/each}
+								</ul>
+							</Disclosure>
+						</div>
+					{/if}
+				{/if}
+			</div>
+		{/each}
+	</div>
 </section>
-
-<ConfirmDialog
-	bind:open={bulkOpen}
-	title="{bulk?.label ?? 'Change'} {picked.length} {picked.length === 1 ? 'action' : 'actions'}?"
-	message="For {node.label}. Nothing is saved until you save the permissions."
-	consequences={bulkLines}
-	confirmLabel="{bulk?.label ?? 'Change'} {picked.length} {picked.length === 1
-		? 'action'
-		: 'actions'}"
-	onconfirm={applyBulk}
-/>
 
 <style>
 	.matrix {
@@ -282,48 +314,107 @@
 	.tools {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: center;
+		align-items: flex-end;
 		gap: var(--space-3);
 	}
 
-	.tools > :global(:first-child) {
+	.preset {
+		flex: 1 1 280px;
+		max-width: 420px;
+	}
+
+	.filter {
 		flex: 1 1 220px;
 	}
 
-	.bulk {
+	.sections {
+		display: grid;
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.section {
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.section-head {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.group {
-		display: grid;
-		gap: var(--space-2);
+		justify-content: space-between;
+		gap: var(--space-1) var(--space-2);
+		padding: var(--space-1) 0;
 	}
 
 	h4 {
+		flex: 1 1 220px;
+		min-width: 0;
+		font-size: var(--text-subsection);
+	}
+
+	.toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		width: 100%;
+		min-height: var(--control-height);
+		padding: 0 var(--space-1);
+		border: 0;
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--text-strong);
+		font: inherit;
+		font-weight: var(--weight-semibold);
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.toggle:hover {
+		background: var(--surface-hover);
+	}
+
+	.toggle :global(svg) {
+		flex: none;
+		color: var(--text-muted);
+		transition: transform var(--duration-fast) var(--ease-out);
+	}
+
+	.toggle :global(svg.open) {
+		transform: rotate(90deg);
+	}
+
+	.count {
 		color: var(--text-muted);
 		font-size: var(--text-caption);
-		font-weight: var(--weight-medium);
+		font-weight: var(--weight-regular);
 	}
 
+	.section-actions {
+		display: flex;
+		gap: var(--space-1);
+	}
+
+	.rows {
+		display: grid;
+		margin-bottom: var(--space-2);
+	}
+
+	.advanced {
+		padding: 0 0 var(--space-3) var(--space-1);
+	}
+
+	/* One flat list per section (no card inside the card), the controls
+	   right-aligned in one column. */
 	.row {
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: start;
 		gap: var(--space-3);
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-1) var(--space-2) var(--space-6);
+		border-top: 1px solid var(--border-subtle);
 	}
 
-	.row + :global(.row) {
-		margin-top: var(--space-2);
-	}
-
-	.row.high {
-		border-left: 2px solid var(--warn-border);
+	.row:first-child {
+		border-top: 0;
 	}
 
 	.what {
@@ -346,13 +437,36 @@
 		line-height: var(--leading-caption);
 	}
 
+	.control {
+		justify-self: end;
+		max-width: 300px;
+		text-align: right;
+	}
+
+	.control :global(.tri) {
+		align-items: flex-end;
+	}
+
 	@media (max-width: 767px) {
 		.row {
-			grid-template-columns: auto minmax(0, 1fr);
+			grid-template-columns: minmax(0, 1fr);
+			gap: var(--space-2);
+			padding-left: 0;
+			padding-right: 0;
 		}
 
 		.control {
-			grid-column: 1 / -1;
+			justify-self: start;
+			max-width: none;
+			text-align: left;
+		}
+
+		.control :global(.tri) {
+			align-items: flex-start;
+		}
+
+		.advanced {
+			padding-left: 0;
 		}
 	}
 </style>

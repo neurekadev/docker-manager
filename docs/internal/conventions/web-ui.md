@@ -12,26 +12,64 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   text with suggestions, never a `<datalist>`); every `title`
   attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
   so never build a tooltip by hand; confirmations use `ConfirmDialog` /
-  `DestructiveConfirm` (consequences listed, type-to-confirm for high
-  impact); status is `StatusBadge` (dot + text). Service colours:
+  `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
+  for high impact), only for damaging actions (stop, take down, delete,
+  remove; start, restart and deploy run at once); status is `StatusBadge` (dot + text); tags and filter pills
+  are `Chip`; schedules show in words (`describeCron`, `ScheduleSummary`)
+  with the cron expression as tooltip; long names, images and paths in
+  tables use `Column.maxWidth` + `truncate`, wide lists pin their actions
+  column (`pin: 'end'`); headings inside a card are
+  `h3.subsection-title`. Service colours:
   `serviceIdentity`/`serviceSeriesColor` (`$lib/design/hue`). Heavy
   libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Pages:** signed-in pages in `web/src/routes/(app)/<section>/` (replace
   the `SectionPlaceholder`), public ones in `(auth)`. URLs only from
   `$lib/routes.ts`. Call `usePage({ title, crumbs, environmentScoped })`;
-  lists filter by `environmentSelection.id` (null = all). Feature view
+  lists filter by `environmentSelection.id` (null = all). When the caller
+  sees exactly one environment (`singleEnvironment()` in
+  `$lib/features/common/environments.svelte`, pure `onlyOneEnvironment` in
+  `data.ts`), lists hide their Environment column and filter and forms
+  their environment picker. Feature view
   models and components live in `$lib/features/<area>/` (pure `*.ts` with
   `*.spec.ts`); only generic pieces go to `$lib/ui` (stacks:
   `$lib/features/stacks/` with `stackKeys`, `model.ts`, `actions.ts`).
   The environment route parameter is `[environmentId]`
   (`routes/(app)/environments/[environmentId]`);
   Docker object pages below it must use the same name.
+  Every figure links to its list (`KpiCard href`, counts as links that
+  select the environment first); a list with filters opens filtered by
+  presetting its `ListFilters` before the link is followed
+  (`presetFilters` in `$lib/features/dashboard/AttentionStrip.svelte`,
+  the dashboard's "Needs attention"). A whole card or table row opens its
+  object through its name link stretched over it (`::after`, the row or
+  card `position: relative`, links and buttons inside above it).
+  Router errors inside the signed-in area render in the shell
+  (`routes/(app)/+error.svelte`), others in `routes/+error.svelte`; both
+  use `ErrorPageBody` ($lib/features/common): one heading, Reload (not
+  for 404), Back, Go to the dashboard.
+- **Public pages** (`(auth)`): the title is `AuthHeader`
+  (`$lib/features/auth`); submit buttons stay enabled (a browser's
+  autofill may not report values before the user interacts): controls
+  keep `required`, the form is `novalidate`, reads its values from the
+  submitted `FormData` and shows what is missing next to the field
+  (`requiredErrors`, `submitted` in `$lib/features/auth/validate.ts`).
+  Anonymous visitors see the version, never the build commit.
 - **Charts:** `TimeSeriesChart` for metric responses (nulls are breaks,
   gaps shaded and listed as text), `Sparkline` in KPI cards; metric queries
   keyed with `liveKeys.metrics(envId, …)`. 204 responses: `unwrapEmpty`.
 - **Data:** typed client + Svelte Query; a `queryOptions` factory per
   resource in `src/lib/api/queries.ts` keyed with `liveKeys` ([live-sync.md](live-sync.md)) so live events refresh it; mutations invalidate by prefix, never
-  retry; views never read the stream. Jobs: `JobProgress` / `JobWatcher`.
+  retry; views never read the stream. Jobs: `JobProgress` / `JobWatcher`;
+  job rows lead with the target's name (`jobHeadline(job, { nameOf,
+  fallback })` in `$lib/features/jobs/labels.ts`: stack IDs resolve with
+  `stackNames(stacks)`, opaque IDs are never shown). The runs of a policy
+  (an update check starts one job per target) show one line each
+  (`groupRuns`, `runSummary` in `runs.ts`: "20 checks, all succeeded",
+  "2 of 20 checks failed"; `RunsTable`), linking to the failed job or to
+  `routes.jobs(kind)`; the job page states the job once (`JobProgress
+  summary={false}`), a failure as a headline in words
+  (`jobErrorHeadline`) over the engine's message, and offers the page of
+  the originating action to try again (`jobAgain`: there is no retry API).
   Feature screens may keep their factories in `$lib/features/<area>/queries.ts`
   (docs/internal/web.md, "Feature modules"); step-up-guarded calls go through
   `withStepUp` (`$lib/auth/stepup.svelte`).
@@ -77,9 +115,54 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `ImageUpdateBadge` icon next to the image (it checks the covering
   policy again, spinning while the job runs), never its own column;
   networks show with `NetworkList` (linked, with their addresses).
+  Rows stay one line high: marks sit beside the name (Docker Manager's own
+  objects: `ProtectionMark`; detail pages: `ProtectionBadge` with a plain
+  `label`), the stack is its own column, a column that repeats one value
+  on every row (every volume "local") is hidden (`sameEverywhere`), and
+  untagged images fold into a section at the end (`splitUntagged`).
+  Phones show the name, status and one key figure (other columns
+  `stack: 'hidden'`; the row menu `stack: 'head'`). Rows are selectable:
+  `ContainerBulk` / `ObjectBulk` show the selection bar (`BulkBar`) and
+  confirm with what runs and what is left out and why (`BulkConfirm`;
+  pure plans and the summary in `bulk.ts`: Docker Manager's own objects,
+  stack-managed containers and objects in use are reported, never
+  dropped silently); `runBulk` (`bulk-run.ts`) sends one request per
+  object through the single-object helpers (`runContainerAction`,
+  `object-actions.ts`) and shows one summary toast. Detail pages: removal
+  is the last entry of the header's "More actions" menu after a separator
+  and absent for Docker Manager's own objects (the notice says why); no
+  removal-preview card on the page (the removal dialog shows the
+  server's preview); labels through `LabelsCard` (system labels such as
+  `com.docker.compose.*` folded); technical detail (command, entrypoint,
+  health check command, IDs) behind "Advanced"; restart policies and
+  health in words (`restartPolicyLabel`, `healthLabel`); metrics with
+  `TimeSeriesChart`; tabs of one object keep one breadcrumb trail
+  (section / environment / name / tab).
 - **Search:** `GET /api/v1/search` (`internal/manager/api/search.go`) feeds
   the ⌘K palette; new searchable resource types go there, filtered with the
-  resource's own `ViewOf` and identity/status fields only.
+  resource's own `ViewOf` and identity/status fields only. Without a query
+  the palette shows "Recent" (visited paths per tab in `sessionStorage`,
+  titles in memory only: `$lib/shell/recent.svelte.ts`), "Actions" the
+  caller may start (`PALETTE_ACTIONS` in `palette.ts`, hidden without the
+  capability) and the pages.
+- **Policy pages** (updates, maintenance, backups): `PageHeader` with the
+  policy name, one status sentence as description and the actions
+  (primary "Run now" or "Preview updates", then "Check now"/"Preview",
+  "Edit" (the only edit entry), the rest in the ⋯ menu, destructive
+  last); then `KpiRow` (last run, next run, coverage, one value of the
+  policy's own); then the cards "What it covers", "Schedule" and "Recent
+  runs". Edit forms are one dialog with Cancel and Save changes; their
+  cron field shows only while the schedule is on. Links to a policy go to
+  the policy itself (`policyHref(kind, policyId)`, `policyPage(kind,
+  policyId)`), never only to its section. Update targets show by name
+  (`TargetName`: a container is looked up by name or Engine ID, never
+  shown by ID); inactive targets are "Excluded" (in the policy's lists)
+  or "No longer found", and every count on Updates counts the covered
+  targets the policy pages count ("6 images in 5 stacks").
+- **Notices:** every notice links somewhere (`noticeHref`); update notices
+  name policies as users know them (`policyLabel`: a generated
+  "Automatic update <id>" name becomes the stack or container) and several
+  collapse into one ("6 stacks have updates available").
 - **Files, logs, terminals** (`docs/internal/web.md`): reuse
   `$lib/features/files/FileManager.svelte` (stack, volume or template
   scope),

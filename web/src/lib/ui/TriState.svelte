@@ -103,6 +103,8 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
+		justify-content: center;
+		min-width: 64px;
 		height: 26px;
 		padding: 0 10px;
 		border-radius: 4px;
@@ -130,18 +132,27 @@
 		color: var(--text-strong);
 	}
 
+	/* The chosen segment reads at a glance: a filled, outlined pill in
+	   the decision's colour (neutral for no rule / inherit). */
+	.seg.checked {
+		font-weight: var(--weight-semibold);
+	}
+
 	.seg.checked.inherit {
 		background: var(--surface-hover);
+		box-shadow: inset 0 0 0 1px var(--border-strong);
 		color: var(--text-strong);
 	}
 
 	.seg.checked.allow {
 		background: var(--ok-soft);
+		box-shadow: inset 0 0 0 1px var(--ok-border);
 		color: var(--ok);
 	}
 
 	.seg.checked.deny {
 		background: var(--danger-soft);
+		box-shadow: inset 0 0 0 1px var(--danger-border);
 		color: var(--danger);
 	}
 

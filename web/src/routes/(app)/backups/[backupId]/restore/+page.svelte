@@ -39,8 +39,14 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ContentsBrowser from '$lib/features/backups/ContentsBrowser.svelte';
 	import RestorePreviewView from '$lib/features/backups/RestorePreviewView.svelte';
-	import { itemName, type BackupDetail, type RestorePreview } from '$lib/features/backups/model';
+	import {
+		itemName,
+		restoreTargetName,
+		type BackupDetail,
+		type RestorePreview
+	} from '$lib/features/backups/model';
 	import { backupQuery } from '$lib/features/backups/queries';
+	import { toggleVolume, volumeChoiceError } from '$lib/features/backups/restore';
 
 	const id = $derived(page.params.backupId ?? '');
 	const qc = useQueryClient();
@@ -51,6 +57,7 @@
 		title: 'Restore',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
+			{ label: 'All backups', href: routes.backupList() },
 			{ label: backup.data ? itemName(backup.data) : 'Backup', href: routes.backup(id) },
 			{ label: 'Restore' }
 		]
@@ -77,6 +84,17 @@
 		const b = backup.data;
 		if (b && b.kind === 'volume' && scope === 'stack') scope = 'volume';
 	});
+
+	// Every volume starts ticked, as an explicit list: unticking the last
+	// one leaves none (Review then says to choose one), never "all".
+	let volumesFor = '';
+	$effect(() => {
+		const b = backup.data;
+		if (!b || volumesFor === b.id) return;
+		volumesFor = b.id;
+		volumes = [...(b.volumes ?? [])];
+	});
+	const volumeError = $derived(volumeChoiceError(scope, backup.data?.volumes ?? [], volumes));
 
 	function scopeOptions(b: BackupDetail) {
 		const out = [];
@@ -107,7 +125,8 @@
 			scope,
 			shutdown,
 			path: scope === 'file' ? filePath.trim() : undefined,
-			volumes: scope === 'volume' && volumes.length ? volumes : undefined,
+			volumes:
+				scope === 'volume' && (backup.data?.volumes?.length ?? 0) > 1 ? volumes : undefined,
 			...(confirm ? { confirm: true } : {})
 		};
 	}
@@ -183,7 +202,8 @@
 	const canAdvance = $derived.by(() => {
 		const b = backup.data;
 		if (!b) return false;
-		if (current === 0) return scope !== 'file' || filePath.trim().startsWith('/');
+		if (current === 0)
+			return !volumeError && (scope !== 'file' || filePath.trim().startsWith('/'));
 		if (current === 1) return !!preview?.canRestore;
 		if (current === 2) return job ? !!result : confirmText.trim() === itemName(b);
 		return true;
@@ -268,19 +288,21 @@
 											{#each b.volumes ?? [] as v (v)}
 												<Checkbox
 													label={v}
-													checked={volumes.length === 0 ||
-														volumes.includes(v)}
+													checked={volumes.includes(v)}
 													onchange={(e) => {
-														const all = volumes.length
-															? volumes
-															: [...(b.volumes ?? [])];
-														volumes = e.currentTarget.checked
-															? [...new Set([...all, v])]
-															: all.filter((x) => x !== v);
+														volumes = toggleVolume(
+															volumes,
+															v,
+															e.currentTarget.checked
+														);
+														preview = null;
 													}}
 												/>
 											{/each}
 										</ChoiceGrid>
+										{#if volumeError}<p class="error" role="alert">
+												{volumeError}
+											</p>{/if}
 									{/if}
 									{#if scope === 'file'}
 										<TextField
@@ -323,8 +345,8 @@
 										>
 											<ul class="plain" role="list">
 												{#each preview?.targets ?? [] as t (t.path)}
-													<li>
-														<span class="mono">{t.path}</span>: {t.overwritten}
+													<li title={t.path}>
+														{restoreTargetName(t)}: {t.overwritten}
 														files overwritten, {t.removed} removed, {t.added}
 														added.
 													</li>
@@ -405,6 +427,11 @@
 	.plain {
 		display: grid;
 		gap: 2px;
+	}
+
+	.error {
+		color: var(--danger);
+		font-size: var(--text-caption);
 	}
 
 	.browser {

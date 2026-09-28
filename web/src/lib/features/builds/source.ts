@@ -5,6 +5,7 @@ import type { Schema } from '$lib/api/client';
 import { lines, parsePairs } from '$lib/features/resources/model';
 
 export type BuildSource = Schema<'BuildSource'>;
+type ImageBuild = Schema<'ImageBuild'>;
 
 export interface SourceForm {
 	gitUrl: string;
@@ -68,7 +69,7 @@ export function validateSource(f: SourceForm): SourceErrors {
 	const e: SourceErrors = {};
 	const url = f.gitUrl.trim();
 	if (url && !/^https?:\/\/[^\s]+$/.test(url))
-		e.gitUrl = 'Use an https:// repository URL. SSH Git URLs are not supported in v1.';
+		e.gitUrl = 'Use an https:// repository URL. SSH Git URLs are not supported.';
 	else if (/^https?:\/\/[^/]*@/.test(url))
 		e.gitUrl = 'Leave credentials out of the URL; pick a Git credential instead.';
 	const tags = lines(f.tags);
@@ -111,4 +112,44 @@ export function toSource(f: SourceForm): BuildSource {
 /** "github.com/silo/web" from "https://github.com/silo/web.git". */
 export function repoLabel(url: string): string {
 	return url.replace(/^https?:\/\//, '').replace(/\.git$/, '');
+}
+
+/**
+ * The source of an earlier build, to build it again. The build record keeps
+ * the names of its build arguments only (never their values), so they come
+ * back empty ("NAME=") and `argsMissing` says the user must fill them in.
+ */
+export function sourceOfBuild(b: ImageBuild): { source: BuildSource; argsMissing: boolean } {
+	const argsMissing = b.buildArgNames.length > 0;
+	return {
+		source: {
+			gitUrl: b.gitUrl,
+			ref: b.ref || undefined,
+			contextPath: b.contextPath || undefined,
+			dockerfile: b.dockerfile || undefined,
+			target: b.target || undefined,
+			buildArgs: argsMissing
+				? Object.fromEntries(b.buildArgNames.map((n) => [n, '']))
+				: undefined,
+			tags: [...b.tags],
+			platform: b.platform || undefined,
+			noCache: b.noCache || undefined,
+			pull: b.pull || undefined,
+			gitCredentialId: b.gitCredentialId || undefined
+		},
+		argsMissing
+	};
+}
+
+/** "16:54:03": the time of a log line (24 h, the viewer's zone unless given). */
+export function clockTime(iso: string, timeZone?: string): string {
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '';
+	return new Intl.DateTimeFormat('en', {
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hourCycle: 'h23',
+		timeZone
+	}).format(d);
 }

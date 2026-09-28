@@ -8,13 +8,18 @@ import {
 	STATE_FILTERS,
 	blockedText,
 	jobActive,
+	jobAgain,
 	jobDuration,
+	jobErrorHeadline,
+	jobHeadline,
 	jobKindLabel,
 	jobTargetLabel,
 	jobTitle,
 	policyPage,
 	stackNames,
-	targetName
+	targetHref,
+	targetName,
+	timelineTime
 } from './labels';
 
 describe('job labels (#26 catalog)', () => {
@@ -58,6 +63,47 @@ describe('job labels (#26 catalog)', () => {
 		);
 	});
 
+	it('leads job headlines with the target’s name', () => {
+		const id = '0190a6e0-0000-7000-8000-000000000001';
+		const names = stackNames([{ id, name: 'zerobyte' }]);
+		expect(
+			jobHeadline(
+				{ kind: 'update.check', targets: [{ type: 'stack', id }] },
+				{ nameOf: names }
+			)
+		).toEqual({ title: 'zerobyte', subtitle: 'Check for updates' });
+		// An unresolved stack ID never shows: the kind leads.
+		expect(jobHeadline({ kind: 'stack.deploy', targets: [{ type: 'stack', id }] })).toEqual({
+			title: 'Deploy stack',
+			subtitle: ''
+		});
+		expect(
+			jobHeadline(
+				{ kind: 'prune.run', targets: [{ type: 'maintenance_policy', id }] },
+				{ fallback: 'homelab' }
+			)
+		).toEqual({ title: 'Prune Docker objects', subtitle: 'homelab' });
+		expect(
+			jobHeadline({
+				kind: 'container.restart',
+				targets: [
+					{ type: 'container', id: 'homeassistant' },
+					{ type: 'container', id: 'mqtt' }
+				]
+			})
+		).toEqual({ title: 'homeassistant and 1 more', subtitle: 'Restart container' });
+		expect(
+			jobHeadline({
+				kind: 'files.delete',
+				targets: [{ type: 'path', id: '/srv/stacks/silo/compose.yaml' }]
+			})
+		).toEqual({ title: 'compose.yaml', subtitle: 'Delete files' });
+		expect(jobHeadline({ kind: 'manager.backup', targets: [] })).toEqual({
+			title: 'Back up Docker Manager',
+			subtitle: ''
+		});
+	});
+
 	it('measures durations and says why a job waits', () => {
 		const now = new Date('2026-09-25T12:10:00Z');
 		expect(
@@ -80,6 +126,44 @@ describe('job labels (#26 catalog)', () => {
 		expect(policyPage('prune.run').href).toBe('/maintenance');
 		expect(policyPage('update.check').href).toBe('/updates');
 		expect(policyPage('backup.run').href).toBe('/backups/policies');
+		expect(policyPage('prune.run', 'mp-1').href).toBe('/maintenance/mp-1');
+		expect(policyPage('update.check', 'up-1').href).toBe('/updates/up-1');
+		expect(policyPage('backup.run', 'bp-1').href).toBe('/backups/policies/bp-1');
+		expect(policyPage('backup.verify', 'br-1').href).toBe('/backups/repositories/br-1');
+	});
+
+	it('times the timeline to the second and links targets', () => {
+		expect(timelineTime('2026-09-27T16:54:03Z', 'UTC')).toBe('Sep 27, 2026, 16:54:03');
+		expect(timelineTime(undefined)).toBe('—');
+		expect(targetHref({ type: 'stack', id: 's1' }, 'e1')).toBe('/stacks/s1');
+		expect(targetHref({ type: 'container', id: 'web' }, 'e1')).toBe('/containers/e1/web');
+		expect(targetHref({ type: 'volume', id: 'data', environmentId: 'e2' }, 'e1')).toBe(
+			'/volumes/e2/data'
+		);
+		expect(targetHref({ type: 'path', id: '/srv' }, 'e1')).toBeUndefined();
+	});
+
+	it('heads failures in words and says where to try again', () => {
+		expect(jobErrorHeadline({ class: 'step_failed' }, 'failed')).toBe('A step failed');
+		expect(jobErrorHeadline({ class: 'something_new' }, 'failed')).toBe('The job failed');
+		expect(jobErrorHeadline(undefined, 'partial')).toBe('It partly failed');
+		const base = { id: 'j1', environmentId: 'e1', targets: [] as Job['targets'] };
+		expect(jobAgain({ ...base, kind: 'update.check', policyId: 'up-1' })?.href).toBe(
+			'/updates/up-1'
+		);
+		expect(jobAgain({ ...base, kind: 'image.build' })?.href).toBe('/builds/e1/j1');
+		expect(
+			jobAgain({ ...base, kind: 'stack.deploy', targets: [{ type: 'stack', id: 's1' }] })
+				?.href
+		).toBe('/stacks/s1');
+		expect(
+			jobAgain({
+				...base,
+				kind: 'container.restart',
+				targets: [{ type: 'container', id: 'web' }]
+			})?.href
+		).toBe('/containers/e1/web');
+		expect(jobAgain({ ...base, kind: 'files.copy' })).toBeNull();
 	});
 
 	it('offers state groups that cover every job state', () => {

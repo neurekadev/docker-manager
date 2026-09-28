@@ -164,6 +164,8 @@ describe('StackHeader', () => {
 		expect(screen.getByRole('button', { name: 'More deploy options' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Restart' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+		// Pull is a deploy option, not a button of its own.
+		expect(screen.queryByRole('button', { name: 'Pull' })).not.toBeInTheDocument();
 		expect(
 			await screen.findByRole('button', { name: /Update.*update available/ })
 		).toBeInTheDocument();
@@ -215,7 +217,7 @@ describe('StackHeader', () => {
 		await user.click(screen.getByRole('button', { name: 'Stop' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
 		expect(
-			within(dialog).getByText('Stops 3 containers in reverse dependency order.')
+			within(dialog).getByText('Stops 3 containers, the services that need others first.')
 		).toBeInTheDocument();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
 		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
@@ -286,19 +288,76 @@ describe('StackHeader', () => {
 		expect(tray.jobs[0].successFor).toBeTypeOf('function');
 	});
 
+	it('restarts at once, without a confirmation', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(screen.getByRole('button', { name: 'Restart' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Restart Silo'));
+		expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/operations',
+			body: { action: 'restart' }
+		});
+	});
+
+	it('updates after naming the newer images, with one deploy that pulls them', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(await screen.findByRole('button', { name: /Update.*update available/ }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Update Silo?' });
+		const list = within(dialog).getByRole('list', { name: 'Newer images' });
+		expect(within(list).getByText('redis')).toBeInTheDocument();
+		expect(within(list).getByText('redis:7')).toBeInTheDocument();
+		expect(within(dialog).getByRole('link', { name: 'Update policy' })).toHaveAttribute(
+			'href',
+			routes.stack('st-1', 'policies')
+		);
+		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
+		await user.click(within(dialog).getByRole('button', { name: 'Update' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Update Silo'));
+		expect(tray.jobs[0]).toMatchObject({
+			success: 'Updated Silo',
+			failure: 'Silo was not updated'
+		});
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/deployments',
+			body: { pull: 'always' }
+		});
+	});
+
+	it('hides the actions while the migration wizard is open', () => {
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		render(QueryHarness, {
+			props: {
+				client,
+				component: StackHeader as unknown as Component<Record<string, unknown>>,
+				props: { stack: stack(), environment: env, tray: new JobTray(), showActions: false }
+			}
+		});
+		expect(screen.getByRole('heading', { level: 1, name: 'Silo' })).toBeInTheDocument();
+		for (const name of ['Deploy', 'Restart', 'Stop', 'More stack actions'])
+			expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+	});
+
 	it('pulls the images without deploying them', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'Pull' }));
+		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Pull images only' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull Silo'));
 		const post = seen.find((s) => s.method === 'POST');
 		expect(post?.path).toBe('/api/v1/stacks/st-1/pulls');
 		expect(seen.some((s) => s.path.endsWith('/deployments'))).toBe(false);
 	});
 
-	it('hides Pull without stack.update', () => {
+	it('hides Pull without stack.update', async () => {
+		const user = setup();
 		header(stack({ actions: ALL.filter((a) => a !== 'stack.update') }));
-		expect(screen.queryByRole('button', { name: 'Pull' })).not.toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
+		await screen.findByRole('menu');
+		expect(
+			screen.queryByRole('menuitem', { name: 'Pull images only' })
+		).not.toBeInTheDocument();
 	});
 
 	it('removes orphaned containers only from the deploy menu, after a confirmation', async () => {
@@ -310,7 +369,7 @@ describe('StackHeader', () => {
 			within(menu)
 				.getAllByRole('menuitem')
 				.map((i) => i.textContent?.trim())
-		).toEqual(['Deploy', 'Deploy and remove orphaned containers…']);
+		).toEqual(['Deploy', 'Pull images only', 'Deploy and remove orphaned containers…']);
 		await user.click(
 			within(menu).getByRole('menuitem', { name: 'Deploy and remove orphaned containers…' })
 		);
@@ -454,8 +513,42 @@ describe('ServicesTable', () => {
 			routes.network('env-1', 'silo_default')
 		);
 		expect(screen.getByText('172.18.0.2')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'edge' })).toBeInTheDocument();
-		expect(screen.getByText('10.0.0.5')).toBeInTheDocument();
+		// One network per row (rows keep one height); the rest in the tooltip.
+		expect(screen.queryByRole('link', { name: 'edge' })).not.toBeInTheDocument();
+		expect(screen.getByText('+1 more')).toHaveAttribute('title', 'edge: 10.0.0.5');
+	});
+
+	it('links a single-container service to its container and its logs to the service', async () => {
+		const user = setup();
+		render(ServicesTable, {
+			props: {
+				stack: stack({
+					actions: [...ALL, 'container.details.read', 'container.logs.read']
+				}),
+				services,
+				usage: null
+			}
+		});
+		expect(screen.getByRole('link', { name: 'web' })).toHaveAttribute(
+			'href',
+			routes.container('env-1', 'silo-web-1')
+		);
+		await user.click(screen.getByRole('button', { name: 'More actions for web' }));
+		expect(await screen.findByRole('menuitem', { name: 'Logs of web' })).toHaveAttribute(
+			'href',
+			routes.stackLogs('st-1', 'web')
+		);
+	});
+
+	it('invites a deploy when the stack has no services yet', async () => {
+		const user = setup();
+		const ondeploy = vi.fn();
+		render(ServicesTable, { props: { stack: stack(), services: [], usage: null, ondeploy } });
+		expect(
+			screen.getByRole('heading', { name: 'No services running yet' })
+		).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Deploy' }));
+		expect(ondeploy).toHaveBeenCalled();
 	});
 
 	it("disables restart and stop of Docker Manager's own stack (not start)", async () => {

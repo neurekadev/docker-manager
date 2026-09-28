@@ -8,7 +8,8 @@
 	import { ApiRequestError } from '$lib/api/client';
 	import { JobWatcher } from '$lib/api/jobs.svelte';
 	import type { Job } from '$lib/api/client';
-	import { Switch, errorMessage } from '$lib/ui';
+	import { Switch, errorMessage, formatDateTime } from '$lib/ui';
+	import { clockTime } from './source';
 
 	interface Props {
 		jobId: string;
@@ -39,7 +40,6 @@
 	}
 
 	const gone = $derived(w.error instanceof ApiRequestError && w.error.status === 404 && !w.job);
-	const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour12: false });
 </script>
 
 {#if w.log.length}
@@ -59,7 +59,7 @@
 	<p class="empty muted">The log could not be loaded: {errorMessage(w.error)}</p>
 {:else if w.log.length === 0}
 	<p class="empty muted">
-		{w.terminal ? 'This build wrote no log lines.' : 'Waiting for the first lines…'}
+		{w.terminal ? 'This build produced no output.' : 'Waiting for the first lines…'}
 	</p>
 {:else}
 	<!-- A scrollable region must be focusable so keyboard users can scroll it. -->
@@ -75,7 +75,9 @@
 	>
 		{#each w.log as line (line.seq)}
 			<div class="line" class:warning={line.warning}>
-				<span class="at">{time(line.at)}</span><span class="text">{line.message}</span>
+				<span class="at" title={formatDateTime(line.at)}>{clockTime(line.at)}</span><span
+					class="text">{line.message}</span
+				>
 			</div>
 		{/each}
 	</div>

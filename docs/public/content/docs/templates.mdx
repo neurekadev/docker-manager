@@ -26,7 +26,7 @@ name.
 
 1. **Stacks → Create stack ▾ → Create stack from template**, or **Create
    stack** on a template's page.
-2. Find the template: search by name or pick a tag.
+2. Find the template (search by name or pick a tag) and click its card.
 3. Pick the version, the host and a name for the stack. The template's
    `.env` is shown: change the values for this stack, such as passwords.
 4. Press **Create stack** (or tick **Deploy after creating**).
@@ -48,16 +48,18 @@ stack itself does not change.
 
 ## Copy a template
 
-**Duplicate** on a template's **Versions** tab, or on the page of another
-registry's template, makes your own private copy of a version. Change its
+**Duplicate as a new template**, above the list of versions on a
+template's **Versions** tab or on the page of another Docker Manager's
+template, makes your own private copy of a version. Change its
 files and publish your own versions; the original does not change.
 
 ## Icons and tags
 
 - **Settings → Icon** takes a PNG, JPEG, GIF, WebP or SVG image up to
   256 KB. A square image with a little empty space around it looks best.
-- Tags help people find templates. On the **Templates** page, pick a tag
-  under **Browse by tag**, or search by name, description or tag.
+- Tags help people find templates. On the **Templates** page, pick one in
+  the **Tag** filter or click a tag on a template, or search by name,
+  description or tag.
 
 ## Private and public templates
 
@@ -65,7 +67,7 @@ New templates are **private**: only people on this Docker Manager with
 access to them can use them.
 
 **Settings → Make public** shares a template with other Docker Manager
-instances. Anyone who has your instance's registry address can then download
+instances. Anyone who has your Docker Manager's address can then download
 **every file of every published version, including `.env`**. Before you
 make a template public:
 
@@ -78,13 +80,14 @@ public or publish a version of a public template.
 ### Share your templates
 
 Your Docker Manager's address, for example `https://docker.example.com`, is
-also its **registry address**. The **Templates** page shows it under
-**This instance's registry**, with a copy button:
+what other Docker Managers add to use your templates. **Templates →
+Template sources** shows it under **Share your templates**, with a copy
+button:
 
 - Anyone can open `https://docker.example.com/registry` in a browser to see
   your public templates, without signing in.
-- Another Docker Manager adds your address as a registry to browse your
-  public templates and create stacks from them.
+- Another Docker Manager adds your address as a template source to browse
+  your public templates and create stacks from them.
 
 Only public templates with a published version are shared. Private
 templates and unpublished drafts never are.
@@ -92,18 +95,28 @@ templates and unpublished drafts never are.
 ## Use templates from another Docker Manager
 
 1. On the other Docker Manager, copy the address shown under **Templates →
-   Registries → This instance's registry**.
-2. Here, open **Templates → Registries → Add registry** and paste it. Only
-   the owner of this Docker Manager can add registries.
+   Template sources → Share your templates**.
+2. Here, open **Templates → Template sources → Add template source** and
+   paste it. Only the owner of this Docker Manager can add template sources.
 
 Its public templates now appear on the **Templates** page next to yours,
-with the registry's name. Filter by registry or tag, open one to see its
-versions, and press **Create stack**. The list is refreshed every 30
-minutes; **Sync now** refreshes it at once.
+with the other Docker Manager's name. Filter by source or tag, open one to
+see what it runs and its versions, and press **Create stack**. The list is
+refreshed every 30 minutes; **Sync now** refreshes it at once. If a
+source can't be reached, the **Templates** page says so.
 
-If you remove a registry, its templates disappear from the list. Stacks
-you created from them keep working, but no longer show the template's
-icon. Add the registry again and the icons come back.
+If you remove a template source, its templates disappear from the list.
+Stacks you created from them keep working, but no longer show the
+template's icon. Add the source again and the icons come back.
+
+## What a template runs
+
+A template's **Overview** shows its latest version and, if you may create
+stacks from it, what that version runs: each service with its image and
+ports, and the names of the settings in its `.env` (never their values).
+Settings marked **(no value)** are the ones to fill in when you create a
+stack. The **Status** filter on the **Templates** page tells templates that
+are ready to use apart from drafts without a version.
 
 ## Versions
 

@@ -161,7 +161,9 @@
 			{#if listing.isPending}
 				<Skeleton lines={4} />
 			{:else if listing.isError}
-				<p class="error" role="alert">{errorView(listing.error).message}</p>
+				<Notice tone="danger" live="alert" title="The stack's files could not be listed">
+					{errorView(listing.error).message}
+				</Notice>
 			{:else}
 				<p class="muted">
 					Leave out data folders such as databases or uploads: a template holds up to 32
@@ -177,7 +179,11 @@
 				{/each}
 			{/if}
 		</fieldset>
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if error}
+			<Notice tone="danger" live="alert" title="The stack was not saved as a template">
+				{error}
+			</Notice>
+		{/if}
 	</form>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={saving}>Cancel</Button>
@@ -211,13 +217,5 @@
 		margin-bottom: var(--space-2);
 		color: var(--text-default);
 		font-weight: var(--weight-medium);
-	}
-
-	.error {
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--danger-border);
-		border-radius: var(--radius-sm);
-		background: var(--danger-soft);
-		color: var(--danger);
 	}
 </style>

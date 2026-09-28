@@ -3,10 +3,11 @@
 	// (in use, managed stack, predefined network, Docker Manager's own: #32). A
 	// removal that is accepted runs as a job; its outcome is a toast.
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import { api, unwrap, type Schema } from '$lib/api/client';
+	import type { Schema } from '$lib/api/client';
 	import { networkQuery, queryKeys, volumeQuery } from '$lib/api/queries';
 	import RemovalDialog from './RemovalDialog.svelte';
-	import { idempotencyKey, resourceKey, trackJob } from './jobs.svelte';
+	import { resourceKey, trackJob } from './jobs.svelte';
+	import { removeNetwork, removeVolume } from './object-actions';
 	import { refusal, RefusalError, type Protection } from './refusals';
 
 	interface Target {
@@ -56,29 +57,11 @@
 			protection: t.protection,
 			environmentName: environmentName?.(t.environmentId)
 		};
-		const header = { 'Idempotency-Key': idempotencyKey() };
 		try {
 			const job =
 				t.kind === 'volume'
-					? await unwrap(
-							api.DELETE('/api/v1/environments/{environmentId}/volumes/{volumeId}', {
-								params: {
-									path: { environmentId: t.environmentId, volumeId: t.name },
-									header
-								}
-							})
-						)
-					: await unwrap(
-							api.DELETE(
-								'/api/v1/environments/{environmentId}/networks/{networkId}',
-								{
-									params: {
-										path: { environmentId: t.environmentId, networkId: t.name },
-										header
-									}
-								}
-							)
-						);
+					? await removeVolume(t.environmentId, t.name)
+					: await removeNetwork(t.environmentId, t.name);
 			trackJob(job, {
 				ctx,
 				key: resourceKey(t.kind, t.environmentId, t.name),

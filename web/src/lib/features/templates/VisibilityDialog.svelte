@@ -39,11 +39,11 @@
 	<ConfirmDialog
 		bind:open
 		title="Make {template.name} public?"
-		message="Its published versions appear in this instance's public registry. Other Docker Manager instances that add the registry URL can browse them and create stacks from them."
+		message="Its published versions appear on this Docker Manager's public page. Other Docker Managers that add it as a template source can browse them and create stacks from them."
 		consequences={[
-			'Anyone with the registry URL can download every file of every published version, including .env.',
+			"Anyone with this Docker Manager's address can download every file of every published version, including .env.",
 			'Remove passwords, keys and tokens from the draft and publish a clean version first.',
-			'Making it private again hides it from the registry; copies others already downloaded stay with them.'
+			'Making it private again hides it from the public page; copies others already downloaded stay with them.'
 		]}
 		confirmLabel="Make public"
 		canConfirm={acknowledged}
@@ -58,9 +58,9 @@
 	<ConfirmDialog
 		bind:open
 		title="Make {template.name} private?"
-		message="It disappears from this instance's public registry. Only people on this instance with access to it can use it."
+		message="It disappears from this Docker Manager's public page. Only people here with access to it can use it."
 		consequences={[
-			'Other instances stop offering it after their next registry sync.',
+			'Other Docker Managers stop offering it after their next sync.',
 			'Stacks created from it anywhere keep working.'
 		]}
 		confirmLabel="Make private"

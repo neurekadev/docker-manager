@@ -113,7 +113,10 @@ optional `Idempotency-Key` enqueues a `prune.run` job (202 + job):
 - **Foreground/background** is a presentation preference only: both are
   the same durable manager-owned job, independent of the requesting session;
   leaving the UI never cancels it. A repeated key returns the same job
-  whatever the preference (`TestMaintenancePolicyLifecycle`).
+  whatever the preference (`TestMaintenancePolicyLifecycle`). The web UI
+  no longer offers the choice (it changed nothing users could see); the
+  policy page shows the run's progress and lists recent runs from
+  `GET /jobs?kind=prune.run&target=maintenance_policy:<id>`.
 - **Overlap**: a second manual run while one of the policy is queued or
   running → `409 maintenance_run_active` (with the job ID); scheduled runs
   are skipped by the scheduler for the same reason.

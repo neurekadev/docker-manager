@@ -50,6 +50,21 @@ export class Notices {
 	}
 }
 
+/** Where a notice leads: its own link, else the page of its kind. */
+export function noticeHref(n: Pick<AppNotice, 'kind' | 'href'>): string {
+	if (n.href) return n.href;
+	switch (n.kind) {
+		case 'job':
+			return routes.jobs();
+		case 'environment':
+			return routes.environments();
+		default:
+			return routes.updates();
+	}
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const notices = new Notices();
 
 /**
@@ -141,7 +156,9 @@ export function jobNotices(
 			const mine = !!me && j.initiatorUserId === me;
 			const problem = j.state !== 'succeeded' && j.state !== 'cancelled';
 			if (!mine && !problem) continue;
-			const what = j.targets?.[0]?.id;
+			// Opaque IDs (stacks, policies) are left out rather than shown raw.
+			const id = j.targets?.[0]?.id;
+			const what = id && !UUID.test(id) ? id : '';
 			target.push({
 				key: `job:${j.id}`,
 				kind: 'job',
@@ -159,43 +176,121 @@ export function jobNotices(
 export interface NoticePolicy {
 	id: string;
 	name: string;
+	environmentId?: string;
+	/** What the policy updates (a stack ID or a container name). */
+	target?: { type: string; id: string };
 	summary?: { available: number };
 }
 
 /**
- * "Updates available" notices from the update policies' summaries (#20):
- * one per policy with available updates, resolved when none are left.
+ * The manager names the per-target policies of an environment-wide policy
+ * "Automatic update <id>"; such a name says nothing to the user.
  */
-export function updateNotices(target: Notices = notices) {
-	// Plain bookkeeping between calls, not reactive state.
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity
-	const shown = new Map<string, number>();
+export function isGeneratedPolicyName(p: Pick<NoticePolicy, 'id' | 'name'>): boolean {
+	return (
+		p.name === `Automatic update ${p.id}` || /^Automatic update [0-9a-f-]{8,}$/i.test(p.name)
+	);
+}
+
+/** A policy as the user knows it: its name, else what it updates. */
+export function policyLabel(
+	p: NoticePolicy,
+	nameOf?: (target: { type: string; id: string }) => string | undefined
+): string {
+	if (!isGeneratedPolicyName(p)) return p.name;
+	const t = p.target;
+	const named = t ? nameOf?.(t) : undefined;
+	if (named) return named;
+	if (t?.type === 'container' && !UUID.test(t.id)) return `container ${t.id}`;
+	return t?.type === 'stack' ? 'a stack' : 'a container';
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "6 stacks have updates available", "2 stacks and 1 container have …". */
+function summaryTitle(policies: readonly NoticePolicy[]): string {
+	const stacks = policies.filter((p) => p.target?.type === 'stack').length;
+	const containers = policies.filter((p) => p.target?.type === 'container').length;
+	const other = policies.length - stacks - containers;
+	const parts = [
+		stacks ? plural(stacks, 'stack', 'stacks') : '',
+		containers ? plural(containers, 'container', 'containers') : '',
+		other ? plural(other, 'update policy', 'update policies') : ''
+	].filter(Boolean);
+	const what =
+		parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
+	return `${what} ${policies.length === 1 ? 'has' : 'have'} updates available`;
+}
+
+/** "Silo, Media and 4 more." */
+function namesBody(names: string[]): string {
+	const shown = names.slice(0, 3);
+	const rest = names.length - shown.length;
+	if (rest > 0) return `${shown.join(', ')} and ${rest} more.`;
+	return shown.length > 1
+		? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}.`
+		: `${shown[0] ?? ''}.`;
+}
+
+/**
+ * "Updates available" notices from the update policies' summaries (#20).
+ * One policy with updates gets its own notice ("2 updates available for
+ * Silo images", linking to the policy); several collapse into one ("6
+ * stacks have updates available", naming them, linking to Updates), so a
+ * check of many targets does not flood the bell. Policies are named as the
+ * user knows them (policyLabel; `nameOf` resolves stack IDs). A notice is
+ * pushed again only when its text changes, and resolved when no update is
+ * left.
+ */
+export function updateNotices(
+	target: Notices = notices,
+	nameOf?: (target: { type: string; id: string }) => string | undefined
+) {
+	const SUMMARY = 'update:summary';
+	let shownKey: string | null = null;
+	let shownText = '';
 	return (policies: readonly NoticePolicy[]) => {
+		// One entry per updated target (an environment policy and its
+		// per-target policy count once).
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const present = new Set<string>();
+		const byTarget = new Map<string, NoticePolicy>();
 		for (const p of policies) {
-			const n = p.summary?.available ?? 0;
-			const key = `update:${p.id}`;
-			present.add(key);
-			if (n > 0 && shown.get(key) !== n) {
-				target.push({
-					key,
-					kind: 'update',
-					tone: 'warn',
-					title: `${n} ${n === 1 ? 'update' : 'updates'} available for ${p.name}`,
-					body: 'Review the update preview before applying it.',
-					href: routes.updatePolicy(p.id)
-				});
-				shown.set(key, n);
-			} else if (n === 0 && shown.has(key)) {
-				target.resolve(key);
-				shown.delete(key);
-			}
+			if ((p.summary?.available ?? 0) <= 0) continue;
+			const k = p.target ? `${p.environmentId ?? ''}/${p.target.type}/${p.target.id}` : p.id;
+			if (!byTarget.has(k)) byTarget.set(k, p);
 		}
-		for (const key of [...shown.keys()])
-			if (!present.has(key)) {
-				target.resolve(key);
-				shown.delete(key);
-			}
+		const pending = [...byTarget.values()];
+		let next: Omit<AppNotice, 'at' | 'read'> | null = null;
+		if (pending.length === 1) {
+			const p = pending[0];
+			const n = p.summary?.available ?? 0;
+			next = {
+				key: `update:${p.id}`,
+				kind: 'update',
+				tone: 'warn',
+				title: `${plural(n, 'update', 'updates')} available for ${policyLabel(p, nameOf)}`,
+				body: 'Review the update preview before applying it.',
+				href: routes.updatePolicy(p.id)
+			};
+		} else if (pending.length > 1) {
+			next = {
+				key: SUMMARY,
+				kind: 'update',
+				tone: 'warn',
+				title: summaryTitle(pending),
+				body: namesBody(pending.map((p) => policyLabel(p, nameOf))),
+				href: routes.updates()
+			};
+		}
+		if (shownKey && shownKey !== next?.key) target.resolve(shownKey);
+		if (!next) {
+			shownKey = null;
+			shownText = '';
+			return;
+		}
+		const text = `${next.title}|${next.body}`;
+		if (next.key !== shownKey || text !== shownText) target.push(next);
+		shownKey = next.key;
+		shownText = text;
 	};
 }

@@ -80,7 +80,7 @@ describe('RunningBackups (#10)', () => {
 });
 
 describe('StorageCard (#10)', () => {
-	it('reports data, disk use, savings, ratio and compression', () => {
+	it('leads with what is stored, then the data, savings and ratio', () => {
 		const GiB = 1024 ** 3;
 		render(StorageCard, {
 			props: {
@@ -99,19 +99,18 @@ describe('StorageCard (#10)', () => {
 				}
 			}
 		});
-		expect(screen.getByText(/of data across/)).toHaveTextContent(
-			'160 GB of data across 289 snapshots'
-		);
+		expect(screen.getByText(/stored in/)).toHaveTextContent('79.6 GB stored in 2 repositories');
 		expect(
-			screen.getByRole('meter', { name: 'Stored on disk of the backed-up data' })
-		).toHaveAttribute('aria-valuetext', '79.6 GB on disk of 160 GB');
+			screen.getByRole('meter', { name: 'Stored size of the backed-up data' })
+		).toHaveAttribute('aria-valuetext', '79.6 GB stored for 160 GB of data');
 		const stat = (label: string) =>
 			screen.getByText(label, { selector: 'dt' }).nextElementSibling;
-		expect(stat('On disk')).toHaveTextContent('79.6 GB');
-		expect(stat('Freed by compression')).toHaveTextContent('80.4 GB');
-		expect(stat('Ratio')).toHaveTextContent('2.01x');
-		expect(stat('Snapshots')).toHaveTextContent('289');
-		expect(stat('Compressed')).toHaveTextContent('100%');
+		expect(stat('Unique data backed up')).toHaveTextContent('160 GB');
+		expect(stat('Saved by compression')).toHaveTextContent('80.4 GB');
+		expect(stat('Compression ratio')).toHaveTextContent('2.01x');
+		// At most three figures: no snapshot count, no share compressed.
+		expect(screen.getAllByRole('term')).toHaveLength(3);
+		expect(screen.queryByText(/snapshot/i)).toBeNull();
 		expect(
 			within(screen.getByRole('list', { name: 'Storage per repository' })).getAllByRole(
 				'listitem'

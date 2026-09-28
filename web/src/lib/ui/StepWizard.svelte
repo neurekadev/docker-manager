@@ -11,7 +11,7 @@
 	// so steps are numbered. Next runs `onnext` for the current step (return
 	// false or throw to stay; the error is shown); focus moves to the new
 	// step's heading so screen-reader users hear where they are.
-	import { tick, type Snippet } from 'svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Check from '@lucide/svelte/icons/check';
 	import Button from './Button.svelte';
@@ -31,6 +31,16 @@
 		nextLabel?: string;
 		finishLabel?: string;
 		label: string;
+		/** Adds a Cancel button to every step (e.g. closes the dialog). */
+		oncancel?: () => unknown;
+		cancelLabel?: string;
+		/**
+		 * Visited steps become buttons: earlier ones go back, later visited
+		 * ones go forward after the current step's `onnext` passes.
+		 */
+		stepsClickable?: boolean;
+		/** Minimum height of the step body, so the wizard does not jump between steps. */
+		minHeight?: string;
 	}
 
 	let {
@@ -43,7 +53,11 @@
 		canGoBack = true,
 		nextLabel = 'Next',
 		finishLabel = 'Finish',
-		label
+		label,
+		oncancel,
+		cancelLabel = 'Cancel',
+		stepsClickable = false,
+		minHeight
 	}: Props = $props();
 
 	let busy = $state(false);
@@ -51,6 +65,12 @@
 	let heading = $state<HTMLElement>();
 	const last = $derived(current === steps.length - 1);
 	const active = $derived(steps[current]);
+	// The furthest step reached (clickable steps go back and forth up to it).
+	let reached = $state(0);
+	$effect.pre(() => {
+		const c = current;
+		if (c > untrack(() => reached)) reached = c;
+	});
 
 	async function go(to: number) {
 		current = Math.max(0, Math.min(steps.length - 1, to));
@@ -58,6 +78,24 @@
 		await tick();
 		heading?.focus();
 	}
+
+	/** A clicked step: back at once, forward once the current step passes. */
+	async function jump(to: number) {
+		if (to < current) return go(to);
+		busy = true;
+		error = null;
+		try {
+			const ok = await onnext?.(active);
+			if (ok !== false) await go(to);
+		} catch (e) {
+			error = errorMessage(e);
+		} finally {
+			busy = false;
+		}
+	}
+
+	const clickable = (i: number) =>
+		stepsClickable && canGoBack && i !== current && i <= reached && (i < current || canAdvance);
 
 	async function next() {
 		busy = true;
@@ -75,6 +113,12 @@
 	}
 </script>
 
+{#snippet marker(i: number)}
+	<span class="marker num" aria-hidden="true">
+		{#if i < current}<Check size={14} strokeWidth={2} />{:else}{i + 1}{/if}
+	</span>
+{/snippet}
+
 <div class="wizard">
 	<ol class="steps" role="list" aria-label="{label} steps">
 		{#each steps as s, i (s.id)}
@@ -83,16 +127,22 @@
 				class:current={i === current}
 				aria-current={i === current ? 'step' : undefined}
 			>
-				<span class="marker num" aria-hidden="true">
-					{#if i < current}<Check size={14} strokeWidth={2} />{:else}{i + 1}{/if}
-				</span>
-				<span class="step-label">{s.label}</span>
-				<span class="sr-only">{i < current ? '(done)' : ''}</span>
+				{#if clickable(i)}
+					<button type="button" class="step-link" disabled={busy} onclick={() => jump(i)}>
+						{@render marker(i)}
+						<span class="step-label">{s.label}</span>
+						<span class="sr-only">{i < current ? '(done)' : ''}</span>
+					</button>
+				{:else}
+					{@render marker(i)}
+					<span class="step-label">{s.label}</span>
+					<span class="sr-only">{i < current ? '(done)' : ''}</span>
+				{/if}
 			</li>
 		{/each}
 	</ol>
 
-	<section class="body" aria-labelledby="wizard-step-title">
+	<section class="body" aria-labelledby="wizard-step-title" style:min-height={minHeight}>
 		<h2 id="wizard-step-title" tabindex="-1" bind:this={heading}>{active.label}</h2>
 		{#if active.description}<p class="desc">{active.description}</p>{/if}
 		<div class="content">
@@ -102,12 +152,18 @@
 	</section>
 
 	<footer class="foot">
+		{#if oncancel}
+			<Button variant="ghost" disabled={busy} onclick={() => oncancel?.()}
+				>{cancelLabel}</Button
+			>
+			<span class="spacer"></span>
+		{/if}
 		{#if current > 0 && canGoBack}
 			<Button variant="ghost" icon={ArrowLeft} disabled={busy} onclick={() => go(current - 1)}
 				>Back</Button
 			>
 		{/if}
-		<span class="spacer"></span>
+		{#if !oncancel}<span class="spacer"></span>{/if}
 		<Button variant="primary" loading={busy} disabled={!canAdvance} onclick={next}>
 			{last ? finishLabel : nextLabel}
 		</Button>
@@ -148,6 +204,23 @@
 
 	.current {
 		color: var(--text-strong);
+	}
+
+	.step-link {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: 2px var(--space-1);
+		margin: -2px calc(-1 * var(--space-1));
+		border: 0;
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--accent-text);
+		cursor: pointer;
+	}
+
+	.step-link:hover {
+		background: var(--surface-hover);
 	}
 
 	.current .marker {

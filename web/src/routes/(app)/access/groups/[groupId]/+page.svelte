@@ -1,7 +1,8 @@
 <script lang="ts">
-	// One group (#17): its members, allow/deny rules in the permission
-	// editor (no rule = deny), rename, make it the default for new users
-	// (with a warning when it grants access) and delete.
+	// One group (#17): its members first (add accounts from other groups),
+	// then its allow/deny rules in the permission editor (no rule = deny),
+	// rename, make it the default for new users (with a warning when it
+	// grants access) and delete.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -10,16 +11,18 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Star from '@lucide/svelte/icons/star';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import UsersRound from '@lucide/svelte/icons/users-round';
-	import { api, unwrap, unwrapEmpty } from '$lib/api/client';
+	import { ApiRequestError, api, unwrap, unwrapEmpty, type Account } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
-	import { withStepUp } from '$lib/auth/stepup.svelte';
+	import { StepUpCancelledError, withStepUp } from '$lib/auth/stepup.svelte';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
 		Button,
 		Card,
+		Checkbox,
 		ConfirmDialog,
 		DestructiveConfirm,
 		Dialog,
@@ -27,18 +30,28 @@
 		Menu,
 		Notice,
 		PageHeader,
+		Table,
 		TextField,
 		toast,
+		type Column,
 		type MenuEntry
 	} from '$lib/ui';
 	import { environmentName, ifMatch } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
+	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
 	import PermissionEditor from '$lib/features/access/PermissionEditor.svelte';
 	import RulesSaveBar from '$lib/features/access/RulesSaveBar.svelte';
-	import { displayName } from '$lib/features/access/model';
+	import {
+		accountStatus,
+		displayName,
+		groupMembers,
+		memberCandidates,
+		membersText,
+		secondaryName
+	} from '$lib/features/access/model';
 	import { diffRules, type Rule } from '$lib/features/access/permissions';
 	import {
 		accessKeys,
@@ -59,11 +72,17 @@
 	const envName = (e: string) => environmentName(envs.data, e);
 
 	const group = $derived(groups.data?.find((g) => g.id === id));
-	const members = $derived((users.data ?? []).filter((u) => u.groupId === id && !u.owner));
+	const members = $derived(groupMembers(users.data, id));
+	const ownerHere = $derived((users.data ?? []).some((u) => u.owner && u.groupId === id));
+	const groupName = (gid: string) =>
+		groups.data?.find((g) => g.id === gid)?.name ?? 'another group';
+	// A group missing from the loaded list reads as the standard not-found state.
+	const missing = new ApiRequestError('This group does not exist.', 404);
 	const groupState = $derived({
 		...groups,
-		data: groups.data ? (group ?? null) : undefined,
-		isError: groups.isError
+		data: group,
+		isError: groups.isError || (!!groups.data && !group),
+		error: groups.error ?? (groups.data && !group ? missing : null)
 	});
 
 	usePage(() => ({
@@ -100,6 +119,76 @@
 	let renameError = $state<string | null>(null);
 	let defaultOpen = $state(false);
 	let deleteOpen = $state(false);
+
+	// Adding members moves accounts from their current group (every
+	// account belongs to exactly one), one PATCH per account.
+	let addOpen = $state(false);
+	let addSearch = $state('');
+	let picked = $state<string[]>([]);
+	let adding = $state(false);
+	let addError = $state<string | null>(null);
+	const candidates = $derived(memberCandidates(users.data, id, addSearch));
+	const anyCandidate = $derived(memberCandidates(users.data, id).length > 0);
+
+	function openAdd() {
+		addSearch = '';
+		picked = [];
+		addError = null;
+		addOpen = true;
+	}
+
+	async function addMembers(g: Group) {
+		adding = true;
+		addError = null;
+		const chosen = (users.data ?? []).filter((u) => picked.includes(u.id));
+		const failed: string[] = [];
+		const failedIds: string[] = [];
+		let moved = 0;
+		for (const u of chosen) {
+			try {
+				await withStepUp(() =>
+					unwrap(
+						api.PATCH('/api/v1/users/{userId}', {
+							params: {
+								path: { userId: u.id },
+								header: { 'If-Match': ifMatch(u.revision) }
+							},
+							body: { groupId: g.id }
+						})
+					)
+				);
+				moved++;
+			} catch (e) {
+				failed.push(`${displayName(u)}: ${actionError(e)}`);
+				failedIds.push(u.id);
+				// The identity check was dismissed: stop, nothing more is moved.
+				if (e instanceof StepUpCancelledError) break;
+			}
+		}
+		adding = false;
+		await qc.invalidateQueries({ queryKey: ['permissions'] });
+		if (moved)
+			toast.success(
+				chosen.length === 1
+					? `Added ${displayName(chosen[0])} to ${g.name}`
+					: `Added ${moved} ${moved === 1 ? 'member' : 'members'} to ${g.name}`
+			);
+		if (failed.length) {
+			addError = failed.join(' ');
+			picked = failedIds;
+		} else addOpen = false;
+	}
+
+	const memberColumns: Column<Account>[] = [
+		{
+			id: 'name',
+			header: 'Member',
+			cell: memberCell,
+			sortValue: (u) => displayName(u),
+			stack: 'title'
+		},
+		{ id: 'status', header: 'Status', cell: memberStatusCell, width: '170px', stack: 'status' }
+	];
 
 	async function saveRules() {
 		try {
@@ -224,14 +313,23 @@
 	}
 </script>
 
+{#snippet memberCell(u: Account)}
+	<NameCell name={displayName(u)} href={routes.accessUser(u.id)} sub={secondaryName(u)} />
+{/snippet}
+{#snippet memberStatusCell(u: Account)}
+	{@const st = accountStatus(u)}
+	<Badge tone={st.tone} dot>{st.label}</Badge>
+{/snippet}
+
 <Page>
-	<QueryView query={groupState} errorTitle="The group could not be loaded.">
-		{#snippet children(g: Group | null)}
-			{#if !g}
-				<Notice tone="info" title="This group does not exist" live="none"
-					>It was deleted. <a href={routes.accessGroups()}>Open groups</a></Notice
-				>
-			{:else}
+	<QueryView
+		query={groupState}
+		errorTitle="The group could not be loaded."
+		notFoundTitle="This group does not exist."
+		notFoundDescription="It was deleted. Open Groups to see the others."
+	>
+		{#snippet children(g: Group | undefined)}
+			{#if g}
 				<PageHeader
 					title={g.name}
 					icon={UsersRound}
@@ -240,7 +338,7 @@
 						? 'New users join this group when they redeem an invitation.'
 						: 'Members get these rules; their own overrides win over them.'}
 					meta={[
-						{ label: `${g.memberCount} ${g.memberCount === 1 ? 'member' : 'members'}` },
+						...(users.data ? [{ label: membersText(members.length) }] : []),
 						{ label: `${g.ruleCount} ${g.ruleCount === 1 ? 'rule' : 'rules'}` }
 					]}
 				>
@@ -263,6 +361,46 @@
 						</Menu>
 					{/snippet}
 				</PageHeader>
+
+				<Card
+					title="Members"
+					subtitle={members.length ? membersText(members.length) : undefined}
+					padding="none"
+				>
+					{#snippet actions()}
+						{#if anyCandidate}
+							<Button size="sm" icon={UserPlus} onclick={openAdd}>Add members</Button>
+						{/if}
+					{/snippet}
+					<QueryView query={users} errorTitle="The members could not be loaded.">
+						{#snippet children(list: Account[])}
+							{@const shown = groupMembers(list, g.id)}
+							{#if shown.length}
+								<Table
+									label="Members of {g.name}"
+									rows={shown}
+									columns={memberColumns}
+									rowKey={(u) => u.id}
+									sort={{ column: 'name', direction: 'asc' }}
+								/>
+							{:else}
+								<p class="none muted">
+									No members yet. {anyCandidate
+										? 'Add accounts from other groups'
+										: 'Invite someone'}{g.default
+										? '; new users join this group when they redeem an invitation.'
+										: '.'}
+								</p>
+							{/if}
+							{#if ownerHere}
+								<p class="owner-note muted">
+									The owner's account is in this group too. Group rules never
+									apply to the owner, so it is not listed.
+								</p>
+							{/if}
+						{/snippet}
+					</QueryView>
+				</Card>
 
 				<Card
 					title="Permissions"
@@ -292,25 +430,6 @@
 					</QueryView>
 				</Card>
 
-				<Card title="Members">
-					{#if members.length}
-						<ul class="members" role="list">
-							{#each members as m (m.id)}
-								<li>
-									<a href={routes.accessUser(m.id)}>{displayName(m)}</a>
-									<span class="muted">{m.username}</span>
-								</li>
-							{/each}
-						</ul>
-					{:else}
-						<p class="muted">
-							No members. Move users here from their page{g.default
-								? ', or invite someone'
-								: ''}.
-						</p>
-					{/if}
-				</Card>
-
 				<RulesSaveBar
 					before={base}
 					after={rules}
@@ -322,6 +441,58 @@
 					onsave={saveRules}
 				/>
 
+				<Dialog
+					bind:open={addOpen}
+					title="Add members to {g.name}"
+					description="Every account belongs to exactly one group: the ones you pick move here from their current group, and their access changes at once."
+				>
+					{#if memberCandidates(users.data, g.id).length > 6}
+						<TextField
+							label="Find a user"
+							hideLabel
+							type="search"
+							placeholder="Find a user"
+							bind:value={addSearch}
+						/>
+					{/if}
+					<ul class="pick" role="list" aria-label="Users in other groups">
+						{#each candidates as u (u.id)}
+							<li>
+								<Checkbox
+									label={displayName(u)}
+									description="Now in {groupName(u.groupId)}{u.status ===
+									'disabled'
+										? ' (disabled)'
+										: ''}"
+									checked={picked.includes(u.id)}
+									onchange={(e) =>
+										(picked = e.currentTarget.checked
+											? [...picked, u.id]
+											: picked.filter((x) => x !== u.id))}
+								/>
+							</li>
+						{:else}
+							<li class="muted">No user matches.</li>
+						{/each}
+					</ul>
+					{#if addError}<Notice
+							tone="danger"
+							title="Not every account was moved"
+							live="alert">{addError}</Notice
+						>{/if}
+					{#snippet footer()}
+						<Button variant="ghost" onclick={() => (addOpen = false)}>Cancel</Button>
+						<Button
+							variant="primary"
+							loading={adding}
+							disabled={!picked.length}
+							onclick={() => addMembers(g)}
+							>{picked.length > 1
+								? `Add ${picked.length} members`
+								: 'Add member'}</Button
+						>
+					{/snippet}
+				</Dialog>
 				<Dialog bind:open={renameOpen} title="Rename {g.name}" size="sm">
 					<TextField label="Name" bind:value={newName} required />
 					{#if renameError}<Notice tone="danger" title="Not renamed" live="alert"
@@ -367,8 +538,28 @@
 </Page>
 
 <style>
-	.members {
+	.none,
+	.owner-note {
+		padding: var(--space-4) var(--space-5);
+	}
+
+	.owner-note {
+		border-top: 1px solid var(--border-subtle);
+		font-size: var(--text-caption);
+	}
+
+	.pick {
 		display: grid;
-		gap: var(--space-1);
+		gap: var(--space-3);
+		max-height: 360px;
+		margin: var(--space-3) 0;
+		overflow: auto;
+	}
+
+	@media (max-width: 767px) {
+		.none,
+		.owner-note {
+			padding: var(--space-4);
+		}
 	}
 </style>

@@ -39,11 +39,34 @@
 		const left = el.offsetLeft - nav.offsetLeft;
 		if (left < nav.scrollLeft || left + el.offsetWidth > nav.scrollLeft + nav.clientWidth)
 			nav.scrollLeft = Math.max(0, left - 16);
+		measure();
+	});
+
+	// Tabs cut off at an edge fade out there, so a sideways-scrolling row
+	// shows that more tabs follow.
+	let moreBefore = $state(false);
+	let moreAfter = $state(false);
+	function measure() {
+		if (!nav) return;
+		moreBefore = nav.scrollLeft > 1;
+		moreAfter = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1;
+	}
+	$effect(() => {
+		if (!nav || typeof ResizeObserver === 'undefined') return;
+		const observer = new ResizeObserver(measure);
+		observer.observe(nav);
+		return () => observer.disconnect();
 	});
 </script>
 
 <div class="tabnav">
-	<nav aria-label={label} bind:this={nav}>
+	<nav
+		aria-label={label}
+		bind:this={nav}
+		onscroll={measure}
+		class:fade-start={moreBefore}
+		class:fade-end={moreAfter}
+	>
 		<ul role="list">
 			{#each items as item (item.href)}
 				<li>
@@ -75,6 +98,25 @@
 		min-width: 0;
 		overflow-x: auto;
 		scrollbar-width: none;
+		--fade: 40px;
+	}
+
+	nav.fade-end {
+		mask-image: linear-gradient(to right, black calc(100% - var(--fade)), transparent);
+	}
+
+	nav.fade-start {
+		mask-image: linear-gradient(to left, black calc(100% - var(--fade)), transparent);
+	}
+
+	nav.fade-start.fade-end {
+		mask-image: linear-gradient(
+			to right,
+			transparent,
+			black var(--fade),
+			black calc(100% - var(--fade)),
+			transparent
+		);
 	}
 
 	ul {

@@ -9,8 +9,10 @@
 
 <script lang="ts">
 	// Container terminal (#8, #22): pick the container (a stack's services),
-	// the shell (Automatic: Bash if present, else sh; the agent finds it in
-	// the container) and connect; xterm fills the space and follows its size.
+	// the shell (Detect automatically: Bash if present, else sh; the agent
+	// finds it in the container) and connect; xterm fills the space and
+	// follows its size. `autoConnect` connects once on arrival (a link such
+	// as "Open a terminal in silo-web"), never on a plain visit.
 	// The status line shows the connection and the command started; an idle
 	// warning appears at 25 minutes (the session closes at 30). A 422
 	// command_not_found (or close code 4422 from older agents) says the
@@ -38,9 +40,11 @@
 		initial?: string | null;
 		/** Accessible name, e.g. "Terminal of Silo". */
 		label: string;
+		/** Connect once as soon as the terminal is ready (arrived from a link). */
+		autoConnect?: boolean;
 	}
 
-	let { choices, initial = null, label }: Props = $props();
+	let { choices, initial = null, label, autoConnect = false }: Props = $props();
 
 	function createError(e: unknown, t: ExecTarget, s: Shell): Error {
 		if (!(e instanceof ApiRequestError)) return e instanceof Error ? e : new Error(String(e));
@@ -130,6 +134,15 @@
 	$effect(() => {
 		term?.setInputEnabled(open);
 		if (open) term?.focus();
+	});
+
+	// Arriving from "Open a terminal in …": connect once, when the terminal is
+	// ready and the chosen container runs; a plain visit waits for Connect.
+	let autoTried = false;
+	$effect(() => {
+		if (autoTried || !autoConnect || !term || !target) return;
+		autoTried = true;
+		if (!target.unavailable && session.state === 'idle') void connect();
 	});
 
 	async function connect() {
@@ -265,9 +278,6 @@
 	<footer class="status">
 		<Badge tone={statusTone} dot>{statusText}</Badge>
 		{#if session.command && open}<span class="mono muted">{session.command}</span>{/if}
-		{#if session.sessionId && open}<span class="mono muted"
-				>session {session.sessionId.slice(0, 8)}</span
-			>{/if}
 		<span class="muted">Closes after 30 minutes without activity.</span>
 	</footer>
 </section>

@@ -4,7 +4,7 @@
 	// Stacks created from the template show the new icon right away.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import ImageUp from '@lucide/svelte/icons/image-up';
-	import { Button, errorMessage, toast } from '$lib/ui';
+	import { Button, Notice, errorMessage, toast } from '$lib/ui';
 	import { fileToBase64, removeIcon, setIcon } from './actions';
 	import { templateKeys, type Template } from './queries';
 	import TemplateIcon from './TemplateIcon.svelte';
@@ -82,7 +82,9 @@
 				>
 			{/if}
 		</div>
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{#if error}
+			<Notice tone="danger" live="alert" title="The icon was not changed">{error}</Notice>
+		{/if}
 	</div>
 </div>
 
@@ -104,13 +106,5 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-	}
-
-	.error {
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--danger-border);
-		border-radius: var(--radius-sm);
-		background: var(--danger-soft);
-		color: var(--danger);
 	}
 </style>

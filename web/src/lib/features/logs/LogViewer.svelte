@@ -2,9 +2,11 @@
 	// Log viewer (#8, #22 the mockup's log panel): container or stack
 	// service logs merged by time, each service in its hue (the service hue
 	// identity), service filter chips, Follow (live stream with cursor
-	// resume), timestamps, search with highlighting, clear view, download
-	// and pop-out. Lines render in a fixed-height window, so thousands of
-	// lines stay fast. Log lines are never stored beyond the page.
+	// resume), timestamps, line wrap, search with highlighting ("Matching
+	// lines only"), "Errors only" (standard error), clear view, download
+	// and pop-out. Unwrapped lines render in a fixed-height window, so
+	// thousands of lines stay fast (wrapped lines render all, skipping the
+	// off-screen ones' layout). Log lines are never stored beyond the page.
 	import { onDestroy } from 'svelte';
 	import ArrowDownToLine from '@lucide/svelte/icons/arrow-down-to-line';
 	import Download from '@lucide/svelte/icons/download';
@@ -12,13 +14,30 @@
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
-	import Search from '@lucide/svelte/icons/search';
 	import type { Snippet } from 'svelte';
-	import { serviceHue, TILE_HEX } from '$lib/design/hue';
-	import { Button, EmptyState, IconButton, Notice, Skeleton, Switch, toast } from '$lib/ui';
+	import { serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
+	import {
+		Button,
+		Chip,
+		EmptyState,
+		IconButton,
+		Notice,
+		Skeleton,
+		Switch,
+		TextField,
+		toast
+	} from '$lib/ui';
 	import { virtualWindow } from '$lib/ui/table';
 	import { endReason, type LogFeed, type LogLine } from './feed.svelte';
-	import { formatLogTime, highlight, logText } from './format';
+	import {
+		countMatches,
+		filterLines,
+		formatLogTime,
+		highlight,
+		logText,
+		serviceShown,
+		toggleHidden
+	} from './format';
 
 	interface Props {
 		feed: LogFeed;
@@ -32,14 +51,34 @@
 		/** Extra controls at the end of the toolbar (the dock's close button). */
 		extra?: Snippet;
 		dense?: boolean;
+		/** Stack logs: start with only this service selected (?service=<name>). */
+		service?: string | null;
 	}
 
-	let { feed, label, stackId, downloadName, onpopout, extra, dense = false }: Props = $props();
+	let {
+		feed,
+		label,
+		stackId,
+		downloadName,
+		onpopout,
+		extra,
+		dense = false,
+		service = null
+	}: Props = $props();
 
 	const ROW = 20;
 	let timestamps = $state(true);
+	let wrap = $state(false);
+	let errorsOnly = $state(false);
+	let matchingOnly = $state(false);
 	let query = $state('');
 	let hidden = $state<string[]>([]);
+	let only = $state<string | null>(null);
+	// The page's ?service=<name> selects one service (again when it changes).
+	$effect.pre(() => {
+		only = service || null;
+		hidden = [];
+	});
 
 	const services = $derived.by(() => {
 		const out: { service: string; keys: string[] }[] = [];
@@ -55,23 +94,36 @@
 	const serviceOf = $derived(
 		Object.fromEntries(feed.sources.map((s) => [s.key, s.service ?? s.label]))
 	);
-	const shown = $derived(
-		hidden.length ? feed.lines.filter((l) => !hidden.includes(serviceOf[l.source])) : feed.lines
+	const names = $derived(services.map((s) => s.service));
+	const chipState = $derived({ only, hidden, services: names });
+	const isShown = (svc: string) => serviceShown(svc, chipState);
+	const allShown = $derived(names.every(isShown));
+	// Service chips and "Errors only" first; the search count reads these.
+	const visible = $derived(
+		filterLines(feed.lines, {
+			source: allShown ? undefined : (key) => isShown(serviceOf[key] ?? ''),
+			errorsOnly
+		})
 	);
 	const q = $derived(query.trim().toLowerCase());
-	const matches = $derived(q ? shown.filter((l) => l.text.toLowerCase().includes(q)).length : 0);
+	const matches = $derived(countMatches(visible, q));
+	const shown = $derived(matchingOnly && q ? filterLines(visible, { query: q }) : visible);
 
 	/** The service's colour: its tile colour, else the stable hue (#22). */
-	function hueOf(service: string): string {
-		const color = feed.sources.find((s) => (s.service ?? s.label) === service)?.color;
+	function hueOf(svc: string): string {
+		const color = feed.sources.find((s) => (s.service ?? s.label) === svc)?.color;
 		if (color) return TILE_HEX[color].fg;
-		return stackId ? TILE_HEX[serviceHue(stackId, service)].fg : TILE_HEX.blue.fg;
+		return stackId ? serviceSeriesColor(stackId, svc) : TILE_HEX.blue.fg;
 	}
 
-	function toggleService(service: string) {
-		hidden = hidden.includes(service)
-			? hidden.filter((s) => s !== service)
-			: [...hidden, service];
+	function toggleService(svc: string) {
+		hidden = toggleHidden(svc, chipState);
+		only = null;
+	}
+
+	function showAll() {
+		hidden = [];
+		only = null;
 	}
 
 	// Windowed rendering and follow-scrolling.
@@ -79,7 +131,13 @@
 	let scrollTop = $state(0);
 	let viewport = $state(400);
 	let atBottom = $state(true);
-	const win = $derived(virtualWindow(scrollTop, viewport, ROW, shown.length, 20));
+	// Wrapped lines have no fixed height: they render all (the buffer keeps
+	// at most 5000) and the browser skips laying out the off-screen ones.
+	const win = $derived(
+		wrap
+			? { start: 0, end: shown.length, padTop: 0, padBottom: 0 }
+			: virtualWindow(scrollTop, viewport, ROW, shown.length, 20)
+	);
 	const rows = $derived(shown.slice(win.start, win.end));
 
 	function onScroll() {
@@ -148,31 +206,24 @@
 	<div class="toolbar" role="toolbar" aria-label="Log controls">
 		{#if stackId && services.length > 1}
 			<div class="chips" role="group" aria-label="Services">
-				<button
-					type="button"
-					class="chip"
-					aria-pressed={hidden.length === 0}
-					onclick={() => (hidden = [])}>All services</button
-				>
+				<Chip size="sm" label="All services" selected={allShown} onclick={showAll} />
 				{#each services as s (s.service)}
-					<button
-						type="button"
-						class="chip"
-						aria-pressed={!hidden.includes(s.service)}
-						style="--hue: {hueOf(s.service)}"
+					<Chip
+						size="sm"
+						label={s.service}
+						hue={hueOf(s.service)}
+						selected={isShown(s.service)}
 						onclick={() => toggleService(s.service)}
-					>
-						<span class="swatch" aria-hidden="true"></span>{s.service}
-					</button>
+					/>
 				{/each}
 			</div>
 		{/if}
-		<div class="search">
-			<Search size={14} strokeWidth={1.75} aria-hidden="true" />
-			<input
+		<div class="search" role="search" aria-label="Search logs">
+			<TextField
+				label="Search logs"
+				hideLabel
 				type="search"
 				placeholder="Search logs"
-				aria-label="Search logs"
 				bind:value={query}
 			/>
 			{#if q}<span class="count num" aria-live="polite"
@@ -180,6 +231,9 @@
 				>{/if}
 		</div>
 		<div class="switches">
+			<Switch bind:checked={matchingOnly} label="Matching lines only" />
+			<Switch bind:checked={errorsOnly} label="Errors only" />
+			<Switch bind:checked={wrap} label="Wrap lines" />
 			<Switch bind:checked={timestamps} label="Timestamps" />
 			<Switch
 				checked={feed.following}
@@ -254,12 +308,33 @@
 			<div class="empty">
 				{#if waiting}
 					<div aria-busy="true"><Skeleton lines={5} /></div>
-				{:else if feed.lines.length > 0}
+				{:else if feed.lines.length > 0 && !allShown && !names.some(isShown)}
 					<EmptyState
 						compact
 						icon={ScrollText}
 						title="Every service is hidden"
 						description="Choose a service above to show its lines."
+					/>
+				{:else if visible.length > 0}
+					<EmptyState
+						compact
+						icon={ScrollText}
+						title="No lines match “{query.trim()}”"
+						description="Change the search, or turn off Matching lines only to see every line."
+					/>
+				{:else if feed.lines.length > 0 && errorsOnly}
+					<EmptyState
+						compact
+						icon={ScrollText}
+						title="No error lines"
+						description="None of these lines were written as errors. Turn off Errors only to see every line."
+					/>
+				{:else if feed.lines.length > 0}
+					<EmptyState
+						compact
+						icon={ScrollText}
+						title="No lines from the selected services"
+						description="Choose another service above, or All services."
 					/>
 				{:else}
 					<EmptyState
@@ -275,7 +350,12 @@
 		{:else}
 			<div style="height: {win.padTop}px" aria-hidden="true"></div>
 			{#each rows as l (l.seq)}
-				<div class="line" class:stderr={l.stream === 'stderr'} style="height: {ROW}px">
+				<div
+					class="line"
+					class:wrap
+					class:stderr={l.stream === 'stderr'}
+					style={wrap ? undefined : `height: ${ROW}px`}
+				>
 					{#if timestamps}<span class="ts num">{formatLogTime(l.at)}</span>{/if}
 					{#if multi}
 						<span class="src" style="color: {hueOf(serviceOf[l.source] ?? '')}"
@@ -337,71 +417,18 @@
 		gap: var(--space-1);
 	}
 
-	.chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		height: 26px;
-		padding: 0 var(--space-2);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-full);
-		background: transparent;
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		cursor: pointer;
-	}
-
-	.chip[aria-pressed='true'] {
-		border-color: color-mix(in srgb, var(--hue, var(--accent-text)) 45%, transparent);
-		background: color-mix(in srgb, var(--hue, var(--accent-text)) 12%, transparent);
-		color: var(--text-strong);
-	}
-
-	.swatch {
-		width: 8px;
-		height: 8px;
-		border-radius: var(--radius-full);
-		background: var(--hue);
-	}
-
-	.chip[aria-pressed='false'] .swatch {
-		background: transparent;
-		box-shadow: inset 0 0 0 1.5px var(--hue);
-	}
-
 	.search {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
 		flex: 1;
-		min-width: 160px;
+		min-width: 180px;
 		max-width: 320px;
-		height: var(--control-height-sm);
-		padding: 0 var(--space-2);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
 		color: var(--text-muted);
 	}
 
-	.search:focus-within {
-		border-color: var(--accent-text);
-		outline: var(--focus-ring);
-		outline-offset: 0;
-	}
-
-	.search input {
+	.search > :global(.field) {
 		flex: 1;
-		min-width: 0;
-		border: 0;
-		background: none;
-		color: var(--text-strong);
-		font-size: var(--text-body);
-		outline: none;
-	}
-
-	.search input::placeholder {
-		color: var(--text-muted);
 	}
 
 	.count {
@@ -411,7 +438,8 @@
 
 	.switches {
 		display: flex;
-		gap: var(--space-4);
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-4);
 	}
 
 	.actions {
@@ -450,6 +478,20 @@
 		color: var(--text-default);
 		width: max-content;
 		min-width: 100%;
+	}
+
+	.line.wrap {
+		width: auto;
+		min-height: 20px;
+		content-visibility: auto;
+		contain-intrinsic-size: auto 20px;
+	}
+
+	.line.wrap .text {
+		flex: 1;
+		min-width: 0;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
 	}
 
 	.line.stderr {

@@ -38,7 +38,7 @@ describe('EnvironmentSwitcher', () => {
 		expect(options[0]).toHaveAttribute('aria-selected', 'true');
 		expect(screen.getByRole('link', { name: 'Add environment' })).toHaveAttribute(
 			'href',
-			'/environments?add=1'
+			'/environments/add'
 		);
 		// Arrow keys move between options.
 		await waitFor(() => expect(options[0]).toHaveFocus());
@@ -159,5 +159,57 @@ describe('CommandPalette', () => {
 		await user.keyboard('{Enter}');
 		expect(onnavigate).toHaveBeenCalledWith('/containers/e1/silo-silo-web-1');
 		expect(fetchMock).toHaveBeenCalled();
+	});
+
+	it('offers recent pages and permitted actions before any query', async () => {
+		const user = setup();
+		const access = accessOf({
+			owner: false,
+			catalogVersion: 1,
+			environments: [],
+			entries: [
+				{
+					capability: 'stack.create',
+					allowed: true,
+					source: 'group_rule',
+					reason: '',
+					scope: { kind: 'instance' }
+				}
+			]
+		} as never);
+		const pages = visibleNav(access);
+		render(PaletteHarness, {
+			props: {
+				pages,
+				onnavigate: vi.fn(),
+				access,
+				recent: [
+					{ path: '/', title: 'Dashboard' },
+					{ path: '/stacks/s1', title: 'Silo' },
+					{ path: '/stacks' },
+					{ path: '/stacks/s2' }
+				]
+			}
+		});
+		await user.click(screen.getByRole('button', { name: 'Search' }));
+		const list = await screen.findByRole('listbox', { name: 'Results' });
+		// The current page and unnamed detail pages are left out of Recent.
+		const recent = within(list).getByRole('group', { name: 'Recent' });
+		expect(
+			within(recent)
+				.getAllByRole('option')
+				.map((o) => o.textContent?.replace(/\s+/g, ' ').trim())
+		).toEqual(['Silo Stacks', 'Stacks']);
+		// Only the actions the caller may start.
+		const actions = within(list).getByRole('group', { name: 'Actions' });
+		expect(
+			within(actions)
+				.getAllByRole('option')
+				.map((o) => o.textContent?.trim())
+		).toEqual(['Create stack']);
+		expect(within(list).getByRole('group', { name: 'Pages' })).toBeInTheDocument();
+		// Phones get a visible way out.
+		await user.click(screen.getByRole('button', { name: 'Cancel' }));
+		await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
 	});
 });

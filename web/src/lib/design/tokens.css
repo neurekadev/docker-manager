@@ -11,22 +11,22 @@
 	color-scheme: dark;
 
 	/* Surfaces: cool blue-black steps, not neutral grey. */
-	--surface-canvas: #0b1016; /* page background, the gaps between cards */
-	--surface-shell: #0e141d; /* sidebar and top bar */
-	--surface-panel: #10161d; /* cards and panels */
-	--surface-raised: #151b24; /* table header, inputs, secondary buttons */
-	--surface-search: #141a22; /* the top bar's search field */
-	--surface-hover: #1a212b; /* hovered or selected table row */
-	--surface-selected: #112745; /* active nav item, current tab */
+	--surface-canvas: #0a0f15; /* page background, the gaps between cards */
+	--surface-shell: #0d131b; /* sidebar and top bar */
+	--surface-panel: #121a24; /* cards and panels */
+	--surface-raised: #19222e; /* table header, inputs, secondary buttons */
+	--surface-search: #172029; /* the top bar's search field */
+	--surface-hover: #1f2935; /* hovered or selected table row */
+	--surface-selected: #112745; /* active nav item, current tab (equals --accent-soft) */
 	--surface-selected-strong: #162a51; /* selected file row */
 	--surface-overlay: rgb(5 8 12 / 0.72); /* behind dialogs and drawers */
-	--border-subtle: #1c2430; /* card and panel edges */
-	--border-strong: #263041; /* inputs, dividers, menus */
+	--border-subtle: #1f2a38; /* card and panel edges */
+	--border-strong: #2b3747; /* inputs, dividers, menus, meter tracks */
 
-	/* Text. --text-faint is decorative only (3.0:1, fails AA for text). */
+	/* Text. --text-faint is decorative only (2.9:1, fails AA for text). */
 	--text-strong: #f2f4f7;
 	--text-default: #c8d3e2;
-	--text-muted: #8392a8; /* 5.75:1 on --surface-panel */
+	--text-muted: #8392a8; /* 5.54:1 on --surface-panel, 4.66:1 on --surface-hover */
 	--text-faint: #596476;
 	--text-on-accent: #ffffff;
 
@@ -47,7 +47,7 @@
 	--info: #2bb0f6;
 	--info-soft: #0f2533;
 	--offline: #8392a8;
-	--offline-soft: #1a212b;
+	--offline-soft: #1f2935;
 
 	/* Category tiles: translucent tint + saturated icon (tile/icon pairs). */
 	--tile-blue-bg: #1d2d57;
@@ -68,7 +68,7 @@
 	--tile-slate-fg: #b4c4f2;
 
 	/* Code editor (the mockup's YAML colours) and terminal. */
-	--code-bg: #0e141b;
+	--code-bg: #0f161f; /* a step below --surface-panel */
 	--code-gutter: #596476;
 	--code-gutter-active: #c8d3e2;
 	--code-key: #52a3f7;
@@ -78,7 +78,7 @@
 	--code-comment: #596476;
 	--code-punctuation: #8392a8;
 	--code-selection: #1d3561;
-	--code-active-line: #131b25;
+	--code-active-line: #16202b;
 
 	/* Type. */
 	--font-sans:
@@ -92,10 +92,16 @@
 	--leading-body: 20px;
 	--text-control: 14px; /* controls */
 	--leading-control: 20px;
-	--text-section: 16px; /* section titles */
+	--text-subsection: 14px; /* headings inside a card (h3), semibold */
+	--leading-subsection: 20px;
+	--text-section: 16px; /* section and card titles */
 	--leading-section: 24px;
 	--text-kpi: 20px; /* KPI values */
 	--leading-kpi: 28px;
+	--text-kpi-sm: 18px; /* KPI values of compact (narrow) cards */
+	--leading-kpi-sm: 24px;
+	--text-title-sm: 22px; /* page titles below 768 px, the boot screen */
+	--leading-title-sm: 28px;
 	--text-title: 28px; /* page titles */
 	--leading-title: 34px;
 	--weight-regular: 400;

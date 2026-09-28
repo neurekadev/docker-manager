@@ -1,15 +1,17 @@
 <script lang="ts">
-	// Template registries (template registry): this instance's own registry
-	// (its URL to share, never removable) and the registries of other Docker
-	// Manager instances with their sync state. The owner adds, syncs and
-	// removes registries; removing one keeps stacks created from its
-	// templates working (they lose its icons until it is added back).
+	// Template sources (template registries, route /templates/registries):
+	// this instance's own registry (its address to share, never removable)
+	// and the registries of other Docker Manager instances with their sync
+	// state, called "template sources" in the UI. The owner adds, syncs and
+	// removes them; removing one keeps stacks created from its templates
+	// working (they lose its icons until it is added back).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import Plus from '@lucide/svelte/icons/plus';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { myPermissionsQuery } from '$lib/api/queries';
+	import Page from '$lib/features/common/Page.svelte';
 	import AddRegistryDialog from '$lib/features/templates/AddRegistryDialog.svelte';
 	import OwnRegistryCard from '$lib/features/templates/OwnRegistryCard.svelte';
 	import { removeRegistry, syncRegistry } from '$lib/features/templates/actions';
@@ -29,6 +31,7 @@
 		EmptyState,
 		ErrorState,
 		IconButton,
+		PageHeader,
 		Skeleton,
 		Table,
 		errorMessage,
@@ -39,8 +42,8 @@
 	} from '$lib/ui';
 
 	usePage({
-		title: 'Template registries',
-		crumbs: [{ label: 'Templates', href: routes.templates() }, { label: 'Registries' }]
+		title: 'Template sources',
+		crumbs: [{ label: 'Templates', href: routes.templates() }, { label: 'Template sources' }]
 	});
 
 	const registries = createQuery(() => templateRegistriesQuery());
@@ -79,8 +82,15 @@
 
 	const columns = $derived.by((): Column<TemplateRegistryInfo>[] => {
 		const cols: Column<TemplateRegistryInfo>[] = [
-			{ id: 'name', header: 'Registry', cell: nameCell, sortValue: (r) => r.name },
-			{ id: 'status', header: 'Status', cell: statusCell, width: '200px' },
+			{
+				id: 'name',
+				header: 'Source',
+				cell: nameCell,
+				sortValue: (r) => r.name,
+				maxWidth: '360px',
+				stack: 'title'
+			},
+			{ id: 'status', header: 'Status', cell: statusCell, width: '200px', stack: 'status' },
 			{
 				id: 'templates',
 				header: 'Templates',
@@ -97,7 +107,16 @@
 				width: '160px'
 			}
 		];
-		if (owner) cols.push({ id: 'actions', header: '', cell: actionsCell, width: '96px' });
+		if (owner)
+			cols.push({
+				id: 'actions',
+				header: 'Actions',
+				hideHeader: true,
+				cell: actionsCell,
+				width: '96px',
+				pin: 'end',
+				stack: 'actions'
+			});
 		return cols;
 	});
 </script>
@@ -105,7 +124,7 @@
 {#snippet nameCell(r: TemplateRegistryInfo)}
 	<span class="name">
 		<span class="title">{r.name}</span>
-		<span class="url mono">{r.url}</span>
+		<span class="url mono" title={r.url}>{r.url}</span>
 	</span>
 {/snippet}
 {#snippet statusCell(r: TemplateRegistryInfo)}
@@ -140,37 +159,35 @@
 	</span>
 {/snippet}
 
-<div class="page">
-	<header class="head">
-		<div>
-			<h1>Template registries</h1>
-			<p class="muted">
-				Other Docker Manager instances whose public templates you browse and create stacks
-				from. They are synced every 30 minutes.
-			</p>
-		</div>
-		{#if owner}
-			<Button variant="primary" icon={Plus} onclick={() => (adding = true)}
-				>Add registry</Button
-			>
-		{/if}
-	</header>
+<Page>
+	<PageHeader
+		title="Template sources"
+		description="Other Docker Managers whose public templates you can use. They sync every 30 minutes."
+	>
+		{#snippet actions()}
+			{#if owner}
+				<Button variant="primary" icon={Plus} onclick={() => (adding = true)}
+					>Add template source</Button
+				>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if own.data}<OwnRegistryCard templates={own.data} />{/if}
 
 	{#if registries.isError}
 		<ErrorState
 			error={registries.error}
-			title="The registries could not be loaded."
+			title="The template sources could not be loaded."
 			onretry={() => registries.refetch()}
 		/>
 	{:else}
-		<Card padding="none" title="Added registries" id="registries">
+		<Card padding="none" title="Other Docker Managers" id="registries">
 			{#if registries.isPending}
 				<div class="loading" aria-busy="true"><Skeleton lines={3} height="20px" /></div>
 			{:else}
 				<Table
-					label="Added registries"
+					label="Template sources"
 					rows={remote}
 					{columns}
 					rowKey={(r) => r.instanceId}
@@ -180,16 +197,16 @@
 						<EmptyState
 							icon={Archive}
 							color="violet"
-							title="No registries added yet."
+							title="No template sources yet."
 							description={owner
 								? "Add another Docker Manager's address to browse and use its public templates."
-								: 'The owner of this Docker Manager adds registries.'}
+								: 'The owner of this Docker Manager adds template sources.'}
 							level={3}
 							compact
 						>
 							{#snippet actions()}
 								{#if owner}<Button variant="primary" onclick={() => (adding = true)}
-										>Add registry</Button
+										>Add template source</Button
 									>{/if}
 							{/snippet}
 						</EmptyState>
@@ -208,43 +225,17 @@
 				message="Its templates disappear from Templates."
 				consequences={[
 					'Stacks created from its templates keep working.',
-					'They show their template icon again if you add the registry back.'
+					'They show their template icon again if you add the source back.'
 				]}
-				confirmLabel="Remove registry"
+				confirmLabel="Remove template source"
 				tone="danger"
 				onconfirm={remove}
 			/>
 		{/if}
 	{/if}
-</div>
+</Page>
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
-	.head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: var(--space-4);
-	}
-
-	h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
-		letter-spacing: -0.01em;
-	}
-
-	.head p {
-		max-width: 72ch;
-		margin-top: 2px;
-		font-size: var(--text-control);
-	}
-
 	.loading {
 		padding: var(--space-4) var(--space-5) var(--space-5);
 	}

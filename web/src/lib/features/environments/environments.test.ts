@@ -223,9 +223,19 @@ describe('AgentsPanel (#3)', () => {
 		mount(AgentsPanel, { env });
 		const table = await screen.findByRole('table', { name: 'Agents of homelab' });
 		expect(within(table).getByText('Upgrade recommended')).toBeInTheDocument();
-		expect(within(table).getAllByRole('button', { name: 'Rotate credential' })).toHaveLength(1); // not on the revoked one
+		expect(table).toHaveTextContent('Connected now'); // not its stale last-seen time
+		expect(table).not.toHaveTextContent('a1'); // the agent ID is only the name's tooltip
+		// Only the active agent has actions (not the revoked one).
+		expect(within(table).getAllByRole('button', { name: 'Actions for homelab' })).toHaveLength(
+			1
+		);
 
-		await user.click(within(table).getByRole('button', { name: 'Rotate credential' }));
+		await user.click(within(table).getByRole('button', { name: 'Actions for homelab' }));
+		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
+			'Rotate credential',
+			'Remove agent'
+		]);
+		await user.click(screen.getByRole('menuitem', { name: 'Rotate credential' }));
 		const rotate = await screen.findByRole('alertdialog', { name: 'Rotate agent credential' });
 		await user.click(within(rotate).getByRole('button', { name: 'Rotate credential' }));
 		await waitFor(() =>
@@ -238,7 +248,8 @@ describe('AgentsPanel (#3)', () => {
 		).toBeTruthy();
 		expect(await screen.findByText('Rotated the credential of homelab')).toBeInTheDocument();
 
-		await user.click(within(table).getByRole('button', { name: 'Remove' }));
+		await user.click(within(table).getByRole('button', { name: 'Actions for homelab' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Remove agent' }));
 		const remove = await screen.findByRole('alertdialog', { name: 'Remove agent' });
 		expect(remove).toHaveTextContent('stays offline and detached');
 		await user.type(

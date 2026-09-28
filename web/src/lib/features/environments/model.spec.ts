@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { EnvironmentMetrics, Schema } from '$lib/api/client';
 import { enrollmentIntent, enrollmentStateStatus } from './enrollment';
 import {
+	agentContact,
 	agentLabel,
+	connectionSummary,
 	dependentNoun,
 	diskMounts,
 	environmentStatus,
@@ -81,5 +83,50 @@ describe('environment model', () => {
 			'rack 2'
 		);
 		expect(agentLabel({ id: '0190a6e0-aaaa' })).toBe('0190a6e0');
+	});
+});
+
+describe('connection wording (#22 polish)', () => {
+	const NOW = Date.parse('2026-09-25T12:00:00Z');
+
+	it('says how long an online environment has been connected', () => {
+		expect(
+			connectionSummary(
+				{ online: true, status: 'active', connectionChangedAt: '2026-09-25T08:48:00Z' },
+				NOW
+			)
+		).toBe('Online for 3 h 12 min.');
+		expect(connectionSummary({ online: true, status: 'active' }, NOW)).toBe('Online.');
+		// Offline and archived environments show a notice instead.
+		expect(connectionSummary({ online: false, status: 'active' }, NOW)).toBeUndefined();
+		expect(connectionSummary({ online: true, status: 'archived' }, NOW)).toBeUndefined();
+	});
+
+	it('shows a connected agent as connected now, never its stale last-seen time', () => {
+		const now = new Date(NOW);
+		const connected = agentContact(
+			{
+				status: 'active',
+				connected: true,
+				lastConnectedAt: '2026-09-25T11:10:00Z',
+				lastSeenAt: '2026-09-25T11:10:00Z'
+			},
+			now
+		);
+		expect(connected.text).toBe('Connected now');
+		expect(connected.title).toMatch(/^Connected since /);
+		expect(
+			agentContact(
+				{ status: 'active', connected: false, lastSeenAt: '2026-09-25T10:00:00Z' },
+				now
+			).text
+		).toBe('2 hours ago');
+		expect(
+			agentContact(
+				{ status: 'revoked', connected: false, revokedAt: '2026-09-23T12:00:00Z' },
+				now
+			).text
+		).toBe('Removed 2 days ago');
+		expect(agentContact({ status: 'active', connected: false }, now).text).toBe('—');
 	});
 });

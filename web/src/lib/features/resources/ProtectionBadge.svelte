@@ -8,12 +8,14 @@
 
 	interface Props {
 		protection: Protection;
+		/** Plain chip text ("Used by Docker Manager" on a network's page). */
+		label?: string;
 	}
 
-	let { protection }: Props = $props();
+	let { protection, label = 'Docker Manager' }: Props = $props();
 </script>
 
 <Badge tone="accent" title="{protectionLabel(protection)}: {plain(protection.reason)}">
 	<ShieldCheck size={13} strokeWidth={1.75} aria-hidden="true" />
-	Docker Manager<span class="sr-only">: {plain(protection.reason)}</span>
+	{label}<span class="sr-only">: {plain(protection.reason)}</span>
 </Badge>

@@ -1,35 +1,39 @@
 <script lang="ts">
 	// Stack header (#22 mockup): icon tile, name, status, description, meta
-	// row (services, containers, created, logical location with the host
-	// path on hover and copy) and the actions: Deploy split button (Deploy,
-	// Build and deploy, Deploy and remove orphaned containers), Pull (images
-	// only, nothing is recreated), Restart,
-	// Stop (Start when stopped), Update with its "update available" dot, and
-	// overflow (Down, Migrate, Rename, Edit details, Delete). Each action is shown
-	// only with its capability (the server still decides) and confirms with
-	// its exact consequences before it starts a job. Docker Manager's own
+	// row (services, containers, created, template, logical location: the
+	// host path is its tooltip and copy button; each item stays on one line)
+	// and the actions: the Deploy split button (the one primary:
+	// Deploy, Build and deploy, Pull images only, Deploy and remove orphaned
+	// containers), Restart, Stop (Start when stopped), Update with its
+	// "update available" dot (a confirmation naming the newer images, then
+	// one deploy that pulls them), and overflow (Take down, Migrate with more
+	// than one environment, Rename, Edit details, Save as template, Delete).
+	// Each action is shown only with its capability (the server still
+	// decides). Start and Restart run at once; Stop, Take down and Delete
+	// confirm with their exact consequences first. Docker Manager's own
 	// stack (#32) deploys and updates; Restart, Stop, Take down, Migrate,
 	// Rename and Delete stay visible but disabled, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
-	import CircleArrowDown from '@lucide/svelte/icons/circle-arrow-down';
+	import CircleArrowUp from '@lucide/svelte/icons/circle-arrow-up';
 	import Clock from '@lucide/svelte/icons/clock';
+	import Package from '@lucide/svelte/icons/package';
+	import Workflow from '@lucide/svelte/icons/workflow';
 	import Download from '@lucide/svelte/icons/download';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Hammer from '@lucide/svelte/icons/hammer';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
-	import Package from '@lucide/svelte/icons/package';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Play from '@lucide/svelte/icons/play';
-	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import PowerOff from '@lucide/svelte/icons/power-off';
+	import Rocket from '@lucide/svelte/icons/rocket';
 	import Eraser from '@lucide/svelte/icons/eraser';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Square from '@lucide/svelte/icons/square';
 	import TextCursorInput from '@lucide/svelte/icons/text-cursor-input';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import Workflow from '@lucide/svelte/icons/workflow';
 	import type { Environment } from '$lib/api/client';
 	import { JobWatcher } from '$lib/api/jobs.svelte';
 	import { serviceIcon } from '$lib/design/icons';
@@ -54,6 +58,7 @@
 	} from '$lib/ui';
 	import { deleteStack, operateStack, volumeResults, type StackOperation } from './actions';
 	import { RemoveOrphansRequest, startDeploy, startPull } from './deploy.svelte';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import RemoveOrphansDialog from './RemoveOrphansDialog.svelte';
 	import EditDetailsDialog from './EditDetailsDialog.svelte';
 	import RenameStackDialog from './RenameStackDialog.svelte';
@@ -69,7 +74,7 @@
 	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
-	import UpdateDrawer from './UpdateDrawer.svelte';
+	import UpdateDialog from './UpdateDialog.svelte';
 	import StackIcon from './StackIcon.svelte';
 	import SaveAsTemplateDialog from '$lib/features/templates/SaveAsTemplateDialog.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
@@ -80,6 +85,8 @@
 		tray: JobTray;
 		/** The "deploy and remove orphans" confirmation (shared with the drift notice). */
 		removeOrphans?: RemoveOrphansRequest;
+		/** Show the actions (hidden while the migration wizard is open). */
+		showActions?: boolean;
 		now?: Date;
 	}
 
@@ -88,6 +95,7 @@
 		environment,
 		tray,
 		removeOrphans = new RemoveOrphansRequest(),
+		showActions = true,
 		now = new Date()
 	}: Props = $props();
 
@@ -108,6 +116,8 @@
 	const counts = $derived(serviceCounts(stack));
 	const icon = $derived(stackIcon(stack));
 	const envName = $derived(environment?.name ?? 'Unknown environment');
+	// With one environment there is nowhere to migrate to and no need to name it.
+	const single = singleEnvironment();
 	const current = $derived(stackStatus(stack));
 	const stoppedLike = $derived(['stopped', 'down', 'missing', 'undeployed'].includes(current));
 	const hasBuild = $derived((stack.services ?? []).some((s) => s.build));
@@ -118,8 +128,9 @@
 	}));
 	const updateDot = $derived(updateAvailable(images.data));
 
+	const place = (dir: string) => (single.current ? dir : `${envName} · ${dir}`);
 	const meta = $derived.by((): MetaItem[] => {
-		if (!full) return [{ icon: Folder, label: `${envName} · ${stack.name}` }];
+		if (!full) return [{ icon: Folder, label: place(stack.name) }];
 		const out: MetaItem[] = [
 			{
 				icon: Workflow,
@@ -144,19 +155,32 @@
 		const host = stack.location?.hostPath;
 		out.push({
 			icon: Folder,
-			label: `${envName} · ${stack.location?.dir ?? stack.name}`,
+			label: place(stack.location?.dir ?? stack.name),
 			title: host,
 			copy: host ? { value: host, what: 'host path' } : undefined
 		});
 		return out;
 	});
 
-	// Dialog state.
-	let pending = $state<StackOperation>('restart');
+	// Dialog state: only Stop and Take down confirm (they end what runs);
+	// Start and Restart run at once, like a container's.
+	let pending = $state<'stop' | 'down'>('stop');
 	let confirming = $state(false);
-	function ask(action: StackOperation) {
+	function ask(action: 'stop' | 'down') {
 		pending = action;
 		confirming = true;
+	}
+	let operating = $state<StackOperation | null>(null);
+	async function runNow(action: 'start' | 'restart') {
+		if (operating) return;
+		operating = action;
+		try {
+			await operate(action);
+		} catch (e) {
+			toast.error(`${title} was not ${OPS[action].failure}`, { body: errorMessage(e) });
+		} finally {
+			operating = null;
+		}
 	}
 	let deleting = $state(false);
 	// Unchecked every time the dialog opens: volumes are kept by default.
@@ -199,16 +223,10 @@
 	};
 
 	const containerWord = (n: number) => `${n} ${n === 1 ? 'container' : 'containers'}`;
-	const consequences = $derived.by((): Record<StackOperation, string[]> => ({
-		start: [
-			`Starts the services of ${title} with their dependencies first, waiting for each depends_on condition.`
-		],
+	const consequences = $derived.by((): Record<'stop' | 'down', string[]> => ({
 		stop: [
-			`Stops ${containerWord(counts.containersRunning)} in reverse dependency order.`,
+			`Stops ${containerWord(counts.containersRunning)}, the services that need others first.`,
 			'Containers, volumes and files are kept; Start brings them back.'
-		],
-		restart: [
-			`Restarts ${containerWord(counts.containersRunning)} in dependency order; services restart one after another.`
 		],
 		down: [
 			`Removes ${containerWord(counts.containers)} and the stack's networks.`,
@@ -298,15 +316,16 @@
 	}
 
 	const deployItems = $derived.by((): MenuEntry[] => {
-		const items: MenuEntry[] = [
-			{ label: 'Deploy', icon: Download, onSelect: () => deploy({}) }
-		];
+		const items: MenuEntry[] = [{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) }];
 		if (hasBuild)
 			items.push({
 				label: 'Build and deploy',
 				icon: Hammer,
 				onSelect: () => deploy({ build: true })
 			});
+		// Pull downloads the images only: nothing is recreated until a deploy.
+		if (can('stack.update'))
+			items.push({ label: 'Pull images only', icon: Download, onSelect: () => void pull() });
 		items.push({
 			label: 'Deploy and remove orphaned containers…',
 			icon: Eraser,
@@ -321,17 +340,17 @@
 			items.push({
 				label: 'Start',
 				icon: Play,
-				onSelect: () => ask('start'),
+				onSelect: () => void runNow('start'),
 				disabled: offline
 			});
 		if (can('stack.down'))
 			items.push({
 				label: 'Take down',
-				icon: CircleArrowDown,
+				icon: PowerOff,
 				onSelect: () => ask('down'),
 				disabled: offline || protectedStack
 			});
-		if (can('stack.migrate'))
+		if (can('stack.migrate') && !single.current)
 			items.push({
 				label: 'Migrate',
 				icon: ArrowRightLeft,
@@ -367,7 +386,8 @@
 		return items;
 	});
 
-	const canUpdate = $derived(full && can('update.check') && !restoring);
+	// Update is a deploy that pulls every image first.
+	const canUpdate = $derived(full && can('stack.deploy') && !restoring);
 </script>
 
 <PageHeader
@@ -385,63 +405,66 @@
 		{#if restoring}<Badge tone="warn" dot>Restoring from a backup</Badge>{/if}
 	{/snippet}
 	{#snippet actions()}
-		{#if can('stack.deploy') && !restoring}
-			<SplitButton
-				label="Deploy"
-				icon={Download}
-				menuLabel="More deploy options"
-				loading={starting === 'deploy' || starting === 'build'}
-				disabled={offline || (starting !== null && starting !== 'deploy')}
-				onclick={() => deploy({})}
-				items={deployItems}
-			/>
-		{/if}
-		{#if can('stack.update') && !restoring}
-			<Button
-				icon={CircleArrowDown}
-				loading={starting === 'pull'}
-				disabled={offline || (starting !== null && starting !== 'pull')}
-				title="Downloads newer versions of the stack's images. Nothing is recreated: deploy to run them."
-				onclick={pull}>Pull</Button
-			>
-		{/if}
-		{#if can('stack.restart') && !stoppedLike && !restoring}
-			<Button
-				icon={RotateCw}
-				disabled={offline || protectedStack}
-				title={protectedStack ? selfReason : undefined}
-				onclick={() => ask('restart')}>Restart</Button
-			>
-		{/if}
-		{#if current === 'stopped' && can('stack.start') && !restoring}
-			<Button icon={Play} disabled={offline} onclick={() => ask('start')}>Start</Button>
-		{:else if can('stack.stop') && !stoppedLike}
-			<Button
-				variant="danger-soft"
-				icon={Square}
-				disabled={offline || protectedStack}
-				title={protectedStack ? selfReason : undefined}
-				onclick={() => ask('stop')}>Stop</Button
-			>
-		{/if}
-		{#if canUpdate}
-			<Button icon={RefreshCw} disabled={offline} onclick={() => (updating = true)}>
-				Update
-				{#if updateDot}<span class="update-dot" aria-hidden="true"></span><span
-						class="sr-only">(update available)</span
-					>{/if}
-			</Button>
-		{/if}
-		{#if protectedStack}<span class="sr-only">{selfReason}</span>{/if}
-		{#if overflow.length}
-			<Menu label="More stack actions" items={overflow} align="end">
-				{#snippet trigger(props)}<IconButton
-						{...props}
-						variant="secondary"
-						label="More stack actions"
-						icon={EllipsisVertical}
-					/>{/snippet}
-			</Menu>
+		{#if showActions}
+			{#if can('stack.deploy') && !restoring}
+				<SplitButton
+					label="Deploy"
+					icon={Rocket}
+					menuLabel="More deploy options"
+					loading={starting !== null}
+					disabled={offline}
+					onclick={() => deploy({})}
+					items={deployItems}
+				/>
+			{/if}
+			{#if can('stack.restart') && !stoppedLike && !restoring}
+				<Button
+					icon={RotateCw}
+					loading={operating === 'restart'}
+					disabled={offline || protectedStack || operating !== null}
+					title={protectedStack ? selfReason : undefined}
+					onclick={() => runNow('restart')}>Restart</Button
+				>
+			{/if}
+			{#if current === 'stopped' && can('stack.start') && !restoring}
+				<Button
+					icon={Play}
+					loading={operating === 'start'}
+					disabled={offline || operating !== null}
+					onclick={() => runNow('start')}>Start</Button
+				>
+			{:else if can('stack.stop') && !stoppedLike}
+				<Button
+					icon={Square}
+					disabled={offline || protectedStack}
+					title={protectedStack ? selfReason : undefined}
+					onclick={() => ask('stop')}>Stop</Button
+				>
+			{/if}
+			{#if canUpdate}
+				<Button
+					icon={CircleArrowUp}
+					disabled={offline || starting !== null}
+					title={updateDot ? 'Newer images are available' : undefined}
+					onclick={() => (updating = true)}
+				>
+					Update
+					{#if updateDot}<span class="update-dot" aria-hidden="true"></span><span
+							class="sr-only">(update available)</span
+						>{/if}
+				</Button>
+			{/if}
+			{#if protectedStack}<span class="sr-only">{selfReason}</span>{/if}
+			{#if overflow.length}
+				<Menu label="More stack actions" items={overflow} align="end">
+					{#snippet trigger(props)}<IconButton
+							{...props}
+							variant="secondary"
+							label="More stack actions"
+							icon={EllipsisVertical}
+						/>{/snippet}
+				</Menu>
+			{/if}
 		{/if}
 	{/snippet}
 </PageHeader>
@@ -451,7 +474,7 @@
 	title="{OPS[pending].verb} {title}?"
 	consequences={consequences[pending]}
 	confirmLabel={OPS[pending].label}
-	tone={pending === 'stop' || pending === 'down' ? 'danger' : 'default'}
+	tone="danger"
 	onconfirm={() => operate(pending)}
 />
 
@@ -499,7 +522,7 @@
 {/if}
 
 {#if canUpdate}
-	<UpdateDrawer bind:open={updating} {stack} />
+	<UpdateDialog bind:open={updating} {stack} images={images.data} {tray} />
 {/if}
 
 <style>

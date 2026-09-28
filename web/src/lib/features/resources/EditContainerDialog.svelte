@@ -9,7 +9,7 @@
 	import { routes } from '$lib/routes';
 	import { Button, Dialog, Notice, Select, TextField, fieldError } from '$lib/ui';
 	import { idempotencyKey, resourceKey, trackJob } from './jobs.svelte';
-	import { megabytes } from './model';
+	import { megabytes, RESTART_OPTIONS } from './model';
 	import { refusal, type Refusal } from './refusals';
 
 	interface Props {
@@ -140,12 +140,7 @@
 			label="Restart policy"
 			bind:value={restart}
 			description="When Docker starts the container again on its own."
-			options={[
-				{ value: 'no', label: 'Never (no)' },
-				{ value: 'on-failure', label: 'When it fails (on-failure)' },
-				{ value: 'unless-stopped', label: 'Unless stopped (unless-stopped)' },
-				{ value: 'always', label: 'Always (always)' }
-			]}
+			options={[...RESTART_OPTIONS]}
 		/>
 		<div class="grid">
 			<TextField

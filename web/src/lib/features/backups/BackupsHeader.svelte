@@ -1,31 +1,62 @@
 <script lang="ts">
 	// Header of the Backups section: title, description, the section's
-	// actions and route tabs (Overview, Policies, Backups, Snapshots,
-	// Repositories).
-	// A backup is one stack, volume or the manager state at one time (a
-	// restic snapshot); a backup set is one run of a policy; Snapshots lists
-	// what restic itself holds.
+	// primary action and route tabs (Overview with the policies, Backups,
+	// Repositories). The primary action is the same on every tab: "Create
+	// backup policy" (it opens the wizard in a dialog, ?create=1), or "Add
+	// backup repository" while no repository is ready to hold backups.
+	// restic's raw snapshots open from a repository's page, not a tab.
 	import type { Snippet } from 'svelte';
+	import { createQuery } from '@tanstack/svelte-query';
+	import Plus from '@lucide/svelte/icons/plus';
 	import { page } from '$app/state';
+	import { myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
-	import { PageHeader, TabNav } from '$lib/ui';
+	import { accessOf } from '$lib/shell/nav';
+	import { Button, PageHeader, TabNav } from '$lib/ui';
+	import { can } from '$lib/features/common/access';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import BackupPolicyDialog from './BackupPolicyDialog.svelte';
+	import { repositoriesQuery } from './queries';
 
-	let { actions }: { actions?: Snippet } = $props();
+	/** `actions`: secondary actions of a tab, before the primary one. */
+	let { actions: outerActions }: { actions?: Snippet } = $props();
+
+	const perms = createQuery(() => myPermissionsQuery());
+	const access = $derived(accessOf(perms.data));
+	const repos = createQuery(() => repositoriesQuery());
+	const createDialog = urlDialog('create');
+	const ready = $derived((repos.data ?? []).some((r) => r.state === 'ready'));
+	const canCreatePolicy = $derived(can(access, 'backup_policy.manage'));
+	const canAddRepository = $derived(access.owner || can(access, 'backup_repository.manage'));
 </script>
 
 <PageHeader
 	title="Backups"
-	description="Encrypted restic backups of the manager, stacks and volumes, to local disks or S3. Every backup opens with your Recovery Key."
-	{actions}
-/>
+	description="Encrypted backups of the manager, stacks and volumes, to local disks or S3. Every backup opens with your Recovery Key."
+>
+	{#snippet actions()}
+		{@render outerActions?.()}
+		{#if canCreatePolicy && ready}
+			<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
+				>Create backup policy</Button
+			>
+		{:else if canAddRepository && repos.isSuccess && !ready}
+			<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
+				>Add backup repository</Button
+			>
+		{/if}
+	{/snippet}
+</PageHeader>
 <TabNav
 	label="Backups sections"
 	current={page.url.pathname}
 	items={[
 		{ href: routes.backups(), label: 'Overview' },
-		{ href: routes.backupPolicies(), label: 'Policies' },
 		{ href: routes.backupList(), label: 'Backups' },
-		{ href: routes.backupSnapshots(), label: 'Snapshots' },
 		{ href: routes.backupRepositories(), label: 'Repositories' }
 	]}
 />
+
+{#if createDialog.open}
+	<BackupPolicyDialog bind:open={createDialog.open} owner={!!perms.data?.owner} />
+{/if}

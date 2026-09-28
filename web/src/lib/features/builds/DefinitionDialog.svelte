@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Create or edit a saved build definition (#33): a name, a description
 	// and the Git build source, re-run on demand (no scheduled rebuilds in
-	// v1). Edits send If-Match with the loaded revision.
+	// v1). Edits send If-Match with the loaded revision. A new definition
+	// can start from a build's source ("Save as definition" on a build).
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap } from '$lib/api/client';
@@ -10,6 +11,7 @@
 	import { Button, Dialog, Select, TextField, errorMessage, fieldError, toast } from '$lib/ui';
 	import BuildSourceForm from './BuildSourceForm.svelte';
 	import {
+		type BuildSource,
 		emptyForm,
 		formFromSource,
 		isComplete,
@@ -24,13 +26,16 @@
 		definition?: BuildDefinition | null;
 		environments: EnvTarget[];
 		environmentId?: string;
+		/** A new definition starts from this source (a build's). */
+		source?: BuildSource;
 	}
 
 	let {
 		open = $bindable(false),
 		definition = null,
 		environments,
-		environmentId
+		environmentId,
+		source
 	}: Props = $props();
 	const queryClient = useQueryClient();
 
@@ -47,7 +52,7 @@
 			env = definition?.environmentId ?? environmentId ?? environments[0]?.id ?? '';
 			name = definition?.name ?? '';
 			description = definition?.description ?? '';
-			form = formFromSource(definition?.source);
+			form = formFromSource(definition?.source ?? source);
 			failure = null;
 		});
 	});

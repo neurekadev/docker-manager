@@ -1,28 +1,56 @@
 <script lang="ts">
 	// Stacks (#22, #7): the Compose stacks of the selected environment, or
-	// of every visible one with an environment column. Status is the live
-	// Engine state Docker Manager last observed; "Undeployed changes" and the
-	// update dot say what needs attention. Searched by name or description
-	// and filtered by status, changes and environment (ListCard, kept per
-	// list and browser tab). Create and import are shown only with
-	// stack.create / stack.import (the server still decides). The Create
-	// stack button's menu creates a stack from a template.
-	import { createQuery } from '@tanstack/svelte-query';
+	// of every visible one with an environment column (hidden while the
+	// caller sees one environment). Status is the live Engine state Docker
+	// Manager last observed; "Undeployed changes" and the update dot say
+	// what needs attention. Searched by name or description and filtered by
+	// status, changes and environment (ListCard, kept per list and browser
+	// tab). The whole row opens the stack; its menu deploys, restarts, stops
+	// (after a confirmation) or opens the logs, each with its capability.
+	// The stack icon shows only when the user chose one (or its template
+	// has one). Create and import are shown only with stack.create /
+	// stack.import (the server still decides). The Create stack button's
+	// menu creates a stack from a template.
+	import { goto } from '$app/navigation';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
 	import Layers from '@lucide/svelte/icons/layers';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
+	import Play from '@lucide/svelte/icons/play';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Rocket from '@lucide/svelte/icons/rocket';
+	import RotateCw from '@lucide/svelte/icons/rotate-cw';
+	import ScrollText from '@lucide/svelte/icons/scroll-text';
+	import Square from '@lucide/svelte/icons/square';
+	import SquareArrowOutUpRight from '@lucide/svelte/icons/square-arrow-out-up-right';
+	import type { Job } from '$lib/api/client';
+	import { JobWatcher } from '$lib/api/jobs.svelte';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import Page from '$lib/features/common/Page.svelte';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
+	import {
+		deployStackWith,
+		operateStack,
+		type StackOperation
+	} from '$lib/features/stacks/actions';
 	import {
 		canAnywhere,
 		canInEnvironment,
 		serviceCounts,
+		showStackIcon,
 		stackStatus,
 		stackTitle
 	} from '$lib/features/stacks/model';
+	import { stackJobGuidance } from '$lib/features/stacks/rename';
 	import StackIcon from '$lib/features/stacks/StackIcon.svelte';
 	import CreateFromTemplateDialog from '$lib/features/templates/CreateFromTemplateDialog.svelte';
-	import { stacksQuery, updatePoliciesQuery, type Stack } from '$lib/features/stacks/queries';
+	import {
+		stackKeys,
+		stacksQuery,
+		updatePoliciesQuery,
+		type Stack
+	} from '$lib/features/stacks/queries';
 	import { stackFilters, stackSearch } from '$lib/features/stacks/filters';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
@@ -38,14 +66,22 @@
 	import {
 		Badge,
 		Button,
+		ConfirmDialog,
 		EmptyState,
 		ErrorState,
+		IconButton,
+		Menu,
+		PageHeader,
 		Skeleton,
 		SplitButton,
 		StatusBadge,
 		Table,
+		errorMessage,
+		formatDateTime,
 		formatRelative,
-		type Column
+		toast,
+		type Column,
+		type MenuEntry
 	} from '$lib/ui';
 
 	usePage({ title: 'Stacks', crumbs: [{ label: 'Stacks' }], environmentScoped: true });
@@ -53,6 +89,8 @@
 	const envId = $derived(environmentSelection.id);
 	const stacks = createQuery(() => stacksQuery(envId));
 	const envs = createQuery(() => environmentsQuery());
+	const single = singleEnvironment();
+	const queryClient = useQueryClient();
 	const perms = createQuery(() => myPermissionsQuery());
 	const policies = createQuery(() => updatePoliciesQuery(envId));
 	// routes.newStack() opens the create dialog over this list.
@@ -96,12 +134,13 @@
 	const all = $derived(stacks.data ?? []);
 	const defs = $derived(
 		stackFilters({
-			envs: envId
-				? []
-				: [...new Set(all.map((s) => s.environmentId))].map((id) => ({
-						id,
-						name: envById.get(id)?.name ?? id
-					})),
+			envs:
+				envId || single.current
+					? []
+					: [...new Set(all.map((s) => s.environmentId))].map((id) => ({
+							id,
+							name: envById.get(id)?.name ?? id
+						})),
 			updates: updateStates
 		})
 	);
@@ -126,7 +165,7 @@
 				width: '160px'
 			}
 		];
-		if (!envId)
+		if (!envId && !single.current)
 			cols.push({
 				id: 'environment',
 				header: 'Environment',
@@ -150,15 +189,122 @@
 				cell: deployedCell,
 				sortValue: (s) => s.appliedRevision?.at ?? '',
 				width: '140px'
+			},
+			{
+				id: 'actions',
+				header: 'Actions',
+				hideHeader: true,
+				cell: actionsCell,
+				stack: 'actions',
+				align: 'end',
+				width: '56px',
+				pin: 'end'
 			}
 		);
 		return cols;
 	});
+
+	// Row actions: Deploy, Start and Restart run at once; Stop confirms.
+	const VERBS: Record<StackOperation, [string, string]> = {
+		start: ['Started', 'started'],
+		stop: ['Stopped', 'stopped'],
+		restart: ['Restarted', 'restarted'],
+		down: ['Took down', 'taken down']
+	};
+
+	/** Reports the end of a job started from the list (toast, refresh). */
+	function follow(job: Pick<Job, 'id'>, done: string, failed: string) {
+		const w = new JobWatcher(job.id, {
+			onfinish: (j) => {
+				w.stop();
+				void queryClient.invalidateQueries({ queryKey: stackKeys.all });
+				if (j.state === 'succeeded') toast.success(done);
+				else if (j.state === 'cancelled') toast.info(`${failed}: the job was cancelled`);
+				else
+					toast.error(failed, {
+						body: stackJobGuidance(j.error),
+						action: { label: 'Open job', onclick: () => void goto(routes.job(j.id)) }
+					});
+			}
+		});
+		w.start();
+	}
+
+	async function deploy(s: Stack) {
+		const t = stackTitle(s);
+		try {
+			follow(await deployStackWith(s.id, {}), `Deployed ${t}`, `${t} was not deployed`);
+		} catch (e) {
+			toast.error(`${t} was not deployed`, { body: errorMessage(e) });
+		}
+	}
+
+	async function operate(s: Stack, action: StackOperation) {
+		const t = stackTitle(s);
+		const [done, failed] = VERBS[action];
+		follow(await operateStack(s.id, action), `${done} ${t}`, `${t} was not ${failed}`);
+	}
+
+	async function operateNow(s: Stack, action: 'start' | 'restart') {
+		try {
+			await operate(s, action);
+		} catch (e) {
+			toast.error(`${stackTitle(s)} was not ${VERBS[action][1]}`, { body: errorMessage(e) });
+		}
+	}
+
+	let stopping = $state<Stack | null>(null);
+	let stopOpen = $state(false);
+
+	function rowMenu(s: Stack): MenuEntry[] {
+		const can = (a: string) => s.actions.includes(a);
+		const t = stackTitle(s);
+		const offline = !!s.readOnly || s.environmentOnline === false;
+		const st = stackStatus(s);
+		const stopped = ['stopped', 'down', 'missing', 'undeployed'].includes(st);
+		const items: MenuEntry[] = [
+			{ label: `Open ${t}`, icon: SquareArrowOutUpRight, href: routes.stack(s.id) }
+		];
+		if (can('stack.deploy'))
+			items.push({
+				label: 'Deploy',
+				icon: Rocket,
+				disabled: offline,
+				onSelect: () => void deploy(s)
+			});
+		if (can('stack.restart') && !stopped)
+			items.push({
+				label: 'Restart',
+				icon: RotateCw,
+				disabled: offline || !!s.protection,
+				onSelect: () => void operateNow(s, 'restart')
+			});
+		if (st === 'stopped' && can('stack.start'))
+			items.push({
+				label: 'Start',
+				icon: Play,
+				disabled: offline,
+				onSelect: () => void operateNow(s, 'start')
+			});
+		else if (can('stack.stop') && !stopped)
+			items.push({
+				label: 'Stop…',
+				icon: Square,
+				disabled: offline || !!s.protection,
+				onSelect: () => {
+					stopping = s;
+					stopOpen = true;
+				}
+			});
+		if (can('container.logs.read'))
+			items.push({ label: 'Logs', icon: ScrollText, href: routes.stack(s.id, 'logs') });
+		return items;
+	}
 </script>
 
 {#snippet nameCell(s: Stack)}
 	<a class="name" href={routes.stack(s.id)}>
-		<StackIcon stack={s} size="sm" />
+		{#if showStackIcon(s)}<StackIcon stack={s} size="sm" />{/if}
 		<span class="text">
 			<span class="title">{stackTitle(s)}</span>
 			{#if s.description}<span class="desc">{s.description}</span
@@ -192,21 +338,34 @@
 	</span>
 {/snippet}
 {#snippet deployedCell(s: Stack)}
-	{#if s.appliedRevision?.at}{formatRelative(s.appliedRevision.at)}{:else}<span class="muted"
-			>Never</span
-		>{/if}
+	{#if s.appliedRevision?.at}<time
+			datetime={s.appliedRevision.at}
+			title={formatDateTime(s.appliedRevision.at)}
+			>{formatRelative(s.appliedRevision.at)}</time
+		>{:else}<span class="muted">Never</span>{/if}
+{/snippet}
+{#snippet actionsCell(s: Stack)}
+	<span class="row-actions">
+		<Menu items={rowMenu(s)} label="Actions for {stackTitle(s)}" align="end">
+			{#snippet trigger(props)}<IconButton
+					{...props}
+					size="sm"
+					variant="ghost"
+					label="More actions for {stackTitle(s)}"
+					icon={EllipsisVertical}
+				/>{/snippet}
+		</Menu>
+	</span>
 {/snippet}
 
-<div class="page">
-	<header class="head">
-		<div>
-			<h1>Stacks</h1>
-			<p class="muted">
-				Compose projects Docker Manager manages{envName ? ` on ${envName}` : ''}. The files
-				on disk are the source of truth.
-			</p>
-		</div>
-		<div class="actions">
+<Page>
+	<PageHeader
+		title="Stacks"
+		description={envName && !single.current
+			? `Your Compose apps on ${envName}.`
+			: 'Your Compose apps: deploy, update and edit them here.'}
+	>
+		{#snippet actions()}
 			{#if canImport}
 				<Button icon={FolderSearch} onclick={() => (importDialog.open = true)}
 					>Import project</Button
@@ -227,8 +386,8 @@
 					]}
 				/>
 			{/if}
-		</div>
-	</header>
+		{/snippet}
+	</PageHeader>
 
 	{#if stacks.isError}
 		<ErrorState
@@ -245,57 +404,75 @@
 				: undefined}
 			label="Filter stacks"
 			searchLabel="Search stacks"
-			placeholder="Search by name or description"
+			placeholder="Search stacks"
 			filters={defs}
 			store={filters}
 		>
 			{#if stacks.isPending}
 				<div class="loading" aria-busy="true"><Skeleton lines={5} height="20px" /></div>
 			{:else}
-				<Table
-					label="Stacks"
-					{rows}
-					{columns}
-					rowKey={(s) => s.id}
-					sort={{ column: 'name', direction: 'asc' }}
-				>
-					{#snippet empty()}
-						{#if filtered}
-							<NoMatches
-								what="stacks"
-								icon={Layers}
-								onclear={() => filters.clear()}
-							/>
-						{:else}
-							<EmptyState
-								icon={Layers}
-								color="blue"
-								title={envName ? `No stacks on ${envName} yet.` : 'No stacks yet.'}
-								description={canCreate || canImport
-									? 'Create a stack or import an existing Compose project.'
-									: 'Stacks you are given access to appear here.'}
-								level={3}
-								compact
-							>
-								{#snippet actions()}
-									{#if canCreate}<Button
-											variant="primary"
-											onclick={() => (createDialog.open = true)}
-											>Create stack</Button
-										><Button onclick={() => (templateDialog.open = true)}
-											>Create from template</Button
-										>{/if}
-									{#if canImport}<Button
-											onclick={() => (importDialog.open = true)}
-											>Import project</Button
-										>{/if}
-								{/snippet}
-							</EmptyState>
-						{/if}
-					{/snippet}
-				</Table>
+				<div class="rows">
+					<Table
+						label="Stacks"
+						{rows}
+						{columns}
+						rowKey={(s) => s.id}
+						sort={{ column: 'name', direction: 'asc' }}
+					>
+						{#snippet empty()}
+							{#if filtered}
+								<NoMatches
+									what="stacks"
+									icon={Layers}
+									onclear={() => filters.clear()}
+								/>
+							{:else}
+								<EmptyState
+									icon={Layers}
+									color="blue"
+									title={envName
+										? `No stacks on ${envName} yet.`
+										: 'No stacks yet.'}
+									description={canCreate || canImport
+										? 'Create a stack or import an existing Compose project.'
+										: 'Stacks you are given access to appear here.'}
+									level={3}
+									compact
+								>
+									{#snippet actions()}
+										{#if canCreate}<Button
+												variant="primary"
+												onclick={() => (createDialog.open = true)}
+												>Create stack</Button
+											><Button onclick={() => (templateDialog.open = true)}
+												>Create from template</Button
+											>{/if}
+										{#if canImport}<Button
+												onclick={() => (importDialog.open = true)}
+												>Import project</Button
+											>{/if}
+									{/snippet}
+								</EmptyState>
+							{/if}
+						{/snippet}
+					</Table>
+				</div>
 			{/if}
 		</ListCard>
+	{/if}
+
+	{#if stopping}
+		<ConfirmDialog
+			bind:open={stopOpen}
+			title="Stop {stackTitle(stopping)}?"
+			consequences={[
+				`Stops the containers of ${stackTitle(stopping)}, the services that need others first.`,
+				'Containers, volumes and files are kept; Start brings them back.'
+			]}
+			confirmLabel="Stop"
+			tone="danger"
+			onconfirm={() => operate(stopping!, 'stop')}
+		/>
 	{/if}
 
 	<CreateStackDialog
@@ -312,40 +489,9 @@
 		templateId={templateDialog.param('template')}
 		registry={templateDialog.param('registry')}
 	/>
-</div>
+</Page>
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
-	.head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: var(--space-4);
-	}
-
-	h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
-		letter-spacing: -0.01em;
-	}
-
-	.head p {
-		margin-top: 2px;
-		font-size: var(--text-control);
-	}
-
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-	}
-
 	.loading {
 		padding: var(--space-4) var(--space-5) var(--space-5);
 	}
@@ -361,6 +507,30 @@
 
 	.name:hover .title {
 		color: var(--accent-text);
+	}
+
+	/* The whole row opens the stack: the name link's hit area covers it;
+	   links and buttons in other cells stay above it. */
+	.rows :global(tbody tr),
+	.rows :global(li.card) {
+		position: relative;
+	}
+
+	.name::after {
+		position: absolute;
+		inset: 0;
+		content: '';
+	}
+
+	.chips a,
+	.chips :global(button),
+	.row-actions {
+		position: relative;
+		z-index: 2;
+	}
+
+	.row-actions {
+		display: inline-flex;
 	}
 
 	.text {

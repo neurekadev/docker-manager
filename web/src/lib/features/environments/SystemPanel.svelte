@@ -1,9 +1,12 @@
 <script lang="ts">
 	// System information of one environment (#3, #5, #27, #28, #34): host
-	// identity and capacity, the Engine and its negotiated API, the agent
-	// with its version compatibility and upgrade instructions, transport
-	// (a plain-HTTP internal URL is flagged), storage roots and diagnostics.
+	// identity and capacity, the Engine, the agent with its version and
+	// connection, storage roots and diagnostics. A plain-HTTP connection is
+	// flagged in plain words. Identifiers (environment, agent and Engine
+	// IDs), the protocol and the API details wait under "Advanced". The
+	// outdated-agent notice is the page's (shown once, above the tabs).
 	import type { Environment, EnvironmentSystem } from '$lib/api/client';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import {
 		Badge,
 		Card,
@@ -28,7 +31,7 @@
 	const rootLabel: Record<string, string> = {
 		stacks: 'Stacks volume',
 		volumes: 'Docker volumes',
-		bind: 'Additional root'
+		bind: 'Additional folder'
 	};
 	const watchLabel: Record<string, string> = {
 		inotify: 'Changes appear within seconds',
@@ -37,43 +40,31 @@
 	};
 </script>
 
+{#snippet when(iso: string | undefined)}
+	{#if iso}<time datetime={iso} title={formatDateTime(iso)}>{formatRelative(iso, now)}</time
+		>{:else}<span class="muted">—</span>{/if}
+{/snippet}
+
 <div class="panels">
 	{#if system.diagnostics.length}
 		<div class="diagnostics">
 			{#each system.diagnostics as d (d.code)}
 				<Notice
 					tone="warn"
-					title={d.area === 'storage' ? 'Storage check' : 'Engine check'}
+					title={d.area === 'storage' ? 'Storage check' : 'Docker check'}
 					live="none"
 				>
-					{d.message} <span class="muted mono">({d.code})</span>
+					{d.message}
 				</Notice>
 			{/each}
 		</div>
 	{/if}
 
-	{#if agent && agent.compatibility !== 'current'}
-		<Notice
-			tone={agent.compatibility === 'unsupported' ? 'danger' : 'warn'}
-			title={agent.compatibility === 'unsupported'
-				? `The agent ${agent.version} is too old for this Docker Manager`
-				: `The agent ${agent.version} is outdated`}
-			live="none"
-		>
-			{agent.compatibility === 'unsupported'
-				? 'Docker Manager refuses its connection until it is upgraded.'
-				: 'It works, but upgrade it soon: the next Docker Manager release will refuse it.'}
-			{#if agent.upgradeInstructions ?? env.upgradeInstructions}
-				<pre class="mono instructions">{agent.upgradeInstructions ??
-						env.upgradeInstructions}</pre>
-			{/if}
-		</Notice>
-	{/if}
-
 	{#if transport?.plainHttp}
-		<Notice tone="warn" title="The agent uses plain HTTP" live="none">
-			It connects to <span class="mono">{transport.managerUrl}</span> without TLS. That is only
-			safe on the manager's own Docker network (DOCKER_AGENT_MANAGER_ALLOW_HTTP).
+		<Notice tone="warn" title="The agent connects without encryption" live="none">
+			It reaches Docker Manager over plain HTTP. That is only safe when the agent runs next to
+			Docker Manager on the same host. For any other host, give the agent Docker Manager's
+			HTTPS address and restart it.
 		</Notice>
 	{/if}
 
@@ -106,22 +97,6 @@
 				<dl class="facts">
 					<dt>Version</dt>
 					<dd class="num">{engine.version}</dd>
-					<dt>API</dt>
-					<dd class="num">
-						{engine.apiVersion}
-						<span class="muted"
-							>negotiated{engine.minApiVersion && engine.maxApiVersion
-								? `, Engine serves ${engine.minApiVersion}–${engine.maxApiVersion}`
-								: ''}</span
-						>
-					</dd>
-					<dt>Engine ID</dt>
-					<dd class="id">
-						<span class="mono">{engine.id}</span><CopyButton
-							value={engine.id}
-							what="Engine ID"
-						/>
-					</dd>
 					{#if engine.storageDriver}<dt>Storage driver</dt>
 						<dd>{engine.storageDriver}</dd>{/if}
 					{#if engine.cgroupVersion}<dt>Cgroups</dt>
@@ -143,13 +118,11 @@
 							volumes, {system.docker.networks} networks
 						</dd>
 					{/if}
-					{#if system.inventoryAt}<dt>Read</dt>
-						<dd title={formatDateTime(system.inventoryAt)}>
-							{formatRelative(system.inventoryAt, now)}
-						</dd>{/if}
+					{#if system.inventoryAt}<dt>Counted</dt>
+						<dd>{@render when(system.inventoryAt)}</dd>{/if}
 				</dl>
 			{:else}
-				<p class="muted">The agent has not reported its Engine yet.</p>
+				<p class="muted">The agent has not reported Docker yet.</p>
 			{/if}
 		</Card>
 
@@ -162,42 +135,37 @@
 						{#if compat}<Badge tone={compat.tone} dot>{compat.label}</Badge>{/if}
 					</dd>
 					<dt>Connection</dt>
-					<dd>
+					<dd class="flags">
 						<StatusBadge
 							status={agent.connected ? 'online' : 'offline'}
 							label={agent.connected ? 'Connected' : 'Not connected'}
 						/>
+						{#if env.connectionChangedAt}<span class="muted"
+								>since <time datetime={env.connectionChangedAt}
+									>{formatDateTime(env.connectionChangedAt)}</time
+								></span
+							>{/if}
 					</dd>
 					<dt>Platform</dt>
 					<dd>{agent.os}/{agent.arch}</dd>
-					<dt>Protocol</dt>
-					<dd class="mono">{agent.protocols.join(', ')}</dd>
-					<dt>Agent ID</dt>
-					<dd class="id">
-						<span class="mono">{agent.id}</span><CopyButton
-							value={agent.id}
-							what="agent ID"
-						/>
-					</dd>
 					{#if transport}
-						<dt>Manager URL</dt>
+						<dt>Docker Manager address</dt>
 						<dd class="flags">
 							<span class="mono">{transport.managerUrl}</span>
-							{#if transport.plainHttp}<Badge tone="warn" dot>Plain HTTP</Badge>{/if}
-							{#if transport.customCa}<Badge tone="info">Custom CA</Badge>{/if}
+							{#if transport.plainHttp}<Badge tone="warn" dot>Not encrypted</Badge
+								>{/if}
+							{#if transport.customCa}<Badge tone="info"
+									>Own certificate authority</Badge
+								>{/if}
 						</dd>
 					{/if}
 					{#if system.clockSkewSeconds !== undefined}
-						<dt>Clock offset</dt>
+						<dt>Clock difference</dt>
 						<dd class="num">
 							{system.clockSkewSeconds.toFixed(1)} s
-							<span class="muted">(corrected in metrics)</span>
+							<span class="muted">(corrected in the charts)</span>
 						</dd>
 					{/if}
-					{#if system.reportedAt}<dt>Reported</dt>
-						<dd title={formatDateTime(system.reportedAt)}>
-							{formatRelative(system.reportedAt, now)}
-						</dd>{/if}
 				</dl>
 			{:else}
 				<p class="muted">
@@ -215,12 +183,66 @@
 					{/each}
 				</dl>
 			{:else}
-				<p class="muted">No file roots reported.</p>
+				<p class="muted">No folders reported.</p>
 			{/if}
-			<p class="muted small">
-				{system.commands.length} job kinds, {system.requests.length} requests and {system
-					.streams.length} stream kinds served.
-			</p>
+		</Card>
+
+		<Card title="Environment">
+			<dl class="facts">
+				<dt>Added</dt>
+				<dd>{formatDateTime(env.createdAt)}</dd>
+				{#if env.serviceAddress}<dt>Service address</dt>
+					<dd class="mono">{env.serviceAddress}</dd>{/if}
+			</dl>
+			<div class="advanced">
+				<Disclosure summary="Advanced">
+					<dl class="facts">
+						<dt>Environment ID</dt>
+						<dd class="id">
+							<span class="mono">{env.id}</span><CopyButton
+								value={env.id}
+								what="environment ID"
+							/>
+						</dd>
+						{#if agent}
+							<dt>Agent ID</dt>
+							<dd class="id">
+								<span class="mono">{agent.id}</span><CopyButton
+									value={agent.id}
+									what="agent ID"
+								/>
+							</dd>
+							<dt>Protocol</dt>
+							<dd class="mono">{agent.protocols.join(', ')}</dd>
+						{/if}
+						{#if engine}
+							<dt>Engine ID</dt>
+							<dd class="id">
+								<span class="mono">{engine.id}</span><CopyButton
+									value={engine.id}
+									what="Engine ID"
+								/>
+							</dd>
+							<dt>Engine API</dt>
+							<dd class="num">
+								{engine.apiVersion}
+								<span class="muted"
+									>negotiated{engine.minApiVersion && engine.maxApiVersion
+										? `, Engine serves ${engine.minApiVersion}–${engine.maxApiVersion}`
+										: ''}</span
+								>
+							</dd>
+						{/if}
+						{#if system.reportedAt}<dt>Capabilities reported</dt>
+							<dd>{@render when(system.reportedAt)}</dd>{/if}
+						<dt>Served</dt>
+						<dd>
+							{system.commands.length} job kinds, {system.requests.length} requests,
+							{system.streams.length} stream kinds
+						</dd>
+					</dl>
+				</Disclosure>
+			</div>
 		</Card>
 	</div>
 </div>
@@ -238,9 +260,11 @@
 		gap: var(--space-2);
 	}
 
+	/* Cards keep their own height (never stretched to a neighbour's). */
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+		align-items: start;
 		gap: var(--space-4);
 	}
 
@@ -269,13 +293,7 @@
 		gap: var(--space-2);
 	}
 
-	.instructions {
-		margin: var(--space-2) 0 0;
-		white-space: pre-wrap;
-	}
-
-	.small {
-		margin-top: var(--space-3);
-		font-size: var(--text-caption);
+	.advanced {
+		margin-top: var(--space-4);
 	}
 </style>

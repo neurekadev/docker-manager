@@ -1,6 +1,7 @@
 // Environment view model (#3, #5, #34): status words, metric ranges and
 // series extraction, compatibility and removal-preview wording. Pure.
 import type { Environment, EnvironmentMetrics, Schema } from '$lib/api/client';
+import { formatDateTime, formatDuration, formatRelative, secondsSince } from '$lib/ui/format';
 
 export type EnvironmentStatus = 'online' | 'offline' | 'archived';
 
@@ -110,4 +111,57 @@ export function removalConsequences(p: Schema<'EnvironmentRemovalPreview'>): str
 /** "e1a2…" style short agent label for lists. */
 export function agentLabel(a: Pick<Schema<'Agent'>, 'label' | 'hostname' | 'id'>): string {
 	return a.label || a.hostname || a.id.slice(0, 8);
+}
+
+/**
+ * The environment's connection as the header's status sentence ("Online
+ * for 3 h 12 min."). Offline and archived environments get a notice
+ * instead (undefined here).
+ */
+export function connectionSummary(
+	e: Pick<Environment, 'online' | 'status' | 'connectionChangedAt'>,
+	nowMs: number
+): string | undefined {
+	if (e.status === 'archived' || !e.online) return undefined;
+	const s = secondsSince(e.connectionChangedAt, nowMs);
+	return s === null ? 'Online.' : `Online for ${formatDuration(s)}.`;
+}
+
+/**
+ * When an agent was last in contact, in words. A connected agent is in
+ * contact now: its stored last-seen time is only written when it connects,
+ * reports its capabilities or disconnects, so it would look stale while
+ * the connection is fine. `title` is the absolute time for the tooltip.
+ */
+export function agentContact(
+	a: Pick<
+		Schema<'Agent'>,
+		'status' | 'connected' | 'lastSeenAt' | 'lastConnectedAt' | 'revokedAt'
+	>,
+	now?: Date
+): { text: string; at?: string; title?: string } {
+	if (a.status === 'revoked' || a.revokedAt) {
+		return a.revokedAt
+			? {
+					text: `Removed ${formatRelative(a.revokedAt, now)}`,
+					at: a.revokedAt,
+					title: formatDateTime(a.revokedAt)
+				}
+			: { text: 'Removed' };
+	}
+	if (a.connected)
+		return a.lastConnectedAt
+			? {
+					text: 'Connected now',
+					at: a.lastConnectedAt,
+					title: `Connected since ${formatDateTime(a.lastConnectedAt)}`
+				}
+			: { text: 'Connected now' };
+	if (a.lastSeenAt)
+		return {
+			text: formatRelative(a.lastSeenAt, now),
+			at: a.lastSeenAt,
+			title: formatDateTime(a.lastSeenAt)
+		};
+	return { text: '—' };
 }

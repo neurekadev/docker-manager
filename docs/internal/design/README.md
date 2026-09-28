@@ -44,25 +44,25 @@ layout). `design.spec.ts` pins the sampled values and checks contrast.
 
 | token | value | use |
 | --- | --- | --- |
-| `--surface-canvas` | `#0b1016` | page background, gaps between cards |
-| `--surface-shell` | `#0e141d` | sidebar and top bar (and the PWA theme colour) |
-| `--surface-panel` | `#10161d` | cards and panels |
-| `--surface-raised` | `#151b24` | table header, inputs, secondary buttons, menus |
-| `--surface-search` | `#141a22` | the top bar's search field |
-| `--surface-hover` | `#1a212b` | hovered or selected row |
-| `--surface-selected` | `#112745` | active nav item, current tab |
+| `--surface-canvas` | `#0a0f15` | page background, gaps between cards |
+| `--surface-shell` | `#0d131b` | sidebar and top bar (and the PWA theme colour) |
+| `--surface-panel` | `#121a24` | cards and panels (a clear step above the canvas) |
+| `--surface-raised` | `#19222e` | table header, inputs, secondary buttons, menus |
+| `--surface-search` | `#172029` | the top bar's search field |
+| `--surface-hover` | `#1f2935` | hovered or selected row, skeleton base |
+| `--surface-selected` | `#112745` | active nav item, current tab (equals `--accent-soft`) |
 | `--surface-selected-strong` | `#162a51` | selected file row |
-| `--border-subtle` | `#1c2430` | card and panel edges |
-| `--border-strong` | `#263041` | inputs, dividers, floating layers |
+| `--border-subtle` | `#1f2a38` | card and panel edges |
+| `--border-strong` | `#2b3747` | inputs, dividers, floating layers, meter tracks, skeleton peak |
 
 ### Text
 
 | token | value | contrast on panel | use |
 | --- | --- | --- | --- |
-| `--text-strong` | `#f2f4f7` | 16.5:1 | titles, KPI values, primary cells |
-| `--text-default` | `#c8d3e2` | 12:1 | body and table text |
-| `--text-muted` | `#8392a8` | 5.75:1 | labels, secondary lines, table headers, placeholders, timestamps |
-| `--text-faint` | `#596476` | 3.0:1 | decorative only (separators, disabled) — never text that must be read |
+| `--text-strong` | `#f2f4f7` | 15.9:1 | titles, KPI values, primary cells |
+| `--text-default` | `#c8d3e2` | 11.6:1 | body and table text |
+| `--text-muted` | `#8392a8` | 5.5:1 (4.7:1 on `--surface-hover`) | labels, secondary lines, table headers, placeholders, timestamps |
+| `--text-faint` | `#596476` | 2.9:1 | decorative only (separators, disabled) — never text that must be read |
 
 ### Accent and status
 
@@ -75,7 +75,7 @@ layout). `design.spec.ts` pins the sampled values and checks contrast.
 | `--danger` / `--danger-soft` / `--danger-border` | `#fd6b66` / `#3f2029` / `#5a2a33` | destructive, failed |
 | `--warn` / `--warn-soft` / `--warn-border` | `#f5b544` / `#33280f` / `#4d3c14` | undeployed changes, update available, degraded, partial |
 | `--info` / `--info-soft` | `#2bb0f6` / `#0f2533` | CPU series, informational notices |
-| `--offline` / `--offline-soft` | `#8392a8` / `#1a212b` | offline environments (always with the word "Offline") |
+| `--offline` / `--offline-soft` | `#8392a8` / `#1f2935` | offline environments (always with the word "Offline") |
 
 ### Category tiles
 
@@ -97,8 +97,10 @@ services), `cyan` (CPU), `indigo` (memory), `green` (uptime, healthy),
 | `--control-height` / `-sm` / `--touch-target` | 36 / 30 / 40 px | controls; 40 px minimum on coarse pointers |
 | `--z-sticky … --z-tooltip` | 10 … 80 | stacking order |
 
-Editor, terminal and chart colours are `--code-*` tokens, mirrored in
-`web/src/lib/lazy/palette.ts` for CodeMirror, xterm.js and ECharts.
+Editor, terminal and chart colours are `--code-*` tokens (`--code-bg`
+`#0f161f`, a step below the panel; `--code-active-line` `#16202b`),
+mirrored in `web/src/lib/lazy/palette.ts` for CodeMirror, xterm.js and
+ECharts.
 
 **Motion:** the one attention motion is the live-change pulse: add
 `data-changed` to a changed cell or row for one render (Table does it for
@@ -137,18 +139,23 @@ Inter Variable for UI text, JetBrains Mono Variable for code, logs, digests,
 IDs, paths and terminals; both self-hosted (`@fontsource-variable/*`, OFL-1.1,
 ADR 0002) so the offline PWA shell renders correctly.
 
-| role | size / line height | weight |
-| --- | --- | --- |
-| page title | 28 / 34 | 600 |
-| KPI value | 20 / 28 | 600, tabular |
-| section title | 16 / 24 | 600 |
-| control | 14 / 20 | 500 |
-| body and tables (the dense default) | 13 / 20 | 400 |
-| caption, meta | 12 / 16 | 400 |
-| mono | 12.5 / 20 | 400 (`.mono`) |
+| role | size / line height | weight | token |
+| --- | --- | --- | --- |
+| page title | 28 / 34 | 600 | `--text-title` |
+| page title below 768 px, boot screen | 22 / 28 | 600 | `--text-title-sm` |
+| KPI value (compact cards: 18 / 24) | 20 / 28 | 600, tabular | `--text-kpi` (`--text-kpi-sm`) |
+| section title (card titles, always) | 16 / 24 | 600 | `--text-section` |
+| subsection: a heading inside a card | 14 / 20 | 600 | `--text-subsection` |
+| control | 14 / 20 | 500 | `--text-control` |
+| body and tables (the dense default) | 13 / 20 | 400 | `--text-body` |
+| caption, meta | 12 / 16 | 400 | `--text-caption` |
+| mono | 12.5 / 20 | 400 (`.mono`) | |
 
 Numbers in tables, KPIs and logs use `.num` (`tabular-nums`). Sentence case
-everywhere; no all-caps labels, no tracked-out eyebrows.
+everywhere; no all-caps labels, no tracked-out eyebrows. A `Card`'s title is
+always the section size; a heading inside a card body is an `h3` with the
+global class `subsection-title` (`<h3 class="subsection-title">Environment
+variables</h3>`). Components use the size tokens, never one-off pixel sizes.
 
 ## Layout and responsive rules
 
@@ -168,21 +175,33 @@ everywhere; no all-caps labels, no tracked-out eyebrows.
 | 768–1023 px | off-canvas navigation drawer; breadcrumbs and search icon stay | table | centred |
 | < 768 px | drawer | **stacked row cards** (title and status first, key metrics as label/value pairs, actions last) | full screen |
 
-Pages use the full content width: side-by-side cards (`Columns`) share
-their row's height, lists are full-width tables, and a KPI row or card
-grid fills a row rather than one card sitting half-width beside empty
-space. Create and edit forms of stacks and policies (backups, updates,
+Pages use the full content width: side-by-side cards (`Columns`) keep
+their own height (aligned to the top; a one-line card is never stretched
+to its neighbour's table), lists are full-width tables, and a KPI row or
+card grid fills a row rather than one card sitting half-width beside empty
+space. The document is the page's scroll container and reserves the
+scrollbar's space (`scrollbar-gutter: stable`), so pages do not shift
+sideways between short and long ones. Create and edit forms of stacks and policies (backups, updates,
 maintenance, the maintenance defaults) are dialogs over the list or detail
 page, laid out in columns (`Dialog size="xl"`), opened by a query
 parameter (`?create=1`, `?edit=1`, `?defaults=1`; `urlDialog` in
 `$lib/features/common`) so links and routes (`routes.updatePolicyNew()`)
 open them. Only long single-purpose flows (repository setup, restore,
-token creation) stay pages (`Page narrow`, 1120 px).
+token creation) stay pages (`Page narrow`, 1120 px) with a plain
+`PageHeader` (no section tabs); when they run long, their buttons sit in
+a sticky bar at the bottom of the window (`FormFooter sticky`, with an
+optional `summary` status line).
 
 Touch targets are at least 40 px on coarse pointers, and every right-click
 action (ContextMenu) has a visible alternative (the row's overflow Menu).
-The file manager (#15) shows tree and editor as switchable panes below
-1024 px, never both squeezed.
+The file manager (#15) shows list and editor as `Tabs` ("Files",
+"Editor") below 1024 px, never both squeezed.
+
+The sidebar groups its sections (`NAV_GROUPS` in `nav.ts`): the overview
+has no label, then "Docker", "Automation" and "Administration" as small
+sentence-case labels; the rail shows thin dividers instead. Items are
+36 px tall (40 px in the phone drawer and on coarse pointers) so every
+section fits a 900 px high window.
 
 ## Components
 
@@ -209,21 +228,33 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | component | key props | notes |
 | --- | --- | --- |
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
+| `Chip` | `label`, `selected` (toggle: `aria-pressed`), `onclick`, `href`, `count`, `size: sm \| md`, `icon`, `hue`, `title`, `disabled` | A pill (`--radius-full`) for tags and filters: a link with `href`, a (toggle) button with `onclick` or `selected`, else a static tag. `hue` adds a swatch in the service's colour (`serviceSeriesColor`), a ring while the toggle is off. 40 px tall on coarse pointers. |
 | `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly failed". |
-| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. `stretchActions`: the actions take the free width of the header and wrap below the title when they do not fit (`ListCard`'s search and filters). |
-| `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed` | Row of KPI cards: `KpiRow` (`repeat(auto-fit, minmax(210px, 1fr))`, two per row below 768 px). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value that may wrap, 12 px label), so the stack overview keeps the mockup's six cards in one row from about 1120 px of content (1440 px screens) and phones show two per row. |
+| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title. `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
+| `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed`, `href`, `onclick` | Every figure links to its list: with `href` the label is a link whose hit area covers the card (`onclick` runs first, e.g. to preset the list's filters; links in a snippet `secondary` stay clickable). Row of KPI cards: `KpiRow` (`$lib/features/common`; `repeat(auto-fit, minmax(210px, 1fr))`, equal heights, two per row below 768 px with an odd last card spanning the row, so five cards never leave an orphan). Label, value and a text `secondary` stay on one line each (ellipsis, the full text as tooltip). `tone` dots share one style (colour plus its soft ring). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value, 12 px label), so the stack overview's five cards (status, CPU, memory, uptime, last deploy) fit one row on 1440 px screens and phones show two per row. |
 | `IconTile` | `icon`, `color: TileColor`, `size: sm \| md \| lg` | Decorative (the adjacent text names the thing). |
-| `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. |
+| `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. The empty track is `--border-strong`, visible on cards. |
 | `Uptime` | `since` (ISO start; absent: "—"), `prefix` | Live duration ticking once a second (`formatUptime`: "5m 03s", "3h 12m 08s", "4d 3h 12m"), tabular numerals, `<time>` with the absolute start as title. Other live values read the shared `clock.now` (one interval, only while a component reads it). |
-| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets | Icon-led meta items with thin dividers (not middle dots). `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
-| `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). |
+| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
+| `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, head, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). Without rows and without `empty` it shows one row "Nothing here yet." The scroll box is `position: relative` (hidden `.sr-only` texts in cells cannot widen the page) and clips the last row's hover to a card's rounded corners. |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
-| `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, and `after` gets its own line. |
+| `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, an edge fades out where more tabs are cut off, and `after` gets its own line. |
 | `DiffView` | `title` (file), `before`, `after`, `beforeLabel`, `afterLabel`, `context` | Unified line diff (`diff.ts`, Myers) with old/new line numbers, `+`/`−` markers and screen-reader "Added:"/"Removed:" (never colour alone); unchanged regions collapse behind "Show N unchanged lines". |
 | `Breadcrumbs` | `items: Crumb[]` | The shell renders them from `usePage`. |
 | `Skeleton`, `Spinner`, `Kbd` | | Loading regions set `aria-busy`. |
 
-`Column<T>` = `{ id, header, cell?: Snippet<[T]>, sortValue?, align?, width?, numeric?, mono?, hideHeader?, stack? }`.
+`Column<T>` = `{ id, header, cell?: Snippet<[T]>, sortValue?, align?, width?, maxWidth?, truncate?, title?, pin?, numeric?, mono?, hideHeader?, stack? }`.
+
+- `maxWidth: '280px'` caps the content; longer text wraps, or with
+  `truncate: true` stays on one line with an ellipsis. The full text is the
+  cell's tooltip: `title: (row) => row.image`, or the plain value for
+  columns without a `cell` snippet. Use it for names, images and paths that
+  would otherwise widen the table.
+- `pin: 'end'` keeps the column at the right edge while the table scrolls
+  sideways, on the row's background (hover and selection included): use it
+  for the last (actions) column of wide lists.
+- `stack: 'head'` puts the column at the end of a stacked card's first
+  line (the row's "⋯" menu), so it does not take a line of its own.
 
 ### Forms
 
@@ -240,8 +271,8 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection. |
 | `Switch` | `role="switch"`; for settings that apply immediately. |
 | `RadioGroup` | Native radios in a fieldset. |
-| `TriState` | Inherit / Allow / Deny (#17 user overrides) with the effective decision and its source explained; `highRisk` marks Allow. |
-| `CronField` | Cron + IANA time zone; next runs and DST notes from `POST /api/v1/schedules/previews` (the one parser, #13), debounced; server validation shown inline. |
+| `TriState` | Inherit / Allow / Deny (#17 user overrides; `variant="rule"`: No rule / Allow / Deny) with the effective decision and its source explained. The chosen segment is filled and outlined in its colour (ok for Allow, danger for Deny, neutral otherwise); segments share one width so controls line up. `highRisk` marks Allow (the permission editor marks risk next to the action instead). |
+| `CronField` | `label` (the fieldset's legend), `bind:cron`, `bind:timeZone`, `kind`. A "Repeats" select (Hourly at a minute, Daily at a time, Weekly on a day at a time, Custom) writes the cron expression; the raw field shows only for Custom, and an expression the presets cannot edit opens as Custom. IANA time zone; next runs and DST notes from `POST /api/v1/schedules/previews` (the one parser, #13), debounced; server validation shown inline. Helpers in `cron.ts`: `describeCron`, `parseCronPreset`, `buildCron`. |
 
 Map server validation errors with `fieldError(err, 'body.name')`.
 
@@ -265,12 +296,12 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `toast.success / error / info / warn(title, { body, action, timeout })` + `<Toaster />` (root layout) | Errors stay until dismissed; polite and assertive regions. |
 | `Notice` | Inline or `bar` banner: `tone`, `title`, `live`, `actions` (e.g. the external-change conflict: Compare, Reload from disk, Save as…, Overwrite). |
 | `EmptyState` | Invites action: title, description, `actions`. |
-| `ErrorState` | From the API error shape: message, `code`, request ID with copy, Retry when retryable or a network failure. |
+| `ErrorState` | From the API error shape. `title` (optional) says what failed, then the message says what happened; without a title the message leads. The `code` and the request ID (with copy) wait behind a small "Details" toggle. Retry when retryable or a network failure (wraps below the text on phones). `bare`: no border, background or margin, for use inside a `Card`; `compact`: smaller padding. |
 | `DeniedState` | The Restricted user's state (brief copy). |
-| `OfflineEnvironment` | "homelab is offline", since when, what it means. |
-| `JobProgress` | `jobId` (follows `/api/v1/jobs/{id}/events/stream` via `JobWatcher`, polling fallback) or a `watcher`; `inline` or `panel`; per-item results, partial failure summary, recovery advice, completion announced; `onfinish`. |
+| `OfflineEnvironment` | "homelab is offline", since when, what it means ("Actions on homelab are unavailable until it reconnects."). The shell shows it for the selected environment, except on that environment's own page (which shows it itself). |
+| `JobProgress` | `jobId` (follows `/api/v1/jobs/{id}/events/stream` via `JobWatcher`, polling fallback) or a `watcher`; `inline` or `panel`; per-item results, partial failure summary, recovery advice, completion announced; `onfinish`; `summary={false}` leaves out the title/state line and the error (the job page shows them once itself). |
 | `SecretReveal` | One-time secrets: copy, download, fingerprint, "I stored it" gate; dropped from the page after Continue. |
-| `StepWizard` | Numbered steps, `onnext` validation (throw or return false), focus to the step heading, `onfinish`; `canGoBack={false}` hides Back once the wizard started a job. |
+| `StepWizard` | Numbered steps, `onnext` validation (throw or return false), focus to the step heading, `onfinish`; `canGoBack={false}` hides Back once the wizard started a job. `oncancel` (+ `cancelLabel`) adds Cancel to every step; `stepsClickable` turns visited steps into buttons (back at once, forward after the current step's `onnext` passes); `minHeight` keeps the step body from jumping between steps (wizards in dialogs). |
 
 ### Lazy surfaces
 
@@ -282,11 +313,13 @@ for charts; series colours come from `serviceSeriesColor`.
 
 `TimeSeriesChart` (`title`, `timestamps`, `lines: ChartLine[]`, `unit`:
 `percent | bytes | bytes_per_second | load | count`, `from`/`to`, `yMax`,
-`detail`) draws metric responses as they come from the API: nulls stay
+`detail`, `headline`) draws metric responses as they come from the API: nulls stay
 breaks, runs of missing samples are shaded **and** listed as text under
 the chart ("No samples since 12:40": offline intervals, #5), several
 lines get a text legend with their latest values, the figure is labelled
-with the latest value for assistive technology. Pure helpers in
+with the latest value for assistive technology. `headline={false}` leaves out the
+value after the title when the legend already shows every line's value
+(network received and sent). Pure helpers in
 `$lib/ui/timeseries.ts` (`gapIntervals`, `latestValue`, `formatValue`);
 the ECharts option is `timeSeriesOption` in `$lib/lazy` (unit-tested).
 Charts and sparklines apply data that arrives while ECharts is still
@@ -294,9 +327,22 @@ loading.
 
 ### Formatting
 
-`formatBytes` (312 MB, 1.8 GB), `formatPercent` (12.4%), `formatDuration`,
-`formatUptime` (live uptimes), `secondsSince(iso, nowMs)`,
-`formatRelative(iso, now)`, `formatDateTime(iso, zone)`, `shortId`.
+`formatBytes` (312 MB, 1.8 GB), `formatPercent` (12.4%), `formatDuration`
+(two units, one style: "1 s", "3 min 20 s", "17 h 9 min", "3 d 4 h"),
+`parseGoDuration` / `formatGoDuration` (a Go duration string such as
+`17h9m0s` from the API, read as seconds or as "17 h 9 min"), `formatUptime`
+(live uptimes), `secondsSince(iso, nowMs)`, `formatRelative(iso, now)`,
+`formatDateTime(iso, zone)` (one absolute format everywhere, "Sep 27, 2026,
+16:54", 24 h; "—" for absent or invalid values), `shortId`. A relative time
+carries the absolute one as its tooltip: `title={formatDateTime(iso)}`.
+
+`describeCron(expr, timeZone?)` (`$lib/ui`, from `cron.ts`) reads a cron
+expression in words: "Every 15 minutes", "Hourly at :05", "Daily at 03:00",
+"Weekdays at 07:30", "Weekly on Monday and Thursday at 04:00", "Monthly on
+day 1 at 02:00"; the zone follows in words only when it is not the
+viewer's ("Daily at 03:00 (UTC)"); other shapes stay the raw expression.
+Show schedules in words with the expression as tooltip
+(`ScheduleSummary` in `$lib/features/common` does).
 
 ## Adding a page
 
@@ -359,7 +405,9 @@ loading.
   never persist API data in `localStorage` (the only stored values are the
   selected environment ID per user and the sidebar rail preference). The
   search and filters of each list are UI state kept in `sessionStorage`
-  (`docker-manager:list-filters:<list>`, per list and browser tab).
+  (`docker-manager:list-filters:<list>`, per list and browser tab), as are
+  the paths of the recently visited pages for the palette's "Recent"
+  (`docker-manager:recent-pages`; their titles stay in memory).
 
 ## Copy rules
 

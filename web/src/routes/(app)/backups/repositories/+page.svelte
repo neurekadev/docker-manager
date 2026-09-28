@@ -8,13 +8,26 @@
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
-	import { Badge, Button, Card, EmptyState, Table, formatRelative, type Column } from '$lib/ui';
+	import {
+		Badge,
+		Button,
+		Card,
+		EmptyState,
+		Table,
+		formatDateTime,
+		formatRelative,
+		type Column
+	} from '$lib/ui';
 	import { environmentName } from '$lib/features/common/data';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
-	import { repositoryLocation, type BackupRepository } from '$lib/features/backups/model';
+	import {
+		connectionTestText,
+		repositoryLocation,
+		type BackupRepository
+	} from '$lib/features/backups/model';
 	import { repositoriesQuery } from '$lib/features/backups/queries';
 
 	usePage({
@@ -33,11 +46,18 @@
 			header: 'Repository',
 			cell: nameCell,
 			sortValue: (r) => r.name,
+			maxWidth: '420px',
 			stack: 'title'
 		},
 		{ id: 'state', header: 'Recovery Key', cell: stateCell, width: '190px', stack: 'status' },
-		{ id: 'test', header: 'Last test', cell: testCell, width: '190px' },
-		{ id: 'verified', header: 'Last verified', cell: verifiedCell, width: '150px' }
+		{ id: 'test', header: 'Connection', cell: testCell, width: '240px', stack: 'meta' },
+		{
+			id: 'verified',
+			header: 'Last verified',
+			cell: verifiedCell,
+			width: '150px',
+			stack: 'hidden'
+		}
 	];
 </script>
 
@@ -45,8 +65,7 @@
 	<NameCell
 		name={r.name}
 		href={routes.backupRepository(r.id)}
-		sub="{r.kind === 's3' ? 'S3' : 'Local'} {repositoryLocation(r, envName)}"
-		subMono
+		sub="{r.kind === 's3' ? 'S3 storage' : 'Local directory'}: {repositoryLocation(r, envName)}"
 	/>
 {/snippet}
 {#snippet stateCell(r: BackupRepository)}
@@ -56,14 +75,15 @@
 {/snippet}
 {#snippet testCell(r: BackupRepository)}
 	{#if r.lastTest}
-		<Badge tone={r.lastTest.ok ? 'ok' : 'danger'} dot
-			>{r.lastTest.ok ? 'Works' : 'Failed'}</Badge
+		<span class:danger={!r.lastTest.ok} title={formatDateTime(r.lastTest.at)}
+			>{connectionTestText(r.lastTest)}</span
 		>
-		<span class="muted num">{formatRelative(r.lastTest.at)}</span>
-	{:else}<span class="muted">Not tested</span>{/if}
+	{:else}<span class="muted">Not tested yet</span>{/if}
 {/snippet}
 {#snippet verifiedCell(r: BackupRepository)}
-	{#if r.verification?.lastVerifiedAt}<span class="num"
+	{#if r.verification?.lastVerifiedAt}<span
+			class="num"
+			title={formatDateTime(r.verification.lastVerifiedAt)}
 			>{formatRelative(r.verification.lastVerifiedAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
 {/snippet}
@@ -71,10 +91,9 @@
 <Page>
 	<BackupsHeader>
 		{#snippet actions()}
-			{#if perms.data?.owner}
-				<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
-					>Add repository</Button
-				>
+			<!-- Without a ready repository the header's primary button adds one. -->
+			{#if perms.data?.owner && (repos.data ?? []).some((r) => r.state === 'ready')}
+				<Button icon={Plus} href={routes.backupRepositoryNew()}>Add repository</Button>
 			{/if}
 		{/snippet}
 	</BackupsHeader>
@@ -113,3 +132,9 @@
 		</QueryView>
 	</Card>
 </Page>
+
+<style>
+	.danger {
+		color: var(--danger);
+	}
+</style>

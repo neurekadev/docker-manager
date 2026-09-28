@@ -93,12 +93,19 @@
 		}
 	}
 
-	// One service's start/stop/restart, confirmed first.
+	// One service's start, stop or restart. Only Stop confirms (it ends
+	// what runs); Start and Restart run at once, like a container's.
 	let op = $state<{ service: string; action: StackOperation } | null>(null);
 	let confirming = $state(false);
 	function ask(service: string, action: StackOperation) {
 		op = { service, action };
-		confirming = true;
+		if (action === 'stop' || action === 'down') {
+			confirming = true;
+			return;
+		}
+		run().catch((e) =>
+			toast.error(`${service} was not ${VERB[action][2]}`, { body: errorMessage(e) })
+		);
 	}
 	const VERB: Record<StackOperation, [string, string, string]> = {
 		start: ['Start', 'Started', 'started'],
@@ -116,24 +123,14 @@
 			failure: `${op.service} was not ${failed}`
 		});
 	}
-	const consequence = $derived.by(() => {
-		if (!op) return [];
-		switch (op.action) {
-			case 'stop':
-				return [
-					`Stops ${op.service} and the services that depend on it, in reverse dependency order.`,
-					'Containers, volumes and files are kept.'
-				];
-			case 'start':
-				return [
-					`Starts ${op.service} after its dependencies, waiting for their depends_on conditions.`
-				];
-			default:
-				return [
-					`Restarts ${op.service}; dependents declared with restart: true restart with it.`
-				];
-		}
-	});
+	const consequence = $derived(
+		op
+			? [
+					`Stops ${op.service} and the services that need it, those first.`,
+					'Containers, volumes and files are kept; Start brings them back.'
+				]
+			: []
+	);
 </script>
 
 {#if !full}
@@ -166,11 +163,8 @@
 			</ul>
 			{#snippet actions()}
 				{#if canDeploy && hasOrphans}
-					<Button
-						size="sm"
-						variant="danger-soft"
-						onclick={() => ctx.removeOrphans.request()}
-						>Deploy and remove orphaned containers…</Button
+					<Button size="sm" onclick={() => ctx.removeOrphans.request()}
+						>Remove old containers…</Button
 					>
 				{/if}
 				{#if canDeploy && !onlyOrphans}
@@ -197,6 +191,7 @@
 					title="The services could not be loaded."
 					onretry={() => services.refetch()}
 					compact
+					bare
 				/>
 			</div>
 		{:else}
@@ -207,6 +202,8 @@
 				{usage}
 				serviceAddress={ctx.environment?.serviceAddress}
 				onoperate={ask}
+				ondeploy={canDeploy ? deployNow : undefined}
+				{deploying}
 				{readOnly}
 			/>
 		{/if}
@@ -219,7 +216,7 @@
 		title="{VERB[op.action][0]} {op.service}?"
 		consequences={consequence}
 		confirmLabel={VERB[op.action][0]}
-		tone={op.action === 'stop' ? 'danger' : 'default'}
+		tone="danger"
 		onconfirm={run}
 	/>
 {/if}

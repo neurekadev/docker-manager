@@ -6,9 +6,12 @@ import {
 	canInEnvironment,
 	candidateStatus,
 	compareRevisions,
+	comparisonFor,
+	defaultComparison,
 	dependencyOrder,
 	downtimeText,
 	findingTitle,
+	groupRevisions,
 	importCandidates,
 	jobKindLabel,
 	nameError,
@@ -23,6 +26,7 @@ import {
 	serviceUsage,
 	shortDigest,
 	shortHash,
+	showStackIcon,
 	spaceCheck,
 	stackIcon,
 	stackStatus,
@@ -62,6 +66,14 @@ describe('stack status and counts', () => {
 		// The default stack icon stays on the blue stack tile, never the rose
 		// cache colour the same icon has on a service.
 		expect(stackIcon({ icon: 'layers' })).toEqual({ icon: 'layers', color: 'blue' });
+	});
+
+	it('shows a stack icon in lists only when one was chosen', () => {
+		expect(showStackIcon({})).toBe(false);
+		expect(showStackIcon({ icon: 'layers' })).toBe(false);
+		expect(showStackIcon({ icon: 'not-an-icon' })).toBe(false);
+		expect(showStackIcon({ icon: 'database' })).toBe(true);
+		expect(showStackIcon({ template: { name: 'Nextcloud' } } as never)).toBe(true);
 	});
 
 	it('prefers what Docker Manager did for failed, down and undeployed stacks, else the Engine state', () => {
@@ -246,6 +258,40 @@ describe('revisions', () => {
 		expect(revisionLabel({ seq: 3, hash: '0c712efabc' })).toBe('Revision 3 (0c712ef)');
 		expect(revisionSource('file_manager')).toBe('File manager');
 		expect(revisionSource('external')).toBe('Edited on disk');
+	});
+
+	// Newest first: 5 and 4 have the same files, as have 2 and 1.
+	const revs = [
+		{ id: 'r5', hash: 'c' },
+		{ id: 'r4', hash: 'c' },
+		{ id: 'r3', hash: 'b' },
+		{ id: 'r2', hash: 'a' },
+		{ id: 'r1', hash: 'a' }
+	];
+
+	it('groups consecutive revisions with the same fingerprint', () => {
+		expect(groupRevisions(revs).map((g) => [g.head.id, g.members.map((m) => m.id)])).toEqual([
+			['r5', ['r5', 'r4']],
+			['r3', ['r3']],
+			['r2', ['r2', 'r1']]
+		]);
+		expect(groupRevisions([])).toEqual([]);
+	});
+
+	it('never opens a comparison of two revisions with the same files', () => {
+		// Undeployed changes: deployed against on disk.
+		expect(defaultComparison(revs, 'r3', 'r5', true)).toEqual({ from: 'r3', to: 'r5' });
+		// Otherwise the newest run against the one before it (not r5 vs r4).
+		expect(defaultComparison(revs, 'r5', 'r5', false)).toEqual({ from: 'r3', to: 'r5' });
+		// "Undeployed" but equal files: fall back to the runs.
+		expect(defaultComparison(revs, 'r4', 'r5', true)).toEqual({ from: 'r3', to: 'r5' });
+		expect(defaultComparison(revs.slice(0, 2), 'r5', 'r5', false)).toBeNull();
+	});
+
+	it('compares a revision with the deployed one, else the next older with other files', () => {
+		expect(comparisonFor(revs, revs[2], 'r5')).toEqual({ from: 'r5', to: 'r3' });
+		expect(comparisonFor(revs, revs[0], 'r4')).toEqual({ from: 'r3', to: 'r5' });
+		expect(comparisonFor(revs, revs[3], 'r1')).toBeNull();
 	});
 
 	it('compares the files of two revisions in path order', () => {

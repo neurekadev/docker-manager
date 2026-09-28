@@ -1,20 +1,39 @@
 <script lang="ts">
-	// Template detail (template registry): the header with the template's
-	// icon, visibility, tags and newest version, "Publish version", then the
-	// tabs Overview · Files · Versions · Settings. Tabs and actions follow the
-	// template's DTO actions (hidden, never disabled).
+	// Template detail (template registry): the page header (the template's
+	// icon, visibility, newest version, number of versions, last change),
+	// "Create stack" as the primary action once a version is published and
+	// "Publish version", then the tabs Overview · Files · Versions ·
+	// Settings. Tabs and actions follow the template's DTO actions (hidden,
+	// never disabled).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
+	import Clock from '@lucide/svelte/icons/clock';
+	import History from '@lucide/svelte/icons/history';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Tag from '@lucide/svelte/icons/tag';
 	import Upload from '@lucide/svelte/icons/upload';
 	import { ApiRequestError } from '$lib/api/client';
+	import Page from '$lib/features/common/Page.svelte';
 	import PublishDialog from '$lib/features/templates/PublishDialog.svelte';
 	import TemplateIcon from '$lib/features/templates/TemplateIcon.svelte';
+	import { versionTitle } from '$lib/features/templates/model';
 	import { templateQuery } from '$lib/features/templates/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
-	import { Badge, Button, EmptyState, ErrorState, Skeleton, TabNav, type TabLink } from '$lib/ui';
+	import {
+		Badge,
+		Button,
+		EmptyState,
+		ErrorState,
+		PageHeader,
+		Skeleton,
+		TabNav,
+		formatDateTime,
+		formatRelative,
+		type MetaItem,
+		type TabLink
+	} from '$lib/ui';
 
 	let { children } = $props();
 
@@ -44,16 +63,36 @@
 			out.push({ href: routes.template(id, 'settings'), label: 'Settings' });
 		return out;
 	});
+	const canCreateStack = $derived(can('template.use') && !!t?.latest);
+	const meta = $derived.by((): MetaItem[] => {
+		if (!t || t.view !== 'full') return [];
+		const out: MetaItem[] = t.latest
+			? [
+					{ icon: Tag, label: versionTitle(t.latest.label), title: 'The newest version' },
+					{
+						icon: History,
+						label: `${t.versions} ${t.versions === 1 ? 'version' : 'versions'}`
+					}
+				]
+			: [{ icon: History, label: 'Draft only, no version yet' }];
+		if (t.updatedAt)
+			out.push({
+				icon: Clock,
+				label: `Changed ${formatRelative(t.updatedAt)}`,
+				title: formatDateTime(t.updatedAt)
+			});
+		return out;
+	});
 </script>
 
 {#if template.isPending}
-	<div class="page" aria-busy="true" aria-label="Loading the template">
-		<div class="head-skeleton">
+	<Page>
+		<div class="head-skeleton" aria-busy="true" aria-label="Loading the template">
 			<Skeleton width="48px" height="48px" radius="md" />
 			<div class="grow"><Skeleton lines={3} /></div>
 		</div>
 		<Skeleton height="280px" radius="lg" />
-	</div>
+	</Page>
 {:else if notFound}
 	<EmptyState
 		icon={LayoutTemplate}
@@ -73,60 +112,38 @@
 		onretry={() => template.refetch()}
 	/>
 {:else if t}
-	<div class="page">
-		<header class="head">
-			<TemplateIcon url={t.icon?.url} size="lg" />
-			<div class="main">
-				<div class="title-row">
-					<h1>{t.name}</h1>
-					{#if t.visibility === 'public'}<Badge tone="info">Public</Badge>{:else}<Badge
-							tone="neutral">Private</Badge
-						>{/if}
-				</div>
-				{#if t.description}<p class="desc">{t.description}</p>{/if}
-				<div class="meta">
-					<span
-						>{t.latest ? `Latest version ${t.latest.label}` : 'Not published yet'}</span
+	<Page>
+		<PageHeader title={t.name} description={t.description || undefined} {meta}>
+			{#snippet media()}<TemplateIcon url={t.icon?.url} size="lg" />{/snippet}
+			{#snippet status()}
+				{#if t.visibility === 'public'}<Badge tone="info">Public</Badge>{:else}<Badge
+						tone="neutral">Private</Badge
+					>{/if}
+			{/snippet}
+			{#snippet actions()}
+				{#if canCreateStack}
+					<Button variant="primary" icon={Plus} href={routes.stackFromTemplate(t.id)}
+						>Create stack</Button
 					>
-					{#if t.view === 'full'}<span
-							>{t.versions} {t.versions === 1 ? 'version' : 'versions'}</span
-						>{/if}
-					{#each t.tags ?? [] as tag (tag)}
-						<a class="tag" href={routes.templates(tag)}>#{tag}</a>
-					{/each}
-				</div>
-			</div>
-			{#if can('template.publish') || (can('template.use') && t.latest)}
-				<div class="actions">
-					{#if can('template.use') && t.latest}
-						<Button icon={Plus} href={routes.stackFromTemplate(t.id)}
-							>Create stack</Button
-						>
-					{/if}
-					{#if can('template.publish')}
-						<Button variant="primary" icon={Upload} onclick={() => (publishing = true)}
-							>Publish version</Button
-						>
-					{/if}
-				</div>
-			{/if}
-		</header>
+				{/if}
+				{#if can('template.publish')}
+					<Button
+						variant={canCreateStack ? 'secondary' : 'primary'}
+						icon={Upload}
+						onclick={() => (publishing = true)}>Publish version</Button
+					>
+				{/if}
+			{/snippet}
+		</PageHeader>
 		<TabNav label="Template sections" current={page.url.pathname} items={tabs} />
 		{@render children()}
-	</div>
+	</Page>
 	{#if can('template.publish')}
 		<PublishDialog bind:open={publishing} template={t} />
 	{/if}
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-		min-width: 0;
-	}
-
 	.head-skeleton {
 		display: flex;
 		gap: var(--space-4);
@@ -134,62 +151,5 @@
 
 	.grow {
 		flex: 1;
-	}
-
-	.head {
-		display: flex;
-		align-items: flex-start;
-		flex-wrap: wrap;
-		gap: var(--space-4);
-	}
-
-	.main {
-		display: flex;
-		flex: 1;
-		flex-direction: column;
-		gap: 4px;
-		min-width: 0;
-	}
-
-	.title-row {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-	}
-
-	h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
-		letter-spacing: -0.01em;
-	}
-
-	.desc {
-		max-width: 80ch;
-		color: var(--text-default);
-		font-size: var(--text-control);
-	}
-
-	.meta {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--space-2) var(--space-3);
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-	}
-
-	.tag {
-		color: var(--text-muted);
-		text-decoration: none;
-	}
-
-	.tag:hover {
-		color: var(--accent-text);
-	}
-
-	.actions {
-		display: flex;
-		gap: var(--space-2);
 	}
 </style>

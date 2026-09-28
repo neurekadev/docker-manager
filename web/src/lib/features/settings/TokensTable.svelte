@@ -120,6 +120,7 @@
 			hideHeader: true,
 			cell: actionsCell,
 			width: '170px',
+			pin: 'end',
 			stack: 'actions'
 		}
 	]);
@@ -132,7 +133,7 @@
 		><Badge tone={s.tone} dot>{s.label}</Badge></span
 	>
 {/snippet}
-{#snippet userCell(t: APIToken)}{t.username ?? t.userId}{/snippet}
+{#snippet userCell(t: APIToken)}{t.username ?? 'Unknown user'}{/snippet}
 {#snippet expiresCell(t: APIToken)}
 	{#if t.expiresAt}<span class="num" title={formatDateTime(t.expiresAt)}
 			>{formatRelative(t.expiresAt)}</span
@@ -140,7 +141,9 @@
 {/snippet}
 {#snippet usedCell(t: APIToken)}
 	{#if t.lastUsedAt}
-		<NameCell name={formatRelative(t.lastUsedAt)} sub={t.lastUsedIp} subMono />
+		<span title={formatDateTime(t.lastUsedAt)}
+			><NameCell name={formatRelative(t.lastUsedAt)} sub={t.lastUsedIp} subMono /></span
+		>
 	{:else}<span class="muted">Never</span>{/if}
 {/snippet}
 {#snippet actionsCell(t: APIToken)}

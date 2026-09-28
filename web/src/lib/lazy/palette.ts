@@ -3,12 +3,12 @@
 // equal to src/lib/design/tokens.css (checked by palette.spec.ts).
 
 export const EDITOR_COLORS = {
-	background: '#0e141b', // --code-bg
+	background: '#0f161f', // --code-bg
 	text: '#c8d3e2', // --text-default
 	muted: '#8392a8', // --text-muted
 	caret: '#52a3f7', // --accent-text
 	selection: '#1d3561', // --code-selection
-	activeLine: '#131b25', // --code-active-line
+	activeLine: '#16202b', // --code-active-line
 	gutter: '#596476', // --code-gutter
 	gutterActive: '#c8d3e2', // --code-gutter-active
 	key: '#52a3f7', // --code-key
@@ -18,8 +18,8 @@ export const EDITOR_COLORS = {
 	comment: '#596476', // --code-comment
 	punctuation: '#8392a8', // --code-punctuation
 	keyword: '#707ffc', // --tile-violet-fg
-	surfaceRaised: '#151b24', // --surface-raised
-	border: '#263041', // --border-strong
+	surfaceRaised: '#19222e', // --surface-raised
+	border: '#2b3747', // --border-strong
 	fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Consolas, monospace",
 	fontSans: "'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif"
 } as const;
@@ -27,9 +27,9 @@ export const EDITOR_COLORS = {
 export const CHART_COLORS = {
 	text: '#8392a8', // --text-muted
 	textStrong: '#f2f4f7', // --text-strong
-	grid: '#1c2430', // --border-subtle
-	axis: '#263041', // --border-strong
-	tooltipBg: '#151b24', // --surface-raised
+	grid: '#1f2a38', // --border-subtle
+	axis: '#2b3747', // --border-strong
+	tooltipBg: '#19222e', // --surface-raised
 	/** Default series order: CPU (info), memory (indigo), then the tile hues. */
 	series: [
 		'#2bb0f6',
@@ -49,12 +49,12 @@ export const CHART_COLORS = {
 } as const;
 
 export const TERMINAL_THEME = {
-	background: '#0e141b',
+	background: '#0f161f',
 	foreground: '#c8d3e2',
 	cursor: '#52a3f7',
-	cursorAccent: '#0e141b',
+	cursorAccent: '#0f161f',
 	selectionBackground: '#1d3561',
-	black: '#10161d',
+	black: '#121a24',
 	red: '#fd6b66',
 	green: '#4cf683',
 	yellow: '#f5b544',

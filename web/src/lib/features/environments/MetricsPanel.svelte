@@ -1,6 +1,8 @@
 <script lang="ts">
 	// Host metrics of one environment (#5): CPU, memory, network, load and
-	// disks over a chosen range. Values come from GET …/metrics (downsampled
+	// disks over a chosen range, explained in plain words (averages on long
+	// ranges, shaded gaps); charts with a legend leave out the headline
+	// value the legend already shows. Values come from GET …/metrics (downsampled
 	// by the manager; nulls are gaps: the agent was offline or a value was
 	// unknown) and refresh live through `metrics` events (liveKeys.metrics).
 	import { createQuery } from '@tanstack/svelte-query';
@@ -31,11 +33,6 @@
 	const m = $derived(metrics.data);
 	const mounts = $derived(diskMounts(m));
 	const rangeOptions = METRIC_RANGES.map((r) => ({ value: r.id, label: `Last ${r.label}` }));
-	const resolutionText: Record<string, string> = {
-		raw: '10-second samples',
-		'1m': '1-minute averages',
-		'15m': '15-minute averages'
-	};
 </script>
 
 <Card title="Metrics" id="metrics">
@@ -49,6 +46,7 @@
 			error={metrics.error}
 			title="The metrics of {name} could not be loaded."
 			onretry={() => metrics.refetch()}
+			bare
 			compact
 		/>
 	{:else if !m}
@@ -57,15 +55,12 @@
 		</div>
 	{:else}
 		<p class="meta muted">
-			{resolutionText[m.resolution] ?? m.resolution}, one point every {m.stepSeconds >= 60
-				? `${m.stepSeconds / 60} min`
-				: `${m.stepSeconds} s`}. Shaded spans had no samples: the agent was offline or not
-			reporting.
+			{m.resolution === 'raw' ? '' : 'Longer ranges show averages. '}Shaded spans have no
+			data: the environment was offline or not reporting.
 		</p>
 		{#if m.skewCorrected}
 			<Notice tone="info" title="Some timestamps were corrected" live="none">
-				The agent's clock differs from the manager's; Docker Manager shifted its samples to
-				the manager's time.
+				The host's clock is off, so Docker Manager moved its samples to the right time.
 			</Notice>
 		{/if}
 		<div class="grid">
@@ -106,6 +101,7 @@
 			<TimeSeriesChart
 				title="Network"
 				unit="bytes_per_second"
+				headline={false}
 				timestamps={m.timestamps}
 				from={m.from}
 				to={m.to}
@@ -125,6 +121,7 @@
 			<TimeSeriesChart
 				title="Load"
 				unit="load"
+				headline={false}
 				timestamps={m.timestamps}
 				from={m.from}
 				to={m.to}

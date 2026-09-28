@@ -2,18 +2,22 @@
 	// This instance's public template registry (template registry), readable
 	// without signing in: the public templates with their tags and versions,
 	// search and tag filters, and the registry URL to add in another Docker
-	// Manager (Templates → Registries → Add registry). Private templates never
+	// Manager (Templates → Template sources) in a compact side
+	// card, below the templates on narrow screens. Private templates never
 	// appear here.
 	import { createQuery } from '@tanstack/svelte-query';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import { ApiRequestError, api, unwrap } from '$lib/api/client';
 	import TemplateCard from '$lib/features/templates/TemplateCard.svelte';
 	import { tagCounts } from '$lib/features/templates/model';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import {
 		Card,
+		Chip,
 		CopyButton,
 		EmptyState,
 		ErrorState,
+		PageHeader,
 		Skeleton,
 		TextField,
 		formatRelative
@@ -71,85 +75,106 @@
 {:else if index.data}
 	{@const idx = index.data}
 	<div class="page">
-		<header class="head">
-			<h1>{idx.name} templates</h1>
-			<p class="muted">
-				Complete Compose projects shared by this Docker Manager. {idx.templates.length}
-				{idx.templates.length === 1 ? 'template' : 'templates'}{idx.templates.length
-					? `, updated ${formatRelative(idx.updatedAt)}`
-					: ''}.
-			</p>
-		</header>
+		<PageHeader
+			title="{idx.name} templates"
+			description="Complete Compose projects shared by this Docker Manager. {idx.templates
+				.length} {idx.templates.length === 1 ? 'template' : 'templates'}{idx.templates
+				.length
+				? `, updated ${formatRelative(idx.updatedAt)}`
+				: ''}."
+		/>
 
-		<Card title="Use these templates in your Docker Manager" id="add">
-			<div class="add">
-				<p>
-					In your Docker Manager, open <strong>Templates → Registries</strong>, choose
-					<strong>Add registry</strong> and paste this URL:
-				</p>
-				<div class="url">
-					<code>{registryUrl}</code>
-					<CopyButton value={registryUrl} what="registry URL" />
-				</div>
-			</div>
-		</Card>
-
-		{#if idx.templates.length === 0}
-			<EmptyState
-				icon={LayoutTemplate}
-				color="violet"
-				title="No public templates yet."
-				description="Templates appear here when their owner makes them public and publishes a version."
-				level={2}
-			/>
-		{:else}
-			<div class="filters">
-				<TextField
-					label="Search templates"
-					hideLabel
-					type="search"
-					placeholder="Search by name, description or tag"
-					bind:value={query}
-				/>
-				{#if tags.length}
-					<div class="chips" role="group" aria-label="Filter by tag">
-						{#each tags as { tag: t, count: n } (t)}
-							<button
-								type="button"
-								class="chip"
-								aria-pressed={tag === t}
-								onclick={() => (tag = tag === t ? '' : t)}
-								>#{t} <span class="count">{n}</span></button
-							>
-						{/each}
+		<div class="layout">
+			<div class="main">
+				{#if idx.templates.length === 0}
+					<Card>
+						<EmptyState
+							icon={LayoutTemplate}
+							color="violet"
+							title="No public templates yet."
+							description="Templates appear here when their owner makes them public and publishes a version."
+							level={2}
+						/>
+					</Card>
+				{:else}
+					<div class="filters">
+						<div class="search">
+							<TextField
+								label="Search templates"
+								hideLabel
+								type="search"
+								placeholder="Search templates"
+								bind:value={query}
+							/>
+						</div>
+						{#if tags.length}
+							<div class="chips" role="group" aria-label="Filter by tag">
+								{#each tags as { tag: t, count: n } (t)}
+									<Chip
+										label={t}
+										count={n}
+										size="sm"
+										selected={tag === t}
+										onclick={() => (tag = tag === t ? '' : t)}
+									/>
+								{/each}
+							</div>
+						{/if}
 					</div>
+					{#if shown.length}
+						<ul class="grid" aria-label="Public templates">
+							{#each shown as t (t.id)}
+								<li class="item">
+									<TemplateCard
+										name={t.name}
+										description={t.description}
+										tags={t.tags}
+										iconUrl={t.icon?.url}
+										latest={t.versions[0]?.label}
+										source={idx.name}
+										onTag={(x) => (tag = x)}
+									/>
+									{#if t.versions.length > 1}
+										<p class="versions muted">
+											Versions: {t.versions.map((v) => v.label).join(', ')}
+										</p>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<Card>
+							<NoMatches
+								what="templates"
+								icon={LayoutTemplate}
+								onclear={() => {
+									query = '';
+									tag = '';
+								}}
+							/>
+						</Card>
+					{/if}
 				{/if}
 			</div>
-			{#if shown.length}
-				<ul class="grid" aria-label="Public templates">
-					{#each shown as t (t.id)}
-						<li class="item">
-							<TemplateCard
-								name={t.name}
-								description={t.description}
-								tags={t.tags}
-								iconUrl={t.icon?.url}
-								latest={t.versions[0]?.label}
-								source={idx.name}
-								onTag={(x) => (tag = x)}
-							/>
-							{#if t.versions.length > 1}
-								<p class="versions muted">
-									Versions: {t.versions.map((v) => v.label).join(', ')}
-								</p>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="muted">No template matches. Clear the search or the tag.</p>
-			{/if}
-		{/if}
+
+			<aside class="side" aria-labelledby="add-title">
+				<Card>
+					<div class="add" id="add">
+						<h2 id="add-title" class="subsection-title">Use these templates</h2>
+						<p class="muted">
+							In your Docker Manager, open <strong
+								>Templates → Template sources</strong
+							>, choose
+							<strong>Add template source</strong> and paste this address:
+						</p>
+						<div class="url">
+							<code title={registryUrl}>{registryUrl}</code>
+							<CopyButton value={registryUrl} what="registry address" />
+						</div>
+					</div>
+				</Card>
+			</aside>
+		</div>
 	</div>
 {/if}
 
@@ -160,14 +185,26 @@
 		gap: var(--space-4);
 	}
 
-	h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
-		letter-spacing: -0.01em;
+	/* Templates first; the instructions in a narrow side card (below the
+	   templates on narrow screens). */
+	.layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 300px;
+		align-items: start;
+		gap: var(--space-4);
 	}
 
-	.head p {
-		margin-top: 2px;
+	.main {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		min-width: 0;
+	}
+
+	@media (max-width: 1023px) {
+		.layout {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 
 	.add {
@@ -179,6 +216,7 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
+		min-width: 0;
 		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-sm);
@@ -187,6 +225,7 @@
 
 	.url code {
 		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -195,33 +234,16 @@
 	.filters {
 		display: grid;
 		gap: var(--space-3);
-		max-width: 640px;
+	}
+
+	.search {
+		max-width: 480px;
 	}
 
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-	}
-
-	.chip {
-		padding: 4px 10px;
-		border: 1px solid var(--border-subtle);
-		border-radius: 999px;
-		background: var(--surface-panel);
-		color: var(--text-default);
-		font: inherit;
-		font-size: var(--text-control);
-		cursor: pointer;
-	}
-
-	.chip[aria-pressed='true'] {
-		border-color: var(--accent-text);
-		color: var(--text-strong);
-	}
-
-	.count {
-		color: var(--text-muted);
 	}
 
 	.grid {

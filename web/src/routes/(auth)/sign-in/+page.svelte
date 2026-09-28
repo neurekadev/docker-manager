@@ -1,7 +1,10 @@
 <script lang="ts">
 	// Sign-in (#16): password, then a second factor when the account has one
 	// (TOTP code, passkey, or a recovery code); or a username-less passkey
-	// sign-in. Failures never say which part was wrong.
+	// sign-in. Failures never say which part was wrong. The buttons stay
+	// enabled (autofill may not report values before the user interacts);
+	// the forms check on submit and say what is missing next to the field.
+	import { tick } from 'svelte';
 	import { page } from '$app/state';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Fingerprint from '@lucide/svelte/icons/fingerprint';
@@ -13,6 +16,8 @@
 		passkeysSupported,
 		requestOptions
 	} from '$lib/auth/webauthn';
+	import AuthHeader from '$lib/features/auth/AuthHeader.svelte';
+	import { isValid, requiredErrors, submitted, untilFilled } from '$lib/features/auth/validate';
 	import { Button, Notice, PasswordField, Skeleton, TextField, errorView } from '$lib/ui';
 
 	const flow = usePublicPage('sign-in');
@@ -27,6 +32,36 @@
 	let busy = $state<string | null>(null);
 	let message = $state<string | null>(null);
 	let factors = $state<string[]>([]);
+	type Field = 'username' | 'password' | 'code' | 'recovery';
+	let invalid = $state<Partial<Record<Field, string>>>({});
+	const MISSING: Record<Field, string> = {
+		username: 'Enter your username.',
+		password: 'Enter your password.',
+		code: 'Enter the code from your authenticator app.',
+		recovery: 'Enter one of your recovery codes.'
+	};
+
+	/**
+	 * Reads the submitted form (autofilled values too), says next to each
+	 * empty required field what is missing and moves focus to the first.
+	 */
+	function check<F extends Field>(e: SubmitEvent, bound: Record<F, string>) {
+		const form = e.currentTarget as HTMLFormElement | null;
+		const data = form ? new FormData(form) : null;
+		const values = {} as Record<F, string>;
+		const fields = {} as Record<F, readonly [string, string]>;
+		for (const k of Object.keys(bound) as F[]) {
+			values[k] = submitted(data, k, bound[k]);
+			fields[k] = [values[k], MISSING[k]];
+		}
+		invalid = requiredErrors(fields);
+		const ok = isValid(invalid);
+		if (!ok)
+			void tick().then(() =>
+				form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+			);
+		return { ok, values };
+	}
 
 	// A pending sign-in (reload during the second step) resumes there.
 	$effect(() => {
@@ -69,6 +104,10 @@
 
 	async function signIn(e: SubmitEvent) {
 		e.preventDefault();
+		const { ok, values } = check(e, { username, password });
+		username = values.username;
+		password = values.password;
+		if (!ok) return;
 		busy = 'password';
 		message = null;
 		try {
@@ -90,6 +129,9 @@
 
 	async function submitCode(e: SubmitEvent) {
 		e.preventDefault();
+		const { ok, values } = check(e, { code });
+		code = values.code;
+		if (!ok) return;
 		busy = 'code';
 		message = null;
 		try {
@@ -111,6 +153,9 @@
 
 	async function submitRecovery(e: SubmitEvent) {
 		e.preventDefault();
+		const { ok, values } = check(e, { recovery });
+		recovery = values.recovery;
+		if (!ok) return;
 		busy = 'recovery';
 		message = null;
 		try {
@@ -159,14 +204,14 @@
 <svelte:head><title>Sign in · Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<header>
-		<h1>Sign in to Docker Manager</h1>
-		{#if step === 'second'}
-			<p class="lead">Confirm it's you with your second factor.</p>
-		{:else if step === 'recovery'}
-			<p class="lead">Enter one of your recovery codes. Each code works once.</p>
-		{/if}
-	</header>
+	<AuthHeader
+		title="Sign in"
+		lead={step === 'second'
+			? "Confirm it's you with your second factor."
+			: step === 'recovery'
+				? 'Enter one of your recovery codes. Each code works once.'
+				: undefined}
+	/>
 
 	{#if reason === 'expired' && step === 'password'}
 		<Notice tone="info" title="Your session ended"
@@ -180,10 +225,12 @@
 	{#if !flow.ready}
 		<Skeleton lines={3} height="36px" />
 	{:else if step === 'password'}
-		<form onsubmit={signIn}>
+		<form onsubmit={signIn} novalidate>
 			<TextField
 				label="Username"
+				name="username"
 				bind:value={username}
+				error={untilFilled(invalid.username, username)}
 				autocomplete="username webauthn"
 				autocapitalize="off"
 				spellcheck="false"
@@ -191,16 +238,18 @@
 			/>
 			<PasswordField
 				label="Password"
+				name="password"
 				bind:value={password}
 				autocomplete="current-password"
 				required
+				error={untilFilled(invalid.password, password)}
 			/>
 			<Button
 				type="submit"
 				variant="primary"
 				block
 				loading={busy === 'password'}
-				disabled={!!busy || !username.trim() || !password}
+				disabled={!!busy}
 			>
 				Sign in
 			</Button>
@@ -220,10 +269,12 @@
 		</p>
 	{:else if step === 'second'}
 		{#if factors.includes('totp')}
-			<form onsubmit={submitCode}>
+			<form onsubmit={submitCode} novalidate>
 				<TextField
 					label="Authenticator code"
+					name="code"
 					bind:value={code}
+					error={untilFilled(invalid.code, code)}
 					inputmode="numeric"
 					autocomplete="one-time-code"
 					pattern="[0-9 ]*"
@@ -236,7 +287,7 @@
 					variant="primary"
 					block
 					loading={busy === 'code'}
-					disabled={!!busy || code.replace(/\s/g, '').length < 6}
+					disabled={!!busy}
 				>
 					Verify
 				</Button>
@@ -259,21 +310,24 @@
 				<button
 					type="button"
 					class="link"
-					onclick={() => ((step = 'recovery'), (message = null))}
+					onclick={() => ((step = 'recovery'), (message = null), (invalid = {}))}
 					>Use a recovery code</button
 				>
 			{/if}
 			<button
 				type="button"
 				class="link"
-				onclick={() => ((step = 'password'), (message = null))}>Start over</button
+				onclick={() => ((step = 'password'), (message = null), (invalid = {}))}
+				>Start over</button
 			>
 		</div>
 	{:else}
-		<form onsubmit={submitRecovery}>
+		<form onsubmit={submitRecovery} novalidate>
 			<TextField
 				label="Recovery code"
+				name="recovery"
 				bind:value={recovery}
+				error={untilFilled(invalid.recovery, recovery)}
 				autocomplete="off"
 				autocapitalize="off"
 				spellcheck="false"
@@ -286,14 +340,16 @@
 				block
 				icon={KeyRound}
 				loading={busy === 'recovery'}
-				disabled={!!busy || !recovery.trim()}
+				disabled={!!busy}
 			>
 				Use recovery code
 			</Button>
 		</form>
 		<div class="links">
-			<button type="button" class="link" onclick={() => ((step = 'second'), (message = null))}
-				>Back</button
+			<button
+				type="button"
+				class="link"
+				onclick={() => ((step = 'second'), (message = null), (invalid = {}))}>Back</button
 			>
 		</div>
 	{/if}
@@ -309,17 +365,6 @@
 
 	.stack {
 		gap: var(--space-5);
-	}
-
-	h1 {
-		font-size: 22px;
-		line-height: 28px;
-	}
-
-	.lead {
-		margin-top: var(--space-1);
-		color: var(--text-muted);
-		font-size: var(--text-control);
 	}
 
 	.or {

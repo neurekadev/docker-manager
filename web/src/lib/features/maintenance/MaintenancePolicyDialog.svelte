@@ -234,7 +234,7 @@
 			</Fields>
 			<FieldGroup
 				legend="Schedule"
-				hint="Scheduled runs always run in the background. Runs missed while Docker Manager was down are skipped, never run late."
+				hint="Runs missed while Docker Manager was down are skipped, never run late."
 			>
 				<Switch
 					label="Run automatically"
@@ -242,7 +242,7 @@
 					bind:checked={enabled}
 					onchange={() => (touched = true)}
 				/>
-				{#if zone}
+				{#if zone && enabled}
 					<CronField label="Schedule" kind="prune" bind:cron bind:timeZone={zone} />
 				{/if}
 			</FieldGroup>

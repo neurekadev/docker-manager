@@ -1,7 +1,11 @@
 <script lang="ts">
 	// Environments (#3, #5, #34): every Docker host with a Docker Agent,
 	// with status, Engine, agent version and compatibility, containers and
-	// usage; pending enrollment tokens; archived environments to re-attach.
+	// usage; archived environments to re-attach (a tab only while there are
+	// any; the tab lives in the URL, ?tab=archived); pending enrollment
+	// tokens below the list. A whole row opens its environment.
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { createQuery } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -13,6 +17,7 @@
 		myPermissionsQuery,
 		overviewQuery
 	} from '$lib/api/queries';
+	import Page from '$lib/features/common/Page.svelte';
 	import EngineVersion from '$lib/features/environments/EngineVersion.svelte';
 	import EnrollmentsCard from '$lib/features/environments/EnrollmentsCard.svelte';
 	import { COMPATIBILITY, environmentStatus } from '$lib/features/environments/model';
@@ -56,12 +61,23 @@
 		(envs.data ?? []).map((e) => ({ ...e, overview: byId.get(e.id) }))
 	);
 	const archivedRows = $derived(archived.data ?? []);
+	// The Archived tab shows only while there is something in it (or it
+	// failed to load and says so).
+	const showTabs = $derived(archivedRows.length > 0 || archived.isError);
 
-	let tab = $state('active');
+	const tab = $derived(
+		showTabs && page.url.searchParams.get('tab') === 'archived' ? 'archived' : 'active'
+	);
 	const tabs = $derived([
 		{ id: 'active', label: 'Active', count: rows.length },
 		{ id: 'archived', label: 'Archived', count: archivedRows.length }
 	]);
+	function selectTab(t: string) {
+		const url = new URL(page.url);
+		if (t === 'active') url.searchParams.delete('tab');
+		else url.searchParams.set('tab', t);
+		void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
+	}
 
 	const columns: Column<Row>[] = [
 		{
@@ -69,6 +85,7 @@
 			header: 'Environment',
 			cell: nameCell,
 			sortValue: (r) => r.name,
+			maxWidth: '280px',
 			stack: 'title'
 		},
 		{
@@ -93,7 +110,7 @@
 			cell: containersCell,
 			sortValue: (r) => r.overview?.docker?.containersRunning ?? null,
 			numeric: true,
-			width: '110px'
+			width: '120px'
 		},
 		{
 			id: 'cpu',
@@ -101,13 +118,14 @@
 			cell: cpuCell,
 			sortValue: (r) => r.overview?.usage?.cpuPercent ?? null,
 			numeric: true,
-			width: '80px'
+			width: '100px'
 		},
 		{
 			id: 'memory',
 			header: 'Memory',
 			cell: memoryCell,
 			sortValue: (r) => r.overview?.usage?.memoryUsedBytes ?? null,
+			numeric: true,
 			width: '200px'
 		}
 	];
@@ -118,6 +136,7 @@
 			header: 'Environment',
 			cell: archivedNameCell,
 			sortValue: (r) => r.name,
+			maxWidth: '280px',
 			stack: 'title'
 		},
 		{
@@ -127,7 +146,13 @@
 			width: '120px',
 			stack: 'status'
 		},
-		{ id: 'archivedAt', header: 'Archived', cell: archivedAtCell, width: '180px' },
+		{
+			id: 'archivedAt',
+			header: 'Archived',
+			cell: archivedAtCell,
+			sortValue: (r) => r.archivedAt,
+			width: '180px'
+		},
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -142,7 +167,7 @@
 
 {#snippet nameCell(r: Row)}
 	<div class="name">
-		<a href={routes.environment(r.id)} class="strong">{r.name}</a>
+		<a href={routes.environment(r.id)} class="strong row-link">{r.name}</a>
 		{#if r.serviceAddress}<span class="muted small mono">{r.serviceAddress}</span>{/if}
 	</div>
 {/snippet}
@@ -196,7 +221,7 @@
 {/snippet}
 
 {#snippet archivedNameCell(r: Environment)}
-	<a href={routes.environment(r.id)} class="strong">{r.name}</a>
+	<a href={routes.environment(r.id)} class="strong row-link">{r.name}</a>
 {/snippet}
 {#snippet archivedStatusCell(r: Environment)}
 	<StatusBadge status={r.status} />
@@ -210,18 +235,56 @@
 {/snippet}
 {#snippet archivedActionsCell(r: Environment)}
 	{#if canEnroll}
-		<Button size="sm" href={routes.addEnvironment(r.id)}>Re-attach</Button>
+		<span class="above"
+			><Button size="sm" href={routes.addEnvironment(r.id)}>Re-attach</Button></span
+		>
 	{/if}
+{/snippet}
+
+{#snippet activeList()}
+	<Card padding="none">
+		{#if envs.isPending}
+			<div class="skeleton" aria-busy="true">
+				<Skeleton lines={4} height="20px" />
+			</div>
+		{:else}
+			<div class="rows">
+				<Table
+					label="Active environments"
+					{rows}
+					{columns}
+					rowKey={(r) => r.id}
+					sort={{ column: 'name', direction: 'asc' }}
+				>
+					{#snippet empty()}
+						<EmptyState
+							icon={Server}
+							color="blue"
+							title="No environments yet."
+							description="Add an environment: run the Docker Agent on a Docker host and connect it with a one-time command."
+							level={3}
+							compact
+						>
+							{#snippet actions()}
+								{#if canEnroll}<Button
+										variant="primary"
+										icon={Plus}
+										href={routes.addEnvironment()}>Add environment</Button
+									>{/if}
+							{/snippet}
+						</EmptyState>
+					{/snippet}
+				</Table>
+			</div>
+		{/if}
+	</Card>
 {/snippet}
 
 {#if perms.data && isRestricted(accessOf(perms.data))}
 	<DeniedState level={1} />
 {:else}
-	<div class="page">
-		<PageHeader
-			title="Environments"
-			description="Docker hosts with a connected Docker Agent. Each agent dials out to this Docker Manager; hosts open no ports."
-		>
+	<Page>
+		<PageHeader title="Environments" description="The Docker hosts Docker Manager looks after.">
 			{#snippet actions()}
 				{#if canEnroll}
 					<Button variant="primary" icon={Plus} href={routes.addEnvironment()}
@@ -231,53 +294,19 @@
 			{/snippet}
 		</PageHeader>
 
-		{#if canEnroll}<EnrollmentsCard />{/if}
-
 		{#if envs.isError}
 			<ErrorState
 				error={envs.error}
 				title="The environments could not be loaded."
 				onretry={() => envs.refetch()}
 			/>
+		{:else if !showTabs}
+			{@render activeList()}
 		{:else}
-			<Tabs items={tabs} bind:value={tab} label="Environments by status">
+			<Tabs items={tabs} value={tab} label="Environments by status" onchange={selectTab}>
 				{#snippet panel(id)}
 					{#if id === 'active'}
-						<Card padding="none">
-							{#if envs.isPending}
-								<div class="skeleton" aria-busy="true">
-									<Skeleton lines={4} height="20px" />
-								</div>
-							{:else}
-								<Table
-									label="Active environments"
-									{rows}
-									{columns}
-									rowKey={(r) => r.id}
-									sort={{ column: 'name', direction: 'asc' }}
-								>
-									{#snippet empty()}
-										<EmptyState
-											icon={Server}
-											color="blue"
-											title="No environments yet."
-											description="Add an environment: run the Docker Agent on a Docker host and enroll it with a one-time token."
-											level={3}
-											compact
-										>
-											{#snippet actions()}
-												{#if canEnroll}<Button
-														variant="primary"
-														icon={Plus}
-														href={routes.addEnvironment()}
-														>Add environment</Button
-													>{/if}
-											{/snippet}
-										</EmptyState>
-									{/snippet}
-								</Table>
-							{/if}
-						</Card>
+						{@render activeList()}
 					{:else}
 						<Card padding="none">
 							{#if archived.isError}
@@ -286,49 +315,58 @@
 										error={archived.error}
 										title="Archived environments could not be loaded."
 										onretry={() => archived.refetch()}
+										bare
 										compact
 									/>
 								</div>
 							{:else}
-								<Table
-									label="Archived environments"
-									rows={archivedRows}
-									columns={archivedColumns}
-									rowKey={(r) => r.id}
-									sort={{ column: 'name', direction: 'asc' }}
-								>
-									{#snippet empty()}
-										<EmptyState
-											icon={Archive}
-											title="No archived environments."
-											description="Archiving hides an environment from operations and keeps its stacks, history and backups. Re-attach it later with a new agent."
-											level={3}
-											compact
-										/>
-									{/snippet}
-								</Table>
+								<div class="rows">
+									<Table
+										label="Archived environments"
+										rows={archivedRows}
+										columns={archivedColumns}
+										rowKey={(r) => r.id}
+										sort={{ column: 'name', direction: 'asc' }}
+									>
+										{#snippet empty()}
+											<EmptyState
+												icon={Archive}
+												title="No archived environments."
+												description="Archiving hides an environment from operations and keeps its stacks, history and backups. Re-attach it later with a new agent."
+												level={3}
+												compact
+											/>
+										{/snippet}
+									</Table>
+								</div>
 							{/if}
 						</Card>
 					{/if}
 				{/snippet}
 			</Tabs>
 		{/if}
-	</div>
+
+		{#if canEnroll}<EnrollmentsCard />{/if}
+	</Page>
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
 	.name,
 	.mem {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
 		min-width: 0;
+	}
+
+	/* Numbers and the memory meter line up at the right like the other
+	   figures. */
+	.mem {
+		align-items: flex-end;
+	}
+
+	.mem :global(.meter-row) {
+		width: 100%;
 	}
 
 	.strong {
@@ -350,5 +388,27 @@
 
 	.skeleton {
 		padding: var(--space-4) var(--space-5) var(--space-5);
+	}
+
+	/* A whole row opens its environment: the name link covers the row
+	   (and the phone card); buttons in the row stay above it. */
+	.rows :global(tbody tr),
+	.rows :global(li.card) {
+		position: relative;
+	}
+
+	.rows :global(.row-link::after) {
+		content: '';
+		position: absolute;
+		inset: 0;
+	}
+
+	.rows :global(tbody tr:has(.row-link)) {
+		cursor: pointer;
+	}
+
+	.above {
+		position: relative;
+		z-index: 2;
 	}
 </style>

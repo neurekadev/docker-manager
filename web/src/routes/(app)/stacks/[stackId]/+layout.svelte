@@ -12,6 +12,8 @@
 	import Layers from '@lucide/svelte/icons/layers';
 	import { ApiRequestError } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
+	import Page from '$lib/features/common/Page.svelte';
 	import { provideStackPage } from '$lib/features/stacks/context';
 	import JobTrayView from '$lib/features/stacks/JobTrayView.svelte';
 	import { RemoveOrphansRequest } from '$lib/features/stacks/deploy.svelte';
@@ -139,16 +141,18 @@
 </script>
 
 {#if stack.isPending}
-	<div class="page" aria-busy="true" aria-label="Loading the stack">
-		<div class="head-skeleton">
-			<Skeleton width="48px" height="48px" radius="md" />
-			<div class="grow"><Skeleton lines={3} /></div>
-		</div>
-		<Skeleton height="36px" />
-		<div class="kpis">
-			{#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton height="92px" radius="lg" />{/each}
-		</div>
-		<Skeleton height="280px" radius="lg" />
+	<div aria-busy="true" aria-label="Loading the stack">
+		<Page>
+			<div class="head-skeleton">
+				<Skeleton width="48px" height="48px" radius="md" />
+				<div class="grow"><Skeleton lines={3} /></div>
+			</div>
+			<Skeleton height="36px" />
+			<KpiRow>
+				{#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton height="92px" radius="lg" />{/each}
+			</KpiRow>
+			<Skeleton height="280px" radius="lg" />
+		</Page>
 	</div>
 {:else if notFound}
 	<EmptyState
@@ -168,8 +172,8 @@
 		onretry={() => stack.refetch()}
 	/>
 {:else if s}
-	<div class="page">
-		<StackHeader stack={s} {environment} {tray} {removeOrphans} />
+	<Page>
+		<StackHeader stack={s} {environment} {tray} {removeOrphans} showActions={!wizard} />
 
 		{#if offline}
 			<OfflineEnvironment
@@ -218,17 +222,10 @@
 		<JobTrayView {tray} />
 
 		{#key id}{@render children()}{/key}
-	</div>
+	</Page>
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-		min-width: 0;
-	}
-
 	.head-skeleton {
 		display: flex;
 		gap: var(--space-4);
@@ -237,12 +234,6 @@
 	.grow {
 		flex: 1;
 		max-width: 420px;
-	}
-
-	.kpis {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-		gap: var(--space-4);
 	}
 
 	.chip {

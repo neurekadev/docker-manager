@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Stack detail, Terminal tab (#8, #22): a terminal in one of the stack's
 	// service containers (?container=<name> preselects one, e.g. from the
-	// services table). Renders inside the stack layout when there is one.
+	// services table) and connects to it right away; a plain visit waits for
+	// Connect. Renders inside the stack layout when there is one.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
@@ -43,6 +44,9 @@
 			: []
 	);
 	const error = $derived(stack.error ?? services.error);
+	// Only a link naming one of the stack's containers connects on arrival.
+	const initial = $derived(page.url.searchParams.get('container'));
+	const autoConnect = $derived(!!initial && choices.some((c) => c.containerId === initial));
 </script>
 
 <div class="page" use:fillViewport={{ bottom: 24, min: 420 }}>
@@ -64,11 +68,7 @@
 			description="Deploy {name} to open a terminal in one of its services."
 		/>
 	{:else}
-		<TerminalPanel
-			{choices}
-			initial={page.url.searchParams.get('container')}
-			label="Terminal of {name}"
-		/>
+		<TerminalPanel {choices} {initial} {autoConnect} label="Terminal of {name}" />
 	{/if}
 </div>
 

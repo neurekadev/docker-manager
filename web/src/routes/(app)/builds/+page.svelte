@@ -1,7 +1,10 @@
 <script lang="ts">
 	// Build history (#33): manual Git builds of the selected environment (or
 	// all), newest first, with the exact commit each one built, the result
-	// and the duration. Running builds refresh until they end.
+	// and the duration. One ListCard: a search (image names, repository,
+	// ref, commit) and filters for the result and, with several
+	// environments, the environment. Running builds refresh until they end;
+	// environments whose builds can't be read are named in a notice.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Hammer from '@lucide/svelte/icons/hammer';
 	import Play from '@lucide/svelte/icons/play';
@@ -10,34 +13,59 @@
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
-		Card,
 		DeniedState,
 		EmptyState,
 		ErrorState,
+		Notice,
 		Skeleton,
 		StatusBadge,
 		Table,
+		formatDateTime,
+		formatDuration,
 		formatRelative,
 		type Column
 	} from '$lib/ui';
+	import NameCell from '$lib/features/common/NameCell.svelte';
 	import BuildsHeader from '$lib/features/builds/BuildsHeader.svelte';
-	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
+	import { buildFilters, buildSearch } from '$lib/features/builds/filters';
 	import { repoLabel } from '$lib/features/builds/source';
+	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
-	import { compactDuration } from '$lib/features/resources/model';
+	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({ title: 'Builds', crumbs: [{ label: 'Builds' }], environmentScoped: true });
 
 	const scope = useEnvironmentScope();
+	const filters = new ListFilters('builds');
 	const running = (b: ImageBuild) => b.status === 'queued' || b.status === 'running';
 	const list = createQuery(() => ({
 		...imageBuildsQuery(scope.targets),
 		enabled: scope.ready && scope.targets.length > 0,
 		refetchInterval: (q) => (q.state.data?.items.some(running) ? 5000 : false)
 	}));
-	const rows = $derived(list.data?.items ?? []);
+	const all = $derived(list.data?.items ?? []);
 	const canBuild = $derived(scope.targets.some((t) => scope.can('image.build', t.id)));
+	const canDefine = $derived(
+		scope.targets.some((t) => scope.can('build_definition.manage', t.id))
+	);
+	const defs = $derived(
+		buildFilters({
+			envs: scope.single ? [] : scope.targets.map((t) => ({ id: t.id, name: t.name }))
+		})
+	);
+	const rows = $derived(
+		applyListFilters(
+			all,
+			defs,
+			filters.state,
+			buildSearch((id) => scope.name(id))
+		)
+	);
+	const filtered = $derived(isFiltering(defs, filters.state));
 
 	const columns: Column<ImageBuild>[] = $derived([
 		{
@@ -45,18 +73,26 @@
 			header: 'Image',
 			cell: imageCell,
 			sortValue: (b) => b.tags[0] ?? '',
+			maxWidth: '360px',
 			stack: 'title'
 		},
 		{
 			id: 'status',
-			header: 'Status',
+			header: 'Result',
 			cell: statusCell,
 			sortValue: (b) => b.status,
 			width: '130px',
 			stack: 'status'
 		},
-		{ id: 'source', header: 'Source', cell: sourceCell, sortValue: (b) => b.gitUrl },
-		{ id: 'commit', header: 'Commit', cell: commitCell, width: '110px' },
+		{
+			id: 'source',
+			header: 'Source',
+			cell: sourceCell,
+			sortValue: (b) => b.gitUrl,
+			maxWidth: '320px',
+			stack: 'meta'
+		},
+		{ id: 'commit', header: 'Commit', cell: commitCell, width: '110px', stack: 'hidden' },
 		...(scope.single
 			? []
 			: [
@@ -64,7 +100,8 @@
 						id: 'env',
 						header: 'Environment',
 						cell: envCell,
-						sortValue: (b: ImageBuild) => scope.name(b.environmentId)
+						sortValue: (b: ImageBuild) => scope.name(b.environmentId),
+						stack: 'meta'
 					} satisfies Column<ImageBuild>
 				]),
 		{
@@ -73,40 +110,43 @@
 			cell: durationCell,
 			sortValue: (b) => b.durationMs ?? -1,
 			numeric: true,
-			width: '100px'
+			width: '110px',
+			stack: 'hidden'
 		},
 		{
 			id: 'created',
 			header: 'Started',
 			cell: createdCell,
 			sortValue: (b) => b.createdAt,
-			width: '130px'
+			width: '130px',
+			stack: 'head'
 		}
 	]);
 </script>
 
-{#snippet imageCell(b: ImageBuild)}
-	<div class="name-cell">
-		<a class="name mono" href={routes.build(b.environmentId, b.id)}>{b.tags[0] ?? 'Build'}</a>
-		{#if b.tags.length > 1}<span class="sub">+{b.tags.length - 1} more names</span>{/if}
-	</div>
-{/snippet}
+{#snippet imageCell(b: ImageBuild)}<NameCell
+		name={b.tags[0] ?? 'Build'}
+		href={routes.build(b.environmentId, b.id)}
+		mono
+		sub={b.tags.length > 1 ? `+${b.tags.length - 1} more names` : undefined}
+	/>{/snippet}
 {#snippet statusCell(b: ImageBuild)}<StatusBadge status={b.status} kind="job" />{/snippet}
-{#snippet sourceCell(b: ImageBuild)}
-	<div class="name-cell">
-		<span class="mono">{repoLabel(b.gitUrl)}</span>
-		<span class="sub mono">{b.resolvedRef ?? b.ref ?? 'default branch'}</span>
-	</div>
-{/snippet}
+{#snippet sourceCell(b: ImageBuild)}<NameCell
+		name={repoLabel(b.gitUrl)}
+		mono
+		sub={b.resolvedRef ?? b.ref ?? 'Default branch'}
+		subMono
+	/>{/snippet}
 {#snippet commitCell(b: ImageBuild)}
 	{#if b.resolvedCommit}<span class="mono commit" title={b.resolvedCommit}
 			>{b.resolvedCommit.slice(0, 7)}</span
 		>{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet envCell(b: ImageBuild)}{scope.name(b.environmentId)}{/snippet}
-{#snippet durationCell(b: ImageBuild)}<span class="num">{compactDuration(b.durationMs)}</span
+{#snippet durationCell(b: ImageBuild)}<span class="num"
+		>{b.durationMs !== undefined ? formatDuration(b.durationMs / 1000) : '—'}</span
 	>{/snippet}
-{#snippet createdCell(b: ImageBuild)}<span class="muted" title={b.createdAt}
+{#snippet createdCell(b: ImageBuild)}<span class="muted" title={formatDateTime(b.createdAt)}
 		>{formatRelative(b.createdAt)}</span
 	>{/snippet}
 
@@ -122,6 +162,7 @@
 	<Page>
 		<BuildsHeader
 			{canBuild}
+			{canDefine}
 			environmentId={scope.single ? scope.targets[0]?.id : undefined}
 			description="Images built from Git repositories on {scope.single
 				? scope.targets[0]?.name
@@ -137,11 +178,23 @@
 			/>
 		{:else}
 			{#if list.data?.unavailable.length}
-				{#each list.data.unavailable as u (u.environment.id)}
-					<p class="muted">The builds of {u.environment.name} could not be read.</p>
-				{/each}
+				<Notice tone="warn" title="Some builds are missing" live="none">
+					The builds of {list.data.unavailable.map((u) => u.environment.name).join(', ')} could
+					not be read. Try again in a moment.
+				</Notice>
 			{/if}
-			<Card padding="none">
+			<ListCard
+				title="All builds"
+				id="builds"
+				summary={list.data
+					? listSummary(rows.length, all.length, filtered, 'build', 'builds')
+					: undefined}
+				label="Filter builds"
+				searchLabel="Search builds"
+				placeholder="Search builds"
+				filters={defs}
+				store={filters}
+			>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={5} height="20px" /></div>
 				{:else}
@@ -153,57 +206,43 @@
 						sort={{ column: 'created', direction: 'desc' }}
 					>
 						{#snippet empty()}
-							<EmptyState
-								icon={Hammer}
-								color="violet"
-								title="No builds yet."
-								description="Build an image from a Git repository on one of your environments. Compose services with a build section build when their stack deploys."
-								level={2}
-								compact
-							>
-								{#snippet actions()}
-									{#if canBuild}
-										<Button
-											variant="primary"
-											icon={Play}
-											href={routes.newBuild(
-												scope.single ? scope.targets[0]?.id : undefined
-											)}>Build image</Button
-										>
-									{/if}
-								{/snippet}
-							</EmptyState>
+							{#if filtered}
+								<NoMatches
+									what="builds"
+									icon={Hammer}
+									onclear={() => filters.clear()}
+								/>
+							{:else}
+								<EmptyState
+									icon={Hammer}
+									color="violet"
+									title="No builds yet."
+									description="Build an image from a Git repository on one of your environments. Compose services with a build section build when their stack deploys."
+									level={3}
+									compact
+								>
+									{#snippet actions()}
+										{#if canBuild}
+											<Button
+												variant="primary"
+												icon={Play}
+												href={routes.newBuild(
+													scope.single ? scope.targets[0]?.id : undefined
+												)}>Build image</Button
+											>
+										{/if}
+									{/snippet}
+								</EmptyState>
+							{/if}
 						{/snippet}
 					</Table>
 				{/if}
-			</Card>
+			</ListCard>
 		{/if}
 	</Page>
 {/if}
 
 <style>
-	.name-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
-	}
-
-	.name {
-		color: var(--text-strong);
-		text-decoration: none;
-		overflow-wrap: anywhere;
-	}
-
-	.name:hover {
-		color: var(--accent-text);
-	}
-
-	.sub {
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-	}
-
 	.commit {
 		color: var(--accent-text);
 	}

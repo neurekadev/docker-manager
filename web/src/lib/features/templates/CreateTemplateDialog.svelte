@@ -6,7 +6,16 @@
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { routes } from '$lib/routes';
-	import { Button, Dialog, TextArea, TextField, errorView, fieldError, toast } from '$lib/ui';
+	import {
+		Button,
+		Dialog,
+		Notice,
+		TextArea,
+		TextField,
+		errorView,
+		fieldError,
+		toast
+	} from '$lib/ui';
 	import { createTemplate } from './actions';
 	import { parseTags, tagProblem } from './model';
 	import { templateKeys } from './queries';
@@ -93,7 +102,9 @@
 			error={tagError}
 		/>
 		{#if view && !fieldError(error, 'body.name') && view.code !== 'template_name_taken'}
-			<p class="error" role="alert">{view.message}</p>
+			<Notice tone="danger" live="alert" title="The template was not created">
+				{view.message}
+			</Notice>
 		{/if}
 	</form>
 	{#snippet footer()}
@@ -112,13 +123,5 @@
 	.form {
 		display: grid;
 		gap: var(--space-4);
-	}
-
-	.error {
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--danger-border);
-		border-radius: var(--radius-sm);
-		background: var(--danger-soft);
-		color: var(--danger);
 	}
 </style>

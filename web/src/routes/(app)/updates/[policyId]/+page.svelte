@@ -1,16 +1,20 @@
 <script lang="ts">
-	// Environment update policy detail (#20): how its targets stand (KPIs),
-	// the stacks and standalone containers it covers with their candidate
-	// summary, and its schedules and window. Check runs a digest check on
-	// every target (never pulls); Preview updates opens what a run would do
-	// in a dialog and applies it. Editing opens the policy dialog
-	// (routes.updatePolicyEdit() links here with it open).
+	// Environment update policy detail (#20), in the policy page layout: a
+	// status sentence and the actions (Preview updates, Check now, Edit, the
+	// rest in the menu), the KPIs (last check, next run, coverage, updates
+	// available), then what it covers (every target by name, excluded and
+	// no longer found ones included), its schedules and its recent runs.
+	// Check runs a digest check on every target (never pulls); Preview
+	// updates opens what a run would do and applies it. Editing opens the
+	// policy dialog (routes.updatePolicyEdit() links here with it open).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import Eye from '@lucide/svelte/icons/eye';
 	import Layers from '@lucide/svelte/icons/layers';
 	import PackageCheck from '@lucide/svelte/icons/package-check';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -19,7 +23,12 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { api, unwrap, unwrapEmpty, type Schema } from '$lib/api/client';
-	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import {
+		environmentsQuery,
+		myPermissionsQuery,
+		recentJobsQuery,
+		schedulesQuery
+	} from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -51,7 +60,7 @@
 		newIdempotencyKey,
 		stacksQuery
 	} from '$lib/features/common/data';
-	import Digest from '$lib/features/common/Digest.svelte';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import { actionError } from '$lib/features/common/errors';
 	import Facts from '$lib/features/common/Facts.svelte';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
@@ -59,13 +68,21 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import RunsTable from '$lib/features/jobs/RunsTable.svelte';
+	import { groupRuns } from '$lib/features/jobs/runs';
+	import TargetName from '$lib/features/updates/TargetName.svelte';
 	import UpdatePolicyDialog from '$lib/features/updates/UpdatePolicyDialog.svelte';
 	import {
 		candidateStatus,
+		imageLabel,
+		inactiveReason,
+		policyStatusText,
 		reasonLabel,
 		summarizeTargets,
-		summaryState,
+		targetState,
+		targetsUpdateText,
 		windowText,
+		withExclusions,
 		type UpdateCandidate
 	} from '$lib/features/updates/model';
 	import {
@@ -78,8 +95,9 @@
 	type Target = Schema<'EnvironmentTarget'>;
 	interface PreviewRow {
 		key: string;
-		target: string;
-		drift: boolean;
+		type: string;
+		id: string;
+		environmentId: string;
 		item: UpdateCandidate;
 	}
 
@@ -90,10 +108,29 @@
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
 	const targets = createQuery(() => environmentUpdateTargetsQuery(id));
+	const schedules = createQuery(() => schedulesQuery());
+	const checkJobs = createQuery(() => recentJobsQuery(100, { kind: 'update.check' }));
+	const runJobs = createQuery(() => recentJobsQuery(100, { kind: 'update.run' }));
+	const single = singleEnvironment();
 	const manage = $derived(can(accessOf(perms.data), 'update_policy.manage'));
 	const editDialog = urlDialog('edit');
 	const active = $derived((targets.data ?? []).filter((t) => !t.inactive));
 	const totals = $derived(summarizeTargets(active.map((t) => t.candidateSummary)));
+	const updates = $derived(targetsUpdateText(active));
+	const runs = $derived(
+		groupRuns(
+			[...(checkJobs.data?.items ?? []), ...(runJobs.data?.items ?? [])].filter(
+				(j) => j.policyId === id
+			)
+		).slice(0, 10)
+	);
+	const mySchedules = $derived((schedules.data ?? []).filter((s) => s.policyId === id));
+	const nextRun = $derived(
+		mySchedules
+			.filter((s) => s.enabled && s.nextRun && !s.invalidReason)
+			.sort((a, b) => a.nextRun!.utc.localeCompare(b.nextRun!.utc))[0]
+	);
+	const scheduleOf = (kind: string) => mySchedules.find((s) => s.kind === kind);
 
 	let preview = $state<Preview | null>(null);
 	let previewOpen = $state(false);
@@ -115,10 +152,9 @@
 		return p.scope === 'all' ? 'All environments' : environmentName(envs.data, p.environmentId);
 	}
 
-	function targetName(type: string, targetId: string): string {
-		if (type === 'container') return targetId;
-		const stack = stacks.data?.find((s) => s.id === targetId);
-		return stack?.displayName || stack?.name || targetId;
+	function stackName(stackId: string): string {
+		const stack = stacks.data?.find((s) => s.id === stackId);
+		return stack?.displayName || stack?.name || '';
 	}
 
 	function plural(n: number, one: string, many: string): string {
@@ -137,7 +173,9 @@
 					}
 				})
 			);
-			toast.success(`Checking ${plural(out.jobs.length, 'target', 'targets')} for updates`);
+			toast.success(
+				`Checking ${plural(out.jobs.length, 'stack or container', 'stacks and containers')} for updates`
+			);
 			await qc.invalidateQueries({ queryKey: ['policies'] });
 		} catch (e) {
 			error = e;
@@ -205,12 +243,6 @@
 		manage
 			? [
 					{
-						label: 'Edit policy',
-						icon: Pencil,
-						onSelect: () => (editDialog.open = true)
-					},
-					{ separator: true },
-					{
 						label: 'Delete policy',
 						icon: Trash2,
 						tone: 'danger',
@@ -224,30 +256,36 @@
 		(preview?.targets ?? []).flatMap((t) =>
 			t.items.map((item) => ({
 				key: `${t.policyId}/${item.id}`,
-				target: `${environmentName(envs.data, t.environmentId)} / ${targetName(t.type, t.id)}`,
-				drift: t.sourceDrift,
+				type: t.type,
+				id: t.id,
+				environmentId: t.environmentId,
 				item
 			}))
 		)
 	);
 	const drifted = $derived((preview?.targets ?? []).filter((t) => t.sourceDrift));
 
-	const targetColumns: Column<Target>[] = [
+	const targetColumns: Column<Target>[] = $derived([
 		{
 			id: 'target',
-			header: 'Target',
+			header: 'Stack or container',
 			cell: targetCell,
-			sortValue: (t) => targetName(t.type, t.id),
+			sortValue: (t) => (t.type === 'stack' ? stackName(t.id) : t.id),
+			maxWidth: '320px',
 			stack: 'title'
 		},
-		{
-			id: 'environment',
-			header: 'Environment',
-			cell: envCell,
-			sortValue: (t) => environmentName(envs.data, t.environmentId),
-			width: '200px',
-			stack: 'meta'
-		},
+		...(single.current
+			? []
+			: [
+					{
+						id: 'environment',
+						header: 'Environment',
+						cell: envCell,
+						sortValue: (t: Target) => environmentName(envs.data, t.environmentId),
+						width: '200px',
+						stack: 'meta'
+					} satisfies Column<Target>
+				]),
 		{
 			id: 'status',
 			header: 'Status',
@@ -257,53 +295,62 @@
 			width: '220px',
 			stack: 'status'
 		}
-	];
+	]);
 
 	const previewColumns: Column<PreviewRow>[] = [
-		{ id: 'target', header: 'Target', cell: previewTargetCell, stack: 'title' },
-		{ id: 'service', header: 'Service', cell: serviceCell, width: '180px', stack: 'meta' },
+		{
+			id: 'target',
+			header: 'Stack or container',
+			cell: previewTargetCell,
+			maxWidth: '260px',
+			stack: 'title'
+		},
+		{ id: 'service', header: 'Service', cell: serviceCell, width: '160px', stack: 'meta' },
+		{
+			id: 'image',
+			header: 'Image',
+			cell: imageCell,
+			maxWidth: '320px',
+			truncate: true,
+			title: (r) =>
+				`${r.item.reference}\nRunning: ${r.item.currentDigest ?? 'unknown'}\nNew: ${r.item.candidateDigest ?? 'unknown'}`,
+			stack: 'meta'
+		},
 		{
 			id: 'status',
 			header: 'Status',
 			cell: previewStatusCell,
-			width: '180px',
+			width: '200px',
 			stack: 'status'
-		},
-		{ id: 'digests', header: 'Digest', cell: digestsCell }
+		}
 	];
 </script>
 
-{#snippet targetCell(t: Target)}
-	<span class="target">
-		{#if t.type === 'stack'}<Layers size={14} aria-hidden="true" />{:else}<PackageCheck
-				size={14}
-				aria-hidden="true"
-			/>{/if}
-		{#if t.type === 'stack'}<a href={routes.stack(t.id)}>{targetName(t.type, t.id)}</a
-			>{:else}{targetName(t.type, t.id)}{/if}
-	</span>
-{/snippet}
+{#snippet targetCell(t: Target)}<TargetName
+		type={t.type}
+		id={t.id}
+		environmentId={t.environmentId}
+	/>{/snippet}
 {#snippet envCell(t: Target)}{environmentName(envs.data, t.environmentId)}{/snippet}
 {#snippet statusCell(t: Target)}
-	{@const st = summaryState(t.candidateSummary, t.inactive)}
-	<Badge tone={st.tone} dot={!t.inactive}>{st.label}</Badge>
+	{@const st = targetState(
+		t.candidateSummary,
+		policy.data ? inactiveReason(t, policy.data) : t.inactive ? 'gone' : null
+	)}
+	<Badge tone={st.tone} dot>{st.label}</Badge>
 {/snippet}
-{#snippet previewTargetCell(r: PreviewRow)}{r.target}{/snippet}
+{#snippet previewTargetCell(r: PreviewRow)}<TargetName
+		type={r.type}
+		id={r.id}
+		environmentId={r.environmentId}
+		sub={single.current ? undefined : environmentName(envs.data, r.environmentId)}
+	/>{/snippet}
 {#snippet serviceCell(r: PreviewRow)}{r.item.service}{/snippet}
+{#snippet imageCell(r: PreviewRow)}<span class="mono">{imageLabel(r.item)}</span>{/snippet}
 {#snippet previewStatusCell(r: PreviewRow)}
 	{@const st = candidateStatus(r.item.status)}
 	<Badge tone={st.tone} dot>{st.label}</Badge>
 	{#if reasonLabel(r.item)}<span class="muted reason">{reasonLabel(r.item)}</span>{/if}
-{/snippet}
-{#snippet digestsCell(r: PreviewRow)}
-	{#if r.item.candidateDigest}
-		<span class="pair">
-			<Digest value={r.item.currentDigest} copy={false} />
-			<span class="muted" aria-hidden="true">→</span>
-			<span class="sr-only">to</span>
-			<Digest value={r.item.candidateDigest} copy={false} />
-		</span>
-	{:else}<span class="muted">—</span>{/if}
 {/snippet}
 
 <Page>
@@ -314,20 +361,30 @@
 		notFoundDescription="It was deleted, or you no longer have access to it."
 	>
 		{#snippet children(p: EnvironmentUpdatePolicy)}
+			{@const all = withExclusions(
+				targets.data ?? [],
+				p,
+				(sid) => stacks.data?.find((s) => s.id === sid)?.environmentId
+			)}
+			{@const excluded = all.filter((t) => inactiveReason(t, p) === 'excluded').length}
+			{@const gone = all.filter((t) => inactiveReason(t, p) === 'gone').length}
 			<PageHeader
 				title={p.name}
 				icon={PackageCheck}
 				color="violet"
-				description="Follows the digests behind the tags of every stack and Docker Manager-managed container in scope. Your Compose files and tags never change."
+				description={targets.data
+					? policyStatusText(totals, active.length, updates)
+					: 'Looks for newer images of the stacks and containers it covers.'}
 				meta={[{ icon: Server, label: scopeLabel(p) }]}
 			>
 				{#snippet actions()}
-					<Button icon={RefreshCw} loading={checking} onclick={check}
-						>Check for updates</Button
-					>
-					<Button variant="primary" loading={previewing} onclick={loadPreview}
+					<Button variant="primary" icon={Eye} loading={previewing} onclick={loadPreview}
 						>Preview updates</Button
 					>
+					<Button icon={RefreshCw} loading={checking} onclick={check}>Check now</Button>
+					{#if manage}
+						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
+					{/if}
 					{#if menu.length}
 						<Menu items={menu} label="More actions for {p.name}">
 							{#snippet trigger(props)}
@@ -351,46 +408,51 @@
 
 			<KpiRow>
 				<KpiCard
-					label="Covered"
+					label="Last check"
+					value={totals.lastCheckAt ? formatRelative(totals.lastCheckAt) : 'Never'}
+					secondary={totals.lastCheckAt
+						? formatDateTime(totals.lastCheckAt)
+						: 'Check now to start'}
+					icon={Clock}
+					color="slate"
+				/>
+				<KpiCard
+					label="Next run"
+					value={nextRun?.nextRun ? formatRelative(nextRun.nextRun.utc) : 'Not scheduled'}
+					secondary={nextRun?.nextRun
+						? `${nextRun.kind === 'update_run' ? 'Update' : 'Check'}, ${formatDateTime(nextRun.nextRun.utc)}`
+						: 'Runs only when you start it'}
+					icon={CalendarClock}
+					color="slate"
+				/>
+				<KpiCard
+					label="Coverage"
 					value={String(active.length)}
-					secondary="{plural(
-						(targets.data ?? []).length - active.length,
-						'target',
-						'targets'
-					)} excluded"
+					secondary={[
+						plural(excluded, 'excluded', 'excluded'),
+						gone ? `${gone} no longer found` : ''
+					]
+						.filter(Boolean)
+						.join(', ')}
 					icon={Layers}
 					color="violet"
 				/>
 				<KpiCard
 					label="Updates available"
 					value={String(totals.withUpdates)}
-					secondary={totals.withUpdates ? 'Preview them to apply' : 'Nothing waiting'}
-					icon={PackageCheck}
+					secondary={updates}
+					icon={totals.failing ? TriangleAlert : PackageCheck}
 					color="violet"
-					tone={totals.withUpdates ? 'warn' : undefined}
-				/>
-				<KpiCard
-					label="Failing"
-					value={String(totals.failing)}
-					secondary="Failed checks or quarantined digests"
-					icon={TriangleAlert}
-					color="rose"
-					tone={totals.failing ? 'danger' : undefined}
-				/>
-				<KpiCard
-					label="Last check"
-					value={totals.lastCheckAt ? formatRelative(totals.lastCheckAt) : 'Never'}
-					secondary={totals.lastCheckAt
-						? formatDateTime(totals.lastCheckAt)
-						: 'Check for updates to start'}
-					icon={Clock}
-					color="slate"
+					tone={totals.failing ? 'danger' : totals.withUpdates ? 'warn' : undefined}
 				/>
 			</KpiRow>
 
 			<Card
-				title="Targets"
-				subtitle="Managed stacks and Docker Manager-managed standalone containers in scope, unless excluded."
+				title="What it covers"
+				subtitle="Stacks and standalone containers Docker Manager manages in {p.scope ===
+				'all'
+					? 'every environment'
+					: scopeLabel(p)}. Excluded ones are listed too."
 				padding="none"
 			>
 				{#if targets.isPending}
@@ -398,14 +460,15 @@
 				{:else if targets.isError}
 					<ErrorState
 						error={targets.error}
-						title="The targets could not be loaded."
+						title="The stacks and containers could not be loaded."
 						onretry={() => targets.refetch()}
+						bare
 						compact
 					/>
 				{:else}
 					<Table
-						label="Targets of {p.name}"
-						rows={targets.data ?? []}
+						label="What {p.name} covers"
+						rows={all as Target[]}
 						columns={targetColumns}
 						rowKey={(t) => t.policyId}
 						sort={{ column: 'target', direction: 'asc' }}
@@ -422,16 +485,9 @@
 				{/if}
 			</Card>
 
-			<Card title="Settings">
-				{#snippet actions()}
-					{#if manage}<Button
-							size="sm"
-							icon={Pencil}
-							onclick={() => (editDialog.open = true)}>Edit policy</Button
-						>{/if}
-				{/snippet}
+			<Card title="Schedule">
 				<Facts
-					columns={3}
+					columns={2}
 					items={[
 						{ label: 'Checks', render: checkSched },
 						{ label: 'Automatic updates', render: runSched },
@@ -439,26 +495,6 @@
 						{
 							label: 'Health wait',
 							value: p.waitTimeoutSeconds ? `${p.waitTimeoutSeconds} s` : 'Default'
-						},
-						{
-							label: 'Excluded',
-							value:
-								[
-									p.excludeStacks.length &&
-										plural(p.excludeStacks.length, 'stack', 'stacks'),
-									p.excludeContainers.length &&
-										plural(
-											p.excludeContainers.length,
-											'container',
-											'containers'
-										)
-								]
-									.filter(Boolean)
-									.join(', ') || 'Nothing'
-						},
-						{
-							label: 'Order',
-							value: 'Dependencies first (depends_on); dependents declaring restart: true restart with them'
 						}
 					]}
 				/>
@@ -469,6 +505,7 @@
 					cron={p.checkSchedule.cron ?? ''}
 					timeZone={p.checkSchedule.timeZone ?? ''}
 					enabled={p.checkSchedule.enabled}
+					nextRun={scheduleOf('update_check')?.nextRun}
 				/>
 			{/snippet}
 			{#snippet runSched()}
@@ -476,13 +513,31 @@
 					cron={p.runSchedule.cron ?? ''}
 					timeZone={p.runSchedule.timeZone ?? ''}
 					enabled={p.runSchedule.enabled}
+					nextRun={scheduleOf('update_run')?.nextRun}
 				/>
 			{/snippet}
+
+			<Card title="Recent runs" padding="none">
+				{#if checkJobs.isPending || runJobs.isPending}
+					<div class="inset"><Skeleton lines={3} height="20px" /></div>
+				{:else}
+					<RunsTable {runs} label="Recent runs of {p.name}">
+						{#snippet empty()}<EmptyState
+								icon={Clock}
+								color="slate"
+								title="No runs yet."
+								description="Checks and updates of this policy appear here, manual and scheduled."
+								level={3}
+								compact
+							/>{/snippet}
+					</RunsTable>
+				{/if}
+			</Card>
 
 			<Dialog
 				bind:open={previewOpen}
 				title="Update preview"
-				description="What an update of {p.name} would change now. Applying pulls the new images and recreates the services that changed, dependencies first."
+				description="What updating {p.name} would change now. Applying pulls the new images and recreates the services that changed, dependencies first."
 				size="xl"
 				dismissible={!applying}
 			>
@@ -494,8 +549,10 @@
 							title="Undeployed source changes"
 							live="none"
 						>
-							Deploy the source changes of {drifted
-								.map((t) => targetName(t.type, t.id))
+							Deploy the changes of {drifted
+								.map((t) =>
+									t.type === 'stack' ? stackName(t.id) || 'a stack' : t.id
+								)
 								.join(', ')} before updating; they are skipped until then.
 						</Notice>
 					</div>
@@ -511,11 +568,14 @@
 							icon={CircleCheck}
 							color="green"
 							title="Nothing to update."
-							description="Check for updates first, or every target already runs the registry's digest."
+							description="Check now first, or everything already runs the newest image of its tag."
 							level={3}
 							compact
 						/>{/snippet}
 				</Table>
+				<p class="muted small">
+					Hover an image for its digests. Only images whose digest changed are pulled.
+				</p>
 				{#snippet footer()}
 					<Button
 						variant="ghost"
@@ -554,22 +614,14 @@
 </Page>
 
 <style>
-	.target {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-		color: var(--text-strong);
-	}
-
-	.pair {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-1);
-	}
-
 	.reason {
 		display: block;
 		margin-top: var(--space-1);
+		font-size: var(--text-caption);
+	}
+
+	.small {
+		margin-top: var(--space-3);
 		font-size: var(--text-caption);
 	}
 

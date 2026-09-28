@@ -300,10 +300,26 @@ target (stack, volumes, repository). Manager-state snapshots answer
 `manager_restore_required`: the manager state is restored by importing it
 into a fresh manager (below), never over a running one.
 
-**UI.** Stacks and volumes have a **Backups** tab (volumes: right before
+**UI.** The Backups section has three tabs: **Overview** (setup steps,
+KPIs, running backups, the policies as its main table, recent runs,
+storage), **Backups** (every backup grouped by run, with Restore per run)
+and **Repositories**. `/backups/policies` redirects to the overview;
+restic's raw snapshots (`/backups/snapshots?repository=`) open from a
+repository page. The header's primary action is "Create backup policy"
+on every tab. Policy pages follow the shared policy layout (status
+sentence, Back up now / Edit / overflow, KPIs, what it covers, schedule
+with next runs, recent runs); creating a policy is a wizard, editing one
+screen. The policy list omits `recentSets` and `schedule.nextRun`, so
+lists that show the last run use `backupPoliciesWithSetsQuery` (one
+detail request per policy). Set members carry no backup ID: the UI finds
+a member's backup among `GET /backups?setId=` (`memberBackup`).
+Stacks and volumes have a **Backups** tab (volumes: right before
 Migrate; `$lib/features/backups/BackupsTab.svelte`, listed with
 `GET /backups?stackId=` or `?environmentId=&volume=`, which also returns
-the stack backups holding the volume). *Restore all* restores the whole
+the stack backups holding the volume); it names the policies that cover
+the stack or volume (`policyCovers`) with their next run and, without
+backups yet, those policies' recent runs that included it
+(`memberRuns`). *Restore all* restores the whole
 backup (a volume's page: only that volume); *Choose files* opens a lazily
 listed file tree (`FilePickerDialog`, one directory per request, at most
 500 entries each, tri-state ticks; `selection.ts` keeps no path inside a

@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Create stack from template (template registry), a dialog over the
-	// stack list. Step one finds a template of any registry (this instance's
-	// and the added ones; search and tags; templates with a published version
-	// you may use); step two picks the version, the
+	// stack list. Step one finds a template of any source (this instance's
+	// and the added ones; search and tag chips; templates with a published
+	// version you may use): clicking a card chooses it. Step two picks the
+	// version, the
 	// environment and the name, and shows the version's .env to edit. The
 	// stack is created from the template's files; an edited .env is saved
 	// to the new stack right after (through its file routes), then it is
@@ -22,6 +23,7 @@
 	import {
 		Button,
 		Checkbox,
+		Chip,
 		CodeEditor,
 		Dialog,
 		EmptyState,
@@ -34,7 +36,7 @@
 		toast
 	} from '$lib/ui';
 	import { createStackFromTemplate } from './actions';
-	import { catalogHref, catalogSearch, projectNameFor, tagCounts } from './model';
+	import { catalogSearch, projectNameFor, tagCounts } from './model';
 	import {
 		catalogDefinitionQuery,
 		templateCatalogQuery,
@@ -235,7 +237,7 @@
 	title={picked ? `Create stack from ${picked.name}` : 'Create stack from template'}
 	description={picked
 		? 'Copies every file of the chosen version into a new project directory. Nothing existing is overwritten; your .env is saved before anything runs.'
-		: 'Choose a template. Only templates with a published version you may use are listed.'}
+		: 'Choose the template to create the stack from. Only templates with a published version you may use are listed.'}
 	size="xl"
 	dismissible={!creating}
 >
@@ -273,27 +275,27 @@
 					label="Search templates"
 					hideLabel
 					type="search"
-					placeholder="Search by name, description or tag"
+					placeholder="Search templates"
 					bind:value={query}
 				/>
 				{#if tags.length}
 					<div class="chips" role="group" aria-label="Filter by tag">
 						{#each tags as t (t.tag)}
-							<button
-								type="button"
-								class="chip"
-								aria-pressed={tag === t.tag}
-								onclick={() => (tag = tag === t.tag ? '' : t.tag)}>#{t.tag}</button
-							>
+							<Chip
+								label={t.tag}
+								count={t.count}
+								selected={tag === t.tag}
+								onclick={() => (tag = tag === t.tag ? '' : t.tag)}
+							/>
 						{/each}
 					</div>
 				{/if}
 				{#if shown.length}
 					<ul class="grid" aria-label="Templates">
 						{#each shown as t (`${t.instanceId}/${t.templateId}`)}
-							<li class="pickable">
+							<li>
 								<TemplateCard
-									href={catalogHref(t)}
+									onselect={() => pick(t)}
 									name={t.name}
 									description={t.description}
 									tags={t.tags}
@@ -301,9 +303,6 @@
 									latest={t.versions[0]?.label}
 									source={t.own ? 'This instance' : t.registryName}
 								/>
-								<Button size="sm" variant="primary" onclick={() => pick(t)}
-									>Use {t.name}</Button
-								>
 							</li>
 						{/each}
 					</ul>
@@ -459,36 +458,16 @@
 		gap: var(--space-2);
 	}
 
-	.chip {
-		padding: 2px 10px;
-		border: 1px solid var(--border-subtle);
-		border-radius: 999px;
-		background: var(--surface-panel);
-		color: var(--text-default);
-		font: inherit;
-		font-size: var(--text-control);
-		cursor: pointer;
-	}
-
-	.chip[aria-pressed='true'] {
-		border-color: var(--accent-text);
-		color: var(--text-strong);
-	}
-
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 		gap: var(--space-3);
 		max-height: 60vh;
 		margin: 0;
-		padding: 0;
+		/* Room for the cards' focus ring inside the scroll box. */
+		padding: 4px;
 		overflow-y: auto;
 		list-style: none;
-	}
-
-	.pickable {
-		display: grid;
-		gap: var(--space-2);
 	}
 
 	.layout {

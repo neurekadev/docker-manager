@@ -1,11 +1,13 @@
 // The environments a resource page reads (#22 environment switcher): the
 // selected one or every visible active one, their names for messages and
-// the caller's permissions for create actions. Call from a component's
-// script (it creates queries).
+// the caller's permissions for create actions. With a single environment
+// (selected, or the only one) lists hide their Environment column. Call
+// from a component's script (it creates queries).
 import { createQuery } from '@tanstack/svelte-query';
 import { envTargets, type EnvTarget } from '$lib/api/multi-env';
 import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 import { environmentSelection } from '$lib/shell/environment.svelte';
+import { onlyOneEnvironment } from '$lib/features/common/data';
 import { accessOf, hasAny, isRestricted } from '$lib/shell/nav';
 import { canInEnvironment, environmentsAllowing } from './permissions';
 
@@ -21,9 +23,16 @@ export function useEnvironmentScope() {
 		get targets() {
 			return targets;
 		},
-		/** One environment is selected in the switcher. */
+		/**
+		 * One environment is shown: selected in the switcher, or the only
+		 * one the caller sees (lists then hide their Environment column
+		 * and filter, forms their picker).
+		 */
 		get single() {
-			return environmentSelection.id !== null && targets.length === 1;
+			return (
+				targets.length === 1 &&
+				(environmentSelection.id !== null || onlyOneEnvironment(envs.data))
+			);
 		},
 		get ready() {
 			return envs.isSuccess;

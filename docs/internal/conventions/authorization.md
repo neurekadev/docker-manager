@@ -10,7 +10,11 @@ specific user rule, then the most specific group rule, then deny.
   plain-language label, description, compatible scopes via
   `res(...)`/`instEnv`/`instRes(...)`, `high(...)` for risky actions,
   `adv(...)` for rare ones). Never add generic read/write keys; never rename
-  a key. Every route, job kind (`jobspec.Spec.Capability`) and bus event
+  a key. The web editor's presets derive from these flags
+  (`web/src/lib/features/access/presets.ts`): Viewer takes every
+  normal-risk key ending in `.read`, Operator also every normal-risk
+  common one (plus `*.logs.read`), so end read-only keys in `.read` and
+  mark writes that are risky or rare with `high`/`adv`. Every route, job kind (`jobspec.Spec.Capability`) and bus event
   type needs one (`TestRouteInventory`,
   `TestEveryJobKindHasCatalogCapabilities`,
   `TestEveryEventTypeHasAVisibilityRule`). File keys are per root:

@@ -28,6 +28,18 @@ run `docker compose up -d` again.
 | `DOCKER_AGENT_STACK_ROOTS` | empty | You keep stacks in a host folder such as `/opt/stacks` and want Docker Manager to manage them where they are. Also mount the folder at the same path (`/opt/stacks:/opt/stacks`). |
 | `DOCKER_AGENT_LOG_LEVEL` | `info` | You need more detail (`debug`) for a problem. |
 
+## Backups to a local folder
+
+Docker Manager only writes backups to folders you allow. Mount the folder
+into the container at the same path and list it in the `.env` file:
+
+| Setting | Default | Change it when |
+| --- | --- | --- |
+| `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | empty | A backup repository on the manager's host should live in a local folder, for example `/srv/backups` (mount `/srv/backups:/srv/backups`). |
+| `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | empty | The same for another host: set it on that host's agent. |
+
+Separate several folders with commas. Without them, use an S3 bucket.
+
 ## Mounts you must keep
 
 The agent needs the Docker socket and Docker's volume folder mounted at the

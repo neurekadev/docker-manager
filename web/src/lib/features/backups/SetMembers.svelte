@@ -1,56 +1,119 @@
 <script lang="ts">
 	// The members of a backup set (#10): each stack, volume or the manager
-	// state with its own state and snapshot time. Multi-host sets are not
-	// atomic, so every member shows the time its environment took it.
+	// state with its own state and snapshot time, in aligned columns.
+	// Multi-host sets are not atomic, so every member shows the time its
+	// environment took it. With the set's backups given, members link to
+	// their backup (members carry no backup ID; memberBackup matches them).
 	import { Badge, formatDateTime } from '$lib/ui';
 	import { routes } from '$lib/routes';
-	import { itemName, memberState, type SetMember } from './model';
+	import {
+		itemName,
+		memberBackup,
+		memberState,
+		sentenceCase,
+		type Backup,
+		type SetMember
+	} from './model';
 
 	let {
 		members,
-		environmentName
-	}: { members: SetMember[]; environmentName?: (id: string) => string } = $props();
+		environmentName,
+		backups,
+		currentId
+	}: {
+		members: SetMember[];
+		environmentName?: (id: string) => string;
+		/** The set's backups: members link to theirs. */
+		backups?: Backup[];
+		/** The backup being shown (not linked). */
+		currentId?: string;
+	} = $props();
 </script>
 
-<ul class="members" role="list">
-	{#each members as m, i (`${m.scope}-${m.item}-${i}`)}
-		{@const s = memberState(m.state)}
-		<li>
-			<span class="name">{itemName(m)}</span>
-			{#if m.environmentId && environmentName}<span class="muted"
-					>{environmentName(m.environmentId)}</span
-				>{/if}
-			<Badge tone={s.tone} dot>{s.label}</Badge>
-			{#if m.snapshotTime}
-				<span class="muted num">{formatDateTime(m.snapshotTime)}</span>
-			{/if}
-			{#if m.errorClass}<span class="err">{m.errorClass.replaceAll('_', ' ')}</span>{/if}
-			{#if m.jobId}<a class="job" href={routes.job(m.jobId)}>Job</a>{/if}
-		</li>
-	{/each}
-</ul>
+<table class="members">
+	<thead>
+		<tr>
+			<th scope="col">Backup</th>
+			<th scope="col">State</th>
+			<th scope="col">Taken</th>
+			<th scope="col"><span class="sr-only">Job</span></th>
+		</tr>
+	</thead>
+	<tbody>
+		{#each members as m, i (`${m.scope}-${m.item}-${i}`)}
+			{@const s = memberState(m.state)}
+			{@const b = memberBackup(m, backups)}
+			<tr>
+				<td class="name">
+					{#if b && b.id !== currentId}
+						<a href={routes.backup(b.id)}>{itemName(m)}</a>
+					{:else}
+						<span
+							class="strong"
+							aria-current={b && b.id === currentId ? 'page' : undefined}
+							>{itemName(m)}</span
+						>
+					{/if}
+					{#if m.environmentId && environmentName}<span class="muted sub"
+							>{environmentName(m.environmentId)}</span
+						>{/if}
+					{#if m.errorClass}<span class="err sub"
+							>{sentenceCase(m.errorClass.replaceAll('_', ' '))}</span
+						>{/if}
+				</td>
+				<td><Badge tone={s.tone} dot>{s.label}</Badge></td>
+				<td class="muted num">{m.snapshotTime ? formatDateTime(m.snapshotTime) : '—'}</td>
+				<td class="job">
+					{#if m.jobId}<a href={routes.job(m.jobId)}>Job</a>{/if}
+				</td>
+			</tr>
+		{/each}
+	</tbody>
+</table>
 
 <style>
 	.members {
-		display: grid;
-		gap: var(--space-1);
-	}
-
-	li {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-1) var(--space-2);
+		width: 100%;
+		border-collapse: collapse;
 		font-size: var(--text-caption);
 		line-height: var(--leading-caption);
 	}
 
-	.name {
+	th {
+		padding: 0 var(--space-3) var(--space-1) 0;
+		color: var(--text-muted);
+		font-weight: var(--weight-medium);
+		text-align: left;
+	}
+
+	td {
+		padding: var(--space-1) var(--space-3) var(--space-1) 0;
+		border-top: 1px solid var(--border-subtle);
+		vertical-align: middle;
+		white-space: nowrap;
+	}
+
+	td.name {
+		width: 100%;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+
+	.strong {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
 	}
 
+	.sub {
+		display: block;
+	}
+
 	.err {
 		color: var(--danger);
+	}
+
+	.job {
+		padding-right: 0;
+		text-align: right;
 	}
 </style>

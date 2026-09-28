@@ -1,7 +1,9 @@
 <script lang="ts">
-	// One backup (#10): what it holds and how consistent it is, the set it
-	// belongs to (every member's own snapshot time), its contents with
-	// single-file download, verification and the restore wizard.
+	// One backup (#10): what it holds and how consistent it is, the run it
+	// belongs to (every member's own time, each linked to its backup), its
+	// contents with single-file download, verification of the repository
+	// location that holds it, and the restore wizard. Internal paths, the
+	// location and the snapshot ID wait under Advanced.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import Archive from '@lucide/svelte/icons/archive';
@@ -19,13 +21,15 @@
 		JobProgress,
 		Notice,
 		PageHeader,
-		TextField,
+		RadioGroup,
 		formatBytes,
 		formatDateTime,
+		shortId,
 		toast
 	} from '$lib/ui';
 	import { has } from '$lib/features/common/access';
 	import { environmentName, newIdempotencyKey } from '$lib/features/common/data';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { actionError } from '$lib/features/common/errors';
 	import Facts from '$lib/features/common/Facts.svelte';
 	import Page from '$lib/features/common/Page.svelte';
@@ -35,11 +39,18 @@
 	import {
 		CONSISTENCY_LABEL,
 		KIND_LABEL,
+		VERIFY_READ_OPTIONS,
 		itemName,
+		scopeName,
 		setState,
 		type BackupDetail
 	} from '$lib/features/backups/model';
-	import { backupKeys, backupQuery, repositoriesQuery } from '$lib/features/backups/queries';
+	import {
+		backupKeys,
+		backupQuery,
+		backupsQuery,
+		repositoriesQuery
+	} from '$lib/features/backups/queries';
 
 	const id = $derived(page.params.backupId ?? '');
 	const qc = useQueryClient();
@@ -47,11 +58,17 @@
 	const envs = createQuery(() => environmentsQuery());
 	const repos = createQuery(() => repositoriesQuery());
 	const envName = (e: string) => environmentName(envs.data, e);
+	// The other backups of its run, so the set's members link to them.
+	const setBackups = createQuery(() => ({
+		...backupsQuery({ setId: backup.data?.setId ?? '' }),
+		enabled: !!backup.data?.setId
+	}));
 
 	usePage(() => ({
 		title: backup.data ? itemName(backup.data) : 'Backup',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
+			{ label: 'All backups', href: routes.backupList() },
 			{ label: backup.data ? itemName(backup.data) : 'Backup' }
 		]
 	}));
@@ -102,6 +119,10 @@
 		{#snippet children(b: BackupDetail)}
 			{@const repo = repos.data?.find((r) => r.id === b.repositoryId)}
 			{@const st = b.set ? setState(b.set.state) : null}
+			{@const where =
+				b.kind === 'manager_state' || !b.environmentId
+					? 'Manager'
+					: envName(b.environmentId)}
 			<PageHeader
 				title={itemName(b)}
 				icon={Archive}
@@ -110,19 +131,15 @@
 					b.snapshotTime
 				)}"
 				meta={[
-					{
-						label:
-							b.kind === 'manager_state' || !b.environmentId
-								? 'Manager'
-								: envName(b.environmentId)
-					},
+					{ label: where },
 					{ label: repo?.name ?? 'Repository' },
 					...(b.snapshotId
 						? [
 								{
-									label: b.snapshotId.slice(0, 12),
+									label: shortId(b.snapshotId, 8),
 									mono: true,
-									title: `restic snapshot ${b.snapshotId}`
+									title: 'Snapshot ID',
+									copy: { value: b.snapshotId, what: 'snapshot ID' }
 								}
 							]
 						: [])
@@ -134,14 +151,14 @@
 					{:else}<Badge tone="warn" dot>Partial</Badge>{/if}
 				{/snippet}
 				{#snippet actions()}
-					{#if has(b, 'backup.verify')}
-						<Button icon={ShieldCheck} onclick={() => (verifyOpen = true)}
-							>Verify</Button
-						>
-					{/if}
 					{#if has(b, 'backup.restore') && !b.forgottenAt}
 						<Button variant="primary" icon={History} href={routes.backupRestore(b.id)}
 							>Restore</Button
+						>
+					{/if}
+					{#if has(b, 'backup.verify')}
+						<Button icon={ShieldCheck} onclick={() => (verifyOpen = true)}
+							>Verify</Button
 						>
 					{/if}
 				{/snippet}
@@ -176,30 +193,56 @@
 				<Facts
 					columns={3}
 					items={[
-						{ label: 'Snapshot time', value: formatDateTime(b.snapshotTime) },
+						{ label: 'Taken', value: formatDateTime(b.snapshotTime) },
 						{
 							label: 'Consistency',
 							value: b.consistency ? CONSISTENCY_LABEL[b.consistency] : '—'
 						},
 						{ label: 'Size', value: formatBytes(b.bytes) },
-						{ label: 'Repository location', value: b.scope ?? '—', mono: true },
+						{
+							label: b.kind === 'stack' ? 'Volumes' : 'Volume',
+							value: b.volumes?.join(', ') || b.volume || '—'
+						},
+						{ label: 'Environment', value: where },
 						{
 							label: 'Last verified',
 							value: b.verifiedAt ? formatDateTime(b.verifiedAt) : 'Not yet'
-						},
-						{ label: 'Volumes', value: b.volumes?.join(', ') || b.volume || '—' },
-						{ label: 'Paths', value: b.paths?.join(', ') || '—', mono: true }
+						}
 					]}
 				/>
+				<div class="advanced">
+					<Disclosure summary="Advanced">
+						<Facts
+							columns={1}
+							items={[
+								{
+									label: 'Repository location',
+									value: b.scope ? scopeName(b.scope, envName) : '—'
+								},
+								{
+									label: 'Paths in the backup',
+									value: b.paths?.join(', '),
+									mono: true
+								},
+								{ label: 'Snapshot ID', value: b.snapshotId, mono: true }
+							]}
+						/>
+					</Disclosure>
+				</div>
 			</Card>
 
 			{#if b.set && st}
 				<Card
-					title="Backup set"
-					subtitle="Everything backed up by the same run. Hosts are backed up one after another, so each member has its own time."
+					title="Backup run"
+					subtitle="Everything backed up by the same run. Hosts are backed up one after another, so each backup has its own time."
 				>
 					{#snippet actions()}<Badge tone={st.tone} dot>{st.label}</Badge>{/snippet}
-					<SetMembers members={b.set.members} environmentName={envName} />
+					<SetMembers
+						members={b.set.members}
+						environmentName={envName}
+						backups={setBackups.data}
+						currentId={b.id}
+					/>
 				</Card>
 			{/if}
 
@@ -215,13 +258,12 @@
 			<Dialog
 				bind:open={verifyOpen}
 				title="Verify {repo?.name ?? 'the repository'}"
-				description="Runs restic check on the repository location that holds this backup. Damage fails the job."
+				description="Checks the whole repository location that holds this backup: every backup stored there, not only this one. Damage makes the check fail."
 			>
-				<TextField
-					label="Also read stored data"
-					description="Optional. A share such as 5% or 1/10; reading data takes longer and finds damaged packs."
+				<RadioGroup
+					label="How much to check"
+					options={VERIFY_READ_OPTIONS}
 					bind:value={subset}
-					mono
 				/>
 				{#if verifyError}<Notice
 						tone="danger"
@@ -231,10 +273,16 @@
 				{#snippet footer()}
 					<Button variant="ghost" onclick={() => (verifyOpen = false)}>Cancel</Button>
 					<Button variant="primary" loading={verifying} onclick={() => verify(b)}
-						>Verify</Button
+						>Verify repository</Button
 					>
 				{/snippet}
 			</Dialog>
 		{/snippet}
 	</QueryView>
 </Page>
+
+<style>
+	.advanced {
+		margin-top: var(--space-4);
+	}
+</style>

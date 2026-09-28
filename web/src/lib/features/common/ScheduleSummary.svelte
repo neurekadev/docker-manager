@@ -1,7 +1,10 @@
 <script lang="ts">
-	// A saved schedule (#13) at a glance: enabled or off, the cron
-	// expression and zone, and the next run (or why it cannot run).
+	// A saved schedule (#13) at a glance: enabled or off, the schedule in
+	// words ("Daily at 03:00", with the zone when it is not the viewer's;
+	// the cron expression and zone are its tooltip), and the next run (or
+	// why it cannot run).
 	import Badge from '$lib/ui/Badge.svelte';
+	import { describeCron } from '$lib/ui/cron';
 	import { formatDateTime } from '$lib/ui/format';
 
 	interface Props {
@@ -16,6 +19,7 @@
 
 	let { cron, timeZone, enabled, nextRun, invalidReason, compact = false }: Props = $props();
 	const next = $derived(typeof nextRun === 'string' ? nextRun : nextRun?.at);
+	const words = $derived(describeCron(cron, timeZone));
 </script>
 
 <span class="schedule" class:compact>
@@ -26,7 +30,7 @@
 	{:else}
 		<Badge tone="neutral" dot>Off</Badge>
 	{/if}
-	<span class="expr"><span class="mono">{cron}</span> <span class="muted">{timeZone}</span></span>
+	<span class="expr" title="{cron} ({timeZone})">{words}</span>
 	{#if invalidReason}
 		<span class="note danger">{invalidReason}</span>
 	{:else if enabled && next}
@@ -46,6 +50,7 @@
 	}
 
 	.expr {
+		color: var(--text-default);
 		white-space: nowrap;
 	}
 

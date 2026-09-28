@@ -1,7 +1,8 @@
 <script lang="ts">
-	// Enrollment tokens (#3): pending ones with their expiry and the last
-	// refused attempt, recently used ones with the agent they created. A
-	// pending token can be revoked. Token values are never shown again.
+	// Install commands waiting for an agent (#3; their enrollment tokens):
+	// who each is for, its expiry and the last refused attempt. A waiting
+	// one can be revoked. Token values are never shown again. Shown below
+	// the environments list, only while there are any.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrapEmpty, type AgentEnrollment } from '$lib/api/client';
 	import { enrollmentsQuery } from '$lib/api/queries';
@@ -39,8 +40,8 @@
 			})
 		);
 		await qc.invalidateQueries({ queryKey: liveKeys.list('agents') });
-		toast.success('Revoked enrollment token', {
-			body: 'An agent can no longer enroll with it.'
+		toast.success('Revoked the install command', {
+			body: 'An agent can no longer connect with it.'
 		});
 	}
 
@@ -103,20 +104,31 @@
 {/snippet}
 
 {#if rows.length}
-	<Card title="Enrollment tokens" subtitle="Waiting for an agent" padding="none" id="enrollments">
-		<Table label="Enrollment tokens" {rows} {columns} rowKey={(e) => e.id} manualSort />
+	<Card
+		title="Waiting for an agent"
+		subtitle="Install commands that no host has used yet"
+		padding="none"
+		id="enrollments"
+	>
+		<Table
+			label="Install commands waiting for an agent"
+			{rows}
+			{columns}
+			rowKey={(e) => e.id}
+			manualSort
+		/>
 	</Card>
 {/if}
 
 <ConfirmDialog
 	bind:open={confirmOpen}
-	title="Revoke enrollment token"
-	message="The install command that contains this token stops working."
+	title="Revoke install command"
+	message="The install command stops working."
 	consequences={[
-		'An agent that has not enrolled yet cannot use this token.',
-		'Agents that already enrolled keep working.'
+		'An agent that has not connected yet cannot use it.',
+		'Agents that already connected keep working.'
 	]}
-	confirmLabel="Revoke token"
+	confirmLabel="Revoke command"
 	tone="danger"
 	onconfirm={revoke}
 />

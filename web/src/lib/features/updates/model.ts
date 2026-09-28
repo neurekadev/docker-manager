@@ -2,6 +2,7 @@
 // Pure functions (tested in model.spec.ts); the API decides eligibility.
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
+import { describeCron } from '$lib/ui/cron';
 
 export type UpdatePolicy = Schema<'UpdatePolicy'>;
 export type UpdateCandidate = Schema<'UpdateCandidate'>;
@@ -157,6 +158,8 @@ export function summaryState(s: UpdateSummary | undefined, inactive = false): Pr
 /** Counts of targets by state and the newest check (KPI row of Updates). */
 export function summarizeTargets(summaries: (UpdateSummary | undefined)[]): {
 	withUpdates: number;
+	/** Images (services or containers) with a newer digest in the targets with updates. */
+	images: number;
 	failing: number;
 	upToDate: number;
 	unchecked: number;
@@ -164,6 +167,7 @@ export function summarizeTargets(summaries: (UpdateSummary | undefined)[]): {
 } {
 	const out = {
 		withUpdates: 0,
+		images: 0,
 		failing: 0,
 		upToDate: 0,
 		unchecked: 0,
@@ -172,8 +176,10 @@ export function summarizeTargets(summaries: (UpdateSummary | undefined)[]): {
 	for (const s of summaries) {
 		if (!s || !s.lastCheckAt) out.unchecked++;
 		else if (s.failed + s.quarantined) out.failing++;
-		else if (s.available) out.withUpdates++;
-		else out.upToDate++;
+		else if (s.available) {
+			out.withUpdates++;
+			out.images += s.available;
+		} else out.upToDate++;
 		if (s?.lastCheckAt && (!out.lastCheckAt || s.lastCheckAt > out.lastCheckAt))
 			out.lastCheckAt = s.lastCheckAt;
 	}
@@ -212,4 +218,228 @@ export function containerPolicy(
 			? index.get(targetKey(c.environmentId, 'stack', c.stack.stackId))
 			: undefined
 		: index.get(targetKey(c.environmentId, 'container', c.name));
+}
+
+/**
+ * What the Updates KPI counts, in one sentence: "6 images in 5 stacks",
+ * "1 image in 1 container", "3 images in 2 stacks and containers". Both the
+ * KPI and the policy rows count targets (stacks and containers) with at
+ * least one newer image; the images are the services behind them.
+ */
+export function updatesText(
+	images: number,
+	targets: { stacks: number; containers: number }
+): string {
+	const n = targets.stacks + targets.containers;
+	if (!n) return 'Nothing waiting';
+	const where =
+		targets.stacks && targets.containers
+			? plural(n, 'stack and container', 'stacks and containers')
+			: targets.containers
+				? plural(n, 'container', 'containers')
+				: plural(n, 'stack', 'stacks');
+	return `${plural(Math.max(images, n), 'image', 'images')} in ${where}`;
+}
+
+/** Why a target of an environment policy is not covered (null: it is covered). */
+export type InactiveReason = 'excluded' | 'gone';
+
+/**
+ * An inactive target is either excluded by the policy (its stack ID or
+ * container name is in the exclusion lists) or no longer found (a deleted
+ * stack, a removed or protected container, a container that lost its saved
+ * specification): the manager keeps such records for their history.
+ */
+export function inactiveReason(
+	t: { inactive: boolean; type: string; id: string; environmentId: string },
+	p: { scope: 'all' | 'environment'; excludeStacks: string[]; excludeContainers: string[] }
+): InactiveReason | null {
+	if (!t.inactive) return null;
+	if (t.type === 'stack') return p.excludeStacks.includes(t.id) ? 'excluded' : 'gone';
+	const key = p.scope === 'all' ? `${t.environmentId}/${t.id}` : t.id;
+	return p.excludeContainers.includes(key) ? 'excluded' : 'gone';
+}
+
+/** A target's badge: excluded and gone targets say so, the rest their candidates' state. */
+export function targetState(
+	s: UpdateSummary | undefined,
+	reason: InactiveReason | null
+): Presentation {
+	if (reason === 'excluded') return { tone: 'neutral', label: 'Excluded' };
+	if (reason === 'gone') return { tone: 'neutral', label: 'No longer found' };
+	return summaryState(s);
+}
+
+interface ScheduleLike {
+	cron?: string;
+	timeZone?: string;
+	enabled: boolean;
+}
+
+function lowerFirst(s: string): string {
+	return s && /^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s;
+}
+
+/**
+ * An update policy's two schedules in one sentence: "Checks every hour,
+ * updates daily at 04:00 (UTC)", "Checks daily at 03:00, updates only by
+ * hand", "Checks and updates only by hand". `viewer` is the viewer's zone
+ * (tests).
+ */
+export function policySchedulesText(
+	check: ScheduleLike,
+	run: ScheduleLike,
+	viewer?: string
+): string {
+	const words = (s: ScheduleLike) =>
+		lowerFirst(describeCron(s.cron ?? '', s.timeZone ?? '', viewer));
+	if (!check.enabled && !run.enabled) return 'Checks and updates only by hand';
+	const c = check.enabled ? `Checks ${words(check)}` : 'Checks only by hand';
+	const r = run.enabled ? `updates ${words(run)}` : 'updates only by hand';
+	return `${c}, ${r}`;
+}
+
+/** "nginx:1.27" of a candidate: its tagged reference, without Docker Hub's implied prefix. */
+export function imageLabel(c: Pick<UpdateCandidate, 'reference'>): string {
+	return c.reference.replace(
+		/^(docker\.io|index\.docker\.io|registry-1\.docker\.io)\/(library\/)?/,
+		''
+	);
+}
+
+/** updatesText of environment policy targets (stacks and containers counted apart). */
+export function targetsUpdateText(
+	targets: readonly { type: string; candidateSummary?: UpdateSummary }[]
+): string {
+	const of = (type: string) =>
+		summarizeTargets(targets.filter((t) => t.type === type).map((t) => t.candidateSummary));
+	const stacks = of('stack');
+	const containers = of('container');
+	return updatesText(stacks.images + containers.images, {
+		stacks: stacks.withUpdates,
+		containers: containers.withUpdates
+	});
+}
+
+const CONTAINER_ID = /^[0-9a-f]{12,64}$/i;
+
+/**
+ * The name of a standalone container target: its ID is the container's
+ * name; older records may hold the Engine ID, which is looked up in the
+ * environment's containers and never shown itself.
+ */
+export function containerTargetName(
+	id: string,
+	containers?: readonly { id: string; name: string }[]
+): { name: string; found: boolean } {
+	const c = containers?.find((x) => x.name === id || x.id === id);
+	if (c) return { name: c.name, found: true };
+	if (CONTAINER_ID.test(id)) return { name: 'Removed container', found: false };
+	return { name: id, found: !containers };
+}
+
+/**
+ * The covered (active) targets of several environment policies, once each,
+ * in one environment (null: all).
+ */
+export function coveredTargets<
+	T extends { policyId: string; environmentId: string; inactive: boolean }
+>(lists: readonly (readonly T[] | undefined)[], environmentId: string | null): T[] {
+	const seen = new Map<string, T>();
+	for (const list of lists)
+		for (const t of list ?? [])
+			if (!t.inactive && (!environmentId || t.environmentId === environmentId))
+				seen.set(t.policyId, t);
+	return [...seen.values()];
+}
+
+interface TargetRow {
+	policyId: string;
+	environmentId: string;
+	type: 'stack' | 'container';
+	id: string;
+	inactive: boolean;
+	candidateSummary: UpdateSummary;
+}
+
+const EMPTY_SUMMARY: UpdateSummary = {
+	available: 0,
+	upToDate: 0,
+	quarantined: 0,
+	ineligible: 0,
+	failed: 0,
+	unchecked: 0
+};
+
+/**
+ * A policy's targets plus the stacks and containers it excludes that never
+ * got a target record (excluded before the first check), so every
+ * exclusion is listed by name. `stackEnvironment` finds a stack's
+ * environment.
+ */
+export function withExclusions<T extends TargetRow>(
+	targets: readonly T[],
+	p: {
+		scope: 'all' | 'environment';
+		environmentId?: string;
+		excludeStacks: string[];
+		excludeContainers: string[];
+	},
+	stackEnvironment: (stackId: string) => string | undefined
+): (T | TargetRow)[] {
+	const has = (type: string, id: string, env?: string) =>
+		targets.some((t) => t.type === type && t.id === id && (!env || t.environmentId === env));
+	const extra: TargetRow[] = [];
+	for (const id of p.excludeStacks) {
+		const env = stackEnvironment(id);
+		if (!env || has('stack', id)) continue;
+		extra.push({
+			policyId: `excluded:stack:${id}`,
+			environmentId: env,
+			type: 'stack',
+			id,
+			inactive: true,
+			candidateSummary: EMPTY_SUMMARY
+		});
+	}
+	for (const key of p.excludeContainers) {
+		const [env, name] =
+			p.scope === 'all' && key.includes('/')
+				? [key.slice(0, key.indexOf('/')), key.slice(key.indexOf('/') + 1)]
+				: [p.environmentId ?? '', key];
+		if (!env || has('container', name, env)) continue;
+		extra.push({
+			policyId: `excluded:container:${env}/${name}`,
+			environmentId: env,
+			type: 'container',
+			id: name,
+			inactive: true,
+			candidateSummary: EMPTY_SUMMARY
+		});
+	}
+	return [...targets, ...extra];
+}
+
+/**
+ * The status sentence of an update policy page: what needs doing, from
+ * its covered targets.
+ */
+export function policyStatusText(
+	totals: ReturnType<typeof summarizeTargets>,
+	covered: number,
+	updates: string
+): string {
+	if (!covered) return 'Nothing in scope to update yet.';
+	if (totals.unchecked === covered) return 'Not checked yet. Check now to look for newer images.';
+	const parts: string[] = [];
+	if (totals.failing)
+		parts.push(
+			`${plural(totals.failing, 'stack or container', 'stacks or containers')} failed the last check or update.`
+		);
+	if (totals.withUpdates) parts.push(`Newer images: ${updates}. Preview them to update.`);
+	if (!parts.length)
+		return totals.unchecked
+			? `Up to date; ${totals.unchecked} not checked yet.`
+			: 'Everything it covers is up to date.';
+	return parts.join(' ');
 }

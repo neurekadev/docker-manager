@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import type { Container } from '$lib/api/queries';
+import BulkConfirm from './BulkConfirm.svelte';
 import EnvironmentGaps from './EnvironmentGaps.svelte';
+import LabelsCard from './LabelsCard.svelte';
 import ProtectionBadge from './ProtectionBadge.svelte';
+import ProtectionMark from './ProtectionMark.svelte';
 import RemovalDialog from './RemovalDialog.svelte';
 import ActionHostHarness from './test/ActionHostHarness.svelte';
 
@@ -165,6 +168,34 @@ describe('marks and notices', () => {
 		);
 	});
 
+	it('words the chip plainly on detail pages and keeps list rows to a small mark', () => {
+		render(ProtectionBadge, {
+			props: { protection: agentProtection, label: 'Part of Docker Manager' }
+		});
+		expect(screen.getByText(/^Part of Docker Manager/)).toBeInTheDocument();
+		const { container } = render(ProtectionMark, { props: { protection: agentProtection } });
+		const mark = container.querySelector('[title]')!;
+		expect(mark.getAttribute('title')).toContain(
+			'the Docker Agent connected to this environment'
+		);
+		expect(mark).toHaveTextContent('Docker Manager: the Docker Agent connected');
+	});
+
+	it('shows the labels someone chose and folds the system labels', () => {
+		render(LabelsCard, {
+			props: {
+				label: 'Labels of web',
+				labels: { 'traefik.enable': 'true', 'com.docker.compose.project': 'shop' }
+			}
+		});
+		expect(screen.getByLabelText('Labels of web')).toHaveTextContent('traefik.enable');
+		expect(screen.getByLabelText('Labels of web')).not.toHaveTextContent('com.docker.compose');
+		expect(screen.getByText('1 system label')).toBeInTheDocument();
+		expect(
+			screen.getByText('com.docker.compose.project').closest('details')
+		).not.toHaveAttribute('open');
+	});
+
 	it('names offline and failing environments instead of silently shortening the list', () => {
 		render(EnvironmentGaps, {
 			props: {
@@ -187,5 +218,66 @@ describe('marks and notices', () => {
 				/Agent timeout\. The containers of the other environments are listed\./
 			)
 		).toBeInTheDocument();
+	});
+});
+
+describe('BulkConfirm (#22 polish: bulk actions, #32 refusals reported)', () => {
+	it('lists what runs and what is left out with the reason, typed before it runs', async () => {
+		const onconfirm = vi.fn();
+		const user = setup();
+		render(BulkConfirm, {
+			props: {
+				open: true,
+				title: 'Remove 1 volume?',
+				plan: {
+					run: [{ name: 'old' }],
+					refused: [{ item: { name: 'data' }, reason: 'Containers still mount it.' }],
+					skipped: []
+				},
+				name: (v: { name: string }) => v.name,
+				confirmLabel: 'Remove 1 volume and its data',
+				danger: true,
+				confirmText: 'remove 1 volume',
+				onconfirm
+			}
+		});
+		const dialog = await screen.findByRole('alertdialog', { name: 'Remove 1 volume?' });
+		expect(within(dialog).getByRole('list', { name: 'Runs on' })).toHaveTextContent('old');
+		const left = within(dialog).getByRole('list', { name: 'Left out' });
+		expect(left).toHaveTextContent('data');
+		expect(left).toHaveTextContent('Containers still mount it.');
+		const confirm = within(dialog).getByRole('button', {
+			name: 'Remove 1 volume and its data'
+		});
+		expect(confirm).toBeDisabled();
+		await user.type(
+			within(dialog).getByLabelText('Type remove 1 volume to confirm'),
+			'remove 1 volume'
+		);
+		expect(confirm).toBeEnabled();
+		await user.click(confirm);
+		expect(onconfirm).toHaveBeenCalledTimes(1);
+	});
+
+	it('cannot confirm when every selected object is left out', async () => {
+		render(BulkConfirm, {
+			props: {
+				open: true,
+				title: 'Stop 0 containers?',
+				plan: {
+					run: [],
+					refused: [
+						{ item: { name: 'docker-agent' }, reason: 'Part of Docker Manager.' }
+					],
+					skipped: []
+				},
+				name: (c: { name: string }) => c.name,
+				confirmLabel: 'Stop 0 containers',
+				onconfirm: vi.fn()
+			}
+		});
+		const dialog = await screen.findByRole('alertdialog', { name: 'Stop 0 containers?' });
+		expect(dialog).toHaveTextContent('None of the selected objects can take this action.');
+		expect(within(dialog).getByRole('button', { name: 'Stop 0 containers' })).toBeDisabled();
 	});
 });

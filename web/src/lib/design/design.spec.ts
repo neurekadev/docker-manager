@@ -26,14 +26,14 @@ function token(name: string): string {
 describe('design tokens (#22 brief)', () => {
 	it('match the values sampled from the mockup', () => {
 		const brief: Record<string, string> = {
-			'surface-canvas': '#0b1016',
-			'surface-shell': '#0e141d',
-			'surface-panel': '#10161d',
-			'surface-raised': '#151b24',
-			'surface-hover': '#1a212b',
+			'surface-canvas': '#0a0f15',
+			'surface-shell': '#0d131b',
+			'surface-panel': '#121a24',
+			'surface-raised': '#19222e',
+			'surface-hover': '#1f2935',
 			'surface-selected': '#112745',
-			'border-subtle': '#1c2430',
-			'border-strong': '#263041',
+			'border-subtle': '#1f2a38',
+			'border-strong': '#2b3747',
 			'text-strong': '#f2f4f7',
 			'text-default': '#c8d3e2',
 			'text-muted': '#8392a8',
@@ -55,6 +55,9 @@ describe('design tokens (#22 brief)', () => {
 			'radius-lg': '12px',
 			'text-body': '13px',
 			'text-title': '28px',
+			'text-title-sm': '22px',
+			'text-section': '16px',
+			'text-subsection': '14px',
 			'shadow-float': '0 12px 32px rgb(0 0 0 / 0.45)'
 		};
 		for (const [k, v] of Object.entries(brief)) expect(token(k), k).toBe(v);
@@ -70,7 +73,14 @@ describe('design tokens (#22 brief)', () => {
 			const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
 			return (x + 0.05) / (y + 0.05);
 		};
-		for (const bg of ['surface-panel', 'surface-raised', 'surface-shell', 'surface-canvas']) {
+		for (const bg of [
+			'surface-panel',
+			'surface-raised',
+			'surface-shell',
+			'surface-canvas',
+			'surface-hover',
+			'surface-search'
+		]) {
 			expect(ratio(token('text-muted'), token(bg)), bg).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(token('text-default'), token(bg)), bg).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(token('accent-text'), token(bg)), bg).toBeGreaterThanOrEqual(4.5);

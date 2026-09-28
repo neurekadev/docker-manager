@@ -9,8 +9,8 @@
 import type { ManifestOptions } from 'vite-plugin-pwa';
 
 /** --surface-shell and --surface-canvas (src/lib/design/tokens.css). */
-export const THEME_COLOR = '#0e141d';
-export const BACKGROUND_COLOR = '#0b1016';
+export const THEME_COLOR = '#0d131b';
+export const BACKGROUND_COLOR = '#0a0f15';
 
 export const webManifest = {
 	id: '/',

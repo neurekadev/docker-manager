@@ -9,9 +9,11 @@
 
 	interface Props {
 		validation: Schema<'StackValidation'>;
+		/** What the errors block, e.g. "deploying" (the stack editor). */
+		fixBefore?: string;
 	}
 
-	let { validation }: Props = $props();
+	let { validation, fixBefore = 'creating the stack' }: Props = $props();
 	const external = $derived(validation.binds.filter((b) => b.external));
 </script>
 
@@ -30,7 +32,7 @@
 			{validation.errors.length === 1 ? 'error' : 'errors'}; fix {validation.errors.length ===
 			1
 				? 'it'
-				: 'them'} before creating the stack.
+				: 'them'} before {fixBefore}.
 		</p>
 	{/if}
 	{#if validation.errors.length}

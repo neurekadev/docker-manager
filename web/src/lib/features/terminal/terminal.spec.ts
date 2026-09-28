@@ -94,7 +94,7 @@ const target = { environmentId: 'e1', containerId: 'web', label: 'silo-web' };
 describe('terminal helpers', () => {
 	it('names the shells, builds the socket URL and explains close codes', () => {
 		expect(SHELLS.map((s) => s.value)).toEqual(['auto', 'bash', 'sh', 'zsh']);
-		expect(SHELLS.map((s) => s.label)).toEqual(['Automatic', 'Bash', 'sh', 'Zsh']);
+		expect(SHELLS.map((s) => s.label)).toEqual(['Detect automatically', 'Bash', 'sh', 'Zsh']);
 		expect(shellName('auto')).toBe('Bash or sh');
 		expect(shellName('zsh')).toBe('Zsh');
 		expect(socketUrl('/api/v1/x/stream', 'https://docker.example/stacks/1')).toBe(

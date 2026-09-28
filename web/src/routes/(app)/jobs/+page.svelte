@@ -4,8 +4,11 @@
 	// kind and (with every environment shown) environment, applied by the
 	// server and kept per list and browser tab like the other lists. The
 	// environment switcher scopes the list; ?environment= (links from an
-	// environment) sets the environment filter once. The list refreshes
-	// live on job events; "Load more" follows the cursor.
+	// environment page) sets the environment filter once, ?kind= (a policy
+	// run's "Open jobs") the kind filter. Rows lead with the target's name.
+	// The search covers the loaded jobs only and says so; "Load more"
+	// follows the cursor (also from the no-matches state). The list
+	// refreshes live on job events.
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -28,6 +31,8 @@
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { usePage } from '$lib/shell/page.svelte';
 	import { Button, DeniedState, EmptyState, ErrorState, PageHeader, Skeleton } from '$lib/ui';
+	import Page from '$lib/features/common/Page.svelte';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 
 	usePage({ title: 'Jobs', crumbs: [{ label: 'Jobs' }], environmentScoped: true });
 
@@ -39,28 +44,32 @@
 		enabled: hasAny(accessOf(perms.data), 'stack.')
 	}));
 	const names = $derived(new Map((envs.data ?? []).map((e) => [e.id, e.name])));
+	const single = singleEnvironment();
+	// The environment column and filter show while several environments are listed.
+	const allEnvironments = $derived(!environmentSelection.id && !single.current);
 	const nameOf = $derived(stackNames(stacks.data));
 
 	// A link from an environment (?environment=<id>) sets the environment
 	// filter once (or the switcher, when it shows another environment).
 	onMount(() => {
 		const id = page.url.searchParams.get('environment');
-		if (id === null) return;
+		const kind = page.url.searchParams.get('kind');
+		if (id === null && kind === null) return;
 		if (id && id !== 'all') {
 			if (environmentSelection.id && environmentSelection.id !== id)
 				environmentSelection.select(id);
 			else filters.set('environment', id);
 		}
+		if (kind) filters.set('kind', kind);
 		const url = new URL(page.url);
 		url.searchParams.delete('environment');
+		url.searchParams.delete('kind');
 		void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
 	});
 
 	const defs = $derived(
 		jobFilters({
-			envs: environmentSelection.id
-				? []
-				: (envs.data ?? []).map((e) => ({ id: e.id, name: e.name }))
+			envs: allEnvironments ? (envs.data ?? []).map((e) => ({ id: e.id, name: e.name })) : []
 		})
 	);
 	const query = $derived(jobQuery(defs, filters.state, environmentSelection.id));
@@ -75,15 +84,18 @@
 		)
 	);
 	const filtered = $derived(isFiltering(defs, filters.state));
+	const searching = $derived(!!filters.q.trim());
 	const summary = $derived(
 		jobs.data
-			? listSummary(
-					rows.length,
-					all.length,
-					filtered && rows.length !== all.length,
-					'job',
-					'jobs'
-				) + (jobs.hasNextPage ? ' loaded' : '')
+			? searching && jobs.hasNextPage
+				? `${rows.length} of the ${all.length} loaded jobs`
+				: listSummary(
+						rows.length,
+						all.length,
+						filtered && rows.length !== all.length,
+						'job',
+						'jobs'
+					) + (jobs.hasNextPage ? ' loaded' : '')
 			: undefined
 	);
 </script>
@@ -91,7 +103,7 @@
 {#if perms.data && isRestricted(accessOf(perms.data))}
 	<DeniedState level={1} />
 {:else}
-	<div class="page">
+	<Page>
 		<PageHeader
 			title="Jobs"
 			description="Everything Docker Manager did or is doing: deploys, pulls, updates, backups, prunes and file operations."
@@ -110,7 +122,7 @@
 				{summary}
 				label="Filter jobs"
 				searchLabel="Search jobs"
-				placeholder="Search by kind, target or environment"
+				placeholder="Search jobs"
 				filters={defs}
 				store={filters}
 			>
@@ -120,11 +132,32 @@
 					<JobsTable
 						jobs={rows}
 						label="Jobs"
-						environments={environmentSelection.id ? undefined : names}
+						environments={allEnvironments ? names : undefined}
 						{nameOf}
 					>
 						{#snippet empty()}
-							{#if filtered}
+							{#if filtered && searching && jobs.hasNextPage}
+								<EmptyState
+									icon={Activity}
+									color="slate"
+									title="No loaded jobs match the search."
+									description="Searched the {all.length} loaded jobs. Load more to search older ones, or clear the search and filters."
+									level={3}
+									compact
+								>
+									{#snippet actions()}
+										<Button
+											variant="secondary"
+											loading={jobs.isFetchingNextPage}
+											onclick={() => jobs.fetchNextPage()}
+											>Load more jobs</Button
+										>
+										<Button variant="ghost" onclick={() => filters.clear()}
+											>Clear filters</Button
+										>
+									{/snippet}
+								</EmptyState>
+							{:else if filtered}
 								<NoMatches
 									what="jobs"
 									icon={Activity}
@@ -142,7 +175,7 @@
 							{/if}
 						{/snippet}
 					</JobsTable>
-					{#if jobs.hasNextPage}
+					{#if jobs.hasNextPage && rows.length}
 						<div class="more">
 							<Button
 								loading={jobs.isFetchingNextPage}
@@ -153,16 +186,10 @@
 				{/if}
 			</ListCard>
 		{/if}
-	</div>
+	</Page>
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
 	.pad {
 		padding: var(--space-5);
 	}

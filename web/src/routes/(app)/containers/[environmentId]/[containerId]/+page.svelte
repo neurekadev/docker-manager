@@ -1,12 +1,15 @@
 <script lang="ts">
 	// Container overview (#6): usage (#5 metrics: CPU as % of the
-	// environment's cores, memory against the limit), configuration, ports,
+	// environment's cores, memory against the limit; TimeSeriesChart keeps
+	// gaps as breaks and lists them), configuration in words (restart
+	// policy, health) with the technical detail (command, entrypoint, the
+	// health check's command, the container ID) behind "Advanced", ports,
 	// networks, mounts, environment variable names (values are never
-	// returned) and labels. The minimal view (#17: a restart or logs grant
-	// without details) shows the status only.
+	// returned) and labels (system labels folded). Health and restarts show
+	// once, in the KPI row. The minimal view (#17: a restart or logs grant
+	// without details) shows the status only, with a note.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
-	import Activity from '@lucide/svelte/icons/activity';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
@@ -22,6 +25,7 @@
 	import { routes } from '$lib/routes';
 	import {
 		Card,
+		Chip,
 		ErrorState,
 		KpiCard,
 		Meter,
@@ -30,15 +34,29 @@
 		Skeleton,
 		Sparkline,
 		Table,
+		TimeSeriesChart,
 		formatBytes,
+		formatDuration,
 		formatPercent,
 		type Column
 	} from '$lib/ui';
+	import Columns from '$lib/features/common/Columns.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Facts, { type Fact } from '$lib/features/resources/Facts.svelte';
-	import MetricChart from '$lib/features/resources/MetricChart.svelte';
-	import { joinCommand, portHref, portText, uniquePorts } from '$lib/features/resources/model';
+	import LabelsCard from '$lib/features/resources/LabelsCard.svelte';
+	import {
+		healthCommand,
+		healthLabel,
+		hostnameIsId,
+		joinCommand,
+		networkAliases,
+		portHref,
+		portText,
+		restartPolicyLabel,
+		uniquePorts
+	} from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
-	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	type Mount = NonNullable<Container['mounts']>[number];
@@ -85,31 +103,24 @@
 			d?.resources.memoryBytes ??
 			null
 	);
-	const times = $derived((metrics.data?.timestamps ?? []).map((t) => new Date(t)));
 	const cpuColor = $derived(TILE_HEX.cyan.fg);
 	const memColor = $derived(c ? serviceSeriesColor(env, c.name) : TILE_HEX.indigo.fg);
-	const cpuSeries = $derived([
-		{
-			name: 'CPU',
-			color: cpuColor,
-			points: times.map((at, i) => ({ at, value: cpu[i] ?? null }))
-		}
-	]);
-	const memSeries = $derived([
-		{
-			name: 'Memory',
-			color: memColor,
-			points: times.map((at, i) => ({
-				at,
-				value:
-					mem[i] === null || mem[i] === undefined
-						? null
-						: Math.round((mem[i] as number) / 1048576)
-			}))
-		}
-	]);
 	const serviceAddress = $derived(scope.environment(env)?.serviceAddress);
+	const hostName = $derived(scope.environment(env)?.name ?? 'the host');
 
+	const check = $derived(healthCommand(d?.healthcheck?.test));
+	const healthSecondary = $derived(
+		!check
+			? 'The image defines no health check'
+			: d?.healthcheck?.intervalSeconds
+				? `Checked every ${formatDuration(d.healthcheck.intervalSeconds)}`
+				: 'Checked by the image'
+	);
+	const healthTone = $derived(
+		c?.health === 'healthy' ? 'ok' : c?.health === 'unhealthy' ? 'danger' : undefined
+	);
+
+	// Configuration in words; the hostname only when it is not the ID's prefix.
 	const config = $derived<Fact[]>(
 		!c || !d
 			? []
@@ -120,13 +131,43 @@
 						mono: true,
 						href: c.imageId ? routes.image(env, c.imageId) : undefined
 					},
+					{ label: 'Restart policy', value: restartPolicyLabel(d.restartPolicy) },
+					...(d.hostname && !hostnameIsId(d.hostname, c.id)
+						? [{ label: 'Hostname', value: d.hostname, mono: true }]
+						: []),
+					{ label: 'Network mode', value: d.networkMode, mono: true },
+					{ label: 'User', value: d.user || 'Image default' },
+					...(d.running
+						? []
+						: [
+								{
+									label: 'Exit code',
+									value: d.exitCode,
+									note: d.oomKilled ? 'out of memory' : undefined
+								},
+								...(d.error ? [{ label: 'Error', value: d.error }] : [])
+							])
+				]
+	);
+	const advanced = $derived<Fact[]>(
+		!c || !d
+			? []
+			: [
 					{ label: 'Command', value: joinCommand(d.cmd), mono: true },
 					{ label: 'Entrypoint', value: joinCommand(d.entrypoint), mono: true },
 					{ label: 'Working directory', value: d.workingDir, mono: true },
-					{ label: 'User', value: d.user || 'root (image default)' },
-					{ label: 'Hostname', value: d.hostname, mono: true },
-					{ label: 'Restart policy', value: d.restartPolicy || 'no', mono: true },
-					{ label: 'Network mode', value: d.networkMode, mono: true },
+					...(check
+						? [
+								{
+									label: 'Health check',
+									value: check,
+									mono: true,
+									note: d.healthcheck?.retries
+										? `${d.healthcheck.retries} retries`
+										: undefined
+								}
+							]
+						: []),
 					{ label: 'Platform', value: d.platform },
 					{ label: 'Container ID', value: c.id.slice(0, 12), mono: true, title: c.id }
 				]
@@ -152,39 +193,14 @@
 							d.resources.pidsLimit === undefined || d.resources.pidsLimit < 0
 								? 'No limit'
 								: d.resources.pidsLimit
-					},
-					{
-						label: 'Health check',
-						value: d.healthcheck ? joinCommand(d.healthcheck.test) : 'None',
-						mono: !!d.healthcheck,
-						note: d.healthcheck
-							? [
-									d.healthcheck.intervalSeconds &&
-										`every ${d.healthcheck.intervalSeconds}s`,
-									d.healthcheck.retries && `${d.healthcheck.retries} retries`
-								]
-									.filter(Boolean)
-									.join(', ')
-							: undefined
-					},
-					{ label: 'Restarts', value: d.restartCount },
-					...(d.running
-						? []
-						: [
-								{
-									label: 'Exit code',
-									value: d.exitCode,
-									note: d.oomKilled ? 'killed: out of memory' : undefined
-								},
-								...(d.error ? [{ label: 'Error', value: d.error }] : [])
-							])
+					}
 				]
 	);
 
 	const mountColumns: Column<Mount>[] = [
 		{ id: 'type', header: 'Type', cell: mountType, width: '90px', stack: 'status' },
-		{ id: 'source', header: 'Source', cell: mountSource, stack: 'title' },
-		{ id: 'destination', header: 'Path in container', cell: mountDest },
+		{ id: 'source', header: 'Source', cell: mountSource, stack: 'title', maxWidth: '360px' },
+		{ id: 'destination', header: 'Path in container', cell: mountDest, maxWidth: '360px' },
 		{ id: 'mode', header: 'Mode', cell: mountMode, width: '110px' }
 	];
 </script>
@@ -199,7 +215,6 @@
 {#snippet mountMode(m: Mount)}{m.readOnly ? 'Read-only' : 'Read-write'}{/snippet}
 
 {#if c}
-	{#if c.update}<div class="update-status"><UpdateStatusBadge status={c.update} /></div>{/if}
 	{#if c.view !== 'full'}
 		<Notice tone="info" title="You can see this container's status" live="none">
 			Its configuration needs the "View container details" permission. Ask the owner of this
@@ -208,14 +223,14 @@
 	{/if}
 
 	{#if metricsAllowed || d}
-		<div class="kpis">
+		<KpiRow>
 			{#if metricsAllowed}
 				<KpiCard
 					label="CPU"
 					value={formatPercent(cpuNow)}
 					icon={Cpu}
 					color="cyan"
-					secondary="of {scope.environment(env)?.name ?? 'the host'}'s cores"
+					secondary="of {hostName}'s cores"
 				>
 					{#snippet sparkline()}
 						{#if cpu.length}
@@ -235,6 +250,15 @@
 					color="indigo"
 					secondary={memLimit ? undefined : 'No memory limit'}
 				>
+					{#snippet sparkline()}
+						{#if mem.length}
+							<Sparkline
+								values={mem.slice(-60)}
+								color={memColor}
+								label="Memory recently"
+							/>
+						{/if}
+					{/snippet}
 					{#snippet bar()}
 						{#if memLimit && memNow !== null}
 							<Meter
@@ -262,22 +286,14 @@
 				/>
 				<KpiCard
 					label="Health"
-					value={c.health && c.health !== 'none'
-						? c.health[0].toUpperCase() + c.health.slice(1)
-						: 'No check'}
+					value={healthLabel(c.health)}
 					icon={HeartPulse}
 					color="green"
-					tone={c.health === 'healthy'
-						? 'ok'
-						: c.health === 'unhealthy'
-							? 'danger'
-							: undefined}
-					secondary={d.healthcheck
-						? joinCommand(d.healthcheck.test)
-						: 'The image defines no health check'}
+					tone={healthTone}
+					secondary={healthSecondary}
 				/>
 			{/if}
-		</div>
+		</KpiRow>
 	{/if}
 
 	{#if metricsAllowed}
@@ -300,6 +316,7 @@
 				<ErrorState
 					error={metrics.error}
 					title="Usage could not be loaded."
+					bare
 					compact
 					onretry={() => metrics.refetch()}
 				/>
@@ -307,46 +324,44 @@
 				<div class="charts" aria-busy="true">
 					<Skeleton height="180px" /><Skeleton height="180px" />
 				</div>
-			{:else}
-				<p class="hint">
-					Averages per interval. Gaps mean no samples, for example while the agent was
-					offline.
-				</p>
+			{:else if metrics.data}
+				<p class="hint">Averages per interval. Gaps mean no samples were taken.</p>
 				<div class="charts">
-					<div>
-						<h3 class="chart-title">
-							<Activity size={14} aria-hidden="true" /> CPU (% of the host)
-						</h3>
-						<MetricChart
-							label="CPU of {c.name}"
-							series={cpuSeries}
-							unit="%"
-							summary={formatPercent(latest(cpu))}
-						/>
-					</div>
-					<div>
-						<h3 class="chart-title">
-							<MemoryStick size={14} aria-hidden="true" /> Memory (MB)
-						</h3>
-						<MetricChart
-							label="Memory of {c.name}"
-							series={memSeries}
-							unit=" MB"
-							summary={formatBytes(latest(mem))}
-						/>
-					</div>
+					<TimeSeriesChart
+						title="CPU"
+						unit="percent"
+						detail="of {hostName}'s cores"
+						timestamps={metrics.data.timestamps}
+						from={metrics.data.from}
+						to={metrics.data.to}
+						lines={[{ name: 'CPU', values: cpu, color: cpuColor, area: true }]}
+					/>
+					<TimeSeriesChart
+						title="Memory"
+						unit="bytes"
+						detail={memLimit ? `of ${formatBytes(memLimit)}` : undefined}
+						timestamps={metrics.data.timestamps}
+						from={metrics.data.from}
+						to={metrics.data.to}
+						lines={[{ name: 'Memory', values: mem, color: memColor, area: true }]}
+					/>
 				</div>
 			{/if}
 		</Card>
 	{/if}
 
 	{#if d}
-		<div class="grid">
+		<Columns ratio="equal">
 			<Card title="Configuration">
 				<Facts items={config} label="Configuration of {c.name}" />
+				<div class="advanced">
+					<Disclosure summary="Advanced">
+						<Facts items={advanced} label="Advanced configuration of {c.name}" />
+					</Disclosure>
+				</div>
 			</Card>
-			<Card title="Limits and health">
-				<Facts items={limits} label="Limits and health of {c.name}" />
+			<Card title="Limits">
+				<Facts items={limits} label="Limits of {c.name}" />
 			</Card>
 			<Card title="Ports">
 				{#if uniquePorts(c.ports).length}
@@ -369,11 +384,16 @@
 				{#if d.networks.length}
 					<ul class="list" role="list">
 						{#each d.networks as n (n.name)}
+							{@const aliases = networkAliases(n.aliases, {
+								name: c.name,
+								id: c.id,
+								hostname: d.hostname
+							})}
 							<li>
 								<a class="mono" href={routes.network(env, n.name)}>{n.name}</a>
 								{#if n.ipAddress}<span class="mono note">{n.ipAddress}</span>{/if}
-								{#if n.aliases?.length}<span class="note"
-										>aliases {n.aliases.join(', ')}</span
+								{#if aliases.length}<span class="note"
+										>also reachable as {aliases.join(', ')}</span
 									>{/if}
 							</li>
 						{/each}
@@ -382,7 +402,7 @@
 						Network mode {d.networkMode || 'none'}: no networks attached.
 					</p>{/if}
 			</Card>
-		</div>
+		</Columns>
 
 		{#if c.mounts?.length}
 			<Card title="Mounts" padding="none">
@@ -397,47 +417,31 @@
 			<Card title="Mounts"><p class="muted">No volumes or host paths are mounted.</p></Card>
 		{/if}
 
-		<div class="grid">
+		<Columns ratio="equal">
 			<Card title="Environment variables">
 				{#if d.recreate.envKeys?.length}
 					<p class="hint">
 						Names only: Docker Manager stores the values sealed and never shows them.
 					</p>
 					<ul class="chips" role="list">
-						{#each d.recreate.envKeys as k (k)}<li class="mono">{k}</li>{/each}
+						{#each d.recreate.envKeys as k (k)}<li>
+								<Chip label={k} size="sm" />
+							</li>{/each}
 					</ul>
 				{:else}
 					<p class="muted">
 						{c.managed
 							? 'No variables are set.'
-							: 'Docker Manager never reads environment variables from the Engine (they often hold secrets). It shows their names for containers it created.'}
+							: 'Docker Manager never reads environment variables from Docker (they often hold secrets). It shows their names for containers it created.'}
 					</p>
 				{/if}
 			</Card>
-			<Card title="Labels">
-				{#if c.labels && Object.keys(c.labels).length}
-					<Facts
-						items={Object.entries(c.labels)
-							.sort(([a], [b]) => a.localeCompare(b))
-							.map(([k, v]) => ({ label: k, value: v, mono: true }))}
-						label="Labels of {c.name}"
-					/>
-				{:else}<p class="muted">No labels.</p>{/if}
-			</Card>
-		</div>
+			<LabelsCard labels={c.labels} label="Labels of {c.name}" />
+		</Columns>
 	{/if}
 {/if}
 
 <style>
-	.update-status {
-		margin-bottom: var(--space-4);
-	}
-	.kpis {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-		gap: var(--space-4);
-	}
-
 	.range {
 		width: 170px;
 	}
@@ -448,20 +452,8 @@
 		gap: var(--space-5);
 	}
 
-	.chart-title {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin-bottom: var(--space-2);
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		font-weight: var(--weight-medium);
-	}
-
-	.grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: var(--space-4);
+	.advanced {
+		margin-top: var(--space-3);
 	}
 
 	.list {
@@ -470,7 +462,6 @@
 	}
 
 	.list a,
-	.grid :global(td a),
 	a.mono {
 		color: var(--accent-text);
 		text-decoration: none;
@@ -492,26 +483,13 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-	}
-
-	.chips li {
-		padding: 2px 8px;
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		font-size: var(--text-caption);
-	}
-
-	@media (max-width: 767px) {
-		.kpis {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: var(--space-3);
-		}
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
 
 	@media (max-width: 1023px) {
-		.charts,
-		.grid {
+		.charts {
 			grid-template-columns: 1fr;
 		}
 	}

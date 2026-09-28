@@ -7,10 +7,12 @@ import {
 	joinAge,
 	lastRunTotals,
 	manualPruneProblem,
+	maintenanceStatusText,
 	manualPruneRules,
 	normalizeRules,
 	ruleProblem,
 	ruleSummary,
+	rulesOnText,
 	rulesText,
 	runSummaryText,
 	splitAge,
@@ -173,6 +175,45 @@ describe('policy summaries', () => {
 				]
 			})
 		).toMatch(/^Stopped containers, .+ and .+$/);
+	});
+
+	it('counts the turned-on rules of every category', () => {
+		expect(rulesOnText({ rules: [rule('stopped_containers', true)] })).toBe(
+			`1 of ${CATEGORIES.length} rules on`
+		);
+	});
+
+	it('says when a policy runs and what its last run did', () => {
+		const schedule = {
+			cron: '0 3 * * 0',
+			timeZone: 'UTC',
+			enabled: true,
+			catchUp: 'skip' as const,
+			recentRuns: []
+		};
+		expect(maintenanceStatusText({ rules: [] })).toBe(
+			'Every rule is off: this policy removes nothing.'
+		);
+		expect(
+			maintenanceStatusText({ rules: [rule('stopped_containers', true)], schedule }, 'UTC')
+		).toBe('Runs weekly on Sunday at 03:00. Not run yet.');
+		expect(
+			maintenanceStatusText({
+				rules: [rule('stopped_containers', true)],
+				schedule: { ...schedule, enabled: false },
+				lastRun: {
+					bytesReclaimed: 0,
+					deferred: 0,
+					failed: 0,
+					finishedAt: '2026-09-25T00:00:00Z',
+					jobId: 'j',
+					origin: 'manual',
+					removed: 2,
+					skipped: 0,
+					state: 'succeeded'
+				}
+			})
+		).toBe('Runs only when you start it. Last run: removed 2, 0 B reclaimed.');
 	});
 
 	it('adds up the last runs and keeps the newest', () => {

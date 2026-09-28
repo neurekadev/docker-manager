@@ -63,9 +63,9 @@
 					<li>The manager's recent log lines</li>
 				</ul>
 				<Notice tone="info" title="No secrets inside" live="none">
-					Passwords, tokens, keys, credentials, the Recovery Key, TOTP seeds, Compose and
-					.env contents and job inputs are never included. Downloading it is recorded in
-					the audit log.
+					Passwords, tokens, keys, credentials, the Recovery Key, authenticator app (TOTP)
+					secrets, Compose and .env contents and job inputs are never included.
+					Downloading it is recorded in the audit log.
 				</Notice>
 				<div class="act">
 					<Button variant="primary" icon={Download} href="/api/v1/support-bundle"

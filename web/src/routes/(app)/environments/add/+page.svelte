@@ -1,14 +1,16 @@
 <script lang="ts">
-	// Add environment (#3) and re-attach an archived one (#34): create a
-	// one-use enrollment token (POST /agent-enrollments, intent new or
-	// reattach:<id>), show the generated install commands and the token
-	// once, then follow the enrollment until the agent connects. The token
-	// lives only in this page's memory; while it is shown, the PWA update
-	// prompt will not reload the page (criticalWork).
+	// Add environment (#3) and re-attach an archived one (#34) in three
+	// steps: 1 name it (token lifetime and the clone option under "More
+	// options"), 2 run the generated command (it carries a one-use
+	// enrollment token from POST /agent-enrollments, intent new or
+	// reattach:<id>) with the waiting status under it, 3 connected. The
+	// token lives only in this page's memory; while it is shown, the PWA
+	// update prompt will not reload the page (criticalWork).
 	import { onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { api, unwrap, unwrapEmpty, type Schema } from '$lib/api/client';
 	import {
@@ -17,6 +19,8 @@
 		environmentsQuery,
 		myPermissionsQuery
 	} from '$lib/api/queries';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import Page from '$lib/features/common/Page.svelte';
 	import InstallCommand from '$lib/features/environments/InstallCommand.svelte';
 	import {
 		INSTALL_VARIANTS,
@@ -105,6 +109,8 @@
 			label: INSTALL_VARIANTS[c.variant]?.heading ?? c.title
 		}))
 	);
+	const pending = $derived(current?.state === 'pending');
+	const connected = $derived(current?.state === 'used');
 
 	$effect(() => {
 		// The token is no longer needed once the agent enrolled or it ended.
@@ -141,7 +147,7 @@
 				: (out.installCommands[0]?.variant ?? '');
 			releaseCritical = criticalWork.register('other', 'enrollment token');
 			void qc.invalidateQueries({ queryKey: liveKeys.list('agents') });
-			toast.success('Created enrollment token', {
+			toast.success('Created the install command', {
 				body: `It works once and expires ${formatRelative(out.enrollment.expiresAt)}.`
 			});
 		} catch (e) {
@@ -160,192 +166,316 @@
 				})
 			);
 			await qc.invalidateQueries({ queryKey: liveKeys.list('agents') });
-			toast.success('Revoked enrollment token');
+			toast.success('Revoked the install command');
 			releaseCritical?.();
 			void goto(routes.environments());
 		} catch (e) {
-			toast.error('The token could not be revoked.', { body: errorMessage(e) });
+			toast.error('The install command could not be revoked.', { body: errorMessage(e) });
 		}
 	}
 </script>
+
+{#snippet stepHead(n: number, text: string, done: boolean)}
+	<header class="step-head">
+		<span class="step-num" class:done aria-hidden="true"
+			>{#if done}<CircleCheck size={16} strokeWidth={2} />{:else}{n}{/if}</span
+		>
+		<h2 id="step-{n}">{text}</h2>
+		{#if done}<span class="sr-only">(done)</span>{/if}
+	</header>
+{/snippet}
 
 {#if perms.data && !canEnroll}
 	<DeniedState
 		level={1}
 		title="You can't add environments."
-		description="Enrolling agents needs the agent.enroll permission. Ask the owner of this Docker Manager."
+		description="Ask the owner of this Docker Manager for access."
 	/>
 {:else}
-	<div class="page">
+	<Page narrow>
 		<PageHeader
 			{title}
 			description={reattachId
-				? 'Run a Docker Agent on the same Docker Engine. Once it enrolls, the environment comes back with its stacks and policies.'
-				: 'Run the Docker Agent on a Docker host and enroll it with a one-time token. The agent dials out to this Docker Manager; the host opens no ports.'}
+				? 'Run the Docker Agent on the same host again. Once it connects, the environment comes back with its stacks and policies.'
+				: 'Connect a Docker host by running the Docker Agent on it.'}
 		/>
 
-		{#if !created}
-			<Card title={reattachId ? 'Enrollment token for re-attaching' : 'Enrollment token'}>
-				{#if reattachId && reattach.isError}
-					<ErrorState
-						error={reattach.error}
-						title="The environment could not be loaded."
-						compact
-					/>
-				{:else}
-					<form class="form" onsubmit={create}>
-						{#if reattachId}
-							<p>
-								Re-attaches <strong>{reattach.data?.name ?? '…'}</strong>{reattach
-									.data?.archivedAt
-									? `, archived ${formatRelative(reattach.data.archivedAt)}`
-									: ''}. The agent must run on the Engine this environment used; a
-								different Engine is refused.
-							</p>
-						{:else}
-							<TextField
-								label="Environment name"
-								bind:value={name}
-								description="Optional. Otherwise the agent's DOCKER_AGENT_ENVIRONMENT_NAME or the Engine host name. You can rename it later."
-								maxlength={64}
-								autocomplete="off"
-								error={fieldError(error, 'body.environmentName')}
-							/>
-						{/if}
-						<Select
-							label="Token expires after"
-							options={TOKEN_LIFETIMES}
-							bind:value={lifetime}
-							description="The token works once. Unused tokens stop working when they expire."
-						/>
-						{#if !reattachId}
-							<Checkbox
-								bind:checked={duplicate}
-								label="This host is a clone of an enrolled host"
-								description="Only for cloned virtual machines that report the same Docker Engine ID as another environment."
-							/>
-						{/if}
-						{#if error && !fieldError(error, 'body.environmentName')}
-							<Notice
-								tone="danger"
-								title="The token could not be created."
-								live="alert"
-							>
-								{errorMessage(error)}
-							</Notice>
-						{/if}
-						<div class="actions">
-							<Button variant="primary" type="submit" icon={Plus} loading={creating}
-								>Create enrollment token</Button
-							>
-							<Button variant="ghost" href={routes.environments()}>Cancel</Button>
-						</div>
-					</form>
-				{/if}
-			</Card>
+		{#if reattachId && reattach.isError}
+			<ErrorState
+				error={reattach.error}
+				title="The environment could not be loaded."
+				onretry={() => reattach.refetch()}
+			/>
 		{:else}
-			<Card title="Enrollment" id="enrollment-status">
-				<div class="status" role="status" aria-live="polite">
-					{#if current?.state === 'pending'}
-						<Spinner size={16} />
-						<div>
-							<p class="strong">Waiting for the agent to connect.</p>
-							<p class="muted">
-								Run one of the commands below. The token expires {formatRelative(
-									current.expiresAt
-								)} ({formatDateTime(current.expiresAt)}).
-							</p>
-							{#if current.lastRejection}
-								<Notice tone="danger" title="The agent was refused." live="alert">
-									{REJECTIONS[current.lastRejection.code] ??
-										current.lastRejection.message}
-									{#if current.lastRejection.hostname}(Host {current.lastRejection
-											.hostname}.){/if}
-									The token stays usable until it expires.
-								</Notice>
+			<ol class="steps" role="list">
+				<li>
+					<Card>
+						<section class="step" aria-labelledby="step-1">
+							{@render stepHead(1, reattachId ? 'Environment' : 'Name', !!created)}
+							{#if created}
+								<p>
+									{#if reattachId}
+										Re-attaches <strong>{reattach.data?.name ?? '…'}</strong>.
+									{:else if name.trim()}
+										<strong>{name.trim()}</strong>
+									{:else}
+										<span class="muted">The host's name.</span>
+									{/if}
+								</p>
+							{:else}
+								<form class="form" onsubmit={create}>
+									{#if reattachId}
+										<p>
+											Re-attaches <strong>{reattach.data?.name ?? '…'}</strong
+											>{reattach.data?.archivedAt
+												? `, archived ${formatRelative(reattach.data.archivedAt)}`
+												: ''}. Run the agent on the same host it used
+											before; another host is refused.
+										</p>
+									{:else}
+										<div class="field">
+											<TextField
+												label="Environment name"
+												bind:value={name}
+												description="Optional. Without one, the host's name is used. You can rename it later."
+												maxlength={64}
+												autocomplete="off"
+												error={fieldError(error, 'body.environmentName')}
+											/>
+										</div>
+									{/if}
+									<Disclosure summary="More options">
+										<div class="field">
+											<Select
+												label="Command expires after"
+												options={TOKEN_LIFETIMES}
+												bind:value={lifetime}
+												description="The command works once. An unused one stops working when it expires."
+											/>
+										</div>
+										{#if !reattachId}
+											<Checkbox
+												bind:checked={duplicate}
+												label="This host is a clone of a connected host"
+												description="Only for a cloned virtual machine that Docker Manager would otherwise mistake for another environment."
+											/>
+										{/if}
+									</Disclosure>
+									{#if error && !fieldError(error, 'body.environmentName')}
+										<Notice
+											tone="danger"
+											title="The install command could not be created."
+											live="alert"
+										>
+											{errorMessage(error)}
+										</Notice>
+									{/if}
+									<div class="actions">
+										<Button
+											variant="primary"
+											type="submit"
+											icon={Plus}
+											loading={creating}>Create install command</Button
+										>
+										<Button variant="ghost" href={routes.environments()}
+											>Cancel</Button
+										>
+									</div>
+								</form>
 							{/if}
-						</div>
-					{:else if current?.state === 'used'}
-						<StatusBadge status="succeeded" label="Enrolled" />
-						<div>
-							<p class="strong">
-								{enrolledEnv
-									? `${enrolledEnv.name} is enrolled.`
-									: 'The agent is enrolled.'}
-							</p>
-							<p class="muted">
-								The environment shows as online once its first inventory arrives.
-							</p>
-						</div>
-					{:else if current}
-						<StatusBadge status={current.state} />
-						<p class="muted">
-							{current.state === 'expired'
-								? 'The token expired before an agent used it. Create a new one.'
-								: 'The token was revoked. Create a new one to enroll an agent.'}
-						</p>
-					{/if}
-				</div>
-				<div class="actions">
-					{#if current?.state === 'used' && enrolledEnv}
-						<Button variant="primary" href={routes.environment(enrolledEnv.id)}
-							>Open {enrolledEnv.name}</Button
-						>
-					{/if}
-					{#if current?.state === 'pending'}
-						<Button variant="danger-soft" onclick={revoke}>Revoke token</Button>
-					{/if}
-					<Button variant="ghost" href={routes.environments()}
-						>Back to environments</Button
-					>
-				</div>
-			</Card>
+						</section>
+					</Card>
+				</li>
 
-			{#if showSecrets && current?.state === 'pending'}
-				<Card title="Run the agent" subtitle="The commands contain the token">
-					<Tabs items={commandTabs} bind:value={variant} label="Install commands">
-						{#snippet panel(id)}
-							{@const c = commands.find((x) => x.variant === id)}
-							{#if c}<InstallCommand
-									title={c.title}
-									description={c.description}
-									command={c.command}
-								/>{/if}
-						{/snippet}
-					</Tabs>
-					<p class="muted note">
-						Agents dial out to <span class="mono">{created.managerUrl}</span>. Docker
-						socket access gives the agent host-level authority.
-					</p>
-				</Card>
-				<Card title="Enrollment token">
-					<SecretReveal
-						secret={created.token}
-						label="enrollment token"
-						filename="docker-manager-enrollment-token.txt"
-						description="For a manual `docker-agent enroll`. The commands above already contain it. It works once."
-						confirmLabel="Hide token and commands"
-						onconfirm={() => (showSecrets = false)}
-					/>
-				</Card>
-			{/if}
+				<li>
+					<Card>
+						<section class="step" aria-labelledby="step-2">
+							{@render stepHead(2, 'Run this command', connected)}
+							{#if !created}
+								<p class="muted">The command appears here once you create it.</p>
+							{:else}
+								{#if showSecrets && pending}
+									<Tabs
+										items={commandTabs}
+										bind:value={variant}
+										label="Install commands"
+									>
+										{#snippet panel(id)}
+											{@const c = commands.find((x) => x.variant === id)}
+											{#if c}<InstallCommand
+													title={c.title}
+													description={INSTALL_VARIANTS[c.variant]
+														?.description ?? c.description}
+													command={c.command}
+												/>{/if}
+										{/snippet}
+									</Tabs>
+								{:else if pending}
+									<p class="muted">
+										The command is hidden. Revoke it and create a new one if you
+										need it again.
+									</p>
+								{/if}
+
+								<div class="status" role="status" aria-live="polite">
+									{#if pending && current}
+										<Spinner size={16} />
+										<p>
+											Waiting for the agent to connect. The command works once
+											and expires <time
+												datetime={current.expiresAt}
+												title={formatDateTime(current.expiresAt)}
+												>{formatRelative(current.expiresAt)}</time
+											>.
+										</p>
+									{:else if connected}
+										<StatusBadge status="succeeded" label="Connected" />
+									{:else if current}
+										<StatusBadge status={current.state} />
+										<p class="muted">
+											{current.state === 'expired'
+												? 'The command expired before an agent used it. Create a new one.'
+												: 'The command was revoked. Create a new one to connect a host.'}
+										</p>
+									{/if}
+								</div>
+								{#if pending && current?.lastRejection}
+									<Notice
+										tone="danger"
+										title="The agent was refused."
+										live="alert"
+									>
+										{REJECTIONS[current.lastRejection.code] ??
+											current.lastRejection.message}
+										{#if current.lastRejection.hostname}(Host {current
+												.lastRejection.hostname}.){/if}
+										The command keeps working until it expires.
+									</Notice>
+								{/if}
+
+								{#if showSecrets && pending}
+									<p class="muted note">
+										The agent connects out to <span class="mono"
+											>{created.managerUrl}</span
+										>; the host needs no open ports.
+									</p>
+									<Disclosure summary="Connect by hand with the token">
+										<SecretReveal
+											secret={created.token}
+											label="enrollment token"
+											filename="docker-manager-enrollment-token.txt"
+											description="For setting up the agent yourself. The commands above already contain it. It works once."
+											confirmLabel="Hide token and commands"
+											onconfirm={() => (showSecrets = false)}
+										/>
+									</Disclosure>
+								{/if}
+								{#if pending}
+									<div class="actions">
+										<Button variant="danger-soft" onclick={revoke}
+											>Revoke command</Button
+										>
+									</div>
+								{/if}
+							{/if}
+						</section>
+					</Card>
+				</li>
+
+				<li>
+					<Card>
+						<section class="step" aria-labelledby="step-3">
+							{@render stepHead(3, 'Connected', connected)}
+							{#if connected}
+								<p class="strong">
+									{enrolledEnv
+										? `${enrolledEnv.name} is connected.`
+										: 'The host is connected.'}
+								</p>
+								<p class="muted">
+									It shows as online once its first inventory arrives.
+								</p>
+								<div class="actions">
+									{#if enrolledEnv}
+										<Button
+											variant="primary"
+											href={routes.environment(enrolledEnv.id)}
+											>Open {enrolledEnv.name}</Button
+										>
+									{/if}
+									<Button variant="ghost" href={routes.environments()}
+										>Back to environments</Button
+									>
+								</div>
+							{:else}
+								<p class="muted">
+									The host appears here as soon as its agent connects.
+								</p>
+							{/if}
+						</section>
+					</Card>
+				</li>
+			</ol>
 		{/if}
-	</div>
+	</Page>
 {/if}
 
 <style>
-	.page {
+	.steps {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-		max-width: 960px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.step {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		min-width: 0;
+	}
+
+	.step-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+
+	.step-num {
+		display: inline-grid;
+		flex-shrink: 0;
+		place-items: center;
+		width: 28px;
+		height: 28px;
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-full);
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		font-weight: var(--weight-semibold);
+	}
+
+	.step-num.done {
+		border-color: var(--ok-border);
+		background: var(--ok-soft);
+		color: var(--ok);
+	}
+
+	h2 {
+		font-size: var(--text-section);
+		line-height: var(--leading-section);
 	}
 
 	.form {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-		max-width: 560px;
+	}
+
+	/* A single field reads best at a form's width, not the page's. */
+	.field {
+		max-width: 480px;
 	}
 
 	.actions {
@@ -356,23 +486,12 @@
 
 	.status {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		gap: var(--space-3);
-		margin-bottom: var(--space-4);
-	}
-
-	.status > div {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
 	}
 
 	.strong {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
-	}
-
-	.note {
-		margin-top: var(--space-4);
 	}
 </style>

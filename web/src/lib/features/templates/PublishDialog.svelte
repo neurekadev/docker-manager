@@ -52,7 +52,7 @@
 				acknowledgePublic: isPublic ? acknowledged : undefined
 			});
 			void queryClient.invalidateQueries({ queryKey: templateKeys.all });
-			toast.success(`Published ${template.name} ${v.label}`);
+			toast.success(`Published version ${v.label} of ${template.name}`);
 			open = false;
 		} catch (e) {
 			error = e;
@@ -100,7 +100,7 @@
 		/>
 		{#if isPublic}
 			<Notice tone="warn" title="This template is public" live="none">
-				Anyone with this instance's registry URL can download every file of the version,
+				Anyone with this Docker Manager's address can download every file of the version,
 				including .env. Remove passwords and keys from the draft first, or make the template
 				private.
 			</Notice>
@@ -109,7 +109,11 @@
 				label="Every file of this version, .env included, becomes public"
 			/>
 		{/if}
-		{#if view && !labelError}<p class="error" role="alert">{view.message}</p>{/if}
+		{#if view && !labelError}
+			<Notice tone="danger" live="alert" title="The version was not published">
+				{view.message}
+			</Notice>
+		{/if}
 	</form>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={saving}>Cancel</Button>
@@ -118,7 +122,8 @@
 			type="submit"
 			form="publish-template"
 			loading={saving}
-			disabled={!label.trim() || (isPublic && !acknowledged)}>Publish {label.trim()}</Button
+			disabled={!label.trim() || (isPublic && !acknowledged)}
+			>Publish version {label.trim()}</Button
 		>
 	{/snippet}
 </Dialog>
@@ -127,13 +132,5 @@
 	.form {
 		display: grid;
 		gap: var(--space-4);
-	}
-
-	.error {
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--danger-border);
-		border-radius: var(--radius-sm);
-		background: var(--danger-soft);
-		color: var(--danger);
 	}
 </style>

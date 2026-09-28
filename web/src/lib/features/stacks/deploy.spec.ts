@@ -4,8 +4,12 @@ import {
 	deploySuccess,
 	deployTitle,
 	driftNotes,
+	lastUpdateCheck,
 	orphanedServices,
-	pullResult
+	pendingUpdates,
+	pullResult,
+	updateAvailable,
+	updateSuccess
 } from './model';
 
 describe('deploy outcomes', () => {
@@ -73,6 +77,55 @@ describe('pull outcomes', () => {
 	});
 });
 
+describe('update outcomes', () => {
+	const img = (over: Record<string, unknown>) =>
+		({
+			service: 'web',
+			image: 'nginx:1.27',
+			build: false,
+			eligible: true,
+			nonVersionTag: false,
+			update: 'up_to_date',
+			...over
+		}) as never;
+
+	it('lists the services with a newer image by image and tag, never a digest', () => {
+		const images = [
+			img({ service: 'web', update: 'update_available', candidateDigest: 'sha256:abc' }),
+			img({ service: 'db', image: 'postgres:16', pulledImageId: 'sha256:d2' }),
+			img({ service: 'cache', image: 'redis:7' }),
+			img({ service: 'app', image: 'app', build: true, update: 'update_available' })
+		];
+		expect(pendingUpdates(images)).toEqual([
+			{ service: 'db', image: 'postgres:16', pulled: true },
+			{ service: 'web', image: 'nginx:1.27', pulled: false }
+		]);
+		expect(updateAvailable(images)).toBe(true);
+		expect(pendingUpdates([img({})])).toEqual([]);
+		expect(updateAvailable([img({})])).toBe(false);
+		expect(pendingUpdates(undefined)).toEqual([]);
+	});
+
+	it('finds the newest update check', () => {
+		expect(
+			lastUpdateCheck([
+				img({ checkedAt: '2026-09-27T10:00:00Z' }),
+				img({ checkedAt: '2026-09-27T12:00:00Z' }),
+				img({})
+			])
+		).toBe('2026-09-27T12:00:00Z');
+		expect(lastUpdateCheck([img({})])).toBeUndefined();
+	});
+
+	it('says when an update recreated nothing', () => {
+		const t1 = '2026-09-27T10:00:00Z';
+		expect(updateSuccess('Silo', t1, '2026-09-27T11:00:00Z')).toBe('Updated Silo');
+		expect(updateSuccess('Silo', t1, t1)).toBe(
+			'Nothing to update: Silo already runs the newest images'
+		);
+	});
+});
+
 describe('drift', () => {
 	const services = [
 		{ name: 'web', drift: ['not_running'] },
@@ -90,7 +143,7 @@ describe('drift', () => {
 			{
 				service: 'forgejo-runner-register',
 				orphan: true,
-				text: 'forgejo-runner-register is no longer in the Compose file, but its container is still on the host. Use “Deploy and remove orphaned containers” to remove it.'
+				text: 'forgejo-runner-register is no longer in the Compose file, but its container is still on the host. “Remove old containers” deploys the stack and removes it.'
 			},
 			{
 				service: 'web',

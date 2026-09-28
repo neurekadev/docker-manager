@@ -92,13 +92,21 @@
 			sortValue: (i) => i.expiresAt,
 			width: '170px'
 		},
-		{ id: 'used', header: 'Redeemed by', cell: usedCell, width: '190px' },
+		{
+			id: 'used',
+			header: 'Redeemed by',
+			cell: usedCell,
+			width: '190px',
+			maxWidth: '190px',
+			truncate: true
+		},
 		{
 			id: 'actions',
 			header: 'Actions',
 			hideHeader: true,
 			cell: actionsCell,
 			width: '110px',
+			pin: 'end',
 			stack: 'actions'
 		}
 	];
@@ -117,7 +125,9 @@
 	<Badge tone={s.tone} dot>{s.label}</Badge>
 {/snippet}
 {#snippet expiresCell(i: Invitation)}
-	<span class="num" title={formatDateTime(i.expiresAt)}>{formatRelative(i.expiresAt)}</span>
+	{#if i.status === 'pending'}
+		<span class="num" title={formatDateTime(i.expiresAt)}>{formatRelative(i.expiresAt)}</span>
+	{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet usedCell(i: Invitation)}
 	{#if i.redeemedUserId}

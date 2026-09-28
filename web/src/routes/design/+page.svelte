@@ -5,6 +5,9 @@
 	// feature agents can compare against docs/internal/design/README.md. The "Lazy
 	// surfaces" section loads the heavy libraries on demand (#11).
 	import { onDestroy } from 'svelte';
+	import Activity from '@lucide/svelte/icons/activity';
+	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
+	import CircleArrowUp from '@lucide/svelte/icons/circle-arrow-up';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import Download from '@lucide/svelte/icons/download';
@@ -16,7 +19,9 @@
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
 	import Package from '@lucide/svelte/icons/package';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import PowerOff from '@lucide/svelte/icons/power-off';
 	import Rocket from '@lucide/svelte/icons/rocket';
+	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Square from '@lucide/svelte/icons/square';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -35,11 +40,13 @@
 	} from '$lib/design/demo';
 	import { serviceIdentity, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
 	import { serviceIcon } from '$lib/design/icons';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import { mountLineChart, mountTerminal, mountYamlEditor, type Mounted } from '$lib/lazy';
 	import {
 		Badge,
 		Button,
 		Card,
+		Chip,
 		Checkbox,
 		Combobox,
 		ConfirmDialog,
@@ -96,6 +103,7 @@
 				'surface-shell',
 				'surface-panel',
 				'surface-raised',
+				'surface-search',
 				'surface-hover',
 				'surface-selected',
 				'border-subtle',
@@ -127,6 +135,12 @@
 			sample: 'Silo'
 		},
 		{
+			name: 'Page title on phones, boot screen',
+			size: '22 / 28, 600',
+			style: 'font-size: 22px; line-height: 28px; font-weight: 600',
+			sample: 'Silo'
+		},
+		{
 			name: 'KPI value',
 			size: '20 / 28, 600',
 			style: 'font-size: 20px; line-height: 28px; font-weight: 600',
@@ -137,6 +151,12 @@
 			size: '16 / 24, 600',
 			style: 'font-size: 16px; line-height: 24px; font-weight: 600',
 			sample: 'Services'
+		},
+		{
+			name: 'Subsection (.subsection-title)',
+			size: '14 / 20, 600',
+			style: 'font-size: 14px; line-height: 20px; font-weight: 600',
+			sample: 'Environment variables'
 		},
 		{
 			name: 'Control',
@@ -236,6 +256,8 @@
 	const cpu = demoCpuSeries(40);
 
 	// Overlays and forms.
+	let chipAll = $state(true);
+	let chipDb = $state(false);
 	let dialogOpen = $state(false);
 	let confirmOpen = $state(false);
 	let destroyOpen = $state(false);
@@ -393,26 +415,35 @@
 			{#snippet actions()}
 				<SplitButton
 					label="Deploy"
-					icon={Download}
+					icon={Rocket}
 					menuLabel="More deploy options"
 					onclick={() => toast.success('Deployed Silo')}
 					items={[
-						{ label: 'Deploy', onSelect: () => toast.success('Deployed Silo') },
 						{
-							label: 'Deploy with pull',
-							onSelect: () => toast.success('Deployed Silo with fresh images')
+							label: 'Deploy',
+							icon: Rocket,
+							onSelect: () => toast.success('Deployed Silo')
 						},
 						{
 							label: 'Build and deploy',
 							onSelect: () => toast.success('Built and deployed Silo')
+						},
+						{
+							label: 'Pull images only',
+							icon: Download,
+							onSelect: () => toast.success('Pulled the images of Silo')
+						},
+						{
+							label: 'Deploy and remove orphaned containers…',
+							onSelect: () => (confirmOpen = true)
 						}
 					]}
 				/>
-				<Button icon={RefreshCw} onclick={() => (confirmOpen = true)}>Restart</Button>
-				<Button variant="danger-soft" icon={Square} onclick={() => (destroyOpen = true)}
-					>Stop</Button
+				<Button icon={RotateCw} onclick={() => toast.success('Restarted Silo')}
+					>Restart</Button
 				>
-				<Button icon={RefreshCw}
+				<Button icon={Square} onclick={() => (confirmOpen = true)}>Stop</Button>
+				<Button icon={CircleArrowUp}
 					>Update <span class="update-dot" aria-hidden="true"></span><span class="sr-only"
 						>, update available</span
 					></Button
@@ -420,8 +451,8 @@
 				<Menu
 					label="More stack actions"
 					items={[
-						{ label: 'Down', icon: Square },
-						{ label: 'Migrate', icon: Rocket },
+						{ label: 'Take down', icon: PowerOff },
+						{ label: 'Migrate', icon: ArrowRightLeft },
 						{ label: 'Edit details', icon: FileText },
 						{ separator: true },
 						{
@@ -456,19 +487,14 @@
 		>
 			{#snippet after()}<Badge tone="warn" dot>Undeployed changes</Badge>{/snippet}
 		</TabNav>
-		<div class="kpis">
+		<KpiRow>
 			<KpiCard
-				label="Stack status"
+				label="Status"
 				value="Running"
 				tone="ok"
-				secondary="All services healthy"
-			/>
-			<KpiCard
-				label="Services"
-				value="4 / 5"
-				icon={Package}
-				color="blue"
-				secondary="containers running"
+				icon={Activity}
+				color="green"
+				secondary="4 of 5 services running"
 			/>
 			<KpiCard label="CPU usage" value="12.4%" icon={Cpu} color="cyan">
 				{#snippet sparkline()}<Sparkline
@@ -492,22 +518,6 @@
 					/>{/snippet}
 			</KpiCard>
 			<KpiCard
-				label="Backup storage"
-				value="79.6 GB"
-				unit="/ 160 GB"
-				icon={Clock}
-				color="blue"
-				secondary="2.01x compression (neutral meter)"
-			>
-				{#snippet bar()}<Meter
-						value={79.6}
-						max={160}
-						label="Stored of the total backed-up data"
-						valueText="79.6 GB of 160 GB"
-						tone="neutral"
-					/>{/snippet}
-			</KpiCard>
-			<KpiCard
 				label="Uptime"
 				value="14 days"
 				icon={Clock}
@@ -521,7 +531,7 @@
 				color="violet"
 				secondary="Revision a1b2c3d"
 			/>
-		</div>
+		</KpiRow>
 		<Card title="Services" padding="none" id="services">
 			<Table
 				label="Services of Silo"
@@ -614,6 +624,17 @@
 			<StatusBadge status="partial" kind="job" />
 			<StatusBadge status="running" kind="job" />
 			<Badge tone="warn" dot>Update available</Badge>
+		</div>
+		<div class="row">
+			<Chip label="All services" selected={chipAll} onclick={() => (chipAll = !chipAll)} />
+			<Chip label="media" count={4} href="#actions-title" />
+			<Chip label="cloud" size="sm" />
+			<Chip
+				label="silo-db"
+				hue={TILE_HEX.teal.fg}
+				selected={chipDb}
+				onclick={() => (chipDb = !chipDb)}
+			/>
 		</div>
 		<div class="row">
 			<span>Uptime <Uptime since={startedAgo(42)} /></span>
@@ -909,12 +930,6 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2);
-	}
-
-	.kpis {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-		gap: var(--space-4);
 	}
 
 	.svc {

@@ -12,7 +12,7 @@
 		bucket_not_found: 'The bucket does not exist at this endpoint.',
 		unreachable: 'The storage could not be reached.',
 		path_not_allowed:
-			'The directory is outside the backup roots of its host (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS or DOCKER_AGENT_BACKUP_LOCAL_ROOTS).',
+			'The host does not allow backups in this directory. Its administrator allows backup folders in the host’s settings (see Configuration in the documentation).',
 		path_not_writable: 'Docker Manager cannot write to the directory.',
 		recovery_key_rejected: 'The Recovery Key does not open a repository found here.',
 		repository_locked: 'A repository here is locked by another restic process.',

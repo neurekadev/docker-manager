@@ -1,14 +1,16 @@
 <script lang="ts">
-	// Backup policy wizard (#10), shown in BackupPolicyDialog: destination →
-	// scope (manager state; every managed stack and volume in scope,
-	// included until unchecked, stack volumes too; anonymous volumes only
-	// when turned on; previewed by the agents) → container shutdown (off by
-	// default; affected containers, stop order and downtime previewed) →
-	// schedule (#13, off until turned on) → retention (preview, recovery
-	// floor). Nothing is saved before the last step: a new policy is
-	// created with every setting at once (optionally followed by a first
-	// backup), an edited one is saved once; previews of a new policy use
-	// the draft preview.
+	// Backup policy form (#10), shown in BackupPolicyDialog. Creating is a
+	// wizard: destination → what to back up (manager state; every managed
+	// stack and volume in scope, included until unchecked, stack volumes
+	// too; anonymous volumes only when turned on; container shutdown, off
+	// by default, with the affected containers and stop order previewed) →
+	// schedule (#13, off until turned on) → retention (a preset or custom
+	// rules, preview, recovery floor). Cancel closes it on every step and
+	// visited steps can be reopened; the body keeps one height. Editing is
+	// one screen with the same sections in two columns and Cancel / Save
+	// changes. Nothing is saved before Create policy or Save changes: a new
+	// policy is created with every setting at once (optionally followed by
+	// a first backup); previews of a new policy use the draft preview.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -30,6 +32,7 @@
 	import CoverageList from '$lib/features/common/CoverageList.svelte';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import Fields from '$lib/features/common/Fields.svelte';
+	import FormFooter from '$lib/features/common/FormFooter.svelte';
 	import {
 		environmentName,
 		ifMatch,
@@ -56,12 +59,15 @@
 	let {
 		policy: initial,
 		owner,
-		ondone
+		ondone,
+		oncancel
 	}: {
 		policy?: BackupPolicy;
 		owner: boolean;
-		/** The wizard finished (Done) with the saved policy. */
+		/** The policy was created or saved. */
 		ondone: (policy: BackupPolicy) => unknown;
+		/** Cancel: close without saving. */
+		oncancel?: () => unknown;
 	} = $props();
 
 	const qc = useQueryClient();
@@ -73,6 +79,7 @@
 	const envName = (id: string) => environmentName(envs.data, id);
 
 	const p0 = untrack(() => initial);
+	const editing = !!p0;
 	let policy = $state<BackupPolicy | null>(p0 ?? null);
 	let name = $state(p0?.name ?? '');
 	let repositoryId = $state(p0?.repositoryId ?? '');
@@ -92,6 +99,8 @@
 	let current = $state(0);
 	let touched = $state(false);
 	let error = $state<unknown>(null);
+	let saveError = $state<string | null>(null);
+	let saving = $state(false);
 	let scope = $state<ScopePreview | null>(null);
 	let scopeLoading = $state(false);
 	let scopeError = $state<string | null>(null);
@@ -139,12 +148,7 @@
 	);
 
 	const readyRepos = $derived((repos.data ?? []).filter((r) => r.state === 'ready'));
-	const repoOptions = $derived(
-		readyRepos.map((r) => ({
-			value: r.id,
-			label: `${r.name} (${repositoryLocation(r, envName)})`
-		}))
-	);
+	const repoOptions = $derived(readyRepos.map((r) => ({ value: r.id, label: r.name })));
 	const primary = $derived(readyRepos.find((r) => r.id === repositoryId));
 	const pendingRepos = $derived((repos.data ?? []).filter((r) => r.state !== 'ready'));
 
@@ -159,6 +163,11 @@
 		activeEnvs.filter((e) => scopeMode === 'all' || e.id === environmentId).map((e) => e.id)
 	);
 
+	/** Where a repository lives, as the field's description (the name is the option). */
+	function repoDescription(r: (typeof readyRepos)[number]): string {
+		return `${r.kind === 's3' ? 'S3 storage' : 'Local directory'}: ${repositoryLocation(r, envName)}`;
+	}
+
 	function envRepoOptions(envId: string) {
 		return [
 			{
@@ -170,10 +179,7 @@
 			},
 			...readyRepos
 				.filter((r) => r.kind === 's3' || r.executor === envId)
-				.map((r) => ({
-					value: r.id,
-					label: `${r.name} (${repositoryLocation(r, envName)})`
-				}))
+				.map((r) => ({ value: r.id, label: r.name }))
 		];
 	}
 	function needsEnvRepo(envId: string): boolean {
@@ -233,7 +239,7 @@
 		)
 	);
 
-	// Creates the policy or saves the edits: the only write of the wizard.
+	// Creates the policy or saves the edits: the only write of the form.
 	async function save(): Promise<BackupPolicy> {
 		const saved = policy
 			? await unwrap(
@@ -277,33 +283,30 @@
 		{
 			id: 'scope',
 			label: 'What to back up',
-			description: 'The manager state, stacks and volumes, with their rules.'
-		},
-		{
-			id: 'shutdown',
-			label: 'Consistency',
-			description: 'Back up live, or stop the affected containers meanwhile.'
+			description: 'The manager state, stacks and volumes, and whether containers stop.'
 		},
 		{ id: 'schedule', label: 'Schedule', description: 'When backups run automatically.' },
 		{
 			id: 'retention',
 			label: 'Retention',
-			description: p0
-				? 'Which old backups are forgotten. Saving applies every change.'
-				: 'Which old backups are forgotten. Creating saves the policy.'
+			description: 'Which old backups are forgotten. Creating saves the policy.'
 		}
 	];
 
+	const destinationOk = $derived(
+		!!name.trim() && !!repositoryId && (scopeMode === 'all' || !!environmentId)
+	);
+	const scopeOk = $derived(involvedEnvs.every((e) => !needsEnvRepo(e)));
+	const scheduleOk = $derived(!!cron.trim());
+	const retentionOk = $derived(!(hasRetentionRules(retention) && (retention.minKeep ?? 0) < 1));
 	const canAdvance = $derived(
 		current === 0
-			? !!name.trim() && !!repositoryId && (scopeMode === 'all' || !!environmentId)
+			? destinationOk
 			: current === 1
-				? involvedEnvs.every((e) => !needsEnvRepo(e))
-				: current === 3
-					? !!cron.trim()
-					: current === 4
-						? !(hasRetentionRules(retention) && (retention.minKeep ?? 0) < 1)
-						: true
+				? scopeOk
+				: current === 2
+					? scheduleOk
+					: retentionOk
 	);
 
 	async function onnext(step: { id: string }) {
@@ -313,7 +316,7 @@
 				`${overlapping.name} already covers ${overlapping.scope === 'all' ? 'all environments' : envName(overlapping.environmentId ?? '')}: policies can't overlap. Edit that policy, or choose another environment.`
 			);
 		}
-		if (step.id === 'shutdown' && shutdown && !scope?.shutdown) await previewScope();
+		if (step.id === 'scope' && shutdown && !scope?.shutdown) await previewScope();
 	}
 
 	async function finish() {
@@ -342,10 +345,27 @@
 				toast.error('The first backup did not start', { body: actionError(e) });
 			}
 		}
-		toast.success(`${initial ? 'Saved' : 'Created'} backup policy ${out.name}`, {
+		toast.success(`${editing ? 'Saved' : 'Created'} backup policy ${out.name}`, {
 			body: enabled ? undefined : 'Its schedule is off: backups run only when you start them.'
 		});
 		await ondone(out);
+	}
+
+	// The one-screen editor: Save changes checks what the wizard's steps check.
+	async function submit() {
+		saveError = null;
+		if (!destinationOk) return (saveError = 'Enter a name and choose a repository.');
+		if (!scopeOk) return (saveError = 'Choose a repository for every environment below.');
+		if (!scheduleOk) return (saveError = 'Choose when backups run.');
+		if (!retentionOk) return (saveError = 'Keep at least 1 per stack and volume.');
+		saving = true;
+		try {
+			await finish();
+		} catch (e) {
+			saveError = e instanceof Error ? e.message : String(e);
+		} finally {
+			saving = false;
+		}
 	}
 
 	// Scope previews go stale when the selection changes.
@@ -358,260 +378,294 @@
 	});
 </script>
 
-<StepWizard
-	label={initial ? 'Edit backup policy' : 'Create backup policy'}
-	{steps}
-	bind:current
-	{onnext}
-	onfinish={finish}
-	{canAdvance}
-	finishLabel={initial ? 'Save changes' : 'Create policy'}
->
-	{#snippet step(s)}
-		{#if s.id === 'destination'}
-			<Fields columns={2}>
-				<TextField
-					label="Name"
-					bind:value={name}
-					required
-					placeholder="Nightly"
-					error={fieldErrors(error)['body.name']}
-				/>
-				<Select
-					label="Environments"
-					options={[
-						{ value: 'all', label: 'All environments' },
-						{ value: 'environment', label: 'One environment' }
-					]}
-					bind:value={scopeMode}
-					disabled={!!policy}
-				/>
-				{#if scopeMode === 'environment'}
-					<Select
-						label="Environment"
-						options={activeEnvs.map((e) => ({ value: e.id, label: e.name }))}
-						bind:value={environmentId}
-						placeholder="Choose an environment"
-						required
-						disabled={!!policy}
-					/>
-				{/if}
-				{#if repos.isPending}
-					<Skeleton lines={1} height="36px" />
-				{:else if readyRepos.length === 0}
-					<Notice tone="warn" title="No repository is ready" live="none">
-						Add a backup repository and confirm its Recovery Key first.
-						{#snippet actions()}<Button size="sm" href={routes.backupRepositoryNew()}
-								>Add repository</Button
-							>{/snippet}
-					</Notice>
-				{:else}
-					<Select
-						label="Repository"
-						options={repoOptions}
-						bind:value={repositoryId}
-						placeholder="Choose a repository"
-						description="Backups of the manager state go here; environments can use their own below."
-						required
-					/>
-				{/if}
-				{#each pendingRepos as r (r.id)}
-					<p class="muted small">
-						{r.name} is not listed: its Recovery Key is not confirmed yet.
-					</p>
-				{/each}
-				{#if !policy}
-					<p class="muted small">
-						Nothing is saved until the last step. New policies start with their schedule
-						off.
-					</p>
-				{/if}
-			</Fields>
-		{:else if s.id === 'scope'}
-			<Fields>
-				{#if owner}
-					<FieldGroup
-						legend="Manager"
-						hint="The manager's database and settings, needed to recover Docker Manager itself."
-					>
-						<Switch label="Back up the manager state" bind:checked={includeManager} />
-						{#if includeManager}
-							<Switch
-								label="Include the metrics database"
-								description="Off by default: charts history is large and can be rebuilt."
-								bind:checked={includeMetrics}
-							/>
-						{/if}
-					</FieldGroup>
-				{/if}
-				<FieldGroup
-					legend="Stacks"
-					hint="Every managed stack in scope is backed up: its project directory and its volumes. Uncheck a stack to leave it out; stacks created later are included too."
-				>
-					{#if stacks.isPending}
-						<Skeleton lines={3} height="20px" />
-					{:else if stacksList.length === 0}
-						<p class="muted">No stacks you can back up.</p>
-					{/if}
-					{#each Object.entries(stacksByEnv).filter( ([envId]) => involvedEnvs.includes(envId) ) as [envId, list] (envId)}
-						<div class="env-group">
-							<p class="env">{envName(envId)}</p>
-							<CoverageList
-								label="Stacks on {envName(envId)}"
-								min="200px"
-								items={list.map((st) => ({
-									key: st.id,
-									label: st.displayName || st.name
-								}))}
-								excluded={excludeStacks}
-								onchange={(v) => {
-									excludeStacks = v;
-									touched = true;
-								}}
-							/>
-						</div>
-					{/each}
-				</FieldGroup>
-				<FieldGroup
-					legend="Volumes"
-					hint="The volumes of included stacks and every standalone volume are backed up. Uncheck a volume to leave it out."
-				>
+{#snippet destinationSection()}
+	<Fields columns={2}>
+		<TextField
+			label="Name"
+			bind:value={name}
+			required
+			placeholder="Nightly"
+			error={fieldErrors(error)['body.name']}
+		/>
+		<Select
+			label="Environments"
+			options={[
+				{ value: 'all', label: 'All environments' },
+				{ value: 'environment', label: 'One environment' }
+			]}
+			bind:value={scopeMode}
+			disabled={!!policy}
+			description={policy
+				? 'Fixed once the policy exists. Create another policy for other environments.'
+				: undefined}
+		/>
+		{#if scopeMode === 'environment'}
+			<Select
+				label="Environment"
+				options={activeEnvs.map((e) => ({ value: e.id, label: e.name }))}
+				bind:value={environmentId}
+				placeholder="Choose an environment"
+				required
+				disabled={!!policy}
+				description={policy ? 'Fixed once the policy exists.' : undefined}
+			/>
+		{/if}
+		{#if repos.isPending}
+			<Skeleton lines={1} height="36px" />
+		{:else if readyRepos.length === 0}
+			<Notice tone="warn" title="No repository is ready" live="none">
+				Add a backup repository and confirm its Recovery Key first.
+				{#snippet actions()}<Button size="sm" href={routes.backupRepositoryNew()}
+						>Add repository</Button
+					>{/snippet}
+			</Notice>
+		{:else}
+			<Select
+				label="Repository"
+				options={repoOptions}
+				bind:value={repositoryId}
+				placeholder="Choose a repository"
+				description={primary
+					? repoDescription(primary)
+					: 'Backups of the manager state go here; environments can use their own.'}
+				required
+			/>
+		{/if}
+		{#each pendingRepos as r (r.id)}
+			<p class="muted small">
+				{r.name} is not listed: its Recovery Key is not confirmed yet.
+			</p>
+		{/each}
+		{#if !policy}
+			<p class="muted small">
+				Nothing is saved until the last step. New policies start with their schedule off.
+			</p>
+		{/if}
+	</Fields>
+{/snippet}
+
+{#snippet scopeSection()}
+	<Fields>
+		{#if owner}
+			<FieldGroup
+				legend="Manager"
+				hint="The manager's database and settings, needed to recover Docker Manager itself."
+			>
+				<Switch label="Back up the manager state" bind:checked={includeManager} />
+				{#if includeManager}
 					<Switch
-						label="Back up anonymous volumes"
-						description="Off by default: anonymous volumes usually hold caches and scratch data that containers recreate. On: those of included stacks and standalone ones are backed up too."
-						bind:checked={anonymousVolumes}
-						onchange={() => (touched = true)}
+						label="Include the metrics database"
+						description="Off by default: charts history is large and can be rebuilt."
+						bind:checked={includeMetrics}
 					/>
-					{#each activeEnvs.filter((e) => e.online && involvedEnvs.includes(e.id)) as e (e.id)}
-						<VolumeCoverage
-							environmentId={e.id}
-							environmentName={e.name}
-							all={scopeMode === 'all'}
-							excluded={excludeVolumes}
-							excludedStacks={excludeStacks}
-							anonymous={anonymousVolumes}
-							onchange={(v) => {
-								excludeVolumes = v;
-								touched = true;
-							}}
-						/>
-					{/each}
-					{#each activeEnvs.filter((e) => !e.online && involvedEnvs.includes(e.id)) as e (e.id)}
-						<p class="muted small">
-							{e.name} is offline: its volumes can't be listed. Saved exclusions are kept.
-						</p>
-					{/each}
-				</FieldGroup>
-				{#if involvedEnvs.length}
-					<FieldGroup
-						legend="Repositories per environment"
-						hint="A local repository only holds data of its own host; S3 repositories hold everything."
-					>
-						{#each involvedEnvs as envId (envId)}
-							<Select
-								label="Repository for {envName(envId)}"
-								options={envRepoOptions(envId)}
-								bind:value={
-									() => envRepos[envId] ?? '', (v) => (envRepos[envId] = v)
-								}
-								error={needsEnvRepo(envId)
-									? `${primary?.name ?? 'The policy’s repository'} can't hold ${envName(envId)}'s data. Choose a repository on ${envName(envId)} or an S3 repository.`
-									: null}
-							/>
-						{/each}
-					</FieldGroup>
 				{/if}
-				<div class="preview-bar">
-					<Button onclick={previewScope} loading={scopeLoading}
-						>Preview what gets backed up</Button
-					>
-					<span class="muted small"
-						>Each environment's agent resolves the sources; nothing is stored.</span
-					>
+			</FieldGroup>
+		{/if}
+		<FieldGroup
+			legend="Stacks"
+			hint="Every managed stack in scope is backed up: its project directory and its volumes. Uncheck a stack to leave it out; stacks created later are included too."
+		>
+			{#if stacks.isPending}
+				<Skeleton lines={3} height="20px" />
+			{:else if stacksList.length === 0}
+				<p class="muted">No stacks you can back up.</p>
+			{/if}
+			{#each Object.entries(stacksByEnv).filter( ([envId]) => involvedEnvs.includes(envId) ) as [envId, list] (envId)}
+				<div class="env-group">
+					<p class="env">{envName(envId)}</p>
+					<CoverageList
+						label="Stacks on {envName(envId)}"
+						min="200px"
+						items={list.map((st) => ({
+							key: st.id,
+							label: st.displayName || st.name
+						}))}
+						excluded={excludeStacks}
+						onchange={(v) => {
+							excludeStacks = v;
+							touched = true;
+						}}
+					/>
 				</div>
-				{#if scopeError}<Notice
-						tone="danger"
-						title="The preview could not be computed"
-						live="alert">{scopeError}</Notice
-					>{/if}
-				{#if scope}
-					<ScopePreviewView preview={scope} showShutdown={false} />
-				{/if}
-			</Fields>
-		{:else if s.id === 'shutdown'}
-			<Fields>
-				<Switch
-					label="Stop containers during backups"
-					description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. Docker Manager's own containers never stop."
-					bind:checked={shutdown}
-					onchange={() => {
+			{/each}
+		</FieldGroup>
+		<FieldGroup
+			legend="Volumes"
+			hint="The volumes of included stacks and every standalone volume are backed up. Uncheck a volume to leave it out."
+		>
+			<Switch
+				label="Back up anonymous volumes"
+				description="Off by default: anonymous volumes usually hold caches and scratch data that containers recreate. On: those of included stacks and standalone ones are backed up too."
+				bind:checked={anonymousVolumes}
+				onchange={() => (touched = true)}
+			/>
+			{#each activeEnvs.filter((e) => e.online && involvedEnvs.includes(e.id)) as e (e.id)}
+				<VolumeCoverage
+					environmentId={e.id}
+					environmentName={e.name}
+					all={scopeMode === 'all'}
+					excluded={excludeVolumes}
+					excludedStacks={excludeStacks}
+					anonymous={anonymousVolumes}
+					onchange={(v) => {
+						excludeVolumes = v;
 						touched = true;
-						scope = null;
 					}}
 				/>
-				{#if shutdown}
-					<Notice
-						tone="warn"
-						icon={TriangleAlert}
-						title="Services are down while their data is backed up"
-						live="none"
-					>
-						Review the containers and the order below.
-					</Notice>
-					<div class="preview-bar">
-						<Button onclick={previewScope} loading={scopeLoading}
-							>Preview the shutdown</Button
-						>
-					</div>
-					{#if scopeError}<Notice
-							tone="danger"
-							title="The preview could not be computed"
-							live="alert">{scopeError}</Notice
-						>{/if}
-					{#if scope?.shutdown}<ScopePreviewView preview={scope} />{/if}
-				{:else}
-					<p class="muted">
-						Backups run while the containers keep running (crash-consistent). Databases
-						are usually safe to back up this way only if they tolerate a power loss;
-						stop them for a consistent copy.
-					</p>
-				{/if}
-			</Fields>
-		{:else if s.id === 'schedule'}
-			<Fields>
-				<Switch
-					label="Back up automatically"
-					description="Off: backups run only when you start them. Turning it on needs every repository's Recovery Key confirmed."
-					bind:checked={enabled}
-					onchange={() => (touched = true)}
-				/>
-				{#if zone}<CronField
-						label="Schedule"
-						kind="backup"
-						bind:cron
-						bind:timeZone={zone}
-					/>{/if}
-			</Fields>
-		{:else if s.id === 'retention'}
-			<Fields>
-				<RetentionEditor
-					bind:value={retention}
-					policyId={policy?.id}
-					onchange={() => (touched = true)}
-				/>
-				{#if !initial}
-					<Checkbox
-						label="Run the first backup after creating"
-						description={shutdown
-							? 'Checks that everything can be read and stored. The affected containers stop while it runs.'
-							: 'Checks that everything can be read and stored.'}
-						bind:checked={runFirst}
+			{/each}
+			{#each activeEnvs.filter((e) => !e.online && involvedEnvs.includes(e.id)) as e (e.id)}
+				<p class="muted small">
+					{e.name} is offline: its volumes can't be listed. Saved exclusions are kept.
+				</p>
+			{/each}
+		</FieldGroup>
+		<FieldGroup
+			legend="Running containers"
+			hint="Live backups are crash-consistent: fine for most data; databases are safe this way only if they survive a power loss."
+		>
+			<Switch
+				label="Stop containers during backups"
+				description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. Docker Manager's own containers never stop."
+				bind:checked={shutdown}
+				onchange={() => {
+					touched = true;
+					scope = null;
+				}}
+			/>
+			{#if shutdown}
+				<Notice
+					tone="warn"
+					icon={TriangleAlert}
+					title="Services are down while their data is backed up"
+					live="none"
+				>
+					Preview which containers stop and in which order.
+				</Notice>
+			{/if}
+		</FieldGroup>
+		{#if involvedEnvs.length}
+			<FieldGroup
+				legend="Repositories per environment"
+				hint="A local repository only holds data of its own host; S3 repositories hold everything."
+			>
+				{#each involvedEnvs as envId (envId)}
+					<Select
+						label="Repository for {envName(envId)}"
+						options={envRepoOptions(envId)}
+						bind:value={() => envRepos[envId] ?? '', (v) => (envRepos[envId] = v)}
+						error={needsEnvRepo(envId)
+							? `${primary?.name ?? 'The policy’s repository'} can't hold ${envName(envId)}'s data. Choose a repository on ${envName(envId)} or an S3 repository.`
+							: null}
 					/>
-				{/if}
-			</Fields>
+				{/each}
+			</FieldGroup>
 		{/if}
-	{/snippet}
-</StepWizard>
+		<div class="preview-bar">
+			<Button onclick={previewScope} loading={scopeLoading}
+				>{shutdown
+					? 'Preview what gets backed up and stopped'
+					: 'Preview what gets backed up'}</Button
+			>
+			<span class="muted small"
+				>Each environment's agent resolves the sources; nothing is stored.</span
+			>
+		</div>
+		{#if scopeError}<Notice tone="danger" title="The preview could not be computed" live="alert"
+				>{scopeError}</Notice
+			>{/if}
+		{#if scope}
+			<ScopePreviewView preview={scope} showShutdown={shutdown} />
+		{/if}
+	</Fields>
+{/snippet}
+
+{#snippet scheduleSection()}
+	<Fields>
+		<Switch
+			label="Back up automatically"
+			description="Off: backups run only when you start them. Turning it on needs every repository's Recovery Key confirmed."
+			bind:checked={enabled}
+			onchange={() => (touched = true)}
+		/>
+		{#if zone}<CronField label="Schedule" kind="backup" bind:cron bind:timeZone={zone} />{/if}
+	</Fields>
+{/snippet}
+
+{#snippet retentionSection()}
+	<Fields>
+		<RetentionEditor
+			bind:value={retention}
+			policyId={policy?.id}
+			onchange={() => (touched = true)}
+		/>
+		{#if !editing}
+			<Checkbox
+				label="Run the first backup after creating"
+				description={shutdown
+					? 'Checks that everything can be read and stored. The affected containers stop while it runs.'
+					: 'Checks that everything can be read and stored.'}
+				bind:checked={runFirst}
+			/>
+		{/if}
+	</Fields>
+{/snippet}
+
+{#if editing}
+	<div class="editor">
+		<div class="column">
+			<section aria-labelledby="policy-where">
+				<h3 class="subsection-title" id="policy-where">Name and destination</h3>
+				{@render destinationSection()}
+			</section>
+			<section aria-labelledby="policy-what">
+				<h3 class="subsection-title" id="policy-what">What to back up</h3>
+				{@render scopeSection()}
+			</section>
+		</div>
+		<div class="column">
+			<section aria-labelledby="policy-when">
+				<h3 class="subsection-title" id="policy-when">Schedule</h3>
+				{@render scheduleSection()}
+			</section>
+			<section aria-labelledby="policy-keep">
+				<h3 class="subsection-title" id="policy-keep">Retention</h3>
+				{@render retentionSection()}
+			</section>
+		</div>
+	</div>
+	{#if saveError}
+		<Notice tone="danger" title="Not saved" live="alert">{saveError}</Notice>
+	{/if}
+	<FormFooter>
+		<Button variant="ghost" disabled={saving} onclick={() => oncancel?.()}>Cancel</Button>
+		<Button variant="primary" loading={saving} onclick={submit}>Save changes</Button>
+	</FormFooter>
+{:else}
+	<StepWizard
+		label="Create backup policy"
+		{steps}
+		bind:current
+		{onnext}
+		onfinish={finish}
+		{canAdvance}
+		finishLabel="Create policy"
+		oncancel={oncancel ? () => oncancel?.() : undefined}
+		stepsClickable
+		minHeight="min(560px, 60vh)"
+	>
+		{#snippet step(s)}
+			{#if s.id === 'destination'}
+				{@render destinationSection()}
+			{:else if s.id === 'scope'}
+				{@render scopeSection()}
+			{:else if s.id === 'schedule'}
+				{@render scheduleSection()}
+			{:else if s.id === 'retention'}
+				{@render retentionSection()}
+			{/if}
+		{/snippet}
+	</StepWizard>
+{/if}
 
 <style>
 	.small {
@@ -633,5 +687,29 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-3);
+	}
+
+	.editor {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		align-items: start;
+		gap: var(--space-6);
+	}
+
+	.column,
+	section {
+		display: grid;
+		gap: var(--space-4);
+		min-width: 0;
+	}
+
+	.column {
+		gap: var(--space-6);
+	}
+
+	@media (max-width: 1023px) {
+		.editor {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

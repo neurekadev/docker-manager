@@ -13,20 +13,23 @@
 		rows,
 		layout = 'table',
 		maxHeight,
-		selectable = false
+		selectable = false,
+		image = {}
 	}: {
 		rows: Row[];
 		layout?: 'table' | 'stacked';
 		maxHeight?: string;
 		selectable?: boolean;
+		/** Extra options of the Image column (maxWidth, truncate, pin, …). */
+		image?: Partial<Column<Row>>;
 	} = $props();
 	let selected = $state<string[]>([]);
 
-	const columns: Column<Row>[] = [
+	const columns = $derived<Column<Row>[]>([
 		{ id: 'name', header: 'Name', sortValue: (r) => r.name, stack: 'title' },
 		{ id: 'cpu', header: 'CPU', sortValue: (r) => r.cpu, numeric: true },
-		{ id: 'image', header: 'Image', mono: true }
-	];
+		{ id: 'image', header: 'Image', mono: true, ...image }
+	]);
 </script>
 
 <Table

@@ -30,6 +30,12 @@
 		height?: string;
 		/** Text after the title, e.g. "of 8 GB". */
 		detail?: string;
+		/**
+		 * Show the first line's latest value after the title. Turn it off
+		 * when the legend already names each line's value (received and
+		 * sent network traffic), so the value does not show twice.
+		 */
+		headline?: boolean;
 		now?: number;
 	}
 
@@ -43,6 +49,7 @@
 		yMax,
 		height = '180px',
 		detail,
+		headline = true,
 		now
 	}: Props = $props();
 
@@ -113,7 +120,7 @@
 <figure class="ts" aria-label={title}>
 	<figcaption class="caption">
 		<span class="title">{title}</span>
-		<span class="value num">{formatValue(latest, unit)}</span>
+		{#if headline}<span class="value num">{formatValue(latest, unit)}</span>{/if}
 		{#if detail}<span class="detail">{detail}</span>{/if}
 	</figcaption>
 	{#if lines.length > 1}

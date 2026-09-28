@@ -1,6 +1,8 @@
 // Backups (#10, #24): presentation helpers. Pure functions (model.spec.ts).
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
+import { describeCron } from '$lib/ui/cron';
+import { formatBytes, formatRelative } from '$lib/ui/format';
 
 export type BackupRepository = Schema<'BackupRepository'>;
 export type RepositoryHealth = Schema<'BackupRepositoryHealth'>;
@@ -105,9 +107,7 @@ export function repositoryLocation(
 	return `${host}:${r.path ?? ''}`;
 }
 
-/** Plain-language retention, e.g. "7 daily, 4 weekly; always keeps 3 of each". */
-export function retentionText(r: BackupRetention | undefined): string {
-	if (!r) return 'Keep every backup';
+function retentionParts(r: BackupRetention): string[] {
 	const parts: string[] = [];
 	if (r.last) parts.push(`last ${r.last}`);
 	if (r.hourly) parts.push(`${r.hourly} hourly`);
@@ -116,24 +116,98 @@ export function retentionText(r: BackupRetention | undefined): string {
 	if (r.monthly) parts.push(`${r.monthly} monthly`);
 	if (r.yearly) parts.push(`${r.yearly} yearly`);
 	if (r.withinDays) parts.push(`everything from the last ${r.withinDays} days`);
+	return parts;
+}
+
+/** Plain-language retention, e.g. "7 daily, 4 weekly; always keeps 3 of each". */
+export function retentionText(r: BackupRetention | undefined): string {
+	if (!r) return 'Keep every backup';
+	const parts = retentionParts(r);
 	if (!parts.length) return 'Keep every backup';
 	const floor = r.minKeep ? `; always keeps the newest ${r.minKeep} of each` : '';
 	return `Keep ${parts.join(', ')}${floor}`;
 }
 
-/**
- * Retention of a new policy: the newest 168 snapshots (a week of hourly
- * backups, the default schedule), every other rule off (0), and a recovery
- * floor of 1.
- */
-export const DEFAULT_RETENTION: BackupRetention = {
-	last: 168,
+/** Retention in a few words for tables and KPIs: "7 daily, 4 weekly", "Keep everything". */
+export function retentionShort(r: BackupRetention | undefined): string {
+	const parts = r ? retentionParts(r) : [];
+	return parts.length ? sentenceCase(parts.join(', ')) : 'Keep everything';
+}
+
+const NO_RULES = {
+	last: 0,
 	hourly: 0,
 	daily: 0,
 	weekly: 0,
 	monthly: 0,
 	yearly: 0,
-	withinDays: 0,
+	withinDays: 0
+} as const;
+const RULE_KEYS = Object.keys(NO_RULES) as (keyof typeof NO_RULES)[];
+
+/** The retention choices of the policy form; Custom reveals every rule. */
+export type RetentionPreset = 'recommended' | 'last30' | 'everything' | 'custom';
+
+export const RETENTION_PRESETS: { value: RetentionPreset; label: string; description: string }[] = [
+	{
+		value: 'recommended',
+		label: '7 daily, 4 weekly, 12 monthly (recommended)',
+		description: 'A week of daily backups, a month of weekly ones and a year of monthly ones.'
+	},
+	{
+		value: 'last30',
+		label: 'Keep the last 30',
+		description: 'The 30 newest backups of each stack and volume.'
+	},
+	{
+		value: 'everything',
+		label: 'Keep everything',
+		description: 'Nothing is forgotten: the repository keeps growing.'
+	},
+	{ value: 'custom', label: 'Custom', description: 'Set each rule yourself.' }
+];
+
+const PRESET_RULES: Record<Exclude<RetentionPreset, 'custom'>, Partial<BackupRetention>> = {
+	recommended: { daily: 7, weekly: 4, monthly: 12 },
+	last30: { last: 30 },
+	everything: {}
+};
+
+/**
+ * The preset a policy's retention matches (editing opens on it): no rules
+ * is "Keep everything"; a preset's rules with the default floor (1) match
+ * it; anything else, a higher floor included, is Custom.
+ */
+export function retentionPreset(r: BackupRetention | undefined): RetentionPreset {
+	if (!r || !hasRetentionRules(r)) return 'everything';
+	if ((r.minKeep ?? 0) > 1) return 'custom';
+	for (const k of ['recommended', 'last30'] as const) {
+		const want: BackupRetention = { ...NO_RULES, ...PRESET_RULES[k] };
+		if (RULE_KEYS.every((key) => (r[key] ?? 0) === want[key])) return k;
+	}
+	return 'custom';
+}
+
+/**
+ * The retention a preset sets: its rules (every other rule off) and a
+ * floor of 1; "after every backup" is kept. Custom changes nothing.
+ */
+export function applyRetentionPreset(preset: RetentionPreset, r: BackupRetention): BackupRetention {
+	if (preset === 'custom') return r;
+	return {
+		...r,
+		...NO_RULES,
+		...PRESET_RULES[preset],
+		minKeep: preset === 'everything' ? Math.max(1, r.minKeep ?? 1) : 1
+	};
+}
+
+/** Retention of a new policy: the recommended preset (7 daily, 4 weekly, 12 monthly). */
+export const DEFAULT_RETENTION: BackupRetention = {
+	...NO_RULES,
+	daily: 7,
+	weekly: 4,
+	monthly: 12,
 	minKeep: 1
 };
 
@@ -437,7 +511,7 @@ export function membersByEnvironment(s: BackupSet): [string, SetMember[]][] {
 	);
 }
 
-// --- Snapshots tab (#10): restic's own snapshots ---
+// --- Raw snapshots (#10): restic's own snapshots, from a repository page ---
 
 export const SNAPSHOT_CLASS: Record<ResticSnapshot['class'], Presentation> = {
 	stack: { tone: 'info', label: 'Stack' },
@@ -459,7 +533,7 @@ export function snapshotName(s: ResticSnapshot): string {
 	return s.paths.join(', ') || s.shortId;
 }
 
-/** One row of the Snapshots tab: a snapshot with its repository and location. */
+/** One row of the raw snapshots page: a snapshot with its repository and location. */
 export interface SnapshotRow {
 	key: string;
 	repositoryId: string;
@@ -513,4 +587,301 @@ export function snapshotRows(
 	}
 	rows.sort((a, b) => b.snapshot.time.localeCompare(a.snapshot.time));
 	return { rows, problems };
+}
+
+// --- Policies, coverage and runs (#10) ---
+
+/** "Daily at 03:00" → "daily at 03:00" (mid-sentence). */
+function lowerFirst(s: string): string {
+	return s ? s[0].toLowerCase() + s.slice(1) : s;
+}
+
+/** A schedule mid-sentence: "daily at 03:00", or "on its schedule" for shapes without words. */
+export function scheduleWords(cron: string, timeZone?: string): string {
+	const words = describeCron(cron, timeZone);
+	return words === (cron ?? '').trim() ? 'on its schedule' : lowerFirst(words);
+}
+
+/**
+ * The status sentence of a policy page: what, where and when, then how
+ * the last run went. "Backs up all environments to B2 daily at 03:00.
+ * Last run completed 17 hours ago."
+ */
+export function policySentence(
+	p: Pick<
+		BackupPolicy,
+		'includeManagerState' | 'scope' | 'environmentId' | 'schedule' | 'recentSets'
+	>,
+	o: {
+		repository?: string;
+		environmentName?: (id: string) => string;
+		running?: boolean;
+		now?: Date;
+	} = {}
+): string {
+	const when = p.schedule?.enabled
+		? scheduleWords(p.schedule.cron, p.schedule.timeZone)
+		: 'when you start it';
+	const where = o.repository ? ` to ${o.repository}` : '';
+	const what = `Backs up ${scopeText(p, o.environmentName)}${where} ${when}.`;
+	const s = p.recentSets?.[0];
+	if (o.running || s?.state === 'pending') return `${what} A backup is running now.`;
+	if (!s) return `${what} It has not run yet.`;
+	const ago = formatRelative(s.finishedAt ?? s.startedAt, o.now);
+	const how =
+		s.state === 'complete' ? 'completed' : s.state === 'partial' ? 'partly failed' : 'failed';
+	return `${what} Last run ${how} ${ago}.`;
+}
+
+/** The earliest next run of the given policies' enabled schedules. */
+export function nextPolicyRun(policies: Pick<BackupPolicy, 'schedule'>[]): string | undefined {
+	let next: string | undefined;
+	for (const p of policies) {
+		const at = p.schedule?.enabled ? p.schedule.nextRun : undefined;
+		if (at && (!next || at < next)) next = at;
+	}
+	return next;
+}
+
+/** What a policy covers in a KPI: the value and one line below it. */
+export function coverageSummary(
+	p: Pick<
+		BackupPolicy,
+		| 'scope'
+		| 'environmentId'
+		| 'stacks'
+		| 'volumes'
+		| 'excludeStacks'
+		| 'excludeVolumes'
+		| 'includeManagerState'
+	>,
+	environmentName: (id: string) => string
+): { value: string; secondary: string } {
+	const stacks = (p.stacks ?? []).length;
+	const volumes = (p.volumes ?? []).length;
+	if (stacks || volumes) {
+		const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+		return {
+			value: [
+				stacks ? n(stacks, 'stack', 'stacks') : '',
+				volumes ? n(volumes, 'volume', 'volumes') : ''
+			]
+				.filter(Boolean)
+				.join(', '),
+			secondary: p.includeManagerState ? 'Manager state too' : 'Chosen one by one'
+		};
+	}
+	const leftOut = (p.excludeStacks ?? []).length + (p.excludeVolumes ?? []).length;
+	const value = p.scope === 'all' ? 'All environments' : environmentName(p.environmentId ?? '');
+	const secondary = p.includeManagerState
+		? leftOut
+			? `Manager state too; ${leftOut} left out`
+			: 'Manager state too'
+		: leftOut
+			? `${leftOut} left out`
+			: 'Every stack and volume';
+	return { value, secondary };
+}
+
+/** A stack or volume whose backup coverage is asked for. */
+export interface CoverageTarget {
+	environmentId: string;
+	stackId?: string;
+	volume?: string;
+}
+
+/**
+ * Whether a policy backs up the stack or volume: in scope (all
+ * environments or its own) and not left out; a policy with an explicit
+ * selection covers only what it lists.
+ */
+export function policyCovers(
+	p: Pick<
+		BackupPolicy,
+		'scope' | 'environmentId' | 'stacks' | 'volumes' | 'excludeStacks' | 'excludeVolumes'
+	>,
+	t: CoverageTarget
+): boolean {
+	if (p.scope !== 'all' && p.environmentId !== t.environmentId) return false;
+	const explicit = (p.stacks ?? []).length > 0 || (p.volumes ?? []).length > 0;
+	if (t.stackId) {
+		if (explicit) return (p.stacks ?? []).some((s) => s.stackId === t.stackId);
+		return !(p.excludeStacks ?? []).includes(t.stackId);
+	}
+	if (t.volume) {
+		if (explicit)
+			return (p.volumes ?? []).some(
+				(v) => v.volume === t.volume && v.environmentId === t.environmentId
+			);
+		return !(p.excludeVolumes ?? []).includes(
+			volumeKey(p.scope === 'all', t.environmentId, t.volume)
+		);
+	}
+	return false;
+}
+
+/** One run of a policy as it concerns one stack or volume. */
+export interface MemberRun {
+	setId: string;
+	policyId: string;
+	policyName: string;
+	startedAt: string;
+	member: SetMember;
+}
+
+/** The recent runs of the policies that included the stack or volume, newest first. */
+export function memberRuns(policies: BackupPolicy[], t: CoverageTarget): MemberRun[] {
+	const out: MemberRun[] = [];
+	for (const p of policies)
+		for (const s of p.recentSets ?? [])
+			for (const m of s.members) {
+				const match = t.stackId
+					? m.kind === 'stack' && m.stackId === t.stackId
+					: m.kind === 'volume' &&
+						m.volume === t.volume &&
+						(!m.environmentId || m.environmentId === t.environmentId);
+				if (match)
+					out.push({
+						setId: s.id,
+						policyId: p.id,
+						policyName: p.name,
+						startedAt: s.startedAt,
+						member: m
+					});
+			}
+	return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+/** The backups of one run (a set), or a backup without a set on its own. */
+export interface BackupRun {
+	key: string;
+	setId?: string;
+	policyId?: string;
+	/** The earliest snapshot time of its backups. */
+	time: string;
+	state: 'complete' | 'partial';
+	/** Sum of the backups' sizes (undefined when none is known). */
+	bytes?: number;
+	/** By name, A to Z. */
+	backups: Backup[];
+}
+
+/** Backups grouped by the run that took them, newest run first. */
+export function groupBackupsByRun(backups: Backup[]): BackupRun[] {
+	const runs = new Map<string, BackupRun>();
+	for (const b of backups) {
+		const key = b.setId ? `set:${b.setId}` : `backup:${b.id}`;
+		let r = runs.get(key);
+		if (!r) {
+			r = {
+				key,
+				setId: b.setId,
+				policyId: b.policyId,
+				time: b.snapshotTime,
+				state: 'complete',
+				backups: []
+			};
+			runs.set(key, r);
+		}
+		r.backups.push(b);
+		if (b.snapshotTime < r.time) r.time = b.snapshotTime;
+		if (b.state !== 'complete') r.state = 'partial';
+		if (b.bytes !== undefined) r.bytes = (r.bytes ?? 0) + b.bytes;
+	}
+	const out = [...runs.values()];
+	for (const r of out) r.backups.sort((a, b) => itemName(a).localeCompare(itemName(b)));
+	return out.sort((a, b) => b.time.localeCompare(a.time));
+}
+
+/** The backup of a set member among the set's backups (members carry no backup ID). */
+export function memberBackup(m: SetMember, backups: Backup[] | undefined): Backup | undefined {
+	return (backups ?? []).find(
+		(b) =>
+			b.kind === m.kind &&
+			(b.item ? b.item === m.item : itemName(b) === itemName(m)) &&
+			(b.environmentId ?? '') === (m.environmentId ?? '')
+	);
+}
+
+// --- Repositories and verification (#10) ---
+
+/** How much a verification reads. */
+export const VERIFY_READ_OPTIONS: { value: string; label: string; description: string }[] = [
+	{
+		value: '',
+		label: 'Check structure only',
+		description: 'Quick. Checks that the index and every backup are intact.'
+	},
+	{
+		value: '5%',
+		label: 'Also read 5% of the data',
+		description: 'Reads a different part each time, so damaged data is found over time.'
+	},
+	{
+		value: '100%',
+		label: 'Read all data',
+		description: 'Reads everything stored. Slow, and S3 providers may charge for downloads.'
+	}
+];
+
+/** The options, plus a saved amount that is none of them (kept as it is). */
+export function verifyReadOptions(current: string | undefined): typeof VERIFY_READ_OPTIONS {
+	const c = (current ?? '').trim();
+	if (VERIFY_READ_OPTIONS.some((o) => o.value === c)) return VERIFY_READ_OPTIONS;
+	return [
+		...VERIFY_READ_OPTIONS,
+		{ value: c, label: `Also read ${c} of the data`, description: 'The amount saved earlier.' }
+	];
+}
+
+/** "checks the structure only", "also reads 5% of the data", "reads all data". */
+export function verifyReadText(subset: string | undefined): string {
+	const s = (subset ?? '').trim();
+	if (!s) return 'checks the structure only';
+	if (s === '100%') return 'reads all data';
+	return `also reads ${s} of the data`;
+}
+
+/** The verification schedule in one sentence. */
+export function verificationText(v: Schema<'BackupVerification'> | undefined): string {
+	if (!v?.enabled)
+		return 'Verification is off. Run it any time with Verify on one of its backups.';
+	return `Verifies ${scheduleWords(v.cron, v.timeZone)} and ${verifyReadText(v.readDataSubset)}.`;
+}
+
+/** "Healthy · 42 GB · last backup 3 hours ago · verified yesterday". */
+export function repositoryStatusLine(
+	h: Pick<RepositoryHealth, 'healthy' | 'lastBackupAt' | 'lastVerifiedAt'>,
+	storedBytes: number | undefined,
+	now: Date = new Date()
+): string {
+	return [
+		h.healthy ? 'Healthy' : 'Needs attention',
+		storedBytes ? formatBytes(storedBytes) : undefined,
+		h.lastBackupAt ? `last backup ${formatRelative(h.lastBackupAt, now)}` : 'no backup yet',
+		h.lastVerifiedAt ? `verified ${formatRelative(h.lastVerifiedAt, now)}` : 'never verified'
+	]
+		.filter(Boolean)
+		.join(' · ');
+}
+
+/** "Last checked yesterday: working". */
+export function connectionTestText(t: Pick<ConnectionTest, 'at' | 'ok'>, now = new Date()): string {
+	return `Last checked ${formatRelative(t.at, now)}: ${t.ok ? 'working' : 'failed'}`;
+}
+
+/** What a location holds: "Manager state", "Environment prod". */
+export function scopeName(scope: string, environmentName: (id: string) => string): string {
+	if (scope === 'manager' || scope === 'docker-manager') return 'Manager state';
+	const m = scope.match(/^(?:env:|docker-manager-env-)(.+)$/);
+	return m ? `Environment ${environmentName(m[1])}` : scope;
+}
+
+/** A restore target by name ("Volume shop_db"); its host path is for the tooltip. */
+export function restoreTargetName(t: { kind: string; name?: string; path: string }): string {
+	const base = t.path.replace(/\/+$/, '').split('/').pop() || t.path;
+	if (t.kind === 'project') return t.name ? `Files of stack ${t.name}` : 'Stack files';
+	if (t.kind === 'volume') return `Volume ${t.name || base}`;
+	if (t.kind === 'file') return `File ${base}`;
+	return t.name || base;
 }

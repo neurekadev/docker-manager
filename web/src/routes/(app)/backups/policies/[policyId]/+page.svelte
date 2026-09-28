@@ -1,9 +1,11 @@
 <script lang="ts">
-	// Backup policy detail (#10): how it stands (last set, next run,
-	// retention, repository), what it covers and leaves out, its schedule
-	// and retention, recent sets with per-host snapshot times, a manual run,
-	// retention with its preview and confirmation. Editing opens the setup
-	// wizard in a dialog (routes.backupPolicyEdit() links here with it open).
+	// Backup policy detail (#10), laid out like every policy page: one
+	// status sentence (what, where, when, how the last run went) with Back
+	// up now, Edit and the overflow menu; KPIs (last run, next run,
+	// coverage, retention in words); then what it covers, its schedule with
+	// the next runs, and its recent runs with their sizes. Editing opens the
+	// one-screen editor in a dialog (routes.backupPolicyEdit() links here
+	// with it open); retention runs with its preview and confirmation.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -12,17 +14,16 @@
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Eraser from '@lucide/svelte/icons/eraser';
-	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import History from '@lucide/svelte/icons/rotate-ccw-clock';
+	import Layers from '@lucide/svelte/icons/layers';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Play from '@lucide/svelte/icons/play';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
-	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import { environmentsQuery, myPermissionsQuery, schedulePreviewQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
-		Badge,
 		Button,
 		Card,
 		ConfirmDialog,
@@ -33,6 +34,8 @@
 		KpiCard,
 		Menu,
 		PageHeader,
+		Skeleton,
+		formatBytes,
 		formatDateTime,
 		formatRelative,
 		toast,
@@ -53,17 +56,26 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import RetentionPreviewPanel from '$lib/features/backups/RetentionPreviewPanel.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
 	import {
+		coverageSummary,
 		hasRetentionRules,
+		policySentence,
+		retentionShort,
 		retentionText,
-		scopeText,
+		scheduleWords,
+		setBytes,
 		setState,
 		type BackupPolicy
 	} from '$lib/features/backups/model';
-	import { backupPolicyQuery, repositoriesQuery } from '$lib/features/backups/queries';
+	import {
+		backupPolicyQuery,
+		backupsQuery,
+		repositoriesQuery
+	} from '$lib/features/backups/queries';
 
 	const id = $derived(page.params.policyId ?? '');
 	const qc = useQueryClient();
@@ -72,6 +84,16 @@
 	const repos = createQuery(() => repositoriesQuery());
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
+	// The policy's backups: the sizes of its runs.
+	const backups = createQuery(() => backupsQuery({ policyId: id }));
+	const nextRuns = createQuery(() => ({
+		...schedulePreviewQuery(
+			policy.data?.schedule?.cron ?? '',
+			policy.data?.schedule?.timeZone ?? '',
+			'backup'
+		),
+		enabled: !!policy.data?.schedule?.enabled
+	}));
 	const envName = (e: string) => environmentName(envs.data, e);
 	const editDialog = urlDialog('edit');
 
@@ -79,7 +101,6 @@
 		title: policy.data?.name ?? 'Backup policy',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
-			{ label: 'Policies', href: routes.backupPolicies() },
 			{ label: policy.data?.name ?? 'Policy' }
 		]
 	}));
@@ -156,7 +177,7 @@
 		);
 		toast.success(`Deleted backup policy ${p.name}`);
 		await qc.invalidateQueries({ queryKey: ['policies'] });
-		await goto(routes.backupPolicies());
+		await goto(routes.backups());
 	}
 
 	function menuFor(p: BackupPolicy): MenuEntry[] {
@@ -192,6 +213,13 @@
 		const [env, ...rest] = key.split('/');
 		return `${rest.join('/')} (${envName(env)})`;
 	}
+
+	function jobTitle(j: Job): string {
+		const where = j.kind.startsWith('manager')
+			? 'Docker Manager'
+			: envName(j.environmentId ?? '');
+		return `${jobKindLabel(j.kind)}: ${where}`;
+	}
 </script>
 
 <Page>
@@ -204,24 +232,26 @@
 			{@const menu = menuFor(p)}
 			{@const repo = repos.data?.find((r) => r.id === p.repositoryId)}
 			{@const last = p.recentSets?.[0]}
+			{@const lastBytes = last ? setBytes(backups.data, last.id) : undefined}
+			{@const coverage = coverageSummary(p, envName)}
 			{@const explicit = p.stacks.length > 0 || p.volumes.length > 0}
+			{@const manager = p.includeManagerState
+				? p.includeMetrics
+					? 'Yes, with metrics'
+					: 'Yes, without metrics'
+				: 'No'}
+			{@const containers = p.shutdown ? 'Stopped, then started again' : 'Keep running'}
 			<PageHeader
 				title={p.name}
 				icon={CalendarClock}
 				color="teal"
-				description="Backs up {scopeText(p, envName)} to {repo?.name ?? 'its repository'}."
+				description={policySentence(p, {
+					repository: repo?.name,
+					environmentName: envName,
+					running: running || jobs.length > 0
+				})}
 			>
-				{#snippet status()}
-					{#if p.schedule?.enabled}<Badge tone="ok" dot>Scheduled</Badge>{:else}<Badge dot
-							>Manual</Badge
-						>{/if}
-				{/snippet}
 				{#snippet actions()}
-					{#if has(p, 'backup_policy.manage')}
-						<Button icon={Pencil} onclick={() => (editDialog.open = true)}
-							>Edit policy</Button
-						>
-					{/if}
 					{#if has(p, 'backup.run')}
 						<Button
 							variant="primary"
@@ -229,6 +259,9 @@
 							loading={running}
 							onclick={() => run(p)}>Back up now</Button
 						>
+					{/if}
+					{#if has(p, 'backup_policy.manage')}
+						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
 					{/if}
 					{#if menu.length}
 						<Menu items={menu} label="More actions for {p.name}">
@@ -246,22 +279,16 @@
 			</PageHeader>
 
 			{#each jobs as j (j.id)}
-				<JobProgress
-					jobId={j.id}
-					title="{j.kind.startsWith('manager')
-						? 'Manager'
-						: envName(j.environmentId ?? '')}: {j.kind.replace('.', ' ')}"
-					onfinish={finished}
-				/>
+				<JobProgress jobId={j.id} title={jobTitle(j)} onfinish={finished} />
 			{/each}
 
 			<KpiRow>
 				<KpiCard
-					label="Last set"
-					value={last ? setState(last.state).label : 'Never run'}
+					label="Last run"
+					value={last ? formatRelative(last.finishedAt ?? last.startedAt) : 'Not run yet'}
 					secondary={last
-						? `${formatRelative(last.startedAt)}, ${formatDateTime(last.startedAt)}`
-						: 'Back up now to create the first set'}
+						? `${setState(last.state).label}${lastBytes !== undefined ? `, ${formatBytes(lastBytes)}` : ''}`
+						: 'Back up now to start'}
 					icon={DatabaseBackup}
 					color="teal"
 					tone={last
@@ -279,144 +306,133 @@
 						: 'Not scheduled'}
 					secondary={p.schedule?.enabled && p.schedule.nextRun
 						? formatDateTime(p.schedule.nextRun)
-						: 'Backups run only when started'}
+						: 'Only when started'}
 					icon={Clock}
 					color="slate"
 				/>
 				<KpiCard
-					label="Retention"
-					value={hasRetentionRules(p.retention) ? 'Rules set' : 'Keep everything'}
-					secondary={p.retention?.afterBackup
-						? 'Applied after every backup'
-						: 'Applied by hand'}
-					icon={History}
-					color="violet"
+					label="Coverage"
+					value={coverage.value}
+					secondary={coverage.secondary}
+					icon={Layers}
+					color="blue"
 				/>
 				<KpiCard
-					label="Repository"
-					value={repo?.name ?? '—'}
-					secondary={Object.keys(p.environmentRepositories ?? {}).length
-						? 'Some environments use their own'
-						: 'For every environment'}
-					icon={HardDrive}
-					color="blue"
+					label="Retention"
+					value={retentionShort(p.retention)}
+					secondary={hasRetentionRules(p.retention)
+						? p.retention?.afterBackup
+							? 'Applied after every backup'
+							: 'Applied by hand'
+						: 'Nothing is forgotten'}
+					icon={History}
+					color="violet"
 				/>
 			</KpiRow>
 
 			<Columns ratio="equal">
-				<Card title="What is backed up">
-					<Facts
-						columns={1}
-						items={explicit
-							? [
-									{
-										label: 'Stacks',
-										value: p.stacks.length
-											? p.stacks.map((s) => stackName(s.stackId)).join(', ')
-											: 'None'
-									},
-									{
-										label: 'Standalone volumes',
-										value: p.volumes.length
-											? p.volumes
-													.map(
-														(v) =>
-															`${v.volume} (${envName(v.environmentId)})`
-													)
-													.join(', ')
-											: 'None'
-									},
-									{
-										label: 'Anonymous volumes',
-										value: p.stacks.some((s) => s.anonymousVolumes)
-											? 'Included for some stacks'
-											: 'Not backed up'
-									},
-									{
-										label: 'Manager state',
-										value: p.includeManagerState
-											? p.includeMetrics
-												? 'Yes, with metrics'
-												: 'Yes, without metrics'
-											: 'No'
-									},
-									{
-										label: 'Containers during backups',
-										value: p.shutdown
-											? 'Stopped, then started again'
-											: 'Keep running (live)'
-									}
-								]
-							: [
-									{
-										label: 'Environments',
-										value:
-											p.scope === 'all'
-												? 'All environments'
-												: envName(p.environmentId ?? '')
-									},
-									{
-										label: 'Stacks',
-										value: (p.excludeStacks ?? []).length
-											? `Every managed stack except ${p.excludeStacks.map(stackName).join(', ')}`
-											: 'Every managed stack, with its project directory and volumes'
-									},
-									{
-										label: 'Volumes',
-										value: (p.excludeVolumes ?? []).length
-											? `Stack and standalone volumes except ${p.excludeVolumes.map((v) => volumeName(p, v)).join(', ')}`
-											: 'Every stack and standalone volume'
-									},
-									{
-										label: 'Anonymous volumes',
-										value: p.anonymousVolumes ? 'Backed up' : 'Not backed up'
-									},
-									{
-										label: 'Manager state',
-										value: p.includeManagerState
-											? p.includeMetrics
-												? 'Yes, with metrics'
-												: 'Yes, without metrics'
-											: 'No'
-									},
-									{
-										label: 'Containers during backups',
-										value: p.shutdown
-											? 'Stopped, then started again'
-											: 'Keep running (live)'
-									}
-								]}
-					/>
-				</Card>
-				<Card title="Schedule and retention">
+				<Card title="What it covers">
 					<Facts
 						columns={1}
 						items={[
-							{ label: 'Schedule', render: sched },
-							{ label: 'Retention', value: retentionText(p.retention) },
+							...(explicit
+								? [
+										{
+											label: 'Stacks',
+											value: p.stacks.length
+												? p.stacks
+														.map((s) => stackName(s.stackId))
+														.join(', ')
+												: 'None'
+										},
+										{
+											label: 'Standalone volumes',
+											value: p.volumes.length
+												? p.volumes
+														.map(
+															(v) =>
+																`${v.volume} (${envName(v.environmentId)})`
+														)
+														.join(', ')
+												: 'None'
+										},
+										{
+											label: 'Anonymous volumes',
+											value: p.stacks.some((s) => s.anonymousVolumes)
+												? 'Included for some stacks'
+												: 'Not backed up'
+										}
+									]
+								: [
+										{
+											label: 'Stacks',
+											value: (p.excludeStacks ?? []).length
+												? `Every managed stack except ${p.excludeStacks.map(stackName).join(', ')}`
+												: 'Every managed stack, with its files and volumes'
+										},
+										{
+											label: 'Volumes',
+											value: (p.excludeVolumes ?? []).length
+												? `Every volume except ${p.excludeVolumes.map((v) => volumeName(p, v)).join(', ')}`
+												: 'Every stack and standalone volume'
+										},
+										{
+											label: 'Anonymous volumes',
+											value: p.anonymousVolumes
+												? 'Backed up'
+												: 'Not backed up'
+										}
+									]),
+							{ label: 'Manager state', value: manager },
+							{ label: 'Containers during backups', value: containers },
 							{
-								label: 'After every backup',
-								value: p.retention?.afterBackup
-									? 'Retention applied'
-									: 'Retention applied by hand'
-							},
-							{ label: 'Repository', value: repo?.name ?? '—' },
-							...Object.entries(p.environmentRepositories ?? {}).map(([env, r]) => ({
-								label: `Repository for ${envName(env)}`,
-								value: repos.data?.find((x) => x.id === r)?.name ?? '—'
-							}))
+								label: 'Stored in',
+								value: [
+									repo?.name ?? '—',
+									...Object.entries(p.environmentRepositories ?? {}).map(
+										([env, r]) =>
+											`${repos.data?.find((x) => x.id === r)?.name ?? '—'} for ${envName(env)}`
+									)
+								].join('; ')
+							}
 						]}
 					/>
 				</Card>
+				<Card title="Schedule">
+					{#if p.schedule?.enabled}
+						<ScheduleSummary {...p.schedule} nextRun={undefined} />
+						<h3 class="subsection-title next">Next runs</h3>
+						{#if nextRuns.isPending}
+							<Skeleton lines={3} height="16px" />
+						{:else if nextRuns.data?.runs.length}
+							<ol class="runs" role="list">
+								{#each nextRuns.data.runs.slice(0, 3) as r (r.utc)}
+									<li class="num">
+										{formatDateTime(r.utc, p.schedule.timeZone)}
+									</li>
+								{/each}
+							</ol>
+						{:else}
+							<p class="muted">The next runs could not be calculated.</p>
+						{/if}
+					{:else}
+						<p>The schedule is off: backups run only when you start them.</p>
+						{#if p.schedule?.cron}
+							<p
+								class="muted small"
+								title="{p.schedule.cron} ({p.schedule.timeZone})"
+							>
+								Turned on, it would back up {scheduleWords(
+									p.schedule.cron,
+									p.schedule.timeZone
+								)}.
+							</p>
+						{/if}
+					{/if}
+				</Card>
 			</Columns>
-			{#snippet sched()}
-				{#if p.schedule}<ScheduleSummary
-						{...p.schedule}
-						nextRun={p.schedule.nextRun}
-					/>{/if}
-			{/snippet}
 
-			<Card title="Recent backup sets" padding="none">
+			<Card title="Recent runs" padding="none">
 				{#if p.recentSets?.length}
 					<SetsTable
 						sets={p.recentSets.map((s) => ({
@@ -424,9 +440,10 @@
 							policyId: p.id,
 							policyName: p.name
 						}))}
-						label="Recent backup sets of {p.name}"
+						label="Recent runs of {p.name}"
 						showPolicy={false}
 						environmentName={envName}
+						backups={backups.data}
 						canRetry={() => has(p, 'backup.run')}
 					/>
 				{:else}
@@ -434,7 +451,7 @@
 						icon={CalendarClock}
 						color="teal"
 						title="Not run yet."
-						description="Back up now to create the first set, or turn the schedule on."
+						description="Back up now to create the first backups, or turn the schedule on."
 						level={3}
 						compact
 					/>
@@ -451,7 +468,7 @@
 			<ConfirmDialog
 				bind:open={retentionOpen}
 				title="Apply the retention of {p.name}?"
-				message="Forgets the backups the rules no longer keep, then prunes the repositories. Review the preview first."
+				message="Forgets the backups the rules no longer keep, then frees their space in the repositories. Review the preview first."
 				consequences={[
 					retentionText(p.retention) + '.',
 					'The minimum recovery floor and the newest backup of each stack and volume are always kept.',
@@ -469,7 +486,7 @@
 				title="Delete backup policy {p.name}"
 				consequences={[
 					'Scheduled backups of this policy stop.',
-					'Its backup sets and their backups stay and can still be restored.',
+					'Its backups stay and can still be restored.',
 					'Repositories and the Recovery Key are not touched.'
 				]}
 				confirmText={p.name}
@@ -479,3 +496,22 @@
 		{/snippet}
 	</QueryView>
 </Page>
+
+<style>
+	.next {
+		margin-top: var(--space-4);
+	}
+
+	.runs {
+		display: grid;
+		gap: var(--space-1);
+		margin: var(--space-2) 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.small {
+		margin-top: var(--space-2);
+		font-size: var(--text-caption);
+	}
+</style>

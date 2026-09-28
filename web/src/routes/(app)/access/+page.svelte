@@ -15,6 +15,7 @@
 		DeniedState,
 		EmptyState,
 		Table,
+		formatDateTime,
 		formatRelative,
 		type Column
 	} from '$lib/ui';
@@ -23,7 +24,12 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import AccessHeader from '$lib/features/access/AccessHeader.svelte';
 	import InviteDialog from '$lib/features/access/InviteDialog.svelte';
-	import { accountStatus, displayName, factorsText } from '$lib/features/access/model';
+	import {
+		accountStatus,
+		displayName,
+		factorsText,
+		secondaryName
+	} from '$lib/features/access/model';
 	import { groupsQuery, usersQuery } from '$lib/features/access/queries';
 
 	usePage({ title: 'Access', crumbs: [{ label: 'Access' }] });
@@ -65,11 +71,7 @@
 </script>
 
 {#snippet nameCell(u: Account)}
-	<NameCell
-		name={displayName(u)}
-		href={routes.accessUser(u.id)}
-		sub={u.displayName ? u.username : u.email}
-	>
+	<NameCell name={displayName(u)} href={routes.accessUser(u.id)} sub={secondaryName(u)}>
 		{#snippet extra()}{#if u.owner}<Badge tone="accent">Owner</Badge>{/if}{/snippet}
 	</NameCell>
 {/snippet}
@@ -82,7 +84,7 @@
 		: groupName(u.groupId)}{/snippet}
 {#snippet factorsCell(u: Account)}<span class="muted">{factorsText(u.factors)}</span>{/snippet}
 {#snippet lastCell(u: Account)}
-	{#if u.lastSignInAt}<span class="num" title={u.lastSignInAt}
+	{#if u.lastSignInAt}<span class="num" title={formatDateTime(u.lastSignInAt)}
 			>{formatRelative(u.lastSignInAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
 {/snippet}
@@ -111,8 +113,9 @@
 						{columns}
 						rowKey={(u) => u.id}
 						sort={{ column: 'name', direction: 'asc' }}
-					>
-						{#snippet empty()}
+					/>
+					{#if rows.every((u) => u.owner)}
+						<div class="alone">
 							<EmptyState
 								icon={Users}
 								title="Only you so far."
@@ -120,12 +123,26 @@
 									'the default group'}, which starts without access."
 								level={3}
 								compact
-							/>
-						{/snippet}
-					</Table>
+							>
+								{#snippet actions()}
+									<Button
+										variant="primary"
+										icon={UserPlus}
+										onclick={() => (inviteOpen = true)}>Invite user</Button
+									>
+								{/snippet}
+							</EmptyState>
+						</div>
+					{/if}
 				{/snippet}
 			</QueryView>
 		</Card>
 		<InviteDialog bind:open={inviteOpen} defaultGroupName={defaultGroup?.name} />
 	{/if}
 </Page>
+
+<style>
+	.alone {
+		border-top: 1px solid var(--border-subtle);
+	}
+</style>

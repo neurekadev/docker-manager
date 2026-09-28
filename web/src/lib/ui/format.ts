@@ -24,16 +24,59 @@ export function formatPercent(v: number | null | undefined): string {
 	return `${v < 10 ? v.toFixed(1) : v < 100 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v)}%`;
 }
 
-/** A duration in its largest sensible unit: "14 days", "3 hours", "45 s". */
+/**
+ * A duration in its two largest units, one style everywhere: "1 s",
+ * "45 s", "3 min 20 s", "17 h 9 min", "3 d 4 h". A zero second unit is
+ * left out ("3 min", "2 h"). Invalid or negative values read as "0 s".
+ */
 export function formatDuration(seconds: number): string {
-	const s = Math.max(0, Math.round(seconds));
+	const s = Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0));
+	const pair = (big: number, bigUnit: string, small: number, smallUnit: string) =>
+		small ? `${big} ${bigUnit} ${small} ${smallUnit}` : `${big} ${bigUnit}`;
 	if (s < 60) return `${s} s`;
 	const m = Math.floor(s / 60);
-	if (m < 60) return `${m} min`;
+	if (m < 60) return pair(m, 'min', s % 60, 's');
 	const h = Math.floor(m / 60);
-	if (h < 48) return `${h} ${h === 1 ? 'hour' : 'hours'}`;
-	const d = Math.floor(h / 24);
-	return `${d} ${d === 1 ? 'day' : 'days'}`;
+	if (h < 24) return pair(h, 'h', m % 60, 'min');
+	return pair(Math.floor(h / 24), 'd', h % 24, 'h');
+}
+
+const GO_UNITS: Record<string, number> = {
+	ns: 1e-9,
+	us: 1e-6,
+	µs: 1e-6,
+	μs: 1e-6,
+	ms: 1e-3,
+	s: 1,
+	m: 60,
+	h: 3600
+};
+
+/**
+ * Seconds of a Go duration string ("17h9m0s", "1m30.5s", "250ms", "-5s");
+ * null when it is not one.
+ */
+export function parseGoDuration(value: string | null | undefined): number | null {
+	const v = value?.trim();
+	if (!v) return null;
+	if (v === '0') return 0;
+	const m = v.match(/^([+-]?)((?:\d+(?:\.\d*)?|\.\d+)(?:ns|us|µs|μs|ms|s|m|h))+$/);
+	if (!m) return null;
+	let total = 0;
+	for (const part of v.matchAll(/(\d+(?:\.\d*)?|\.\d+)(ns|us|µs|μs|ms|s|m|h)/g))
+		total += Number(part[1]) * GO_UNITS[part[2]];
+	return m[1] === '-' ? -total : total;
+}
+
+/**
+ * A Go duration string in formatDuration's style: "17h9m0s" → "17 h 9 min",
+ * "3m20s" → "3 min 20 s". Sub-second values read as "0 s"; anything that
+ * is not a Go duration is returned unchanged.
+ */
+export function formatGoDuration(value: string | null | undefined): string {
+	const secs = parseGoDuration(value);
+	if (secs === null) return value?.trim() || '—';
+	return formatDuration(secs);
 }
 
 /**
@@ -90,15 +133,38 @@ export function formatRelative(iso: string | Date, now: Date = new Date()): stri
 	return rtf.format(Math.round(diff / div), unit);
 }
 
-/** Absolute date and time, e.g. "Sep 25, 2026, 03:00" (24 h), in a zone. */
-export function formatDateTime(iso: string | Date, timeZone?: string): string {
+const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Absolute date and time, one format everywhere: "Sep 25, 2026, 03:00"
+ * (24 h), in the viewer's zone or the given one. Absent or invalid values
+ * read as "—". Relative times ("5 minutes ago") carry this as their
+ * tooltip: `title={formatDateTime(iso)}`.
+ */
+export function formatDateTime(iso: string | Date | null | undefined, timeZone?: string): string {
+	if (iso === null || iso === undefined || iso === '') return '—';
 	const t = typeof iso === 'string' ? new Date(iso) : iso;
-	return new Intl.DateTimeFormat('en', {
-		dateStyle: 'medium',
-		timeStyle: 'short',
-		hourCycle: 'h23',
-		timeZone
-	}).format(t);
+	if (!Number.isFinite(t.getTime())) return '—';
+	const key = timeZone ?? '';
+	let f = dateTimeFormats.get(key);
+	if (!f) {
+		try {
+			f = new Intl.DateTimeFormat('en', {
+				year: 'numeric',
+				month: 'short',
+				day: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit',
+				hourCycle: 'h23',
+				timeZone
+			});
+		} catch {
+			// An unknown zone: the viewer's own.
+			return formatDateTime(t);
+		}
+		dateTimeFormats.set(key, f);
+	}
+	return f.format(t);
 }
 
 /** A digest or ID shortened for display (full value in a title/copy). */

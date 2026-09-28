@@ -59,6 +59,8 @@ export type EditorLanguage = (typeof EDITOR_LANGUAGES)[number];
 
 export interface CodeEditorOptions extends EditorOptions {
 	language?: EditorLanguage;
+	/** Wrap long lines instead of scrolling sideways. */
+	wrap?: boolean;
 }
 
 export interface CodeEditorHandle extends YamlEditor {
@@ -67,6 +69,8 @@ export interface CodeEditorHandle extends YamlEditor {
 	setReadOnly(readOnly: boolean): void;
 	/** Opens CodeMirror's search and replace panel. */
 	openSearch(): void;
+	/** Wraps long lines (true) or scrolls sideways (false). */
+	setWrap?(wrap: boolean): void;
 }
 
 async function languageSupport(language: EditorLanguage): Promise<Extension> {
@@ -123,11 +127,13 @@ export async function mountCodeEditor(
 		]);
 	const language = new Compartment();
 	const readOnly = new Compartment();
+	const wrapping = new Compartment();
 	const extensions = [
 		basicSetup,
 		language.of(lang),
 		theme.dockerManagerEditorTheme,
 		readOnly.of(EditorState.readOnly.of(!!opts.readOnly)),
+		wrapping.of(opts.wrap ? EditorView.lineWrapping : []),
 		EditorView.contentAttributes.of({ 'aria-label': opts.label ?? 'Editor' }),
 		EditorView.updateListener.of((u) => {
 			if (u.docChanged) opts.onChange?.(u.state.doc.toString());
@@ -150,7 +156,9 @@ export async function mountCodeEditor(
 			view.dispatch({ effects: readOnly.reconfigure(EditorState.readOnly.of(ro)) }),
 		openSearch: () => {
 			search.openSearchPanel(view);
-		}
+		},
+		setWrap: (on) =>
+			view.dispatch({ effects: wrapping.reconfigure(on ? EditorView.lineWrapping : []) })
 	};
 }
 
@@ -182,6 +190,15 @@ export async function formatDocument(text: string, language: 'yaml' | 'json'): P
 		}
 	}
 	return list.map((d) => d.toString({ indent: 2, lineWidth: 0 })).join('');
+}
+
+/**
+ * Reads a YAML document into plain values for read-only summaries (a
+ * template's services, images and ports). Throws when it does not parse.
+ */
+export async function parseYaml(text: string): Promise<unknown> {
+	const { parse } = await import('yaml');
+	return parse(text) as unknown;
 }
 
 export interface SeriesPoint {

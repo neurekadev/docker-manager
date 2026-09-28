@@ -306,17 +306,30 @@ export function stackJobsQuery(id: string, client: ApiClient = api) {
 	});
 }
 
-/** Audit records touching the stack (audit.read only). */
-export function stackAuditQuery(id: string, client: ApiClient = api) {
+/**
+ * Audit records touching the stack (audit.read only), newest first: the
+ * first `pages` pages of 50 ("Load more" asks for one page more); `more`
+ * says whether older records exist.
+ */
+export function stackAuditQuery(id: string, pages = 1, client: ApiClient = api) {
 	return queryOptions({
-		queryKey: stackKeys.audit(id),
-		queryFn: ({ signal }): Promise<AuditEvent[]> =>
-			unwrap(
-				client.GET('/api/v1/audit', {
-					params: { query: { resource: `stack:${id}`, limit: 50 } },
-					signal
-				})
-			).then((p) => p.items),
+		queryKey: [...stackKeys.audit(id), pages] as const,
+		queryFn: async ({ signal }): Promise<{ items: AuditEvent[]; more: boolean }> => {
+			const items: AuditEvent[] = [];
+			let cursor: string | undefined;
+			for (let i = 0; i < pages; i++) {
+				const p = await unwrap(
+					client.GET('/api/v1/audit', {
+						params: { query: { resource: `stack:${id}`, limit: 50, cursor } },
+						signal
+					})
+				);
+				items.push(...p.items);
+				cursor = p.nextCursor;
+				if (!cursor) break;
+			}
+			return { items, more: !!cursor };
+		},
 		staleTime: 15_000
 	});
 }

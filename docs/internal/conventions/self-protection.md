@@ -18,5 +18,9 @@ images, volumes, networks and Compose project are protected for everyone
   (#7) refuse Docker Manager's own project (deploys hand the agent's own
   service to the self-update helper; an import by copy copies the project
   while it runs and never stops it).
+- The web lists' bulk selections (`$lib/features/resources/bulk.ts`) leave
+  protected objects out before any request and list them with the reason
+  in the confirmation and the summary; each remaining object goes through
+  its own request, so the server's refusal still applies.
 - No override flag: only the co-located manager's restart takes
   `confirm: true`.

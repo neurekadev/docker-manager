@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Add a template registry (template registry, owner): another Docker
+	// Add a template source (a template registry, owner): another Docker
 	// Manager's address. Its public templates are read right away; adding
 	// an instance that was removed before brings back the icons of stacks
 	// created from its templates.
@@ -35,7 +35,7 @@
 			const v = errorView(e);
 			switch (v.code) {
 				case 'template_registry_exists':
-					error = 'This registry is added already.';
+					error = 'This Docker Manager is a template source already.';
 					break;
 				case 'template_registry_is_self':
 					error =
@@ -52,7 +52,7 @@
 
 <Dialog
 	bind:open
-	title="Add a registry"
+	title="Add a template source"
 	description="Browse and use the public templates of another Docker Manager. Enter its address; it must use HTTPS."
 	size="md"
 	dismissible={!saving}
@@ -82,7 +82,7 @@
 			type="submit"
 			form="add-registry"
 			loading={saving}
-			disabled={!url.trim()}>Add registry</Button
+			disabled={!url.trim()}>Add template source</Button
 		>
 	{/snippet}
 </Dialog>

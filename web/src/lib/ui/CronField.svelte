@@ -1,13 +1,27 @@
 <script lang="ts">
-	// Cron field (#13): five-field expression + IANA time zone, with the next
-	// runs previewed by the manager (POST /schedules/previews, the one cron
-	// parser, #13) so DST gaps and repeats are explained exactly as they will
-	// run. The preview is debounced; server validation errors show inline.
+	// Cron field (#13): a preset ("Hourly", "Daily", "Weekly" with minute,
+	// time and day fields) or a custom five-field expression, plus the IANA
+	// time zone, with the next runs previewed by the manager (POST
+	// /schedules/previews, the one cron parser, #13) so DST gaps and repeats
+	// are explained exactly as they will run. The presets write the cron
+	// expression (bind:cron), so callers only ever see an expression; one
+	// the presets cannot edit opens as Custom. The preview is debounced;
+	// server validation errors show inline.
+	import { untrack } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { ApiRequestError } from '$lib/api/client';
 	import { schedulePreviewQuery } from '$lib/api/queries';
 	import Combobox from './Combobox.svelte';
 	import Field from './Field.svelte';
+	import Select from './Select.svelte';
+	import TextField from './TextField.svelte';
+	import {
+		WEEKDAY_OPTIONS,
+		buildCron,
+		describeCron,
+		parseCronPreset,
+		type CronPresetKind
+	} from './cron';
 	import { formatDateTime } from './format';
 
 	interface Props {
@@ -35,6 +49,74 @@
 	// Unique per instance: a form may hold several schedules (checks, runs).
 	const uid = $props.id();
 	const previewId = `${uid}-cron-preview`;
+
+	const KINDS = [
+		{ value: 'hourly', label: 'Hourly' },
+		{ value: 'daily', label: 'Daily' },
+		{ value: 'weekly', label: 'Weekly' },
+		{ value: 'custom', label: 'Custom' }
+	];
+
+	// The preset fields, from the expression the caller passed in.
+	const initial = untrack(() => parseCronPreset(cron));
+	let preset = $state<CronPresetKind>(initial.kind);
+	let minute = $state(initial.minute);
+	let hour = $state(initial.hour);
+	let day = $state(initial.day);
+	// The expression last written or seen (plain bookkeeping, not state).
+	let written = untrack(() => cron.trim());
+
+	function write() {
+		if (preset === 'custom') return;
+		const next = buildCron({ kind: preset, minute, hour, day });
+		written = next;
+		cron = next;
+	}
+
+	// The caller replaced the expression (defaults arrived, a reset): show it
+	// in the presets when they can edit it. Custom stays custom while typed.
+	$effect(() => {
+		const c = cron.trim();
+		if (c === written) return;
+		written = c;
+		if (untrack(() => preset) === 'custom') return;
+		const p = parseCronPreset(c);
+		preset = p.kind;
+		minute = p.minute;
+		hour = p.hour;
+		day = p.day;
+	});
+
+	function setKind(v: string) {
+		preset = v as CronPresetKind;
+		write();
+	}
+
+	const pad = (n: number) => String(n).padStart(2, '0');
+
+	function setTime(v: string) {
+		const m = v.match(/^(\d{1,2}):(\d{2})/);
+		if (!m) return;
+		hour = Math.min(23, Number(m[1]));
+		minute = Math.min(59, Number(m[2]));
+		write();
+	}
+
+	// A number input binds numbers (null while empty).
+	function setMinute(v: string | number | null) {
+		if (v === null || v === '') return;
+		const n = Number(v);
+		if (!Number.isInteger(n) || n < 0 || n > 59) return;
+		minute = n;
+		write();
+	}
+
+	function setDay(v: string) {
+		day = Number(v);
+		write();
+	}
+
+	const words = $derived(describeCron(cron, timeZone));
 
 	const zones = $derived.by(() => {
 		const list =
@@ -69,23 +151,51 @@
 	});
 </script>
 
-<div class="cron">
-	<Field {label} {description} error={cronError}>
-		{#snippet children(c)}
-			<input
-				id={c.id}
-				class="dy-input mono"
-				bind:value={cron}
-				spellcheck="false"
-				autocomplete="off"
-				aria-describedby={[c.describedBy, previewId].filter(Boolean).join(' ')}
-				aria-invalid={c.invalid || undefined}
+<fieldset class="cron">
+	<legend>{label}</legend>
+	<div class="presets" class:custom={preset === 'custom'}>
+		<Select label="Repeats" options={KINDS} value={preset} onchange={setKind} />
+		{#if preset === 'hourly'}
+			<TextField
+				label="At minute"
+				type="number"
+				min="0"
+				max="59"
+				inputmode="numeric"
+				bind:value={() => String(minute), setMinute}
 			/>
-		{/snippet}
-	</Field>
+		{:else if preset === 'weekly'}
+			<Select label="Day" options={WEEKDAY_OPTIONS} value={String(day)} onchange={setDay} />
+		{/if}
+		{#if preset === 'daily' || preset === 'weekly'}
+			<TextField
+				label="Time"
+				type="time"
+				bind:value={() => `${pad(hour)}:${pad(minute)}`, setTime}
+			/>
+		{/if}
+	</div>
+	{#if preset === 'custom'}
+		<Field label="Cron expression" {description} error={cronError}>
+			{#snippet children(c)}
+				<input
+					id={c.id}
+					class="dy-input mono"
+					bind:value={cron}
+					spellcheck="false"
+					autocomplete="off"
+					aria-describedby={[c.describedBy, previewId].filter(Boolean).join(' ')}
+					aria-invalid={c.invalid || undefined}
+				/>
+			{/snippet}
+		</Field>
+	{:else if cronError}
+		<p class="error" role="alert">{cronError}</p>
+	{/if}
 	<Combobox label="Time zone" options={zones} bind:value={timeZone} />
 	<div class="preview" id={previewId} aria-live="polite">
 		{#if preview.data && !cronError}
+			{#if preset === 'custom' && words !== cron.trim()}<p class="words">{words}</p>{/if}
 			<p class="head">Next runs</p>
 			<ol role="list">
 				{#each preview.data.runs as run (run.at)}
@@ -106,12 +216,49 @@
 			<p class="head">Checking the schedule…</p>
 		{/if}
 	</div>
-</div>
+</fieldset>
 
 <style>
 	.cron {
 		display: grid;
 		gap: var(--space-3);
+		min-width: 0;
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+
+	legend {
+		float: left;
+		width: 100%;
+		margin-bottom: calc(-1 * var(--space-1));
+		padding: 0;
+		color: var(--text-default);
+		font-size: var(--text-body);
+		line-height: var(--leading-body);
+		font-weight: var(--weight-medium);
+	}
+
+	/* The preset fields side by side; Custom shows only the Repeats select. */
+	.presets {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		gap: var(--space-3);
+	}
+
+	.presets.custom {
+		grid-template-columns: minmax(0, 240px);
+	}
+
+	.error {
+		color: var(--danger);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
+	}
+
+	.words {
+		color: var(--text-strong);
+		margin-bottom: var(--space-1);
 	}
 
 	.preview {

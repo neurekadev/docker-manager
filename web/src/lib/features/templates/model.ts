@@ -1,6 +1,7 @@
 // Template list helpers (template registry): search, filters, tag counts
-// for discovery and the suggested next version label. Pure; tested in
-// model.spec.ts.
+// for discovery, the suggested next version label, version labels and
+// what a version runs (services, images, ports and .env names, read from
+// its Compose files). Pure; tested in model.spec.ts.
 import type { ListFilter } from '$lib/features/resources/filters';
 import { routes } from '$lib/routes';
 import type { Template, TemplateCatalogItem } from './queries';
@@ -20,7 +21,22 @@ export function tagCounts(
 		.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-/** The filters of the template list: tag, visibility and publication. */
+/**
+ * Whether a template has a published version ("Ready to use") or only its
+ * draft. Named "Status" so it is not confused with the visibility (Public,
+ * Private). The stored ID stays "published".
+ */
+const READY_FILTER = {
+	id: 'published',
+	label: 'Status',
+	all: 'All statuses',
+	options: [
+		{ value: 'yes', label: 'Ready to use' },
+		{ value: 'no', label: 'Draft only' }
+	]
+};
+
+/** The filters of the template list: tag, visibility and status. */
 export function templateFilters(templates: readonly Template[]): ListFilter<Template>[] {
 	return [
 		{
@@ -45,13 +61,7 @@ export function templateFilters(templates: readonly Template[]): ListFilter<Temp
 			match: (t, v) => t.visibility === v
 		},
 		{
-			id: 'published',
-			label: 'Published',
-			all: 'Published or not',
-			options: [
-				{ value: 'yes', label: 'Has a version' },
-				{ value: 'no', label: 'Draft only' }
-			],
+			...READY_FILTER,
 			match: (t, v) => (v === 'yes') === !!t.latest
 		}
 	];
@@ -106,7 +116,7 @@ export const catalogSearch = (t: TemplateCatalogItem) => [
 	...(t.tags ?? [])
 ];
 
-/** The filters of the catalog: registry, tag and publication. */
+/** The filters of the catalog: source (registry), tag and status. */
 export function catalogFilters(
 	items: readonly TemplateCatalogItem[]
 ): ListFilter<TemplateCatalogItem>[] {
@@ -115,8 +125,8 @@ export function catalogFilters(
 	return [
 		{
 			id: 'registry',
-			label: 'Registry',
-			all: 'All registries',
+			label: 'Source',
+			all: 'All sources',
 			dynamic: true,
 			options: [...registries]
 				.map(([value, label]) => ({ value, label }))
@@ -135,13 +145,7 @@ export function catalogFilters(
 			match: (t, v) => (t.tags ?? []).includes(v)
 		},
 		{
-			id: 'published',
-			label: 'Published',
-			all: 'Published or not',
-			options: [
-				{ value: 'yes', label: 'Has a version' },
-				{ value: 'no', label: 'Draft only' }
-			],
+			...READY_FILTER,
 			match: (t, v) => (v === 'yes') === t.versions.length > 0
 		}
 	];
@@ -154,4 +158,111 @@ export function catalogHref(
 	return t.own
 		? routes.template(t.templateId)
 		: routes.remoteTemplate(t.instanceId, t.templateId);
+}
+
+/**
+ * A version as a label ("Version 1.2.0"), or "Draft only" before the first
+ * one. Values in tables and selects stay the bare label ("1.2.0").
+ */
+export function versionTitle(label: string | undefined): string {
+	return label ? `Version ${label}` : 'Draft only';
+}
+
+/** Whether a file or folder is hidden (its name starts with a dot, like .env). */
+export function isHiddenPath(path: string): boolean {
+	return (path.split('/').pop() ?? '').startsWith('.');
+}
+
+/**
+ * The contents of a version in the file manager's words: "2 items (1
+ * hidden)". `entries` counts files, folders and links; the hidden ones
+ * known here are the root files of its definition (.env), which the Files
+ * tab only lists with "Show hidden files".
+ */
+export function contentsSummary(entries: number, definition: readonly { path: string }[]): string {
+	const hidden = definition.filter((f) => isHiddenPath(f.path)).length;
+	const items = `${entries} ${entries === 1 ? 'item' : 'items'}`;
+	return hidden > 0 && hidden <= entries ? `${items} (${hidden} hidden)` : items;
+}
+
+/**
+ * The Compose files of a definition (every file but .env) in the order
+ * Compose reads them: the default file first, override files after.
+ */
+export function composeFiles<T extends { path: string }>(definition: readonly T[]): T[] {
+	const override = (f: T) => (f.path.includes('override') ? 1 : 0);
+	return definition.filter((f) => f.path !== '.env').sort((a, b) => override(a) - override(b));
+}
+
+/** One service of a template: its name, image (absent when built) and ports. */
+export interface ServiceSummary {
+	name: string;
+	image?: string;
+	/** Built from the template's own files (a build: section, no image). */
+	built: boolean;
+	ports: string[];
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+	typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** A Compose port entry as written: "8080:80", "53/udp", "127.0.0.1:8443:443". */
+export function portText(p: unknown): string {
+	if (typeof p === 'string') return p.trim();
+	if (typeof p === 'number') return String(p);
+	if (!isRecord(p) || p.target === undefined) return '';
+	const host = p.host_ip ? `${p.host_ip}:` : '';
+	const published = p.published !== undefined && p.published !== '' ? `${p.published}:` : '';
+	const protocol = p.protocol && p.protocol !== 'tcp' ? `/${p.protocol}` : '';
+	return `${host}${published}${p.target}${protocol}`;
+}
+
+/**
+ * The services of a template's Compose files (parsed YAML documents, the
+ * default file first, overrides after): later files override a service's
+ * image and add ports, as Compose merges them. Sorted by name.
+ */
+export function composeServices(docs: readonly unknown[]): ServiceSummary[] {
+	const byName = new Map<string, ServiceSummary>();
+	for (const doc of docs) {
+		if (!isRecord(doc) || !isRecord(doc.services)) continue;
+		for (const [name, raw] of Object.entries(doc.services)) {
+			const svc = isRecord(raw) ? raw : {};
+			const cur: ServiceSummary = byName.get(name) ?? { name, built: false, ports: [] };
+			if (typeof svc.image === 'string' && svc.image.trim()) cur.image = svc.image.trim();
+			if (svc.build !== undefined && svc.build !== null) cur.built = true;
+			if (Array.isArray(svc.ports))
+				for (const p of svc.ports) {
+					const text = portText(p);
+					if (text && !cur.ports.includes(text)) cur.ports.push(text);
+				}
+			byName.set(name, cur);
+		}
+	}
+	return [...byName.values()]
+		.map((s) => ({ ...s, built: s.built && !s.image }))
+		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A setting of a .env file: its name and whether it has a value yet. */
+export interface EnvKey {
+	name: string;
+	empty: boolean;
+}
+
+/**
+ * The names in a .env file, in file order and unique; never the values
+ * (only whether one is set, so people see what they must fill in).
+ */
+export function envKeys(text: string): EnvKey[] {
+	const out = new Map<string, EnvKey>();
+	for (const raw of text.split(/\r?\n/)) {
+		const line = raw.trim();
+		if (!line || line.startsWith('#')) continue;
+		const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*(=(.*))?$/.exec(line);
+		if (!m) continue;
+		const value = (m[3] ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
+		out.set(m[1], { name: m[1], empty: value === '' });
+	}
+	return [...out.values()];
 }

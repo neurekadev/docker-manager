@@ -2,11 +2,13 @@
 	// Password reset redemption (#16): an owner-issued reset code, or an
 	// owner-recovery code from `docker-manager owner-recovery`, in the URL
 	// fragment. Every session of the account ends; the user signs in after.
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api, unwrap } from '$lib/api/client';
 	import { takeCodeFromFragment } from '$lib/auth/code';
 	import { usePublicPage } from '$lib/auth/flow.svelte';
+	import AuthHeader from '$lib/features/auth/AuthHeader.svelte';
+	import { isValid, requiredErrors, submitted, untilFilled } from '$lib/features/auth/validate';
 	import { routes } from '$lib/routes';
 	import { Button, Checkbox, Notice, PasswordField, TextField, errorView, toast } from '$lib/ui';
 
@@ -18,6 +20,7 @@
 	let busy = $state(false);
 	let attempted = $state(false);
 	let error = $state<ReturnType<typeof errorView> | null>(null);
+	let invalid = $state<Partial<Record<'code' | 'password', string>>>({});
 
 	onMount(() => {
 		code = takeCodeFromFragment();
@@ -30,8 +33,22 @@
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
+		// Autofilled values count even before the browser reported them.
+		const form = e.currentTarget as HTMLFormElement | null;
+		const data = form ? new FormData(form) : null;
+		code = submitted(data, 'code', code);
+		password = submitted(data, 'password', password);
+		confirm = submitted(data, 'confirm', confirm);
 		attempted = true;
-		if (confirm !== password) return;
+		invalid = requiredErrors({
+			code: [code, 'Paste the reset code from your reset link.'],
+			password: [password, 'Choose a new password.']
+		});
+		if (!isValid(invalid) || confirm !== password) {
+			await tick();
+			form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+			return;
+		}
 		busy = true;
 		error = null;
 		try {
@@ -57,10 +74,10 @@
 <svelte:head><title>Set a new password · Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<header>
-		<h1>Set a new password</h1>
-		<p class="lead">This signs you out everywhere. Sign in with the new password afterwards.</p>
-	</header>
+	<AuthHeader
+		title="Set a new password"
+		lead="This signs you out everywhere. Sign in with the new password afterwards."
+	/>
 
 	{#if error?.code === 'invalid_code'}
 		<Notice tone="danger" title="This reset link does not work" live="alert">
@@ -76,24 +93,27 @@
 	<form onsubmit={submit} novalidate>
 		<TextField
 			label="Reset code"
+			name="code"
 			bind:value={code}
 			mono
 			autocomplete="off"
 			spellcheck="false"
 			required
-			error={field('code')}
+			error={untilFilled(invalid.code, code) ?? field('code')}
 		/>
 		<PasswordField
 			label="New password"
 			autocomplete="new-password"
 			description="Use a long passphrase; common and breached passwords are refused."
+			name="password"
 			bind:value={password}
 			required
-			error={field('newPassword')}
+			error={untilFilled(invalid.password, password) ?? field('newPassword')}
 		/>
 		<PasswordField
 			label="Repeat the new password"
 			autocomplete="new-password"
+			name="confirm"
 			bind:value={confirm}
 			required
 			error={mismatch}
@@ -103,13 +123,7 @@
 			label="Also revoke my API tokens"
 			description="Choose this if someone else may have used your account."
 		/>
-		<Button
-			type="submit"
-			variant="primary"
-			block
-			loading={busy}
-			disabled={!code.trim() || !password}>Set new password</Button
-		>
+		<Button type="submit" variant="primary" block loading={busy}>Set new password</Button>
 	</form>
 </div>
 
@@ -123,16 +137,5 @@
 
 	.stack {
 		gap: var(--space-5);
-	}
-
-	h1 {
-		font-size: 22px;
-		line-height: 28px;
-	}
-
-	.lead {
-		margin-top: var(--space-1);
-		color: var(--text-muted);
-		font-size: var(--text-control);
 	}
 </style>

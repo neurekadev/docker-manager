@@ -4,9 +4,12 @@
 	// the directory list (FileList) with sorting, filter, hidden files, the
 	// ".." row, selection, keyboard, context menu with the same actions in
 	// the toolbar and each row's menu (touch), drag and drop, uploads, jobs
-	// with progress, and the editor beside the list (switchable panes below
-	// 1024 px, never both squeezed). The server authorizes every call; the
-	// UI hides what the caller's capabilities do not allow.
+	// with progress, and the editor beside the list (Files and Editor tabs
+	// below 1024 px, never both squeezed). Permissions and owners are a
+	// details view (off by default). The card takes the height of its
+	// content and grows to the page's height while the editor is open. The
+	// server authorizes every call; the UI hides what the caller's
+	// capabilities do not allow.
 	import { createInfiniteQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy, onMount, untrack, type Snippet } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
@@ -25,12 +28,12 @@
 	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import FolderUp from '@lucide/svelte/icons/folder-up';
 	import KeyRound from '@lucide/svelte/icons/key-round';
+	import ListTree from '@lucide/svelte/icons/list-tree';
 	import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
 	import PackageOpen from '@lucide/svelte/icons/package-open';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Scissors from '@lucide/svelte/icons/scissors';
-	import Search from '@lucide/svelte/icons/search';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Upload from '@lucide/svelte/icons/upload';
 	import X from '@lucide/svelte/icons/x';
@@ -48,6 +51,8 @@
 		Menu,
 		OfflineEnvironment,
 		Skeleton,
+		Tabs,
+		TextField,
 		errorMessage,
 		formatBytes,
 		toast,
@@ -75,7 +80,7 @@
 		type ConflictItem,
 		type ConflictPolicy
 	} from './conflicts';
-	import { isDefinitionFile } from './definition';
+	import { isDefinitionFile, type StackFiles } from './definition';
 	import { directoriesOf, filesFromDrop, filesFromInput, type PickedFile } from './dropped';
 	import { EditorSession } from './editor.svelte';
 	import EditorPane from './EditorPane.svelte';
@@ -96,8 +101,8 @@
 		rootLabel: string;
 		/** Granted capabilities of the root (the DTO's `actions`). */
 		capabilities: readonly string[];
-		/** Stack scope: Compose sources and the revisions page. */
-		stack?: { name: string; configFiles: string[]; revisionsHref?: string } | null;
+		/** Stack scope: Compose sources, the revisions page, validation and deploy. */
+		stack?: StackFiles | null;
 		environmentOnline?: boolean;
 		environmentName?: string;
 		/** Accessible name of the region, e.g. "Files of Silo". */
@@ -150,6 +155,8 @@
 	// Listing, filters ---------------------------------------------------------
 	let filters = $state<ListFilters>({ sort: 'type', q: '', hidden: false });
 	let filterText = $state('');
+	/** The details view: Permissions and Owner columns. */
+	let details = $state(false);
 	$effect(() => {
 		const q = filterText.trim();
 		const t = setTimeout(() => (filters = { ...untrack(() => filters), q }), 200);
@@ -215,6 +222,12 @@
 	const wide = new MediaQuery('min-width: 1024px');
 	let pane = $state<'files' | 'editor'>('files');
 	const showEditor = $derived(session.tabs.length > 0);
+	/** Below 1024 px the list and the editor are tabs, never side by side. */
+	const tabbed = $derived(showEditor && !wide.current);
+	const paneTabs = $derived([
+		{ id: 'files', label: 'Files' },
+		{ id: 'editor', label: 'Editor', count: session.tabs.length }
+	]);
 
 	function openFile(entry: FileEntry) {
 		if (!can('read')) return;
@@ -865,7 +878,7 @@
 <input bind:this={fileInput} type="file" multiple hidden onchange={onPicked} />
 <input bind:this={folderInput} type="file" webkitdirectory multiple hidden onchange={onPicked} />
 
-<section class="fm" aria-label={label}>
+<section class="fm" class:full={showEditor} aria-label={label}>
 	{#if !environmentOnline}
 		<div class="offline"><OfflineEnvironment name={environmentName} /></div>
 	{/if}
@@ -920,27 +933,11 @@
 					{/each}
 				</ol>
 			</nav>
-			{#if !wide.current && showEditor}
-				<div class="panes" role="group" aria-label="Show">
-					<Button
-						size="sm"
-						variant={pane === 'files' ? 'primary' : 'secondary'}
-						aria-pressed={pane === 'files'}
-						onclick={() => (pane = 'files')}>Files</Button
-					>
-					<Button
-						size="sm"
-						variant={pane === 'editor' ? 'primary' : 'secondary'}
-						aria-pressed={pane === 'editor'}
-						onclick={() => (pane = 'editor')}>Editor ({session.tabs.length})</Button
-					>
-				</div>
-			{/if}
 			{#if actions}<div class="head-actions">{@render actions()}</div>{/if}
 		</header>
 
-		<div class="split" class:editing={showEditor} style="--list-width: {listWidth}px">
-			<div class="browser" hidden={!wide.current && showEditor && pane !== 'files'}>
+		{#snippet browserPane()}
+			<div class="browser">
 				<div
 					class="toolbar"
 					class:selecting={targets.length > 0}
@@ -1027,56 +1024,59 @@
 							{#snippet trigger(props)}
 								<Button
 									{...props}
-									size="sm"
 									variant="secondary"
 									icon={Upload}
 									iconEnd={ChevronDown}
 									aria-label="Upload"
-									><span class="upload-label">Upload</span></Button
+									><span class="btn-label">Upload</span></Button
 								>
 							{/snippet}
 						</Menu>
-						<IconButton
+						<Button
+							variant="secondary"
 							icon={FilePlus}
-							size="sm"
-							label="New file"
+							aria-label="New file"
 							onclick={() => create('file')}
-						/>
-						<IconButton
+							><span class="btn-label">New file</span></Button
+						>
+						<Button
+							variant="secondary"
 							icon={FolderPlus}
-							size="sm"
-							label="New folder"
+							aria-label="New folder"
 							onclick={() => create('dir')}
-						/>
+							><span class="btn-label">New folder</span></Button
+						>
 					{/if}
 					{#if clip && canPaste}
-						<Button
-							size="sm"
-							variant="secondary"
-							icon={ClipboardPaste}
-							onclick={() => paste()}
+						<Button variant="secondary" icon={ClipboardPaste} onclick={() => paste()}
 							>Paste {clip.paths.length}
 							{clip.paths.length === 1 ? 'item' : 'items'}</Button
 						>
 					{/if}
-					<div class="filter">
-						<Search size={14} strokeWidth={1.75} aria-hidden="true" />
-						<input
-							class="filter-input"
+					<div class="filter" role="search" aria-label="Filter by name">
+						<TextField
+							label="Filter by name"
+							hideLabel
 							type="search"
 							placeholder="Filter by name"
-							aria-label="Filter by name"
 							bind:value={filterText}
 						/>
 					</div>
 					<IconButton
 						icon={filters.hidden ? Eye : EyeOff}
-						size="sm"
 						label={filters.hidden ? 'Hide hidden files' : 'Show hidden files'}
 						pressed={filters.hidden}
 						onclick={() => (filters = { ...filters, hidden: !filters.hidden })}
 					/>
-					<IconButton icon={RefreshCw} size="sm" label="Refresh" onclick={refresh} />
+					<span class="details-toggle">
+						<IconButton
+							icon={ListTree}
+							label="Show permissions and owners"
+							pressed={details}
+							onclick={() => (details = !details)}
+						/>
+					</span>
+					<IconButton icon={RefreshCw} label="Refresh" onclick={refresh} />
 				</div>
 
 				<div class="list">
@@ -1099,6 +1099,7 @@
 							{:else}
 								<ErrorState
 									compact
+									bare
 									error={listError}
 									title="The files of {where(dir)} could not be listed."
 									onretry={() => listing.refetch()}
@@ -1112,6 +1113,8 @@
 									bind:ref={listEl}
 									bind:selection
 									triggerProps={props}
+									{details}
+									active={showEditor ? session.active : null}
 									{rows}
 									{dir}
 									showParent={!isRoot(dir)}
@@ -1242,9 +1245,41 @@
 					ondismiss={(op) => (operations = operations.filter((o) => o.id !== op.id))}
 				/>
 			</div>
+		{/snippet}
 
-			{#if showEditor}
-				{#if wide.current}
+		{#snippet editorPane()}
+			<div class="editor">
+				<EditorPane
+					{files}
+					{session}
+					canWrite={can('write') && writable}
+					{stack}
+					ondownload={downloadPath}
+					{onisdir}
+					takenNames={(d) => (d === dir ? takenHere : [])}
+				/>
+			</div>
+		{/snippet}
+
+		<div
+			class="split"
+			class:editing={showEditor}
+			class:tabbed
+			style="--list-width: {listWidth}px"
+		>
+			{#if tabbed}
+				<Tabs
+					items={paneTabs}
+					bind:value={() => pane, (v) => (pane = v === 'editor' ? 'editor' : 'files')}
+					label="Files and editor"
+				>
+					{#snippet panel(id)}
+						{#if id === 'editor'}{@render editorPane()}{:else}{@render browserPane()}{/if}
+					{/snippet}
+				</Tabs>
+			{:else}
+				{@render browserPane()}
+				{#if showEditor}
 					<!-- A focusable separator is a widget (ARIA window splitter): arrows resize it. -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 					<div
@@ -1259,18 +1294,8 @@
 						onkeydown={onSplitKey}
 						onpointerdown={onSplitDown}
 					></div>
+					{@render editorPane()}
 				{/if}
-				<div class="editor" hidden={!wide.current && pane !== 'editor'}>
-					<EditorPane
-						{files}
-						{session}
-						canWrite={can('write') && writable}
-						{stack}
-						ondownload={downloadPath}
-						{onisdir}
-						takenNames={(d) => (d === dir ? takenHere : [])}
-					/>
-				</div>
 			{/if}
 		</div>
 	{/if}
@@ -1372,15 +1397,23 @@
 />
 
 <style>
+	/* As tall as its content (a short folder is a short card), at most the
+	   page's height; while the editor is open it takes the whole height. */
 	.fm {
 		display: flex;
+		flex: 0 1 auto;
 		flex-direction: column;
 		min-height: 0;
-		height: 100%;
+		max-height: 100%;
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		background: var(--surface-panel);
 		overflow: hidden;
+	}
+
+	.fm.full {
+		flex: 1 1 auto;
+		height: 100%;
 	}
 
 	.offline {
@@ -1456,36 +1489,59 @@
 		color: var(--text-faint);
 	}
 
-	.panes {
-		display: flex;
-		gap: var(--space-1);
-	}
-
 	.split {
 		display: flex;
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
+	}
+
+	/* Files and Editor tabs below 1024 px: the active pane fills the card. */
+	.split.tabbed :global(.dy-tabs) {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+	}
+
+	.split.tabbed :global(.dy-tab-list) {
+		flex: none;
+		padding: 0 var(--space-3);
+	}
+
+	.split.tabbed :global(.dy-tab-panel[data-state='active']) {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		min-height: 0;
+		padding-top: 0;
 	}
 
 	.browser {
 		display: flex;
 		flex-direction: column;
-		flex: 1;
+		flex: 1 1 auto;
 		min-width: 0;
 		min-height: 0;
 		container-type: inline-size;
 	}
 
-	/* A narrow list beside the editor: icon-only Upload, one toolbar row. */
-	@container (max-width: 460px) {
-		.upload-label {
+	/* The details view needs the room of a wide list. */
+	@container (max-width: 656px) {
+		.toolbar .details-toggle {
 			display: none;
 		}
+	}
 
-		.browser .toolbar {
-			flex-wrap: nowrap;
+	/* A narrow list beside the editor: icon-only Upload, New file and New
+	   folder (their names stay their accessible names). */
+	@container (max-width: 520px) {
+		.btn-label {
+			display: none;
 		}
+	}
 
+	@container (max-width: 460px) {
 		.browser .filter {
 			min-width: 64px;
 		}
@@ -1496,14 +1552,9 @@
 		}
 	}
 
-	.split.editing .browser {
+	.split.editing:not(.tabbed) .browser {
 		flex: 0 0 var(--list-width);
 		min-width: 280px;
-	}
-
-	.browser[hidden],
-	.editor[hidden] {
-		display: none;
 	}
 
 	.splitter {
@@ -1532,6 +1583,7 @@
 
 	.toolbar {
 		display: flex;
+		flex: none;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-1);
@@ -1539,46 +1591,21 @@
 	}
 
 	.filter {
-		display: flex;
 		flex: 1;
-		align-items: center;
-		gap: var(--space-2);
 		min-width: 120px;
 		max-width: 280px;
-		height: var(--control-height-sm);
 		margin-left: auto;
-		padding: 0 var(--space-2);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		color: var(--text-muted);
 	}
 
-	.filter:focus-within {
-		border-color: var(--accent-text);
-		outline: var(--focus-ring);
-		outline-offset: 0;
-	}
-
-	.filter-input {
-		flex: 1;
-		min-width: 0;
-		border: 0;
-		background: none;
-		color: var(--text-strong);
-		font-size: var(--text-body);
-		outline: none;
-	}
-
-	.filter-input::placeholder {
-		color: var(--text-muted);
+	.details-toggle {
+		display: contents;
 	}
 
 	.selgroup {
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		height: var(--control-height-sm);
+		height: var(--control-height);
 		padding: 0 var(--space-1);
 		border-radius: var(--radius-sm);
 		background: var(--surface-selected);
@@ -1601,7 +1628,7 @@
 
 	.list {
 		display: flex;
-		flex: 1;
+		flex: 1 1 auto;
 		flex-direction: column;
 		min-height: 0;
 		padding: 0 var(--space-2);
@@ -1613,6 +1640,7 @@
 
 	.status {
 		display: flex;
+		flex: none;
 		flex-wrap: wrap;
 		gap: var(--space-3);
 		min-height: 30px;

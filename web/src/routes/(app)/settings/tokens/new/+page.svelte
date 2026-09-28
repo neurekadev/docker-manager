@@ -17,6 +17,7 @@
 		Checkbox,
 		DeniedState,
 		Notice,
+		PageHeader,
 		RadioGroup,
 		SecretReveal,
 		TextField,
@@ -35,15 +36,14 @@
 	import { exceedsMaxLifetime, expiryFromDays } from '$lib/features/access/model';
 	import { heldCapabilities, type Rule } from '$lib/features/access/permissions';
 	import { accessKeys, catalogQuery } from '$lib/features/access/queries';
-	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
 	import { securitySettingsQuery } from '$lib/features/settings/queries';
 
 	usePage({
-		title: 'New API token',
+		title: 'Create API token',
 		crumbs: [
 			{ label: 'Settings', href: routes.settings() },
 			{ label: 'API tokens', href: routes.apiTokens() },
-			{ label: 'New token' }
+			{ label: 'Create token' }
 		]
 	});
 
@@ -116,8 +116,8 @@
 </script>
 
 <Page narrow={!!created}>
-	<SettingsHeader
-		title="New API token"
+	<PageHeader
+		title="Create API token"
 		description="Grant only what the script needs. You can revoke the token at any time."
 	/>
 	{#if perms.data && !can(access, 'api_tokens.create')}
@@ -210,12 +210,19 @@
 					{fields['body.scopes']}
 				</p>{/if}
 		</Card>
-		<FormFooter>
+		<FormFooter sticky>
+			{#snippet summary()}
+				<span role="status"
+					>{grants.length
+						? `${grants.length} ${grants.length === 1 ? 'action' : 'actions'} granted`
+						: !name.trim()
+							? 'Name the token and choose what it may do.'
+							: 'Choose at least one action the token may do.'}</span
+				>
+			{/snippet}
 			<Button variant="ghost" href={routes.apiTokens()}>Cancel</Button>
 			<Button variant="primary" loading={busy} disabled={!canCreate} onclick={create}>
-				Create token{grants.length
-					? ` with ${grants.length} ${grants.length === 1 ? 'grant' : 'grants'}`
-					: ''}
+				Create token
 			</Button>
 		</FormFooter>
 	{/if}

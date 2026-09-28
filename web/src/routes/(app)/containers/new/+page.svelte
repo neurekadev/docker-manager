@@ -1,9 +1,12 @@
 <script lang="ts">
 	// Create a container (#6): the v1 form covers the common options only
-	// (image, name, command, environment, ports, mounts, networks, restart
-	// policy, labels, resources, health check); anything more belongs in a
-	// Compose stack. The image must already be on the environment (#25: no
-	// implicit pull), so a missing image offers a pull first.
+	// (image, name, environment, ports, mounts, networks, restart policy,
+	// resources; command, user, health check and labels folded under
+	// "Advanced"); anything more belongs in a Compose stack. The image
+	// field suggests the environment's images and takes any reference; it
+	// must already be on the environment (#25: no implicit pull), so a
+	// missing image offers a pull first. The create button stays in reach
+	// (sticky footer) and says why it is not ready yet.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -28,13 +31,13 @@
 		PageHeader,
 		Select,
 		SuggestField,
-		Switch,
 		TextArea,
 		TextField,
 		fieldError,
 		toast
 	} from '$lib/ui';
-	import Page from '$lib/features/resources/Page.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import Page from '$lib/features/common/Page.svelte';
 	import PullImageDialog from '$lib/features/resources/PullImageDialog.svelte';
 	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
 	import {
@@ -43,6 +46,7 @@
 		megabytes,
 		NAME_RE,
 		parsePairs,
+		RESTART_OPTIONS,
 		splitCommand
 	} from '$lib/features/resources/model';
 	import { doneTitle, jobFailure, refusal, type Refusal } from '$lib/features/resources/refusals';
@@ -165,6 +169,28 @@
 	});
 	const valid = $derived(
 		!!image.trim() && !!name && Object.values(errors).every((e) => !e) && present
+	);
+	// Why the create button is not ready yet (shown next to it).
+	const blocker = $derived(
+		!image.trim()
+			? 'Enter an image.'
+			: !name
+				? 'Enter a name.'
+				: !present
+					? 'Pull the image first.'
+					: Object.values(errors).some(Boolean)
+						? 'Fix the fields marked in red.'
+						: null
+	);
+	// The advanced section opens by itself when one of its fields has an error.
+	const advancedError = $derived(
+		!!(errors.command || errors.entrypoint || errors.health || errors.labels)
+	);
+	// The environment's images as suggestions (tags; any reference or ID still works).
+	const imageSuggestions = $derived(
+		[...new Set((images.data?.items ?? []).flatMap((im) => im.repoTags))].sort((a, b) =>
+			a.localeCompare(b)
+		)
 	);
 
 	let busy = $state(false);
@@ -292,7 +318,7 @@
 		description="Creating containers needs the permission on an online environment. Ask the owner of this Docker Manager if you need it."
 	/>
 {:else}
-	<Page>
+	<Page narrow>
 		<PageHeader
 			title="Create container"
 			description="One container from an image that is already on the environment."
@@ -338,18 +364,17 @@
 								options={allowed.map((e) => ({ value: e.id, label: e.name }))}
 							/>
 						{/if}
-						<TextField
+						<SuggestField
 							label="Image"
 							mono
 							required
 							bind:value={image}
+							suggestions={imageSuggestions}
 							placeholder="repository:tag"
-							description="A reference or image ID. It must already be on {scope.name(
+							description="An image on {scope.name(
 								env
-							)}."
+							)}: pick one or type a reference or image ID."
 							error={fieldError(failure?.cause, 'body.image')}
-							autocomplete="off"
-							spellcheck="false"
 						/>
 						<TextField
 							label="Name"
@@ -383,39 +408,6 @@
 							</Notice>
 						</div>
 					{/if}
-				</Card>
-
-				<Card title="Command">
-					<div class="fields two">
-						<TextField
-							label="Command"
-							mono
-							bind:value={command}
-							placeholder={CMD_PLACEHOLDER}
-							description="Optional. Default: the image's command."
-							error={errors.command}
-						/>
-						<TextField
-							label="Entrypoint"
-							mono
-							bind:value={entrypoint}
-							description="Optional. Default: the image's entrypoint."
-							error={errors.entrypoint}
-						/>
-						<TextField
-							label="Working directory"
-							mono
-							bind:value={workingDir}
-							description="Optional."
-						/>
-						<TextField
-							label="User"
-							mono
-							bind:value={user}
-							placeholder="1000:1000"
-							description="Optional."
-						/>
-					</div>
 				</Card>
 
 				<Card title="Environment variables">
@@ -568,20 +560,13 @@
 					>
 				</Card>
 
-				<Card title="Restart, limits and health">
+				<Card title="Restart and limits">
 					<div class="fields three">
 						<Select
 							label="Restart policy"
 							bind:value={restart}
-							options={[
-								{ value: 'no', label: 'Never (no)' },
-								{ value: 'on-failure', label: 'When it fails (on-failure)' },
-								{
-									value: 'unless-stopped',
-									label: 'Unless stopped (unless-stopped)'
-								},
-								{ value: 'always', label: 'Always (always)' }
-							]}
+							description="When Docker starts the container again on its own."
+							options={[...RESTART_OPTIONS]}
 						/>
 						<TextField
 							label="CPU limit"
@@ -597,39 +582,80 @@
 							description="Optional."
 							error={errors.memory}
 						/>
-						<TextField
-							label="Health check command"
-							mono
-							bind:value={healthCmd}
-							placeholder="curl -f http://localhost/"
-							description="Optional. Runs in the container; exit code 0 is healthy."
-							error={errors.health}
-						/>
-						<TextField
-							label="Check every (seconds)"
-							inputmode="numeric"
-							bind:value={healthInterval}
-							description="Optional."
-						/>
-						<TextField
-							label="Retries"
-							inputmode="numeric"
-							bind:value={healthRetries}
-							description="Optional."
-						/>
 					</div>
 				</Card>
 
-				<Card title="Labels">
-					<TextArea
-						label="Labels"
-						mono
-						rows={3}
-						bind:value={labelText}
-						placeholder="traefik.enable=true"
-						description="One key=value per line. dev.neureka.docker-manager.* and com.docker.compose.* are reserved."
-						error={errors.labels ?? fieldError(failure?.cause, 'body.labels')}
-					/>
+				<Card title="Advanced">
+					<Disclosure
+						summary="Command, user, health check and labels"
+						open={advancedError}
+					>
+						<div class="advanced">
+							<h3 class="subsection-title">Command</h3>
+							<div class="fields two">
+								<TextField
+									label="Command"
+									mono
+									bind:value={command}
+									placeholder={CMD_PLACEHOLDER}
+									description="Optional. Default: the image's command."
+									error={errors.command}
+								/>
+								<TextField
+									label="Entrypoint"
+									mono
+									bind:value={entrypoint}
+									description="Optional. Default: the image's entrypoint."
+									error={errors.entrypoint}
+								/>
+								<TextField
+									label="Working directory"
+									mono
+									bind:value={workingDir}
+									description="Optional."
+								/>
+								<TextField
+									label="User"
+									mono
+									bind:value={user}
+									placeholder="1000:1000"
+									description="Optional."
+								/>
+							</div>
+							<h3 class="subsection-title">Health check</h3>
+							<div class="fields three">
+								<TextField
+									label="Health check command"
+									mono
+									bind:value={healthCmd}
+									placeholder="curl -f http://localhost/"
+									description="Optional. Runs in the container; exit code 0 is healthy."
+									error={errors.health}
+								/>
+								<TextField
+									label="Check every (seconds)"
+									inputmode="numeric"
+									bind:value={healthInterval}
+									description="Optional."
+								/>
+								<TextField
+									label="Retries"
+									inputmode="numeric"
+									bind:value={healthRetries}
+									description="Optional."
+								/>
+							</div>
+							<TextArea
+								label="Labels"
+								mono
+								rows={3}
+								bind:value={labelText}
+								placeholder="traefik.enable=true"
+								description="One key=value per line. Labels of Docker Manager and Compose are reserved."
+								error={errors.labels ?? fieldError(failure?.cause, 'body.labels')}
+							/>
+						</div>
+					</Disclosure>
 				</Card>
 
 				{#if failure}
@@ -638,7 +664,8 @@
 					>
 				{/if}
 				<div class="submit">
-					<Switch label="Start it after creating" bind:checked={start} />
+					<Checkbox label="Start it after creating" bind:checked={start} />
+					{#if blocker}<p class="blocker" aria-live="polite">{blocker}</p>{/if}
 					<Button variant="ghost" href={routes.containers()}>Cancel</Button>
 					<Button
 						type="submit"
@@ -713,12 +740,31 @@
 		font-size: var(--text-caption);
 	}
 
+	.advanced {
+		display: grid;
+		gap: var(--space-4);
+		margin-top: var(--space-2);
+	}
+
+	/* Sticky: the create button stays in reach on a long form. */
 	.submit {
+		position: sticky;
+		bottom: 0;
+		z-index: var(--z-sticky);
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		justify-content: flex-end;
 		gap: var(--space-3);
+		padding: var(--space-3) 0;
+		border-top: 1px solid var(--border-subtle);
+		background: var(--surface-canvas);
+	}
+
+	.blocker {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
 	}
 
 	.submit :global(> :first-child) {

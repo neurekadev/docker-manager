@@ -52,16 +52,18 @@ a passkey, and save your recovery codes somewhere safe.
 
 ## 5. Connect this host
 
-1. Go to **Environments → Add environment**, enter a name and create the
-   token. It is shown only once.
-2. Give the token to the agent that is already running:
+1. Go to **Environments → Add environment**, enter a name and press
+   **Create install command**.
+2. Open the **On the Docker Manager host** tab, copy the command and run it
+   in the folder with your `compose.yaml`. It hands a one-time token to the
+   agent that is already running and looks like this:
 
    ```bash
    printf '%s\n' '<token>' | docker compose exec -T docker-agent docker-agent enroll
    ```
 
-The host appears as online within a few seconds, with its containers,
-images, volumes and networks.
+The page shows **Connected** within a few seconds, and the host appears
+with its containers, images, volumes and networks.
 
 ## Add another host
 
@@ -74,9 +76,11 @@ cd docker-manager/deploy/remote-agent
 cp .env.example .env
 ```
 
-In `.env`, set `DOCKER_AGENT_MANAGER_URL` to your address
-(`https://docker.example.com`), paste a new token from **Environments → Add
-environment** into `DOCKER_AGENT_ENROLLMENT_TOKEN`, and start it:
+In **Environments → Add environment**, create a new install command and
+open the **On another Docker host, with Compose** tab. It shows the lines
+for `.env`: `DOCKER_AGENT_MANAGER_URL` with your address and
+`DOCKER_AGENT_ENROLLMENT_TOKEN` with a one-time token. Put them in `.env`
+and start the agent:
 
 ```bash
 docker compose up -d

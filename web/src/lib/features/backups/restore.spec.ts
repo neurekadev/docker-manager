@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Job } from '$lib/api/client';
-import { activeRestore, restoreBody, restoreConsequences } from './restore';
+import {
+	activeRestore,
+	restoreBody,
+	restoreConsequences,
+	toggleVolume,
+	volumeChoiceError
+} from './restore';
 
 describe('restores from a Backups tab (#10)', () => {
 	it('sends the scope the subject needs', () => {
@@ -54,6 +60,23 @@ describe('restores from a Backups tab (#10)', () => {
 		).toBe(
 			'Everything in volume up is replaced by the backup; files created since are removed.'
 		);
+	});
+
+	it('keeps the chosen volumes explicit: unticking the last one chooses none', () => {
+		let chosen = ['db', 'media'];
+		chosen = toggleVolume(chosen, 'db', false);
+		expect(chosen).toEqual(['media']);
+		chosen = toggleVolume(chosen, 'media', false);
+		expect(chosen).toEqual([]);
+		expect(volumeChoiceError('volume', ['db', 'media'], chosen)).toBe(
+			'Choose at least one volume to restore.'
+		);
+		chosen = toggleVolume(toggleVolume(chosen, 'db', true), 'db', true);
+		expect(chosen).toEqual(['db']);
+		expect(volumeChoiceError('volume', ['db', 'media'], chosen)).toBeNull();
+		// One volume, or another scope, needs no choice.
+		expect(volumeChoiceError('volume', ['db'], [])).toBeNull();
+		expect(volumeChoiceError('stack', ['db', 'media'], [])).toBeNull();
 	});
 
 	it('finds a restore that has not ended', () => {

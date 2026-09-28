@@ -238,6 +238,7 @@
 			hideHeader: true,
 			cell: pkActions,
 			width: '180px',
+			pin: 'end',
 			stack: 'actions'
 		}
 	];
@@ -248,9 +249,9 @@
 		sub="Added {formatDateTime(p.createdAt)}"
 	/>{/snippet}
 {#snippet pkUsedCell(p: Passkey)}
-	{#if p.lastUsedAt}<span class="num">{formatRelative(p.lastUsedAt)}</span>{:else}<span
-			class="muted">Never</span
-		>{/if}
+	{#if p.lastUsedAt}<span class="num" title={formatDateTime(p.lastUsedAt)}
+			>{formatRelative(p.lastUsedAt)}</span
+		>{:else}<span class="muted">Never</span>{/if}
 {/snippet}
 {#snippet pkBackupCell(p: Passkey)}
 	{#if p.backedUp}<Badge tone="ok">Backed up</Badge>{:else if p.backupEligible}<Badge
@@ -307,7 +308,8 @@
 				subtitle="Your other sessions end when it changes; this one continues."
 			>
 				<form onsubmit={changePassword} novalidate>
-					<Fields>
+					<!-- Two columns everywhere, so every password field has the same width. -->
+					<Fields columns={2}>
 						<input
 							type="text"
 							autocomplete="username"
@@ -370,7 +372,7 @@
 
 		<Card
 			title="Authenticator app"
-			subtitle="A 6-digit code from an app like 1Password, Aegis or Google Authenticator, asked after your password."
+			subtitle="A 6-digit code from an app like 1Password, Aegis or Google Authenticator (TOTP), asked after your password."
 		>
 			{#snippet actions()}
 				{#if me.factors.totp}<Badge tone="ok" dot>On</Badge>{:else}<Badge dot>Off</Badge

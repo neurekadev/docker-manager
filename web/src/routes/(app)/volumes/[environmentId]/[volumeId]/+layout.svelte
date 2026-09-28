@@ -1,22 +1,24 @@
 <script lang="ts">
-	// Volume detail (#6): header with usage and actions (migrate #35,
-	// remove with consequences), what Docker Manager refuses and why (#32, managed
-	// stacks, non-local drivers #28), and the tabs: Overview here, Files
-	// (#15 volume file manager), Backups (#10) and Migrate as child routes.
+	// Volume detail (#6): header with usage, size and actions ("Browse
+	// files"; removal with the server's preview is the last entry of the
+	// "More actions" menu), what Docker Manager refuses and why (#32,
+	// managed stacks, non-local drivers #28), and the tabs: Overview here,
+	// Files (#15 volume file manager), Backups (#10) and Migrate (#35, only
+	// with another environment to move to) as child routes.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
 	import Clock from '@lucide/svelte/icons/clock';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import FolderOpen from '@lucide/svelte/icons/folder-open';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Server from '@lucide/svelte/icons/server';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
-	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { ApiRequestError } from '$lib/api/client';
-	import { myPermissionsQuery, volumeQuery } from '$lib/api/queries';
+	import { myPermissionsQuery, volumeQuery, volumeUsageQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -24,13 +26,18 @@
 		Button,
 		EmptyState,
 		ErrorState,
+		IconButton,
 		JobProgress,
+		Menu,
 		Notice,
 		OfflineEnvironment,
 		PageHeader,
 		Skeleton,
 		TabNav,
+		formatBytes,
+		formatDateTime,
 		formatRelative,
+		type MenuEntry,
 		type MetaItem,
 		type TabLink
 	} from '$lib/ui';
@@ -43,6 +50,7 @@
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
+	import { onlyOneEnvironment } from '$lib/features/common/data';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -68,7 +76,14 @@
 	const filesOpen = $derived(
 		!!v && access.local && !v.protection && can(v.actions, 'volume.files.read')
 	);
-	const migratable = $derived(!!v && !v.protection && can(v.actions, 'volume.migrate'));
+	const oneEnvironment = $derived(onlyOneEnvironment(scope.envs.data));
+	// Migrate shows once: as a tab, and only with another environment to move to.
+	const migratable = $derived(
+		!!v && !v.protection && !oneEnvironment && can(v.actions, 'volume.migrate')
+	);
+	// The size the list shows (the Engine's disk usage, reused for a minute).
+	const usage = createQuery(() => ({ ...volumeUsageQuery(env), enabled: !!v }));
+	const size = $derived(usage.data?.items.find((i) => i.name === name)?.sizeBytes);
 	const perms = createQuery(() => myPermissionsQuery());
 	const backedUp = $derived(!!v && !v.protection && canAnywhere(perms.data, 'backup.read'));
 
@@ -81,8 +96,11 @@
 	const meta = $derived<MetaItem[]>(
 		v
 			? [
-					{ icon: Server, label: envName },
-					...(v.driver ? [{ icon: HardDrive, label: `Driver ${v.driver}` }] : []),
+					...(oneEnvironment ? [] : [{ icon: Server, label: envName }]),
+					...(size !== undefined ? [{ icon: HardDrive, label: formatBytes(size) }] : []),
+					...(v.driver && v.driver !== 'local'
+						? [{ icon: HardDrive, label: `Driver ${v.driver}` }]
+						: []),
 					...(v.stack
 						? [
 								{
@@ -97,13 +115,32 @@
 								{
 									icon: Clock,
 									label: `Created ${formatRelative(v.createdAt)}`,
-									title: v.createdAt
+									title: formatDateTime(v.createdAt)
 								}
 							]
 						: [])
 				]
 			: []
 	);
+	/** Removal last, after a separator (one rule on every resource page). */
+	const overflow = $derived.by<MenuEntry[]>(() => {
+		// Docker Manager's own volumes are never removed: no entry (the notice says why).
+		if (!v || v.protection || !can(v.actions, 'volume.remove')) return [];
+		return [
+			{
+				label: 'Remove…',
+				tone: 'danger',
+				onSelect: () =>
+					remover?.request({
+						kind: 'volume',
+						environmentId: env,
+						name: v.name,
+						protection: v.protection,
+						usedBy: v.usedBy
+					})
+			}
+		];
+	});
 </script>
 
 <ObjectRemoveHost
@@ -139,33 +176,34 @@
 			onretry={() => q.refetch()}
 		/>
 	{:else if v}
-		<PageHeader title={v.name} icon={HardDrive} color="teal" {meta}>
+		<PageHeader title={v.name} truncate icon={HardDrive} color="teal" {meta}>
 			{#snippet status()}
 				{#if v.inUse}<Badge tone="ok" dot>In use</Badge>{:else}<Badge>Unused</Badge>{/if}
 				{#if !access.local}<Badge tone="warn">Read-only</Badge>{/if}
-				{#if v.protection}<ProtectionBadge protection={v.protection} />{/if}
+				{#if v.protection}<ProtectionBadge
+						protection={v.protection}
+						label="Used by Docker Manager"
+					/>{/if}
 			{/snippet}
 			{#snippet actions()}
-				{#if migratable && !page.url.pathname.endsWith('/migrate')}
+				{#if filesOpen && !page.url.pathname.endsWith('/files')}
 					<Button
 						variant="secondary"
-						icon={ArrowRightLeft}
-						href={routes.volume(env, name, 'migrate')}>Migrate</Button
+						icon={FolderOpen}
+						href={routes.volume(env, name, 'files')}>Browse files</Button
 					>
 				{/if}
-				{#if can(v.actions, 'volume.remove')}
-					<Button
-						variant="danger-soft"
-						icon={Trash2}
-						onclick={() =>
-							remover?.request({
-								kind: 'volume',
-								environmentId: env,
-								name: v.name,
-								protection: v.protection,
-								usedBy: v.usedBy
-							})}>Remove</Button
-					>
+				{#if overflow.length}
+					<Menu items={overflow} label="More actions for {v.name}" align="end">
+						{#snippet trigger(props)}
+							<IconButton
+								{...props}
+								icon={Ellipsis}
+								label="More actions"
+								variant="secondary"
+							/>
+						{/snippet}
+					</Menu>
 				{/if}
 			{/snippet}
 		</PageHeader>

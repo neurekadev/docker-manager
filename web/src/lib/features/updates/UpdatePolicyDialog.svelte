@@ -2,8 +2,9 @@
 	// Create or edit an environment update policy (#20) in a dialog: what it
 	// covers on the left (scope, fixed after creation; stacks and standalone
 	// containers, all included until unchecked), when it runs on the right
-	// (check and run schedules, #13, both off until turned on; an optional
-	// update window and the health wait). Saving never runs anything.
+	// (check and run schedules, #13, both off until turned on, their
+	// schedule fields shown only while on; an optional update window and
+	// the health wait). Saving never runs anything.
 	// Render it only while open ({#if}): each opening starts from `policy`.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -397,7 +398,7 @@
 							bind:checked={checkEnabled}
 							onchange={() => (touched = true)}
 						/>
-						{#if checkZone}
+						{#if checkZone && checkEnabled}
 							<CronField
 								label="Check schedule"
 								kind="update_check"
@@ -408,7 +409,7 @@
 					</FieldGroup>
 					<FieldGroup
 						legend="Updates"
-						hint="An update pulls the new image and recreates the services that changed, in depends_on order; dependents that declare restart: true restart with them."
+						hint="An update pulls the new image and recreates the services that changed, dependencies first."
 					>
 						<Switch
 							label="Update automatically"
@@ -428,7 +429,7 @@
 								and you pin a working image yourself.
 							</Notice>
 						{/if}
-						{#if runZone}
+						{#if runZone && runEnabled}
 							<CronField
 								label="Update schedule"
 								kind="update_run"

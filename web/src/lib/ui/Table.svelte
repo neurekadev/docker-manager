@@ -1,7 +1,11 @@
 <script lang="ts" generics="T">
 	// Data table (#22): sortable headers (aria-sort), selectable rows, sticky
 	// header, stacked row cards below 768 px, and windowed rendering past
-	// `virtualizeAfter` rows. Columns and helpers: ./table.ts.
+	// `virtualizeAfter` rows. Columns may cap and truncate their content
+	// (`maxWidth`, `truncate`, `title`) and pin to the right edge
+	// (`pin: 'end'`) while the table scrolls sideways. Without rows and
+	// without an `empty` snippet it shows "Nothing here yet.". Columns and
+	// helpers: ./table.ts.
 	import type { Snippet } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
@@ -9,6 +13,8 @@
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Checkbox from './Checkbox.svelte';
 	import {
+		cellStyle,
+		cellTitle,
 		nextSort,
 		selectionState,
 		sortRows,
@@ -115,6 +121,16 @@
 	{/if}
 {/snippet}
 
+{#snippet boxedContent(col: Column<T>, row: T)}
+	{#if col.maxWidth || col.truncate}
+		<div class="cell-box" class:truncate={col.truncate} style={cellStyle(col)}>
+			{@render cellContent(col, row)}
+		</div>
+	{:else}
+		{@render cellContent(col, row)}
+	{/if}
+{/snippet}
+
 {#if sorted.length === 0 && empty}
 	<div class="empty">{@render empty()}</div>
 {:else if stacked}
@@ -138,6 +154,7 @@
 							)}{/each}
 					</div>
 					{#each byRole('status') as col (col.id)}{@render cellContent(col, row)}{/each}
+					{#each byRole('head') as col (col.id)}{@render cellContent(col, row)}{/each}
 				</div>
 				{#if byRole('meta').length}
 					<dl class="card-meta">
@@ -160,6 +177,8 @@
 					</div>
 				{/if}
 			</li>
+		{:else}
+			<li class="card none">Nothing here yet.</li>
 		{/each}
 	</ul>
 {:else}
@@ -188,6 +207,7 @@
 							scope="col"
 							style={col.width ? `width: ${col.width}` : undefined}
 							class:end={col.align === 'end' || col.numeric}
+							class:pin={col.pin === 'end'}
 							aria-sort={ariaSort(col)}
 						>
 							{#if col.sortValue}
@@ -256,10 +276,16 @@
 								class:end={col.align === 'end' || col.numeric}
 								class:num={col.numeric}
 								class:mono={col.mono}
+								class:pin={col.pin === 'end'}
+								title={cellTitle(col, row)}
 							>
-								{@render cellContent(col, row)}
+								{@render boxedContent(col, row)}
 							</td>
 						{/each}
+					</tr>
+				{:else}
+					<tr>
+						<td class="none" colspan={colCount}>Nothing here yet.</td>
 					</tr>
 				{/each}
 				{#if win.padBottom > 0}
@@ -273,8 +299,13 @@
 {/if}
 
 <style>
+	/* position: relative keeps absolutely positioned content of cells (the
+	   .sr-only texts) inside the scroll box, so it cannot widen the page.
+	   The bottom radius clips the last row's hover to a card's corners. */
 	.scroll {
+		position: relative;
 		overflow-x: auto;
+		border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
 	}
 
 	.scroll.bounded {
@@ -349,6 +380,46 @@
 		background: var(--surface-hover);
 	}
 
+	/* Content capped by Column.maxWidth; truncate keeps it to one line. */
+	.cell-box {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.cell-box.truncate {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Column.pin 'end': stays at the right edge while the table scrolls
+	   sideways, on the row's own background (hover and selection too). */
+	th.pin,
+	td.pin {
+		position: sticky;
+		right: 0;
+	}
+
+	td.pin {
+		z-index: 1;
+		background: var(--surface-panel);
+	}
+
+	th.pin {
+		z-index: calc(var(--z-sticky) + 1);
+	}
+
+	td.none {
+		height: auto;
+		padding: var(--space-6) var(--space-4);
+		color: var(--text-muted);
+		text-align: center;
+	}
+
+	tbody tr:has(td.none):hover td {
+		background: none;
+	}
+
 	tr.selected td:first-child {
 		box-shadow: inset 2px 0 0 var(--accent);
 	}
@@ -406,6 +477,11 @@
 		color: var(--text-default);
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.card.none {
+		color: var(--text-muted);
+		text-align: center;
 	}
 
 	.card-actions {

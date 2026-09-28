@@ -1,8 +1,11 @@
 <script lang="ts">
 	// The file editor (#15, the mockup's editor card): tabs of open files,
-	// language select, Format (YAML/JSON), Search, a Markdown preview toggle
-	// and Save. Saving a Compose source of a stack records a new revision and
-	// deploys nothing (#7, #25 Q1). An external change keeps the unsaved
+	// language select, Format (YAML/JSON), line wrap, Search, a Markdown
+	// preview toggle and Save. Saving a Compose source of a stack records a
+	// new revision and deploys nothing (#7, #25 Q1): the definition is then
+	// validated (findings shown above the text), the saved toast offers
+	// Deploy and the status line keeps a Deploy action while the saved
+	// definition is not deployed (with stack.deploy). An external change keeps the unsaved
 	// buffer and shows the conflict banner exactly per the brief:
 	// "<file> changed on disk. Your edits are kept." with Compare, Reload from
 	// disk, Save as… and Overwrite (confirmed).
@@ -10,9 +13,12 @@
 	import { goto } from '$app/navigation';
 	import Eye from '@lucide/svelte/icons/eye';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import Rocket from '@lucide/svelte/icons/rocket';
 	import Save from '@lucide/svelte/icons/save';
 	import Search from '@lucide/svelte/icons/search';
+	import TextWrap from '@lucide/svelte/icons/text-wrap';
 	import X from '@lucide/svelte/icons/x';
+	import type { Schema } from '$lib/api/client';
 	import { EDITOR_LANGUAGES, formatDocument, type CodeEditorHandle } from '$lib/lazy';
 	import { liveKeys } from '$lib/live/keys';
 	import {
@@ -25,9 +31,16 @@
 		formatDateTime,
 		toast
 	} from '$lib/ui';
+	import { validateStack } from '$lib/features/stacks/actions';
+	import ValidationResult from '$lib/features/stacks/ValidationResult.svelte';
 	import { liveScopeOf, type FilesApi } from './api';
 	import CompareDialog from './CompareDialog.svelte';
-	import { definitionRefusal, isDefinitionFile } from './definition';
+	import {
+		definitionFiles,
+		definitionRefusal,
+		isDefinitionFile,
+		type StackFiles
+	} from './definition';
 	import { isDirty, SaveBlockedError, type EditorSession, type EditorTab } from './editor.svelte';
 	import EditorDocument from './EditorDocument.svelte';
 	import { formattable, LANGUAGE_LABELS } from './language';
@@ -38,8 +51,8 @@
 		files: FilesApi;
 		session: EditorSession;
 		canWrite: boolean;
-		/** Stack scope: Compose sources and where their revisions are. */
-		stack?: { name: string; configFiles: string[]; revisionsHref?: string } | null;
+		/** Stack scope: Compose sources, revisions, validation and deploy. */
+		stack?: StackFiles | null;
 		ondownload: (path: string) => void;
 		onisdir: (path: string) => void;
 		/** Names in a directory (Save as… refuses taken names early). */
@@ -62,13 +75,11 @@
 	const tab = $derived(session.current);
 	const handle = $derived(tab ? (editors[tab.path] ?? null) : null);
 	const isMarkdown = $derived(tab?.language === 'markdown');
-	const definition = $derived(
-		!!tab &&
-			!!stack &&
-			files.scope.kind === 'stack' &&
-			isDefinitionFile(tab.path, stack.configFiles)
-	);
+	const isDefinition = (path: string) =>
+		!!stack && files.scope.kind === 'stack' && isDefinitionFile(path, stack.configFiles);
+	const definition = $derived(!!tab && isDefinition(tab.path));
 	const readOnly = $derived(!canWrite);
+	let wrap = $state(false);
 
 	const languageOptions = EDITOR_LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_LABELS[l] }));
 
@@ -80,15 +91,83 @@
 
 	function savedToast(t: EditorTab) {
 		const name = basename(t.path);
-		if (definition && stack) {
+		if (stack && isDefinition(t.path)) {
+			const s = stack;
 			toast.success(`Saved ${name}`, {
-				body: `Recorded a new revision of ${stack.name}. It is not deployed: deploy ${stack.name} to apply it.`,
-				action: stack.revisionsHref
-					? { label: 'Open revisions', onclick: () => void goto(stack.revisionsHref!) }
-					: undefined
+				body: s.deploy
+					? `Recorded a new revision of ${s.name}. Deploy ${s.name} to apply it.`
+					: `Recorded a new revision of ${s.name}. It is not deployed yet.`,
+				action: s.deploy
+					? { label: 'Deploy', onclick: () => void deploy() }
+					: s.revisionsHref
+						? { label: 'Open revisions', onclick: () => void goto(s.revisionsHref!) }
+						: undefined
 			});
+			void validate(t);
 		} else toast.success(`Saved ${name}`);
 	}
+
+	// Deploy of the saved definition (the stack page's job tray reports it).
+	let deploying = $state(false);
+	async function deploy() {
+		const s = stack;
+		if (!s?.deploy || deploying) return;
+		deploying = true;
+		try {
+			await s.deploy();
+		} catch (e) {
+			toast.error(`${s.name} was not deployed`, { body: errorMessage(e) });
+		} finally {
+			deploying = false;
+		}
+	}
+
+	// Validation after saving a Compose source: the findings (warnings,
+	// services) of the definition now on disk. The server refused invalid
+	// saves already, so a failed validation only leaves the panel out.
+	let validation = $state<{ path: string; result: Schema<'StackValidation'> } | null>(null);
+	let validationRun = 0;
+	async function validate(t: EditorTab) {
+		const s = stack;
+		if (!s?.environmentId || files.scope.kind !== 'stack') return;
+		const run = ++validationRun;
+		try {
+			const root = await files.list('.', { sort: 'type', q: '', hidden: true });
+			const which = definitionFiles(
+				s.configFiles,
+				root.items.map((e) => e.name)
+			);
+			if (!which) return;
+			// The saved file's text is what was just written; the rest is read.
+			const text = async (path?: string) => {
+				if (!path) return undefined;
+				if (path === t.path) return t.buffer;
+				const r = await files.read(path);
+				if (r.data.binary || r.data.truncated) throw new Error('not readable as text');
+				return r.data.content ?? '';
+			};
+			const [compose, override, env] = await Promise.all([
+				text(which.compose),
+				text(which.override),
+				text(which.env)
+			]);
+			const result = await validateStack({
+				environmentId: s.environmentId,
+				name: s.projectName ?? s.name,
+				compose: compose ?? '',
+				override: override || undefined,
+				env: env || undefined
+			});
+			if (run === validationRun) validation = { path: t.path, result };
+		} catch {
+			// Nothing to add: the save succeeded and the server checked it.
+		}
+	}
+	const shownValidation = $derived(
+		validation && tab && validation.path === tab.path && !isDirty(tab)
+			? validation.result
+			: null
+	);
 
 	async function save() {
 		const t = tab;
@@ -256,6 +335,15 @@
 					>
 				{/if}
 				<IconButton
+					icon={TextWrap}
+					variant="secondary"
+					size="sm"
+					label="Wrap long lines"
+					pressed={wrap}
+					disabled={!!previews[tab.path]}
+					onclick={() => (wrap = !wrap)}
+				/>
+				<IconButton
 					icon={Search}
 					variant="secondary"
 					size="sm"
@@ -316,6 +404,18 @@
 		</Notice>
 	{/if}
 
+	{#if shownValidation}
+		<div class="validation">
+			<ValidationResult validation={shownValidation} fixBefore="deploying" />
+			<IconButton
+				icon={X}
+				size="sm"
+				label="Hide the validation result"
+				onclick={() => (validation = null)}
+			/>
+		</div>
+	{/if}
+
 	<div
 		class="docs"
 		id="editor-panel"
@@ -330,6 +430,7 @@
 					tab={t}
 					{readOnly}
 					preview={!!previews[t.path]}
+					{wrap}
 					bind:editor={editors[t.path]}
 					{ondownload}
 					{onisdir}
@@ -350,10 +451,20 @@
 			{/if}
 			{#if readOnly && tab.status === 'ready'}<span>Read only</span>{/if}
 			{#if definition && stack}
-				<span class="hint"
-					>Compose source: saving records a new revision of {stack.name}; it is not
-					deployed.</span
-				>
+				{#if stack.undeployed && !isDirty(tab)}
+					<span class="hint">Saved changes aren't deployed yet.</span>
+					{#if stack.deploy}
+						<Button
+							size="sm"
+							variant="ghost"
+							icon={Rocket}
+							loading={deploying}
+							onclick={deploy}>Deploy {stack.name}</Button
+						>
+					{/if}
+				{:else}
+					<span class="hint">Saving doesn't deploy {stack.name}.</span>
+				{/if}
 			{/if}
 		</footer>
 	{/if}
@@ -551,7 +662,18 @@
 	.hint {
 		overflow: hidden;
 		text-overflow: ellipsis;
-		color: var(--warn);
+	}
+
+	.validation {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--space-3);
+		max-height: 30%;
+		overflow: auto;
+		padding: var(--space-2) var(--space-3);
+		border-bottom: 1px solid var(--border-subtle);
+		font-size: var(--text-body);
 	}
 
 	@media (max-width: 767px) {

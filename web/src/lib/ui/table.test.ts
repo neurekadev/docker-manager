@@ -66,6 +66,37 @@ describe('Table', () => {
 		expect(within(cards[0]).getByText('ghcr.io/silo/web:latest')).toBeInTheDocument();
 	});
 
+	it("puts a 'head' column on the stacked card's first line instead of a line of its own", () => {
+		render(TableHarness, { props: { rows, layout: 'stacked', image: { stack: 'head' } } });
+		const cards = within(screen.getByRole('list', { name: 'Services' })).getAllByRole(
+			'listitem'
+		);
+		expect(cards[0].querySelector('.card-head')).toHaveTextContent('ghcr.io/silo/web:latest');
+		expect(within(cards[0]).queryByText('Image')).toBeNull();
+		expect(cards[0].querySelector('.card-actions')).toBeNull();
+	});
+
+	it('says so when there are no rows and no empty snippet', () => {
+		render(TableHarness, { props: { rows: [] } });
+		const cell = screen.getByRole('cell', { name: 'Nothing here yet.' });
+		expect(cell).toHaveAttribute('colspan', '3');
+	});
+
+	it('truncates capped columns with the full value as tooltip and pins the last column', () => {
+		render(TableHarness, {
+			props: { rows, image: { maxWidth: '200px', truncate: true, pin: 'end' } }
+		});
+		const cell = screen.getByRole('cell', { name: 'ghcr.io/silo/web:latest' });
+		expect(cell).toHaveAttribute('title', 'ghcr.io/silo/web:latest');
+		expect(cell).toHaveClass('pin');
+		const box = cell.querySelector('.cell-box');
+		expect(box).toHaveClass('truncate');
+		expect(box).toHaveStyle({ maxWidth: '200px' });
+		expect(screen.getByRole('columnheader', { name: 'Image' })).toHaveClass('pin');
+		// Other columns keep their plain cells.
+		expect(screen.getByRole('cell', { name: 'silo-web' })).not.toHaveAttribute('title');
+	});
+
 	it('windows lists past 500 rows but reports the full size', () => {
 		const many = Array.from({ length: 2000 }, (_, i) => ({
 			name: `svc-${String(i).padStart(4, '0')}`,

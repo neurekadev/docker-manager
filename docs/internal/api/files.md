@@ -228,11 +228,13 @@ roots): the stack's Files tab (`/stacks/{id}/files`) and the volume file
 manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
 
 - **Browsing:** breadcrumbs, sortable columns (name with folders first,
-  size, modified), filter (`q`), hidden files, pages of 200 loaded as the
+  size, modified; permissions and owners in the details view, off by
+  default), filter (`q`), hidden files, pages of 200 loaded as the
   list scrolls, rows windowed past a screenful, the `..` row below the
   root (opens the parent, accepts drops).
 - **Selection and keyboard** (only while the list has focus, never in the
-  editor or a form): click, Ctrl/Cmd-click, Shift-click, row checkboxes
+  editor or a form): click (a click that opens a file only moves the
+  cursor, it selects nothing), Ctrl/Cmd-click, Shift-click, row checkboxes
   (touch); arrows, Shift+arrows, Space, Home/End, Enter (open),
   Backspace/Alt+Up (parent), Ctrl/Cmd+A/C/X/V, F2, Delete, Escape,
   Shift+F10 (context menu). Actions apply to the selection only.
@@ -248,10 +250,13 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   need type-to-confirm. Jobs show `JobProgress` with per-item results and
   Cancel.
 - **Editor:** tabs, CodeMirror languages by name (select to change),
-  search/replace, Format (YAML with comments, JSON), Save with `If-Match`
-  (Ctrl/Cmd+S), Markdown preview (a safe subset; no HTML from files).
-  Compose sources of a stack say "saving records a new revision; it is not
-  deployed". Large files open read-only (first 512 KiB), binary files as a
+  search/replace, line wrap, Format (YAML with comments, JSON), Save with
+  `If-Match` (Ctrl/Cmd+S), Markdown preview (a safe subset; no HTML from
+  files). Saving a Compose source of a stack records a revision and
+  deploys nothing: the editor then validates the definition on disk
+  (`POST /stacks/validations`), its toast offers Deploy, and its status
+  line offers Deploy while the stack has undeployed changes (with
+  `stack.deploy`). Large files open read-only (first 512 KiB), binary files as a
   download (images previewed up to 5 MiB). An external change keeps the
   unsaved buffer: "<file> changed on disk. Your edits are kept." with
   Compare (line diff), Reload from disk, Save as… and Overwrite (confirmed,

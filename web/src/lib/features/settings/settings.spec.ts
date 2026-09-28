@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { detailPairs, diffRows, localToRFC3339 } from './audit';
+import {
+	auditActionLabel,
+	detailPairs,
+	diffRows,
+	groupAuditRows,
+	isOpaqueId,
+	localToRFC3339,
+	parseWho,
+	rangeSince,
+	targetText
+} from './audit';
 import {
 	deploymentFacts,
 	FACTOR_POLICY,
@@ -7,7 +17,7 @@ import {
 	instanceNameProblem,
 	settingsChanges
 } from './model';
-import { auditExportHref, cleanFilter, type SecuritySettings } from './queries';
+import { auditExportHref, cleanFilter, type AuditEvent, type SecuritySettings } from './queries';
 
 describe('audit viewer (#30)', () => {
 	it('shows rule diffs as added and removed rules', () => {
@@ -62,6 +72,82 @@ describe('audit viewer (#30)', () => {
 		expect(localToRFC3339('')).toBeUndefined();
 		expect(localToRFC3339('not a date')).toBeUndefined();
 		expect(localToRFC3339('2026-09-25T10:00')).toMatch(/^2026-09-25T\d\d:00:00\.000Z$/);
+	});
+
+	it('reads actions in words: known keys, catalog labels, then the key in words', () => {
+		const catalog = {
+			capabilities: [
+				{ key: 'stack.deploy', label: 'Deploy', resourceType: 'stack' },
+				{ key: 'stack.create', label: 'Create stacks', resourceType: 'stack' }
+			],
+			resourceTypes: [{ key: 'stack', label: 'Stacks' }]
+		};
+		expect(auditActionLabel('registry.use', catalog)).toBe('Used a registry connection');
+		expect(auditActionLabel('auth.sign_in')).toBe('Signed in');
+		expect(auditActionLabel('stack.deploy', catalog)).toBe('Deploy (stacks)');
+		expect(auditActionLabel('stack.create', catalog)).toBe('Create stacks');
+		expect(auditActionLabel('stack.migrate.preview')).toBe('Stack migrate preview');
+	});
+
+	it('names targets, never by an opaque ID', () => {
+		const nameOf = (type: string, id: string) =>
+			type === 'registry' && id === 'r1' ? 'Docker Hub' : undefined;
+		expect(targetText({ type: 'registry', id: 'r1' }, nameOf)).toEqual({
+			name: 'Docker Hub',
+			type: 'Registry connection'
+		});
+		expect(
+			targetText({ type: 'registry', id: '01a0daae-eed1-4c1f-9a2b-3c4d5e6f7a8b' }, nameOf)
+		).toEqual({ name: 'Registry connection', type: 'Registry connection' });
+		expect(targetText({ type: 'container', id: 'silo-web' })).toEqual({
+			name: 'silo-web',
+			type: 'Container'
+		});
+		expect(targetText({ type: 'build_run', id: 'x1' }).type).toBe('Build run');
+		expect(isOpaqueId('sha256:0123456789abcdef')).toBe(true);
+		expect(isOpaqueId('0123456789ab')).toBe(true);
+		expect(isOpaqueId('silo-db')).toBe(false);
+	});
+
+	it('turns the Who and When filters into API filters', () => {
+		expect(parseWho('user:u1')).toEqual({ actorId: 'u1' });
+		expect(parseWho('kind:service')).toEqual({ actorKind: ['service'] });
+		expect(parseWho('kind:nobody')).toEqual({});
+		expect(parseWho('')).toEqual({});
+		const now = Date.parse('2026-09-27T12:00:00Z');
+		expect(rangeSince('24h', now)).toBe('2026-09-26T12:00:00.000Z');
+		expect(rangeSince('7d', now)).toBe('2026-09-20T12:00:00.000Z');
+		expect(rangeSince('', now)).toBeUndefined();
+	});
+
+	it('groups runs of identical records into one row', () => {
+		const ev = (id: string, action: string, target = 'r1'): AuditEvent => ({
+			id,
+			action,
+			actor: { kind: 'service' },
+			at: '2026-09-27T12:00:00Z',
+			category: 'credentials',
+			details: {},
+			hash: '',
+			prevHash: '',
+			outcome: 'success',
+			seq: 1,
+			targets: [{ type: 'registry', id: target }]
+		});
+		const rows = groupAuditRows([
+			ev('1', 'registry.use'),
+			ev('2', 'registry.use'),
+			ev('3', 'registry.use'),
+			ev('4', 'registry.use', 'r2'),
+			ev('5', 'stack.deploy'),
+			ev('6', 'registry.use')
+		]);
+		expect(rows.map((r) => [r.key, r.events.length])).toEqual([
+			['1', 3],
+			['4', 1],
+			['5', 1],
+			['6', 1]
+		]);
 	});
 });
 

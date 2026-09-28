@@ -5,9 +5,11 @@ description: Everyday tasks - stacks, importing existing projects, people, autom
 
 ## Create and deploy a stack
 
-1. **Stacks → Create stack**: pick the host, paste your `compose.yaml` (and
-   a `.env` if you use one) and check the validation result.
-2. Create it, then press **Deploy**.
+1. **Stacks → Create stack**: pick the host (only when you have more than
+   one), paste your `compose.yaml` (and a `.env` if you use one) and check
+   the validation result.
+2. Press **Create and deploy**. To only save the files and deploy later,
+   turn off **Deploy after creating** first.
 
 To start from a ready-made project instead, use **Create stack ▾ →
 Create stack from template** (see [Templates](/docs/templates)).
@@ -16,18 +18,34 @@ Your files are the source of truth: Docker Manager deploys exactly what is
 in them. Put files your services need, such as `./html` or a config file,
 into the stack's **Files** tab before deploying.
 
-### Deploy, pull and clean up
+Saving `compose.yaml` in the **Files** tab does not deploy it. Docker
+Manager checks the file and shows the result above it, and the "Saved"
+message has a **Deploy** button. Until you deploy, the stack shows
+**Undeployed changes**, and its **Revisions** tab shows what changed with
+**Deploy these changes** and **Restore deployed revision**.
+
+### Deploy, update and clean up
 
 - **Deploy** applies your files right away. It recreates only the services
   whose settings changed. If everything already runs as your files say, you
-  see "Nothing to deploy" and **Last deployed** keeps its time.
-- **Pull** downloads newer versions of the stack's images and changes
-  nothing else. Docker Manager tells you which services got a newer image;
-  press **Deploy** when you want to run them.
+  see "Nothing to deploy" and **Last deploy** keeps its time.
+- **Update** lists the services with a newer image, then downloads those
+  images and recreates the services that use them. A dot on the button
+  means newer images are available. To update on a schedule, use the
+  stack's update policy (**Policies** tab).
+- **Deploy ▾ → Pull images only** downloads newer images and changes
+  nothing else. Press **Deploy** when you want to run them.
+- **Start** and **Restart** run right away. **Stop**, **Take down** and
+  **Delete** ask first and say what they do.
 - When you remove a service from `compose.yaml`, its container stays on the
   host after a normal deploy. The stack page tells you so. To remove such
-  leftover containers, open the menu next to **Deploy** and choose **Deploy
-  and remove orphaned containers**.
+  leftover containers, press **Remove old containers** there, or open the
+  menu next to **Deploy** and choose **Deploy and remove orphaned
+  containers**.
+
+In a stack's **Logs** tab, **Errors only** shows what the services wrote as
+errors, and **Matching lines only** hides the lines without your search.
+**Logs of** a service in its row menu opens the logs of just that service.
 
 ## Import projects you already run
 
@@ -39,7 +57,9 @@ that Docker Manager does not manage yet. Press **Import** on one:
 - Otherwise Docker Manager moves it: it stops the project, copies its whole
   folder (the Compose file and every folder next to it, such as database
   data, with owners and permissions kept), checks the copy, and starts the
-  project again from the copy. Its name and volumes stay the same.
+  project again from the copy. Its name and volumes stay the same. You are
+  asked first when this stops running services; press **Stop and import**
+  to go ahead.
 - Docker Manager's own project is copied while it keeps running: nothing
   stops. Docker Manager moves onto the copy the next time you deploy that
   stack.
@@ -80,6 +100,20 @@ Good to know:
   redeploy or remove it.
 - Remove the `/import` mount when you are done importing.
 
+## Move a stack to another host
+
+With more than one host, open the stack and choose **More stack actions →
+Migrate**:
+
+1. **Destination**: pick the host and press **Check destination**.
+2. **Check**: Docker Manager lists what must be fixed first and what will
+   be copied. Untick **Copy data** for a volume that should start empty, or
+   tick **Copy image** to copy an image instead of downloading it. Changes
+   are checked again before you can continue.
+3. **Confirm** and **Move**: the stack stops, its folder and volumes are
+   copied, and it starts on the new host. The old copy stays stopped until
+   you remove it or start it again.
+
 ## Rename a stack
 
 A stack's name is its Compose project name. It names its containers,
@@ -107,11 +141,45 @@ Good to know:
 - Only the project name changes. To change the name shown in lists, use
   **Edit details**.
 
+## Containers, images, volumes and networks
+
+- To act on several at once, tick their rows. A bar above the list offers
+  what you can do with them: **Start**, **Stop**, **Restart** or **Remove**
+  for containers, **Remove** for images, volumes and networks. Before
+  anything runs, you see the list of what it runs on.
+- Some items are left out, with the reason: anything Docker Manager itself
+  uses, Docker's predefined networks, containers that belong to a stack
+  (remove them through the stack) and anything still in use. Removing
+  several at once asks you to type a confirmation first.
+- **Remove** is always the last entry of the **⋯** menu on an item's page.
+- Images without a tag (older versions whose tag moved to a newer image)
+  are folded at the end of the images list. Unused ones are safe to remove.
+
+## Private images and builds
+
+- **Registries** holds the logins Docker Manager uses to pull private
+  images. **Test an image** shows which login an image would use.
+- **Builds → Build image** builds an image from a Git repository. On a
+  finished build, **Build again** repeats it and **Save as definition**
+  keeps it for later. Build argument values are never stored: when you
+  build again from the form, enter them once more.
+
 ## Invite people
 
 **Access → Users → Invite user** creates a single-use link; send it
 yourself. New people see nothing until you grant them access under
 **Access → Groups** (to everything, one host, one stack and so on).
+
+On a group's page, **Add members** moves people into the group. To set
+its permissions quickly, pick a starting point under **Start from**:
+
+- **Viewer** sees everything but changes nothing.
+- **Operator** can also start, stop, restart and deploy, and read logs.
+  It can't delete anything.
+- **Admin** can do everything, risky actions included.
+
+Adjust single actions afterwards if you need to. Nothing changes until you
+press **Save permissions** and confirm the list of changes.
 
 ## Automatic updates, cleanup and backups
 
@@ -120,10 +188,15 @@ Nothing automatic or destructive runs until you turn it on:
 - **Image updates** check whether the image behind a tag changed and
   recreate only the services that use it. There is no automatic rollback.
   The icon next to an image in the container and service lists shows its
-  update state; select it to check that image again.
+  update state; select it to check that image again. On **Updates**,
+  **Preview update** next to a stack or container shows the newer images
+  before you apply them.
 - **Prune** removes unused containers, images, networks and build cache.
   Volumes need their own opt-in, and **Preview** shows what a run would
   remove.
+- A policy's page says what it covers, when it runs next and how its
+  recent runs went. **Schedules** lists every schedule in one place;
+  **Change defaults** there sets what new policies start with.
 - **Backups** use restic to local folders or S3-compatible storage. Your
   **Recovery Key** is shown once: store it outside Docker Manager. Without
   it, backups cannot be restored. A stack backup holds the stack's folder
@@ -134,12 +207,28 @@ Nothing automatic or destructive runs until you turn it on:
   Include it in at least one backup policy that stores its backups away
   from the manager's own disk (S3, or a folder on another host).
 
+### Set up backups
+
+1. In **Backups**, press **Add backup repository**: a local folder or an
+   S3 bucket. **Save and continue** saves it; then store the Recovery
+   Key and type it once to confirm it. A local folder must be allowed on
+   its host first (see [Configuration](./configuration#backups-to-a-local-folder)).
+2. **Create backup policy**: what to back up (everything, minus what you
+   untick), when, and how long to keep backups. **7 daily, 4 weekly, 12
+   monthly** is a good start; **Custom** lets you set each rule. New
+   policies start with their schedule off.
+
+The **Overview** lists your policies with their last and next run; the
+**Backups** tab lists every backup by run. A stack's or volume's
+**Backups** tab says which policy covers it and when it runs next.
+
 ## Restore from a backup
 
-Open a backup in **Backups**, browse it and press **Restore**. You can
-restore a whole stack (its files; deploy it again afterwards), a volume
-(containers using it stop and start again) or a single file. If a restore
-fails, the original stays as it was.
+Open a backup (from **Backups**, or the stack's or volume's **Backups**
+tab), browse it and press **Restore**. You can restore a whole stack (its
+files; deploy it again afterwards), some or all of its volumes (containers
+using them stop and start again) or a single file. If a restore fails,
+the original stays as it was.
 
 If you lost the manager itself:
 
@@ -148,8 +237,9 @@ If you lost the manager itself:
 2. On the setup page choose **Import from backup**, enter where the
    backups are and your Recovery Key, pick a backup and import it.
 3. Sign in with your old owner account. Users, stacks and settings are
-   back. Create new API tokens, and connect every host again: create a
-   token for it under **Environments** and enroll its agent.
+   back. Create new API tokens, and connect every host again: create an
+   install command under **Environments → Add environment** and run it on
+   the host.
 
 ## Upgrade Docker Manager
 

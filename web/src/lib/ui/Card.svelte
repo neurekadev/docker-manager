@@ -1,6 +1,9 @@
 <script lang="ts">
 	// Card / panel (#22): --surface-panel, 1 px subtle border, 12 px radius,
-	// no shadow. With a title it renders a header row (title + actions).
+	// no shadow. With a title it renders a header row (title + actions) that
+	// wraps the actions below the title when they do not fit. The title is
+	// always the section size (16 px); headings inside the body use the
+	// global `.subsection-title` class (14 px semibold).
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -65,9 +68,10 @@
 
 	.head {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-3);
+		gap: var(--space-2) var(--space-3);
 		padding: var(--space-4) var(--space-5) 0;
 		min-height: 52px;
 	}
@@ -91,12 +95,12 @@
 
 	.actions {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2);
 	}
 
 	.stretch {
-		flex-wrap: wrap;
 		row-gap: var(--space-3);
 	}
 
@@ -117,5 +121,19 @@
 
 	.head + .body.flush {
 		padding-top: var(--space-3);
+	}
+
+	@media (max-width: 767px) {
+		.head {
+			padding: var(--space-4) var(--space-4) 0;
+		}
+
+		.body {
+			padding: var(--space-4);
+		}
+
+		.body.flush {
+			padding: var(--space-3) 0 0;
+		}
 	}
 </style>

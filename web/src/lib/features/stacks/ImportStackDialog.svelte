@@ -6,21 +6,25 @@
 	// (nothing restarts); a project the agent reads through an import mount
 	// (below /import) is copied with its whole directory into the stacks
 	// volume by a job that stops it, copies and verifies the files,
-	// recreates it from the copy and starts what ran before; Docker
-	// Manager's own project (protected) is copied while it runs and moves
-	// onto the copy at its next deploy. The job's progress shows in the
-	// row. Anything else explains how to make it importable. Nothing
-	// existing is ever overwritten. Projects Docker Manager manages already
-	// are hidden unless the switch shows them.
+	// recreates it from the copy and starts what ran before (confirmed
+	// first, with its consequences); Docker Manager's own project
+	// (protected) is copied while it runs and moves onto the copy at its
+	// next deploy. Each row says in one line what happens, the rest (and
+	// the host folder) waits behind Details; the job's progress shows in
+	// the row. Nothing existing is ever overwritten. Projects Docker
+	// Manager manages already are hidden unless the switch shows them.
+	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import type { Job } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { routes } from '$lib/routes';
 	import {
 		Badge,
 		Button,
+		ConfirmDialog,
 		Dialog,
 		EmptyState,
 		ErrorState,
@@ -34,6 +38,17 @@
 		toast
 	} from '$lib/ui';
 	import { importStack, importStackByCopy } from './actions';
+	import {
+		containerCounts,
+		importConsequences,
+		importDetails,
+		importFailure,
+		importHow,
+		importMode,
+		importNeedsConfirm,
+		jobStackId,
+		projectStatus
+	} from './importing';
 	import { canInEnvironment, importCandidates } from './model';
 	import { discoveredQuery, stackKeys, type DiscoveredStack } from './queries';
 
@@ -73,12 +88,33 @@
 	const list = $derived(
 		importCandidates([...(projects.data ?? [])], hideManaged, (p) => !!started[keyOf(p)])
 	);
-	const running = (p: DiscoveredStack) => p.services.filter((s) => s.running > 0).length;
-	const containers = (p: DiscoveredStack) => p.services.reduce((n, s) => n + s.containers, 0);
-	const runningContainers = (p: DiscoveredStack) => p.services.reduce((n, s) => n + s.running, 0);
+	// The project whose copy would stop running services, while its
+	// confirmation is open.
+	let confirming = $state<DiscoveredStack | null>(null);
+	let confirmOpen = $state(false);
 
 	function refresh() {
 		void queryClient.invalidateQueries({ queryKey: stackKeys.all });
+	}
+
+	function openStack(id: string) {
+		open = false;
+		void goto(routes.stack(id));
+	}
+
+	function imported(name: string, stackId: string | undefined) {
+		toast.success(`Imported ${name}`, {
+			action: stackId ? { label: 'Open stack', onclick: () => openStack(stackId) } : undefined
+		});
+	}
+
+	function importProject(p: DiscoveredStack) {
+		if (importNeedsConfirm(p)) {
+			confirming = p;
+			confirmOpen = true;
+			return;
+		}
+		return start(p);
 	}
 
 	async function start(p: DiscoveredStack) {
@@ -89,14 +125,14 @@
 		try {
 			if (p.adoptable) {
 				const st = await importStack(environmentId, { projectName: p.name });
-				toast.success(`Imported ${st.displayName || st.name}`);
+				imported(st.displayName || st.name, st.id);
 				refresh();
 			} else {
 				const job: Job = await importStackByCopy(environmentId, { projectName: p.name });
 				jobs = { ...jobs, [k]: job.id };
 			}
 		} catch (e) {
-			errors = { ...errors, [k]: failure(e, p.name) };
+			errors = { ...errors, [k]: importFailure(errorView(e), p.name) };
 		} finally {
 			busy = { ...busy, [k]: false };
 		}
@@ -104,44 +140,7 @@
 
 	function finished(p: DiscoveredStack, j: Job) {
 		refresh();
-		if (j.state === 'succeeded') toast.success(`Imported ${p.name}`);
-	}
-
-	function failure(e: unknown, name: string): string {
-		const v = errorView(e);
-		switch (v.code) {
-			case 'stack_name_taken':
-				return `Docker Manager already manages a stack named ${name} here. Nothing was changed.`;
-			case 'stack_directory_exists':
-				return `A directory ${name} already exists in the stacks volume. Nothing was overwritten: move it away and import again.`;
-			case 'stack_not_adoptable':
-			case 'stack_not_copyable':
-				return `${name} cannot be imported: ${v.message}`;
-			case 'agent_unsupported':
-				return 'The agent of this environment cannot import projects by copy yet. Update the agent, then import again.';
-		}
-		return v.message;
-	}
-
-	/** The agent's reason as a sentence. */
-	function sentence(s: string): string {
-		const t = s.trim();
-		return t ? `${t[0].toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}` : t;
-	}
-
-	function how(p: DiscoveredStack): string {
-		if (p.adoptable)
-			return 'Its files already lie in a stack root: they are adopted in place and nothing restarts.';
-		const check =
-			"It first checks that the running containers match the project's files and changes nothing if they do not. " +
-			'If you edited its files in another tool without redeploying, redeploy it there first.';
-		if (p.protected)
-			return `Docker Manager's own project: copies its whole directory into the stacks volume and checks the copy while it keeps running; nothing stops or restarts. Docker Manager moves onto the copy the next time you deploy the stack. The original directory is left untouched. ${check}`;
-		const n = running(p);
-		const move = n
-			? `Stops its ${n} running ${n === 1 ? 'service' : 'services'}, copies its whole directory (data folders included, owners and permissions kept) into the stacks volume, checks the copy and starts ${n === 1 ? 'it' : 'them'} again from there.`
-			: 'Copies its whole directory (data folders included, owners and permissions kept) into the stacks volume and recreates its containers from the copy; it stays stopped.';
-		return `${move} The original directory is left untouched. ${check}`;
+		if (j.state === 'succeeded') imported(p.name, jobStackId(j));
 	}
 </script>
 
@@ -200,8 +199,8 @@
 			<EmptyState
 				icon={FolderSearch}
 				color="blue"
-				title="Docker Manager already manages every Compose project on {env?.name}."
-				description="Turn off Hide managed stacks to see them."
+				title="Every Compose project on {env?.name} is already managed."
+				description="Turn off “Hide managed stacks” to see them."
 				level={3}
 				compact
 			/>
@@ -218,19 +217,16 @@
 			<ul class="list" role="list" aria-label="Compose projects on {env?.name}">
 				{#each list as p (p.name)}
 					{@const k = keyOf(p)}
-					{@const total = containers(p)}
-					{@const up = runningContainers(p)}
+					{@const c = containerCounts(p)}
+					{@const mode = importMode(p)}
+					{@const details = importDetails(p)}
 					<li class="item">
 						<div class="row">
 							<div class="title">
-								<span class="name mono">{p.name}</span>
+								<span class="name">{p.name}</span>
 								<StatusBadge
-									status={up === 0
-										? 'stopped'
-										: up < total
-											? 'partial'
-											: 'running'}
-									label="{up} / {total} running"
+									status={projectStatus(c)}
+									label="{c.up} of {c.total} running"
 								/>
 								{#if p.stackId}<Badge tone="accent">Managed</Badge>{/if}
 							</div>
@@ -239,26 +235,17 @@
 									<Button size="sm" href={routes.stack(p.stackId)}
 										>Open stack</Button
 									>
-								{:else if (p.adoptable || p.copyable) && !jobs[k]}
+								{:else if mode !== 'blocked' && !jobs[k]}
 									<Button
 										size="sm"
 										variant="primary"
 										loading={busy[k]}
-										onclick={() => start(p)}>Import</Button
+										onclick={() => importProject(p)}>Import</Button
 									>
 								{/if}
 							</div>
 						</div>
-						{#if p.workingDir}
-							<p class="dir mono">{p.workingDir}</p>
-						{/if}
-						{#if p.sourceDir && p.sourceDir !== p.workingDir}
-							<p class="dir">
-								<span class="muted">Files on the host</span>
-								<span class="mono">{p.sourceDir}</span>
-							</p>
-						{/if}
-						<p class="muted services">
+						<p class="services" title={p.services.map((s) => s.name).join(', ')}>
 							{p.services.map((s) => s.name).join(', ')}
 						</p>
 						{#if jobs[k]}
@@ -267,16 +254,25 @@
 								title="Import {p.name}"
 								onfinish={(j) => finished(p, j)}
 							/>
-						{:else if p.stackId}
-							<!-- managed: nothing to explain -->
-						{:else if p.adoptable || p.copyable}
-							<p class="how">{how(p)}</p>
-						{:else}
-							<p class="muted">
-								{sentence(
-									p.reason ?? 'Docker Manager cannot read this project directory.'
-								)}
-							</p>
+						{:else if !p.stackId}
+							<p class="how" class:blocked={mode === 'blocked'}>{importHow(p)}</p>
+							{#if details.length || p.sourceDir || p.workingDir}
+								<Disclosure
+									summary={mode === 'blocked'
+										? 'Why and how to fix it'
+										: 'Details'}
+								>
+									<ul class="details" role="list">
+										{#each details as line (line)}<li>{line}</li>{/each}
+									</ul>
+									{#if p.sourceDir || p.workingDir}
+										<p class="folder">
+											<span class="muted">Folder on the host</span>
+											<span class="mono">{p.sourceDir || p.workingDir}</span>
+										</p>
+									{/if}
+								</Disclosure>
+							{/if}
 						{/if}
 						{#if errors[k] && !p.stackId}<p class="error" role="alert">
 								{errors[k]}
@@ -286,10 +282,15 @@
 			</ul>
 		{/if}
 	</div>
-	{#snippet footer()}
-		<Button variant="ghost" onclick={() => (open = false)}>Close</Button>
-	{/snippet}
 </Dialog>
+
+<ConfirmDialog
+	bind:open={confirmOpen}
+	title="Import {confirming?.name ?? 'the project'}?"
+	consequences={confirming ? importConsequences(confirming) : []}
+	confirmLabel="Stop and import"
+	onconfirm={() => (confirming ? start(confirming) : undefined)}
+/>
 
 <style>
 	.body {
@@ -310,14 +311,14 @@
 
 	.list {
 		display: grid;
-		gap: var(--space-3);
+		gap: var(--space-2);
 		max-height: 60vh;
 		overflow-y: auto;
 	}
 
 	.item {
 		display: grid;
-		gap: var(--space-2);
+		gap: var(--space-1);
 		padding: var(--space-3) var(--space-4);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-md);
@@ -337,11 +338,13 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: var(--space-2);
+		min-width: 0;
 	}
 
 	.name {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
+		overflow-wrap: anywhere;
 	}
 
 	.actions {
@@ -349,18 +352,41 @@
 		gap: var(--space-2);
 	}
 
-	.dir,
 	.services {
+		overflow: hidden;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.how {
+		color: var(--text-default);
+	}
+
+	.how.blocked {
+		color: var(--text-muted);
+	}
+
+	.details {
+		display: grid;
+		gap: var(--space-1);
+		margin: 0;
+		padding-left: 18px;
+		color: var(--text-default);
+		font-size: var(--text-caption);
+		list-style: disc;
+	}
+
+	.folder {
+		display: grid;
+		gap: 2px;
 		overflow-wrap: anywhere;
 		font-size: var(--text-caption);
 	}
 
-	.how {
-		font-size: var(--text-caption);
-		color: var(--text-default);
-	}
-
 	.error {
+		margin-top: var(--space-1);
 		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--danger-border);
 		border-radius: var(--radius-sm);

@@ -1,11 +1,14 @@
 <script lang="ts">
-	// Backup repository detail (#10): Recovery Key state (confirm, rotate),
-	// health per location (last backup and verification, size, problems),
-	// the connection test (Object Lock warning), the verification schedule
-	// and what a recovery from here needs.
+	// Backup repository detail (#10): one status line (health, size, last
+	// backup, last verification), the Recovery Key state (confirm, rotate),
+	// health, the verification schedule in one sentence (Edit schedule), the
+	// last connection test and what a recovery from here needs. Locations,
+	// key generations, fingerprints and restic's raw snapshots wait under
+	// Advanced.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import Camera from '@lucide/svelte/icons/camera';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -29,12 +32,13 @@
 		Notice,
 		PageHeader,
 		PasswordField,
+		RadioGroup,
 		Switch,
 		Table,
 		TextField,
 		formatBytes,
 		formatDateTime,
-		formatPercent,
+		formatGoDuration,
 		formatRelative,
 		toast,
 		type Column,
@@ -44,20 +48,25 @@
 	import { environmentName, ifMatch } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
 	import Columns from '$lib/features/common/Columns.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import Facts from '$lib/features/common/Facts.svelte';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
-	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import ConnectionTestResult from '$lib/features/backups/ConnectionTestResult.svelte';
 	import KeyRotationDialog from '$lib/features/backups/KeyRotationDialog.svelte';
 	import RecoveryKeyChallenge from '$lib/features/backups/RecoveryKeyChallenge.svelte';
 	import {
 		RECOVERY_KEY_SCOPE,
+		connectionTestText,
 		ratioText,
-		sentenceCase,
 		repositoryLocation,
+		repositoryStatusLine,
+		scopeName,
+		sentenceCase,
+		verificationText,
+		verifyReadOptions,
 		type BackupRepository,
 		type ConnectionTest
 	} from '$lib/features/backups/model';
@@ -200,19 +209,19 @@
 
 	function menuFor(r: BackupRepository): MenuEntry[] {
 		const items: MenuEntry[] = [];
-		if (has(r, 'backup_repository.manage')) {
+		if (has(r, 'backup_repository.manage'))
 			items.push({ label: 'Edit repository', icon: Pencil, onSelect: () => openEdit(r) });
-			items.push({
-				label: 'Verification schedule',
-				icon: RotateCw,
-				onSelect: () => openVerify(r)
-			});
-		}
 		if (owner && r.state === 'ready')
 			items.push({
 				label: 'Rotate Recovery Key',
 				icon: KeyRound,
 				onSelect: () => (rotateOpen = true)
+			});
+		if (r.state === 'ready' && r.view === 'full')
+			items.push({
+				label: 'Raw snapshots',
+				icon: Camera,
+				href: routes.backupSnapshots(r.id)
 			});
 		if (has(r, 'backup_repository.manage')) {
 			items.push({ separator: true });
@@ -229,37 +238,35 @@
 	const locationColumns: Column<Location>[] = [
 		{
 			id: 'scope',
-			header: 'Scope',
+			header: 'Holds',
 			cell: scopeCell,
 			sortValue: (l) => l.scope,
+			maxWidth: '420px',
+			title: (l) => l.repository,
 			stack: 'title'
 		},
 		{ id: 'backup', header: 'Last backup', cell: lastBackupCell, width: '150px' },
 		{ id: 'verified', header: 'Last verified', cell: verifiedCell, width: '190px' },
 		{ id: 'size', header: 'Size', cell: sizeCell, numeric: true, width: '100px' },
-		{ id: 'key', header: 'Key', cell: keyCell, width: '120px' }
+		{ id: 'key', header: 'Key', cell: keyCell, width: '120px', stack: 'hidden' }
 	];
-
-	function scopeName(scope: string): string {
-		if (scope === 'manager' || scope === 'docker-manager') return 'Manager state';
-		const m = scope.match(/^(?:env:|docker-manager-env-)(.+)$/);
-		return m ? `Environment ${envName(m[1])}` : scope;
-	}
 </script>
 
 {#snippet scopeCell(l: Location)}
-	<NameCell name={scopeName(l.scope)} sub={l.repository} subMono />
+	<NameCell name={scopeName(l.scope, envName)} sub={l.repository} subMono />
 {/snippet}
 {#snippet lastBackupCell(l: Location)}
-	{#if l.lastBackupAt}<span class="num" title={l.lastBackupAt}
+	{#if l.lastBackupAt}<span class="num" title={formatDateTime(l.lastBackupAt)}
 			>{formatRelative(l.lastBackupAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
 {/snippet}
 {#snippet verifiedCell(l: Location)}
 	{#if l.lastVerifiedAt}
-		<span class="num">{formatRelative(l.lastVerifiedAt)}</span>
+		<span class="num" title={formatDateTime(l.lastVerifiedAt)}
+			>{formatRelative(l.lastVerifiedAt)}</span
+		>
 		{#if l.lastVerifyResult && l.lastVerifyResult !== 'ok'}<Badge tone="danger"
-				>{l.lastVerifyResult.replaceAll('_', ' ')}</Badge
+				>{sentenceCase(l.lastVerifyResult.replaceAll('_', ' '))}</Badge
 			>{/if}
 	{:else}<span class="muted">Never</span>{/if}
 {/snippet}
@@ -274,12 +281,24 @@
 	>
 		{#snippet children(r: BackupRepository)}
 			{@const menu = menuFor(r)}
+			{@const manage = has(r, 'backup_repository.manage')}
 			<PageHeader
 				title={r.name}
 				icon={HardDrive}
 				color="teal"
-				description={r.kind === 's3' ? 'S3-compatible storage' : 'Local directory'}
-				meta={[{ label: repositoryLocation(r, envName), mono: true }]}
+				description={r.state !== 'ready'
+					? 'Waiting for the owner to confirm the Recovery Key: nothing is stored here yet.'
+					: health.data
+						? repositoryStatusLine(health.data, r.storage?.sizeBytes)
+						: undefined}
+				meta={[
+					{ label: r.kind === 's3' ? 'S3 storage' : 'Local directory' },
+					{
+						label: repositoryLocation(r, envName),
+						mono: true,
+						title: repositoryLocation(r, envName)
+					}
+				]}
 			>
 				{#snippet status()}
 					{#if r.state === 'ready'}<Badge tone="ok" dot>Ready</Badge>{:else}<Badge
@@ -288,7 +307,7 @@
 						>{/if}
 				{/snippet}
 				{#snippet actions()}
-					{#if has(r, 'backup_repository.manage')}
+					{#if manage}
 						<Button icon={PlugZap} loading={testing} onclick={() => runTest(r)}
 							>Test connection</Button
 						>
@@ -359,25 +378,12 @@
 								title="Recovery Key rotation in progress"
 								live="none"
 							>
-								These locations still use the previous key ({h.keyState
-									.previousFingerprint}); keep it until the list is empty:
-								<span class="mono"
-									>{(h.keyState.pendingLocations ?? []).join(', ')}</span
-								>
+								{(h.keyState.pendingLocations ?? []).length === 1
+									? 'One location still uses'
+									: `${(h.keyState.pendingLocations ?? []).length} locations still use`}
+								the previous Recovery Key: keep your copy of it until the rotation finishes.
 							</Notice>
 						{/if}
-						<Card
-							title="Locations"
-							subtitle="One restic repository per scope below this destination."
-							padding="none"
-						>
-							<Table
-								label="Locations of {r.name}"
-								rows={h.locations}
-								columns={locationColumns}
-								rowKey={(l) => l.scope}
-							/>
-						</Card>
 						<Columns ratio="equal">
 							<Card title="Health">
 								<Facts
@@ -386,34 +392,23 @@
 											label: 'State',
 											value: h.healthy ? 'Healthy' : 'Needs attention'
 										},
-										{ label: 'Backups', value: h.snapshots },
 										{
 											label: 'Stored',
 											value: r.storage
-												? `${formatBytes(r.storage.sizeBytes)} of ${formatBytes(r.storage.uncompressedBytes)} (${ratioText(r.storage.compressionRatio)})`
+												? `${formatBytes(r.storage.sizeBytes)} (${ratioText(r.storage.compressionRatio)} compression)`
 												: 'Measured after the next backup'
 										},
-										...(r.storage
-											? [
-													{
-														label: 'Restic snapshots',
-														value: r.storage.snapshots
-													},
-													{
-														label: 'Compressed',
-														value: formatPercent(
-															r.storage.compressionProgress
-														)
-													}
-												]
-											: []),
+										{ label: 'Backups kept', value: h.snapshots },
 										{
 											label: 'Newest backup',
 											value: h.lastBackupAt
 												? formatDateTime(h.lastBackupAt)
 												: 'None yet'
 										},
-										{ label: 'Backup age', value: h.backupAge },
+										{
+											label: 'Age of the newest backup',
+											value: h.backupAge ? formatGoDuration(h.backupAge) : '—'
+										},
 										{
 											label: 'Last verified',
 											value: h.lastVerifiedAt
@@ -423,25 +418,22 @@
 									]}
 								/>
 							</Card>
-							<Card title="Recovery Key">
-								<Facts
-									columns={1}
-									items={[
-										{
-											label: 'Fingerprint',
-											value: h.keyState.fingerprint,
-											mono: true
-										},
-										{ label: 'Generation', value: h.keyState.generation },
-										{
-											label: 'Confirmed',
-											value: h.keyState.confirmedAt
-												? formatDateTime(h.keyState.confirmedAt)
-												: '—'
-										}
-									]}
-								/>
-								<p class="muted small note">{RECOVERY_KEY_SCOPE}</p>
+							<Card title="Verification">
+								{#snippet actions()}
+									{#if manage}
+										<Button
+											size="sm"
+											icon={RotateCw}
+											onclick={() => openVerify(r)}>Edit schedule</Button
+										>
+									{/if}
+								{/snippet}
+								<p>{verificationText(r.verification)}</p>
+								<p class="muted small note">
+									{r.lastTest
+										? `Connection: ${connectionTestText(r.lastTest).toLowerCase()}.`
+										: 'The connection has not been tested yet.'}
+								</p>
 							</Card>
 						</Columns>
 					{/snippet}
@@ -449,19 +441,13 @@
 			{/if}
 
 			<Columns ratio="equal">
-				<Card title="Verification">
-					{#if r.verification}
-						<ScheduleSummary
-							cron={r.verification.cron}
-							timeZone={r.verification.timeZone}
-							enabled={r.verification.enabled}
-						/>
+				<Card title="Recovery Key">
+					<p>{RECOVERY_KEY_SCOPE}</p>
+					{#if health.data?.keyState.confirmedAt}
 						<p class="muted small note">
-							{r.verification.readDataSubset
-								? `Also reads ${r.verification.readDataSubset} of the stored data.`
-								: 'Checks the repository structure; add a data subset to also read stored data.'}
+							Confirmed {formatDateTime(health.data.keyState.confirmedAt)}.
 						</p>
-					{:else}<p class="muted">No verification schedule.</p>{/if}
+					{/if}
 				</Card>
 				<Card title="What a recovery needs">
 					{#if r.recoveryRequirements?.length}
@@ -473,15 +459,84 @@
 							The Recovery Key and access to {repositoryLocation(r, envName)}.
 						</p>
 					{/if}
-					{#if r.kind === 's3' && r.credential}
-						<p class="muted small note">
-							Stored key pair fingerprint <span class="mono"
-								>{r.credential.fingerprint ?? '—'}</span
-							>
-						</p>
-					{/if}
 				</Card>
 			</Columns>
+
+			{#if r.state === 'ready'}
+				<Disclosure summary="Advanced: locations, key details and raw snapshots">
+					<div class="advanced">
+						{#if health.data}
+							<Card
+								title="Locations"
+								subtitle="Docker Manager keeps one restic repository per scope below this destination: the manager state and each environment."
+								padding="none"
+							>
+								{#snippet actions()}
+									{#if r.view === 'full'}
+										<Button
+											size="sm"
+											variant="ghost"
+											icon={Camera}
+											href={routes.backupSnapshots(r.id)}
+											>Raw snapshots</Button
+										>
+									{/if}
+								{/snippet}
+								<Table
+									label="Locations of {r.name}"
+									rows={health.data.locations}
+									columns={locationColumns}
+									rowKey={(l) => l.scope}
+								/>
+							</Card>
+							<Card title="Key details">
+								<Facts
+									columns={1}
+									items={[
+										{
+											label: 'Recovery Key fingerprint',
+											value: health.data.keyState.fingerprint,
+											mono: true
+										},
+										{
+											label: 'Key generation',
+											value: health.data.keyState.generation
+										},
+										...(health.data.keyState.rotationInProgress
+											? [
+													{
+														label: 'Previous key fingerprint',
+														value: health.data.keyState
+															.previousFingerprint,
+														mono: true
+													},
+													{
+														label: 'Still on the previous key',
+														value: (
+															health.data.keyState.pendingLocations ??
+															[]
+														)
+															.map((s) => scopeName(s, envName))
+															.join(', ')
+													}
+												]
+											: []),
+										...(r.kind === 's3' && r.credential
+											? [
+													{
+														label: 'Stored S3 key pair fingerprint',
+														value: r.credential.fingerprint,
+														mono: true
+													}
+												]
+											: [])
+									]}
+								/>
+							</Card>
+						{/if}
+					</div>
+				</Disclosure>
+			{/if}
 
 			<KeyRotationDialog bind:open={rotateOpen} repositoryId={r.id} />
 			<DestructiveConfirm
@@ -490,7 +545,7 @@
 				consequences={[
 					'Docker Manager stops using this destination and forgets its settings and S3 credentials.',
 					'Its backups leave the Backups lists: without the repository they can no longer be browsed or restored here.',
-					'The restic repositories and every backup at the destination are left untouched.',
+					'The backups stored at the destination are left untouched.',
 					'Policies must not use it: change them first.'
 				]}
 				confirmText={r.name}
@@ -556,25 +611,26 @@
 			<Dialog
 				bind:open={verifyOpen}
 				title="Verification schedule"
-				description="Checks every location of {r.name} for damage (restic check)."
+				description="Checks every location of {r.name} for damage."
 			>
 				<Fields>
 					<Switch
 						label="Verify automatically"
-						description="Off: verify from a backup when you want."
+						description="Off: verify by hand with Verify on one of its backups."
 						bind:checked={vEnabled}
 					/>
-					<CronField
-						label="Schedule"
-						kind="backup_verification"
-						bind:cron={vCron}
-						bind:timeZone={vZone}
-					/>
-					<TextField
-						label="Also read stored data"
-						description="Optional. A share such as 5% or 1/10 of the pack data; empty checks the structure only."
+					{#if vEnabled}
+						<CronField
+							label="Schedule"
+							kind="backup_verification"
+							bind:cron={vCron}
+							bind:timeZone={vZone}
+						/>
+					{/if}
+					<RadioGroup
+						label="How much to check"
+						options={verifyReadOptions(r.verification?.readDataSubset)}
 						bind:value={vSubset}
-						mono
 					/>
 					{#if saveError}<Notice tone="danger" title="Not saved" live="alert"
 							>{saveError}</Notice
@@ -615,5 +671,11 @@
 	.plain {
 		display: grid;
 		gap: var(--space-1);
+	}
+
+	.advanced {
+		display: grid;
+		gap: var(--space-4);
+		margin-top: var(--space-3);
 	}
 </style>

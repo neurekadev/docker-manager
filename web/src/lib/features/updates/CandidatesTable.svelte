@@ -4,7 +4,7 @@
 	// for the host platform, the status and why it is (not) eligible. The
 	// tag text never changes; only digests are compared.
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import { Badge, Table, formatRelative, type Column } from '$lib/ui';
+	import { Badge, Table, formatDateTime, formatRelative, type Column } from '$lib/ui';
 	import Digest from '$lib/features/common/Digest.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import { candidateStatus, checkErrorText, reasonLabel, type UpdateCandidate } from './model';
@@ -84,7 +84,8 @@
 	</div>
 {/snippet}
 {#snippet checkedCell(c: UpdateCandidate)}
-	{#if c.checkedAt}<span class="num" title={c.checkedAt}>{formatRelative(c.checkedAt)}</span
+	{#if c.checkedAt}<span class="num" title={formatDateTime(c.checkedAt)}
+			>{formatRelative(c.checkedAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
 {/snippet}
 

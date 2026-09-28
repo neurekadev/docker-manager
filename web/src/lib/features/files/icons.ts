@@ -80,6 +80,17 @@ export function entryKind(e: Pick<FileEntry, 'type' | 'linkStatus'>): string {
 	}
 }
 
+/** The owner in words: "root" for ID 0, else the numeric IDs ("1000:1000", "root:999"). */
+export function ownerText(uid: number, gid: number): string {
+	const id = (n: number) => (n === 0 ? 'root' : String(n));
+	return uid === gid ? id(uid) : `${id(uid)}:${id(gid)}`;
+}
+
+/** The owner's tooltip: "User ID 1000, group ID 1000". */
+export function ownerTitle(uid: number, gid: number): string {
+	return `User ID ${uid}, group ID ${gid}`;
+}
+
 /** "rw-r--r--" from an octal mode string ("0644"). */
 export function modeString(mode: string): string {
 	const bits = parseInt(mode.slice(-3), 8);

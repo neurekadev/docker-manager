@@ -86,7 +86,7 @@ export const IMPORT_ERRORS: Record<string, string> = {
 	backup_import_key_rejected:
 		'The Recovery Key opens neither the manager repository nor a host repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered by anyone.',
 	backup_import_not_found:
-		'No Docker Manager repository is at this destination. Check the endpoint, bucket and prefix, or that the directory is mounted below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS.',
+		'No Docker Manager repository is at this destination. Check the endpoint, bucket and prefix, or that the directory is mounted into this manager in an allowed backup folder.',
 	backup_import_manifest_corrupt:
 		'The manifest of this backup set is damaged. Choose another set.',
 	backup_import_schema_incompatible:

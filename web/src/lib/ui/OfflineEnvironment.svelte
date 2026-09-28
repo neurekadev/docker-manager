@@ -18,7 +18,6 @@
 
 <Notice tone="offline" icon={WifiOff} title="{name} is offline">
 	{#if since}Its agent disconnected {formatRelative(since, now)}.{/if}
-	This is the last known state. Docker Manager reconnects on its own when the agent is back; actions
-	that need
-	{name} wait until then.
+	This is the last known state; Docker Manager reconnects on its own when the agent is back. Actions
+	on {name} are unavailable until it reconnects.
 </Notice>

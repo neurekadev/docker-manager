@@ -1,8 +1,9 @@
 <script lang="ts">
-	// Create or edit a backup policy (#10) in a dialog: the setup wizard over
-	// the Backups pages instead of a page of its own. Nothing is saved before
-	// the wizard's last step, so closing half-way leaves no policy behind.
-	// Render it only while open ({#if}).
+	// Create or edit a backup policy (#10) in a dialog over the Backups pages.
+	// Creating walks through the wizard's steps; editing shows every section
+	// on one screen with Cancel and Save changes. Nothing is saved before
+	// the last step or Save changes, so closing half-way leaves no policy
+	// behind. Render it only while open ({#if}).
 	import { goto } from '$app/navigation';
 	import { routes } from '$lib/routes';
 	import { Dialog } from '$lib/ui';
@@ -25,8 +26,10 @@
 <Dialog
 	bind:open
 	title={policy ? `Edit ${policy.name}` : 'Create backup policy'}
-	description="Choose what to back up, how, when and for how long. Nothing runs until you start it or turn its schedule on."
+	description={policy
+		? 'Changes apply from the next run. Saving never starts a backup.'
+		: 'Choose what to back up, when and for how long. Nothing runs until you start it or turn its schedule on.'}
 	size="xl"
 >
-	<PolicyWizard {policy} {owner} ondone={done} />
+	<PolicyWizard {policy} {owner} ondone={done} oncancel={() => (open = false)} />
 </Dialog>

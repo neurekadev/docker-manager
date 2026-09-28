@@ -2,7 +2,7 @@
 	// Code editor (#15, #22): CodeMirror loaded lazily with Docker Manager's editor
 	// theme. `value` is the initial text; changes are reported through
 	// onchange (the parent owns dirty state, ETags and conflicts, #15).
-	// `language` and `readOnly` may change while mounted; the handle
+	// `language`, `readOnly` and `wrap` may change while mounted; the handle
 	// (bind:editor) offers setText, openSearch, focus and text.
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import { mountCodeEditor, type CodeEditorHandle, type EditorLanguage } from '$lib/lazy';
@@ -20,6 +20,8 @@
 		height?: string;
 		/** The editor handle once loaded (setText, focus, text, openSearch). */
 		editor?: CodeEditorHandle | null;
+		/** Wrap long lines instead of scrolling sideways. */
+		wrap?: boolean;
 	}
 
 	let {
@@ -29,6 +31,7 @@
 		language = 'yaml',
 		onchange,
 		height = '420px',
+		wrap = false,
 		// No fallback: a parent may bind an entry that is still undefined.
 		editor = $bindable()
 	}: Props = $props();
@@ -38,11 +41,12 @@
 
 	onMount(() => {
 		if (!el) return;
-		const initial = untrack(() => ({ value, readOnly, language, label }));
+		const initial = untrack(() => ({ value, readOnly, language, label, wrap }));
 		mountCodeEditor(el, initial.value, {
 			readOnly: initial.readOnly,
 			label: initial.label,
 			language: initial.language,
+			wrap: initial.wrap,
 			onChange: (t) => onchange?.(t)
 		})
 			.then((e) => {
@@ -63,6 +67,10 @@
 	$effect(() => {
 		const ro = readOnly;
 		untrack(() => editor)?.setReadOnly(ro);
+	});
+	$effect(() => {
+		const w = wrap;
+		untrack(() => editor)?.setWrap?.(w);
 	});
 </script>
 

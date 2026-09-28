@@ -1,17 +1,17 @@
 <script lang="ts">
-	// Registry connections (#19): host, which images they match (repository
-	// matcher, environment or stack binding, priority), status and last
-	// check, last use and the masked credential fingerprint. The owner adds,
-	// edits, rotates, revokes, deletes and tests them.
+	// Registry connections (#19): name and login, status and last check,
+	// which images they match and what they are bound to, and last use. The
+	// priority column shows only when priorities differ; the credential's
+	// fingerprint is in the edit dialog. The owner adds (the header's "Add
+	// connection", ?create=1), edits, rotates, revokes, deletes and tests
+	// them.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import Plus from '@lucide/svelte/icons/plus';
 	import { registriesQuery, type RegistryConnection } from '$lib/api/queries';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
-		Button,
 		Card,
 		EmptyState,
 		ErrorState,
@@ -20,13 +20,17 @@
 		Skeleton,
 		StatusBadge,
 		Table,
+		formatDateTime,
 		formatRelative,
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import CredentialActionHost from '$lib/features/registries/CredentialActionHost.svelte';
 	import RegistryDialog from '$lib/features/registries/RegistryDialog.svelte';
-	import { checkLabel, maskFingerprint, stackNamesQuery } from '$lib/features/registries/model';
+	import { checkLabel, stackNamesQuery } from '$lib/features/registries/model';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({ title: 'Registries', crumbs: [{ label: 'Registries' }] });
@@ -37,8 +41,10 @@
 	const stackName = (id: string) => stacks.data?.find((s) => s.id === id)?.name ?? 'a stack';
 	const rows = $derived(list.data ?? []);
 	const owner = $derived(!!scope.perms.data?.owner);
+	const samePriority = $derived(new Set(rows.map((c) => c.priority ?? 0)).size <= 1);
 
-	let dialogOpen = $state(false);
+	const createDialog = urlDialog('create');
+	let editOpen = $state(false);
 	let editing = $state<RegistryConnection | null>(null);
 	let host = $state<CredentialActionHost>();
 
@@ -50,24 +56,24 @@
 		if (manage) {
 			out.push(
 				{
-					label: 'Test connection…',
+					label: 'Test connection',
 					onSelect: () => host?.request({ kind: 'registry', item: c }, 'test')
 				},
-				{ label: 'Edit…', onSelect: () => ((editing = c), (dialogOpen = true)) },
+				{ label: 'Edit', onSelect: () => ((editing = c), (editOpen = true)) },
 				{
-					label: 'Rotate credential…',
+					label: 'Rotate credential',
 					onSelect: () => host?.request({ kind: 'registry', item: c }, 'rotate')
 				},
 				{ separator: true }
 			);
 			if (c.status === 'active')
 				out.push({
-					label: 'Revoke…',
+					label: 'Revoke',
 					tone: 'danger',
 					onSelect: () => host?.request({ kind: 'registry', item: c }, 'revoke')
 				});
 			out.push({
-				label: 'Delete…',
+				label: 'Delete',
 				tone: 'danger',
 				onSelect: () => host?.request({ kind: 'registry', item: c }, 'delete')
 			});
@@ -75,13 +81,13 @@
 		return out;
 	}
 
-	const columns: Column<RegistryConnection>[] = [
+	const columns: Column<RegistryConnection>[] = $derived([
 		{
 			id: 'name',
 			header: 'Name',
 			cell: nameCell,
 			sortValue: (c) => c.name,
-			width: '24%',
+			maxWidth: '300px',
 			stack: 'title'
 		},
 		{
@@ -89,32 +95,39 @@
 			header: 'Status',
 			cell: statusCell,
 			sortValue: (c) => c.status,
-			width: '150px',
+			width: '190px',
 			stack: 'status'
 		},
 		{
 			id: 'match',
 			header: 'Matches',
 			cell: matchCell,
-			sortValue: (c) => `${c.host}/${c.repositoryPattern ?? ''}`
+			sortValue: (c) => `${c.host}/${c.repositoryPattern ?? ''}`,
+			maxWidth: '320px',
+			stack: 'meta'
 		},
-		{ id: 'binding', header: 'Used for', cell: bindingCell },
-		{
-			id: 'priority',
-			header: 'Priority',
-			cell: priorityCell,
-			sortValue: (c) => c.priority ?? 0,
-			numeric: true,
-			width: '90px'
-		},
+		{ id: 'binding', header: 'Used for', cell: bindingCell, stack: 'meta' },
+		...(samePriority
+			? []
+			: [
+					{
+						id: 'priority',
+						header: 'Priority',
+						cell: priorityCell,
+						sortValue: (c: RegistryConnection) => c.priority ?? 0,
+						numeric: true,
+						width: '90px',
+						stack: 'meta'
+					} satisfies Column<RegistryConnection>
+				]),
 		{
 			id: 'used',
 			header: 'Last used',
 			cell: usedCell,
 			sortValue: (c) => c.lastUsedAt ?? '',
-			width: '130px'
+			width: '130px',
+			stack: 'meta'
 		},
-		{ id: 'secret', header: 'Credential', cell: secretCell, width: '150px' },
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -122,29 +135,26 @@
 			cell: actionsCell,
 			width: '56px',
 			align: 'end',
-			stack: 'actions'
+			pin: 'end',
+			stack: 'head'
 		}
-	];
+	]);
 </script>
 
-{#snippet nameCell(c: RegistryConnection)}
-	<div class="name-cell">
-		<span class="name">{c.name}</span>
-		{#if c.username}<span class="sub"
-				><span class="mono">{c.username}</span>{c.credentialType === 'password'
-					? ', password'
-					: ', token'}</span
-			>{/if}
-	</div>
-{/snippet}
+{#snippet nameCell(c: RegistryConnection)}<NameCell
+		name={c.name}
+		sub={c.username
+			? `${c.username}, ${c.credentialType === 'password' ? 'password' : 'token'}`
+			: undefined}
+	/>{/snippet}
 {#snippet statusCell(c: RegistryConnection)}
-	<div class="name-cell">
+	<div class="status">
 		{#if c.status === 'revoked'}<Badge tone="danger" dot>Revoked</Badge>
 		{:else if c.lastCheck && c.lastCheck.result !== 'ok'}<Badge tone="warn" dot
 				>{checkLabel(c.lastCheck.result)}</Badge
 			>
 		{:else}<StatusBadge status="online" label="Active" />{/if}
-		{#if c.lastCheck}<span class="sub" title={c.lastCheck.at}
+		{#if c.lastCheck}<span class="sub" title={formatDateTime(c.lastCheck.at)}
 				>checked {formatRelative(c.lastCheck.at)}</span
 			>{/if}
 	</div>
@@ -160,17 +170,9 @@
 {/snippet}
 {#snippet priorityCell(c: RegistryConnection)}<span class="num">{c.priority ?? 0}</span>{/snippet}
 {#snippet usedCell(c: RegistryConnection)}
-	{#if c.lastUsedAt}<span class="muted" title={c.lastUsedAt}>{formatRelative(c.lastUsedAt)}</span
+	{#if c.lastUsedAt}<span class="muted" title={formatDateTime(c.lastUsedAt)}
+			>{formatRelative(c.lastUsedAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
-{/snippet}
-{#snippet secretCell(c: RegistryConnection)}
-	{#if c.secret?.set}
-		<span
-			class="mono fp"
-			title="Fingerprint of the stored credential (version {c.secret.version})"
-			>{maskFingerprint(c.secret.fingerprint)}</span
-		>
-	{:else}<span class="muted">None stored</span>{/if}
 {/snippet}
 {#snippet actionsCell(c: RegistryConnection)}
 	{#if menu(c).length}
@@ -182,23 +184,9 @@
 	{/if}
 {/snippet}
 
-<RegistryDialog bind:open={dialogOpen} connection={editing} />
+<RegistryDialog bind:open={() => createDialog.open, (v) => (createDialog.open = v)} />
+<RegistryDialog bind:open={editOpen} connection={editing} />
 <CredentialActionHost bind:this={host} />
-
-<div class="bar">
-	<p class="muted">
-		For each image Docker Manager picks the most specific match: a stack or environment binding
-		first, then the longest repository matcher, then priority. Login raises Docker Hub's pull
-		limit but doesn't remove it.
-	</p>
-	{#if owner}
-		<Button
-			variant="primary"
-			icon={Plus}
-			onclick={() => ((editing = null), (dialogOpen = true))}>Add connection</Button
-		>
-	{/if}
-</div>
 
 {#if list.isError}
 	<ErrorState
@@ -207,7 +195,20 @@
 		onretry={() => list.refetch()}
 	/>
 {:else}
-	<Card padding="none">
+	<Card
+		title="Connections"
+		subtitle="For each image Docker Manager picks the most specific matching connection."
+		padding="none"
+	>
+		<div class="how">
+			<Disclosure summary="How a connection is chosen">
+				<p class="muted">
+					A connection bound to the image's stack or environment comes first, then the
+					longest repository match, then the higher priority. Signing in to Docker Hub
+					raises its pull limit but doesn't remove it.
+				</p>
+			</Disclosure>
+		</div>
 		{#if list.isPending}
 			<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 		{:else}
@@ -224,20 +225,9 @@
 						color="slate"
 						title="No registry connections yet."
 						description="Public images need none. Add one to pull private images, or to pull from Docker Hub with your account."
-						level={2}
+						level={3}
 						compact
-					>
-						{#snippet actions()}
-							{#if owner}
-								<Button
-									variant="primary"
-									icon={Plus}
-									onclick={() => ((editing = null), (dialogOpen = true))}
-									>Add connection</Button
-								>
-							{/if}
-						{/snippet}
-					</EmptyState>
+					/>
 				{/snippet}
 			</Table>
 		{/if}
@@ -245,19 +235,11 @@
 {/if}
 
 <style>
-	.bar {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: var(--space-4);
+	.how {
+		padding: 0 var(--space-5) var(--space-3);
 	}
 
-	.bar p {
-		max-width: 72ch;
-		font-size: var(--text-caption);
-	}
-
-	.name-cell {
+	.status {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
@@ -265,29 +247,13 @@
 		min-width: 0;
 	}
 
-	.name {
-		color: var(--text-strong);
-		font-weight: var(--weight-medium);
-	}
-
 	.sub {
 		color: var(--text-muted);
 		font-size: var(--text-caption);
-	}
-
-	.fp {
 		white-space: nowrap;
-		font-size: var(--text-caption);
-		color: var(--text-muted);
 	}
 
 	.loading {
 		padding: var(--space-5);
-	}
-
-	@media (max-width: 767px) {
-		.bar {
-			flex-direction: column;
-		}
 	}
 </style>

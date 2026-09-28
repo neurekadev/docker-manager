@@ -7,13 +7,45 @@ export function displayName(a: Pick<Account, 'displayName' | 'username'>): strin
 	return a.displayName?.trim() || a.username;
 }
 
-/** "Password, TOTP, 2 passkeys" (what the account signs in with). */
+/**
+ * The second line under a name: the username when a display name is set
+ * and differs from it (never the same word twice), else the email.
+ */
+export function secondaryName(
+	a: Pick<Account, 'displayName' | 'username' | 'email'>
+): string | undefined {
+	const name = a.displayName?.trim();
+	if (name && name.toLowerCase() !== a.username.toLowerCase()) return a.username;
+	return a.email || undefined;
+}
+
+/** "Password, authenticator app and 2 passkeys" (what the account signs in with). */
 export function factorsText(f: Account['factors']): string {
 	const parts: string[] = [];
-	if (f.password) parts.push('Password');
-	if (f.totp) parts.push('TOTP');
+	if (f.password) parts.push('password');
+	if (f.totp) parts.push('authenticator app');
 	if (f.passkeys) parts.push(`${f.passkeys} ${f.passkeys === 1 ? 'passkey' : 'passkeys'}`);
-	return parts.length ? parts.join(', ') : 'None';
+	if (!parts.length) return 'None';
+	const text =
+		parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+	return text[0].toUpperCase() + text.slice(1);
+}
+
+/**
+ * The members of a group as its page lists them: every account in it
+ * except the owner, whose access never comes from a group. The group
+ * list counts the same way (the API's memberCount includes the owner).
+ */
+export function groupMembers<T extends Pick<Account, 'groupId' | 'owner'>>(
+	users: readonly T[] | undefined,
+	groupId: string
+): T[] {
+	return (users ?? []).filter((u) => u.groupId === groupId && !u.owner);
+}
+
+/** "1 member", "2 members". */
+export function membersText(n: number): string {
+	return `${n} ${n === 1 ? 'member' : 'members'}`;
 }
 
 export function accountStatus(a: Pick<Account, 'status' | 'owner' | 'enrollmentDeadline'>): {
@@ -66,4 +98,21 @@ export function expiryFromDays(days: number, now: Date = new Date()): string {
 /** Whether the requested lifetime exceeds the instance maximum. */
 export function exceedsMaxLifetime(days: number, maxDays: number | undefined): boolean {
 	return maxDays !== undefined && days > maxDays;
+}
+
+/**
+ * Accounts that can be added to a group: everyone in another group except
+ * the owner, matching the search (name, username or email), by name.
+ */
+export function memberCandidates<
+	T extends Pick<Account, 'groupId' | 'owner' | 'displayName' | 'username' | 'email'>
+>(users: readonly T[] | undefined, groupId: string, search = ''): T[] {
+	const q = search.trim().toLowerCase();
+	return (users ?? [])
+		.filter((u) => u.groupId !== groupId && !u.owner)
+		.filter(
+			(u) =>
+				!q || [u.displayName, u.username, u.email].some((t) => t?.toLowerCase().includes(q))
+		)
+		.sort((a, b) => displayName(a).localeCompare(displayName(b)));
 }

@@ -3,9 +3,12 @@
 	// rail, <1024 px off-canvas drawer), top bar (sidebar toggle, breadcrumbs,
 	// live indicator, ⌘K search, notices, user menu), the offline banner
 	// when the live stream has been down for 5 s, and the offline-environment
-	// banner for the selected environment.
+	// banner for the selected environment (not on that environment's own
+	// page, which says it itself). A single crumb that repeats the page
+	// title is left out. Visited pages feed the palette's "Recent".
 	import type { Snippet } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { untrack } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -18,6 +21,7 @@
 		environmentSystemQuery,
 		myPermissionsQuery,
 		recentJobsQuery,
+		stacksSummaryQuery,
 		updatePoliciesSummaryQuery
 	} from '$lib/api/queries';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
@@ -38,8 +42,14 @@
 	import UserMenu from './UserMenu.svelte';
 	import { environmentSelection } from './environment.svelte';
 	import { accessOf, activeNav, hasAny, isRestricted, visibleNav } from './nav';
-	import { environmentNotices, jobNotices, updateNotices } from './notices.svelte';
+	import {
+		environmentNotices,
+		isGeneratedPolicyName,
+		jobNotices,
+		updateNotices
+	} from './notices.svelte';
 	import { pageState } from './page.svelte';
+	import { recentPages } from './recent.svelte';
 
 	interface Props {
 		user: Account;
@@ -98,13 +108,46 @@
 		...updatePoliciesSummaryQuery(),
 		enabled: hasAny(access, 'update_policy.')
 	}));
+	// Per-target update policies carry a generated name: their notices name
+	// the stack instead, so the stack list is read only while one of them
+	// has updates.
+	const stackNamesNeeded = $derived(
+		!!updatePolicies.data?.some(
+			(p) =>
+				p.target.type === 'stack' &&
+				(p.summary?.available ?? 0) > 0 &&
+				isGeneratedPolicyName(p)
+		)
+	);
+	const stacks = createQuery(() => ({
+		...stacksSummaryQuery(),
+		enabled: stackNamesNeeded && hasAny(access, 'stack.')
+	}));
 	const feedJobNotices = jobNotices(() => user.id, jobKindLabel);
-	const feedUpdateNotices = updateNotices();
+	const feedUpdateNotices = updateNotices(undefined, (t) => {
+		if (t.type !== 'stack') return undefined;
+		const s = stacks.data?.find((x) => x.id === t.id);
+		return s ? s.displayName || s.name : undefined;
+	});
 	$effect(() => {
 		if (recentJobs.data) feedJobNotices(recentJobs.data.items);
 	});
 	$effect(() => {
+		// Re-run when stack names arrive.
+		void stacks.data;
 		if (updatePolicies.data) feedUpdateNotices(updatePolicies.data);
+	});
+
+	// "Recent" in the palette: every visited path, named by the title its
+	// page registers (pageState changes when a page calls usePage).
+	$effect(() => {
+		const path = page.url.pathname;
+		untrack(() => recentPages.visit(path));
+	});
+	$effect(() => {
+		const title = pageState.current.title;
+		// The default title means no page registered one (yet).
+		if (title !== 'Docker Manager') untrack(() => recentPages.name(page.url.pathname, title));
 	});
 
 	// The offline banner, once the live stream (#23) has been down for 5 s.
@@ -124,10 +167,20 @@
 
 	const crumbs = $derived.by(() => {
 		const meta = pageState.current;
-		return meta.environmentScoped && selected
-			? [{ label: selected.name, href: routes.environment(selected.id) }, ...meta.crumbs]
-			: meta.crumbs;
+		const all =
+			meta.environmentScoped && selected
+				? [{ label: selected.name, href: routes.environment(selected.id) }, ...meta.crumbs]
+				: meta.crumbs;
+		// A lone crumb repeating the page's title (Dashboard, Environments) adds nothing.
+		return all.length === 1 && all[0].label === meta.title ? [] : all;
 	});
+
+	// The environment page shows its own offline notice.
+	const onOwnEnvironmentPage = $derived(
+		!!selected &&
+			page.route.id === '/(app)/environments/[environmentId]' &&
+			page.params.environmentId === selected.id
+	);
 
 	function toggleSidebar() {
 		if (drawerMode) {
@@ -224,7 +277,7 @@
 				is queued.
 			</Notice>
 		{/if}
-		{#if selected && !selected.online}
+		{#if selected && !selected.online && !onOwnEnvironmentPage}
 			<div class="env-offline">
 				<OfflineEnvironment name={selected.name} since={selected.connectionChangedAt} />
 			</div>
@@ -238,7 +291,7 @@
 
 {#if drawerMode}
 	<Drawer bind:open={drawerOpen} title="Navigation" hideTitle side="left" size="280px">
-		<Sidebar items={nav} activeId={active?.id} onnavigate={() => (drawerOpen = false)}>
+		<Sidebar items={nav} activeId={active?.id} drawer onnavigate={() => (drawerOpen = false)}>
 			{#snippet switcher()}{@render envSwitcher(false)}{/snippet}
 		</Sidebar>
 	</Drawer>
@@ -250,6 +303,9 @@
 	environmentId={environmentSelection.id}
 	environmentName={selected?.name}
 	onnavigate={(href) => goto(href)}
+	{access}
+	recent={recentPages.items}
+	currentPath={page.url.pathname}
 />
 
 <style>

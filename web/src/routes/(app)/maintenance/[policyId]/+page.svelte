@@ -1,22 +1,28 @@
 <script lang="ts">
-	// Maintenance policy detail (#14): its last run, rules and schedule, a
-	// preview of exactly what a run removes (with protected and excluded
-	// objects and why) in a dialog, and a manual run with confirmation and
-	// the "Run in background" choice. Both modes are the same durable job;
-	// leaving never cancels it. Editing opens the policy dialog
-	// (routes.maintenanceEdit() links here with it open).
+	// Maintenance policy detail (#14), in the policy page layout: a status
+	// sentence and the actions (Run now, Preview, Edit, Delete in the
+	// menu), the KPIs (last run, next run, rules on, space reclaimed), then
+	// its rules, its schedule and its recent runs (manual and scheduled
+	// prune jobs). A preview shows exactly what a run removes (with
+	// protected and excluded objects and why); a manual run is confirmed
+	// and is a durable job (leaving never cancels it). Editing opens the
+	// policy dialog (routes.maintenanceEdit() links here with it open).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
+	import Clock from '@lucide/svelte/icons/clock';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Eye from '@lucide/svelte/icons/eye';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
+	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import Play from '@lucide/svelte/icons/play';
 	import Server from '@lucide/svelte/icons/server';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Wrench from '@lucide/svelte/icons/wrench';
 	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
-	import { environmentsQuery } from '$lib/api/queries';
+	import { environmentsQuery, recentJobsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -36,7 +42,6 @@
 		PageHeader,
 		Skeleton,
 		StatusBadge,
-		Switch,
 		formatBytes,
 		formatDateTime,
 		formatRelative,
@@ -46,19 +51,23 @@
 	import { has } from '$lib/features/common/access';
 	import { environmentName, ifMatch, newIdempotencyKey } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
-	import Columns from '$lib/features/common/Columns.svelte';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import RunsTable from '$lib/features/jobs/RunsTable.svelte';
+	import { groupRuns } from '$lib/features/jobs/runs';
 	import MaintenancePolicyDialog from '$lib/features/maintenance/MaintenancePolicyDialog.svelte';
 	import PrunePreviewView from '$lib/features/maintenance/PrunePreviewView.svelte';
 	import {
 		categoryLabel,
 		enabledRules,
+		maintenanceStatusText,
 		normalizeRules,
 		ruleSummary,
+		rulesOnText,
+		rulesText,
 		type MaintenancePolicy,
 		type PrunePreview
 	} from '$lib/features/maintenance/model';
@@ -67,6 +76,7 @@
 		maintenanceKeys,
 		maintenancePolicyQuery
 	} from '$lib/features/maintenance/queries';
+	import { runReason, runStatus } from '$lib/features/schedules/model';
 
 	const id = $derived(page.params.policyId ?? '');
 	const qc = useQueryClient();
@@ -74,6 +84,11 @@
 	const envs = createQuery(() => environmentsQuery());
 	const defaults = createQuery(() => maintenanceDefaultsQuery());
 	const info = $derived(defaults.data?.categories);
+	// Manual and scheduled runs: prune jobs that target this policy.
+	const jobs = createQuery(() =>
+		recentJobsQuery(50, { kind: 'prune.run', target: `maintenance_policy:${id}` })
+	);
+	const runs = $derived(groupRuns(jobs.data?.items ?? []).slice(0, 10));
 
 	usePage(() => ({
 		title: policy.data?.name ?? 'Maintenance policy',
@@ -91,7 +106,6 @@
 	const editDialog = urlDialog('edit');
 	let previewError = $state<unknown>(null);
 	let runOpen = $state(false);
-	let background = $state(false);
 	let job = $state<Job | null>(null);
 	let deleteOpen = $state(false);
 
@@ -126,7 +140,6 @@
 	}
 
 	async function run(p: MaintenancePolicy) {
-		const bg = background;
 		try {
 			if (p.scope === 'all') {
 				environmentJobs = (
@@ -149,7 +162,7 @@
 						path: { policyId: p.id },
 						header: { 'Idempotency-Key': newIdempotencyKey() }
 					},
-					body: { confirm: true, background: bg }
+					body: { confirm: true }
 				})
 			);
 		} catch (e) {
@@ -164,18 +177,12 @@
 				{ cause: e }
 			);
 		}
-		if (bg && job) {
-			const jobId = job.id;
-			toast.info(`Pruning ${p.name} in the background`, {
-				body: 'You can leave this page; the result appears in Jobs and here.',
-				action: { label: 'Open job', onclick: () => void goto(routes.job(jobId)) }
-			});
-		}
 	}
 
 	function finished(j: Job) {
 		void qc.invalidateQueries({ queryKey: maintenanceKeys.detail(id) });
 		void qc.invalidateQueries({ queryKey: ['policies', 'list'] });
+		void jobs.refetch();
 		preview = null;
 		const name = policy.data?.name ?? 'the policy';
 		if (j.state === 'succeeded') toast.success(`Pruned ${name}`);
@@ -200,8 +207,6 @@
 	function menuFor(p: MaintenancePolicy): MenuEntry[] {
 		if (!has(p, 'maintenance_policy.manage')) return [];
 		return [
-			{ label: 'Edit policy', icon: Pencil, onSelect: () => (editDialog.open = true) },
-			{ separator: true },
 			{
 				label: 'Delete policy',
 				icon: Trash2,
@@ -210,15 +215,6 @@
 			}
 		];
 	}
-
-	const OUTCOME_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'neutral'> = {
-		enqueued: 'ok',
-		pending: 'neutral',
-		missed: 'warn',
-		skipped: 'neutral',
-		rejected: 'warn',
-		failed: 'danger'
-	};
 </script>
 
 <Page>
@@ -231,12 +227,14 @@
 			{@const env = envs.data?.find((e) => e.id === p.environmentId)}
 			{@const on = enabledRules(p)}
 			{@const menu = menuFor(p)}
+			{@const notStarted = (p.schedule?.recentRuns ?? []).filter(
+				(r) => r.outcome !== 'enqueued' && r.outcome !== 'pending'
+			)}
 			<PageHeader
 				title={p.name}
 				icon={Wrench}
 				color="slate"
-				description={p.description ||
-					'A prune policy: only the rules turned on below remove anything.'}
+				description={maintenanceStatusText(p)}
 				meta={[
 					{
 						icon: Server,
@@ -245,26 +243,25 @@
 								? 'All environments'
 								: environmentName(envs.data, p.environmentId)
 					},
-					{ label: `${on.length} of 7 rules on` }
+					{ label: rulesOnText(p) }
 				]}
 			>
-				{#snippet status()}
-					{#if p.schedule?.enabled}<Badge tone="ok" dot>Scheduled</Badge>{:else}<Badge dot
-							>Manual</Badge
-						>{/if}
-				{/snippet}
 				{#snippet actions()}
+					{#if has(p, 'maintenance.run')}
+						<Button
+							variant="primary"
+							icon={Play}
+							onclick={() => (runOpen = true)}
+							disabled={on.length === 0}>Run now</Button
+						>
+					{/if}
 					{#if has(p, 'maintenance.preview')}
 						<Button icon={Eye} loading={previewing} onclick={() => loadPreview(p)}
 							>Preview</Button
 						>
 					{/if}
-					{#if has(p, 'maintenance.run')}
-						<Button
-							variant="danger-soft"
-							onclick={() => (runOpen = true)}
-							disabled={on.length === 0}>Run now</Button
-						>
+					{#if has(p, 'maintenance_policy.manage')}
+						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
 					{/if}
 					{#if menu.length}
 						<Menu items={menu} label="More actions for {p.name}">
@@ -284,25 +281,9 @@
 			{#if env && !env.online}
 				<OfflineEnvironment name={env.name} since={env.connectionChangedAt} />
 			{/if}
-			{#if on.length === 0}
-				<Notice tone="info" title="Every rule is off" live="none">
-					This policy removes nothing until you turn on at least one rule.
-					{#snippet actions()}
-						{#if has(p, 'maintenance_policy.manage')}<Button
-								size="sm"
-								onclick={() => (editDialog.open = true)}>Edit rules</Button
-							>{/if}
-					{/snippet}
-				</Notice>
-			{/if}
 
 			{#if job}
-				<JobProgress
-					jobId={job.id}
-					title="Prune {p.name}"
-					variant={background ? 'inline' : 'panel'}
-					onfinish={finished}
-				/>
+				<JobProgress jobId={job.id} title="Prune {p.name}" onfinish={finished} />
 			{/if}
 			{#if environmentJobs.length > 1}
 				<Card title="Environment jobs" subtitle="One prune job per environment in scope.">
@@ -324,48 +305,116 @@
 				</Card>
 			{/if}
 
-			{#if p.lastRun}
-				<KpiRow>
-					<KpiCard
-						label="Last run"
-						value={formatRelative(p.lastRun.finishedAt)}
-						secondary={p.lastRun.origin === 'scheduled'
-							? 'Scheduled'
-							: 'Started by hand'}
-						icon={Wrench}
-						color="slate"
-						tone={p.lastRun.state === 'succeeded'
+			<KpiRow>
+				<KpiCard
+					label="Last run"
+					value={p.lastRun ? formatRelative(p.lastRun.finishedAt) : 'Never'}
+					secondary={p.lastRun
+						? `${p.lastRun.origin === 'scheduled' ? 'Scheduled' : 'By hand'}, ${formatDateTime(p.lastRun.finishedAt)}`
+						: 'Preview it, then run it'}
+					icon={Clock}
+					color="slate"
+					tone={p.lastRun
+						? p.lastRun.state === 'succeeded'
 							? 'ok'
 							: p.lastRun.state === 'partial'
 								? 'warn'
-								: 'danger'}
-					/>
-					<KpiCard
-						label="Removed"
-						value={String(p.lastRun.removed)}
-						secondary="{p.lastRun.skipped} skipped, {p.lastRun
-							.deferred} left for next time"
-						icon={Trash2}
-						color="rose"
-					/>
-					<KpiCard
-						label="Space reclaimed"
-						value={formatBytes(p.lastRun.bytesReclaimed)}
-						secondary="Approximate"
-						icon={HardDrive}
-						color="green"
-					/>
-					<KpiCard
-						label="Failed removals"
-						value={String(p.lastRun.failed)}
-						tone={p.lastRun.failed ? 'danger' : undefined}
-						secondary={p.lastRun.failed ? 'See the job for each reason' : 'None'}
-					>
-						{#snippet bar()}<a href={routes.job(p.lastRun!.jobId)}>Open the run</a
-							>{/snippet}
-					</KpiCard>
-				</KpiRow>
-			{/if}
+								: 'danger'
+						: undefined}
+				/>
+				<KpiCard
+					label="Next run"
+					value={p.schedule?.enabled && p.schedule.nextRun
+						? formatRelative(p.schedule.nextRun.utc)
+						: 'Not scheduled'}
+					secondary={p.schedule?.enabled && p.schedule.nextRun
+						? formatDateTime(p.schedule.nextRun.utc)
+						: 'Runs only when you start it'}
+					icon={CalendarClock}
+					color="slate"
+				/>
+				<KpiCard
+					label="Rules on"
+					value="{on.length} of {normalizeRules(p.rules).length}"
+					secondary={rulesText(p, info)}
+					icon={ListChecks}
+					color="violet"
+				/>
+				<KpiCard
+					label="Space reclaimed"
+					value={p.lastRun ? formatBytes(p.lastRun.bytesReclaimed) : '—'}
+					secondary={p.lastRun
+						? `Last run removed ${p.lastRun.removed}${p.lastRun.failed ? `, ${p.lastRun.failed} failed` : ''}`
+						: 'By the last run'}
+					icon={HardDrive}
+					color="green"
+					tone={p.lastRun?.failed ? 'warn' : undefined}
+				/>
+			</KpiRow>
+
+			<Card title="What it covers">
+				{#if on.length === 0}
+					<p class="muted lead">
+						Every rule is off: this policy removes nothing until you turn one on.
+					</p>
+				{/if}
+				<ul class="rules" role="list">
+					{#each normalizeRules(p.rules) as r (r.category)}
+						<li>
+							{#if r.enabled}
+								<Badge tone="accent" dot>On</Badge>
+								<span>{ruleSummary(r, info)}</span>
+							{:else}
+								<Badge dot>Off</Badge>
+								<span class="muted">{categoryLabel(r.category, info)}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</Card>
+
+			<Card title="Schedule">
+				{#if p.schedule}
+					<ScheduleSummary {...p.schedule} />
+					{#if notStarted.length}
+						<h3 class="subsection-title sub">Scheduled runs that did not start</h3>
+						<ul class="runs" role="list">
+							{#each notStarted.slice(0, 5) as r (r.scheduledFor)}
+								{@const st = runStatus(r)}
+								<li>
+									<span class="num"
+										>{formatDateTime(r.scheduledFor, p.schedule.timeZone)}</span
+									>
+									<StatusBadge
+										status={st.status}
+										kind={st.kind}
+										label={st.label || undefined}
+									/>
+									{#if runReason(r)}<span class="muted">{runReason(r)}</span>{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				{:else}
+					<p class="muted">No schedule: this policy runs only when you start it.</p>
+				{/if}
+			</Card>
+
+			<Card title="Recent runs" padding="none">
+				{#if jobs.isPending}
+					<div class="inset"><Skeleton lines={3} height="20px" /></div>
+				{:else}
+					<RunsTable {runs} label="Recent runs of {p.name}">
+						{#snippet empty()}<EmptyState
+								icon={Wrench}
+								title="No runs yet."
+								description="Runs appear here, started by hand or on the schedule."
+								level={3}
+								compact
+							/>{/snippet}
+					</RunsTable>
+				{/if}
+			</Card>
 
 			<Dialog
 				bind:open={previewOpen}
@@ -390,7 +439,7 @@
 									environmentPreview.environmentId
 								)}
 							>
-								<h3 class="sub">
+								<h3 class="subsection-title">
 									{environmentName(envs.data, environmentPreview.environmentId)}
 								</h3>
 								<PrunePreviewView preview={environmentPreview.preview} {info} />
@@ -418,64 +467,6 @@
 				{/snippet}
 			</Dialog>
 
-			<Columns ratio="equal">
-				<Card title="Rules">
-					{#snippet actions()}
-						{#if has(p, 'maintenance_policy.manage')}<Button
-								size="sm"
-								icon={Pencil}
-								onclick={() => (editDialog.open = true)}>Edit policy</Button
-							>{/if}
-					{/snippet}
-					<ul class="rules" role="list">
-						{#each normalizeRules(p.rules) as r (r.category)}
-							<li>
-								{#if r.enabled}
-									<Badge tone="accent" dot>On</Badge>
-									<span>{ruleSummary(r, info)}</span>
-								{:else}
-									<Badge dot>Off</Badge>
-									<span class="muted">{categoryLabel(r.category, info)}</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</Card>
-				<Card title="Schedule">
-					{#if p.schedule}
-						<ScheduleSummary {...p.schedule} />
-						{#if p.schedule.recentRuns.length}
-							<h3 class="sub">Recent scheduled runs</h3>
-							<ul class="runs" role="list">
-								{#each p.schedule.recentRuns as r (r.scheduledFor)}
-									<li>
-										<span class="num"
-											>{formatDateTime(
-												r.scheduledFor,
-												p.schedule.timeZone
-											)}</span
-										>
-										<Badge tone={OUTCOME_TONE[r.outcome] ?? 'neutral'}
-											>{r.outcome}</Badge
-										>
-										{#each r.jobs as j (j.jobId)}
-											<a href={routes.job(j.jobId)}
-												><StatusBadge status={j.state} kind="job" /></a
-											>
-										{/each}
-										{#if r.reason}<span class="muted">{r.reason}</span>{/if}
-									</li>
-								{/each}
-							</ul>
-						{:else}
-							<p class="muted sub-note">No scheduled runs yet.</p>
-						{/if}
-					{:else}
-						<EmptyState icon={Wrench} title="No schedule." level={3} compact />
-					{/if}
-				</Card>
-			</Columns>
-
 			<ConfirmDialog
 				bind:open={runOpen}
 				title="Run {p.name} now?"
@@ -485,18 +476,12 @@
 				consequences={[
 					...on.map((r) => ruleSummary(r, info)),
 					'Every object is checked again right before it is removed; protected objects are always kept.',
-					'A completed removal cannot be undone.'
+					'A completed removal cannot be undone. The run continues if you leave this page.'
 				]}
 				confirmLabel="Run {p.name}"
 				tone="danger"
 				onconfirm={() => run(p)}
-			>
-				<Switch
-					label="Run in background"
-					description="The run continues if you leave this page either way; background just keeps this page quiet."
-					bind:checked={background}
-				/>
-			</ConfirmDialog>
+			/>
 			{#if editDialog.open}
 				<MaintenancePolicyDialog bind:open={editDialog.open} policy={p} />
 			{/if}
@@ -554,14 +539,16 @@
 		gap: var(--space-2);
 	}
 
-	.sub {
-		margin: var(--space-4) 0 var(--space-2);
-		font-size: var(--text-control);
-		color: var(--text-strong);
+	.lead {
+		margin-bottom: var(--space-3);
 	}
 
-	.sub-note {
-		margin-top: var(--space-3);
+	.sub {
+		margin: var(--space-4) 0 var(--space-2);
+	}
+
+	.inset {
+		padding: var(--space-4);
 	}
 
 	.env-previews {
@@ -569,7 +556,7 @@
 		gap: var(--space-5);
 	}
 
-	.env-previews .sub {
-		margin-top: 0;
+	.env-previews .subsection-title {
+		margin-bottom: var(--space-2);
 	}
 </style>

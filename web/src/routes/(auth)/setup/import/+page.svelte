@@ -14,6 +14,7 @@
 	import { healthQuery, queryKeys, setupStatusQuery } from '$lib/api/queries';
 	import { useCriticalWork } from '$lib/features/common/unsaved.svelte';
 	import { routes } from '$lib/routes';
+	import AuthHeader from '$lib/features/auth/AuthHeader.svelte';
 	import {
 		Badge,
 		Checkbox,
@@ -195,17 +196,16 @@
 <svelte:head><title>Import from backup · Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<header>
-		<a class="back" href={routes.setup()}
-			><ArrowLeft size={14} aria-hidden="true" /> Set up a new Docker Manager instead</a
-		>
-		<h1>Import from backup</h1>
-		<p class="lead">
-			Recover a Docker Manager from its backups on this new, empty manager. You need the
-			backup location, its access keys if it is S3, and your Recovery Key; not the old
-			manager.
-		</p>
-	</header>
+	<AuthHeader
+		title="Import from backup"
+		lead="Recover a Docker Manager from its backups on this new, empty manager. You need the backup location, its access keys if it is S3, and your Recovery Key; not the old manager."
+	>
+		{#snippet before()}
+			<a class="back" href={routes.setup()}
+				><ArrowLeft size={14} aria-hidden="true" /> Set up a new Docker Manager instead</a
+			>
+		{/snippet}
+	</AuthHeader>
 
 	{#if status.isPending}
 		<Skeleton lines={5} height="36px" />
@@ -218,7 +218,7 @@
 				live="alert"
 			>
 				{status.data?.explanation ??
-					'This request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL.'}
+					"This page was not opened over HTTPS on Docker Manager's public address."}
 			</Notice>
 		{/if}
 		<StepWizard
@@ -236,7 +236,7 @@
 					<Fields>
 						<DestinationFields
 							bind:value={dest}
-							localDescription="The directory with the backups, mounted into this manager below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS. It may be a new path."
+							localDescription="The folder with the backups, as mounted into this Docker Manager's container in one of its backup folders. It may be a new path."
 						/>
 						<TextArea
 							label="Recovery Key"
@@ -450,18 +450,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-5);
-	}
-
-	h1 {
-		font-size: 22px;
-		line-height: 28px;
-	}
-
-	.lead {
-		margin-top: var(--space-1);
-		color: var(--text-muted);
-		font-size: var(--text-control);
-		line-height: 22px;
 	}
 
 	.back {

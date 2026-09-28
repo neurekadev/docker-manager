@@ -17,6 +17,9 @@ html {
 	-webkit-text-size-adjust: 100%;
 	text-size-adjust: 100%;
 	background: var(--surface-canvas);
+	/* The document is the page's scroll container: reserve the scrollbar's
+	   space so the layout does not shift between short and long pages. */
+	scrollbar-gutter: stable;
 }
 
 body {
@@ -159,6 +162,15 @@ svg {
 
 .muted {
 	color: var(--text-muted);
+}
+
+/* A heading inside a card body (an h3 below the card's 16 px title):
+   <h3 class="subsection-title">Environment variables</h3>. */
+.subsection-title {
+	color: var(--text-strong);
+	font-size: var(--text-subsection);
+	line-height: var(--leading-subsection);
+	font-weight: var(--weight-semibold);
 }
 
 /*

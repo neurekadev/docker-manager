@@ -11,9 +11,10 @@
 		dir?: string;
 		events: string[];
 		cut?: string[];
+		details?: boolean;
 	}
 
-	let { rows, dir = 'config', events, cut = [] }: Props = $props();
+	let { rows, dir = 'config', events, cut = [], details = false }: Props = $props();
 	let selection = $state<Selection>(EMPTY);
 	let sort = $state<ListSort>('type');
 </script>
@@ -37,6 +38,7 @@
 	dragScope="stack:s1"
 	canMove
 	canCopy
+	{details}
 />
 <output data-testid="selected">{selection.selected.join(',')}</output>
 <output data-testid="cursor">{selection.cursor ?? ''}</output>

@@ -46,7 +46,9 @@
 {:else}<span class="muted">—</span>{/if}
 
 <style>
+	/* position: relative keeps the hidden .sr-only texts inside the cell. */
 	.networks {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 2px;

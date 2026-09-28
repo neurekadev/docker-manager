@@ -29,6 +29,11 @@
 		options?: Omit<JobWatcherOptions, 'onfinish'>;
 		/** Where the finished job is announced (null: nowhere). */
 		notices?: Notices | null;
+		/**
+		 * Show the title and state line and the error (default). The job page
+		 * shows them itself and turns them off, so they appear once.
+		 */
+		summary?: boolean;
 	}
 
 	let {
@@ -38,7 +43,8 @@
 		variant = 'panel',
 		onfinish,
 		options,
-		notices = appNotices
+		notices = appNotices,
+		summary = true
 	}: Props = $props();
 
 	const TONES: Record<string, 'ok' | 'warn' | 'danger' | 'info'> = {
@@ -89,11 +95,17 @@
 	}
 </script>
 
-<div class="job {variant}" aria-busy={!w?.terminal}>
-	<div class="head">
-		<span class="title">{label}</span>
-		<StatusBadge status={state} kind="job" />
-	</div>
+<div
+	class="job {variant}"
+	class:bare={!summary && w?.terminal && !items.length && !w?.log.length}
+	aria-busy={!w?.terminal}
+>
+	{#if summary}
+		<div class="head">
+			<span class="title">{label}</span>
+			<StatusBadge status={state} kind="job" />
+		</div>
+	{/if}
 
 	{#if !w?.terminal}
 		<div
@@ -126,7 +138,7 @@
 	{/if}
 
 	{#if variant === 'panel'}
-		{#if job?.error && w?.terminal}
+		{#if summary && job?.error && w?.terminal}
 			<div class="outcome {state}">
 				<p class="message">{job.error.message}</p>
 				{#if job.error.recovery}<p class="recovery">{job.error.recovery}</p>{/if}
@@ -184,6 +196,10 @@
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		background: var(--surface-panel);
+	}
+
+	.panel.bare {
+		display: contents;
 	}
 
 	.head {

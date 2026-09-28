@@ -1,9 +1,12 @@
 <script lang="ts">
 	// Add a backup repository and set up the Recovery Key (#10): destination
-	// → the Recovery Key shown once (copy, download, fingerprint, "I stored
-	// it") → the re-entry challenge, which initializes the repository →
-	// connection test. The first repository of an instance generates the
-	// key; later ones reuse it and only ask for the challenge.
+	// (Save and continue saves it at once) → the Recovery Key shown once
+	// (copy, download, fingerprint, "I stored it") → the re-entry challenge,
+	// which initializes the repository → connection test ("Finish anyway"
+	// after a failed test). Cancel leaves before anything is saved; once
+	// saved it becomes "Finish later" (the repository page finishes setup).
+	// The first repository of an instance generates the key; later ones
+	// reuse it and only ask for the challenge. Errors show in the wizard.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -92,7 +95,8 @@
 		{
 			id: 'destination',
 			label: 'Destination',
-			description: 'Where the encrypted backups are stored.'
+			description:
+				'Where the encrypted backups are stored. Save and continue saves the repository; you can finish setup later from its page.'
 		},
 		{
 			id: 'key',
@@ -187,12 +191,18 @@
 		toast.success(`Added backup repository ${repo.name}`);
 		await goto(routes.backupRepository(repo.id));
 	}
+
+	// Before saving: back to the list. Saved: the repository page, where
+	// the Recovery Key can still be confirmed.
+	async function cancel() {
+		await goto(repo ? routes.backupRepository(repo.id) : routes.backupRepositories());
+	}
 </script>
 
 <Page narrow>
 	<PageHeader
 		title="Add backup repository"
-		description="A local directory or an S3 bucket. Docker Manager keeps one restic repository per scope below it: the manager and each environment."
+		description="A local directory or an S3 bucket where Docker Manager stores encrypted backups of the manager and each environment."
 	/>
 	{#if perms.isPending}
 		<Skeleton lines={6} height="36px" />
@@ -211,8 +221,10 @@
 				{onnext}
 				onfinish={finish}
 				{canAdvance}
-				nextLabel={current === 0 && !created ? 'Create repository' : 'Next'}
-				finishLabel="Done"
+				nextLabel={current === 0 && !created ? 'Save and continue' : 'Next'}
+				finishLabel={test && !test.ok ? 'Finish anyway' : 'Done'}
+				oncancel={cancel}
+				cancelLabel={created ? 'Finish later' : 'Cancel'}
 			>
 				{#snippet step(s)}
 					{#if s.id === 'destination'}
@@ -274,8 +286,8 @@
 					{:else if s.id === 'confirm'}
 						{#if confirmed}
 							<Notice tone="info" title="Recovery Key confirmed" live="status">
-								{confirmed.repository.name} is ready. Docker Manager is initializing its
-								restic repositories now.
+								{confirmed.repository.name} is ready. Docker Manager is preparing it for
+								backups now.
 							</Notice>
 							{#each confirmed.jobs ?? [] as j (j.id)}
 								<JobProgress
@@ -307,11 +319,6 @@
 				{/snippet}
 			</StepWizard>
 		</Card>
-		{#if error && !Object.keys(fields).length && !created}
-			<Notice tone="danger" title="The repository was not created" live="alert"
-				>{actionError(error)}</Notice
-			>
-		{/if}
 	{/if}
 </Page>
 

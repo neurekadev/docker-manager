@@ -22,14 +22,15 @@
 	const envs = createQuery(() => environmentsQuery());
 	const env = $derived(envs.data?.find((e) => e.id === environmentId));
 
+	// The same trail as the volume's other tabs: Volumes / env / name / Files.
 	usePage(() => ({
 		title: `${volumeId} files`,
 		crumbs: [
 			{ label: 'Volumes', href: routes.volumes() },
+			{ label: env?.name ?? environmentId },
 			{ label: volumeId, href: routes.volume(environmentId, volumeId) },
 			{ label: 'Files' }
-		],
-		environmentScoped: true
+		]
 	}));
 
 	const unsupported = $derived(

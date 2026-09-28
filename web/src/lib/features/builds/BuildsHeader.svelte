@@ -1,27 +1,48 @@
 <script lang="ts">
 	// Header and tabs of the builds section (#33): build history and saved
-	// build definitions, with "Build image" as the primary action.
+	// build definitions. Both tabs show the same actions: "Build image"
+	// (primary), "New definition" (opens the definitions with the create
+	// dialog) and the page's extra ones (the build cache prune).
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import Play from '@lucide/svelte/icons/play';
+	import Plus from '@lucide/svelte/icons/plus';
 	import { routes } from '$lib/routes';
 	import { Button, PageHeader, TabNav } from '$lib/ui';
 
 	interface Props {
 		/** The caller may start builds in at least one environment. */
 		canBuild: boolean;
+		/** The caller may save build definitions in at least one environment. */
+		canDefine?: boolean;
+		/** Opens the create dialog on the definitions tab (default: links there). */
+		onnewdefinition?: () => void;
 		environmentId?: string;
 		description: string;
-		/** Secondary actions before "Build image" (the history's build cache prune). */
+		/** Secondary actions before the others (the build cache prune). */
 		extra?: Snippet;
 	}
 
-	let { canBuild, environmentId, description, extra }: Props = $props();
+	let {
+		canBuild,
+		canDefine = false,
+		onnewdefinition,
+		environmentId,
+		description,
+		extra
+	}: Props = $props();
 </script>
 
 <PageHeader title="Builds" {description}>
 	{#snippet actions()}
 		{@render extra?.()}
+		{#if canDefine}
+			{#if onnewdefinition}
+				<Button icon={Plus} onclick={onnewdefinition}>New definition</Button>
+			{:else}
+				<Button icon={Plus} href={routes.buildDefinitionNew()}>New definition</Button>
+			{/if}
+		{/if}
 		{#if canBuild}
 			<Button variant="primary" icon={Play} href={routes.newBuild(environmentId)}
 				>Build image</Button

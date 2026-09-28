@@ -4,8 +4,9 @@
 	// agent (warnings include the obsolete top-level version: key and
 	// unsupported features). Creating writes the files into a new project
 	// directory of the stacks volume and never overwrites anything;
-	// deploying afterwards is a separate choice. Details sit beside the
-	// editors so the Compose file gets the width.
+	// deploying afterwards is on by default. Details sit beside the editors
+	// so the Compose file gets the width. With one environment the picker
+	// is hidden; beside disabled buttons a hint says what is missing.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { untrack } from 'svelte';
@@ -29,6 +30,7 @@
 		toast
 	} from '$lib/ui';
 	import { createStack, deployStack, validateStack } from './actions';
+	import { createBlocker } from './creating';
 	import { canInEnvironment, nameError } from './model';
 	import { stackKeys } from './queries';
 	import ValidationResult from './ValidationResult.svelte';
@@ -59,7 +61,7 @@
 	let description = $state('');
 	let compose = $state(STARTER);
 	let envFile = $state('');
-	let deployAfter = $state(false);
+	let deployAfter = $state(true);
 	let touched = $state(false);
 	let validating = $state(false);
 	let creating = $state(false);
@@ -85,19 +87,25 @@
 			environmentId = suggested ?? '';
 			name = displayName = description = envFile = '';
 			compose = STARTER;
-			deployAfter = touched = false;
+			deployAfter = true;
+			touched = false;
 			validation = failure = nameConflict = null;
 		});
 		return releaseWork;
 	});
 	$effect(() => {
-		if (open && !environmentId && allowed.length === 1) environmentId = allowed[0].id;
+		// The only environment the caller may create in (the picker is hidden).
+		if (open && allowed.length === 1 && environmentId !== allowed[0].id)
+			environmentId = allowed[0].id;
 	});
 
 	const env = $derived(allowed.find((e) => e.id === environmentId));
 	const nameMsg = $derived(touched ? nameError(name) : undefined);
 	const ready = $derived(!!env && !nameError(name) && compose.trim().length > 0);
 	const busy = $derived(validating || creating);
+	// One environment to choose from: no picker.
+	const pickEnvironment = $derived(allowed.length > 1);
+	const blocker = $derived(createBlocker({ environment: env, name, compose }));
 
 	function body(): Schema<'ValidateStackInputBody'> {
 		return {
@@ -177,7 +185,7 @@
 <Dialog
 	bind:open
 	title="Create stack"
-	description="Writes compose.yaml (and .env) into a new project directory in the environment's stacks volume. Nothing existing is overwritten."
+	description="Write or paste a Compose file. Docker Manager saves it as a new stack and never overwrites anything."
 	size="xl"
 	dismissible={!busy}
 >
@@ -212,24 +220,30 @@
 	{:else}
 		<form id="create-stack-form" class="layout" onsubmit={create}>
 			<div class="details">
-				<Select
-					label="Environment"
-					bind:value={environmentId}
-					placeholder="Choose an environment"
-					options={allowed.map((e) => ({
-						value: e.id,
-						label: e.online ? e.name : `${e.name} (offline)`
-					}))}
-					error={env && !env.online
-						? `${env.name} is offline. Stacks can be created when it is back.`
-						: undefined}
-				/>
+				{#if pickEnvironment}
+					<Select
+						label="Environment"
+						bind:value={environmentId}
+						placeholder="Choose an environment"
+						options={allowed.map((e) => ({
+							value: e.id,
+							label: e.online ? e.name : `${e.name} (offline)`
+						}))}
+						error={env && !env.online
+							? `${env.name} is offline. Stacks can be created when it is back.`
+							: undefined}
+					/>
+				{:else if env && !env.online}
+					<Notice tone="offline" title="{env.name} is offline.">
+						Stacks can be created when it is back.
+					</Notice>
+				{/if}
 				<TextField
 					label="Name"
 					bind:value={name}
 					mono
 					required
-					description="The Compose project name and its directory: lower-case letters, digits, dashes and underscores."
+					description="Lower-case letters, digits, dashes and underscores. Also names its folder and containers."
 					error={nameConflict ?? nameMsg}
 					oninput={() => (nameConflict = null)}
 					onblur={() => (touched = true)}
@@ -238,12 +252,12 @@
 				<TextField
 					label="Description"
 					bind:value={description}
-					description="Optional. Stored in Docker Manager, not in the Compose file."
+					description="Optional. Shown in Docker Manager only."
 				/>
 				<Checkbox
 					bind:checked={deployAfter}
 					label="Deploy after creating"
-					description="Starts a deploy right away; otherwise deploy it from the stack page."
+					description="Starts the stack right after creating it."
 				/>
 				{#if validation}<ValidationResult {validation} />{/if}
 				{#if failure}
@@ -261,11 +275,11 @@
 			</div>
 			<div class="editors">
 				<div class="editor">
-					<span class="editor-label">compose.yaml</span>
+					<span class="editor-label">Compose file</span>
 					<CodeEditor
 						value={compose}
 						label="compose.yaml"
-						height="400px"
+						height="240px"
 						onchange={(t) => {
 							compose = t;
 							edited();
@@ -273,11 +287,7 @@
 					/>
 				</div>
 				<div class="editor">
-					<span class="editor-label"
-						>.env <span class="muted"
-							>Optional. May hold secrets: stored sealed, never logged.</span
-						></span
-					>
+					<span class="editor-label">.env file</span>
 					<CodeEditor
 						value={envFile}
 						label=".env"
@@ -287,11 +297,17 @@
 							edited();
 						}}
 					/>
+					<span class="editor-help"
+						>Optional. May hold passwords; Docker Manager never shows them in logs.</span
+					>
 				</div>
 			</div>
 		</form>
 	{/if}
 	{#snippet footer()}
+		{#if allowed.length && blocker}
+			<p class="blocker" role="status">{blocker}</p>
+		{/if}
 		<Button variant="ghost" disabled={busy} onclick={() => (open = false)}>Cancel</Button>
 		{#if allowed.length}
 			<Button onclick={validate} loading={validating} disabled={!ready || creating}
@@ -336,10 +352,20 @@
 		font-weight: var(--weight-medium);
 	}
 
-	.editor-label .muted {
-		margin-left: var(--space-2);
-		font-weight: var(--weight-regular);
+	.editor-help {
+		color: var(--text-muted);
 		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
+	}
+
+	.blocker {
+		flex: 1 1 auto;
+		min-width: 0;
+		align-self: center;
+		margin-right: auto;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 	}
 
 	.issues {

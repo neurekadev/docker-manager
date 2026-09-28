@@ -7,7 +7,14 @@ import {
 	withStepUp
 } from '$lib/auth/stepup.svelte';
 import { can, has, isDenied, isNotFound } from './access';
-import { environmentName, fetchAllPages, ifMatch, newIdempotencyKey, shortDigest } from './data';
+import {
+	environmentName,
+	fetchAllPages,
+	ifMatch,
+	newIdempotencyKey,
+	onlyOneEnvironment,
+	shortDigest
+} from './data';
 import { actionError, fieldErrors } from './errors';
 import { SUGGESTED, defaultSchedule } from './schedules';
 import { linesToList, listToLines } from './text';
@@ -22,6 +29,14 @@ const apiErr = (status: number, code: string, details: { field: string; message:
 	});
 
 describe('data helpers', () => {
+	it('knows when the caller sees exactly one environment', () => {
+		expect(onlyOneEnvironment(undefined)).toBe(false);
+		expect(onlyOneEnvironment([])).toBe(false);
+		expect(onlyOneEnvironment([{}])).toBe(true);
+		expect(onlyOneEnvironment([{}, {}])).toBe(false);
+		expect(onlyOneEnvironment([{}, { archivedAt: '2026-09-01T00:00:00Z' }])).toBe(true);
+	});
+
 	it('follows cursors until the last page', async () => {
 		const page = vi.fn(async (cursor: string | undefined) =>
 			cursor === undefined

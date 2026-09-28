@@ -34,6 +34,15 @@ export function stackIcon(s: Pick<Stack, 'icon'>): { icon: string; color: TileCo
 }
 
 /**
+ * Whether a list shows the stack's icon: only when the user chose one (or
+ * the stack came from a template, which brings its own); the same default
+ * glyph on every row says nothing.
+ */
+export function showStackIcon(s: Pick<Stack, 'icon' | 'template'>): boolean {
+	return stackIcon(s).icon !== STACK_ICON || !!s.template;
+}
+
+/**
  * The status shown in badges: the live Engine state when Docker Manager last
  * deployed the stack (running, partial, stopped, not running), otherwise
  * what Docker Manager last did (failed deploy, down, not deployed).
@@ -308,6 +317,65 @@ export function revisionLabel(r: Pick<StackRevision, 'seq' | 'hash'>): string {
 	return `Revision ${r.seq} (${shortHash(r.hash)})`;
 }
 
+/** Consecutive revisions with the same files (the same fingerprint), newest first. */
+export interface RevisionGroup<R extends Pick<StackRevision, 'id' | 'hash'>> {
+	/** The newest revision of the run. */
+	head: R;
+	/** Every revision of the run, newest first (head included). */
+	members: R[];
+}
+
+/**
+ * Groups a newest-first revision list into runs of the same fingerprint
+ * (a deploy of unchanged files, a save that changed nothing): the history
+ * shows one row per run and comparisons never pick two equal revisions.
+ */
+export function groupRevisions<R extends Pick<StackRevision, 'id' | 'hash'>>(
+	list: R[]
+): RevisionGroup<R>[] {
+	const out: RevisionGroup<R>[] = [];
+	for (const r of list) {
+		const last = out.at(-1);
+		if (last && last.head.hash === r.hash) last.members.push(r);
+		else out.push({ head: r, members: [r] });
+	}
+	return out;
+}
+
+/**
+ * The comparison the Revisions tab opens with: the deployed revision
+ * against the files on disk while they differ, else the newest run against
+ * the run before it; null when no two revisions differ.
+ */
+export function defaultComparison<R extends Pick<StackRevision, 'id' | 'hash'>>(
+	list: R[],
+	appliedId: string | undefined,
+	diskId: string | undefined,
+	undeployed: boolean
+): { from: string; to: string } | null {
+	const applied = list.find((r) => r.id === appliedId);
+	const disk = list.find((r) => r.id === diskId);
+	if (undeployed && applied && disk && applied.hash !== disk.hash)
+		return { from: applied.id, to: disk.id };
+	const groups = groupRevisions(list);
+	return groups.length >= 2 ? { from: groups[1].head.id, to: groups[0].head.id } : null;
+}
+
+/**
+ * What to compare a revision with: the deployed revision when its files
+ * differ, else the next older revision with other files; null when none.
+ */
+export function comparisonFor<R extends Pick<StackRevision, 'id' | 'hash'>>(
+	list: R[],
+	r: R,
+	appliedId: string | undefined
+): { from: string; to: string } | null {
+	const applied = list.find((x) => x.id === appliedId);
+	if (applied && applied.hash !== r.hash) return { from: applied.id, to: r.id };
+	const older = list.slice(list.indexOf(r) + 1).find((x) => x.hash !== r.hash);
+	return older ? { from: older.id, to: r.id } : null;
+}
+
 /** Decodes a revision file for display (base64 files are binary). */
 export function fileText(f: { content?: string; encoding?: string }): string | null {
 	if (f.content === undefined) return null;
@@ -533,7 +601,53 @@ export function importCandidates<P extends { name: string; stackId?: string }>(
 
 /** The update states shown as "update available" on the stack (#20). */
 export function updateAvailable(images: Schema<'StackImageStatus'>[] | undefined): boolean {
-	return !!images?.some((i) => i.update === 'update_available');
+	return pendingUpdates(images).length > 0;
+}
+
+/** A service whose image has a newer version (the header's Update, #20). */
+export interface PendingUpdate {
+	service: string;
+	/** The image reference with its tag, e.g. nginx:1.27 (never a digest). */
+	image: string;
+	/** The newer image is already on the host (pulled, not deployed yet). */
+	pulled: boolean;
+}
+
+/**
+ * Services with a newer image: the update check found one in the registry
+ * (update_available), or a pull left one on the host that no deploy runs
+ * yet. Build-only services are left out (a rebuild updates them).
+ */
+export function pendingUpdates(images: Schema<'StackImageStatus'>[] | undefined): PendingUpdate[] {
+	return (images ?? [])
+		.filter((i) => !i.build && (i.update === 'update_available' || !!i.pulledImageId))
+		.map((i) => ({ service: i.service, image: i.image, pulled: !!i.pulledImageId }))
+		.sort((a, b) => a.service.localeCompare(b.service));
+}
+
+/** The newest update check of the stack's images (ISO), if any ran. */
+export function lastUpdateCheck(
+	images: Schema<'StackImageStatus'>[] | undefined
+): string | undefined {
+	let best: string | undefined;
+	for (const i of images ?? [])
+		if (i.checkedAt && (!best || Date.parse(i.checkedAt) > Date.parse(best)))
+			best = i.checkedAt;
+	return best;
+}
+
+/**
+ * The success toast of an update (a deploy that pulls every image first):
+ * an unchanged last deploy time means no container was recreated.
+ */
+export function updateSuccess(
+	title: string,
+	before: string | undefined,
+	after: string | undefined
+): string {
+	return before === after
+		? `Nothing to update: ${title} already runs the newest images`
+		: `Updated ${title}`;
 }
 
 // Deploys (#7): what a finished deploy did, and orphaned services.
@@ -630,7 +744,7 @@ const DRIFT_TEXT: Record<string, (s: string) => string> = {
 	running_while_stopped: (s) =>
 		`${s} runs although the stack was stopped. Stop the stack again, or start it to keep it running.`,
 	unexpected_service: (s) =>
-		`${s} is no longer in the Compose file, but its container is still on the host. Use “Deploy and remove orphaned containers” to remove it.`,
+		`${s} is no longer in the Compose file, but its container is still on the host. “Remove old containers” deploys the stack and removes it.`,
 	image_changed: (s) =>
 		`${s} runs another image than the last deploy used. Deploy the stack to run the image its Compose file names.`
 };

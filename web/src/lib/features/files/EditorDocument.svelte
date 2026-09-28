@@ -26,6 +26,8 @@
 		ondownload: (path: string) => void;
 		/** The path is a directory (a symlink to one): browse it instead. */
 		onisdir: (path: string) => void;
+		/** Wrap long lines. */
+		wrap?: boolean;
 	}
 
 	let {
@@ -36,7 +38,8 @@
 		preview,
 		editor = $bindable(),
 		ondownload,
-		onisdir
+		onisdir,
+		wrap = false
 	}: Props = $props();
 
 	const path = untrack(() => tab.path);
@@ -115,6 +118,7 @@
 			{:else}
 				<ErrorState
 					compact
+					bare
 					error={tab.error}
 					title="{basename(path)} could not be opened."
 					onretry={() => query.refetch()}
@@ -160,6 +164,7 @@
 				language={tab.language}
 				readOnly={readOnly || tab.truncated}
 				height="100%"
+				{wrap}
 				bind:editor
 				onchange={(t) => session.edit(path, t)}
 			/>

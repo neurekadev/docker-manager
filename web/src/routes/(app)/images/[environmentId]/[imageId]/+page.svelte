@@ -1,18 +1,21 @@
 <script lang="ts">
 	// Image detail (#6): tags and digests, platform, configuration, the
-	// containers using it (removal is refused while any do) and labels.
-	// Actions: tag, remove (server preview first), create a container.
+	// containers using it (removal is refused while any do) and labels
+	// (system labels folded). The title is the first tag (cut with its
+	// full text as tooltip), the digest short with a copy button. Actions:
+	// create a container, tag; removal (server preview first) is the last
+	// entry of the "More actions" menu.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Box from '@lucide/svelte/icons/box';
 	import Clock from '@lucide/svelte/icons/clock';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Server from '@lucide/svelte/icons/server';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Tag from '@lucide/svelte/icons/tag';
-	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { ApiRequestError } from '$lib/api/client';
 	import { imageQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -21,20 +24,29 @@
 		Badge,
 		Button,
 		Card,
+		Chip,
 		EmptyState,
 		ErrorState,
+		IconButton,
 		JobProgress,
+		Menu,
 		Notice,
 		OfflineEnvironment,
 		PageHeader,
 		Skeleton,
 		StatusBadge,
 		formatBytes,
+		formatDateTime,
 		formatRelative,
+		type MenuEntry,
 		type MetaItem
 	} from '$lib/ui';
+	import Columns from '$lib/features/common/Columns.svelte';
+	import Digest from '$lib/features/common/Digest.svelte';
+	import { onlyOneEnvironment } from '$lib/features/common/data';
 	import Facts, { type Fact } from '$lib/features/resources/Facts.svelte';
 	import ImageActionHost from '$lib/features/resources/ImageActionHost.svelte';
+	import LabelsCard from '$lib/features/resources/LabelsCard.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 	import { activeJobs, resourceKey } from '$lib/features/resources/jobs.svelte';
@@ -67,14 +79,16 @@
 	const meta = $derived<MetaItem[]>(
 		im
 			? [
-					{ icon: Server, label: envName },
+					...(onlyOneEnvironment(scope.envs.data)
+						? []
+						: [{ icon: Server, label: envName }]),
 					...(im.size ? [{ icon: HardDrive, label: formatBytes(im.size) }] : []),
 					...(im.createdAt
 						? [
 								{
 									icon: Clock,
 									label: `Built ${formatRelative(im.createdAt)}`,
-									title: im.createdAt
+									title: formatDateTime(im.createdAt)
 								}
 							]
 						: [])
@@ -84,7 +98,6 @@
 	const facts = $derived<Fact[]>(
 		im
 			? [
-					{ label: 'Image ID', value: im.id, mono: true },
 					{
 						label: 'Platform',
 						value: d
@@ -92,11 +105,27 @@
 							: undefined,
 						mono: true
 					},
-					{ label: 'Author', value: d?.author },
-					{ label: 'Digests', value: im.repoDigests?.join(', '), mono: true }
+					{ label: 'Author', value: d?.author }
 				]
 			: []
 	);
+	/** Removal last, after a separator (one rule on every resource page). */
+	const overflow = $derived.by<MenuEntry[]>(() => {
+		if (!im) return [];
+		const out: MenuEntry[] = [];
+		if (can(im.actions, 'image.tag'))
+			out.push({ label: 'Tag…', icon: Tag, onSelect: () => host?.request(im, 'tag') });
+		// Docker Manager's own images are never removed: no entry (the notice says why).
+		if (!im.protection && can(im.actions, 'image.remove')) {
+			if (out.length) out.push({ separator: true });
+			out.push({
+				label: 'Remove…',
+				tone: 'danger',
+				onSelect: () => host?.request(im, 'remove')
+			});
+		}
+		return out;
+	});
 	const config = $derived<Fact[]>(
 		d
 			? [
@@ -148,10 +177,22 @@
 			onretry={() => q.refetch()}
 		/>
 	{:else if im}
-		<PageHeader {title} description="Image {shortDigest(im.id)}" icon={Box} color="blue" {meta}>
+		<PageHeader
+			{title}
+			truncate
+			description={im.repoTags.length > 1
+				? `Also tagged ${im.repoTags.slice(1, 3).join(', ')}${im.repoTags.length > 3 ? ` and ${im.repoTags.length - 3} more` : ''}.`
+				: undefined}
+			icon={Box}
+			color="blue"
+			{meta}
+		>
 			{#snippet status()}
 				{#if im.inUse}<Badge tone="ok" dot>In use</Badge>{:else}<Badge>Unused</Badge>{/if}
-				{#if im.protection}<ProtectionBadge protection={im.protection} />{/if}
+				{#if im.protection}<ProtectionBadge
+						protection={im.protection}
+						label="Used by Docker Manager"
+					/>{/if}
 			{/snippet}
 			{#snippet actions()}
 				{#if im.repoTags[0] && scope.can('container.create', env)}
@@ -161,17 +202,17 @@
 						href={routes.newContainer(env, im.repoTags[0])}>Create container</Button
 					>
 				{/if}
-				{#if can(im.actions, 'image.tag')}
-					<Button variant="secondary" icon={Tag} onclick={() => host?.request(im, 'tag')}
-						>Tag</Button
-					>
-				{/if}
-				{#if can(im.actions, 'image.remove')}
-					<Button
-						variant="danger-soft"
-						icon={Trash2}
-						onclick={() => host?.request(im, 'remove')}>Remove</Button
-					>
+				{#if overflow.length}
+					<Menu items={overflow} label="More actions for {title}" align="end">
+						{#snippet trigger(props)}
+							<IconButton
+								{...props}
+								icon={Ellipsis}
+								label="More actions"
+								variant="secondary"
+							/>
+						{/snippet}
+					</Menu>
 				{/if}
 			{/snippet}
 		</PageHeader>
@@ -189,8 +230,25 @@
 		{/if}
 		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}
 
-		<div class="grid">
-			<Card title="Details"><Facts items={facts} label="Details of {title}" /></Card>
+		<Columns ratio="equal">
+			<Card title="Details">
+				<Facts items={facts} label="Details of {title}" />
+				<dl class="ids">
+					<div>
+						<dt>Image ID</dt>
+						<dd><Digest value={im.id} /></dd>
+					</div>
+					{#each im.repoDigests ?? [] as dg (dg)}
+						<div>
+							<dt>Digest</dt>
+							<dd>
+								<span class="repo mono" title={dg}>{dg.split('@')[0]}</span>
+								<Digest value={dg.split('@')[1] ?? dg} />
+							</dd>
+						</div>
+					{/each}
+				</dl>
+			</Card>
 			<Card title="Configuration">
 				{#if d}<Facts items={config} label="Configuration of {title}" />
 				{:else}<p class="muted">
@@ -200,7 +258,7 @@
 			<Card title="Tags">
 				{#if im.repoTags.length}
 					<ul class="chips" role="list">
-						{#each im.repoTags as t (t)}<li class="mono">{t}</li>{/each}
+						{#each im.repoTags as t (t)}<li><Chip label={t} size="sm" /></li>{/each}
 					</ul>
 				{:else}
 					<p class="muted">
@@ -212,7 +270,7 @@
 			<Card title="Used by">
 				{#if im.usedBy?.length}
 					<ul class="list" role="list">
-						{#each im.usedBy as c (c.id)}
+						{#each [...im.usedBy].sort( (a, b) => a.name.localeCompare(b.name) ) as c (c.id)}
 							<li>
 								<a href={routes.container(env, c.name)}>{c.name}</a>
 								{#if c.state}<StatusBadge status={c.state} />{/if}
@@ -221,16 +279,9 @@
 					</ul>
 				{:else}<p class="muted">No container uses this image.</p>{/if}
 			</Card>
-		</div>
+		</Columns>
 		{#if im.labels && Object.keys(im.labels).length}
-			<Card title="Labels">
-				<Facts
-					items={Object.entries(im.labels)
-						.sort(([a], [b]) => a.localeCompare(b))
-						.map(([k, v]) => ({ label: k, value: v, mono: true }))}
-					label="Labels of {title}"
-				/>
-			</Card>
+			<LabelsCard labels={im.labels} label="Labels of {title}" />
 		{/if}
 	{/if}
 </Page>
@@ -242,24 +293,47 @@
 		gap: var(--space-4);
 	}
 
-	.grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: var(--space-4);
-	}
-
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
 
-	.chips li {
-		padding: 2px 8px;
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		font-size: var(--text-caption);
+	/* The IDs below the facts, in the same two columns. */
+	.ids {
+		display: grid;
+		margin: 0;
+	}
+
+	.ids > div {
+		display: grid;
+		grid-template-columns: minmax(120px, 34%) 1fr;
+		gap: var(--space-3);
+		padding: 7px 0;
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.ids dt {
+		color: var(--text-muted);
+	}
+
+	.ids dd {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+		margin: 0;
+	}
+
+	.repo {
+		overflow: hidden;
+		color: var(--text-default);
+		font-size: 12.5px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.list {
@@ -279,9 +353,10 @@
 		text-decoration: none;
 	}
 
-	@media (max-width: 1023px) {
-		.grid {
+	@media (max-width: 767px) {
+		.ids > div {
 			grid-template-columns: 1fr;
+			gap: 2px;
 		}
 	}
 </style>

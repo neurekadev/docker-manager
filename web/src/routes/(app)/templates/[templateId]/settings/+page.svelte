@@ -1,12 +1,14 @@
 <script lang="ts">
 	// Template detail, Settings tab (template registry): details and tags
-	// (template.manage), the icon (template.manage), visibility
-	// (template.publish) and deletion (template.remove). Each card shows
-	// only with its capability.
+	// beside the icon (template.manage), visibility (template.publish) beside
+	// deletion (template.remove). Each card shows only with its capability;
+	// pairs sit side by side (Columns), a card without its partner takes the
+	// full width.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
+	import Columns from '$lib/features/common/Columns.svelte';
 	import { deleteTemplate, patchTemplate } from '$lib/features/templates/actions';
 	import IconUpload from '$lib/features/templates/IconUpload.svelte';
 	import { parseTags, tagProblem } from '$lib/features/templates/model';
@@ -18,6 +20,7 @@
 		Button,
 		Card,
 		DestructiveConfirm,
+		Notice,
 		TextArea,
 		TextField,
 		errorView,
@@ -106,104 +109,133 @@
 	}
 </script>
 
-{#if t}
-	<div class="cards">
-		{#if can('template.manage')}
-			<Card title="Details" id="details">
-				<form
-					class="form"
-					onsubmit={(e) => {
-						e.preventDefault();
-						void save();
-					}}
+{#snippet pair(cards: Snippet[])}
+	{#if cards.length === 2}
+		<Columns ratio="equal">{@render cards[0]()}{@render cards[1]()}</Columns>
+	{:else if cards.length === 1}
+		{@render cards[0]()}
+	{/if}
+{/snippet}
+
+{#snippet detailsCard()}
+	<Card title="Details" id="details">
+		<form
+			class="form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				void save();
+			}}
+		>
+			<TextField label="Name" bind:value={name} required maxlength={100} />
+			<TextArea label="Description" bind:value={description} maxlength={1024} />
+			<TextField
+				label="Tags"
+				bind:value={tagText}
+				description="Separate tags with commas. People browse and filter templates by them."
+				error={tagError}
+			/>
+			{#if saveError}
+				<Notice tone="danger" live="alert" title="The details were not saved">
+					{saveError}
+				</Notice>
+			{/if}
+			<div class="row">
+				<Button
+					variant="primary"
+					type="submit"
+					loading={saving}
+					disabled={!dirty || !name.trim() || !!tagError}>Save details</Button
 				>
-					<TextField label="Name" bind:value={name} required maxlength={100} />
-					<TextArea label="Description" bind:value={description} maxlength={1024} />
-					<TextField
-						label="Tags"
-						bind:value={tagText}
-						description="Separate tags with commas. People browse and filter templates by them."
-						error={tagError}
-					/>
-					{#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
-					<div class="row">
-						<Button
-							variant="primary"
-							type="submit"
-							loading={saving}
-							disabled={!dirty || !name.trim() || !!tagError}>Save details</Button
-						>
-					</div>
-				</form>
-			</Card>
+			</div>
+		</form>
+	</Card>
+{/snippet}
 
-			<Card title="Icon" id="icon">
-				<IconUpload template={t} />
-			</Card>
-		{/if}
+{#snippet iconCard()}
+	{#if t}
+		<Card title="Icon" id="icon">
+			<IconUpload template={t} />
+		</Card>
+	{/if}
+{/snippet}
 
-		{#if can('template.publish')}
-			<Card title="Visibility" id="visibility">
-				<div class="body">
-					{#if t.visibility === 'public'}
-						<p>
-							<strong>Public.</strong> Its published versions are listed in this instance's
-							public registry. Anyone with the registry URL can download every file of them,
-							including .env.
-						</p>
-						<div class="row">
-							<Button onclick={() => (visibilityOpen = true)}>Make private</Button>
-						</div>
-					{:else}
-						<p>
-							<strong>Private.</strong> Only people on this instance with access to it can
-							use it. Make it public to share it with other Docker Manager instances through
-							this instance's registry URL.
-						</p>
-						<div class="row">
-							<Button onclick={() => (visibilityOpen = true)}>Make public</Button>
-						</div>
-					{/if}
-				</div>
-			</Card>
-			<VisibilityDialog bind:open={visibilityOpen} template={t} />
-		{/if}
-
-		{#if can('template.remove')}
-			<Card title="Delete template" id="delete">
-				<div class="body">
+{#snippet visibilityCard()}
+	{#if t}
+		<Card title="Visibility" id="visibility">
+			<div class="body">
+				{#if t.visibility === 'public'}
 					<p>
-						Deletes the draft, the icon and every version. Stacks created from it keep
-						working with their own files.
+						<strong>Public.</strong> Its published versions are listed on this Docker Manager's
+						public page. Anyone with its address can download every file of them, including
+						.env.
 					</p>
 					<div class="row">
-						<Button variant="danger" onclick={() => (deleteOpen = true)}
-							>Delete template</Button
-						>
+						<Button onclick={() => (visibilityOpen = true)}>Make private</Button>
 					</div>
-				</div>
-			</Card>
-			<DestructiveConfirm
-				bind:open={deleteOpen}
-				title="Delete template {t.name}?"
-				consequences={[
-					`Deletes the draft files and ${t.versions} published ${t.versions === 1 ? 'version' : 'versions'}.`,
-					'Other instances stop offering it after their next registry sync.',
-					'Stacks created from it keep working, but no longer show its icon.'
-				]}
-				confirmText={t.name}
-				confirmLabel="Delete template"
-				onconfirm={remove}
-			/>
-		{/if}
+				{:else}
+					<p>
+						<strong>Private.</strong> Only people on this Docker Manager with access to it
+						can use it. Make it public to share it with other Docker Managers, which add this
+						one as a template source.
+					</p>
+					<div class="row">
+						<Button onclick={() => (visibilityOpen = true)}>Make public</Button>
+					</div>
+				{/if}
+			</div>
+		</Card>
+	{/if}
+{/snippet}
+
+{#snippet deleteCard()}
+	<Card title="Delete template" id="delete">
+		<div class="body">
+			<p>
+				Deletes the draft, the icon and every version. Stacks created from it keep working
+				with their own files.
+			</p>
+			<div class="row">
+				<Button variant="danger" onclick={() => (deleteOpen = true)}>Delete template</Button
+				>
+			</div>
+		</div>
+	</Card>
+{/snippet}
+
+{#if t}
+	<div class="cards">
+		{@render pair(can('template.manage') ? [detailsCard, iconCard] : [])}
+		{@render pair(
+			[
+				can('template.publish') ? visibilityCard : null,
+				can('template.remove') ? deleteCard : null
+			].filter((c) => c !== null)
+		)}
 	</div>
+	{#if can('template.publish')}
+		<VisibilityDialog bind:open={visibilityOpen} template={t} />
+	{/if}
+	{#if can('template.remove')}
+		<DestructiveConfirm
+			bind:open={deleteOpen}
+			title="Delete template {t.name}?"
+			consequences={[
+				`Deletes the draft files and ${t.versions} published ${t.versions === 1 ? 'version' : 'versions'}.`,
+				'Other Docker Managers stop offering it after their next sync.',
+				'Stacks created from it keep working, but no longer show its icon.'
+			]}
+			confirmText={t.name}
+			confirmLabel="Delete template"
+			onconfirm={remove}
+		/>
+	{/if}
 {/if}
 
 <style>
 	.cards {
 		display: grid;
 		gap: var(--space-4);
-		max-width: 760px;
+		min-width: 0;
 	}
 
 	.form,
@@ -219,13 +251,5 @@
 
 	p {
 		color: var(--text-default);
-	}
-
-	.error {
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--danger-border);
-		border-radius: var(--radius-sm);
-		background: var(--danger-soft);
-		color: var(--danger);
 	}
 </style>

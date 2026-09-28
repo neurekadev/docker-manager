@@ -1,13 +1,13 @@
 <script lang="ts">
-	// Update preview and run (#20). The preview is computed by the manager
-	// from the latest check: what gets recreated (current → candidate
-	// digest), expected downtime, dependents that restart, other consumers
-	// of the same tag on the environment (the pull moves it for them too),
-	// skipped candidates and source drift. Applying sends the preview's
+	// Update preview and run (#20) of one target (a stack or a standalone
+	// container). The preview is computed by the manager from the latest
+	// check: what gets recreated (the image and tag; the current and new
+	// digests behind "Digests"), expected downtime, dependents that restart,
+	// other consumers of the same tag on the environment (the pull moves it
+	// for them too), skipped candidates and source drift. Applying sends the preview's
 	// fingerprint, so anything that changed since is refused, not guessed.
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import {
 		Badge,
@@ -20,18 +20,28 @@
 		toast
 	} from '$lib/ui';
 	import Digest from '$lib/features/common/Digest.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { newIdempotencyKey } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
-	import { reasonLabel, type UpdatePolicy, type UpdatePreview } from './model';
+	import { policyLabel } from '$lib/shell/notices.svelte';
+	import { imageLabel, reasonLabel, type UpdatePolicy, type UpdatePreview } from './model';
 	import { updateKeys } from './queries';
 
 	let {
 		open = $bindable(false),
 		policy,
-		canRun
-	}: { open?: boolean; policy: UpdatePolicy; canRun: boolean } = $props();
+		canRun,
+		name: given
+	}: {
+		open?: boolean;
+		policy: UpdatePolicy;
+		canRun: boolean;
+		/** The target's name ("zerobyte"); default: the policy as users know it. */
+		name?: string;
+	} = $props();
 
 	const qc = useQueryClient();
+	const name = $derived(given ?? policyLabel(policy));
 	let preview = $state<UpdatePreview | null>(null);
 	let loadError = $state<unknown>(null);
 	let loading = $state(false);
@@ -95,11 +105,11 @@
 	function finished(j: Job) {
 		void qc.invalidateQueries({ queryKey: updateKeys.detail(policy.id) });
 		void qc.invalidateQueries({ queryKey: ['policies', 'list'] });
-		if (j.state === 'succeeded') toast.success(`Updated ${policy.name}`);
+		if (j.state === 'succeeded') toast.success(`Updated ${name}`);
 		else if (j.state === 'partial')
-			toast.warn(`Updated ${policy.name} partly`, { body: j.error?.recovery });
+			toast.warn(`Updated ${name} partly`, { body: j.error?.recovery });
 		else
-			toast.error(`${policy.name} was not updated`, {
+			toast.error(`${name} was not updated`, {
 				body: j.error?.recovery ?? j.error?.message
 			});
 	}
@@ -108,16 +118,11 @@
 <Dialog
 	bind:open
 	title="Update preview"
-	description="What an update of {policy.name} does now, from the latest check."
+	description="What updating {name} does now, from the latest check."
 	size="lg"
 >
 	{#if job}
-		<JobProgress
-			jobId={job.id}
-			title="Update {policy.name}"
-			variant="panel"
-			onfinish={finished}
-		/>
+		<JobProgress jobId={job.id} title="Update {name}" variant="panel" onfinish={finished} />
 	{:else if loading}
 		<div aria-busy="true"><Skeleton lines={5} height="20px" /></div>
 	{:else if loadError}
@@ -151,16 +156,13 @@
 							<li>
 								<div class="svc">
 									<strong>{item.candidate.service}</strong>
-									<span class="mono muted">{item.candidate.reference}</span>
-								</div>
-								<div class="digests">
-									<Digest value={item.candidate.currentDigest} copy={false} />
-									<ArrowRight size={14} aria-label="to" />
-									<Digest
-										value={item.candidate.candidateDigest}
-										tone="accent"
-										copy={false}
-									/>
+									<span
+										class="mono muted"
+										title="{item.candidate.currentDigest ?? 'Unknown'} → {item
+											.candidate.candidateDigest ?? 'Unknown'}"
+										>{imageLabel(item.candidate)}</span
+									>
+									<span class="muted">newer image</span>
 								</div>
 								<div class="meta">
 									{#if item.running}<Badge tone="ok" dot>Running</Badge
@@ -172,6 +174,17 @@
 										>{/if}
 									<span class="muted">Downtime: {item.downtime}</span>
 								</div>
+								<Disclosure summary="Digests">
+									<div class="digests">
+										<span class="muted">Running</span>
+										<Digest value={item.candidate.currentDigest} />
+										<span class="muted">New</span>
+										<Digest
+											value={item.candidate.candidateDigest}
+											tone="accent"
+										/>
+									</div>
+								</Disclosure>
 							</li>
 						{/each}
 					</ul>

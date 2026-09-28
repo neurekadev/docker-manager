@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import Checkbox from './Checkbox.svelte';
 import PasswordField from './PasswordField.svelte';
@@ -12,6 +12,7 @@ import TextField from './TextField.svelte';
 import TriState from './TriState.svelte';
 import { createRawSnippet } from 'svelte';
 import { choose } from '../../test/select';
+import CronHarness from '../../test/CronHarness.svelte';
 
 const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 
@@ -207,5 +208,71 @@ describe('Tabs', () => {
 		await user.keyboard('{Enter}');
 		expect(files).toHaveAttribute('aria-selected', 'true');
 		expect(await screen.findByText('Panel files')).toBeInTheDocument();
+	});
+});
+
+describe('CronField presets', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	function stubPreview() {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (req: Request) => {
+				const body = (await req.json()) as { cron: string; timeZone?: string };
+				return new Response(
+					JSON.stringify({
+						cron: body.cron,
+						timeZone: body.timeZone ?? 'UTC',
+						from: '2026-09-27T00:00:00Z',
+						notes: [],
+						runs: [
+							{ at: '2026-09-28T03:00:00Z', dst: 'none', local: '2026-09-28T03:00' }
+						]
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } }
+				);
+			})
+		);
+	}
+
+	it('edits a daily schedule with fields and writes the expression', async () => {
+		stubPreview();
+		const user = setup();
+		render(CronHarness, { props: { initial: '0 3 * * *' } });
+		expect(screen.getByRole('group', { name: 'Check schedule' })).toBeInTheDocument();
+		const repeats = screen.getByRole('combobox', { name: 'Repeats' });
+		expect(repeats).toHaveTextContent('Daily');
+		expect(screen.getByLabelText('Time')).toHaveValue('03:00');
+		// The raw expression is for Custom only.
+		expect(screen.queryByLabelText('Cron expression')).toBeNull();
+
+		await choose(user, repeats, 'Weekly');
+		expect(screen.getByTestId('cron')).toHaveTextContent('0 3 * * 1');
+		await choose(user, screen.getByRole('combobox', { name: 'Day' }), 'Friday');
+		expect(screen.getByTestId('cron')).toHaveTextContent('0 3 * * 5');
+
+		await choose(user, screen.getByRole('combobox', { name: 'Repeats' }), 'Hourly');
+		expect(screen.getByTestId('cron')).toHaveTextContent('0 * * * *');
+		const minute = screen.getByLabelText('At minute');
+		await user.clear(minute);
+		await user.type(minute, '15');
+		expect(screen.getByTestId('cron')).toHaveTextContent('15 * * * *');
+
+		await choose(user, screen.getByRole('combobox', { name: 'Repeats' }), 'Custom');
+		const raw = screen.getByLabelText('Cron expression');
+		expect(raw).toHaveValue('15 * * * *');
+		await user.clear(raw);
+		await user.type(raw, '30 7 * * 1-5');
+		expect(screen.getByTestId('cron')).toHaveTextContent('30 7 * * 1-5');
+		// Still Custom while typing, with the words and the next runs.
+		expect(screen.getByRole('combobox', { name: 'Repeats' })).toHaveTextContent('Custom');
+		await waitFor(() => expect(screen.getByText('Next runs')).toBeInTheDocument());
+	});
+
+	it('opens expressions the presets cannot edit as Custom', () => {
+		stubPreview();
+		render(CronHarness, { props: { initial: '*/15 * * * *' } });
+		expect(screen.getByRole('combobox', { name: 'Repeats' })).toHaveTextContent('Custom');
+		expect(screen.getByLabelText('Cron expression')).toHaveValue('*/15 * * * *');
 	});
 });

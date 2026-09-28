@@ -1,18 +1,15 @@
 <script lang="ts">
-	// Jobs as a table (#26): what, on what, where, state, why and when. Used
-	// by the jobs page, the dashboard and the environment page. Rows arrive
-	// newest first from the server (manualSort: no client re-sorting).
+	// Jobs as a table (#26): on what, what, where, state, why and when. Rows
+	// lead with the target's name (jobHeadline: "zerobyte" over "Check for
+	// updates"), so fifty checks do not read as fifty identical rows. On
+	// phones a row is two lines: the headline with its state and start time.
+	// Used by the jobs page, the dashboard and the environment page. Rows
+	// arrive newest first from the server (manualSort: no client re-sorting).
 	import type { Snippet } from 'svelte';
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
 	import { StatusBadge, Table, formatDateTime, formatRelative, type Column } from '$lib/ui';
-	import {
-		ORIGIN_LABELS,
-		jobDuration,
-		jobKindLabel,
-		jobTargetLabel,
-		type NameOf
-	} from './labels';
+	import { ORIGIN_LABELS, jobDuration, jobHeadline, type NameOf } from './labels';
 
 	interface Props {
 		jobs: Job[];
@@ -30,31 +27,53 @@
 
 	const columns = $derived.by(() => {
 		const cols: Column<Job>[] = [
-			{ id: 'job', header: 'Job', cell: jobCell, stack: 'title' },
+			{ id: 'job', header: 'Job', cell: jobCell, maxWidth: '420px', stack: 'title' },
 			{ id: 'state', header: 'State', cell: stateCell, width: '150px', stack: 'status' }
 		];
 		if (environments)
-			cols.push({ id: 'environment', header: 'Environment', cell: envCell, width: '150px' });
+			cols.push({
+				id: 'environment',
+				header: 'Environment',
+				cell: envCell,
+				width: '150px',
+				stack: 'hidden'
+			});
 		if (!compact)
-			cols.push({ id: 'origin', header: 'Origin', cell: originCell, width: '120px' });
-		cols.push({ id: 'created', header: 'Started', cell: createdCell, width: '150px' });
+			cols.push({
+				id: 'origin',
+				header: 'Origin',
+				cell: originCell,
+				width: '120px',
+				stack: 'hidden'
+			});
+		cols.push({
+			id: 'created',
+			header: 'Started',
+			cell: createdCell,
+			width: '150px',
+			stack: 'head'
+		});
 		if (!compact)
 			cols.push({
 				id: 'duration',
 				header: 'Duration',
 				cell: durationCell,
 				width: '100px',
-				numeric: true
+				numeric: true,
+				stack: 'hidden'
 			});
 		return cols;
 	});
 </script>
 
 {#snippet jobCell(j: Job)}
+	{@const h = jobHeadline(j, {
+		nameOf,
+		fallback: j.environmentId ? environments?.get(j.environmentId) : undefined
+	})}
 	<div class="job">
-		<a href={routes.job(j.id)} class="kind">{jobKindLabel(j.kind)}</a>
-		{#if jobTargetLabel(j, nameOf)}<span class="target mono">{jobTargetLabel(j, nameOf)}</span
-			>{/if}
+		<a href={routes.job(j.id)} class="name">{h.title}</a>
+		{#if h.subtitle}<span class="kind">{h.subtitle}</span>{/if}
 	</div>
 {/snippet}
 {#snippet stateCell(j: Job)}
@@ -63,15 +82,15 @@
 {#snippet envCell(j: Job)}
 	{#if j.environmentId}
 		<a href={routes.environment(j.environmentId)} class="env"
-			>{environments?.get(j.environmentId) ?? j.environmentId.slice(0, 8)}</a
+			>{environments?.get(j.environmentId) ?? 'Unknown environment'}</a
 		>
-	{:else}<span class="muted">Docker Manager</span>{/if}
+	{:else}<span class="muted">Manager</span>{/if}
 {/snippet}
 {#snippet originCell(j: Job)}
 	<span>{ORIGIN_LABELS[j.origin] ?? j.origin}</span>
 {/snippet}
 {#snippet createdCell(j: Job)}
-	<time datetime={j.createdAt} title={formatDateTime(j.createdAt)}
+	<time class="muted" datetime={j.createdAt} title={formatDateTime(j.createdAt)}
 		>{formatRelative(j.createdAt, now)}</time
 	>
 {/snippet}
@@ -88,15 +107,23 @@
 		min-width: 0;
 	}
 
-	.kind {
+	.name {
+		overflow: hidden;
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
-	.target {
+	a.name:hover {
+		color: var(--accent-text);
+	}
+
+	.kind {
 		overflow: hidden;
 		color: var(--text-muted);
 		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}

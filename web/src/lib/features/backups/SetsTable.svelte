@@ -119,6 +119,7 @@
 			header: 'Size',
 			cell: sizeCell,
 			sortValue: (s) => setBytes(backups, s.id) ?? -1,
+			title: () => 'The size of the data this run backed up',
 			width: '100px',
 			numeric: true,
 			stack: 'hidden'
@@ -129,6 +130,7 @@
 			hideHeader: true,
 			cell: actionsCell,
 			width: '220px',
+			pin: 'end',
 			stack: 'actions'
 		}
 	]);
@@ -198,7 +200,7 @@
 
 <Drawer
 	bind:open={drawerOpen}
-	title={selected ? `Backup set of ${formatDateTime(selected.startedAt)}` : 'Backup set'}
+	title={selected ? `Run of ${formatDateTime(selected.startedAt)}` : 'Backup run'}
 	size="640px"
 >
 	{#if selected}

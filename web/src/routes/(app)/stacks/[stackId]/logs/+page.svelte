@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Stack detail, Logs tab (#8, #22): every service container's logs,
-	// merged by time and coloured by service, full height. Renders inside the
-	// stack layout when there is one, and on its own otherwise.
+	// merged by time and coloured by service, full height. ?service=<name>
+	// (routes.stackLogs) starts with only that service selected. Renders
+	// inside the stack layout when there is one, and on its own otherwise.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
@@ -15,6 +16,7 @@
 	const stackId = $derived(page.params.stackId ?? '');
 	const stack = createQuery(() => stackQuery(stackId));
 	const name = $derived(stack.data?.displayName || stack.data?.name || 'Stack');
+	const service = $derived(page.url.searchParams.get('service'));
 
 	usePage(() => ({
 		title: `${name} logs`,
@@ -43,7 +45,7 @@
 		/>
 	{:else if stack.data}
 		{#key stackId}
-			<LogPanel target={{ kind: 'stack', stackId }} {name} />
+			<LogPanel target={{ kind: 'stack', stackId }} {name} {service} />
 		{/key}
 	{/if}
 </div>

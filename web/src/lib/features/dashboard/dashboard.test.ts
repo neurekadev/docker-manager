@@ -4,7 +4,9 @@ import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import type { Schema } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
+import AttentionStrip from './AttentionStrip.svelte';
 import EnvironmentCard from './EnvironmentCard.svelte';
+import { LIST_FILTERS_PREFIX } from '$lib/features/resources/list-filters.svelte';
 
 vi.mock('$lib/lazy', async (orig) => ({
 	...(await orig<typeof import('$lib/lazy')>()),
@@ -109,11 +111,22 @@ describe('EnvironmentCard (#5 dashboard)', () => {
 		});
 		const card = screen.getByRole('article', { name: 'edge' });
 		expect(within(card).getByText('Offline')).toBeInTheDocument(); // the word, not colour alone
-		expect(card).toHaveTextContent('Offline since 30 minutes ago. Values are the last known.');
+		expect(card).toHaveTextContent(
+			'Offline since 30 minutes ago. Showing the last known values.'
+		);
+		expect(within(card).getByRole('link', { name: 'edge' })).toHaveAttribute(
+			'href',
+			'/environments/e3'
+		);
 		expect(card).toHaveTextContent('1.4%');
 		expect(card).toHaveTextContent('319 MB / 4 GB');
 		expect(card).toHaveTextContent('Containers 1 / 3');
 		expect(card).toHaveTextContent('Volumes —'); // -1: unknown, never shown as a number
+		expect(within(card).getByRole('link', { name: '1 / 3' })).toHaveAttribute(
+			'href',
+			'/containers'
+		);
+		expect(within(card).getByRole('link', { name: '2' })).toHaveAttribute('href', '/stacks');
 		expect(
 			within(card).getByRole('link', { name: /1 stack has undeployed changes/ })
 		).toHaveAttribute('href', '/stacks');
@@ -147,7 +160,50 @@ describe('EnvironmentCard (#5 dashboard)', () => {
 		const card = screen.getByRole('article', { name: 'edge' });
 		expect(within(card).getByText('Online')).toBeInTheDocument();
 		expect(card).not.toHaveTextContent('CPU');
-		expect(card).toHaveTextContent('Engine not reported yet');
+		expect(card).toHaveTextContent('Docker version not known yet');
 		expect(urls).toEqual([]);
+	});
+});
+
+describe('AttentionStrip (#22 dashboard)', () => {
+	it('says so in one calm line when nothing needs attention', () => {
+		render(AttentionStrip, { props: { items: [] } });
+		expect(screen.getByRole('status')).toHaveTextContent('Everything is running.');
+		expect(screen.queryByRole('link')).not.toBeInTheDocument();
+	});
+
+	it('links every item to its list and presets the list filter on the way', async () => {
+		sessionStorage.clear();
+		render(AttentionStrip, {
+			props: {
+				items: [
+					{
+						id: 'failed-jobs',
+						label: '2 jobs failed in the last 24 hours',
+						href: '/jobs',
+						tone: 'danger',
+						filters: { list: 'jobs', values: { state: 'problems' } }
+					},
+					{
+						id: 'offline',
+						label: '1 environment is offline',
+						href: '/environments',
+						tone: 'offline'
+					}
+				]
+			}
+		});
+		const failed = screen.getByRole('link', { name: '2 jobs failed in the last 24 hours' });
+		expect(failed).toHaveAttribute('href', '/jobs');
+		expect(screen.getByRole('link', { name: '1 environment is offline' })).toHaveAttribute(
+			'href',
+			'/environments'
+		);
+		failed.addEventListener('click', (e) => e.preventDefault());
+		failed.click();
+		expect(JSON.parse(sessionStorage.getItem(LIST_FILTERS_PREFIX + 'jobs') ?? '{}')).toEqual({
+			q: '',
+			values: { state: 'problems' }
+		});
 	});
 });

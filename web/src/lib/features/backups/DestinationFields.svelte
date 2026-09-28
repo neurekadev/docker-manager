@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Where backups live (#10): a local directory on the manager or on one
-	// environment's agent (below DOCKER_AGENT_BACKUP_LOCAL_ROOTS there), or an S3
-	// bucket and prefix. S3 secrets are write-only: typed here, never shown.
+	// environment's agent (in a folder that host allows for backups: its
+	// *_BACKUP_LOCAL_ROOTS setting, named only in the documentation), or an
+	// S3 bucket and prefix. S3 secrets are write-only: typed here, never
+	// shown.
 	import { PasswordField, RadioGroup, Select, Switch, TextField } from '$lib/ui';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import type { Destination } from './destination';
@@ -21,7 +23,7 @@
 		executors,
 		errors = {},
 		credentialsOptional = false,
-		localDescription = 'An absolute directory below the backup roots of the host that writes it (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS or DOCKER_AGENT_BACKUP_LOCAL_ROOTS), outside every directory it backs up.'
+		localDescription = 'An absolute directory on that host, outside every directory it backs up. Local folders must be allowed by the administrator; see Configuration in the documentation.'
 	}: Props = $props();
 </script>
 

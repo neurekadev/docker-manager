@@ -70,7 +70,8 @@
 		height: 6px;
 		overflow: hidden;
 		border-radius: var(--radius-full);
-		background: var(--surface-raised);
+		/* The empty part must read on cards (--surface-panel). */
+		background: var(--border-strong);
 	}
 
 	.meter.md {

@@ -1,31 +1,42 @@
 <script lang="ts">
-	// A template of an added registry (template registry), read-only: its
-	// description, tags and published versions with their notes, and
-	// "Create stack" with template.use. Its files stay on its registry until a
-	// stack is created from it.
+	// A template of a template source (another Docker Manager), read-only:
+	// the page header with "Create stack" (template.use), what its newest
+	// version runs (services, images, ports and .env names, downloaded from
+	// its source with template.use; values never shown), and its published
+	// versions with their notes and "Duplicate as a new template". Its files
+	// stay on its source until a stack is created from it.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
+	import Archive from '@lucide/svelte/icons/archive';
+	import Copy from '@lucide/svelte/icons/copy';
+	import History from '@lucide/svelte/icons/history';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Plus from '@lucide/svelte/icons/plus';
-	import Copy from '@lucide/svelte/icons/copy';
+	import Tag from '@lucide/svelte/icons/tag';
 	import { ApiRequestError } from '$lib/api/client';
 	import { myPermissionsQuery } from '$lib/api/queries';
+	import Page from '$lib/features/common/Page.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
+	import DefinitionSummary from '$lib/features/templates/DefinitionSummary.svelte';
 	import DuplicateDialog from '$lib/features/templates/DuplicateDialog.svelte';
 	import TemplateIcon from '$lib/features/templates/TemplateIcon.svelte';
-	import { catalogItemQuery } from '$lib/features/templates/queries';
+	import { versionTitle } from '$lib/features/templates/model';
+	import { catalogDefinitionQuery, catalogItemQuery } from '$lib/features/templates/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
 		Button,
 		Card,
+		Chip,
 		EmptyState,
 		ErrorState,
+		PageHeader,
 		Skeleton,
 		formatBytes,
 		formatDateTime,
-		formatRelative
+		formatRelative,
+		type MetaItem
 	} from '$lib/ui';
 
 	const instanceId = $derived(page.params.instanceId ?? '');
@@ -33,10 +44,15 @@
 	const item = createQuery(() => catalogItemQuery(instanceId, templateId));
 	const t = $derived(item.data);
 	const perms = createQuery(() => myPermissionsQuery());
-	const canDuplicate = $derived(
-		!!t?.actions.includes('template.use') &&
-			!!t?.versions.length &&
-			canAnywhere(perms.data, 'template.create')
+	const canUse = $derived(!!t?.actions.includes('template.use') && !!t?.versions.length);
+	const canDuplicate = $derived(canUse && canAnywhere(perms.data, 'template.create'));
+	const latest = $derived(t?.versions[0]);
+	const definition = createQuery(() =>
+		catalogDefinitionQuery(
+			canUse ? instanceId : '',
+			canUse ? templateId : '',
+			latest?.number ?? 0
+		)
 	);
 	let duplicating = $state(false);
 
@@ -44,16 +60,39 @@
 		title: t?.name ?? 'Template',
 		crumbs: [{ label: 'Templates', href: routes.templates() }, { label: t?.name ?? 'Template' }]
 	}));
+
+	const meta = $derived.by((): MetaItem[] => {
+		if (!t) return [];
+		const out: MetaItem[] = [
+			{ icon: Archive, label: `From ${t.registryName}`, title: 'Its template source' }
+		];
+		if (latest) {
+			out.push({ icon: Tag, label: versionTitle(latest.label), title: 'The newest version' });
+			out.push({
+				icon: History,
+				label: `${t.versions.length} ${t.versions.length === 1 ? 'version' : 'versions'}`
+			});
+		}
+		return out;
+	});
 </script>
 
+{#snippet duplicateAction()}
+	<Button size="sm" icon={Copy} onclick={() => (duplicating = true)}
+		>Duplicate as a new template</Button
+	>
+{/snippet}
+
 {#if item.isPending}
-	<div aria-busy="true"><Skeleton lines={6} /></div>
+	<Page>
+		<div aria-busy="true" aria-label="Loading the template"><Skeleton lines={6} /></div>
+	</Page>
 {:else if item.error instanceof ApiRequestError && (item.error.status === 404 || item.error.status === 403)}
 	<EmptyState
 		icon={LayoutTemplate}
 		color="violet"
 		title="This template is not available."
-		description="Its registry was removed, it is no longer public, or your access changed."
+		description="Its source was removed, it is no longer public, or your access changed."
 		level={1}
 	>
 		{#snippet actions()}<Button variant="primary" href={routes.templates()}
@@ -67,52 +106,86 @@
 		onretry={() => item.refetch()}
 	/>
 {:else if t}
-	<div class="page">
-		<header class="head">
-			<TemplateIcon url={t.iconUrl} size="lg" />
-			<div class="main">
-				<div class="title-row">
-					<h1>{t.name}</h1>
-					<Badge tone="neutral">From {t.registryName}</Badge>
-				</div>
-				{#if t.description}<p class="desc">{t.description}</p>{/if}
-				<div class="meta">
-					{#each t.tags as tag (tag)}<a class="tag" href={routes.templates(tag)}>#{tag}</a
-						>{/each}
-				</div>
-			</div>
-			{#if canDuplicate}
-				<Button icon={Copy} onclick={() => (duplicating = true)}>Duplicate</Button>
-			{/if}
-			{#if t.actions.includes('template.use') && t.versions.length}
-				<Button
-					variant="primary"
-					icon={Plus}
-					href={routes.stackFromTemplate(t.templateId, null, t.instanceId)}
-					>Create stack</Button
-				>
-			{/if}
-		</header>
+	<Page>
+		<PageHeader title={t.name} description={t.description || undefined} {meta}>
+			{#snippet media()}<TemplateIcon url={t.iconUrl} size="lg" />{/snippet}
+			{#snippet actions()}
+				{#if canUse}
+					<Button
+						variant="primary"
+						icon={Plus}
+						href={routes.stackFromTemplate(t.templateId, null, t.instanceId)}
+						>Create stack</Button
+					>
+				{/if}
+			{/snippet}
+		</PageHeader>
 
-		<Card title="Versions" id="versions">
-			<ol class="versions">
-				{#each t.versions as v, i (v.number)}
+		{#if t.tags.length}
+			<ul class="tags" aria-label="Tags">
+				{#each t.tags as tag (tag)}
 					<li>
-						<div class="version-head">
-							<strong class="mono">{v.label}</strong>
-							{#if i === 0}<Badge tone="info">Latest</Badge>{/if}
-							<span class="muted" title={formatDateTime(v.publishedAt)}
-								>{formatRelative(v.publishedAt)} · {formatBytes(
-									v.contentSize
-								)}</span
-							>
-						</div>
-						{#if v.notes}<p class="notes">{v.notes}</p>{/if}
+						<Chip
+							size="sm"
+							label={tag}
+							href={routes.templates(tag)}
+							title="Show templates tagged {tag}"
+						/>
 					</li>
 				{/each}
-			</ol>
+			</ul>
+		{/if}
+
+		{#if latest && canUse}
+			<Card
+				title="What it runs"
+				subtitle="{versionTitle(
+					latest.label
+				)}: its services and the settings its .env asks for."
+				padding="none"
+				id="services"
+			>
+				{#if definition.isError}
+					<div class="pad">
+						<ErrorState
+							error={definition.error}
+							title="The version's files could not be downloaded from {t.registryName}."
+							onretry={() => definition.refetch()}
+							bare
+							compact
+						/>
+					</div>
+				{:else if definition.isPending}
+					<div class="pad" aria-busy="true"><Skeleton lines={3} height="20px" /></div>
+				{:else if definition.data}
+					<DefinitionSummary files={definition.data.files} />
+				{/if}
+			</Card>
+		{/if}
+
+		<Card title="Versions" id="versions" actions={canDuplicate ? duplicateAction : undefined}>
+			{#if t.versions.length}
+				<ol class="versions">
+					{#each t.versions as v, i (v.number)}
+						<li>
+							<div class="version-head">
+								<strong>{versionTitle(v.label)}</strong>
+								{#if i === 0}<Badge tone="info">Latest</Badge>{/if}
+								<span class="muted" title={formatDateTime(v.publishedAt)}
+									>{formatRelative(v.publishedAt)} · {formatBytes(
+										v.contentSize
+									)}</span
+								>
+							</div>
+							{#if v.notes}<p class="notes">{v.notes}</p>{/if}
+						</li>
+					{/each}
+				</ol>
+			{:else}
+				<p class="muted">No published versions.</p>
+			{/if}
 		</Card>
-	</div>
+	</Page>
 	{#if canDuplicate}
 		<DuplicateDialog
 			bind:open={duplicating}
@@ -127,59 +200,17 @@
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
-	.head {
-		display: flex;
-		align-items: flex-start;
-		flex-wrap: wrap;
-		gap: var(--space-4);
-	}
-
-	.main {
-		display: flex;
-		flex: 1;
-		flex-direction: column;
-		gap: 4px;
-		min-width: 0;
-	}
-
-	.title-row {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-	}
-
-	h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
-		letter-spacing: -0.01em;
-	}
-
-	.desc {
-		max-width: 80ch;
-		color: var(--text-default);
-	}
-
-	.meta {
+	.tags {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-		font-size: var(--text-caption);
+		margin: calc(-1 * var(--space-2)) 0 0;
+		padding: 0;
+		list-style: none;
 	}
 
-	.tag {
-		color: var(--text-muted);
-		text-decoration: none;
-	}
-
-	.tag:hover {
-		color: var(--accent-text);
+	.pad {
+		padding: var(--space-4) var(--space-5);
 	}
 
 	.versions {

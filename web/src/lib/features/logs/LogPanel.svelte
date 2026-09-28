@@ -28,9 +28,11 @@
 		/** Offer "Open in a new window" (not inside the window itself). */
 		popout?: boolean;
 		extra?: Snippet;
+		/** Stack logs: start with only this service selected (?service=<name>). */
+		service?: string | null;
 	}
 
-	let { target, name, dense = false, popout = true, extra }: Props = $props();
+	let { target, name, dense = false, popout = true, extra, service = null }: Props = $props();
 
 	function readLogs(s: LogSource, q: { tail?: number; since?: string }) {
 		return unwrap(
@@ -171,6 +173,7 @@
 {:else if loadError}
 	<div class="state">
 		<ErrorState
+			bare
 			error={loadError}
 			title="The services of {name} could not be loaded."
 			onretry={() => {
@@ -196,6 +199,7 @@
 		onpopout={popout ? openWindow : undefined}
 		{dense}
 		{extra}
+		{service}
 	/>
 {/if}
 

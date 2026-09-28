@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import type { MyPermissions, SearchHit } from '$lib/api/client';
 import { EnvironmentSelection, type StorageLike } from './environment.svelte';
-import { accessOf, activeNav, isRestricted, visibleNav } from './nav';
-import { environmentNotices, jobNotices, Notices, updateNotices } from './notices.svelte';
-import { grouped, hitResults, hrefForHit, pageResults } from './palette';
+import { accessOf, activeNav, isRestricted, NAV_GROUPS, NAV_ITEMS, visibleNav } from './nav';
+import {
+	environmentNotices,
+	isGeneratedPolicyName,
+	jobNotices,
+	noticeHref,
+	Notices,
+	policyLabel,
+	updateNotices
+} from './notices.svelte';
+import {
+	actionResults,
+	grouped,
+	hitResults,
+	hrefForHit,
+	pageResults,
+	recentResults
+} from './palette';
+import { RecentPages } from './recent.svelte';
 import { bannerDelay, indicatorText, OFFLINE_BANNER_DELAY_MS } from './live-banner';
 
 function perms(p: Partial<MyPermissions>): MyPermissions {
@@ -77,6 +93,19 @@ describe('navigation filter (#17)', () => {
 		);
 		expect(runner).not.toContain('schedules');
 		expect(activeNav('/schedules')?.id).toBe('schedules');
+	});
+
+	it('puts every item in a group, labelled after the first', () => {
+		const ids = NAV_GROUPS.map((g) => g.id);
+		for (const i of NAV_ITEMS) expect(ids, i.id).toContain(i.group);
+		expect(NAV_GROUPS[0].label).toBeUndefined();
+		expect(NAV_GROUPS.slice(1).map((g) => g.label)).toEqual([
+			'Docker',
+			'Automation',
+			'Administration'
+		]);
+		// Every section has its own icon (Registries no longer shares one).
+		expect(new Set(NAV_ITEMS.map((i) => i.icon)).size).toBe(NAV_ITEMS.length);
 	});
 
 	it('finds the active section, including environment-scoped details', () => {
@@ -224,6 +253,84 @@ describe('notices', () => {
 		expect(n.items).toHaveLength(3);
 	});
 
+	it('never shows an opaque target ID in a job notice', () => {
+		const n = new Notices(() => 1);
+		const feed = jobNotices(
+			() => 'me',
+			() => 'Deploy stack',
+			n
+		);
+		const job = (state: string) => ({
+			id: 'j1',
+			kind: 'stack.deploy',
+			state,
+			createdAt: '2026-09-25T12:00:00Z',
+			initiatorUserId: 'me',
+			targets: [{ type: 'stack', id: '0190a6e0-0000-7000-8000-000000000001' }]
+		});
+		feed([job('running')]);
+		feed([job('succeeded')]);
+		expect(n.items.map((x) => x.title)).toEqual(['Deploy stack succeeded']);
+	});
+
+	it('links every notice somewhere', () => {
+		expect(noticeHref({ kind: 'job', href: '/jobs/j1' })).toBe('/jobs/j1');
+		expect(noticeHref({ kind: 'job' })).toBe('/jobs');
+		expect(noticeHref({ kind: 'environment' })).toBe('/environments');
+		expect(noticeHref({ kind: 'update' })).toBe('/updates');
+	});
+
+	it('names generated update policies by what they update and collapses several', () => {
+		const id = '01a0e473-0000-7000-8000-000000000001';
+		const auto = (pid: string, target: { type: string; id: string }, available: number) => ({
+			id: pid,
+			name: `Automatic update ${pid}`,
+			environmentId: 'e1',
+			target,
+			summary: { available }
+		});
+		expect(isGeneratedPolicyName({ id, name: `Automatic update ${id}` })).toBe(true);
+		expect(isGeneratedPolicyName({ id, name: 'Silo images' })).toBe(false);
+		const names = (t: { type: string; id: string }) => (t.id === 's1' ? 'zerobyte' : undefined);
+		expect(policyLabel(auto(id, { type: 'stack', id: 's1' }, 1), names)).toBe('zerobyte');
+		expect(policyLabel(auto(id, { type: 'container', id: 'nginx' }, 1))).toBe(
+			'container nginx'
+		);
+		expect(policyLabel(auto(id, { type: 'stack', id: 's9' }, 1), names)).toBe('a stack');
+
+		const n = new Notices(() => 1);
+		const feed = updateNotices(n, names);
+		feed([auto(id, { type: 'stack', id: 's1' }, 2)]);
+		expect(n.items.map((x) => x.title)).toEqual(['2 updates available for zerobyte']);
+		expect(n.items[0].title).not.toContain(id);
+
+		const many = Array.from({ length: 6 }, (_, i) =>
+			auto(`p${i}`, { type: 'stack', id: `s${i + 1}` }, 1)
+		);
+		feed(many);
+		expect(n.items).toHaveLength(1);
+		expect(n.items[0]).toMatchObject({
+			key: 'update:summary',
+			title: '6 stacks have updates available',
+			body: 'zerobyte, a stack, a stack and 3 more.',
+			href: '/updates'
+		});
+		feed([...many.slice(0, 2), auto('c1', { type: 'container', id: 'nginx' }, 3)]);
+		expect(n.items.map((x) => x.title)).toEqual([
+			'2 stacks and 1 container have updates available'
+		]);
+		// The same target through two policies counts once.
+		feed([
+			auto('p0', { type: 'stack', id: 's1' }, 1),
+			auto('p9', { type: 'stack', id: 's1' }, 1)
+		]);
+		expect(n.items.map((x) => [x.key, x.title])).toEqual([
+			['update:p0', '1 update available for zerobyte']
+		]);
+		feed([]);
+		expect(n.items).toHaveLength(0);
+	});
+
 	it('shows available updates per policy and resolves them when applied', () => {
 		const n = new Notices(() => 1);
 		const feed = updateNotices(n);
@@ -246,7 +353,72 @@ describe('notices', () => {
 	});
 });
 
+describe('recent pages (palette, UI state only)', () => {
+	it('keeps the newest paths per tab and never stores titles', () => {
+		const store = new MemStorage();
+		const recent = new RecentPages(store, 3);
+		recent.visit('/stacks');
+		recent.visit('/stacks/s1');
+		recent.name('/stacks/s1', 'Silo');
+		recent.visit('/jobs');
+		recent.visit('/stacks');
+		recent.visit('/settings');
+		expect(recent.items.map((i) => i.path)).toEqual(['/settings', '/stacks', '/jobs']);
+		expect(store.m.get('docker-manager:recent-pages')).toBe(
+			JSON.stringify(['/settings', '/stacks', '/jobs'])
+		);
+		recent.visit('/stacks/s1');
+		recent.name('/stacks/s1', 'Silo');
+		expect(recent.items[0]).toEqual({ path: '/stacks/s1', title: 'Silo' });
+		expect(store.m.get('docker-manager:recent-pages')).not.toContain('Silo');
+		// A new tab session reads the paths back, without titles.
+		expect(new RecentPages(store, 3).items).toEqual([
+			{ path: '/stacks/s1' },
+			{ path: '/settings' },
+			{ path: '/stacks' }
+		]);
+		recent.visit('not a path');
+		expect(recent.items).toHaveLength(3);
+		store.m.set('docker-manager:recent-pages', '{broken');
+		expect(new RecentPages(store).items).toEqual([]);
+	});
+});
+
 describe('command palette model', () => {
+	it('lists recent pages by title or section, without the current page', () => {
+		const pages = visibleNav(accessOf(perms({ owner: true })));
+		const out = recentResults(
+			[
+				{ path: '/jobs', title: 'Jobs' },
+				{ path: '/stacks/s1', title: 'Silo' },
+				{ path: '/stacks/s2' },
+				{ path: '/settings' }
+			],
+			pages,
+			'/jobs'
+		);
+		expect(out.map((r) => [r.group, r.label, r.secondary, r.href])).toEqual([
+			['Recent', 'Silo', 'Stacks', '/stacks/s1'],
+			['Recent', 'Settings', undefined, '/settings']
+		]);
+		expect(recentResults([{ path: '/a', title: 'A' }], pages, undefined, 0)).toEqual([]);
+	});
+
+	it('offers only the actions the caller may start, in the selected environment', () => {
+		expect(actionResults(undefined, null)).toEqual([]);
+		const owner = actionResults(accessOf(perms({ owner: true })), 'e1');
+		expect(owner.map((a) => [a.label, a.href])).toEqual([
+			['Create stack', '/stacks?create=1&environment=e1'],
+			['Create container', '/containers/new?environment=e1'],
+			['Build image', '/builds/new?environment=e1'],
+			['Add environment', '/environments/add']
+		]);
+		const builder = actionResults(accessOf(perms({ entries: [allow('image.build')] })), null);
+		expect(builder.map((a) => a.label)).toEqual(['Build image']);
+		const stacksOnly = actionResults(accessOf(perms({ owner: true })), null, 'stack');
+		expect(stacksOnly.map((a) => a.label)).toEqual(['Create stack']);
+	});
+
 	const hit = (h: Partial<SearchHit>): SearchHit =>
 		({ type: 'stack', id: 'x', name: 'x', ...h }) as SearchHit;
 

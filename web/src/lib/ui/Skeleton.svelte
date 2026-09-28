@@ -39,13 +39,15 @@
 		width: 100%;
 	}
 
+	/* Base and peak are a step above --surface-raised so the shimmer
+	   reads on cards (--surface-panel) as well as on the canvas. */
 	.sk {
 		display: block;
 		background: linear-gradient(
 			90deg,
-			var(--surface-raised) 0%,
-			var(--surface-hover) 50%,
-			var(--surface-raised) 100%
+			var(--surface-hover) 0%,
+			var(--border-strong) 50%,
+			var(--surface-hover) 100%
 		);
 		background-size: 200% 100%;
 		animation: shimmer 1.4s linear infinite;
@@ -63,6 +65,7 @@
 	@media (prefers-reduced-motion: reduce) {
 		.sk {
 			animation: none;
+			background: var(--surface-hover);
 		}
 	}
 </style>

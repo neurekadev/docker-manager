@@ -9,12 +9,12 @@
 //   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
 //   /images/{env}/{imageId}, /networks/{env}/{name}
 //   /volumes/{env}/{name}[/files|backups|migrate] volume detail, files, backups, migration
-//   /builds[/new|/definitions], /builds/{env}/{buildId}
-//   /registries[/git|/matches]          registry connections, Git credentials, match preview
+//   /builds[/new|/definitions[?create=1|?edit={id}]], /builds/{env}/{buildId}
+//   /registries[/git][?create=1|?test=1] registry connections, Git credentials, add, test an image
 //   /templates[?create=1], /templates/{id}[/files|versions|settings]   stack templates
 //   /templates/registries, /templates/remote/{instanceId}/{templateId}  registries, registry templates
 //   /registry                           this instance's public template registry (public)
-//   /jobs[/{jobId}], /schedules
+//   /jobs[/{jobId}][?kind=], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
 //   /updates[/{policyId}], /maintenance[/{policyId}]
@@ -58,6 +58,9 @@ export const routes = {
 	/** The stack's terminal with a service container preselected (#8). */
 	stackTerminal: (id: string, container?: string) =>
 		`/stacks/${e(id)}/terminal${container ? `?container=${e(container)}` : ''}`,
+	/** The stack's logs with one service selected (#8). */
+	stackLogs: (id: string, service?: string) =>
+		`/stacks/${e(id)}/logs${service ? `?service=${e(service)}` : ''}`,
 	/** The stack list with the create dialog open. */
 	newStack: (environmentId?: string | null) =>
 		`/stacks?create=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,
@@ -95,10 +98,16 @@ export const routes = {
 	network: (env: string, name: string) => `/networks/${e(env)}/${e(name)}`,
 	builds: () => '/builds',
 	buildDefinitions: () => '/builds/definitions',
-	newBuild: (env?: string, definition?: string) => {
+	/** The definitions with the create dialog open. */
+	buildDefinitionNew: () => '/builds/definitions?create=1',
+	/** The definitions with a definition's edit dialog open. */
+	buildDefinitionEdit: (id: string) => `/builds/definitions?edit=${e(id)}`,
+	/** The build form; `from` prefills it from an earlier build of `env`. */
+	newBuild: (env?: string, definition?: string, from?: string) => {
 		const q = new URLSearchParams();
 		if (env) q.set('environment', env);
 		if (definition) q.set('definition', definition);
+		if (from) q.set('from', from);
 		const s = q.toString();
 		return `/builds/new${s ? `?${s}` : ''}`;
 	},
@@ -116,14 +125,18 @@ export const routes = {
 		`/templates/remote/${e(instanceId)}/${e(templateId)}`,
 	registries: () => '/registries',
 	gitCredentials: () => '/registries/git',
-	registryMatches: () => '/registries/matches',
+	/** The registry connections with the "Test an image" dialog open (/registries/matches redirects here). */
+	registryMatches: () => '/registries?test=1',
 	backups: () => '/backups',
 	backup: (id: string) => `/backups/${e(id)}`,
 	backupRestore: (id: string) => `/backups/${e(id)}/restore`,
 	backupList: () => '/backups/all',
-	backupSnapshots: () => '/backups/snapshots',
+	/** restic's own snapshots (a repository page's "Raw snapshots"), optionally of one repository. */
+	backupSnapshots: (repositoryId?: string) =>
+		`/backups/snapshots${repositoryId ? `?repository=${e(repositoryId)}` : ''}`,
 	backupPolicies: () => '/backups/policies',
-	backupPolicyNew: () => '/backups/policies?create=1',
+	/** The Backups overview with the create-policy wizard open. */
+	backupPolicyNew: () => '/backups?create=1',
 	backupPolicy: (id: string) => `/backups/policies/${e(id)}`,
 	backupPolicyEdit: (id: string) => `/backups/policies/${e(id)}?edit=1`,
 	backupRepositories: () => '/backups/repositories',
@@ -138,7 +151,8 @@ export const routes = {
 	maintenancePolicy: (id: string) => `/maintenance/${e(id)}`,
 	maintenanceEdit: (id: string) => `/maintenance/${e(id)}?edit=1`,
 	maintenanceDefaults: () => '/maintenance?defaults=1',
-	jobs: () => '/jobs',
+	/** The jobs list, optionally with its kind filter set (?kind=update.check). */
+	jobs: (kind?: string) => `/jobs${kind ? `?kind=${e(kind)}` : ''}`,
 	job: (id: string) => `/jobs/${e(id)}`,
 	schedules: () => '/schedules',
 	access: () => '/access',

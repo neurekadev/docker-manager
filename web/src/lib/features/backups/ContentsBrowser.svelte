@@ -1,6 +1,7 @@
 <script lang="ts">
-	// Browse a snapshot (#10): directories, files with size, permissions,
-	// owner and time; download one regular file (up to 2 GiB, audited).
+	// Browse a snapshot (#10): directories, files with size and time
+	// (permissions and owners on request); download one regular file (up to
+	// 2 GiB, audited).
 	// Stack snapshots hold compose.yaml and .env, so browsing needs the same
 	// permission as reading the stack's definition; the server decides.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -9,7 +10,15 @@
 	import File from '@lucide/svelte/icons/file';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Link from '@lucide/svelte/icons/link';
-	import { Button, IconButton, Table, formatBytes, formatDateTime, type Column } from '$lib/ui';
+	import {
+		Button,
+		Chip,
+		IconButton,
+		Table,
+		formatBytes,
+		formatDateTime,
+		type Column
+	} from '$lib/ui';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { modeText, parentPath, pathCrumbs, type BackupNode } from './model';
 	import { backupContentsQuery } from './queries';
@@ -37,7 +46,10 @@
 		return `/api/v1/backups/${encodeURIComponent(backupId)}/contents/download?path=${encodeURIComponent(p)}`;
 	}
 
-	const columns: Column<BackupNode>[] = [
+	// Permission bits and owners are for experts: shown on request.
+	let showPermissions = $state(false);
+
+	const columns = $derived<Column<BackupNode>[]>([
 		{
 			id: 'name',
 			header: 'Name',
@@ -53,8 +65,26 @@
 			width: '100px',
 			sortValue: (n) => n.size
 		},
-		{ id: 'mode', header: 'Mode', cell: modeCell, width: '80px', mono: true },
-		{ id: 'owner', header: 'Owner', cell: ownerCell, width: '100px', mono: true },
+		...(showPermissions
+			? [
+					{
+						id: 'mode',
+						header: 'Permissions',
+						cell: modeCell,
+						width: '110px',
+						mono: true,
+						stack: 'hidden' as const
+					},
+					{
+						id: 'owner',
+						header: 'Owner',
+						cell: ownerCell,
+						width: '100px',
+						mono: true,
+						stack: 'hidden' as const
+					}
+				]
+			: []),
 		{
 			id: 'mtime',
 			header: 'Modified',
@@ -70,7 +100,7 @@
 			width: '150px',
 			stack: 'actions'
 		}
-	];
+	]);
 </script>
 
 {#snippet nameCell(n: BackupNode)}
@@ -136,6 +166,13 @@
 				onclick={() => (path = parentPath(path || root))}
 			/>
 		{/if}
+		<span class="spacer"></span>
+		<Chip
+			label="Show permissions"
+			size="sm"
+			selected={showPermissions}
+			onclick={() => (showPermissions = !showPermissions)}
+		/>
 	</nav>
 	<QueryView
 		query={contents}
@@ -190,6 +227,10 @@
 	.crumb:hover,
 	.entry.dir:hover {
 		background: var(--surface-hover);
+	}
+
+	.spacer {
+		flex: 1;
 	}
 
 	.sep {

@@ -4,10 +4,10 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { groupRequests, ConflictQueue, decisionSummary, type ConflictItem } from './conflicts';
-import { definitionRefusal, isDefinitionFile } from './definition';
+import { definitionFiles, definitionRefusal, isDefinitionFile } from './definition';
 import { diffLines, diffRows } from './diff';
 import { directoriesOf } from './dropped';
-import { modeString } from './icons';
+import { modeString, ownerText, ownerTitle } from './icons';
 import { commandFor, isTypingTarget } from './keyboard';
 import { archiveFormat, detectLanguage, formattable } from './language';
 import { parseInline, parseMarkdown, safeHref } from './markdown';
@@ -73,6 +73,15 @@ describe('selection', () => {
 		s = sel.click(s, keys, 'c', { range: true, toggle: true });
 		expect(new Set(s.selected)).toEqual(new Set(['a', 'c', 'd', 'e']));
 		expect(sel.click(s, keys, 'zzz')).toBe(s);
+	});
+
+	it('a click that opens a file moves the cursor without selecting', () => {
+		const s = sel.focus({ selected: ['a', 'b'], anchor: 'a', cursor: 'b' }, keys, 'c');
+		expect(s).toEqual({ selected: [], anchor: 'c', cursor: 'c' });
+		expect(sel.targets(s, keys)).toEqual([]);
+		// Shift-click then ranges from the opened file.
+		expect(sel.click(s, keys, 'e', { range: true }).selected).toEqual(['c', 'd', 'e']);
+		expect(sel.focus(s, keys, 'zzz')).toBe(s);
 	});
 
 	it('arrows move and select, Shift extends, Ctrl moves only the cursor', () => {
@@ -314,9 +323,37 @@ describe('languages, Compose sources, modes, folders', () => {
 		expect(isDefinitionFile('prod.yaml', ['prod.yaml'])).toBe(true);
 	});
 
+	it('finds the files a validation reads', () => {
+		expect(
+			definitionFiles([], ['compose.yaml', 'compose.override.yaml', '.env', 'data'])
+		).toEqual({ compose: 'compose.yaml', override: 'compose.override.yaml', env: '.env' });
+		// The override matches the Compose file's name and extension.
+		expect(
+			definitionFiles(
+				[],
+				['docker-compose.yml', 'compose.override.yaml', 'docker-compose.override.yml']
+			)
+		).toEqual({ compose: 'docker-compose.yml', override: 'docker-compose.override.yml' });
+		expect(definitionFiles([], ['compose.yml', 'compose.override.yaml'])).toEqual({
+			compose: 'compose.yml'
+		});
+		expect(definitionFiles(['prod.yaml', 'prod.local.yaml'], ['.env'])).toEqual({
+			compose: 'prod.yaml',
+			override: 'prod.local.yaml',
+			env: '.env'
+		});
+		expect(definitionFiles([], ['README.md'])).toBeNull();
+		expect(definitionFiles(['a.yaml', 'b.yaml', 'c.yaml'], ['a.yaml'])).toBeNull();
+	});
+
 	it('renders modes and orders folders to create', () => {
 		expect(modeString('0644')).toBe('rw-r--r--');
 		expect(modeString('0755')).toBe('rwxr-xr-x');
+		expect(ownerText(0, 0)).toBe('root');
+		expect(ownerText(1000, 1000)).toBe('1000');
+		expect(ownerText(0, 999)).toBe('root:999');
+		expect(ownerText(1000, 0)).toBe('1000:root');
+		expect(ownerTitle(1000, 100)).toBe('User ID 1000, group ID 100');
 		const f = (relDir: string) => ({ file: new File([], 'x'), relDir });
 		expect(directoriesOf([f('a/b/c'), f(''), f('a/d')])).toEqual(['a', 'a/b', 'a/d', 'a/b/c']);
 	});

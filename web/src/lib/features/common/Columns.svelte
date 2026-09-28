@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Cards side by side on wide screens (a narrow facts column and a wide
-	// table, two equal halves or three thirds); stacked below 1024 px. Cards
-	// in a row share its height, so no card ends halfway down the row.
+	// table, two equal halves or three thirds); stacked below 1024 px. Each
+	// card keeps its own height (a one-line card beside a long table is not
+	// stretched to the table's height).
 	import type { Snippet } from 'svelte';
 
 	let {
@@ -16,7 +17,7 @@
 	.columns {
 		display: grid;
 		gap: var(--space-4);
-		align-items: stretch;
+		align-items: start;
 		min-width: 0;
 	}
 

@@ -35,7 +35,14 @@ describe('ErrorState', () => {
 			}
 		});
 		const alert = screen.getByRole('alert');
+		expect(alert).toHaveTextContent('Silo was not deployed.');
 		expect(alert).toHaveTextContent("Silo can't be deployed because homelab is offline.");
+		// Code and request ID wait behind "Details".
+		expect(alert).not.toHaveTextContent('environment_offline');
+		const details = screen.getByRole('button', { name: 'Details' });
+		expect(details).toHaveAttribute('aria-expanded', 'false');
+		await user.click(details);
+		expect(details).toHaveAttribute('aria-expanded', 'true');
 		expect(alert).toHaveTextContent('environment_offline');
 		expect(alert).toHaveTextContent('req-42');
 		await user.click(screen.getByRole('button', { name: 'Copy request ID' }));
@@ -58,6 +65,16 @@ describe('ErrorState', () => {
 			}
 		});
 		expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+		// Without a title the message leads.
+		expect(screen.getByRole('alert').querySelector('.title')).toHaveTextContent(
+			'Stack not found.'
+		);
+	});
+
+	it('has no Details without a code or request ID', () => {
+		render(ErrorState, { props: { error: new Error('the file is too large'), bare: true } });
+		expect(screen.getByRole('alert')).toHaveTextContent('The file is too large.');
+		expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
 	});
 });
 
@@ -86,6 +103,7 @@ describe('DeniedState and offline banner', () => {
 		const s = screen.getByRole('status');
 		expect(s).toHaveTextContent('edge is offline');
 		expect(s).toHaveTextContent('Its agent disconnected 3 hours ago.');
+		expect(s).toHaveTextContent('Actions on edge are unavailable until it reconnects.');
 	});
 });
 
@@ -216,6 +234,39 @@ describe('StepWizard', () => {
 		expect(finish).toHaveBeenCalledTimes(1);
 		await user.click(screen.getByRole('button', { name: 'Back' }));
 		expect(screen.getByRole('heading', { name: 'Repository' })).toHaveFocus();
+	});
+
+	it('offers Cancel on every step and returns to visited steps when they are clickable', async () => {
+		const user = setup();
+		const cancel = vi.fn();
+		const step = createRawSnippet((s: () => { label: string }) => ({
+			render: () => `<p>Content of ${s().label}</p>`
+		}));
+		render(StepWizard, {
+			props: {
+				label: 'Policy',
+				steps: [
+					{ id: 'a', label: 'Destination' },
+					{ id: 'b', label: 'Schedule' },
+					{ id: 'c', label: 'Retention' }
+				],
+				step,
+				oncancel: cancel,
+				stepsClickable: true
+			}
+		});
+		// Steps not reached yet are no buttons.
+		expect(screen.queryByRole('button', { name: /Schedule/ })).toBeNull();
+		await user.click(screen.getByRole('button', { name: 'Next' }));
+		await user.click(screen.getByRole('button', { name: 'Next' }));
+		expect(screen.getByRole('heading', { name: 'Retention' })).toHaveFocus();
+		await user.click(screen.getByRole('button', { name: /Destination/ }));
+		expect(screen.getByRole('heading', { name: 'Destination' })).toHaveFocus();
+		// A visited later step can be reached again.
+		await user.click(screen.getByRole('button', { name: /Retention/ }));
+		expect(screen.getByRole('heading', { name: 'Retention' })).toHaveFocus();
+		await user.click(screen.getByRole('button', { name: 'Cancel' }));
+		expect(cancel).toHaveBeenCalledTimes(1);
 	});
 });
 

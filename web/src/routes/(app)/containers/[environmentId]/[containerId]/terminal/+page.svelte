@@ -4,6 +4,7 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { fillViewport } from '$lib/features/files/fill';
+	import { environmentsQuery } from '$lib/api/queries';
 	import { containerQuery } from '$lib/features/files/resources';
 	import TerminalPanel from '$lib/features/terminal/TerminalPanel.svelte';
 	import { routes } from '$lib/routes';
@@ -15,15 +16,18 @@
 	const containerId = $derived(page.params.containerId ?? '');
 	const container = createQuery(() => containerQuery(environmentId, containerId));
 	const name = $derived(container.data?.name ?? containerId);
+	const envs = createQuery(() => environmentsQuery());
+	const envName = $derived(envs.data?.find((e) => e.id === environmentId)?.name ?? environmentId);
 
+	// The same trail as the container's other tabs: Containers / env / name / Terminal.
 	usePage(() => ({
 		title: `${name} terminal`,
 		crumbs: [
 			{ label: 'Containers', href: routes.containers() },
+			{ label: envName },
 			{ label: name, href: routes.container(environmentId, containerId) },
 			{ label: 'Terminal' }
-		],
-		environmentScoped: true
+		]
 	}));
 </script>
 

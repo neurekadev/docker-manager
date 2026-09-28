@@ -1,18 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
+	attachedContainers,
 	compactDuration,
 	containerStatus,
 	envLines,
+	healthCommand,
+	healthLabel,
+	hostnameIsId,
 	imagePresent,
+	isSystemLabel,
 	joinCommand,
 	megabytes,
+	networkAliases,
 	networkEntries,
 	normalizeReference,
 	parsePairs,
 	portHref,
 	portText,
+	restartPolicyLabel,
+	RESTART_OPTIONS,
+	sameEverywhere,
 	shortDigest,
 	splitCommand,
+	splitLabels,
+	splitUntagged,
 	uniquePorts,
 	upSince,
 	uptimeSortValue,
@@ -175,5 +186,119 @@ describe('container addresses and uptime', () => {
 		expect(later).toBeLessThan(earlier);
 		expect(uptimeSortValue(undefined)).toBeNull();
 		expect(uptimeSortValue('nope')).toBeNull();
+	});
+});
+
+describe('detail pages in words (#22 polish)', () => {
+	it('words restart policies, with the retries when known', () => {
+		expect(restartPolicyLabel(undefined)).toBe('Never restart');
+		expect(restartPolicyLabel('no')).toBe('Never restart');
+		expect(restartPolicyLabel('unless-stopped')).toBe('Unless stopped');
+		expect(restartPolicyLabel('always')).toBe('Always');
+		expect(restartPolicyLabel('on-failure')).toBe('On failure');
+		expect(restartPolicyLabel('on-failure', 5)).toBe('On failure (max 5)');
+		expect(restartPolicyLabel('on-failure:3')).toBe('On failure (max 3)');
+		// The form offers the words, never the raw value in parentheses.
+		expect(RESTART_OPTIONS.map((o) => o.label)).toEqual([
+			'Never restart',
+			'On failure',
+			'Unless stopped',
+			'Always'
+		]);
+	});
+
+	it('words health and shows a check without its CMD marker', () => {
+		expect(healthLabel('healthy')).toBe('Healthy');
+		expect(healthLabel('unhealthy')).toBe('Unhealthy');
+		expect(healthLabel('starting')).toBe('Starting');
+		expect(healthLabel('none')).toBe('No health check');
+		expect(healthLabel(undefined)).toBe('No health check');
+		expect(healthCommand(['CMD-SHELL', 'curl -f http://localhost/'])).toBe(
+			'curl -f http://localhost/'
+		);
+		expect(healthCommand(['CMD', '/bin/check', '--quiet'])).toBe('/bin/check --quiet');
+		expect(healthCommand(['NONE'])).toBe('');
+		expect(healthCommand(undefined)).toBe('');
+	});
+
+	it('folds the labels Docker, Compose and image builders set', () => {
+		expect(isSystemLabel('com.docker.compose.project')).toBe(true);
+		expect(isSystemLabel('org.opencontainers.image.source')).toBe(true);
+		expect(isSystemLabel('dev.neureka.docker-manager.stack')).toBe(true);
+		expect(isSystemLabel('traefik.enable')).toBe(false);
+		expect(
+			splitLabels({
+				'traefik.http.routers.web.rule': 'Host(`x`)',
+				'com.docker.compose.service': 'web',
+				'traefik.enable': 'true',
+				'org.opencontainers.image.title': 'web'
+			})
+		).toEqual({
+			user: [
+				['traefik.enable', 'true'],
+				['traefik.http.routers.web.rule', 'Host(`x`)']
+			],
+			system: [
+				['com.docker.compose.service', 'web'],
+				['org.opencontainers.image.title', 'web']
+			]
+		});
+		expect(splitLabels(undefined)).toEqual({ user: [], system: [] });
+	});
+
+	it('shows each alias once, without the name, hostname or ID Docker adds', () => {
+		const c = { name: 'web', id: '4e1b5f1a6d8e0123456789', hostname: '4e1b5f1a6d8e' };
+		expect(networkAliases(['web', 'api', '4e1b5f1a6d8e', 'api', 'backend'], c)).toEqual([
+			'api',
+			'backend'
+		]);
+		expect(networkAliases(undefined, c)).toEqual([]);
+		expect(hostnameIsId('4e1b5f1a6d8e', c.id)).toBe(true);
+		expect(hostnameIsId('web-1', c.id)).toBe(false);
+		expect(hostnameIsId(undefined, c.id)).toBe(false);
+	});
+
+	it('puts tagged images first and folds the untagged ones', () => {
+		const a = { id: 'a', repoTags: ['nginx:1.27'] };
+		const b = { id: 'b', repoTags: [] };
+		const c = { id: 'c', repoTags: ['redis:7'] };
+		expect(splitUntagged([b, a, c])).toEqual({ tagged: [a, c], untagged: [b] });
+	});
+
+	it('hides a column that repeats one value on every row', () => {
+		expect(sameEverywhere([{ d: 'local' }, { d: 'local' }], (r) => r.d)).toBe(true);
+		expect(sameEverywhere([{ d: 'local' }, { d: 'nfs' }], (r) => r.d)).toBe(false);
+		expect(sameEverywhere([], (r: { d: string }) => r.d)).toBe(true);
+	});
+
+	it("lists a network's containers by name with their address on it", () => {
+		expect(
+			attachedContainers(
+				'shop_default',
+				[
+					{ id: '2', name: 'web', state: 'running' },
+					{ id: '1', name: 'db', state: 'running' },
+					{ id: '3', name: 'gone' }
+				],
+				[
+					{
+						name: 'web',
+						networks: [
+							{ name: 'bridge', ipAddress: '172.17.0.2' },
+							{
+								name: 'shop_default',
+								ipAddress: '172.20.0.3',
+								ipv6Address: 'fd00::3'
+							}
+						]
+					},
+					{ name: 'db', networks: [{ name: 'shop_default', ipAddress: '172.20.0.2' }] }
+				]
+			)
+		).toEqual([
+			{ id: '1', name: 'db', state: 'running', addresses: ['172.20.0.2'] },
+			{ id: '3', name: 'gone', addresses: [] },
+			{ id: '2', name: 'web', state: 'running', addresses: ['172.20.0.3', 'fd00::3'] }
+		]);
 	});
 });

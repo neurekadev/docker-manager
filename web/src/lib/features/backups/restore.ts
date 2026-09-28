@@ -68,6 +68,26 @@ export function restoreConsequences(
 	return out;
 }
 
+/**
+ * The volumes chosen on the restore page after one is ticked or unticked.
+ * The list starts with every volume of the backup and is always explicit:
+ * unticking the last one leaves none chosen (never "all" again).
+ */
+export function toggleVolume(chosen: readonly string[], volume: string, on: boolean): string[] {
+	return on ? [...new Set([...chosen, volume])] : chosen.filter((v) => v !== volume);
+}
+
+/** Why the restore page can't go on to Review with this choice of volumes. */
+export function volumeChoiceError(
+	scope: string,
+	all: readonly string[],
+	chosen: readonly string[]
+): string | null {
+	return scope === 'volume' && all.length > 1 && chosen.length === 0
+		? 'Choose at least one volume to restore.'
+		: null;
+}
+
 /** A restore that has not ended (it holds back starts of its data). */
 export function activeRestore(jobs: readonly Job[] | undefined): Job | undefined {
 	return jobs?.find(

@@ -3,10 +3,12 @@
 	// searched by name, stack, driver, container or label and filtered by
 	// driver, stack and environment, with "Unused" and "Managed" (Docker
 	// Manager's stacks and its own) switches (ListCard); who uses it, its
-	// driver, size and age. Volumes whose files Docker Manager cannot open
-	// carry a "Read-only" tag with the reason (#28: non-local drivers and
-	// NFS/CIFS-backed volumes). Docker Manager's own volumes (#32) are marked
-	// and never removed.
+	// stack, driver (hidden while every volume has the same), size and age.
+	// Volumes whose files Docker Manager cannot open carry a "Read-only"
+	// tag with the reason (#28: non-local drivers and NFS/CIFS-backed
+	// volumes). Docker Manager's own volumes (#32) carry the shield mark
+	// and are never removed. Marks stay on the name's line, so every row
+	// has the same height. Selected volumes can be removed in bulk.
 	// Sizes load separately (the Engine walks the volumes; the manager
 	// reuses the answer for a minute), so the list never waits for them.
 	import { createQueries, createQuery } from '@tanstack/svelte-query';
@@ -28,6 +30,7 @@
 		Skeleton,
 		Table,
 		formatBytes,
+		formatDateTime,
 		formatRelative,
 		type Column,
 		type MenuEntry
@@ -36,10 +39,11 @@
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
+	import ObjectBulk from '$lib/features/resources/ObjectBulk.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
-	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
+	import ProtectionMark from '$lib/features/resources/ProtectionMark.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
 	import {
 		applyListFilters,
@@ -50,9 +54,10 @@
 	} from '$lib/features/resources/filters';
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
-	import { volumeAccess } from '$lib/features/resources/model';
+	import { sameEverywhere, volumeAccess } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
+	import { onlyOneEnvironment } from '$lib/features/common/data';
 
 	usePage({ title: 'Volumes', crumbs: [{ label: 'Volumes' }], environmentScoped: true });
 
@@ -131,6 +136,11 @@
 	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('volume.create'));
 	const key = (v: Volume) => `${v.environmentId}/${v.name}`;
+	let selected = $state<string[]>([]);
+	// Bulk removal runs on the selected rows the filters still show.
+	const chosen = $derived(rows.filter((v) => selected.includes(key(v))));
+	// A column that says "local" on every row says nothing.
+	const oneDriver = $derived(sameEverywhere(all, (v) => v.driver ?? 'local'));
 	const tracker = new ChangeTracker<Volume>(key, (v) => `${v.inUse}/${v.usedBy?.length ?? 0}`);
 	$effect(() => {
 		if (list.data) tracker.update(list.data.items);
@@ -148,7 +158,11 @@
 				label: 'Browse files',
 				href: routes.volume(v.environmentId, v.name, 'files')
 			});
-		if (can(v.actions, 'volume.migrate') && !v.protection)
+		if (
+			can(v.actions, 'volume.migrate') &&
+			!v.protection &&
+			!onlyOneEnvironment(scope.envs.data)
+		)
 			out.push({
 				label: 'Migrate…',
 				href: routes.volume(v.environmentId, v.name, 'migrate')
@@ -173,7 +187,15 @@
 	}
 
 	const columns: Column<Volume>[] = $derived([
-		{ id: 'name', header: 'Name', cell: nameCell, sortValue: (v) => v.name, stack: 'title' },
+		{
+			id: 'name',
+			header: 'Name',
+			cell: nameCell,
+			sortValue: (v) => v.name,
+			maxWidth: '320px',
+			title: (v) => v.name,
+			stack: 'title'
+		},
 		{
 			id: 'use',
 			header: 'Used by',
@@ -182,6 +204,14 @@
 			width: '170px',
 			stack: 'status'
 		},
+		{
+			id: 'stack',
+			header: 'Stack',
+			cell: stackCell,
+			sortValue: (v) => v.stack?.project ?? '',
+			maxWidth: '180px',
+			stack: 'hidden'
+		},
 		...(scope.single
 			? []
 			: [
@@ -189,16 +219,22 @@
 						id: 'env',
 						header: 'Environment',
 						cell: envCell,
-						sortValue: (v: Volume) => scope.name(v.environmentId)
+						sortValue: (v: Volume) => scope.name(v.environmentId),
+						stack: 'hidden'
 					} satisfies Column<Volume>
 				]),
-		{
-			id: 'driver',
-			header: 'Driver',
-			cell: driverCell,
-			sortValue: (v) => v.driver ?? '',
-			width: '110px'
-		},
+		...(oneDriver
+			? []
+			: [
+					{
+						id: 'driver',
+						header: 'Driver',
+						cell: driverCell,
+						sortValue: (v: Volume) => v.driver ?? '',
+						width: '110px',
+						stack: 'hidden'
+					} satisfies Column<Volume>
+				]),
 		{
 			id: 'size',
 			header: 'Size',
@@ -212,7 +248,8 @@
 			header: 'Created',
 			cell: createdCell,
 			sortValue: (v) => v.createdAt ?? '',
-			width: '130px'
+			width: '130px',
+			stack: 'hidden'
 		},
 		{
 			id: 'actions',
@@ -221,7 +258,8 @@
 			cell: actionsCell,
 			width: '56px',
 			align: 'end',
-			stack: 'actions'
+			pin: 'end',
+			stack: 'head'
 		}
 	]);
 </script>
@@ -230,17 +268,11 @@
 	{@const access = volumeAccess(v)}
 	<div class="name-cell">
 		<a class="name mono" href={routes.volume(v.environmentId, v.name)}>{v.name}</a>
-		{#if v.protection || v.stack || !access.local}
-			<span class="tags">
-				{#if v.protection}<ProtectionBadge protection={v.protection} />{/if}
-				{#if v.stack}<StackBadge stack={v.stack} />{/if}
-				{#if !access.local}<span title={access.reason}
-						><Badge tone="warn">Read-only</Badge><span class="sr-only"
-							>: {access.reason}</span
-						></span
-					>{/if}
-			</span>
-		{/if}
+		{#if v.protection}<ProtectionMark protection={v.protection} />{/if}
+		{#if !access.local}<span class="tag" title={access.reason}
+				><Badge tone="warn">Read-only</Badge><span class="sr-only">: {access.reason}</span
+				></span
+			>{/if}
 	</div>
 {/snippet}
 {#snippet useCell(v: Volume)}
@@ -261,10 +293,14 @@
 		>
 	{:else}<span class="muted" title={s.reason}>—</span>{/if}
 {/snippet}
+{#snippet stackCell(v: Volume)}
+	{#if v.stack}<StackBadge stack={v.stack} />{:else}<span class="muted">—</span>{/if}
+{/snippet}
 {#snippet driverCell(v: Volume)}<span class="mono">{v.driver ?? '—'}</span>{/snippet}
 {#snippet envCell(v: Volume)}{scope.name(v.environmentId)}{/snippet}
 {#snippet createdCell(v: Volume)}
-	{#if v.createdAt}<span class="muted" title={v.createdAt}>{formatRelative(v.createdAt)}</span
+	{#if v.createdAt}<span class="muted" title={formatDateTime(v.createdAt)}
+			>{formatRelative(v.createdAt)}</span
 		>{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet actionsCell(v: Volume)}
@@ -332,10 +368,15 @@
 					: undefined}
 				label="Filter volumes"
 				searchLabel="Search volumes"
-				placeholder="Search by name, stack or driver"
+				placeholder="Search name, stack or driver"
 				filters={defs}
 				store={filters}
 			>
+				<ObjectBulk
+					selected={{ kind: 'volume', items: chosen }}
+					environmentName={(id) => scope.name(id)}
+					onclear={() => (selected = [])}
+				/>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
 				{:else}
@@ -346,6 +387,9 @@
 						rowKey={key}
 						changed={tracker.changed}
 						sort={{ column: 'name', direction: 'asc' }}
+						selectable
+						bind:selected
+						rowLabel={(v) => `Select ${v.name}`}
 					>
 						{#snippet empty()}
 							{#if filtered}
@@ -390,27 +434,28 @@
 		white-space: nowrap;
 	}
 
+	/* One line: marks sit beside the name, so rows keep one height. */
 	.name-cell {
 		display: flex;
-		flex-direction: column;
-		gap: 4px;
+		align-items: center;
+		gap: var(--space-2);
 		min-width: 0;
 	}
 
 	.name {
+		overflow: hidden;
 		color: var(--text-strong);
 		text-decoration: none;
-		overflow-wrap: anywhere;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.tag {
+		flex: none;
 	}
 
 	.name:hover {
 		color: var(--accent-text);
-	}
-
-	.tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
 	}
 
 	.loading {

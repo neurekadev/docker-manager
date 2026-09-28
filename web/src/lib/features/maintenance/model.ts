@@ -2,6 +2,7 @@
 // policies. Pure functions (model.spec.ts); the API validates rules.
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
+import { describeCron } from '$lib/ui/cron';
 import { formatBytes } from '$lib/ui/format';
 
 export type MaintenancePolicy = Schema<'MaintenancePolicy'>;
@@ -79,6 +80,11 @@ export function ruleSummary(r: MaintenanceRule, info?: CategoryInfo[]): string {
 
 export function enabledRules(p: Pick<MaintenancePolicy, 'rules'>): MaintenanceRule[] {
 	return normalizeRules(p.rules).filter((r) => r.enabled);
+}
+
+/** "3 of 7 rules on" (the rule count comes from normalizeRules, one per category). */
+export function rulesOnText(p: Pick<MaintenancePolicy, 'rules'>): string {
+	return `${enabledRules(p).length} of ${normalizeRules(p.rules).length} rules on`;
 }
 
 /** Why a rule cannot be saved as it is (null: fine). Mirrors the API's checks. */
@@ -241,4 +247,24 @@ export function manualPruneProblem(rules: MaintenanceRule[], forPreview: boolean
 		if (p) return p;
 	}
 	return null;
+}
+
+/**
+ * The status sentence of a maintenance policy page: when it runs and what
+ * its last run did. `viewer` is the viewer's zone (tests).
+ */
+export function maintenanceStatusText(
+	p: Pick<MaintenancePolicy, 'rules' | 'schedule' | 'lastRun'>,
+	viewer?: string
+): string {
+	if (!enabledRules(p).length) return 'Every rule is off: this policy removes nothing.';
+	const s = p.schedule;
+	const words = s ? describeCron(s.cron, s.timeZone, viewer) : '';
+	const when =
+		s?.enabled && !s.invalidReason && words
+			? `Runs ${/^[A-Z][a-z]/.test(words) ? words[0].toLowerCase() + words.slice(1) : words}.`
+			: 'Runs only when you start it.';
+	const run = p.lastRun ? runSummaryText(p.lastRun) : '';
+	const last = run ? ` Last run: ${run[0].toLowerCase()}${run.slice(1)}.` : ' Not run yet.';
+	return when + last;
 }

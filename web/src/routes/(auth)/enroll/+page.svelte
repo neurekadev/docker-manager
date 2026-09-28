@@ -13,6 +13,7 @@
 	import { api, unwrap, type Session } from '$lib/api/client';
 	import { queryKeys } from '$lib/api/queries';
 	import { usePublicPage } from '$lib/auth/flow.svelte';
+	import AuthHeader from '$lib/features/auth/AuthHeader.svelte';
 	import { qrPath } from '$lib/auth/qr';
 	import {
 		creationOptions,
@@ -165,12 +166,12 @@
 <svelte:head><title>Add a sign-in factor · Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<header>
-		<h1>{done ? 'You are all set' : 'Add a sign-in factor'}</h1>
-		{#if !done}
-			<p class="lead">This Docker Manager requires {policyText} before you can continue.</p>
-		{/if}
-	</header>
+	<AuthHeader
+		title={done ? 'You are all set' : 'Add a sign-in factor'}
+		lead={done
+			? undefined
+			: `This Docker Manager requires ${policyText} before you can continue.`}
+	/>
 
 	{#if message}<Notice tone="danger" title={message} live="alert" />{/if}
 
@@ -229,8 +230,8 @@
 							aria-label="QR code for your authenticator app"
 							shape-rendering="crispEdges"
 						>
-							<rect width={qr.size} height={qr.size} fill="#f2f4f7" />
-							<path d={qr.path} fill="#0b1016" />
+							<rect class="qr-light" width={qr.size} height={qr.size} />
+							<path class="qr-dark" d={qr.path} />
 						</svg>
 					{/if}
 					<div class="secret">
@@ -306,11 +307,6 @@
 		gap: var(--space-5);
 	}
 
-	h1 {
-		font-size: 22px;
-		line-height: 28px;
-	}
-
 	h2 {
 		display: flex;
 		align-items: center;
@@ -340,6 +336,15 @@
 		height: 184px;
 		align-self: center;
 		border-radius: var(--radius-md);
+	}
+
+	/* Dark modules on a light field: scanners read the usual contrast. */
+	.qr-light {
+		fill: var(--text-strong);
+	}
+
+	.qr-dark {
+		fill: var(--surface-canvas);
 	}
 
 	.secret {

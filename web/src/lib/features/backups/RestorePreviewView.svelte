@@ -1,12 +1,13 @@
 <script lang="ts">
 	// What a restore would write (#10), computed by the environment's agent:
-	// each target with files and bytes, how many files are overwritten,
-	// removed and added, the owners they carry and free space; the
-	// containers that stop and restart; what blocks the restore.
+	// each target by name (its host path and the owners its files carry in
+	// the tooltip) with files and bytes, how many files are overwritten,
+	// removed and added, and free space; the containers that stop and
+	// restart; what blocks the restore.
 	import type { Schema } from '$lib/api/client';
 	import { Badge, Notice, Table, formatBytes, type Column } from '$lib/ui';
 	import NameCell from '$lib/features/common/NameCell.svelte';
-	import type { RestorePreview } from './model';
+	import { restoreTargetName, type RestorePreview } from './model';
 
 	type Target = Schema<'RestoreTarget'>;
 	type Affected = Schema<'AffectedContainer'>;
@@ -14,7 +15,17 @@
 	let { preview }: { preview: RestorePreview } = $props();
 
 	const targetColumns: Column<Target>[] = [
-		{ id: 'path', header: 'Target', cell: pathCell, stack: 'title' },
+		{
+			id: 'path',
+			header: 'Target',
+			cell: pathCell,
+			maxWidth: '320px',
+			title: (t) =>
+				[t.path, t.owners?.length ? `Files owned by ${t.owners.join(', ')}` : '']
+					.filter(Boolean)
+					.join('\n'),
+			stack: 'title'
+		},
 		{ id: 'files', header: 'Files', cell: filesCell, numeric: true, width: '110px' },
 		{ id: 'changes', header: 'Changes', cell: changesCell, width: '250px' },
 		{ id: 'space', header: 'Free space', cell: spaceCell, numeric: true, width: '120px' }
@@ -28,9 +39,8 @@
 
 {#snippet pathCell(t: Target)}
 	<NameCell
-		name={t.path}
-		mono
-		sub="{t.kind.replaceAll('_', ' ')}{t.name ? ` ${t.name}` : ''}{t.exists ? '' : ', created'}"
+		name={restoreTargetName(t)}
+		sub={t.exists ? 'Replaced in place' : 'Created by the restore'}
 	/>
 {/snippet}
 {#snippet filesCell(t: Target)}
@@ -42,13 +52,12 @@
 		{#if t.removed}<Badge tone="danger">{t.removed} removed</Badge>{/if}
 		{#if t.added}<Badge tone="ok">{t.added} added</Badge>{/if}
 		{#if !t.overwritten && !t.removed && !t.added}<span class="muted">No changes</span>{/if}
-		{#if t.owners?.length}<span class="muted small">owners {t.owners.join(', ')}</span>{/if}
 	</span>
 {/snippet}
 {#snippet spaceCell(t: Target)}<span class="num"
 		>{t.freeBytes < 0 ? 'Unknown' : formatBytes(t.freeBytes)}</span
 	>{/snippet}
-{#snippet cName(c: Affected)}<NameCell name={c.name} mono sub={c.service} />{/snippet}
+{#snippet cName(c: Affected)}<NameCell name={c.name} sub={c.service} />{/snippet}
 {#snippet cNow(c: Affected)}
 	{#if c.running}<Badge tone="ok" dot>Running</Badge>{:else}<Badge dot>Stopped</Badge>{/if}
 {/snippet}

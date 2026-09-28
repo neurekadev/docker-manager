@@ -14,11 +14,14 @@ web/src/
   service-worker.ts           service worker entry (SvelteKit-built)
   routes/+layout.svelte       global styles, QueryClientProvider (session-expiry hook),
                               SW registration, connection/update notices, toasts
-  routes/+error.svelte        not-found and router errors
+  routes/+error.svelte        not-found and router errors outside the shell
   routes/(app)/               signed-in area: auth guard + AppShell (+layout.svelte),
-                              the dashboard (+page.svelte), one folder per section
+                              the dashboard (+page.svelte), one folder per section,
+                              +error.svelte (errors inside the shell); both error
+                              pages share $lib/features/common/ErrorPageBody
   routes/(auth)/              public pages: setup, sign-in, enroll, invitation,
-                              password-reset (centred layout)
+                              password-reset (centred layout, AuthHeader and the
+                              submit checks of $lib/features/auth)
   routes/design/              the design system gallery (public, sample data)
   lib/design/                 tokens.css, global.css, service hues, icon registry, demo data
   lib/ui/                     the component library ($lib/ui barrel)
@@ -188,19 +191,64 @@ only, and a rule on an unlisted stack or service shows under its stack's
 environment (from the stack list). Rule logic
 (scope keys, diffs, inheritance precedence) is in `permissions.ts`;
 `RulesSaveBar` lists every change before the revisioned, step-up save.
+`ActionMatrix` shows one collapsible section per resource type (open at
+first only where the scope has rules, all while filtering), each with
+"Allow all" ("Grant all" for tokens) and "Clear" ("Inherit all" for users)
+that change the draft at once; the controls sit in one right-aligned
+column and "High risk" is marked once, next to the action. Groups and
+tokens can "Start from" a preset at the chosen scope (`presets.ts`:
+Viewer = every normal-risk `*.read`, Operator = Viewer plus the common
+normal-risk actions and container logs, Admin = everything the scope
+offers), derived from the catalog's key, risk and advanced flags, never
+from a key list; the select names the preset the scope's rules match, or
+Custom. A group's page lists its members first (every account in it but
+the owner, `groupMembers`; the groups list counts the same way because
+the API's `memberCount` includes the owner) and adds members from other
+groups with one `PATCH /users/{id}` (`groupId`) per account.
+
+The audit log (`routes/(app)/settings/audit`) is a `ListCard` over the
+server-filtered, paged `GET /audit`: Who (actor kinds, and each user for
+the owner), Outcome, Category and When in the header, exact action keys,
+a resource, the environment and custom dates under "More filters"; the
+search runs over the loaded records. Helpers in
+`$lib/features/settings/audit.ts`: `auditActionLabel` (a label map for
+lifecycle and identity keys, else the catalog label), `targetText`
+(names from the users, groups, environments, stacks, registries and Git
+credentials the caller can list; opaque IDs never show), and
+`groupAuditRows` (consecutive identical records become one row, "24
+times"). The record drawer keeps the action key, raw targets, request
+ID, error class and chain position under Advanced.
 
 Stack actions that start jobs go through `$lib/features/stacks/deploy.svelte.ts`
-(`startDeploy`, `startPull`) and the page's `JobTray`: a tracked job's
-`successFor` computes the success toast once it ended, from data read
-again (a deploy whose `appliedRevision.at` did not move started no
-container: "Nothing to deploy"; a pull names the services whose
-image-status gained a `pulledImageId`). The Deploy split button deploys at
-once; its menu has "Build and deploy" and "Deploy and remove orphaned
-containers…", whose confirmation (`RemoveOrphansDialog`, opened through the
-stack page context's `removeOrphans` request) the overview's drift notice
-opens too. Pull (`stack.update`) only downloads images. Rename
+(`startDeploy`, `startPull`, `startUpdate`) and the page's `JobTray`: a
+tracked job's `successFor` computes the success toast once it ended, from
+data read again (a deploy whose `appliedRevision.at` did not move started
+no container: "Nothing to deploy"; a pull names the services whose
+image-status gained a `pulledImageId`). Deploy is the header's one primary
+action (a split button that deploys at once); its menu has "Build and
+deploy", "Pull images only" (`stack.update`: downloads images, recreates
+nothing) and "Deploy and remove orphaned containers…", whose confirmation
+(`RemoveOrphansDialog`, opened through the stack page context's
+`removeOrphans` request) the overview's drift notice ("Remove old
+containers…") opens too. Update (`UpdateDialog`, with `stack.deploy`)
+names the services with a newer image (`pendingUpdates`: image and tag,
+never digests) and then runs one deploy with `pull: always` ("Updated
+Silo"); schedules and automatic updates stay in the update policy (a link
+to the Policies tab). Start and Restart run at once, Stop, Take down and
+Delete confirm (the same rule in the services table and the stack list's
+row menu). The header hides its actions while the migration wizard is
+open, and Migrate while the caller sees one environment. Rename
 (`RenameStackDialog`, `stack.rename`) previews the new project name before
 the type-to-confirm.
+
+The Revisions tab groups consecutive revisions with the same fingerprint
+(`groupRevisions`), never opens a comparison of two equal ones
+(`defaultComparison`, `comparisonFor`) and, while the files on disk differ
+from the deployed revision, shows that diff at once with "Deploy these
+changes" and "Restore deployed revision". The Activity tab hides update
+checks by default (`visibleJobs`), folds a job's audit records into one row
+(`auditRows` in `$lib/features/stacks/activity.ts`) and reads the audit
+log 50 records at a time ("Load more").
 
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
@@ -349,24 +397,34 @@ only wire resources to it:
 | --- | --- | --- |
 | stack files (Files tab) | `(app)/stacks/[stackId]/files` | `FileManager` (+ `LogDock`, the logs as a bottom drawer) |
 | volume files | `(app)/volumes/[environmentId]/[volumeId]/files` | `FileManager` (same component, volume scope) |
-| stack logs (Logs tab), container logs | `…/stacks/[stackId]/logs`, `(app)/containers/[environmentId]/[containerId]/logs` | `LogPanel` → `LogViewer` |
+| stack logs (Logs tab, `?service=` selects one service), container logs | `…/stacks/[stackId]/logs[?service=]`, `(app)/containers/[environmentId]/[containerId]/logs` | `LogPanel` → `LogViewer` |
 | logs in their own window | `(popout)/popout/logs?stack=` / `?environment=&container=` | `LogPanel` without the app shell |
-| stack terminal (service picker), container terminal | `…/stacks/[stackId]/terminal[?container=]`, `(app)/containers/[environmentId]/[containerId]/terminal` | `TerminalPanel` |
+| stack terminal (service picker; `?container=` preselects and connects), container terminal | `…/stacks/[stackId]/terminal[?container=]`, `(app)/containers/[environmentId]/[containerId]/terminal` | `TerminalPanel` (`autoConnect` only from such a link) |
 
 - **Files:** `FilesApi` (`files/api.ts`) calls the typed client for either
   root; listings and contents are keyed `liveKeys.files(...)`; the
   `EditorSession` keeps buffers, ETags and conflicts (never replacing
   unsaved text); selection, keyboard and conflict grouping are pure modules
-  with Node tests. Details: [api/files.md](api/files.md#ui-22-23).
+  with Node tests. A click that opens a file does not select it;
+  permissions and owners are a details view (off by default); below
+  1024 px list and editor are `Tabs`. In a stack, saving a Compose source
+  validates the definition (`POST /stacks/validations` with the files on
+  disk, `definitionFiles` in `files/definition.ts`; silent when that is
+  refused, e.g. without `stack.create`) and offers Deploy (the stack
+  page's job tray) while `undeployedChanges` is set.
+  Details: [api/files.md](api/files.md#ui-22-23).
 - **Logs:** `LogFeed` follows each container's SSE stream with its cursor
   (Follow off/on resumes with `since`, repeats are skipped) and merges them
   by time. Over HTTP/1.1 the browser allows six connections per host for all
   tabs, so a viewer streams one container and polls the others
   (`GET …/logs?since=`, every 3 s); over HTTP/2 or HTTP/3 it streams up to
   twelve. Service colours come from `serviceIdentity` (the services table's
-  tile colour).
+  tile colour). The service chips, "Errors only" (standard error) and
+  "Matching lines only" filter the buffered lines (`filterLines` in
+  `logs/format.ts`); wrapped lines are rendered without the fixed-height
+  window.
 - **Terminals:** `ExecTerminal` creates the exec session for the chosen
-  shell (Automatic, Bash, sh, Zsh; the agent finds its path in the
+  shell (Detect automatically, Bash, sh, Zsh; the agent finds its path in the
   container and the session reports the command it started), opens the
   WebSocket with the ticket in the subprotocol, frames stdin/stdout,
   sends `resize` when `TerminalView` (`fit`) changes size, maps close codes

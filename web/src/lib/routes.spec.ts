@@ -73,6 +73,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 		).map((t) => routes.stack('st-1', t))
 	],
 	stackTerminal: [routes.stackTerminal('st-1'), routes.stackTerminal('st-1', 'silo-web-1')],
+	stackLogs: [routes.stackLogs('st-1'), routes.stackLogs('st-1', 'web')],
 	newStack: [routes.newStack(), routes.newStack('env-1')],
 	importStack: [routes.importStack(), routes.importStack('env-1')],
 	stackFromTemplate: [
@@ -100,7 +101,13 @@ const calls: Record<keyof typeof routes, string[]> = {
 	network: [routes.network('env-1', 'bridge')],
 	builds: [routes.builds()],
 	buildDefinitions: [routes.buildDefinitions()],
-	newBuild: [routes.newBuild(), routes.newBuild('env-1', 'def-1')],
+	buildDefinitionNew: [routes.buildDefinitionNew()],
+	buildDefinitionEdit: [routes.buildDefinitionEdit('def-1')],
+	newBuild: [
+		routes.newBuild(),
+		routes.newBuild('env-1', 'def-1'),
+		routes.newBuild('env-1', undefined, 'b-1')
+	],
 	build: [routes.build('env-1', 'b-1')],
 	registry: [routes.registry()],
 	templates: [routes.templates(), routes.templates('web')],
@@ -119,7 +126,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	backupRestore: [routes.backupRestore('bk-1')],
 	backupPolicies: [routes.backupPolicies()],
 	backupList: [routes.backupList()],
-	backupSnapshots: [routes.backupSnapshots()],
+	backupSnapshots: [routes.backupSnapshots(), routes.backupSnapshots('br-1')],
 	backupPolicyNew: [routes.backupPolicyNew()],
 	backupPolicy: [routes.backupPolicy('bp-1')],
 	backupPolicyEdit: [routes.backupPolicyEdit('pol-1')],
@@ -135,7 +142,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	maintenancePolicy: [routes.maintenancePolicy('mp-1')],
 	maintenanceEdit: [routes.maintenanceEdit('mp-1')],
 	maintenanceDefaults: [routes.maintenanceDefaults()],
-	jobs: [routes.jobs()],
+	jobs: [routes.jobs(), routes.jobs('update.check')],
 	job: [routes.job('job-1')],
 	schedules: [routes.schedules()],
 	access: [routes.access()],

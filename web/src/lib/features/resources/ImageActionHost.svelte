@@ -8,7 +8,8 @@
 	import { imageQuery, queryKeys, type Image } from '$lib/api/queries';
 	import { Button, Dialog, TextField, fieldError, toast } from '$lib/ui';
 	import RemovalDialog from './RemovalDialog.svelte';
-	import { idempotencyKey, resourceKey, trackJob } from './jobs.svelte';
+	import { resourceKey, trackJob } from './jobs.svelte';
+	import { removeImage } from './object-actions';
 	import { shortDigest } from './model';
 	import { refusal, RefusalError, type Refusal } from './refusals';
 
@@ -63,15 +64,9 @@
 			environmentName: environmentName?.(im.environmentId)
 		};
 		try {
-			const job = await unwrap(
-				api.DELETE('/api/v1/environments/{environmentId}/images/{imageId}', {
-					params: {
-						path: { environmentId: im.environmentId, imageId: im.id },
-						header: { 'Idempotency-Key': idempotencyKey() },
-						query: { force: im.repoTags.length > 1 || undefined }
-					}
-				})
-			);
+			const job = await removeImage(im.environmentId, im.id, {
+				force: im.repoTags.length > 1
+			});
 			trackJob(job, {
 				ctx,
 				key: resourceKey('image', im.environmentId, im.id),

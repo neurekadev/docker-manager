@@ -2,13 +2,13 @@
 // cannot use are hidden, not disabled. The filter only decides what to
 // show; the server still authorizes every request.
 import Activity from '@lucide/svelte/icons/activity';
-import Archive from '@lucide/svelte/icons/archive';
 import Box from '@lucide/svelte/icons/box';
 import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 import Container from '@lucide/svelte/icons/container';
 import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 import Hammer from '@lucide/svelte/icons/hammer';
 import HardDrive from '@lucide/svelte/icons/hard-drive';
+import KeyRound from '@lucide/svelte/icons/key-round';
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 import Layers from '@lucide/svelte/icons/layers';
@@ -49,15 +49,25 @@ export function isRestricted(a: Access): boolean {
 	return !a.owner && a.allowed.size === 0 && a.environments === 0;
 }
 
+export type NavGroup = 'overview' | 'resources' | 'operations' | 'admin';
+
 export interface NavItem {
 	id: string;
 	label: string;
 	href: string;
 	icon: IconComponent;
-	/** Groups are separated by spacing, not headings (#22). */
-	group: 'overview' | 'resources' | 'operations' | 'admin';
+	/** The sidebar group (NAV_GROUPS: a small label in the full sidebar, a divider in the rail). */
+	group: NavGroup;
 	visible: (a: Access) => boolean;
 }
+
+/** Sidebar groups in order; the first one has no label. */
+export const NAV_GROUPS: { id: NavGroup; label?: string }[] = [
+	{ id: 'overview' },
+	{ id: 'resources', label: 'Docker' },
+	{ id: 'operations', label: 'Automation' },
+	{ id: 'admin', label: 'Administration' }
+];
 
 export const NAV_ITEMS: NavItem[] = [
 	{
@@ -136,7 +146,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'registries',
 		label: 'Registries',
 		href: routes.registries(),
-		icon: Archive,
+		icon: KeyRound,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'registry.')
 	},

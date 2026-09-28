@@ -1,12 +1,14 @@
 // Component tests of the permission editor (#17): tree selection,
-// plain-language actions, risk marks, collapsed rare actions, bulk
-// changes with a confirmation, inheritance explanation and the save bar.
+// plain-language actions in collapsible sections, risk marks, collapsed
+// rare actions, section-wide changes, presets, inheritance explanation
+// and the save bar.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
+import { choose } from '../../../test/select';
 import ActionMatrix from './ActionMatrix.svelte';
 import PermissionEditor from './PermissionEditor.svelte';
 import RulesSaveBar from './RulesSaveBar.svelte';
@@ -124,15 +126,25 @@ function json(body: unknown) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ActionMatrix', () => {
-	it('shows plain-language actions by type, marks high risk and collapses rare ones', () => {
+	it('shows plain-language actions in collapsed sections, marks high risk once and folds rare ones', async () => {
+		const user = setup();
 		render(ActionMatrix, {
 			props: { catalog, node: all, mode: 'group', rules: [], onchange: vi.fn() }
 		});
 		const region = screen.getByRole('region', { name: 'Actions for All resources' });
-		expect(within(region).getByRole('heading', { name: 'Containers' })).toBeInTheDocument();
+		expect(within(region).getByRole('heading', { name: /^Containers/ })).toBeInTheDocument();
+		const containers = within(region).getByRole('button', { name: /^Containers/ });
+		expect(containers).toHaveAttribute('aria-expanded', 'false');
+		expect(containers).toHaveTextContent('4 actions');
+		expect(
+			within(region).queryByRole('radiogroup', { name: 'Restart for All resources' })
+		).toBeNull();
+		await user.click(containers);
+		expect(containers).toHaveAttribute('aria-expanded', 'true');
 		expect(
 			within(region).getByRole('radiogroup', { name: 'Open terminal for All resources' })
-		).toHaveTextContent('High risk');
+		).not.toHaveTextContent('High risk');
+		expect(within(region).getAllByText('High risk')).toHaveLength(1);
 		expect(within(region).getByText('1 less common action')).toBeInTheDocument();
 		expect(
 			within(region).queryByRole('radiogroup', { name: 'Pause for All resources' })
@@ -140,10 +152,36 @@ describe('ActionMatrix', () => {
 		expect(within(region).getByText(/including ones added later/)).toBeInTheDocument();
 	});
 
+	it('opens the sections that have rules at this scope', () => {
+		render(ActionMatrix, {
+			props: {
+				catalog,
+				node: all,
+				mode: 'group',
+				rules: [
+					{
+						capability: 'container.restart',
+						scope: { kind: 'instance' },
+						effect: 'allow'
+					}
+				],
+				onchange: vi.fn()
+			}
+		});
+		const containers = screen.getByRole('button', { name: /^Containers/ });
+		expect(containers).toHaveAttribute('aria-expanded', 'true');
+		expect(containers).toHaveTextContent('1 allowed of 4 actions');
+		expect(screen.getByRole('button', { name: /^Stacks/ })).toHaveAttribute(
+			'aria-expanded',
+			'false'
+		);
+	});
+
 	it('sets a group rule with No rule / Allow / Deny', async () => {
 		const user = setup();
 		const onchange = vi.fn();
 		render(ActionMatrix, { props: { catalog, node: all, mode: 'group', rules: [], onchange } });
+		await user.click(screen.getByRole('button', { name: /^Containers/ }));
 		const restart = screen.getByRole('radiogroup', { name: 'Restart for All resources' });
 		expect(restart).toHaveTextContent('No rule');
 		await user.click(within(restart).getByText('Allow'));
@@ -152,24 +190,40 @@ describe('ActionMatrix', () => {
 		]);
 	});
 
-	it('changes several actions at once after a confirmation that lists them', async () => {
+	it('allows or clears a whole section at once, without a confirmation', async () => {
 		const user = setup();
 		const onchange = vi.fn();
-		render(ActionMatrix, { props: { catalog, node: all, mode: 'group', rules: [], onchange } });
-		await user.click(screen.getByRole('checkbox', { name: 'Select Restart' }));
-		await user.click(screen.getByRole('checkbox', { name: 'Select Start' }));
-		await user.click(screen.getByRole('button', { name: 'Deny' }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Deny 2 actions?' });
-		expect(dialog).toHaveTextContent('Restart: No rule → Deny');
-		expect(dialog).toHaveTextContent('Start: No rule → Deny');
-		await user.click(within(dialog).getByRole('button', { name: 'Deny 2 actions' }));
+		const instance = { kind: 'instance' as const };
+		const { rerender } = render(ActionMatrix, {
+			props: {
+				catalog,
+				node: all,
+				mode: 'group',
+				rules: [
+					{ capability: 'container.start', scope: instance, effect: 'deny' },
+					{ capability: 'stack.deploy', scope: instance, effect: 'allow' }
+				],
+				onchange
+			}
+		});
+		await user.click(screen.getByRole('button', { name: 'Allow all containers' }));
+		expect(screen.queryByRole('alertdialog')).toBeNull();
+		const allowed = [
+			{ capability: 'stack.deploy', scope: instance, effect: 'allow' },
+			{ capability: 'container.restart', scope: instance, effect: 'allow' },
+			{ capability: 'container.start', scope: instance, effect: 'allow' },
+			{ capability: 'container.exec', scope: instance, effect: 'allow' },
+			{ capability: 'container.pause', scope: instance, effect: 'allow' }
+		];
+		expect(onchange).toHaveBeenLastCalledWith(allowed);
+		await rerender({ catalog, node: all, mode: 'group', rules: allowed as Rule[], onchange });
+		await user.click(screen.getByRole('button', { name: 'Clear containers' }));
 		expect(onchange).toHaveBeenLastCalledWith([
-			{ capability: 'container.restart', scope: { kind: 'instance' }, effect: 'deny' },
-			{ capability: 'container.start', scope: { kind: 'instance' }, effect: 'deny' }
+			{ capability: 'stack.deploy', scope: instance, effect: 'allow' }
 		]);
 	});
 
-	it('clears the selection when another scope is chosen and changes only its actions', async () => {
+	it('starts a group from a preset at the chosen scope only', async () => {
 		const user = setup();
 		const onchange = vi.fn();
 		const stack = {
@@ -179,22 +233,40 @@ describe('ActionMatrix', () => {
 			type: 'stack',
 			environmentId: 'e1'
 		};
-		const { rerender } = render(ActionMatrix, {
-			props: { catalog, node: all, mode: 'group', rules: [], onchange }
+		const elsewhere: Rule = {
+			capability: 'container.exec',
+			scope: { kind: 'instance' },
+			effect: 'allow'
+		};
+		render(ActionMatrix, {
+			props: { catalog, node: stack, mode: 'group', rules: [elsewhere], onchange }
 		});
-		await user.click(screen.getByRole('checkbox', { name: 'Select Create stacks' }));
-		await user.click(screen.getByRole('checkbox', { name: 'Select Deploy' }));
-		await rerender({ catalog, node: stack, mode: 'group', rules: [], onchange });
-		expect(screen.queryByRole('checkbox', { name: 'Select Create stacks' })).toBeNull();
-		expect(screen.getByRole('checkbox', { name: 'Select Deploy' })).not.toBeChecked();
-		expect(screen.queryByRole('group', { name: /selected actions/ })).toBeNull();
-		await user.click(screen.getByRole('checkbox', { name: 'Select Deploy' }));
-		await user.click(screen.getByRole('button', { name: 'Allow' }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Allow 1 action?' });
-		await user.click(within(dialog).getByRole('button', { name: 'Allow 1 action' }));
+		await choose(user, screen.getByRole('combobox', { name: 'Start from' }), 'Operator');
 		expect(onchange).toHaveBeenLastCalledWith([
+			elsewhere,
 			{ capability: 'stack.deploy', scope: stack.scope, effect: 'allow' }
 		]);
+	});
+
+	it('names the preset the rules match', () => {
+		const instance = { kind: 'instance' as const };
+		render(ActionMatrix, {
+			props: {
+				catalog,
+				node: all,
+				mode: 'group',
+				rules: [
+					'container.restart',
+					'container.start',
+					'container.exec',
+					'container.pause',
+					'stack.deploy',
+					'stack.create'
+				].map((capability) => ({ capability, scope: instance, effect: 'allow' as const })),
+				onchange: vi.fn()
+			}
+		});
+		expect(screen.getByRole('combobox', { name: 'Start from' })).toHaveTextContent('Admin');
 	});
 
 	it('explains what a user inherits from the group, and overrides it', async () => {
@@ -214,6 +286,8 @@ describe('ActionMatrix', () => {
 				onchange
 			}
 		});
+		expect(screen.queryByRole('combobox', { name: 'Start from' })).toBeNull();
+		await user.click(screen.getByRole('button', { name: /^Containers/ }));
 		const restart = screen.getByRole('radiogroup', { name: 'Restart for All resources' });
 		expect(restart).toHaveAccessibleDescription(
 			/Inherits Allow from group Operators, rule for everywhere/
@@ -227,7 +301,8 @@ describe('ActionMatrix', () => {
 		]);
 	});
 
-	it('shows the environment rule a stack inherits though its scope names no environment', () => {
+	it('shows the environment rule a stack inherits though its scope names no environment', async () => {
+		const user = setup();
 		render(ActionMatrix, {
 			props: {
 				catalog,
@@ -253,6 +328,7 @@ describe('ActionMatrix', () => {
 			}
 		});
 		expect(screen.getByRole('heading', { name: 'Silo on homelab' })).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: /^Stacks/ }));
 		expect(
 			screen.getByRole('radiogroup', { name: 'Deploy for Silo' })
 		).toHaveAccessibleDescription(
@@ -260,7 +336,8 @@ describe('ActionMatrix', () => {
 		);
 	});
 
-	it('offers a token only the actions its user holds (#31)', () => {
+	it('offers a token only the actions its user holds (#31)', async () => {
+		const user = setup();
 		render(ActionMatrix, {
 			props: {
 				catalog,
@@ -271,6 +348,9 @@ describe('ActionMatrix', () => {
 				onchange: vi.fn()
 			}
 		});
+		expect(screen.queryByRole('button', { name: /^Containers/ })).toBeNull();
+		expect(screen.getByRole('button', { name: 'Grant all stacks' })).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: /^Stacks/ }));
 		expect(screen.getByRole('checkbox', { name: 'Grant Deploy' })).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox', { name: 'Grant Restart' })).toBeNull();
 	});

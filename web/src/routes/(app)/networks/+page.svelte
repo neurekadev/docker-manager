@@ -6,8 +6,9 @@
 	// and "Managed" switches (ListCard); how many containers use it, its
 	// driver and subnets; its flags (internal, attachable, IPv6),
 	// predefined networks (bridge, host, none) and Docker Manager's own
-	// (#32) are tags on the name, and their removal is refused by the
-	// server with the reason.
+	// (#32) are marks on the name's line, and their removal is refused by
+	// the server with the reason. Selected networks can be removed in bulk
+	// (predefined, used and Docker Manager's own ones are left out).
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Network from '@lucide/svelte/icons/network';
@@ -26,6 +27,7 @@
 		PageHeader,
 		Skeleton,
 		Table,
+		formatDateTime,
 		formatRelative,
 		type Column,
 		type MenuEntry
@@ -34,10 +36,11 @@
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
+	import ObjectBulk from '$lib/features/resources/ObjectBulk.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
-	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
+	import ProtectionMark from '$lib/features/resources/ProtectionMark.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
 	import {
 		applyListFilters,
@@ -47,6 +50,7 @@
 		networkSearch
 	} from '$lib/features/resources/filters';
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
+	import { sameEverywhere } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
@@ -81,16 +85,21 @@
 	let remover = $state<ObjectRemoveHost>();
 
 	const all = $derived(list.data?.items ?? []);
+	const usedKeys = $derived(containers.data ? new Set(Object.keys(attached)) : undefined);
 	const defs = $derived(
 		networkFilters(all, {
 			envs: scope.single ? [] : scope.targets,
-			used: containers.data ? new Set(Object.keys(attached)) : undefined
+			used: usedKeys
 		})
 	);
 	const rows = $derived(applyListFilters(all, defs, filters.state, networkSearch));
 	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('network.create'));
 	const key = (n: Net) => `${n.environmentId}/${n.id}`;
+	let selected = $state<string[]>([]);
+	// Bulk removal runs on the selected rows the filters still show.
+	const chosen = $derived(rows.filter((n) => selected.includes(key(n))));
+	const oneDriver = $derived(sameEverywhere(all, (n) => n.driver ?? ''));
 
 	function menu(n: Net): MenuEntry[] {
 		const out: MenuEntry[] = [{ label: 'Open', href: routes.network(n.environmentId, n.name) }];
@@ -113,7 +122,15 @@
 	}
 
 	const columns: Column<Net>[] = $derived([
-		{ id: 'name', header: 'Name', cell: nameCell, sortValue: (n) => n.name, stack: 'title' },
+		{
+			id: 'name',
+			header: 'Name',
+			cell: nameCell,
+			sortValue: (n) => n.name,
+			maxWidth: '320px',
+			title: (n) => n.name,
+			stack: 'title'
+		},
 		...(containers.data
 			? [
 					{
@@ -133,28 +150,46 @@
 						id: 'env',
 						header: 'Environment',
 						cell: envCell,
-						sortValue: (n: Net) => scope.name(n.environmentId)
+						sortValue: (n: Net) => scope.name(n.environmentId),
+						stack: 'hidden'
 					} satisfies Column<Net>
 				]),
 		{
-			id: 'driver',
-			header: 'Driver',
-			cell: driverCell,
-			sortValue: (n) => n.driver ?? '',
-			width: '120px'
+			id: 'stack',
+			header: 'Stack',
+			cell: stackCell,
+			sortValue: (n) => n.stack?.project ?? '',
+			maxWidth: '180px',
+			stack: 'hidden'
 		},
+		...(oneDriver
+			? []
+			: [
+					{
+						id: 'driver',
+						header: 'Driver',
+						cell: driverCell,
+						sortValue: (n: Net) => n.driver ?? '',
+						width: '120px'
+					} satisfies Column<Net>
+				]),
 		{
 			id: 'subnet',
 			header: 'Subnet',
 			cell: subnetCell,
-			sortValue: (n) => n.subnets?.[0] ?? ''
+			sortValue: (n) => n.subnets?.[0] ?? '',
+			maxWidth: '220px',
+			title: (n) => n.subnets?.join(', '),
+			truncate: true,
+			stack: 'hidden'
 		},
 		{
 			id: 'created',
 			header: 'Created',
 			cell: createdCell,
 			sortValue: (n) => n.createdAt ?? '',
-			width: '130px'
+			width: '130px',
+			stack: 'hidden'
 		},
 		{
 			id: 'actions',
@@ -163,7 +198,8 @@
 			cell: actionsCell,
 			width: '56px',
 			align: 'end',
-			stack: 'actions'
+			pin: 'end',
+			stack: 'head'
 		}
 	]);
 </script>
@@ -171,17 +207,15 @@
 {#snippet nameCell(n: Net)}
 	<div class="name-cell">
 		<a class="name mono" href={routes.network(n.environmentId, n.name)}>{n.name}</a>
-		{#if n.builtin || n.protection || n.stack || n.internal || n.attachable || n.enableIpv6}
-			<span class="tags">
-				{#if n.builtin}<Badge>Predefined</Badge>{/if}
-				{#if n.protection}<ProtectionBadge protection={n.protection} />{/if}
-				{#if n.stack}<StackBadge stack={n.stack} />{/if}
-				{#if n.internal}<Badge tone="warn">Internal</Badge>{/if}
-				{#if n.attachable}<Badge>Attachable</Badge>{/if}
-				{#if n.enableIpv6}<Badge>IPv6</Badge>{/if}
-			</span>
-		{/if}
+		{#if n.protection}<ProtectionMark protection={n.protection} />{/if}
+		{#if n.builtin}<span class="tag"><Badge>Predefined</Badge></span>{/if}
+		{#if n.internal}<span class="tag" title="No traffic to or from outside"
+				><Badge tone="warn">Internal</Badge></span
+			>{/if}
 	</div>
+{/snippet}
+{#snippet stackCell(n: Net)}
+	{#if n.stack}<StackBadge stack={n.stack} />{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet driverCell(n: Net)}<span class="mono">{n.driver ?? '—'}</span>{/snippet}
 {#snippet subnetCell(n: Net)}
@@ -196,7 +230,8 @@
 {/snippet}
 {#snippet envCell(n: Net)}{scope.name(n.environmentId)}{/snippet}
 {#snippet createdCell(n: Net)}
-	{#if n.createdAt}<span class="muted" title={n.createdAt}>{formatRelative(n.createdAt)}</span
+	{#if n.createdAt}<span class="muted" title={formatDateTime(n.createdAt)}
+			>{formatRelative(n.createdAt)}</span
 		>{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet actionsCell(n: Net)}
@@ -264,10 +299,15 @@
 					: undefined}
 				label="Filter networks"
 				searchLabel="Search networks"
-				placeholder="Search by name, subnet or driver"
+				placeholder="Search name, subnet or driver"
 				filters={defs}
 				store={filters}
 			>
+				<ObjectBulk
+					selected={{ kind: 'network', items: chosen, attached: usedKeys }}
+					environmentName={(id) => scope.name(id)}
+					onclear={() => (selected = [])}
+				/>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
 				{:else}
@@ -277,6 +317,9 @@
 						{columns}
 						rowKey={key}
 						sort={{ column: 'name', direction: 'asc' }}
+						selectable
+						bind:selected
+						rowLabel={(n) => `Select ${n.name}`}
 					>
 						{#snippet empty()}
 							{#if filtered}
@@ -315,26 +358,28 @@
 {/if}
 
 <style>
+	/* One line: marks sit beside the name, so rows keep one height. */
 	.name-cell {
 		display: flex;
-		flex-direction: column;
-		gap: 4px;
+		align-items: center;
+		gap: var(--space-2);
 		min-width: 0;
 	}
 
 	.name {
+		overflow: hidden;
 		color: var(--text-strong);
 		text-decoration: none;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.tag {
+		flex: none;
 	}
 
 	.name:hover {
 		color: var(--accent-text);
-	}
-
-	.tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
 	}
 
 	.loading {

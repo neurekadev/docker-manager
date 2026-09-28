@@ -1,34 +1,15 @@
 <script lang="ts">
-	// Router errors (#22): unknown paths and unexpected rendering failures.
+	// Router errors outside the app shell (#22): unknown addresses and
+	// failures of public pages or of the shell itself. Errors inside the
+	// signed-in area render in routes/(app)/+error.svelte, within the shell.
 	import { page } from '$app/state';
-	import Compass from '@lucide/svelte/icons/compass';
+	import ErrorPageBody from '$lib/features/common/ErrorPageBody.svelte';
 	import Logo from '$lib/shell/Logo.svelte';
-	import { routes } from '$lib/routes';
-	import { Button, EmptyState } from '$lib/ui';
-
-	const notFound = $derived(page.status === 404);
 </script>
-
-<svelte:head><title>{notFound ? 'Page not found' : 'Error'} · Docker Manager</title></svelte:head>
 
 <div class="error-page">
 	<Logo />
-	<h1>{notFound ? 'Page not found' : 'This page failed to load'}</h1>
-	<EmptyState
-		icon={Compass}
-		color="slate"
-		title={notFound
-			? 'There is nothing at this address.'
-			: 'Docker Manager hit an unexpected problem showing this page.'}
-		description={notFound
-			? 'Check the link, or go back to the dashboard.'
-			: 'Reload the page. If it keeps happening, the manager logs have the details.'}
-		level={2}
-	>
-		{#snippet actions()}
-			<Button variant="primary" href={routes.dashboard()}>Go to the dashboard</Button>
-		{/snippet}
-	</EmptyState>
+	<ErrorPageBody status={page.status} />
 </div>
 
 <style>
@@ -40,10 +21,5 @@
 		gap: var(--space-4);
 		min-height: 100dvh;
 		padding: var(--space-6);
-	}
-
-	h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
 	}
 </style>

@@ -1,15 +1,18 @@
 <script lang="ts">
-	// Manual Git build (#33): an environment and the Git source; the build
-	// runs as a job on the environment's agent (BuildKit, no Docker CLI) and
-	// the page moves to the build's live log. Optionally saved as a build
-	// definition to run again later.
+	// Manual Git build (#33): the environment (hidden with one) and the Git
+	// source in one card, the rarely needed fields under "Advanced"; the
+	// build runs as a job on the environment's agent (BuildKit, no Docker
+	// CLI) and the page moves to the build's live log. Optionally saved as a
+	// build definition to build again later. ?from=<build ID> (a build's
+	// "Build again") prefills the form from that build of ?environment=;
+	// its build argument values are not kept and must be entered again.
 	import { untrack } from 'svelte';
-	import { useQueryClient } from '@tanstack/svelte-query';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Play from '@lucide/svelte/icons/play';
 	import { api, unwrap } from '$lib/api/client';
-	import { queryKeys } from '$lib/api/queries';
+	import { imageBuildQuery, queryKeys } from '$lib/api/queries';
 	import { criticalWork } from '$lib/live';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -29,12 +32,14 @@
 	import BuildSourceForm from '$lib/features/builds/BuildSourceForm.svelte';
 	import {
 		emptyForm,
+		formFromSource,
 		isComplete,
+		sourceOfBuild,
 		toSource,
 		validateSource,
 		type SourceForm
 	} from '$lib/features/builds/source';
-	import Page from '$lib/features/resources/Page.svelte';
+	import Page from '$lib/features/common/Page.svelte';
 	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
 	import { refusal } from '$lib/features/resources/refusals';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
@@ -58,6 +63,26 @@
 		env = allowed.find((e) => e.id === want)?.id ?? allowed[0].id;
 	});
 	let form = $state<SourceForm>(emptyForm());
+
+	// Build again: the source of an earlier build (?from=, of ?environment=).
+	const fromId = untrack(() => page.url.searchParams.get('from'));
+	const fromEnv = untrack(() => page.url.searchParams.get('environment'));
+	const from = createQuery(() => ({
+		...imageBuildQuery(fromEnv ?? '', fromId ?? ''),
+		enabled: !!fromId && !!fromEnv
+	}));
+	let argsMissing = $state(false);
+	let prefilled = false;
+	$effect(() => {
+		const b = from.data;
+		if (!b || prefilled) return;
+		prefilled = true;
+		const again = sourceOfBuild(b);
+		untrack(() => {
+			form = formFromSource(again.source);
+			argsMissing = again.argsMissing;
+		});
+	});
 	let save = $state(false);
 	let saveName = $state('');
 	let busy = $state(false);
@@ -137,11 +162,17 @@
 		description="Building needs the permission on an online environment. Ask the owner of this Docker Manager if you need it."
 	/>
 {:else}
-	<Page>
+	<Page narrow>
 		<PageHeader
 			title="Build image"
 			description="From a Git repository, on the environment's own Docker Engine."
 		/>
+		{#if argsMissing}
+			<Notice tone="info" title="Enter the build argument values again" live="none">
+				This form starts from an earlier build. Docker Manager keeps the names of its build
+				arguments, never their values: fill them in under Advanced.
+			</Notice>
+		{/if}
 		<form
 			class="form"
 			onsubmit={(e) => {
@@ -149,17 +180,17 @@
 				if (valid) void build();
 			}}
 		>
-			<Card title="Where">
-				<div class="where">
-					<Select
-						label="Environment"
-						bind:value={env}
-						options={allowed.map((e) => ({ value: e.id, label: e.name }))}
-						description="The image is built and stored there."
-					/>
-				</div>
-			</Card>
 			<Card title="Source">
+				{#if allowed.length > 1}
+					<div class="where">
+						<Select
+							label="Environment"
+							bind:value={env}
+							options={allowed.map((e) => ({ value: e.id, label: e.name }))}
+							description="The image is built and stored there."
+						/>
+					</div>
+				{/if}
 				<BuildSourceForm
 					bind:form
 					{errors}
@@ -212,6 +243,7 @@
 
 	.where {
 		max-width: 420px;
+		margin-bottom: var(--space-4);
 	}
 
 	.save {

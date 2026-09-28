@@ -6,8 +6,8 @@ export default {
 	headLinkOptions: { preset: '2023' },
 	preset: {
 		transparent: { sizes: [] },
-		maskable: { sizes: [512], padding: 0, resizeOptions: { background: '#0e141d' } },
-		apple: { sizes: [180], padding: 0, resizeOptions: { background: '#0e141d' } }
+		maskable: { sizes: [512], padding: 0, resizeOptions: { background: '#0d131b' } },
+		apple: { sizes: [180], padding: 0, resizeOptions: { background: '#0d131b' } }
 	},
 	images: ['scripts/icon-maskable.png']
 };

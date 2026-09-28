@@ -1,12 +1,24 @@
 <script lang="ts">
-	// Retention of a backup policy (#10): keep rules like restic's, a
-	// minimum recovery floor per stack/volume (the newest is never
-	// forgotten), and a preview of exactly which snapshots would go. Docker Manager
-	// computes the decision, so the preview and the run agree.
-	import { Switch, TextField } from '$lib/ui';
+	// Retention of a backup policy (#10): a preset ("7 daily, 4 weekly, 12
+	// monthly", the last 30, everything) or Custom, which reveals restic-like
+	// keep rules; the minimum recovery floor per stack/volume (the newest is
+	// never forgotten) waits under Advanced. The rule reads as a live
+	// sentence, and a saved policy previews exactly which snapshots would go.
+	// Docker Manager computes the decision, so the preview and the run agree.
+	import { untrack } from 'svelte';
+	import { RadioGroup, Switch, TextField } from '$lib/ui';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import RetentionPreviewPanel from './RetentionPreviewPanel.svelte';
-	import { hasRetentionRules, retentionText, type BackupRetention } from './model';
+	import {
+		RETENTION_PRESETS,
+		applyRetentionPreset,
+		hasRetentionRules,
+		retentionPreset,
+		retentionText,
+		type BackupRetention,
+		type RetentionPreset
+	} from './model';
 
 	interface Props {
 		value: BackupRetention;
@@ -17,6 +29,9 @@
 
 	let { value = $bindable(), policyId, onchange }: Props = $props();
 
+	// Editing opens on the preset the saved rules match (else Custom).
+	let preset = $state<RetentionPreset>(retentionPreset(untrack(() => value)));
+
 	const RULES: { key: keyof BackupRetention; label: string; hint: string }[] = [
 		{ key: 'last', label: 'Last', hint: 'Newest backups' },
 		{ key: 'hourly', label: 'Hourly', hint: 'One per hour' },
@@ -26,6 +41,12 @@
 		{ key: 'yearly', label: 'Yearly', hint: 'One per year' },
 		{ key: 'withinDays', label: 'Everything from the last', hint: 'Days' }
 	];
+
+	function choose(p: string) {
+		preset = p as RetentionPreset;
+		value = applyRetentionPreset(preset, value);
+		onchange?.();
+	}
 
 	// 0 turns a rule off; an emptied field counts as 0.
 	function num(key: keyof BackupRetention, v: string) {
@@ -42,32 +63,40 @@
 </script>
 
 <div class="retention">
-	<FieldGroup
-		legend="Keep"
-		hint="0 turns a rule off; with every rule at 0 every backup is kept. Rules combine: a backup kept by any rule stays."
-	>
-		<div class="grid">
-			{#each RULES as r (r.key)}
-				<TextField
-					label={r.label}
-					type="number"
-					min="0"
-					description={r.hint}
-					value={String(value[r.key] ?? 0)}
-					onchange={(e) => num(r.key, e.currentTarget.value)}
-				/>
-			{/each}
-		</div>
-	</FieldGroup>
-	<TextField
-		label="Minimum recovery floor"
-		type="number"
-		min="0"
-		description="Always keep at least this many of the newest backups of each stack and volume, whatever the rules say."
-		value={String(value.minKeep ?? 0)}
-		error={floorError}
-		onchange={(e) => num('minKeep', e.currentTarget.value)}
-	/>
+	<div class="choice">
+		<RadioGroup label="Keep" options={RETENTION_PRESETS} value={preset} onchange={choose} />
+		<p class="summary" aria-live="polite">{retentionText(value)}.</p>
+	</div>
+	{#if preset === 'custom'}
+		<FieldGroup
+			legend="Rules"
+			hint="0 turns a rule off; with every rule at 0 every backup is kept. Rules combine: a backup kept by any rule stays."
+		>
+			<div class="grid">
+				{#each RULES as r (r.key)}
+					<TextField
+						label={r.label}
+						type="number"
+						min="0"
+						description={r.hint}
+						value={String(value[r.key] ?? 0)}
+						onchange={(e) => num(r.key, e.currentTarget.value)}
+					/>
+				{/each}
+			</div>
+		</FieldGroup>
+		<Disclosure summary="Advanced" open={!!floorError}>
+			<TextField
+				label="Minimum recovery floor"
+				type="number"
+				min="0"
+				description="Always keep at least this many of the newest backups of each stack and volume, whatever the rules say."
+				value={String(value.minKeep ?? 0)}
+				error={floorError}
+				onchange={(e) => num('minKeep', e.currentTarget.value)}
+			/>
+		</Disclosure>
+	{/if}
 	<Switch
 		label="Apply retention after every backup"
 		description="Off: apply it from the policy page when you want."
@@ -77,7 +106,6 @@
 			onchange?.();
 		}}
 	/>
-	<p class="summary">{retentionText(value)}.</p>
 	{#if policyId}
 		<RetentionPreviewPanel {policyId} retention={value} disabled={!!floorError} />
 	{/if}
@@ -87,6 +115,11 @@
 	.retention {
 		display: grid;
 		gap: var(--space-4);
+	}
+
+	.choice {
+		display: grid;
+		gap: var(--space-2);
 	}
 
 	.grid {

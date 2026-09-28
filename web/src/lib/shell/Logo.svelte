@@ -5,16 +5,18 @@
 	let { mark = false, href = '/' }: { mark?: boolean; href?: string } = $props();
 </script>
 
-<a {href} class="logo" aria-label="Docker Manager, go to the dashboard">
+<a {href} class="logo" class:mark aria-label="Docker Manager, go to the dashboard">
 	<img src="/icons/pwa-64x64.png" width="32" height="32" alt="" aria-hidden="true" />
 	{#if !mark}<span class="name">Docker Manager</span>{/if}
 </a>
 
 <style>
+	/* Fits the sidebar column (224 px less its padding) and the 64 px rail. */
 	.logo {
 		display: inline-flex;
 		align-items: center;
 		gap: 10px;
+		max-width: 100%;
 		height: 40px;
 		padding: 0 var(--space-2);
 		border-radius: var(--radius-md);
@@ -30,9 +32,16 @@
 		flex-shrink: 0;
 	}
 
+	.logo.mark {
+		padding: 0 var(--space-1);
+	}
+
 	.name {
-		font-size: 18px;
-		line-height: 24px;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-size: var(--text-section);
+		line-height: var(--leading-section);
 		font-weight: var(--weight-semibold);
 		letter-spacing: -0.01em;
 		white-space: nowrap;

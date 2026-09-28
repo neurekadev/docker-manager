@@ -19,6 +19,7 @@ export type { MenuEntry, MenuItem, MenuSeparator, MenuHeading } from './menu';
 // Display
 export { default as Badge } from './Badge.svelte';
 export type { BadgeTone } from './Badge.svelte';
+export { default as Chip } from './Chip.svelte';
 export { default as StatusBadge } from './StatusBadge.svelte';
 export { statusInfo, type StatusInfo } from './status';
 export { default as Card } from './Card.svelte';
@@ -60,6 +61,13 @@ export type { RadioOption } from './RadioGroup.svelte';
 export { default as TriState } from './TriState.svelte';
 export type { TriValue } from './TriState.svelte';
 export { default as CronField } from './CronField.svelte';
+export {
+	describeCron,
+	parseCronPreset,
+	buildCron,
+	type CronPreset,
+	type CronPresetKind
+} from './cron';
 
 // Overlays
 export { default as Dialog } from './Dialog.svelte';

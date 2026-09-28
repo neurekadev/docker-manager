@@ -1,10 +1,11 @@
 // Search and filters of the schedules list (#13; ListCard, like the
 // resource lists): kind, state and, while every environment is shown,
-// the environment ("Docker Manager" for the manager's own policies).
+// the environment ("Manager or all environments" for policies without one).
 // Pure; tested in model.spec.ts.
 import type { Schedule } from '$lib/api/client';
 import type { ListFilter } from '$lib/features/resources/filters';
-import { scheduleState } from './model';
+import { describeCron } from '$lib/ui/cron';
+import { scheduleScope, scheduleState } from './model';
 
 interface Env {
 	id: string;
@@ -46,7 +47,7 @@ export function scheduleFilters(
 			all: 'All environments',
 			dynamic: true,
 			options: [
-				{ value: '-', label: 'Docker Manager' },
+				{ value: '-', label: 'Manager or all environments' },
 				...ctx.envs
 					.map((e) => ({ value: e.id, label: e.name }))
 					.sort((a, b) => a.label.localeCompare(b.label))
@@ -56,15 +57,16 @@ export function scheduleFilters(
 	return filters;
 }
 
-/** Policy name, kind, schedule, time zone and environment name. */
+/** Policy name, kind, schedule (words and expression), time zone and scope. */
 export function scheduleSearch(
 	envName: (id: string) => string | undefined
 ): (s: Schedule) => (string | undefined)[] {
 	return (s) => [
 		s.policyName,
 		s.kindLabel,
+		describeCron(s.cron, s.timeZone),
 		s.cron,
 		s.timeZone,
-		s.environmentId ? envName(s.environmentId) : 'Docker Manager'
+		scheduleScope(s, envName)
 	];
 }

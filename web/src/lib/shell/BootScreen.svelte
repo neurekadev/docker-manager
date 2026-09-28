@@ -49,8 +49,8 @@
 	}
 
 	h1 {
-		font-size: 20px;
-		line-height: 28px;
+		font-size: var(--text-title-sm);
+		line-height: var(--leading-title-sm);
 	}
 
 	.status {

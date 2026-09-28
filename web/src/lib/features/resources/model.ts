@@ -287,3 +287,166 @@ export function imagePresent(
 
 /** A Docker object name (containers, volumes, networks). */
 export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+
+// Detail pages (#22 polish): restart policies and health in words, the
+// command of a health check, labels split into the user's and the
+// system's, network aliases without the noise Docker adds, images with
+// and without tags, and columns that would repeat one value on every row.
+
+/** Restart policy options of the create and edit forms, in words. */
+export const RESTART_OPTIONS = [
+	{ value: 'no', label: 'Never restart' },
+	{ value: 'on-failure', label: 'On failure' },
+	{ value: 'unless-stopped', label: 'Unless stopped' },
+	{ value: 'always', label: 'Always' }
+] as const;
+
+/**
+ * A restart policy in words: "Never restart", "Unless stopped", "Always",
+ * "On failure (max 5)". The Engine's name may carry the retries
+ * ("on-failure:5"); `maxRetries` is used when given separately.
+ */
+export function restartPolicyLabel(policy: string | undefined, maxRetries?: number): string {
+	const [name, inline] = (policy ?? '').split(':');
+	const retries = maxRetries ?? (inline ? Number(inline) : undefined);
+	switch (name) {
+		case '':
+		case 'no':
+			return 'Never restart';
+		case 'always':
+			return 'Always';
+		case 'unless-stopped':
+			return 'Unless stopped';
+		case 'on-failure':
+			return retries && retries > 0 ? `On failure (max ${retries})` : 'On failure';
+	}
+	return name;
+}
+
+/** A container's health in words ("No health check" without one). */
+export function healthLabel(health: string | undefined): string {
+	switch (health) {
+		case 'healthy':
+			return 'Healthy';
+		case 'unhealthy':
+			return 'Unhealthy';
+		case 'starting':
+			return 'Starting';
+	}
+	return 'No health check';
+}
+
+/**
+ * The command a health check runs, without Docker's CMD / CMD-SHELL
+ * marker: ["CMD-SHELL", "curl -f http://localhost/"] → "curl -f
+ * http://localhost/". Empty for none or ["NONE"].
+ */
+export function healthCommand(test: readonly string[] | undefined): string {
+	if (!test?.length || test[0] === 'NONE') return '';
+	if (test[0] === 'CMD-SHELL') return test.slice(1).join(' ');
+	if (test[0] === 'CMD') return joinCommand(test.slice(1));
+	return joinCommand(test);
+}
+
+/** Label prefixes Docker, Compose, image builders and Docker Manager set themselves. */
+const SYSTEM_LABEL_PREFIXES = [
+	'com.docker.',
+	'org.opencontainers.',
+	'dev.neureka.docker-manager.',
+	'desktop.docker.io/'
+];
+
+/** Whether a label was set by Docker, Compose, an image build or Docker Manager. */
+export function isSystemLabel(key: string): boolean {
+	return SYSTEM_LABEL_PREFIXES.some((p) => key.startsWith(p));
+}
+
+export interface LabelGroups {
+	/** Labels someone chose (shown), sorted by key. */
+	user: [string, string][];
+	/** Labels set by Docker, Compose or image builders (folded away), sorted by key. */
+	system: [string, string][];
+}
+
+/** Splits labels into the user's and the system's, each sorted by key. */
+export function splitLabels(labels: Record<string, string> | undefined): LabelGroups {
+	const out: LabelGroups = { user: [], system: [] };
+	for (const e of Object.entries(labels ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+		(isSystemLabel(e[0]) ? out.system : out.user).push(e);
+	return out;
+}
+
+/**
+ * The aliases worth showing for a container on a network: each once,
+ * without the container's own name, hostname or ID prefix (Docker adds
+ * those itself).
+ */
+export function networkAliases(
+	aliases: readonly string[] | undefined,
+	c: { name: string; id: string; hostname?: string }
+): string[] {
+	const out: string[] = [];
+	for (const a of aliases ?? []) {
+		if (!a || out.includes(a) || a === c.name || a === c.hostname) continue;
+		if (a.length >= 12 && c.id.startsWith(a)) continue;
+		out.push(a);
+	}
+	return out;
+}
+
+/** Whether the hostname is only the container ID's prefix (Docker's default). */
+export function hostnameIsId(hostname: string | undefined, id: string): boolean {
+	return !!hostname && hostname.length >= 12 && id.startsWith(hostname);
+}
+
+/** Images with a tag (the list's main rows) and untagged ones (folded away at the end). */
+export function splitUntagged<T extends { repoTags: readonly string[] }>(
+	images: readonly T[]
+): { tagged: T[]; untagged: T[] } {
+	const tagged: T[] = [];
+	const untagged: T[] = [];
+	for (const im of images) (im.repoTags.length ? tagged : untagged).push(im);
+	return { tagged, untagged };
+}
+
+/**
+ * Whether a column would repeat one value on every row (every volume's
+ * driver is "local"): such columns are hidden, like filters that offer one
+ * choice. Missing values count as their own value.
+ */
+export function sameEverywhere<T>(rows: readonly T[], value: (row: T) => unknown): boolean {
+	if (rows.length === 0) return true;
+	const first = value(rows[0]);
+	return rows.every((r) => value(r) === first);
+}
+
+/** A container attached to a network, with its addresses on it. */
+export interface AttachedContainer {
+	id: string;
+	name: string;
+	state?: string;
+	/** IPv4 before IPv6; empty while stopped or when the containers are not readable. */
+	addresses: string[];
+}
+
+/**
+ * The containers attached to a network, sorted by name, each with its
+ * addresses on that network taken from the containers list (the
+ * network's own answer names the containers only).
+ */
+export function attachedContainers(
+	network: string,
+	refs: readonly { id: string; name: string; state?: string }[],
+	containers: readonly { name: string; networks?: readonly NetworkAddresses[] }[]
+): AttachedContainer[] {
+	const byName = new Map(containers.map((c) => [c.name, c]));
+	return refs
+		.map((r) => {
+			const n = byName.get(r.name)?.networks?.find((x) => x.name === network);
+			return {
+				...r,
+				addresses: [n?.ipAddress, n?.ipv6Address].filter((a): a is string => !!a)
+			};
+		})
+		.sort((a, b) => a.name.localeCompare(b.name));
+}

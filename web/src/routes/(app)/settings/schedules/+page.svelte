@@ -1,10 +1,10 @@
 <script lang="ts">
-	// Schedules (#13): the default time zone and the default expression per
-	// kind that new policies start with (existing policies keep theirs), and
-	// the cross-policy view is the Schedules page (/schedules).
+	// Schedules (#13): the default time zone and the default schedule per
+	// kind that new policies start with (existing policies keep theirs), in
+	// words with the expression as tooltip; Docker Manager's suggestion shows
+	// once, in its own column. The cross-policy view is /schedules.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import { api, unwrap, type Schema } from '$lib/api/client';
 	import { myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -19,6 +19,7 @@
 		Dialog,
 		Notice,
 		Table,
+		describeCron,
 		toast,
 		type Column
 	} from '$lib/ui';
@@ -26,7 +27,6 @@
 	import { ifMatch } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
 	import FormFooter from '$lib/features/common/FormFooter.svelte';
-	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import {
@@ -102,8 +102,15 @@
 
 	const kindColumns: Column<Kind>[] = [
 		{ id: 'kind', header: 'Schedule', cell: kindCell, stack: 'title' },
-		{ id: 'cron', header: 'Default', cell: cronCell, width: '160px' },
-		{ id: 'catch', header: 'Missed runs', cell: catchCell, width: '220px' },
+		{ id: 'cron', header: 'Default', cell: cronCell, width: '240px', stack: 'status' },
+		{
+			id: 'suggested',
+			header: 'Docker Manager’s suggestion',
+			cell: suggestedCell,
+			width: '240px',
+			stack: 'meta'
+		},
+		{ id: 'catch', header: 'Missed runs', cell: catchCell, width: '200px', stack: 'meta' },
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -115,11 +122,16 @@
 	];
 </script>
 
-{#snippet kindCell(k: Kind)}<NameCell
-		name={k.label}
-		sub={k.cron === k.suggested ? 'Docker Manager’s suggestion' : `Suggested: ${k.suggested}`}
-	/>{/snippet}
-{#snippet cronCell(k: Kind)}<span class="mono">{k.cron}</span>{/snippet}
+{#snippet kindCell(k: Kind)}<span class="name">{k.label}</span>{/snippet}
+{#snippet cronCell(k: Kind)}<span title={k.cron}
+		>{describeCron(k.cron, defaults.data?.timeZone)}</span
+	>{/snippet}
+{#snippet suggestedCell(k: Kind)}
+	{#if k.cron === k.suggested}<span class="muted">Same</span>{:else}<span
+			class="muted"
+			title={k.suggested}>{describeCron(k.suggested, defaults.data?.timeZone)}</span
+		>{/if}
+{/snippet}
 {#snippet catchCell(k: Kind)}<span class="muted"
 		>{k.catchUp === 'once' ? 'One catch-up run' : 'Skipped and recorded'}</span
 	>{/snippet}
@@ -222,18 +234,6 @@
 			{/snippet}
 		</QueryView>
 	{/if}
-
-	{#if can(access, 'schedule.read')}
-		<Card title="Scheduled policies">
-			<p class="muted">
-				Every backup, update and maintenance schedule with its next runs is on the Schedules
-				page.
-			</p>
-			<div class="link">
-				<Button href={routes.schedules()} icon={CalendarClock}>Open schedules</Button>
-			</div>
-		</Card>
-	{/if}
 </Page>
 
 <style>
@@ -245,10 +245,12 @@
 	}
 
 	.zone > :global(:first-child) {
-		flex: 1 1 260px;
+		flex: 0 1 360px;
+		min-width: 0;
 	}
 
-	.link {
-		margin-top: var(--space-3);
+	.name {
+		color: var(--text-strong);
+		font-weight: var(--weight-medium);
 	}
 </style>

@@ -3,12 +3,13 @@
 	// remembered per user (environment.svelte.ts). The trigger shows the
 	// status dot, the name and the Engine version; the list has a filter,
 	// each environment's status in words, and "Add environment" for users
-	// who may enroll agents. `compact` is the icon-rail variant.
+	// who may enroll agents. `compact` is the icon-rail variant (the
+	// switcher's up-down caret with the status dot, not the Environments
+	// nav icon).
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
-	import Server from '@lucide/svelte/icons/server';
 	import { mergeProps } from 'bits-ui';
 	import type { Environment } from '$lib/api/client';
 	import { routes } from '$lib/routes';
@@ -101,7 +102,7 @@
 						class="compact"
 						aria-label="Environment: {title}, {secondary}"
 					>
-						<Server size={18} strokeWidth={1.75} aria-hidden="true" />
+						<ChevronsUpDown size={18} strokeWidth={1.75} aria-hidden="true" />
 						{@render dot(tone)}
 					</button>
 				{/snippet}
@@ -185,7 +186,7 @@
 			{/each}
 		</div>
 		{#if canAdd}
-			<a class="add" href="{routes.environments()}?add=1" onclick={() => (open = false)}>
+			<a class="add" href={routes.addEnvironment()} onclick={() => (open = false)}>
 				<Plus size={16} strokeWidth={1.75} aria-hidden="true" />
 				Add environment
 			</a>
@@ -301,6 +302,13 @@
 		border-radius: var(--radius-sm);
 		background: var(--surface-panel);
 		color: var(--text-muted);
+	}
+
+	/* The input draws no ring of its own: the whole filter shows focus. */
+	.filter:focus-within {
+		outline: var(--focus-ring);
+		outline-offset: 0;
+		border-color: var(--accent-text);
 	}
 
 	.filter input {

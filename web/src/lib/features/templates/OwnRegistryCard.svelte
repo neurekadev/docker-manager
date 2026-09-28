@@ -1,7 +1,8 @@
 <script lang="ts">
-	// This instance's registry (template registry): the URL other Docker
-	// Manager instances add to use its public templates, how many templates
-	// it shares, and a link to its public page. The URL is this manager's
+	// This instance's registry (template registry; "Share your templates" on
+	// the Template sources page): the URL other instances add to use its
+	// public templates, how many templates it
+	// shares and a link to its public page. The URL is this manager's
 	// own origin (DOCKER_MANAGER_PUBLIC_URL).
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import { routes } from '$lib/routes';
@@ -13,18 +14,18 @@
 	const shared = $derived(templates.filter((t) => t.visibility === 'public' && t.latest).length);
 </script>
 
-<Card title="This instance's registry" id="own-registry">
+<Card title="Share your templates" id="own-registry">
 	<div class="body">
 		<p class="muted">
 			{shared === 0
 				? 'No template is shared yet: make a template public and publish a version to share it.'
 				: `Shares ${shared} public ${shared === 1 ? 'template' : 'templates'}.`}
-			Other Docker Manager instances add this URL as a registry to browse and use them.
+			Other Docker Managers add this address as a template source to browse and use them.
 		</p>
 		<div class="row">
 			<div class="url">
 				<code>{url}</code>
-				<CopyButton value={url} what="registry URL" />
+				<CopyButton value={url} what="address" />
 			</div>
 			<Button icon={ExternalLink} href={routes.registry()}>Open the public page</Button>
 		</div>

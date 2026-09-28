@@ -21,7 +21,11 @@ import {
 	exceedsMaxLifetime,
 	expiryFromDays,
 	factorsText,
+	groupMembers,
 	invitationStatus,
+	memberCandidates,
+	membersText,
+	secondaryName,
 	tokenStatus
 } from './model';
 import { nodesFromRules, resourceNode, serviceNodes } from './tree';
@@ -401,8 +405,34 @@ describe('accounts and tokens', () => {
 	const f = { password: true, totp: true, passkeys: 2, recoveryCodesRemaining: 8 };
 	it('summarizes accounts', () => {
 		expect(displayName({ displayName: ' ', username: 'guest' })).toBe('guest');
-		expect(factorsText(f)).toBe('Password, TOTP, 2 passkeys');
+		expect(factorsText(f)).toBe('Password, authenticator app and 2 passkeys');
+		expect(factorsText({ ...f, passkeys: 0 })).toBe('Password and authenticator app');
+		expect(factorsText({ ...f, password: false, totp: false, passkeys: 1 })).toBe('1 passkey');
 		expect(factorsText({ ...f, password: false, totp: false, passkeys: 0 })).toBe('None');
+		expect(secondaryName({ displayName: 'Juxnist', username: 'juxnist' })).toBeUndefined();
+		expect(
+			secondaryName({ displayName: 'Juxnist', username: 'juxnist', email: 'j@example.com' })
+		).toBe('j@example.com');
+		expect(secondaryName({ displayName: 'Ada Lovelace', username: 'ada' })).toBe('ada');
+		expect(secondaryName({ displayName: '', username: 'ada' })).toBeUndefined();
+		const users = [
+			{ id: 'o', groupId: 'g1', owner: true },
+			{ id: 'a', groupId: 'g1', owner: false },
+			{ id: 'b', groupId: 'g2', owner: false }
+		];
+		expect(groupMembers(users, 'g1').map((u) => u.id)).toEqual(['a']);
+		expect(groupMembers(undefined, 'g1')).toEqual([]);
+		expect(membersText(1)).toBe('1 member');
+		expect(membersText(0)).toBe('0 members');
+		const people = [
+			{ groupId: 'g1', owner: true, displayName: 'Owner', username: 'own' },
+			{ groupId: 'g1', owner: false, displayName: 'Ada', username: 'ada' },
+			{ groupId: 'g2', owner: false, displayName: 'Zoe', username: 'zoe' },
+			{ groupId: 'g2', owner: false, displayName: '', username: 'bob', email: 'b@lab.test' }
+		];
+		expect(memberCandidates(people, 'g1').map((u) => u.username)).toEqual(['bob', 'zoe']);
+		expect(memberCandidates(people, 'g1', 'LAB').map((u) => u.username)).toEqual(['bob']);
+		expect(memberCandidates(people, 'g2').map((u) => u.username)).toEqual(['ada']);
 		expect(accountStatus({ status: 'disabled', owner: false }).label).toBe('Disabled');
 		expect(
 			accountStatus({ status: 'active', owner: false, enrollmentDeadline: 'x' }).label

@@ -1,8 +1,16 @@
 // Log feed (#8): SSE per container, merge by time, cursor resume with
 // dedupe, dropped counts, end reasons, follow on/off, bounded buffer.
 import { describe, expect, it } from 'vitest';
-import { LogFeed, type EventSourceLike, type RawLine } from './feed.svelte';
-import { formatLogTime, highlight, logText } from './format';
+import { LogFeed, type EventSourceLike, type LogLine, type RawLine } from './feed.svelte';
+import {
+	countMatches,
+	filterLines,
+	formatLogTime,
+	highlight,
+	logText,
+	serviceShown,
+	toggleHidden
+} from './format';
 import { endReason, streamUrl, timeKey, type LogSource } from './stream';
 
 class FakeES implements EventSourceLike {
@@ -89,6 +97,73 @@ describe('stream helpers', () => {
 			{ timestamps: true, source: () => 'silo-web' }
 		);
 		expect(text).toBe('T1 silo-web stderr boom\n');
+	});
+});
+
+describe('line filters', () => {
+	const line = (
+		seq: number,
+		source: string,
+		text: string,
+		stream: 'stdout' | 'stderr' = 'stdout'
+	): LogLine => ({
+		seq,
+		source,
+		at: `T${seq}`,
+		key: `T${seq}`,
+		stream,
+		text
+	});
+	const lines = [
+		line(1, 'web', 'GET /health 200'),
+		line(2, 'db', 'connection refused', 'stderr'),
+		line(3, 'web', 'GET /login 500', 'stderr'),
+		line(4, 'db', 'checkpoint complete')
+	];
+
+	it('returns the lines unchanged when nothing filters', () => {
+		expect(filterLines(lines, {})).toBe(lines);
+		expect(filterLines(lines, { errorsOnly: false, query: '' })).toBe(lines);
+	});
+
+	it('keeps errors only, matching lines only and shown services, combined', () => {
+		expect(filterLines(lines, { errorsOnly: true }).map((l) => l.seq)).toEqual([2, 3]);
+		expect(filterLines(lines, { query: 'get' }).map((l) => l.seq)).toEqual([1, 3]);
+		expect(filterLines(lines, { source: (k) => k === 'db' }).map((l) => l.seq)).toEqual([2, 4]);
+		expect(
+			filterLines(lines, {
+				source: (k) => k === 'web',
+				errorsOnly: true,
+				query: 'login'
+			}).map((l) => l.seq)
+		).toEqual([3]);
+		expect(filterLines(lines, { query: 'nothing' })).toEqual([]);
+	});
+
+	it('counts case-insensitive matches', () => {
+		expect(countMatches(lines, 'get')).toBe(2);
+		expect(countMatches(lines, '')).toBe(0);
+		expect(countMatches(lines, 'zzz')).toBe(0);
+	});
+
+	it('starts with one service from ?service= and toggles from there', () => {
+		const services = ['silo-web', 'silo-db', 'silo-cache'];
+		const focused = { only: 'silo-db', hidden: [], services };
+		expect(services.map((s) => serviceShown(s, focused))).toEqual([false, true, false]);
+		// Turning another service on keeps the focused one and adds it.
+		expect(toggleHidden('silo-web', focused)).toEqual(['silo-cache']);
+		// Turning the focused one off hides everything.
+		expect(toggleHidden('silo-db', focused)).toEqual(['silo-web', 'silo-cache', 'silo-db']);
+	});
+
+	it('ignores an unknown ?service= and toggles hidden services', () => {
+		const services = ['silo-web', 'silo-db'];
+		const unknown = { only: 'gone', hidden: [], services };
+		expect(services.map((s) => serviceShown(s, unknown))).toEqual([true, true]);
+		expect(toggleHidden('silo-web', unknown)).toEqual(['silo-web']);
+		const some = { only: null, hidden: ['silo-web'], services };
+		expect(serviceShown('silo-web', some)).toBe(false);
+		expect(toggleHidden('silo-web', some)).toEqual([]);
 	});
 });
 

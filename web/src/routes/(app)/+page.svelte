@@ -2,9 +2,10 @@
 	// Dashboard (#5, #22): every environment the user can reach, with status,
 	// Engine, CPU and memory (the last 30 minutes as sparklines), Docker
 	// counts, undeployed changes and available updates, plus failed jobs of
-	// the last 24 hours. Everything is live: overview and charts are keyed with
-	// liveKeys, so connection, inventory and metrics events refresh them. A
-	// Restricted user sees the calm denied state (#17).
+	// the last 24 hours. "Needs attention" leads with what to look at; every
+	// item and KPI links to its list. Everything is live: overview and
+	// charts are keyed with liveKeys, so connection, inventory and metrics
+	// events refresh them. A Restricted user sees the calm denied state (#17).
 	import { createQuery } from '@tanstack/svelte-query';
 	import Container from '@lucide/svelte/icons/container';
 	import Cpu from '@lucide/svelte/icons/cpu';
@@ -20,9 +21,16 @@
 		stacksSummaryQuery,
 		updatePoliciesSummaryQuery
 	} from '$lib/api/queries';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
+	import Page from '$lib/features/common/Page.svelte';
+	import AttentionStrip, { presetFilters } from '$lib/features/dashboard/AttentionStrip.svelte';
 	import EnvironmentCard from '$lib/features/dashboard/EnvironmentCard.svelte';
-	import { dashboardTotals, perEnvironment } from '$lib/features/dashboard/totals';
-	import { jobKindLabel } from '$lib/features/jobs/labels';
+	import {
+		attentionItems,
+		dashboardTotals,
+		pendingChanges,
+		perEnvironment
+	} from '$lib/features/dashboard/totals';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { accessOf, hasAny, isRestricted } from '$lib/shell/nav';
@@ -35,10 +43,10 @@
 		ErrorState,
 		KpiCard,
 		Meter,
+		PageHeader,
 		Skeleton,
 		formatBytes,
-		formatPercent,
-		formatRelative
+		formatPercent
 	} from '$lib/ui';
 
 	usePage({ title: 'Dashboard', crumbs: [{ label: 'Dashboard' }] });
@@ -74,27 +82,40 @@
 		)
 	);
 	const totals = $derived(dashboardTotals(rows, recent, Date.now()));
+	const attention = $derived(
+		attentionItems(
+			totals,
+			pendingChanges(
+				counts,
+				rows.map((r) => r.id)
+			)
+		)
+	);
 	// Online environments first, then by name.
 	const ordered = $derived(
 		[...rows].sort(
 			(a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name)
 		)
 	);
+	const failedJobs = { filters: { list: 'jobs', values: { state: 'problems' } } };
 </script>
 
 {#if restricted}
 	<DeniedState level={1} />
 {:else}
-	<div class="page">
-		<header class="head">
-			<div>
-				<h1>Dashboard</h1>
-				<p class="muted">Every environment you can reach, with what runs on it.</p>
-			</div>
-			{#if canEnroll}
-				<Button icon={Plus} href={routes.addEnvironment()}>Add environment</Button>
-			{/if}
-		</header>
+	<Page>
+		<PageHeader
+			title="Dashboard"
+			description="Every environment you can reach, with what runs on it."
+		>
+			{#snippet actions()}
+				{#if canEnroll}
+					<Button variant="primary" icon={Plus} href={routes.addEnvironment()}
+						>Add environment</Button
+					>
+				{/if}
+			{/snippet}
+		</PageHeader>
 
 		{#if overview.isError}
 			<ErrorState
@@ -103,89 +124,95 @@
 				onretry={() => overview.refetch()}
 			/>
 		{:else}
-			<section class="kpis" aria-label="Summary" aria-busy={overview.isPending}>
-				{#if overview.isPending}
-					{#each [0, 1, 2, 3, 4] as i (i)}<div class="kpi-skeleton">
-							<Skeleton height="64px" radius="lg" />
-						</div>{/each}
-				{:else}
-					<KpiCard
-						label="Environments online"
-						value="{totals.online} / {rows.length}"
-						icon={Server}
-						color="blue"
-						secondary={totals.offline ? `${totals.offline} offline` : 'All connected'}
-						tone={totals.offline ? 'warn' : rows.length ? 'ok' : undefined}
-					/>
-					<KpiCard
-						label="Containers running"
-						value={totals.counted ? `${totals.running} / ${totals.containers}` : '—'}
-						icon={Container}
-						color="green"
-						secondary={totals.counted
-							? `${totals.containers - totals.running} not running`
-							: 'Counts need system access'}
-					/>
-					<KpiCard
-						label="CPU in use"
-						value={formatPercent(totals.cpuAverage)}
-						icon={Cpu}
-						color="cyan"
-						secondary={totals.cpuBusiest
-							? `Highest: ${totals.cpuBusiest.name} ${formatPercent(totals.cpuBusiest.value)}`
-							: totals.cpuAverage === null
-								? 'No usage samples yet'
-								: 'Of all cores'}
-					/>
-					{#if totals.memTotal > 0}
-						<KpiCard
-							label="Memory in use"
-							value={formatBytes(totals.memUsed)}
-							unit="/ {formatBytes(totals.memTotal)}"
-							icon={MemoryStick}
-							color="indigo"
-						>
-							{#snippet bar()}
-								<Meter
-									value={totals.memUsed}
-									max={totals.memTotal}
-									label="Memory in use"
-									valueText="{formatBytes(totals.memUsed)} of {formatBytes(
-										totals.memTotal
-									)}"
-								/>
-							{/snippet}
-						</KpiCard>
+			<section aria-label="Summary" aria-busy={overview.isPending}>
+				<KpiRow>
+					{#if overview.isPending}
+						{#each [0, 1, 2, 3, 4] as i (i)}<div class="kpi-skeleton">
+								<Skeleton height="64px" radius="lg" />
+							</div>{/each}
 					{:else}
 						<KpiCard
-							label="Memory in use"
-							value="—"
-							icon={MemoryStick}
-							color="indigo"
-							secondary="No usage samples yet"
+							label="Environments online"
+							value="{totals.online} / {rows.length}"
+							icon={Server}
+							color="blue"
+							secondary={totals.offline
+								? `${totals.offline} offline`
+								: 'All connected'}
+							tone={totals.offline ? 'warn' : rows.length ? 'ok' : undefined}
+							href={routes.environments()}
+						/>
+						<KpiCard
+							label="Containers running"
+							value={totals.counted
+								? `${totals.running} / ${totals.containers}`
+								: '—'}
+							icon={Container}
+							color="green"
+							secondary={totals.counted
+								? `${totals.containers - totals.running} not running`
+								: 'Not visible with your access'}
+							href={routes.containers()}
+						/>
+						<KpiCard
+							label="CPU in use"
+							value={formatPercent(totals.cpuAverage)}
+							icon={Cpu}
+							color="cyan"
+							secondary={totals.cpuBusiest
+								? `Highest: ${totals.cpuBusiest.name} ${formatPercent(totals.cpuBusiest.value)}`
+								: totals.cpuAverage === null
+									? 'No usage samples yet'
+									: 'Across all CPUs'}
+							href={routes.environments()}
+						/>
+						{#if totals.memTotal > 0}
+							<KpiCard
+								label="Memory in use"
+								value={formatBytes(totals.memUsed)}
+								unit="/ {formatBytes(totals.memTotal)}"
+								icon={MemoryStick}
+								color="indigo"
+								href={routes.environments()}
+							>
+								{#snippet bar()}
+									<Meter
+										value={totals.memUsed}
+										max={totals.memTotal}
+										label="Memory in use"
+										valueText="{formatBytes(totals.memUsed)} of {formatBytes(
+											totals.memTotal
+										)}"
+									/>
+								{/snippet}
+							</KpiCard>
+						{:else}
+							<KpiCard
+								label="Memory in use"
+								value="—"
+								icon={MemoryStick}
+								color="indigo"
+								secondary="No usage samples yet"
+								href={routes.environments()}
+							/>
+						{/if}
+						<KpiCard
+							label="Failed jobs"
+							value={String(totals.failures)}
+							icon={TriangleAlert}
+							color={totals.failures ? 'rose' : 'slate'}
+							tone={totals.failures ? 'danger' : undefined}
+							secondary="In the last 24 hours"
+							href={routes.jobs()}
+							onclick={() => presetFilters(failedJobs)}
 						/>
 					{/if}
-					<KpiCard
-						label="Failed jobs (24 h)"
-						value={String(totals.failures)}
-						icon={TriangleAlert}
-						color={totals.failures ? 'rose' : 'slate'}
-						tone={totals.failures ? 'danger' : undefined}
-					>
-						{#snippet secondary()}
-							{#if totals.lastFailure}
-								<a href={routes.job(totals.lastFailure.id)}
-									>{jobKindLabel(totals.lastFailure.kind)}, {formatRelative(
-										totals.lastFailure.createdAt
-									)}</a
-								>
-							{:else}
-								Nothing failed
-							{/if}
-						{/snippet}
-					</KpiCard>
-				{/if}
+				</KpiRow>
 			</section>
+
+			{#if !overview.isPending && rows.length}
+				<AttentionStrip items={attention} />
+			{/if}
 
 			<section class="section" aria-labelledby="environments-title">
 				<div class="section-head">
@@ -204,7 +231,7 @@
 							icon={Server}
 							color="blue"
 							title="No environments yet."
-							description="Add an environment: run the Docker Agent on a Docker host and enroll it."
+							description="Add an environment: run the Docker Agent on a Docker host and connect it."
 							level={3}
 						>
 							{#snippet actions()}
@@ -231,56 +258,10 @@
 				{/if}
 			</section>
 		{/if}
-	</div>
+	</Page>
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
-	.head {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		gap: var(--space-4);
-		flex-wrap: wrap;
-	}
-
-	.head h1 {
-		font-size: var(--text-title);
-		line-height: var(--leading-title);
-		letter-spacing: -0.01em;
-	}
-
-	.head p {
-		margin-top: 2px;
-		font-size: var(--text-control);
-	}
-
-	.kpis {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-		gap: var(--space-4);
-	}
-
-	/* Five cards: 3 + 2 where 5 do not fit in one row (never 4 + 1). */
-	@media (min-width: 768px) and (max-width: 1439px) {
-		.kpis {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-	}
-
-	/* Phones: two compact KPI cards per row (KpiCard's compact layout). */
-	@media (max-width: 767px) {
-		.kpis {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: var(--space-3);
-		}
-	}
-
 	.kpi-skeleton,
 	.card-skeleton {
 		padding: var(--space-4);
@@ -303,6 +284,7 @@
 		padding-top: var(--space-2);
 	}
 
+	/* The section heading (16 px) stays a step above the cards' names (14 px). */
 	.section-head h2 {
 		font-size: var(--text-section);
 		line-height: var(--leading-section);

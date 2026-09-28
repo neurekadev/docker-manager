@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Public pages (#16, #22): setup, sign-in, factor enrollment, invitation
 	// and password reset share one quiet, centered layout: the logo lockup,
-	// a panel, and the manager version. The backup import (a wizard with
+	// a panel, and the manager version (never the build commit: visitors
+	// here are not signed in). The backup import (a wizard with
 	// tables of backup sets) gets a wider panel.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
@@ -22,7 +23,7 @@
 		</main>
 		<p class="version num">
 			{#if health.data}
-				Docker Manager {health.data.version} ({health.data.commit.slice(0, 12)})
+				Docker Manager {health.data.version}
 			{:else if health.fetchStatus === 'paused'}
 				Waiting for the network…
 			{:else if health.isError}

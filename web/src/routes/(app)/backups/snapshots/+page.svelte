@@ -1,10 +1,13 @@
 <script lang="ts">
-	// Snapshots (#10): what restic itself holds, read live from every
-	// location of every repository the caller may read: the backups, the
-	// set and host manifests, and snapshots Docker Manager did not write.
-	// Linked rows open the backup; a location that cannot be read is named
-	// with the reason.
+	// Raw snapshots (#10): what restic itself holds, read live from every
+	// location of one repository (?repository=, the repository page's "Raw
+	// snapshots") or of every repository the caller may read: the backups,
+	// the set and host manifests, and snapshots Docker Manager did not
+	// write. Linked rows open the backup; a location that cannot be read is
+	// named with the reason. Not a tab of Backups: the Backups tab lists
+	// the same backups by run.
 	import { createQueries, createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import { page } from '$app/state';
 	import Camera from '@lucide/svelte/icons/camera';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { environmentsQuery } from '$lib/api/queries';
@@ -17,6 +20,7 @@
 		Card,
 		EmptyState,
 		Notice,
+		PageHeader,
 		Skeleton,
 		Table,
 		TextField,
@@ -28,7 +32,6 @@
 	import { actionError } from '$lib/features/common/errors';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
-	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
 	import {
 		SNAPSHOT_CLASS,
 		sentenceCase,
@@ -38,24 +41,34 @@
 	} from '$lib/features/backups/model';
 	import { repositoriesQuery, resticSnapshotsQuery } from '$lib/features/backups/queries';
 
-	usePage({
-		title: 'Snapshots',
-		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'Snapshots' }],
-		environmentScoped: true
-	});
-
 	const qc = useQueryClient();
 	const envs = createQuery(() => environmentsQuery());
 	const envName = (id: string) => environmentName(envs.data, id);
 	const repos = createQuery(() => repositoriesQuery());
+	const only = $derived(page.url.searchParams.get('repository'));
+	const onlyRepo = $derived(only ? repos.data?.find((r) => r.id === only) : undefined);
 	const readable = $derived(
 		(repos.data ?? []).filter(
 			(r) =>
+				(!only || r.id === only) &&
 				r.state === 'ready' &&
 				r.view === 'full' &&
 				r.actions.includes('backup_repository.read')
 		)
 	);
+
+	usePage(() => ({
+		title: 'Raw snapshots',
+		crumbs: onlyRepo
+			? [
+					{ label: 'Backups', href: routes.backups() },
+					{ label: 'Repositories', href: routes.backupRepositories() },
+					{ label: onlyRepo.name, href: routes.backupRepository(onlyRepo.id) },
+					{ label: 'Raw snapshots' }
+				]
+			: [{ label: 'Backups', href: routes.backups() }, { label: 'Raw snapshots' }],
+		environmentScoped: true
+	}));
 	const listings = createQueries(() => ({
 		queries: readable.map((r) => resticSnapshotsQuery(r.id))
 	}));
@@ -84,7 +97,6 @@
 				snapshotName(r.snapshot),
 				SNAPSHOT_CLASS[r.snapshot.class].label,
 				r.snapshot.shortId,
-				r.snapshot.hostname ?? '',
 				r.repositoryName,
 				r.environmentId ? envName(r.environmentId) : 'manager',
 				...r.snapshot.tags
@@ -123,6 +135,7 @@
 			header: 'Snapshot',
 			cell: whatCell,
 			sortValue: (r) => snapshotName(r.snapshot),
+			maxWidth: '320px',
 			stack: 'title'
 		},
 		{
@@ -168,7 +181,7 @@
 	<NameCell
 		name={snapshotName(r.snapshot)}
 		href={r.snapshot.backupId ? routes.backup(r.snapshot.backupId) : undefined}
-		sub="{r.snapshot.shortId}{r.snapshot.hostname ? ` · ${r.snapshot.hostname}` : ''}"
+		sub={r.snapshot.shortId}
 		subMono
 	/>
 {/snippet}
@@ -192,7 +205,12 @@
 	>{/snippet}
 
 <Page>
-	<BackupsHeader />
+	<PageHeader
+		title="Raw snapshots"
+		description={onlyRepo
+			? `What restic itself holds in ${onlyRepo.name}, read live. Backups lists the same backups by run.`
+			: 'What restic itself holds in your repositories, read live. Backups lists the same backups by run.'}
+	/>
 
 	{#each failed as f (f.name)}
 		<Notice tone="warn" title="The snapshots of {f.name} could not be listed.">
@@ -224,9 +242,9 @@
 			<div class="tools">
 				<div class="filter">
 					<TextField
-						label="Filter snapshots"
+						label="Search snapshots"
 						hideLabel
-						placeholder="Filter by name, ID, tag or repository"
+						placeholder="Search snapshots"
 						bind:value={filter}
 					/>
 				</div>

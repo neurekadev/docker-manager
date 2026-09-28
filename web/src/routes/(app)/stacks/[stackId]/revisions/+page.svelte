@@ -1,24 +1,32 @@
 <script lang="ts">
 	// Revisions (#7, #25 Q1): every definition Docker Manager saw, newest first:
 	// what was deployed, what the stack editor or file manager saved, edits
-	// made on the host and restores. Compare any two (the files on disk
-	// against the deployed revision by default) and restore one to disk;
-	// a restore never deploys, it offers the deploy afterwards.
+	// made on the host and restores. Runs of revisions with the same files
+	// (the same fingerprint) show as one row. While the files on disk differ
+	// from the deployed revision, their diff shows straight away with "Deploy
+	// these changes" and "Restore deployed revision"; otherwise compare any
+	// two (never two with the same files by default) and restore one to
+	// disk. A restore never deploys, it offers the deploy afterwards.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { untrack } from 'svelte';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import GitCompare from '@lucide/svelte/icons/git-compare';
 	import History from '@lucide/svelte/icons/history';
+	import Rocket from '@lucide/svelte/icons/rocket';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import { sessionQuery } from '$lib/api/queries';
-	import { deployStack, restoreRevision } from '$lib/features/stacks/actions';
+	import { restoreRevision } from '$lib/features/stacks/actions';
 	import { useStackPage } from '$lib/features/stacks/context';
+	import { startDeploy } from '$lib/features/stacks/deploy.svelte';
 	import {
 		compareRevisions,
-		revisionLabel,
+		comparisonFor,
+		defaultComparison,
+		groupRevisions,
 		revisionSource,
 		shortHash,
-		stackTitle
+		stackTitle,
+		type RevisionGroup
 	} from '$lib/features/stacks/model';
 	import {
 		stackKeys,
@@ -63,32 +71,44 @@
 	const session = createQuery(() => sessionQuery());
 	const me = $derived(session.data?.user?.id);
 	const list = $derived(revisions.data ?? []);
+	const groups = $derived(groupRevisions(list));
 	const appliedId = $derived(stack.appliedRevision?.id);
 	const diskId = $derived(stack.sourceRevision?.id);
 	const failedId = $derived(stack.failedRevision?.id);
+	const applied = $derived(list.find((r) => r.id === appliedId));
+	const has = (g: RevisionGroup<StackRevision>, id: string | undefined) =>
+		!!id && g.members.some((m) => m.id === id);
+	/** "Revision 7" or "Revisions 5–7" for a run of equal revisions. */
+	const groupLabel = (g: RevisionGroup<StackRevision>) =>
+		g.members.length > 1
+			? `Revisions ${g.members.at(-1)!.seq}–${g.head.seq}`
+			: `Revision ${g.head.seq}`;
 
-	// Compare: deployed → on disk by default (the undeployed changes),
-	// else the one before the newest → the newest.
+	// Compare: deployed → on disk by default (the undeployed changes, shown
+	// straight away), else the run before the newest → the newest.
 	let from = $state('');
 	let to = $state('');
 	let showing = $state(false);
 	$effect(() => {
 		const l = list;
 		if (!l.length || untrack(() => from && to)) return;
-		if (stack.undeployedChanges && appliedId && diskId) {
-			from = appliedId;
-			to = diskId;
-		} else {
-			to = l[0].id;
-			from = (l[1] ?? l[0]).id;
-		}
+		const d = defaultComparison(l, appliedId, diskId, !!stack.undeployedChanges);
+		if (!d) return;
+		from = d.from;
+		to = d.to;
+		if (stack.undeployedChanges && d.from === appliedId && d.to === diskId) showing = true;
 	});
+	const pendingDiff = $derived(
+		!!stack.undeployedChanges && from === appliedId && to === diskId && !!appliedId
+	);
+	// One option per run of equal revisions; the chosen IDs map to their run.
 	const options = $derived(
-		list.map((r) => ({
-			value: r.id,
-			label: `${revisionLabel(r)}${r.id === appliedId ? ', deployed' : ''}${r.id === diskId ? ', on disk' : ''}`
+		groups.map((g) => ({
+			value: g.head.id,
+			label: `${groupLabel(g)}${has(g, appliedId) ? ', deployed' : ''}${has(g, diskId) ? ', on disk' : ''}`
 		}))
 	);
+	const headOf = (id: string) => groups.find((g) => has(g, id))?.head.id ?? id;
 	const fromRev = createQuery(() => ({
 		...stackRevisionQuery(ctx.id, from),
 		enabled: showing && !!from
@@ -106,14 +126,18 @@
 	);
 	const labelOf = (id: string) => {
 		const r = list.find((x) => x.id === id);
-		return r ? `Revision ${r.seq}` : 'Revision';
+		if (!r) return 'Revision';
+		if (pendingDiff) return id === appliedId ? `Deployed (revision ${r.seq})` : 'On disk';
+		return `Revision ${r.seq}`;
 	};
 
 	function compareWith(r: StackRevision) {
-		from =
-			appliedId && appliedId !== r.id ? appliedId : (list[list.indexOf(r) + 1]?.id ?? r.id);
-		to = r.id;
+		const c = comparisonFor(list, r, appliedId);
+		if (!c) return;
+		from = c.from;
+		to = c.to;
 		showing = true;
+		document.getElementById('changes')?.scrollIntoView({ block: 'start' });
 	}
 
 	// Restore to disk.
@@ -134,18 +158,22 @@
 			release();
 		}
 	}
+	let deploying = $state(false);
 	async function deployNow() {
+		deploying = true;
 		try {
-			const job = await deployStack(stack.id, 'deploy');
-			ctx.tray.add(job, {
-				title: `Deploy ${title}`,
-				success: `Deployed ${title}`,
-				failure: `${title} was not deployed`
-			});
+			await startDeploy(stack, {}, ctx.tray, queryClient);
 			offerDeploy = null;
 		} catch (e) {
 			toast.error(`${title} was not deployed`, { body: errorMessage(e) });
+		} finally {
+			deploying = false;
 		}
+	}
+	function restoreDeployed() {
+		if (!applied) return;
+		restoring = applied;
+		restoreOpen = true;
 	}
 
 	function authorOf(r: StackRevision): string {
@@ -154,11 +182,12 @@
 		return r.source === 'external' ? 'On the host' : 'Docker Manager';
 	}
 
-	function rowMenu(r: StackRevision): MenuEntry[] {
+	function rowMenu(g: RevisionGroup<StackRevision>): MenuEntry[] {
+		const r = g.head;
 		const items: MenuEntry[] = [];
-		if (!r.contentOmitted)
+		if (!r.contentOmitted && comparisonFor(list, r, appliedId))
 			items.push({ label: 'Compare', icon: GitCompare, onSelect: () => compareWith(r) });
-		if (can('stack.definition.write') && !r.contentOmitted && r.id !== diskId)
+		if (can('stack.definition.write') && !r.contentOmitted && !has(g, diskId))
 			items.push({
 				label: 'Restore to disk',
 				icon: RotateCcw,
@@ -171,28 +200,28 @@
 		return items;
 	}
 
-	const columns: Column<StackRevision>[] = [
+	const columns: Column<RevisionGroup<StackRevision>>[] = [
 		{
 			id: 'rev',
 			header: 'Revision',
 			cell: revCell,
-			sortValue: (r) => r.seq,
+			sortValue: (g) => g.head.seq,
 			stack: 'title',
-			width: '180px'
+			width: '200px'
 		},
 		{ id: 'state', header: 'State', cell: stateCell, stack: 'status' },
 		{
 			id: 'source',
 			header: 'Source',
 			cell: sourceCell,
-			sortValue: (r) => revisionSource(r.source)
+			sortValue: (g) => revisionSource(g.head.source)
 		},
 		{ id: 'author', header: 'Author', cell: authorCell },
 		{
 			id: 'at',
 			header: 'Recorded',
 			cell: atCell,
-			sortValue: (r) => r.createdAt,
+			sortValue: (g) => g.head.createdAt,
 			width: '150px'
 		},
 		{
@@ -207,22 +236,22 @@
 	];
 </script>
 
-{#snippet revCell(r: StackRevision)}
-	<span class="rev">
-		<span class="seq">Revision {r.seq}</span>
-		<span class="hash mono" title={r.hash}>{shortHash(r.hash)}</span>
+{#snippet revCell(g: RevisionGroup<StackRevision>)}
+	<span class="rev" title="Fingerprint {shortHash(g.head.hash)}">
+		<span class="seq">{groupLabel(g)}</span>
+		{#if g.members.length > 1}<span class="muted">same files</span>{/if}
 	</span>
 {/snippet}
-{#snippet stateCell(r: StackRevision)}
+{#snippet stateCell(g: RevisionGroup<StackRevision>)}
+	{@const r = g.head}
 	<span class="marks">
-		{#if r.id === appliedId}<Badge tone="ok" dot>Deployed</Badge>{/if}
-		{#if r.id === diskId}<Badge tone={r.id === appliedId ? 'neutral' : 'warn'} dot
-				>On disk</Badge
+		{#if has(g, appliedId)}<Badge tone="ok" dot>Deployed</Badge>{/if}
+		{#if has(g, diskId)}<Badge tone={has(g, appliedId) ? 'neutral' : 'warn'} dot>On disk</Badge
 			>{/if}
-		{#if r.id === failedId}<Badge tone="danger" dot>Deploy failed</Badge>{/if}
+		{#if has(g, failedId)}<Badge tone="danger" dot>Deploy failed</Badge>{/if}
 		{#if r.contentOmitted}<Badge
-				title="Over 96 KiB: only hashes were kept, so it cannot be shown or restored"
-				>Hashes only</Badge
+				title="Over 96 KiB: only fingerprints were kept, so it cannot be shown or restored"
+				>Too large to show</Badge
 			>{/if}
 		{#if r.restoredFrom}{@const src = list.find((x) => x.id === r.restoredFrom)}<span
 				class="muted"
@@ -230,22 +259,21 @@
 			>{/if}
 	</span>
 {/snippet}
-{#snippet sourceCell(r: StackRevision)}{revisionSource(r.source)}{/snippet}
-{#snippet authorCell(r: StackRevision)}<span title={r.authorUserId ?? r.authorTokenId}
-		>{authorOf(r)}</span
+{#snippet sourceCell(g: RevisionGroup<StackRevision>)}{revisionSource(g.head.source)}{/snippet}
+{#snippet authorCell(g: RevisionGroup<StackRevision>)}{authorOf(g.head)}{/snippet}
+{#snippet atCell(g: RevisionGroup<StackRevision>)}<time
+		datetime={g.head.createdAt}
+		title={formatDateTime(g.head.createdAt)}>{formatRelative(g.head.createdAt)}</time
 	>{/snippet}
-{#snippet atCell(r: StackRevision)}<span title={formatDateTime(r.createdAt)}
-		>{formatRelative(r.createdAt)}</span
-	>{/snippet}
-{#snippet actionsCell(r: StackRevision)}
-	{@const items = rowMenu(r)}
+{#snippet actionsCell(g: RevisionGroup<StackRevision>)}
+	{@const items = rowMenu(g)}
 	{#if items.length}
-		<Menu {items} label="Actions for revision {r.seq}" align="end">
+		<Menu {items} label="Actions for revision {g.head.seq}" align="end">
 			{#snippet trigger(props)}<IconButton
 					{...props}
 					size="sm"
 					variant="secondary"
-					label="Actions for revision {r.seq}"
+					label="Actions for revision {g.head.seq}"
 					icon={EllipsisVertical}
 				/>{/snippet}
 		</Menu>
@@ -277,36 +305,36 @@
 		{#snippet actions()}
 			{#if list.length > 1}
 				<div class="pick">
-					<Select label="From" bind:value={from} {options} />
-					<Select label="To" bind:value={to} {options} />
+					<Select
+						label="From"
+						bind:value={() => headOf(from), (v) => (from = v)}
+						{options}
+					/>
+					<Select label="To" bind:value={() => headOf(to), (v) => (to = v)} {options} />
 				</div>
 			{/if}
 		{/snippet}
 		{#if revisions.isPending}
 			<div aria-busy="true"><Skeleton lines={3} /></div>
-		{:else if list.length < 2 && !stack.undeployedChanges}
+		{:else if groups.length < 2 && !stack.undeployedChanges}
 			<p class="muted">
-				Only one revision so far. Changes show up here after the next edit or deploy.
+				Only one version of the files so far. Changes show up here after the next edit.
 			</p>
 		{:else if !showing}
 			<div class="intro">
 				<p>
-					{#if stack.undeployedChanges && from === appliedId && to === diskId}
-						The files on disk differ from the deployed revision.
-					{:else}
-						Pick two revisions to compare.
-					{/if}
-					Opening the files is recorded in the audit log, because they can hold secrets.
+					Pick two revisions to compare.
+					<span class="muted">Opening files is recorded in the audit log.</span>
 				</p>
 				<Button
 					icon={GitCompare}
 					onclick={() => (showing = true)}
-					disabled={!from || !to || from === to}>Show changes</Button
+					disabled={!from || !to || headOf(from) === headOf(to)}>Show changes</Button
 				>
 			</div>
 		{:else if omitted}
 			<p class="muted">
-				One of these revisions kept only hashes (over 96 KiB), so it cannot be compared.
+				One of these revisions is too large to show (over 96 KiB), so it cannot be compared.
 			</p>
 		{:else if fromRev.isError || toRev.isError}
 			<ErrorState
@@ -314,12 +342,37 @@
 				title="The revisions could not be opened."
 				onretry={() => (fromRev.refetch(), toRev.refetch())}
 				compact
+				bare
 			/>
 		{:else if !changes}
 			<div aria-busy="true"><Skeleton lines={6} /></div>
 		{:else if from === to || changed.length === 0}
 			<p class="muted">{labelOf(from)} and {labelOf(to)} have the same files.</p>
 		{:else}
+			{#if pendingDiff}
+				<div class="intro pending">
+					<p>
+						The files on disk differ from what is deployed.
+						<span class="muted">Opening files is recorded in the audit log.</span>
+					</p>
+					<div class="intro-actions">
+						{#if can('stack.definition.write') && applied && !applied.contentOmitted}
+							<Button icon={RotateCcw} disabled={offline} onclick={restoreDeployed}
+								>Restore deployed revision</Button
+							>
+						{/if}
+						{#if can('stack.deploy')}
+							<Button
+								variant="primary"
+								icon={Rocket}
+								loading={deploying}
+								disabled={offline}
+								onclick={deployNow}>Deploy these changes</Button
+							>
+						{/if}
+					</div>
+				</div>
+			{/if}
 			<div class="diffs">
 				{#each changed as c (c.path)}
 					{#if c.status === 'binary'}
@@ -361,10 +414,11 @@
 					title="The revisions could not be loaded."
 					onretry={() => revisions.refetch()}
 					compact
+					bare
 				/>
 			</div>
 		{:else}
-			<Table label="Revisions of {title}" rows={list} {columns} rowKey={(r) => r.id}>
+			<Table label="Revisions of {title}" rows={groups} {columns} rowKey={(g) => g.head.id}>
 				{#snippet empty()}
 					<EmptyState
 						icon={History}
@@ -385,7 +439,7 @@
 		bind:open={restoreOpen}
 		title="Restore revision {restoring.seq} to disk?"
 		consequences={[
-			`Writes the files of revision ${restoring.seq} (${shortHash(restoring.hash)}) back to the project directory of ${title}.`,
+			`Writes the files of revision ${restoring.seq} back to the project folder of ${title}.`,
 			'The files on disk now are recorded as a revision first, so nothing is lost.',
 			'Nothing is deployed: you can deploy the restored files afterwards.'
 		]}
@@ -435,8 +489,14 @@
 		font-weight: var(--weight-medium);
 	}
 
-	.hash {
-		color: var(--accent-text);
+	.pending {
+		margin-bottom: var(--space-3);
+	}
+
+	.intro-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
 	}
 
 	.marks {

@@ -5,6 +5,7 @@ import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import CreateFromTemplateDialog from './CreateFromTemplateDialog.svelte';
+import DefinitionSummary from './DefinitionSummary.svelte';
 import PublishDialog from './PublishDialog.svelte';
 import type { Template } from './queries';
 import TemplateCard from './TemplateCard.svelte';
@@ -91,7 +92,7 @@ describe('PublishDialog', () => {
 		const d = await screen.findByRole('dialog', { name: 'Publish a version of Nextcloud' });
 		expect(within(d).getByLabelText('Version', { exact: false })).toHaveValue('1.2.1');
 		expect(within(d).queryByText('This template is public')).toBeNull();
-		await user.click(within(d).getByRole('button', { name: 'Publish 1.2.1' }));
+		await user.click(within(d).getByRole('button', { name: 'Publish version 1.2.1' }));
 		await waitFor(() => expect(seen).toHaveLength(1));
 		expect(seen[0]).toMatchObject({
 			method: 'POST',
@@ -105,7 +106,7 @@ describe('PublishDialog', () => {
 		mount(PublishDialog, { open: true, template: { ...template, visibility: 'public' } });
 		const d = await screen.findByRole('dialog', { name: 'Publish a version of Nextcloud' });
 		expect(within(d).getByText('This template is public')).toBeInTheDocument();
-		const publish = within(d).getByRole('button', { name: 'Publish 1.2.1' });
+		const publish = within(d).getByRole('button', { name: 'Publish version 1.2.1' });
 		expect(publish).toBeDisabled();
 		await user.click(within(d).getByLabelText(/becomes public/));
 		await user.click(publish);
@@ -132,101 +133,160 @@ describe('TemplateCard', () => {
 			'href',
 			'/templates/tp-1'
 		);
-		expect(screen.getByText('v1.2.0')).toBeInTheDocument();
+		expect(screen.getByText('Version 1.2.0')).toBeInTheDocument();
 		expect(screen.getByText('Public')).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: '#files' }));
+		await user.click(screen.getByRole('button', { name: 'files' }));
 		expect(onTag).toHaveBeenCalledWith('files');
 	});
+
+	it('is one button in a picker, with static tags', async () => {
+		const user = setup();
+		const onselect = vi.fn();
+		const onTag = vi.fn();
+		render(TemplateCard, {
+			props: { onselect, onTag, name: 'Nextcloud', tags: ['cloud'] }
+		});
+		expect(screen.queryByRole('link')).toBeNull();
+		expect(screen.getAllByRole('button')).toHaveLength(1);
+		expect(screen.getByText('Draft only')).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Use template Nextcloud' }));
+		expect(onselect).toHaveBeenCalledTimes(1);
+		expect(onTag).not.toHaveBeenCalled();
+	});
 });
+
+describe('DefinitionSummary', () => {
+	it('lists services, images, ports and .env names without values', async () => {
+		render(DefinitionSummary, {
+			props: {
+				files: [
+					{
+						path: '.env',
+						content: ['DB_PASSWORD=hunter2', 'ADMIN_EMAIL=', ''].join('\n')
+					},
+					{
+						path: 'compose.override.yaml',
+						content: ['services:', '  web:', '    ports: ["8443:443"]', ''].join('\n')
+					},
+					{
+						path: 'compose.yaml',
+						content: [
+							'services:',
+							'  web:',
+							'    image: nginx:1.27',
+							'    ports: ["8080:80"]',
+							'  worker:',
+							'    build: .',
+							''
+						].join('\n')
+					}
+				]
+			}
+		});
+		const table = await screen.findByRole('table', { name: 'Services' });
+		expect(within(table).getByText('nginx:1.27')).toBeInTheDocument();
+		expect(within(table).getByText('8080:80, 8443:443')).toBeInTheDocument();
+		expect(within(table).getByText("Built from the template's files")).toBeInTheDocument();
+		const keys = screen.getByRole('list', { name: 'Settings in .env' });
+		expect(within(keys).getByText('DB_PASSWORD')).toBeInTheDocument();
+		expect(within(keys).getByText('ADMIN_EMAIL (no value)')).toBeInTheDocument();
+		expect(document.body.textContent).not.toContain('hunter2');
+	});
+});
+
+/** The API of the create-from-template flow; POSTed creations land in `posted`. */
+function stubCreateFlow(posted: Seen[]) {
+	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+		const req = input instanceof Request ? input : new Request(String(input), init);
+		const url = new URL(req.url);
+		const text = await req.text();
+		const body = text ? JSON.parse(text) : undefined;
+		const json = (status: number, b: unknown) =>
+			new Response(JSON.stringify(b), {
+				status,
+				headers: { 'Content-Type': 'application/json' }
+			});
+		switch (url.pathname) {
+			case '/api/v1/me/permissions':
+				return json(200, {
+					owner: true,
+					entries: [],
+					environments: [],
+					catalogVersion: 1
+				});
+			case '/api/v1/environments':
+				return json(200, {
+					items: [
+						{
+							id: 'env-1',
+							name: 'nas',
+							online: true,
+							status: 'active',
+							view: 'full',
+							actions: []
+						}
+					]
+				});
+			case '/api/v1/template-catalog':
+				return json(200, {
+					items: [
+						{
+							instanceId: 'self',
+							registryName: 'Home',
+							own: true,
+							templateId: 'tp-1',
+							name: 'Next Cloud',
+							tags: [],
+							actions: ['template.use'],
+							versions: [
+								{ number: 3, label: '1.2.0', publishedAt: '', contentSize: 1 }
+							]
+						}
+					]
+				});
+			case '/api/v1/templates/tp-1/versions/3/definition':
+				return json(200, {
+					version: { number: 3, label: '1.2.0', definition: [] },
+					files: [
+						{ path: 'compose.yaml', content: 'services: {}\n' },
+						{ path: '.env', content: 'A=1\n' }
+					]
+				});
+			case '/api/v1/stacks/template-creations':
+				posted.push({
+					method: req.method,
+					path: url.pathname,
+					headers: req.headers,
+					body
+				});
+				return json(201, {
+					stack: {
+						id: 'st-9',
+						environmentId: 'env-1',
+						name: 'next-cloud',
+						status: 'undeployed',
+						view: 'full',
+						actions: []
+					},
+					validation: {
+						valid: true,
+						errors: [],
+						warnings: [],
+						services: [],
+						binds: []
+					}
+				});
+		}
+		return json(404, { code: 'not_found', message: 'no', details: [], retryable: false });
+	});
+}
 
 describe('CreateFromTemplateDialog', () => {
 	it('creates a stack from the preselected template with a suggested name', async () => {
 		const { goto } = await import('$app/navigation');
 		const user = setup();
 		const posted: Seen[] = [];
-		vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-			const req = input instanceof Request ? input : new Request(String(input), init);
-			const url = new URL(req.url);
-			const text = await req.text();
-			const body = text ? JSON.parse(text) : undefined;
-			const json = (status: number, b: unknown) =>
-				new Response(JSON.stringify(b), {
-					status,
-					headers: { 'Content-Type': 'application/json' }
-				});
-			switch (url.pathname) {
-				case '/api/v1/me/permissions':
-					return json(200, {
-						owner: true,
-						entries: [],
-						environments: [],
-						catalogVersion: 1
-					});
-				case '/api/v1/environments':
-					return json(200, {
-						items: [
-							{
-								id: 'env-1',
-								name: 'nas',
-								online: true,
-								status: 'active',
-								view: 'full',
-								actions: []
-							}
-						]
-					});
-				case '/api/v1/template-catalog':
-					return json(200, {
-						items: [
-							{
-								instanceId: 'self',
-								registryName: 'Home',
-								own: true,
-								templateId: 'tp-1',
-								name: 'Next Cloud',
-								tags: [],
-								actions: ['template.use'],
-								versions: [
-									{ number: 3, label: '1.2.0', publishedAt: '', contentSize: 1 }
-								]
-							}
-						]
-					});
-				case '/api/v1/templates/tp-1/versions/3/definition':
-					return json(200, {
-						version: { number: 3, label: '1.2.0', definition: [] },
-						files: [
-							{ path: 'compose.yaml', content: 'services: {}\n' },
-							{ path: '.env', content: 'A=1\n' }
-						]
-					});
-				case '/api/v1/stacks/template-creations':
-					posted.push({
-						method: req.method,
-						path: url.pathname,
-						headers: req.headers,
-						body
-					});
-					return json(201, {
-						stack: {
-							id: 'st-9',
-							environmentId: 'env-1',
-							name: 'next-cloud',
-							status: 'undeployed',
-							view: 'full',
-							actions: []
-						},
-						validation: {
-							valid: true,
-							errors: [],
-							warnings: [],
-							services: [],
-							binds: []
-						}
-					});
-			}
-			return json(404, { code: 'not_found', message: 'no', details: [], retryable: false });
-		});
+		stubCreateFlow(posted);
 		mount(CreateFromTemplateDialog, { open: true, environmentId: 'env-1', templateId: 'tp-1' });
 		const d = await screen.findByRole('dialog', { name: 'Create stack from Next Cloud' });
 		await waitFor(() => expect(within(d).getByLabelText(/^Name/)).toHaveValue('next-cloud'));
@@ -240,5 +300,16 @@ describe('CreateFromTemplateDialog', () => {
 		});
 		// The unchanged .env is not rewritten; the new stack opens.
 		await waitFor(() => expect(goto).toHaveBeenCalledWith('/stacks/st-9'));
+	});
+
+	it('chooses a template by clicking its card', async () => {
+		const user = setup();
+		stubCreateFlow([]);
+		mount(CreateFromTemplateDialog, { open: true, environmentId: 'env-1' });
+		const d = await screen.findByRole('dialog', { name: 'Create stack from template' });
+		await user.click(await within(d).findByRole('button', { name: 'Use template Next Cloud' }));
+		await screen.findByRole('dialog', { name: 'Create stack from Next Cloud' });
+		await waitFor(() => expect(screen.getByLabelText(/^Name/)).toHaveValue('next-cloud'));
+		expect(screen.queryByRole('link', { name: /Open template/ })).toBeNull();
 	});
 });

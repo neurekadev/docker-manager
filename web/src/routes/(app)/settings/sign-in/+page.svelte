@@ -179,17 +179,20 @@
 									})
 								)}
 							/>
-							<TextField
-								label="Time to add required factors (hours)"
-								type="number"
-								min="1"
-								value={String(form.enrollmentGraceHours)}
-								onchange={(e) =>
-									form &&
-									(form.enrollmentGraceHours = num(e.currentTarget.value))}
-								description="How long accounts may still sign in to enroll after the policy changes or their factors are reset."
-								error={fields['body.enrollmentGraceHours']}
-							/>
+							<!-- Two columns, like the other number fields of the policy. -->
+							<Fields columns={2}>
+								<TextField
+									label="Time to add required factors (hours)"
+									type="number"
+									min="1"
+									value={String(form.enrollmentGraceHours)}
+									onchange={(e) =>
+										form &&
+										(form.enrollmentGraceHours = num(e.currentTarget.value))}
+									description="How long accounts may still sign in to enroll after the policy changes or their factors are reset."
+									error={fields['body.enrollmentGraceHours']}
+								/>
+							</Fields>
 						</Fields>
 					</Card>
 					<Card title="Invitations and resets">

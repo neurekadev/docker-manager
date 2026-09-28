@@ -1,14 +1,21 @@
 <script lang="ts">
 	// Schedules (#13): every scheduled policy the user can read, across
 	// backups, update checks and runs, prunes and repository verification,
-	// with its cron in its own time zone, the next run (DST annotated) and
-	// the last run's outcome. One ListCard: a search and filters for kind,
-	// state and (with every environment shown) environment, kept per list
-	// and browser tab. A row opens the next runs and the history.
+	// with its schedule in words (the expression as tooltip), the next run
+	// (DST annotated) and the last run's outcome. Each policy links to its
+	// own page; policies that share a name show where they apply. One
+	// ListCard: a search and filters for kind, state and (with several
+	// environments shown) environment, kept per list and browser tab. A
+	// row's Details open the next runs and the history.
 	import { createQuery } from '@tanstack/svelte-query';
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
+	import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
 	import type { Schedule } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery, schedulesQuery } from '$lib/api/queries';
+	import { routes } from '$lib/routes';
+	import { can } from '$lib/features/common/access';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
+	import Page from '$lib/features/common/Page.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
@@ -20,7 +27,9 @@
 		formatRunTime,
 		policyHref,
 		runStatus,
-		scheduleState
+		scheduleScope,
+		scheduleState,
+		sharedNames
 	} from '$lib/features/schedules/model';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { accessOf, isRestricted } from '$lib/shell/nav';
@@ -36,6 +45,7 @@
 		Skeleton,
 		StatusBadge,
 		Table,
+		describeCron,
 		formatDateTime,
 		formatRelative,
 		type Column
@@ -45,6 +55,8 @@
 
 	const perms = createQuery(() => myPermissionsQuery());
 	const restricted = $derived(perms.data ? isRestricted(accessOf(perms.data)) : false);
+	const single = singleEnvironment();
+	const showEnvironment = $derived(!environmentSelection.id && !single.current);
 
 	const filters = new ListFilters('schedules');
 	const schedules = createQuery(() => ({
@@ -53,23 +65,16 @@
 	}));
 	const envs = createQuery(() => environmentsQuery());
 	const names = $derived(new Map((envs.data ?? []).map((e) => [e.id, e.name])));
+	const envName = (id: string) => names.get(id);
 
 	const all = $derived(schedules.data ?? []);
 	const defs = $derived(
 		scheduleFilters(all, {
-			envs: environmentSelection.id
-				? []
-				: (envs.data ?? []).map((e) => ({ id: e.id, name: e.name }))
+			envs: showEnvironment ? (envs.data ?? []).map((e) => ({ id: e.id, name: e.name })) : []
 		})
 	);
-	const rows = $derived(
-		applyListFilters(
-			all,
-			defs,
-			filters.state,
-			scheduleSearch((id) => names.get(id))
-		)
-	);
+	const rows = $derived(applyListFilters(all, defs, filters.state, scheduleSearch(envName)));
+	const shared = $derived(sharedNames(all));
 	const filtered = $derived(isFiltering(defs, filters.state));
 
 	let selected = $state<Schedule | null>(null);
@@ -85,6 +90,7 @@
 			header: 'Policy',
 			cell: policyCell,
 			sortValue: (s) => s.policyName,
+			maxWidth: '320px',
 			stack: 'title'
 		},
 		{
@@ -95,26 +101,35 @@
 			width: '120px',
 			stack: 'status'
 		},
-		...(environmentSelection.id
-			? []
-			: [
+		...(showEnvironment
+			? [
 					{
 						id: 'environment',
-						header: 'Environment',
+						header: 'Applies to',
 						cell: envCell,
-						sortValue: (s: Schedule) => names.get(s.environmentId ?? '') ?? '',
-						width: '140px'
+						sortValue: (s: Schedule) => scheduleScope(s, envName),
+						width: '160px',
+						stack: 'meta'
 					} satisfies Column<Schedule>
-				]),
-		{ id: 'schedule', header: 'Schedule', cell: cronCell, width: '190px' },
+				]
+			: []),
+		{
+			id: 'schedule',
+			header: 'Schedule',
+			cell: cronCell,
+			sortValue: (s) => describeCron(s.cron, s.timeZone),
+			width: '220px',
+			stack: 'meta'
+		},
 		{
 			id: 'next',
 			header: 'Next run',
 			cell: nextCell,
 			sortValue: (s) => (s.enabled && s.nextRun ? Date.parse(s.nextRun.utc) : null),
-			width: '230px'
+			width: '230px',
+			stack: 'meta'
 		},
-		{ id: 'last', header: 'Last run', cell: lastCell, width: '190px' },
+		{ id: 'last', header: 'Last run', cell: lastCell, width: '190px', stack: 'meta' },
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -122,6 +137,7 @@
 			hideHeader: true,
 			align: 'end',
 			width: '110px',
+			pin: 'end',
 			stack: 'actions'
 		}
 	]);
@@ -129,8 +145,10 @@
 
 {#snippet policyCell(s: Schedule)}
 	<div class="policy">
-		<a href={policyHref(s.kind)} class="strong">{s.policyName}</a>
-		<span class="muted small">{s.kindLabel}</span>
+		<a href={policyHref(s.kind, s.policyId)} class="strong">{s.policyName}</a>
+		<span class="muted small"
+			>{s.kindLabel}{shared.has(s.policyName) ? ` · ${scheduleScope(s, envName)}` : ''}</span
+		>
 	</div>
 {/snippet}
 {#snippet stateCell(s: Schedule)}
@@ -138,20 +156,19 @@
 	<StatusBadge status={st.status} label={st.label} title={s.invalidReason} />
 {/snippet}
 {#snippet envCell(s: Schedule)}
-	{#if s.environmentId}{names.get(s.environmentId) ?? s.environmentId.slice(0, 8)}{:else}<span
-			class="muted">Docker Manager</span
+	{#if s.environmentId}{scheduleScope(s, envName)}{:else}<span class="muted"
+			>{scheduleScope(s, envName)}</span
 		>{/if}
 {/snippet}
 {#snippet cronCell(s: Schedule)}
-	<div class="policy">
-		<span class="mono">{s.cron}</span>
-		<span class="muted small">{s.timeZone}</span>
-	</div>
+	<span title="{s.cron} ({s.timeZone})">{describeCron(s.cron, s.timeZone)}</span>
 {/snippet}
 {#snippet nextCell(s: Schedule)}
 	{#if s.nextRun && s.enabled && !s.invalidReason}
 		<div class="policy">
-			<span class="num">{formatRunTime(s.nextRun.at, s.timeZone)}</span>
+			<span class="num" title={formatDateTime(s.nextRun.utc)}
+				>{formatRunTime(s.nextRun.at, s.timeZone)}</span
+			>
 			<span class="muted small">{formatRelative(s.nextRun.utc)}</span>
 			{#if dstLabel(s.nextRun)}<Badge tone="warn" title={s.nextRun.dstNote}
 					>{dstLabel(s.nextRun)}</Badge
@@ -178,11 +195,19 @@
 {#if restricted}
 	<DeniedState level={1} />
 {:else}
-	<div class="page">
+	<Page>
 		<PageHeader
 			title="Schedules"
 			description="Every scheduled policy in one place. Times are shown in each policy's own time zone."
-		/>
+		>
+			{#snippet actions()}
+				{#if can(accessOf(perms.data), 'settings.read')}
+					<Button icon={SlidersHorizontal} href={routes.scheduleDefaults()}
+						>Change defaults</Button
+					>
+				{/if}
+			{/snippet}
+		</PageHeader>
 
 		{#if schedules.isError}
 			<ErrorState
@@ -199,7 +224,7 @@
 					: undefined}
 				label="Filter schedules"
 				searchLabel="Search schedules"
-				placeholder="Search by policy, kind or time zone"
+				placeholder="Search schedules"
 				filters={defs}
 				store={filters}
 			>
@@ -235,7 +260,7 @@
 				{/if}
 			</ListCard>
 		{/if}
-	</div>
+	</Page>
 
 	<Drawer bind:open={drawerOpen} title={selected ? selected.policyName : 'Schedule'} size="460px">
 		{#if selected}{#key selected.id}<ScheduleDetail schedule={selected} />{/key}{/if}
@@ -243,12 +268,6 @@
 {/if}
 
 <style>
-	.page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
 	.policy {
 		display: flex;
 		flex-direction: column;

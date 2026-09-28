@@ -31,3 +31,15 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `state.json`) and is put back by `ApplyPendingRestore`, keeping the
   replaced copy in the pre-restore directory; every step stays
   repeatable.
+- UI (`$lib/features/backups`, `routes/(app)/backups`): users see names,
+  not internals. Scopes (`env:<id>`, `docker-manager-env-<id>`), restic
+  locations, snapshot IDs, host paths, key generations and fingerprints,
+  permission bits and owners go under an "Advanced" disclosure or a
+  tooltip (`scopeName`, `restoreTargetName`); never show configuration
+  variable names or `restic` commands in copy (point to the
+  documentation). Retention is chosen as a preset (`RETENTION_PRESETS`,
+  `retentionPreset`/`applyRetentionPreset`) with Custom for the rules, and
+  shown in words (`retentionText`, `retentionShort`); verification amounts
+  are the choices of `VERIFY_READ_OPTIONS`. Sizes say what they measure: a
+  run's size is the data it backed up, storage is what the repositories
+  hold after deduplication and compression.

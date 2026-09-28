@@ -1,16 +1,22 @@
 <script lang="ts">
 	// One build (#33): its source, the exact commit it built (resolved from
-	// the ref before the build), the result (image, duration or the error)
-	// and the live BuildKit log. A running build can be cancelled.
+	// the ref before the build), the result (image, duration or the error in
+	// words) and the live BuildKit log. A running build can be cancelled; a
+	// finished one built again with the same inputs ("Build again": its
+	// definition's run, else the same source; with build arguments, whose
+	// values are never kept, the prefilled form) or saved as a definition.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import Clock from '@lucide/svelte/icons/clock';
+	import FileCode from '@lucide/svelte/icons/file-code';
 	import GitCommitHorizontal from '@lucide/svelte/icons/git-commit-horizontal';
 	import Hammer from '@lucide/svelte/icons/hammer';
+	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Server from '@lucide/svelte/icons/server';
 	import Square from '@lucide/svelte/icons/square';
 	import { ApiRequestError, api, unwrap, type Job } from '$lib/api/client';
 	import type { JobWatcher } from '$lib/api/jobs.svelte';
+	import { goto } from '$app/navigation';
 	import { imageBuildQuery, queryKeys } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -25,15 +31,21 @@
 		PageHeader,
 		Skeleton,
 		StatusBadge,
+		errorMessage,
+		formatDateTime,
+		formatDuration,
 		formatRelative,
 		toast,
 		type MetaItem
 	} from '$lib/ui';
+	import Columns from '$lib/features/common/Columns.svelte';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import DefinitionDialog from '$lib/features/builds/DefinitionDialog.svelte';
 	import BuildLog from '$lib/features/builds/BuildLog.svelte';
-	import { repoLabel } from '$lib/features/builds/source';
+	import { repoLabel, sourceOfBuild } from '$lib/features/builds/source';
 	import Facts, { type Fact } from '$lib/features/resources/Facts.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
-	import { compactDuration } from '$lib/features/resources/model';
+	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
 	import { sentence } from '$lib/features/resources/refusals';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
@@ -53,6 +65,57 @@
 	const b = $derived(q.data);
 	let watcher = $state<JobWatcher | null>(null);
 	let cancelOpen = $state(false);
+	let saveOpen = $state(false);
+	let again = $state(false);
+	const canBuild = $derived(scope.can('image.build', env));
+	const canSave = $derived(scope.can('build_definition.manage', env));
+	const duration = (ms: number | undefined) =>
+		ms === undefined ? undefined : formatDuration(ms / 1000);
+
+	/**
+	 * Build again with the same inputs: the definition's run (it keeps the
+	 * argument values), else the same source; a build with arguments opens
+	 * the prefilled form, as their values are never kept.
+	 */
+	async function buildAgain() {
+		if (!b) return;
+		const { source, argsMissing } = sourceOfBuild(b);
+		if (!b.definitionId && argsMissing) {
+			await goto(routes.newBuild(env, undefined, b.id));
+			return;
+		}
+		again = true;
+		try {
+			const job = b.definitionId
+				? await unwrap(
+						api.POST(
+							'/api/v1/environments/{environmentId}/build-definitions/{definitionId}/runs',
+							{
+								params: {
+									path: { environmentId: env, definitionId: b.definitionId },
+									header: { 'Idempotency-Key': idempotencyKey() }
+								}
+							}
+						)
+					)
+				: await unwrap(
+						api.POST('/api/v1/environments/{environmentId}/images/builds', {
+							params: {
+								path: { environmentId: env },
+								header: { 'Idempotency-Key': idempotencyKey() }
+							},
+							body: source
+						})
+					);
+			toast.info(`Building ${title} again`);
+			void queryClient.invalidateQueries({ queryKey: queryKeys.images.all });
+			await goto(routes.build(env, job.id));
+		} catch (e) {
+			toast.error(`${title} couldn't be built again.`, { body: errorMessage(e) });
+		} finally {
+			again = false;
+		}
+	}
 
 	const title = $derived(b?.tags[0] ?? 'Build');
 	usePage(() => ({
@@ -87,7 +150,7 @@
 					{
 						icon: Clock,
 						label: `Started ${formatRelative(b.startedAt ?? b.createdAt)}`,
-						title: b.startedAt ?? b.createdAt
+						title: formatDateTime(b.startedAt ?? b.createdAt)
 					},
 					...(b.resolvedCommit
 						? [
@@ -156,7 +219,7 @@
 						label: 'Duration',
 						value:
 							b.durationMs !== undefined
-								? compactDuration(b.durationMs)
+								? duration(b.durationMs)
 								: running
 									? 'Running'
 									: undefined
@@ -164,7 +227,7 @@
 					{
 						label: 'Finished',
 						value: b.finishedAt ? formatRelative(b.finishedAt) : undefined,
-						title: b.finishedAt
+						title: b.finishedAt ? formatDateTime(b.finishedAt) : undefined
 					}
 				]
 			: []
@@ -204,6 +267,16 @@
 		>
 			{#snippet status()}<StatusBadge status={b.status} kind="job" />{/snippet}
 			{#snippet actions()}
+				{#if canBuild && !running}
+					<Button variant="primary" icon={RotateCw} loading={again} onclick={buildAgain}
+						>Build again</Button
+					>
+				{/if}
+				{#if canSave && !b.definitionId}
+					<Button icon={FileCode} onclick={() => (saveOpen = true)}
+						>Save as definition</Button
+					>
+				{/if}
 				{#if b.resolvedCommit}<CopyButton
 						value={b.resolvedCommit}
 						what="commit SHA"
@@ -224,7 +297,13 @@
 				live="none"
 			>
 				{b.errorMessage ? sentence(b.errorMessage) : 'See the log below.'}
-				{#if b.errorClass}<span class="muted"> ({b.errorClass})</span>{/if}
+				{#if b.errorClass}
+					<Disclosure summary="Details">
+						<span class="muted"
+							>Error class: <span class="mono">{b.errorClass}</span></span
+						>
+					</Disclosure>
+				{/if}
 			</Notice>
 		{:else if b.status === 'cancelled'}
 			<Notice tone="info" title="The build was cancelled" live="none"
@@ -232,10 +311,10 @@
 			>
 		{/if}
 
-		<div class="grid">
+		<Columns ratio="equal">
 			<Card title="Source"><Facts items={source} label="Source of the build" /></Card>
 			<Card title="Result"><Facts items={result} label="Result of the build" /></Card>
-		</div>
+		</Columns>
 		<Card title="Log">
 			{#key b.jobId}<BuildLog
 					jobId={b.jobId}
@@ -256,6 +335,14 @@
 			tone="danger"
 			onconfirm={cancel}
 		/>
+		{#if saveOpen}
+			<DefinitionDialog
+				bind:open={saveOpen}
+				environments={scope.targets.filter((t) => t.id === env)}
+				environmentId={env}
+				source={sourceOfBuild(b).source}
+			/>
+		{/if}
 	{/if}
 </Page>
 
@@ -264,17 +351,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-	}
-
-	.grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: var(--space-4);
-	}
-
-	@media (max-width: 1023px) {
-		.grid {
-			grid-template-columns: 1fr;
-		}
 	}
 </style>

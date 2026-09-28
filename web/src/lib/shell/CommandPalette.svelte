@@ -1,16 +1,26 @@
 <script lang="ts">
 	// ⌘K command palette (#22): jump to pages and to anything the permission-
 	// filtered GET /api/v1/search finds (within the selected environment when
-	// one is selected). A combobox + listbox: arrows move, Enter opens,
-	// Escape closes and focus returns to where it was.
+	// one is selected). Without a query it offers the recently visited pages,
+	// the actions the caller may start and the pages. A combobox + listbox:
+	// arrows move, Enter opens, Escape (or Cancel on phones) closes and focus
+	// returns to where it was.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { Dialog } from 'bits-ui';
 	import CornerDownLeft from '@lucide/svelte/icons/corner-down-left';
 	import Search from '@lucide/svelte/icons/search';
 	import { searchQuery } from '$lib/api/queries';
 	import Spinner from '$lib/ui/Spinner.svelte';
-	import { grouped, hitResults, pageResults, type PaletteResult } from './palette';
-	import type { NavItem } from './nav';
+	import {
+		actionResults,
+		grouped,
+		hitResults,
+		pageResults,
+		recentResults,
+		type PaletteResult
+	} from './palette';
+	import type { Access, NavItem } from './nav';
+	import type { RecentPage } from './recent.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -19,6 +29,12 @@
 		environmentName?: string | null;
 		onnavigate: (href: string) => void;
 		debounce?: number;
+		/** The caller's permissions (the actions they may start). */
+		access?: Access;
+		/** Recently visited pages, newest first (recentPages.items). */
+		recent?: readonly RecentPage[];
+		/** The current path (left out of Recent). */
+		currentPath?: string;
 	}
 
 	let {
@@ -27,7 +43,10 @@
 		environmentId,
 		environmentName,
 		onnavigate,
-		debounce = 150
+		debounce = 150,
+		access,
+		recent = [],
+		currentPath
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -61,10 +80,19 @@
 		enabled: open && dq.length > 0
 	}));
 
-	const results = $derived<PaletteResult[]>([
-		...pageResults(pages, q).slice(0, q ? 5 : pages.length),
-		...(dq && dq === q.trim() ? hitResults(search.data) : [])
-	]);
+	const results = $derived<PaletteResult[]>(
+		q.trim()
+			? [
+					...pageResults(pages, q).slice(0, 5),
+					...actionResults(access, environmentId, q),
+					...(dq && dq === q.trim() ? hitResults(search.data) : [])
+				]
+			: [
+					...recentResults(recent, pages, currentPath),
+					...actionResults(access, environmentId),
+					...pageResults(pages, '')
+				]
+	);
 	const groups = $derived(grouped(results));
 	const gaps = $derived(dq && search.data ? search.data.gaps : []);
 
@@ -132,6 +160,7 @@
 					onkeydown={onKey}
 				/>
 				{#if search.isFetching}<Spinner size={16} />{/if}
+				<button type="button" class="cancel" onclick={() => (open = false)}>Cancel</button>
 			</div>
 			<div class="results" id="{uid}-list" role="listbox" aria-label="Results">
 				{#each groups as g (g.group)}
@@ -229,12 +258,26 @@
 		border: 0;
 		background: none;
 		color: var(--text-strong);
-		font-size: 15px;
+		font-size: var(--text-section);
 		outline: none;
 	}
 
 	input::placeholder {
 		color: var(--text-muted);
+	}
+
+	/* Phones have no Escape key: a visible way out (shown below 768 px). */
+	.cancel {
+		display: none;
+		flex-shrink: 0;
+		height: var(--touch-target);
+		padding: 0 var(--space-2);
+		border: 0;
+		border-radius: var(--radius-sm);
+		background: none;
+		color: var(--accent-text);
+		font-size: var(--text-control);
+		font-weight: var(--weight-medium);
 	}
 
 	.results {
@@ -314,6 +357,11 @@
 
 		.hint {
 			display: none;
+		}
+
+		.cancel {
+			display: inline-flex;
+			align-items: center;
 		}
 	}
 </style>

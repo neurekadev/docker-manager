@@ -1,26 +1,30 @@
 <script lang="ts">
-	// Stack KPI row (#22 mockup: six cards): status, services running,
+	// Stack KPI row (#22 mockup): status with how many services run (the
+	// service and container counts are in the header, not repeated here),
 	// CPU with a sparkline, memory against the environment total, uptime
-	// and the last deploy with its revision hash. CPU is a share of the
+	// and the last deploy with its revision. CPU is a share of the
 	// environment's cores and memory the containers' usage (#5 units).
+	// Every card has its tile; labels and values stay on one line (KpiRow).
+	import Activity from '@lucide/svelte/icons/activity';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
-	import Package from '@lucide/svelte/icons/package';
 	import Rocket from '@lucide/svelte/icons/rocket';
-	import { TILE_HEX } from '$lib/design/hue';
+	import { TILE_HEX, type TileColor } from '$lib/design/hue';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import {
 		KpiCard,
 		Meter,
 		Sparkline,
 		clock,
 		formatBytes,
+		formatDateTime,
 		formatPercent,
 		formatRelative,
 		formatUptime,
 		statusInfo
 	} from '$lib/ui';
-	import { serviceCounts, shortHash, stackStatus, statusSummary, type StackUsage } from './model';
+	import { shortHash, stackStatus, statusSummary, type StackUsage } from './model';
 	import type { EnvironmentCapacity, Stack } from './queries';
 
 	interface Props {
@@ -39,8 +43,6 @@
 	const now = $derived(fixedNow ?? new Date(clock.now));
 
 	const status = $derived(stackStatus(stack));
-	const formatDate = (iso: string) =>
-		new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(iso));
 	const info = $derived(statusInfo(status));
 	const tone = $derived(
 		info.tone === 'ok'
@@ -51,7 +53,9 @@
 					? 'warn'
 					: undefined
 	);
-	const counts = $derived(serviceCounts(stack));
+	const statusColor = $derived<TileColor>(
+		tone === 'ok' ? 'green' : tone === 'danger' ? 'rose' : 'slate'
+	);
 	const memTotal = $derived(capacity?.memoryTotalBytes);
 	const mem = $derived(usage?.memoryNow ?? null);
 	const applied = $derived(stack.appliedRevision);
@@ -64,127 +68,94 @@
 	});
 </script>
 
-<div class="wrap">
-	<div class="kpis">
-		<KpiCard label="Stack status" value={info.label} {tone} secondary={statusSummary(stack)} />
+<KpiRow>
+	<KpiCard
+		label="Status"
+		value={info.label}
+		{tone}
+		icon={Activity}
+		color={statusColor}
+		secondary={statusSummary(stack)}
+		href="#services"
+	/>
+	<KpiCard
+		label="CPU usage"
+		value={formatPercent(usage?.cpuNow)}
+		icon={Cpu}
+		color="cyan"
+		secondary={usage && usage.cpuNow !== null
+			? capacity
+				? `of ${capacity.cpus} ${capacity.cpus === 1 ? 'core' : 'cores'}`
+				: undefined
+			: 'No samples yet'}
+	>
+		{#snippet sparkline()}
+			{#if usage && usage.cpu.some((v) => v !== null)}
+				<Sparkline values={usage.cpu} color={TILE_HEX.cyan.fg} label={cpuTrend} />
+			{/if}
+		{/snippet}
+	</KpiCard>
+	{#if mem !== null && memTotal}
 		<KpiCard
-			label="Services"
-			value="{counts.servicesRunning} / {counts.services}"
-			icon={Package}
-			color="blue"
-			secondary="{counts.containersRunning} / {counts.containers} containers"
-		/>
-		<KpiCard
-			label="CPU usage"
-			value={formatPercent(usage?.cpuNow)}
-			icon={Cpu}
-			color="cyan"
-			secondary={usage && usage.cpuNow !== null
-				? capacity
-					? `of ${capacity.cpus} ${capacity.cpus === 1 ? 'core' : 'cores'}`
-					: undefined
-				: 'No samples yet'}
+			label="Memory usage"
+			value={formatBytes(mem)}
+			unit="/ {formatBytes(memTotal)}"
+			icon={MemoryStick}
+			color="indigo"
 		>
-			{#snippet sparkline()}
-				{#if usage && usage.cpu.some((v) => v !== null)}
-					<Sparkline values={usage.cpu} color={TILE_HEX.cyan.fg} label={cpuTrend} />
-				{/if}
+			{#snippet bar()}
+				<Meter
+					value={mem}
+					max={memTotal}
+					label="Memory of {stack.name}"
+					valueText="{formatBytes(mem)} of {formatBytes(memTotal)}"
+				/>
 			{/snippet}
 		</KpiCard>
-		{#if mem !== null && memTotal}
-			<KpiCard
-				label="Memory usage"
-				value={formatBytes(mem)}
-				unit="/ {formatBytes(memTotal)}"
-				icon={MemoryStick}
-				color="indigo"
-			>
-				{#snippet bar()}
-					<Meter
-						value={mem}
-						max={memTotal}
-						label="Memory of {stack.name}"
-						valueText="{formatBytes(mem)} of {formatBytes(memTotal)}"
-					/>
-				{/snippet}
-			</KpiCard>
-		{:else}
-			<KpiCard
-				label="Memory usage"
-				value={formatBytes(mem)}
-				icon={MemoryStick}
-				color="indigo"
-				secondary={mem === null ? 'No samples yet' : 'Environment total unknown'}
-			/>
-		{/if}
+	{:else}
 		<KpiCard
-			label="Uptime"
-			value={since ? formatUptime((now.getTime() - Date.parse(since)) / 1000) : '—'}
-			icon={Clock}
-			color="green"
-			secondary={since ? `Since ${formatDate(since)}` : 'No container is running'}
+			label="Memory usage"
+			value={formatBytes(mem)}
+			icon={MemoryStick}
+			color="indigo"
+			secondary={mem === null ? 'No samples yet' : 'Environment total unknown'}
 		/>
-		<KpiCard
-			label="Last deploy"
-			value={applied?.at ? formatRelative(applied.at, now) : 'Never'}
-			icon={Rocket}
-			color="violet"
-		>
-			{#snippet secondary()}
-				{#if applied}
-					{#if revisionsHref}
-						<a
-							class="hash mono"
-							href={revisionsHref}
-							title="Revision {applied.seq}: {applied.hash}"
-							aria-label="Revision {applied.seq} ({shortHash(applied.hash)})"
-							>{shortHash(applied.hash)}</a
-						>
-					{:else}
-						<span class="mono" title={applied.hash}>{shortHash(applied.hash)}</span>
-					{/if}
+	{/if}
+	<KpiCard
+		label="Uptime"
+		value={since ? formatUptime((now.getTime() - Date.parse(since)) / 1000) : '—'}
+		icon={Clock}
+		color="green"
+		secondary={since ? `Since ${formatDateTime(since)}` : 'No container is running'}
+	/>
+	<KpiCard
+		label="Last deploy"
+		value={applied?.at ? formatRelative(applied.at, now) : 'Never'}
+		icon={Rocket}
+		color="violet"
+	>
+		{#snippet secondary()}
+			{#if applied}
+				{#if revisionsHref}
+					<a
+						class="hash"
+						href={revisionsHref}
+						title="{applied.at
+							? `${formatDateTime(applied.at)}, `
+							: ''}fingerprint {shortHash(applied.hash)}">Revision {applied.seq}</a
+					>
 				{:else}
-					Not deployed by Docker Manager yet
+					<span title="Fingerprint {shortHash(applied.hash)}">Revision {applied.seq}</span
+					>
 				{/if}
-			{/snippet}
-		</KpiCard>
-	</div>
-</div>
+			{:else}
+				Not deployed by Docker Manager yet
+			{/if}
+		{/snippet}
+	</KpiCard>
+</KpiRow>
 
 <style>
-	/* Six compact cards in one row as in the mockup from about 1120 px of
-	   content (a 1440 px screen with the sidebar), else three, two or one
-	   (container width, so the sidebar and rail are accounted for). */
-	.wrap {
-		container-type: inline-size;
-	}
-
-	.kpis {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: var(--space-4);
-	}
-
-	@container (min-width: 1120px) {
-		.kpis {
-			grid-template-columns: repeat(6, minmax(0, 1fr));
-		}
-	}
-
-	@container (max-width: 759px) {
-		.kpis {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: var(--space-3);
-		}
-	}
-
-	/* Phones keep two compact cards per row down to 340 px of content. */
-	@container (max-width: 339px) {
-		.kpis {
-			grid-template-columns: 1fr;
-		}
-	}
-
 	.hash {
 		color: var(--accent-text);
 	}

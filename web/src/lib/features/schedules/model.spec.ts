@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { Schedule } from '$lib/api/client';
 import { applyListFilters } from '$lib/features/resources/filters';
 import { scheduleFilters, scheduleSearch } from './filters';
-import { dstLabel, formatRunTime, policyHref, runReason, runStatus, scheduleState } from './model';
+import {
+	dstLabel,
+	formatRunTime,
+	policyHref,
+	runReason,
+	runStatus,
+	scheduleScope,
+	scheduleState,
+	sharedNames
+} from './model';
 
 type Run = Schedule['recentRuns'][number];
 const run = (r: Partial<Run>): Run =>
@@ -50,14 +59,25 @@ describe('schedules model (#13)', () => {
 			runReason(run({ outcome: 'rejected', reason: 'The environment is archived.' }))
 		).toBe('The environment is archived.');
 		expect(runReason(run({ outcome: 'failed', errorClass: 'target_not_found' }))).toBe(
-			'target not found'
+			'What the policy covers no longer exists.'
+		);
+		// A reason that is a class is never shown raw.
+		expect(runReason(run({ outcome: 'skipped', reason: 'skipped_overlap' }))).toBe(
+			'The previous run was still active.'
+		);
+		expect(runReason(run({ outcome: 'failed', errorClass: 'some_new_class' }))).toBe(
+			'Some new class.'
 		);
 	});
 
 	it('links each kind to where its policies are edited and words the state', () => {
 		expect(policyHref('prune')).toBe('/maintenance');
+		expect(policyHref('prune', 'mp-1')).toBe('/maintenance/mp-1');
 		expect(policyHref('update_run')).toBe('/updates');
-		expect(policyHref('backup_verification')).toBe('/backups');
+		expect(policyHref('update_check', 'up-1')).toBe('/updates/up-1');
+		expect(policyHref('backup', 'bp-1')).toBe('/backups/policies/bp-1');
+		expect(policyHref('backup_verification', 'br-1')).toBe('/backups/repositories/br-1');
+		expect(policyHref('backup_verification')).toBe('/backups/repositories');
 		expect(scheduleState({ enabled: true })).toEqual({ status: 'running', label: 'Enabled' });
 		expect(scheduleState({ enabled: false })).toEqual({ status: 'stopped', label: 'Disabled' });
 		expect(scheduleState({ enabled: true, invalidReason: 'bad' })).toEqual({
@@ -116,13 +136,29 @@ describe('schedule filters (#13)', () => {
 			scheduleFilters(rows, { envs })
 				.find((f) => f.id === 'environment')
 				?.options?.map((o) => o.label)
-		).toEqual(['Docker Manager', 'homelab', 'nas']);
+		).toEqual(['Manager or all environments', 'homelab', 'nas']);
 	});
 
 	it('searches the policy, kind, time zone and environment', () => {
 		expect(run({}, 'NIGHTLY')).toEqual(['nightly']);
 		expect(run({}, 'berlin')).toEqual(['weekly prune']);
 		expect(run({}, 'homelab')).toEqual(['nightly']);
-		expect(run({}, 'docker manager')).toEqual(['manager state']);
+		expect(run({}, 'manager')).toEqual(['manager state']);
+		expect(run({}, 'daily at 03:00')).toEqual(['nightly', 'weekly prune', 'manager state']);
+	});
+
+	it('names where a schedule applies and which names need it', () => {
+		const envName = (id: string) => names.get(id);
+		expect(scheduleScope({ kind: 'backup', environmentId: 'e1' }, envName)).toBe('homelab');
+		expect(scheduleScope({ kind: 'update_check' }, envName)).toBe('All environments');
+		expect(scheduleScope({ kind: 'backup' }, envName)).toBe('Manager');
+		expect([
+			...sharedNames([
+				{ policyId: 'a', policyName: 'Image updates' },
+				{ policyId: 'a', policyName: 'Image updates' },
+				{ policyId: 'b', policyName: 'Image updates' },
+				{ policyId: 'c', policyName: 'Nightly' }
+			])
+		]).toEqual(['Image updates']);
 	});
 });

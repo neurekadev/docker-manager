@@ -4,13 +4,20 @@ import {
 	catalogFilters,
 	catalogHref,
 	catalogSearch,
+	composeFiles,
+	composeServices,
+	contentsSummary,
+	envKeys,
+	isHiddenPath,
 	nextVersionLabel,
 	parseTags,
+	portText,
 	projectNameFor,
 	tagCounts,
 	tagProblem,
 	templateFilters,
-	templateSearch
+	templateSearch,
+	versionTitle
 } from './model';
 import type { Template, TemplateCatalogItem } from './queries';
 
@@ -52,6 +59,9 @@ describe('templates model', () => {
 		expect(run({ published: 'no' })).toEqual(['b', 'c']);
 		expect(run({}, 'postgres')).toEqual(['c']);
 		expect(run({}, 'proxy')).toEqual(['a']);
+		// "Status" (has a version or not) is not confused with the visibility.
+		expect(defs.map((d) => d.label)).toEqual(['Tag', 'Visibility', 'Status']);
+		expect(defs[2].options?.map((o) => o.label)).toEqual(['Ready to use', 'Draft only']);
 	});
 
 	it('suggests the next version label', () => {
@@ -100,11 +110,90 @@ describe('templates model', () => {
 			applyListFilters(items, defs, { ...emptyFilterState(), q, values }, catalogSearch).map(
 				(t) => t.templateId
 			);
+		expect(defs.map((d) => d.label)).toEqual(['Source', 'Tag', 'Status']);
+		expect(defs[0].all).toBe('All sources');
 		expect(defs[0].options?.map((o) => o.label)).toEqual(['Friend', 'Home']);
 		expect(run({ registry: 'remote-1' })).toEqual(['b']);
 		expect(run({ published: 'no' })).toEqual(['a']);
 		expect(run({}, 'friend')).toEqual(['b']);
 		expect(catalogHref(items[0])).toBe('/templates/a');
 		expect(catalogHref(items[1])).toBe('/templates/remote/remote-1/b');
+	});
+
+	it('labels versions one way', () => {
+		expect(versionTitle('1.2.0')).toBe('Version 1.2.0');
+		expect(versionTitle(undefined)).toBe('Draft only');
+	});
+
+	it('counts contents like the Files tab, naming hidden files', () => {
+		expect(isHiddenPath('.env')).toBe(true);
+		expect(isHiddenPath('conf/.htaccess')).toBe(true);
+		expect(isHiddenPath('compose.yaml')).toBe(false);
+		const def = [{ path: 'compose.yaml' }, { path: '.env' }];
+		expect(contentsSummary(2, def)).toBe('2 items (1 hidden)');
+		expect(contentsSummary(1, [{ path: 'compose.yaml' }])).toBe('1 item');
+		expect(contentsSummary(5, [])).toBe('5 items');
+	});
+
+	it('orders Compose files as Compose reads them and leaves out .env', () => {
+		const def = [{ path: '.env' }, { path: 'compose.override.yaml' }, { path: 'compose.yaml' }];
+		expect(composeFiles(def).map((f) => f.path)).toEqual([
+			'compose.yaml',
+			'compose.override.yaml'
+		]);
+	});
+
+	it('writes ports as Compose does', () => {
+		expect(portText('8080:80')).toBe('8080:80');
+		expect(portText(53)).toBe('53');
+		expect(portText({ target: 80, published: 8080 })).toBe('8080:80');
+		expect(
+			portText({ target: 53, published: '53', protocol: 'udp', host_ip: '127.0.0.1' })
+		).toBe('127.0.0.1:53:53/udp');
+		expect(portText({ target: 443, protocol: 'tcp' })).toBe('443');
+		expect(portText({ published: 1 })).toBe('');
+		expect(portText(null)).toBe('');
+	});
+
+	it('lists the services of Compose files, overrides merged', () => {
+		const base = {
+			services: {
+				web: { image: 'nginx:1.27', ports: ['8080:80'] },
+				app: { build: '.' },
+				db: { image: 'postgres:16' },
+				broken: null
+			}
+		};
+		const override = { services: { web: { image: 'nginx:1.28', ports: ['8080:80', 8443] } } };
+		expect(composeServices([base, override, 'not a document', null])).toEqual([
+			{ name: 'app', built: true, ports: [] },
+			{ name: 'broken', built: false, ports: [] },
+			{ name: 'db', image: 'postgres:16', built: false, ports: [] },
+			{ name: 'web', image: 'nginx:1.28', built: false, ports: ['8080:80', '8443'] }
+		]);
+		expect(composeServices([{ name: 'x' }])).toEqual([]);
+	});
+
+	it('reads the names of .env settings, never their values', () => {
+		const keys = envKeys(
+			[
+				'# comment',
+				'DB_PASSWORD=',
+				'export TZ=Europe/Berlin',
+				'EMPTY=""',
+				'',
+				'not a setting',
+				'TZ=UTC',
+				'FLAG',
+				''
+			].join('\n')
+		);
+		expect(keys).toEqual([
+			{ name: 'DB_PASSWORD', empty: true },
+			{ name: 'TZ', empty: false },
+			{ name: 'EMPTY', empty: true },
+			{ name: 'FLAG', empty: true }
+		]);
+		expect(JSON.stringify(keys)).not.toContain('Europe');
 	});
 });

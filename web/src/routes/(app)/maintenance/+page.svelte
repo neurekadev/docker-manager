@@ -32,6 +32,7 @@
 	} from '$lib/ui';
 	import { can } from '$lib/features/common/access';
 	import { environmentName } from '$lib/features/common/data';
+	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
@@ -43,6 +44,7 @@
 	import {
 		enabledRules,
 		lastRunTotals,
+		rulesOnText,
 		rulesText,
 		runSummaryText,
 		type MaintenancePolicy
@@ -58,31 +60,45 @@
 	const createDialog = urlDialog('create');
 	const defaultsDialog = urlDialog('defaults');
 	const canManage = $derived(can(access, 'maintenance_policy.manage'));
+	const single = singleEnvironment();
 
 	const list = $derived(policies.data ?? []);
 	const totals = $derived(lastRunTotals(list));
 	const scheduled = $derived(list.filter((p) => p.schedule?.enabled).length);
 
-	const columns: Column<MaintenancePolicy>[] = [
-		{ id: 'name', header: 'Policy', cell: nameCell, sortValue: (p) => p.name, stack: 'title' },
+	const columns: Column<MaintenancePolicy>[] = $derived([
 		{
-			id: 'env',
-			header: 'Environment',
-			cell: envCell,
-			sortValue: (p) => environmentName(envs.data, p.environmentId),
-			width: '160px',
-			stack: 'meta'
+			id: 'name',
+			header: 'Policy',
+			cell: nameCell,
+			sortValue: (p) => p.name,
+			maxWidth: '320px',
+			stack: 'title'
 		},
+		...(single.current
+			? []
+			: [
+					{
+						id: 'env',
+						header: 'Environment',
+						cell: envCell,
+						sortValue: (p: MaintenancePolicy) =>
+							environmentName(envs.data, p.environmentId),
+						width: '160px',
+						stack: 'meta'
+					} satisfies Column<MaintenancePolicy>
+				]),
 		{ id: 'rules', header: 'Cleans', cell: rulesCell, stack: 'status' },
-		{ id: 'schedule', header: 'Schedule', cell: scheduleCell, width: '220px' },
+		{ id: 'schedule', header: 'Schedule', cell: scheduleCell, width: '220px', stack: 'meta' },
 		{
 			id: 'last',
 			header: 'Last run',
 			cell: lastCell,
 			sortValue: (p) => p.lastRun?.finishedAt ?? '',
-			width: '280px'
+			width: '280px',
+			stack: 'meta'
 		}
-	];
+	]);
 </script>
 
 {#snippet nameCell(p: MaintenancePolicy)}
@@ -92,7 +108,7 @@
 	{#if p.view === 'full'}
 		{@const n = enabledRules(p).length}
 		<div class="rules">
-			<Badge tone={n ? 'accent' : 'neutral'}>{n} of 7 on</Badge>
+			<Badge tone={n ? 'accent' : 'neutral'}>{rulesOnText(p)}</Badge>
 			<span class="muted">{rulesText(p)}</span>
 		</div>
 	{:else}<span class="muted">—</span>{/if}
@@ -121,7 +137,7 @@
 <Page>
 	<PageHeader
 		title="Maintenance"
-		description="Prune what you no longer need, with a preview of every object first. Nothing is removed until you run a policy or turn its schedule on."
+		description="Clean up Docker objects you no longer need, with a preview of everything first."
 	>
 		{#snippet actions()}
 			{#if can(access, 'settings.read')}
@@ -129,7 +145,7 @@
 					>Default rules</Button
 				>
 			{/if}
-			{#if canManage}
+			{#if canManage && list.length > 0}
 				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
 					>Create maintenance policy</Button
 				>
@@ -144,7 +160,7 @@
 					icon={Wrench}
 					color="slate"
 					title="No maintenance policies yet."
-					description="A policy cleans up stopped containers, unused images, networks, volumes and build cache on one environment or all of them. Preview it before anything is removed; its schedule stays off until you turn it on. For a one-off cleanup, use Prune on the Containers, Images, Networks or Volumes page."
+					description="A policy removes stopped containers, unused images and other leftovers on a schedule. You see a preview first, and nothing runs until you turn it on."
 					level={2}
 				>
 					{#snippet actions()}

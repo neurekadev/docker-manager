@@ -1,8 +1,9 @@
 <script lang="ts">
-	// Container detail (#6): header with status, image and lifecycle
-	// actions, what Docker Manager refuses on this container and why (#32
-	// protection, managed stacks), the running job, and the tabs: Overview
-	// here, Logs and Terminal (#8) as child routes.
+	// Container detail (#6): header with status (and the image's update
+	// state, #20), image and lifecycle actions, what Docker Manager refuses
+	// on this container and why (#32 protection, managed stacks), the
+	// running job, and the tabs: Overview here, Logs and Terminal (#8) as
+	// child routes. Removal is the last entry of the "More actions" menu.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -34,6 +35,7 @@
 		Skeleton,
 		StatusBadge,
 		TabNav,
+		formatDateTime,
 		formatRelative,
 		type MenuEntry,
 		type MetaItem,
@@ -52,6 +54,8 @@
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
+	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
+	import { onlyOneEnvironment } from '$lib/features/common/data';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -94,7 +98,9 @@
 
 	const meta = $derived.by<MetaItem[]>(() => {
 		if (!c) return [];
-		const out: MetaItem[] = [{ icon: Server, label: envName }];
+		const out: MetaItem[] = onlyOneEnvironment(scope.envs.data)
+			? []
+			: [{ icon: Server, label: envName }];
 		if (c.stack)
 			out.push({
 				icon: Layers,
@@ -105,12 +111,16 @@
 			});
 		const started = c.details?.startedAt;
 		if (c.state === 'running' && started)
-			out.push({ icon: Clock, label: `Started ${formatRelative(started)}`, title: started });
+			out.push({
+				icon: Clock,
+				label: `Started ${formatRelative(started)}`,
+				title: formatDateTime(started)
+			});
 		else if (c.createdAt)
 			out.push({
 				icon: Clock,
 				label: `Created ${formatRelative(c.createdAt)}`,
-				title: c.createdAt
+				title: formatDateTime(c.createdAt)
 			});
 		return out;
 	});
@@ -129,7 +139,8 @@
 			});
 		if (c.imageId && c.view === 'full')
 			out.push({ label: 'Open image', href: routes.image(env, c.imageId) });
-		if (has('remove')) {
+		// Docker Manager's own containers are never removed: no entry (the notice says why).
+		if (has('remove') && !c.protection) {
 			if (out.length) out.push({ separator: true });
 			out.push({
 				label: 'Remove…',
@@ -180,6 +191,7 @@
 	{:else if c}
 		<PageHeader
 			title={c.name}
+			truncate
 			description={c.image}
 			icon={ContainerIcon}
 			color={c.protection ? 'violet' : 'blue'}
@@ -187,7 +199,11 @@
 		>
 			{#snippet status()}
 				<StatusBadge status={containerStatus(c)} />
-				{#if c.protection}<ProtectionBadge protection={c.protection} />{/if}
+				{#if c.update}<UpdateStatusBadge status={c.update} />{/if}
+				{#if c.protection}<ProtectionBadge
+						protection={c.protection}
+						label="Part of Docker Manager"
+					/>{/if}
 			{/snippet}
 			{#snippet actions()}
 				{#if has('start')}

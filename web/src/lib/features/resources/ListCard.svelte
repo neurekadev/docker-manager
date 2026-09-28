@@ -124,8 +124,10 @@
 		min-width: 140px;
 	}
 
+	/* Wide enough for the placeholders ("Search name, image or address"). */
 	.control.search {
-		flex: 0 1 240px;
+		flex: 0 1 320px;
+		min-width: 200px;
 	}
 
 	.toggle {
@@ -136,14 +138,25 @@
 		white-space: nowrap;
 	}
 
+	/* Phones: the search shares its line with the switches (a switch never
+	   takes a line of its own), then the selects. */
 	@media (max-width: 767px) {
-		.control,
-		.control.search {
+		.control {
 			flex: 1 1 140px;
+			order: 2;
 		}
 
 		.control.search {
-			flex-basis: 100%;
+			flex: 1 1 160px;
+			order: 0;
+		}
+
+		.toggle {
+			order: 1;
+		}
+
+		.filters > :global(:last-child:not(.control, .toggle)) {
+			order: 3;
 		}
 	}
 </style>

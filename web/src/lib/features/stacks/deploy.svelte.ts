@@ -12,6 +12,7 @@ import {
 	deployTitle,
 	pullResult,
 	stackTitle,
+	updateSuccess,
 	type DeployChoice
 } from './model';
 import {
@@ -85,6 +86,31 @@ export async function startPull(
 				body: r.body,
 				action: r.newer.length && deploy ? { label: 'Deploy', onclick: deploy } : undefined
 			};
+		}
+	});
+}
+
+/**
+ * Updates the stack: one deploy that pulls every image first, so services
+ * with a newer image are recreated on it (the header's Update, #20). When
+ * it succeeds the stack is read again: an unchanged last deploy time means
+ * every service already ran the newest image.
+ */
+export async function startUpdate(
+	stack: Stack,
+	tray: JobTray,
+	queryClient: QueryClient
+): Promise<void> {
+	const title = stackTitle(stack);
+	const before = stack.appliedRevision?.at;
+	const job = await deployStackWith(stack.id, { pull: true });
+	tray.add(job, {
+		title: `Update ${title}`,
+		success: `Updated ${title}`,
+		failure: `${title} was not updated`,
+		successFor: async () => {
+			const cur = await queryClient.fetchQuery({ ...stackQuery(stack.id), staleTime: 0 });
+			return updateSuccess(stackTitle(cur), before, cur.appliedRevision?.at);
 		}
 	});
 }

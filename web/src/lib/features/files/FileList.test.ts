@@ -42,12 +42,15 @@ describe('FileList', () => {
 	it('selects with click, Ctrl/Cmd-click and Shift-click; opens files on click, folders on double-click', async () => {
 		const { events, user, selected, row } = setup();
 		await user.click(row(/app\.yaml/));
-		expect(selected()).toBe('config/app.yaml');
+		// Opening a file is not selecting it: no selection actions appear.
+		expect(selected()).toBe('');
+		expect(screen.getByTestId('cursor').textContent).toBe('config/app.yaml');
+		expect(row(/app\.yaml/)).toHaveAttribute('aria-selected', 'false');
 		expect(events).toContain('open:config/app.yaml:pointer');
 		await user.keyboard('{Control>}');
 		await user.click(row(/c\.env/));
 		await user.keyboard('{/Control}');
-		expect(selected()).toBe('config/app.yaml,config/c.env');
+		expect(selected()).toBe('config/c.env');
 		await user.keyboard('{Shift>}');
 		await user.click(row(/d\.txt/));
 		await user.keyboard('{/Shift}');
@@ -59,6 +62,7 @@ describe('FileList', () => {
 		]);
 		await user.click(row(/certs/));
 		expect(events).not.toContain('open:config/certs:pointer');
+		expect(selected()).toBe('config/certs');
 		await user.dblClick(row(/certs/));
 		expect(events).toContain('open:config/certs:pointer');
 	});
@@ -130,6 +134,23 @@ describe('FileList', () => {
 		await user.keyboard('{Control>}a{/Control}{Delete}{F2}{ArrowDown}');
 		expect(selected()).toBe('');
 		expect(events).toEqual([]);
+	});
+
+	it('shows permissions and owners only in the details view', () => {
+		setup();
+		expect(screen.queryByRole('columnheader', { name: 'Permissions' })).toBeNull();
+		expect(screen.queryByRole('columnheader', { name: 'Owner' })).toBeNull();
+		expect(screen.getByRole('row', { name: /b\.json/ })).not.toHaveTextContent('rw-r--r--');
+	});
+
+	it('the details view reads modes and owners in words', () => {
+		setup({ details: true });
+		expect(screen.getByRole('columnheader', { name: 'Permissions' })).toBeInTheDocument();
+		expect(screen.getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+		const r = screen.getByRole('row', { name: /b\.json/ });
+		expect(r).toHaveTextContent('rw-r--r--');
+		expect(r).toHaveTextContent('root');
+		expect(r).not.toHaveTextContent('0:0');
 	});
 
 	it('sorts by header and marks cut entries', async () => {

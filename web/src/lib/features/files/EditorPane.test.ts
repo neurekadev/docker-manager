@@ -92,6 +92,65 @@ describe('EditorPane', () => {
 		await waitFor(() => expect(screen.queryByText(/changed on disk/)).toBeNull());
 	});
 
+	it('says calmly that saving a Compose file does not deploy', async () => {
+		const { api } = fakeFiles();
+		const session = new EditorSession(api);
+		session.open('compose.yaml');
+		render(EditorHarness, { props: { files: api, session } });
+		await waitFor(() => expect(session.current?.status).toBe('ready'));
+		expect(screen.getByText("Saving doesn't deploy Silo.")).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /Deploy/ })).toBeNull();
+		expect(screen.getByRole('button', { name: 'Wrap long lines' })).toHaveAttribute(
+			'aria-pressed',
+			'false'
+		);
+	});
+
+	it('offers Deploy while the saved definition is not deployed', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const { api } = fakeFiles();
+		const session = new EditorSession(api);
+		session.open('compose.yaml');
+		let deploys = 0;
+		render(EditorHarness, {
+			props: {
+				files: api,
+				session,
+				stack: {
+					name: 'Silo',
+					configFiles: [],
+					undeployed: true,
+					deploy: async () => void deploys++
+				}
+			}
+		});
+		await waitFor(() => expect(session.current?.status).toBe('ready'));
+		expect(screen.getByText("Saved changes aren't deployed yet.")).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Deploy Silo' }));
+		await waitFor(() => expect(deploys).toBe(1));
+		// Unsaved edits first: no Deploy until they are saved.
+		session.edit('compose.yaml', 'a: 2\n');
+		await waitFor(() =>
+			expect(screen.queryByRole('button', { name: 'Deploy Silo' })).toBeNull()
+		);
+	});
+
+	it('shows no Deploy without the permission to deploy', async () => {
+		const { api } = fakeFiles();
+		const session = new EditorSession(api);
+		session.open('compose.yaml');
+		render(EditorHarness, {
+			props: {
+				files: api,
+				session,
+				stack: { name: 'Silo', configFiles: [], undeployed: true }
+			}
+		});
+		await waitFor(() => expect(session.current?.status).toBe('ready'));
+		expect(screen.getByText("Saved changes aren't deployed yet.")).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Deploy Silo' })).toBeNull();
+	});
+
 	it('hides saving for read-only access and offers Preview for Markdown', async () => {
 		const { api } = fakeFiles();
 		const session = new EditorSession(api);

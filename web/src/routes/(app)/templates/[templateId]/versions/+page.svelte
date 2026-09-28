@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Template detail, Versions tab (template registry): every published
-	// version, newest first, with its notes and size. Deleting a version
+	// version, newest first, with its notes and contents. "Duplicate" (a new
+	// template from a version) sits in the card's header. Deleting a version
 	// (template.publish) keeps stacks created from it working; its number is
 	// never reused.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -13,6 +14,7 @@
 	import { canAnywhere } from '$lib/features/stacks/model';
 	import { deleteVersion, restoreDraft } from '$lib/features/templates/actions';
 	import DuplicateDialog from '$lib/features/templates/DuplicateDialog.svelte';
+	import { contentsSummary } from '$lib/features/templates/model';
 	import {
 		templateKeys,
 		templateQuery,
@@ -22,6 +24,7 @@
 	import { usePage } from '$lib/shell/page.svelte';
 	import { routes } from '$lib/routes';
 	import {
+		Button,
 		Card,
 		ConfirmDialog,
 		EmptyState,
@@ -72,16 +75,16 @@
 				header: 'Version',
 				cell: labelCell,
 				sortValue: (v) => v.number,
-				width: '140px'
+				width: '140px',
+				stack: 'title'
 			},
 			{ id: 'notes', header: 'What changed', cell: notesCell },
 			{
 				id: 'size',
-				header: 'Files',
+				header: 'Contents',
 				cell: sizeCell,
 				sortValue: (v) => v.contentSize,
-				numeric: true,
-				width: '140px'
+				width: '200px'
 			},
 			{
 				id: 'published',
@@ -92,14 +95,22 @@
 			}
 		];
 		if (canPublish || canRestore)
-			cols.push({ id: 'actions', header: '', cell: actionsCell, width: '96px' });
+			cols.push({
+				id: 'actions',
+				header: 'Actions',
+				hideHeader: true,
+				cell: actionsCell,
+				width: '96px',
+				pin: 'end',
+				stack: 'actions'
+			});
 		return cols;
 	});
 
 	async function restore() {
 		if (!t || !restoring) return;
 		await restoreDraft(t, restoring.number);
-		toast.success(`Restored the draft of ${t.name} to ${restoring.label}`);
+		toast.success(`Restored the draft of ${t.name} to version ${restoring.label}`);
 	}
 
 	async function remove() {
@@ -114,16 +125,23 @@
 {#snippet notesCell(v: TemplateVersion)}
 	{#if v.notes}<span class="notes">{v.notes}</span>{:else}<span class="muted">—</span>{/if}
 {/snippet}
-{#snippet sizeCell(v: TemplateVersion)}{v.entries} · {formatBytes(v.contentSize)}{/snippet}
+{#snippet sizeCell(v: TemplateVersion)}{contentsSummary(v.entries, v.definition)}, {formatBytes(
+		v.contentSize
+	)}{/snippet}
 {#snippet publishedCell(v: TemplateVersion)}
 	<span title={formatDateTime(v.publishedAt)}>{formatRelative(v.publishedAt)}</span>
+{/snippet}
+{#snippet duplicateAction()}
+	<Button size="sm" icon={Copy} onclick={() => (duplicating = true)}
+		>Duplicate as a new template</Button
+	>
 {/snippet}
 {#snippet actionsCell(v: TemplateVersion)}
 	<span class="row-actions">
 		{#if canRestore}
 			<IconButton
 				icon={RotateCcw}
-				label="Restore the draft to {v.label}"
+				label="Restore the draft to version {v.label}"
 				onclick={() => {
 					restoring = v;
 					confirmRestore = true;
@@ -150,12 +168,12 @@
 		onretry={() => versions.refetch()}
 	/>
 {:else}
-	{#if canDuplicate && (versions.data ?? []).length}
-		<div class="toolbar">
-			<Button icon={Copy} onclick={() => (duplicating = true)}>Duplicate</Button>
-		</div>
-	{/if}
-	<Card padding="none" title="Published versions" id="versions">
+	<Card
+		padding="none"
+		title="Published versions"
+		id="versions"
+		actions={canDuplicate && (versions.data ?? []).length ? duplicateAction : undefined}
+	>
 		{#if versions.isPending}
 			<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 		{:else}
@@ -184,7 +202,7 @@
 {#if restoring && t}
 	<ConfirmDialog
 		bind:open={confirmRestore}
-		title="Restore the draft to {restoring.label}?"
+		title="Restore the draft to version {restoring.label}?"
 		message="The draft's files are replaced by the files of this version."
 		consequences={[
 			'Changes to the draft since then are lost.',
@@ -209,7 +227,7 @@
 		message="People can no longer create stacks from it."
 		consequences={[
 			'Stacks created from it keep working with their own files.',
-			'Other instances stop offering it after their next registry sync.'
+			'Other Docker Managers stop offering it after their next sync.'
 		]}
 		confirmLabel="Delete version"
 		tone="danger"
@@ -218,12 +236,6 @@
 {/if}
 
 <style>
-	.toolbar {
-		display: flex;
-		justify-content: flex-end;
-		margin-bottom: var(--space-3);
-	}
-
 	.row-actions {
 		display: inline-flex;
 		gap: 4px;

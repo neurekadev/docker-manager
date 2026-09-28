@@ -3,7 +3,10 @@ import { ApiRequestError } from '$lib/api/client';
 import { errorView, fieldError } from './errors';
 import {
 	formatBytes,
+	formatDateTime,
 	formatDuration,
+	formatGoDuration,
+	parseGoDuration,
 	formatPercent,
 	formatRelative,
 	formatUptime,
@@ -108,10 +111,44 @@ describe('formatting', () => {
 		expect(formatPercent(0.7)).toBe('0.7%');
 		expect(formatPercent(45)).toBe('45%');
 		expect(formatPercent(undefined)).toBe('—');
+		expect(formatDuration(1)).toBe('1 s');
 		expect(formatDuration(45)).toBe('45 s');
-		expect(formatDuration(3 * 3600)).toBe('3 hours');
-		expect(formatDuration(14 * 86400)).toBe('14 days');
+		expect(formatDuration(200)).toBe('3 min 20 s');
+		expect(formatDuration(180)).toBe('3 min');
+		expect(formatDuration(3 * 3600)).toBe('3 h');
+		expect(formatDuration(17 * 3600 + 9 * 60 + 5)).toBe('17 h 9 min');
+		expect(formatDuration(14 * 86400)).toBe('14 d');
+		expect(formatDuration(3 * 86400 + 4 * 3600 + 59)).toBe('3 d 4 h');
+		expect(formatDuration(-3)).toBe('0 s');
+		expect(formatDuration(Number.NaN)).toBe('0 s');
 		expect(shortId('sha256:a1b2c3d4e5f6a7b8c9d0')).toBe('a1b2c3d4e5f6');
+	});
+
+	it('reads Go duration strings in the same style', () => {
+		expect(parseGoDuration('17h9m0s')).toBe(17 * 3600 + 9 * 60);
+		expect(parseGoDuration('1m30.5s')).toBe(90.5);
+		expect(parseGoDuration('250ms')).toBe(0.25);
+		expect(parseGoDuration('1h0m0.000001s')).toBeCloseTo(3600.000001);
+		expect(parseGoDuration('-5s')).toBe(-5);
+		expect(parseGoDuration('0')).toBe(0);
+		expect(parseGoDuration('5 minutes')).toBeNull();
+		expect(parseGoDuration('')).toBeNull();
+		expect(parseGoDuration(undefined)).toBeNull();
+		expect(formatGoDuration('17h9m0s')).toBe('17 h 9 min');
+		expect(formatGoDuration('3m20s')).toBe('3 min 20 s');
+		expect(formatGoDuration('1s')).toBe('1 s');
+		expect(formatGoDuration('72h')).toBe('3 d');
+		expect(formatGoDuration('soon')).toBe('soon');
+		expect(formatGoDuration(null)).toBe('—');
+	});
+
+	it('formats absolute dates one way, 24 h, in a zone', () => {
+		expect(formatDateTime('2026-09-27T16:54:00Z', 'UTC')).toBe('Sep 27, 2026, 16:54');
+		expect(formatDateTime('2026-09-25T01:00:00Z', 'Europe/Berlin')).toBe('Sep 25, 2026, 03:00');
+		expect(formatDateTime(new Date('2026-01-02T00:05:00Z'), 'UTC')).toBe('Jan 2, 2026, 00:05');
+		expect(formatDateTime('not a date', 'UTC')).toBe('—');
+		expect(formatDateTime(undefined)).toBe('—');
+		expect(formatDateTime('2026-09-27T16:54:00Z', 'Nowhere/Invalid')).toMatch(/2026/);
 	});
 
 	it('formats live uptimes compactly, with seconds below a day', () => {

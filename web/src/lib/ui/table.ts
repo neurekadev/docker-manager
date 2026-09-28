@@ -19,6 +19,24 @@ export interface Column<T> {
 	align?: 'start' | 'end';
 	/** CSS width, e.g. "120px" or "20%". */
 	width?: string;
+	/**
+	 * Caps the column's content width (e.g. "280px"); longer content wraps,
+	 * or is cut with an ellipsis when `truncate` is set.
+	 */
+	maxWidth?: string;
+	/**
+	 * One line with an ellipsis instead of wrapping (names, images, paths).
+	 * The full text is the cell's tooltip: `title(row)`, or the plain value
+	 * for columns without a `cell` snippet. Pair it with `maxWidth`.
+	 */
+	truncate?: boolean;
+	/** The cell's tooltip (the full value of a truncated cell). */
+	title?: (row: T) => string | undefined;
+	/**
+	 * Pins the column to the table's right edge while the table scrolls
+	 * sideways (row actions stay in reach). Use it for the last column.
+	 */
+	pin?: 'end';
 	/** Tabular numbers, right-aligned. */
 	numeric?: boolean;
 	mono?: boolean;
@@ -27,9 +45,23 @@ export interface Column<T> {
 	/**
 	 * Role in stacked mode (<768 px): title and status on the first line,
 	 * meta as label/value pairs, actions at the end, hidden omitted.
-	 * Default: meta.
+	 * `head`: at the end of the first line (a compact row action such as
+	 * the "⋯" menu, so it does not take a line of its own). Default: meta.
 	 */
-	stack?: 'title' | 'status' | 'meta' | 'actions' | 'hidden';
+	stack?: 'title' | 'status' | 'meta' | 'actions' | 'head' | 'hidden';
+}
+
+/** The tooltip of a cell: the column's title, else the plain value of a truncated column. */
+export function cellTitle<T>(col: Column<T>, row: T): string | undefined {
+	if (col.title) return col.title(row) || undefined;
+	if (!col.truncate || col.cell) return undefined;
+	const v = (row as Record<string, unknown>)[col.id];
+	return v === null || v === undefined || v === '' ? undefined : String(v);
+}
+
+/** Inline style of a cell's content box (the column's maxWidth). */
+export function cellStyle<T>(col: Column<T>): string | undefined {
+	return col.maxWidth ? `max-width: ${col.maxWidth}` : undefined;
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });

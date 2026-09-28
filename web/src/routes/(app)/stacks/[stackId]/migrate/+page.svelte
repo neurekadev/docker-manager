@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Stack migration (#35): the wizard, under the stack's header (the
-	// layout sets the title and crumbs).
+	// layout sets the title and crumbs). With one environment the wizard
+	// says that a second one is needed instead of showing its steps.
 	import { routes } from '$lib/routes';
 	import { useStackPage } from '$lib/features/stacks/context';
 	import MigrationWizard from '$lib/features/stacks/MigrationWizard.svelte';
@@ -17,8 +18,8 @@
 		{#key ctx.id}<MigrationWizard {stack} tray={ctx.tray} />{/key}
 	{:else}
 		<p class="muted">
-			Migrating needs the permission to migrate this stack. Ask the owner of this Docker
-			Manager.
+			You can't migrate {title}. Ask the owner of this Docker Manager for the permission to
+			migrate stacks.
 		</p>
 		<Button href={routes.stack(ctx.id)}>Back to {title}</Button>
 	{/if}

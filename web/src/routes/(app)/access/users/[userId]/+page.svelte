@@ -35,7 +35,6 @@
 		SecretReveal,
 		Select,
 		formatDateTime,
-		formatRelative,
 		toast,
 		type MenuEntry
 	} from '$lib/ui';
@@ -371,7 +370,7 @@
 						{ label: 'Recovery codes left', value: u.factors.recoveryCodesRemaining },
 						{
 							label: 'Last sign-in',
-							value: u.lastSignInAt ? formatRelative(u.lastSignInAt) : 'Never'
+							value: u.lastSignInAt ? formatDateTime(u.lastSignInAt) : 'Never'
 						},
 						{ label: 'Created', value: formatDateTime(u.createdAt) },
 						{
@@ -435,14 +434,23 @@
 						errorTitle="The permission catalog could not be loaded."
 					>
 						{#snippet children(cat)}
-							<PermissionEditor
-								catalog={cat}
-								mode="user"
-								{rules}
-								groupRules={groupDoc.data?.rules ?? []}
-								groupName={group?.name}
-								onchange={(r) => (draft = r)}
-							/>
+							<QueryView
+								query={doc}
+								errorTitle="The overrides of {displayName(u)} could not be loaded."
+							>
+								{#snippet children(loaded)}
+									{#if loaded}
+										<PermissionEditor
+											catalog={cat}
+											mode="user"
+											{rules}
+											groupRules={groupDoc.data?.rules ?? []}
+											groupName={group?.name}
+											onchange={(r) => (draft = r)}
+										/>
+									{/if}
+								{/snippet}
+							</QueryView>
 						{/snippet}
 					</QueryView>
 				</Card>

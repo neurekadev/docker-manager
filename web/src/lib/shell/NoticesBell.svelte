@@ -1,12 +1,15 @@
 <script lang="ts">
 	// Notices bell (#22, #25 Q6): unread count and the list of in-app
 	// notices (jobs finished or failed, environments offline, updates).
-	// Opening the list marks them read when it closes.
+	// Every notice links to where to act (its job, environment or the
+	// updates); the whole row is the link's target, its title the link's
+	// name. Opening the list marks them read when it closes.
 	import Bell from '@lucide/svelte/icons/bell';
+	import Button from '$lib/ui/Button.svelte';
 	import IconButton from '$lib/ui/IconButton.svelte';
 	import Popover from '$lib/ui/Popover.svelte';
 	import { formatRelative } from '$lib/ui/format';
-	import { notices as defaultNotices, type Notices } from './notices.svelte';
+	import { notices as defaultNotices, noticeHref, type Notices } from './notices.svelte';
 
 	let { notices = defaultNotices }: { notices?: Notices } = $props();
 	let open = $state(false);
@@ -26,7 +29,7 @@
 	<div class="head">
 		<h2>Notices</h2>
 		{#if notices.items.length}
-			<button type="button" class="link" onclick={() => notices.clear()}>Clear all</button>
+			<Button size="sm" variant="ghost" onclick={() => notices.clear()}>Clear all</Button>
 		{/if}
 	</div>
 	{#if notices.items.length}
@@ -35,13 +38,9 @@
 				<li class:unread={!n.read}>
 					<span class="dot {n.tone}" aria-hidden="true"></span>
 					<div class="text">
-						{#if n.href}
-							<a href={n.href} class="title" onclick={() => (open = false)}
-								>{n.title}</a
-							>
-						{:else}
-							<span class="title">{n.title}</span>
-						{/if}
+						<a href={noticeHref(n)} class="title" onclick={() => (open = false)}
+							>{n.title}</a
+						>
 						{#if n.body}<p class="body">{n.body}</p>{/if}
 						<span class="when">{formatRelative(new Date(n.at))}</span>
 					</div>
@@ -49,7 +48,9 @@
 			{/each}
 		</ul>
 	{:else}
-		<p class="empty">No notices. Finished jobs and offline environments show up here.</p>
+		<p class="empty">
+			No notices. Finished jobs, offline environments and available updates show up here.
+		</p>
 	{/if}
 </Popover>
 
@@ -58,7 +59,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: var(--space-3) var(--space-4);
+		gap: var(--space-3);
+		min-height: 48px;
+		padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
 		border-bottom: 1px solid var(--border-subtle);
 	}
 
@@ -67,24 +70,28 @@
 		line-height: var(--leading-control);
 	}
 
-	.link {
-		padding: 0;
-		border: 0;
-		background: none;
-		color: var(--accent-text);
-		font-size: var(--text-caption);
-	}
-
 	.list {
 		margin: 0;
 		padding: var(--space-1);
 	}
 
+	/* The row is the title link's target (its ::after covers the row). */
 	li {
+		position: relative;
 		display: flex;
 		gap: var(--space-3);
 		padding: var(--space-2) var(--space-3);
 		border-radius: var(--radius-sm);
+		transition: background-color var(--duration-fast) var(--ease-out);
+	}
+
+	li:hover {
+		background: var(--surface-hover);
+	}
+
+	li:has(.title:focus-visible) {
+		outline: var(--focus-ring);
+		outline-offset: -2px;
 	}
 
 	li.unread {
@@ -117,6 +124,22 @@
 	.title {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
+		text-decoration: none;
+	}
+
+	.title::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+	}
+
+	.title:focus-visible {
+		outline: none;
+	}
+
+	li:hover .title {
+		color: var(--accent-text);
 	}
 
 	.body {

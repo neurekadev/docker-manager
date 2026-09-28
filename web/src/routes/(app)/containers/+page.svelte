@@ -8,10 +8,13 @@
 	// live figures (CPU and memory from the newest samples, #5, refreshed by
 	// metrics events; uptime ticking every second), its networks (linked,
 	// with its addresses) and published ports.
-	// Docker Manager's own containers carry the "Docker Manager" badge (#32),
+	// Docker Manager's own containers carry the shield mark (#32),
 	// containers of a Compose project their stack. Row actions follow the
 	// container's state and granted actions (#17); refusals show the
-	// server's reason.
+	// server's reason. Selected rows get bulk actions (start, stop,
+	// restart, remove; ContainerBulk). Wide content is capped (name and
+	// image, networks) and the row actions stay pinned at the right edge;
+	// phones show the name, image and status only.
 	import { createQueries, createQuery } from '@tanstack/svelte-query';
 	import ContainerIcon from '@lucide/svelte/icons/container';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
@@ -38,13 +41,14 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import ContainerActionHost from '$lib/features/resources/ContainerActionHost.svelte';
+	import ContainerBulk from '$lib/features/resources/ContainerBulk.svelte';
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NetworkList from '$lib/features/resources/NetworkList.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
-	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
+	import ProtectionMark from '$lib/features/resources/ProtectionMark.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import { containerActions } from '$lib/features/resources/container-actions';
@@ -114,6 +118,9 @@
 	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('container.create'));
 	const key = (c: Container) => `${c.environmentId}/${c.name}`;
+	let selected = $state<string[]>([]);
+	// Bulk actions run on the selected rows the filters still show.
+	const chosen = $derived(rows.filter((c) => selected.includes(key(c))));
 
 	const tracker = new ChangeTracker<Container>(key, (c) => `${c.state}/${c.health ?? ''}`);
 	$effect(() => {
@@ -127,13 +134,19 @@
 			{ label: 'Open', href: routes.container(c.environmentId, c.name) }
 		];
 		const acts = containerActions(c);
-		if (acts.length) entries.push({ separator: true });
-		for (const a of acts)
+		const lifecycle = acts.filter((a) => a.verb !== 'remove');
+		if (lifecycle.length) entries.push({ separator: true });
+		for (const a of lifecycle)
 			entries.push({
-				label: a.verb === 'remove' ? 'Remove…' : a.verb === 'stop' ? 'Stop…' : a.label,
-				tone: a.danger && a.verb === 'remove' ? 'danger' : 'default',
+				label: a.verb === 'stop' ? 'Stop…' : a.label,
 				onSelect: () => host?.request(c, a.verb)
 			});
+		// Destructive last, after a separator (one rule on every page).
+		if (acts.some((a) => a.verb === 'remove'))
+			entries.push(
+				{ separator: true },
+				{ label: 'Remove…', tone: 'danger', onSelect: () => host?.request(c, 'remove') }
+			);
 		return entries;
 	}
 
@@ -143,6 +156,8 @@
 			header: 'Name',
 			cell: nameCell,
 			sortValue: (c) => c.name,
+			maxWidth: '280px',
+			title: (c) => c.name,
 			stack: 'title'
 		},
 		{
@@ -153,7 +168,14 @@
 			width: '140px',
 			stack: 'status'
 		},
-		{ id: 'stack', header: 'Stack', cell: stackCell, sortValue: (c) => c.stack?.project ?? '' },
+		{
+			id: 'stack',
+			header: 'Stack',
+			cell: stackCell,
+			sortValue: (c) => c.stack?.project ?? '',
+			maxWidth: '180px',
+			stack: 'hidden'
+		},
 		...(scope.single
 			? []
 			: [
@@ -161,7 +183,8 @@
 						id: 'env',
 						header: 'Environment',
 						cell: envCell,
-						sortValue: (c: Container) => envName(c.environmentId)
+						sortValue: (c: Container) => envName(c.environmentId),
+						stack: 'hidden'
 					} satisfies Column<Container>
 				]),
 		{
@@ -170,7 +193,8 @@
 			cell: cpuCell,
 			sortValue: (c) => sample(c)?.cpuPercent,
 			numeric: true,
-			width: '72px'
+			width: '72px',
+			stack: 'hidden'
 		},
 		{
 			id: 'memory',
@@ -178,7 +202,8 @@
 			cell: memoryCell,
 			sortValue: (c) => sample(c)?.memoryUsedBytes,
 			numeric: true,
-			width: '88px'
+			width: '88px',
+			stack: 'hidden'
 		},
 		{
 			id: 'uptime',
@@ -186,19 +211,23 @@
 			cell: uptimeCell,
 			sortValue: (c) => uptimeSortValue(upSince(c)),
 			numeric: true,
-			width: '112px'
+			width: '112px',
+			stack: 'hidden'
 		},
 		{
 			id: 'networks',
 			header: 'Networks',
 			cell: networksCell,
-			sortValue: (c) => networks(c)[0]?.name
+			sortValue: (c) => networks(c)[0]?.name,
+			maxWidth: '220px',
+			stack: 'hidden'
 		},
 		{
 			id: 'ports',
 			header: 'Ports',
 			cell: portsCell,
-			sortValue: (c) => uniquePorts(c.ports).find((p) => p.hostPort)?.hostPort
+			sortValue: (c) => uniquePorts(c.ports).find((p) => p.hostPort)?.hostPort,
+			stack: 'hidden'
 		},
 		{
 			id: 'actions',
@@ -207,7 +236,8 @@
 			cell: actionsCell,
 			width: '56px',
 			align: 'end',
-			stack: 'actions'
+			pin: 'end',
+			stack: 'head'
 		}
 	]);
 </script>
@@ -215,7 +245,10 @@
 {#snippet nameCell(c: Container)}
 	{@const policy = containerPolicy(policyIndex, c)}
 	<div class="name-cell">
-		<a class="name" href={routes.container(c.environmentId, c.name)}>{c.name}</a>
+		<span class="title-line">
+			<a class="name" href={routes.container(c.environmentId, c.name)}>{c.name}</a>
+			{#if c.protection}<ProtectionMark protection={c.protection} />{/if}
+		</span>
 		{#if c.image}
 			<span class="image">
 				<span class="sub mono" title={c.image}>{c.image}</span>
@@ -227,8 +260,6 @@
 				/>
 			</span>
 		{/if}
-		{#if c.protection}<span class="tag"><ProtectionBadge protection={c.protection} /></span
-			>{/if}
 	</div>
 {/snippet}
 {#snippet statusCell(c: Container)}
@@ -325,10 +356,15 @@
 					: undefined}
 				label="Filter containers"
 				searchLabel="Search containers"
-				placeholder="Search by name, image, label or address"
+				placeholder="Search name, image or address"
 				filters={defs}
 				store={filters}
 			>
+				<ContainerBulk
+					selected={chosen}
+					environmentName={envName}
+					onclear={() => (selected = [])}
+				/>
 				{#if !list.data && (list.isPending || !scope.ready)}
 					<div class="loading" aria-busy="true">
 						<Skeleton lines={6} height="20px" />
@@ -341,6 +377,9 @@
 						rowKey={key}
 						changed={tracker.changed}
 						sort={{ column: 'name', direction: 'asc' }}
+						selectable
+						bind:selected
+						rowLabel={(c) => `Select ${c.name}`}
 					>
 						{#snippet empty()}
 							{#if filtered}
@@ -394,10 +433,20 @@
 		min-width: 0;
 	}
 
+	.title-line {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
 	.name {
+		overflow: hidden;
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
 		text-decoration: none;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.name:hover {
@@ -412,7 +461,7 @@
 	}
 
 	.sub {
-		max-width: 60ch;
+		min-width: 0;
 		color: var(--text-muted);
 		font-size: var(--text-caption);
 		overflow: hidden;
@@ -420,12 +469,9 @@
 		white-space: nowrap;
 	}
 
-	.tag {
-		margin-top: 2px;
-	}
-
 	.ports {
 		font-size: var(--text-caption);
+		white-space: nowrap;
 	}
 
 	.loading {

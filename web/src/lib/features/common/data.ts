@@ -113,6 +113,17 @@ export function environmentName(
 	return environments?.find((e) => e.id === id)?.name ?? 'Unknown environment';
 }
 
+/**
+ * The caller sees exactly one (non-archived) environment: lists may hide
+ * their Environment column and filter, forms their environment picker.
+ * False while the list is unknown (loading), so nothing hides too early.
+ */
+export function onlyOneEnvironment(
+	environments: readonly { archivedAt?: string | null }[] | undefined | null
+): boolean {
+	return !!environments && environments.filter((e) => !e.archivedAt).length === 1;
+}
+
 /** Short form of a digest for tables: the first 12 hex digits after "sha256:". */
 export function shortDigest(d: string | undefined | null): string {
 	if (!d) return '—';

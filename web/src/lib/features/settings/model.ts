@@ -62,7 +62,7 @@ export const FACTOR_POLICY: Record<RequiredFactors, string> = {
 
 /** What choosing a factor policy means for the people who sign in. */
 export const FACTOR_DETAIL: Record<RequiredFactors, string> = {
-	none: 'A password (plus TOTP for accounts that enabled it) or a passkey.',
+	none: 'A password (plus a code from an authenticator app for accounts that set one up) or a passkey.',
 	totp: 'Every password sign-in also needs a 6-digit code from an authenticator app.',
 	passkey: 'Everyone signs in with a passkey (with user verification).',
 	either: 'A password plus an authenticator code, or a passkey.',

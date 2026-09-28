@@ -31,7 +31,7 @@ committed). Shipped code is in `dependencies`; build tools are
 | `@xterm/xterm` | 6.0.0 | MIT | container exec terminal (#19) | lazy (`import()`, incl. its CSS) |
 | `@codemirror/lang-json`, `@codemirror/legacy-modes`, `@codemirror/search` | 6.0.2 / 6.5.4 / 6.7.2 (+ `@lezer/json`: MIT) | MIT | the file editor's languages (JSON; shell, Dockerfile, nginx, properties, TOML, XML stream modes, each its own chunk) and the search/replace panel (#15) | lazy (`import()`) |
 | `@xterm/addon-fit` | 0.11.0 | MIT | sizes the terminal grid to its element (full-height terminals, resize messages, #8) | lazy (`import()`) |
-| `yaml` | 2.9.1 | ISC | the editor's Format button for YAML (comments kept, #15) | lazy (`import()`, checked by `verify-build.mjs`) |
+| `yaml` | 2.9.1 | ISC | the editor's Format button for YAML (comments kept, #15); a template version's services (`parseYaml`) | lazy (`import()`, checked by `verify-build.mjs`) |
 | `@vite-pwa/sveltekit` (dev) | 1.1.0 (vite-plugin-pwa 1.3.0, workbox-build 7.4.1) | MIT | **build time only**: writes `manifest.webmanifest`, injects the precache list into the service worker | not shipped |
 
 Not added:
@@ -205,7 +205,7 @@ Other decisions:
 - **No component kit or CSS framework.** Styling is plain scoped CSS over
   the tokens in `src/lib/design/tokens.css`.
 - **Placeholders replaced:** manifest `theme_color` is `--surface-shell`
-  (`#0e141d`), `background_color` `--surface-canvas` (`#0b1016`); the
+  (`#0d131b`), `background_color` `--surface-canvas` (`#0a0f15`); the
   connection and update notices use the design system. The PWA icon set is
   still the #11 placeholder artwork.
 

@@ -7,12 +7,14 @@
 
 <script lang="ts">
 	// The file list (#15): one directory as an ARIA grid with desktop
-	// selection (click, Ctrl/Cmd-click, Shift-click, checkboxes for touch),
+	// selection (click, Ctrl/Cmd-click, Shift-click, checkboxes for touch;
+	// a click that opens a file does not select it),
 	// keyboard commands while it has focus (keyboard.ts), a ".." row below
 	// the root that opens the parent and accepts drops, drag and drop of
 	// entries onto folders (move; Ctrl/Alt copies) and of files from the
 	// operating system (upload), and windowed rendering for large
 	// directories (virtualWindow from the Table, fixed row height).
+	// Permissions and owners are columns of the `details` view only.
 	import type { Snippet } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
@@ -23,7 +25,7 @@
 	import { formatBytes, formatDateTime, formatRelative } from '$lib/ui';
 	import type { FileEntry, ListSort } from './api';
 	import { commandFor, isTypingTarget, type FileCommand } from './keyboard';
-	import { entryIcon, entryKind, modeString } from './icons';
+	import { entryIcon, entryKind, modeString, ownerText, ownerTitle } from './icons';
 	import { parent as parentOf, within } from './paths';
 	import { hasOsFiles } from './dropped';
 	import * as sel from './selection';
@@ -60,6 +62,10 @@
 		empty?: Snippet;
 		/** The grid element (focus after dialogs). */
 		ref?: HTMLElement | null;
+		/** Show the Permissions and Owner columns (off: name, size, modified). */
+		details?: boolean;
+		/** The path open in the editor (marked, not selected). */
+		active?: string | null;
 	}
 
 	let {
@@ -86,7 +92,9 @@
 		triggerProps = {},
 		rowActions,
 		empty,
-		ref = $bindable(null)
+		ref = $bindable(null),
+		details = false,
+		active = null
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -234,11 +242,14 @@
 			return;
 		}
 		const mods = { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey };
-		selection = sel.click(selection, keys, row.key, mods);
 		const entry = row.entry;
-		if (!entry || mods.toggle || mods.range) return;
-		// Files open on click (and Enter); folders on double-click, or a tap.
-		if (entry.type !== 'dir' || touch) onopen(entry, touch ? 'touch' : 'pointer');
+		// Files open on click (and Enter) without being selected; folders
+		// are selected by a click and open on double-click, or a tap.
+		const opens = !!entry && !mods.toggle && !mods.range && (entry.type !== 'dir' || touch);
+		selection = opens
+			? sel.focus(selection, keys, row.key)
+			: sel.click(selection, keys, row.key, mods);
+		if (opens && entry) onopen(entry, touch ? 'touch' : 'pointer');
 	}
 
 	function onRowDblClick(e: MouseEvent, row: Row) {
@@ -373,7 +384,12 @@
 	</button>
 {/snippet}
 
-<div class="files" class:coarse={coarse.current} class:selecting={selection.selected.length > 0}>
+<div
+	class="files"
+	class:coarse={coarse.current}
+	class:details
+	class:selecting={selection.selected.length > 0}
+>
 	<div
 		{...triggerProps}
 		bind:this={ref}
@@ -416,8 +432,10 @@
 			<div class="cell modified" role="columnheader" aria-sort={ariaSort('modified')}>
 				{@render sortHeader('modified', 'Modified')}
 			</div>
-			<div class="cell mode" role="columnheader">Permissions</div>
-			<div class="cell owner" role="columnheader">Owner</div>
+			{#if details}
+				<div class="cell mode" role="columnheader">Permissions</div>
+				<div class="cell owner" role="columnheader">Owner</div>
+			{/if}
 			<div class="cell actions" role="columnheader"><span class="sr-only">Actions</span></div>
 		</div>
 		<div class="body" bind:this={scroller} onscroll={onScroll}>
@@ -442,6 +460,7 @@
 						class:cut={cut.has(row.key)}
 						class:drop={dropTarget === row.key}
 						class:parent={row.key === PARENT_KEY}
+						class:active={!!active && active === row.key}
 						role="row"
 						aria-rowindex={index + 2}
 						aria-selected={row.key === PARENT_KEY ? undefined : selected}
@@ -515,12 +534,17 @@
 								>
 							{/if}
 						</div>
-						<div class="cell mode mono" role="gridcell">
-							{#if entry}<span title={entry.mode}>{modeString(entry.mode)}</span>{/if}
-						</div>
-						<div class="cell owner mono num" role="gridcell">
-							{entry ? `${entry.uid}:${entry.gid}` : ''}
-						</div>
+						{#if details}
+							<div class="cell mode mono" role="gridcell">
+								{#if entry}<span title={entry.mode}>{modeString(entry.mode)}</span
+									>{/if}
+							</div>
+							<div class="cell owner mono num" role="gridcell">
+								{#if entry}<span title={ownerTitle(entry.uid, entry.gid)}
+										>{ownerText(entry.uid, entry.gid)}</span
+									>{/if}
+							</div>
+						{/if}
 						<div class="cell actions" role="gridcell">
 							{#if entry && rowActions}
 								<div class="row-actions">{@render rowActions(entry)}</div>
@@ -582,13 +606,17 @@
 
 	.row {
 		display: grid;
-		grid-template-columns: 32px minmax(0, 1fr) 84px 132px 96px 72px 40px;
+		grid-template-columns: 32px minmax(0, 1fr) 84px 132px 40px;
 		align-items: center;
 		flex: none;
 		border-radius: var(--radius-md);
 		color: var(--text-default);
 		cursor: default;
 		user-select: none;
+	}
+
+	.details .row {
+		grid-template-columns: 32px minmax(0, 1fr) 84px 132px 96px 104px 40px;
 	}
 
 	.row.head {
@@ -601,6 +629,11 @@
 
 	.body .row:hover {
 		background: var(--surface-hover);
+	}
+
+	.body .row.active {
+		background: var(--surface-hover);
+		color: var(--text-strong);
 	}
 
 	.body .row.selected {
@@ -719,6 +752,11 @@
 		font-size: 12px;
 	}
 
+	/* Owners are short ("root", "1000"): never cut. */
+	.cell.owner {
+		text-overflow: clip;
+	}
+
 	.cell.actions {
 		display: flex;
 		justify-content: center;
@@ -767,7 +805,8 @@
 
 	/* Narrow panes (the list beside the editor): fewer columns. */
 	@container (max-width: 640px) {
-		.row {
+		.row,
+		.details .row {
 			grid-template-columns: 32px minmax(0, 1fr) 76px 110px 40px;
 		}
 		.cell.mode,
@@ -777,7 +816,8 @@
 	}
 
 	@container (max-width: 420px) {
-		.row {
+		.row,
+		.details .row {
 			grid-template-columns: 32px minmax(0, 1fr) 72px 40px;
 		}
 		.cell.modified {

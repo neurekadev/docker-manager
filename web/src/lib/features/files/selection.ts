@@ -1,7 +1,8 @@
 // Selection model of the file list (#15): desktop semantics as pure
 // functions over the displayed order of row keys (paths).
 //
-//   click            select only this row (anchor and cursor move to it)
+//   click            select only this row (anchor and cursor move to it);
+//                    a click that opens a file only moves them (focus)
 //   Ctrl/Cmd-click   toggle this row (anchor moves to it)
 //   Shift-click      select the range anchor..row (replaces the selection)
 //   Ctrl+Shift-click add the range anchor..row to the selection
@@ -64,6 +65,16 @@ export function click(
 		};
 	}
 	return { selected: [key], anchor: key, cursor: key };
+}
+
+/**
+ * A plain click that opens a file: the cursor and anchor move to it, the
+ * selection empties (opening is not selecting, so no selection actions
+ * such as Delete appear).
+ */
+export function focus(s: Selection, keys: readonly string[], key: string): Selection {
+	if (!keys.includes(key)) return s;
+	return { selected: [], anchor: key, cursor: key };
 }
 
 /** Toggles one row (its checkbox) without touching the rest. */
