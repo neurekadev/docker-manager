@@ -272,12 +272,12 @@ describe('service volumes and image', () => {
 		expect(vols).toEqual([
 			{ name: 'shop_data', anonymous: false, destinations: ['/data'], readOnly: false },
 			{ name: 'shop_conf', anonymous: false, destinations: ['/etc/app'], readOnly: true },
-			{ name: anon, anonymous: true, destinations: ['/cache'], readOnly: true }
+			{ name: anon, anonymous: true, destinations: ['/cache'], readOnly: false }
 		]);
 		expect(vols.map(volumeText)).toEqual([
 			'shop_data at /data',
 			'shop_conf at /etc/app (read-only)',
-			`Anonymous volume ${anon} at /cache (read-only)`
+			`Anonymous volume ${anon} at /cache`
 		]);
 		expect(serviceVolumes(svc('db', [ctr({ view: 'minimal' })]))).toEqual([]);
 	});

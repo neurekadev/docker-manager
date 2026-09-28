@@ -314,8 +314,10 @@
 			{#each lines.shown as v (v.name)}
 				<span class="vol" title={volumeText(v)}>
 					{#if v.anonymous}
-						<a class="vol-name link" href={routes.volume(stack.environmentId, v.name)}
-							>Anonymous<span class="sr-only"> volume {v.name}</span></a
+						<a
+							class="vol-name link"
+							href={routes.volume(stack.environmentId, v.name)}
+							aria-label="Anonymous volume {v.name}">Anonymous</a
 						>
 						{#if v.destinations.length}<span class="vol-path mono"
 								>{v.destinations[0]}</span
