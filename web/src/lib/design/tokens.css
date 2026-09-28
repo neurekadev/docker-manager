@@ -96,6 +96,8 @@
 	   coarse), because iOS zooms the page into any field with smaller text. */
 	--text-input: var(--text-control);
 	--text-input-mono: 13px;
+	--leading-input-mono: 20px; /* the code editor's lines */
+	--text-input-small: 12px; /* compact fields, e.g. the editor's search */
 	--text-subsection: 14px; /* headings inside a card (h3), semibold */
 	--leading-subsection: 20px;
 	--text-section: 16px; /* section and card titles */
@@ -167,6 +169,8 @@
 	:root {
 		--text-input: 16px;
 		--text-input-mono: 16px;
+		--leading-input-mono: 24px;
+		--text-input-small: 16px;
 	}
 }
 
