@@ -147,6 +147,7 @@ ADR 0002) so the offline PWA shell renders correctly.
 | section title (card titles, always) | 16 / 24 | 600 | `--text-section` |
 | subsection: a heading inside a card | 14 / 20 | 600 | `--text-subsection` |
 | control | 14 / 20 | 500 | `--text-control` |
+| text typed into fields (16 on touch screens: iOS zooms into smaller field text) | 14 / 20 (mono 13) | 400 | `--text-input` (`--text-input-mono`) |
 | body and tables (the dense default) | 13 / 20 | 400 | `--text-body` |
 | caption, meta | 12 / 16 | 400 | `--text-caption` |
 | mono | 12.5 / 20 | 400 (`.mono`) | |
