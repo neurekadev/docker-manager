@@ -177,6 +177,9 @@
 		display: flex;
 		flex-direction: column;
 		flex: 1;
+		/* Without it the view grows as wide as the longest line and is
+		   clipped, so the editor has nothing to scroll sideways. */
+		min-width: 0;
 		min-height: 0;
 	}
 
