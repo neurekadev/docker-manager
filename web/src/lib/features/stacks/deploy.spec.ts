@@ -4,12 +4,9 @@ import {
 	deploySuccess,
 	deployTitle,
 	driftNotes,
-	lastUpdateCheck,
 	orphanedServices,
 	pendingUpdates,
-	pullResult,
-	updateAvailable,
-	updateSuccess
+	updateAvailable
 } from './model';
 
 describe('deploy outcomes', () => {
@@ -17,7 +14,9 @@ describe('deploy outcomes', () => {
 		expect(deployTitle('Silo', {})).toBe('Deploy Silo');
 		expect(deployTitle('Silo', { build: true })).toBe('Build and deploy Silo');
 		expect(deployTitle('Silo', { removeOrphans: true })).toBe('Deploy Silo and remove orphans');
+		expect(deployTitle('Silo', { pull: true })).toBe('Pull and deploy Silo');
 		expect(deployFailure('Silo', {})).toBe('Silo was not deployed');
+		expect(deployFailure('Silo', { pull: true })).toBe('Silo was not pulled and deployed');
 	});
 
 	it('says when a deploy changed nothing (the last deploy time stayed)', () => {
@@ -38,42 +37,6 @@ describe('deploy outcomes', () => {
 		expect(deploySuccess('Silo', { removeOrphans: true }, t1, t2)).toBe(
 			'Deployed Silo and removed its orphaned containers'
 		);
-	});
-});
-
-describe('pull outcomes', () => {
-	it('names the services with a newer image, or says the images are up to date', () => {
-		expect(
-			pullResult(
-				'Silo',
-				[{ service: 'web' }, { service: 'db' }],
-				[
-					{ service: 'web', pulledImageId: 'sha256:w2' },
-					{ service: 'db', pulledImageId: 'sha256:d2' }
-				]
-			)
-		).toEqual({
-			title: 'Pulled newer images for web, db: deploy to run them',
-			newer: ['web', 'db']
-		});
-		expect(pullResult('Silo', [{ service: 'web' }], [{ service: 'web' }])).toEqual({
-			title: 'Images of Silo are up to date',
-			newer: []
-		});
-		// Pulled before, not deployed since: nothing new this time.
-		expect(
-			pullResult(
-				'Silo',
-				[{ service: 'web', pulledImageId: 'sha256:w2' }],
-				[{ service: 'web', pulledImageId: 'sha256:w2' }]
-			)
-		).toMatchObject({
-			title: 'No newer images since the last pull',
-			body: 'web waits for a deploy to run the image pulled before.',
-			newer: []
-		});
-		// Without image status (no stack.read): a plain confirmation.
-		expect(pullResult('Silo', undefined, undefined).title).toBe('Pulled the images of Silo');
 	});
 });
 
@@ -104,25 +67,6 @@ describe('update outcomes', () => {
 		expect(pendingUpdates([img({})])).toEqual([]);
 		expect(updateAvailable([img({})])).toBe(false);
 		expect(pendingUpdates(undefined)).toEqual([]);
-	});
-
-	it('finds the newest update check', () => {
-		expect(
-			lastUpdateCheck([
-				img({ checkedAt: '2026-09-27T10:00:00Z' }),
-				img({ checkedAt: '2026-09-27T12:00:00Z' }),
-				img({})
-			])
-		).toBe('2026-09-27T12:00:00Z');
-		expect(lastUpdateCheck([img({})])).toBeUndefined();
-	});
-
-	it('says when an update recreated nothing', () => {
-		const t1 = '2026-09-27T10:00:00Z';
-		expect(updateSuccess('Silo', t1, '2026-09-27T11:00:00Z')).toBe('Updated Silo');
-		expect(updateSuccess('Silo', t1, t1)).toBe(
-			'Nothing to update: Silo already runs the newest images'
-		);
 	});
 });
 

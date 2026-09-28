@@ -638,7 +638,7 @@ export function updateAvailable(images: Schema<'StackImageStatus'>[] | undefined
 	return pendingUpdates(images).length > 0;
 }
 
-/** A service whose image has a newer version (the header's Update, #20). */
+/** A service whose image has a newer version (Pull & Deploy says so, #20). */
 export interface PendingUpdate {
 	service: string;
 	/** The image reference with its tag, e.g. nginx:1.27 (never a digest). */
@@ -659,31 +659,6 @@ export function pendingUpdates(images: Schema<'StackImageStatus'>[] | undefined)
 		.sort((a, b) => a.service.localeCompare(b.service));
 }
 
-/** The newest update check of the stack's images (ISO), if any ran. */
-export function lastUpdateCheck(
-	images: Schema<'StackImageStatus'>[] | undefined
-): string | undefined {
-	let best: string | undefined;
-	for (const i of images ?? [])
-		if (i.checkedAt && (!best || Date.parse(i.checkedAt) > Date.parse(best)))
-			best = i.checkedAt;
-	return best;
-}
-
-/**
- * The success toast of an update (a deploy that pulls every image first):
- * an unchanged last deploy time means no container was recreated.
- */
-export function updateSuccess(
-	title: string,
-	before: string | undefined,
-	after: string | undefined
-): string {
-	return before === after
-		? `Nothing to update: ${title} already runs the newest images`
-		: `Updated ${title}`;
-}
-
 // Deploys (#7): what a finished deploy did, and orphaned services.
 
 /** The kind of deploy a button or dialog started. */
@@ -699,14 +674,14 @@ export interface DeployChoice {
 /** What runs while a deploy job is in the tray, e.g. "Pull Silo". */
 export function deployTitle(title: string, c: DeployChoice): string {
 	if (c.build) return `Build and deploy ${title}`;
-	if (c.pull) return `Pull ${title}`;
+	if (c.pull) return `Pull and deploy ${title}`;
 	if (c.removeOrphans) return `Deploy ${title} and remove orphans`;
 	return `Deploy ${title}`;
 }
 
 /** The failure toast title of a deploy. */
 export function deployFailure(title: string, c: DeployChoice): string {
-	return c.pull ? `${title} was not pulled` : `${title} was not deployed`;
+	return c.pull ? `${title} was not pulled and deployed` : `${title} was not deployed`;
 }
 
 /**
@@ -733,29 +708,6 @@ export function deploySuccess(
 	if (c.pull) return `Nothing to update: ${title} already runs the newest images`;
 	if (c.build) return `Built the images of ${title}; nothing needed to be redeployed`;
 	return `Nothing to deploy: ${title} already runs its definition`;
-}
-
-/** What a finished pull found, from the image status before and after it. */
-export function pullResult(
-	title: string,
-	before: { service: string; pulledImageId?: string }[] | undefined,
-	after: { service: string; pulledImageId?: string }[] | undefined
-): { title: string; body?: string; newer: string[] } {
-	if (!after) return { title: `Pulled the images of ${title}`, newer: [] };
-	const was = new Map((before ?? []).map((i) => [i.service, i.pulledImageId]));
-	const newer = after
-		.filter((i) => i.pulledImageId && i.pulledImageId !== was.get(i.service))
-		.map((i) => i.service);
-	const waiting = after.filter((i) => i.pulledImageId).map((i) => i.service);
-	if (newer.length)
-		return { title: `Pulled newer images for ${newer.join(', ')}: deploy to run them`, newer };
-	if (waiting.length)
-		return {
-			title: `No newer images since the last pull`,
-			body: `${waiting.join(', ')} ${waiting.length === 1 ? 'waits' : 'wait'} for a deploy to run the image pulled before.`,
-			newer
-		};
-	return { title: `Images of ${title} are up to date`, newer };
 }
 
 /** Services with containers on the host that the deployed definition no longer has. */

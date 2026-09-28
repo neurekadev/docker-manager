@@ -3,21 +3,19 @@
 	// row (services, containers, created, template, logical location: the
 	// host path is its tooltip and copy button; each item stays on one line),
 	// the stack's links below it (full view, when it has any) and the
-	// actions: the Deploy split button (the one primary:
-	// Deploy, Build and deploy, Pull images only, Deploy and remove orphaned
-	// containers), Restart, Stop (Start when stopped), Update with its
-	// "update available" dot (a confirmation naming the newer images, then
-	// one deploy that pulls them), and overflow (Take down, Migrate with more
+	// actions: the Deploy split button (the one primary: Deploy, Build &
+	// Deploy for stacks that build an image, Pull & Deploy — which says when
+	// newer images are available — and Cleanup Orphans & Deploy), Restart,
+	// Stop (Start when stopped) and overflow (Take down, Migrate with more
 	// than one environment, Rename, Edit details, Save as template, Delete).
 	// Each action is shown only with its capability (the server still
-	// decides). Start and Restart run at once; Stop, Take down and Delete
-	// confirm with their exact consequences first. Docker Manager's own
-	// stack (#32) deploys and updates; Restart, Stop, Take down, Migrate,
+	// decides). Start and Restart run at once; Stop, Take down, Delete and
+	// Cleanup Orphans & Deploy confirm with their exact consequences first.
+	// Docker Manager's own stack (#32) deploys; Restart, Stop, Take down, Migrate,
 	// Rename and Delete stay visible but disabled, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
-	import CircleArrowUp from '@lucide/svelte/icons/circle-arrow-up';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Package from '@lucide/svelte/icons/package';
 	import Workflow from '@lucide/svelte/icons/workflow';
@@ -58,7 +56,7 @@
 		type MetaItem
 	} from '$lib/ui';
 	import { deleteStack, operateStack, volumeResults, type StackOperation } from './actions';
-	import { RemoveOrphansRequest, startDeploy, startPull } from './deploy.svelte';
+	import { RemoveOrphansRequest, startDeploy } from './deploy.svelte';
 	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import RemoveOrphansDialog from './RemoveOrphansDialog.svelte';
 	import EditDetailsDialog from './EditDetailsDialog.svelte';
@@ -74,7 +72,6 @@
 	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
-	import UpdateDialog from './UpdateDialog.svelte';
 	import StackIcon from './StackIcon.svelte';
 	import SaveAsTemplateDialog from '$lib/features/templates/SaveAsTemplateDialog.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
@@ -191,7 +188,6 @@
 	let editing = $state(false);
 	let renaming = $state(false);
 	let savingTemplate = $state(false);
-	let updating = $state(false);
 	let starting = $state<'deploy' | 'build' | 'pull' | null>(null);
 
 	const OPS: Record<
@@ -241,24 +237,6 @@
 			await startDeploy(stack, choice, tray, queryClient);
 		} catch (e) {
 			toast.error(deployFailure(title, choice), { body: errorMessage(e) });
-		} finally {
-			starting = null;
-		}
-	}
-
-	// Pull downloads the images only; nothing is recreated until a deploy.
-	async function pull() {
-		if (starting) return;
-		starting = 'pull';
-		try {
-			await startPull(
-				stack,
-				tray,
-				queryClient,
-				can('stack.deploy') ? () => void deploy({}) : undefined
-			);
-		} catch (e) {
-			toast.error(`The images of ${title} were not pulled`, { body: errorMessage(e) });
 		} finally {
 			starting = null;
 		}
@@ -319,15 +297,19 @@
 		const items: MenuEntry[] = [{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) }];
 		if (hasBuild)
 			items.push({
-				label: 'Build and deploy',
+				label: 'Build & Deploy',
 				icon: Hammer,
 				onSelect: () => deploy({ build: true })
 			});
-		// Pull downloads the images only: nothing is recreated until a deploy.
-		if (can('stack.update'))
-			items.push({ label: 'Pull images only', icon: Download, onSelect: () => void pull() });
+		// Pulls every image first, then deploys (what the former Update did).
 		items.push({
-			label: 'Deploy and remove orphaned containers…',
+			label: 'Pull & Deploy',
+			icon: Download,
+			description: updateDot ? 'Newer images are available' : undefined,
+			onSelect: () => deploy({ pull: true })
+		});
+		items.push({
+			label: 'Cleanup Orphans & Deploy',
 			icon: Eraser,
 			onSelect: () => removeOrphans.request()
 		});
@@ -385,9 +367,6 @@
 		}
 		return items;
 	});
-
-	// Update is a deploy that pulls every image first.
-	const canUpdate = $derived(full && can('stack.deploy') && !restoring);
 </script>
 
 {#snippet links()}<LinkList links={stack.links} label="Links of {title}" />{/snippet}
@@ -412,7 +391,9 @@
 				<SplitButton
 					label="Deploy"
 					icon={Rocket}
-					menuLabel="More deploy options"
+					menuLabel={updateDot
+						? 'More deploy options (newer images are available)'
+						: 'More deploy options'}
 					loading={starting !== null}
 					disabled={offline}
 					onclick={() => deploy({})}
@@ -442,19 +423,6 @@
 					title={protectedStack ? selfReason : undefined}
 					onclick={() => ask('stop')}>Stop</Button
 				>
-			{/if}
-			{#if canUpdate}
-				<Button
-					icon={CircleArrowUp}
-					disabled={offline || starting !== null}
-					title={updateDot ? 'Newer images are available' : undefined}
-					onclick={() => (updating = true)}
-				>
-					Update
-					{#if updateDot}<span class="update-dot" aria-hidden="true"></span><span
-							class="sr-only">(update available)</span
-						>{/if}
-				</Button>
 			{/if}
 			{#if protectedStack}<span class="sr-only">{selfReason}</span>{/if}
 			{#if overflow.length}
@@ -522,18 +490,3 @@
 {#if can('stack.files.download') && can('stack.definition.read')}
 	<SaveAsTemplateDialog bind:open={savingTemplate} {stack} />
 {/if}
-
-{#if canUpdate}
-	<UpdateDialog bind:open={updating} {stack} images={images.data} {tray} />
-{/if}
-
-<style>
-	.update-dot {
-		display: inline-block;
-		width: 7px;
-		height: 7px;
-		margin-left: 2px;
-		border-radius: var(--radius-full);
-		background: var(--warn);
-	}
-</style>

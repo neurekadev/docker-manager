@@ -233,21 +233,18 @@ times"). The record drawer keeps the action key, raw targets, request
 ID, error class and chain position under Advanced.
 
 Stack actions that start jobs go through `$lib/features/stacks/deploy.svelte.ts`
-(`startDeploy`, `startPull`, `startUpdate`) and the page's `JobTray`: a
-tracked job's `successFor` computes the success toast once it ended, from
-data read again (a deploy whose `appliedRevision.at` did not move started
-no container: "Nothing to deploy"; a pull names the services whose
-image-status gained a `pulledImageId`). Deploy is the header's one primary
-action (a split button that deploys at once); its menu has "Build and
-deploy", "Pull images only" (`stack.update`: downloads images, recreates
-nothing) and "Deploy and remove orphaned containers…", whose confirmation
-(`RemoveOrphansDialog`, opened through the stack page context's
-`removeOrphans` request) the overview's drift notice ("Remove old
-containers…") opens too. Update (`UpdateDialog`, with `stack.deploy`)
-names the services with a newer image (`pendingUpdates`: image and tag,
-never digests) and then runs one deploy with `pull: always` ("Updated
-Silo"); schedules and automatic updates stay in the update policy (a link
-to the Policies tab). Start and Restart run at once, Stop, Take down and
+(`startDeploy`) and the page's `JobTray`: a tracked job's `successFor`
+computes the success toast once it ended, from data read again (a deploy
+whose `appliedRevision.at` did not move started no container: "Nothing to
+deploy"). Deploy is the header's one primary action (a split button that
+deploys at once); its menu has "Build & Deploy" (stacks with a `build:`
+section), "Pull & Deploy" (one deploy with `pull: always`; its description
+says "Newer images are available" when `updateAvailable`, and the menu
+button's label says so too) and "Cleanup Orphans & Deploy", whose
+confirmation (`RemoveOrphansDialog`, opened through the stack page
+context's `removeOrphans` request) the overview's drift notice ("Remove old
+containers…") opens too. There is no separate Update button; schedules and
+automatic updates stay in the update policy. Start and Restart run at once, Stop, Take down and
 Delete confirm (the same rule in the services table and the stack list's
 row menu). The header hides its actions while the migration wizard is
 open, and Migrate while the caller sees one environment. Rename

@@ -1,27 +1,12 @@
-// Starting stack deploys and pulls from the stack page (#7). The header's
-// Deploy menu and the overview's drift notice share one "deploy and remove
+// Starting stack deploys from the stack page (#7). The header's Deploy
+// menu and the overview's drift notice share one "deploy and remove
 // orphaned containers" request (the confirmation lives in the header).
-// Deploys and pulls are tracked in the page's job tray; their success
-// toast says what actually changed (a deploy that started no container,
-// a pull that found nothing newer).
+// Deploys are tracked in the page's job tray; their success toast says
+// what actually changed (e.g. a deploy that started no container).
 import type { QueryClient } from '@tanstack/svelte-query';
-import { deployStackWith, pullStack } from './actions';
-import {
-	deployFailure,
-	deploySuccess,
-	deployTitle,
-	pullResult,
-	stackTitle,
-	updateSuccess,
-	type DeployChoice
-} from './model';
-import {
-	stackImageStatusQuery,
-	stackKeys,
-	stackQuery,
-	type Stack,
-	type StackImageStatus
-} from './queries';
+import { deployStackWith } from './actions';
+import { deployFailure, deploySuccess, deployTitle, stackTitle, type DeployChoice } from './model';
+import { stackQuery, type Stack } from './queries';
 import type { JobTray } from './tray.svelte';
 
 /** Opens the "deploy and remove orphaned containers" confirmation. */
@@ -54,63 +39,6 @@ export async function startDeploy(
 		successFor: async () => {
 			const cur = await queryClient.fetchQuery({ ...stackQuery(stack.id), staleTime: 0 });
 			return deploySuccess(stackTitle(cur), choice, before, cur.appliedRevision?.at);
-		}
-	});
-}
-
-/**
- * Starts a pull (images only, no container changes) and adds it to the
- * tray. When it succeeds, the image status is read again: services with a
- * newer image on the host are named and a Deploy action offered.
- */
-export async function startPull(
-	stack: Stack,
-	tray: JobTray,
-	queryClient: QueryClient,
-	deploy?: () => void
-): Promise<void> {
-	const title = stackTitle(stack);
-	const before = queryClient.getQueryData<StackImageStatus[]>(stackKeys.imageStatus(stack.id));
-	const job = await pullStack(stack.id);
-	tray.add(job, {
-		title: `Pull ${title}`,
-		success: `Pulled the images of ${title}`,
-		failure: `The images of ${title} were not pulled`,
-		successFor: async () => {
-			const after = stack.actions.includes('stack.read')
-				? await queryClient.fetchQuery({ ...stackImageStatusQuery(stack.id), staleTime: 0 })
-				: undefined;
-			const r = pullResult(title, before, after);
-			return {
-				title: r.title,
-				body: r.body,
-				action: r.newer.length && deploy ? { label: 'Deploy', onclick: deploy } : undefined
-			};
-		}
-	});
-}
-
-/**
- * Updates the stack: one deploy that pulls every image first, so services
- * with a newer image are recreated on it (the header's Update, #20). When
- * it succeeds the stack is read again: an unchanged last deploy time means
- * every service already ran the newest image.
- */
-export async function startUpdate(
-	stack: Stack,
-	tray: JobTray,
-	queryClient: QueryClient
-): Promise<void> {
-	const title = stackTitle(stack);
-	const before = stack.appliedRevision?.at;
-	const job = await deployStackWith(stack.id, { pull: true });
-	tray.add(job, {
-		title: `Update ${title}`,
-		success: `Updated ${title}`,
-		failure: `${title} was not updated`,
-		successFor: async () => {
-			const cur = await queryClient.fetchQuery({ ...stackQuery(stack.id), staleTime: 0 });
-			return updateSuccess(stackTitle(cur), before, cur.appliedRevision?.at);
 		}
 	});
 }

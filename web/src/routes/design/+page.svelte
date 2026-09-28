@@ -7,7 +7,6 @@
 	import { onDestroy } from 'svelte';
 	import Activity from '@lucide/svelte/icons/activity';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
-	import CircleArrowUp from '@lucide/svelte/icons/circle-arrow-up';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import Download from '@lucide/svelte/icons/download';
@@ -419,16 +418,13 @@
 							onSelect: () => toast.success('Deployed Silo')
 						},
 						{
-							label: 'Build and deploy',
-							onSelect: () => toast.success('Built and deployed Silo')
-						},
-						{
-							label: 'Pull images only',
+							label: 'Pull & Deploy',
 							icon: Download,
-							onSelect: () => toast.success('Pulled the images of Silo')
+							description: 'Newer images are available',
+							onSelect: () => toast.success('Pulled newer images and redeployed Silo')
 						},
 						{
-							label: 'Deploy and remove orphaned containers…',
+							label: 'Cleanup Orphans & Deploy',
 							onSelect: () => (confirmOpen = true)
 						}
 					]}
@@ -437,11 +433,6 @@
 					>Restart</Button
 				>
 				<Button icon={Square} onclick={() => (confirmOpen = true)}>Stop</Button>
-				<Button icon={CircleArrowUp}
-					>Update <span class="update-dot" aria-hidden="true"></span><span class="sr-only"
-						>, update available</span
-					></Button
-				>
 				<Menu
 					label="More stack actions"
 					items={[
@@ -964,16 +955,6 @@
 	.row-actions {
 		display: inline-flex;
 		gap: 2px;
-	}
-
-	.update-dot {
-		display: inline-block;
-		margin-left: 2px;
-		vertical-align: middle;
-		width: 7px;
-		height: 7px;
-		border-radius: var(--radius-full);
-		background: var(--warn);
 	}
 
 	.hues {

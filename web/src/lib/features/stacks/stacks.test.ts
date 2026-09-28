@@ -174,7 +174,7 @@ describe('StackHeader', () => {
 		expect(screen.getByRole('button', { name: 'Copy host path' })).toBeInTheDocument();
 
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled();
-		expect(screen.getByRole('button', { name: 'More deploy options' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /^More deploy options/ })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Restart' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
 		// Pull is a deploy option, not a button of its own.
@@ -313,29 +313,26 @@ describe('StackHeader', () => {
 		});
 	});
 
-	it('updates after naming the newer images, with one deploy that pulls them', async () => {
+	it('pulls every image and deploys from the menu, saying when newer images are available', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(await screen.findByRole('button', { name: /Update.*update available/ }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Update Silo?' });
-		const list = within(dialog).getByRole('list', { name: 'Newer images' });
-		expect(within(list).getByText('redis')).toBeInTheDocument();
-		expect(within(list).getByText('redis:7')).toBeInTheDocument();
-		expect(within(dialog).getByRole('link', { name: 'Update policy' })).toHaveAttribute(
-			'href',
-			routes.stack('st-1', 'policies')
+		// No separate Update button any more: Pull & Deploy replaces it.
+		expect(screen.queryByRole('button', { name: /^Update/ })).not.toBeInTheDocument();
+		await user.click(
+			await screen.findByRole('button', {
+				name: 'More deploy options (newer images are available)'
+			})
 		);
-		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(within(dialog).getByRole('button', { name: 'Update' }));
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Update Silo'));
-		expect(tray.jobs[0]).toMatchObject({
-			success: 'Updated Silo',
-			failure: 'Silo was not updated'
-		});
+		const item = await screen.findByRole('menuitem', { name: 'Pull & Deploy' });
+		expect(item).toHaveAccessibleDescription('Newer images are available');
+		await user.click(item);
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and deploy Silo'));
+		expect(tray.jobs[0]).toMatchObject({ failure: 'Silo was not pulled and deployed' });
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
 			body: { pull: 'always' }
 		});
+		expect(seen.some((s) => s.path.endsWith('/pulls'))).toBe(false);
 	});
 
 	it('hides the actions while the migration wizard is open', () => {
@@ -352,40 +349,17 @@ describe('StackHeader', () => {
 			expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
 	});
 
-	it('pulls the images without deploying them', async () => {
-		const user = setup();
-		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Pull images only' }));
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull Silo'));
-		const post = seen.find((s) => s.method === 'POST');
-		expect(post?.path).toBe('/api/v1/stacks/st-1/pulls');
-		expect(seen.some((s) => s.path.endsWith('/deployments'))).toBe(false);
-	});
-
-	it('hides Pull without stack.update', async () => {
-		const user = setup();
-		header(stack({ actions: ALL.filter((a) => a !== 'stack.update') }));
-		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
-		await screen.findByRole('menu');
-		expect(
-			screen.queryByRole('menuitem', { name: 'Pull images only' })
-		).not.toBeInTheDocument();
-	});
-
 	it('removes orphaned containers only from the deploy menu, after a confirmation', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
+		await user.click(await screen.findByRole('button', { name: /^More deploy options/ }));
 		const menu = await screen.findByRole('menu');
 		expect(
 			within(menu)
 				.getAllByRole('menuitem')
 				.map((i) => i.textContent?.trim())
-		).toEqual(['Deploy', 'Pull images only', 'Deploy and remove orphaned containers…']);
-		await user.click(
-			within(menu).getByRole('menuitem', { name: 'Deploy and remove orphaned containers…' })
-		);
+		).toEqual(['Deploy', expect.stringMatching(/^Pull & Deploy/), 'Cleanup Orphans & Deploy']);
+		await user.click(within(menu).getByRole('menuitem', { name: 'Cleanup Orphans & Deploy' }));
 		const dialog = await screen.findByRole('alertdialog', {
 			name: 'Deploy Silo and remove orphaned containers?'
 		});

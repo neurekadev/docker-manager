@@ -54,23 +54,25 @@ settings changed are recreated. If everything already matches, you see
 
 The menu next to **Deploy** has more options:
 
-- **Build and deploy**: builds the images of services that have a `build:`
-  section first.
-- **Pull images only**: downloads newer images and changes nothing else.
-  Press **Deploy** afterwards to run them.
-- **Deploy and remove orphaned containers**: also removes containers of
-  services you deleted from `compose.yaml`. Volumes and files are kept.
+- **Pull & Deploy**: downloads every image of the stack first, then
+  deploys, so services with a newer image get it. See
+  [Update to newer images](#update-to-newer-images).
+- **Cleanup Orphans & Deploy**: also removes containers of services you
+  deleted from `compose.yaml`, after you confirm. Volumes and files are
+  kept.
+- **Build & Deploy** (only for stacks with a `build:` section): builds
+  those images first.
 
 When you remove a service from `compose.yaml`, its container stays on the
 server after a normal deploy. The stack page tells you, and offers **Remove
 old containers**.
 
-## Update
+## Update to newer images
 
-A dot on the **Update** button means newer images are available. **Update**
-downloads every image of the stack and deploys it again, in one step. If no
-newer image is known, the dialog says the stack is up to date, and you can
-still update.
+Open the menu next to **Deploy** and choose **Pull & Deploy**. It downloads
+every image of the stack and deploys it again, in one step. When newer
+images are known, the menu says **Newer images are available** under
+**Pull & Deploy**. If nothing is newer, the stack keeps running as it is.
 
 To check for updates and apply them on a schedule, use an update policy
 (see [Image updates](/docs/updates)).
@@ -148,5 +150,5 @@ Good to know:
 ## Docker Manager's own stack
 
 If you import Docker Manager's own project as a stack, **Deploy** and
-**Update** work, so you can upgrade Docker Manager from the app. Restart,
+**Pull & Deploy** work, so you can upgrade Docker Manager from the app. Restart,
 Stop, Take down, Migrate, Rename and Delete are turned off for it.
