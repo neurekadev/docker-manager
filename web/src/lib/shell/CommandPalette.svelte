@@ -94,6 +94,10 @@
 				]
 	);
 	const groups = $derived(grouped(results));
+	// The options in the order they are shown (grouped): the arrow keys walk
+	// this, never the unsorted result list, so the highlight moves one row
+	// at a time.
+	const shown = $derived(groups.flatMap((g) => g.items));
 	const gaps = $derived(dq && search.data ? search.data.gaps : []);
 
 	$effect(() => {
@@ -110,15 +114,15 @@
 
 	function onKey(e: KeyboardEvent) {
 		if (e.key === 'ArrowDown') {
-			active = Math.min(results.length - 1, active + 1);
+			active = Math.min(shown.length - 1, active + 1);
 		} else if (e.key === 'ArrowUp') {
 			active = Math.max(0, active - 1);
 		} else if (e.key === 'Home') {
 			active = 0;
 		} else if (e.key === 'End') {
-			active = results.length - 1;
+			active = shown.length - 1;
 		} else if (e.key === 'Enter') {
-			go(results[active]);
+			go(shown[active]);
 		} else {
 			return;
 		}
@@ -126,7 +130,7 @@
 		document.getElementById(`${uid}-opt-${active}`)?.scrollIntoView({ block: 'nearest' });
 	}
 
-	const optionIndex = (r: PaletteResult) => results.indexOf(r);
+	const optionIndex = (r: PaletteResult) => shown.indexOf(r);
 </script>
 
 <Dialog.Root bind:open>

@@ -161,6 +161,56 @@ describe('CommandPalette', () => {
 		expect(fetchMock).toHaveBeenCalled();
 	});
 
+	it('moves the highlight one shown row at a time, whatever order the hits came in', async () => {
+		const user = setup();
+		// Hits arrive in name order across types; the list shows them grouped.
+		const hit = (type: string, id: string, name: string) => ({
+			type,
+			id,
+			name,
+			environmentId: 'e1',
+			environmentName: 'homelab',
+			stackId: type === 'stack' ? id : undefined
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async (req: Request) =>
+					new Response(
+						JSON.stringify({
+							query: new URL(req.url).searchParams.get('q'),
+							items: [
+								hit('stack', 's1', 'Alpha'),
+								hit('container', 'c1', 'Beta'),
+								hit('stack', 's2', 'Gamma')
+							],
+							gaps: []
+						}),
+						{ status: 200, headers: { 'Content-Type': 'application/json' } }
+					)
+			)
+		);
+		render(PaletteHarness, { props: { pages: [], onnavigate: vi.fn() } });
+		await user.click(screen.getByRole('button', { name: 'Search' }));
+		const input = await screen.findByRole('combobox', {
+			name: 'Search pages, environments, stacks and containers'
+		});
+		await user.type(input, 'a');
+		await waitFor(() =>
+			expect(screen.getByRole('option', { name: /Gamma/ })).toBeInTheDocument()
+		);
+		const options = screen.getAllByRole('option');
+		for (let i = 0; i < options.length; i++) {
+			expect(input).toHaveAttribute('aria-activedescendant', options[i].id);
+			expect(options[i]).toHaveAttribute('aria-selected', 'true');
+			await user.keyboard('{ArrowDown}');
+		}
+		// Stays on the last row, and walks back up in the same order.
+		expect(input).toHaveAttribute('aria-activedescendant', options[options.length - 1].id);
+		await user.keyboard('{ArrowUp}');
+		expect(input).toHaveAttribute('aria-activedescendant', options[options.length - 2].id);
+	});
+
 	it('offers recent pages and permitted actions before any query', async () => {
 		const user = setup();
 		const access = accessOf({
