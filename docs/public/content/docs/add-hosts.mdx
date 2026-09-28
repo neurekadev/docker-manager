@@ -61,8 +61,9 @@ Use this way if you like to keep your setup in files.
      stacks:
    ```
 
-2. Open the **On another Docker host, with Compose** tab. Copy its lines
-   into a file named `.env` next to `compose.yaml`. It looks like this:
+2. Open the **On another Docker host, with Compose** tab. Copy only its
+   lines that start with `DOCKER_AGENT_` into a file named `.env` next to
+   `compose.yaml`. It looks like this:
 
    ```bash title=".env"
    DOCKER_AGENT_MANAGER_URL=https://docker.example.com

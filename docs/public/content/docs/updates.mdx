@@ -22,8 +22,8 @@ schedule.
 
 1. Open **Updates** and press **Create update policy**.
 2. Enter a **Name** and choose the **Environments**: **All environments**
-   (servers you add later are covered too) or **One environment**. Each
-   server can have only one update policy.
+   (servers you add later are covered too; owner only) or **One
+   environment**. Each server can have only one update policy.
 3. Choose what it covers: every stack and the containers Docker Manager
    created. Untick the ones to leave out.
 4. Choose the schedules:
@@ -36,9 +36,10 @@ asking.
 
 Under **Update window and health wait** you can:
 
-- **Only update inside a window**: scheduled updates wait for these days
-  and hours, for example 02:00 to 05:00. Updates you start by hand run any
-  time.
+- **Only update inside a window**: scheduled updates only run on these
+  days and hours, for example 02:00 to 05:00. A scheduled time outside the
+  window is skipped, so set the **Update schedule** to a time inside it.
+  Updates you start by hand run any time.
 - **Health wait**: how long to wait for an updated container to become
   healthy before the update counts as failed (2 minutes if you leave it
   empty).
@@ -70,6 +71,7 @@ again. This checks every image of the policy that covers it.
 
 - Images pinned to a digest (`image@sha256:…`) and images without a tag.
 - Services that build their own image.
+- Services with a `pull_policy` other than `missing` or `if_not_present`.
 - Containers with the label `docker-manager.update.exclude=true`.
 - Containers Docker Manager did not create and that are not part of a stack.
 - Docker Manager's own containers, unless you imported Docker Manager's

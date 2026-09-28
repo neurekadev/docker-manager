@@ -5,8 +5,9 @@ description: Back up your stacks, volumes and Docker Manager itself.
 
 Docker Manager backs up your stacks (their folder and volumes), your other
 volumes and its own data. Backups are encrypted and stored in a
-**repository**: a folder on a server, or S3-compatible storage. Only the
-owner can set up repositories.
+**repository**: a folder on a server, or S3-compatible storage. The owner
+sets up backups, because only the owner can create and confirm the
+Recovery Key that makes a repository usable.
 
 Setting up takes two steps: add a repository, then create a backup policy.
 
@@ -28,8 +29,10 @@ Setting up takes two steps: add a repository, then create a backup policy.
    outside Docker Manager** and press **Confirm Recovery Key**.
 6. Docker Manager tests the repository. Press **Done**.
 
-**A local folder only holds backups of its own server.** S3 storage holds
-backups of every server. For several servers, S3 is the easiest choice.
+**A local folder only holds what its writer backs up.** A folder written by
+the manager holds only Docker Manager's own data. A folder written by a
+server holds only that server's stacks and volumes. S3 storage holds
+everything. For several servers, S3 is the easiest choice.
 
 ## The Recovery Key
 
@@ -59,7 +62,7 @@ A **backup policy** says what to back up, where, when and for how long.
    leave out. Stacks you add later are included too. Also:
    - **Back up the manager state**: Docker Manager's own data (settings,
      users, stacks, templates). Only the owner can turn it on. It needs an
-     S3 repository or a local folder on the manager's server.
+     S3 repository or a local folder written by **The manager**.
    - **Stop containers during backups**: off by default. Backups then run
      while your apps keep running. Turn it on for databases that must be
      stopped for a clean copy.
@@ -143,7 +146,10 @@ Then run `docker compose up -d`.
   volumes of its server. Use a different folder for each repository, for
   example `/srv/backups/manager` and `/srv/backups/apps`.
 - On other servers, add the agent's lines to that server's agent.
-- The folder can't be inside Docker's data folder or a stack folder.
+- The folder must be below a folder you listed. For the agent, it can't
+  be inside Docker's data folder, and can't contain or sit inside a stack
+  folder or Docker's volume folder. For the manager, it can't be inside
+  Docker Manager's own data volume.
 - Mount it at the same path inside the container, as above. After a
   recovery, the folders must be at the same paths again.
 - Separate several folders with commas.
