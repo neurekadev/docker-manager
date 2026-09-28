@@ -61,11 +61,12 @@ type Stacks interface {
 	RecordUpdatedImages(ctx context.Context, db bun.IDB, stackID string, images []domain.StackImage, after []domain.StackServiceState) error
 }
 
-// Registries selects connections and checks digests (#19,
-// *registries.Service).
+// Registries selects connections, checks digests and reads image
+// creation times (#19, *registries.Service).
 type Registries interface {
 	Select(ctx context.Context, req domain.RegistrySelectRequest) (domain.RegistrySelection, error)
 	Check(ctx context.Context, req registries.CheckRequest) (registries.CheckResult, error)
+	Created(ctx context.Context, req registries.CheckRequest, digest string) (time.Time, error)
 }
 
 // Agents sends requests to an environment's agent (*agents.Hub).
@@ -202,9 +203,12 @@ func (s *Service) Get(ctx context.Context, id string) (domain.UpdatePolicy, erro
 	return store.GetUpdatePolicy(ctx, s.db, id)
 }
 
-// List returns policies in ID order (environment "" = all).
+// List returns policies in ID order (environment "" = all). Target records
+// an environment policy no longer covers (excluded, or their stack or
+// container is gone) are left out: they still exist for their history
+// (Get, the environment policy's targets) but no longer apply.
 func (s *Service) List(ctx context.Context, environmentID, afterID string, limit int) ([]domain.UpdatePolicy, error) {
-	return store.ListUpdatePolicies(ctx, s.db, environmentID, afterID, limit)
+	return store.ListCoveredUpdatePolicies(ctx, s.db, environmentID, afterID, limit)
 }
 
 // Candidates returns a policy's digest model per service.

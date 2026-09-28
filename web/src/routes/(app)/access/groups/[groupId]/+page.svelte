@@ -72,7 +72,9 @@
 	const envName = (e: string) => environmentName(envs.data, e);
 
 	const group = $derived(groups.data?.find((g) => g.id === id));
-	const members = $derived(groupMembers(users.data, id));
+	// The owner's account may be in the group too; group rules never apply
+	// to it, so it is neither listed nor counted, and deleting the group
+	// moves it to the default group.
 	const ownerHere = $derived((users.data ?? []).some((u) => u.owner && u.groupId === id));
 	const groupName = (gid: string) =>
 		groups.data?.find((g) => g.id === gid)?.name ?? 'another group';
@@ -278,7 +280,7 @@
 			);
 		}
 		toast.success(`Deleted group ${g.name}`);
-		await qc.invalidateQueries({ queryKey: accessKeys.groups() });
+		await qc.invalidateQueries({ queryKey: ['permissions'] });
 		await goto(routes.accessGroups());
 	}
 
@@ -338,7 +340,7 @@
 						? 'New users join this group when they redeem an invitation.'
 						: 'Members get these rules; their own overrides win over them.'}
 					meta={[
-						...(users.data ? [{ label: membersText(members.length) }] : []),
+						{ label: membersText(g.memberCount) },
 						{ label: `${g.ruleCount} ${g.ruleCount === 1 ? 'rule' : 'rules'}` }
 					]}
 				>
@@ -364,7 +366,7 @@
 
 				<Card
 					title="Members"
-					subtitle={members.length ? membersText(members.length) : undefined}
+					subtitle={g.memberCount ? membersText(g.memberCount) : undefined}
 					padding="none"
 				>
 					{#snippet actions()}
@@ -390,12 +392,6 @@
 										: 'Invite someone'}{g.default
 										? '; new users join this group when they redeem an invitation.'
 										: '.'}
-								</p>
-							{/if}
-							{#if ownerHere}
-								<p class="owner-note muted">
-									The owner's account is in this group too. Group rules never
-									apply to the owner, so it is not listed.
 								</p>
 							{/if}
 						{/snippet}
@@ -526,7 +522,12 @@
 					title="Delete group {g.name}"
 					consequences={[
 						'The group and its rules are removed.',
-						'It has no members, so nobody’s access changes.'
+						'It has no members, so nobody’s access changes.',
+						...(ownerHere
+							? [
+									'Your own account moves to the default group; as the owner you keep every permission.'
+								]
+							: [])
 					]}
 					confirmText={g.name}
 					confirmLabel="Delete group"
@@ -538,14 +539,8 @@
 </Page>
 
 <style>
-	.none,
-	.owner-note {
+	.none {
 		padding: var(--space-4) var(--space-5);
-	}
-
-	.owner-note {
-		border-top: 1px solid var(--border-subtle);
-		font-size: var(--text-caption);
 	}
 
 	.pick {
@@ -557,8 +552,7 @@
 	}
 
 	@media (max-width: 767px) {
-		.none,
-		.owner-note {
+		.none {
 			padding: var(--space-4);
 		}
 	}

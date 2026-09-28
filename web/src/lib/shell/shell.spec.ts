@@ -20,7 +20,7 @@ import {
 	recentResults
 } from './palette';
 import { RecentPages } from './recent.svelte';
-import { bannerDelay, indicatorText, OFFLINE_BANNER_DELAY_MS } from './live-banner';
+import { bannerDelay, bannerText, indicatorText, OFFLINE_BANNER_DELAY_MS } from './live-banner';
 
 function perms(p: Partial<MyPermissions>): MyPermissions {
 	return {
@@ -297,6 +297,19 @@ describe('notices', () => {
 			'container nginx'
 		);
 		expect(policyLabel(auto(id, { type: 'stack', id: 's9' }, 1), names)).toBe('a stack');
+		// The manager names the target: its records read "Automatic updates
+		// for zerobyte", the notice names the stack itself.
+		expect(
+			policyLabel({
+				id,
+				name: 'Automatic updates for Zerobyte backups',
+				target: { type: 'stack', id: 's1' },
+				targetName: 'Zerobyte backups'
+			})
+		).toBe('Zerobyte backups');
+		expect(policyLabel({ id, name: 'Silo images', target: { type: 'stack', id: 's1' } })).toBe(
+			'Silo images'
+		);
 
 		const n = new Notices(() => 1);
 		const feed = updateNotices(n, names);
@@ -487,6 +500,12 @@ describe('live connection banner and indicator (#23 liveStatus)', () => {
 		expect(bannerDelay('reconnecting', 1_000, 1_000)).toBe(OFFLINE_BANNER_DELAY_MS);
 		expect(bannerDelay('reconnecting', 1_000, 4_000)).toBe(2_000);
 		expect(bannerDelay('polling', 1_000, 60_000)).toBe(0);
+	});
+
+	it('names too many open tabs when that is why the stream stopped', () => {
+		expect(bannerText(false).title).toBe('Live updates are disconnected');
+		expect(bannerText(true).title).toBe('Too many Docker Manager tabs are open');
+		expect(bannerText(true).body).toContain('Close tabs');
 	});
 
 	it('says nothing while live or signed out', () => {

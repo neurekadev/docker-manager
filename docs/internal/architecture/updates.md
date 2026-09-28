@@ -29,6 +29,30 @@ exclude stack IDs and standalone container names (an all-environments policy
 uses `environmentID/containerName`). A container with
 `docker-manager.update.exclude=true` is also omitted.
 
+**Target records** (`update_policies` rows with a `parent_id`) are
+reconciled (`Service.reconcile`) whenever the policy's targets are listed,
+checked, previewed or run (manual or scheduled):
+
+- A record is **named after its target** in plain words: "Automatic updates
+  for zerobyte" (the stack's display name, else its Compose project name,
+  or the container's name). The name follows renames at the next
+  reconciliation. Names are unique per environment: a second target with
+  the same name gets "... (stack)" / "... (container)", then
+  "... (stack 2)". Names never contain IDs; records named
+  "Automatic update <id>" by earlier versions are renamed by the same
+  reconciliation (no migration: only it knows the targets' current names
+  and keeps them in sync afterwards). A deleted stack's record keeps its
+  last name ("Automatic updates for a removed stack" when it only had an
+  ID-based one).
+- A target the policy no longer covers keeps its record, **inactive**, for
+  its history. `GET .../environment-update-policies/{id}/targets` says why
+  in `inactiveReason`: `excluded` (the policy's exclusions or the
+  container's label) or `missing` (the stack or container no longer exists
+  in the scope, or no longer qualifies: no saved specification, Docker
+  Manager's own). `GET /update-policies` (and so update badges, counts and
+  notices) lists only covered records; inactive ones stay readable by ID.
+  Its `targetName` is the target's name as users know it.
+
 Covered targets:
 
 - **stack**: every service of every covered managed stack. Docker Manager's own
@@ -82,7 +106,8 @@ registry/repository/tag, the host platform checked (from the applied image,
 `os/arch[/variant]`), the registry connection used, the **current** digest
 (applied on the host, the #7 baseline or the container image's repository
 digest), the **previous** digest (before the last update), the
-**candidate** platform manifest digest and the tag's index digest, status,
+**candidate** platform manifest digest and the tag's index digest, the
+candidate image's creation time (`publishedAt`, display only), status,
 check time and job, errors with retry guidance, and the stack definition's
 hash read before and after the check.
 
@@ -104,6 +129,15 @@ manifest**:
   `up_to_date`: **an index change never triggers an update**;
 - otherwise `update_available` (or `quarantined` when that digest failed
   before).
+
+A new candidate digest gets its image's creation time
+(`registries.Service.Created`: the image config's `created`, one manifest
+GET by digest and one blob GET, cached per digest) as
+`candidate_published_at`; it is kept while the candidate digest stays the
+same, so each new digest is read once. It is shown next to the new version
+and never decides anything (the comparison stays on digests). An absent
+time (no `created`, the Unix epoch of reproducible builds, a registry
+error) leaves it empty and never fails the check.
 
 A registry failure (`unauthorized`, `forbidden`, `rate_limited`,
 `registry_unavailable`, `not_found`, `platform_not_found`,
@@ -221,6 +255,7 @@ and the real agent executor over real files: digest follows the tag,
 unchanged digest is a no-op, index-vs-platform, quarantine and no retry
 loop, 401/429 never pull, refused pulls need a new check, source drift,
 nothing before enabling, windows, standalone containers, ineligible
+reasons, candidate publish times, target record names and inactive
 reasons), `internal/agent/lifecycle` (`TestUpdate*`, `TestConfirm`:
 dependency order, health, completion, optional dependencies, restart
 propagation, stopped services), `internal/agent/stacks` (`TestUpdate*`:

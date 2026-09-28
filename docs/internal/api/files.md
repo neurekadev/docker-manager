@@ -254,7 +254,8 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   `If-Match` (Ctrl/Cmd+S), Markdown preview (a safe subset; no HTML from
   files). Saving a Compose source of a stack records a revision and
   deploys nothing: the editor then validates the definition on disk
-  (`POST /stacks/validations`), its toast offers Deploy, and its status
+  (`POST /stacks/{stackId}/validations`, with `stack.definition.write`),
+  its toast offers Deploy, and its status
   line offers Deploy while the stack has undeployed changes (with
   `stack.deploy`). Large files open read-only (first 512 KiB), binary files as a
   download (images previewed up to 5 MiB). An external change keeps the

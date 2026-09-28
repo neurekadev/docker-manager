@@ -152,10 +152,25 @@ func GetUpdatePolicy(ctx context.Context, db bun.IDB, id string) (domain.UpdateP
 	return row.toDomain(), nil
 }
 
-// ListUpdatePolicies returns policies in ID order (environment "" = all).
+// ListUpdatePolicies returns policies in ID order (environment "" = all),
+// including the inactive target records of environment policies.
 func ListUpdatePolicies(ctx context.Context, db bun.IDB, environmentID, afterID string, limit int) ([]domain.UpdatePolicy, error) {
+	return listUpdatePolicies(ctx, db, environmentID, afterID, limit, false)
+}
+
+// ListCoveredUpdatePolicies is ListUpdatePolicies without the target
+// records an environment policy no longer covers (inactive: excluded, or
+// the stack or container is gone); they are kept only for their history.
+func ListCoveredUpdatePolicies(ctx context.Context, db bun.IDB, environmentID, afterID string, limit int) ([]domain.UpdatePolicy, error) {
+	return listUpdatePolicies(ctx, db, environmentID, afterID, limit, true)
+}
+
+func listUpdatePolicies(ctx context.Context, db bun.IDB, environmentID, afterID string, limit int, coveredOnly bool) ([]domain.UpdatePolicy, error) {
 	var rows []updatePolicyRow
 	q := db.NewSelect().Model(&rows).Order("id ASC")
+	if coveredOnly {
+		q = q.Where("active = 1")
+	}
 	if environmentID != "" {
 		q = q.Where("environment_id = ?", environmentID)
 	}
@@ -229,6 +244,7 @@ type updateCandidateRow struct {
 	PreviousDigest       string     `bun:"previous_digest,notnull"`
 	CandidateDigest      string     `bun:"candidate_digest,notnull"`
 	CandidateIndexDigest string     `bun:"candidate_index_digest,notnull"`
+	CandidatePublishedAt *time.Time `bun:"candidate_published_at"`
 	ErrorClass           string     `bun:"error_class,notnull"`
 	ErrorMessage         string     `bun:"error_message,notnull"`
 	RetryAfterSeconds    int        `bun:"retry_after_seconds,notnull"`
@@ -244,8 +260,8 @@ func fromUpdateCandidate(c *domain.UpdateCandidate) updateCandidateRow {
 		Repository: c.Repository, Tag: c.Tag, Platform: c.Platform, RegistryConnectionID: c.RegistryConnectionID, Eligible: b2i(c.Eligible),
 		Reason: c.Reason, ReasonMessage: c.ReasonMessage, NonVersionTag: b2i(c.NonVersionTag), Status: string(c.Status),
 		AppliedDigest: c.AppliedDigest, AppliedImageID: c.AppliedImageID, PreviousDigest: c.PreviousDigest, CandidateDigest: c.CandidateDigest,
-		CandidateIndexDigest: c.CandidateIndexDigest, ErrorClass: c.ErrorClass, ErrorMessage: c.ErrorMessage,
-		RetryAfterSeconds: c.RetryAfterSeconds, CheckedAt: utcPtr(c.CheckedAt), CheckJobID: c.CheckJobID,
+		CandidateIndexDigest: c.CandidateIndexDigest, CandidatePublishedAt: utcPtr(c.CandidatePublishedAt), ErrorClass: c.ErrorClass,
+		ErrorMessage: c.ErrorMessage, RetryAfterSeconds: c.RetryAfterSeconds, CheckedAt: utcPtr(c.CheckedAt), CheckJobID: c.CheckJobID,
 		SourceHashBefore: c.SourceHashBefore, SourceHashAfter: c.SourceHashAfter, UpdatedAt: c.UpdatedAt.UTC()}
 }
 
@@ -254,8 +270,8 @@ func (r updateCandidateRow) toDomain() domain.UpdateCandidate {
 		Repository: r.Repository, Tag: r.Tag, Platform: r.Platform, RegistryConnectionID: r.RegistryConnectionID, Eligible: r.Eligible == 1,
 		Reason: r.Reason, ReasonMessage: r.ReasonMessage, NonVersionTag: r.NonVersionTag == 1, Status: domain.UpdateCandidateStatus(r.Status),
 		AppliedDigest: r.AppliedDigest, AppliedImageID: r.AppliedImageID, PreviousDigest: r.PreviousDigest, CandidateDigest: r.CandidateDigest,
-		CandidateIndexDigest: r.CandidateIndexDigest, ErrorClass: r.ErrorClass, ErrorMessage: r.ErrorMessage,
-		RetryAfterSeconds: r.RetryAfterSeconds, CheckedAt: utcPtr(r.CheckedAt), CheckJobID: r.CheckJobID,
+		CandidateIndexDigest: r.CandidateIndexDigest, CandidatePublishedAt: utcPtr(r.CandidatePublishedAt), ErrorClass: r.ErrorClass,
+		ErrorMessage: r.ErrorMessage, RetryAfterSeconds: r.RetryAfterSeconds, CheckedAt: utcPtr(r.CheckedAt), CheckJobID: r.CheckJobID,
 		SourceHashBefore: r.SourceHashBefore, SourceHashAfter: r.SourceHashAfter, UpdatedAt: r.UpdatedAt.UTC()}
 }
 
@@ -270,7 +286,8 @@ func UpsertUpdateCandidate(ctx context.Context, db bun.IDB, c *domain.UpdateCand
 		Set("reason = EXCLUDED.reason, reason_message = EXCLUDED.reason_message, non_version_tag = EXCLUDED.non_version_tag").
 		Set("status = EXCLUDED.status, applied_digest = EXCLUDED.applied_digest, applied_image_id = EXCLUDED.applied_image_id").
 		Set("previous_digest = EXCLUDED.previous_digest, candidate_digest = EXCLUDED.candidate_digest").
-		Set("candidate_index_digest = EXCLUDED.candidate_index_digest, error_class = EXCLUDED.error_class").
+		Set("candidate_index_digest = EXCLUDED.candidate_index_digest, candidate_published_at = EXCLUDED.candidate_published_at").
+		Set("error_class = EXCLUDED.error_class").
 		Set("error_message = EXCLUDED.error_message, retry_after_seconds = EXCLUDED.retry_after_seconds").
 		Set("checked_at = EXCLUDED.checked_at, check_job_id = EXCLUDED.check_job_id").
 		Set("source_hash_before = EXCLUDED.source_hash_before, source_hash_after = EXCLUDED.source_hash_after").

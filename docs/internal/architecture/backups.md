@@ -309,10 +309,14 @@ repository page. The header's primary action is "Create backup policy"
 on every tab. Policy pages follow the shared policy layout (status
 sentence, Back up now / Edit / overflow, KPIs, what it covers, schedule
 with next runs, recent runs); creating a policy is a wizard, editing one
-screen. The policy list omits `recentSets` and `schedule.nextRun`, so
-lists that show the last run use `backupPoliciesWithSetsQuery` (one
-detail request per policy). Set members carry no backup ID: the UI finds
-a member's backup among `GET /backups?setId=` (`memberBackup`).
+screen. The policy list returns every policy shown in full with the
+detail's `recentSets` (the newest 5) and `schedule.nextRun`, looked up in
+one batch per page (`addPolicyRuns`: one query for the sets of all its
+policies, a `ROW_NUMBER()` window per policy, one for their members'
+backups and one for the next runs), so the UI reads only the list
+(`backupPoliciesQuery`). Set members carry `backupId`, the backup
+(`GET /backups/{id}`) they took, when it exists, is not forgotten and the
+caller can see it; `SetMembers` links to it.
 Stacks and volumes have a **Backups** tab (volumes: right before
 Migrate; `$lib/features/backups/BackupsTab.svelte`, listed with
 `GET /backups?stackId=` or `?environmentId=&volume=`, which also returns

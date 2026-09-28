@@ -96,6 +96,19 @@ func (s *Service) NextRun(ctx context.Context, kind, policyID string) *time.Time
 	return &t
 }
 
+// NextRuns returns the next scheduled runs of several policies of kind in
+// one lookup (policies without one are absent), for policy lists.
+func (s *Service) NextRuns(ctx context.Context, kind string, policyIDs []string) map[string]time.Time {
+	if s.opts.Scheduler == nil {
+		return map[string]time.Time{}
+	}
+	out, err := store.NextScheduledRuns(ctx, s.db, kind, policyIDs)
+	if err != nil {
+		return map[string]time.Time{}
+	}
+	return out
+}
+
 // Options configures the service.
 type Options struct {
 	DB      *bun.DB

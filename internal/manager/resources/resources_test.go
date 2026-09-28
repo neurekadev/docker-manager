@@ -203,6 +203,27 @@ func TestRemovalForgetsRulesOnlyOnSuccess(t *testing.T) {
 	}
 }
 
+// TestInspectCarriesRetriesAndAddresses: the restart policy's retry count
+// and the attached containers' addresses reach the manager unchanged.
+func TestInspectCarriesRetriesAndAddresses(t *testing.T) {
+	svc, fe, _, _, _ := fixture(t)
+	ctx := testutil.Context(t)
+	fe.SetRestartPolicy("web", "on-failure", 4)
+	d, err := svc.InspectContainer(ctx, "env-1", "web")
+	if err != nil || d.RestartPolicy != "on-failure" || d.RestartMaxRetries != 4 {
+		t.Fatalf("web %q max %d, %v", d.RestartPolicy, d.RestartMaxRetries, err)
+	}
+	n, err := svc.InspectNetwork(ctx, "env-1", "bridge")
+	if err != nil || len(n.Containers) == 0 {
+		t.Fatalf("bridge %+v, %v", n, err)
+	}
+	for _, c := range n.Containers {
+		if c.Name == "" || c.IPAddress == "" {
+			t.Fatalf("attached container %+v", c)
+		}
+	}
+}
+
 // TestLocatorAndReconcile: the Locators place stack members in their
 // stack and service; the reconciler refreshes membership and drops stale
 // recreate specifications but keeps those still being created.

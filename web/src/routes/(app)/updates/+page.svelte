@@ -106,7 +106,7 @@
 	let previewOf = $state<{ policy: UpdatePolicy; name: string } | null>(null);
 	let previewOpen = $state(false);
 	function preview(t: EnvironmentTarget, p: UpdatePolicy) {
-		previewOf = { policy: p, name: targetName(t) || 'this target' };
+		previewOf = { policy: p, name: p.targetName || targetName(t) || 'this target' };
 		previewOpen = true;
 	}
 

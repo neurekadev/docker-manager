@@ -450,7 +450,7 @@ export interface paths {
         };
         /**
          * List backup policies
-         * @description Filtered per item (#17); minimal view: id, name, enabled.
+         * @description Filtered per item (#17); minimal view: id, name, enabled. Policies shown in full carry the recent sets (members with their backupId) and the next run, as get-backup-policy does.
          */
         get: operations["list-backup-policies"];
         put?: never;
@@ -2315,7 +2315,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a group
-         * @description Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users implicitly, so deleting a group never changes anyone's access). The owner's account never blocks the deletion: group rules never apply to it, and when it is in the group it moves to the default group in the same change. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         delete: operations["delete-group"];
         options?: never;
@@ -2484,7 +2484,7 @@ export interface paths {
         };
         /**
          * List jobs
-         * @description Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) - never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent.
+         * @description Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) - never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent. total counts the visible jobs matching the filters and is present only when exact: always for the instance owner (one count), for other callers when at most 1000 jobs match the filters (each checked), absent otherwise.
          */
         get: operations["list-jobs"];
         put?: never;
@@ -2552,6 +2552,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/{jobId}/retries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a job
+         * @description Runs a finished job that did not succeed (failed, partial, interrupted or cancelled) again as a new job with the same kind, environment, policy, targets and input; the new job's retryOf names the original, which is not changed. Only kinds marked retryable can be retried (stack.deploy, stack.pull, image.pull, update.check; a stack deploy or pull acts on the stack's current directory, Compose files and registry connections). The caller needs job.read on the job (404 otherwise) and the kind's own capabilities on every target, as when starting the action (403 otherwise); the job's retryable field says whether both hold. Answers 202 with the new job and its URL in Location. 409 job_not_retryable when the job is still active, succeeded, its kind is not retryable, its input was not kept or what it acted on is gone; 409 environment_archived; 409 idempotency_key_reused.
+         */
+        post: operations["create-job-retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/live/stream": {
         parameters: {
             query?: never;
@@ -2561,7 +2581,7 @@ export interface paths {
         };
         /**
          * Stream live invalidations (SSE)
-         * @description The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). Wire contract: docs/internal/api/streams.md.
+         * @description The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 32 streams per user or token (429). Wire contract: docs/internal/api/streams.md.
          */
         get: operations["stream-live-events"];
         put?: never;
@@ -3942,6 +3962,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stacks/{stackId}/validations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate a stack's definition on disk
+         * @description Validates the stack's current Compose files on the environment's agent in the stack's own project directory, exactly as a deploy loads them (explicit Compose files, override, .env, service env_files, relative paths), without side effects: nothing is written, no revision is recorded and no job runs. Same result as create-stack-validation (findings are the answer, never an error; no file contents or .env values). Needs stack.definition.write (the capability that edits those files). 503 environment_offline while the agent is offline.
+         */
+        post: operations["create-stack-definition-validation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/support-bundle": {
         parameters: {
             query?: never;
@@ -4675,7 +4715,7 @@ export interface paths {
         };
         /**
          * List update policies
-         * @description Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.
+         * @description Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target. Target records an environment policy no longer covers (excluded, or the stack or container is gone) are omitted too: they remain readable by ID and are listed with their reason by the environment policy's targets.
          */
         get: operations["list-update-policies"];
         put?: never;
@@ -5063,7 +5103,10 @@ export interface components {
             label?: string;
             /** Format: date-time */
             lastConnectedAt?: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the agent was last heard from: refreshed about every 60 s while it is connected, and on disconnect.
+             */
             lastSeenAt?: string;
             /**
              * Format: int64
@@ -5807,6 +5850,8 @@ export interface components {
             scope: string;
         };
         BackupSetMember: {
+            /** @description The backup this member took (get-backup). Absent while it has none, after retention forgot it and when the caller cannot see it. */
+            backupId?: string;
             environmentId?: string;
             errorClass?: string;
             /** @example stack/0190a6e0-... */
@@ -6211,6 +6256,11 @@ export interface components {
             resources: components["schemas"]["ContainerResources"];
             /** Format: int64 */
             restartCount: number;
+            /**
+             * Format: int64
+             * @description Maximum retry count of the on-failure restart policy. Absent: unlimited, another policy, or an agent that does not report it.
+             */
+            restartMaxRetries?: number;
             restartPolicy?: string;
             running: boolean;
             /** Format: date-time */
@@ -6353,6 +6403,10 @@ export interface components {
         };
         ContainerRef: {
             id: string;
+            /** @description The container's IPv4 address on the network (network GET only; absent while it is stopped or from agents that do not report it). */
+            ipAddress?: string;
+            /** @description The container's IPv6 address on the network (network GET only). */
+            ipv6Address?: string;
             name: string;
             state?: string;
         };
@@ -7024,7 +7078,10 @@ export interface components {
             engineId?: string;
             /** @example 0190a6e0-3333-7000-8000-000000000003 */
             id: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When its agent was last heard from: refreshed about every 60 s while connected, and on disconnect.
+             */
             lastSeenAt?: string;
             /**
              * @description Editable server/display name.
@@ -7261,7 +7318,13 @@ export interface components {
             candidateSummary: components["schemas"]["UpdatePolicySummary"];
             environmentId: string;
             id: string;
+            /** @description The policy no longer covers the target; the record stays for its history. */
             inactive: boolean;
+            /**
+             * @description Why an inactive target is not covered: excluded (by the policy's exclusions or the container's docker-manager.update.exclude=true label) or missing (the stack or container no longer exists in the scope or no longer qualifies).
+             * @enum {string}
+             */
+            inactiveReason?: "excluded" | "missing";
             /** @example 0190a6e0-1122-7788-aabb-ccddeeff0011 */
             policyId: string;
             /** @enum {string} */
@@ -7604,7 +7667,10 @@ export interface components {
             grantsAccess: boolean;
             /** @example 0190a6e0-0000-7000-8000-00000000000a */
             id: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Accounts in the group, not counting the owner (group rules never apply to the owner).
+             */
             memberCount: number;
             /** @example Restricted */
             name: string;
@@ -7870,9 +7936,13 @@ export interface components {
              * @enum {string}
              */
             origin: "manual" | "scheduled" | "api_token";
-            /** @description Policy that scheduled the job. */
+            /** @description Policy the job runs for (its scheduled runs and manual runs of the policy). */
             policyId?: string;
             progress: components["schemas"]["JobProgress"];
+            /** @description The job this one re-runs (POST /jobs/{jobId}/retries). */
+            retryOf?: string;
+            /** @description True when the job ended without succeeding, its kind can be retried and the caller may start it again: POST /jobs/{jobId}/retries. Always false in the 202 answer of the operation that started a job. */
+            retryable: boolean;
             /**
              * Format: date-time
              * @description When the current attempt was acknowledged by its executor.
@@ -11169,6 +11239,11 @@ export interface components {
             platform?: string;
             /** @description Digest before the last update. */
             previousDigest?: string;
+            /**
+             * Format: date-time
+             * @description When the candidate image was created (its image config's created time), if the registry records one. Display only: updates never depend on it.
+             */
+            publishedAt?: string;
             /** @enum {string} */
             reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference" | "not_deployed" | "no_applied_digest" | "excluded" | "protected" | "no_recreate_spec" | "stack_managed";
             /** @description Why it is ineligible, or the warning of a non-version tag. */
@@ -11279,6 +11354,11 @@ export interface components {
             services?: string[];
             summary?: components["schemas"]["UpdatePolicySummary"];
             target: components["schemas"]["UpdateTarget"];
+            /**
+             * @description The stack's name (its display name when set) or the container's name; empty when the stack no longer exists.
+             * @example zerobyte
+             */
+            targetName?: string;
             /** Format: date-time */
             updatedAt?: string;
             /** @enum {string} */
@@ -14003,6 +14083,7 @@ export interface operations {
                      *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "members": [
                      *                 {
+                     *                   "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *                   "errorClass": "example",
                      *                   "item": "stack/0190a6e0-...",
@@ -14170,6 +14251,7 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "members": [
                      *             {
+                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "errorClass": "example",
                      *               "item": "stack/0190a6e0-...",
@@ -14335,6 +14417,7 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "members": [
                      *             {
+                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "errorClass": "example",
                      *               "item": "stack/0190a6e0-...",
@@ -14606,6 +14689,7 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "members": [
                      *             {
+                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "errorClass": "example",
                      *               "item": "stack/0190a6e0-...",
@@ -14944,6 +15028,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -15086,6 +15172,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -15103,6 +15191,7 @@ export interface operations {
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "members": [
                      *           {
+                     *             "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "errorClass": "example",
                      *             "item": "stack/0190a6e0-...",
@@ -16659,6 +16748,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -17086,6 +17177,7 @@ export interface operations {
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "members": [
                      *           {
+                     *             "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "errorClass": "example",
                      *             "item": "stack/0190a6e0-...",
@@ -17590,6 +17682,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -17738,6 +17832,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -18502,6 +18598,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -18624,6 +18722,7 @@ export interface operations {
                      *               "nonVersionTag": false,
                      *               "platform": "example",
                      *               "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "publishedAt": "2026-09-25T12:00:00Z",
                      *               "reason": "build_only",
                      *               "reasonMessage": "example",
                      *               "reference": "nginx:1.27",
@@ -18790,6 +18889,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -18905,6 +19006,7 @@ export interface operations {
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "inactive": false,
+                     *           "inactiveReason": "excluded",
                      *           "policyId": "0190a6e0-1122-7788-aabb-ccddeeff0011",
                      *           "type": "stack"
                      *         }
@@ -20111,6 +20213,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -20390,6 +20494,7 @@ export interface operations {
                      *               "pidsLimit": 1
                      *             },
                      *             "restartCount": 1,
+                     *             "restartMaxRetries": 1,
                      *             "restartPolicy": "example",
                      *             "running": false,
                      *             "startedAt": "2026-09-25T12:00:00Z",
@@ -20606,6 +20711,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -20794,6 +20901,7 @@ export interface operations {
                      *           "pidsLimit": 1
                      *         },
                      *         "restartCount": 1,
+                     *         "restartMaxRetries": 1,
                      *         "restartPolicy": "example",
                      *         "running": false,
                      *         "startedAt": "2026-09-25T12:00:00Z",
@@ -21003,6 +21111,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -21180,6 +21290,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -22142,6 +22254,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -22319,6 +22433,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -22487,6 +22603,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -22664,6 +22782,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -22832,6 +22952,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -23413,6 +23535,8 @@ export interface operations {
                      *           "usedBy": [
                      *             {
                      *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "ipAddress": "example",
+                     *               "ipv6Address": "example",
                      *               "name": "web",
                      *               "state": "example"
                      *             }
@@ -23576,6 +23700,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -23734,6 +23860,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -23911,6 +24039,8 @@ export interface operations {
                      *       "usedBy": [
                      *         {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "ipAddress": "example",
+                     *           "ipv6Address": "example",
                      *           "name": "web",
                      *           "state": "example"
                      *         }
@@ -24059,6 +24189,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -24245,6 +24377,8 @@ export interface operations {
                      *       "usedBy": [
                      *         {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "ipAddress": "example",
+                     *           "ipv6Address": "example",
                      *           "name": "web",
                      *           "state": "example"
                      *         }
@@ -24573,6 +24707,8 @@ export interface operations {
                      *           "containers": [
                      *             {
                      *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "ipAddress": "example",
+                     *               "ipv6Address": "example",
                      *               "name": "web",
                      *               "state": "example"
                      *             }
@@ -24768,6 +24904,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -24896,6 +25034,8 @@ export interface operations {
                      *       "containers": [
                      *         {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "ipAddress": "example",
+                     *           "ipv6Address": "example",
                      *           "name": "web",
                      *           "state": "example"
                      *         }
@@ -25080,6 +25220,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -25406,6 +25548,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -25795,6 +25939,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -26357,6 +26503,8 @@ export interface operations {
                      *           "usedBy": [
                      *             {
                      *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "ipAddress": "example",
+                     *               "ipv6Address": "example",
                      *               "name": "web",
                      *               "state": "example"
                      *             }
@@ -26513,6 +26661,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -26671,6 +26821,8 @@ export interface operations {
                      *       "usedBy": [
                      *         {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "ipAddress": "example",
+                     *           "ipv6Address": "example",
                      *           "name": "web",
                      *           "state": "example"
                      *         }
@@ -26816,6 +26968,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -27153,6 +27307,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -27788,6 +27944,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -27967,6 +28125,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -28429,6 +28589,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -28609,6 +28771,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -28789,6 +28953,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -29367,6 +29533,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -31307,6 +31475,8 @@ export interface operations {
                 environmentId?: string;
                 /** @description Only jobs with this target, as type:id (e.g. stack:0190a6e0-...). */
                 target?: string;
+                /** @description Only jobs run for this policy (its scheduled runs and manual runs of it; for an environment-wide update policy, the jobs of every target it covers). */
+                policyId?: string;
             };
             header?: never;
             path?: never;
@@ -31368,6 +31538,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -31480,6 +31652,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -31598,6 +31772,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -31704,6 +31880,147 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-job-retry": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Job ID of the job to run again. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -32970,6 +33287,8 @@ export interface operations {
                      *             "percent": 1,
                      *             "step": "example"
                      *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "queued",
                      *           "targets": [
@@ -33255,6 +33574,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -36744,6 +37065,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -38147,6 +38470,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -38521,6 +38846,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -38672,6 +38999,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -39046,6 +39375,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -39673,6 +40004,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -39850,6 +40183,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -40306,6 +40641,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -40484,6 +40821,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -40662,6 +41001,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -41327,6 +41668,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -41495,6 +41838,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -41673,6 +42018,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -41812,6 +42159,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -42149,6 +42498,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -42877,6 +43228,166 @@ export interface operations {
             };
             /** @description Bad Gateway */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-definition-validation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "binds": [
+                     *         {
+                     *           "external": false,
+                     *           "readOnly": false,
+                     *           "relPath": "config/app.conf",
+                     *           "service": "example",
+                     *           "source": "example",
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "errors": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "services.web.ports: invalid port \"80a\"",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "projectName": "web",
+                     *       "services": [
+                     *         {
+                     *           "build": false,
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "description": "example",
+                     *           "icon": "example",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web"
+                     *         }
+                     *       ],
+                     *       "valid": false,
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "services.web.ports: invalid port \"80a\"",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["StackValidation"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -45261,6 +45772,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -45888,6 +46401,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -46065,6 +46580,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -46521,6 +47038,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -46699,6 +47218,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -46877,6 +47398,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -48228,6 +48751,7 @@ export interface operations {
                      *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "type": "stack"
                      *           },
+                     *           "targetName": "zerobyte",
                      *           "updatedAt": "2026-09-25T12:00:00Z",
                      *           "view": "minimal",
                      *           "waitTimeoutSeconds": 1,
@@ -48434,6 +48958,7 @@ export interface operations {
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "type": "stack"
                      *       },
+                     *       "targetName": "zerobyte",
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal",
                      *       "waitTimeoutSeconds": 1,
@@ -48532,6 +49057,7 @@ export interface operations {
                      *           "nonVersionTag": false,
                      *           "platform": "example",
                      *           "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "publishedAt": "2026-09-25T12:00:00Z",
                      *           "reason": "build_only",
                      *           "reasonMessage": "example",
                      *           "reference": "nginx:1.27",
@@ -48668,6 +49194,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [
@@ -48811,6 +49339,7 @@ export interface operations {
                      *             "nonVersionTag": false,
                      *             "platform": "example",
                      *             "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "publishedAt": "2026-09-25T12:00:00Z",
                      *             "reason": "build_only",
                      *             "reasonMessage": "example",
                      *             "reference": "nginx:1.27",
@@ -48860,6 +49389,7 @@ export interface operations {
                      *           "nonVersionTag": false,
                      *           "platform": "example",
                      *           "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "publishedAt": "2026-09-25T12:00:00Z",
                      *           "reason": "build_only",
                      *           "reasonMessage": "example",
                      *           "reference": "nginx:1.27",
@@ -49025,6 +49555,8 @@ export interface operations {
                      *         "percent": 1,
                      *         "step": "example"
                      *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "queued",
                      *       "targets": [

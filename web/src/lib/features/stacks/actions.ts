@@ -134,11 +134,25 @@ export function restoreRevision(
 	);
 }
 
+/** POST /stacks/validations: a submitted definition, as a new stack (create dialog). */
 export function validateStack(
 	body: Schema<'ValidateStackInputBody'>,
 	client: ApiClient = api
 ): Promise<Schema<'StackValidation'>> {
 	return unwrap(client.POST('/api/v1/stacks/validations', { body }));
+}
+
+/**
+ * POST /stacks/{id}/validations: an existing stack's definition as it is
+ * on disk, in its own project directory (needs stack.definition.write).
+ */
+export function validateStackFiles(
+	stackId: string,
+	client: ApiClient = api
+): Promise<Schema<'StackValidation'>> {
+	return unwrap(
+		client.POST('/api/v1/stacks/{stackId}/validations', { params: { path: { stackId } } })
+	);
 }
 
 export function createStack(

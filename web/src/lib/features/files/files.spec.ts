@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { groupRequests, ConflictQueue, decisionSummary, type ConflictItem } from './conflicts';
-import { definitionFiles, definitionRefusal, isDefinitionFile } from './definition';
+import { definitionRefusal, isDefinitionFile } from './definition';
 import { diffLines, diffRows } from './diff';
 import { directoriesOf } from './dropped';
 import { modeString, ownerText, ownerTitle } from './icons';
@@ -321,29 +321,6 @@ describe('languages, Compose sources, modes, folders', () => {
 		expect(isDefinitionFile('docker-compose.override.yml')).toBe(true);
 		expect(isDefinitionFile('config/compose.yaml')).toBe(false);
 		expect(isDefinitionFile('prod.yaml', ['prod.yaml'])).toBe(true);
-	});
-
-	it('finds the files a validation reads', () => {
-		expect(
-			definitionFiles([], ['compose.yaml', 'compose.override.yaml', '.env', 'data'])
-		).toEqual({ compose: 'compose.yaml', override: 'compose.override.yaml', env: '.env' });
-		// The override matches the Compose file's name and extension.
-		expect(
-			definitionFiles(
-				[],
-				['docker-compose.yml', 'compose.override.yaml', 'docker-compose.override.yml']
-			)
-		).toEqual({ compose: 'docker-compose.yml', override: 'docker-compose.override.yml' });
-		expect(definitionFiles([], ['compose.yml', 'compose.override.yaml'])).toEqual({
-			compose: 'compose.yml'
-		});
-		expect(definitionFiles(['prod.yaml', 'prod.local.yaml'], ['.env'])).toEqual({
-			compose: 'prod.yaml',
-			override: 'prod.local.yaml',
-			env: '.env'
-		});
-		expect(definitionFiles([], ['README.md'])).toBeNull();
-		expect(definitionFiles(['a.yaml', 'b.yaml', 'c.yaml'], ['a.yaml'])).toBeNull();
 	});
 
 	it('renders modes and orders folders to create', () => {

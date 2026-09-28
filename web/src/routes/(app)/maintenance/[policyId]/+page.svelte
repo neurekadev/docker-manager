@@ -84,10 +84,8 @@
 	const envs = createQuery(() => environmentsQuery());
 	const defaults = createQuery(() => maintenanceDefaultsQuery());
 	const info = $derived(defaults.data?.categories);
-	// Manual and scheduled runs: prune jobs that target this policy.
-	const jobs = createQuery(() =>
-		recentJobsQuery(50, { kind: 'prune.run', target: `maintenance_policy:${id}` })
-	);
+	// Manual and scheduled runs: the prune jobs this policy started.
+	const jobs = createQuery(() => recentJobsQuery(50, { kind: 'prune.run', policyId: id }));
 	const runs = $derived(groupRuns(jobs.data?.items ?? []).slice(0, 10));
 
 	usePage(() => ({

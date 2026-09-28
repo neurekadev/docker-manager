@@ -544,6 +544,7 @@ const AUDIT_ACTIONS: Record<string, string> = {
 	'stack.definition.write': 'Changed the definition',
 	'stack.manage': 'Edited details',
 	'stack.rename.preview': 'Previewed a rename',
+	'stack.validate': 'Validated the definition',
 	'stack.create': 'Created',
 	'stack.import': 'Imported',
 	'job.queued': 'Job queued',

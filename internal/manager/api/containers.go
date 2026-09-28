@@ -118,28 +118,29 @@ type ContainerRecreate struct {
 
 // ContainerDetails is the full configuration and state of a container.
 type ContainerDetails struct {
-	Cmd           []string              `json:"cmd"`
-	Entrypoint    []string              `json:"entrypoint"`
-	WorkingDir    string                `json:"workingDir,omitempty"`
-	User          string                `json:"user,omitempty"`
-	Tty           bool                  `json:"tty"`
-	Hostname      string                `json:"hostname,omitempty"`
-	RestartPolicy string                `json:"restartPolicy,omitempty"`
-	NetworkMode   string                `json:"networkMode,omitempty"`
-	Networks      []ContainerNetwork    `json:"networks"`
-	RestartCount  int                   `json:"restartCount"`
-	Platform      string                `json:"platform,omitempty"`
-	Running       bool                  `json:"running"`
-	Paused        bool                  `json:"paused"`
-	OOMKilled     bool                  `json:"oomKilled"`
-	ExitCode      int                   `json:"exitCode"`
-	Error         string                `json:"error,omitempty"`
-	StartedAt     *time.Time            `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time            `json:"finishedAt,omitempty"`
-	Resources     ContainerResources    `json:"resources"`
-	Healthcheck   *ContainerHealthcheck `json:"healthcheck,omitempty"`
-	Recreate      ContainerRecreate     `json:"recreate"`
-	Removal       Removal               `json:"removal"`
+	Cmd               []string              `json:"cmd"`
+	Entrypoint        []string              `json:"entrypoint"`
+	WorkingDir        string                `json:"workingDir,omitempty"`
+	User              string                `json:"user,omitempty"`
+	Tty               bool                  `json:"tty"`
+	Hostname          string                `json:"hostname,omitempty"`
+	RestartPolicy     string                `json:"restartPolicy,omitempty"`
+	RestartMaxRetries int                   `json:"restartMaxRetries,omitempty" minimum:"1" doc:"Maximum retry count of the on-failure restart policy. Absent: unlimited, another policy, or an agent that does not report it."`
+	NetworkMode       string                `json:"networkMode,omitempty"`
+	Networks          []ContainerNetwork    `json:"networks"`
+	RestartCount      int                   `json:"restartCount"`
+	Platform          string                `json:"platform,omitempty"`
+	Running           bool                  `json:"running"`
+	Paused            bool                  `json:"paused"`
+	OOMKilled         bool                  `json:"oomKilled"`
+	ExitCode          int                   `json:"exitCode"`
+	Error             string                `json:"error,omitempty"`
+	StartedAt         *time.Time            `json:"startedAt,omitempty"`
+	FinishedAt        *time.Time            `json:"finishedAt,omitempty"`
+	Resources         ContainerResources    `json:"resources"`
+	Healthcheck       *ContainerHealthcheck `json:"healthcheck,omitempty"`
+	Recreate          ContainerRecreate     `json:"recreate"`
+	Removal           Removal               `json:"removal"`
 }
 
 // Container is a container of an environment. Environment variables are
@@ -524,7 +525,7 @@ func (h *dockerAPI) getContainer(ctx context.Context, in *ContainerPath) (*conta
 		return &containerOutput{Body: out}, nil
 	}
 	det := &ContainerDetails{Cmd: nonNil(d.Cmd), Entrypoint: nonNil(d.Entrypoint), WorkingDir: d.WorkingDir, User: d.User, Tty: d.Tty,
-		Hostname: d.Hostname, RestartPolicy: d.RestartPolicy, NetworkMode: d.NetworkMode, Networks: []ContainerNetwork{}, RestartCount: d.RestartCount,
+		Hostname: d.Hostname, RestartPolicy: d.RestartPolicy, RestartMaxRetries: max(d.RestartMaxRetries, 0), NetworkMode: d.NetworkMode, Networks: []ContainerNetwork{}, RestartCount: d.RestartCount,
 		Platform: d.Platform, Running: d.Running, Paused: d.Paused, OOMKilled: d.OOMKilled, ExitCode: d.ExitCode, Error: d.Error,
 		StartedAt: d.StartedAt, FinishedAt: d.FinishedAt, Resources: newResources(d.Resources), Healthcheck: newHealthcheck(d.Healthcheck),
 		Recreate: ContainerRecreate{Fields: slices.Clone(recreateFields)}}

@@ -418,3 +418,82 @@ func TestRetryAfterHeaders(t *testing.T) {
 		}
 	}
 }
+
+func TestCreatedReadsTheImageConfig(t *testing.T) {
+	f := regtest.New(t, regtest.AuthBearer, "robot", "correct-horse-battery-canary")
+	f.Private["team/app"] = true
+	at := time.Date(2026, 9, 20, 8, 30, 0, 0, time.UTC)
+	d := f.PutImage("team/app", "1.2", at, "")
+	c := newClient(t, f, testutil.FakeClock())
+	ctx := testutil.Context(t)
+	req := Request{Ref: ref(t, f, "team/app:1.2"), Credential: cred(f), CredentialKey: "conn-1/1"}
+
+	got, hit, err := c.Created(ctx, req, d)
+	if err != nil || hit || !got.Equal(at) {
+		t.Fatalf("created = %v (cached %v), %v", got, hit, err)
+	}
+	manifests, _, _ := f.Counts()
+	blobs := f.BlobCount()
+	if blobs != 1 {
+		t.Fatalf("blob requests = %d, want 1", blobs)
+	}
+	// A digest's content never changes: the second call is served from
+	// the cache without contacting the registry.
+	got, hit, err = c.Created(ctx, req, d)
+	if err != nil || !hit || !got.Equal(at) {
+		t.Fatalf("cached: %v %v %v", got, hit, err)
+	}
+	if n, _, _ := f.Counts(); n != manifests || f.BlobCount() != blobs {
+		t.Fatalf("registry contacted for a cached creation time")
+	}
+	// The private repository needs the credential: never anonymous.
+	_, _, err = c.Created(ctx, Request{Ref: ref(t, f, "team/app:1.2")}, d)
+	wantClass(t, err, ClassUnauthorized)
+}
+
+func TestCreatedUnavailable(t *testing.T) {
+	f := regtest.New(t, regtest.AuthNone, "", "")
+	clk := testutil.FakeClock()
+	c := newClient(t, f, clk)
+	ctx := testutil.Context(t)
+	req := Request{Ref: ref(t, f, "app:1")}
+
+	// No "created" field, and the Unix epoch of reproducible builds.
+	for _, at := range []time.Time{{}, time.Unix(0, 0)} {
+		d := f.PutImage("app", "1", at, at.String())
+		if _, _, err := c.Created(ctx, req, d); !errors.Is(err, ErrNoCreated) {
+			t.Fatalf("created %v: %v", at, err)
+		}
+	}
+	// A manifest that names no valid config; the answer depends only on
+	// the digest's content, so it is cached like a time.
+	d := f.Put("app", "2", MediaOCIManifest, []byte(manifestBody))
+	if _, _, err := c.Created(ctx, req, d); !errors.Is(err, ErrNoCreated) {
+		t.Fatalf("config without a digest: %v", err)
+	}
+	before, _, _ := f.Counts()
+	if _, hit, err := c.Created(ctx, req, d); !hit || !errors.Is(err, ErrNoCreated) {
+		t.Fatalf("cached absence: %v %v", hit, err)
+	}
+	if n, _, _ := f.Counts(); n != before {
+		t.Fatal("registry contacted for a cached absence")
+	}
+	if _, _, err := c.Created(ctx, req, "sha256:nope"); err == nil {
+		t.Fatal("invalid digest accepted")
+	}
+	// A 429 starts the cooldown: later checks do not contact the host.
+	d = f.PutImage("app", "3", time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), "")
+	f.FailNext(http.StatusTooManyRequests, map[string]string{"Retry-After": "60"}, 1)
+	_, _, err := c.Created(ctx, req, d)
+	wantClass(t, err, ClassRateLimited)
+	before, _, _ = f.Counts()
+	_, err = c.Resolve(ctx, Request{Ref: ref(t, f, "app:3"), Fresh: true})
+	wantClass(t, err, ClassRateLimited)
+	if n, _, _ := f.Counts(); n != before {
+		t.Fatalf("registry contacted during the cooldown")
+	}
+	clk.Advance(time.Minute)
+	if got, _, err := c.Created(ctx, req, d); err != nil || got.Year() != 2026 {
+		t.Fatalf("after the cooldown: %v %v", got, err)
+	}
+}

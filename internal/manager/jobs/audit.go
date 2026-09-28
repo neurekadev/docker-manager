@@ -53,6 +53,9 @@ func (e *Engine) recordJob(ctx context.Context, db bun.IDB, j *domain.Job, actio
 	if j.PolicyID != "" {
 		details["policyId"] = j.PolicyID
 	}
+	if j.RetryOf != "" {
+		details["retryOfJobId"] = j.RetryOf
+	}
 	for k, v := range extra {
 		details[k] = v
 	}

@@ -1,5 +1,6 @@
 // Backups overview components (#10): the running backup's current file
-// line, the storage card and a set's details drawer.
+// line, the storage card and a set's details drawer (its members link to
+// their backups by the backupId the server sends).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -146,7 +147,8 @@ describe('SetsTable (#10)', () => {
 					scope: 'env:e1',
 					volume: 'media',
 					environmentId: 'e1',
-					state: 'complete'
+					state: 'complete',
+					backupId: 'bk-media'
 				},
 				{
 					item: 'volume/db',
@@ -184,5 +186,11 @@ describe('SetsTable (#10)', () => {
 		expect(within(drawer).getByText('db')).toBeInTheDocument();
 		expect(within(drawer).getByText('2 min')).toBeInTheDocument();
 		expect(within(drawer).getByText('2 KB')).toBeInTheDocument();
+		// Members link to the backup they took; the others are plain text.
+		expect(within(drawer).getByRole('link', { name: 'media' })).toHaveAttribute(
+			'href',
+			'/backups/bk-media'
+		);
+		expect(within(drawer).queryByRole('link', { name: 'db' })).toBeNull();
 	});
 });

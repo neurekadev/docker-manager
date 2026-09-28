@@ -315,6 +315,14 @@ func (h *harness) publish(repo, tag, salt string) string {
 	return d
 }
 
+// publishImage is publish with an image config created at created (its
+// creation time is what candidates show as published).
+func (h *harness) publishImage(repo, tag string, created time.Time, salt string) string {
+	d := h.reg.PutImage(repo, tag, created, salt)
+	h.engine.Publish(h.ref(repo+":"+tag), d)
+	return d
+}
+
 // stackService describes a service of the fixture stack.
 type stackService struct {
 	name, image string

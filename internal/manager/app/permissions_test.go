@@ -536,16 +536,33 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	owner.putRules("/api/v1/groups/"+restricted.ID+"/permissions", "allow stack.read @all")
 
 	// A group with members cannot be deleted; users are never moved
-	// implicitly. The owner is still in the old default group.
+	// implicitly.
+	if r := owner.moveUser(rs.User.ID, restricted.ID); r.status != http.StatusOK {
+		t.Fatalf("move back: %d %s", r.status, r.body)
+	}
 	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil)
 	owner.fail(http.StatusConflict, "group_not_empty", http.MethodDelete, "/api/v1/groups/"+restricted.ID, nil, header("If-Match", r.header.Get("ETag")))
-	if r := owner.moveUser(ownerID, viewers.ID); r.status != http.StatusOK {
-		t.Fatalf("move owner: %d %s", r.status, r.body)
+	if r := owner.moveUser(rs.User.ID, viewers.ID); r.status != http.StatusOK {
+		t.Fatalf("move: %d %s", r.status, r.body)
+	}
+	// The owner, still in the old default group, is not counted and does
+	// not block the deletion: the owner's account moves to the default.
+	var g groupBody
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil).json(t, &g)
+	if g.MemberCount != 0 {
+		t.Fatalf("old default with only the owner: %+v", g)
 	}
 	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil)
 	owner.must(http.StatusNoContent, http.MethodDelete, "/api/v1/groups/"+restricted.ID, nil, header("If-Match", r.header.Get("ETag")))
-	if gs := owner.groups(); len(gs) != 1 || gs[0].ID != viewers.ID || !gs[0].Default || gs[0].MemberCount != 3 {
+	if gs := owner.groups(); len(gs) != 1 || gs[0].ID != viewers.ID || !gs[0].Default || gs[0].MemberCount != 2 {
 		t.Fatalf("groups after delete %+v", gs)
+	}
+	var acct struct {
+		GroupID string `json:"groupId"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ownerID, nil).json(t, &acct)
+	if acct.GroupID != viewers.ID {
+		t.Fatalf("owner in %s after the delete, want %s", acct.GroupID, viewers.ID)
 	}
 
 	// Every permission or group change needs a recent step-up.

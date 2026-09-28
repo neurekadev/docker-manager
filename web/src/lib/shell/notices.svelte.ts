@@ -179,12 +179,16 @@ export interface NoticePolicy {
 	environmentId?: string;
 	/** What the policy updates (a stack ID or a container name). */
 	target?: { type: string; id: string };
+	/** The target's name as users know it (the manager resolves it). */
+	targetName?: string;
 	summary?: { available: number };
 }
 
 /**
- * The manager names the per-target policies of an environment-wide policy
- * "Automatic update <id>"; such a name says nothing to the user.
+ * Earlier manager versions named the per-target policies of an
+ * environment-wide policy "Automatic update <id>"; the manager renames them
+ * after their target ("Automatic updates for zerobyte") the next time it
+ * reconciles the policy, so only records not reconciled yet match.
  */
 export function isGeneratedPolicyName(p: Pick<NoticePolicy, 'id' | 'name'>): boolean {
 	return (
@@ -192,11 +196,16 @@ export function isGeneratedPolicyName(p: Pick<NoticePolicy, 'id' | 'name'>): boo
 	);
 }
 
-/** A policy as the user knows it: its name, else what it updates. */
+/**
+ * A policy as the user knows it: what it updates (the manager's
+ * `targetName`), else its name. An old ID-based name without a target
+ * name falls back to `nameOf` or the kind of target.
+ */
 export function policyLabel(
 	p: NoticePolicy,
 	nameOf?: (target: { type: string; id: string }) => string | undefined
 ): string {
+	if (p.targetName) return p.targetName;
 	if (!isGeneratedPolicyName(p)) return p.name;
 	const t = p.target;
 	const named = t ? nameOf?.(t) : undefined;
@@ -238,7 +247,8 @@ function namesBody(names: string[]): string {
  * Silo images", linking to the policy); several collapse into one ("6
  * stacks have updates available", naming them, linking to Updates), so a
  * check of many targets does not flood the bell. Policies are named as the
- * user knows them (policyLabel; `nameOf` resolves stack IDs). A notice is
+ * user knows them (policyLabel: the target's name; `nameOf` resolves stack
+ * IDs of old records). A notice is
  * pushed again only when its text changes, and resolved when no update is
  * left.
  */

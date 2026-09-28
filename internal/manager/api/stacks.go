@@ -67,6 +67,7 @@ type StackService interface {
 	Create(ctx context.Context, p authz.Principal, r domain.StackCreate) (domain.Stack, domain.StackValidation, error)
 	CreateFromTemplate(ctx context.Context, p authz.Principal, r domain.StackFromTemplate) (domain.Stack, domain.StackValidation, error)
 	Validate(ctx context.Context, d domain.StackDefinition) (domain.StackValidation, error)
+	ValidateStack(ctx context.Context, st domain.Stack) (domain.StackValidation, error)
 	Update(ctx context.Context, id string, expectRevision int64, p domain.StackPatch) (domain.Stack, error)
 	Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackRemoveOptions) (domain.Job, error)
 	Deploy(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackDeployOptions) (domain.Job, error)
@@ -705,6 +706,23 @@ func (h *stacksAPI) validate(ctx context.Context, in *validateStackInput) (*vali
 	if err != nil {
 		return nil, stackErr(err)
 	}
+	return &validationOutput{Body: newValidation(v)}, nil
+}
+
+// validateExisting validates an existing stack's definition as it is on
+// disk, in its own project directory (as its deploy loads it). It needs
+// stack.definition.write, the capability that edits those files, so the
+// editor can check what it just saved without stack.create.
+func (h *stacksAPI) validateExisting(ctx context.Context, in *stackIDInput) (*validationOutput, error) {
+	_, _, st, _, err := h.requireStack(ctx, in.StackID, CapStackDefinitionWrite)
+	if err != nil {
+		return nil, err
+	}
+	v, err := h.svc.ValidateStack(ctx, st)
+	if err != nil {
+		return nil, stackErr(err)
+	}
+	audit.SetDetail(ctx, "valid", v.Valid)
 	return &validationOutput{Body: newValidation(v)}, nil
 }
 
@@ -1575,6 +1593,18 @@ func registerStacks(a huma.API, deps Deps) {
 			"outside the project directory.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackCreate, Scope: ScopeEnvironment}, h.validate)
+
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "create-stack-definition-validation", Method: http.MethodPost, Path: one + "/validations",
+		Summary: "Validate a stack's definition on disk",
+		Description: "Validates the stack's current Compose files on the environment's agent in the stack's own project directory, " +
+			"exactly as a deploy loads them (explicit Compose files, override, .env, service env_files, relative paths), without " +
+			"side effects: nothing is written, no revision is recorded and no job runs. Same result as create-stack-validation " +
+			"(findings are the answer, never an error; no file contents or .env values). Needs stack.definition.write (the " +
+			"capability that edits those files). 503 environment_offline while the agent is offline.",
+		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
+			http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
+	}, Capability: CapStackDefinitionWrite, Scope: ScopeResource, AuditAction: "stack.validate"}, h.validateExisting)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "list-stack-revisions", Method: http.MethodGet, Path: one + "/revisions", Summary: "List a stack's revisions",

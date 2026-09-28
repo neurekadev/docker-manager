@@ -32,7 +32,7 @@ type Environment struct {
 	View                   string     `json:"view" enum:"minimal,full" doc:"full: environment.read; minimal: only identity, status and the granted actions (#17)."`
 	Actions                []string   `json:"actions" doc:"Granted environment capabilities (e.g. environment.metrics.read)."`
 	ConnectionChangedAt    *time.Time `json:"connectionChangedAt,omitempty" doc:"When the environment last went online or offline."`
-	LastSeenAt             *time.Time `json:"lastSeenAt,omitempty"`
+	LastSeenAt             *time.Time `json:"lastSeenAt,omitempty" doc:"When its agent was last heard from: refreshed about every 60 s while connected, and on disconnect."`
 	AgentID                string     `json:"agentId,omitempty" doc:"The active agent; absent while the environment is detached (its agent was removed)."`
 	EngineID               string     `json:"engineId,omitempty" doc:"Docker Engine ID (full view)."`
 	AllowDuplicateEngineID bool       `json:"allowDuplicateEngineId,omitempty" doc:"The owner declared this a distinct host sharing another environment's Engine ID (cloned VM)."`

@@ -19,6 +19,19 @@ export function bannerDelay(state: LiveState, since: number, now: number): numbe
 	return Math.max(0, since + OFFLINE_BANNER_DELAY_MS - now);
 }
 
+/** The banner's title and text: why live updates stopped, when known. */
+export function bannerText(tooManyStreams: boolean): { title: string; body: string } {
+	return tooManyStreams
+		? {
+				title: 'Too many Docker Manager tabs are open',
+				body: 'Live updates stopped in this tab. Close tabs you no longer need; this tab reconnects on its own.'
+			}
+		: {
+				title: 'Live updates are disconnected',
+				body: 'Pages may be out of date. Docker Manager keeps trying to reconnect; nothing you do is queued.'
+			};
+}
+
 /** Text of the top-bar indicator: nothing while live or not connected at all. */
 export function indicatorText(state: LiveState): string {
 	switch (state) {

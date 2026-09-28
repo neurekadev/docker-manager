@@ -84,15 +84,58 @@ type BackupSetMember struct {
 	ErrorClass    string     `json:"errorClass,omitempty"`
 	SnapshotTime  *time.Time `json:"snapshotTime,omitempty" doc:"Per-host snapshot time: multi-host sets are not atomic."`
 	JobID         string     `json:"jobId,omitempty"`
+	BackupID      string     `json:"backupId,omitempty" doc:"The backup this member took (get-backup). Absent while it has none, after retention forgot it and when the caller cannot see it."`
 }
 
-func newBackupSet(s domain.BackupSet) BackupSetSummary {
+// recentSetsPerPolicy is the number of recent sets a policy carries (list
+// and detail alike).
+const recentSetsPerPolicy = 5
+
+// memberBackups maps set members to the IDs of the backups they took.
+type memberBackups map[string]string
+
+func memberBackupKey(setID, scope, item, resticSnapshotID string) string {
+	return setID + "\x00" + scope + "\x00" + item + "\x00" + resticSnapshotID
+}
+
+// of returns the backup ID of a member of set setID ("" when none).
+func (b memberBackups) of(setID string, m domain.BackupSetMember) string {
+	if m.SnapshotID == "" {
+		return ""
+	}
+	return b[memberBackupKey(setID, m.Scope, m.Item, m.SnapshotID)]
+}
+
+// setMemberBackups looks up the backups the members of sets took, those
+// the caller can see, in one query (nil when there are none).
+func setMemberBackups(ctx context.Context, svc BackupService, c authz.Checker, sets []domain.BackupSet) memberBackups {
+	ids := make([]string, 0, len(sets))
+	for _, s := range sets {
+		ids = append(ids, s.ID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	snaps, err := svc.SetBackups(ctx, ids)
+	if err != nil {
+		return nil
+	}
+	out := memberBackups{}
+	for _, sn := range snaps {
+		if authz.ViewOf(c, backupResource(sn)).Visible() {
+			out[memberBackupKey(sn.SetID, sn.Scope, sn.Item, sn.ResticSnapshotID)] = sn.ID
+		}
+	}
+	return out
+}
+
+func newBackupSet(s domain.BackupSet, backups memberBackups) BackupSetSummary {
 	out := BackupSetSummary{ID: s.ID, State: s.State, Origin: string(s.Origin), StartedAt: s.StartedAt, FinishedAt: s.FinishedAt,
 		Members: []BackupSetMember{}}
 	for _, m := range s.Members {
 		out.Members = append(out.Members, BackupSetMember{Item: m.Item, Kind: m.Kind, Scope: m.Scope, EnvironmentID: m.EnvironmentID,
 			StackID: m.StackID, StackName: m.StackName, Volume: m.Volume, State: m.State, ErrorClass: m.ErrorClass,
-			SnapshotTime: m.SnapshotTime, JobID: m.JobID})
+			SnapshotTime: m.SnapshotTime, JobID: m.JobID, BackupID: backups.of(s.ID, m)})
 	}
 	return out
 }
@@ -275,11 +318,56 @@ func (h *backupsAPI) listPolicies(ctx context.Context, in *struct{ PageParams })
 	for _, p := range items {
 		out = append(out, newBackupPolicy(p, authz.ViewOf(c, backupPolicyResource(p.ID))))
 	}
+	addPolicyRuns(ctx, svc, c, items, out)
 	cursor, err := nextCursor(fp, next)
 	if err != nil {
 		return nil, err
 	}
 	return &backupPolicyListOutput{Body: NewPage(out, cursor, nil)}, nil
+}
+
+// addPolicyRuns adds the recent sets (with their members' backups) and the
+// next run to the policies of out shown in full (out[i] is pols[i]), as the
+// detail shows them: one query for the sets of every policy, one for their
+// backups and one for the next runs, however many policies there are.
+func addPolicyRuns(ctx context.Context, svc BackupService, c authz.Checker, pols []domain.BackupPolicy, out []BackupPolicy) {
+	var full, enabled []string
+	for i, p := range pols {
+		if out[i].View != authz.Full.String() {
+			continue
+		}
+		full = append(full, p.ID)
+		if p.Enabled && out[i].Schedule != nil {
+			enabled = append(enabled, p.ID)
+		}
+	}
+	if len(full) == 0 {
+		return
+	}
+	sets, err := svc.RecentSets(ctx, full, recentSetsPerPolicy)
+	if err != nil {
+		sets = nil
+	}
+	var all []domain.BackupSet
+	for _, ss := range sets {
+		all = append(all, ss...)
+	}
+	backups := setMemberBackups(ctx, svc, c, all)
+	var next map[string]time.Time
+	if len(enabled) > 0 {
+		next = svc.NextRuns(ctx, "backup", enabled)
+	}
+	for i, p := range pols {
+		if out[i].View != authz.Full.String() {
+			continue
+		}
+		for _, s := range sets[p.ID] {
+			out[i].RecentSets = append(out[i].RecentSets, newBackupSet(s, backups))
+		}
+		if t, ok := next[p.ID]; ok && p.Enabled && out[i].Schedule != nil {
+			out[i].Schedule.NextRun = &t
+		}
+	}
 }
 
 func (h *backupsAPI) visiblePolicy(ctx context.Context, id string) (BackupService, authz.Checker, authz.Principal, domain.BackupPolicy, authz.View, error) {
@@ -309,27 +397,18 @@ func (h *backupsAPI) requirePolicy(ctx context.Context, id string, cp Capability
 	return svc, c, p, pol, v, nil
 }
 
-func (h *backupsAPI) policyOut(ctx context.Context, svc BackupService, p domain.BackupPolicy, v authz.View) *backupPolicyOutput {
-	body := newBackupPolicy(p, v)
-	if v.Full() {
-		if sets, err := svc.ListSets(ctx, p.ID, 5); err == nil {
-			for _, s := range sets {
-				body.RecentSets = append(body.RecentSets, newBackupSet(s))
-			}
-		}
-		if body.Schedule != nil && p.Enabled {
-			body.Schedule.NextRun = svc.NextRun(ctx, "backup", p.ID)
-		}
-	}
-	return &backupPolicyOutput{ETagHeader: backupPolicyETag(body), Body: body}
+func (h *backupsAPI) policyOut(ctx context.Context, svc BackupService, c authz.Checker, p domain.BackupPolicy, v authz.View) *backupPolicyOutput {
+	out := []BackupPolicy{newBackupPolicy(p, v)}
+	addPolicyRuns(ctx, svc, c, []domain.BackupPolicy{p}, out)
+	return &backupPolicyOutput{ETagHeader: backupPolicyETag(out[0]), Body: out[0]}
 }
 
 func (h *backupsAPI) getPolicy(ctx context.Context, in *backupPolicyIDInput) (*backupPolicyOutput, error) {
-	svc, _, _, p, v, err := h.visiblePolicy(ctx, in.PolicyID)
+	svc, c, _, p, v, err := h.visiblePolicy(ctx, in.PolicyID)
 	if err != nil {
 		return nil, err
 	}
-	return h.policyOut(ctx, svc, p, v), nil
+	return h.policyOut(ctx, svc, c, p, v), nil
 }
 
 // requireManagerStateOwner: including the manager state is owner-only
@@ -372,7 +451,7 @@ func (h *backupsAPI) createPolicy(ctx context.Context, in *createBackupPolicyInp
 	if !v.Full() {
 		v = authz.View{Level: authz.Full, Actions: []string{string(CapBackupPolicyRead)}}
 	}
-	return h.policyOut(ctx, svc, p, v), nil
+	return h.policyOut(ctx, svc, c, p, v), nil
 }
 
 type updateBackupPolicyInput struct {
@@ -440,7 +519,7 @@ func (h *backupsAPI) updatePolicy(ctx context.Context, in *updateBackupPolicyInp
 	if err != nil {
 		return nil, backupError(err)
 	}
-	return h.policyOut(ctx, svc, after, v), nil
+	return h.policyOut(ctx, svc, c, after, v), nil
 }
 
 type deleteBackupPolicyInput struct {
@@ -703,7 +782,7 @@ func (h *backupsAPI) runPolicy(ctx context.Context, in *runPolicyInput) (*runPol
 	if err != nil {
 		return nil, backupError(err)
 	}
-	out := BackupRun{Set: newBackupSet(res.Set), Jobs: []Job{}}
+	out := BackupRun{Set: newBackupSet(res.Set, nil), Jobs: []Job{}}
 	for _, j := range res.Jobs {
 		out.Jobs = append(out.Jobs, NewJob(j))
 	}
@@ -766,7 +845,9 @@ func registerBackupPolicies(a huma.API, h *backupsAPI) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "list-backup-policies", Method: http.MethodGet, Path: BasePath + "/backup-policies",
-			Summary: "List backup policies", Description: "Filtered per item (#17); minimal view: id, name, enabled.",
+			Summary: "List backup policies",
+			Description: "Filtered per item (#17); minimal view: id, name, enabled. Policies shown in full carry the recent sets " +
+				"(members with their backupId) and the next run, as get-backup-policy does.",
 			Tags: []string{tagBackups}, Errors: []int{http.StatusUnprocessableEntity},
 		},
 		Capability: CapBackupPolicyRead, Scope: ScopeResource,

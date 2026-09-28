@@ -31,16 +31,10 @@
 		formatDateTime,
 		toast
 	} from '$lib/ui';
-	import { validateStack } from '$lib/features/stacks/actions';
 	import ValidationResult from '$lib/features/stacks/ValidationResult.svelte';
 	import { liveScopeOf, type FilesApi } from './api';
 	import CompareDialog from './CompareDialog.svelte';
-	import {
-		definitionFiles,
-		definitionRefusal,
-		isDefinitionFile,
-		type StackFiles
-	} from './definition';
+	import { definitionRefusal, isDefinitionFile, type StackFiles } from './definition';
 	import { isDirty, SaveBlockedError, type EditorSession, type EditorTab } from './editor.svelte';
 	import EditorDocument from './EditorDocument.svelte';
 	import { formattable, LANGUAGE_LABELS } from './language';
@@ -123,41 +117,17 @@
 	}
 
 	// Validation after saving a Compose source: the findings (warnings,
-	// services) of the definition now on disk. The server refused invalid
-	// saves already, so a failed validation only leaves the panel out.
+	// services) of the definition now on disk, checked by the agent in the
+	// stack's own project directory as a deploy loads it. The server refused
+	// invalid saves already, so a failed validation only leaves the panel out.
 	let validation = $state<{ path: string; result: Schema<'StackValidation'> } | null>(null);
 	let validationRun = 0;
 	async function validate(t: EditorTab) {
-		const s = stack;
-		if (!s?.environmentId || files.scope.kind !== 'stack') return;
+		const check = stack?.validate;
+		if (!check || files.scope.kind !== 'stack') return;
 		const run = ++validationRun;
 		try {
-			const root = await files.list('.', { sort: 'type', q: '', hidden: true });
-			const which = definitionFiles(
-				s.configFiles,
-				root.items.map((e) => e.name)
-			);
-			if (!which) return;
-			// The saved file's text is what was just written; the rest is read.
-			const text = async (path?: string) => {
-				if (!path) return undefined;
-				if (path === t.path) return t.buffer;
-				const r = await files.read(path);
-				if (r.data.binary || r.data.truncated) throw new Error('not readable as text');
-				return r.data.content ?? '';
-			};
-			const [compose, override, env] = await Promise.all([
-				text(which.compose),
-				text(which.override),
-				text(which.env)
-			]);
-			const result = await validateStack({
-				environmentId: s.environmentId,
-				name: s.projectName ?? s.name,
-				compose: compose ?? '',
-				override: override || undefined,
-				env: env || undefined
-			});
+			const result = await check();
 			if (run === validationRun) validation = { path: t.path, result };
 		} catch {
 			// Nothing to add: the save succeeded and the server checked it.

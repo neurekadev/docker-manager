@@ -1,13 +1,20 @@
 <script lang="ts">
 	// Candidates of an update policy (#20): per service the tagged
 	// reference, the digest running on the host and the registry's digest
-	// for the host platform, the status and why it is (not) eligible. The
+	// for the host platform (with when that image was published, if the
+	// registry says so), the status and why it is (not) eligible. The
 	// tag text never changes; only digests are compared.
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { Badge, Table, formatDateTime, formatRelative, type Column } from '$lib/ui';
 	import Digest from '$lib/features/common/Digest.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
-	import { candidateStatus, checkErrorText, reasonLabel, type UpdateCandidate } from './model';
+	import {
+		candidateStatus,
+		checkErrorText,
+		publishedText,
+		reasonLabel,
+		type UpdateCandidate
+	} from './model';
 
 	let { candidates, label }: { candidates: UpdateCandidate[]; label: string } = $props();
 
@@ -65,6 +72,10 @@
 				? 'danger'
 				: 'default'}
 	/>
+	{#if publishedText(c)}<span
+			class="muted published"
+			title="Published {formatDateTime(c.publishedAt)}">{publishedText(c)}</span
+		>{/if}
 {/snippet}
 {#snippet notesCell(c: UpdateCandidate)}
 	{@const reason = reasonLabel(c)}
@@ -108,6 +119,12 @@
 
 	.danger {
 		color: var(--danger);
+	}
+
+	.published {
+		display: block;
+		margin-top: 2px;
+		font-size: var(--text-caption);
 	}
 
 	.warn {

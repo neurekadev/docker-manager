@@ -355,16 +355,21 @@ export interface JobFilters {
 	environmentId?: string;
 	origins?: Job['origin'][];
 	target?: string;
+	/** Jobs of one policy (its scheduled and manual runs). */
+	policyId?: string;
 }
 
-/** One page of GET /jobs (newest first). `state` is comma-separated on the wire. */
+/**
+ * One page of GET /jobs (newest first). `state` is comma-separated on the
+ * wire; `total` (every job matching the filters) is present only when exact.
+ */
 export async function fetchJobsPage(
 	f: JobFilters,
 	cursor: string | undefined,
 	limit: number,
 	signal?: AbortSignal,
 	client: ApiClient = api
-): Promise<{ items: Job[]; nextCursor?: string }> {
+): Promise<{ items: Job[]; nextCursor?: string; total?: number }> {
 	return unwrap(
 		client.GET('/api/v1/jobs', {
 			params: {
@@ -376,7 +381,8 @@ export async function fetchJobsPage(
 					kind: f.kind || undefined,
 					environmentId: f.environmentId || undefined,
 					origin: f.origins?.length ? f.origins : undefined,
-					target: f.target || undefined
+					target: f.target || undefined,
+					policyId: f.policyId || undefined
 				}
 			},
 			signal

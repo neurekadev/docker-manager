@@ -3,11 +3,12 @@ import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
-import type { Environment } from '$lib/api/client';
+import type { Environment, EnvironmentSystem } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import ArchiveEnvironmentDialog from './ArchiveEnvironmentDialog.svelte';
 import EditEnvironmentDialog from './EditEnvironmentDialog.svelte';
 import AgentsPanel from './AgentsPanel.svelte';
+import SystemPanel from './SystemPanel.svelte';
 
 const goto = vi.hoisted(() => vi.fn());
 vi.mock('$app/navigation', () => ({ goto }));
@@ -223,7 +224,7 @@ describe('AgentsPanel (#3)', () => {
 		mount(AgentsPanel, { env });
 		const table = await screen.findByRole('table', { name: 'Agents of homelab' });
 		expect(within(table).getByText('Upgrade recommended')).toBeInTheDocument();
-		expect(table).toHaveTextContent('Connected now'); // not its stale last-seen time
+		expect(table).toHaveTextContent('Connected now'); // not its once-a-minute last-seen time
 		expect(table).not.toHaveTextContent('a1'); // the agent ID is only the name's tooltip
 		// Only the active agent has actions (not the revoked one).
 		expect(within(table).getAllByRole('button', { name: 'Actions for homelab' })).toHaveLength(
@@ -259,5 +260,53 @@ describe('AgentsPanel (#3)', () => {
 		await user.click(within(remove).getByRole('button', { name: 'Remove agent' }));
 		await waitFor(() => expect(requests.some((r) => r.method === 'DELETE')).toBe(true));
 		expect(requests.find((r) => r.method === 'DELETE')!.headers.get('If-Match')).toBe('"4"');
+	});
+});
+
+describe('SystemPanel (#3)', () => {
+	const now = new Date('2026-09-25T12:00:00Z');
+	const system = (connected: boolean): EnvironmentSystem => ({
+		environmentId: 'e1',
+		online: connected,
+		agent: {
+			id: 'a1',
+			version: '1.4.0',
+			versionStatus: 'current',
+			compatibility: 'current',
+			os: 'linux',
+			arch: 'amd64',
+			protocols: ['docker-manager.agent/v1'],
+			connected
+		},
+		features: [],
+		commands: [],
+		requests: [],
+		streams: [],
+		roots: [],
+		diagnostics: []
+	});
+	const seen = {
+		...env,
+		createdAt: '2026-09-01T00:00:00Z',
+		connectionChangedAt: '2026-09-25T09:00:00Z',
+		lastSeenAt: '2026-09-25T11:58:00Z'
+	};
+
+	it('shows when a disconnected agent was last seen', () => {
+		mount(SystemPanel, { env: { ...seen, online: false }, system: system(false), now });
+		expect(screen.getByText('Not connected')).toBeInTheDocument();
+		expect(screen.getByText(/^last seen/)).toBeInTheDocument();
+		expect(screen.getByText('2 minutes ago')).toHaveAttribute(
+			'datetime',
+			'2026-09-25T11:58:00Z'
+		);
+		expect(screen.queryByText(/^since/)).not.toBeInTheDocument();
+	});
+
+	it('shows since when a connected agent is connected', () => {
+		mount(SystemPanel, { env: seen, system: system(true), now });
+		expect(screen.getByText('Connected')).toBeInTheDocument();
+		expect(screen.getByText(/^since/)).toBeInTheDocument();
+		expect(screen.queryByText(/^last seen/)).not.toBeInTheDocument();
 	});
 });

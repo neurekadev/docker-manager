@@ -118,6 +118,9 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (ContainerDeta
 	}
 	if hc := r.HostConfig; hc != nil {
 		d.RestartPolicy = string(hc.RestartPolicy.Name)
+		if hc.RestartPolicy.IsOnFailure() && hc.RestartPolicy.MaximumRetryCount > 0 {
+			d.RestartMaxRetries = hc.RestartPolicy.MaximumRetryCount
+		}
 		d.NetworkMode = string(hc.NetworkMode)
 		d.Resources = Resources{NanoCPUs: hc.NanoCPUs, CPUShares: hc.CPUShares, Memory: hc.Memory,
 			MemorySwap: hc.MemorySwap, PidsLimit: hc.PidsLimit}

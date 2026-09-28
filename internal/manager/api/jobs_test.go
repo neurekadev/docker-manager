@@ -25,12 +25,26 @@ import (
 )
 
 // testAuthz grants job.read/job.cancel except where denied; jobs targeting
-// the stack "secret" are invisible to user "eve".
-type testAuthz struct{ noCancel bool }
+// the stack "secret" are invisible to user "eve". Only "alice" holds the
+// owner-only probe (she reads every job); bobDenied is a capability user
+// "bob" lacks.
+type testAuthz struct {
+	noCancel  bool
+	bobDenied string
+}
 
 func (a testAuthz) Can(_ context.Context, p authz.Principal, capability string, r authz.Resource) authz.Decision {
 	if capability == string(CapJobCancel) && a.noCancel {
 		return authz.Deny("no cancel")
+	}
+	if capability == ownerProbe && p.UserID != "alice" {
+		return authz.Deny("owner only")
+	}
+	if p.UserID == "bob" && capability == a.bobDenied {
+		return authz.Deny("not granted")
+	}
+	if r.ID == "secret" && p.UserID == "eve" {
+		return authz.Deny("no access")
 	}
 	for _, t := range r.Targets {
 		if p.UserID == "eve" && t.ID == "secret" {
@@ -49,7 +63,9 @@ type jobsFixture struct {
 	h    http.Handler
 }
 
-func newJobsFixture(t *testing.T, az authz.Authorizer) *jobsFixture {
+// newJobsFixture serves the job routes with az; the engine allows every
+// enqueue unless engineAz is given.
+func newJobsFixture(t *testing.T, az authz.Authorizer, engineAz ...authz.Authorizer) *jobsFixture {
 	t.Helper()
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
@@ -63,8 +79,11 @@ func newJobsFixture(t *testing.T, az authz.Authorizer) *jobsFixture {
 	}
 	clk := testutil.FakeClock()
 	disp := jobstest.New()
-	eng, err := jobs.New(jobs.Options{DB: db, Clock: clk, Logger: testutil.Logger(t), Dispatcher: disp,
-		Authorizer: authz.Func(func(context.Context, authz.Principal, string, authz.Resource) authz.Decision { return authz.Allow("t") })})
+	var engAz authz.Authorizer = authz.Func(func(context.Context, authz.Principal, string, authz.Resource) authz.Decision { return authz.Allow("t") })
+	if len(engineAz) > 0 {
+		engAz = engineAz[0]
+	}
+	eng, err := jobs.New(jobs.Options{DB: db, Clock: clk, Logger: testutil.Logger(t), Dispatcher: disp, Authorizer: engAz})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +127,12 @@ func (f *jobsFixture) do(method, target, user string, hdr ...string) *httptest.R
 }
 
 // finish runs a job to success through fake agent frames.
-func (f *jobsFixture) finish(env string) {
+func (f *jobsFixture) finish(env string) { f.t.Helper(); f.end(env, "succeeded") }
+
+// fail runs the queued jobs of env to failure through fake agent frames.
+func (f *jobsFixture) fail(env string) { f.t.Helper(); f.end(env, "failed") }
+
+func (f *jobsFixture) end(env, outcome string) {
 	f.t.Helper()
 	f.disp.Connect(env)
 	if err := f.eng.DispatchPending(f.ctx); err != nil {
@@ -121,7 +145,7 @@ func (f *jobsFixture) finish(env string) {
 		}{
 			{protocol.TypeAck, protocol.AckPayload{Accepted: true}},
 			{protocol.TypeProgress, protocol.ProgressPayload{Step: "start", Percent: 50, Message: "halfway"}},
-			{protocol.TypeResult, protocol.ResultPayload{Outcome: "succeeded"}},
+			{protocol.TypeResult, protocol.ResultPayload{Outcome: outcome}},
 		} {
 			frame, err := protocol.NewFrame(fr.typ, string(fr.typ)+"-"+cmd.ID, cmd.ID, cmd.Ref(), fr.p)
 			if err != nil {
@@ -461,6 +485,133 @@ func TestJobEventStreamLiveHeartbeat(t *testing.T) {
 	}
 }
 
+type jobsPage struct {
+	Items      []Job  `json:"items"`
+	NextCursor string `json:"nextCursor"`
+	Total      *int64 `json:"total"`
+}
+
+func listPage(t *testing.T, rec *httptest.ResponseRecorder) jobsPage {
+	t.Helper()
+	var page jobsPage
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &page) != nil {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body)
+	}
+	return page
+}
+
+// total counts the visible matching jobs across pages: a COUNT for the
+// owner, a per-job check for others; policyId filters by the job's policy.
+func TestListJobsTotalAndPolicyFilter(t *testing.T) {
+	f := newJobsFixture(t, testAuthz{})
+	f.enqueue(jobspec.StackStart, "e1", stackT("a"))
+	f.enqueue(jobspec.StackStart, "e1", stackT("secret"))
+	run, _, err := f.eng.Enqueue(f.ctx, jobs.Request{Kind: jobspec.PruneRun, Principal: authz.Service(), EnvironmentID: "e2", PolicyID: "pol-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manual, _, err := f.eng.Enqueue(f.ctx, jobs.Request{Kind: jobspec.PruneRun, Principal: authz.Principal{Kind: authz.KindUser, UserID: "alice"},
+		EnvironmentID: "e1", PolicyID: "pol-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = 4
+	if p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1", "alice")); len(p.Items) != 1 || p.Total == nil || *p.Total != want ||
+		p.NextCursor == "" {
+		t.Fatalf("alice: %d items, total %v", len(p.Items), p.Total)
+	}
+	// eve may not see the secret stack's job: it is neither listed nor counted.
+	if p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1", "eve")); p.Total == nil || *p.Total != want-1 {
+		t.Fatalf("eve: total %v", p.Total)
+	}
+	if p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?target=stack:secret", "eve")); len(p.Items) != 0 || p.Total == nil || *p.Total != 0 {
+		t.Fatalf("eve on secret: %d items, total %v", len(p.Items), p.Total)
+	}
+	p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?policyId=pol-1", "eve"))
+	if len(p.Items) != 1 || p.Items[0].ID != run.ID || p.Items[0].PolicyID != "pol-1" || p.Total == nil || *p.Total != 1 {
+		t.Fatalf("policy filter: %+v total %v", p.Items, p.Total)
+	}
+	if p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?policyId=pol-2&kind=prune.run", "alice")); len(p.Items) != 1 || p.Items[0].ID != manual.ID {
+		t.Fatalf("manual policy run: %+v", p.Items)
+	}
+	if p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?policyId=nope", "alice")); len(p.Items) != 0 || p.Total == nil || *p.Total != 0 {
+		t.Fatalf("unknown policy: %+v", p)
+	}
+	// A cursor is bound to its policy filter.
+	first := listPage(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1", "alice"))
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&policyId=pol-1&cursor="+first.NextCursor, "alice"),
+		http.StatusUnprocessableEntity, CodeValidationFailed)
+}
+
+// A failed image pull is retried as a new job linked to it; the job shows
+// retryable only to callers who may run it again.
+func TestRetryJob(t *testing.T) {
+	az := testAuthz{bobDenied: "image.pull"}
+	f := newJobsFixture(t, az, az)
+	f.disp.Connect("e1")
+	orig, _, err := f.eng.Enqueue(f.ctx, jobs.Request{Kind: jobspec.ImagePull, Principal: authz.Principal{Kind: authz.KindUser, UserID: "alice"},
+		EnvironmentID: "e1", Targets: []domain.JobTarget{{Type: domain.TargetImage, ID: "nginx:1"}}, Input: map[string]any{"reference": "nginx:1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.fail("e1")
+	getJob := func(id, user string) Job {
+		t.Helper()
+		rec := f.do(http.MethodGet, BasePath+"/jobs/"+id, user)
+		var j Job
+		if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &j) != nil {
+			t.Fatalf("get %s: %d %s", id, rec.Code, rec.Body)
+		}
+		return j
+	}
+	if j := getJob(orig.ID, "alice"); j.State != "failed" || !j.Retryable {
+		t.Fatalf("alice sees %s retryable=%v", j.State, j.Retryable)
+	}
+	if p := listPage(t, f.do(http.MethodGet, BasePath+"/jobs", "alice")); len(p.Items) != 1 || !p.Items[0].Retryable {
+		t.Fatalf("list: %+v", p.Items)
+	}
+	// bob may read the job but not pull images: no retry.
+	if getJob(orig.ID, "bob").Retryable {
+		t.Fatal("bob sees a retry he may not start")
+	}
+	decodeError(t, f.do(http.MethodPost, BasePath+"/jobs/"+orig.ID+"/retries", "bob"), http.StatusForbidden, CodeForbidden)
+
+	rec := f.do(http.MethodPost, BasePath+"/jobs/"+orig.ID+"/retries", "alice", "Idempotency-Key", "retry-1")
+	var nj Job
+	if rec.Code != http.StatusAccepted || json.Unmarshal(rec.Body.Bytes(), &nj) != nil {
+		t.Fatalf("retry: %d %s", rec.Code, rec.Body)
+	}
+	if nj.ID == orig.ID || nj.RetryOf != orig.ID || nj.Kind != "image.pull" || nj.State != "queued" || nj.Retryable ||
+		rec.Header().Get("Location") != BasePath+"/jobs/"+nj.ID {
+		t.Fatalf("new job %+v (Location %s)", nj, rec.Header().Get("Location"))
+	}
+	if getJob(nj.ID, "alice").RetryOf != orig.ID {
+		t.Fatal("retryOf not returned")
+	}
+	// Repeating the request returns the same retry.
+	rec = f.do(http.MethodPost, BasePath+"/jobs/"+orig.ID+"/retries", "alice", "Idempotency-Key", "retry-1")
+	var again Job
+	if rec.Code != http.StatusAccepted || json.Unmarshal(rec.Body.Bytes(), &again) != nil || again.ID != nj.ID {
+		t.Fatalf("repeated retry: %d %s", rec.Code, rec.Body)
+	}
+	// The retry is still queued: not retryable.
+	decodeError(t, f.do(http.MethodPost, BasePath+"/jobs/"+nj.ID+"/retries", "alice"), http.StatusConflict, CodeJobNotRetryable)
+	// A kind that is not retryable.
+	stop := f.enqueue(jobspec.StackStop, "e2", stackT("web"))
+	if _, err := f.eng.Cancel(f.ctx, stop.ID); err != nil {
+		t.Fatal(err)
+	}
+	if getJob(stop.ID, "alice").Retryable {
+		t.Fatal("stack.stop is retryable")
+	}
+	decodeError(t, f.do(http.MethodPost, BasePath+"/jobs/"+stop.ID+"/retries", "alice"), http.StatusConflict, CodeJobNotRetryable)
+	// Invisible and unknown jobs are 404; unauthenticated calls 401.
+	hidden := f.enqueue(jobspec.StackStop, "e2", stackT("secret"))
+	decodeError(t, f.do(http.MethodPost, BasePath+"/jobs/"+hidden.ID+"/retries", "eve"), http.StatusNotFound, CodeNotFound)
+	decodeError(t, f.do(http.MethodPost, BasePath+"/jobs/nope/retries", "alice"), http.StatusNotFound, CodeNotFound)
+	decodeError(t, f.do(http.MethodPost, BasePath+"/jobs/"+orig.ID+"/retries", ""), http.StatusUnauthorized, CodeUnauthenticated)
+}
+
 func TestJobErrorFor(t *testing.T) {
 	cases := map[error]struct {
 		status int
@@ -473,7 +624,9 @@ func TestJobErrorFor(t *testing.T) {
 		domain.ErrJobInvalid:             {422, CodeValidationFailed},
 		domain.ErrJobUnknownKind:         {422, CodeValidationFailed},
 		domain.ErrJobKindUnavailable:     {501, "job_kind_unavailable"},
-		errors.New("disk"):               {500, CodeInternal},
+		domain.ErrJobNotRetryable:        {409, CodeJobNotRetryable},
+		&domain.JobNotRetryableError{Reason: domain.RetryRefusedKind, Message: "no"}: {409, CodeJobNotRetryable},
+		errors.New("disk"): {500, CodeInternal},
 	}
 	for in, want := range cases {
 		var e *Error

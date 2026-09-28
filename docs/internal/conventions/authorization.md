@@ -51,3 +51,7 @@ specific user rule, then the most specific group rule, then deny.
 - Permission/group changes are owner-only, need step-up, are revisioned,
   audited with diffs and end the affected users' streams
   (`auth.Service.AccessChanged`); session tokens are not rotated.
+- The owner is in a group only because `users.group_id` is `NOT NULL`:
+  group member counts exclude the owner, and the owner never blocks a group
+  deletion (`store.DeleteGroup` moves it to the default group in the same
+  transaction). Never make group rules or counts depend on the owner.

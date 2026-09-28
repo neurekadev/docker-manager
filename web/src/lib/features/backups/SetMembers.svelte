@@ -2,29 +2,18 @@
 	// The members of a backup set (#10): each stack, volume or the manager
 	// state with its own state and snapshot time, in aligned columns.
 	// Multi-host sets are not atomic, so every member shows the time its
-	// environment took it. With the set's backups given, members link to
-	// their backup (members carry no backup ID; memberBackup matches them).
+	// environment took it. Members link to the backup they took (backupId).
 	import { Badge, formatDateTime } from '$lib/ui';
 	import { routes } from '$lib/routes';
-	import {
-		itemName,
-		memberBackup,
-		memberState,
-		sentenceCase,
-		type Backup,
-		type SetMember
-	} from './model';
+	import { itemName, memberState, sentenceCase, type SetMember } from './model';
 
 	let {
 		members,
 		environmentName,
-		backups,
 		currentId
 	}: {
 		members: SetMember[];
 		environmentName?: (id: string) => string;
-		/** The set's backups: members link to theirs. */
-		backups?: Backup[];
 		/** The backup being shown (not linked). */
 		currentId?: string;
 	} = $props();
@@ -42,15 +31,15 @@
 	<tbody>
 		{#each members as m, i (`${m.scope}-${m.item}-${i}`)}
 			{@const s = memberState(m.state)}
-			{@const b = memberBackup(m, backups)}
+			{@const b = m.backupId}
 			<tr>
 				<td class="name">
-					{#if b && b.id !== currentId}
-						<a href={routes.backup(b.id)}>{itemName(m)}</a>
+					{#if b && b !== currentId}
+						<a href={routes.backup(b)}>{itemName(m)}</a>
 					{:else}
 						<span
 							class="strong"
-							aria-current={b && b.id === currentId ? 'page' : undefined}
+							aria-current={b && b === currentId ? 'page' : undefined}
 							>{itemName(m)}</span
 						>
 					{/if}

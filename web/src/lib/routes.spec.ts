@@ -142,7 +142,11 @@ const calls: Record<keyof typeof routes, string[]> = {
 	maintenancePolicy: [routes.maintenancePolicy('mp-1')],
 	maintenanceEdit: [routes.maintenanceEdit('mp-1')],
 	maintenanceDefaults: [routes.maintenanceDefaults()],
-	jobs: [routes.jobs(), routes.jobs('update.check')],
+	jobs: [
+		routes.jobs(),
+		routes.jobs('update.check'),
+		routes.jobs('prune.run', { policyId: 'mp-1' })
+	],
 	job: [routes.job('job-1')],
 	schedules: [routes.schedules()],
 	access: [routes.access()],
@@ -192,5 +196,14 @@ describe('routes', () => {
 	it('encodes IDs as one path segment', () => {
 		expect(routes.container('env 1', 'a/b')).toBe('/containers/env%201/a%2Fb');
 		expect(resolves(routes.image('env-1', 'sha256:a/b'))).toBe(true);
+	});
+
+	it('sets the jobs list filters as query parameters', () => {
+		expect(routes.jobs()).toBe('/jobs');
+		expect(routes.jobs('update.check')).toBe('/jobs?kind=update.check');
+		expect(routes.jobs('prune.run', { policyId: 'mp 1' })).toBe(
+			'/jobs?kind=prune.run&policyId=mp+1'
+		);
+		expect(routes.jobs(undefined, { policyId: 'up-1' })).toBe('/jobs?policyId=up-1');
 	});
 });

@@ -151,7 +151,7 @@ func (s *Service) containerDetails(d engine.ContainerDetails) protocol.Container
 			Command: strings.Join(append(slices.Clone(d.Entrypoint), d.Cmd...), " "), Created: d.Created.UTC(), State: st.Status,
 			Status: st.Status, Labels: maps.Clone(d.Labels), Stack: s.stackOf(d.Labels), Mounts: mountsOf(d.Mounts)},
 		Cmd: d.Cmd, Entrypoint: d.Entrypoint, WorkingDir: d.WorkingDir, User: d.User, Tty: d.Tty, Hostname: d.Hostname,
-		RestartPolicy: d.RestartPolicy, NetworkMode: d.NetworkMode, RestartCount: d.RestartCount, Platform: d.Platform,
+		RestartPolicy: d.RestartPolicy, RestartMaxRetries: d.RestartMaxRetries, NetworkMode: d.NetworkMode, RestartCount: d.RestartCount, Platform: d.Platform,
 		Running: st.Running, Paused: st.Paused, OOMKilled: st.OOMKilled, ExitCode: st.ExitCode, Error: st.Error,
 		FinishedAt: timePtr(st.FinishedAt),
 		Resources: protocol.ResourcesSpec{NanoCPUs: d.Resources.NanoCPUs, CPUShares: d.Resources.CPUShares, Memory: d.Resources.Memory,
@@ -351,19 +351,21 @@ func (s *Service) volumeUsage(ctx context.Context, eng engine.Engine, _ protocol
 }
 
 // networkInfo converts a network. Attached containers are only known for
-// an inspected network (the list does not report them); byID adds their
-// names and states.
+// an inspected network (the list does not report them) with their
+// addresses on it; byID adds their names and states.
 func networkInfo(n engine.Network, byID map[string]engine.Container, managed map[string]bool, set *protect.Set) protocol.NetworkInfo {
 	out := protocol.NetworkInfo{ID: n.ID, Name: n.Name, Driver: n.Driver, Scope: n.Scope, Internal: n.Internal, Attachable: n.Attachable,
 		EnableIPv6: n.EnableIPv6, Created: n.Created.UTC(), Labels: maps.Clone(n.Labels), Subnets: n.Subnets, Gateways: n.Gateways,
 		Builtin: slices.Contains(protocol.BuiltinNetworks, n.Name), Stack: objectStack(n.Labels, managed), Protection: set.Network(n.ID, n.Name, n.Labels)}
 	ids := slices.Sorted(maps.Keys(n.Containers))
 	for _, id := range ids {
+		r := protocol.ContainerRef{ID: id}
 		if c, ok := byID[id]; ok {
-			out.Containers = append(out.Containers, ref(c))
-		} else {
-			out.Containers = append(out.Containers, protocol.ContainerRef{ID: id})
+			r = ref(c)
 		}
+		ep := n.Containers[id]
+		r.IPAddress, r.IPv6Address = ep.IPAddress, ep.IPv6Address
+		out.Containers = append(out.Containers, r)
 	}
 	return out
 }

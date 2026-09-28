@@ -144,7 +144,8 @@ describe('CandidatesTable (#20)', () => {
 						nonVersionTag: true,
 						status: 'update_available',
 						currentDigest: 'sha256:1111111111111111aaaa',
-						candidateDigest: 'sha256:2222222222222222bbbb'
+						candidateDigest: 'sha256:2222222222222222bbbb',
+						publishedAt: new Date(Date.now() - 3 * 86_400_000).toISOString()
 					},
 					{
 						id: 'b',
@@ -164,9 +165,10 @@ describe('CandidatesTable (#20)', () => {
 		expect(web).toHaveTextContent('Tag can change meaning');
 		expect(web).toHaveTextContent('111111111111');
 		expect(web).toHaveTextContent('222222222222');
-		expect(within(table).getByRole('row', { name: /silo-db/ })).toHaveTextContent(
-			'Pinned by @sha256 digest'
-		);
+		expect(web).toHaveTextContent('published 3 days ago');
+		const db = within(table).getByRole('row', { name: /silo-db/ });
+		expect(db).toHaveTextContent('Pinned by @sha256 digest');
+		expect(db).not.toHaveTextContent('published');
 	});
 });
 

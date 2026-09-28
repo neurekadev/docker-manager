@@ -22,6 +22,9 @@
 //   - Three failed connections within 60 s: bounded polling of the open
 //     views (details every 10 s, lists and metrics every 30 s) until the
 //     stream is back.
+//   - EventSource hides why a connection failed, so after a failure the
+//     client asks once (a plain request it aborts after the headers): a 429
+//     means the person has too many tabs open, and the shell says so.
 //   - Lists refresh at most twice a second and metrics (charts, current
 //     CPU and memory) once a second however many events arrive; details
 //     immediately. The first event of a quiet key refreshes at once.
@@ -65,6 +68,29 @@ export interface EventSourceLike {
 
 export type EventSourceFactory = (url: string) => EventSourceLike;
 
+/** The HTTP status of opening url (null: no answer); fakeable in tests. */
+export type StatusProbe = (url: string) => Promise<number | null>;
+
+/**
+ * Opens the stream with fetch and aborts once the headers arrive: only the
+ * status matters (a 200 releases its slot again at once).
+ */
+const fetchStatus: StatusProbe = async (url) => {
+	const ctl = new AbortController();
+	try {
+		const res = await fetch(url, {
+			credentials: 'same-origin',
+			headers: { accept: 'text/event-stream' },
+			signal: ctl.signal
+		});
+		return res.status;
+	} catch {
+		return null;
+	} finally {
+		ctl.abort();
+	}
+};
+
 /** The parts of QueryClient the client uses. */
 export interface QueryClientLike {
 	invalidateQueries(filters?: {
@@ -105,6 +131,8 @@ export interface LiveScopes {
 export interface LiveClientOptions {
 	queryClient: QueryClientLike;
 	connect?: EventSourceFactory;
+	/** Learns why a connection failed (default: fetch). */
+	probe?: StatusProbe;
 	status?: LiveStatus;
 	scheduler?: Scheduler;
 	/** Refetch the caller's permissions after a change (before reconnecting). */
@@ -126,6 +154,7 @@ function parseCursor(c: string): { epoch: string; seq: number } | null {
 export class LiveClient {
 	readonly #qc: QueryClientLike;
 	readonly #connect: EventSourceFactory;
+	readonly #probe: StatusProbe;
 	readonly #status: LiveStatus;
 	readonly #clock: Scheduler;
 	readonly #onPermissions?: () => Promise<unknown> | void;
@@ -144,12 +173,14 @@ export class LiveClient {
 	#pollTimer: unknown = null;
 	#pollTick = 0;
 	#throttled = new Map<string, Throttled>();
+	#probing = false;
 
 	constructor(o: LiveClientOptions) {
 		this.#qc = o.queryClient;
 		this.#connect =
 			o.connect ??
 			((url) => new EventSource(url, { withCredentials: true }) as EventSourceLike);
+		this.#probe = o.probe ?? fetchStatus;
 		this.#status = o.status ?? liveStatus;
 		this.#clock = o.scheduler ?? browserScheduler;
 		this.#onPermissions = o.onPermissionsChanged;
@@ -179,6 +210,7 @@ export class LiveClient {
 		for (const t of this.#throttled.values())
 			if (t.timer !== null) this.#clock.clearTimeout(t.timer);
 		this.#throttled.clear();
+		this.#status.tooManyStreams = false;
 		this.#status.set('stopped', this.#clock.now());
 	}
 
@@ -319,6 +351,7 @@ export class LiveClient {
 		this.#attempt = 0;
 		this.#failures = [];
 		this.#status.failures = 0;
+		this.#status.tooManyStreams = false;
 		this.#stopPolling();
 		this.#status.set('live', this.#clock.now());
 		if (!h.resumed) {
@@ -376,6 +409,21 @@ export class LiveClient {
 		this.#status.failures = this.#failures.length;
 		if (this.#failures.length >= FAILURES_FOR_POLLING) this.#startPolling();
 		this.#scheduleReconnect();
+		void this.#learnWhy();
+	}
+
+	/** Asks the manager why the stream failed (one question at a time). */
+	async #learnWhy(): Promise<void> {
+		if (this.#probing) return;
+		this.#probing = true;
+		try {
+			const status = await this.#probe(this.url());
+			// A stream that came back meanwhile knows better.
+			if (this.#running && this.#status.state !== 'live')
+				this.#status.tooManyStreams = status === 429;
+		} finally {
+			this.#probing = false;
+		}
 	}
 
 	#scheduleReconnect(): void {

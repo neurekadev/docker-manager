@@ -424,6 +424,28 @@ func TestCheckIsCachedAndAudited(t *testing.T) {
 // (and to resumed attempts), a deleted or revoked connection fails the job
 // without sending anything, and no job row, event or audit record holds a
 // secret.
+// Created reads the image's creation time through the selected
+// connection, audits the use once and serves repeats from the cache.
+func TestCreatedUsesTheConnection(t *testing.T) {
+	f := newFixture(t)
+	f.reg.Private["team/app"] = true
+	at := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	d := f.reg.PutImage("team/app", "2", at, "")
+	c := f.robot("fake", "")
+	req := registries.CheckRequest{RegistrySelectRequest: domain.RegistrySelectRequest{Reference: f.reg.Host() + "/team/app:2", EnvironmentID: "env-1"},
+		JobID: "job-1"}
+	for i := range 2 {
+		got, err := f.svc.Created(f.ctx, req, d)
+		if err != nil || !got.Equal(at) {
+			t.Fatalf("created %d: %v %v", i, got, err)
+		}
+	}
+	uses := f.audit.uses()
+	if len(uses) != 1 || uses[0].Targets[0].ID != c.ID || uses[0].Details["purpose"] != "image_created" || uses[0].Outcome != domain.AuditSuccess {
+		t.Fatalf("uses %+v", uses)
+	}
+}
+
 func TestJobsGetTheCurrentCredentialAtDispatch(t *testing.T) {
 	f := newFixture(t)
 	c := f.robot("fake", "")

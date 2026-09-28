@@ -93,8 +93,9 @@ class FakeScheduler implements Scheduler {
 	}
 }
 
-function setup() {
+function setup(probeStatus: number | null = null) {
 	const sources: FakeSource[] = [];
+	const probes: string[] = [];
 	const qc = new FakeQueryClient();
 	const clock = new FakeScheduler();
 	const status = new LiveStatus();
@@ -105,6 +106,10 @@ function setup() {
 			const s = new FakeSource(url);
 			sources.push(s);
 			return s;
+		},
+		probe: async (url) => {
+			probes.push(url);
+			return probeStatus;
 		},
 		status,
 		scheduler: clock,
@@ -119,6 +124,7 @@ function setup() {
 		status,
 		sources,
 		last: () => sources[sources.length - 1],
+		probes: () => probes,
 		permissionRefetches: () => permissionRefetches
 	};
 }
@@ -388,6 +394,28 @@ describe('LiveClient', () => {
 		expect(last().url).toBe(`${LIVE_URL}?stackId=s1&volume=e1%2Fpgdata&cursor=ep.2`);
 		client.setScopes({ stackIds: ['s1'], volumes: ['e1/pgdata'] }); // unchanged
 		expect(sources).toHaveLength(2);
+	});
+
+	it('says when the manager refused the stream because too many tabs are open', async () => {
+		const t = setup(429);
+		t.client.start();
+		t.last().fail();
+		await new Promise((r) => setTimeout(r, 0));
+		expect(t.probes()).toEqual([LIVE_URL]);
+		expect(t.status.tooManyStreams).toBe(true);
+		// A tab closed elsewhere: the next attempt connects and clears it.
+		t.clock.advance(30_000);
+		t.last().emit('hello', hello('ep.1'));
+		expect(t.status.state).toBe('live');
+		expect(t.status.tooManyStreams).toBe(false);
+	});
+
+	it('does not blame open tabs for other failures', async () => {
+		const t = setup(503);
+		t.client.start();
+		t.last().fail();
+		await new Promise((r) => setTimeout(r, 0));
+		expect(t.status.tooManyStreams).toBe(false);
 	});
 
 	it('tracks environment connection state from agent events', () => {

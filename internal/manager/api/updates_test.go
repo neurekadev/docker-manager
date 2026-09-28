@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
@@ -87,8 +88,9 @@ func (f *fakeUpdates) Delete(_ context.Context, id string, _ int64) error {
 }
 
 func (f *fakeUpdates) Candidates(context.Context, string) ([]domain.UpdateCandidate, error) {
+	published := time.Date(2026, 9, 20, 8, 30, 0, 0, time.UTC)
 	return []domain.UpdateCandidate{{ID: "c-1", Service: "web", Reference: "nginx:1.27", Eligible: true, Status: domain.CandidateQuarantined,
-		AppliedDigest: "sha256:old", CandidateDigest: "sha256:new"}}, nil
+		AppliedDigest: "sha256:old", CandidateDigest: "sha256:new", CandidatePublishedAt: &published}}, nil
 }
 
 func (f *fakeUpdates) Quarantine(context.Context, string) ([]domain.UpdateQuarantine, error) {
@@ -173,6 +175,10 @@ func TestUpdatePolicyRoutes(t *testing.T) {
 		p.RunSchedule == nil || p.RunSchedule.Enabled || p.Summary == nil || p.Summary.Quarantined != 1 {
 		t.Fatalf("get: %d %s", r.Status, r.Body)
 	}
+	// The target by the name users know (the stack's display name).
+	if p.TargetName != "Shop" {
+		t.Fatalf("target name: %q", p.TargetName)
+	}
 	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
 		path := "/api/v1/update-policies/pol-1"
 		if method == http.MethodPost {
@@ -195,6 +201,9 @@ func TestUpdatePolicyRoutes(t *testing.T) {
 	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &page) != nil || len(page.Items) != 1 ||
 		!strings.Contains(page.Items[0].Guidance, "docker.io/library/nginx@sha256:old") {
 		t.Fatalf("candidates: %d %s", r.Status, r.Body)
+	}
+	if !strings.Contains(string(r.Body), `"publishedAt":"2026-09-20T08:30:00Z"`) {
+		t.Fatalf("candidate publish time: %s", r.Body)
 	}
 	r = do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/update-policies/pol-1/runs", Headers: map[string]string{"Idempotency-Key": "k1"},
 		Body: map[string]any{"previewFingerprint": "fp-1"}})

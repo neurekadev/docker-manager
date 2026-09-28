@@ -6,8 +6,11 @@
 	// follows the job's event stream: items and messages), the timeline to
 	// the second, and the technical detail (kind, error class, locks,
 	// attempt, IDs) behind "Advanced". Cancel while the job can still stop
-	// at a safe point. There is no retry API: "try again" opens the page of
-	// the action that started the job.
+	// at a safe point. "Try again" starts a retry (POST /jobs/{id}/retries)
+	// when the server offers one (`retryable`) and opens the new job; other
+	// failed jobs link to the page of the action that started them. A retry
+	// names the job it retries ("Retry of").
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Activity from '@lucide/svelte/icons/activity';
@@ -28,12 +31,13 @@
 		ORIGIN_LABELS,
 		blockedText,
 		jobActive,
-		jobAgain,
 		jobDuration,
 		jobErrorHeadline,
 		jobHeadline,
 		jobKindLabel,
+		jobRetry,
 		policyPage,
+		RETRY_ERRORS,
 		stackNames,
 		targetHref,
 		targetName,
@@ -61,6 +65,8 @@
 		toast,
 		type MetaItem
 	} from '$lib/ui';
+	import { newIdempotencyKey } from '$lib/features/common/data';
+	import { actionError } from '$lib/features/common/errors';
 	import Columns from '$lib/features/common/Columns.svelte';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import Page from '$lib/features/common/Page.svelte';
@@ -98,7 +104,7 @@
 	const failed = $derived(
 		!!j && ['failed', 'partial', 'interrupted', 'cancelled'].includes(j.state)
 	);
-	const again = $derived(j && failed && j.state !== 'cancelled' ? jobAgain(j) : null);
+	const again = $derived(j ? jobRetry(j) : null);
 
 	/** "Check for updates, started on its schedule. It succeeded after 1 s." */
 	const summary = $derived.by(() => {
@@ -148,6 +154,32 @@
 		});
 	}
 
+	let retrying = $state(false);
+	/** Starts the job again as a new job and opens it. */
+	async function retry() {
+		if (retrying) return;
+		retrying = true;
+		const what = title;
+		try {
+			const out = await unwrap(
+				api.POST('/api/v1/jobs/{jobId}/retries', {
+					params: {
+						path: { jobId: id },
+						header: { 'Idempotency-Key': newIdempotencyKey() }
+					}
+				})
+			);
+			void qc.invalidateQueries({ queryKey: liveKeys.list('jobs') });
+			toast.success(`Retried ${what}`, { body: 'This page now follows the new job.' });
+			await goto(routes.job(out.id));
+		} catch (e) {
+			toast.error(`${what} was not retried`, { body: actionError(e, RETRY_ERRORS) });
+			void job.refetch();
+		} finally {
+			retrying = false;
+		}
+	}
+
 	const timeline = $derived(
 		j
 			? [
@@ -178,7 +210,11 @@
 		<PageHeader {title} description={summary} icon={Activity} color="violet" {meta}>
 			{#snippet status()}<StatusBadge status={j.state} kind="job" />{/snippet}
 			{#snippet actions()}
-				{#if again}
+				{#if again === 'retry'}
+					<Button variant="primary" icon={RotateCw} loading={retrying} onclick={retry}
+						>Try again</Button
+					>
+				{:else if again}
 					<Button variant="primary" icon={RotateCw} href={again.href}
 						>{again.label}</Button
 					>
@@ -274,6 +310,10 @@
 							{ORIGIN_LABELS[j.origin] ?? j.origin}
 						{/if}
 					</dd>
+					{#if j.retryOf}
+						<dt>Retry of</dt>
+						<dd><a href={routes.job(j.retryOf)}>The earlier job</a></dd>
+					{/if}
 					<dt>Duration</dt>
 					<dd class="num">{jobDuration(j) || '—'}</dd>
 				</dl>

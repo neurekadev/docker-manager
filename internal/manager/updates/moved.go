@@ -58,6 +58,7 @@ func (s *Service) StackMoved(ctx context.Context, db bun.IDB, stackID, from, to 
 				continue
 			}
 			c.Status, c.CandidateDigest, c.CandidateIndexDigest, c.UpdatedAt = domain.CandidateUnchecked, "", "", s.now()
+			c.CandidatePublishedAt = nil
 			c.ErrorClass, c.ErrorMessage, c.RetryAfterSeconds = "", "", 0
 			if err := store.UpsertUpdateCandidate(ctx, db, &c); err != nil {
 				return err

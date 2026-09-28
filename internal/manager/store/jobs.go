@@ -28,6 +28,7 @@ type jobRow struct {
 	InitiatorTokenID string     `bun:"initiator_token_id,nullzero"`
 	RequestID        string     `bun:"request_id,notnull"`
 	PolicyID         string     `bun:"policy_id,nullzero"`
+	RetryOf          string     `bun:"retry_of,notnull"`
 	EnvironmentID    string     `bun:"environment_id,nullzero"`
 	Targets          string     `bun:"targets,notnull"`
 	Input            string     `bun:"input,notnull"`
@@ -144,8 +145,8 @@ func fromJob(j *domain.Job) jobRow {
 	}
 	return jobRow{
 		ID: j.ID, Kind: string(j.Kind), Executor: string(j.Executor), Origin: string(j.Origin),
-		InitiatorUserID: j.InitiatorUserID, InitiatorTokenID: j.InitiatorTokenID, PolicyID: j.PolicyID, RequestID: j.RequestID,
-		EnvironmentID: j.EnvironmentID, Targets: mustJSON(targets), Input: input, InputHash: j.InputHash,
+		InitiatorUserID: j.InitiatorUserID, InitiatorTokenID: j.InitiatorTokenID, PolicyID: j.PolicyID, RetryOf: j.RetryOf,
+		RequestID: j.RequestID, EnvironmentID: j.EnvironmentID, Targets: mustJSON(targets), Input: input, InputHash: j.InputHash,
 		IdempotencyScope: scope, IdempotencyKey: j.IdempotencyKey, Attempt: j.Attempt, State: string(j.State),
 		ProgressPercent: j.Progress.Percent, ProgressStep: j.Progress.Step, ProgressMessage: j.Progress.Message,
 		Items: mustJSON(items), ErrorClass: j.ErrorClass, ErrorMessage: j.ErrorMessage, Recovery: j.Recovery,
@@ -180,8 +181,8 @@ func idempotencyScope(j *domain.Job) string {
 func (r *jobRow) toDomain() (domain.Job, error) {
 	j := domain.Job{
 		ID: r.ID, Kind: domain.JobKind(r.Kind), Executor: domain.JobExecutor(r.Executor), Origin: domain.JobOrigin(r.Origin),
-		InitiatorUserID: r.InitiatorUserID, InitiatorTokenID: r.InitiatorTokenID, PolicyID: r.PolicyID, RequestID: r.RequestID,
-		EnvironmentID: r.EnvironmentID, Input: []byte(r.Input), InputHash: r.InputHash, IdempotencyKey: r.IdempotencyKey,
+		InitiatorUserID: r.InitiatorUserID, InitiatorTokenID: r.InitiatorTokenID, PolicyID: r.PolicyID, RetryOf: r.RetryOf,
+		RequestID: r.RequestID, EnvironmentID: r.EnvironmentID, Input: []byte(r.Input), InputHash: r.InputHash, IdempotencyKey: r.IdempotencyKey,
 		Attempt: r.Attempt, State: domain.JobState(r.State),
 		Progress:   domain.JobProgress{Percent: r.ProgressPercent, Step: r.ProgressStep, Message: r.ProgressMessage},
 		ErrorClass: r.ErrorClass, ErrorMessage: r.ErrorMessage, Recovery: r.Recovery,
@@ -310,7 +311,29 @@ func UpdateJob(ctx context.Context, db bun.IDB, j *domain.Job) error {
 // ListJobs returns jobs matching q, newest first.
 func ListJobs(ctx context.Context, db bun.IDB, q domain.JobFilter) ([]domain.Job, error) {
 	var rows []jobRow
-	sel := db.NewSelect().Model(&rows).OrderExpr("id DESC")
+	sel := filterJobs(db.NewSelect().Model(&rows).OrderExpr("id DESC"), q)
+	if q.Limit > 0 {
+		sel = sel.Limit(q.Limit)
+	}
+	if err := sel.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: list jobs: %w", err)
+	}
+	return rowsToJobs(rows)
+}
+
+// CountMatchingJobs counts the jobs matching q (its BeforeID and Limit are
+// ignored): one COUNT query with ListJobs' filters.
+func CountMatchingJobs(ctx context.Context, db bun.IDB, q domain.JobFilter) (int64, error) {
+	q.BeforeID = ""
+	n, err := filterJobs(db.NewSelect().Model((*jobRow)(nil)), q).Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("store: count jobs: %w", err)
+	}
+	return int64(n), nil
+}
+
+// filterJobs applies q's filters (not Limit) to a jobs query.
+func filterJobs(sel *bun.SelectQuery, q domain.JobFilter) *bun.SelectQuery {
 	if len(q.States) > 0 {
 		sel = sel.Where("state IN (?)", bun.List(q.States))
 	}
@@ -331,16 +354,13 @@ func ListJobs(ctx context.Context, db bun.IDB, q domain.JobFilter) ([]domain.Job
 			sel = sel.Where("id IN (SELECT job_id FROM job_targets WHERE type = ? AND target_id = ?)", string(q.Target.Type), q.Target.ID)
 		}
 	}
+	if q.PolicyID != "" {
+		sel = sel.Where("policy_id = ?", q.PolicyID)
+	}
 	if q.BeforeID != "" {
 		sel = sel.Where("id < ?", q.BeforeID)
 	}
-	if q.Limit > 0 {
-		sel = sel.Limit(q.Limit)
-	}
-	if err := sel.Scan(ctx); err != nil {
-		return nil, fmt.Errorf("store: list jobs: %w", err)
-	}
-	return rowsToJobs(rows)
+	return sel
 }
 
 // JobsInStates returns all jobs in the given states, oldest first (FIFO).

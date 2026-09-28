@@ -79,6 +79,10 @@ export function repositoryHealthQuery(id: string, client: ApiClient = api) {
 	});
 }
 
+/**
+ * Every policy; those shown in full carry their recent sets and next run,
+ * as the detail does (the backup history overview needs no more requests).
+ */
 export function backupPoliciesQuery(client: ApiClient = api) {
 	return queryOptions({
 		queryKey: backupKeys.policies(),
@@ -91,39 +95,6 @@ export function backupPoliciesQuery(client: ApiClient = api) {
 					})
 				)
 			),
-		staleTime: 15_000
-	});
-}
-
-/**
- * Every policy with its recent sets (the list omits them): the backup
- * history overview. One detail request per policy the caller can read.
- */
-export function backupPoliciesWithSetsQuery(client: ApiClient = api) {
-	return queryOptions({
-		queryKey: liveKeys.list('policies', 'backups', 'with-sets'),
-		queryFn: async ({ signal }): Promise<BackupPolicy[]> => {
-			const list = await fetchAllPages((cursor) =>
-				unwrap(
-					client.GET('/api/v1/backup-policies', {
-						params: { query: { cursor, limit: 200 } },
-						signal
-					})
-				)
-			);
-			return Promise.all(
-				list.map((p) =>
-					p.view === 'full'
-						? unwrap(
-								client.GET('/api/v1/backup-policies/{policyId}', {
-									params: { path: { policyId: p.id } },
-									signal
-								})
-							)
-						: p
-				)
-			);
-		},
 		staleTime: 15_000
 	});
 }

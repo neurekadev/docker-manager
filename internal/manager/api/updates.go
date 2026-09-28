@@ -135,6 +135,7 @@ type UpdatePolicy struct {
 	EnvironmentID      string               `json:"environmentId"`
 	Name               string               `json:"name"`
 	Target             UpdateTarget         `json:"target"`
+	TargetName         string               `json:"targetName,omitempty" example:"zerobyte" doc:"The stack's name (its display name when set) or the container's name; empty when the stack no longer exists."`
 	View               string               `json:"view" enum:"minimal,full"`
 	Actions            []string             `json:"actions"`
 	Services           []string             `json:"services,omitempty" doc:"Opted-in services (empty: every service of the stack). Full view."`
@@ -171,6 +172,7 @@ type UpdateCandidate struct {
 	PreviousDigest       string     `json:"previousDigest,omitempty" doc:"Digest before the last update."`
 	CandidateDigest      string     `json:"candidateDigest,omitempty" doc:"The registry's host-platform manifest digest."`
 	CandidateIndexDigest string     `json:"candidateIndexDigest,omitempty" doc:"The tag's index digest (multi-platform images)."`
+	PublishedAt          *time.Time `json:"publishedAt,omitempty" doc:"When the candidate image was created (its image config's created time), if the registry records one. Display only: updates never depend on it."`
 	ErrorClass           string     `json:"errorClass,omitempty" doc:"unauthorized, forbidden, rate_limited, registry_unavailable, not_found, platform_not_found, ambiguous_registry_connection, registry_connection_revoked, or a run's job error class."`
 	ErrorMessage         string     `json:"errorMessage,omitempty"`
 	RetryAfterSeconds    int        `json:"retryAfterSeconds,omitempty"`
@@ -186,7 +188,7 @@ func newUpdateCandidate(c domain.UpdateCandidate) UpdateCandidate {
 		Platform: c.Platform, RegistryConnectionID: c.RegistryConnectionID, Eligible: c.Eligible, Reason: c.Reason,
 		ReasonMessage: c.ReasonMessage, NonVersionTag: c.NonVersionTag, Status: string(c.Status), CurrentDigest: c.AppliedDigest,
 		CurrentImageID: c.AppliedImageID, PreviousDigest: c.PreviousDigest, CandidateDigest: c.CandidateDigest,
-		CandidateIndexDigest: c.CandidateIndexDigest, ErrorClass: c.ErrorClass, ErrorMessage: c.ErrorMessage,
+		CandidateIndexDigest: c.CandidateIndexDigest, PublishedAt: c.CandidatePublishedAt, ErrorClass: c.ErrorClass, ErrorMessage: c.ErrorMessage,
 		RetryAfterSeconds: c.RetryAfterSeconds, CheckedAt: c.CheckedAt, CheckJobID: c.CheckJobID, SourceHashBefore: c.SourceHashBefore,
 		SourceHashAfter: c.SourceHashAfter}
 	if c.Status == domain.CandidateQuarantined || c.Status == domain.CandidateRunFailed {
@@ -218,7 +220,7 @@ func newUpdateSchedule(p domain.UpdateSchedule, st updates.ScheduleStatus) *Upda
 
 func (h *updatesAPI) newPolicy(ctx context.Context, p domain.UpdatePolicy, v authz.View) (UpdatePolicy, error) {
 	out := UpdatePolicy{ID: p.ID, EnvironmentID: p.EnvironmentID, Name: p.Name, Target: UpdateTarget{Type: string(p.TargetType), ID: p.TargetID},
-		View: v.Level.String(), Actions: Actions(v)}
+		TargetName: h.targetName(ctx, p), View: v.Level.String(), Actions: Actions(v)}
 	if v.Has(string(CapUpdatePolicyManage)) {
 		out.Revision = p.Revision
 	}
@@ -282,6 +284,22 @@ func (h *updatesAPI) newPolicy(ctx context.Context, p domain.UpdatePolicy, v aut
 			ErrorClass: e.ErrorClass, SourceHashBefore: e.SourceHashBefore, SourceHashAfter: e.SourceHashAfter, At: e.At})
 	}
 	return out, nil
+}
+
+// targetName is the name users know a policy's target by (the name of a
+// target record already carries it: "Automatic updates for <name>").
+func (h *updatesAPI) targetName(ctx context.Context, p domain.UpdatePolicy) string {
+	if p.TargetType == domain.UpdateTargetContainer {
+		return p.TargetID
+	}
+	if h.stacks == nil {
+		return ""
+	}
+	st, err := h.stacks.Get(ctx, p.TargetID)
+	if err != nil {
+		return ""
+	}
+	return updates.StackLabel(st)
 }
 
 // --- errors ---
@@ -682,7 +700,8 @@ func registerUpdates(a huma.API, deps Deps) {
 		Description: "Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into " +
 			"digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's " +
 			"files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, " +
-			"environment and target.",
+			"environment and target. Target records an environment policy no longer covers (excluded, or the stack or container is " +
+			"gone) are omitted too: they remain readable by ID and are listed with their reason by the environment policy's targets.",
 		Tags: []string{tagUpdates}, Errors: read,
 	}, Capability: CapUpdatePolicyRead, Scope: ScopeResource}, h.list)
 

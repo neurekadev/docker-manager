@@ -496,6 +496,7 @@
             "type": "string"
           },
           "lastSeenAt": {
+            "description": "When the agent was last heard from: refreshed about every 60 s while it is connected, and on disconnect.",
             "format": "date-time",
             "type": "string"
           },
@@ -2512,6 +2513,10 @@
       "BackupSetMember": {
         "additionalProperties": false,
         "properties": {
+          "backupId": {
+            "description": "The backup this member took (get-backup). Absent while it has none, after retention forgot it and when the caller cannot see it.",
+            "type": "string"
+          },
           "environmentId": {
             "type": "string"
           },
@@ -3609,6 +3614,12 @@
             "format": "int64",
             "type": "integer"
           },
+          "restartMaxRetries": {
+            "description": "Maximum retry count of the on-failure restart policy. Absent: unlimited, another policy, or an agent that does not report it.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
           "restartPolicy": {
             "type": "string"
           },
@@ -4090,6 +4101,14 @@
         "additionalProperties": false,
         "properties": {
           "id": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "description": "The container's IPv4 address on the network (network GET only; absent while it is stopped or from agents that do not report it).",
+            "type": "string"
+          },
+          "ipv6Address": {
+            "description": "The container's IPv6 address on the network (network GET only).",
             "type": "string"
           },
           "name": {
@@ -5778,6 +5797,7 @@
             "type": "string"
           },
           "lastSeenAt": {
+            "description": "When its agent was last heard from: refreshed about every 60 s while connected, and on disconnect.",
             "format": "date-time",
             "type": "string"
           },
@@ -6425,7 +6445,16 @@
             "type": "string"
           },
           "inactive": {
+            "description": "The policy no longer covers the target; the record stays for its history.",
             "type": "boolean"
+          },
+          "inactiveReason": {
+            "description": "Why an inactive target is not covered: excluded (by the policy's exclusions or the container's docker-manager.update.exclude=true label) or missing (the stack or container no longer exists in the scope or no longer qualifies).",
+            "enum": [
+              "excluded",
+              "missing"
+            ],
+            "type": "string"
           },
           "policyId": {
             "examples": [
@@ -7272,6 +7301,7 @@
             "type": "string"
           },
           "memberCount": {
+            "description": "Accounts in the group, not counting the owner (group rules never apply to the owner).",
             "format": "int64",
             "type": "integer"
           },
@@ -7974,11 +8004,19 @@
             "type": "string"
           },
           "policyId": {
-            "description": "Policy that scheduled the job.",
+            "description": "Policy the job runs for (its scheduled runs and manual runs of the policy).",
             "type": "string"
           },
           "progress": {
             "$ref": "#/components/schemas/JobProgress"
+          },
+          "retryOf": {
+            "description": "The job this one re-runs (POST /jobs/{jobId}/retries).",
+            "type": "string"
+          },
+          "retryable": {
+            "description": "True when the job ended without succeeding, its kind can be retried and the caller may start it again: POST /jobs/{jobId}/retries. Always false in the 202 answer of the operation that started a job.",
+            "type": "boolean"
           },
           "startedAt": {
             "description": "When the current attempt was acknowledged by its executor.",
@@ -8025,6 +8063,7 @@
           "locksHeld",
           "cancelRequested",
           "cancellable",
+          "retryable",
           "createdAt",
           "updatedAt"
         ],
@@ -16969,6 +17008,11 @@
             "description": "Digest before the last update.",
             "type": "string"
           },
+          "publishedAt": {
+            "description": "When the candidate image was created (its image config's created time), if the registry records one. Display only: updates never depend on it.",
+            "format": "date-time",
+            "type": "string"
+          },
           "reason": {
             "enum": [
               "build_only",
@@ -17307,6 +17351,13 @@
           },
           "target": {
             "$ref": "#/components/schemas/UpdateTarget"
+          },
+          "targetName": {
+            "description": "The stack's name (its display name when set) or the container's name; empty when the stack no longer exists.",
+            "examples": [
+              "zerobyte"
+            ],
+            "type": "string"
           },
           "updatedAt": {
             "format": "date-time",
@@ -21913,7 +21964,7 @@
     },
     "/api/v1/backup-policies": {
       "get": {
-        "description": "Filtered per item (#17); minimal view: id, name, enabled.",
+        "description": "Filtered per item (#17); minimal view: id, name, enabled. Policies shown in full carry the recent sets (members with their backupId) and the next run, as get-backup-policy does.",
         "operationId": "list-backup-policies",
         "parameters": [
           {
@@ -21973,6 +22024,7 @@
                           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "members": [
                             {
+                              "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                               "errorClass": "example",
                               "item": "stack/0190a6e0-...",
@@ -22169,6 +22221,7 @@
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "members": [
                         {
+                          "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "errorClass": "example",
                           "item": "stack/0190a6e0-...",
@@ -22559,6 +22612,7 @@
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "members": [
                         {
+                          "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "errorClass": "example",
                           "item": "stack/0190a6e0-...",
@@ -22794,6 +22848,7 @@
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "members": [
                         {
+                          "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "errorClass": "example",
                           "item": "stack/0190a6e0-...",
@@ -23275,6 +23330,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -23481,6 +23538,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -23498,6 +23557,7 @@
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "members": [
                       {
+                        "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "errorClass": "example",
                         "item": "stack/0190a6e0-...",
@@ -25673,6 +25733,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -26328,6 +26390,7 @@
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "members": [
                       {
+                        "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "errorClass": "example",
                         "item": "stack/0190a6e0-...",
@@ -27125,6 +27188,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -27350,6 +27415,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -28486,6 +28553,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -28670,6 +28739,7 @@
                           "nonVersionTag": false,
                           "platform": "example",
                           "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                          "publishedAt": "2026-09-25T12:00:00Z",
                           "reason": "build_only",
                           "reasonMessage": "example",
                           "reference": "nginx:1.27",
@@ -28910,6 +28980,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -29087,6 +29159,7 @@
                       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "inactive": false,
+                      "inactiveReason": "excluded",
                       "policyId": "0190a6e0-1122-7788-aabb-ccddeeff0011",
                       "type": "stack"
                     }
@@ -31053,6 +31126,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -31534,6 +31609,7 @@
                           "pidsLimit": 1
                         },
                         "restartCount": 1,
+                        "restartMaxRetries": 1,
                         "restartPolicy": "example",
                         "running": false,
                         "startedAt": "2026-09-25T12:00:00Z",
@@ -31822,6 +31898,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -32111,6 +32189,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -32390,6 +32470,7 @@
                       "pidsLimit": 1
                     },
                     "restartCount": 1,
+                    "restartMaxRetries": 1,
                     "restartPolicy": "example",
                     "running": false,
                     "startedAt": "2026-09-25T12:00:00Z",
@@ -32684,6 +32765,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -34432,6 +34515,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -34713,6 +34798,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -34982,6 +35069,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -35263,6 +35352,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -35532,6 +35623,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -36530,6 +36623,8 @@
                       "usedBy": [
                         {
                           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                          "ipAddress": "example",
+                          "ipv6Address": "example",
                           "name": "web",
                           "state": "example"
                         }
@@ -36767,6 +36862,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -37009,6 +37106,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -37289,6 +37388,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -37558,6 +37659,8 @@
                   "usedBy": [
                     {
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "ipAddress": "example",
+                      "ipv6Address": "example",
                       "name": "web",
                       "state": "example"
                     }
@@ -37797,6 +37900,8 @@
                   "usedBy": [
                     {
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "ipAddress": "example",
+                      "ipv6Address": "example",
                       "name": "web",
                       "state": "example"
                     }
@@ -38393,6 +38498,8 @@
                       "containers": [
                         {
                           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                          "ipAddress": "example",
+                          "ipv6Address": "example",
                           "name": "web",
                           "state": "example"
                         }
@@ -38660,6 +38767,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -38929,6 +39038,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -39148,6 +39259,8 @@
                   "containers": [
                     {
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "ipAddress": "example",
+                      "ipv6Address": "example",
                       "name": "web",
                       "state": "example"
                     }
@@ -39637,6 +39750,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -40235,6 +40350,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -41081,6 +41198,8 @@
                       "usedBy": [
                         {
                           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                          "ipAddress": "example",
+                          "ipv6Address": "example",
                           "name": "web",
                           "state": "example"
                         }
@@ -41309,6 +41428,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -41578,6 +41699,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -41827,6 +41950,8 @@
                   "usedBy": [
                     {
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "ipAddress": "example",
+                      "ipv6Address": "example",
                       "name": "web",
                       "state": "example"
                     }
@@ -42371,6 +42496,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -43441,6 +43568,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -43725,6 +43854,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -44538,6 +44669,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -44823,6 +44956,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -45112,6 +45247,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -46073,6 +46210,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -47442,7 +47581,7 @@
     },
     "/api/v1/groups/{groupId}": {
       "delete": {
-        "description": "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
+        "description": "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users implicitly, so deleting a group never changes anyone's access). The owner's account never blocks the deletion: group rules never apply to it, and when it is in the group it moves to the default group in the same change. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
         "operationId": "delete-group",
         "parameters": [
           {
@@ -49098,7 +49237,7 @@
     },
     "/api/v1/jobs": {
       "get": {
-        "description": "Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) - never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent.",
+        "description": "Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) - never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent. total counts the visible jobs matching the filters and is present only when exact: always for the instance owner (one count), for other callers when at most 1000 jobs match the filters (each checked), absent otherwise.",
         "operationId": "list-jobs",
         "parameters": [
           {
@@ -49201,6 +49340,17 @@
               "maxLength": 1100,
               "type": "string"
             }
+          },
+          {
+            "description": "Only jobs run for this policy (its scheduled runs and manual runs of it; for an environment-wide update policy, the jobs of every target it covers).",
+            "explode": false,
+            "in": "query",
+            "name": "policyId",
+            "schema": {
+              "description": "Only jobs run for this policy (its scheduled runs and manual runs of it; for an environment-wide update policy, the jobs of every target it covers).",
+              "maxLength": 128,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -49254,6 +49404,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -49403,6 +49555,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -49564,6 +49718,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -49821,9 +49977,224 @@
         "x-docker-manager-scope": "resource"
       }
     },
+    "/api/v1/jobs/{jobId}/retries": {
+      "post": {
+        "description": "Runs a finished job that did not succeed (failed, partial, interrupted or cancelled) again as a new job with the same kind, environment, policy, targets and input; the new job's retryOf names the original, which is not changed. Only kinds marked retryable can be retried (stack.deploy, stack.pull, image.pull, update.check; a stack deploy or pull acts on the stack's current directory, Compose files and registry connections). The caller needs job.read on the job (404 otherwise) and the kind's own capabilities on every target, as when starting the action (403 otherwise); the job's retryable field says whether both hold. Answers 202 with the new job and its URL in Location. 409 job_not_retryable when the job is still active, succeeded, its kind is not retryable, its input was not kept or what it acted on is gone; 409 environment_archived; 409 idempotency_key_reused.",
+        "operationId": "create-job-retry",
+        "parameters": [
+          {
+            "description": "Job ID of the job to run again.",
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "description": "Job ID of the job to run again.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attempt": 1,
+                  "blockedBy": {
+                    "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "reason": "lock"
+                  },
+                  "cancelRequested": false,
+                  "cancellable": false,
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "dispatchedAt": "2026-09-25T12:00:00Z",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "error": {
+                    "class": "agent_offline",
+                    "message": "example",
+                    "recovery": "example"
+                  },
+                  "executor": "agent",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "id": "0190a6e0-0000-7000-8000-000000000001",
+                  "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "message": "example",
+                      "name": "web",
+                      "status": "succeeded"
+                    }
+                  ],
+                  "kind": "stack.deploy",
+                  "locks": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "mode": "shared",
+                      "name": "web",
+                      "scope": "host"
+                    }
+                  ],
+                  "locksHeld": false,
+                  "origin": "manual",
+                  "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "progress": {
+                    "message": "example",
+                    "percent": 1,
+                    "step": "example"
+                  },
+                  "retryOf": "example",
+                  "retryable": false,
+                  "startedAt": "2026-09-25T12:00:00Z",
+                  "state": "queued",
+                  "targets": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "type": "stack"
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Retry a job",
+        "tags": [
+          "Jobs"
+        ],
+        "x-docker-manager-audit": "job.retry",
+        "x-docker-manager-capability": "job.read",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
+      }
+    },
     "/api/v1/live/stream": {
       "get": {
-        "description": "The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). Wire contract: docs/internal/api/streams.md.",
+        "description": "The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 32 streams per user or token (429). Wire contract: docs/internal/api/streams.md.",
         "operationId": "stream-live-events",
         "parameters": [
           {
@@ -51668,6 +52039,8 @@
                         "percent": 1,
                         "step": "example"
                       },
+                      "retryOf": "example",
+                      "retryable": false,
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "queued",
                       "targets": [
@@ -52088,6 +52461,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -57284,6 +57659,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -58912,6 +59289,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -59675,6 +60054,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -59903,6 +60284,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -60553,6 +60936,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -61579,6 +61964,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -61852,6 +62239,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -62632,6 +63021,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -62906,6 +63297,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -63184,6 +63577,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -64255,6 +64650,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -64524,6 +64921,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -64798,6 +65197,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -65017,6 +65418,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -65537,6 +65940,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -66651,6 +67056,247 @@
           "Stacks"
         ],
         "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/validations": {
+      "post": {
+        "description": "Validates the stack's current Compose files on the environment's agent in the stack's own project directory, exactly as a deploy loads them (explicit Compose files, override, .env, service env_files, relative paths), without side effects: nothing is written, no revision is recorded and no job runs. Same result as create-stack-validation (findings are the answer, never an error; no file contents or .env values). Needs stack.definition.write (the capability that edits those files). 503 environment_offline while the agent is offline.",
+        "operationId": "create-stack-definition-validation",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "binds": [
+                    {
+                      "external": false,
+                      "readOnly": false,
+                      "relPath": "config/app.conf",
+                      "service": "example",
+                      "source": "example",
+                      "target": "example"
+                    }
+                  ],
+                  "errors": [
+                    {
+                      "code": "example",
+                      "message": "services.web.ports: invalid port \"80a\"",
+                      "service": "example"
+                    }
+                  ],
+                  "projectName": "web",
+                  "services": [
+                    {
+                      "build": false,
+                      "dependsOn": [
+                        {
+                          "condition": "service_started",
+                          "required": false,
+                          "restart": false,
+                          "service": "example"
+                        }
+                      ],
+                      "description": "example",
+                      "icon": "example",
+                      "image": "nginx:1.27",
+                      "name": "web"
+                    }
+                  ],
+                  "valid": false,
+                  "warnings": [
+                    {
+                      "code": "example",
+                      "message": "services.web.ports: invalid port \"80a\"",
+                      "service": "example"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StackValidation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error501"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Validate a stack's definition on disk",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.validate",
+        "x-docker-manager-capability": "stack.definition.write",
         "x-docker-manager-scope": "resource"
       }
     },
@@ -70424,6 +71070,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -71450,6 +72098,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -71723,6 +72373,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -72503,6 +73155,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -72777,6 +73431,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -73055,6 +73711,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -75087,7 +75745,7 @@
     },
     "/api/v1/update-policies": {
       "get": {
-        "description": "Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.",
+        "description": "Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target. Target records an environment policy no longer covers (excluded, or the stack or container is gone) are omitted too: they remain readable by ID and are listed with their reason by the environment policy's targets.",
         "operationId": "list-update-policies",
         "parameters": [
           {
@@ -75253,6 +75911,7 @@
                         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "type": "stack"
                       },
+                      "targetName": "zerobyte",
                       "updatedAt": "2026-09-25T12:00:00Z",
                       "view": "minimal",
                       "waitTimeoutSeconds": 1,
@@ -75508,6 +76167,7 @@
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "type": "stack"
                   },
+                  "targetName": "zerobyte",
                   "updatedAt": "2026-09-25T12:00:00Z",
                   "view": "minimal",
                   "waitTimeoutSeconds": 1,
@@ -75664,6 +76324,7 @@
                       "nonVersionTag": false,
                       "platform": "example",
                       "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                      "publishedAt": "2026-09-25T12:00:00Z",
                       "reason": "build_only",
                       "reasonMessage": "example",
                       "reference": "nginx:1.27",
@@ -75858,6 +76519,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [
@@ -76077,6 +76740,7 @@
                         "nonVersionTag": false,
                         "platform": "example",
                         "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                        "publishedAt": "2026-09-25T12:00:00Z",
                         "reason": "build_only",
                         "reasonMessage": "example",
                         "reference": "nginx:1.27",
@@ -76126,6 +76790,7 @@
                       "nonVersionTag": false,
                       "platform": "example",
                       "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                      "publishedAt": "2026-09-25T12:00:00Z",
                       "reason": "build_only",
                       "reasonMessage": "example",
                       "reference": "nginx:1.27",
@@ -76366,6 +77031,8 @@
                     "percent": 1,
                     "step": "example"
                   },
+                  "retryOf": "example",
+                  "retryable": false,
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "queued",
                   "targets": [

@@ -41,6 +41,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeNotAcceptable, http.StatusNotAcceptable, false, "The Accept header excludes every media type the route can produce.", 2},
 		{CodeConflict, http.StatusConflict, false, "Generic conflict with the current state. Routes prefer a specific 409 code.", 2},
 		{CodeJobFinished, http.StatusConflict, false, "The job already reached a terminal state (for example a cancellation of a finished job).", 26},
+		{CodeJobNotRetryable, http.StatusConflict, false, "The job cannot be run again: it has not finished, it succeeded, its kind cannot be retried, its input was not kept or what it acted on is gone. Start the action again from where it was started.", 26},
 		{CodeIdempotencyKeyReused, http.StatusConflict, false, "The Idempotency-Key was already used by this caller for a different request (different route, parameters or body).", 26},
 		{CodeIdempotencyKeyInFlight, http.StatusConflict, true, "A request with the same Idempotency-Key is still being processed; retry after the Retry-After delay.", 4},
 		{CodeSetupComplete, http.StatusConflict, false, "First-run setup already created the instance owner; sign in instead.", 16},

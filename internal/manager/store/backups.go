@@ -713,6 +713,67 @@ func ListBackupSets(ctx context.Context, db bun.IDB, policyID string, limit int)
 	return out, nil
 }
 
+// RecentBackupSets returns the newest perPolicy sets of each of the
+// policies (newest first per policy) in one query: the policy list shows
+// every policy's recent runs without a query per policy. Policies without
+// sets are absent from the map.
+func RecentBackupSets(ctx context.Context, db bun.IDB, policyIDs []string, perPolicy int) (map[string][]domain.BackupSet, error) {
+	out := map[string][]domain.BackupSet{}
+	if len(policyIDs) == 0 || perPolicy <= 0 {
+		return out, nil
+	}
+	var rows []backupSetRow
+	if err := db.NewSelect().Model(&rows).
+		Where(`id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY policy_id ORDER BY started_at DESC, id DESC) AS n
+			FROM backup_sets WHERE policy_id IN (?)) WHERE n <= ?)`, bun.List(policyIDs), perPolicy).
+		Order("policy_id ASC", "started_at DESC", "id DESC").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: list recent backup sets: %w", err)
+	}
+	for _, r := range rows {
+		out[r.PolicyID] = append(out[r.PolicyID], r.toDomain())
+	}
+	return out, nil
+}
+
+// ListBackupSnapshotsOfSets returns the snapshots (not forgotten) the given
+// sets took, in one query: set members link to their backups.
+func ListBackupSnapshotsOfSets(ctx context.Context, db bun.IDB, setIDs []string) ([]domain.BackupSnapshot, error) {
+	if len(setIDs) == 0 {
+		return []domain.BackupSnapshot{}, nil
+	}
+	var rows []backupSnapshotRow
+	if err := db.NewSelect().Model(&rows).Where("set_id IN (?)", bun.List(setIDs)).Where("forgotten_at IS NULL").
+		Order("id ASC").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: list backup snapshots of sets: %w", err)
+	}
+	out := make([]domain.BackupSnapshot, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.toDomain())
+	}
+	return out, nil
+}
+
+// NextScheduledRuns returns the next run of each of the policies' schedules
+// of kind (policies without a schedule or a next run are absent), in one
+// query: the policy lists show every policy's next run.
+func NextScheduledRuns(ctx context.Context, db bun.IDB, kind string, policyIDs []string) (map[string]time.Time, error) {
+	out := map[string]time.Time{}
+	if len(policyIDs) == 0 {
+		return out, nil
+	}
+	var rows []scheduleRow
+	if err := db.NewSelect().Model(&rows).Where("kind = ?", kind).Where("policy_id IN (?)", bun.List(policyIDs)).
+		Where("next_run_at IS NOT NULL").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: list next scheduled runs: %w", err)
+	}
+	for _, r := range rows {
+		if r.NextRunAt != nil {
+			out[r.PolicyID] = r.NextRunAt.UTC()
+		}
+	}
+	return out, nil
+}
+
 // --- snapshots ---
 
 type backupSnapshotRow struct {

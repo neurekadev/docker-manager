@@ -5,10 +5,12 @@
 	// server and kept per list and browser tab like the other lists. The
 	// environment switcher scopes the list; ?environment= (links from an
 	// environment page) sets the environment filter once, ?kind= (a policy
-	// run's "Open jobs") the kind filter. Rows lead with the target's name.
-	// The search covers the loaded jobs only and says so; "Load more"
-	// follows the cursor (also from the no-matches state). The list
-	// refreshes live on job events.
+	// run's "Open jobs") the kind filter and ?policyId= the policy filter
+	// (named from the schedules, else by its kind). Rows lead with the
+	// target's name. The count says how many jobs match when the server
+	// knows ("50 of 1,234 jobs"); the search covers the loaded jobs only and
+	// says so; "Load more" follows the cursor (also from the no-matches
+	// state). The list refreshes live on job events.
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -18,14 +20,21 @@
 		environmentsQuery,
 		jobsInfiniteQuery,
 		myPermissionsQuery,
+		schedulesQuery,
 		stacksSummaryQuery
 	} from '$lib/api/queries';
 	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
-	import { jobFilters, jobQuery, jobSearch } from '$lib/features/jobs/filters';
-	import { stackNames } from '$lib/features/jobs/labels';
+	import {
+		jobFilters,
+		jobQuery,
+		jobSearch,
+		jobsSearchedText,
+		jobsSummary
+	} from '$lib/features/jobs/filters';
+	import { policyPage, stackNames } from '$lib/features/jobs/labels';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
-	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
+	import { applyListFilters, isFiltering } from '$lib/features/resources/filters';
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { accessOf, hasAny, isRestricted } from '$lib/shell/nav';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
@@ -54,27 +63,41 @@
 	onMount(() => {
 		const id = page.url.searchParams.get('environment');
 		const kind = page.url.searchParams.get('kind');
-		if (id === null && kind === null) return;
+		const policy = page.url.searchParams.get('policyId');
+		if (id === null && kind === null && policy === null) return;
 		if (id && id !== 'all') {
 			if (environmentSelection.id && environmentSelection.id !== id)
 				environmentSelection.select(id);
 			else filters.set('environment', id);
 		}
 		if (kind) filters.set('kind', kind);
+		if (policy !== null) filters.set('policy', policy);
 		const url = new URL(page.url);
 		url.searchParams.delete('environment');
 		url.searchParams.delete('kind');
+		url.searchParams.delete('policyId');
 		void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
 	});
 
+	// The policy filter (set by ?policyId=) shows the policy's name when a
+	// schedule names it, else what kind of policy it is.
+	const policyId = $derived(filters.get('policy'));
+	const schedules = createQuery(() => ({ ...schedulesQuery(), enabled: !!policyId }));
+	const policyName = $derived(
+		(schedules.data ?? []).find((s) => s.policyId === policyId)?.policyName ||
+			(filters.get('kind') ? policyPage(filters.get('kind')).label : 'Selected policy')
+	);
 	const defs = $derived(
 		jobFilters({
-			envs: allEnvironments ? (envs.data ?? []).map((e) => ({ id: e.id, name: e.name })) : []
+			envs: allEnvironments ? (envs.data ?? []).map((e) => ({ id: e.id, name: e.name })) : [],
+			policy: policyId ? { id: policyId, name: policyName } : undefined
 		})
 	);
 	const query = $derived(jobQuery(defs, filters.state, environmentSelection.id));
 	const jobs = createInfiniteQuery(() => jobsInfiniteQuery(query));
 	const all = $derived(jobs.data?.pages.flatMap((p) => p.items) ?? []);
+	// Jobs matching the server-side filters, when the server knows exactly.
+	const total = $derived(jobs.data?.pages[0]?.total);
 	const rows = $derived(
 		applyListFilters(
 			all,
@@ -87,15 +110,14 @@
 	const searching = $derived(!!filters.q.trim());
 	const summary = $derived(
 		jobs.data
-			? searching && jobs.hasNextPage
-				? `${rows.length} of the ${all.length} loaded jobs`
-				: listSummary(
-						rows.length,
-						all.length,
-						filtered && rows.length !== all.length,
-						'job',
-						'jobs'
-					) + (jobs.hasNextPage ? ' loaded' : '')
+			? jobsSummary({
+					shown: rows.length,
+					loaded: all.length,
+					total,
+					more: jobs.hasNextPage,
+					searching,
+					filtered
+				})
 			: undefined
 	);
 </script>
@@ -141,7 +163,10 @@
 									icon={Activity}
 									color="slate"
 									title="No loaded jobs match the search."
-									description="Searched the {all.length} loaded jobs. Load more to search older ones, or clear the search and filters."
+									description="{jobsSearchedText(
+										all.length,
+										total
+									)} Load more to search older ones, or clear the search and filters."
 									level={3}
 									compact
 								>

@@ -281,6 +281,9 @@ type Job struct {
 	InitiatorUserID  string
 	InitiatorTokenID string
 	PolicyID         string
+	// RetryOf is the job this one re-runs (POST /jobs/{id}/retries);
+	// empty for every other job.
+	RetryOf string
 	// RequestID is the public API request that created the job (#34):
 	// command frames carry it to the agent's logs. Empty for scheduled
 	// and internal work.
@@ -373,6 +376,9 @@ type JobFilter struct {
 	Kinds         []JobKind
 	Origins       []JobOrigin
 	EnvironmentID string
+	// PolicyID matches jobs started by or for this policy (scheduled runs
+	// and manual runs of the policy).
+	PolicyID string
 	// Target matches jobs with this target (EnvironmentID optional).
 	Target *JobTarget
 	// BeforeID returns jobs with ID < BeforeID (pagination cursor).
@@ -392,4 +398,27 @@ var (
 	// ErrRestoreInProgress refuses starting containers a restore stopped
 	// (jobspec.Spec.StartsContainers) until the restore ended (#10).
 	ErrRestoreInProgress = errors.New("a restore is in progress on the target")
+	// ErrJobNotRetryable refuses a retry (JobNotRetryableError says why).
+	ErrJobNotRetryable = errors.New("job cannot be retried")
 )
+
+// Reasons a job cannot be retried (JobNotRetryableError.Reason).
+const (
+	RetryRefusedActive      = "active"      // not finished yet
+	RetryRefusedSucceeded   = "succeeded"   // nothing to retry
+	RetryRefusedKind        = "kind"        // the kind is not marked retryable
+	RetryRefusedNoInput     = "no_input"    // the job's input was not kept
+	RetryRefusedUnavailable = "unavailable" // what the job acted on is gone or changed
+)
+
+// JobNotRetryableError explains a refused retry; it matches
+// ErrJobNotRetryable with errors.Is.
+type JobNotRetryableError struct {
+	Reason  string
+	Message string
+}
+
+func (e *JobNotRetryableError) Error() string { return e.Message }
+
+// Is makes errors.Is(err, ErrJobNotRetryable) true.
+func (e *JobNotRetryableError) Is(target error) bool { return target == ErrJobNotRetryable }

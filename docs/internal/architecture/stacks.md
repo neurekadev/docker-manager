@@ -51,6 +51,28 @@ from the Compose file whose container is still on the host. A plain deploy
 keeps it; the UI's "Deploy and remove orphaned containers" (the deploy
 body's `removeOrphans`, off by default) removes it.
 
+### Validation
+
+Both validations send `compose.validate` to the agent and answer the same
+`StackValidation` (valid, project name, errors, warnings, services, binds;
+findings are the answer, never an error; no file contents or `.env`
+values). Neither writes anything, records a revision or runs a job.
+
+- `POST /stacks/validations` (`stack.create` in the environment): a
+  submitted definition, in memory, as if it were the new project `<name>`
+  in the stacks volume (service `env_file`s are not read).
+- `POST /stacks/{id}/validations` (`stack.definition.write` on the stack,
+  the capability that edits its Compose files): the stack's current files
+  on disk in its own project directory (`stacks.Service.ValidateStack`,
+  `compose.validate` without files), loaded exactly as a deploy loads them:
+  explicit Compose files, override, `.env`, service `env_file`s, relative
+  paths. The file editor calls it after saving a definition file. It does
+  not repeat the deploy's `stack_project_renamed` check (a top-level
+  `name:` other than the stack's). Audited as `stack.validate`.
+
+A file-manager save of a definition file is validated before it is written
+(`ValidateSourceSave`, 422 `invalid_definition`).
+
 ### Deploy
 
 `POST /stacks/{id}/deployments` enqueues `stack.deploy` (202 + job). The
@@ -379,7 +401,7 @@ compose_project_exists`: import it instead).
 | --- | --- |
 | `stack.read` | the stack in full: status, revisions refs, images, Engine state, services (containers minimal unless `container.details.read`), image status, events |
 | `stack.definition.read` | revisions with contents, bind sources (they come from the definition) |
-| `stack.definition.write` | revision restores |
+| `stack.definition.write` | revision restores, validation of the definition on disk (`POST /stacks/{id}/validations`) |
 | `stack.create`, `stack.import` | creation/validation, discovery/import in an environment |
 | `stack.manage` | display metadata (never written to Compose files) |
 | `stack.deploy`, `stack.start/stop/restart/down`, `stack.remove` | the jobs |

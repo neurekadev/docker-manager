@@ -209,3 +209,110 @@ func TestMigrationDropsOrphanedBackupIndex(t *testing.T) {
 		t.Errorf("sets left %v", setIDs)
 	}
 }
+
+// TestRecentBackupSetsPerPolicy: one query returns each policy's newest
+// sets (newest first, ties by ID), at most perPolicy of them; other
+// policies' sets are left out and policies without sets are absent.
+func TestRecentBackupSetsPerPolicy(t *testing.T) {
+	ctx, db := backupTestDB(t)
+	add := func(id, policy string, minutes int) {
+		t.Helper()
+		at := testutil.Epoch.Add(time.Duration(minutes) * time.Minute)
+		s := domain.BackupSet{ID: id, PolicyID: policy, Origin: domain.JobOrigin("manual"), State: "complete", StartedAt: at, UpdatedAt: at}
+		if _, err := InsertBackupSet(ctx, db, &s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("a1", "pa", 1)
+	add("a2", "pa", 2)
+	add("a3", "pa", 3)
+	add("a4", "pa", 3) // same start as a3: the higher ID first
+	add("b1", "pb", 1)
+	add("c1", "pc", 5)
+
+	got, err := RecentBackupSets(ctx, db, []string{"pa", "pb", "none"}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := func(sets []domain.BackupSet) []string {
+		out := []string{}
+		for _, s := range sets {
+			out = append(out, s.ID)
+		}
+		return out
+	}
+	if a := ids(got["pa"]); !slices.Equal(a, []string{"a4", "a3", "a2"}) {
+		t.Errorf("pa: %v", a)
+	}
+	if b := ids(got["pb"]); !slices.Equal(b, []string{"b1"}) {
+		t.Errorf("pb: %v", b)
+	}
+	if _, ok := got["pc"]; ok {
+		t.Error("a policy that was not asked for is listed")
+	}
+	if _, ok := got["none"]; ok || len(got) != 2 {
+		t.Errorf("policies %v", got)
+	}
+	if empty, err := RecentBackupSets(ctx, db, nil, 3); err != nil || len(empty) != 0 {
+		t.Errorf("no policies: %v %v", empty, err)
+	}
+}
+
+// TestBackupSnapshotsOfSets: the backups of several sets in one query,
+// without forgotten ones and without other sets' backups.
+func TestBackupSnapshotsOfSets(t *testing.T) {
+	ctx, db := backupTestDB(t)
+	forgotten := testutil.Epoch.Add(time.Hour)
+	for _, sn := range []domain.BackupSnapshot{
+		{ID: "sn1", SetID: "s1"},
+		{ID: "sn2", SetID: "s2"},
+		{ID: "sn3", SetID: "s2", ForgottenAt: &forgotten},
+		{ID: "sn4", SetID: "s3"},
+	} {
+		sn.RepositoryID, sn.Scope, sn.Kind, sn.Item, sn.State = "r1", "docker-manager", "volume", "volume/"+sn.ID, "complete"
+		sn.ResticSnapshotID, sn.SnapshotTime, sn.CreatedAt = "restic-"+sn.ID, testutil.Epoch, testutil.Epoch
+		if _, err := InsertBackupSnapshot(ctx, db, &sn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := ListBackupSnapshotsOfSets(ctx, db, []string{"s1", "s2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, sn := range got {
+		ids = append(ids, sn.ID+"@"+sn.SetID+"/"+sn.ResticSnapshotID)
+	}
+	if !slices.Equal(ids, []string{"sn1@s1/restic-sn1", "sn2@s2/restic-sn2"}) {
+		t.Errorf("backups %v", ids)
+	}
+	if none, err := ListBackupSnapshotsOfSets(ctx, db, nil); err != nil || len(none) != 0 {
+		t.Errorf("no sets: %v %v", none, err)
+	}
+}
+
+// TestNextScheduledRuns: the next runs of several policies of one kind in
+// one query; schedules without a next run, of another kind or of other
+// policies are left out.
+func TestNextScheduledRuns(t *testing.T) {
+	ctx, db := backupTestDB(t)
+	next := testutil.Epoch.Add(2 * time.Hour)
+	for _, sc := range []domain.Schedule{
+		{ID: "sc1", Kind: "backup", PolicyID: "pa", Enabled: true, NextRunAt: &next},
+		{ID: "sc2", Kind: "backup", PolicyID: "pb"},
+		{ID: "sc3", Kind: "prune", PolicyID: "pa", Enabled: true, NextRunAt: &next},
+		{ID: "sc4", Kind: "backup", PolicyID: "pc", Enabled: true, NextRunAt: &next},
+	} {
+		sc.Cron, sc.TimeZone, sc.Cursor, sc.CreatedAt, sc.UpdatedAt = "0 2 * * *", "UTC", testutil.Epoch, testutil.Epoch, testutil.Epoch
+		if err := InsertSchedule(ctx, db, &sc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := NextScheduledRuns(ctx, db, "backup", []string{"pa", "pb", "none"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !got["pa"].Equal(next) {
+		t.Errorf("next runs %v", got)
+	}
+}

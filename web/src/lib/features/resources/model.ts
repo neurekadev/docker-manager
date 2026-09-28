@@ -303,12 +303,13 @@ export const RESTART_OPTIONS = [
 
 /**
  * A restart policy in words: "Never restart", "Unless stopped", "Always",
- * "On failure (max 5)". The Engine's name may carry the retries
- * ("on-failure:5"); `maxRetries` is used when given separately.
+ * "On failure (up to 5 retries)", "On failure" when unlimited or not
+ * reported. `maxRetries` is the container's `restartMaxRetries`; a name
+ * carrying the retries ("on-failure:5") is understood too.
  */
 export function restartPolicyLabel(policy: string | undefined, maxRetries?: number): string {
 	const [name, inline] = (policy ?? '').split(':');
-	const retries = maxRetries ?? (inline ? Number(inline) : undefined);
+	const retries = maxRetries || (inline ? Number(inline) : undefined);
 	switch (name) {
 		case '':
 		case 'no':
@@ -318,7 +319,9 @@ export function restartPolicyLabel(policy: string | undefined, maxRetries?: numb
 		case 'unless-stopped':
 			return 'Unless stopped';
 		case 'on-failure':
-			return retries && retries > 0 ? `On failure (max ${retries})` : 'On failure';
+			return retries && retries > 0
+				? `On failure (up to ${retries} ${retries === 1 ? 'retry' : 'retries'})`
+				: 'On failure';
 	}
 	return name;
 }
@@ -429,24 +432,45 @@ export interface AttachedContainer {
 	addresses: string[];
 }
 
+/** A network's attached container as the network's answer names it. */
+export interface NetworkContainerRef {
+	id: string;
+	name: string;
+	state?: string;
+	ipAddress?: string;
+	ipv6Address?: string;
+}
+
 /**
  * The containers attached to a network, sorted by name, each with its
- * addresses on that network taken from the containers list (the
- * network's own answer names the containers only).
+ * addresses on that network: those the network's answer reports, else
+ * (older agents report none) the container's endpoint in the containers
+ * list.
  */
 export function attachedContainers(
 	network: string,
-	refs: readonly { id: string; name: string; state?: string }[],
-	containers: readonly { name: string; networks?: readonly NetworkAddresses[] }[]
+	refs: readonly NetworkContainerRef[],
+	containers: readonly { name: string; networks?: readonly NetworkAddresses[] }[] = []
 ): AttachedContainer[] {
 	const byName = new Map(containers.map((c) => [c.name, c]));
 	return refs
-		.map((r) => {
-			const n = byName.get(r.name)?.networks?.find((x) => x.name === network);
+		.map(({ ipAddress, ipv6Address, ...r }) => {
+			const n =
+				ipAddress || ipv6Address
+					? { ipAddress, ipv6Address }
+					: byName.get(r.name)?.networks?.find((x) => x.name === network);
 			return {
 				...r,
 				addresses: [n?.ipAddress, n?.ipv6Address].filter((a): a is string => !!a)
 			};
 		})
 		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Whether a network's answer lacks an attached container's addresses, so
+ * the page needs the containers list for them (older agents).
+ */
+export function needsAddressLookup(refs: readonly NetworkContainerRef[] | undefined): boolean {
+	return !!refs?.some((r) => !r.ipAddress && !r.ipv6Address);
 }

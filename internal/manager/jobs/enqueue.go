@@ -41,6 +41,9 @@ type Request struct {
 	// the same input returns the existing job; a different input under the
 	// same key is rejected with domain.ErrJobIdempotencyConflict.
 	IdempotencyKey string
+
+	// retryOf is the job a retry re-runs (Engine.Retry only).
+	retryOf string
 }
 
 // MaxIdempotencyKeyLen bounds idempotency keys.
@@ -96,6 +99,7 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 	j := domain.Job{
 		ID: ids.New(), Kind: spec.Kind, Executor: spec.Executor, Origin: originOf(req.Principal),
 		InitiatorUserID: req.Principal.UserID, InitiatorTokenID: req.Principal.TokenID, PolicyID: req.PolicyID,
+		RetryOf:       req.retryOf,
 		RequestID:     protocol.RequestIDOrEmpty(logging.RequestID(ctx)),
 		EnvironmentID: req.EnvironmentID, Targets: slices.Clone(req.Targets), Input: input,
 		InputHash:      inputHash(spec.Kind, req.EnvironmentID, req.PolicyID, req.Targets, input),
@@ -109,7 +113,7 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 				return err
 			}
 			if found {
-				if existing.InputHash != j.InputHash {
+				if existing.InputHash != j.InputHash || existing.RetryOf != j.RetryOf {
 					return domain.ErrJobIdempotencyConflict
 				}
 				job = existing

@@ -3,7 +3,7 @@
 	// annotations (POST /schedules/previews, the one cron parser) and its
 	// recent runs, one line each: what the run's jobs did in one sentence
 	// ("20 checks, all succeeded", "2 of 20 checks failed") linking to its
-	// failed job or the jobs of that kind, and why a run did not start
+	// failed job or the policy's jobs of that kind, and why a run did not start
 	// (missed, skipped, refused). Five runs at first, more on request.
 	import { createQuery } from '@tanstack/svelte-query';
 	import type { Schedule } from '$lib/api/client';
@@ -37,7 +37,10 @@
 		const one = failed ?? (r.jobs.length === 1 ? r.jobs[0] : undefined);
 		return one
 			? { href: routes.job(one.jobId), label: failed ? 'Open the failed job' : 'Open job' }
-			: { href: routes.jobs(r.jobs[0].kind), label: 'Open jobs' };
+			: {
+					href: routes.jobs(r.jobs[0].kind, { policyId: schedule.policyId }),
+					label: 'Open jobs'
+				};
 	}
 </script>
 

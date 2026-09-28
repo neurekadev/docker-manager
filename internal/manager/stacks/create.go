@@ -97,6 +97,20 @@ func (s *Service) Validate(ctx context.Context, d domain.StackDefinition) (domai
 	return validationOf(out), err
 }
 
+// ValidateStack validates an existing stack's definition as it is on disk,
+// in its own project directory: its Compose files, override, .env and
+// env_files resolve exactly as a deploy loads them (the agent's
+// compose.validate without files). Read-only: nothing is written and no
+// revision is recorded. Findings are the result; only an unreachable agent
+// (StackErrOffline, ...) is an error.
+func (s *Service) ValidateStack(ctx context.Context, st domain.Stack) (domain.StackValidation, error) {
+	var out protocol.ComposeValidateOutput
+	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st)}, &out); err != nil {
+		return domain.StackValidation{}, err
+	}
+	return validationOf(out), nil
+}
+
 // validationOf converts the agent's validation output.
 func validationOf(v protocol.ComposeValidateOutput) domain.StackValidation {
 	out := domain.StackValidation{Valid: v.Valid, ProjectName: v.ProjectName, Errors: issues(v.Errors), Warnings: issues(v.Warnings),

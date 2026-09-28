@@ -52,8 +52,9 @@ Every event type has a visibility rule in `internal/manager/authz/events.go`
   everything else out); a cursor is expired only when a retained record
   after it was dropped.
 - Subscribers have 512-record queues; overflow drains the queue and the
-  stream sends `reset overflow` with a fresh cursor. At most 8 streams per
-  principal.
+  stream sends `reset overflow` with a fresh cursor. At most 32 streams per
+  principal (one per open tab); the web client names the limit in its
+  banner when a connection is refused with 429.
 
 The stream handler (`internal/manager/api/live.go`) builds one checker per
 stream, filters every record with `authz.EventVisible`, shapes it to

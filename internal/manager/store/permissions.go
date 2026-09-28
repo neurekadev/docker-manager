@@ -177,7 +177,7 @@ type groupInfoRow struct {
 
 const groupInfoSelect = `SELECT g.id, g.name, g.revision, g.permissions_revision, g.created_at, g.updated_at,
 	(SELECT count(*) FROM default_group d WHERE d.group_id = g.id) AS is_default,
-	(SELECT count(*) FROM users u WHERE u.group_id = g.id) AS members,
+	(SELECT count(*) FROM users u WHERE u.group_id = g.id AND u.is_owner = 0) AS members,
 	(SELECT count(*) FROM group_permission_rules r WHERE r.group_id = g.id) AS rules,
 	(SELECT count(*) FROM group_permission_rules r WHERE r.group_id = g.id AND r.effect = 'allow') AS allows
 	FROM groups g`
@@ -246,32 +246,52 @@ func RenameGroup(ctx context.Context, db bun.IDB, id string, expect int64, name 
 	return GetGroupInfo(ctx, db, id)
 }
 
-// DeleteGroup deletes a group that is neither the default nor has members
-// (the database refuses both as well), if its revision is still expect.
-func DeleteGroup(ctx context.Context, db bun.IDB, id string, expect int64) error {
+// DeleteGroup deletes a group that is not the default and has no members
+// other than the owner (the database refuses the default and any member),
+// if its revision is still expect. The owner's account belongs to a group
+// (users.group_id is NOT NULL) but group rules never apply to it (owner
+// bypass), so it never blocks a deletion: when the owner is in the group,
+// the account moves to the default group first and DeleteGroup returns
+// the owner's ID and the default group's ID. The caller runs it in a
+// transaction, so the move and the deletion commit or fail together.
+func DeleteGroup(ctx context.Context, db bun.IDB, id string, expect int64, now time.Time) (movedOwner, toGroup string, err error) {
 	g, err := GetGroupInfo(ctx, db, id)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	switch {
 	case g.Default:
-		return domain.ErrGroupIsDefault
+		return "", "", domain.ErrGroupIsDefault
 	case g.MemberCount > 0:
-		return domain.ErrGroupNotEmpty
+		return "", "", domain.ErrGroupNotEmpty
 	case g.Revision != expect:
-		return domain.ErrRevisionConflict
+		return "", "", domain.ErrRevisionConflict
+	}
+	var owner []string
+	if err := db.NewSelect().Model((*userRow)(nil)).Column("id").Where("group_id = ?", id).Where("is_owner = 1").
+		Scan(ctx, &owner); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", "", fmt.Errorf("store: read the owner's group: %w", err)
+	}
+	if len(owner) == 1 {
+		if toGroup, err = DefaultGroupID(ctx, db); err != nil {
+			return "", "", err
+		}
+		if err := mustUpdate(updateUser(ctx, db, owner[0], now, "", nil, set("group_id = ?", toGroup))); err != nil {
+			return "", "", err
+		}
+		movedOwner = owner[0]
 	}
 	res, err := db.NewDelete().Model((*groupRow)(nil)).Where("id = ?", id).Where("revision = ?", expect).Exec(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-			return domain.ErrGroupNotEmpty
+			return "", "", domain.ErrGroupNotEmpty
 		}
-		return fmt.Errorf("store: delete group: %w", err)
+		return "", "", fmt.Errorf("store: delete group: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n != 1 {
-		return domain.ErrRevisionConflict
+		return "", "", domain.ErrRevisionConflict
 	}
-	return nil
+	return movedOwner, toGroup, nil
 }
 
 // SetDefaultGroup makes id the default group for new users.

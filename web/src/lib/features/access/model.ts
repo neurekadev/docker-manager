@@ -33,8 +33,8 @@ export function factorsText(f: Account['factors']): string {
 
 /**
  * The members of a group as its page lists them: every account in it
- * except the owner, whose access never comes from a group. The group
- * list counts the same way (the API's memberCount includes the owner).
+ * except the owner, whose access never comes from a group (the API's
+ * memberCount does not count the owner either).
  */
 export function groupMembers<T extends Pick<Account, 'groupId' | 'owner'>>(
 	users: readonly T[] | undefined,

@@ -129,9 +129,12 @@ export function connectionSummary(
 
 /**
  * When an agent was last in contact, in words. A connected agent is in
- * contact now: its stored last-seen time is only written when it connects,
- * reports its capabilities or disconnects, so it would look stale while
- * the connection is fine. `title` is the absolute time for the tooltip.
+ * contact now ("Connected now", connected since as the tooltip): the
+ * manager refreshes its stored last-seen time only about once a minute, so
+ * that time lags a live connection. A disconnected agent shows its
+ * last-seen time (written on disconnect and at most a minute old after a
+ * lost connection or a manager restart). `title` is the absolute time for
+ * the tooltip.
  */
 export function agentContact(
 	a: Pick<

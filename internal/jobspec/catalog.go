@@ -153,6 +153,10 @@ func containerKind(kind domain.JobKind, verb, summary string) Spec {
 // starts marks a kind that starts containers (Spec.StartsContainers).
 func starts(s Spec) Spec { s.StartsContainers = true; return s }
 
+// retryable marks a kind a finished, unsuccessful job of which may be run
+// again as a new job with the same targets and input (Spec.Retryable).
+func retryable(s Spec) Spec { s.Retryable = true; return s }
+
 // stackKind builds the spec of a stack operation exclusive on the stack.
 func stackKind(kind domain.JobKind, summary string, deadline time.Duration, steps ...Step) Spec {
 	return Spec{
@@ -203,12 +207,12 @@ func TemplateFilesKind(k domain.JobKind) (domain.JobKind, bool) {
 func catalogSpecs() []Spec {
 	return []Spec{
 		// Images.
-		{
+		retryable(Spec{
 			Kind: ImagePull, Summary: "Pull an image", Capability: "image.pull", Executor: domain.ExecutorAgent,
 			Locks:           []LockRule{hostShared(), target(domain.LockImage, exclusive, domain.TargetImage)},
 			OfflineDeadline: deadlineLong, ConcurrencyClass: ClassPull,
 			Steps: []Step{idem("pull")},
-		},
+		}),
 		{
 			Kind: ImageBuild, Summary: "Build an image from a Git URL or context", Capability: "image.build", Executor: domain.ExecutorAgent,
 			Locks:           []LockRule{hostShared(), target(domain.LockImage, exclusive, domain.TargetImage)},
@@ -244,8 +248,10 @@ func catalogSpecs() []Spec {
 		containerKind(ContainerUpdate, "update", "Update a container's resources or restart policy"),
 
 		// Stacks.
-		starts(stackKind(StackDeploy, "Deploy a stack from its on-disk Compose sources", deadlineLong,
-			idem("resolve_sources"), idem("pull_images"), idem("build_images"), idem("apply"))),
+		// A retried deploy or pull gets its stack reference and registry
+		// connections refreshed by the stacks service (jobs.Engine.OnRetry).
+		retryable(starts(stackKind(StackDeploy, "Deploy a stack from its on-disk Compose sources", deadlineLong,
+			idem("resolve_sources"), idem("pull_images"), idem("build_images"), idem("apply")))),
 		starts(stackKind(StackStart, "Start a stack", deadlineInteractive, idem("start"))),
 		stackKind(StackStop, "Stop a stack", deadlineInteractive, idem("stop")),
 		starts(stackKind(StackRestart, "Restart a stack", deadlineInteractive, idem("restart"))),
@@ -271,7 +277,7 @@ func catalogSpecs() []Spec {
 			s := stackKind(StackPull, "Pull a stack's images without deploying them", deadlineLong, idem("pull_images"))
 			s.Capability = "stack.update"
 			s.ConcurrencyClass = ClassPull
-			return s
+			return retryable(s)
 		}(),
 		// Import by copy (#7): the project is stopped, its whole directory
 		// (Compose files and everything next to them) is copied from the
@@ -381,7 +387,7 @@ func catalogSpecs() []Spec {
 		// An update policy targets one stack or one Docker Manager-managed
 		// standalone container (#20): the check reads registries on the
 		// manager, the run pulls and recreates on the agent.
-		{
+		retryable(Spec{
 			Kind: UpdateCheck, Summary: "Check registries for newer digests of the fixed tags of a stack or container",
 			Capability: "update.check", Executor: domain.ExecutorManager,
 			Locks: []LockRule{hostShared(),
@@ -389,7 +395,7 @@ func catalogSpecs() []Spec {
 				optional(target(domain.LockContainer, shared, domain.TargetContainer))},
 			Steps:            []Step{idem("check")},
 			OnManagerRestart: RestartResume,
-		},
+		}),
 		{
 			Kind: UpdateRun, Summary: "Apply an image update to a stack or standalone container (no automatic rollback)",
 			Capability: "update.run", Executor: domain.ExecutorAgent,

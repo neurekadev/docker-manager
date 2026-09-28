@@ -19,11 +19,14 @@ features never run their own serialization or recovery.
 ## Job model
 
 Stored in SQLite (`jobs`, `job_targets`, `job_locks`, `job_events`,
-`job_fencing`; migration `20260924120000_create_jobs`):
+`job_fencing`; migration `20260924120000_create_jobs`; `retry_of` and the
+`jobs_policy (policy_id, id)` index from `20260928041737_job_retries_policy_index`):
 
 - `kind`, `executor` (`agent`/`manager`), `origin` (`manual`, `scheduled`,
   `api_token`), initiator user and API-token IDs (**audit metadata only**,
-  never an access-control owner), `policy_id`, `environment_id`, targets
+  never an access-control owner), `policy_id` (the policy the job runs
+  for: its scheduled runs and manual runs of it), `retry_of` (the job a
+  retry re-runs, [below](#retries)), `environment_id`, targets
   (`stack`, `container`, `volume`, `image`, `network`, `repository`, `path`,
   `destination_path`, `template`; a target may name another environment for
   migrations).
@@ -267,17 +270,59 @@ never by initiator ([authorization](authorization.md)).
 ## API
 
 - `GET /api/v1/jobs` — cursor pagination (`cursor`, `limit`), filters
-  `state` (repeatable), `kind`, `environmentId`, `target=type:id`;
-  permission-filtered per item (`total` omitted).
+  `state` (repeatable), `kind`, `origin` (repeatable), `environmentId`,
+  `target=type:id`, `policyId` (index `jobs_policy`); permission-filtered
+  per item. `total` counts the visible matches and is sent only when
+  exact: one COUNT query (`Engine.Count`, the list's filters) for a caller
+  who reads every job (the owner's session, detected with an owner-only
+  capability), otherwise a `job.read` check of each of at most 1000
+  matching jobs; absent above that.
 - `GET /api/v1/jobs/{jobId}`.
 - `POST /api/v1/jobs/{jobId}/cancellations` — 202 with the job; 409
   `job_finished`.
+- `POST /api/v1/jobs/{jobId}/retries` — 202 with the new job
+  ([retries](#retries)); `Idempotency-Key` (job mode); 403 without the
+  kind's capabilities, 409 `job_not_retryable`.
 - `GET /api/v1/jobs/{jobId}/events/stream` — SSE: `event: job` snapshot,
   then events with `id: <seq>` after `Last-Event-ID`, `: heartbeat` every
   15 s, `X-Accel-Buffering: no`, closes after the terminal events.
 
 The `Job` schema includes `origin`, `attempt`, `blockedBy`, `locks`,
-`locksHeld`, `progress`, `items` and `error {class, message, recovery}`.
+`locksHeld`, `progress`, `items`, `error {class, message, recovery}`,
+`retryOf` and `retryable` (the caller may retry it now; false in the 202
+answers of job-starting operations).
+
+## Retries
+
+`Engine.Retry(ctx, principal, jobID, key)` runs a finished job that did not
+succeed (`failed`, `partial`, `interrupted`, `cancelled`) again as a **new
+job** with the same kind, environment, policy, targets and input and
+`retry_of` set; the original never changes. It is an ordinary request of
+the caller: the kind's capabilities are authorized on every target before
+anything else (and again by `Enqueue`), archived environments refuse it
+and the engine records `job.queued` (with `retryOfJobId`); the API adds
+`job.read` visibility (404) and records the request as `job.retry`
+(targets: both jobs). `jobspec.RetryRefusal` refuses (a
+`domain.JobNotRetryableError`, API 409 `job_not_retryable`) jobs that are
+still active (`active`), succeeded (`succeeded`), whose kind is not
+`jobspec.Spec.Retryable` (`kind`) or whose input was not kept (`no_input`).
+
+Only kinds whose stored input is still right to act on later are
+retryable — no secret in it (credentials are IDs resolved at dispatch),
+no plan or snapshot that may have gone stale, no feature record created
+next to the job: `image.pull`, `stack.deploy`, `stack.pull` and
+`update.check` (`TestRetryableKinds`). Not retryable: `update.run` (a
+plan of digests checked against drift at enqueue), `prune.run` (a copy
+of the policy's rules, destructive), `backup.run` and the other backup
+kinds (backup sets have their own retry, `RetrySetID`), `image.build`
+(an image build record per job; build arguments in the input), and every
+other kind. A feature may take part with `Engine.OnRetry(kind,
+jobs.Retrier{Input, Queued})`: `Input` rebuilds the input from its
+current state (a `domain.RetryRefusedUnavailable` refusal when the
+resource is gone), `Queued` runs after the retry was queued. The stacks
+service refreshes a retried deploy's or pull's stack reference (directory,
+project name, Compose files) and registry connections, keeps its options
+and makes the retry the stack's last job.
 
 ## Audit
 
@@ -285,7 +330,8 @@ Every kind emits audit records (#30) from the engine itself, in the same
 transaction as the state change: `job.queued` (Enqueue), `job.started`
 (each attempt), `job.cancel_requested` (Cancel) and `job.finished` (every
 terminal state, with the error class and the item list). Executors do not
-record lifecycle events. See [audit](audit.md).
+record lifecycle events. A retry's `job.queued` carries `retryOfJobId`;
+the retry request itself is recorded as `job.retry`. See [audit](audit.md).
 
 ## Retention
 
@@ -320,8 +366,9 @@ more.
 **Define a kind.** Add a `domain.JobKind` constant and a `Spec` in
 `internal/jobspec/catalog.go` (or adjust the provisional one): capability,
 executor, lock rules from targets, offline deadline, steps with
-`Idempotent`/`SafePoint`/`Recovery`, compensations. Run
-`bash scripts/generate.sh`.
+`Idempotent`/`SafePoint`/`Recovery`, compensations. Mark it `Retryable`
+only when its stored input is safe to run again later ([retries](#retries);
+update `TestRetryableKinds`). Run `bash scripts/generate.sh`.
 
 **Enqueue** from an API handler and answer 202:
 

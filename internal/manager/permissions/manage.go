@@ -149,26 +149,39 @@ func (s *Service) RenameGroup(ctx context.Context, id string, revision int64, na
 
 // DeleteGroup deletes a group (owner, step-up, revision). The current
 // default group cannot be deleted (choose another default first), and a
-// group with members cannot be deleted (move them first): Docker Manager never
-// moves users implicitly, so deleting a group never changes anyone's
-// access.
+// group with members cannot be deleted (move them first): Docker Manager
+// never moves users implicitly, so deleting a group never changes anyone's
+// access. The owner's account is not a member in that sense (group rules
+// never apply to it): when it is in the group, it moves to the default
+// group in the same transaction, recorded as a target and
+// ownerMovedToGroupId in the request's audit record.
 func (s *Service) DeleteGroup(ctx context.Context, id string, revision int64) error {
 	if _, err := s.owner(ctx, true); err != nil {
 		return err
 	}
-	g, err := store.GetGroupInfo(ctx, s.db, id)
-	if err != nil {
+	var g domain.GroupInfo
+	var doc domain.PermissionDocument
+	var movedOwner, toGroup string
+	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		var err error
+		if g, err = store.GetGroupInfo(ctx, tx, id); err != nil {
+			return err
+		}
+		if doc, err = store.GroupPermissions(ctx, tx, id); err != nil {
+			return err
+		}
+		movedOwner, toGroup, err = store.DeleteGroup(ctx, tx, id, revision, s.clk.Now())
 		return err
-	}
-	doc, err := store.GroupPermissions(ctx, s.db, id)
+	})
 	if err != nil {
-		return err
-	}
-	if err := store.DeleteGroup(ctx, s.db, id, revision); err != nil {
 		return err
 	}
 	audit.SetDetail(ctx, "name", g.Name)
 	audit.SetDiff(ctx, map[string]any{"name": g.Name, "rules": ruleTexts(doc.Rules)}, nil)
+	if movedOwner != "" {
+		audit.AddTarget(ctx, domain.AuditTarget{Type: "user", ID: movedOwner})
+		audit.SetDetail(ctx, "ownerMovedToGroupId", toGroup)
+	}
 	return nil
 }
 

@@ -242,6 +242,9 @@ Each side sends `heartbeat` (optional `{seq, sentAt}`) at least every 15 s
 while idle (`HeartbeatInterval`); any received frame counts as liveness. A
 side that heard nothing for 45 s (`HeartbeatTimeout`) closes with `4408`.
 Manager-side heartbeats are also shorter than common proxy idle timeouts.
+The manager records the agent's (and its environment's) last-seen time on
+connect and disconnect and, while the session lives, refreshes it from the
+received frames at most every 60 s (not per heartbeat).
 
 ## Envelope
 
@@ -411,7 +414,14 @@ And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
 sends the shell's most common path as `cmd` (`protocol.LegacyShellCommand`:
-`/bin/bash`, `/bin/zsh`, else `/bin/sh`). Upgrade procedure: `docs/internal/operations/upgrades.md`.
+`/bin/bash`, `/bin/zsh`, else `/bin/sh`). Optional fields an agent adds to
+its own request outputs need no feature: agents are not newer than the
+manager, the manager decodes a response's `output` without refusing
+unknown fields, and it treats a missing field as not reported. Examples:
+`container.inspect`'s `restartMaxRetries` and the addresses of
+`network.inspect`'s attached containers (`ipAddress`, `ipv6Address`); an
+N-1 agent omits them. Upgrade procedure:
+`docs/internal/operations/upgrades.md`.
 
 ### command, ack, progress, result, job_report, cancel (jobs, #26)
 
@@ -893,7 +903,7 @@ on a new session with a new frame ID.
 | `host.metrics` | request | `environment.metrics.read` | no | #5 |
 | `metrics.live` | request | manager service: about once a second while a browser live stream is open, only to agents that advertise it; the answers are served with `environment.metrics.read` / `container.metrics.read` | no | #5 |
 | `container.list` | request | any container capability (fields shaped per #17; entries carry their network addresses and, while running, `startedAt`) | no | #6 |
-| `container.inspect` | request | `container.details.read` | no | #6 |
+| `container.inspect` | request | `container.details.read` (the on-failure restart policy carries `restartMaxRetries` when limited) | no | #6 |
 | `container.stats` | request | `container.metrics.read` | no | #5 |
 | `container.logs` | request | `container.logs.read` (bounded tail) | no | #8 |
 | `container.exec.create` | request | `container.exec` | yes | #8 |
@@ -907,7 +917,7 @@ on a new session with a new frame ID.
 | `volume.inspect` | request | `volume.read` | no | #6 |
 | `volume.usage` | request | `volume.read` (sizes of the volumes the caller sees; the manager caches the answer for 60 s per environment and sends it only to agents that advertise it) | no | #6 |
 | `network.list` | request | `network.read` | no | #6 |
-| `network.inspect` | request | `network.read` | no | #6 |
+| `network.inspect` | request | `network.read` (attached `containers` carry their `ipAddress`/`ipv6Address` on the network) | no | #6 |
 | `compose.discover` | request | `stack.import` | no | #7 |
 | `compose.validate` | request | `stack.create` / `stack.manage` | no | #7 |
 | `compose.read` | request | `stack.definition.read`, or the manager service (revision recording, #7) | no | #7 |

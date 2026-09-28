@@ -213,9 +213,10 @@ export function jobErrorHeadline(error: { class: string } | undefined, state: st
 }
 
 /**
- * Where to run a finished job again: GET /jobs has no retry, so this is the
- * page of the action that started it (the stack, the container, the
- * policy, the build), or null when there is none.
+ * Where to run a finished job again when the server cannot retry it
+ * (`retryable` is false: its kind has no retry, or its input was not
+ * kept): the page of the action that started it (the stack, the
+ * container, the policy, the build), or null when there is none.
  */
 export function jobAgain(
 	job: Pick<Job, 'id' | 'kind' | 'targets' | 'environmentId' | 'policyId'>
@@ -240,6 +241,33 @@ export function jobAgain(
 		};
 	return null;
 }
+
+/**
+ * How the job page offers to try a job again: 'retry' when the server can
+ * start it again (`retryable`: it ended unsuccessfully, its kind can be
+ * retried and the caller may start it; POST /jobs/{jobId}/retries), else
+ * the page of the originating action for a failed job (`jobAgain`), else
+ * null (it is running, succeeded or was cancelled).
+ */
+export function jobRetry(
+	job: Pick<Job, 'id' | 'kind' | 'state' | 'targets' | 'environmentId' | 'policyId'> & {
+		retryable?: boolean;
+	}
+): 'retry' | { href: string; label: string } | null {
+	if (job.retryable) return 'retry';
+	if (!['failed', 'partial', 'interrupted'].includes(job.state)) return null;
+	return jobAgain(job);
+}
+
+/** Why a retry did not start, by API code (other codes: the server's message). */
+export const RETRY_ERRORS: Record<string, string> = {
+	job_not_retryable:
+		'This job can no longer be tried again (it is running, succeeded or its input was not kept). Reload the page to see its current state.',
+	environment_archived:
+		'Its environment is archived: archived environments keep their history but run no jobs.',
+	forbidden: 'You are not allowed to start this action again. Ask an administrator for access.',
+	idempotency_key_reused: 'This retry was already sent. Reload the page to see the new job.'
+};
 
 /** "container homeassistant" (the noun helps where kinds are mixed). */
 export function targetText(type: string, id: string, nameOf?: NameOf): string {

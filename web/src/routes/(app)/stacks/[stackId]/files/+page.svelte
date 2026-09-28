@@ -17,7 +17,7 @@
 	import { fillViewport } from '$lib/features/files/fill';
 	import { stackQuery } from '$lib/features/files/resources';
 	import LogDock from '$lib/features/logs/LogDock.svelte';
-	import { deployStackWith } from '$lib/features/stacks/actions';
+	import { deployStackWith, validateStackFiles } from '$lib/features/stacks/actions';
 	import { useStackPage, type StackPage } from '$lib/features/stacks/context';
 	import { startDeploy } from '$lib/features/stacks/deploy.svelte';
 	import { routes } from '$lib/routes';
@@ -32,6 +32,8 @@
 	const name = $derived(s?.displayName || s?.name || 'Stack');
 	const canLogs = $derived(!!s?.actions.includes('stack.read'));
 	const canDeploy = $derived(!!s?.actions.includes('stack.deploy') && !s?.readOnly);
+	// Validating the saved definition needs the permission that edits it.
+	const canValidate = $derived(!!s?.actions.includes('stack.definition.write') && !s?.readOnly);
 
 	// The stack layout's job tray reports deploys under the header; on its
 	// own (no layout) a toast says the deploy started.
@@ -63,8 +65,7 @@
 					name,
 					configFiles: s.configFiles ?? [],
 					revisionsHref: routes.stack(s.id, 'revisions'),
-					environmentId: s.environmentId,
-					projectName: s.name,
+					validate: canValidate ? () => validateStackFiles(s.id) : undefined,
 					undeployed: !!s.undeployedChanges,
 					deploy: canDeploy ? deploy : undefined
 				}

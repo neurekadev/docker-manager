@@ -11,6 +11,7 @@ import {
 	isSystemLabel,
 	joinCommand,
 	megabytes,
+	needsAddressLookup,
 	networkAliases,
 	networkEntries,
 	normalizeReference,
@@ -196,8 +197,10 @@ describe('detail pages in words (#22 polish)', () => {
 		expect(restartPolicyLabel('unless-stopped')).toBe('Unless stopped');
 		expect(restartPolicyLabel('always')).toBe('Always');
 		expect(restartPolicyLabel('on-failure')).toBe('On failure');
-		expect(restartPolicyLabel('on-failure', 5)).toBe('On failure (max 5)');
-		expect(restartPolicyLabel('on-failure:3')).toBe('On failure (max 3)');
+		expect(restartPolicyLabel('on-failure', 0)).toBe('On failure');
+		expect(restartPolicyLabel('on-failure', 5)).toBe('On failure (up to 5 retries)');
+		expect(restartPolicyLabel('on-failure', 1)).toBe('On failure (up to 1 retry)');
+		expect(restartPolicyLabel('on-failure:3')).toBe('On failure (up to 3 retries)');
 		// The form offers the words, never the raw value in parentheses.
 		expect(RESTART_OPTIONS.map((o) => o.label)).toEqual([
 			'Never restart',
@@ -299,6 +302,34 @@ describe('detail pages in words (#22 polish)', () => {
 			{ id: '1', name: 'db', state: 'running', addresses: ['172.20.0.2'] },
 			{ id: '3', name: 'gone', addresses: [] },
 			{ id: '2', name: 'web', state: 'running', addresses: ['172.20.0.3', 'fd00::3'] }
+		]);
+	});
+
+	it("prefers the addresses the network's answer reports", () => {
+		const refs = [
+			{
+				id: '2',
+				name: 'web',
+				state: 'running',
+				ipAddress: '172.20.0.9',
+				ipv6Address: 'fd00::9'
+			},
+			{ id: '1', name: 'db', state: 'running', ipAddress: '172.20.0.8' }
+		];
+		expect(
+			attachedContainers('shop_default', refs, [
+				{ name: 'web', networks: [{ name: 'shop_default', ipAddress: '172.20.0.3' }] }
+			])
+		).toEqual([
+			{ id: '1', name: 'db', state: 'running', addresses: ['172.20.0.8'] },
+			{ id: '2', name: 'web', state: 'running', addresses: ['172.20.0.9', 'fd00::9'] }
+		]);
+		// No containers list is needed when every address is known.
+		expect(needsAddressLookup(refs)).toBe(false);
+		expect(needsAddressLookup([...refs, { id: '3', name: 'old' }])).toBe(true);
+		expect(needsAddressLookup(undefined)).toBe(false);
+		expect(attachedContainers('shop_default', [{ id: '3', name: 'old' }])).toEqual([
+			{ id: '3', name: 'old', addresses: [] }
 		]);
 	});
 });

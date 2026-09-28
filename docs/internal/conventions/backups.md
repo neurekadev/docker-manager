@@ -31,6 +31,11 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `state.json`) and is put back by `ApplyPendingRestore`, keeping the
   replaced copy in the pre-restore directory; every step stays
   repeatable.
+- The policy list carries what the detail shows (`recentSets`, the next
+  run) through `addPolicyRuns`, batched per page: never a query per
+  policy on the server or a detail request per policy in the UI. Set
+  members name their backup (`backupId`, only backups the caller sees);
+  the UI links by it and never matches members to backups itself.
 - UI (`$lib/features/backups`, `routes/(app)/backups`): users see names,
   not internals. Scopes (`env:<id>`, `docker-manager-env-<id>`), restic
   locations, snapshot IDs, host paths, key generations and fingerprints,

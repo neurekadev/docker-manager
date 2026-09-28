@@ -151,10 +151,13 @@ the state in a `ListFilters` store (`list-filters.svelte.ts`):
 keeps its own search and filters per browser tab when the user leaves and
 comes back. The stored value is parsed defensively (anything but short
 strings is dropped); without `sessionStorage` it lives in memory. The
-jobs list is paged by the server: its state, kind and environment
-filters become the `GET /jobs` query (`jobQuery`), the search runs over
-the loaded jobs, and `?environment=` from an environment page sets the
-environment filter once.
+jobs list is paged by the server: its state, kind, environment and
+policy filters become the `GET /jobs` query (`jobQuery`), the count uses
+the first page's `total` when the server sends it ("50 of 1,234 jobs",
+`jobsSummary`), the search runs over the loaded jobs, and
+`?environment=` from an environment page, `?kind=` and `?policyId=`
+(`routes.jobs(kind, { policyId })`, a policy run's "Open jobs") set their
+filters once; the policy filter shows only while set.
 
 The containers list and a stack's services table share their column
 order and cells: the image's update state is
@@ -380,8 +383,12 @@ interval.
 shell (#22): reactive `state` (`idle`, `connecting`, `live`,
 `reconnecting`, `polling`, `unauthenticated`, `stopped`), `since`,
 `lastEventAt`, `failures`, `environments` (`{ [envId]: 'online' |
-'offline' }` from agent events) and `stale` (anything but `live`: data may
-be behind; keep showing it, say so). Only the live client writes it.
+'offline' }` from agent events), `tooManyStreams` (the manager refused the
+stream with 429: EventSource hides the status, so after a failure the
+client opens the URL once with fetch, reads the status and aborts; the
+shell's banner then asks the person to close tabs) and `stale` (anything
+but `live`: data may be behind; keep showing it, say so). Only the live
+client writes it.
 
 Tests: `client.spec.ts` (cursor resume, gap and environment resets,
 dedupe, revocation clearing, polling, throttling), `keys.spec.ts`
@@ -408,10 +415,12 @@ only wire resources to it:
   with Node tests. A click that opens a file does not select it;
   permissions and owners are a details view (off by default); below
   1024 px list and editor are `Tabs`. In a stack, saving a Compose source
-  validates the definition (`POST /stacks/validations` with the files on
-  disk, `definitionFiles` in `files/definition.ts`; silent when that is
-  refused, e.g. without `stack.create`) and offers Deploy (the stack
-  page's job tray) while `undeployedChanges` is set.
+  validates the definition on disk in the stack's own project directory
+  (`POST /stacks/{stackId}/validations`, only with
+  `stack.definition.write` in the stack's `actions`; silent when it
+  fails) and offers Deploy (the stack page's job tray) while
+  `undeployedChanges` is set. `POST /stacks/validations` is the create
+  dialog's (a submitted definition, `stack.create`).
   Details: [api/files.md](api/files.md#ui-22-23).
 - **Logs:** `LogFeed` follows each container's SSE stream with its cursor
   (Follow off/on resumes with `since`, repeats are skipped) and merges them

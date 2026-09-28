@@ -125,6 +125,7 @@ const (
 	// Jobs (#26).
 	CodeJobFinished        = "job_finished"
 	CodeJobKindUnavailable = "job_kind_unavailable"
+	CodeJobNotRetryable    = "job_not_retryable"
 
 	// Identity (#16).
 	CodeInvalidCredentials     = "invalid_credentials" //nolint:gosec // G101: an error code, not a credential

@@ -522,6 +522,7 @@ func (s *Service) registerHooks() {
 	s.opts.Jobs.OnFinish(jobspec.StackImport, s.onImportFinished)
 	s.opts.Jobs.OnFinish(jobspec.StackRename, s.onRenameFinished)
 	s.opts.Jobs.OnFinish(jobspec.StackPull, s.onPullFinished)
+	s.registerRetries()
 }
 
 func stackTarget(j domain.Job) string {

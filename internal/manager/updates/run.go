@@ -425,14 +425,14 @@ func (s *Service) onRunFinished(ctx context.Context, db bun.IDB, j domain.Job) e
 			h.Outcome = domain.UpdateOutcomeUpdated
 			if c != nil {
 				c.PreviousDigest, c.AppliedDigest, c.AppliedImageID = c.AppliedDigest, h.ToDigest, r.ToImageID
-				c.Status, c.CandidateDigest, c.CandidateIndexDigest = domain.CandidateUpToDate, "", ""
+				c.Status, c.CandidateDigest, c.CandidateIndexDigest, c.CandidatePublishedAt = domain.CandidateUpToDate, "", "", nil
 			}
 			images = append(images, domain.StackImage{Service: u.Service, Image: u.Reference, ImageID: r.ToImageID, Digest: h.ToDigest,
 				Platform: u.Platform})
 		case succeeded && r != nil && r.Outcome == protocol.UpdateUnchanged:
 			h.Outcome = domain.UpdateOutcomeUnchanged
 			if c != nil {
-				c.Status, c.CandidateDigest, c.CandidateIndexDigest = domain.CandidateUpToDate, "", ""
+				c.Status, c.CandidateDigest, c.CandidateIndexDigest, c.CandidatePublishedAt = domain.CandidateUpToDate, "", "", nil
 			}
 		case succeeded && r != nil && r.Outcome == protocol.UpdateKeptStopped:
 			h.Outcome = domain.UpdateOutcomeKeptStopped
@@ -518,6 +518,7 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 					continue
 				}
 				c.Status, c.CandidateDigest, c.CandidateIndexDigest, c.UpdatedAt = domain.CandidateUnchecked, "", "", s.now()
+				c.CandidatePublishedAt = nil
 				c.ErrorClass, c.ErrorMessage = "", ""
 				if err := store.UpsertUpdateCandidate(ctx, db, &c); err != nil {
 					return err

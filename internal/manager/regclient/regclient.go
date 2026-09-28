@@ -24,6 +24,8 @@
 //     with rate_limited without contacting it (no retry storm).
 //   - Results are cached for a short TTL and concurrent identical checks
 //     (registry, repository, tag, platform, credential) share one request.
+//   - Created reads a platform manifest's image config for its creation
+//     time (display only; one manifest and one blob GET per digest, cached).
 //
 // Registry-specific notes: Docker Hub serves the API at
 // registry-1.docker.io and counts GET manifest requests (not HEAD) against
@@ -74,6 +76,9 @@ const (
 	MediaDockerV2      = "application/vnd.docker.distribution.manifest.v2+json"
 	acceptManifests    = MediaOCIIndex + ", " + MediaDockerList + ", " + MediaOCIManifest + ", " + MediaDockerV2
 	maxManifestBytes   = 4 << 20
+	maxConfigBytes     = 4 << 20
+	maxCreatedEntries  = 4096
+	acceptImage        = MediaOCIManifest + ", " + MediaDockerV2
 	maxErrorBodyBytes  = 16 << 10
 	maxTokenBodyBytes  = 64 << 10
 	maxMessageLen      = 200
@@ -174,6 +179,9 @@ type Client struct {
 	inflight map[string]*call
 	tokens   map[string]cachedToken
 	cooldown map[string]time.Time
+	// created caches image creation times per manifest digest (immutable;
+	// the zero time: the image records none).
+	created map[string]time.Time
 
 	// onJoin, when set (tests), runs when a check joins an in-flight one.
 	onJoin func()
@@ -242,7 +250,7 @@ func New(opts Options) *Client {
 		opts.Jitter = rand.Float64 //nolint:gosec // backoff jitter, not security
 	}
 	return &Client{opts: opts, cache: map[string]cached{}, inflight: map[string]*call{}, tokens: map[string]cachedToken{},
-		cooldown: map[string]time.Time{}}
+		cooldown: map[string]time.Time{}, created: map[string]time.Time{}}
 }
 
 func (r Request) key() string {
@@ -311,6 +319,121 @@ func (c *Client) Forget(credentialKeyPrefix string) {
 			delete(c.tokens, k)
 		}
 	}
+	for k := range c.created {
+		if parts := strings.Split(k, "\x00"); len(parts) > 3 && strings.HasPrefix(parts[3], credentialKeyPrefix) {
+			delete(c.created, k)
+		}
+	}
+}
+
+// ErrNoCreated reports an image without a usable creation time (no image
+// config, no or an unparsable "created", or the Unix epoch of reproducible
+// builds). It depends only on the digest's content and is cached too.
+var ErrNoCreated = errors.New("the image records no creation time")
+
+// Created returns when the image of a platform manifest was created (the
+// "created" field of its image config), for display only: it never
+// decides an update. It costs one manifest GET (by digest; Docker Hub
+// counts it against the pull allowance) and one blob GET, without retries;
+// results are cached per digest (a digest's content never changes). A host
+// in a rate-limit cooldown is not contacted, and a 429 starts one.
+// req.Ref names the repository; its tag and digest are ignored.
+func (c *Client) Created(ctx context.Context, req Request, digest string) (created time.Time, cachedHit bool, err error) {
+	if req.Ref.Host == "" || req.Ref.Repository == "" || !validDigest(digest) {
+		return time.Time{}, false, &Error{Class: ClassInvalidResponse, Message: "incomplete image reference"}
+	}
+	key := strings.Join([]string{req.Ref.Host, req.Ref.Repository, digest, req.CredentialKey, strconv.FormatBool(req.PlainHTTP)}, "\x00")
+	c.mu.Lock()
+	if t, ok := c.created[key]; ok {
+		c.mu.Unlock()
+		if t.IsZero() {
+			return t, true, ErrNoCreated
+		}
+		return t, true, nil
+	}
+	c.mu.Unlock()
+	apiHost := imageref.APIHost(req.Ref.Host)
+	if until, ok := c.cooling(apiHost); ok {
+		return time.Time{}, false, &Error{Class: ClassRateLimited, RetryAfter: until, Message: "the registry asked Docker Manager to slow down"}
+	}
+	created, err = c.fetchCreated(ctx, req, digest)
+	var re *Error
+	if errors.As(err, &re) && re.Class == ClassRateLimited {
+		cool := re.RetryAfter
+		if cool <= 0 {
+			cool = c.opts.MaxBackoff
+		}
+		c.setCooldown(apiHost, cool)
+	}
+	if err != nil && !errors.Is(err, ErrNoCreated) {
+		return time.Time{}, false, err
+	}
+	c.mu.Lock()
+	if len(c.created) >= maxCreatedEntries {
+		clear(c.created)
+	}
+	c.created[key] = created
+	c.mu.Unlock()
+	return created, false, err
+}
+
+func (c *Client) fetchCreated(ctx context.Context, req Request, digest string) (time.Time, error) {
+	base := c.baseURL(req) + "/v2/" + req.Ref.Repository
+	body, err := c.getVerified(ctx, req, base+"/manifests/"+digest, acceptImage, digest, maxManifestBytes)
+	if err != nil {
+		return time.Time{}, err
+	}
+	var m struct {
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+	}
+	if json.Unmarshal(body, &m) != nil || !validDigest(m.Config.Digest) {
+		return time.Time{}, ErrNoCreated
+	}
+	body, err = c.getVerified(ctx, req, base+"/blobs/"+m.Config.Digest, "*/*", m.Config.Digest, maxConfigBytes)
+	if err != nil {
+		return time.Time{}, err
+	}
+	var cfg struct {
+		Created string `json:"created"`
+	}
+	if json.Unmarshal(body, &cfg) != nil || cfg.Created == "" {
+		return time.Time{}, ErrNoCreated
+	}
+	t, err := time.Parse(time.RFC3339Nano, cfg.Created)
+	// Reproducible builds record the Unix epoch (SOURCE_DATE_EPOCH=0).
+	if err != nil || t.Unix() <= 0 {
+		return time.Time{}, ErrNoCreated
+	}
+	return t.UTC(), nil
+}
+
+// getVerified GETs a manifest or blob and checks its sha256 digest.
+func (c *Client) getVerified(ctx context.Context, req Request, u, accept, digest string, limit int64) ([]byte, error) {
+	resp, err := c.authorized(ctx, req, http.MethodGet, u, accept)
+	if err != nil {
+		return nil, err
+	}
+	body, err := readLimited(resp.Body, limit)
+	_ = resp.Body.Close()
+	if err != nil {
+		return nil, &Error{Class: ClassUnavailable, Message: "could not read the registry's response"}
+	}
+	sum := sha256.Sum256(body)
+	if "sha256:"+hex.EncodeToString(sum[:]) != digest {
+		return nil, &Error{Class: ClassInvalidResponse, Message: "the content does not match its digest"}
+	}
+	return body, nil
+}
+
+func validDigest(d string) bool {
+	h, ok := strings.CutPrefix(d, "sha256:")
+	if !ok || len(h) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(h)
+	return err == nil
 }
 
 func (c *Client) pruneLocked() {

@@ -155,7 +155,7 @@ type Agent struct {
 	CreatedAt           time.Time       `json:"createdAt,omitzero" doc:"Full view."`
 	UpdatedAt           time.Time       `json:"updatedAt,omitzero" doc:"Full view."`
 	LastConnectedAt     *time.Time      `json:"lastConnectedAt,omitempty"`
-	LastSeenAt          *time.Time      `json:"lastSeenAt,omitempty"`
+	LastSeenAt          *time.Time      `json:"lastSeenAt,omitempty" doc:"When the agent was last heard from: refreshed about every 60 s while it is connected, and on disconnect."`
 	RevokedAt           *time.Time      `json:"revokedAt,omitempty"`
 }
 

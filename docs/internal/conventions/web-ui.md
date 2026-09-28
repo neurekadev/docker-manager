@@ -66,10 +66,13 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   (an update check starts one job per target) show one line each
   (`groupRuns`, `runSummary` in `runs.ts`: "20 checks, all succeeded",
   "2 of 20 checks failed"; `RunsTable`), linking to the failed job or to
-  `routes.jobs(kind)`; the job page states the job once (`JobProgress
-  summary={false}`), a failure as a headline in words
-  (`jobErrorHeadline`) over the engine's message, and offers the page of
-  the originating action to try again (`jobAgain`: there is no retry API).
+  the policy's jobs (`routes.jobs(kind, { policyId })`); a policy page
+  loads its runs with `recentJobsQuery(n, { policyId })`; the job page
+  states the job once (`JobProgress summary={false}`), a failure as a
+  headline in words (`jobErrorHeadline`) over the engine's message, and
+  "Try again" (`jobRetry`): a retry through `POST /jobs/{jobId}/retries`
+  when the job is `retryable` (opens the new job; a retry shows "Retry
+  of"), else the page of the originating action (`jobAgain`).
   Feature screens may keep their factories in `$lib/features/<area>/queries.ts`
   (docs/internal/web.md, "Feature modules"); step-up-guarded calls go through
   `withStepUp` (`$lib/auth/stepup.svelte`).
@@ -156,13 +159,17 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   the policy itself (`policyHref(kind, policyId)`, `policyPage(kind,
   policyId)`), never only to its section. Update targets show by name
   (`TargetName`: a container is looked up by name or Engine ID, never
-  shown by ID); inactive targets are "Excluded" (in the policy's lists)
-  or "No longer found", and every count on Updates counts the covered
-  targets the policy pages count ("6 images in 5 stacks").
+  shown by ID); inactive targets are "Excluded" or "No longer found" as
+  the manager's `inactiveReason` says (never guessed from the exclusion
+  lists), and every count on Updates counts the covered
+  targets the policy pages count ("6 images in 5 stacks"). A newer image
+  shows when it was published when the registry says so (`publishedText`:
+  "published 3 days ago", the date as tooltip).
 - **Notices:** every notice links somewhere (`noticeHref`); update notices
-  name policies as users know them (`policyLabel`: a generated
-  "Automatic update <id>" name becomes the stack or container) and several
-  collapse into one ("6 stacks have updates available").
+  name policies as users know them (`policyLabel`: the manager's
+  `targetName`, the stack or container; an old "Automatic update <id>"
+  record not yet renamed by the manager falls back to a stack lookup) and
+  several collapse into one ("6 stacks have updates available").
 - **Files, logs, terminals** (`docs/internal/web.md`): reuse
   `$lib/features/files/FileManager.svelte` (stack, volume or template
   scope),

@@ -404,7 +404,7 @@ func registerLive(a huma.API, deps Deps) {
 				"cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or " +
 				"`cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: " +
 				"nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry " +
-				"resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). " +
+				"resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 32 streams per user or token (429). " +
 				"Wire contract: docs/internal/api/streams.md.",
 			Tags:   []string{"Live"},
 			Errors: []int{http.StatusUnauthorized, http.StatusUnprocessableEntity, http.StatusTooManyRequests, http.StatusServiceUnavailable},

@@ -10,6 +10,8 @@
 //   failures     failed connection attempts since the last success
 //   environments connection state of each environment the caller sees
 //                (from `agent` events), e.g. { 'e1': 'offline' }
+//   tooManyStreams  the manager refused the stream because the person has
+//                too many tabs open (429 on the stream): the shell says so
 //
 // `stale` is true whenever cached data may be behind the manager (anything
 // but `live`): views may say so, but they keep showing the last data.
@@ -23,6 +25,7 @@ export class LiveStatus {
 	lastEventAt = $state<number | null>(null);
 	failures = $state(0);
 	environments = $state<Record<string, 'online' | 'offline'>>({});
+	tooManyStreams = $state(false);
 
 	readonly stale: boolean = $derived(this.state !== 'live');
 

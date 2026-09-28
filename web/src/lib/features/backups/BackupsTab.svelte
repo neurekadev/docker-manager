@@ -39,7 +39,7 @@
 		type CoverageTarget,
 		type MemberRun
 	} from './model';
-	import { backupPoliciesWithSetsQuery, backupsQuery, type BackupFilter } from './queries';
+	import { backupPoliciesQuery, backupsQuery, type BackupFilter } from './queries';
 	import type { RestorePlan } from './restore';
 
 	interface Props {
@@ -56,7 +56,7 @@
 
 	const backups = createQuery(() => backupsQuery(filter));
 	const perms = createQuery(() => myPermissionsQuery());
-	const policies = createQuery(() => backupPoliciesWithSetsQuery());
+	const policies = createQuery(() => backupPoliciesQuery());
 	const stacks = createQuery(() => ({ ...stacksQuery(), enabled: !!filter.stackId }));
 	const canCreatePolicy = $derived(canAnywhere(perms.data, 'backup_policy.manage'));
 	const rows = $derived(

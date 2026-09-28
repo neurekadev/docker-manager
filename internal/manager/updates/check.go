@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
@@ -201,7 +202,7 @@ func reset(c domain.UpdateCandidate, policyID, service string) domain.UpdateCand
 	c.PolicyID, c.Service = policyID, service
 	c.Eligible, c.Reason, c.ReasonMessage, c.NonVersionTag = false, "", "", false
 	c.ErrorClass, c.ErrorMessage, c.RetryAfterSeconds = "", "", 0
-	c.CandidateDigest, c.CandidateIndexDigest = "", ""
+	c.CandidateDigest, c.CandidateIndexDigest, c.CandidatePublishedAt = "", "", nil
 	return c
 }
 
@@ -270,7 +271,7 @@ func (s *Service) checkStack(ctx context.Context, p domain.UpdatePolicy, jobID s
 			ineligible(&c, domain.UpdateReasonNoBaseline, "The image the service runs has no registry digest (it was built or loaded locally): "+
 				"deploy the stack with pull: always to record the digest it runs.")
 		default:
-			if err := s.compare(ctx, p, &c, st.ID, []string{img.Digest}, jobID, quarantine[def.Name]); err != nil {
+			if err := s.compare(ctx, p, &c, prev[def.Name], st.ID, []string{img.Digest}, jobID, quarantine[def.Name]); err != nil {
 				return cands, out, err
 			}
 		}
@@ -346,7 +347,7 @@ func (s *Service) checkContainer(ctx context.Context, p domain.UpdatePolicy, job
 		return []domain.UpdateCandidate{c}, nil
 	}
 	c.AppliedDigest = applied[0]
-	if err := s.compare(ctx, p, &c, "", applied, jobID, quarantine[c.Service]); err != nil {
+	if err := s.compare(ctx, p, &c, prev[p.TargetID], "", applied, jobID, quarantine[c.Service]); err != nil {
 		return nil, err
 	}
 	return []domain.UpdateCandidate{c}, nil
@@ -358,9 +359,11 @@ func (s *Service) checkContainer(ctx context.Context, p domain.UpdatePolicy, job
 // applied digest is up to date; so is an applied index digest whose
 // platform manifest equals the new one (only the index changed). Registry
 // failures are recorded on the candidate (check_failed with the class and
-// retry guidance) and never trigger a pull.
-func (s *Service) compare(ctx context.Context, p domain.UpdatePolicy, c *domain.UpdateCandidate, stackID string, applied []string,
-	jobID string, quarantined []string) error {
+// retry guidance) and never trigger a pull. A new digest gets its image's
+// creation time (known: the candidate before this check, whose time is
+// reused for the same digest).
+func (s *Service) compare(ctx context.Context, p domain.UpdatePolicy, c *domain.UpdateCandidate, known domain.UpdateCandidate, stackID string,
+	applied []string, jobID string, quarantined []string) error {
 	now := s.now()
 	c.CheckedAt, c.CheckJobID = &now, jobID
 	req := registries.CheckRequest{RegistrySelectRequest: domain.RegistrySelectRequest{Reference: c.Reference, EnvironmentID: p.EnvironmentID,
@@ -393,6 +396,7 @@ func (s *Service) compare(ctx context.Context, p domain.UpdatePolicy, c *domain.
 		return nil
 	}
 	c.CandidateDigest, c.CandidateIndexDigest = platform, index
+	c.CandidatePublishedAt = s.published(ctx, req, known, platform)
 	c.Status = domain.CandidateAvailable
 	if slices.Contains(quarantined, platform) {
 		c.Status = domain.CandidateQuarantined
@@ -400,6 +404,25 @@ func (s *Service) compare(ctx context.Context, p domain.UpdatePolicy, c *domain.
 			"A newer digest of the tag becomes a new candidate."
 	}
 	return nil
+}
+
+// published returns the creation time of the candidate image: the one
+// already recorded for this digest, else read from the registry (image
+// config "created"). Display only: nil when unavailable, never an error.
+func (s *Service) published(ctx context.Context, req registries.CheckRequest, known domain.UpdateCandidate, digest string) *time.Time {
+	if known.CandidateDigest == digest && known.CandidatePublishedAt != nil {
+		at := known.CandidatePublishedAt.UTC()
+		return &at
+	}
+	at, err := s.opts.Registries.Created(ctx, req, digest)
+	if err != nil || at.IsZero() {
+		if err != nil && !errors.Is(err, regclient.ErrNoCreated) && ctx.Err() == nil {
+			s.log.Debug("update check: the candidate image's creation time is unavailable", "error_class", regclient.ClassOf(err))
+		}
+		return nil
+	}
+	at = at.UTC()
+	return &at
 }
 
 // samePlatform resolves an applied index digest to its host-platform

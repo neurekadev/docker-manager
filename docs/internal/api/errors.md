@@ -80,6 +80,7 @@ same change.
 | `not_acceptable` | 406 | no | The `Accept` header excludes every media type the route can produce. | #2 |
 | `conflict` | 409 | no | Generic conflict with the current state. Routes prefer a specific 409 code. | #2 |
 | `job_finished` | 409 | no | The job already reached a terminal state (for example a cancellation of a finished job). | #26 |
+| `job_not_retryable` | 409 | no | The job cannot be run again: it has not finished, it succeeded, its kind cannot be retried, its input was not kept or what it acted on is gone. Start the action again from where it was started. | #26 |
 | `idempotency_key_reused` | 409 | no | The `Idempotency-Key` was already used by this caller for a different request (different route, parameters or body). | #26 |
 | `idempotency_key_in_flight` | 409 | yes | A request with the same `Idempotency-Key` is still being processed; retry after the `Retry-After` delay. | #4 |
 | `setup_complete` | 409 | no | First-run setup already created the instance owner; sign in instead. | #16 |
@@ -98,7 +99,7 @@ same change.
 | `agent_revoked` | 409 | no | The agent was removed or replaced; its credential cannot be rotated. | #3 |
 | `group_name_taken` | 409 | no | Another permission group already uses this name. | #17 |
 | `default_group_protected` | 409 | no | The default group cannot be deleted; make another group the default first. | #17 |
-| `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly). | #17 |
+| `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly; the owner does not count and moves to the default group). | #17 |
 | `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
 | `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
 | `git_credential_name_taken` | 409 | no | Another Git credential already uses this name. | #33 |

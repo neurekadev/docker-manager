@@ -151,6 +151,61 @@ describe('EditorPane', () => {
 		expect(screen.queryByRole('button', { name: 'Deploy Silo' })).toBeNull();
 	});
 
+	it('validates the saved definition on disk and shows the findings', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const { api, writes } = fakeFiles();
+		const session = new EditorSession(api);
+		session.open('compose.yaml');
+		let checks = 0;
+		render(EditorHarness, {
+			props: {
+				files: api,
+				session,
+				stack: {
+					name: 'Silo',
+					configFiles: [],
+					validate: async () => {
+						checks++;
+						return {
+							valid: true,
+							projectName: 'silo',
+							errors: [],
+							warnings: [
+								{ code: 'obsolete_version', message: 'version is obsolete' }
+							],
+							services: [
+								{ name: 'web', image: 'nginx:1.27', build: false, dependsOn: [] }
+							],
+							binds: []
+						};
+					}
+				}
+			}
+		});
+		await waitFor(() => expect(session.current?.status).toBe('ready'));
+		session.edit('compose.yaml', 'a: 2\n');
+		await user.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(writes).toHaveLength(1));
+		expect(await screen.findByText(/Valid: 1\s+service\s+\(web\)/)).toBeInTheDocument();
+		expect(screen.getByText('version is obsolete')).toBeInTheDocument();
+		expect(checks).toBe(1);
+	});
+
+	it('does not validate without the permission to edit the definition', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const { api, writes } = fakeFiles();
+		const session = new EditorSession(api);
+		session.open('compose.yaml');
+		render(EditorHarness, {
+			props: { files: api, session, stack: { name: 'Silo', configFiles: [] } }
+		});
+		await waitFor(() => expect(session.current?.status).toBe('ready'));
+		session.edit('compose.yaml', 'a: 2\n');
+		await user.click(screen.getByRole('button', { name: 'Save' }));
+		await waitFor(() => expect(writes).toHaveLength(1));
+		expect(screen.queryByText(/^Valid:/)).toBeNull();
+	});
+
 	it('hides saving for read-only access and offers Preview for Markdown', async () => {
 		const { api } = fakeFiles();
 		const session = new EditorSession(api);

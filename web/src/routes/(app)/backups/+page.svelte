@@ -47,7 +47,7 @@
 	} from '$lib/features/backups/model';
 	import {
 		backupActivityQuery,
-		backupPoliciesWithSetsQuery,
+		backupPoliciesQuery,
 		backupsQuery,
 		repositoriesQuery
 	} from '$lib/features/backups/queries';
@@ -61,7 +61,7 @@
 	const access = $derived(accessOf(perms.data));
 	const envs = createQuery(() => environmentsQuery());
 	const repos = createQuery(() => repositoriesQuery());
-	const policies = createQuery(() => backupPoliciesWithSetsQuery());
+	const policies = createQuery(() => backupPoliciesQuery());
 	const backups = createQuery(() =>
 		backupsQuery(environmentSelection.id ? { environmentId: environmentSelection.id } : {})
 	);

@@ -146,9 +146,11 @@ type StackMembership struct {
 
 // ContainerRef names a container using another object.
 type ContainerRef struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	State string `json:"state,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	State       string `json:"state,omitempty"`
+	IPAddress   string `json:"ipAddress,omitempty" doc:"The container's IPv4 address on the network (network GET only; absent while it is stopped or from agents that do not report it)."`
+	IPv6Address string `json:"ipv6Address,omitempty" doc:"The container's IPv6 address on the network (network GET only)."`
 }
 
 func newContainerRefs(cs []protocol.ContainerRef) []ContainerRef {

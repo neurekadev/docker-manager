@@ -618,3 +618,52 @@ func TestDeleteWithVolumesNeedsAnAgentThatSupportsIt(t *testing.T) {
 		t.Error("a removal was queued")
 	}
 }
+
+// TestValidateStackReadsItsOwnDirectory (#7): an existing stack's
+// validation loads the definition on disk in its own project directory
+// (the .env there feeds interpolation, relative binds resolve inside it),
+// reports findings as the result, writes nothing and records no revision;
+// an offline agent is an error.
+func TestValidateStackReadsItsOwnDirectory(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	before := len(revisions(t, h, st.ID))
+	h.write("DB_TAG=17\nDB_PASSWORD=s3cret-canary\n", "shop", ".env")
+
+	v, err := h.svc.ValidateStack(h.ctx, h.get(st.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.Valid || v.ProjectName != "shop" || len(v.Services) != 2 || len(v.Errors) != 0 {
+		t.Fatalf("validation %+v", v)
+	}
+	images := map[string]string{}
+	for _, s := range v.Services {
+		images[s.Name] = s.Image
+	}
+	if images["db"] != "registry.example:5000/db:17" {
+		t.Errorf("db image %q, want the tag of the .env on disk", images["db"])
+	}
+	if len(v.Binds) != 1 || v.Binds[0].External || v.Binds[0].RelPath != "html" {
+		t.Errorf("binds %+v, want ./html inside the project directory", v.Binds)
+	}
+	if b, _ := json.Marshal(v); strings.Contains(string(b), "s3cret-canary") {
+		t.Errorf("the result carries a .env value: %s", b)
+	}
+
+	// Findings are the answer, not an error; the files stay as they are.
+	broken := "services:\n  web:\n    image: [nginx\n"
+	h.write(broken, "shop", "compose.yaml")
+	v, err = h.svc.ValidateStack(h.ctx, h.get(st.ID))
+	if err != nil || v.Valid || len(v.Errors) == 0 {
+		t.Errorf("broken definition: %+v %v", v, err)
+	}
+	if h.read("shop", "compose.yaml") != broken || len(revisions(t, h, st.ID)) != before {
+		t.Error("validation changed the files or recorded a revision")
+	}
+
+	h.agents.setOnline(false)
+	if _, err := h.svc.ValidateStack(h.ctx, h.get(st.ID)); stackErrCode(err) != domain.StackErrOffline {
+		t.Errorf("offline: %v", err)
+	}
+}

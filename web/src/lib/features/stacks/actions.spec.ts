@@ -9,7 +9,8 @@ import {
 	previewRename,
 	renameStack,
 	restartSource,
-	runUpdate
+	runUpdate,
+	validateStackFiles
 } from './actions';
 import { stackKeys, stackMetricsQuery } from './queries';
 
@@ -151,6 +152,19 @@ describe('stack actions', () => {
 		expect(m.calls.map((c) => c.body)).toEqual([{ name: 'store' }, { name: 'store' }]);
 		expect(m.calls[1].headers.get('If-Match')).toBe('"7"');
 		expect(m.calls[1].headers.get('Idempotency-Key')).toBeTruthy();
+	});
+
+	it("validates an existing stack's files on disk by its ID", async () => {
+		const m = fakeManager({
+			'POST /api/v1/stacks/st-1/validations': () => [
+				200,
+				{ valid: true, errors: [], warnings: [], services: [], binds: [] }
+			]
+		});
+		const v = await validateStackFiles('st-1', m.client);
+		expect(v.valid).toBe(true);
+		expect(m.calls).toHaveLength(1);
+		expect(m.calls[0].body).toBeUndefined();
 	});
 
 	it('runs exactly the previewed update', async () => {

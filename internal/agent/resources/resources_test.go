@@ -121,6 +121,15 @@ func TestRequestsReportInventory(t *testing.T) {
 	if d2 := must[protocol.ContainerDetails](t, s, protocol.ReqContainerInspect, protocol.ContainerInspectInput{Container: d.ID[:12]}); d2.ID != d.ID {
 		t.Fatalf("by prefix: %+v", d2)
 	}
+	// The restart policy with its retry count (none for other policies).
+	if d.RestartPolicy != "no" || d.RestartMaxRetries != 0 {
+		t.Fatalf("restart policy %q max %d", d.RestartPolicy, d.RestartMaxRetries)
+	}
+	fe.SetRestartPolicy("shop-db-1", "on-failure", 5)
+	if d := must[protocol.ContainerDetails](t, s, protocol.ReqContainerInspect, protocol.ContainerInspectInput{Container: "shop-db-1"}); d.RestartPolicy != "on-failure" ||
+		d.RestartMaxRetries != 5 {
+		t.Fatalf("on-failure restart policy %q max %d", d.RestartPolicy, d.RestartMaxRetries)
+	}
 
 	ims := must[protocol.ImageListOutput](t, s, protocol.ReqImageList, protocol.ImageListInput{})
 	users := map[string]int{}
@@ -155,6 +164,12 @@ func TestRequestsReportInventory(t *testing.T) {
 	n := must[protocol.NetworkInfo](t, s, protocol.ReqNetworkInspect, protocol.NetworkInspectInput{Network: "shop_default"})
 	if len(n.Containers) != 2 || n.Stack == nil || !n.Stack.Managed {
 		t.Fatalf("network %+v", n)
+	}
+	// Attached containers carry their names and their addresses on it.
+	for _, c := range n.Containers {
+		if c.Name == "" || c.IPAddress != "172.17.0.2" || c.IPv6Address != "" {
+			t.Fatalf("attached container %+v", c)
+		}
 	}
 
 	// image.tag: the new tag appears; an invalid target is refused.

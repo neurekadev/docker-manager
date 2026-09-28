@@ -566,3 +566,45 @@ func TestIneligibleServicesAreVisible(t *testing.T) {
 		t.Errorf("latest %+v web %+v", c["latest"], c["web"])
 	}
 }
+
+// A new candidate shows when its image was created (the image config's
+// created time, display only). The time is read once per digest, and a
+// check never fails because it is unavailable.
+func TestCandidatePublishTime(t *testing.T) {
+	h := newHarness(t)
+	h.publishImage("acme/web", "1.4", time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), "")
+	h.publish("acme/db", "16", " db")
+	st, _, _ := h.shop()
+	p := h.policy(updates.NewPolicy{TargetType: domain.UpdateTargetStack, TargetID: st.ID})
+	h.check(p)
+	if c := h.candidates(p); c["web"].Status != domain.CandidateUpToDate || c["web"].CandidatePublishedAt != nil {
+		t.Fatalf("up to date: %+v", c["web"])
+	}
+
+	published := time.Date(2026, 9, 22, 7, 45, 0, 0, time.UTC)
+	d2 := h.publishImage("acme/web", "1.4", published, " v2")
+	h.publish("acme/db", "16", " db v2") // its manifest names no config blob
+	h.clk.Advance(2 * time.Minute)       // past the check cache
+	if j := h.check(p); j.State != domain.JobSucceeded {
+		t.Fatalf("check %s %s: %s", j.State, j.ErrorClass, j.ErrorMessage)
+	}
+	c := h.candidates(p)
+	if c["web"].Status != domain.CandidateAvailable || c["web"].CandidateDigest != d2 || c["web"].CandidatePublishedAt == nil ||
+		!c["web"].CandidatePublishedAt.Equal(published) {
+		t.Fatalf("new web image: %+v", c["web"])
+	}
+	if c["db"].Status != domain.CandidateAvailable || c["db"].CandidatePublishedAt != nil {
+		t.Fatalf("new db image without a creation time: %+v", c["db"])
+	}
+
+	// The next check reuses the recorded time (no blob request).
+	blobs := h.reg.BlobCount()
+	h.clk.Advance(2 * time.Minute)
+	h.check(p)
+	if c := h.candidates(p); c["web"].CandidatePublishedAt == nil || !c["web"].CandidatePublishedAt.Equal(published) {
+		t.Fatalf("second check: %+v", c["web"])
+	}
+	if n := h.reg.BlobCount(); n != blobs {
+		t.Fatalf("blob requests on the second check: %d", n-blobs)
+	}
+}

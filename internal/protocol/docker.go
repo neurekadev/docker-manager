@@ -112,6 +112,11 @@ type ContainerRef struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	State string `json:"state,omitempty"`
+	// IPAddress and IPv6Address are the container's addresses on the
+	// network (network.inspect only; empty while it is stopped and from
+	// agents before these fields).
+	IPAddress   string `json:"ipAddress,omitempty"`
+	IPv6Address string `json:"ipv6Address,omitempty"`
 }
 
 // ContainerSummary is a container list entry.
@@ -156,24 +161,27 @@ type ContainerNetwork struct {
 // never included (they often hold secrets, #7).
 type ContainerDetails struct {
 	ContainerSummary
-	Cmd           []string         `json:"cmd,omitempty"`
-	Entrypoint    []string         `json:"entrypoint,omitempty"`
-	WorkingDir    string           `json:"workingDir,omitempty"`
-	User          string           `json:"user,omitempty"`
-	Tty           bool             `json:"tty,omitempty"`
-	Hostname      string           `json:"hostname,omitempty"`
-	RestartPolicy string           `json:"restartPolicy,omitempty"`
-	NetworkMode   string           `json:"networkMode,omitempty"`
-	RestartCount  int              `json:"restartCount"`
-	Platform      string           `json:"platform,omitempty"`
-	Running       bool             `json:"running"`
-	Paused        bool             `json:"paused"`
-	OOMKilled     bool             `json:"oomKilled,omitempty"`
-	ExitCode      int              `json:"exitCode"`
-	Error         string           `json:"error,omitempty"`
-	FinishedAt    *time.Time       `json:"finishedAt,omitempty"`
-	Resources     ResourcesSpec    `json:"resources"`
-	Healthcheck   *HealthcheckSpec `json:"healthcheck,omitempty"`
+	Cmd           []string `json:"cmd,omitempty"`
+	Entrypoint    []string `json:"entrypoint,omitempty"`
+	WorkingDir    string   `json:"workingDir,omitempty"`
+	User          string   `json:"user,omitempty"`
+	Tty           bool     `json:"tty,omitempty"`
+	Hostname      string   `json:"hostname,omitempty"`
+	RestartPolicy string   `json:"restartPolicy,omitempty"`
+	// RestartMaxRetries is the on-failure policy's maximum retry count
+	// (absent: unlimited, another policy, or an agent before this field).
+	RestartMaxRetries int              `json:"restartMaxRetries,omitempty"`
+	NetworkMode       string           `json:"networkMode,omitempty"`
+	RestartCount      int              `json:"restartCount"`
+	Platform          string           `json:"platform,omitempty"`
+	Running           bool             `json:"running"`
+	Paused            bool             `json:"paused"`
+	OOMKilled         bool             `json:"oomKilled,omitempty"`
+	ExitCode          int              `json:"exitCode"`
+	Error             string           `json:"error,omitempty"`
+	FinishedAt        *time.Time       `json:"finishedAt,omitempty"`
+	Resources         ResourcesSpec    `json:"resources"`
+	Healthcheck       *HealthcheckSpec `json:"healthcheck,omitempty"`
 }
 
 // ImageSummary is an image list entry.

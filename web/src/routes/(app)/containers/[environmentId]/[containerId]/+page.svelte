@@ -131,7 +131,10 @@
 						mono: true,
 						href: c.imageId ? routes.image(env, c.imageId) : undefined
 					},
-					{ label: 'Restart policy', value: restartPolicyLabel(d.restartPolicy) },
+					{
+						label: 'Restart policy',
+						value: restartPolicyLabel(d.restartPolicy, d.restartMaxRetries)
+					},
 					...(d.hostname && !hostnameIsId(d.hostname, c.id)
 						? [{ label: 'Hostname', value: d.hostname, mono: true }]
 						: []),

@@ -36,6 +36,17 @@ func (s *Service) ListSets(ctx context.Context, policyID string, limit int) ([]d
 	return store.ListBackupSets(ctx, s.db, policyID, limit)
 }
 
+// RecentSets returns the newest perPolicy sets of each policy (one query).
+func (s *Service) RecentSets(ctx context.Context, policyIDs []string, perPolicy int) (map[string][]domain.BackupSet, error) {
+	return store.RecentBackupSets(ctx, s.db, policyIDs, perPolicy)
+}
+
+// SetBackups returns the backups (snapshots not forgotten) the given sets
+// took (one query).
+func (s *Service) SetBackups(ctx context.Context, setIDs []string) ([]domain.BackupSnapshot, error) {
+	return store.ListBackupSnapshotsOfSets(ctx, s.db, setIDs)
+}
+
 // ErrContentUnavailable is returned when the snapshot contents cannot be read now.
 var ErrContentUnavailable = errors.New("the snapshot contents cannot be read right now")
 

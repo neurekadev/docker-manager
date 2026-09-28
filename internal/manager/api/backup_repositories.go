@@ -85,9 +85,10 @@ type BackupService interface {
 	PreviewRetention(ctx context.Context, id string, override *domain.BackupRetention) ([]backups.RetentionLocation, domain.BackupPolicy, error)
 	RunPolicy(ctx context.Context, policyID string, o backups.RunOptions) (backups.RunResult, error)
 	RetentionRun(ctx context.Context, policyID string, principal authz.Principal, idempotencyKey string) ([]domain.Job, error)
-	ListSets(ctx context.Context, policyID string, limit int) ([]domain.BackupSet, error)
+	RecentSets(ctx context.Context, policyIDs []string, perPolicy int) (map[string][]domain.BackupSet, error)
+	SetBackups(ctx context.Context, setIDs []string) ([]domain.BackupSnapshot, error)
 	GetSet(ctx context.Context, id string) (domain.BackupSet, error)
-	NextRun(ctx context.Context, kind, policyID string) *time.Time
+	NextRuns(ctx context.Context, kind string, policyIDs []string) map[string]time.Time
 
 	ListSnapshots(ctx context.Context, f domain.BackupSnapshotFilter) ([]domain.BackupSnapshot, error)
 	GetSnapshot(ctx context.Context, id string) (domain.BackupSnapshot, error)

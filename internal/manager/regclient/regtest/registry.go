@@ -1,7 +1,8 @@
 // Package regtest is a scripted OCI Distribution registry (httptest, TLS)
 // for Docker-free tests of registry checks (#19, #20): Bearer token or
 // Basic auth, private and denied repositories, scripted failures (429 with
-// Retry-After, 5xx), multi-platform indexes and request accounting.
+// Retry-After, 5xx), multi-platform indexes, image config blobs and request
+// accounting.
 package regtest
 
 import (
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Auth modes.
@@ -52,6 +54,7 @@ type Registry struct {
 	Entered chan struct{}
 
 	manifests map[string]manifest
+	blobs     map[string][]byte
 	fail      []failure
 	tokens    map[string]string
 	// AuthHeaders records every Authorization header received (manifest
@@ -59,6 +62,8 @@ type Registry struct {
 	authHeaders []string
 
 	ManifestHits, HeadHits, GetHits, TokenHits int
+	// BlobHits counts blob requests (not in ManifestHits).
+	BlobHits int
 	// AnonHits counts manifest requests without Authorization.
 	AnonHits int
 }
@@ -77,7 +82,7 @@ type failure struct {
 func New(t testing.TB, auth, user, password string) *Registry {
 	t.Helper()
 	r := &Registry{Auth: auth, User: user, Password: password, Private: map[string]bool{}, Denied: map[string]bool{},
-		manifests: map[string]manifest{}, tokens: map[string]string{}}
+		manifests: map[string]manifest{}, blobs: map[string][]byte{}, tokens: map[string]string{}}
 	r.Server = httptest.NewTLSServer(http.HandlerFunc(r.serve))
 	t.Cleanup(r.Server.Close)
 	return r
@@ -109,6 +114,38 @@ func (r *Registry) Put(repo, tag, mediaType string, body []byte) string {
 	r.manifests[repo+":"+tag] = manifest{mediaType, body}
 	r.manifests[repo+":"+d] = manifest{mediaType, body}
 	return d
+}
+
+// PutBlob stores a blob of repo and returns its digest.
+func (r *Registry) PutBlob(repo string, body []byte) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	d := Digest(body)
+	r.blobs[repo+"@"+d] = body
+	return d
+}
+
+// PutImage stores an image config created at created (zero: no "created"
+// field) and a single-platform manifest naming it under repo:tag; salt
+// makes otherwise equal images differ. It returns the manifest digest.
+func (r *Registry) PutImage(repo, tag string, created time.Time, salt string) string {
+	cfg := map[string]any{"architecture": "amd64", "os": "linux", "config": map[string]any{"Labels": map[string]string{"salt": salt}}}
+	if !created.IsZero() {
+		cfg["created"] = created.UTC().Format(time.RFC3339Nano)
+	}
+	body, _ := json.Marshal(cfg)
+	cd := r.PutBlob(repo, body)
+	m, _ := json.Marshal(map[string]any{"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json",
+		"config": map[string]any{"mediaType": "application/vnd.oci.image.config.v1+json", "digest": cd, "size": len(body)},
+		"layers": []any{}})
+	return r.Put(repo, tag, "application/vnd.oci.image.manifest.v1+json", m)
+}
+
+// BlobCount returns the number of blob requests.
+func (r *Registry) BlobCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.BlobHits
 }
 
 // FailNext makes the next n manifest requests answer status with headers.
@@ -147,6 +184,10 @@ func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
 	rest, ok := strings.CutPrefix(req.URL.Path, "/v2/")
 	if !ok {
 		http.NotFound(w, req)
+		return
+	}
+	if repo, digest, ok := strings.Cut(rest, "/blobs/"); ok {
+		r.serveBlob(w, req, repo, digest)
 		return
 	}
 	repo, ref, ok := strings.Cut(rest, "/manifests/")
@@ -189,32 +230,7 @@ func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(fl.status)
 		return
 	}
-	switch r.Auth {
-	case AuthBearer:
-		tok := strings.TrimPrefix(authz, "Bearer ")
-		who, valid := r.tokens[tok]
-		if !strings.HasPrefix(authz, "Bearer ") || !valid {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="`+r.realmURL()+`",service="fake",scope="repository:`+repo+`:pull"`)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		if r.Private[repo] && who == "" {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="`+r.realmURL()+`",service="fake",error="insufficient_scope"`)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-	case AuthBasic:
-		u, p, ok := req.BasicAuth()
-		if !ok || u != r.User || p != r.Password {
-			w.Header().Set("WWW-Authenticate", `Basic realm="fake"`)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-	}
-	if r.Denied[repo] {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(`{"errors":[{"code":"DENIED","message":"requested access to the resource is denied"}]}`))
+	if !r.authorizedLocked(w, req, repo, authz) {
 		return
 	}
 	m, ok := r.manifests[repo+":"+ref]
@@ -230,6 +246,67 @@ func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
 	}
 	if req.Method == http.MethodGet {
 		_, _ = w.Write(m.body)
+	}
+}
+
+// authorizedLocked answers the auth challenge or 403 and reports whether
+// the request may proceed (r.mu held).
+func (r *Registry) authorizedLocked(w http.ResponseWriter, req *http.Request, repo, authz string) bool {
+	switch r.Auth {
+	case AuthBearer:
+		tok := strings.TrimPrefix(authz, "Bearer ")
+		who, valid := r.tokens[tok]
+		if !strings.HasPrefix(authz, "Bearer ") || !valid {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="`+r.realmURL()+`",service="fake",scope="repository:`+repo+`:pull"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
+		if r.Private[repo] && who == "" {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="`+r.realmURL()+`",service="fake",error="insufficient_scope"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
+	case AuthBasic:
+		u, p, ok := req.BasicAuth()
+		if !ok || u != r.User || p != r.Password {
+			w.Header().Set("WWW-Authenticate", `Basic realm="fake"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
+	}
+	if r.Denied[repo] {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"errors":[{"code":"DENIED","message":"requested access to the resource is denied"}]}`))
+		return false
+	}
+	return true
+}
+
+// serveBlob serves a stored blob (the same auth as manifests; scripted
+// failures apply to manifests only).
+func (r *Registry) serveBlob(w http.ResponseWriter, req *http.Request, repo, digest string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.BlobHits++
+	authz := req.Header.Get("Authorization")
+	if authz != "" {
+		r.authHeaders = append(r.authHeaders, authz)
+	}
+	if !r.authorizedLocked(w, req, repo, authz) {
+		return
+	}
+	b, ok := r.blobs[repo+"@"+digest]
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"errors":[{"code":"BLOB_UNKNOWN","message":"blob unknown"}]}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Docker-Content-Digest", digest)
+	if req.Method == http.MethodGet {
+		_, _ = w.Write(b)
 	}
 }
 

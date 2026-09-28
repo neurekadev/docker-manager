@@ -45,12 +45,7 @@
 		setState,
 		type BackupDetail
 	} from '$lib/features/backups/model';
-	import {
-		backupKeys,
-		backupQuery,
-		backupsQuery,
-		repositoriesQuery
-	} from '$lib/features/backups/queries';
+	import { backupKeys, backupQuery, repositoriesQuery } from '$lib/features/backups/queries';
 
 	const id = $derived(page.params.backupId ?? '');
 	const qc = useQueryClient();
@@ -58,11 +53,6 @@
 	const envs = createQuery(() => environmentsQuery());
 	const repos = createQuery(() => repositoriesQuery());
 	const envName = (e: string) => environmentName(envs.data, e);
-	// The other backups of its run, so the set's members link to them.
-	const setBackups = createQuery(() => ({
-		...backupsQuery({ setId: backup.data?.setId ?? '' }),
-		enabled: !!backup.data?.setId
-	}));
 
 	usePage(() => ({
 		title: backup.data ? itemName(backup.data) : 'Backup',
@@ -240,7 +230,6 @@
 					<SetMembers
 						members={b.set.members}
 						environmentName={envName}
-						backups={setBackups.data}
 						currentId={b.id}
 					/>
 				</Card>

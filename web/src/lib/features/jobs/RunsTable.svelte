@@ -2,7 +2,7 @@
 	// The recent runs of a policy (#13, #14, #20): one row per run (manual
 	// or scheduled) with what it did, how it ended in one line ("20 checks,
 	// all succeeded"), how long it took, and a link to its job (the first
-	// failed one) or to the jobs of that kind.
+	// failed one) or to the policy's jobs of that kind.
 	import type { Snippet } from 'svelte';
 	import { routes } from '$lib/routes';
 	import {
@@ -68,7 +68,11 @@
 	{#if j}
 		<Button size="sm" variant="ghost" href={routes.job(j.id)}>Open job</Button>
 	{:else}
-		<Button size="sm" variant="ghost" href={routes.jobs(r.kind)}>Open jobs</Button>
+		<Button
+			size="sm"
+			variant="ghost"
+			href={routes.jobs(r.kind, { policyId: r.jobs[0]?.policyId })}>Open jobs</Button
+		>
 	{/if}
 {/snippet}
 

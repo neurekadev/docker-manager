@@ -311,6 +311,37 @@ func UpdateAgent(ctx context.Context, db bun.IDB, a *domain.Agent, expectRevisio
 	return nil
 }
 
+// TouchLastSeen records that an agent's live session was seen at at: the
+// agent's last_seen_at while sessionID is still its session, and its
+// environment's while that agent (with that session) is still the
+// environment's agent. Times only move forward, and revision and
+// updated_at stay as they are (being seen is not an edit). It reports
+// whether sessionID is still the agent's session.
+func TouchLastSeen(ctx context.Context, db bun.IDB, agentID, sessionID, environmentID string, at time.Time) (bool, error) {
+	if sessionID == "" {
+		return false, nil
+	}
+	at = at.UTC()
+	n, err := db.NewSelect().Model((*agentRow)(nil)).Where("id = ? AND session_id = ?", agentID, sessionID).Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("store: find agent session: %w", err)
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if _, err := db.NewUpdate().Model((*agentRow)(nil)).Set("last_seen_at = ?", at).
+		Where("id = ? AND session_id = ?", agentID, sessionID).
+		Where("(last_seen_at IS NULL OR last_seen_at < ?)", at).Exec(ctx); err != nil {
+		return false, fmt.Errorf("store: touch agent last seen: %w", err)
+	}
+	if _, err := db.NewUpdate().Model((*environmentRow)(nil)).Set("last_seen_at = ?", at).
+		Where("id = ? AND agent_id = ?", environmentID, agentID).
+		Where("(last_seen_at IS NULL OR last_seen_at < ?)", at).Exec(ctx); err != nil {
+		return false, fmt.Errorf("store: touch environment last seen: %w", err)
+	}
+	return true, nil
+}
+
 // GetAgent returns one agent; RotationPending is filled in.
 func GetAgent(ctx context.Context, db bun.IDB, id string) (domain.Agent, error) {
 	var row agentRow

@@ -139,6 +139,7 @@ type Engine struct {
 
 	hooksMu        sync.RWMutex
 	finishHooks    map[domain.JobKind][]FinishHook
+	retriers       map[domain.JobKind]Retrier
 	scheduledCheck ScheduledCheck
 
 	lifetime context.Context
@@ -178,8 +179,8 @@ func New(opts Options) (*Engine, error) {
 		opts: opts, db: opts.DB, limits: opts.Limits.withDefaults(),
 		wake: make(chan struct{}, 1), subs: map[string]map[chan struct{}]struct{}{},
 		mgrExecs: map[domain.JobKind]jobexec.Executor{}, mgrRunning: map[string]*managerRun{},
-		finishHooks: map[domain.JobKind][]FinishHook{},
-		lifetime:    lifetime, stop: stop,
+		finishHooks: map[domain.JobKind][]FinishHook{}, retriers: map[domain.JobKind]Retrier{},
+		lifetime: lifetime, stop: stop,
 	}, nil
 }
 
@@ -246,6 +247,12 @@ func (e *Engine) Get(ctx context.Context, id string) (domain.Job, error) {
 // List returns jobs matching f, newest first.
 func (e *Engine) List(ctx context.Context, f domain.JobFilter) ([]domain.Job, error) {
 	return store.ListJobs(ctx, e.db, f)
+}
+
+// Count returns the number of jobs matching f (one COUNT query; f.BeforeID
+// and f.Limit are ignored).
+func (e *Engine) Count(ctx context.Context, f domain.JobFilter) (int64, error) {
+	return store.CountMatchingJobs(ctx, e.db, f)
 }
 
 // Events returns up to limit events of a job after afterSeq.

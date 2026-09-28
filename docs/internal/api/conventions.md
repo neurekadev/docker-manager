@@ -107,7 +107,9 @@ List responses are `api.Page[T]`:
 - **`total`** is present only on routes that document it. It counts the
   items matching the filters **that the caller may see** — never a raw count,
   so aggregates do not leak (#17). Routes whose permission filtering makes
-  counting expensive omit it (jobs, audit).
+  counting expensive omit it (audit) or send it only when it is exact
+  (jobs: always for the instance owner, for other callers when at most
+  1000 jobs match the filters; absent otherwise).
 
 ## Edits and revisions (ETag / If-Match)
 

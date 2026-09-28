@@ -2,7 +2,9 @@
 	// System information of one environment (#3, #5, #27, #28, #34): host
 	// identity and capacity, the Engine, the agent with its version and
 	// connection, storage roots and diagnostics. A plain-HTTP connection is
-	// flagged in plain words. Identifiers (environment, agent and Engine
+	// flagged in plain words. A disconnected agent shows when it was last
+	// seen (refreshed about every minute while it was connected, so at most
+	// a minute early); a connected one since when. Identifiers (environment, agent and Engine
 	// IDs), the protocol and the API details wait under "Advanced". The
 	// outdated-agent notice is the page's (shown once, above the tabs).
 	import type { Environment, EnvironmentSystem } from '$lib/api/client';
@@ -140,7 +142,9 @@
 							status={agent.connected ? 'online' : 'offline'}
 							label={agent.connected ? 'Connected' : 'Not connected'}
 						/>
-						{#if env.connectionChangedAt}<span class="muted"
+						{#if !agent.connected && env.lastSeenAt}<span class="muted"
+								>last seen {@render when(env.lastSeenAt)}</span
+							>{:else if env.connectionChangedAt}<span class="muted"
 								>since <time datetime={env.connectionChangedAt}
 									>{formatDateTime(env.connectionChangedAt)}</time
 								></span

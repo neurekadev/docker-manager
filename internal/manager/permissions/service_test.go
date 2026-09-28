@@ -159,7 +159,7 @@ func container(env, name string, parents ...authz.ResourceRef) authz.Resource {
 func TestRestrictedDefaultAndGroupDocuments(t *testing.T) {
 	f := newFixture(t)
 	gs, err := f.svc.ListGroups(f.ctx)
-	if err != nil || len(gs) != 1 || !gs[0].Default || gs[0].Name != domain.RestrictedGroupName || gs[0].RuleCount != 0 || gs[0].MemberCount != 1 {
+	if err != nil || len(gs) != 1 || !gs[0].Default || gs[0].Name != domain.RestrictedGroupName || gs[0].RuleCount != 0 || gs[0].MemberCount != 0 {
 		t.Fatalf("groups %+v %v", gs, err)
 	}
 	rita := f.user("rita", f.def, false)
@@ -293,10 +293,34 @@ func TestGroupInvariantsAndStepUp(t *testing.T) {
 	if def, _ := store.DefaultGroupID(f.ctx, f.db); def != ops.ID {
 		t.Fatalf("default %s", def)
 	}
-	// The old default still has the owner as member.
+	// A member keeps the old default from being deleted; the owner's
+	// account, also in it, does not count.
+	rita := f.user("rita", f.def, false)
 	old, _ := f.svc.GetGroup(f.ctx, f.def)
+	if old.MemberCount != 1 {
+		t.Fatalf("members %d, want 1 (the owner is not counted)", old.MemberCount)
+	}
 	if err := f.svc.DeleteGroup(f.ctx, f.def, old.Revision); !errors.Is(err, domain.ErrGroupNotEmpty) {
 		t.Fatalf("delete non-empty: %v", err)
+	}
+	if u, _ := store.GetUser(f.ctx, f.db, f.owner); u.GroupID != f.def {
+		t.Fatalf("a refused deletion moved the owner to %s", u.GroupID)
+	}
+	r, _ := store.GetUser(f.ctx, f.db, rita)
+	if _, err := store.PatchUser(f.ctx, f.db, rita, r.Revision, domain.UserPatch{GroupID: &ops.ID}, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	// With only the owner left, the group is deleted and the owner moves
+	// to the default group; nobody's access changes.
+	f.inval.take()
+	if err := f.svc.DeleteGroup(f.ctx, f.def, old.Revision); err != nil {
+		t.Fatalf("delete with only the owner: %v", err)
+	}
+	if u, _ := store.GetUser(f.ctx, f.db, f.owner); u.GroupID != ops.ID {
+		t.Fatalf("owner in %s, want the default group %s", u.GroupID, ops.ID)
+	}
+	if got := f.inval.take(); len(got) != 0 {
+		t.Fatalf("invalidated %v", got)
 	}
 	empty, _ := f.svc.CreateGroup(f.ctx, "Empty")
 	f.setGroup(empty.ID, "allow stack.deploy @all")

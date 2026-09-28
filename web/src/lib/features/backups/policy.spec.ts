@@ -8,7 +8,6 @@ import {
 	connectionTestText,
 	coverageSummary,
 	groupBackupsByRun,
-	memberBackup,
 	memberRuns,
 	nextPolicyRun,
 	policyCovers,
@@ -352,37 +351,6 @@ describe('backups grouped by run', () => {
 		expect(s1.state).toBe('partial');
 		expect(s1.bytes).toBe(150);
 		expect(runs[0].bytes).toBeUndefined();
-	});
-
-	it('finds the backup of a set member', () => {
-		const backups = [
-			b({ id: 'x', kind: 'stack', item: 'stack/st1', environmentId: 'e1' }),
-			b({ id: 'y', kind: 'volume', item: 'volume/data', environmentId: 'e1' })
-		];
-		expect(
-			memberBackup(
-				{
-					item: 'volume/data',
-					kind: 'volume',
-					scope: 'env:e1',
-					environmentId: 'e1',
-					state: 'complete'
-				},
-				backups
-			)?.id
-		).toBe('y');
-		expect(
-			memberBackup(
-				{
-					item: 'volume/data',
-					kind: 'volume',
-					scope: 'env:e2',
-					environmentId: 'e2',
-					state: 'complete'
-				},
-				backups
-			)
-		).toBeUndefined();
 	});
 });
 

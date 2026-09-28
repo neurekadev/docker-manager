@@ -5,8 +5,9 @@
 	// credential; the environment stays offline and detached until a new
 	// agent re-attaches it). Actions follow each agent's `actions` and sit
 	// in the row's menu, Remove last after a separator. A connected agent
-	// reads "Connected now" (its stored last-seen time is only written on
-	// connect and disconnect); the agent ID is the name's tooltip.
+	// reads "Connected now" (its stored last-seen time is refreshed only
+	// about once a minute); a disconnected one when it was last seen. The
+	// agent ID is the name's tooltip.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import KeyRound from '@lucide/svelte/icons/key-round';

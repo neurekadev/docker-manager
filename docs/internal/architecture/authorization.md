@@ -24,6 +24,13 @@ ADR 0003 records why this is a small Go evaluator and not Casbin.
   **Restricted** with no rules. Groups can be renamed (also the default),
   created (no rules), made default, and deleted when they are neither the
   default nor have members.
+- **The owner's group.** The owner's account is in a group too
+  (`users.group_id` is `NOT NULL`; setup puts it in the default group), but
+  group rules never apply to it (owner bypass). So `memberCount` never
+  counts the owner, and the owner never blocks deleting a group: when the
+  owner is in the group being deleted, the account moves to the default
+  group in the same transaction. Moving the owner with `PATCH
+  /users/{userId}` stays possible and changes nothing about its access.
 - **Group rules** allow or deny one capability at one scope. No matching rule
   means deny.
 - **User rules** are overrides: allow or deny per capability and scope; a
@@ -218,7 +225,9 @@ changes); no session state caches permissions.
 
 Deleting a group requires it to be empty (`409 group_not_empty`): Docker Manager
 never moves users implicitly, so deleting a group never changes anyone's
-access. Selecting a default group that grants access answers with a
+access. The owner's account does not count; if it is in the group, it moves
+to the default group (the audit record of the deletion names the owner as a
+target and holds `ownerMovedToGroupId`). Selecting a default group that grants access answers with a
 `warning`.
 
 ## API

@@ -93,6 +93,9 @@ domain types (`domain`) are separate and converted explicitly.
   Commands carry job ID, attempt, fencing token and deadline (#26). Manager
   side: `internal/manager/agents` (enrollment, environments, session hub =
   the job engine's dispatcher); agent side: `internal/agent/session`.
+  While a session lives the manager refreshes the agent's and
+  environment's last-seen time every 60 s (`agents.LastSeenRefresh`), so it
+  is at most a minute old after a lost connection or a manager restart.
   Environment and agent changes are published on the in-process event bus
   `internal/manager/events` (consumed by the live stream, #23).
 - **Jobs (#26):** every long or mutating operation is a durable job in the

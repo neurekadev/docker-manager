@@ -49,6 +49,11 @@ type Session struct {
 	closeOnce sync.Once
 	closing   atomic.Bool
 
+	// lastSeen throttles the last-seen writes while the session lives
+	// (set once established); bg tracks the watchdog and those writes.
+	lastSeen *lastSeenThrottle
+	bg       sync.WaitGroup
+
 	// onlineMu orders the online transition (becomeOnline) against the
 	// offline one (end), so the persisted state ends offline when a session
 	// ends while it is being reported online.
@@ -320,6 +325,7 @@ func (h *Hub) serve(ctx context.Context, conn *websocket.Conn, p AgentPrincipal,
 		writer.Wait()
 		_ = conn.CloseNow()
 		s.end()
+		s.bg.Wait() // watchdog and last-seen writes, canceled with the session
 	}()
 
 	hello, ok := s.handshake()
@@ -328,7 +334,10 @@ func (h *Hub) serve(ctx context.Context, conn *websocket.Conn, p AgentPrincipal,
 	}
 	s.log.Info("agent session established", "agent_version", hello.AgentVersion, "version_status", s.versionStatus,
 		"previous_session_id", hello.PreviousSessionID)
-	go s.watchdog()
+	// sessionStarted recorded the agent as seen now.
+	s.lastSeen = newLastSeenThrottle(LastSeenRefresh, h.svc.now())
+	s.bg.Add(1) // the watchdog starts the last-seen writes (bg.Add while it runs)
+	go func() { defer s.bg.Done(); s.watchdog() }()
 	s.readLoop()
 }
 
@@ -504,7 +513,8 @@ func (s *Session) write(f *protocol.Frame) error {
 }
 
 // watchdog closes the session with 4408 when nothing arrived for
-// HeartbeatTimeout.
+// HeartbeatTimeout. Inbound activity also refreshes the persisted
+// last-seen time (throttled to LastSeenRefresh, off the read loop).
 func (s *Session) watchdog() {
 	h := s.hub
 	t := h.svc.clk.NewTimer(h.opts.HeartbeatTimeout)
@@ -515,6 +525,7 @@ func (s *Session) watchdog() {
 			return
 		case <-s.activity:
 			t.Reset(h.opts.HeartbeatTimeout)
+			s.noteSeen()
 		case <-t.C():
 			s.log.Warn("no frame from the agent within the heartbeat timeout", "timeout", h.opts.HeartbeatTimeout)
 			s.closeWith(protocol.CloseHeartbeatTimeout, "heartbeat timeout")

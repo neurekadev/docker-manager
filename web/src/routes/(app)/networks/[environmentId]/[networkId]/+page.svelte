@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Network detail (#6): driver, subnets and flags, the attached
-	// containers (by name, with their address on it, from the containers
-	// list), its stack and labels (system labels folded). Removal is the
+	// containers (by name, with their address on it; older agents do not
+	// report it, then from the containers list), its stack and labels (system labels folded). Removal is the
 	// last entry of the "More actions" menu; its dialog shows the server's
 	// preview (it refuses predefined, in-use, stack-managed and Docker
 	// Manager's own networks with the reason).
@@ -47,7 +47,7 @@
 	import { activeJobs, resourceKey } from '$lib/features/resources/jobs.svelte';
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
-	import { attachedContainers } from '$lib/features/resources/model';
+	import { attachedContainers, needsAddressLookup } from '$lib/features/resources/model';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	const env = $derived(page.params.environmentId ?? '');
@@ -72,8 +72,9 @@
 	);
 	const notFound = $derived(q.error instanceof ApiRequestError && q.error.status === 404);
 	const job = $derived(activeJobs.byKey[resourceKey('network', env, name)]);
-	// The containers' addresses on this network come from the containers
-	// list (the network's own answer names the containers only).
+	// The network's answer carries its containers' addresses; for older
+	// agents, which name the containers only, they come from the
+	// containers list.
 	const envTarget = $derived.by(() => {
 		const e = scope.environment(env);
 		return e
@@ -91,7 +92,7 @@
 		...containersQuery(envTarget),
 		enabled:
 			envTarget.length > 0 &&
-			!!n?.containers?.length &&
+			needsAddressLookup(n?.containers) &&
 			scope.hasAny('container.details.read')
 	}));
 	const attached = $derived(

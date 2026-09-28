@@ -59,7 +59,7 @@ Paths are relative to `/api/v1`.
 - **Max age:** the server ends SSE streams after 1 h (`event: close`,
   reason `max_age`) so long-lived connections re-authenticate; clients
   reconnect immediately with `Last-Event-ID`.
-- **Concurrency limits:** 8 live streams per user or API token and 4 exec
+- **Concurrency limits:** 32 live streams per user or API token and 4 exec
   sessions per user or token (8 per container); excess opens get `429
   rate_limited`. Job, environment, stack and log streams have no count
   limit of their own: each is bounded by its queue, the max age and the
@@ -173,8 +173,10 @@ tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
   `seq` before they reach the bus.
 - **Backpressure:** each stream has a queue of 512 records. A client that
   falls behind loses its queue and gets `reset` `overflow` with a fresh
-  cursor; producers (agents, the job engine) are never blocked. At most 8
-  live streams per user or API token (`429 rate_limited`).
+  cursor; producers (agents, the job engine) are never blocked. At most 32
+  live streams per user or API token (`429 rate_limited`; one per open
+  tab). The web client checks a failed connection's status and tells the
+  person to close tabs when this limit refused it.
 - **Permissions:** every record is filtered per subscriber with the #17
   event rules (`authz.EventVisible`) and shaped to identity and action
   only: no attributes, no names of resources the caller cannot see, file

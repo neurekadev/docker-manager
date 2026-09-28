@@ -32,6 +32,7 @@ type fakeStacks struct {
 	// renames are the requested new names; renamePlan the preview.
 	renames    []string
 	renamePlan domain.StackRenamePlan
+	validated  []string
 }
 
 const secretBind = "/srv/secret-bind-path"
@@ -98,6 +99,19 @@ func (f *fakeStacks) CreateFromTemplate(_ context.Context, _ authz.Principal, r 
 
 func (f *fakeStacks) Validate(_ context.Context, d domain.StackDefinition) (domain.StackValidation, error) {
 	return domain.StackValidation{Valid: true, ProjectName: d.Name, Warnings: []domain.StackIssue{{Code: "obsolete_version", Message: "version"}}}, f.err
+}
+
+// ValidateStack answers for the stack's files on disk; validated records
+// the stacks validated.
+func (f *fakeStacks) ValidateStack(_ context.Context, st domain.Stack) (domain.StackValidation, error) {
+	f.mu.Lock()
+	f.validated = append(f.validated, st.ID)
+	f.mu.Unlock()
+	if f.err != nil {
+		return domain.StackValidation{}, f.err
+	}
+	return domain.StackValidation{Valid: true, ProjectName: st.Name, Warnings: []domain.StackIssue{{Code: "bind_outside_project", Message: "outside"}},
+		Services: []domain.StackServiceInfo{{StackServiceDef: domain.StackServiceDef{Name: "web", Image: "nginx:1.27"}}}}, nil
 }
 
 func (f *fakeStacks) Update(_ context.Context, id string, rev int64, p domain.StackPatch) (domain.Stack, error) {
@@ -290,8 +304,8 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 			calls[i].Body = map[string]any{"name": "store"}
 		}
 	}
-	if len(calls) != 21 {
-		t.Fatalf("%d stack routes, want 21", len(calls))
+	if len(calls) != 22 {
+		t.Fatalf("%d stack routes, want 22", len(calls))
 	}
 	return calls
 }
@@ -527,6 +541,51 @@ func TestStackErrorMapping(t *testing.T) {
 	rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
 	if !strings.Contains(string(rr.Body), `"readOnly":true`) {
 		t.Errorf("offline get %s", rr.Body)
+	}
+}
+
+// TestStackDefinitionValidation (#7): an existing stack's definition on
+// disk is validated with stack.definition.write alone (no stack.create);
+// the answer has the create validation's shape, hidden or unknown stacks
+// are 404, other capabilities 403 and an offline agent 503.
+func TestStackDefinitionValidation(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("ed", "allow stack.definition.write @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.definition.write")
+	allowed, denied = authztest.Discoverable(allowed, denied, "list-stacks", "get-stack")
+	authztest.AssertOnly(t, h, "ed", allowed, denied)
+	svc.validated = nil
+	validate := func(h http.Handler, user, id string) authztest.Response {
+		return authztest.Do(t, h, user, authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/" + id + "/validations"})
+	}
+	r := validate(h, "ed", "st-1")
+	var v StackValidation
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &v) != nil {
+		t.Fatalf("validate: %d %s", r.Status, r.Body)
+	}
+	if !v.Valid || v.ProjectName != "shop" || len(v.Warnings) != 1 || len(v.Services) != 1 || v.Errors == nil || v.Binds == nil ||
+		!slices.Equal(svc.validated, []string{"st-1"}) {
+		t.Errorf("validation %+v (validated %v)", v, svc.validated)
+	}
+	if r := validate(h, "ed", "st-secret"); r.Status != http.StatusNotFound {
+		t.Errorf("hidden stack: %d", r.Status)
+	}
+	// Creating stacks or deploying this one does not open it.
+	for _, rule := range []string{"allow stack.create @env:env-1", "allow stack.deploy @stack:st-1", "allow stack.definition.read @stack:st-1"} {
+		h, svc := stacksAPIFor(t, authztest.Only("other", rule))
+		if r := validate(h, "other", "st-1"); !authztest.Denied(r.Status) || len(svc.validated) != 0 {
+			t.Errorf("%s: %d %s", rule, r.Status, r.Body)
+		}
+	}
+
+	h, svc = stacksAPIFor(t, authztest.New().Owner("own"))
+	if r := validate(h, "own", "nope"); r.Status != http.StatusNotFound {
+		t.Errorf("unknown stack: %d", r.Status)
+	}
+	svc.err = &domain.StackError{Code: domain.StackErrOffline, Message: "offline"}
+	r = validate(h, "own", "st-1")
+	var e Error
+	if r.Status != http.StatusServiceUnavailable || json.Unmarshal(r.Body, &e) != nil || e.Code != CodeEnvironmentOffline {
+		t.Errorf("offline: %d %s", r.Status, r.Body)
 	}
 }
 

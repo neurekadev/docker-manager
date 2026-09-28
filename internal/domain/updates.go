@@ -128,6 +128,18 @@ const (
 	CandidateRunFailed UpdateCandidateStatus = "run_failed"
 )
 
+// Why a target record of an environment policy is inactive (no longer
+// covered). The record stays for its history.
+const (
+	// UpdateTargetExcluded: the policy's exclusions or the container's
+	// docker-manager.update.exclude=true label leave it out.
+	UpdateTargetExcluded = "excluded"
+	// UpdateTargetMissing: the stack or container no longer exists in the
+	// policy's scope, or no longer qualifies (a container without its
+	// saved specification, Docker Manager's own containers).
+	UpdateTargetMissing = "missing"
+)
+
 // Ineligibility reasons (UpdateCandidate.Reason), each with a message.
 const (
 	UpdateReasonBuildOnly      = "build_only"
@@ -176,6 +188,9 @@ type UpdateCandidate struct {
 	PreviousDigest       string
 	CandidateDigest      string
 	CandidateIndexDigest string
+	// CandidatePublishedAt is when the candidate image was created (its
+	// image config's "created"), for display only; nil while unknown.
+	CandidatePublishedAt *time.Time
 	ErrorClass           string
 	ErrorMessage         string
 	RetryAfterSeconds    int

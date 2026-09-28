@@ -27,8 +27,7 @@
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import AccessHeader from '$lib/features/access/AccessHeader.svelte';
-	import { groupMembers } from '$lib/features/access/model';
-	import { accessKeys, groupsQuery, usersQuery, type Group } from '$lib/features/access/queries';
+	import { accessKeys, groupsQuery, type Group } from '$lib/features/access/queries';
 
 	usePage({
 		title: 'Groups',
@@ -39,11 +38,6 @@
 	const perms = createQuery(() => myPermissionsQuery());
 	const owner = $derived(!!perms.data?.owner);
 	const groups = createQuery(() => ({ ...groupsQuery(), enabled: owner }));
-	const users = createQuery(() => ({ ...usersQuery(), enabled: owner }));
-	// Members as the group's page lists them (the owner never counts: the
-	// API's memberCount includes the owner's account).
-	const memberCount = (g: Group) =>
-		users.data ? groupMembers(users.data, g.id).length : g.memberCount;
 
 	let createOpen = $state(false);
 	let name = $state('');
@@ -80,7 +74,7 @@
 			header: 'Members',
 			cell: membersCell,
 			numeric: true,
-			sortValue: (g) => memberCount(g),
+			sortValue: (g) => g.memberCount,
 			width: '110px'
 		},
 		{
@@ -104,7 +98,7 @@
 	{#if g.grantsAccess}<Badge tone="ok" dot>Grants access</Badge>{:else}<Badge dot>No access</Badge
 		>{/if}
 {/snippet}
-{#snippet membersCell(g: Group)}<span class="num">{memberCount(g)}</span>{/snippet}
+{#snippet membersCell(g: Group)}<span class="num">{g.memberCount}</span>{/snippet}
 {#snippet rulesCell(g: Group)}<span class="num">{g.ruleCount}</span>{/snippet}
 
 <Page>

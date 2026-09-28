@@ -448,12 +448,12 @@ func TestLiveStreamRevocation(t *testing.T) {
 			break
 		}
 	}
-	// Eight streams per principal.
-	for range 8 {
+	// MaxStreamsPerPrincipal streams per principal (one per open tab).
+	for range live.MaxStreamsPerPrincipal {
 		f.open("nobody", "").hello()
 	}
 	if extra := f.open("nobody", ""); extra.status != http.StatusTooManyRequests {
-		t.Fatalf("ninth stream: %d", extra.status)
+		t.Fatalf("stream %d: %d", live.MaxStreamsPerPrincipal+1, extra.status)
 	}
 }
 

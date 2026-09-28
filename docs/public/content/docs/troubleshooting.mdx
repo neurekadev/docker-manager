@@ -27,9 +27,10 @@ contains secrets, but it does contain host names and IP addresses.
 | A host stays offline | Run `docker compose logs docker-agent` on that host. Usual causes: a wrong `DOCKER_AGENT_MANAGER_URL`, an untrusted certificate (set `DOCKER_AGENT_MANAGER_CA_FILE`), or a used or expired token (create a new one). |
 | Stack actions are refused with `storage_mount_missing` or `storage_path_mismatch` | The agent's mount of Docker's volume folder is missing or points elsewhere. See [Configuration](./configuration#mounts-you-must-keep). |
 | Live views stop updating after about a minute | A proxy or load balancer cuts idle connections too early or buffers responses. Allow idle connections longer than 15 seconds. |
+| The banner says too many Docker Manager tabs are open | Each open tab keeps its own live connection, and one account can have 32 at a time. Close tabs you no longer need; the tab reconnects on its own. |
 | An action on a Docker Manager container is refused | Docker Manager never stops or removes its own containers, data or images. |
 | A project cannot be imported | Its row in **Import project** says why: usually its folder is not mounted below `/import`, or its containers use settings that are not in its files. |
-| A job ended as `interrupted` | The manager or agent restarted during it. Check the result, then run it again. |
+| A job ended as `interrupted` | The manager or agent restarted during it. Check the result, then run it again. A failed or stopped deploy, image pull or update check has **Try again** on its job page. |
 | Connecting a host fails with `engine_already_enrolled` ("Docker on this host is already connected through another agent") | This host already has an agent. Open its environment, go to the **Agents** tab and choose **Remove agent** in the agent's menu, then run a new install command. |
 | An update is refused with `update_source_drift` | The stack's files changed but were not deployed. Deploy or undo the change first. |
 | A backup or retention job fails with `repository_locked` | Another backup, restore or retention run is using the same repository right now. Wait for it to finish and run the job again, or give your backup policies different start times. Locks left behind by a restart are removed automatically. |

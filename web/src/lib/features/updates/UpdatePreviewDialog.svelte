@@ -2,7 +2,8 @@
 	// Update preview and run (#20) of one target (a stack or a standalone
 	// container). The preview is computed by the manager from the latest
 	// check: what gets recreated (the image and tag; the current and new
-	// digests behind "Digests"), expected downtime, dependents that restart,
+	// digests behind "Digests", when the newer image was published if the
+	// registry says so), expected downtime, dependents that restart,
 	// other consumers of the same tag on the environment (the pull moves it
 	// for them too), skipped candidates and source drift. Applying sends the preview's
 	// fingerprint, so anything that changed since is refused, not guessed.
@@ -17,6 +18,7 @@
 		Notice,
 		Skeleton,
 		errorMessage,
+		formatDateTime,
 		toast
 	} from '$lib/ui';
 	import Digest from '$lib/features/common/Digest.svelte';
@@ -24,7 +26,13 @@
 	import { newIdempotencyKey } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
 	import { policyLabel } from '$lib/shell/notices.svelte';
-	import { imageLabel, reasonLabel, type UpdatePolicy, type UpdatePreview } from './model';
+	import {
+		imageLabel,
+		publishedText,
+		reasonLabel,
+		type UpdatePolicy,
+		type UpdatePreview
+	} from './model';
 	import { updateKeys } from './queries';
 
 	let {
@@ -153,6 +161,7 @@
 					<h3>Recreated ({count})</h3>
 					<ul class="items" role="list">
 						{#each preview.items as item (item.candidate.id)}
+							{@const published = publishedText(item.candidate)}
 							<li>
 								<div class="svc">
 									<strong>{item.candidate.service}</strong>
@@ -162,7 +171,14 @@
 											.candidate.candidateDigest ?? 'Unknown'}"
 										>{imageLabel(item.candidate)}</span
 									>
-									<span class="muted">newer image</span>
+									<span class="muted"
+										>newer image{#if published},
+											<span
+												title="Published {formatDateTime(
+													item.candidate.publishedAt
+												)}">{published}</span
+											>{/if}</span
+									>
 								</div>
 								<div class="meta">
 									{#if item.running}<Badge tone="ok" dot>Running</Badge

@@ -26,7 +26,7 @@
 	} from '$lib/api/queries';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import { liveStatus } from '$lib/live/status.svelte';
-	import { bannerDelay } from './live-banner';
+	import { bannerDelay, bannerText } from './live-banner';
 	import { routes } from '$lib/routes';
 	import Breadcrumbs from '$lib/ui/Breadcrumbs.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
@@ -272,10 +272,8 @@
 		</header>
 
 		{#if liveBanner}
-			<Notice tone="offline" icon={CloudOff} title="Live updates are disconnected" bar>
-				Pages may be out of date. Docker Manager keeps trying to reconnect; nothing you do
-				is queued.
-			</Notice>
+			{@const text = bannerText(liveStatus.tooManyStreams)}
+			<Notice tone="offline" icon={CloudOff} title={text.title} bar>{text.body}</Notice>
 		{/if}
 		{#if selected && !selected.online && !onOwnEnvironmentPage}
 			<div class="env-offline">

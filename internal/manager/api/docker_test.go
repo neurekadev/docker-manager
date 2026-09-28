@@ -40,8 +40,9 @@ type containerJSON struct {
 		ThisInstance bool   `json:"thisInstance"`
 	} `json:"managed"`
 	Details *struct {
-		RestartPolicy string `json:"restartPolicy"`
-		Recreate      struct {
+		RestartPolicy     string `json:"restartPolicy"`
+		RestartMaxRetries int    `json:"restartMaxRetries"`
+		Recreate          struct {
 			Fields  []string `json:"fields"`
 			EnvKeys []string `json:"envKeys"`
 		} `json:"recreate"`
@@ -491,6 +492,33 @@ func TestContainerListShowsUptimeAndAddresses(t *testing.T) {
 	}
 	if db.StartedAt != nil || len(db.Networks) != 1 || db.Networks[0].IPAddress != "" {
 		t.Fatalf("stopped container %+v", db)
+	}
+}
+
+// TestContainerRetriesAndNetworkAddresses: a container's details carry the
+// on-failure policy's retry count (absent otherwise); a network's attached
+// containers carry their addresses on it.
+func TestContainerRetriesAndNetworkAddresses(t *testing.T) {
+	f := newDockerFixture(t, authztest.New().Owner("olga"))
+	env := "/api/v1/environments/env-1"
+	f.engines["env-1"].SetRestartPolicy("web", "on-failure", 3)
+	var web containerJSON
+	if r := f.get("olga", env+"/containers/web", &web); r.Status != http.StatusOK || web.Details == nil ||
+		web.Details.RestartPolicy != "on-failure" || web.Details.RestartMaxRetries != 3 {
+		t.Fatalf("web: %d %s", r.Status, r.Body)
+	}
+	if r := f.get("olga", env+"/containers/db", nil); r.Status != http.StatusOK || strings.Contains(string(r.Body), "restartMaxRetries") {
+		t.Fatalf("db without retries: %d %s", r.Status, r.Body)
+	}
+	var bridge struct {
+		Containers []ContainerRef `json:"containers"`
+	}
+	if r := f.get("olga", env+"/networks/bridge", &bridge); r.Status != http.StatusOK {
+		t.Fatalf("bridge: %d %s", r.Status, r.Body)
+	}
+	i := slices.IndexFunc(bridge.Containers, func(c ContainerRef) bool { return c.Name == "web" })
+	if i < 0 || bridge.Containers[i].IPAddress != "172.17.0.2" || bridge.Containers[i].IPv6Address != "" {
+		t.Fatalf("attached containers %+v", bridge.Containers)
 	}
 }
 

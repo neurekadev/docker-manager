@@ -47,6 +47,14 @@ Moby adapter (#21). There is no Engine API passthrough.
   `Container` shows them as `startedAt` and `networks` (full view); stack
   services (`compose.services`) carry the same `networks` per container.
   Older agents omit the fields; the manager and the UI show "—".
+- `container.inspect` reports the on-failure restart policy's maximum
+  retry count (`restartMaxRetries`; absent when unlimited or for other
+  policies); the API `ContainerDetails` shows it as `restartMaxRetries`
+  and the UI as "On failure (up to 5 retries)".
+- `network.inspect` reports each attached container's addresses on the
+  network (`ipAddress`, `ipv6Address`); the API `Network.containers`
+  carries them (GET only). For older agents, which omit them, the UI takes
+  the addresses from the containers list.
 - `GET …/disk-usage/volumes` (`list-volume-usage`, `volume.read`) lists the
   size of every volume the caller reads in full. The agent request
   `volume.usage` asks the Engine's disk usage report, which walks every

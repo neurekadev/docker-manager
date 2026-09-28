@@ -250,6 +250,16 @@ func (e *Engine) Container(idOrName string) (Container, bool) {
 	return *c, true
 }
 
+// SetRestartPolicy sets a container's restart policy and its maximum retry
+// count (the create form cannot set the count).
+func (e *Engine) SetRestartPolicy(idOrName, policy string, maxRetries int) {
+	e.mu.Lock()
+	defer e.unlock()
+	if c, ok := e.findContainer(idOrName); ok {
+		c.Details.RestartPolicy, c.Details.RestartMaxRetries = policy, maxRetries
+	}
+}
+
 // PullAuths returns the credential of every successful pull call so far
 // (nil for anonymous pulls), in order.
 func (e *Engine) PullAuths() []*engine.RegistryAuth {

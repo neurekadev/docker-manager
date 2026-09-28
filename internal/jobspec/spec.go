@@ -143,6 +143,17 @@ type Spec struct {
 	// stops the containers using its data and starts exactly the
 	// previously running ones itself (#10).
 	StartsContainers bool
+	// Retryable: a failed, partial, interrupted or cancelled job of this
+	// kind may be run again as a new job with the same kind, environment,
+	// policy, targets and input (POST /jobs/{id}/retries; the caller needs
+	// the kind's capabilities on every target). Only kinds whose stored
+	// input is still right to act on later are marked: it names no
+	// secret (credentials are referenced by ID, jobspec.CredentialRefs),
+	// is not a plan or snapshot that may have gone stale (update runs,
+	// prune rules, backup sets), and no feature record is created next to
+	// the job when it starts (image builds). A feature may refresh the
+	// input of a retry (jobs.Engine.OnRetry).
+	Retryable bool
 }
 
 // LockOnlyRule selects lock-only targets.

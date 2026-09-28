@@ -793,16 +793,6 @@ export function groupBackupsByRun(backups: Backup[]): BackupRun[] {
 	return out.sort((a, b) => b.time.localeCompare(a.time));
 }
 
-/** The backup of a set member among the set's backups (members carry no backup ID). */
-export function memberBackup(m: SetMember, backups: Backup[] | undefined): Backup | undefined {
-	return (backups ?? []).find(
-		(b) =>
-			b.kind === m.kind &&
-			(b.item ? b.item === m.item : itemName(b) === itemName(m)) &&
-			(b.environmentId ?? '') === (m.environmentId ?? '')
-	);
-}
-
 // --- Repositories and verification (#10) ---
 
 /** How much a verification reads. */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Job } from '$lib/api/client';
 import { applyListFilters, type ListFilterState } from '$lib/features/resources/filters';
-import { jobFilters, jobQuery, jobSearch } from './filters';
+import { jobFilters, jobQuery, jobSearch, jobsSearchedText, jobsSummary } from './filters';
 import { stackNames } from './labels';
 
 const state = (values: Record<string, string> = {}, q = ''): ListFilterState => ({ q, values });
@@ -68,14 +68,62 @@ describe('job filters (#26)', () => {
 		expect(jobQuery(all, state({ state: 'problems', kind: 'image.pull' }), null)).toEqual({
 			states: ['failed', 'partial', 'interrupted'],
 			kind: 'image.pull',
-			environmentId: ''
+			environmentId: '',
+			policyId: ''
 		});
 		expect(jobQuery(all, state({ environment: 'e2' }), null).environmentId).toBe('e2');
 		expect(jobQuery(all, state({ environment: 'e2' }), 'e1').environmentId).toBe('e1');
 		expect(jobQuery(all, state({ state: 'bogus', kind: 'nope' }), null)).toEqual({
 			states: [],
 			kind: '',
-			environmentId: ''
+			environmentId: '',
+			policyId: ''
 		});
+	});
+
+	it('narrows to one policy while its filter is set (?policyId=)', () => {
+		const withPolicy = jobFilters({ envs: [], policy: { id: 'mp-1', name: 'Weekly prune' } });
+		expect(withPolicy.map((f) => f.id)).toEqual(['state', 'kind', 'policy']);
+		expect(withPolicy[2].options).toEqual([{ value: 'mp-1', label: 'Weekly prune' }]);
+		expect(jobQuery(withPolicy, state({ policy: 'mp-1' }), null).policyId).toBe('mp-1');
+		// Without the filter a stored value is ignored.
+		expect(jobQuery(jobFilters({ envs: [] }), state({ policy: 'mp-1' }), null).policyId).toBe(
+			''
+		);
+		const mine = [job({ id: 'p1', policyId: 'mp-1' }), job({ id: 'p2', policyId: 'mp-2' })];
+		expect(
+			applyListFilters(mine, withPolicy, state({ policy: 'mp-1' }), search).map((j) => j.id)
+		).toEqual(['p1']);
+	});
+
+	it('counts the jobs, with the total the server knows', () => {
+		const base = { searching: false, filtered: false };
+		expect(jobsSummary({ ...base, shown: 50, loaded: 50, total: 1234, more: true })).toBe(
+			'50 of 1,234 jobs'
+		);
+		expect(jobsSummary({ ...base, shown: 50, loaded: 50, more: true })).toBe('50 jobs loaded');
+		expect(jobsSummary({ ...base, shown: 40, loaded: 40, total: 40, more: false })).toBe(
+			'40 jobs'
+		);
+		expect(jobsSummary({ ...base, shown: 1, loaded: 1, more: false })).toBe('1 job');
+		expect(
+			jobsSummary({
+				shown: 3,
+				loaded: 50,
+				total: 1234,
+				more: true,
+				searching: true,
+				filtered: true
+			})
+		).toBe('3 of the 50 loaded jobs (1,234 in all)');
+		expect(
+			jobsSummary({ shown: 3, loaded: 50, more: true, searching: true, filtered: true })
+		).toBe('3 of the 50 loaded jobs');
+		expect(
+			jobsSummary({ shown: 12, loaded: 40, more: false, searching: true, filtered: true })
+		).toBe('12 of 40 jobs');
+		expect(jobsSearchedText(50, 1234)).toBe('Searched 50 of the 1,234 jobs.');
+		expect(jobsSearchedText(50)).toBe('Searched the 50 loaded jobs.');
+		expect(jobsSearchedText(50, 50)).toBe('Searched the 50 loaded jobs.');
 	});
 });

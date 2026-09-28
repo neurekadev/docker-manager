@@ -4,6 +4,7 @@
 // (invalid_definition) and nothing is written.
 // Mirrors stacks.IsDefinitionFile on the manager (the manager decides; this
 // only chooses what the editor tells the user).
+import type { Schema } from '$lib/api/client';
 import { errorView } from '$lib/ui/errors';
 
 export const DEFINITION_NAMES = [
@@ -18,55 +19,21 @@ export const DEFINITION_NAMES = [
 	'.env'
 ];
 
-/** Compose files searched in the project directory, in order (agent compose.DefaultConfigFiles). */
-export const DEFAULT_COMPOSE_FILES = [
-	'compose.yaml',
-	'compose.yml',
-	'docker-compose.yaml',
-	'docker-compose.yml'
-];
-
 /** What the file manager knows of the stack whose files it shows. */
 export interface StackFiles {
 	name: string;
 	configFiles: string[];
 	revisionsHref?: string;
-	/** Validation after saving a Compose source (POST /stacks/validations). */
-	environmentId?: string;
-	/** The Compose project name (the stack's `name`). */
-	projectName?: string;
+	/**
+	 * Validates the stack's definition on disk after a Compose source was
+	 * saved (POST /stacks/{stackId}/validations); absent without
+	 * stack.definition.write.
+	 */
+	validate?: () => Promise<Schema<'StackValidation'>>;
 	/** The saved definition differs from the deployed one. */
 	undeployed?: boolean;
 	/** Starts a deploy of the definition on disk; absent without stack.deploy. */
 	deploy?: () => Promise<void>;
-}
-
-/** The definition files a validation reads (root-relative paths). */
-export interface DefinitionFiles {
-	compose: string;
-	override?: string;
-	env?: string;
-}
-
-/**
- * The files POST /stacks/validations takes for a stack (compose, override,
- * .env), from its explicit Compose files or the names in its project
- * directory (the first default Compose file and its matching
- * `<name>.override.<ext>`, like the agent). Null when the definition does
- * not fit that request: no Compose file, or more than two explicit files.
- */
-export function definitionFiles(
-	configFiles: readonly string[],
-	rootNames: readonly string[]
-): DefinitionFiles | null {
-	const env = rootNames.includes('.env') ? '.env' : undefined;
-	if (configFiles.length > 2) return null;
-	if (configFiles.length) return { compose: configFiles[0], override: configFiles[1], env };
-	const compose = DEFAULT_COMPOSE_FILES.find((n) => rootNames.includes(n));
-	if (!compose) return null;
-	const ext = compose.slice(compose.lastIndexOf('.'));
-	const override = `${compose.slice(0, -ext.length)}.override${ext}`;
-	return { compose, override: rootNames.includes(override) ? override : undefined, env };
 }
 
 /** Whether `path` (root-relative) is a Compose source of the stack. */

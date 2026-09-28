@@ -11,6 +11,7 @@ import {
 	policiesByTarget,
 	policySchedulesText,
 	policyStatusText,
+	publishedText,
 	reasonLabel,
 	recoveryText,
 	runnable,
@@ -236,28 +237,23 @@ describe('update counts and coverage (#20)', () => {
 		expect(containerTargetName('nginx', list).found).toBe(false);
 	});
 
-	it('tells excluded targets from ones that are gone', () => {
-		const one = {
-			scope: 'environment' as const,
-			excludeStacks: ['s1'],
-			excludeContainers: ['pihole']
-		};
-		const t = (type: string, id: string, inactive = true) => ({
-			inactive,
-			type,
-			id,
-			environmentId: 'e1'
-		});
-		expect(inactiveReason(t('stack', 's1', false), one)).toBeNull();
-		expect(inactiveReason(t('stack', 's1'), one)).toBe('excluded');
-		expect(inactiveReason(t('stack', 's2'), one)).toBe('gone');
-		expect(inactiveReason(t('container', 'pihole'), one)).toBe('excluded');
-		const all = { ...one, scope: 'all' as const, excludeContainers: ['e1/pihole'] };
-		expect(inactiveReason(t('container', 'pihole'), all)).toBe('excluded');
-		expect(inactiveReason(t('container', 'nginx'), all)).toBe('gone');
-		expect(targetState(undefined, 'gone').label).toBe('No longer found');
+	it("takes the manager's reason for targets it no longer covers", () => {
+		expect(inactiveReason({ inactive: false, inactiveReason: 'excluded' })).toBeNull();
+		expect(inactiveReason({ inactive: true, inactiveReason: 'excluded' })).toBe('excluded');
+		expect(inactiveReason({ inactive: true, inactiveReason: 'missing' })).toBe('missing');
+		expect(inactiveReason({ inactive: true })).toBe('missing');
+		expect(targetState(undefined, 'missing').label).toBe('No longer found');
 		expect(targetState(undefined, 'excluded').label).toBe('Excluded');
 		expect(targetState(undefined, null).label).toBe('Not checked yet');
+	});
+
+	it('says when a newer image was published', () => {
+		const now = new Date('2026-09-25T10:00:00Z');
+		expect(publishedText({ publishedAt: '2026-09-22T10:00:00Z' }, now)).toBe(
+			'published 3 days ago'
+		);
+		expect(publishedText({}, now)).toBeNull();
+		expect(publishedText({ publishedAt: null }, now)).toBeNull();
 	});
 
 	it('lists exclusions that never got a target record', () => {
@@ -292,6 +288,7 @@ describe('update counts and coverage (#20)', () => {
 			'e2/container/pihole'
 		]);
 		expect(rows.every((r) => r.inactive)).toBe(true);
+		expect(rows.slice(1).every((r) => r.inactiveReason === 'excluded')).toBe(true);
 	});
 
 	it('says what an update policy needs in one sentence', () => {

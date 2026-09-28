@@ -23,7 +23,7 @@ type environmentUpdateService interface {
 	CreateEnvironmentPolicy(context.Context, updates.NewEnvironmentPolicy) (domain.EnvironmentUpdatePolicy, error)
 	UpdateEnvironmentPolicy(context.Context, string, int64, updates.NewEnvironmentPolicy) (domain.EnvironmentUpdatePolicy, error)
 	DeleteEnvironmentPolicy(context.Context, string, int64) error
-	ManagedPolicies(context.Context, string) ([]domain.UpdatePolicy, error)
+	ManagedPolicies(context.Context, string) ([]updates.ManagedTarget, error)
 	CheckEnvironment(context.Context, authz.Principal, string, string) ([]domain.Job, error)
 	PreviewEnvironment(context.Context, string) (updates.EnvironmentPreview, error)
 	RunEnvironment(context.Context, authz.Principal, string, string, string) ([]domain.Job, error)
@@ -142,7 +142,8 @@ type environmentTarget struct {
 	Type             string              `json:"type" enum:"stack,container"`
 	ID               string              `json:"id"`
 	CandidateSummary UpdatePolicySummary `json:"candidateSummary"`
-	Inactive         bool                `json:"inactive"`
+	Inactive         bool                `json:"inactive" doc:"The policy no longer covers the target; the record stays for its history."`
+	InactiveReason   string              `json:"inactiveReason,omitempty" enum:"excluded,missing" doc:"Why an inactive target is not covered: excluded (by the policy's exclusions or the container's docker-manager.update.exclude=true label) or missing (the stack or container no longer exists in the scope or no longer qualifies)."`
 }
 type environmentTargetsOutput struct {
 	Body struct {
@@ -324,13 +325,15 @@ func (h *environmentUpdatesAPI) targets(ctx context.Context, in *environmentPoli
 	}
 	out := &environmentTargetsOutput{}
 	out.Body.Items = []environmentTarget{}
-	for _, child := range children {
+	for _, t := range children {
+		child := t.Policy
 		candidates, err := h.svc.Candidates(ctx, child.ID)
 		if err != nil {
 			return nil, Internal(err)
 		}
 		out.Body.Items = append(out.Body.Items, environmentTarget{PolicyID: child.ID, EnvironmentID: child.EnvironmentID,
-			Type: string(child.TargetType), ID: child.TargetID, CandidateSummary: candidateSummary(candidates), Inactive: child.Inactive})
+			Type: string(child.TargetType), ID: child.TargetID, CandidateSummary: candidateSummary(candidates),
+			Inactive: child.Inactive, InactiveReason: t.InactiveReason})
 	}
 	return out, nil
 }

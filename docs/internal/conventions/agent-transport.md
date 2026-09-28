@@ -39,6 +39,15 @@ handed-over tokens), `internal/agent/runtime` (control loop). Protocol:
   environment/agent/enrollment changes are published there too (#23
   consumes the bus). File-scope paths on the bus are internal: filter by the
   reader's file permissions before anything leaves the manager.
+- **Last seen:** an agent's and its environment's `lastSeenAt` are written
+  on connect, capabilities and disconnect, and refreshed while the session
+  lives: inbound frames (at least one heartbeat per 15 s) are persisted at
+  most once per `agents.LastSeenRefresh` (60 s) per session, off the read
+  loop (the watchdog starts the write on its own goroutine with a 5 s
+  deadline; `store.TouchLastSeen` only moves the time forward, only for the
+  agent's current session, and leaves revision and `updated_at` alone). No
+  bus event is published for a refresh; a failed refresh warns once per
+  series of failures. Do not add per-heartbeat database writes.
 - **Identity:** agent ID ≠ Engine ID; `(engineId, installId)` identifies an
   installation; one active agent per Engine and per environment. Agent
   secrets are `dye_…` (enrollment) / `dya_…` (credential), minted with

@@ -160,7 +160,7 @@ type Group struct {
 	ID                  string    `json:"id" example:"0190a6e0-0000-7000-8000-00000000000a"`
 	Name                string    `json:"name" example:"Restricted"`
 	Default             bool      `json:"default" doc:"New users join this group."`
-	MemberCount         int       `json:"memberCount"`
+	MemberCount         int       `json:"memberCount" doc:"Accounts in the group, not counting the owner (group rules never apply to the owner)."`
 	RuleCount           int       `json:"ruleCount"`
 	GrantsAccess        bool      `json:"grantsAccess" doc:"The group has at least one allow rule."`
 	Revision            int64     `json:"revision" doc:"Group revision (the ETag of the group; name changes)."`
@@ -543,7 +543,8 @@ func registerPermissions(a huma.API, deps Deps) {
 			Summary: "Delete a group", DefaultStatus: http.StatusNoContent,
 			Description: "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group " +
 				"(choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users " +
-				"implicitly, so deleting a group never changes anyone's access). Requires If-Match." + stepUp + " " + ownerOnly,
+				"implicitly, so deleting a group never changes anyone's access). The owner's account never blocks the deletion: group rules " +
+				"never apply to it, and when it is in the group it moves to the default group in the same change. Requires If-Match." + stepUp + " " + ownerOnly,
 			Tags: []string{tagGroups}, Security: cookieOnly, Errors: editErrs,
 		},
 		Capability: CapabilityOwner, Scope: ScopeInstance,

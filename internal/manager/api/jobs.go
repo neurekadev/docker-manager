@@ -12,7 +12,9 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
 )
@@ -29,8 +31,13 @@ const (
 // internal/manager/jobs.Engine).
 type JobService interface {
 	List(ctx context.Context, f domain.JobFilter) ([]domain.Job, error)
+	// Count counts the jobs matching f (f.BeforeID and f.Limit ignored).
+	Count(ctx context.Context, f domain.JobFilter) (int64, error)
 	Get(ctx context.Context, id string) (domain.Job, error)
 	Cancel(ctx context.Context, id string) (domain.Job, error)
+	// Retry enqueues a new job re-running a finished, unsuccessful job for
+	// p (the kind's capabilities are authorized on every target).
+	Retry(ctx context.Context, p authz.Principal, id, idempotencyKey string) (domain.Job, bool, error)
 	Events(ctx context.Context, jobID string, afterSeq int64, limit int) ([]domain.JobEvent, error)
 	Subscribe(jobID string) (<-chan struct{}, func())
 }
@@ -91,7 +98,8 @@ type Job struct {
 	// Initiator fields are audit metadata only.
 	InitiatorUserID  string        `json:"initiatorUserId,omitempty" doc:"User who requested the job (audit metadata only)."`
 	InitiatorTokenID string        `json:"initiatorTokenId,omitempty" doc:"API token used to request the job (audit metadata only)."`
-	PolicyID         string        `json:"policyId,omitempty" doc:"Policy that scheduled the job."`
+	PolicyID         string        `json:"policyId,omitempty" doc:"Policy the job runs for (its scheduled runs and manual runs of the policy)."`
+	RetryOf          string        `json:"retryOf,omitempty" doc:"The job this one re-runs (POST /jobs/{jobId}/retries)."`
 	EnvironmentID    string        `json:"environmentId,omitempty"`
 	Targets          []JobTarget   `json:"targets"`
 	Attempt          int           `json:"attempt" minimum:"1" doc:"Dispatch attempt; increases when an interrupted job resumes or a lost command is re-sent."`
@@ -103,6 +111,7 @@ type Job struct {
 	LocksHeld        bool          `json:"locksHeld"`
 	CancelRequested  bool          `json:"cancelRequested"`
 	Cancellable      bool          `json:"cancellable" doc:"False once the job reached a terminal state."`
+	Retryable        bool          `json:"retryable" doc:"True when the job ended without succeeding, its kind can be retried and the caller may start it again: POST /jobs/{jobId}/retries. Always false in the 202 answer of the operation that started a job."`
 	CreatedAt        time.Time     `json:"createdAt"`
 	UpdatedAt        time.Time     `json:"updatedAt"`
 	DispatchedAt     *time.Time    `json:"dispatchedAt,omitempty"`
@@ -114,7 +123,7 @@ type Job struct {
 func NewJob(j domain.Job) Job {
 	out := Job{
 		ID: j.ID, Kind: string(j.Kind), State: string(j.State), Origin: string(j.Origin), Executor: string(j.Executor),
-		InitiatorUserID: j.InitiatorUserID, InitiatorTokenID: j.InitiatorTokenID, PolicyID: j.PolicyID,
+		InitiatorUserID: j.InitiatorUserID, InitiatorTokenID: j.InitiatorTokenID, PolicyID: j.PolicyID, RetryOf: j.RetryOf,
 		EnvironmentID: j.EnvironmentID, Targets: []JobTarget{}, Attempt: j.Attempt, Items: []JobItem{}, Locks: []JobLock{},
 		LocksHeld: j.State.Active(), CancelRequested: j.CancelRequested, Cancellable: !j.State.Terminal(),
 		CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt, DispatchedAt: j.DispatchedAt, StartedAt: j.StartedAt, FinishedAt: j.FinishedAt,
@@ -165,6 +174,13 @@ func JobErrorFor(err error) error {
 		return NotFound("job not found")
 	case errors.Is(err, domain.ErrJobFinished):
 		return Conflict(CodeJobFinished, "the job has already finished")
+	case errors.Is(err, domain.ErrJobNotRetryable):
+		msg := "this job cannot be retried"
+		var nr *domain.JobNotRetryableError
+		if errors.As(err, &nr) && nr.Message != "" {
+			msg = nr.Message
+		}
+		return Conflict(CodeJobNotRetryable, msg)
 	case errors.Is(err, domain.ErrJobIdempotencyConflict):
 		return Conflict(CodeIdempotencyKeyReused, "the Idempotency-Key was already used for a different request")
 	case errors.Is(err, domain.ErrJobForbidden):
@@ -214,10 +230,16 @@ type listJobsInput struct {
 	Origin        []string `query:"origin,explode" enum:"manual,scheduled,api_token" doc:"Only jobs with these origins (repeat the parameter)."`
 	EnvironmentID string   `query:"environmentId" maxLength:"128" doc:"Only jobs in (or targeting) this environment."`
 	Target        string   `query:"target" maxLength:"1100" doc:"Only jobs with this target, as type:id (e.g. stack:0190a6e0-...)."`
+	PolicyID      string   `query:"policyId" maxLength:"128" doc:"Only jobs run for this policy (its scheduled runs and manual runs of it; for an environment-wide update policy, the jobs of every target it covers)."`
 }
 
 type jobIDInput struct {
 	JobID string `path:"jobId" maxLength:"64" doc:"Job ID."`
+}
+
+type retryJobInput struct {
+	JobID string `path:"jobId" maxLength:"64" doc:"Job ID of the job to run again."`
+	IdempotencyKeyParam
 }
 
 type jobOutput struct{ Body Job }
@@ -290,7 +312,7 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 	if err != nil {
 		return nil, err
 	}
-	f := domain.JobFilter{EnvironmentID: in.EnvironmentID}
+	f := domain.JobFilter{EnvironmentID: in.EnvironmentID, PolicyID: in.PolicyID}
 	for _, s := range in.State {
 		f.States = append(f.States, domain.JobState(s))
 	}
@@ -305,7 +327,7 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 			return nil, err
 		}
 	}
-	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target, strings.Join(in.Origin, ","))
+	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target, strings.Join(in.Origin, ","), in.PolicyID)
 	var after jobsCursor
 	if in.Cursor != "" {
 		if err := DecodeCursorFor(in.Cursor, fingerprint, &after); err != nil {
@@ -327,7 +349,7 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 	}
 	items := make([]Job, 0, len(jobs))
 	for _, j := range jobs {
-		items = append(items, NewJob(j))
+		items = append(items, h.shape(c, j))
 	}
 	cursor := ""
 	if next != "" {
@@ -335,15 +357,85 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 			return nil, Internal(err)
 		}
 	}
-	return &listJobsOutput{Body: NewPage(items, cursor, nil)}, nil
+	total, err := h.total(ctx, c, f)
+	if err != nil {
+		return nil, Internal(err)
+	}
+	return &listJobsOutput{Body: NewPage(items, cursor, total)}, nil
 }
 
-func (h *jobsAPI) get(ctx context.Context, in *jobIDInput) (*jobOutput, error) {
-	_, j, err := h.visibleJob(ctx, in.JobID)
+// maxJobsCounted bounds the jobs whose visibility is checked one by one to
+// compute total for callers who may not see every job.
+const maxJobsCounted = 1000
+
+// ownerProbe is an owner-only catalog capability: only the instance
+// owner's session holds it (owner-only capabilities can never be granted,
+// #17), and the owner reads every job.
+const ownerProbe = "users.manage"
+
+// total counts the jobs matching f that the caller may read, or returns
+// nil when that is not known exactly: one COUNT query when the caller
+// reads every job (the owner's session), otherwise a per-job check of at
+// most maxJobsCounted matching jobs (nil above that).
+func (h *jobsAPI) total(ctx context.Context, c authz.Checker, f domain.JobFilter) (*int64, error) {
+	f.BeforeID, f.Limit = "", 0
+	n, err := h.svc.Count(ctx, f)
 	if err != nil {
 		return nil, err
 	}
-	return &jobOutput{Body: NewJob(j)}, nil
+	if n == 0 || (c.Can(ownerProbe, authz.Instance()).Allowed && c.Can(string(CapJobRead), authz.Instance()).Allowed) {
+		return Total(n), nil
+	}
+	if n > maxJobsCounted {
+		return nil, nil
+	}
+	f.Limit = int(n) + 1 // jobs queued since the count are counted too
+	all, err := h.svc.List(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+	var visible int64
+	for _, j := range all {
+		if c.Can(string(CapJobRead), authz.JobResource(j)).Allowed {
+			visible++
+		}
+	}
+	return Total(visible), nil
+}
+
+// shape converts j for the caller: retryable when the job may be retried
+// and the caller holds the kind's capabilities on every target (what the
+// retry's enqueue authorizes).
+func (h *jobsAPI) shape(c authz.Checker, j domain.Job) Job {
+	out := NewJob(j)
+	out.Retryable = canRetry(c, j)
+	return out
+}
+
+func canRetry(c authz.Checker, j domain.Job) bool {
+	if jobspec.RetryRefusal(j) != nil {
+		return false
+	}
+	r := authz.JobResource(j)
+	if len(r.JobCapabilities) == 0 {
+		return false
+	}
+	for _, t := range r.Targets {
+		for _, capability := range r.JobCapabilities {
+			if !c.Can(capability, t).Allowed {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (h *jobsAPI) get(ctx context.Context, in *jobIDInput) (*jobOutput, error) {
+	p, j, err := h.visibleJob(ctx, in.JobID)
+	if err != nil {
+		return nil, err
+	}
+	return &jobOutput{Body: h.shape(authz.For(ctx, h.authz, p), j)}, nil
 }
 
 func (h *jobsAPI) cancel(ctx context.Context, in *jobIDInput) (*JobAccepted, error) {
@@ -360,6 +452,31 @@ func (h *jobsAPI) cancel(ctx context.Context, in *jobIDInput) (*JobAccepted, err
 	}
 	logging.FromContext(ctx).Info("job cancellation requested", "job_id", j.ID, "kind", j.Kind, "principal", p.Key())
 	return Accepted(j), nil
+}
+
+// retry runs a finished, unsuccessful job again as a new job linked to it
+// (retryOf). The job must be visible (404 otherwise); the engine refuses
+// jobs that cannot be retried (409 job_not_retryable) and authorizes the
+// kind's capabilities on every target (403).
+func (h *jobsAPI) retry(ctx context.Context, in *retryJobInput) (*JobAccepted, error) {
+	p, j, err := h.visibleJob(ctx, in.JobID)
+	if err != nil {
+		return nil, err
+	}
+	// The original job is a target through {jobId}; the new one is added
+	// with the 202 answer (auditHandler).
+	audit.SetDetail(ctx, "retryOfJobId", j.ID)
+	audit.SetDetail(ctx, "kind", string(j.Kind))
+	nj, _, err := h.svc.Retry(ctx, p, j.ID, in.IdempotencyKey)
+	if err != nil {
+		var nr *domain.JobNotRetryableError
+		if errors.As(err, &nr) {
+			audit.SetDetail(ctx, "reason", nr.Reason)
+		}
+		return nil, JobErrorFor(err)
+	}
+	logging.FromContext(ctx).Info("job retried", "job_id", nj.ID, "retry_of", j.ID, "kind", nj.Kind, "principal", p.Key())
+	return Accepted(nj), nil
 }
 
 // sseBatch bounds the events read per database query while streaming.
@@ -450,7 +567,9 @@ func registerJobs(a huma.API, deps Deps) {
 			Summary: "List jobs",
 			Description: "Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the " +
 				"job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) " +
-				"- never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent.",
+				"- never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent. " +
+				"total counts the visible jobs matching the filters and is present only when exact: always for the instance owner " +
+				"(one count), for other callers when at most 1000 jobs match the filters (each checked), absent otherwise.",
 			Tags: []string{tagJobs}, Errors: []int{http.StatusUnauthorized, http.StatusUnprocessableEntity},
 		},
 		Capability: CapJobRead, Scope: ScopeResource,
@@ -477,6 +596,24 @@ func registerJobs(a huma.API, deps Deps) {
 		},
 		Capability: CapJobCancel, Scope: ScopeResource,
 	}, h.cancel)
+
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-job-retry", Method: http.MethodPost, Path: BasePath + "/jobs/{jobId}/retries",
+			Summary: "Retry a job",
+			Description: "Runs a finished job that did not succeed (failed, partial, interrupted or cancelled) again as a new job with " +
+				"the same kind, environment, policy, targets and input; the new job's retryOf names the original, which is not " +
+				"changed. Only kinds marked retryable can be retried (stack.deploy, stack.pull, image.pull, update.check; a stack " +
+				"deploy or pull acts on the stack's current directory, Compose files and registry connections). The caller needs " +
+				"job.read on the job (404 otherwise) and the kind's own capabilities on every target, as when starting the action " +
+				"(403 otherwise); the job's retryable field says whether both hold. Answers 202 with the new job and its URL in " +
+				"Location. 409 job_not_retryable when the job is still active, succeeded, its kind is not retryable, its input " +
+				"was not kept or what it acted on is gone; 409 environment_archived; 409 idempotency_key_reused.",
+			Tags:   []string{tagJobs},
+			Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
+		},
+		Capability: CapJobRead, Scope: ScopeResource, Idempotency: IdempotencyJob, AuditAction: "job.retry",
+	}, h.retry)
 
 	eventSchema := a.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(JobEvent{}), true, "")
 	jobSchema := a.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(Job{}), true, "")

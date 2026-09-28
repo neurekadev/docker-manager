@@ -125,6 +125,10 @@ func (s *Service) SetupOwner(ctx context.Context, in domain.OwnerSetup) (domain.
 	}
 	var owner domain.User
 	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Every account is in a group (users.group_id is NOT NULL), the
+		// owner too; group rules never apply to the owner (owner bypass),
+		// so groups do not count the owner and never keep a deletion from
+		// happening (store.DeleteGroup moves the owner to the default).
 		group, err := store.DefaultGroupID(ctx, tx)
 		if err != nil {
 			return err

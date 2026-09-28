@@ -102,7 +102,7 @@ describe('connection wording (#22 polish)', () => {
 		expect(connectionSummary({ online: true, status: 'archived' }, NOW)).toBeUndefined();
 	});
 
-	it('shows a connected agent as connected now, never its stale last-seen time', () => {
+	it('shows a connected agent as connected now and a disconnected one when last seen', () => {
 		const now = new Date(NOW);
 		const connected = agentContact(
 			{
@@ -115,12 +115,24 @@ describe('connection wording (#22 polish)', () => {
 		);
 		expect(connected.text).toBe('Connected now');
 		expect(connected.title).toMatch(/^Connected since /);
+		// The last-seen time lags a live connection by up to a minute.
 		expect(
 			agentContact(
-				{ status: 'active', connected: false, lastSeenAt: '2026-09-25T10:00:00Z' },
+				{
+					status: 'active',
+					connected: true,
+					lastConnectedAt: '2026-09-25T11:10:00Z',
+					lastSeenAt: '2026-09-25T11:59:20Z'
+				},
 				now
 			).text
-		).toBe('2 hours ago');
+		).toBe('Connected now');
+		const gone = agentContact(
+			{ status: 'active', connected: false, lastSeenAt: '2026-09-25T10:00:00Z' },
+			now
+		);
+		expect(gone.text).toBe('2 hours ago');
+		expect(gone.at).toBe('2026-09-25T10:00:00Z');
 		expect(
 			agentContact(
 				{ status: 'revoked', connected: false, revokedAt: '2026-09-23T12:00:00Z' },

@@ -13,6 +13,7 @@ import {
 	jobErrorHeadline,
 	jobHeadline,
 	jobKindLabel,
+	jobRetry,
 	jobTargetLabel,
 	jobTitle,
 	policyPage,
@@ -166,6 +167,37 @@ describe('job labels (#26 catalog)', () => {
 		expect(jobAgain({ ...base, kind: 'files.copy' })).toBeNull();
 	});
 
+	it('retries through the server when it can, else links to where to try again', () => {
+		const base = {
+			id: 'j1',
+			environmentId: 'e1',
+			kind: 'stack.deploy',
+			targets: [{ type: 'stack' as const, id: 's1' }]
+		};
+		expect(jobRetry({ ...base, state: 'failed', retryable: true })).toBe('retry');
+		// Cancelled jobs are retried only by the server.
+		expect(jobRetry({ ...base, state: 'cancelled', retryable: true })).toBe('retry');
+		expect(jobRetry({ ...base, state: 'cancelled', retryable: false })).toBeNull();
+		expect(jobRetry({ ...base, state: 'failed', retryable: false })).toEqual({
+			href: '/stacks/s1',
+			label: 'Open the stack to try again'
+		});
+		expect(jobRetry({ ...base, state: 'partial' })).toEqual(
+			expect.objectContaining({ href: '/stacks/s1' })
+		);
+		expect(jobRetry({ ...base, state: 'succeeded', retryable: false })).toBeNull();
+		expect(jobRetry({ ...base, state: 'running', retryable: false })).toBeNull();
+		expect(
+			jobRetry({
+				...base,
+				kind: 'files.copy',
+				targets: [],
+				state: 'failed',
+				retryable: false
+			})
+		).toBeNull();
+	});
+
 	it('offers state groups that cover every job state', () => {
 		const all = new Set(STATE_FILTERS.flatMap((f) => f.states));
 		for (const s of [
@@ -218,5 +250,26 @@ describe('GET /jobs wire format', () => {
 		await fetchJobsPage({}, undefined, 20, undefined, client);
 		const bare = new URL((fetch.mock.calls[1][0] as Request).url);
 		expect([...bare.searchParams.keys()]).toEqual(['limit']);
+	});
+
+	it('filters by policy and passes the total through', async () => {
+		const fetch = vi.fn<(req: Request) => Promise<Response>>(
+			async () =>
+				new Response(JSON.stringify({ items: [], nextCursor: 'c2', total: 1234 }), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				})
+		);
+		const client = createApiClient(
+			fetch as unknown as typeof globalThis.fetch,
+			'http://dy.test'
+		);
+		const page = await fetchJobsPage({ policyId: 'up-1' }, undefined, 50, undefined, client);
+		const url = new URL((fetch.mock.calls[0][0] as Request).url);
+		expect(url.searchParams.get('policyId')).toBe('up-1');
+		expect(page).toEqual({ items: [], nextCursor: 'c2', total: 1234 });
+		await fetchJobsPage({ policyId: '' }, undefined, 20, undefined, client);
+		const bare = new URL((fetch.mock.calls[1][0] as Request).url);
+		expect(bare.searchParams.has('policyId')).toBe(false);
 	});
 });

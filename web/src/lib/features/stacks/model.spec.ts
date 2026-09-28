@@ -418,6 +418,7 @@ describe('migration, updates and jobs', () => {
 		expect(jobKindLabel('stack.deploy')).toBe('Deploy');
 		expect(jobKindLabel('volume.migrate')).toBe('Volume migrate');
 		expect(auditActionLabel('stack.definition.read')).toBe('Opened the definition');
+		expect(auditActionLabel('stack.validate')).toBe('Validated the definition');
 		expect(auditActionLabel('stack.restart')).toBe('Restart');
 		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
 	});

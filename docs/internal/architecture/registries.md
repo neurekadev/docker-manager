@@ -131,6 +131,17 @@ records the result and the use. `regclient`:
   credential (connection ID + secret version), so a rotation never reuses
   an old result.
 
+`Service.Created` (#20, display only) reads when the image behind a
+host-platform manifest digest was created: one GET of the manifest by
+digest (Docker Hub counts it against the pull allowance) and one GET of its
+image config blob, both verified against their digests, without retries;
+a host in a cooldown is not contacted and a 429 starts one. The result is
+cached per digest and credential (a digest's content never changes); an
+absent `created` or the Unix epoch of reproducible builds is
+`regclient.ErrNoCreated`. Uses with a connection are audited as
+`registry.use` (purpose `image_created`). The update check calls it once
+per new candidate digest and ignores its errors.
+
 Authentication raises Docker Hub's pull allowance depending on the account
 tier; it does not remove rate or abuse limits, and the API says so in 429
 messages.
@@ -141,7 +152,7 @@ Docker-free: `internal/imageref` (normalization, matchers),
 `internal/manager/regclient` (fake registry: bearer/basic auth, no
 anonymous fallback, 403/404, 429 with Retry-After, long Retry-After
 cooldown, 5xx backoff, jitter bounds, platform selection, cache and
-deduplication, plain-HTTP realm refusal), `internal/manager/registries`
+deduplication, plain-HTTP realm refusal, image creation times), `internal/manager/registries`
 (matching corpus, sealing, owner-only, validation, connection tests with
 401/403/429, rotation/revocation, `Select` errors, cached/audited checks,
 the job engine resolving credentials at dispatch across a rotation with a

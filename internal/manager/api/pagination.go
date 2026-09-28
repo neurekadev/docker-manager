@@ -36,7 +36,9 @@ import (
 //   - total: present only on routes that document it, and then counts the
 //     items matching the filters that the caller may see (never the raw
 //     number, so aggregates do not leak). Routes whose visibility filtering
-//     makes counting expensive omit it (lists of jobs, audit events).
+//     makes counting expensive omit it (audit events) or send it only
+//     when it is exact (jobs: a COUNT for the owner, a per-job check of
+//     at most 1000 matches for other callers, absent above that).
 
 // Page is the response body of every list operation.
 type Page[T any] struct {

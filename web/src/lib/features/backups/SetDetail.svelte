@@ -3,7 +3,6 @@
 	// size, the live progress while it runs, and every backup it holds
 	// grouped by environment with its own state and time, each linked to
 	// its backup.
-	import { createQuery } from '@tanstack/svelte-query';
 	import { routes } from '$lib/routes';
 	import { Badge, formatBytes, formatDateTime, formatDuration } from '$lib/ui';
 	import Facts from '$lib/features/common/Facts.svelte';
@@ -17,7 +16,6 @@
 		type BackupActivity,
 		type BackupSet
 	} from './model';
-	import { backupsQuery } from './queries';
 
 	interface Props {
 		set: BackupSet;
@@ -30,8 +28,6 @@
 	}
 
 	let { set: s, policyId, policyName, environmentName, bytes, activity = [] }: Props = $props();
-	// The set's backups, so its members link to them.
-	const backups = createQuery(() => ({ ...backupsQuery({ setId: s.id }), retry: false }));
 	const st = $derived(setState(s.state));
 	const duration = $derived(setDuration(s));
 	const origin = $derived(
@@ -82,7 +78,7 @@
 				{env ? environmentName(env) : 'Manager'}
 				<span class="muted num">{members.length}</span>
 			</h3>
-			<SetMembers {members} backups={backups.data} />
+			<SetMembers {members} />
 		</section>
 	{/each}
 </div>

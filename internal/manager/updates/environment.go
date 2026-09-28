@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/uptrace/bun"
 
@@ -211,21 +213,53 @@ func (s *Service) DeleteEnvironmentPolicy(ctx context.Context, id string, revisi
 	return err
 }
 
-// ManagedPolicies returns the target records of an environment policy.
-func (s *Service) ManagedPolicies(ctx context.Context, id string) ([]domain.UpdatePolicy, error) {
+// ManagedTarget is a target record of an environment policy and, when it
+// is inactive, why the policy no longer covers it.
+type ManagedTarget struct {
+	Policy domain.UpdatePolicy
+	// InactiveReason is domain.UpdateTargetExcluded or
+	// domain.UpdateTargetMissing for an inactive record, "" otherwise.
+	InactiveReason string
+}
+
+// ManagedPolicies returns the target records of an environment policy
+// (inactive ones included, with their reason), after reconciling them.
+func (s *Service) ManagedPolicies(ctx context.Context, id string) ([]ManagedTarget, error) {
 	p, err := s.GetEnvironmentPolicy(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.syncEnvironmentPolicy(ctx, p); err != nil {
-		return nil, err
-	}
-	return store.UpdatePoliciesForParent(ctx, s.db, id)
+	return s.reconcile(ctx, p)
 }
 
-// syncEnvironmentPolicy discovers targets and keeps their runtime records in
-// step with a policy. Exclusions deactivate a target without erasing history.
+// syncEnvironmentPolicy reconciles the target records of a policy and
+// returns the active ones.
 func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.EnvironmentUpdatePolicy) ([]domain.UpdatePolicy, error) {
+	all, err := s.reconcile(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	active := make([]domain.UpdatePolicy, 0, len(all))
+	for _, t := range all {
+		if !t.Policy.Inactive {
+			active = append(active, t.Policy)
+		}
+	}
+	return active, nil
+}
+
+// targetKey identifies a target record: environment/type/target.
+func targetKey(env string, typ domain.UpdateTargetType, id string) string {
+	return fmt.Sprintf("%s/%s/%s", env, typ, id)
+}
+
+// reconcile discovers targets and keeps their records in step with a
+// policy: activity (exclusions and vanished targets deactivate a record
+// without erasing its history), schedules, window, wait timeout and the
+// record's name, which follows the target's current name ("Automatic
+// updates for zerobyte"; records that earlier versions named after their
+// ID are renamed here, so no migration is needed).
+func (s *Service) reconcile(ctx context.Context, p domain.EnvironmentUpdatePolicy) ([]ManagedTarget, error) {
 	envs, err := store.ListEnvironments(ctx, s.db, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
 	if err != nil {
 		return nil, err
@@ -236,9 +270,12 @@ func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.Environmen
 	}
 	byTarget := map[string]domain.UpdatePolicy{}
 	for _, child := range children {
-		byTarget[fmt.Sprintf("%s/%s/%s", child.EnvironmentID, child.TargetType, child.TargetID)] = child
+		byTarget[targetKey(child.EnvironmentID, child.TargetType, child.TargetID)] = child
 	}
 	wanted := map[string]bool{}
+	excluded := map[string]bool{}
+	// labels are the targets' names as users know them.
+	labels := map[string]string{}
 	for _, env := range envs {
 		if p.EnvironmentID != "" && p.EnvironmentID != env.ID {
 			continue
@@ -248,19 +285,18 @@ func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.Environmen
 			return nil, err
 		}
 		for _, st := range stacks {
+			key := targetKey(env.ID, domain.UpdateTargetStack, st.ID)
+			labels[key] = StackLabel(st)
 			if slices.Contains(p.ExcludeStacks, st.ID) {
+				excluded[key] = true
 				continue
 			}
-			wanted[fmt.Sprintf("%s/%s/%s", env.ID, domain.UpdateTargetStack, st.ID)] = true
+			wanted[key] = true
 		}
 		if !env.Online || s.opts.Resources == nil {
 			for key, child := range byTarget {
 				if child.EnvironmentID == env.ID && child.TargetType == domain.UpdateTargetContainer && !child.Inactive {
-					name := child.TargetID
-					if p.EnvironmentID == "" {
-						name = env.ID + "/" + name
-					}
-					if slices.Contains(p.ExcludeContainers, name) {
+					if containerExcluded(p, env.ID, child.TargetID) {
 						continue
 					}
 					wanted[key] = true
@@ -274,14 +310,12 @@ func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.Environmen
 		}
 		for _, c := range containers {
 			if c.Stack != nil || c.Labels[protocol.LabelManaged] != protocol.ManagedStandalone ||
-				protocol.UpdateExcluded(c.Labels) || s.opts.Resources.ContainerProtection(c) != nil {
+				s.opts.Resources.ContainerProtection(c) != nil {
 				continue
 			}
-			name := c.Name
-			if p.EnvironmentID == "" {
-				name = env.ID + "/" + name
-			}
-			if slices.Contains(p.ExcludeContainers, name) {
+			key := targetKey(env.ID, domain.UpdateTargetContainer, c.Name)
+			if protocol.UpdateExcluded(c.Labels) || containerExcluded(p, env.ID, c.Name) {
+				excluded[key] = true
 				continue
 			}
 			m, _, err := s.opts.Resources.ManagedSpec(ctx, env.ID, c.Labels)
@@ -289,23 +323,26 @@ func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.Environmen
 				return nil, err
 			}
 			if m != nil {
-				wanted[fmt.Sprintf("%s/%s/%s", env.ID, domain.UpdateTargetContainer, c.Name)] = true
+				wanted[key] = true
 			}
 		}
 	}
-	active := make([]domain.UpdatePolicy, 0, len(wanted))
+	names := &policyNames{s: s, taken: map[string]map[string]string{}}
+	out := make([]ManagedTarget, 0, len(byTarget)+len(wanted))
 	for key, child := range byTarget {
 		shouldBeActive := wanted[key]
-		if child.Inactive == !shouldBeActive && child.WaitTimeoutSeconds == p.WaitTimeoutSeconds &&
+		name, err := s.childName(ctx, names, child, labels[key])
+		if err != nil {
+			return nil, err
+		}
+		if child.Inactive != shouldBeActive && child.Name == name && child.WaitTimeoutSeconds == p.WaitTimeoutSeconds &&
 			child.Check.Cron == p.Check.Cron && child.Check.TimeZone == p.Check.TimeZone &&
 			child.Run.Cron == p.Run.Cron && child.Run.TimeZone == p.Run.TimeZone &&
 			windowsEqual(child.Window, p.Window) {
-			if shouldBeActive {
-				active = append(active, child)
-			}
+			out = append(out, managedTarget(p, child, excluded[key]))
 			continue
 		}
-		child.Inactive, child.WaitTimeoutSeconds = !shouldBeActive, p.WaitTimeoutSeconds
+		child.Inactive, child.WaitTimeoutSeconds, child.Name = !shouldBeActive, p.WaitTimeoutSeconds, name
 		child.Check = domain.UpdateSchedule{Cron: p.Check.Cron, TimeZone: p.Check.TimeZone}
 		child.Run = domain.UpdateSchedule{Cron: p.Run.Cron, TimeZone: p.Run.TimeZone}
 		child.Window = p.Window
@@ -314,9 +351,7 @@ func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.Environmen
 		if err := store.UpdateUpdatePolicy(ctx, s.db, &child, child.Revision-1); err != nil {
 			return nil, err
 		}
-		if shouldBeActive {
-			active = append(active, child)
-		}
+		out = append(out, managedTarget(p, child, excluded[key]))
 	}
 	for key := range wanted {
 		if _, ok := byTarget[key]; ok {
@@ -330,15 +365,163 @@ func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.Environmen
 			TargetType: domain.UpdateTargetType(parts[1]), TargetID: parts[2],
 			Check: p.Check, Run: p.Run, Window: p.Window, WaitTimeoutSeconds: p.WaitTimeoutSeconds,
 			Revision: 1, CreatedAt: s.now(), UpdatedAt: s.now()}
-		child.Name = "Automatic update " + child.ID
+		if child.Name, err = s.childName(ctx, names, child, labels[key]); err != nil {
+			return nil, err
+		}
 		child.Check.Enabled, child.Run.Enabled = false, false
 		if err := store.InsertUpdatePolicy(ctx, s.db, &child); err != nil {
 			return nil, err
 		}
-		active = append(active, child)
+		out = append(out, ManagedTarget{Policy: child})
 	}
-	slices.SortFunc(active, func(a, b domain.UpdatePolicy) int { return strings.Compare(a.ID, b.ID) })
-	return active, nil
+	slices.SortFunc(out, func(a, b ManagedTarget) int { return strings.Compare(a.Policy.ID, b.Policy.ID) })
+	return out, nil
+}
+
+// containerExcluded reports whether the policy's exclusions name the
+// container (environmentID/name for all-environments policies).
+func containerExcluded(p domain.EnvironmentUpdatePolicy, env, name string) bool {
+	if p.EnvironmentID == "" {
+		name = env + "/" + name
+	}
+	return slices.Contains(p.ExcludeContainers, name)
+}
+
+// managedTarget explains an inactive record: excluded (by the policy, or
+// by the container's label when it was seen) or missing.
+func managedTarget(p domain.EnvironmentUpdatePolicy, child domain.UpdatePolicy, seenExcluded bool) ManagedTarget {
+	t := ManagedTarget{Policy: child}
+	if !child.Inactive {
+		return t
+	}
+	t.InactiveReason = domain.UpdateTargetMissing
+	switch {
+	case seenExcluded,
+		child.TargetType == domain.UpdateTargetStack && slices.Contains(p.ExcludeStacks, child.TargetID),
+		child.TargetType == domain.UpdateTargetContainer && containerExcluded(p, child.EnvironmentID, child.TargetID):
+		t.InactiveReason = domain.UpdateTargetExcluded
+	}
+	return t
+}
+
+// StackLabel is a stack's name as users know it: its display name when
+// set, else its Compose project name.
+func StackLabel(st domain.Stack) string {
+	if n := strings.TrimSpace(st.DisplayName); n != "" {
+		return n
+	}
+	return st.Name
+}
+
+// Target record names.
+const (
+	targetNamePrefix = "Automatic updates for "
+	maxPolicyName    = 100
+)
+
+// targetPolicyName is the i-th name of a target record: "Automatic
+// updates for zerobyte", then "... zerobyte (stack)" when another policy
+// of the environment holds it, then "... zerobyte (stack 2)", ... Names
+// never contain IDs.
+func targetPolicyName(label string, typ domain.UpdateTargetType, i int) string {
+	suffix := ""
+	switch {
+	case i == 1:
+		suffix = " (" + string(typ) + ")"
+	case i > 1:
+		suffix = fmt.Sprintf(" (%s %d)", typ, i)
+	}
+	return targetNamePrefix + truncateName(label, maxPolicyName-utf8.RuneCountInString(targetNamePrefix+suffix)) + suffix
+}
+
+// fitsTargetName reports whether name is one of label's record names.
+func fitsTargetName(name, label string, typ domain.UpdateTargetType) bool {
+	if name == targetPolicyName(label, typ, 0) || name == targetPolicyName(label, typ, 1) {
+		return true
+	}
+	marker := " (" + string(typ) + " "
+	i := strings.LastIndex(name, marker)
+	if i < 0 || !strings.HasSuffix(name, ")") || i+len(marker) >= len(name)-1 {
+		return false
+	}
+	n, err := strconv.Atoi(name[i+len(marker) : len(name)-1])
+	return err == nil && n > 1 && name == targetPolicyName(label, typ, n)
+}
+
+// policyNames tracks the policy names taken per environment (a name is
+// unique per environment) during one reconciliation.
+type policyNames struct {
+	s *Service
+	// taken maps environment -> name key -> policy ID.
+	taken map[string]map[string]string
+}
+
+func (n *policyNames) in(ctx context.Context, env string) (map[string]string, error) {
+	if t, ok := n.taken[env]; ok {
+		return t, nil
+	}
+	t := map[string]string{}
+	after := ""
+	for {
+		page, err := store.ListUpdatePolicies(ctx, n.s.db, env, after, 500)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range page {
+			t[store.NameKey(p.Name)] = p.ID
+		}
+		if len(page) < 500 {
+			break
+		}
+		after = page[len(page)-1].ID
+	}
+	n.taken[env] = t
+	return t, nil
+}
+
+// childName returns the name a target record should have: its current
+// one while it still fits its target's label, else the first free name for
+// the label. Without a label (a deleted stack) the current name stays,
+// unless it contains the record's ID (names of earlier versions): that one
+// becomes "Automatic updates for a removed stack".
+func (s *Service) childName(ctx context.Context, names *policyNames, child domain.UpdatePolicy, label string) (string, error) {
+	if label == "" {
+		if child.TargetType == domain.UpdateTargetContainer {
+			label = child.TargetID
+		} else if st, err := s.opts.Stacks.Get(ctx, child.TargetID); err == nil {
+			label = StackLabel(st)
+		} else if !errors.Is(err, domain.ErrStackNotFound) {
+			return "", err
+		}
+	}
+	fallback := false
+	if label == "" {
+		if child.Name != "" && !strings.Contains(child.Name, child.ID) {
+			return child.Name, nil
+		}
+		label, fallback = "a removed "+string(child.TargetType), true
+	}
+	if child.Name != "" && !fallback && fitsTargetName(child.Name, label, child.TargetType) {
+		return child.Name, nil
+	}
+	taken, err := names.in(ctx, child.EnvironmentID)
+	if err != nil {
+		return "", err
+	}
+	for i := 0; ; i++ {
+		if fallback && i == 1 {
+			continue
+		}
+		name := targetPolicyName(label, child.TargetType, i)
+		if owner, ok := taken[store.NameKey(name)]; ok && owner != child.ID {
+			continue
+		}
+		if child.Name != "" {
+			delete(taken, store.NameKey(child.Name))
+		}
+		taken[store.NameKey(name)] = child.ID
+		return name, nil
+	}
 }
 
 func windowsEqual(a, b *domain.UpdateWindow) bool {

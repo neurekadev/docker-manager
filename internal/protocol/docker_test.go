@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -138,5 +139,36 @@ func TestCreateInputsValidation(t *testing.T) {
 	}
 	if !ValidImageID("sha256:"+strings.Repeat("c", 64)) || !ValidImageID(strings.Repeat("c", 12)) || ValidImageID("nginx") {
 		t.Error("image IDs")
+	}
+}
+
+// TestOptionalInspectFields: the restart policy's retry count and the
+// attached containers' addresses are optional additions: absent when
+// unset, and older agents' answers without them still decode.
+func TestOptionalInspectFields(t *testing.T) {
+	raw, err := json.Marshal(ContainerDetails{RestartPolicy: "always"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "restartMaxRetries") {
+		t.Errorf("unset retries sent: %s", raw)
+	}
+	raw, _ = json.Marshal(ContainerDetails{RestartPolicy: "on-failure", RestartMaxRetries: 3})
+	var d ContainerDetails
+	if err := json.Unmarshal(raw, &d); err != nil || d.RestartMaxRetries != 3 {
+		t.Fatalf("round trip %+v, %v", d, err)
+	}
+	raw, _ = json.Marshal(ContainerRef{ID: "abc", Name: "web"})
+	if string(raw) != `{"id":"abc","name":"web"}` {
+		t.Errorf("container ref without addresses: %s", raw)
+	}
+	var n NetworkInfo
+	if err := json.Unmarshal([]byte(`{"id":"n1","name":"shop_default","driver":"bridge","containers":[{"id":"abc","name":"web"}]}`), &n); err != nil ||
+		n.Containers[0].IPAddress != "" {
+		t.Fatalf("older agent's network %+v, %v", n, err)
+	}
+	raw, _ = json.Marshal(ContainerRef{ID: "abc", Name: "web", IPAddress: "172.20.0.3", IPv6Address: "fd00::3"})
+	if !strings.Contains(string(raw), `"ipAddress":"172.20.0.3"`) || !strings.Contains(string(raw), `"ipv6Address":"fd00::3"`) {
+		t.Errorf("container ref with addresses: %s", raw)
 	}
 }

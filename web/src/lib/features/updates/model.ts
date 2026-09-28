@@ -3,6 +3,7 @@
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
 import { describeCron } from '$lib/ui/cron';
+import { formatRelative } from '$lib/ui/format';
 
 export type UpdatePolicy = Schema<'UpdatePolicy'>;
 export type UpdateCandidate = Schema<'UpdateCandidate'>;
@@ -242,32 +243,38 @@ export function updatesText(
 }
 
 /** Why a target of an environment policy is not covered (null: it is covered). */
-export type InactiveReason = 'excluded' | 'gone';
+export type InactiveReason = 'excluded' | 'missing';
 
 /**
- * An inactive target is either excluded by the policy (its stack ID or
- * container name is in the exclusion lists) or no longer found (a deleted
- * stack, a removed or protected container, a container that lost its saved
- * specification): the manager keeps such records for their history.
+ * The manager says why an inactive target is not covered: excluded (by
+ * the policy or the container's label) or missing (a deleted stack, a
+ * removed container, one that no longer qualifies); it keeps such records
+ * for their history.
  */
-export function inactiveReason(
-	t: { inactive: boolean; type: string; id: string; environmentId: string },
-	p: { scope: 'all' | 'environment'; excludeStacks: string[]; excludeContainers: string[] }
-): InactiveReason | null {
+export function inactiveReason(t: {
+	inactive: boolean;
+	inactiveReason?: InactiveReason;
+}): InactiveReason | null {
 	if (!t.inactive) return null;
-	if (t.type === 'stack') return p.excludeStacks.includes(t.id) ? 'excluded' : 'gone';
-	const key = p.scope === 'all' ? `${t.environmentId}/${t.id}` : t.id;
-	return p.excludeContainers.includes(key) ? 'excluded' : 'gone';
+	return t.inactiveReason ?? 'missing';
 }
 
-/** A target's badge: excluded and gone targets say so, the rest their candidates' state. */
+/** A target's badge: excluded and missing targets say so, the rest their candidates' state. */
 export function targetState(
 	s: UpdateSummary | undefined,
 	reason: InactiveReason | null
 ): Presentation {
 	if (reason === 'excluded') return { tone: 'neutral', label: 'Excluded' };
-	if (reason === 'gone') return { tone: 'neutral', label: 'No longer found' };
+	if (reason === 'missing') return { tone: 'neutral', label: 'No longer found' };
 	return summaryState(s);
+}
+
+/** "published 3 days ago" of a candidate's newer image (null: the registry did not say). */
+export function publishedText(
+	c: { publishedAt?: string | null },
+	now: Date = new Date()
+): string | null {
+	return c.publishedAt ? `published ${formatRelative(c.publishedAt, now)}` : null;
 }
 
 interface ScheduleLike {
@@ -359,6 +366,7 @@ interface TargetRow {
 	type: 'stack' | 'container';
 	id: string;
 	inactive: boolean;
+	inactiveReason?: InactiveReason;
 	candidateSummary: UpdateSummary;
 }
 
@@ -399,6 +407,7 @@ export function withExclusions<T extends TargetRow>(
 			type: 'stack',
 			id,
 			inactive: true,
+			inactiveReason: 'excluded',
 			candidateSummary: EMPTY_SUMMARY
 		});
 	}
@@ -414,6 +423,7 @@ export function withExclusions<T extends TargetRow>(
 			type: 'container',
 			id: name,
 			inactive: true,
+			inactiveReason: 'excluded',
 			candidateSummary: EMPTY_SUMMARY
 		});
 	}

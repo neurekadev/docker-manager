@@ -158,14 +158,14 @@ func (h *backupsAPI) visibleBackup(ctx context.Context, id string) (BackupServic
 }
 
 func (h *backupsAPI) getBackup(ctx context.Context, in *backupIDInput) (*backupOutput, error) {
-	svc, _, _, sn, v, err := h.visibleBackup(ctx, in.BackupID)
+	svc, c, _, sn, v, err := h.visibleBackup(ctx, in.BackupID)
 	if err != nil {
 		return nil, err
 	}
 	out := BackupDetail{Backup: newBackup(sn, v)}
 	if v.Full() && sn.SetID != "" {
 		if set, err := svc.GetSet(ctx, sn.SetID); err == nil {
-			s := newBackupSet(set)
+			s := newBackupSet(set, setMemberBackups(ctx, svc, c, []domain.BackupSet{set}))
 			out.Set = &s
 		}
 	}

@@ -60,8 +60,10 @@ const (
 	DefaultCoalesce        = 250 * time.Millisecond
 	DefaultMetricsCoalesce = time.Second
 	DefaultQueue           = 512
-	// MaxStreamsPerPrincipal bounds open live streams per user or token.
-	MaxStreamsPerPrincipal = 8
+	// MaxStreamsPerPrincipal bounds open live streams per user or token:
+	// one per open browser tab, so the bound only stops runaway clients
+	// (a stream is a queue and a goroutine); people keep many tabs open.
+	MaxStreamsPerPrincipal = 32
 	busBuffer              = 8192
 )
 

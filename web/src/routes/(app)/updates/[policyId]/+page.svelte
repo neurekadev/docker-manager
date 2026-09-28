@@ -77,6 +77,7 @@
 		imageLabel,
 		inactiveReason,
 		policyStatusText,
+		publishedText,
 		reasonLabel,
 		summarizeTargets,
 		targetState,
@@ -109,21 +110,15 @@
 	const stacks = createQuery(() => stacksQuery());
 	const targets = createQuery(() => environmentUpdateTargetsQuery(id));
 	const schedules = createQuery(() => schedulesQuery());
-	const checkJobs = createQuery(() => recentJobsQuery(100, { kind: 'update.check' }));
-	const runJobs = createQuery(() => recentJobsQuery(100, { kind: 'update.run' }));
+	// Checks and updates this policy started (scheduled or by hand).
+	const policyJobs = createQuery(() => recentJobsQuery(50, { policyId: id }));
 	const single = singleEnvironment();
 	const manage = $derived(can(accessOf(perms.data), 'update_policy.manage'));
 	const editDialog = urlDialog('edit');
 	const active = $derived((targets.data ?? []).filter((t) => !t.inactive));
 	const totals = $derived(summarizeTargets(active.map((t) => t.candidateSummary)));
 	const updates = $derived(targetsUpdateText(active));
-	const runs = $derived(
-		groupRuns(
-			[...(checkJobs.data?.items ?? []), ...(runJobs.data?.items ?? [])].filter(
-				(j) => j.policyId === id
-			)
-		).slice(0, 10)
-	);
+	const runs = $derived(groupRuns(policyJobs.data?.items ?? []).slice(0, 10));
 	const mySchedules = $derived((schedules.data ?? []).filter((s) => s.policyId === id));
 	const nextRun = $derived(
 		mySchedules
@@ -333,10 +328,7 @@
 	/>{/snippet}
 {#snippet envCell(t: Target)}{environmentName(envs.data, t.environmentId)}{/snippet}
 {#snippet statusCell(t: Target)}
-	{@const st = targetState(
-		t.candidateSummary,
-		policy.data ? inactiveReason(t, policy.data) : t.inactive ? 'gone' : null
-	)}
+	{@const st = targetState(t.candidateSummary, inactiveReason(t))}
 	<Badge tone={st.tone} dot>{st.label}</Badge>
 {/snippet}
 {#snippet previewTargetCell(r: PreviewRow)}<TargetName
@@ -346,7 +338,13 @@
 		sub={single.current ? undefined : environmentName(envs.data, r.environmentId)}
 	/>{/snippet}
 {#snippet serviceCell(r: PreviewRow)}{r.item.service}{/snippet}
-{#snippet imageCell(r: PreviewRow)}<span class="mono">{imageLabel(r.item)}</span>{/snippet}
+{#snippet imageCell(r: PreviewRow)}
+	<span class="mono">{imageLabel(r.item)}</span>
+	{#if publishedText(r.item)}<span
+			class="muted published"
+			title="Published {formatDateTime(r.item.publishedAt)}">{publishedText(r.item)}</span
+		>{/if}
+{/snippet}
 {#snippet previewStatusCell(r: PreviewRow)}
 	{@const st = candidateStatus(r.item.status)}
 	<Badge tone={st.tone} dot>{st.label}</Badge>
@@ -366,8 +364,8 @@
 				p,
 				(sid) => stacks.data?.find((s) => s.id === sid)?.environmentId
 			)}
-			{@const excluded = all.filter((t) => inactiveReason(t, p) === 'excluded').length}
-			{@const gone = all.filter((t) => inactiveReason(t, p) === 'gone').length}
+			{@const excluded = all.filter((t) => inactiveReason(t) === 'excluded').length}
+			{@const missing = all.filter((t) => inactiveReason(t) === 'missing').length}
 			<PageHeader
 				title={p.name}
 				icon={PackageCheck}
@@ -430,7 +428,7 @@
 					value={String(active.length)}
 					secondary={[
 						plural(excluded, 'excluded', 'excluded'),
-						gone ? `${gone} no longer found` : ''
+						missing ? `${missing} no longer found` : ''
 					]
 						.filter(Boolean)
 						.join(', ')}
@@ -518,7 +516,7 @@
 			{/snippet}
 
 			<Card title="Recent runs" padding="none">
-				{#if checkJobs.isPending || runJobs.isPending}
+				{#if policyJobs.isPending}
 					<div class="inset"><Skeleton lines={3} height="20px" /></div>
 				{:else}
 					<RunsTable {runs} label="Recent runs of {p.name}">
@@ -614,7 +612,8 @@
 </Page>
 
 <style>
-	.reason {
+	.reason,
+	.published {
 		display: block;
 		margin-top: var(--space-1);
 		font-size: var(--text-caption);

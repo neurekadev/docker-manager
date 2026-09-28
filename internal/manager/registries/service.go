@@ -588,6 +588,42 @@ func (s *Service) Check(ctx context.Context, req CheckRequest) (CheckResult, err
 	return CheckResult{Selection: sel, Result: res}, rerr
 }
 
+// Created returns when the image behind a host-platform manifest digest of
+// req.Reference's repository was created (its image config's "created"),
+// through the same connection Check selects. Display only (#20: never a
+// reason to update); callers ignore its errors. Creation times are cached
+// per digest, and each registry request with a connection's credential is
+// audited like a check.
+func (s *Service) Created(ctx context.Context, req CheckRequest, digest string) (time.Time, error) {
+	sel, err := s.Select(ctx, req.RegistrySelectRequest)
+	if err != nil {
+		return time.Time{}, err
+	}
+	ref, err := imageref.Parse(req.Reference)
+	if err != nil {
+		return time.Time{}, fieldErr("imageReference", err.Error())
+	}
+	rq := regclient.Request{Ref: ref}
+	var conn domain.RegistryConnection
+	if sel.Selected != nil {
+		c, cred, version, err := s.credential(ctx, sel.Selected.ID)
+		if err != nil {
+			return time.Time{}, err
+		}
+		conn = c
+		rq.Credential, rq.CredentialKey, rq.PlainHTTP = cred, credentialKey(c.ID, version), c.PlainHTTP
+	}
+	at, cached, err := s.client.Created(ctx, rq, digest)
+	if sel.Selected != nil && !cached && ctx.Err() == nil {
+		class := ""
+		if err != nil && !errors.Is(err, regclient.ErrNoCreated) {
+			class = classOf(err)
+		}
+		s.recordUse(ctx, conn, req.JobID, req.EnvironmentID, "image_created", class)
+	}
+	return at, err
+}
+
 func errorClass(err error) string {
 	if err == nil {
 		return ""

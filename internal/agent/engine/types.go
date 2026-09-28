@@ -183,8 +183,11 @@ type ContainerDetails struct {
 	Hostname     string
 	// RestartPolicy is "no", "always", "on-failure" or "unless-stopped".
 	RestartPolicy string
-	NetworkMode   string
-	Mounts        []Mount
+	// RestartMaxRetries is the on-failure policy's maximum retry count
+	// (0: unlimited; always 0 for other policies).
+	RestartMaxRetries int
+	NetworkMode       string
+	Mounts            []Mount
 	// Networks maps network name to the container's addresses on it.
 	Networks map[string]EndpointInfo
 	Ports    []Port

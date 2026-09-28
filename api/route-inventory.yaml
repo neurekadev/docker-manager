@@ -1221,6 +1221,15 @@ routes:
     kind: json
     status: implemented
     notes: Body names the environment; no side effects.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/validations"
+    operationId: create-stack-definition-validation
+    capability: stack.definition.write
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "The stack's files on disk in its own project directory, as a deploy loads them; no side effects, no job."
   - method: GET
     path: "/api/v1/stacks/{stackId}/revisions"
     operationId: list-stack-revisions
@@ -2524,6 +2533,15 @@ routes:
     owner: 26
     kind: json
     status: implemented
+  - method: POST
+    path: "/api/v1/jobs/{jobId}/retries"
+    operationId: create-job-retry
+    capability: job.read
+    scope: resource
+    owner: 26
+    kind: json
+    status: implemented
+    notes: "202 + the new job (retryOf); the engine also authorizes the kind's own capabilities on every target; Idempotency-Key; 409 job_not_retryable."
   - method: GET
     path: "/api/v1/jobs/{jobId}/events/stream"
     operationId: stream-job-events
