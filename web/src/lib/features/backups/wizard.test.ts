@@ -174,9 +174,7 @@ describe('PolicyWizard (#10)', () => {
 		await user.click(screen.getByRole('radio', { name: /^Custom/ }));
 		expect(screen.getByRole('spinbutton', { name: /^Daily/ })).toHaveValue(7);
 		await user.click(screen.getByRole('radio', { name: /^Keep the last 30/ }));
-		expect(
-			screen.getByText('Keep last 30; always keeps the newest 1 of each.')
-		).toBeInTheDocument();
+		expect(screen.getByText('Keep last 30.')).toBeInTheDocument();
 		expect(writes).toEqual([]);
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		expect(oncancel).toHaveBeenCalledTimes(1);
