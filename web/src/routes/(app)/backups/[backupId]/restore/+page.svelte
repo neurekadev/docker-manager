@@ -3,12 +3,17 @@
 	// volumes, or one file; system and manager restores go through a fresh
 	// Docker Manager), preview exactly what is written and which containers stop,
 	// confirm, then follow the restore to a success, partial or failure
-	// result. A stack restore never redeploys: it offers the deploy.
+	// result. A stack restore never redeploys: it offers the deploy. A
+	// restore of what the backup holds that is still running (a reload,
+	// coming back, another tab) opens on its progress (docs/internal/web.md,
+	// "Job progress after reload").
+	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import History from '@lucide/svelte/icons/history';
 	import { api, unwrap, type Job } from '$lib/api/client';
+	import { isTerminal } from '$lib/api/job-states';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { useCriticalWork } from '$lib/features/common/unsaved.svelte';
 	import { routes } from '$lib/routes';
@@ -37,6 +42,7 @@
 	import Fields from '$lib/features/common/Fields.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import ContentsBrowser from '$lib/features/backups/ContentsBrowser.svelte';
 	import RestorePreviewView from '$lib/features/backups/RestorePreviewView.svelte';
 	import {
@@ -45,6 +51,7 @@
 		type BackupDetail,
 		type RestorePreview
 	} from '$lib/features/backups/model';
+	import { restoreMatch } from '$lib/features/backups/jobs';
 	import { backupQuery } from '$lib/features/backups/queries';
 	import { toggleVolume, volumeChoiceError } from '$lib/features/backups/restore';
 
@@ -70,8 +77,38 @@
 	let shutdown = $state(true);
 	let preview = $state<RestorePreview | null>(null);
 	let confirmText = $state('');
-	let job = $state<Job | null>(null);
-	let result = $state<Job | null>(null);
+	// The restore this page follows (the job itself lives in `restores`)
+	// and whether it started it.
+	let followId = $state<string | null>(null);
+	let startedHere = $state(false);
+
+	// Restores of what the backup holds: the one started here, else one
+	// that is running (the manager refuses a second restore of the same data).
+	const restores = useTrackedJobs(() => (backup.data ? restoreMatch(backup.data) : null));
+	const job = $derived(
+		followId
+			? restores.entries.find((e) => e.id === followId)
+			: restores.entries.find((e) => e.active)
+	);
+	const result = $derived(job && !job.active && isTerminal(job.job?.state) ? job.job : undefined);
+	/** The restore wrote a stack's definition and files (it offers the deploy). */
+	const stackRestore = $derived.by(() => {
+		if (startedHere) return scope === 'stack';
+		const targets = job?.job?.targets ?? [];
+		return targets.some((t) => t.type === 'stack') && !targets.some((t) => t.type === 'volume');
+	});
+
+	// Found running when the page opened: follow it and go straight to
+	// its progress.
+	$effect(() => {
+		const found = job;
+		if (!found) return;
+		untrack(() => {
+			if (followId) return;
+			followId = found.id;
+			if (current < 2) current = 2;
+		});
+	});
 
 	// An in-progress restore must not be reloaded away (#23).
 	useCriticalWork(
@@ -162,7 +199,7 @@
 			if (step.id === 'preview' && !preview?.canRestore) return false;
 			if (step.id === 'restore') {
 				if (!job) {
-					job = await unwrap(
+					const started = await unwrap(
 						api.POST('/api/v1/backups/{backupId}/restores', {
 							params: {
 								path: { backupId: b.id },
@@ -171,6 +208,9 @@
 							body: { ...body(true), confirm: true }
 						})
 					);
+					restores.add(started, `Restore ${itemName(b)}`);
+					followId = started.id;
+					startedHere = true;
 					return false;
 				}
 			}
@@ -186,7 +226,7 @@
 	}
 
 	function finished(j: Job) {
-		result = j;
+		restores.markFinished(j);
 		void qc.invalidateQueries({ queryKey: ['stacks'] });
 		void qc.invalidateQueries({ queryKey: ['volumes'] });
 		const name = backup.data ? itemName(backup.data) : 'the backup';
@@ -266,6 +306,7 @@
 						bind:current
 						{onnext}
 						{canAdvance}
+						canGoBack={!job}
 						nextLabel={current === 0
 							? 'Review'
 							: current === 2 && !job
@@ -369,20 +410,22 @@
 										/>
 									</Fields>
 								{:else}
-									<JobProgress
-										jobId={job.id}
-										title="Restore {itemName(b)}"
-										variant="panel"
-										onfinish={finished}
-									/>
+									{#key job.id}
+										<JobProgress
+											jobId={job.id}
+											title={job.title ?? `Restore ${itemName(b)}`}
+											variant="panel"
+											onfinish={finished}
+										/>
+									{/key}
 									{#if result}
 										{#if result.state === 'succeeded'}
 											<Notice tone="info" title="Restored" live="status">
-												{scope === 'stack'
+												{stackRestore
 													? 'The definition on disk is the restored one. Deploy the stack to run it; Docker Manager never deploys on its own.'
 													: 'The data is back in place.'}
 												{#snippet actions()}
-													{#if scope === 'stack' && b.stackId}<Button
+													{#if stackRestore && b.stackId}<Button
 															size="sm"
 															href={routes.stack(b.stackId)}
 															>Open the stack</Button

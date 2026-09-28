@@ -4,7 +4,9 @@
 	// health, the verification schedule in one sentence (Edit schedule), the
 	// last connection test and what a recovery from here needs. Locations,
 	// key generations, fingerprints and restic's raw snapshots wait under
-	// Advanced.
+	// Advanced. Running verifications of its locations (scheduled, by hand
+	// or moving them to a rotated key) show their progress, also after a
+	// reload (docs/internal/web.md, "Job progress after reload").
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -15,7 +17,7 @@
 	import PlugZap from '@lucide/svelte/icons/plug-zap';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import { api, unwrap, unwrapEmpty } from '$lib/api/client';
+	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
@@ -54,8 +56,11 @@
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import CompressionField from '$lib/features/backups/CompressionField.svelte';
 	import ConnectionTestResult from '$lib/features/backups/ConnectionTestResult.svelte';
+	import { verifyMatch, verifyTitle } from '$lib/features/backups/jobs';
 	import KeyRotationDialog from '$lib/features/backups/KeyRotationDialog.svelte';
 	import RecoveryKeyChallenge from '$lib/features/backups/RecoveryKeyChallenge.svelte';
 	import {
@@ -91,6 +96,24 @@
 	}));
 	const envs = createQuery(() => environmentsQuery());
 	const envName = (e: string) => environmentName(envs.data, e);
+	// Verifications of the repository's locations.
+	const verifications = useTrackedJobs(() => (id ? verifyMatch(id) : null));
+
+	function verified(j: Job) {
+		void qc.invalidateQueries({ queryKey: backupKeys.repository(id) });
+		void qc.invalidateQueries({ queryKey: backupKeys.health(id) });
+		const name = repo.data?.name ?? 'the repository';
+		const where =
+			j.kind === 'manager.verify' || !j.environmentId
+				? 'the manager state'
+				: envName(j.environmentId);
+		if (j.state === 'succeeded')
+			toast.success(`Verified ${name} for ${where}: no damage found`);
+		else if (j.state !== 'cancelled')
+			toast.error(`The verification of ${name} for ${where} found a problem`, {
+				body: j.error?.recovery ?? j.error?.message
+			});
+	}
 
 	usePage(() => ({
 		title: repo.data?.name ?? 'Backup repository',
@@ -355,6 +378,13 @@
 					{/if}
 				</Card>
 			{/if}
+
+			<ActiveJobs
+				jobs={verifications}
+				titleOf={(j) => verifyTitle(j, r.name, envName)}
+				onfinish={verified}
+				label="Verifications of {r.name}"
+			/>
 
 			{#if test}
 				<Card title="Connection test"><ConnectionTestResult {test} /></Card>

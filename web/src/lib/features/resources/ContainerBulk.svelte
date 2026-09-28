@@ -15,7 +15,6 @@
 	import { planContainers, type BulkPlan, type ContainerBulkVerb } from './bulk';
 	import { runBulk } from './bulk-run';
 	import { containerActions, runContainerAction } from './container-actions';
-	import { resourceKey } from './jobs.svelte';
 
 	interface Props {
 		selected: Container[];
@@ -91,7 +90,6 @@
 				protection: c.protection,
 				environmentName: environmentName(c.environmentId)
 			}),
-			key: (c) => resourceKey('container', c.environmentId, c.name),
 			queryClient,
 			invalidate: [queryKeys.containers.all, ['stacks', 'services']]
 		});

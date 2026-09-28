@@ -36,6 +36,7 @@ web/src/
   lib/api/client.ts           typed client, unwrap(), ApiRequestError, schema type aliases
   lib/api/queries.ts          query keys, queryOptions factories, QueryClient
   lib/api/jobs.svelte.ts      JobWatcher (job event stream with a polling fallback)
+  lib/api/job-states.ts       ACTIVE_JOB_STATES / TERMINAL_STATES (the one list of each)
   lib/features/<area>/        feature screens' logic and components (updates, maintenance,
                               backups, access, ...); lib/features/common: page layout, facts,
                               QueryView (loading/denied/missing/error), schedules, critical work
@@ -167,7 +168,9 @@ order and cells: the image's update state is
 `$lib/features/updates/ImageUpdateBadge.svelte` (an icon with the state
 in its tooltip; with a policy the user may check it starts that policy's
 `update.check` job through `check.svelte.ts` and spins until the job
-ends; the containers list finds the policy with `policiesByTarget` /
+ends, and while the running list has an `update.check` of that policy
+(`checkingPolicies` in `updates/running.ts`; checks of an
+environment policy do not spin per-target badges); the containers list finds the policy with `policiesByTarget` /
 `containerPolicy`, the services table from the image status's
 `policyId`), and the networks are `$lib/features/resources/NetworkList.svelte`
 (each network linked to its page with the addresses on it). The services
@@ -250,7 +253,11 @@ times"). The record drawer keeps the action key, raw targets, request
 ID, error class and chain position under Advanced.
 
 Stack actions that start jobs go through `$lib/features/stacks/deploy.svelte.ts`
-(`startDeploy`) and the page's `JobTray`: a tracked job's `successFor`
+(`startDeploy`) and the page's `JobTray`, which also adopts the stack's
+running jobs from the running list (`tray.adopt`, words from
+`stackJobCopy` in `adopt.ts`; see "Job progress after reload" below), so
+a reload or the `?job=&kind=` handoff of Create stack (dropped from the
+URL once read) finds them again: a tracked job's `successFor`
 computes the success toast once it ended, from data read again (a deploy
 whose `appliedRevision.at` did not move started no container: "Nothing to
 deploy"). Deploy is the header's one primary action (a split button that
@@ -328,6 +335,74 @@ Changes the manager guards with recent authentication answer
 `$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for
 the password (plus TOTP) or a passkey once and the call is retried;
 dismissing it throws `StepUpCancelledError`.
+
+## Job progress after reload
+
+Every progress bar survives a reload and leaving and coming back: a view
+never keeps a job ID only in component or module state. It restores what
+it shows from **the running list**, `activeJobsQuery()` (`GET
+/jobs?state=<ACTIVE_JOB_STATES>&limit=200`, key `liveKeys.list('jobs',
+'active')`, one request per tab however many views read it). Job events
+refresh it (the live client invalidates `['jobs', 'list', …]`, at most
+twice a second); it polls every 10 s only while the stream is down
+(`pollWhileDown`). (The live `job` event also names the job's targets,
+policy and progress, for clients that match events without refetching;
+the web refetches the list.)
+
+- **Matching** (`$lib/features/jobs/active.ts`, pure): `matchJob(job,
+  { targets, kinds, kindPrefix, excludeKinds, policyId, environmentId })`.
+  Targets match by type and ID or ID prefix (file jobs:
+  `path:/<scopeKind>/<scopeId>/…`); a target's environment is its own,
+  else the job's (names repeat across environments); `policyId: null`
+  means jobs run for no policy (a one-off prune). The server offers the
+  same filters (`kind` as a comma list, `target` + `targetEnvironmentId`)
+  for views that list older jobs.
+- **Tracking** (`useTrackedJobs(() => match)` in `tracked.svelte.ts`):
+  the jobs the view started (`add(job, title)` with the POST answer, shown
+  at once) ∪ the matching running jobs ∪ the jobs it showed that have
+  ended since (kept with their outcome until dismissed or the view goes
+  away; `trackedEntries`). A new match (another object in the same
+  layout) starts over.
+- **Showing** (`ActiveJobs.svelte`): one `JobProgress` per job, titled by
+  the view (`titleOf`) or `jobTitle`; Dismiss on ended jobs; `onfinish`
+  once per job for the view's toast and refresh. At most
+  `MAX_JOB_STREAMS` (3) running jobs per view follow their own event
+  stream (browsers open six connections per host over HTTP/1.1, and the
+  live stream takes one); the others are compact `JobRow`s fed by the
+  running list, and switch to `JobProgress` when they end (its stream
+  replays the end and closes). The stack page's `JobTrayView` applies the
+  same cap (`streamedIds`).
+- **Top bar**: `RunningJobs` (`$lib/shell`) shows "N running" from the
+  same list, linking to `/jobs?state=active` (the jobs list's "In
+  progress" filter); hidden while nothing runs and for restricted users.
+
+What each view matches (the pure helpers are spec-tested next to them):
+
+| view | running jobs shown |
+| --- | --- |
+| stack page (tray, all tabs) | target `stack:<id>`, every kind but `update.check` (`stackTrayMatch`); on `/migrate` also not `stack.migrate` |
+| migration wizard | a running `stack.migrate` of the stack reopens it at the move step (`migration-resume.ts`); the wizard shows it instead of the tray and hands it back when left while it runs |
+| stacks list | one match for the list (`stackListMatch`), the newest job per stack as a status word in the row (`StackJobStatus`) |
+| import dialog | `stack.import` of the environment, matched to projects by their stack target |
+| container, network pages | target by name in the environment (`object-jobs.ts`) |
+| image page | the image ID, each tag in the forms a pull may have used (`nginx` = `library/nginx` = `docker.io/library/nginx`) and each digest |
+| volume page | target by name; on Files and Migrate not the tab's own kinds (the tab shows them) |
+| volume migrate page | `volume.migrate` from this environment: progress and result instead of the wizard |
+| images, containers lists, new container | `image.pull`, `container.create` of the selected environment |
+| prune buttons | `prune.run` without a policy in the button's environments ("Pruning…"; the dialog opens on it) |
+| maintenance, backup policy pages | every job of the policy (one bar per environment; the backup page passes its activity to the runs table) |
+| backup, repository pages | verifications of the repository (`features/backups/jobs.ts`) |
+| restore dialog and wizard | a restore of the backup's stack or volumes opens on its progress |
+| update policy page, Updates, preview dialog | the policy's `update.check`/`update.run`; the Updates list counts them per policy; the preview dialog opens on a running `update.run`; succeeded update jobs clear after 4 s |
+| file manager | see "Files, logs and terminals" |
+
+Uploads are the exception: they are browser requests, not jobs, so a
+reload or closing the tab cancels them (the browser asks first; see
+"Files, logs and terminals").
+
+Tests: `active.spec.ts` (matching, the tracked union, the stream cap),
+`active.test.ts` (`ActiveJobs`), `running-jobs.test.ts`, `tray.test.ts`
+(the stack layout's tray after a reload and the Create stack handoff).
 
 ## PWA
 
@@ -495,7 +570,19 @@ only wire resources to it:
   `stack.definition.write` in the stack's `actions`; silent when it
   fails) and offers Deploy (the stack page's job tray) while
   `undeployedChanges` is set. `POST /stacks/validations` is the create
-  dialog's (a submitted definition, `stack.create`).
+  dialog's (a submitted definition, `stack.create`). File operations
+  (copy, move, delete, archive, extract, permissions) are jobs:
+  `OperationsPanel` shows the root's from the running list
+  (`fileJobMatch` in `files/jobs.ts`: `files.*` jobs with the root's
+  `stack:<id>`/`volume:<name>` target in its environment,
+  `template.files.*` with `template:<id>`), so they come back after a
+  reload, and Cancel posts `/jobs/{id}/cancellations` for any of them.
+  Uploads are browser requests: their queues live in `uploads.svelte.ts`,
+  one per root (`uploadQueue(key)`, `releaseUploadQueue`), so they keep
+  running while the user is elsewhere in the app; while one uploads it
+  registers `criticalWork` and a `beforeunload` prompt (a reload or
+  closing the tab cancels it; no `beforeNavigate` guard, since in-app
+  navigation does not).
   Details: [api/files.md](api/files.md#ui-22-23).
 - **Logs:** `LogFeed` follows each container's SSE stream with its cursor
   (Follow off/on resumes with `since`, repeats are skipped) and merges them

@@ -6,18 +6,9 @@
 // polls GET /jobs/{id} until the job finishes. Nothing here mutates.
 import type { Job, JobEvent, JobItem } from './client';
 import { api, unwrap, type ApiClient } from './client';
+import { isTerminal } from './job-states';
 
-export const TERMINAL_STATES = [
-	'succeeded',
-	'failed',
-	'partial',
-	'cancelled',
-	'interrupted'
-] as const;
-
-export function isTerminal(state: string | undefined): boolean {
-	return !!state && (TERMINAL_STATES as readonly string[]).includes(state);
-}
+export { ACTIVE_JOB_STATES, TERMINAL_STATES, isActiveJobState, isTerminal } from './job-states';
 
 /** The parts of EventSource the watcher uses (fakeable in tests). */
 export interface EventSourceLike {

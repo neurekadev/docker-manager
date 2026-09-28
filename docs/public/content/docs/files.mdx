@@ -19,6 +19,15 @@ on a volume's **Files** tab (the data inside the volume).
 
 Deleting can't be undone: Docker Manager keeps no copy.
 
+Good to know:
+
+- Uploads keep going while you open other pages of Docker Manager.
+  Reloading or closing the browser tab cancels the uploads still running;
+  your browser asks first.
+- Copying, moving, deleting, archiving, extracting and permission changes
+  keep running on the server. When you come back, they show under the files
+  again, with **Cancel** while they run.
+
 ## Archives
 
 - **Create archive** packs files into a `.zip` (opens anywhere) or a
@@ -35,6 +44,10 @@ Click a file to open it in the editor. It highlights the syntax, can
 **Format** YAML and JSON, and has **Search and replace**. Press **Save** or
 <kbd>Ctrl</kbd> <kbd>S</kbd>.
 
+<kbd>Tab</kbd> indents the line (or the selected lines) and
+<kbd>Shift</kbd> <kbd>Tab</kbd> moves them back out. To leave the editor
+with the keyboard, press <kbd>Esc</kbd> and then <kbd>Tab</kbd>.
+
 The arrow next to **Format** has two more choices:
 
 - **Minify** puts a JSON file on one line without spaces. It's not
@@ -44,10 +57,6 @@ The arrow next to **Format** has two more choices:
 
 Nothing is saved until you press **Save**, and <kbd>Ctrl</kbd> <kbd>Z</kbd>
 brings the old text back. If the file has a mistake, the editor tells you
-<kbd>Tab</kbd> indents the line (or the selected lines) and
-<kbd>Shift</kbd> <kbd>Tab</kbd> moves them back out. To leave the editor
-with the keyboard, press <kbd>Esc</kbd> and then <kbd>Tab</kbd>.
-
 what is wrong and leaves your text as it is.
 
 - In a stack, saving `compose.yaml` or `.env` does not deploy. See

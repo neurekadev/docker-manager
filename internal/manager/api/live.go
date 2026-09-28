@@ -76,14 +76,42 @@ type LiveInvalidate struct {
 }
 
 // LiveJob is a job's current state (details: GET /jobs/{jobId}/events/stream).
+// It reaches only subscribers who may read the job (job.read, as GET
+// /jobs/{jobId}) and carries what that route returns about its identity and
+// progress: enough for a view to match a running job to what it shows.
 type LiveJob struct {
-	JobID           string    `json:"jobId"`
-	Kind            string    `json:"kind"`
-	State           string    `json:"state"`
-	EnvironmentID   string    `json:"environmentId,omitempty"`
-	ProgressPercent *int      `json:"progressPercent,omitempty"`
-	Revision        int64     `json:"revision" doc:"The job's event sequence: ignore when not above the cached one."`
-	At              time.Time `json:"at"`
+	JobID           string      `json:"jobId" example:"0190a6e0-0000-7000-8000-000000000001"`
+	Kind            string      `json:"kind" example:"stack.deploy"`
+	State           string      `json:"state" example:"running"`
+	EnvironmentID   string      `json:"environmentId,omitempty"`
+	Targets         []JobTarget `json:"targets" doc:"The job's targets (as in GET /jobs/{jobId})."`
+	PolicyID        string      `json:"policyId,omitempty" doc:"Policy the job runs for."`
+	ProgressPercent *int        `json:"progressPercent,omitempty"`
+	Step            string      `json:"step,omitempty" doc:"Current step of the kind's plan (while the job is active)."`
+	Message         string      `json:"message,omitempty" doc:"Latest progress message (while the job is active)."`
+	Revision        int64       `json:"revision" doc:"The job's event sequence: ignore when not above the cached one."`
+	At              time.Time   `json:"at"`
+}
+
+// newLiveJob shapes a job event: the bus event carries the whole job; the
+// attributes are the fallback for events without it.
+func newLiveJob(e events.Event) LiveJob {
+	j := LiveJob{JobID: e.ResourceID, Kind: e.Attributes["kind"], State: e.Attributes["state"], EnvironmentID: e.EnvironmentID,
+		Targets: []JobTarget{}, Revision: e.Revision, At: e.At}
+	if p, err := strconv.Atoi(e.Attributes["percent"]); err == nil {
+		j.ProgressPercent = &p
+	}
+	if e.Job == nil {
+		return j
+	}
+	for _, t := range e.Job.Targets {
+		j.Targets = append(j.Targets, JobTarget{Type: string(t.Type), ID: t.ID, EnvironmentID: t.EnvironmentID})
+	}
+	j.PolicyID = e.Job.PolicyID
+	if !e.Job.State.Terminal() {
+		j.Step, j.Message = e.Job.Progress.Step, e.Job.Progress.Message
+	}
+	return j
 }
 
 // LiveAgentStatus is an environment's connection state.
@@ -217,12 +245,7 @@ func liveEvent(c authz.Checker, f liveFilter, r live.Record, cursor string) (str
 	}
 	switch e.Type {
 	case events.JobUpdated:
-		j := LiveJob{JobID: e.ResourceID, Kind: e.Attributes["kind"], State: e.Attributes["state"], EnvironmentID: e.EnvironmentID,
-			Revision: e.Revision, At: e.At}
-		if p, err := strconv.Atoi(e.Attributes["percent"]); err == nil {
-			j.ProgressPercent = &p
-		}
-		return "job", j, true
+		return "job", newLiveJob(e), true
 	case events.EnvironmentOnline, events.EnvironmentOffline:
 		st := "online"
 		if e.Type == events.EnvironmentOffline {

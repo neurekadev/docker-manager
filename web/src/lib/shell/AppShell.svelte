@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The signed-in app shell (#22): sidebar (≥1280 px full, 1024–1279 px icon
 	// rail, <1024 px off-canvas drawer), top bar (sidebar toggle, breadcrumbs,
-	// live indicator, ⌘K search, notices, user menu), the offline banner
+	// live indicator, running jobs, ⌘K search, notices, user menu), the offline banner
 	// when the live stream has been down for 5 s, and the offline-environment
 	// banner for the selected environment (not on that environment's own
 	// page, which says it itself). A single crumb that repeats the page
@@ -38,6 +38,7 @@
 	import EnvironmentSwitcher from './EnvironmentSwitcher.svelte';
 	import LiveIndicator from './LiveIndicator.svelte';
 	import NoticesBell from './NoticesBell.svelte';
+	import RunningJobs from './RunningJobs.svelte';
 	import Sidebar from './Sidebar.svelte';
 	import UserMenu from './UserMenu.svelte';
 	import { environmentSelection } from './environment.svelte';
@@ -249,6 +250,7 @@
 				{#if crumbs.length}<Breadcrumbs items={crumbs} />{/if}
 			</div>
 			<LiveIndicator />
+			<RunningJobs enabled={!!perms.data && !isRestricted(access)} compact={narrow.current} />
 			{#if narrow.current}
 				<IconButton
 					label="Search"

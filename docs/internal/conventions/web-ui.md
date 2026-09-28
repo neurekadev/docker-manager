@@ -96,6 +96,12 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
 - **Data:** typed client + Svelte Query; a `queryOptions` factory per
   resource in `src/lib/api/queries.ts` keyed with `liveKeys` ([live-sync.md](live-sync.md)) so live events refresh it; mutations invalidate by prefix, never
   retry; views never read the stream. Jobs: `JobProgress` / `JobWatcher`;
+  every progress UI restores from the running list (`activeJobsQuery`,
+  `useTrackedJobs` + `matchJob`, `ActiveJobs`; docs/internal/web.md, "Job
+  progress after reload"), so it survives a reload and coming back: never
+  keep a job ID only in component or module state (add the job you started
+  with `tracked.add`), and never copy the active states
+  (`ACTIVE_JOB_STATES` in `$lib/api/job-states.ts`);
   job rows lead with the target's name (`jobHeadline(job, { nameOf,
   fallback })` in `$lib/features/jobs/labels.ts`: stack IDs resolve with
   `stackNames(stacks)`, opaque IDs are never shown). The runs of a policy

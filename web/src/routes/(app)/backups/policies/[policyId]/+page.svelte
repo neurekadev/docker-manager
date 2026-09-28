@@ -6,6 +6,9 @@
 	// the next runs, and its recent runs with their sizes. Editing opens the
 	// one-screen editor in a dialog (routes.backupPolicyEdit() links here
 	// with it open); retention runs with its preview and confirmation.
+	// Every running job of the policy (backups, retention) shows a progress
+	// bar and the recent runs show the sets being written, all found again
+	// after a reload (docs/internal/web.md, "Job progress after reload").
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -30,7 +33,6 @@
 		DestructiveConfirm,
 		EmptyState,
 		IconButton,
-		JobProgress,
 		KpiCard,
 		Menu,
 		PageHeader,
@@ -56,7 +58,9 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import RetentionPreviewPanel from '$lib/features/backups/RetentionPreviewPanel.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
@@ -107,14 +111,18 @@
 	}));
 
 	let running = $state(false);
-	let jobs = $state<Job[]>([]);
-	// A run of this policy that is queued or running, however it started
-	// (schedule, another tab, the API): the button spins and waits for it
-	// (the manager refuses a second run with backup_run_active).
+	// The policy's running jobs (backups and retention), however they
+	// started (by hand, the schedule, another tab, the API).
+	const policyJobs = useTrackedJobs(() => (id ? { policyId: id } : null));
+	const backingUp = $derived(!!policyJobs.runningOf('backup.run', 'manager.backup'));
+	// A run of this policy that is queued or running: the button spins and
+	// waits for it (the manager refuses a second run with
+	// backup_run_active); its sets show their progress.
 	const activity = createQuery(() =>
-		backupActivityQuery(() => policy.data?.recentSets?.[0]?.state === 'pending')
+		backupActivityQuery(() => policy.data?.recentSets?.[0]?.state === 'pending' || backingUp)
 	);
-	const active = $derived((activity.data ?? []).some((a) => a.policyId === id));
+	const policyActivity = $derived((activity.data ?? []).filter((a) => a.policyId === id));
+	const active = $derived(policyActivity.length > 0 || backingUp);
 	let retentionOpen = $state(false);
 	let deleteOpen = $state(false);
 
@@ -130,7 +138,7 @@
 					body: {}
 				})
 			);
-			jobs = out.jobs;
+			for (const j of out.jobs) policyJobs.add(j, jobTitle(j));
 			toast.info(`Started a backup of ${p.name}`, {
 				body: `${out.jobs.length} ${out.jobs.length === 1 ? 'job' : 'jobs'}`
 			});
@@ -152,6 +160,16 @@
 		void qc.invalidateQueries({ queryKey: ['policies'] });
 		void qc.invalidateQueries({ queryKey: ['backups'] });
 		const where = j.environmentId ? envName(j.environmentId) : 'Docker Manager';
+		if (j.kind === 'backup.retention' || j.kind === 'manager.retention') {
+			if (j.state === 'succeeded') toast.success(`Applied the retention on ${where}`);
+			else if (j.state === 'partial')
+				toast.warn(`Applied the retention on ${where} partly`, { body: j.error?.recovery });
+			else
+				toast.error(`The retention was not applied on ${where}`, {
+					body: j.error?.recovery ?? j.error?.message
+				});
+			return;
+		}
 		if (j.state === 'succeeded') toast.success(`Backed up ${where}`);
 		else if (j.state === 'partial')
 			toast.warn(`Backed up ${where} partly`, { body: j.error?.recovery });
@@ -172,7 +190,7 @@
 					body: { confirm: true }
 				})
 			);
-			jobs = out.jobs;
+			for (const j of out.jobs) policyJobs.add(j, jobTitle(j));
 			toast.info(`Applying retention of ${p.name}`);
 		} catch (e) {
 			throw new Error(actionError(e), { cause: e });
@@ -257,7 +275,7 @@
 				description={policySentence(p, {
 					repository: repo?.name,
 					environmentName: envName,
-					running: running || active || jobs.length > 0
+					running: running || active
 				})}
 			>
 				{#snippet actions()}
@@ -287,9 +305,12 @@
 				{/snippet}
 			</PageHeader>
 
-			{#each jobs as j (j.id)}
-				<JobProgress jobId={j.id} title={jobTitle(j)} onfinish={finished} />
-			{/each}
+			<ActiveJobs
+				jobs={policyJobs}
+				titleOf={jobTitle}
+				onfinish={finished}
+				label="Running jobs of {p.name}"
+			/>
 
 			<KpiRow>
 				<KpiCard
@@ -457,6 +478,7 @@
 						showPolicy={false}
 						environmentName={envName}
 						backups={backups.data}
+						activity={policyActivity}
 						canRetry={() => has(p, 'backup.run')}
 					/>
 				{:else}

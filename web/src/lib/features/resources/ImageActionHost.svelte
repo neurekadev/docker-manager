@@ -4,11 +4,11 @@
 	// use the image or when it is Docker Manager's own (#32), with the server's
 	// removal preview shown first.
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import { api, unwrap, type Schema } from '$lib/api/client';
+	import { api, unwrap, type Job, type Schema } from '$lib/api/client';
 	import { imageQuery, queryKeys, type Image } from '$lib/api/queries';
 	import { Button, Dialog, TextField, fieldError, toast } from '$lib/ui';
 	import RemovalDialog from './RemovalDialog.svelte';
-	import { resourceKey, trackJob } from './jobs.svelte';
+	import { trackJob } from './jobs.svelte';
 	import { removeImage } from './object-actions';
 	import { shortDigest } from './model';
 	import { refusal, RefusalError, type Refusal } from './refusals';
@@ -16,9 +16,11 @@
 	interface Props {
 		environmentName?: (env: string) => string | undefined;
 		onremoved?: (im: Image) => void;
+		/** Called with the removal's job (the page shows its progress). */
+		onstarted?: (job: Job) => void;
 	}
 
-	let { environmentName, onremoved }: Props = $props();
+	let { environmentName, onremoved, onstarted }: Props = $props();
 	const queryClient = useQueryClient();
 
 	let target = $state<Image | null>(null);
@@ -67,9 +69,9 @@
 			const job = await removeImage(im.environmentId, im.id, {
 				force: im.repoTags.length > 1
 			});
+			onstarted?.(job);
 			trackJob(job, {
 				ctx,
-				key: resourceKey('image', im.environmentId, im.id),
 				queryClient,
 				invalidate: [queryKeys.images.all],
 				onfinish: (j) => {

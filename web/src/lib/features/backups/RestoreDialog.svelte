@@ -4,9 +4,14 @@
 	// containers stop; the danger button says what gets replaced: all of it
 	// (full; typed confirmation) or only the selected items. Affected
 	// containers stop first and only the ones that were running start again;
-	// starting them meanwhile is refused (restore_in_progress).
+	// starting them meanwhile is refused (restore_in_progress). Opened while
+	// a restore of the subject runs (after a reload, from another tab), it
+	// shows that restore's progress instead (docs/internal/web.md, "Job
+	// progress after reload").
+	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap, type Job } from '$lib/api/client';
+	import { isTerminal } from '$lib/api/job-states';
 	import { liveKeys } from '$lib/live/keys';
 	import {
 		Button,
@@ -22,6 +27,8 @@
 	import { newIdempotencyKey } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
 	import { useCriticalWork } from '$lib/features/common/unsaved.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
+	import { restoreMatch } from './jobs';
 	import RestorePreviewView from './RestorePreviewView.svelte';
 	import type { Backup } from './model';
 	import { restoreBody, restoreConsequences, type RestorePlan } from './restore';
@@ -52,21 +59,41 @@
 	let typed = $state('');
 	let starting = $state(false);
 	let error = $state<string | null>(null);
-	let job = $state<Job | null>(null);
-	let result = $state<Job | null>(null);
+	// The restore the dialog follows (started here, or found running when
+	// it opened); the job itself lives in `restores`.
+	let followId = $state<string | null>(null);
+
+	// Restores of the subject (the manager refuses a second one).
+	const restores = useTrackedJobs(() => restoreMatch(backup, volume), {
+		enabled: () => open
+	});
+	const job = $derived(
+		followId
+			? restores.entries.find((e) => e.id === followId)
+			: open
+				? restores.entries.find((e) => e.active)
+				: undefined
+	);
+	const result = $derived(job && !job.active && isTerminal(job.job?.state) ? job.job : undefined);
 
 	const full = $derived(plan.kind === 'full');
 	const deploys = $derived(full && canDeploy && backup.kind === 'stack' && !volume && redeploy);
 	const body = $derived(restoreBody(backup, plan, { volume, redeploy: deploys }));
 
 	$effect(() => {
-		if (open) return;
+		const found = job;
+		if (open) {
+			// Keep following a restore found running until it ends.
+			if (found) untrack(() => (followId ??= found.id));
+			return;
+		}
 		typed = '';
 		error = null;
-		if (result) {
-			job = null;
-			result = null;
-		}
+		untrack(() => {
+			if (!result) return;
+			restores.dismiss(result.id);
+			followId = null;
+		});
 	});
 
 	const preview = createQuery(() => ({
@@ -116,7 +143,7 @@
 		starting = true;
 		error = null;
 		try {
-			job = await unwrap(
+			const started = await unwrap(
 				api.POST('/api/v1/backups/{backupId}/restores', {
 					params: {
 						path: { backupId: backup.id },
@@ -125,6 +152,8 @@
 					body: { ...body, confirm: true }
 				})
 			);
+			restores.add(started, `Restore ${subject}`);
+			followId = started.id;
 		} catch (e) {
 			error = actionError(e, overrides);
 		} finally {
@@ -133,7 +162,7 @@
 	}
 
 	function finished(j: Job) {
-		result = j;
+		restores.markFinished(j);
 		void qc.invalidateQueries({ queryKey: ['stacks'] });
 		void qc.invalidateQueries({ queryKey: ['volumes'] });
 		void qc.invalidateQueries({ queryKey: ['jobs'] });
@@ -202,7 +231,14 @@
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 	{:else}
-		<JobProgress jobId={job.id} title="Restore {subject}" variant="panel" onfinish={finished} />
+		{#key job.id}
+			<JobProgress
+				jobId={job.id}
+				title={job.title ?? `Restore ${subject}`}
+				variant="panel"
+				onfinish={finished}
+			/>
+		{/key}
 		{#if !result}
 			<p class="muted">
 				You can close this window: the restore goes on, and the containers that were running

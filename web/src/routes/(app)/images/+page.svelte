@@ -7,6 +7,8 @@
 	// list (ListCard). Pull (#19 registry connection preview), tag and
 	// remove (in-use check) from here, removal of selected images in bulk
 	// (ObjectBulk); builds (#33) have their own page in the navigation.
+	// Running pulls of the shown environment(s) are listed above the images,
+	// from the running list: they stay after the dialog closes or a reload.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Download from '@lucide/svelte/icons/download';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
@@ -42,6 +44,10 @@
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionMark from '$lib/features/resources/ProtectionMark.svelte';
 	import PullImageDialog from '$lib/features/resources/PullImageDialog.svelte';
+	import { kindJobs } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
+	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import {
 		applyListFilters,
@@ -66,6 +72,7 @@
 	const filters = new ListFilters('images');
 	let pullOpen = $state(false);
 	let host = $state<ImageActionHost>();
+	const pulls = useTrackedJobs(() => kindJobs(['image.pull'], environmentSelection.id));
 
 	const all = $derived(list.data?.items ?? []);
 	const defs = $derived(imageFilters({ envs: scope.single ? [] : scope.targets }));
@@ -208,6 +215,7 @@
 	bind:open={pullOpen}
 	environments={pullable}
 	environmentId={scope.single ? scope.targets[0]?.id : undefined}
+	onstarted={(job, title) => pulls.add(job, title)}
 />
 
 {#if scope.restricted}
@@ -235,6 +243,14 @@
 				{/if}
 			{/snippet}
 		</PageHeader>
+
+		<ActiveJobs
+			jobs={pulls}
+			label="Image pulls"
+			onfinish={(j) => {
+				if (j.state === 'succeeded') void list.refetch();
+			}}
+		/>
 
 		{#if list.data}
 			<EnvironmentGaps

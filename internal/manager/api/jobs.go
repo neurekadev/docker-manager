@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -48,8 +49,8 @@ const DefaultSSEHeartbeat = sse.DefaultHeartbeat
 
 // JobTarget is a resource a job acts on.
 type JobTarget struct {
-	Type          string `json:"type" enum:"stack,container,volume,image,network,repository,path,destination_path,build_definition,maintenance_policy" doc:"Target resource type."`
-	ID            string `json:"id" doc:"Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID)."`
+	Type          string `json:"type" enum:"stack,container,volume,image,network,repository,path,destination_path,build_definition,maintenance_policy,template" doc:"Target resource type."`
+	ID            string `json:"id" doc:"Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID, template ID)."`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"Environment of the target when it differs from the job's (migrations)."`
 }
 
@@ -226,10 +227,11 @@ func newJobEvent(e domain.JobEvent) JobEvent {
 type listJobsInput struct {
 	PageParams
 	State         []string `query:"state" enum:"queued,blocked,dispatched,running,cancelling,succeeded,failed,partial,cancelled,interrupted" doc:"Only jobs in these states."`
-	Kind          string   `query:"kind" maxLength:"64" doc:"Only jobs of this kind."`
+	Kind          string   `query:"kind" maxLength:"1024" doc:"Only jobs of these kinds: one kind or a comma-separated list (at most 32), e.g. stack.deploy,stack.pull."`
 	Origin        []string `query:"origin,explode" enum:"manual,scheduled,api_token" doc:"Only jobs with these origins (repeat the parameter)."`
 	EnvironmentID string   `query:"environmentId" maxLength:"128" doc:"Only jobs in (or targeting) this environment."`
 	Target        string   `query:"target" maxLength:"1100" doc:"Only jobs with this target, as type:id (e.g. stack:0190a6e0-...)."`
+	TargetEnvID   string   `query:"targetEnvironmentId" maxLength:"128" doc:"With target: only when that target is in this environment (a target's environment is its own, else the job's). Names such as containers and volumes are unique per environment only."`
 	PolicyID      string   `query:"policyId" maxLength:"128" doc:"Only jobs run for this policy (its scheduled runs and manual runs of it; for an environment-wide update policy, the jobs of every target it covers)."`
 }
 
@@ -307,6 +309,30 @@ func parseTarget(s string) (*domain.JobTarget, error) {
 	return nil, Invalid("invalid target filter", Field("query.target", "unknown target type "+typ))
 }
 
+// maxKindFilters bounds the kinds of one jobs query.
+const maxKindFilters = 32
+
+// parseKinds reads the kind filter: one kind or a comma-separated list.
+func parseKinds(s string) ([]domain.JobKind, error) {
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
+	}
+	var out []domain.JobKind
+	for _, k := range strings.Split(s, ",") {
+		k = strings.TrimSpace(k)
+		if k == "" || len(k) > 64 {
+			return nil, Invalid("invalid kind filter", Field("query.kind", "want a kind or a comma-separated list of kinds"))
+		}
+		if !slices.Contains(out, domain.JobKind(k)) {
+			out = append(out, domain.JobKind(k))
+		}
+	}
+	if len(out) > maxKindFilters {
+		return nil, Invalid("too many kinds", Field("query.kind", "at most 32 kinds"))
+	}
+	return out, nil
+}
+
 func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput, error) {
 	p, err := h.principal(ctx)
 	if err != nil {
@@ -316,8 +342,8 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 	for _, s := range in.State {
 		f.States = append(f.States, domain.JobState(s))
 	}
-	if in.Kind != "" {
-		f.Kinds = []domain.JobKind{domain.JobKind(in.Kind)}
+	if f.Kinds, err = parseKinds(in.Kind); err != nil {
+		return nil, err
 	}
 	for _, o := range in.Origin {
 		f.Origins = append(f.Origins, domain.JobOrigin(o))
@@ -326,8 +352,12 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 		if f.Target, err = parseTarget(in.Target); err != nil {
 			return nil, err
 		}
+		f.Target.EnvironmentID = in.TargetEnvID
+	} else if in.TargetEnvID != "" {
+		return nil, Invalid("invalid target filter", Field("query.targetEnvironmentId", "needs target"))
 	}
-	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target, strings.Join(in.Origin, ","), in.PolicyID)
+	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target, in.TargetEnvID,
+		strings.Join(in.Origin, ","), in.PolicyID)
 	var after jobsCursor
 	if in.Cursor != "" {
 		if err := DecodeCursorFor(in.Cursor, fingerprint, &after); err != nil {

@@ -270,13 +270,19 @@ never by initiator ([authorization](authorization.md)).
 ## API
 
 - `GET /api/v1/jobs` — cursor pagination (`cursor`, `limit`), filters
-  `state` (repeatable), `kind`, `origin` (repeatable), `environmentId`,
-  `target=type:id`, `policyId` (index `jobs_policy`); permission-filtered
-  per item. `total` counts the visible matches and is sent only when
-  exact: one COUNT query (`Engine.Count`, the list's filters) for a caller
-  who reads every job (the owner's session, detected with an owner-only
-  capability), otherwise a `job.read` check of each of at most 1000
-  matching jobs; absent above that.
+  `state` (repeatable or comma-separated), `kind` (one kind or a
+  comma-separated list of at most 32), `origin` (repeatable),
+  `environmentId`, `target=type:id` with optional `targetEnvironmentId`
+  (the target's environment: its own, else the job's; container, volume
+  and network names repeat across environments), `policyId` (index
+  `jobs_policy`); permission-filtered per item. The web UI restores every
+  progress bar from `?state=<active states>&limit=200`
+  ([web.md](../web.md#job-progress-after-reload)). `total` counts the
+  visible matches and is sent only when exact: one COUNT query
+  (`Engine.Count`, the list's filters) for a caller who reads every job
+  (the owner's session, detected with an owner-only capability),
+  otherwise a `job.read` check of each of at most 1000 matching jobs;
+  absent above that.
 - `GET /api/v1/jobs/{jobId}`.
 - `POST /api/v1/jobs/{jobId}/cancellations` — 202 with the job; 409
   `job_finished`.

@@ -9,10 +9,15 @@
 	// "Remove from source" list always match what is copied. Afterwards the
 	// source stays stopped: remove it, or start it again. Nothing is
 	// deleted automatically. A migration needs a second environment; with
-	// only one the wizard says so instead of showing its steps.
+	// only one the wizard says so instead of showing its steps. A migration
+	// of the stack that is running already (after a reload, or when the
+	// user comes back) opens the wizard at the move step on its progress
+	// (the running list, docs/internal/web.md "Job progress after reload");
+	// the wizard shows it instead of the stack's job tray, and hands it back
+	// to the tray when it is left while the job runs.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import { untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import Play from '@lucide/svelte/icons/play';
@@ -21,6 +26,7 @@
 	import type { Environment, Job } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { criticalWork } from '$lib/live';
 	import { routes } from '$lib/routes';
 	import {
@@ -79,6 +85,8 @@
 		stackTitle,
 		type MigrationFinding
 	} from './model';
+	import { stackJobCopy } from './adopt';
+	import { migrationMatch, resumedMigration } from './migration-resume';
 	import { stackKeys, type Stack } from './queries';
 	import type { JobTray } from './tray.svelte';
 
@@ -91,12 +99,15 @@
 	const queryClient = useQueryClient();
 	// The stack moves: keep what it was when the wizard opened.
 	const opened = untrack(() => ({
+		id: stack.id,
 		title: stackTitle(stack),
 		source: stack.environmentId,
 		projectName: stack.name,
 		order: dependencyOrder(stack.services ?? [])
 	}));
-	const { title, source, projectName, order } = opened;
+	const { id: stackId, title, projectName, order } = opened;
+	// A resumed migration says where it moves the stack from.
+	let source = $state(opened.source);
 
 	const envs = createQuery(() => environmentsQuery());
 	const sourceEnv = $derived(envs.data?.find((e) => e.id === source));
@@ -112,6 +123,8 @@
 	let acknowledged = $state(false);
 	let jobId = $state<string | null>(null);
 	let finished = $state<Job | null>(null);
+	// The source volumes a resumed migration copies (no check to list them).
+	let resumedVolumes = $state<string[]>([]);
 	// The selection the check on screen was run for, a check in flight and
 	// the last automatic check's failure.
 	let checkedKey = $state<string | null>(null);
@@ -121,6 +134,55 @@
 	// One destination: nothing to choose.
 	$effect(() => {
 		if (!target && targets.length === 1) target = targets[0].id;
+	});
+	// Where the stack goes: the chosen destination, or where a resumed
+	// migration moved it (known once the stack has moved).
+	const dest = $derived(target || (stack.environmentId !== source ? stack.environmentId : ''));
+	const destName = $derived(dest ? envName(dest) : 'the other environment');
+
+	// The stack's running migration: the wizard opens on its progress.
+	const migrations = useTrackedJobs(() => migrationMatch(stackId));
+	// Migrations this wizard showed (a later list still listing one that
+	// ended does not bring it back) and a start in flight; not state,
+	// nothing renders from them.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const shown = new Set<string>();
+	let starting = false;
+	let release: (() => void) | null = null;
+	$effect(() => {
+		const job = migrations.running[0];
+		if (!job || envs.isPending) return;
+		untrack(() => resume(job));
+	});
+
+	function resume(job: Job) {
+		if (jobId || starting || shown.has(job.id)) return;
+		const r = resumedMigration(job, stack, envs.data);
+		source = r.source;
+		target = r.target;
+		resumedVolumes = r.volumes;
+		follow(job.id);
+		current = steps.length - 1;
+	}
+
+	/** Shows the migration here and not in the stack's job tray as well. */
+	function follow(id: string) {
+		shown.add(id);
+		jobId = id;
+		finished = null;
+		release?.();
+		release = criticalWork.register('other', `Migration of ${title}`);
+		tray.add({ id }, { kind: 'stack.migrate', ...migrationCopy(), silent: true });
+		tray.dismiss(id);
+	}
+
+	const migrationCopy = () => stackJobCopy('stack.migrate', title);
+
+	// Left while the migration runs: the stack's job tray shows it on.
+	onDestroy(() => {
+		release?.();
+		if (jobId && !finished && stack.id === stackId)
+			tray.add({ id: jobId }, { kind: 'stack.migrate', ...migrationCopy() });
 	});
 
 	const steps: WizardStep[] = [
@@ -190,7 +252,6 @@
 		return () => clearTimeout(t);
 	});
 
-	let release: (() => void) | null = null;
 	async function onnext(step: WizardStep) {
 		switch (step.id) {
 			case 'destination':
@@ -206,10 +267,10 @@
 					);
 				return;
 			case 'confirm': {
+				starting = true;
 				try {
 					const job = await startMigration(stack.id, migrationBody(selection()));
-					jobId = job.id;
-					release = criticalWork.register('other', `Migration of ${title}`);
+					follow(job.id);
 				} catch (e) {
 					const v = errorView(e);
 					if (v.code === 'migration_blocked') {
@@ -221,6 +282,8 @@
 						);
 					}
 					throw e;
+				} finally {
+					starting = false;
 				}
 				return;
 			}
@@ -235,7 +298,7 @@
 		release?.();
 		release = null;
 		void queryClient.invalidateQueries({ queryKey: stackKeys.all });
-		if (job.state === 'succeeded') toast.success(`Migrated ${title} to ${envName(target)}`);
+		if (job.state === 'succeeded') toast.success(`Migrated ${title} to ${destName}`);
 		else
 			toast.error(`${title} was not migrated`, {
 				body: `It stays on ${envName(source)}. The migration page says what failed.`
@@ -246,6 +309,7 @@
 	function startOver() {
 		jobId = null;
 		finished = null;
+		resumedVolumes = [];
 		acknowledged = false;
 		preview = null;
 		checkedKey = null;
@@ -258,6 +322,11 @@
 	let restarting = $state(false);
 	let restartResult = $state<SourceRestart | null>(null);
 	const copied = $derived(copiedVolumes(preview?.volumes ?? [], { excluded, anonymous }));
+	const removed = $derived(
+		preview
+			? copied.map((v) => ({ label: v.source, detail: `volume, ${formatBytes(v.bytes)}` }))
+			: resumedVolumes.map((v) => ({ label: v, detail: 'volume' }))
+	);
 
 	async function removeSource() {
 		if (!jobId) return;
@@ -653,9 +722,13 @@
 		</div>
 	{:else if s.id === 'move' && jobId}
 		<div class="move">
-			<JobProgress {jobId} title="Migrate {title} to {envName(target)}" onfinish={done} />
+			<JobProgress
+				{jobId}
+				title={dest ? `Migrate ${title} to ${destName}` : `Migrate ${title}`}
+				onfinish={done}
+			/>
 			{#if finished?.state === 'succeeded'}
-				<Notice tone="info" title="{title} runs on {envName(target)} now.">
+				<Notice tone="info" title="{title} runs on {destName} now.">
 					Its containers, volumes and files on {envName(source)} are stopped and kept. Remove
 					them once you are sure, or start them again. To move the stack back later, migrate
 					it back.
@@ -737,7 +810,7 @@
 	title="Start {title} on {envName(source)} again?"
 	consequences={[
 		`Starts the stopped containers of ${projectName} on ${envName(source)}, dependencies first.`,
-		`${title} keeps running on ${envName(target)} too: both copies run and their data drifts apart.`,
+		`${title} keeps running on ${destName} too: both copies run and their data drifts apart.`,
 		'To move the stack back, migrate it back instead.'
 	]}
 	confirmLabel="Start again on {envName(source)}"
@@ -752,7 +825,7 @@
 		`Deletes the migrated volumes there and the project folder ${projectName}.`,
 		`Backups of ${envName(source)} stay in their repository and remain restorable.`
 	]}
-	affected={copied.map((v) => ({ label: v.source, detail: `volume, ${formatBytes(v.bytes)}` }))}
+	affected={removed}
 	confirmText={projectName}
 	confirmLabel="Remove from {envName(source)}"
 	onconfirm={removeSource}

@@ -125,7 +125,7 @@ Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 | --- | --- | --- | --- |
 | `hello` | — | `{version: "docker-manager.live/v1", cursor, heartbeatMs, topics, resumed}` | `resumed: false`: (re)fetch every open view (the snapshot), then apply events after `cursor`; `resumed: true`: the missed events follow, cached data stays valid |
 | `invalidate` | cursor | `{topic, kind, resourceId, environmentId?, revision?, action: created\|updated\|deleted, at}` | Invalidate queries for that resource and its lists; `revision` (when the resource has one) may be compared with the cached one |
-| `job` | cursor | `{jobId, kind, state, environmentId?, progressPercent?, revision, at}` | Update job badges and lists; open `/jobs/{jobId}/events/stream` for detail |
+| `job` | cursor | `{jobId, kind, state, environmentId?, targets, policyId?, progressPercent?, step?, message?, revision, at}` | Update job badges and lists (views match running jobs to what they show by kind, targets and policy); open `/jobs/{jobId}/events/stream` for detail. `step` and `message` only while the job is active |
 | `agent` | cursor | `{environmentId, status: online\|offline, at}` | Show connection state; data of an offline environment is stale |
 | `files.changed` | cursor | see [file changes](#file-changes) | Invalidate listings; editor conflict handling |
 | `permissions.changed` | — | `{at}` | Drop **all** cached data, refetch `/me/permissions`, then reconnect; `close` follows at once |
@@ -180,7 +180,10 @@ tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
 - **Permissions:** every record is filtered per subscriber with the #17
   event rules (`authz.EventVisible`) and shaped to identity and action
   only: no attributes, no names of resources the caller cannot see, file
-  paths only with the scope's files-read capability. Container events of a
+  paths only with the scope's files-read capability. `job` events reach
+  only subscribers with `job.read` on the job and carry what `GET
+  /jobs/{jobId}` shows them about its identity and progress (targets,
+  policy, step, message), never its input. Container events of a
   container seen only through `container.metrics.read` are status
   invalidations; such a user receives nothing about files, jobs, policies
   or other containers. A permission change ends the stream with

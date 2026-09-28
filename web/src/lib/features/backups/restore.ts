@@ -2,6 +2,7 @@
 // what the confirmation says. Full restores replace everything the backup
 // holds for the subject; paths restores replace only the selected items.
 import type { Job } from '$lib/api/client';
+import { isActiveJobState } from '$lib/api/job-states';
 import type { Backup } from './model';
 
 export type RestorePlan = { kind: 'full' } | { kind: 'paths'; paths: string[] };
@@ -90,9 +91,5 @@ export function volumeChoiceError(
 
 /** A restore that has not ended (it holds back starts of its data). */
 export function activeRestore(jobs: readonly Job[] | undefined): Job | undefined {
-	return jobs?.find(
-		(j) =>
-			j.kind === 'restore.run' &&
-			['queued', 'blocked', 'dispatched', 'running', 'cancelling'].includes(j.state)
-	);
+	return jobs?.find((j) => j.kind === 'restore.run' && isActiveJobState(j.state));
 }

@@ -58,6 +58,7 @@
 		toast,
 		type MenuEntry
 	} from '$lib/ui';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import {
 		FilesApi,
 		filesCapability,
@@ -89,11 +90,12 @@
 	import type { FileCommand } from './keyboard';
 	import { archiveFormat } from './language';
 	import NameDialog from './NameDialog.svelte';
-	import OperationsPanel, { type FileOperation } from './OperationsPanel.svelte';
+	import { fileJobMatch, fileJobTitle } from './jobs';
+	import OperationsPanel from './OperationsPanel.svelte';
 	import { basename, crumbs, isRoot, join, normalize, parent } from './paths';
 	import PermissionsDialog, { type PermissionChange } from './PermissionsDialog.svelte';
 	import * as sel from './selection';
-	import { UploadQueue } from './uploads.svelte';
+	import { releaseUploadQueue, uploadQueue } from './uploads.svelte';
 
 	interface Props {
 		scope: FileScope;
@@ -300,27 +302,29 @@
 	}
 
 	// Jobs -----------------------------------------------------------------------
-	let operations = $state<FileOperation[]>([]);
-	let nextOp = 1;
+	// The root's file jobs: the ones started here at once, and every running
+	// file job of the root from the running list (a reload or coming back
+	// finds them again; docs/internal/web.md, "Job progress after reload").
+	const fileJobs = useTrackedJobs(() => fileJobMatch(scope));
+	/** Success messages of the jobs started here ("Copied 3 items to config"). */
+	const doneText: Record<string, string> = {};
 	function track(job: Job, title: string, done: string) {
-		operations = [...operations, { id: nextOp++, jobId: job.id, title, done, finished: false }];
+		doneText[job.id] = done;
+		fileJobs.add(job, title);
 	}
-	function onJobFinish(op: FileOperation, job: Job) {
-		operations = operations.map((o) =>
-			o.id === op.id ? { ...o, finished: true, state: job.state } : o
-		);
+	function onJobFinish(job: Job, title: string) {
 		refresh();
 		if (job.state === 'succeeded') {
-			toast.success(op.done);
-			setTimeout(() => (operations = operations.filter((o) => o.id !== op.id)), 4000);
+			toast.success(doneText[job.id] ?? `${title}: done`);
+			setTimeout(() => fileJobs.dismiss(job.id), 4000);
 		} else if (job.state === 'partial') {
-			toast.warn(`${op.title}: partly done`, {
+			toast.warn(`${title}: partly done`, {
 				body: 'Some items failed. The list under the files says which and why.'
 			});
 		} else if (job.state === 'cancelled') {
-			toast.info(`${op.title}: cancelled`);
+			toast.info(`${title}: cancelled`);
 		} else {
-			toast.error(`${op.title} failed`, {
+			toast.error(`${title} failed`, {
 				body:
 					job.error?.recovery || job.error?.message || 'See the details under the files.'
 			});
@@ -328,7 +332,10 @@
 	}
 
 	// Uploads ----------------------------------------------------------------------
-	const uploads = new UploadQueue({
+	// The root's queue lives in uploads.svelte.ts: transfers keep going while
+	// the user is elsewhere in the app (only unloading the page cancels them;
+	// the queue makes the browser ask first) and show again here.
+	const uploads = uploadQueue(key, {
 		url: (d, n, c) => files.uploadUrl(d, n, c),
 		maxBytes: () => limits?.uploadMaxBytes,
 		ondrained: (items) => {
@@ -342,7 +349,7 @@
 			else if (done) toast.success(`Uploaded ${done} ${done === 1 ? 'file' : 'files'}`);
 		}
 	});
-	onDestroy(() => uploads.cancelAll());
+	onDestroy(() => releaseUploadQueue(key));
 
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let folderInput = $state<HTMLInputElement | null>(null);
@@ -1243,9 +1250,9 @@
 				</footer>
 				<OperationsPanel
 					{uploads}
-					{operations}
+					jobs={fileJobs}
+					titleOf={(job) => fileJobTitle(job, scope, rootLabel)}
 					onfinish={onJobFinish}
-					ondismiss={(op) => (operations = operations.filter((o) => o.id !== op.id))}
 				/>
 			</div>
 		{/snippet}

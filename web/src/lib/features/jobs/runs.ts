@@ -3,6 +3,7 @@
 // checks, all succeeded" or "2 of 20 checks failed", instead of one line
 // per job. Pure; tested in runs.spec.ts.
 import type { Job } from '$lib/api/client';
+import { ACTIVE_JOB_STATES } from '$lib/api/job-states';
 import { formatDuration } from '$lib/ui/format';
 
 /** What a job of a kind is called in a run's summary. */
@@ -16,7 +17,8 @@ const NOUNS: Record<string, [string, string]> = {
 	'manager.verify': ['verification', 'verifications']
 };
 
-const ACTIVE = new Set(['queued', 'blocked', 'dispatched', 'running', 'cancelling', 'enqueued']);
+// `enqueued`: a schedule's run whose jobs were just started (not a job state).
+const ACTIVE = new Set<string>([...ACTIVE_JOB_STATES, 'enqueued']);
 const FAILED = new Set(['failed', 'interrupted', 'partial']);
 /** Worst first: the state a run's badge shows. */
 const RANK = [

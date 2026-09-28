@@ -4,7 +4,8 @@
 	// (system labels folded). The title is the first tag (cut with its
 	// full text as tooltip), the digest short with a copy button. Actions:
 	// create a container, tag; removal (server preview first) is the last
-	// entry of the "More actions" menu.
+	// entry of the "More actions" menu. Its running jobs (removal, pulls and
+	// builds of its tags) come from the running list, also after a reload.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -28,7 +29,6 @@
 		EmptyState,
 		ErrorState,
 		IconButton,
-		JobProgress,
 		Menu,
 		Notice,
 		OfflineEnvironment,
@@ -49,7 +49,9 @@
 	import LabelsCard from '$lib/features/resources/LabelsCard.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
-	import { activeJobs, resourceKey } from '$lib/features/resources/jobs.svelte';
+	import { imageJobs } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { joinCommand, shortDigest } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
@@ -73,7 +75,7 @@
 		q.error instanceof ApiRequestError && q.error.apiError?.code === 'environment_offline'
 	);
 	const notFound = $derived(q.error instanceof ApiRequestError && q.error.status === 404);
-	const job = $derived(im ? activeJobs.byKey[resourceKey('image', env, im.id)] : undefined);
+	const jobs = useTrackedJobs(() => (im ? imageJobs(env, im) : null));
 	const d = $derived(im?.details);
 
 	const meta = $derived<MetaItem[]>(
@@ -148,6 +150,7 @@
 	bind:this={host}
 	environmentName={() => envName}
 	onremoved={() => goto(routes.images())}
+	onstarted={(j) => jobs.add(j)}
 />
 
 <Page>
@@ -227,7 +230,7 @@
 				on the host if you really need to.
 			</Notice>
 		{/if}
-		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}
+		<ActiveJobs {jobs} variant="inline" label="Running jobs of {title}" />
 
 		<Columns ratio="equal">
 			<Card title="Details">

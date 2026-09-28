@@ -10,7 +10,10 @@
 	// Each row shows the stack tile, or the image of the template the stack
 	// was created from. Create and import are shown only with stack.create /
 	// stack.import (the server still decides). The Create stack button's
-	// menu creates a stack from a template.
+	// menu creates a stack from a template. A stack's running job (started
+	// here, on its page or elsewhere) shows in its Status cell, found in the
+	// running list (one match for the whole list), so it stays after a
+	// reload (docs/internal/web.md, "Job progress after reload").
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
@@ -41,6 +44,9 @@
 		stackTitle
 	} from '$lib/features/stacks/model';
 	import { stackJobGuidance } from '$lib/features/stacks/rename';
+	import { runningByStack, stackListMatch } from '$lib/features/stacks/list-jobs';
+	import StackJobStatus from '$lib/features/stacks/StackJobStatus.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import StackIcon from '$lib/features/stacks/StackIcon.svelte';
 	import CreateFromTemplateDialog from '$lib/features/templates/CreateFromTemplateDialog.svelte';
 	import {
@@ -98,6 +104,11 @@
 	const importDialog = urlDialog('import', ['environment']);
 	// routes.stackFromTemplate() opens the template dialog.
 	const templateDialog = urlDialog('fromTemplate', ['template', 'registry', 'environment']);
+
+	// The stacks' running jobs: started here (shown at once) or in the
+	// running list.
+	const stackJobs = useTrackedJobs(() => stackListMatch(envId));
+	const runningOf = $derived(runningByStack(stackJobs.entries));
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
@@ -211,11 +222,16 @@
 		down: ['Took down', 'taken down']
 	};
 
-	/** Reports the end of a job started from the list (toast, refresh). */
-	function follow(job: Pick<Job, 'id'>, done: string, failed: string) {
+	/**
+	 * Shows a job started from the list in its row at once and reports its
+	 * end (toast, refresh).
+	 */
+	function follow(job: Job, done: string, failed: string) {
+		stackJobs.add(job);
 		const w = new JobWatcher(job.id, {
 			onfinish: (j) => {
 				w.stop();
+				stackJobs.markFinished(j);
 				void queryClient.invalidateQueries({ queryKey: stackKeys.all });
 				if (j.state === 'succeeded') toast.success(done);
 				else if (j.state === 'cancelled') toast.info(`${failed}: the job was cancelled`);
@@ -314,7 +330,10 @@
 		</span>
 	</a>
 {/snippet}
-{#snippet statusCell(s: Stack)}<StatusBadge status={stackStatus(s)} />{/snippet}
+{#snippet statusCell(s: Stack)}
+	{@const job = runningOf.get(s.id)}
+	{#if job}<StackJobStatus {job} />{:else}<StatusBadge status={stackStatus(s)} />{/if}
+{/snippet}
 {#snippet envCell(s: Stack)}
 	{@const e = envById.get(s.environmentId)}
 	<span class="env">

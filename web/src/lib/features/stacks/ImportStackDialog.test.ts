@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
+import type { Job } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import ImportStackDialog from './ImportStackDialog.svelte';
 import type { DiscoveredStack } from './queries';
@@ -12,6 +13,38 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 
 let posted: { path: string; body: unknown }[] = [];
+// The caller's running jobs (GET /jobs?state=…) and extra discovered projects.
+let running: Job[] = [];
+let more: DiscoveredStack[] = [];
+
+// An import by copy of `media` running since before the page loaded: its
+// stack exists already, so discovery lists the project as managed.
+const mediaImport = {
+	id: 'job-7',
+	kind: 'stack.import',
+	state: 'running',
+	origin: 'manual',
+	executor: 'agent',
+	environmentId: 'env-1',
+	targets: [{ type: 'stack', id: 'st-5' }],
+	attempt: 1,
+	progress: { percent: 30, step: 'copy_files' },
+	items: [],
+	locks: [],
+	locksHeld: true,
+	cancelRequested: false,
+	cancellable: true,
+	retryable: false,
+	createdAt: '2026-09-28T10:00:00Z',
+	updatedAt: '2026-09-28T10:00:00Z'
+} as Job;
+const media: DiscoveredStack = {
+	name: 'media',
+	adoptable: false,
+	copyable: false,
+	stackId: 'st-5',
+	services: [{ name: 'jellyfin', image: 'jellyfin', containers: 1, running: 0 }]
+};
 
 // A project that runs, and one without containers copied from an import
 // mount, with its volumes.
@@ -36,6 +69,8 @@ const projects: DiscoveredStack[] = [
 
 beforeEach(() => {
 	posted = [];
+	running = [];
+	more = [];
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -72,7 +107,11 @@ beforeEach(() => {
 					]
 				});
 			case '/api/v1/environments/env-1/stacks/discovered':
-				return json(200, { projects });
+				return json(200, { projects: [...projects, ...more] });
+			case '/api/v1/jobs':
+				return json(200, { items: running, total: running.length });
+			case '/api/v1/jobs/job-7':
+				return json(200, mediaImport);
 		}
 		return json(404, {
 			code: 'not_found',
@@ -136,5 +175,25 @@ describe('ImportStackDialog', () => {
 			])
 		);
 		expect(screen.queryByRole('alertdialog')).toBeNull();
+	});
+
+	it('shows an import still running when the dialog opens again', async () => {
+		running = [mediaImport];
+		more = [media];
+		dialog();
+		const bar = await screen.findByRole('progressbar', { name: 'Import media progress' });
+		const row = bar.closest('li')!;
+		expect(within(row).getByText('media')).toBeInTheDocument();
+		// Not "Managed" while the import runs, and nothing to start.
+		expect(within(row).queryByText('Managed')).toBeNull();
+		expect(within(row).queryByRole('button', { name: 'Import' })).toBeNull();
+		expect(within(row).queryByRole('link', { name: 'Open stack' })).toBeNull();
+	});
+
+	it('hides a managed project without a running import', async () => {
+		more = [media];
+		dialog();
+		await screen.findByRole('list', { name: 'Compose projects on nas' });
+		expect(screen.queryByText('media')).toBeNull();
 	});
 });

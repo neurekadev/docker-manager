@@ -4,14 +4,18 @@
 	// a preview of its update, then the environment update policies.
 	// Everything here counts the covered (active) targets of the policies,
 	// like the policy pages. Creating a policy opens a dialog
-	// (routes.updatePolicyNew() links here with it open).
-	import { createQueries, createQuery } from '@tanstack/svelte-query';
+	// (routes.updatePolicyNew() links here with it open). Running updates
+	// show under the header and each policy's running checks and updates in
+	// its row, from the running jobs list, so they are still there after a
+	// reload (docs/internal/web.md, "Job progress after reload").
+	import { createQueries, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Eye from '@lucide/svelte/icons/eye';
 	import Plus from '@lucide/svelte/icons/plus';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import type { Job } from '$lib/api/client';
+	import { activeJobsQuery, environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
@@ -37,6 +41,9 @@
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { stackNames } from '$lib/features/jobs/labels';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import PolicyTargetStatus from '$lib/features/updates/PolicyTargetStatus.svelte';
 	import TargetName from '$lib/features/updates/TargetName.svelte';
 	import UpdatePolicyDialog from '$lib/features/updates/UpdatePolicyDialog.svelte';
@@ -56,6 +63,7 @@
 		type EnvironmentTarget,
 		type EnvironmentUpdatePolicy
 	} from '$lib/features/updates/queries';
+	import { activityByPolicy, activityText } from '$lib/features/updates/running';
 
 	usePage({ title: 'Updates', crumbs: [{ label: 'Updates' }], environmentScoped: true });
 	const perms = createQuery(() => myPermissionsQuery());
@@ -96,6 +104,22 @@
 		})
 	);
 	const byId = $derived(new Map((targetPolicies.data ?? []).map((p) => [p.id, p])));
+
+	// Running updates (any policy) in the selected environment, and each
+	// policy's running checks and updates (one shared running jobs list).
+	const qc = useQueryClient();
+	const updateJobs = useTrackedJobs(() => ({
+		kinds: ['update.run'],
+		environmentId: environmentSelection.id ?? undefined
+	}));
+	const runningJobs = createQuery(() => activeJobsQuery());
+	const activity = $derived(activityByPolicy(runningJobs.data));
+	// Finished updates make room after a moment; failed ones stay until
+	// dismissed.
+	function updateFinished(job: Job) {
+		void qc.invalidateQueries({ queryKey: ['policies'] });
+		if (job.state === 'succeeded') setTimeout(() => updateJobs.dismiss(job.id), 4000);
+	}
 
 	function targetName(t: EnvironmentTarget): string {
 		if (t.type === 'container') return t.id;
@@ -171,10 +195,13 @@
 		href={routes.updatePolicy(p.id)}
 		sub={p.scope === 'all' ? 'All environments' : envName(p.environmentId)}
 	/>{/snippet}
-{#snippet statusCell(p: EnvironmentUpdatePolicy)}<PolicyTargetStatus
-		policyId={p.id}
-		environmentId={environmentSelection.id}
-	/>{/snippet}
+{#snippet statusCell(p: EnvironmentUpdatePolicy)}
+	{@const running = activityText(activity.get(p.id))}
+	<span class="status">
+		<PolicyTargetStatus policyId={p.id} environmentId={environmentSelection.id} />
+		{#if running}<Badge tone="info" dot pulse>{running}</Badge>{/if}
+	</span>
+{/snippet}
 {#snippet scheduleCell(p: EnvironmentUpdatePolicy)}
 	<span
 		title="Checks: {p.checkSchedule.cron} ({p.checkSchedule.timeZone})&#10;Updates: {p
@@ -219,6 +246,13 @@
 					onclick={() => (createDialog.open = true)}>Create update policy</Button
 				>{/if}{/snippet}
 	</PageHeader>
+
+	<ActiveJobs
+		jobs={updateJobs}
+		nameOf={stackNames(stacks.data)}
+		onfinish={updateFinished}
+		label="Running updates"
+	/>
 
 	<QueryView query={policies} errorTitle="The update policies could not be loaded.">
 		{#if visiblePolicies.length === 0}
@@ -335,6 +369,16 @@
 			policy={previewOf.policy}
 			name={previewOf.name}
 			canRun={previewOf.policy.actions.includes('update.run')}
+			onstart={(job, title) => updateJobs.add(job, title)}
 		/>
 	{/key}
 {/if}
+
+<style>
+	.status {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+	}
+</style>

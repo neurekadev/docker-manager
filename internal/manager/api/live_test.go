@@ -334,8 +334,9 @@ func TestLiveEventFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job := domain.Job{ID: "j1", Kind: "container.restart", EnvironmentID: "e1", State: domain.JobRunning,
-		Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}}}
+	job := domain.Job{ID: "j1", Kind: "container.restart", EnvironmentID: "e1", State: domain.JobRunning, PolicyID: "pol-1",
+		Targets:  []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}},
+		Progress: domain.JobProgress{Percent: 40, Step: "restart", Message: "Restarting web"}}
 	recs := map[string]events.Event{
 		"web":          liveDocker("web", "die"),
 		"db":           liveDocker("db", "die"),
@@ -391,6 +392,27 @@ func TestLiveEventFiltering(t *testing.T) {
 	} {
 		if got := visible(user); !slices.Equal(got, want) {
 			t.Errorf("%s sees %v, want %v", user, got, want)
+		}
+	}
+	// A job event carries the job's targets, policy and progress (what GET
+	// /jobs/{jobId} shows the same reader), so views can match running
+	// jobs to what they show; only job.read holders get it (above).
+	_, data, ok := liveEvent(checker("own"), all, live.Record{Event: recs["job"]}, "x.1")
+	lj, _ := data.(LiveJob)
+	if !ok || lj.JobID != "j1" || lj.Kind != "container.restart" || lj.State != "running" || lj.EnvironmentID != "e1" ||
+		lj.PolicyID != "pol-1" || lj.Step != "restart" || lj.Message != "Restarting web" || lj.ProgressPercent == nil ||
+		*lj.ProgressPercent != 40 || !slices.Equal(lj.Targets, []JobTarget{{Type: "container", ID: "web"}}) {
+		t.Errorf("job shaped as %+v", data)
+	}
+	done := job
+	done.State = domain.JobSucceeded
+	_, data, _ = liveEvent(checker("own"), all, live.Record{Event: live.JobEvent(done)}, "x.1")
+	if lj, _ := data.(LiveJob); lj.State != "succeeded" || lj.Step != "" || lj.Message != "" || lj.ProgressPercent != nil || len(lj.Targets) != 1 {
+		t.Errorf("finished job shaped as %+v", data)
+	}
+	for _, user := range []string{"metrics", "filer", "nobody"} {
+		if _, _, ok := liveEvent(checker(user), all, live.Record{Event: recs["job"]}, "x.1"); ok {
+			t.Errorf("%s received a job it may not read", user)
 		}
 	}
 	// Live metrics are a metrics invalidation of their own kind (only the

@@ -1,57 +1,68 @@
-<script lang="ts" module>
-	export interface FileOperation {
-		id: number;
-		jobId: string;
-		/** "Copy 3 items to config" (progress title). */
-		title: string;
-		/** "Copied 3 items to config" (success toast). */
-		done: string;
-		finished: boolean;
-		state?: string;
-	}
-</script>
-
 <script lang="ts">
 	// Long file operations (#15): upload transfers with progress and Cancel,
 	// and the file jobs (copy, move, delete, archive, extract, permissions)
 	// with JobProgress, their per-item results and a Cancel while running.
+	// The jobs come from the root's tracked jobs (docs/internal/web.md, "Job
+	// progress after reload"): the ones started here at once, and every
+	// running file job of the root from the running list, so they show again
+	// after a reload or when the user comes back. At most MAX_JOB_STREAMS
+	// running jobs follow their own stream; the others are compact rows fed
+	// by the list.
 	import X from '@lucide/svelte/icons/x';
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import { Button, IconButton, JobProgress, formatBytes, toast, errorMessage } from '$lib/ui';
+	import { streamedIds, type TrackedEntry } from '$lib/features/jobs/active';
+	import JobRow from '$lib/features/jobs/JobRow.svelte';
+	import type { TrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import type { UploadQueue } from './uploads.svelte';
 
 	interface Props {
 		uploads: UploadQueue;
-		operations: FileOperation[];
-		onfinish: (op: FileOperation, job: Job) => void;
-		ondismiss: (op: FileOperation) => void;
+		/** The root's file jobs (useTrackedJobs with fileJobMatch). */
+		jobs: TrackedJobs;
+		/** The title of a job not started here (found in the running list). */
+		titleOf: (job: Job) => string;
+		/** Called once per job when it ends (with the title shown). */
+		onfinish: (job: Job, title: string) => void;
 	}
 
-	let { uploads, operations, onfinish, ondismiss }: Props = $props();
+	let { uploads, jobs, titleOf, onfinish }: Props = $props();
 
 	const running = $derived(
 		uploads.items.filter((i) => i.state === 'queued' || i.state === 'uploading')
 	);
 	const failed = $derived(uploads.items.filter((i) => i.state === 'failed'));
 	const doneCount = $derived(uploads.items.filter((i) => i.state === 'done').length);
+	const entries = $derived(jobs.entries);
+	const streamed = $derived(streamedIds(entries));
 
-	async function cancelJob(op: FileOperation) {
+	function titleFor(e: TrackedEntry): string {
+		return e.title || (e.job ? titleOf(e.job) : 'File operation');
+	}
+
+	function finished(e: TrackedEntry, job: Job) {
+		jobs.markFinished(job);
+		onfinish(job, titleFor(e));
+	}
+
+	async function cancelJob(e: TrackedEntry) {
+		const title = titleFor(e);
 		try {
 			await unwrap(
 				api.POST('/api/v1/jobs/{jobId}/cancellations', {
-					params: { path: { jobId: op.jobId } }
+					params: { path: { jobId: e.id } }
 				})
 			);
-			toast.info(`Cancelling: ${op.title}`, {
+			toast.info(`Cancelling: ${title}`, {
 				body: 'Items finished so far stay; the rest is not done.'
 			});
-		} catch (e) {
-			toast.error(`${op.title} could not be cancelled`, { body: errorMessage(e) });
+		} catch (err) {
+			toast.error(`${title} could not be cancelled`, { body: errorMessage(err) });
 		}
 	}
 </script>
 
-{#if uploads.items.length || operations.length}
+{#if uploads.items.length || entries.length}
 	<section class="ops" aria-label="File operations">
 		{#if uploads.items.length}
 			<div class="block">
@@ -129,25 +140,32 @@
 				</ul>
 			</div>
 		{/if}
-		{#each operations as op (op.id)}
+		{#each entries as e (e.id)}
+			{@const title = titleFor(e)}
 			<div class="block job">
-				<JobProgress
-					jobId={op.jobId}
-					title={op.title}
-					variant={op.finished && op.state !== 'succeeded' ? 'panel' : 'inline'}
-					onfinish={(job) => onfinish(op, job)}
-				/>
+				{#if streamed.has(e.id) || !e.job}
+					<JobProgress
+						jobId={e.id}
+						{title}
+						variant={!e.active && e.job && e.job.state !== 'succeeded'
+							? 'panel'
+							: 'inline'}
+						onfinish={(job) => finished(e, job)}
+					/>
+				{:else}
+					<JobRow job={e.job} {title} />
+				{/if}
 				<div class="job-actions">
-					{#if !op.finished}
-						<Button size="sm" variant="ghost" onclick={() => cancelJob(op)}
+					{#if e.active}
+						<Button size="sm" variant="ghost" onclick={() => cancelJob(e)}
 							>Cancel</Button
 						>
 					{:else}
 						<IconButton
 							icon={X}
 							size="sm"
-							label="Dismiss {op.title}"
-							onclick={() => ondismiss(op)}
+							label="Dismiss {title}"
+							onclick={() => jobs.dismiss(e.id)}
 						/>
 					{/if}
 				</div>

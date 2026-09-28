@@ -149,7 +149,8 @@ const calls: Record<keyof typeof routes, string[]> = {
 	jobs: [
 		routes.jobs(),
 		routes.jobs('update.check'),
-		routes.jobs('prune.run', { policyId: 'mp-1' })
+		routes.jobs('prune.run', { policyId: 'mp-1' }),
+		routes.jobs(undefined, { state: 'active' })
 	],
 	job: [routes.job('job-1')],
 	schedules: [routes.schedules()],
@@ -209,6 +210,7 @@ describe('routes', () => {
 			'/jobs?kind=prune.run&policyId=mp+1'
 		);
 		expect(routes.jobs(undefined, { policyId: 'up-1' })).toBe('/jobs?policyId=up-1');
+		expect(routes.jobs(undefined, { state: 'active' })).toBe('/jobs?state=active');
 	});
 
 	it('sends the old Settings addresses of my own account to Profile, keeping the query', () => {

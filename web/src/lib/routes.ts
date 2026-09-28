@@ -14,7 +14,7 @@
 //   /templates[?create=1], /templates/{id}[/files|versions|settings]   stack templates
 //   /templates/registries, /templates/remote/{instanceId}/{templateId}  registries, registry templates
 //   /registry                           this instance's public template registry (public)
-//   /jobs[/{jobId}][?kind=&policyId=], /schedules
+//   /jobs[/{jobId}][?kind=&policyId=&state=], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
 //   /updates[/{policyId}], /maintenance[/{policyId}]
@@ -154,13 +154,15 @@ export const routes = {
 	maintenanceEdit: (id: string) => `/maintenance/${e(id)}?edit=1`,
 	maintenanceDefaults: () => '/maintenance?defaults=1',
 	/**
-	 * The jobs list, optionally with its kind filter (?kind=update.check)
-	 * and its policy filter (?policyId=, the runs of one policy) set.
+	 * The jobs list, optionally with its kind filter (?kind=update.check),
+	 * its policy filter (?policyId=, the runs of one policy) and its state
+	 * filter (?state=active: the jobs in progress) set.
 	 */
-	jobs: (kind?: string, o: { policyId?: string } = {}) => {
+	jobs: (kind?: string, o: { policyId?: string; state?: 'active' } = {}) => {
 		const q = new URLSearchParams();
 		if (kind) q.set('kind', kind);
 		if (o.policyId) q.set('policyId', o.policyId);
+		if (o.state) q.set('state', o.state);
 		const s = q.toString();
 		return `/jobs${s ? `?${s}` : ''}`;
 	},

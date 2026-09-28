@@ -2,7 +2,9 @@
 	// Pull an image (#6, #19): reference, optional platform, the registry
 	// connection it will use (match preview), then the pull job's progress
 	// (layers) in place. Registry failures (401/403/429, not found,
-	// unavailable) are explained with what to do next.
+	// unavailable) are explained with what to do next. The page that opened
+	// it also shows the pull (onstarted; after a reload, from the running
+	// list), so closing the dialog while it runs loses nothing.
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import Download from '@lucide/svelte/icons/download';
@@ -31,6 +33,8 @@
 		reference?: string;
 		/** Called when the pull succeeded. */
 		onpulled?: (environmentId: string, reference: string) => void;
+		/** Called with the pull's job and its title (the page shows it too). */
+		onstarted?: (job: Job, title: string) => void;
 	}
 
 	let {
@@ -38,7 +42,8 @@
 		environments,
 		environmentId = '',
 		reference = '',
-		onpulled
+		onpulled,
+		onstarted
 	}: Props = $props();
 	const queryClient = useQueryClient();
 
@@ -67,6 +72,7 @@
 
 	const envName = $derived(environments.find((e) => e.id === env)?.name ?? '');
 	const running = $derived(jobId !== null && outcome === null);
+	const title = $derived(`Pull ${ref.trim()} on ${envName}`);
 
 	async function pull() {
 		busy = true;
@@ -86,6 +92,7 @@
 				})
 			);
 			jobId = job.id;
+			onstarted?.(job, title);
 		} catch (e) {
 			failure = {
 				cause: e,
@@ -122,7 +129,7 @@
 	<div class="form">
 		{#if jobId}
 			{#key jobId}
-				<JobProgress {jobId} title="Pull {ref.trim()} on {envName}" onfinish={finished} />
+				<JobProgress {jobId} {title} onfinish={finished} />
 			{/key}
 			{#if guidance}
 				<Notice tone="warn" title="What to do" live="alert">{guidance}</Notice>

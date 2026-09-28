@@ -17,7 +17,7 @@
 		TextField,
 		fieldError
 	} from '$lib/ui';
-	import { idempotencyKey, resourceKey, trackJob } from './jobs.svelte';
+	import { idempotencyKey, trackJob } from './jobs.svelte';
 	import { NAME_RE, parsePairs } from './model';
 	import { refusal, type Refusal } from './refusals';
 
@@ -104,7 +104,6 @@
 						);
 			trackJob(job, {
 				ctx: { kind, name, verb: 'create', environmentName: envName },
-				key: resourceKey(kind, env, name),
 				queryClient,
 				invalidate: [kind === 'volume' ? queryKeys.volumes.all : queryKeys.networks.all]
 			});

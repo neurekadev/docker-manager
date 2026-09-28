@@ -26,16 +26,20 @@
 	// An image's update state as an icon next to the image (#20, #22): the
 	// state in its tooltip and accessible name. With a policy the user may
 	// check, the icon is a button that checks that policy's images again,
-	// spinning while the check runs (updateChecks, shared by every badge of
-	// the policy). Nothing shows without an update state.
+	// spinning while the check runs: one started in this tab (updateChecks,
+	// shared by every badge of the policy) or any running update.check of the
+	// policy in the running jobs list (after a reload, or started elsewhere;
+	// one shared query). Nothing shows without an update state.
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import CircleArrowUp from '@lucide/svelte/icons/circle-arrow-up';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import CircleDashed from '@lucide/svelte/icons/circle-dashed';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import ShieldAlert from '@lucide/svelte/icons/shield-alert';
-	import { useQueryClient, type QueryClient } from '@tanstack/svelte-query';
+	import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
+	import { activeJobsQuery } from '$lib/api/queries';
 	import { checkForUpdates, updateChecks } from './check.svelte';
+	import { checkingPolicies } from './running';
 
 	interface Props {
 		status?: string;
@@ -57,9 +61,17 @@
 		queryClient = undefined;
 	}
 
-	const info = $derived(updateBadge(status));
-	const checking = $derived(!!policyId && updateChecks.has(policyId));
 	const clickable = $derived(!!policyId && canCheck);
+	// The running jobs list (shared by every badge; only where a check can
+	// be started, since only the button shows it).
+	const activeJobs = queryClient
+		? createQuery(() => ({ ...activeJobsQuery(), enabled: clickable }))
+		: null;
+	const info = $derived(updateBadge(status));
+	const checking = $derived(
+		!!policyId &&
+			(updateChecks.has(policyId) || checkingPolicies(activeJobs?.data).has(policyId))
+	);
 	const Icon = $derived(
 		status === 'update_available'
 			? CircleArrowUp

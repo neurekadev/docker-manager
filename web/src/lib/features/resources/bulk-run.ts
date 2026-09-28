@@ -18,8 +18,6 @@ export interface BulkRun<T> {
 	/** Sends one request (the single-object helper); resolves to its job. */
 	send: (item: T) => Promise<Pick<Job, 'id'>>;
 	ctx: (item: T) => RefusalContext;
-	/** activeJobs key of an object (its page shows the running job). */
-	key?: (item: T) => string;
 	queryClient?: QueryClient;
 	invalidate?: QueryKey[];
 	/** Test seams. */
@@ -58,7 +56,6 @@ export async function runBulk<T>(r: BulkRun<T>): Promise<void> {
 		}
 		trackJob(res.value, {
 			ctx: r.ctx(item),
-			key: r.key?.(item),
 			queryClient: r.queryClient,
 			invalidate: r.invalidate,
 			toast: quiet,

@@ -7,7 +7,7 @@ import { acrossEnvironments, allPages, envTargets, type EnvTarget } from '$lib/a
 import { containersQuery, queryKeys } from '$lib/api/queries';
 import { Notices } from '$lib/shell/notices.svelte';
 import { containerActions, runContainerAction } from './container-actions';
-import { activeJobs, resourceKey, trackJob } from './jobs.svelte';
+import { trackJob } from './jobs.svelte';
 import { can, canInEnvironment, environmentsAllowing } from './permissions';
 
 const base = 'http://localhost:8080';
@@ -231,12 +231,10 @@ describe('job follow-up (#26)', () => {
 		const toast = { success: vi.fn(), error: vi.fn(), warn: vi.fn() };
 		const notices = new Notices(() => 1);
 		const queryClient = { invalidateQueries: vi.fn() };
-		const key = resourceKey('container', 'e1', 'web');
-		trackJob(
+		const w = trackJob(
 			{ id: 'j1' },
 			{
 				ctx: { kind: 'container', name: 'web', verb: 'stop' },
-				key,
 				watcher: s.factory,
 				toast,
 				notices,
@@ -244,7 +242,7 @@ describe('job follow-up (#26)', () => {
 				invalidate: [queryKeys.containers.all]
 			}
 		);
-		expect(activeJobs.byKey[key]).toBeDefined();
+		expect(w.start).toHaveBeenCalled();
 		s.finish({ id: 'j1', state: 'succeeded' } as Job);
 		expect(toast.success).toHaveBeenCalledWith('Stopped web');
 		expect(notices.items[0]).toMatchObject({
@@ -253,7 +251,6 @@ describe('job follow-up (#26)', () => {
 			href: '/jobs/j1'
 		});
 		expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['containers'] });
-		expect(activeJobs.byKey[key]).toBeUndefined();
 	});
 
 	it('says why a job failed, with the recovery advice', () => {

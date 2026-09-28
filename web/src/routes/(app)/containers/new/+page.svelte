@@ -6,7 +6,9 @@
 	// field suggests the environment's images and takes any reference; it
 	// must already be on the environment (#25: no implicit pull), so a
 	// missing image offers a pull first. The create button stays in reach
-	// (sticky footer) and says why it is not ready yet.
+	// (sticky footer) and says why it is not ready yet. Creations and pulls
+	// running on the environment show above the form, from the running list,
+	// so they come back after a reload.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -26,7 +28,6 @@
 		Checkbox,
 		DeniedState,
 		IconButton,
-		JobProgress,
 		Notice,
 		PageHeader,
 		Select,
@@ -40,6 +41,9 @@
 	import Page from '$lib/features/common/Page.svelte';
 	import PullImageDialog from '$lib/features/resources/PullImageDialog.svelte';
 	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
+	import { kindJobs } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import {
 		envLines,
 		imagePresent,
@@ -195,8 +199,13 @@
 
 	let busy = $state(false);
 	let failure = $state<{ cause: unknown; refusal: Refusal } | null>(null);
-	let jobId = $state<string | null>(null);
 	let outcome = $state<Refusal | null>(null);
+	// Creations and pulls on the environment: the one this form started
+	// (`started`: the form gives way to its progress) and any found running.
+	const jobs = useTrackedJobs(() =>
+		env ? kindJobs(['container.create', 'image.pull'], env) : null
+	);
+	let started = $state<string | null>(null);
 
 	async function create() {
 		busy = true;
@@ -266,7 +275,8 @@
 					}
 				})
 			);
-			jobId = job.id;
+			jobs.add(job, `Create ${name} on ${scope.name(env)}`);
+			started = job.id;
 			release?.();
 			release = null;
 		} catch (e) {
@@ -285,13 +295,24 @@
 	}
 
 	function finished(j: Job) {
+		if (j.kind === 'image.pull') {
+			if (j.state === 'succeeded') void images.refetch();
+			return;
+		}
 		void queryClient.invalidateQueries({ queryKey: queryKeys.containers.all });
+		if (j.id !== started) return;
 		if (j.state === 'succeeded') {
 			toast.success(doneTitle('create', name));
 			void goto(routes.container(env, name));
 		} else {
 			outcome = jobFailure(j, { kind: 'container', name, verb: 'create' });
 		}
+	}
+
+	function backToForm() {
+		if (started) jobs.dismiss(started);
+		started = null;
+		outcome = null;
 	}
 
 	const networkOptions = $derived([
@@ -309,6 +330,7 @@
 	environmentId={env}
 	reference={image}
 	onpulled={() => images.refetch()}
+	onstarted={(job, title) => jobs.add(job, title)}
 />
 
 {#if scope.ready && scope.envs.data && !allowed.length}
@@ -333,17 +355,13 @@
 			you can edit, deploy and back up. This form covers the common options only.
 		</Notice>
 
-		{#if jobId}
-			<JobProgress {jobId} title="Create {name} on {scope.name(env)}" onfinish={finished} />
+		<ActiveJobs {jobs} onfinish={finished} />
+		{#if started}
 			{#if outcome}
 				<Notice tone="danger" title={outcome.title} live="alert">
 					{outcome.body}
 					{#snippet actions()}
-						<Button
-							variant="secondary"
-							onclick={() => ((jobId = null), (outcome = null))}
-							>Back to the form</Button
-						>
+						<Button variant="secondary" onclick={backToForm}>Back to the form</Button>
 					{/snippet}
 				</Notice>
 			{/if}

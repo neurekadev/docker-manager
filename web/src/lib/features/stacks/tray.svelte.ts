@@ -1,9 +1,13 @@
-// Jobs a stack page started (#22: long operations show JobProgress with
-// partial failures). The stack layout owns one tray and shows it under the
-// header; actions add the job they started with the copy for its end
-// ("Deployed Silo" / "Silo was not deployed"). Finished jobs stay until the
-// user dismisses them, so failures and their recovery advice are not lost.
+// Jobs of a stack page (#22: long operations show JobProgress with partial
+// failures). The stack layout owns one tray and shows it under the header;
+// actions add the job they started with the copy for its end ("Deployed
+// Silo" / "Silo was not deployed"), and the layout adopts the stack's
+// running jobs from the running list (`adopt`), so a reload or coming back
+// finds them again (docs/internal/web.md, "Job progress after reload").
+// Finished jobs stay until the user dismisses them, so failures and their
+// recovery advice are not lost.
 import { getContext, setContext } from 'svelte';
+import { SvelteSet } from 'svelte/reactivity';
 import type { Job } from '$lib/api/client';
 
 /** A success toast with a body or an action ("Deploy"). */
@@ -34,13 +38,40 @@ export interface TrackedJob {
 	silent?: boolean;
 }
 
+/** Jobs a tray shows at most. */
+const TRAY_SIZE = 5;
+
 export class JobTray {
 	jobs = $state<TrackedJob[]>([]);
 	/** IDs of jobs that reached a terminal state. */
 	finished = $state<string[]>([]);
+	/** Every job the tray showed (a dismissed or pushed-out job is not adopted again). */
+	#seen = new SvelteSet<string>();
 
 	add(job: Pick<Job, 'id'>, t: Omit<TrackedJob, 'id'>) {
-		this.jobs = [{ id: job.id, ...t }, ...this.jobs.filter((j) => j.id !== job.id)].slice(0, 5);
+		this.#seen.add(job.id);
+		this.jobs = [{ id: job.id, ...t }, ...this.jobs.filter((j) => j.id !== job.id)].slice(
+			0,
+			TRAY_SIZE
+		);
+	}
+
+	/**
+	 * Shows running jobs the tray has not shown yet (the stack's jobs from
+	 * the running list after a reload, or started elsewhere), oldest
+	 * first so the newest ends up on top. A job an action added keeps
+	 * the action's copy.
+	 */
+	adopt(running: readonly Job[], describe: (job: Job) => Omit<TrackedJob, 'id'>) {
+		const fresh = running.filter((j) => !this.#seen.has(j.id));
+		for (const j of fresh.toReversed()) this.add(j, describe(j));
+	}
+
+	/** Forgets every job (the layout now shows another stack). */
+	reset() {
+		this.jobs = [];
+		this.finished = [];
+		this.#seen.clear();
 	}
 
 	markFinished(id: string) {

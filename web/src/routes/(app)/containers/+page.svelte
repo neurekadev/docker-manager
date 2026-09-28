@@ -14,7 +14,9 @@
 	// server's reason. Selected rows get bulk actions (start, stop,
 	// restart, remove; ContainerBulk). Wide content is capped (name and
 	// image, networks) and the row actions stay pinned at the right edge;
-	// phones show the name, image and status only.
+	// phones show the name, image and status only. Containers being created
+	// (the create form's job) are listed above, from the running list: they
+	// show again after a reload or when the user comes back.
 	import { createQueries, createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -76,6 +78,9 @@
 		uptimeSortValue
 	} from '$lib/features/resources/model';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
+	import { kindJobs } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { environmentSelection } from '$lib/shell/environment.svelte';
 
 	usePage({ title: 'Containers', crumbs: [{ label: 'Containers' }], environmentScoped: true });
 
@@ -345,6 +350,14 @@
 				{/if}
 			{/snippet}
 		</PageHeader>
+
+		<ActiveJobs
+			filter={kindJobs(['container.create'], environmentSelection.id)}
+			label="Containers being created"
+			onfinish={(j) => {
+				if (j.state === 'succeeded') void list.refetch();
+			}}
+		/>
 
 		{#if list.data}
 			<EnvironmentGaps

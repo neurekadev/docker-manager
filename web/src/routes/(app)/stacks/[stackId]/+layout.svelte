@@ -3,15 +3,19 @@
 	// state notices (offline environment, failed deploy), the route tabs
 	// (Overview · Files · Logs · Terminal · Revisions · Backups · Policies ·
 	// Activity)
-	// with the "Undeployed changes" chip, the jobs started here, then the
-	// tab. Files, Logs and Terminal are track B3's routes.
+	// with the "Undeployed changes" chip, the stack's jobs (started here or
+	// running when the page opens: the running list brings them back after
+	// a reload), then the tab. Files, Logs and Terminal are track B3's
+	// routes.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import Layers from '@lucide/svelte/icons/layers';
 	import { ApiRequestError } from '$lib/api/client';
-	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import { activeJobsQuery, environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import { matchingJobs } from '$lib/features/jobs/active';
+	import { stackJobCopy, stackTrayMatch } from '$lib/features/stacks/adopt';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import { provideStackPage } from '$lib/features/stacks/context';
@@ -44,17 +48,26 @@
 	const s = $derived(stack.data);
 	const environment = $derived(envs.data?.find((e) => e.id === s?.environmentId));
 	const title = $derived(s ? stackTitle(s) : 'Stack');
+	// The migration wizard is a page of its own, without the tabs.
+	const wizard = $derived(page.url.pathname.endsWith('/migrate'));
 	const tray = new JobTray();
 	const removeOrphans = new RemoveOrphansRequest();
 	// The layout stays mounted when another stack opens: start its tray empty.
 	let trayFor = '';
-	$effect(() => {
+	$effect.pre(() => {
 		if (id === trayFor) return;
 		trayFor = id;
-		untrack(() => {
-			tray.jobs = [];
-			tray.finished = [];
-		});
+		untrack(() => tray.reset());
+	});
+	// The stack's running jobs (also after a reload, or started elsewhere)
+	// join the tray.
+	const active = createQuery(() => ({ ...activeJobsQuery(), enabled: !!id }));
+	const running = $derived(matchingJobs(active.data, id ? stackTrayMatch(id, { wizard }) : null));
+	$effect(() => {
+		if (!s) return;
+		const list = running;
+		const t = stackTitle(s);
+		untrack(() => tray.adopt(list, (j) => ({ kind: j.kind, ...stackJobCopy(j.kind, t) })));
 	});
 
 	provideStackPage({
@@ -71,8 +84,6 @@
 		removeOrphans
 	});
 
-	// The migration wizard is a page of its own, without the tabs.
-	const wizard = $derived(page.url.pathname.endsWith('/migrate'));
 	usePage(() => ({
 		title: wizard ? `Migrate ${title}` : title,
 		crumbs: wizard
@@ -109,26 +120,14 @@
 	const offline = $derived(!!s && (s.readOnly || s.environmentOnline === false));
 
 	// A job started on the way here (Create and deploy, a migration): show
-	// it in the tray, then drop it from the URL.
+	// it in the tray, then drop it from the URL (after a reload the running
+	// list brings it back while it runs).
 	$effect(() => {
 		const job = page.url.searchParams.get('job');
 		if (!s || !job) return;
-		const kind = page.url.searchParams.get('kind') ?? 'deploy';
-		const t = stackTitle(s);
-		tray.add(
-			{ id: job },
-			kind === 'migrate'
-				? {
-						title: `Migrate ${t}`,
-						success: `Migrated ${t}`,
-						failure: `${t} was not migrated`
-					}
-				: {
-						title: `Deploy ${t}`,
-						success: `Deployed ${t}`,
-						failure: `${t} was not deployed`
-					}
-		);
+		const kind =
+			page.url.searchParams.get('kind') === 'migrate' ? 'stack.migrate' : 'stack.deploy';
+		untrack(() => tray.add({ id: job }, { kind, ...stackJobCopy(kind, stackTitle(s)) }));
 		const url = new URL(page.url);
 		url.searchParams.delete('job');
 		url.searchParams.delete('kind');
@@ -219,7 +218,7 @@
 			</TabNav>
 		{/if}
 
-		<JobTrayView {tray} />
+		<JobTrayView {tray} {running} />
 
 		{#key id}{@render children()}{/key}
 	</Page>

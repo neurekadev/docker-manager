@@ -2,6 +2,7 @@
 // does, what it acts on, why it exists and how long it took. Pure; `now`
 // is injectable for tests.
 import type { Job } from '$lib/api/client';
+import { ACTIVE_JOB_STATES, isActiveJobState } from '$lib/api/job-states';
 import { formatDuration } from '$lib/ui/format';
 import { routes } from '$lib/routes';
 
@@ -295,17 +296,13 @@ export function jobDuration(
 
 /** The job is still going (not in a terminal state). */
 export function jobActive(state: Job['state']): boolean {
-	return ['queued', 'blocked', 'dispatched', 'running', 'cancelling'].includes(state);
+	return isActiveJobState(state);
 }
 
 /** Groups of states offered by the jobs filter. */
 export const STATE_FILTERS: { id: string; label: string; states: Job['state'][] }[] = [
 	{ id: '', label: 'All states', states: [] },
-	{
-		id: 'active',
-		label: 'In progress',
-		states: ['queued', 'blocked', 'dispatched', 'running', 'cancelling']
-	},
+	{ id: 'active', label: 'In progress', states: [...ACTIVE_JOB_STATES] },
 	{
 		id: 'problems',
 		label: 'Failed or partly failed',

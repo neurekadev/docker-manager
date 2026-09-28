@@ -17,8 +17,12 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
 - Events carry IDs, kinds and revisions only: the stream never sends
   attributes, bodies, file contents or secrets (nor metric values: views
   refetch them); file paths only reach holders of the scope's files-read
-  capability. High-rate kinds (`metrics.live`, about one per environment
-  and second) coalesce per environment and are not kept in the replay log.
+  capability. The one exception is the `job` event: for `job.read`
+  holders it also carries the job's targets, policy and progress (step,
+  message, percent), as `GET /jobs/{jobId}` shows them, never its input
+  (`LiveJob`, `newLiveJob` in `api/live.go`). High-rate kinds
+  (`metrics.live`, about one per environment and second) coalesce per
+  environment and are not kept in the replay log.
 - **Stacks:** external edits of definition files become revisions through
   `stacks.Service.ExternalChange` (settled by the watcher); the agent's
   watch set of stacks comes from `WatchScopes`.

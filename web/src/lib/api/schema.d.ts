@@ -8169,13 +8169,13 @@ export interface components {
         JobTarget: {
             /** @description Environment of the target when it differs from the job's (migrations). */
             environmentId?: string;
-            /** @description Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID). */
+            /** @description Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID, template ID). */
             id: string;
             /**
              * @description Target resource type.
              * @enum {string}
              */
-            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition" | "maintenance_policy";
+            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition" | "maintenance_policy" | "template";
         };
         KeyRotationStarted: {
             keyState: components["schemas"]["RecoveryKeyState"];
@@ -8287,8 +8287,14 @@ export interface components {
             /** Format: date-time */
             at: string;
             environmentId?: string;
+            /** @example 0190a6e0-0000-7000-8000-000000000001 */
             jobId: string;
+            /** @example stack.deploy */
             kind: string;
+            /** @description Latest progress message (while the job is active). */
+            message?: string;
+            /** @description Policy the job runs for. */
+            policyId?: string;
             /** Format: int64 */
             progressPercent?: number;
             /**
@@ -8296,7 +8302,12 @@ export interface components {
              * @description The job's event sequence: ignore when not above the cached one.
              */
             revision: number;
+            /** @example running */
             state: string;
+            /** @description Current step of the kind's plan (while the job is active). */
+            step?: string;
+            /** @description The job's targets (as in GET /jobs/{jobId}). */
+            targets: components["schemas"]["JobTarget"][];
         };
         LivePermissionsChanged: {
             /** Format: date-time */
@@ -31785,7 +31796,7 @@ export interface operations {
                 limit?: number;
                 /** @description Only jobs in these states. */
                 state?: ("queued" | "blocked" | "dispatched" | "running" | "cancelling" | "succeeded" | "failed" | "partial" | "cancelled" | "interrupted")[];
-                /** @description Only jobs of this kind. */
+                /** @description Only jobs of these kinds: one kind or a comma-separated list (at most 32), e.g. stack.deploy,stack.pull. */
                 kind?: string;
                 /** @description Only jobs with these origins (repeat the parameter). */
                 origin?: ("manual" | "scheduled" | "api_token")[];
@@ -31793,6 +31804,8 @@ export interface operations {
                 environmentId?: string;
                 /** @description Only jobs with this target, as type:id (e.g. stack:0190a6e0-...). */
                 target?: string;
+                /** @description With target: only when that target is in this environment (a target's environment is its own, else the job's). Names such as containers and volumes are unique per environment only. */
+                targetEnvironmentId?: string;
                 /** @description Only jobs run for this policy (its scheduled runs and manual runs of it; for an environment-wide update policy, the jobs of every target it covers). */
                 policyId?: string;
             };

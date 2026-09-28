@@ -4,7 +4,9 @@
 	// preview comes first (conflicts, size against free space, downtime,
 	// transport); containers using the volume must be stopped for a
 	// consistent copy, or the user acknowledges a crash-consistent one. The
-	// source stays as it is; the copy runs as a job with progress.
+	// source stays as it is; the copy runs as a job with progress. A running
+	// migration of the volume comes from the running list: after a reload or
+	// coming back, the page shows it (and its outcome) instead of the wizard.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
@@ -27,6 +29,8 @@
 		type WizardStep
 	} from '$lib/ui';
 	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
+	import { migrationCopy, volumeMigrationJobs } from '$lib/features/resources/object-jobs';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { NAME_RE } from '$lib/features/resources/model';
 	import {
 		doneTitle,
@@ -62,8 +66,18 @@
 	let current = $state(0);
 	let preview = $state<Preview | null>(null);
 	let previewing = $state(false);
-	let jobId = $state<string | null>(null);
 	let outcome = $state<{ job: Job; failure?: Refusal } | null>(null);
+
+	// The migration shown: started here, or running (found in the running
+	// list after a reload). Migrations into this volume from elsewhere
+	// (their source is another environment) are left out.
+	const jobs = useTrackedJobs(() => (env && name ? volumeMigrationJobs(env, name) : null));
+	const run = $derived(jobs.entries.find((e) => !e.job || e.job.environmentId === env));
+	// Where it copies to: from the job (after a reload), else the form.
+	const copy = $derived(migrationCopy(run?.job));
+	const runTarget = $derived(copy?.environmentId ?? target);
+	const runCopy = $derived(copy?.name ?? (newName.trim() || name));
+	const ended = $derived(outcome && outcome.job.id === run?.id ? outcome : null);
 
 	$effect(() => {
 		if (!target && targets.length) target = targets[0].id;
@@ -139,7 +153,8 @@
 					}
 				})
 			);
-			jobId = job.id;
+			outcome = null;
+			jobs.add(job);
 		} catch (e) {
 			throw new RefusalError(
 				refusal(e, {
@@ -154,6 +169,7 @@
 	}
 
 	function finished(j: Job) {
+		jobs.markFinished(j);
 		void queryClient.invalidateQueries({ queryKey: queryKeys.volumes.all });
 		if (j.state === 'succeeded') {
 			toast.success(doneTitle('migrate', name));
@@ -181,7 +197,7 @@
 			compact
 		/>
 	</Card>
-{:else if scope.envs.data && targets.length === 0 && !jobId}
+{:else if scope.envs.data && targets.length === 0 && !run}
 	<Card>
 		<EmptyState
 			icon={ArrowRightLeft}
@@ -196,24 +212,27 @@
 			{/snippet}
 		</EmptyState>
 	</Card>
-{:else if jobId}
-	<Card title="Migrate {name} to {targetName}">
+{:else if run}
+	<Card title="Migrate {name} to {scope.name(runTarget)}">
 		<div class="run">
-			<JobProgress
-				{jobId}
-				title="Copy {name} to {targetName} as {copyName}"
-				onfinish={finished}
-			/>
-			{#if outcome?.failure}
-				<Notice tone="danger" title={outcome.failure.title} live="alert">
-					{outcome.failure.body} The source volume on {scope.name(env)} is unchanged.
+			{#key run.id}
+				<JobProgress
+					jobId={run.id}
+					title="Copy {name} to {scope.name(runTarget)} as {runCopy}"
+					onfinish={finished}
+				/>
+			{/key}
+			{#if ended?.failure}
+				<Notice tone="danger" title={ended.failure.title} live="alert">
+					{ended.failure.body} The source volume on {scope.name(env)} is unchanged.
 				</Notice>
-			{:else if outcome}
-				<Notice tone="info" title="{copyName} is on {targetName}" live="status">
-					The source volume on {scope.name(env)} is unchanged. Point containers on {targetName}
-					at the copy, then remove the source when you no longer need it.
+			{:else if ended}
+				<Notice tone="info" title="{runCopy} is on {scope.name(runTarget)}" live="status">
+					The source volume on {scope.name(env)} is unchanged. Point containers on {scope.name(
+						runTarget
+					)} at the copy, then remove the source when you no longer need it.
 					{#snippet actions()}
-						<Button variant="secondary" href={routes.volume(target, copyName)}
+						<Button variant="secondary" href={routes.volume(runTarget, runCopy)}
 							>Open the copy</Button
 						>
 					{/snippet}

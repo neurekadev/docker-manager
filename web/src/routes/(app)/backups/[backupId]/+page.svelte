@@ -3,7 +3,9 @@
 	// belongs to (every member's own time, each linked to its backup), its
 	// contents with single-file download, verification of the repository
 	// location that holds it, and the restore wizard. Internal paths, the
-	// location and the snapshot ID wait under Advanced.
+	// location and the snapshot ID wait under Advanced. A running
+	// verification of that location shows its progress, also after a
+	// reload (docs/internal/web.md, "Job progress after reload").
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import History from '@lucide/svelte/icons/history';
@@ -18,7 +20,6 @@
 		Button,
 		Card,
 		Dialog,
-		JobProgress,
 		Notice,
 		PageHeader,
 		RadioGroup,
@@ -34,6 +35,8 @@
 	import Facts from '$lib/features/common/Facts.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import ContentsBrowser from '$lib/features/backups/ContentsBrowser.svelte';
 	import SetMembers from '$lib/features/backups/SetMembers.svelte';
 	import {
@@ -45,6 +48,7 @@
 		setState,
 		type BackupDetail
 	} from '$lib/features/backups/model';
+	import { verifyMatch, verifyTitle } from '$lib/features/backups/jobs';
 	import { backupKeys, backupQuery, repositoriesQuery } from '$lib/features/backups/queries';
 
 	const id = $derived(page.params.backupId ?? '');
@@ -66,14 +70,21 @@
 	let verifyOpen = $state(false);
 	let subset = $state('');
 	let verifying = $state(false);
-	let verifyJob = $state<Job | null>(null);
 	let verifyError = $state<string | null>(null);
+
+	// Verifications of the location that holds this backup.
+	const verifications = useTrackedJobs(() =>
+		backup.data ? verifyMatch(backup.data.repositoryId, backup.data.scope) : null
+	);
+	const repoName = $derived(
+		repos.data?.find((r) => r.id === backup.data?.repositoryId)?.name ?? 'the repository'
+	);
 
 	async function verify(b: BackupDetail) {
 		verifying = true;
 		verifyError = null;
 		try {
-			verifyJob = await unwrap(
+			const job = await unwrap(
 				api.POST('/api/v1/backups/{backupId}/verifications', {
 					params: {
 						path: { backupId: b.id },
@@ -82,6 +93,7 @@
 					body: { readDataSubset: subset.trim() || undefined }
 				})
 			);
+			verifications.add(job, verifyTitle(job, repoName, envName));
 			verifyOpen = false;
 		} catch (e) {
 			verifyError = actionError(e);
@@ -170,13 +182,12 @@
 					manager is never overwritten.
 				</Notice>
 			{/if}
-			{#if verifyJob}
-				<JobProgress
-					jobId={verifyJob.id}
-					title="Verify {repo?.name ?? 'the repository'}"
-					onfinish={verified}
-				/>
-			{/if}
+			<ActiveJobs
+				jobs={verifications}
+				titleOf={(j) => verifyTitle(j, repoName, envName)}
+				onfinish={verified}
+				label="Verification of {repoName}"
+			/>
 
 			<Card title="Details">
 				<Facts

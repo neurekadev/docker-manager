@@ -2,6 +2,7 @@
 // (RenameStackInline) and whether a rename is running. Pure; tested in
 // rename.spec.ts.
 import type { Job, Schema } from '$lib/api/client';
+import { isActiveJobState } from '$lib/api/job-states';
 import { nameError } from './model';
 
 export type RenamePreview = Schema<'StackRenamePreview'>;
@@ -42,11 +43,9 @@ export function renameRefusal(
 	return undefined;
 }
 
-const OPEN = ['queued', 'blocked', 'dispatched', 'running', 'cancelling'];
-
 /** A rename of the stack that has not ended (the header turns its actions off). */
 export function activeRename(jobs: readonly Job[] | undefined): Job | undefined {
-	return jobs?.find((j) => j.kind === 'stack.rename' && OPEN.includes(j.state));
+	return jobs?.find((j) => j.kind === 'stack.rename' && isActiveJobState(j.state));
 }
 
 /** Guidance for a deploy refused because the files now set another project name. */

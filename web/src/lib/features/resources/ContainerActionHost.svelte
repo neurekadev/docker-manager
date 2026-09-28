@@ -6,12 +6,12 @@
 	// confirmation of #32. Refusals (protected, stack_managed, offline, ...)
 	// are shown with the server's reason, in the dialog or as a toast.
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import { ApiRequestError, type Schema } from '$lib/api/client';
+	import { ApiRequestError, type Job, type Schema } from '$lib/api/client';
 	import { containerQuery, queryKeys, type Container } from '$lib/api/queries';
 	import { ConfirmDialog, toast } from '$lib/ui';
 	import RemovalDialog from './RemovalDialog.svelte';
 	import { runContainerAction, type ContainerVerb } from './container-actions';
-	import { resourceKey, trackJob } from './jobs.svelte';
+	import { trackJob } from './jobs.svelte';
 	import { refusal, RefusalError, type RefusalContext } from './refusals';
 
 	interface Props {
@@ -19,9 +19,11 @@
 		environmentName?: (env: string) => string | undefined;
 		/** Called after a removal was accepted (e.g. leave the detail page). */
 		onremoved?: (c: Container) => void;
+		/** Called with each job an action started (the page shows its progress). */
+		onstarted?: (job: Job) => void;
 	}
 
-	let { environmentName, onremoved }: Props = $props();
+	let { environmentName, onremoved, onstarted }: Props = $props();
 	const queryClient = useQueryClient();
 
 	let target = $state<Container | null>(null);
@@ -48,9 +50,9 @@
 	) {
 		try {
 			const job = await runContainerAction(c.environmentId, c.name, verb, opts);
+			onstarted?.(job);
 			trackJob(job, {
 				ctx: ctx(c, verb),
-				key: resourceKey('container', c.environmentId, c.name),
 				queryClient,
 				invalidate: [queryKeys.containers.all, ['stacks', 'services']],
 				onfinish: (j) => {

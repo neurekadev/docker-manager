@@ -1,6 +1,6 @@
 // Component test of the one-off prune dialog (#14): safe starting rules,
-// preview before anything is removed, the volume opt-in gate and the
-// request bodies.
+// preview before anything is removed, the volume opt-in gate, the
+// request bodies and a running prune found again after a reload.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -66,7 +66,30 @@ const preview = {
 	]
 };
 
-function mount(target: PruneTarget, allowed = true) {
+function pruneJob(id: string, p: Record<string, unknown> = {}) {
+	return {
+		id,
+		kind: 'prune.run',
+		state: 'running',
+		origin: 'manual',
+		executor: 'agent',
+		environmentId: 'env-1',
+		targets: [],
+		attempt: 1,
+		progress: { percent: 40 },
+		items: [],
+		locks: [],
+		locksHeld: true,
+		cancelRequested: false,
+		cancellable: true,
+		retryable: false,
+		createdAt: '2026-09-28T10:00:00Z',
+		updatedAt: '2026-09-28T10:00:00Z',
+		...p
+	};
+}
+
+function mount(target: PruneTarget, allowed = true, running: ReturnType<typeof pruneJob>[] = []) {
 	const calls: { url: string; body: unknown }[] = [];
 	vi.stubGlobal(
 		'fetch',
@@ -75,6 +98,9 @@ function mount(target: PruneTarget, allowed = true) {
 			const url = new URL(req.url).pathname;
 			const body = req.method === 'POST' ? await req.json() : undefined;
 			calls.push({ url, body });
+			if (url === '/api/v1/jobs') return json({ items: running, total: running.length });
+			const detail = running.find((j) => url === `/api/v1/jobs/${j.id}`);
+			if (detail) return json(detail);
 			if (url.endsWith('/prune-previews')) return json(preview);
 			if (url.endsWith('/prunes'))
 				return json({ id: 'job-1', kind: 'prune.run', state: 'queued' }, 202);
@@ -134,5 +160,22 @@ describe('PruneButton (#14)', () => {
 		await user.click(screen.getByRole('button', { name: 'Preview' }));
 		expect(await screen.findByRole('button', { name: /^Remove 2 objects/ })).toBeDisabled();
 		expect(screen.getByText(/deletes their data/)).toBeInTheDocument();
+	});
+
+	it('finds a one-off prune running on the environment again and opens on its progress', async () => {
+		const user = setup();
+		mount('images', true, [pruneJob('0190-2', { policyId: 'pol-1' }), pruneJob('0190-1')]);
+		const button = await screen.findByRole('button', { name: 'Pruning…' });
+		await user.click(button);
+		await screen.findByRole('dialog', { name: 'Prune images' });
+		expect(
+			await screen.findByRole('progressbar', { name: 'Prune on Silo progress' })
+		).toBeInTheDocument();
+		// A policy's prune is not this button's: one bar only.
+		expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+		expect(
+			screen.getByRole('button', { name: 'Continue in the background' })
+		).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
 	});
 });

@@ -5,8 +5,9 @@
 	// server and kept per list and browser tab like the other lists. The
 	// environment switcher scopes the list; ?environment= (links from an
 	// environment page) sets the environment filter once, ?kind= (a policy
-	// run's "Open jobs") the kind filter and ?policyId= the policy filter
-	// (named from the schedules, else by its kind). Rows lead with the
+	// run's "Open jobs") the kind filter, ?policyId= the policy filter
+	// (named from the schedules, else by its kind) and ?state=active (the
+	// top bar's running jobs) the state filter. Rows lead with the
 	// target's name. The count says how many jobs match when the server
 	// knows ("50 of 1,234 jobs"); the search covers the loaded jobs only and
 	// says so; "Load more" follows the cursor (also from the no-matches
@@ -31,7 +32,7 @@
 		jobsSearchedText,
 		jobsSummary
 	} from '$lib/features/jobs/filters';
-	import { policyPage, stackNames } from '$lib/features/jobs/labels';
+	import { policyPage, STATE_FILTERS, stackNames } from '$lib/features/jobs/labels';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import { applyListFilters, isFiltering } from '$lib/features/resources/filters';
@@ -64,7 +65,8 @@
 		const id = page.url.searchParams.get('environment');
 		const kind = page.url.searchParams.get('kind');
 		const policy = page.url.searchParams.get('policyId');
-		if (id === null && kind === null && policy === null) return;
+		const state = page.url.searchParams.get('state');
+		if (id === null && kind === null && policy === null && state === null) return;
 		if (id && id !== 'all') {
 			if (environmentSelection.id && environmentSelection.id !== id)
 				environmentSelection.select(id);
@@ -72,10 +74,12 @@
 		}
 		if (kind) filters.set('kind', kind);
 		if (policy !== null) filters.set('policy', policy);
+		if (state && STATE_FILTERS.some((s) => s.id === state)) filters.set('state', state);
 		const url = new URL(page.url);
 		url.searchParams.delete('environment');
 		url.searchParams.delete('kind');
 		url.searchParams.delete('policyId');
+		url.searchParams.delete('state');
 		void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
 	});
 

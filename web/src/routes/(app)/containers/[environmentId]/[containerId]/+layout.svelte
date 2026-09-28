@@ -3,8 +3,9 @@
 	// state, #20), image and lifecycle actions (LifecycleButton: Stop while
 	// it runs, is paused or restarts, Start otherwise; its menu has Start,
 	// Restart and Stop as the state allows), what Docker Manager refuses
-	// on this container and why (#32 protection, managed stacks), the
-	// running job, and the tabs: Overview here, Logs and Terminal (#8) as
+	// on this container and why (#32 protection, managed stacks), its
+	// running jobs (from the running list: they come back after a reload),
+	// and the tabs: Overview here, Logs and Terminal (#8) as
 	// child routes. Removal is the last entry of the "More actions" menu.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
@@ -29,7 +30,6 @@
 		EmptyState,
 		ErrorState,
 		IconButton,
-		JobProgress,
 		Menu,
 		Notice,
 		OfflineEnvironment,
@@ -51,7 +51,9 @@
 		containerActions,
 		type ContainerVerb
 	} from '$lib/features/resources/container-actions';
-	import { activeJobs, resourceKey } from '$lib/features/resources/jobs.svelte';
+	import { containerJobs } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { containerStatus } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
@@ -84,7 +86,7 @@
 		q.error instanceof ApiRequestError && q.error.apiError?.code === 'environment_offline'
 	);
 	const notFound = $derived(q.error instanceof ApiRequestError && q.error.status === 404);
-	const job = $derived(activeJobs.byKey[resourceKey('container', env, name)]);
+	const jobs = useTrackedJobs(() => (env && name ? containerJobs(env, name) : null));
 	const actions = $derived(c ? containerActions(c) : []);
 	const has = (verb: ContainerVerb) => actions.some((a) => a.verb === verb);
 
@@ -175,9 +177,15 @@
 	bind:this={host}
 	environmentName={() => envName}
 	onremoved={() => goto(routes.containers())}
+	onstarted={(j) => jobs.add(j)}
 />
 {#if c && c.view === 'full'}
-	<EditContainerDialog bind:open={editOpen} container={c} environmentName={envName} />
+	<EditContainerDialog
+		bind:open={editOpen}
+		container={c}
+		environmentName={envName}
+		onstarted={(j) => jobs.add(j)}
+	/>
 {/if}
 
 <Page>
@@ -271,9 +279,7 @@
 			</Notice>
 		{/if}
 
-		{#if job}
-			<JobProgress watcher={job} variant="inline" notices={null} />
-		{/if}
+		<ActiveJobs {jobs} variant="inline" label="Running jobs of {c.name}" />
 
 		<TabNav items={tabs} current={page.url.pathname} label="Container sections" />
 		{@render children()}

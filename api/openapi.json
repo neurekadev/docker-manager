@@ -8498,7 +8498,7 @@
             "type": "string"
           },
           "id": {
-            "description": "Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID).",
+            "description": "Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID, template ID).",
             "type": "string"
           },
           "type": {
@@ -8513,7 +8513,8 @@
               "path",
               "destination_path",
               "build_definition",
-              "maintenance_policy"
+              "maintenance_policy",
+              "template"
             ],
             "type": "string"
           }
@@ -8804,9 +8805,23 @@
             "type": "string"
           },
           "jobId": {
+            "examples": [
+              "0190a6e0-0000-7000-8000-000000000001"
+            ],
             "type": "string"
           },
           "kind": {
+            "examples": [
+              "stack.deploy"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "description": "Latest progress message (while the job is active).",
+            "type": "string"
+          },
+          "policyId": {
+            "description": "Policy the job runs for.",
             "type": "string"
           },
           "progressPercent": {
@@ -8819,13 +8834,28 @@
             "type": "integer"
           },
           "state": {
+            "examples": [
+              "running"
+            ],
             "type": "string"
+          },
+          "step": {
+            "description": "Current step of the kind's plan (while the job is active).",
+            "type": "string"
+          },
+          "targets": {
+            "description": "The job's targets (as in GET /jobs/{jobId}).",
+            "items": {
+              "$ref": "#/components/schemas/JobTarget"
+            },
+            "type": "array"
           }
         },
         "required": [
           "jobId",
           "kind",
           "state",
+          "targets",
           "revision",
           "at"
         ],
@@ -49820,13 +49850,13 @@
             }
           },
           {
-            "description": "Only jobs of this kind.",
+            "description": "Only jobs of these kinds: one kind or a comma-separated list (at most 32), e.g. stack.deploy,stack.pull.",
             "explode": false,
             "in": "query",
             "name": "kind",
             "schema": {
-              "description": "Only jobs of this kind.",
-              "maxLength": 64,
+              "description": "Only jobs of these kinds: one kind or a comma-separated list (at most 32), e.g. stack.deploy,stack.pull.",
+              "maxLength": 1024,
               "type": "string"
             }
           },
@@ -49867,6 +49897,17 @@
             "schema": {
               "description": "Only jobs with this target, as type:id (e.g. stack:0190a6e0-...).",
               "maxLength": 1100,
+              "type": "string"
+            }
+          },
+          {
+            "description": "With target: only when that target is in this environment (a target's environment is its own, else the job's). Names such as containers and volumes are unique per environment only.",
+            "explode": false,
+            "in": "query",
+            "name": "targetEnvironmentId",
+            "schema": {
+              "description": "With target: only when that target is in this environment (a target's environment is its own, else the job's). Names such as containers and volumes are unique per environment only.",
+              "maxLength": 128,
               "type": "string"
             }
           },

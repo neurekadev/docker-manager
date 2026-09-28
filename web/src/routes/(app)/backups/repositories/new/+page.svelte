@@ -7,11 +7,15 @@
 	// saved it becomes "Finish later" (the repository page finishes setup).
 	// The first repository of an instance generates the key; later ones
 	// reuse it and only ask for the challenge. Errors show in the wizard.
+	// Confirming a rotated key starts verifications that move the existing
+	// repositories to it: they show here and, found again in the running
+	// list, on each repository's page (docs/internal/web.md, "Job progress
+	// after reload").
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import KeyRound from '@lucide/svelte/icons/key-round';
-	import { api, unwrap, type Schema } from '$lib/api/client';
+	import { api, unwrap, type Job, type Schema } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { criticalWork } from '$lib/live';
 	import { routes } from '$lib/routes';
@@ -20,7 +24,6 @@
 		Button,
 		Card,
 		DeniedState,
-		JobProgress,
 		Notice,
 		PageHeader,
 		SecretReveal,
@@ -29,13 +32,17 @@
 		TextField,
 		toast
 	} from '$lib/ui';
+	import { environmentName } from '$lib/features/common/data';
 	import { fieldErrors, actionError } from '$lib/features/common/errors';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import Page from '$lib/features/common/Page.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import CompressionField from '$lib/features/backups/CompressionField.svelte';
 	import ConnectionTestResult from '$lib/features/backups/ConnectionTestResult.svelte';
 	import DestinationFields from '$lib/features/backups/DestinationFields.svelte';
 	import { destinationReady, emptyDestination } from '$lib/features/backups/destination';
+	import { VERIFY_KINDS, verifyTitle } from '$lib/features/backups/jobs';
 	import RecoveryKeyChallenge from '$lib/features/backups/RecoveryKeyChallenge.svelte';
 	import {
 		COMPRESSION_NEW_NOTE,
@@ -45,6 +52,7 @@
 		type CompressionMode,
 		type ConnectionTest
 	} from '$lib/features/backups/model';
+	import { repositoriesQuery } from '$lib/features/backups/queries';
 
 	usePage({
 		title: 'Add backup repository',
@@ -73,6 +81,35 @@
 	const repo = $derived<BackupRepository | undefined>(
 		confirmed?.repository ?? created?.repository
 	);
+
+	// The verifications moving the repositories to the confirmed key.
+	const repos = createQuery(() => ({
+		...repositoriesQuery(),
+		enabled: !!confirmed?.jobs?.length
+	}));
+	const migrated = $derived([
+		...new Set(
+			(confirmed?.jobs ?? []).flatMap((j) =>
+				(j.targets ?? []).filter((t) => t.type === 'repository').map((t) => t.id)
+			)
+		)
+	]);
+	const migration = useTrackedJobs(() =>
+		migrated.length
+			? {
+					kinds: [...VERIFY_KINDS],
+					targets: migrated.map((id) => ({ type: 'repository', id }))
+				}
+			: null
+	);
+	const migrationTitle = (j: Job) =>
+		verifyTitle(
+			j,
+			repos.data?.find((r) =>
+				j.targets?.some((t) => t.type === 'repository' && t.id === r.id)
+			)?.name ?? 'a repository',
+			(id) => environmentName(envs.data, id)
+		);
 	const fields = $derived(fieldErrors(error));
 	const executors = $derived([
 		{ value: 'manager', label: 'The manager' },
@@ -300,12 +337,12 @@
 								{confirmed.repository.name} is ready. Docker Manager is preparing it for
 								backups now.
 							</Notice>
-							{#each confirmed.jobs ?? [] as j (j.id)}
-								<JobProgress
-									jobId={j.id}
-									title="Initialize {confirmed.repository.name}"
-								/>
-							{/each}
+							<ActiveJobs
+								jobs={migration}
+								titleOf={migrationTitle}
+								variant="inline"
+								label="Moving the repositories to the confirmed key"
+							/>
 						{:else if created}
 							<RecoveryKeyChallenge
 								repositoryId={created.repository.id}
@@ -314,6 +351,7 @@
 								onconfirmed={(r) => {
 									confirmed = r;
 									void qc.invalidateQueries({ queryKey: ['backups'] });
+									for (const j of r.jobs ?? []) migration.add(j);
 								}}
 							/>
 						{/if}

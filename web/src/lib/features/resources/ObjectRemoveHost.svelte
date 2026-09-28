@@ -3,10 +3,10 @@
 	// (in use, managed stack, predefined network, Docker Manager's own: #32). A
 	// removal that is accepted runs as a job; its outcome is a toast.
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import type { Schema } from '$lib/api/client';
+	import type { Job, Schema } from '$lib/api/client';
 	import { networkQuery, queryKeys, volumeQuery } from '$lib/api/queries';
 	import RemovalDialog from './RemovalDialog.svelte';
-	import { resourceKey, trackJob } from './jobs.svelte';
+	import { trackJob } from './jobs.svelte';
 	import { removeNetwork, removeVolume } from './object-actions';
 	import { refusal, RefusalError, type Protection } from './refusals';
 
@@ -21,9 +21,11 @@
 	interface Props {
 		environmentName?: (env: string) => string | undefined;
 		onremoved?: (t: Target) => void;
+		/** Called with the removal's job (the page shows its progress). */
+		onstarted?: (job: Job) => void;
 	}
 
-	let { environmentName, onremoved }: Props = $props();
+	let { environmentName, onremoved, onstarted }: Props = $props();
 	const queryClient = useQueryClient();
 
 	let target = $state<Target | null>(null);
@@ -62,9 +64,9 @@
 				t.kind === 'volume'
 					? await removeVolume(t.environmentId, t.name)
 					: await removeNetwork(t.environmentId, t.name);
+			onstarted?.(job);
 			trackJob(job, {
 				ctx,
-				key: resourceKey(t.kind, t.environmentId, t.name),
 				queryClient,
 				invalidate: [t.kind === 'volume' ? queryKeys.volumes.all : queryKeys.networks.all],
 				onfinish: (j) => {

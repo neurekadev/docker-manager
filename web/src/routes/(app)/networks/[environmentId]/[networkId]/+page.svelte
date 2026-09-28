@@ -4,7 +4,8 @@
 	// report it, then from the containers list), its stack and labels (system labels folded). Removal is the
 	// last entry of the "More actions" menu; its dialog shows the server's
 	// preview (it refuses predefined, in-use, stack-managed and Docker
-	// Manager's own networks with the reason).
+	// Manager's own networks with the reason). Its running jobs come from
+	// the running list, also after a reload.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -25,7 +26,6 @@
 		EmptyState,
 		ErrorState,
 		IconButton,
-		JobProgress,
 		Menu,
 		Notice,
 		OfflineEnvironment,
@@ -44,7 +44,9 @@
 	import Page from '$lib/features/resources/Page.svelte';
 	import LabelsCard from '$lib/features/resources/LabelsCard.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
-	import { activeJobs, resourceKey } from '$lib/features/resources/jobs.svelte';
+	import { networkJobs } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
 	import { attachedContainers, needsAddressLookup } from '$lib/features/resources/model';
@@ -71,7 +73,7 @@
 		q.error instanceof ApiRequestError && q.error.apiError?.code === 'environment_offline'
 	);
 	const notFound = $derived(q.error instanceof ApiRequestError && q.error.status === 404);
-	const job = $derived(activeJobs.byKey[resourceKey('network', env, name)]);
+	const jobs = useTrackedJobs(() => (env && name ? networkJobs(env, name) : null));
 	// The network's answer carries its containers' addresses; for older
 	// agents, which name the containers only, they come from the
 	// containers list.
@@ -159,6 +161,7 @@
 	bind:this={remover}
 	environmentName={() => envName}
 	onremoved={() => goto(routes.networks())}
+	onstarted={(j) => jobs.add(j)}
 />
 
 <Page>
@@ -221,7 +224,7 @@
 				{sentence(n.protection.reason)} Docker Manager never removes it.
 			</Notice>
 		{/if}
-		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}
+		<ActiveJobs {jobs} variant="inline" label="Running jobs of {name}" />
 
 		<Columns>
 			<Card title="Details">

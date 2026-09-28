@@ -5,7 +5,10 @@
 	// its rules, its schedule and its recent runs (manual and scheduled
 	// prune jobs). A preview shows exactly what a run removes (with
 	// protected and excluded objects and why); a manual run is confirmed
-	// and is a durable job (leaving never cancels it). Editing opens the
+	// and is a durable job (leaving never cancels it). Every running prune
+	// job of the policy (one per environment of an all-environments policy,
+	// by hand or scheduled) shows a progress bar, found again after a reload
+	// (docs/internal/web.md, "Job progress after reload"). Editing opens the
 	// policy dialog (routes.maintenanceEdit() links here with it open).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -34,7 +37,6 @@
 		Dialog,
 		EmptyState,
 		IconButton,
-		JobProgress,
 		KpiCard,
 		Menu,
 		Notice,
@@ -56,8 +58,10 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
 	import RunsTable from '$lib/features/jobs/RunsTable.svelte';
 	import { groupRuns } from '$lib/features/jobs/runs';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import MaintenancePolicyDialog from '$lib/features/maintenance/MaintenancePolicyDialog.svelte';
 	import PrunePreviewView from '$lib/features/maintenance/PrunePreviewView.svelte';
 	import {
@@ -87,6 +91,9 @@
 	// Manual and scheduled runs: the prune jobs this policy started.
 	const jobs = createQuery(() => recentJobsQuery(50, { kind: 'prune.run', policyId: id }));
 	const runs = $derived(groupRuns(jobs.data?.items ?? []).slice(0, 10));
+	// The policy's running prune jobs: started here, on the schedule or
+	// elsewhere.
+	const active = useTrackedJobs(() => (id ? { kinds: ['prune.run'], policyId: id } : null));
 
 	usePage(() => ({
 		title: policy.data?.name ?? 'Maintenance policy',
@@ -98,13 +105,11 @@
 
 	let preview = $state<PrunePreview | null>(null);
 	let environmentPreviews = $state<{ environmentId: string; preview: PrunePreview }[]>([]);
-	let environmentJobs = $state<Job[]>([]);
 	let previewing = $state(false);
 	let previewOpen = $state(false);
 	const editDialog = urlDialog('edit');
 	let previewError = $state<unknown>(null);
 	let runOpen = $state(false);
-	let job = $state<Job | null>(null);
 	let deleteOpen = $state(false);
 
 	async function loadPreview(p: MaintenancePolicy) {
@@ -137,24 +142,30 @@
 		}
 	}
 
+	/** What a run of the policy is called (per environment for all of them). */
+	function runTitle(j: Pick<Job, 'environmentId'>): string {
+		const name = policy.data?.name ?? 'the policy';
+		return policy.data?.scope === 'all'
+			? `Prune ${name} on ${environmentName(envs.data, j.environmentId)}`
+			: `Prune ${name}`;
+	}
+
 	async function run(p: MaintenancePolicy) {
 		try {
 			if (p.scope === 'all') {
-				environmentJobs = (
-					await unwrap(
-						api.POST('/api/v1/maintenance-policies/{policyId}/environment-runs', {
-							params: {
-								path: { policyId: p.id },
-								header: { 'Idempotency-Key': newIdempotencyKey() }
-							},
-							body: { confirm: true }
-						})
-					)
-				).jobs;
-				job = environmentJobs[0] ?? null;
+				const out = await unwrap(
+					api.POST('/api/v1/maintenance-policies/{policyId}/environment-runs', {
+						params: {
+							path: { policyId: p.id },
+							header: { 'Idempotency-Key': newIdempotencyKey() }
+						},
+						body: { confirm: true }
+					})
+				);
+				for (const j of out.jobs) active.add(j, runTitle(j));
 				return;
 			}
-			job = await unwrap(
+			const j = await unwrap(
 				api.POST('/api/v1/maintenance-policies/{policyId}/runs', {
 					params: {
 						path: { policyId: p.id },
@@ -163,6 +174,7 @@
 					body: { confirm: true }
 				})
 			);
+			active.add(j, runTitle(j));
 		} catch (e) {
 			throw new Error(
 				actionError(e, {
@@ -182,7 +194,10 @@
 		void qc.invalidateQueries({ queryKey: ['policies', 'list'] });
 		void jobs.refetch();
 		preview = null;
-		const name = policy.data?.name ?? 'the policy';
+		const name =
+			policy.data?.scope === 'all'
+				? `${policy.data.name} on ${environmentName(envs.data, j.environmentId)}`
+				: (policy.data?.name ?? 'the policy');
 		if (j.state === 'succeeded') toast.success(`Pruned ${name}`);
 		else if (j.state === 'partial')
 			toast.warn(`Pruned ${name} partly`, {
@@ -248,6 +263,7 @@
 						<Button
 							variant="primary"
 							icon={Play}
+							loading={active.busy}
 							onclick={() => (runOpen = true)}
 							disabled={on.length === 0}>Run now</Button
 						>
@@ -279,28 +295,12 @@
 				<OfflineEnvironment name={env.name} since={env.connectionChangedAt} />
 			{/if}
 
-			{#if job}
-				<JobProgress jobId={job.id} title="Prune {p.name}" onfinish={finished} />
-			{/if}
-			{#if environmentJobs.length > 1}
-				<Card title="Environment jobs" subtitle="One prune job per environment in scope.">
-					<ul class="env-jobs" role="list">
-						{#each environmentJobs as environmentJob (environmentJob.id)}
-							<li>
-								<span class="env-name"
-									>{environmentName(
-										envs.data,
-										environmentJob.environmentId
-									)}</span
-								>
-								<a href={routes.job(environmentJob.id)}
-									><StatusBadge status={environmentJob.state} kind="job" /></a
-								>
-							</li>
-						{/each}
-					</ul>
-				</Card>
-			{/if}
+			<ActiveJobs
+				jobs={active}
+				titleOf={runTitle}
+				onfinish={finished}
+				label="Running prunes of {p.name}"
+			/>
 
 			<KpiRow>
 				<KpiCard
@@ -499,29 +499,6 @@
 </Page>
 
 <style>
-	.env-jobs {
-		display: grid;
-		gap: var(--space-2);
-	}
-
-	.env-jobs li {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
-		padding-top: var(--space-2);
-		border-top: 1px solid var(--border-subtle);
-	}
-
-	.env-jobs li:first-child {
-		padding-top: 0;
-		border-top: none;
-	}
-
-	.env-name {
-		color: var(--text-strong);
-	}
-
 	.rules,
 	.runs {
 		display: grid;

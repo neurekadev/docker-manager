@@ -4,11 +4,15 @@
 	// stopped containers, unused networks, anonymous volumes; any age),
 	// editable for this prune only; a preview shows exactly what goes and what is protected, then
 	// the prune.run job runs in place. Nothing is saved: recurring prunes
-	// are policies on the Maintenance page.
+	// are policies on the Maintenance page. A one-off prune running in the
+	// button's environments comes back from the running list after a
+	// reload (docs/internal/web.md, "Job progress after reload"): the button
+	// says so and opens on its progress.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import BrushCleaning from '@lucide/svelte/icons/brush-cleaning';
 	import { api, unwrap, type Job } from '$lib/api/client';
+	import { isTerminal } from '$lib/api/job-states';
 	import { queryKeys } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import {
@@ -22,6 +26,7 @@
 		toast
 	} from '$lib/ui';
 	import { actionError } from '$lib/features/common/errors';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
 	import type { EnvironmentScope } from '$lib/features/resources/scope.svelte';
 	import PrunePreviewView from './PrunePreviewView.svelte';
@@ -53,8 +58,29 @@
 	let starting = $state(false);
 	let error = $state<unknown>(null);
 	let key = $state('');
-	let jobId = $state<string | null>(null);
-	let outcome = $state<Job | null>(null);
+	// The prune the dialog follows (one started here, or the one running
+	// when it opened); the job itself lives in `prunes`.
+	let shownId = $state<string | null>(null);
+
+	// One-off prunes (no policy) in the environments this button prunes.
+	const envIds = $derived(environments.map((e) => e.id));
+	const prunes = useTrackedJobs(
+		() => ({
+			kinds: ['prune.run'],
+			policyId: null,
+			...(envIds.length === 1 ? { environmentId: envIds[0] } : {})
+		}),
+		{ enabled: () => envIds.length > 0 }
+	);
+	const mine = $derived(
+		prunes.entries.filter((e) => !e.job?.environmentId || envIds.includes(e.job.environmentId))
+	);
+	/** A prune runs in one of the button's environments. */
+	const pruning = $derived(mine.some((e) => e.active));
+	const shown = $derived(shownId ? mine.find((e) => e.id === shownId) : undefined);
+	const outcome = $derived(
+		shown && !shown.active && isTerminal(shown.job?.state) ? shown.job : undefined
+	);
 
 	// Category descriptions and Engine limitations (needs settings.read;
 	// the editor falls back to plain labels without them).
@@ -68,15 +94,18 @@
 		rules = manualPruneRules(target);
 		preview = null;
 		error = null;
-		jobId = null;
-		outcome = null;
+		shownId = mine.find((e) => e.active)?.id ?? null;
 		open = true;
 	}
+
+	const nameOf = (id: string | undefined) =>
+		(environments.find((e) => e.id === id) ?? scope.targets.find((e) => e.id === id))?.name ??
+		'the environment';
 
 	const envName = $derived(environments.find((e) => e.id === env)?.name ?? '');
 	const previewProblem = $derived(manualPruneProblem(rules, true));
 	const runProblem = $derived(manualPruneProblem(rules, false));
-	const running = $derived(jobId !== null && outcome === null);
+	const running = $derived(!!shown && !outcome);
 	const busy = $derived(previewing || starting);
 
 	function setRule(r: MaintenanceRule) {
@@ -112,7 +141,8 @@
 					body: { rules, confirm: true }
 				})
 			);
-			jobId = job.id;
+			prunes.add(job, `Prune ${info.what} on ${envName}`);
+			shownId = job.id;
 		} catch (e) {
 			error = e;
 		} finally {
@@ -121,7 +151,11 @@
 	}
 
 	function finished(j: Job) {
-		outcome = j;
+		// A prune started here prunes this page's objects; one found running
+		// may have pruned anything.
+		const what = mine.find((e) => e.id === j.id)?.title ? info.what : 'unused objects';
+		const where = nameOf(j.environmentId);
+		prunes.markFinished(j);
 		for (const k of [
 			queryKeys.containers.all,
 			queryKeys.images.all,
@@ -129,16 +163,18 @@
 			queryKeys.networks.all
 		])
 			void queryClient.invalidateQueries({ queryKey: k });
-		if (j.state === 'succeeded') toast.success(`Pruned ${info.what} on ${envName}`);
+		if (j.state === 'succeeded') toast.success(`Pruned ${what} on ${where}`);
 		else if (j.state === 'partial')
-			toast.warn(`Pruned ${info.what} on ${envName} with some failures`, {
+			toast.warn(`Pruned ${what} on ${where} with some failures`, {
 				body: 'Open the job to see which objects were skipped or failed.'
 			});
 	}
 </script>
 
 {#if environments.length}
-	<Button variant="secondary" icon={BrushCleaning} onclick={start}>{info.title}</Button>
+	<Button variant="secondary" icon={BrushCleaning} onclick={start}
+		>{pruning ? 'Pruning…' : info.title}</Button
+	>
 {/if}
 
 <Dialog
@@ -149,9 +185,13 @@
 	dismissible={!busy}
 >
 	<div class="body">
-		{#if jobId}
-			{#key jobId}
-				<JobProgress {jobId} title="Prune {info.what} on {envName}" onfinish={finished} />
+		{#if shown}
+			{#key shown.id}
+				<JobProgress
+					jobId={shown.id}
+					title={shown.title ?? `Prune on ${nameOf(shown.job?.environmentId)}`}
+					onfinish={finished}
+				/>
 			{/key}
 			{#if outcome && outcome.state !== 'succeeded'}
 				<p class="muted">
@@ -194,7 +234,7 @@
 	</div>
 
 	{#snippet footer()}
-		{#if jobId}
+		{#if shown}
 			<Button variant={running ? 'ghost' : 'primary'} onclick={() => (open = false)}
 				>{running ? 'Continue in the background' : 'Done'}</Button
 			>

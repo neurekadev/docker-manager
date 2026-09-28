@@ -52,6 +52,12 @@ container, image, volume or network, and start common actions such as
 Deploys, image pulls, updates, backups, cleanups and file operations run as
 **jobs**. A job keeps running when you close the browser.
 
+Its progress bar stays too: when you reload the page, or leave and come
+back, the page shows the jobs still running for what it shows. While jobs
+run, the top bar says how many (for example **3 running**). Click it to see
+them. File uploads are the one exception: they run in your browser, so a
+reload stops them (see [Files](/docs/files)).
+
 **Jobs** in the menu lists every job, with filters for state, kind and
 environment. A policy's page links to the jobs of just that policy. Open a
 job to see its steps and result.

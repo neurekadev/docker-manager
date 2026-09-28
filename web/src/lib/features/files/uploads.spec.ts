@@ -1,9 +1,19 @@
 // Upload queue (#15): create-only by default, resolved conflicts send
 // their policy, progress, cancellation, bounded concurrency, errors in plain
-// language and critical work while uploading.
-import { describe, expect, it } from 'vitest';
+// language and critical work while uploading; the browser asks before the
+// page unloads while anything uploads, and each root's queue outlives the
+// file manager (in-app navigation keeps the transfers).
+import { describe, expect, it, vi } from 'vitest';
 import { criticalWork } from '$lib/live';
-import { tooLargeMessage, UploadQueue, type XhrLike } from './uploads.svelte';
+import {
+	releaseUploadQueue,
+	tooLargeMessage,
+	uploadQueue,
+	UploadQueue,
+	warnBeforeUnload,
+	type UnloadTarget,
+	type XhrLike
+} from './uploads.svelte';
 
 class FakeXhr implements XhrLike {
 	static all: FakeXhr[] = [];
@@ -151,6 +161,72 @@ describe('UploadQueue', () => {
 	it('names the limit in plain words', () => {
 		expect(tooLargeMessage(2 * 1024 ** 3)).toBe(
 			'The file is larger than the upload limit of 2 GB. An administrator can raise it.'
+		);
+	});
+
+	it('asks before the page unloads only while it uploads', () => {
+		FakeXhr.all = [];
+		const listeners = new Set<(e: BeforeUnloadEvent) => void>();
+		const unload: UnloadTarget = {
+			addEventListener: (_t, l) => listeners.add(l),
+			removeEventListener: (_t, l) => listeners.delete(l)
+		};
+		const q = new UploadQueue({
+			url: (d, n) => `/up?path=${d}&name=${n}`,
+			xhr: () => new FakeXhr(),
+			unload
+		});
+		const other = new UploadQueue({
+			url: (d, n) => `/other?path=${d}&name=${n}`,
+			xhr: () => new FakeXhr(),
+			unload
+		});
+		expect(listeners.size).toBe(0);
+		q.enqueue([{ file: file('1'), dir: '.', name: 'one' }]);
+		other.enqueue([{ file: file('2'), dir: '.', name: 'two' }]);
+		expect(listeners.size).toBe(2);
+		// One root finishing keeps the other root's warning.
+		FakeXhr.all[0].respond(201, { entry: { name: 'one' } });
+		expect(listeners.size).toBe(1);
+		const event = { preventDefault: vi.fn(), returnValue: 'unset' };
+		for (const l of listeners) l(event as unknown as BeforeUnloadEvent);
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(event.returnValue).toBe('');
+		other.cancelAll();
+		expect(listeners.size).toBe(0);
+	});
+
+	it('warns through preventDefault and an empty return value', () => {
+		const event = { preventDefault: vi.fn(), returnValue: 'x' };
+		warnBeforeUnload(event as unknown as BeforeUnloadEvent);
+		expect(event.preventDefault).toHaveBeenCalledOnce();
+		expect(event.returnValue).toBe('');
+	});
+
+	it("keeps a root's queue while it uploads and hands it the new file manager's callbacks", () => {
+		FakeXhr.all = [];
+		const drained: string[] = [];
+		const opts = (who: string) => ({
+			url: (d: string, n: string) => `/up?path=${d}&name=${n}`,
+			xhr: () => new FakeXhr(),
+			unload: null,
+			ondrained: () => drained.push(who)
+		});
+		const q = uploadQueue('stack:keep', opts('first'));
+		q.enqueue([{ file: file('1'), dir: '.', name: 'one' }]);
+		// The file manager unmounts (another page) while the upload runs.
+		releaseUploadQueue('stack:keep');
+		const again = uploadQueue('stack:keep', opts('second'));
+		expect(again).toBe(q);
+		expect(again.items.map((i) => i.state)).toEqual(['uploading']);
+		FakeXhr.all[0].respond(201, { entry: { name: 'one' } });
+		expect(drained).toEqual(['second']);
+		// Idle: the next file manager starts with a fresh queue.
+		releaseUploadQueue('stack:keep');
+		expect(uploadQueue('stack:keep', opts('third'))).not.toBe(q);
+		// Roots never share a queue.
+		expect(uploadQueue('volume:e1/pgdata', opts('x'))).not.toBe(
+			uploadQueue('stack:keep', opts('y'))
 		);
 	});
 });

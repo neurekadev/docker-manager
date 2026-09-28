@@ -5,7 +5,11 @@
 // a cancelled upload leaves nothing behind). A file whose name is free is
 // sent with If-None-Match: * (never overwrites); a resolved conflict sends
 // its policy. While anything uploads, criticalWork keeps the PWA from
-// reloading (#23).
+// reloading (#23) and the browser asks before the page unloads (a reload,
+// closing the tab or leaving the app would cancel the transfers). The
+// queues live in this module, one per file root (uploadQueue), so uploads
+// keep running while the user is elsewhere in the app and show again when
+// they come back to the root's files.
 import { criticalWork } from '$lib/live';
 import { formatBytes } from '$lib/ui/format';
 
@@ -62,6 +66,27 @@ export interface UploadQueueOptions {
 	 * files fail at once instead of being sent. Undefined: not known yet.
 	 */
 	maxBytes?: () => number | undefined;
+	/**
+	 * Where the queue listens for `beforeunload` while it uploads (default:
+	 * the window; null: nowhere). A test seam.
+	 */
+	unload?: UnloadTarget | null;
+}
+
+/** The part of the window the unload warning uses. */
+export interface UnloadTarget {
+	addEventListener(type: 'beforeunload', listener: (e: BeforeUnloadEvent) => void): void;
+	removeEventListener(type: 'beforeunload', listener: (e: BeforeUnloadEvent) => void): void;
+}
+
+/**
+ * Makes the browser ask before the page unloads (reload, close, another
+ * site): the transfers still running would be cancelled.
+ */
+export function warnBeforeUnload(e: BeforeUnloadEvent) {
+	e.preventDefault();
+	// Older browsers show the prompt only with a return value.
+	e.returnValue = '';
 }
 
 /** The message of a file over the upload limit. */
@@ -100,9 +125,22 @@ export class UploadQueue {
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#running = new Map<number, XhrLike>();
 	#release: (() => void) | null = null;
+	#unload: UnloadTarget | null;
+	// Its own listener: another root's queue going idle must not remove it.
+	#warn = (e: BeforeUnloadEvent) => warnBeforeUnload(e);
 
 	constructor(opts: UploadQueueOptions) {
 		this.#opts = opts;
+		this.#unload =
+			opts.unload !== undefined ? opts.unload : typeof window === 'undefined' ? null : window;
+	}
+
+	/**
+	 * Replaces the callbacks and the limit (the file manager of the root
+	 * mounted again); transfers in flight keep going.
+	 */
+	setOptions(opts: Omit<UploadQueueOptions, 'xhr' | 'concurrency' | 'unload'>) {
+		this.#opts = { ...this.#opts, ...opts };
 	}
 
 	/** Adds files; transfers start at once (bounded concurrency). */
@@ -128,8 +166,16 @@ export class UploadQueue {
 			if (item.state === 'queued') this.#pending.push({ item, req });
 		}
 		this.items = [...this.items, ...added];
-		if (this.#pending.length && !this.#release)
-			this.#release = criticalWork.register('upload', `${this.#pending.length} uploads`);
+		if (this.#pending.length && !this.#release) {
+			const release = criticalWork.register('upload', `${this.#pending.length} uploads`);
+			const unload = this.#unload;
+			const warn = this.#warn;
+			unload?.addEventListener('beforeunload', warn);
+			this.#release = () => {
+				release();
+				unload?.removeEventListener('beforeunload', warn);
+			};
+		}
 		this.#pump();
 		this.#maybeDrained();
 	}
@@ -214,4 +260,39 @@ export class UploadQueue {
 		this.#release = null;
 		this.#opts.ondrained?.(this.items);
 	}
+}
+
+// One queue per file root (FileManager's scopeKey): uploads survive the
+// file manager unmounting (another tab or page of the app) and show again
+// when it mounts. Bookkeeping, not rendered.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const queues = new Map<string, UploadQueue>();
+
+/**
+ * The upload queue of the root `key`, created on first use; an existing
+ * queue takes the new callbacks (`opts`), its transfers keep going.
+ */
+export function uploadQueue(key: string, opts: UploadQueueOptions): UploadQueue {
+	const q = queues.get(key);
+	if (q) {
+		q.setOptions({
+			url: opts.url,
+			onsettled: opts.onsettled,
+			ondrained: opts.ondrained,
+			maxBytes: opts.maxBytes
+		});
+		return q;
+	}
+	const created = new UploadQueue(opts);
+	queues.set(key, created);
+	return created;
+}
+
+/**
+ * Forgets the queue of `key` unless it still uploads (the file manager of
+ * the root unmounts: finished uploads were announced already).
+ */
+export function releaseUploadQueue(key: string) {
+	const q = queues.get(key);
+	if (q && !q.active) queues.delete(key);
 }

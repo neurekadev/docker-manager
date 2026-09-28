@@ -16,7 +16,11 @@
 	// deploy. Each row says in one line what happens, the rest (and
 	// the host folder) waits behind Details; the job's progress shows in
 	// the row. Nothing existing is ever overwritten. Projects Docker
-	// Manager manages already are hidden unless the switch shows them.
+	// Manager manages already are hidden unless the switch shows them. The
+	// environment's running imports come from the running list (the
+	// project's stack is the job's stack target), so reopening the dialog
+	// or reloading the page shows the imports still running
+	// (docs/internal/web.md, "Job progress after reload").
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
@@ -24,6 +28,9 @@
 	import type { Job } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import { streamedIds } from '$lib/features/jobs/active';
+	import JobRow from '$lib/features/jobs/JobRow.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { routes } from '$lib/routes';
 	import {
 		Badge,
@@ -81,17 +88,44 @@
 		...discoveredQuery(environmentId),
 		enabled: open && !!env && env.online
 	}));
-	// Per project (by environment and name): the running import job, the
+	// The environment's import jobs: started here (shown at once) or
+	// running (the running list), each shown in the row of the project
+	// whose stack it creates.
+	const imports = useTrackedJobs(
+		() => (environmentId ? { kinds: ['stack.import'], environmentId } : null),
+		{ enabled: () => open }
+	);
+	// Newest last: a project's newest import wins.
+	const importOf = $derived(
+		new Map(
+			imports.entries.toReversed().flatMap((e) => {
+				const id = e.job && jobStackId(e.job);
+				return id ? [[id, e] as const] : [];
+			})
+		)
+	);
+	const streamed = $derived(streamedIds(imports.entries));
+	// Jobs whose end was reported (a reopened dialog replays the end); not
+	// state, nothing renders from it.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const reported = new Set<string>();
+	// Per project (by environment and name): the stack its import started
+	// here creates (the project lists it only after a refresh), the
 	// in-place request in flight, the last error, and whether an import
 	// started here (its row stays when managed projects are hidden).
-	let jobs = $state<Record<string, string>>({});
+	let stackOf = $state<Record<string, string>>({});
 	let busy = $state<Record<string, boolean>>({});
 	let errors = $state<Record<string, string>>({});
 	let started = $state<Record<string, boolean>>({});
 	const keyOf = (p: DiscoveredStack) => `${environmentId}/${p.name}`;
+	const importFor = (p: DiscoveredStack) => importOf.get(p.stackId || stackOf[keyOf(p)] || '');
 	let hideManaged = $state(true);
 	const list = $derived(
-		importCandidates([...(projects.data ?? [])], hideManaged, (p) => !!started[keyOf(p)])
+		importCandidates(
+			[...(projects.data ?? [])],
+			hideManaged,
+			(p) => !!started[keyOf(p)] || !!importFor(p)
+		)
 	);
 	// The project whose copy would stop running services, while its
 	// confirmation is open.
@@ -134,7 +168,9 @@
 				refresh();
 			} else {
 				const job: Job = await importStackByCopy(environmentId, { projectName: p.name });
-				jobs = { ...jobs, [k]: job.id };
+				imports.add(job, `Import ${p.name}`);
+				const stackId = jobStackId(job);
+				if (stackId) stackOf = { ...stackOf, [k]: stackId };
 			}
 		} catch (e) {
 			errors = { ...errors, [k]: importFailure(errorView(e), p.name, !!p.containerless) };
@@ -144,6 +180,9 @@
 	}
 
 	function finished(p: DiscoveredStack, j: Job) {
+		imports.markFinished(j);
+		if (reported.has(j.id)) return;
+		reported.add(j.id);
 		refresh();
 		if (j.state === 'succeeded') imported(p.name, jobStackId(j));
 	}
@@ -226,6 +265,8 @@
 					{@const mode = importMode(p)}
 					{@const details = importDetails(p)}
 					{@const volumes = volumesLine(p.volumes)}
+					{@const job = importFor(p)}
+					{@const importing = !!job?.active}
 					<li class="item">
 						<div class="row">
 							<div class="title">
@@ -239,14 +280,15 @@
 										label="{c.up} of {c.total} running"
 									/>
 								{/if}
-								{#if p.stackId}<Badge tone="accent">Managed</Badge>{/if}
+								{#if p.stackId && !importing}<Badge tone="accent">Managed</Badge
+									>{/if}
 							</div>
 							<div class="actions">
-								{#if p.stackId}
+								{#if p.stackId && !importing}
 									<Button size="sm" href={routes.stack(p.stackId)}
 										>Open stack</Button
 									>
-								{:else if mode !== 'blocked' && !jobs[k]}
+								{:else if !p.stackId && mode !== 'blocked' && !job}
 									<Button
 										size="sm"
 										variant="primary"
@@ -262,12 +304,18 @@
 						{#if volumes}
 							<p class="services" title={(p.volumes ?? []).join(', ')}>{volumes}</p>
 						{/if}
-						{#if jobs[k]}
-							<JobProgress
-								jobId={jobs[k]}
-								title="Import {p.name}"
-								onfinish={(j) => finished(p, j)}
-							/>
+						{#if job}
+							{#key job.id}
+								{#if streamed.has(job.id) || !job.job}
+									<JobProgress
+										jobId={job.id}
+										title="Import {p.name}"
+										onfinish={(j) => finished(p, j)}
+									/>
+								{:else}
+									<JobRow job={job.job} title="Import {p.name}" />
+								{/if}
+							{/key}
 						{:else if !p.stackId}
 							<p class="how" class:blocked={mode === 'blocked'}>{importHow(p)}</p>
 							{#if details.length || p.sourceDir || p.workingDir}

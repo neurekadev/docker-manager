@@ -283,6 +283,52 @@ func TestListJobsPaginationFiltersAndVisibility(t *testing.T) {
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?state=done", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
 }
 
+// Views restore their progress bars from the running jobs (#22): the kind
+// filter takes a comma-separated list, and targetEnvironmentId narrows the
+// target filter to one environment (container names repeat across
+// environments; a target's environment is the job's unless it names one).
+func TestListJobsKindListAndTargetEnvironment(t *testing.T) {
+	f := newJobsFixture(t, testAuthz{})
+	start := f.enqueue(jobspec.StackStart, "e1", stackT("a"))
+	web1 := f.enqueue(jobspec.ContainerRestart, "e1", domain.JobTarget{Type: domain.TargetContainer, ID: "web"})
+	web2 := f.enqueue(jobspec.ContainerRestart, "e2", domain.JobTarget{Type: domain.TargetContainer, ID: "web"})
+	prune := f.enqueue(jobspec.PruneRun, "e1")
+
+	ids, _ := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?kind=prune.run,stack.start", "alice"))
+	if strings.Join(ids, ",") != prune.ID+","+start.ID {
+		t.Fatalf("kind list %v", ids)
+	}
+	ids, _ = listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?kind=prune.run,%20prune.run", "alice"))
+	if len(ids) != 1 || ids[0] != prune.ID {
+		t.Fatalf("repeated kind %v", ids)
+	}
+	ids, _ = listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?target=container:web", "alice"))
+	if strings.Join(ids, ",") != web2.ID+","+web1.ID {
+		t.Fatalf("target in every environment %v", ids)
+	}
+	ids, _ = listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?target=container:web&targetEnvironmentId=e2", "alice"))
+	if len(ids) != 1 || ids[0] != web2.ID {
+		t.Fatalf("target in e2 %v", ids)
+	}
+	if ids, _ := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?target=container:web&targetEnvironmentId=e3", "alice")); len(ids) != 0 {
+		t.Fatalf("target in e3 %v", ids)
+	}
+	// A cursor is bound to the target's environment.
+	_, next := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&target=container:web", "alice"))
+	if next == "" {
+		t.Fatal("expected a next cursor")
+	}
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&target=container:web&targetEnvironmentId=e1&cursor="+next, "alice"),
+		http.StatusUnprocessableEntity, CodeValidationFailed)
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?targetEnvironmentId=e1", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?kind=prune.run,,stack.start", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
+	kinds := make([]string, maxKindFilters+1)
+	for i := range kinds {
+		kinds[i] = "k" + itoa(int64(i)) + ".y"
+	}
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?kind="+strings.Join(kinds, ","), "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
+}
+
 // The jobs view (#22) filters by origin: manual, scheduled or API token.
 func TestListJobsOriginFilter(t *testing.T) {
 	f := newJobsFixture(t, testAuthz{})

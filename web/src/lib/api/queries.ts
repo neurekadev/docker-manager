@@ -16,6 +16,7 @@ import {
 import { liveKeys } from '$lib/live/keys';
 import { pollWhileDown } from '$lib/live/status.svelte';
 import { acrossEnvironments, allPages, type EnvList, type EnvTarget } from './multi-env';
+import { ACTIVE_JOB_STATES } from './job-states';
 import {
 	api,
 	ApiRequestError,
@@ -351,10 +352,14 @@ export function environmentMetricsQuery(
 export interface JobFilters {
 	/** Comma-free state names; several are ORed. */
 	states?: Job['state'][];
+	/** One kind, or several comma-separated. */
 	kind?: string;
 	environmentId?: string;
 	origins?: Job['origin'][];
+	/** `type:id`, e.g. `container:web`. */
 	target?: string;
+	/** With `target`: only when the target is in this environment. */
+	targetEnvironmentId?: string;
 	/** Jobs of one policy (its scheduled and manual runs). */
 	policyId?: string;
 }
@@ -382,6 +387,7 @@ export async function fetchJobsPage(
 					environmentId: f.environmentId || undefined,
 					origin: f.origins?.length ? f.origins : undefined,
 					target: f.target || undefined,
+					targetEnvironmentId: (f.target && f.targetEnvironmentId) || undefined,
 					policyId: f.policyId || undefined
 				}
 			},
@@ -407,6 +413,34 @@ export function recentJobsQuery(limit = 20, f: JobFilters = {}, client: ApiClien
 		queryKey: liveKeys.list('jobs', 'recent', limit, f),
 		queryFn: ({ signal }) => fetchJobsPage(f, undefined, limit, signal, client),
 		staleTime: 10_000
+	});
+}
+
+/** The most running jobs one request lists (the server's page limit). */
+export const ACTIVE_JOBS_LIMIT = 200;
+
+/**
+ * Every job that has not ended and the caller may read (newest first, at
+ * most ACTIVE_JOBS_LIMIT): the one list every progress bar restores from
+ * after a reload or when the user comes back (docs/internal/web.md, "Job
+ * progress after reload"; `useTrackedJobs`, `ActiveJobs`). Job events
+ * refresh it; it polls only while the live stream is down.
+ */
+export function activeJobsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('jobs', 'active'),
+		queryFn: async ({ signal }) =>
+			(
+				await fetchJobsPage(
+					{ states: [...ACTIVE_JOB_STATES] },
+					undefined,
+					ACTIVE_JOBS_LIMIT,
+					signal,
+					client
+				)
+			).items,
+		staleTime: 5_000,
+		refetchInterval: pollWhileDown(10_000)
 	});
 }
 

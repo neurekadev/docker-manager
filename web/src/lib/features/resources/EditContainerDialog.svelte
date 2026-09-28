@@ -4,11 +4,11 @@
 	// the dialog says so up front, listing the recreate-only settings the
 	// server reports, instead of letting a request fail.
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import { api, unwrap } from '$lib/api/client';
+	import { api, unwrap, type Job } from '$lib/api/client';
 	import { queryKeys, type Container } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { Button, Dialog, Notice, Select, TextField, fieldError } from '$lib/ui';
-	import { idempotencyKey, resourceKey, trackJob } from './jobs.svelte';
+	import { idempotencyKey, trackJob } from './jobs.svelte';
 	import { megabytes, RESTART_OPTIONS } from './model';
 	import { refusal, type Refusal } from './refusals';
 
@@ -16,9 +16,11 @@
 		open?: boolean;
 		container: Container;
 		environmentName?: string;
+		/** Called with the change's job (the page shows its progress). */
+		onstarted?: (job: Job) => void;
 	}
 
-	let { open = $bindable(false), container, environmentName }: Props = $props();
+	let { open = $bindable(false), container, environmentName, onstarted }: Props = $props();
 	const queryClient = useQueryClient();
 
 	let restart = $state('');
@@ -107,9 +109,9 @@
 					}
 				})
 			);
+			onstarted?.(job);
 			trackJob(job, {
 				ctx: { kind: 'container', name: container.name, verb: 'update' },
-				key: resourceKey('container', container.environmentId, container.name),
 				queryClient,
 				invalidate: [queryKeys.containers.all]
 			});

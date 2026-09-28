@@ -4,7 +4,9 @@
 	// "More actions" menu), what Docker Manager refuses and why (#32,
 	// managed stacks, non-local drivers #28), and the tabs: Overview here,
 	// Files (#15 volume file manager), Backups (#10) and Migrate (#35, only
-	// with another environment to move to) as child routes.
+	// with another environment to move to) as child routes. Its running
+	// jobs come from the running list (also after a reload), except those
+	// the open tab shows itself (files, backups, the migration).
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -28,7 +30,6 @@
 		EmptyState,
 		ErrorState,
 		IconButton,
-		JobProgress,
 		Menu,
 		Notice,
 		OfflineEnvironment,
@@ -45,7 +46,9 @@
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
-	import { activeJobs, resourceKey } from '$lib/features/resources/jobs.svelte';
+	import { volumeJobs, volumeTab } from '$lib/features/resources/object-jobs';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { volumeAccess } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
@@ -72,7 +75,8 @@
 		q.error instanceof ApiRequestError && q.error.apiError?.code === 'environment_offline'
 	);
 	const notFound = $derived(q.error instanceof ApiRequestError && q.error.status === 404);
-	const job = $derived(activeJobs.byKey[resourceKey('volume', env, name)]);
+	const tab = $derived(volumeTab(page.url.pathname));
+	const jobs = useTrackedJobs(() => (env && name ? volumeJobs(env, name, tab) : null));
 	const access = $derived(v ? volumeAccess(v) : { local: true });
 	const filesOpen = $derived(
 		!!v && access.local && !v.protection && can(v.actions, 'volume.files.read')
@@ -148,6 +152,7 @@
 	bind:this={remover}
 	environmentName={() => envName}
 	onremoved={() => goto(routes.volumes())}
+	onstarted={(j) => jobs.add(j)}
 />
 
 <Page>
@@ -230,7 +235,7 @@
 				{access.reason} Containers can still use it; Docker Manager lists it and can remove it.
 			</Notice>
 		{/if}
-		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}
+		<ActiveJobs {jobs} variant="inline" label="Running jobs of {name}" />
 
 		<TabNav items={tabs} current={page.url.pathname} label="Volume sections" />
 		{@render children()}

@@ -20,7 +20,6 @@
 	import BulkConfirm from './BulkConfirm.svelte';
 	import { planImageRemoval, planNetworkRemoval, planVolumeRemoval, type BulkPlan } from './bulk';
 	import { runBulk } from './bulk-run';
-	import { resourceKey } from './jobs.svelte';
 	import { shortDigest } from './model';
 	import { removeImage, removeNetwork, removeVolume } from './object-actions';
 
@@ -95,8 +94,6 @@
 				protection: item.protection,
 				environmentName: environmentName(item.environmentId)
 			}),
-			key: (item) =>
-				resourceKey(k, item.environmentId, 'repoTags' in item ? item.id : item.name),
 			queryClient,
 			invalidate: [
 				k === 'image'

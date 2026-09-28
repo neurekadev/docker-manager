@@ -1,9 +1,11 @@
 // Follows the job a Docker mutation started (#6: every mutation answers
-// 202 with a job, #26) until it ends: the page shows it while it runs
-// (activeJobs, keyed by resource), the finish is a toast that repeats the
-// action ("Stopped silo-web") or says why it failed, a notice in the bell,
-// and a refresh of the affected queries. Live events (#23) refresh views
-// too; the explicit refresh covers a missed event.
+// 202 with a job, #26) until it ends: the finish is a toast that repeats
+// the action ("Stopped silo-web") or says why it failed, a notice in the
+// bell, and a refresh of the affected queries. Live events (#23) refresh
+// views too; the explicit refresh covers a missed event. The progress
+// itself is not kept here: each object's page shows its running jobs from
+// the running list (object-jobs.ts, ActiveJobs), so a reload or coming
+// back finds them again.
 import type { QueryClient, QueryKey } from '@tanstack/svelte-query';
 import { JobWatcher } from '$lib/api/jobs.svelte';
 import type { Job } from '$lib/api/client';
@@ -12,32 +14,8 @@ import { notices as appNotices, type Notices } from '$lib/shell/notices.svelte';
 import { toast as appToast, type Toasts } from '$lib/ui/toast.svelte';
 import { doneTitle, jobFailure, type RefusalContext } from './refusals';
 
-class ActiveJobs {
-	/** Running jobs by resource key (e.g. "container:<env>/<name>"). */
-	byKey = $state<Record<string, JobWatcher>>({});
-
-	set(key: string, w: JobWatcher) {
-		this.byKey = { ...this.byKey, [key]: w };
-	}
-
-	clear(key: string, w: JobWatcher) {
-		if (this.byKey[key] !== w) return;
-		const next = { ...this.byKey };
-		delete next[key];
-		this.byKey = next;
-	}
-}
-
-export const activeJobs = new ActiveJobs();
-
-export function resourceKey(kind: string, env: string, name: string): string {
-	return `${kind}:${env}/${name}`;
-}
-
 export interface TrackOptions {
 	ctx: RefusalContext;
-	/** activeJobs key of the resource (shows the running job on its page). */
-	key?: string;
 	queryClient?: QueryClient;
 	/** Query key prefixes to refresh when the job ends. */
 	invalidate?: QueryKey[];
@@ -76,12 +54,9 @@ export function trackJob(job: Pick<Job, 'id'>, o: TrackOptions): JobWatcher {
 			});
 		}
 		for (const k of o.invalidate ?? []) void o.queryClient?.invalidateQueries({ queryKey: k });
-		if (o.key) activeJobs.clear(o.key, w);
 		o.onfinish?.(j);
 	};
-	// finish runs only after the watcher exists (the job ends later).
 	const w = o.watcher ? o.watcher(job.id, finish) : new JobWatcher(job.id, { onfinish: finish });
-	if (o.key) activeJobs.set(o.key, w);
 	w.start();
 	return w;
 }

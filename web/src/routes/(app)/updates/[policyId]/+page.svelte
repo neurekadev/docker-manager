@@ -7,6 +7,10 @@
 	// Check runs a digest check on every target (never pulls); Preview
 	// updates opens what a run would do and applies it. Editing opens the
 	// policy dialog (routes.updatePolicyEdit() links here with it open).
+	// The policy's running checks and updates show under the header: the
+	// ones started here at once, and every running one from the running
+	// jobs list, so they are still there after a reload or when the user
+	// comes back (docs/internal/web.md, "Job progress after reload").
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -22,7 +26,7 @@
 	import Server from '@lucide/svelte/icons/server';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import { api, unwrap, unwrapEmpty, type Schema } from '$lib/api/client';
+	import { api, unwrap, unwrapEmpty, type Job, type Schema } from '$lib/api/client';
 	import {
 		environmentsQuery,
 		myPermissionsQuery,
@@ -69,8 +73,11 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
+	import { stackNames } from '$lib/features/jobs/labels';
 	import RunsTable from '$lib/features/jobs/RunsTable.svelte';
 	import { groupRuns } from '$lib/features/jobs/runs';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import TargetName from '$lib/features/updates/TargetName.svelte';
 	import UpdatePolicyDialog from '$lib/features/updates/UpdatePolicyDialog.svelte';
 	import {
@@ -127,6 +134,11 @@
 			.sort((a, b) => a.nextRun!.utc.localeCompare(b.nextRun!.utc))[0]
 	);
 	const scheduleOf = (kind: string) => mySchedules.find((s) => s.kind === kind);
+	// The policy's running checks and updates (scheduled or by hand).
+	const policyRuns = useTrackedJobs(() =>
+		id ? { kinds: ['update.check', 'update.run'], policyId: id } : null
+	);
+	const checksRunning = $derived(!!policyRuns.runningOf('update.check'));
 
 	let preview = $state<Preview | null>(null);
 	let previewOpen = $state(false);
@@ -169,6 +181,7 @@
 					}
 				})
 			);
+			for (const j of out.jobs) policyRuns.add(j);
 			toast.success(
 				`Checking ${plural(out.jobs.length, 'stack or container', 'stacks and containers')} for updates`
 			);
@@ -211,6 +224,7 @@
 					body: { fingerprint: preview.fingerprint }
 				})
 			);
+			for (const j of out.jobs) policyRuns.add(j);
 			preview = null;
 			previewOpen = false;
 			toast.success(`Started ${plural(out.jobs.length, 'update', 'updates')}`);
@@ -220,6 +234,13 @@
 		} finally {
 			applying = false;
 		}
+	}
+
+	// A check covers every target: finished ones make room after a moment
+	// (Recent runs keeps them); failed ones stay until dismissed.
+	function runFinished(job: Job) {
+		void qc.invalidateQueries({ queryKey: ['policies'] });
+		if (job.state === 'succeeded') setTimeout(() => policyRuns.dismiss(job.id), 4000);
 	}
 
 	async function remove() {
@@ -379,7 +400,9 @@
 					<Button variant="primary" icon={Eye} loading={previewing} onclick={loadPreview}
 						>Preview updates</Button
 					>
-					<Button icon={RefreshCw} loading={checking} onclick={check}>Check now</Button>
+					<Button icon={RefreshCw} loading={checking || checksRunning} onclick={check}
+						>Check now</Button
+					>
 					{#if manage}
 						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
 					{/if}
@@ -397,6 +420,13 @@
 					{/if}
 				{/snippet}
 			</PageHeader>
+
+			<ActiveJobs
+				jobs={policyRuns}
+				nameOf={stackNames(stacks.data)}
+				onfinish={runFinished}
+				label="Running checks and updates of {p.name}"
+			/>
 
 			{#if error}
 				<Notice tone="danger" title="The action did not start" live="alert"

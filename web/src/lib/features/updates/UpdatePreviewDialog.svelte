@@ -7,6 +7,10 @@
 	// other consumers of the same tag on the environment (the pull moves it
 	// for them too), skipped candidates and source drift. Applying sends the preview's
 	// fingerprint, so anything that changed since is refused, not guessed.
+	// The update job shows in place of the preview: the one just started,
+	// or a running update.run of the policy from the running jobs list (the
+	// dialog opened again after a reload or elsewhere; docs/internal/web.md,
+	// "Job progress after reload").
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap, type Job } from '$lib/api/client';
@@ -25,6 +29,7 @@
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { newIdempotencyKey } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
+	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { policyLabel } from '$lib/shell/notices.svelte';
 	import {
 		imageLabel,
@@ -39,13 +44,16 @@
 		open = $bindable(false),
 		policy,
 		canRun,
-		name: given
+		name: given,
+		onstart
 	}: {
 		open?: boolean;
 		policy: UpdatePolicy;
 		canRun: boolean;
 		/** The target's name ("zerobyte"); default: the policy as users know it. */
 		name?: string;
+		/** The update job started, with its title (the page shows it after the dialog closes). */
+		onstart?: (job: Job, title: string) => void;
 	} = $props();
 
 	const qc = useQueryClient();
@@ -55,7 +63,11 @@
 	let loading = $state(false);
 	let runError = $state<unknown>(null);
 	let starting = $state(false);
-	let job = $state<Job | null>(null);
+	// The policy's update jobs while the dialog is open (closing starts over).
+	const runs = useTrackedJobs(() =>
+		open ? { kinds: ['update.run'], policyId: policy.id } : null
+	);
+	const job = $derived(runs.entries[0]);
 
 	async function load() {
 		loading = true;
@@ -78,10 +90,7 @@
 	// Computed once per opening (a refetched policy does not reset it).
 	$effect(() => {
 		if (open) untrack(() => (job ? undefined : void load()));
-		if (!open) {
-			job = null;
-			runError = null;
-		}
+		if (!open) runError = null;
 	});
 
 	const count = $derived(preview?.items.length ?? 0);
@@ -91,7 +100,7 @@
 		starting = true;
 		runError = null;
 		try {
-			job = await unwrap(
+			const started = await unwrap(
 				api.POST('/api/v1/update-policies/{policyId}/runs', {
 					params: {
 						path: { policyId: policy.id },
@@ -103,6 +112,9 @@
 					}
 				})
 			);
+			const title = `Update ${name}`;
+			runs.add(started, title);
+			onstart?.(started, title);
 		} catch (e) {
 			runError = e;
 		} finally {
@@ -111,6 +123,7 @@
 	}
 
 	function finished(j: Job) {
+		runs.markFinished(j);
 		void qc.invalidateQueries({ queryKey: updateKeys.detail(policy.id) });
 		void qc.invalidateQueries({ queryKey: ['policies', 'list'] });
 		if (j.state === 'succeeded') toast.success(`Updated ${name}`);
@@ -130,7 +143,14 @@
 	size="lg"
 >
 	{#if job}
-		<JobProgress jobId={job.id} title="Update {name}" variant="panel" onfinish={finished} />
+		{#key job.id}
+			<JobProgress
+				jobId={job.id}
+				title={job.title ?? `Update ${name}`}
+				variant="panel"
+				onfinish={finished}
+			/>
+		{/key}
 	{:else if loading}
 		<div aria-busy="true"><Skeleton lines={5} height="20px" /></div>
 	{:else if loadError}
