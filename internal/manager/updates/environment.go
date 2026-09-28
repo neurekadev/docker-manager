@@ -309,7 +309,7 @@ func (s *Service) reconcile(ctx context.Context, p domain.EnvironmentUpdatePolic
 			return nil, err
 		}
 		for _, c := range containers {
-			if c.Stack != nil || c.Labels[protocol.LabelManaged] != protocol.ManagedStandalone ||
+			if c.Stack != nil || protocol.LabelValue(c.Labels, protocol.LabelManaged) != protocol.ManagedStandalone ||
 				s.opts.Resources.ContainerProtection(c) != nil {
 				continue
 			}

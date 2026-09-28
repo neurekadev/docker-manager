@@ -202,6 +202,7 @@ func (c *Client) CloneContainer(ctx context.Context, id string, o CloneOptions) 
 		return "", &Error{Op: op, Code: CodeInvalidArgument, Message: "container " + id + " reports no configuration"}
 	}
 	cfg, hc := *r.Config, *r.HostConfig
+	cfg.Labels = RenameLabels(cfg.Labels, o.RenameLabels)
 	if len(r.ID) >= 12 && cfg.Hostname == r.ID[:12] {
 		cfg.Hostname = ""
 	}

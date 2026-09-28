@@ -103,7 +103,7 @@ type createVolumeInput struct {
 		Name       string            `json:"name" minLength:"1" maxLength:"128" pattern:"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" example:"cache"`
 		Driver     string            `json:"driver,omitempty" maxLength:"128" doc:"Default local."`
 		DriverOpts map[string]string `json:"driverOpts,omitempty"`
-		Labels     map[string]string `json:"labels,omitempty" doc:"dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
+		Labels     map[string]string `json:"labels,omitempty" doc:"docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
 	}
 }
 

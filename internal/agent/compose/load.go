@@ -19,6 +19,7 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // DefaultConfigFiles are the file names searched in the project directory,
@@ -102,9 +103,10 @@ type Bind struct {
 
 // LabelDescription is the display metadata label a Compose file may carry
 // (#7). Docker Manager imports it once as the service's description; it
-// never writes it. (The former dev.neureka.docker-manager.icon label is
-// ignored: services have no icon of their own.)
-const LabelDescription = "dev.neureka.docker-manager.description"
+// never writes it. Its legacy key (protocol.LegacyLabelPrefix) is read as
+// well. (The former icon label is ignored: services have no icon of their
+// own.)
+const LabelDescription = protocol.LabelDescription
 
 // ServiceInfo summarizes a service.
 type ServiceInfo struct {
@@ -227,7 +229,7 @@ func LoadProject(ctx context.Context, spec ProjectSpec) (*Project, error) {
 	for _, name := range model.ServiceNames() {
 		s := model.Services[name]
 		si := ServiceInfo{Name: name, Image: api.GetImageNameOrDefault(s, model.Name), Build: s.Build != nil, Profiles: s.Profiles,
-			Description: s.Labels[LabelDescription], PullPolicy: s.PullPolicy}
+			Description: protocol.LabelValue(s.Labels, LabelDescription), PullPolicy: s.PullPolicy}
 		for dep, d := range s.DependsOn {
 			si.DependsOn = append(si.DependsOn, Dependency{Service: dep, Condition: d.Condition, Required: d.Required, Restart: d.Restart})
 		}

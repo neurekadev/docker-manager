@@ -471,7 +471,7 @@ func (e *Engine) CloneContainer(_ context.Context, id string, o engine.CloneOpti
 	}
 	d := c.Details
 	spec := engine.ContainerSpec{Name: o.Name, Image: d.Image, Cmd: slices.Clone(d.Cmd), Entrypoint: slices.Clone(d.Entrypoint),
-		Env: slices.Clone(c.Env), Labels: maps.Clone(d.Labels), WorkingDir: d.WorkingDir, User: d.User, RestartPolicy: d.RestartPolicy,
+		Env: slices.Clone(c.Env), Labels: engine.RenameLabels(d.Labels, o.RenameLabels), WorkingDir: d.WorkingDir, User: d.User, RestartPolicy: d.RestartPolicy,
 		NetworkMode: d.NetworkMode, Resources: d.Resources, Healthcheck: d.Healthcheck}
 	if spec.NetworkMode == "default" {
 		spec.NetworkMode = ""

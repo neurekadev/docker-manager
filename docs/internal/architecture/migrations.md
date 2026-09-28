@@ -49,8 +49,11 @@ relay"):
   The destination writes only into
   `<stacks>/.docker-manager-migrations/<migrationId>/project` (moved into place
   by `migration.commit`, which never replaces a directory) and into volumes
-  it creates itself labeled `dev.neureka.docker-manager.migration=<migrationId>`
-  (with the source volume's Compose labels, so Compose adopts them). The
+  it creates itself labeled `docker-manager.migration=<migrationId>`
+  (with the source volume's Compose labels, so Compose adopts them, and its
+  user-set exclusion labels; never Docker Manager's own labels, under
+  either prefix; volumes of earlier versions carry the legacy
+  `dev.neureka.docker-manager.migration`, read the same way). The
   label stays after a successful migration; backup policies (#10) select
   such a standalone volume only when its migration succeeded
   (`backups.Service.migrationSucceeded`), so a failed migration's partial

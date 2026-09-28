@@ -224,6 +224,10 @@ type CloneOptions struct {
 	// Volumes maps volume names the original mounts to the names the clone
 	// mounts instead (a volume that moved to a new name).
 	Volumes map[string]string
+	// RenameLabels maps label keys of the original to the keys the clone
+	// carries instead (Docker Manager's legacy label keys); a label the
+	// original already carries under the new key keeps its value.
+	RenameLabels map[string]string
 }
 
 // Cloner is implemented by Engines that recreate a container from its
@@ -526,4 +530,24 @@ type ExecStatus struct {
 	Running  bool
 	ExitCode int
 	Pid      int
+}
+
+// RenameLabels returns a copy of labels with the keys of renames (old key
+// -> new key) renamed; a label already present under the new key keeps
+// its value. nil stays nil.
+func RenameLabels(labels, renames map[string]string) map[string]string {
+	if labels == nil {
+		return nil
+	}
+	out := make(map[string]string, len(labels))
+	for k, v := range labels {
+		if nk, ok := renames[k]; ok && nk != "" {
+			if _, both := labels[nk]; both {
+				continue
+			}
+			k = nk
+		}
+		out[k] = v
+	}
+	return out
 }

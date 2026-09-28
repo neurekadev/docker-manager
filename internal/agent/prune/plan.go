@@ -100,7 +100,7 @@ func (f *facts) containerProtection(c engine.Container) string {
 	if project := c.Labels[protocol.ComposeProjectLabel]; project != "" && f.projects[project] != "" {
 		return f.projects[project]
 	}
-	if c.Labels[protocol.LabelManaged] == protocol.ManagedStandalone && c.Labels[protocol.LabelSpec] != "" {
+	if protocol.LabelValue(c.Labels, protocol.LabelManaged) == protocol.ManagedStandalone && protocol.LabelValue(c.Labels, protocol.LabelSpec) != "" {
 		return "created through Docker Manager with a saved recreate specification"
 	}
 	return ""

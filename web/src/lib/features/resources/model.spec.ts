@@ -228,6 +228,12 @@ describe('detail pages in words (#22 polish)', () => {
 		expect(isSystemLabel('com.docker.compose.project')).toBe(true);
 		expect(isSystemLabel('org.opencontainers.image.source')).toBe(true);
 		expect(isSystemLabel('dev.neureka.docker-manager.stack')).toBe(true);
+		expect(isSystemLabel('docker-manager.managed')).toBe(true);
+		expect(isSystemLabel('docker-manager.depends_on')).toBe(true);
+		// The opt-outs users set stay visible.
+		expect(isSystemLabel('docker-manager.update.exclude')).toBe(false);
+		expect(isSystemLabel('docker-manager.backup.exclude')).toBe(false);
+		expect(isSystemLabel('docker-manager.maintenance.exclude')).toBe(false);
 		expect(isSystemLabel('traefik.enable')).toBe(false);
 		expect(
 			splitLabels({

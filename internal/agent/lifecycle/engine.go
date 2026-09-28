@@ -8,6 +8,7 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // EngineRuntime drives the service containers of one Compose project
@@ -164,8 +165,8 @@ func (r EngineRuntime) State(ctx context.Context, service string) (State, error)
 }
 
 // GraphFromContainers builds the deployed dependency graph of a project
-// from its containers' labels: Docker Manager's DependsOnLabel when present,
-// otherwise Compose's label (dependencies treated as required). Unknown
+// from its containers' labels: Docker Manager's DependsOnLabel when present
+// (under its current or legacy key), otherwise Compose's label (dependencies treated as required). Unknown
 // conditions are treated as service_started.
 func GraphFromContainers(containers []engine.Container) (*Graph, error) {
 	byService := map[string]Service{}
@@ -177,7 +178,7 @@ func GraphFromContainers(containers []engine.Container) (*Graph, error) {
 		if _, ok := byService[svc]; ok {
 			continue
 		}
-		raw, ok := c.Labels[DependsOnLabel]
+		raw, ok := protocol.LookupLabel(c.Labels, DependsOnLabel)
 		if !ok {
 			raw = c.Labels[ComposeDependsOnLabel]
 		}

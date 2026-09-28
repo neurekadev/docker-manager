@@ -91,7 +91,7 @@ func (s *Service) Reconcile(ctx context.Context, env string, list func(ctx conte
 	labels := map[string]bool{}
 	for _, c := range cs {
 		s.remember(catalog.TypeContainer, env, c.Name, c.Stack)
-		if id := c.Labels[protocol.LabelSpec]; id != "" {
+		if id := protocol.LabelValue(c.Labels, protocol.LabelSpec); id != "" {
 			labels[id] = true
 		}
 	}

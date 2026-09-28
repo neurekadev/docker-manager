@@ -824,7 +824,8 @@ func (s *Service) recreateOutside(ctx context.Context, eng engine.Engine, oc pro
 	if err := eng.RenameContainer(ctx, oc.ID, aside); err != nil && !engine.IsCode(err, engine.CodeNotModified) {
 		return "", err
 	}
-	id, err := cl.CloneContainer(ctx, oc.ID, engine.CloneOptions{Name: oc.Name, Volumes: volumes})
+	// The clone carries Docker Manager's labels under their current keys.
+	id, err := cl.CloneContainer(ctx, oc.ID, engine.CloneOptions{Name: oc.Name, Volumes: volumes, RenameLabels: protocol.LegacyLabelRenames()})
 	if err != nil {
 		if rerr := eng.RenameContainer(context.WithoutCancel(ctx), oc.ID, oc.Name); rerr != nil {
 			err = errors.Join(err, rerr)

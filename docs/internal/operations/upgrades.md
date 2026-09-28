@@ -87,6 +87,52 @@ are reconciled by its job journal (#26).
 Plain `docker run` agents: `docker pull` the image, then remove and
 recreate the container with the same volumes, mounts and environment.
 
+## Label prefix `docker-manager.` (2026-09-28)
+
+Docker Manager's labels moved from the prefix `dev.neureka.docker-manager.`
+to `docker-manager.` (owner decision: no `dev.neureka` in labels):
+
+| Before | Now |
+| --- | --- |
+| `dev.neureka.docker-manager.role` | `docker-manager.role` |
+| `dev.neureka.docker-manager.managed`, `.instance`, `.spec` | `docker-manager.managed`, `.instance`, `.spec` |
+| `dev.neureka.docker-manager.migration` | `docker-manager.migration` |
+| `dev.neureka.docker-manager.depends_on` | `docker-manager.depends_on` |
+| `dev.neureka.docker-manager.description` | `docker-manager.description` |
+| `docker-manager.update.exclude`, `.backup.exclude`, `.maintenance.exclude` | unchanged |
+
+Nothing is mandatory. Docker cannot relabel a container or volume, so
+objects created before keep their labels, and Docker Manager reads both
+keys everywhere (the new key wins when an object has both): its own
+containers stay protected, standalone containers it created stay managed
+(updates, recreate specifications), migration volumes and dependency
+labels keep working, and a Compose file's
+`dev.neureka.docker-manager.description` still fills in a service's
+description. Everything Docker Manager creates or recreates from now on
+(containers, a standalone container's update, stack deploys, clones of a
+stack rename, migrated volumes, the self-update helper, the install
+command) gets the new keys only.
+
+Optionally switch your own files to the new keys: in `compose.yaml` rename
+`dev.neureka.docker-manager.role: manager` / `agent` to
+`docker-manager.role: manager` / `agent` (then `docker compose up -d`
+recreates the containers with the new label), in a `docker run` agent
+replace `--label dev.neureka.docker-manager.role=agent` by
+`--label docker-manager.role=agent`, and rename a
+`dev.neureka.docker-manager.description` label in your stacks' Compose
+files. Upgrade the manager and every agent together: an agent of the
+previous version reads only the old keys (the manager still sends it the
+ownership labels of new containers under the old keys, gated by the agent
+feature `labels.docker_manager`), and it would not recognize a container
+labeled with the new `docker-manager.role`.
+
+Two consequences of reserving `docker-manager.`: create forms refuse
+labels under it (except the three `*.exclude` labels) and under the old
+prefix; and a label under `docker-manager.` that you set yourself before
+(for example on a container you created) is now read as Docker Manager's.
+Recreate specifications saved with such a label drop it when Docker
+Manager recreates or clones the container.
+
 ## Upgrading from DockYard (renamed 2026-09-26)
 
 The project was renamed from DockYard to Docker Manager (the manager) and
@@ -100,7 +146,7 @@ on; there is no in-place upgrade from `dockyard-*` images:
 | Manager database | `/var/lib/dockyard/dockyard.db` | `/var/lib/docker-manager/docker-manager.db` |
 | Agent state | `/var/lib/dockyard-agent` | `/var/lib/docker-agent` |
 | Environment variables | `DOCKYARD_*` | `DOCKER_MANAGER_*` (manager) and `DOCKER_AGENT_*` (agent; `DOCKYARD_AGENT_STATE_DIR` is `DOCKER_AGENT_STATE_DIR`) |
-| Labels | `dev.neureka.dockyard.*`, `dockyard.update.exclude` | `dev.neureka.docker-manager.*`, `docker-manager.update.exclude` |
+| Labels | `dev.neureka.dockyard.*`, `dockyard.update.exclude` | `dev.neureka.docker-manager.*` (`docker-manager.*` since 2026-09-28, above), `docker-manager.update.exclude` |
 | Backup repositories | `dockyard-manager`, `dockyard-env-<id>` | `docker-manager`, `docker-manager-env-<id>` |
 
 What carries over: API tokens, agent credentials and the Recovery Key
@@ -113,7 +159,7 @@ old repositories until you no longer need them), and standalone containers
 created before the rename (their DockYard labels are no longer recognized,
 so Docker Manager no longer treats them as containers it created; recreate
 them from the UI to manage them again). Rename `dev.neureka.dockyard.*` labels in your own
-Compose files (`description`, `depends_on`; the former `icon` label is
+Compose files (to `docker-manager.*`) (`description`, `depends_on`; the former `icon` label is
 no longer read) and
 `dockyard.update.exclude` on containers you keep out of updates.
 

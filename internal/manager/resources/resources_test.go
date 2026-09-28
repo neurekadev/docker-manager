@@ -320,6 +320,13 @@ func TestManagerSideProtection(t *testing.T) {
 	if p := svc.ContainerProtection(protocol.ContainerSummary{ID: "x", Labels: map[string]string{protocol.LabelRole: "agent"}}); p == nil || p.Role != protection.RoleAgent {
 		t.Fatalf("labeled agent %+v", p)
 	}
+	// Containers deployed before the label prefix changed.
+	legacy := protocol.LegacyLabel(protocol.LabelRole)
+	for label, want := range map[string]string{"agent": protection.RoleAgent, "manager": protection.RoleManager} {
+		if p := svc.ContainerProtection(protocol.ContainerSummary{ID: "l", Labels: map[string]string{legacy: label}}); p == nil || p.Role != want {
+			t.Fatalf("legacy labeled %s %+v", label, p)
+		}
+	}
 	if svc.ContainerProtection(protocol.ContainerSummary{ID: "y", Name: "web"}) != nil {
 		t.Fatal("user container protected")
 	}
@@ -356,5 +363,86 @@ func TestManagerSideProtection(t *testing.T) {
 		if strings.HasPrefix(c.Name, "docker-manager-") {
 			t.Errorf("Docker Manager container %s selectable", c.Name)
 		}
+	}
+}
+
+// featureAgents is an agentRequester whose agent announces (or not)
+// protocol.FeatureLabels.
+type featureAgents struct {
+	*agentRequester
+	labels bool
+}
+
+func (f featureAgents) EnvironmentHasFeature(_, feature string) bool {
+	return feature == protocol.FeatureLabels && f.labels
+}
+
+// TestCreatedContainerOwnershipKeys: containers Docker Manager creates get
+// the ownership labels under the current keys; an agent of the previous
+// version (without FeatureLabels) gets them under the legacy keys it
+// accepts, and the agent executor writes them under the current keys.
+func TestCreatedContainerOwnershipKeys(t *testing.T) {
+	svc, _, _, _, req := fixture(t)
+	ctx := testutil.Context(t)
+	p := authz.Principal{Kind: authz.KindUser, UserID: "u"}
+	for i, tc := range []struct {
+		agents Requester
+		keys   func(string) string
+	}{
+		{req, func(k string) string { return k }},
+		{featureAgents{req, true}, func(k string) string { return k }},
+		{featureAgents{req, false}, protocol.LegacyLabel},
+	} {
+		svc.opts.Agents = tc.agents
+		name := []string{"api0", "api1", "api2"}[i]
+		j, err := svc.CreateContainer(ctx, p, "env-1", protocol.ContainerSpec{Name: name, Image: "nginx:1.27"}, false, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var in protocol.ContainerCreateInput
+		if err := json.Unmarshal(j.Input, &in); err != nil {
+			t.Fatal(err)
+		}
+		if len(in.Ownership) != 3 || in.Ownership[tc.keys(protocol.LabelManaged)] != protocol.ManagedStandalone ||
+			in.Ownership[tc.keys(protocol.LabelInstance)] != "inst" || in.Ownership[tc.keys(protocol.LabelSpec)] == "" || in.Validate() != nil {
+			t.Errorf("case %d: ownership %v", i, in.Ownership)
+		}
+		es := agentres.EngineSpec(in.Spec, in.Ownership)
+		if es.Labels[protocol.LabelManaged] != protocol.ManagedStandalone || es.Labels[protocol.LabelSpec] != in.Ownership[tc.keys(protocol.LabelSpec)] {
+			t.Errorf("case %d: written labels %v", i, es.Labels)
+		}
+		for k := range es.Labels {
+			if strings.HasPrefix(k, protocol.LegacyLabelPrefix) {
+				t.Errorf("case %d: the agent writes the legacy label %s", i, k)
+			}
+		}
+	}
+}
+
+// TestManagedSpecLegacyLabels: a container created before the label
+// prefix changed is found by its legacy ownership labels; user labels a
+// saved specification holds under the now reserved prefix are left out of
+// the recreate, the user-set exclusions are kept.
+func TestManagedSpecLegacyLabels(t *testing.T) {
+	svc, _, _, _, _ := fixture(t)
+	ctx := testutil.Context(t)
+	spec := protocol.ContainerSpec{Name: "api", Image: "nginx:1.27", Labels: map[string]string{"team": "ops",
+		"docker-manager.team": "ops", protocol.LabelBackupExclude: "true"}}
+	if _, err := svc.saveSpec(ctx, domain.ManagedContainer{ID: "spec-old", EnvironmentID: "env-1", Name: "api"}, spec); err != nil {
+		t.Fatal(err)
+	}
+	legacy := protocol.LegacyLabels(map[string]string{protocol.LabelManaged: protocol.ManagedStandalone, protocol.LabelSpec: "spec-old"})
+	m, got, err := svc.ManagedSpec(ctx, "env-1", legacy)
+	if err != nil || m == nil || m.ID != "spec-old" {
+		t.Fatalf("spec %+v %v", m, err)
+	}
+	if len(got.Labels) != 2 || got.Labels["team"] != "ops" || got.Labels[protocol.LabelBackupExclude] != "true" || got.Validate() != nil {
+		t.Errorf("recreate labels %v", got.Labels)
+	}
+	// The current key wins over a stale legacy one.
+	both := map[string]string{protocol.LabelManaged: protocol.ManagedStandalone, protocol.LabelSpec: "spec-old",
+		protocol.LegacyLabel(protocol.LabelSpec): "spec-gone"}
+	if m, _, err := svc.ManagedSpec(ctx, "env-1", both); err != nil || m == nil || m.ID != "spec-old" {
+		t.Errorf("both keys: %+v %v", m, err)
 	}
 }

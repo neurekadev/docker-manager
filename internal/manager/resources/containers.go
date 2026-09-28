@@ -143,11 +143,11 @@ func (s *Service) CreateContainer(ctx context.Context, p authz.Principal, env st
 	if id == "" {
 		id = ids.New()
 	}
-	in := protocol.ContainerCreateInput{Spec: spec, Start: start, Ownership: map[string]string{
-		protocol.LabelManaged: protocol.ManagedStandalone, protocol.LabelSpec: id}}
+	own := map[string]string{protocol.LabelManaged: protocol.ManagedStandalone, protocol.LabelSpec: id}
 	if s.opts.InstanceID != "" {
-		in.Ownership[protocol.LabelInstance] = s.opts.InstanceID
+		own[protocol.LabelInstance] = s.opts.InstanceID
 	}
+	in := protocol.ContainerCreateInput{Spec: spec, Start: start, Ownership: s.Ownership(env, own)}
 	created, err := s.saveSpec(ctx, domain.ManagedContainer{ID: id, EnvironmentID: env, Name: spec.Name, Start: start}, spec)
 	if err != nil {
 		return domain.Job{}, err
@@ -196,8 +196,8 @@ func (s *Service) seal(id string, spec protocol.ContainerSpec) (string, error) {
 // container is not Docker Manager-managed). The spec includes environment
 // values: callers must not return them.
 func (s *Service) ManagedSpec(ctx context.Context, env string, labels map[string]string) (*domain.ManagedContainer, *protocol.ContainerSpec, error) {
-	id := labels[protocol.LabelSpec]
-	if id == "" || labels[protocol.LabelManaged] != protocol.ManagedStandalone {
+	id := protocol.LabelValue(labels, protocol.LabelSpec)
+	if id == "" || protocol.LabelValue(labels, protocol.LabelManaged) != protocol.ManagedStandalone {
 		return nil, nil, nil
 	}
 	m, sealed, err := store.GetManagedContainer(ctx, s.opts.DB, id)
@@ -220,7 +220,28 @@ func (s *Service) ManagedSpec(ctx context.Context, env string, labels map[string
 	if err := json.Unmarshal(b, &spec); err != nil {
 		return nil, nil, err
 	}
+	// A specification saved before docker-manager.* was reserved may hold
+	// user labels under it: recreating with them would fail validation
+	// (or forge Docker Manager's labels), so they are left out.
+	spec.Labels = protocol.WithoutOwnLabels(spec.Labels)
 	return &m, &spec, nil
+}
+
+// featureHub is the part of *agents.Hub that tells an agent's features.
+type featureHub interface {
+	EnvironmentHasFeature(environmentID, feature string) bool
+}
+
+// Ownership returns the ownership labels to send to env's agent: under
+// their current keys, or their legacy keys when the connected agent does
+// not announce protocol.FeatureLabels (an agent of the previous version
+// accepts only those; an offline agent gets them too, and an upgraded
+// agent writes them under the current keys).
+func (s *Service) Ownership(env string, own map[string]string) map[string]string {
+	if fh, ok := s.opts.Agents.(featureHub); ok && !fh.EnvironmentHasFeature(env, protocol.FeatureLabels) {
+		return protocol.LegacyLabels(own)
+	}
+	return protocol.CurrentLabels(own)
 }
 
 // ContainerAction starts a container lifecycle job (start, stop, restart,
@@ -250,7 +271,7 @@ func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env st
 		return domain.Job{}, err
 	}
 	if kind == jobspec.ContainerRemove {
-		specLabel := d.Labels[protocol.LabelSpec]
+		specLabel := protocol.LabelValue(d.Labels, protocol.LabelSpec)
 		s.afterSuccess(j.ID, func(ctx context.Context) {
 			s.forget(ctx, authz.ResourceRef{Type: catalog.TypeContainer, ID: d.Name, EnvironmentID: env})
 			if m, _, err := store.GetManagedContainer(ctx, s.opts.DB, specLabel); err == nil && m.EnvironmentID == env {

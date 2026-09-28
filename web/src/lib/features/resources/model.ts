@@ -351,17 +351,29 @@ export function healthCommand(test: readonly string[] | undefined): string {
 	return joinCommand(test);
 }
 
-/** Label prefixes Docker, Compose, image builders and Docker Manager set themselves. */
+/**
+ * Label prefixes Docker, Compose, image builders and Docker Manager set
+ * themselves (Docker Manager's current prefix and the one objects created
+ * before 2026-09-28 still carry).
+ */
 const SYSTEM_LABEL_PREFIXES = [
 	'com.docker.',
 	'org.opencontainers.',
+	'docker-manager.',
 	'dev.neureka.docker-manager.',
 	'desktop.docker.io/'
 ];
 
+/** The labels under Docker Manager's prefix that users set themselves (opt-outs). */
+const USER_SET_LABELS = [
+	'docker-manager.update.exclude',
+	'docker-manager.backup.exclude',
+	'docker-manager.maintenance.exclude'
+];
+
 /** Whether a label was set by Docker, Compose, an image build or Docker Manager. */
 export function isSystemLabel(key: string): boolean {
-	return SYSTEM_LABEL_PREFIXES.some((p) => key.startsWith(p));
+	return !USER_SET_LABELS.includes(key) && SYSTEM_LABEL_PREFIXES.some((p) => key.startsWith(p));
 }
 
 export interface LabelGroups {

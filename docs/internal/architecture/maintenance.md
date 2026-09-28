@@ -58,8 +58,10 @@ rules.
 `docker-manager.maintenance.exclude=true` (`protocol.LabelMaintenanceExclude`,
 any case of `true`) is never removed, whatever the rule: `ruleDecision`
 marks it `excluded` before the rule's own exclusions, for planning and for
-the re-check before each removal. It sits outside the reserved prefix like
-the update and backup exclude labels. Build cache records carry no labels.
+the re-check before each removal. Like the update and backup exclude
+labels it is one of the `protocol.UserLabels`, the only keys under the
+reserved `docker-manager.` prefix users may set. Build cache records carry
+no labels.
 
 **Volume opt-in.** Enabling `anonymous_volumes` or `named_volumes` needs
 `volumeOptIn: true` on that rule (policies and defaults; 422 otherwise).

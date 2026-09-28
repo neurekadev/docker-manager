@@ -3573,7 +3573,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "User labels; dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
+            "description": "User labels; docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
             "type": "object"
           },
           "mounts": {
@@ -4769,7 +4769,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
+            "description": "docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
             "type": "object"
           },
           "name": {
@@ -5188,7 +5188,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
+            "description": "docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
             "type": "object"
           },
           "name": {

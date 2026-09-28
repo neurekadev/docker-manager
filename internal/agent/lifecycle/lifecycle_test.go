@@ -12,6 +12,7 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
@@ -509,4 +510,39 @@ func (f *fakeEngine) StopContainer(_ context.Context, id string, _ *time.Duratio
 	s.Running, s.Status, s.Health = false, "exited", nil
 	f.states[id] = s
 	return nil
+}
+
+// TestGraphFromLegacyDependsOnLabel: containers deployed before the label
+// prefix changed carry Docker Manager's dependency label under its legacy
+// key; it is read like the current one (the current key wins), and before
+// Compose's label.
+func TestGraphFromLegacyDependsOnLabel(t *testing.T) {
+	legacy := protocol.LegacyLabel(DependsOnLabel)
+	if DependsOnLabel != "docker-manager.depends_on" || legacy != "dev.neureka.docker-manager.depends_on" {
+		t.Fatalf("keys %q / %q", DependsOnLabel, legacy)
+	}
+	c := func(svc string, labels map[string]string) engine.Container {
+		l := map[string]string{ComposeProjectLabel: "app", ComposeServiceLabel: svc}
+		for k, v := range labels {
+			l[k] = v
+		}
+		return engine.Container{ID: svc + "-1", Labels: l}
+	}
+	g, err := GraphFromContainers([]engine.Container{
+		c("db", nil),
+		c("cache", nil),
+		// Legacy key only: optional dependency kept (Compose's label says required).
+		c("web", map[string]string{legacy: "db:service_healthy:false:false", ComposeDependsOnLabel: "db:service_healthy:false"}),
+		// Both keys: the current one wins.
+		c("api", map[string]string{DependsOnLabel: "cache:service_started:false:true", legacy: "db:service_healthy:false:true"}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if web := g.DependsOn("web"); len(web) != 1 || web[0].Service != "db" || web[0].Required {
+		t.Errorf("web deps %+v: the legacy label must be read", web)
+	}
+	if api := g.DependsOn("api"); len(api) != 1 || api[0].Service != "cache" {
+		t.Errorf("api deps %+v: the current label wins", api)
+	}
 }

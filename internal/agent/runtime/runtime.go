@@ -646,6 +646,9 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		}
 	}
 	slices.Sort(p.Commands)
+	// It writes Docker Manager's labels under protocol.LabelPrefix and
+	// accepts ownership labels under both prefixes.
+	p.Features = append(p.Features, protocol.FeatureLabels)
 	// This agent's restore.run serves the full and paths scopes (#10).
 	if slices.Contains(p.Commands, "restore.run") {
 		p.Features = append(p.Features, protocol.FeatureRestoreSelection)

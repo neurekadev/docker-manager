@@ -110,8 +110,14 @@ func newFixture(t *testing.T, mods ...func(*Options)) *fixture {
 		"nfs":                   {Name: "nfs", Driver: "local", Mountpoint: slash(filepath.Join(base, "nfs", "_data")), Options: map[string]string{"type": "nfs", "o": "addr=10.0.0.1"}},
 		"plugin":                {Name: "plugin", Driver: "rexray/ebs", Mountpoint: "/var/lib/rexray/volumes/plugin"},
 		"agentstate":            {Name: "agentstate", Driver: "local", Mountpoint: slash(filepath.Join(base, "agentstate", "_data"))},
-	}, containers: []engine.Container{{ID: "a", Labels: map[string]string{RoleLabel: "agent"},
-		Mounts: []engine.Mount{{Type: "volume", Name: "agentstate"}}}}}
+		"managerdata":           {Name: "managerdata", Driver: "local", Mountpoint: slash(filepath.Join(base, "managerdata", "_data"))},
+	}, containers: []engine.Container{{ID: "a", Labels: map[string]string{protocol.LabelRole: "agent"},
+		Mounts: []engine.Mount{{Type: "volume", Name: "agentstate"}}},
+		// A manager deployed before the label prefix changed.
+		{ID: "m", Labels: map[string]string{protocol.LegacyLabelPrefix + "role": "manager"},
+			Mounts: []engine.Mount{{Type: "volume", Name: "managerdata"}}},
+		// A user's container mounting "data" does not protect it.
+		{ID: "u", Labels: map[string]string{"team": "ops"}, Mounts: []engine.Mount{{Type: "volume", Name: "data"}}}}}
 	st := &storage.Result{DockerRootDir: slash(filepath.Dir(base)), VolumesDir: slash(base), StacksDir: slash(stacks),
 		Roots: []storage.Root{{Kind: storage.KindStacks, Path: slash(stacks), OK: true}, {Kind: storage.KindVolumes, Path: slash(base), OK: true}}}
 	logger, logs := testutil.CaptureLogger()

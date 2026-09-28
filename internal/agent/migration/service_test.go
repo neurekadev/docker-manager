@@ -268,15 +268,17 @@ func TestProjectStagedCommittedAndCleaned(t *testing.T) {
 			t.Errorf("%s: got %+v want %+v", k, g, w)
 		}
 	}
-	// A volume created by the migration, one that is not.
+	// A volume created by the migration, one an agent of the previous
+	// version created for it (legacy label key), one that is not.
 	dst.AddVolume("shop_dbdata", map[string]string{protocol.LabelMigration: migID})
+	dst.AddVolume("shop_cache", map[string]string{protocol.LegacyLabel(protocol.LabelMigration): migID})
 	dst.AddVolume("foreign", nil)
 	dst.Engine.AddContainer(engine.ContainerSpec{Name: "shop-web-1", Image: "nginx:1", Labels: map[string]string{
 		protocol.ComposeProjectLabel: "shop", protocol.ComposeWorkingDirLabel: dst.ProjectDir("shop")}}, true)
 	dst.Engine.AddContainer(engine.ContainerSpec{Name: "other-shop", Image: "nginx:1", Labels: map[string]string{
 		protocol.ComposeProjectLabel: "shop", protocol.ComposeWorkingDirLabel: "/elsewhere/shop"}}, true)
 	cl, err := request[protocol.MigrationCleanupOutput](t, dst, protocol.ReqMigrationCleanup, protocol.MigrationCleanupInput{MigrationID: migID,
-		Project: "shop", Volumes: []string{"shop_dbdata", "foreign"}})
+		Project: "shop", Volumes: []string{"shop_dbdata", "shop_cache", "foreign"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,6 +293,9 @@ func TestProjectStagedCommittedAndCleaned(t *testing.T) {
 	}
 	if _, err := dst.Engine.InspectVolume(testutil.Context(t), "shop_dbdata"); err == nil {
 		t.Error("the migration's volume must be removed")
+	}
+	if _, err := dst.Engine.InspectVolume(testutil.Context(t), "shop_cache"); err == nil {
+		t.Error("the migration's volume with the legacy label must be removed")
 	}
 	if _, err := dst.Engine.InspectVolume(testutil.Context(t), "foreign"); err != nil {
 		t.Error("a foreign volume must stay")

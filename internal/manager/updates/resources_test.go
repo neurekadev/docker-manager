@@ -67,16 +67,16 @@ func (f *fakeResources) InspectImage(ctx context.Context, _, ref string) (protoc
 func (f *fakeResources) ManagedSpec(_ context.Context, env string, labels map[string]string) (*domain.ManagedContainer, *protocol.ContainerSpec, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	id := labels[protocol.LabelSpec]
+	id := protocol.LabelValue(labels, protocol.LabelSpec)
 	spec, ok := f.specs[id]
-	if !ok || labels[protocol.LabelManaged] != protocol.ManagedStandalone {
+	if !ok || protocol.LabelValue(labels, protocol.LabelManaged) != protocol.ManagedStandalone {
 		return nil, nil, nil
 	}
 	return &domain.ManagedContainer{ID: id, EnvironmentID: env, Name: spec.Name}, &spec, nil
 }
 
 func (f *fakeResources) ContainerProtection(c protocol.ContainerSummary) *protocol.Protection {
-	if role := c.Labels[protocol.LabelRole]; role != "" {
+	if role := protocol.LabelValue(c.Labels, protocol.LabelRole); role != "" {
 		return &protocol.Protection{Role: role, Reason: "a Docker Manager " + role + " container"}
 	}
 	return nil
@@ -96,13 +96,18 @@ func (f *fakeResources) ProjectProtection(ctx context.Context, env, project stri
 }
 
 // standalone creates a Docker Manager-managed standalone container from spec
-// (ownership labels and a saved specification) and returns its ID.
-func (f *fakeResources) standalone(ctx context.Context, spec protocol.ContainerSpec, running bool) string {
+// (ownership labels and a saved specification) and returns its ID. With
+// legacy, its ownership labels use the keys of before the label prefix
+// changed.
+func (f *fakeResources) standalone(ctx context.Context, spec protocol.ContainerSpec, running bool, legacy ...bool) string {
 	f.mu.Lock()
 	specID := "spec-" + spec.Name
 	f.specs[specID] = spec
 	f.mu.Unlock()
 	labels := map[string]string{protocol.LabelManaged: protocol.ManagedStandalone, protocol.LabelSpec: specID}
+	if len(legacy) > 0 && legacy[0] {
+		labels = protocol.LegacyLabels(labels)
+	}
 	for k, v := range spec.Labels {
 		labels[k] = v
 	}

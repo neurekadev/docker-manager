@@ -6272,7 +6272,7 @@ export interface components {
              * @example nginx:1.27
              */
             image: string;
-            /** @description User labels; dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
+            /** @description User labels; docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
             labels?: {
                 [key: string]: string;
             };
@@ -6681,7 +6681,7 @@ export interface components {
             driver?: string;
             /** @description No external connectivity. */
             internal?: boolean;
-            /** @description dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
+            /** @description docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
             labels?: {
                 [key: string]: string;
             };
@@ -6843,7 +6843,7 @@ export interface components {
             driverOpts?: {
                 [key: string]: string;
             };
-            /** @description dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
+            /** @description docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
             labels?: {
                 [key: string]: string;
             };

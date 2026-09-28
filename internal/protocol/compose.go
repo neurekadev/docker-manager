@@ -227,13 +227,12 @@ type ComposeService struct {
 	Build     bool                `json:"build,omitempty"`
 	DependsOn []ComposeDependency `json:"dependsOn,omitempty"`
 	Profiles  []string            `json:"profiles,omitempty"`
-	// Description comes from the dev.neureka.docker-manager.description
-	// label; the manager imports it as display metadata once.
+	// Description comes from the LabelDescription label (or its legacy
+	// key); the manager imports it as display metadata once.
 	Description string `json:"description,omitempty"`
-	// Icon is deprecated: agents no longer read the former
-	// dev.neureka.docker-manager.icon label and the manager ignores it. It
-	// stays so results of agents of the previous version still decode
-	// (payloads are decoded strictly).
+	// Icon is deprecated: agents no longer read the former icon label
+	// and the manager ignores it. It stays so results of agents of the
+	// previous version still decode (payloads are decoded strictly).
 	Icon string `json:"icon,omitempty"`
 	// PullPolicy is the service's pull_policy (empty: Compose's default,
 	// missing); #20 refuses policies that conflict with digest updates.

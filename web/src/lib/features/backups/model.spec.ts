@@ -178,9 +178,18 @@ describe('backup sets', () => {
 		expect(isHelperContainer('web-docker-manager-update-0123456789ab', {})).toBe(true);
 		expect(isHelperContainer('/db-docker-manager-rename-abcdef012345', undefined)).toBe(true);
 		expect(isHelperContainer('0123456789ab_app-db-1', replace)).toBe(true);
+		expect(isHelperContainer('helper', { 'docker-manager.role': 'self-update' })).toBe(true);
+		// A helper started before the label prefix changed.
 		expect(
 			isHelperContainer('helper', { 'dev.neureka.docker-manager.role': 'self-update' })
 		).toBe(true);
+		// The current key wins over a legacy one.
+		expect(
+			isHelperContainer('agent', {
+				'docker-manager.role': 'agent',
+				'dev.neureka.docker-manager.role': 'self-update'
+			})
+		).toBe(false);
 		// Compose keeps the label on the renamed replacement: not temporary.
 		expect(isHelperContainer('app-db-1', replace)).toBe(false);
 		expect(isHelperContainer('0123456789ab_app-db-1', {})).toBe(false);

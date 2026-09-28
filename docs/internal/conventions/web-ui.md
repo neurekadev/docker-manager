@@ -163,7 +163,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   and absent for Docker Manager's own objects (the notice says why); no
   removal-preview card on the page (the removal dialog shows the
   server's preview); labels through `LabelsCard` (system labels such as
-  `com.docker.compose.*` folded); technical detail (command, entrypoint,
+  `com.docker.compose.*` and Docker Manager's `docker-manager.*` and legacy
+  `dev.neureka.docker-manager.*` folded, `isSystemLabel`; the user-set
+  `docker-manager.*.exclude` labels stay visible); technical detail (command, entrypoint,
   health check command, IDs) behind "Advanced"; restart policies and
   health in words (`restartPolicyLabel`, `healthLabel`); metrics with
   `TimeSeriesChart`; tabs of one object keep one breadcrumb trail

@@ -1,8 +1,9 @@
 // Package protect identifies Docker Manager's own resources on the agent's Engine
 // (#32): the connected agent's container (self-inspection,
 // internal/selfid), a co-located manager (its container ID from
-// manager.identity, else the dev.neureka.docker-manager.role label of the deploy
-// examples), other Docker Manager containers, Docker Manager's own Compose project,
+// manager.identity, else the docker-manager.role label of the documented
+// compose.yaml, or its legacy dev.neureka.docker-manager.role key), other
+// Docker Manager containers, Docker Manager's own Compose project,
 // their images, the manager data and agent state volumes, the stacks
 // volume (#28), other volumes mounted into Docker Manager containers (local
 // backup repositories, #10) and their networks. The decisions are in
@@ -208,11 +209,11 @@ func (g *Guard) Identify(ctx context.Context, eng engine.Engine, cs []engine.Con
 			p = prot(protection.RoleAgent, "the Docker Agent connected to this environment: stopping or removing it cuts Docker Manager off from this host", true)
 		case manager != "" && c.ID == manager:
 			p = prot(protection.RoleManager, "the Docker Manager of this installation: the UI and API run in it", true)
-		case c.Labels[protocol.LabelRole] == "agent":
+		case protocol.HasRole(c.Labels, protection.RoleAgent):
 			p = prot(protection.RoleAgent, fmt.Sprintf("Docker Agent container %s", name(c)), false)
-		case c.Labels[protocol.LabelRole] == "manager":
+		case protocol.HasRole(c.Labels, protection.RoleManager):
 			p = prot(protection.RoleManager, fmt.Sprintf("Docker Manager container %s (%s=manager)", name(c), protocol.LabelRole), false)
-		case c.Labels[protocol.LabelRole] == protocol.RoleSelfUpdate:
+		case protocol.HasRole(c.Labels, protocol.RoleSelfUpdate):
 			p = prot(protection.RoleAgent, fmt.Sprintf("Docker Agent self-update helper %s: it is recreating the agent", name(c)), false)
 		}
 		if p != nil {

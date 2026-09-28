@@ -119,11 +119,16 @@ func (s *Service) request(ctx context.Context, pl *plan) (jobs.Request, error) {
 		in.StackID, in.Stack, in.ExpectSourceHash, stackID = pl.stack.ID, &ref, pl.sourceHash, pl.stack.ID
 		targets = []domain.JobTarget{{Type: domain.TargetStack, ID: pl.stack.ID}}
 	} else {
+		// The container's ownership labels (current or legacy keys), sent
+		// under the keys its agent writes.
 		own := map[string]string{}
-		for _, k := range []string{protocol.LabelManaged, protocol.LabelSpec, protocol.LabelInstance} {
-			if v := pl.details.Labels[k]; v != "" {
+		for _, k := range protocol.OwnershipLabels {
+			if v := protocol.LabelValue(pl.details.Labels, k); v != "" {
 				own[k] = v
 			}
+		}
+		if fh, ok := s.opts.Agents.(featureHub); ok && !fh.EnvironmentHasFeature(p.EnvironmentID, protocol.FeatureLabels) {
+			own = protocol.LegacyLabels(own)
 		}
 		in.Container = &protocol.UpdateContainer{Name: pl.details.Name, ID: pl.details.ID, Spec: *pl.spec, Ownership: own}
 		targets = []domain.JobTarget{{Type: domain.TargetContainer, ID: pl.details.Name}}

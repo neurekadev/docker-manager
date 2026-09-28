@@ -212,8 +212,10 @@ func (s *Service) volumeFacts(ctx context.Context, eng engine.Engine, set *prote
 	}
 	vf.Exists, vf.Driver = true, v.Driver
 	vf.Labels = map[string]string{}
+	// Docker Manager's own labels stay behind (the destination sets its
+	// own); Compose's and the user-set exclusions travel with the volume.
 	for k, val := range v.Labels {
-		if !strings.HasPrefix(k, protocol.LabelPrefix) {
+		if !protocol.OwnLabel(k) {
 			vf.Labels[k] = val
 		}
 	}
@@ -300,7 +302,7 @@ func (s *Service) previewDestination(ctx context.Context, q protocol.MigrationDe
 	}
 	for _, n := range q.Volumes {
 		if l, ok := volLabels[n]; ok {
-			f.Volumes = append(f.Volumes, protocol.MigrationExistingVolume{Name: n, Migration: l[protocol.LabelMigration]})
+			f.Volumes = append(f.Volumes, protocol.MigrationExistingVolume{Name: n, Migration: protocol.LabelValue(l, protocol.LabelMigration)})
 		}
 	}
 	for _, n := range q.ExternalVolumes {

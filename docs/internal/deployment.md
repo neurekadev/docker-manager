@@ -254,9 +254,10 @@ moves onto the copy at its next deploy.
 
 The agent finds its own container by itself. The co-located manager is
 found by its container ID, which the manager reports to its agents; keep the
-`dev.neureka.docker-manager.role: manager` / `agent` labels of the
-documented compose files on your containers too, so both are also recognized
-when that detection is not possible (custom setups, other installations on
+`docker-manager.role: manager` / `agent` labels of the
+documented compose files on your containers too (files written before
+2026-09-28 use `dev.neureka.docker-manager.role`, which still works), so
+both are also recognized when that detection is not possible (custom setups, other installations on
 the same host). Every other container of Docker Manager's own Compose project
 (for example a reverse proxy added to it) is protected with them. Details:
 [architecture/self-protection.md](architecture/self-protection.md).

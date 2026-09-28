@@ -21,7 +21,8 @@ import (
 
 // LabelMigration marks the volumes a migration created on its destination
 // (value: the migration ID, the job ID of the stack.migrate/volume.migrate
-// job). Cleanups remove only volumes carrying the migration's own ID.
+// job). Cleanups remove only volumes carrying the migration's own ID
+// (read with LabelValue: volumes of earlier versions carry its legacy key).
 const LabelMigration = LabelPrefix + "migration"
 
 // MigrationStagingDir is the directory of the stacks volume that holds
@@ -400,8 +401,9 @@ func (in MigrationReceiveInput) Validate() error {
 }
 
 // validMigratedLabels checks the labels copied from a source volume:
-// Compose's labels are kept (so Compose adopts the volume), Docker Manager's own
-// prefix is refused (the agent sets LabelMigration itself).
+// Compose's labels and the user-set exclusions are kept (so Compose adopts
+// the volume), Docker Manager's own labels are refused (OwnLabel; the
+// agent sets LabelMigration itself).
 func validMigratedLabels(labels map[string]string) error {
 	if len(labels) > 64 {
 		return errors.New("volume part: at most 64 labels")
@@ -410,8 +412,8 @@ func validMigratedLabels(labels map[string]string) error {
 		switch {
 		case k == "" || len(k) > 256 || strings.ContainsAny(k, " \t\r\n="):
 			return fmt.Errorf("volume part: invalid label key %q", k)
-		case strings.HasPrefix(k, LabelPrefix):
-			return fmt.Errorf("volume part: label %q uses the reserved prefix %s", k, LabelPrefix)
+		case OwnLabel(k):
+			return fmt.Errorf("volume part: label %q is one of Docker Manager's own labels", k)
 		case len(v) > 4096:
 			return fmt.Errorf("volume part: label %q value is too long", k)
 		}

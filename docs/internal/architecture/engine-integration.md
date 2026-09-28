@@ -172,9 +172,10 @@ Compose files and env files by project-relative path), as if it were in the
 project directory, for validation before anything is written (#7). A
 loaded `Project` lists its definition files (Compose files, env files and
 service `env_file`s), its resolved bind mounts and each service's display
-label `dev.neureka.docker-manager.description` (the former `.icon` label is
+label `docker-manager.description` (also read under its legacy key
+`dev.neureka.docker-manager.description`; the former `.icon` label is
 ignored: services have no icon). Every service gets
-the label `dev.neureka.docker-manager.depends_on`
+the label `docker-manager.depends_on`
 (`service:condition:restart:required`), which the shared lifecycle
 (`internal/agent/lifecycle`, [stacks.md](stacks.md)) reads to operate the
 deployed graph; Compose's own `depends_on` label lacks `required`.

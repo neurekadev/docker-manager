@@ -370,7 +370,9 @@ export function isHelperContainer(
 	labels: Record<string, string> | undefined
 ): boolean {
 	const n = (name ?? '').replace(/^\//, '');
-	if (labels?.['dev.neureka.docker-manager.role'] === 'self-update') return true;
+	// Docker Manager's role label, or its key of before 2026-09-28.
+	const role = labels?.['docker-manager.role'] ?? labels?.['dev.neureka.docker-manager.role'];
+	if (role === 'self-update') return true;
 	if (HELPER_ASIDE_NAME.test(n)) return true;
 	return labels?.['com.docker.compose.replace'] !== undefined && COMPOSE_TEMP_NAME.test(n);
 }

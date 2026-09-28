@@ -95,7 +95,9 @@ type UpdateContainer struct {
 	ID   string        `json:"id"`
 	Spec ContainerSpec `json:"spec"`
 	// Ownership are the Docker Manager labels of the container (LabelManaged,
-	// LabelSpec, LabelInstance), kept on the recreated container.
+	// LabelSpec, LabelInstance; their legacy keys for agents without
+	// FeatureLabels), kept on the recreated container under their current
+	// keys.
 	Ownership map[string]string `json:"ownership,omitempty"`
 }
 

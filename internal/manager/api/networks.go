@@ -111,7 +111,7 @@ type createNetworkInput struct {
 		Driver     string            `json:"driver,omitempty" maxLength:"128" doc:"Default bridge."`
 		Internal   bool              `json:"internal,omitempty" doc:"No external connectivity."`
 		Attachable bool              `json:"attachable,omitempty"`
-		Labels     map[string]string `json:"labels,omitempty" doc:"dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
+		Labels     map[string]string `json:"labels,omitempty" doc:"docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
 		Options    map[string]string `json:"options,omitempty" doc:"Driver options."`
 	}
 }

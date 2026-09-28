@@ -25,7 +25,7 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 		l := map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": service,
 			"com.docker.compose.project.working_dir": "/opt/docker-manager"}
 		if role != "" {
-			l["dev.neureka.docker-manager.role"] = role
+			l["docker-manager.role"] = role // protocol.LabelRole
 		}
 		return l
 	}

@@ -608,3 +608,39 @@ func TestCandidatePublishTime(t *testing.T) {
 		t.Fatalf("blob requests on the second check: %d", n-blobs)
 	}
 }
+
+// A standalone container created before the label prefix changed (legacy
+// ownership labels) is still a managed target; its update recreates it
+// with the ownership labels under the current keys only.
+func TestStandaloneContainerLegacyLabels(t *testing.T) {
+	h := newHarness(t)
+	ref := h.ref("acme/api:3")
+	h.publish("acme/api", "3", "")
+	if _, err := h.engine.PullImage(h.ctx, ref, engine.PullOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	id := h.res.standalone(h.ctx, protocol.ContainerSpec{Name: "api", Image: ref, RestartPolicy: "always"}, true, true)
+	if c, _ := h.engine.Container("api"); c.Details.Labels[protocol.LegacyLabel(protocol.LabelSpec)] != "spec-api" {
+		t.Fatalf("legacy labels %v", c.Details.Labels)
+	}
+	p := h.policy(updates.NewPolicy{TargetType: domain.UpdateTargetContainer, TargetID: "api"})
+	h.publish("acme/api", "3", " v2")
+	h.clk.Advance(2 * time.Minute)
+	h.check(p)
+	if c := h.candidates(p)["api"]; c.Status != domain.CandidateAvailable {
+		t.Fatalf("candidate %+v", c)
+	}
+	if j := h.run(p); j.State != domain.JobSucceeded {
+		t.Fatalf("run %s %s %s", j.State, j.ErrorClass, j.ErrorMessage)
+	}
+	c, ok := h.engine.Container("api")
+	if !ok || c.Details.ID == id || c.Details.Labels[protocol.LabelSpec] != "spec-api" ||
+		c.Details.Labels[protocol.LabelManaged] != protocol.ManagedStandalone {
+		t.Fatalf("recreated container %+v", c.Details)
+	}
+	for k := range c.Details.Labels {
+		if strings.HasPrefix(k, protocol.LegacyLabelPrefix) {
+			t.Errorf("recreated container keeps the legacy label %s", k)
+		}
+	}
+}

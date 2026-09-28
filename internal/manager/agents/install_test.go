@@ -22,8 +22,12 @@ func TestInstallCommandsRemoteRunLabelsTheAgent(t *testing.T) {
 		t.Fatalf("no %s variant in %+v", InstallRemote, cmds)
 	}
 	label := "--label " + protocol.LabelRole + "=agent"
-	if !strings.Contains(run, label) {
+	if label != "--label docker-manager.role=agent" || !strings.Contains(run, label) {
 		t.Errorf("docker run command lacks %q:\n%s", label, run)
+	}
+	// The label prefix changed: new installations get only the new key.
+	if strings.Contains(run, protocol.LegacyLabelPrefix) {
+		t.Errorf("docker run command writes a legacy label:\n%s", run)
 	}
 	if strings.Index(run, label) > strings.Index(run, DefaultAgentImage) {
 		t.Errorf("label must come before the image:\n%s", run)

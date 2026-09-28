@@ -81,8 +81,9 @@ const (
 
 // ManagedContainer is the saved recreate specification of a standalone
 // container created through Docker Manager (#6). The container carries its ID in
-// the dev.neureka.docker-manager.spec label; automatic updates (#20) recreate it
-// from Spec with its tagged image reference and prior running state.
+// the docker-manager.spec label (or its legacy key); automatic updates (#20)
+// recreate it from Spec with its tagged image reference and prior running
+// state.
 type ManagedContainer struct {
 	ID            string
 	EnvironmentID string

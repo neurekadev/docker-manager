@@ -176,7 +176,8 @@ directory (#28) are served. Non-local drivers (plugins) and local volumes
 backed by NFS/CIFS options are refused (`volume_files_unsupported`, #25),
 as are the stacks volume (browse stacks per stack instead, so the Compose
 source rules apply) and every volume mounted by Docker Manager's own containers
-(label `dev.neureka.docker-manager.role`: the manager's data and the agent's
+(label `docker-manager.role`, or `dev.neureka.docker-manager.role` on
+containers created before 2026-09-28: the manager's data and the agent's
 state), so a file grant can never reach Docker Manager's database or credentials.
 
 ## Containment and safety (agent)

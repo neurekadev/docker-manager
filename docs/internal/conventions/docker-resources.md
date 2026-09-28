@@ -12,14 +12,24 @@ tests: `internal/agent/engine/enginefake`.
   `InspectContainer`, ...: agent requests scoped by environment, errors are
   `*domain.DockerError` with stable codes); never a second path to the
   agent for the same data.
-- Docker Manager's labels (`protocol.Label*`, prefix `dev.neureka.docker-manager.`)
-  and Compose's are reserved: user input may not set them. The user-set
-  exclusions sit outside that prefix and read `true` in any case:
+- Docker Manager's labels (`protocol.Label*`, prefix `docker-manager.`),
+  their legacy prefix `dev.neureka.docker-manager.` and Compose's are
+  reserved: user input may not set them (`protocol.ValidateLabels`,
+  `OwnLabel`). The only exceptions are the user-set exclusions
+  (`protocol.UserLabels`), which read `true` in any case:
   `docker-manager.update.exclude`, `docker-manager.backup.exclude` and
   `docker-manager.maintenance.exclude` (`protocol.UpdateExcluded`,
   `BackupExcluded`, `MaintenanceExcluded`); a new one follows the same
-  `docker-manager.<feature>.exclude` pattern. Stack
-  membership: `protocol.StackRef` (`Managed`: working directory in a
+  `docker-manager.<feature>.exclude` pattern and joins `UserLabels`.
+- Write Docker Manager's labels only under the current keys; read them only
+  with `protocol.LookupLabel` / `LabelValue` / `HasRole`, which also accept
+  the legacy key (objects created before 2026-09-28 keep it forever;
+  `protocol.legacyLabels` lists the labels that existed then, a new label
+  has no legacy key). Ownership labels sent to an agent go through
+  `resources.Service.Ownership` (legacy keys for agents without
+  `protocol.FeatureLabels`). Details:
+  [architecture/docker-resources.md](../architecture/docker-resources.md#label-keys).
+- Stack membership: `protocol.StackRef` (`Managed`: working directory in a
   verified stack root) plus `resources.Service.StackManaged`; containers of
   a managed stack are changed through the stack, never directly
   (`stack_managed`).

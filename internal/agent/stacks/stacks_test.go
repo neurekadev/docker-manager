@@ -258,6 +258,7 @@ const appYAML = `services:
     image: registry.example:5000/db:${DB_TAG}
     env_file: [db.env]
     labels:
+      # Legacy keys: the description is still read, the icon is ignored.
       dev.neureka.docker-manager.description: "Primary database"
       dev.neureka.docker-manager.icon: database
     healthcheck:

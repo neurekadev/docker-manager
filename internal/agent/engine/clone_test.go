@@ -13,7 +13,7 @@ import (
 // TestCloneContainerKeepsTheConfiguration: the clone is created from the
 // complete inspected configuration with the moved volumes renamed (binds
 // and mounts), anonymous volumes mounted by name, the image it runs, a
-// Docker-generated hostname dropped and its networks kept.
+// Docker-generated hostname dropped, its networks kept and label keys renamed.
 func TestCloneContainerKeepsTheConfiguration(t *testing.T) {
 	const id = "0123456789abcdef0123"
 	fake := enginetest.Start(t, enginetest.Options{})
@@ -21,7 +21,7 @@ func TestCloneContainerKeepsTheConfiguration(t *testing.T) {
 		enginetest.JSON(w, http.StatusOK, map[string]any{
 			"Id": id, "Name": "/backup", "Image": "sha256:running",
 			"Config": map[string]any{"Image": "restic:latest", "Hostname": id[:12], "Env": []string{"A=1"},
-				"Labels": map[string]string{"keep": "me"}},
+				"Labels": map[string]string{"keep": "me", "old.a": "1", "old.b": "2", "new.b": "kept"}},
 			"HostConfig": map[string]any{"Binds": []string{"app_data:/data:ro", "/srv:/srv"}, "CapAdd": []string{"SYS_ADMIN"},
 				"Mounts": []map[string]any{{"Type": "volume", "Source": "app_cache", "Target": "/cache"}}, "NetworkMode": "backend"},
 			"Mounts": []map[string]any{
@@ -42,7 +42,8 @@ func TestCloneContainerKeepsTheConfiguration(t *testing.T) {
 	})
 	c := connect(t, fake)
 	got, err := c.CloneContainer(testutil.Context(t), id, CloneOptions{Name: "backup",
-		Volumes: map[string]string{"app_data": "shop_data", "app_cache": "shop_cache"}})
+		Volumes:      map[string]string{"app_data": "shop_data", "app_cache": "shop_cache"},
+		RenameLabels: map[string]string{"old.a": "new.a", "old.b": "new.b"}})
 	if err != nil || got != "clone" {
 		t.Fatalf("clone = %q, %v", got, err)
 	}
@@ -73,6 +74,11 @@ func TestCloneContainerKeepsTheConfiguration(t *testing.T) {
 	// The tag moved since: the clone runs the image the container ran.
 	if body.Image != "sha256:running" || body.Hostname != "" || !slices.Equal(body.Env, []string{"A=1"}) || body.Labels["keep"] != "me" {
 		t.Errorf("config %+v", body)
+	}
+	// Renamed label keys (Docker Manager's legacy keys); a key already
+	// present under its new name keeps that value.
+	if len(body.Labels) != 3 || body.Labels["new.a"] != "1" || body.Labels["new.b"] != "kept" {
+		t.Errorf("labels %v", body.Labels)
 	}
 	if !slices.Equal(body.HostConfig.Binds, []string{"shop_data:/data:ro", "/srv:/srv"}) || !slices.Equal(body.HostConfig.CapAdd, []string{"CAP_SYS_ADMIN"}) {
 		t.Errorf("host config %+v", body.HostConfig)

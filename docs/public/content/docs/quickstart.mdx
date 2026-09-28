@@ -42,7 +42,7 @@ services:
     volumes:
       - data:/var/lib/docker-manager
     labels:
-      dev.neureka.docker-manager.role: manager
+      docker-manager.role: manager
     networks:
       - docker-manager
 
@@ -60,7 +60,7 @@ services:
       - stacks:/var/lib/docker/volumes/docker-manager_stacks/_data
       - agent:/var/lib/docker-agent
     labels:
-      dev.neureka.docker-manager.role: agent
+      docker-manager.role: agent
     networks:
       - docker-manager
 

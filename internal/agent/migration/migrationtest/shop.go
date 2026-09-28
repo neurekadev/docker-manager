@@ -59,7 +59,7 @@ func SeedShop(e *Env) protocol.ProjectRef {
 	e.Engine.AddImageDetails(engine.ImageDetails{RepoTags: []string{"shop-web:local"}, Size: 5 << 20, Architecture: "amd64"})
 	labels := func(service, deps string) map[string]string {
 		l := map[string]string{protocol.ComposeProjectLabel: "shop", protocol.ComposeServiceLabel: service,
-			protocol.ComposeWorkingDirLabel: dir, "dev.neureka.docker-manager.depends_on": deps}
+			protocol.ComposeWorkingDirLabel: dir, protocol.LabelDependsOn: deps}
 		return l
 	}
 	e.Engine.AddContainer(engine.ContainerSpec{Name: "shop-db-1", Image: "postgres:17", Labels: labels("db", ""),

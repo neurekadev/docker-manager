@@ -325,7 +325,7 @@ short-lived helper container per operation was the alternative; it is
 deferred past v1. The file manager (#15) additionally refuses the stacks
 volume as a volume (stacks are browsed per stack, where the Compose source
 rules apply) and every volume mounted by Docker Manager's own containers (label
-`dev.neureka.docker-manager.role`), answering `409 volume_files_unsupported`
+`docker-manager.role`, or its legacy key `dev.neureka.docker-manager.role`), answering `409 volume_files_unsupported`
 ([files.md](api/files.md#volumes)).
 
 ## File watching (#23)

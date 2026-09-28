@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"regexp"
 	"slices"
@@ -19,8 +20,17 @@ import (
 
 // Labels Docker Manager sets or reads on Docker objects.
 const (
-	// LabelPrefix is reserved: users cannot set labels under it (#6, #32).
-	LabelPrefix = "dev.neureka.docker-manager."
+	// LabelPrefix is Docker Manager's label prefix. It is reserved: users
+	// cannot set labels under it (#6, #32), except the user-set
+	// exclusions (UserLabels).
+	LabelPrefix = "docker-manager."
+	// LegacyLabelPrefix is the prefix Docker Manager used before
+	// 2026-09-28. Objects created then keep their labels (Docker cannot
+	// relabel them), so every reader also accepts the legacy key of a
+	// label (LookupLabel, LabelValue); nothing writes it any more, except
+	// the ownership labels sent to agents without FeatureLabels. It stays
+	// reserved.
+	LegacyLabelPrefix = "dev.neureka.docker-manager."
 	// LabelRole marks Docker Manager's own containers in the documented compose.yaml:
 	// "manager" or "agent" (#32).
 	LabelRole = LabelPrefix + "role"
@@ -31,17 +41,32 @@ const (
 	// LabelSpec is the ID of the saved recreate specification of a
 	// Docker Manager-managed standalone container (manager side, used by #20).
 	LabelSpec = LabelPrefix + "spec"
+	// LabelDescription is the display metadata label a Compose file may
+	// carry on a service (#7): the manager imports it once as the
+	// service's description; Docker Manager never writes it.
+	LabelDescription = LabelPrefix + "description"
+	// LabelDependsOn is Docker Manager's dependency label on every service
+	// container it deploys: "service:condition:restart:required,..."
+	// (Compose's own label lacks `required`; internal/agent/lifecycle).
+	LabelDependsOn = LabelPrefix + "depends_on"
 	// LabelUpdateExclude is a user-set opt-out from automatic image updates.
-	// It deliberately sits outside the reserved Docker Manager prefix, like
-	// the other user-set exclusions below.
-	LabelUpdateExclude = "docker-manager.update.exclude"
+	// It is one of the UserLabels, the only keys under LabelPrefix users
+	// may set.
+	LabelUpdateExclude = LabelPrefix + "update.exclude"
 	// LabelBackupExclude is a user-set opt-out from backups: on a volume it
 	// leaves that volume out, on a container the volumes it mounts (a
 	// stack's Compose files are always backed up).
-	LabelBackupExclude = "docker-manager.backup.exclude"
+	LabelBackupExclude = LabelPrefix + "backup.exclude"
 	// LabelMaintenanceExclude is a user-set opt-out from maintenance: a
 	// container, image, volume or network carrying it is never pruned.
-	LabelMaintenanceExclude = "docker-manager.maintenance.exclude"
+	LabelMaintenanceExclude = LabelPrefix + "maintenance.exclude"
+
+	// FeatureLabels is the capabilities feature of agents that write
+	// Docker Manager's labels under LabelPrefix and accept ownership
+	// labels under both prefixes. The manager sends the ownership labels
+	// of container.create and update.run under their legacy keys to agents
+	// without it (they accept only those).
+	FeatureLabels = "labels.docker_manager"
 
 	// ManagedStandalone is the LabelManaged value of standalone containers.
 	ManagedStandalone = "standalone"
@@ -73,6 +98,136 @@ var (
 	composeTempNameRE = regexp.MustCompile(`^[0-9a-f]{12}_.`)
 )
 
+// UserLabels are the only keys under LabelPrefix users set themselves
+// (on containers, volumes, networks and images, in the create forms and
+// in their Compose files). Compose files may also carry LabelDescription.
+var UserLabels = []string{LabelUpdateExclude, LabelBackupExclude, LabelMaintenanceExclude}
+
+// legacyLabels maps each current Docker Manager label that existed before
+// the prefix change to its key under LegacyLabelPrefix.
+var legacyLabels = map[string]string{
+	LabelRole:        LegacyLabelPrefix + "role",
+	LabelManaged:     LegacyLabelPrefix + "managed",
+	LabelInstance:    LegacyLabelPrefix + "instance",
+	LabelSpec:        LegacyLabelPrefix + "spec",
+	LabelMigration:   LegacyLabelPrefix + "migration",
+	LabelDescription: LegacyLabelPrefix + "description",
+	LabelDependsOn:   LegacyLabelPrefix + "depends_on",
+}
+
+// currentLabels is legacyLabels reversed (legacy key -> current key).
+var currentLabels = func() map[string]string {
+	m := make(map[string]string, len(legacyLabels))
+	for k, v := range legacyLabels {
+		m[v] = k
+	}
+	return m
+}()
+
+// LegacyLabel returns the legacy key of a current Docker Manager label
+// ("" when the label has none).
+func LegacyLabel(key string) string { return legacyLabels[key] }
+
+// LegacyLabelRenames maps every legacy Docker Manager label key to its
+// current key (a fresh map).
+func LegacyLabelRenames() map[string]string { return maps.Clone(currentLabels) }
+
+// LookupLabel returns the value of the Docker Manager label key (a
+// current key): the value under key, else under its legacy key. The
+// current key wins when an object carries both.
+func LookupLabel(labels map[string]string, key string) (string, bool) {
+	if v, ok := labels[key]; ok {
+		return v, true
+	}
+	if old := legacyLabels[key]; old != "" {
+		v, ok := labels[old]
+		return v, ok
+	}
+	return "", false
+}
+
+// LabelValue is LookupLabel without the presence flag. Read Docker
+// Manager's labels only through it (or LookupLabel, HasRole).
+func LabelValue(labels map[string]string, key string) string {
+	v, _ := LookupLabel(labels, key)
+	return v
+}
+
+// HasRole reports whether labels mark a Docker Manager container of role
+// ("manager", "agent" or RoleSelfUpdate), under the current or legacy key.
+func HasRole(labels map[string]string, role string) bool {
+	v, ok := LookupLabel(labels, LabelRole)
+	return ok && v == role
+}
+
+// CurrentLabels returns a copy of labels with legacy Docker Manager keys
+// renamed to their current keys (a current key already present wins).
+// Anything Docker Manager recreates carries only current keys.
+func CurrentLabels(labels map[string]string) map[string]string {
+	if labels == nil {
+		return nil
+	}
+	out := make(map[string]string, len(labels))
+	for k, v := range labels {
+		if cur, ok := currentLabels[k]; ok {
+			if _, both := labels[cur]; both {
+				continue
+			}
+			k = cur
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// LegacyLabels returns a copy of labels with current Docker Manager keys
+// renamed to their legacy keys: the ownership sent to an agent without
+// FeatureLabels.
+func LegacyLabels(labels map[string]string) map[string]string {
+	if labels == nil {
+		return nil
+	}
+	out := make(map[string]string, len(labels))
+	for k, v := range labels {
+		if old, ok := legacyLabels[k]; ok {
+			if _, both := labels[old]; both {
+				continue
+			}
+			k = old
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// OwnLabel reports whether key is one of Docker Manager's own labels:
+// under LabelPrefix (except UserLabels) or LegacyLabelPrefix. They never
+// travel from one object to another (a migrated volume gets its own).
+func OwnLabel(key string) bool {
+	if strings.HasPrefix(key, LegacyLabelPrefix) {
+		return true
+	}
+	return strings.HasPrefix(key, LabelPrefix) && !slices.Contains(UserLabels, key)
+}
+
+// WithoutOwnLabels returns a copy of labels without Docker Manager's own
+// labels (OwnLabel); nil when none is left. A saved recreate
+// specification (#20) may hold user labels under LabelPrefix set before
+// it was reserved: they are dropped rather than failing the recreate.
+func WithoutOwnLabels(labels map[string]string) map[string]string {
+	var out map[string]string
+	for k, v := range labels {
+		if OwnLabel(k) {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[k] = v
+	}
+	return out
+}
+
 // IsHelperContainer reports whether a container is a temporary one of
 // Docker Manager or Compose: a container set aside during a standalone
 // image update or a stack rename (normally removed within seconds, left
@@ -82,7 +237,7 @@ var (
 // the Engine's leading slash.
 func IsHelperContainer(name string, labels map[string]string) bool {
 	name = strings.TrimPrefix(name, "/")
-	if labels[LabelRole] == RoleSelfUpdate || asideNameRE.MatchString(name) {
+	if HasRole(labels, RoleSelfUpdate) || asideNameRE.MatchString(name) {
 		return true
 	}
 	_, replacing := labels[ComposeReplaceLabel]
@@ -450,7 +605,9 @@ type (
 		// Start the container after creating it.
 		Start bool `json:"start,omitempty"`
 		// Ownership are the Docker Manager labels the manager sets on the
-		// container (LabelManaged, LabelInstance, LabelSpec only).
+		// container (LabelManaged, LabelInstance, LabelSpec only; their
+		// legacy keys for agents without FeatureLabels). The agent writes
+		// them under their current keys (CurrentLabels).
 		Ownership map[string]string `json:"ownership,omitempty"`
 	}
 	// ContainerActionInput is the input of container.start, .stop,
@@ -578,9 +735,10 @@ func ValidImageID(id string) bool { return imageIDRE.MatchString(id) }
 // ValidatePlatform checks an os/arch[/variant] platform ("" = the Engine's).
 func ValidatePlatform(p string) bool { return p == "" || platformRE.MatchString(p) }
 
-// ValidateLabels checks user labels: bounded, and never under Docker Manager's or
-// Compose's reserved prefixes (ownership and stack membership cannot be
-// forged, #6, #32).
+// ValidateLabels checks user labels: bounded, and never Docker Manager's
+// own labels (OwnLabel: both prefixes, except the UserLabels) or under
+// Compose's reserved prefix (ownership, roles and stack membership cannot
+// be forged, #6, #32).
 func ValidateLabels(field string, labels map[string]string) error {
 	if len(labels) > maxLabels {
 		return fieldErr(field, "at most %d labels", maxLabels)
@@ -594,8 +752,9 @@ func ValidateLabels(field string, labels map[string]string) error {
 		switch {
 		case k == "" || len(k) > 256 || strings.ContainsAny(k, " \t\r\n="):
 			return fieldErr(field, "invalid label key %q", k)
-		case strings.HasPrefix(k, LabelPrefix):
-			return fieldErr(field, "label %q uses the reserved prefix %s", k, LabelPrefix)
+		case OwnLabel(k):
+			return fieldErr(field, "label %q is reserved for Docker Manager (prefixes %s and %s; only %s may be set)", k, LabelPrefix,
+				LegacyLabelPrefix, strings.Join(UserLabels, ", "))
 		case strings.HasPrefix(k, ComposeLabelPrefix):
 			return fieldErr(field, "label %q uses the reserved prefix %s (Compose stack membership)", k, ComposeLabelPrefix)
 		case len(labels[k]) > maxArgLen:
@@ -790,8 +949,19 @@ func validIP(s string) bool {
 	return true
 }
 
-// OwnershipLabels are the only Docker Manager labels a create input may set.
+// OwnershipLabels are the only Docker Manager labels a create input may
+// set (ValidOwnership also accepts their legacy keys).
 var OwnershipLabels = []string{LabelManaged, LabelInstance, LabelSpec}
+
+// ValidOwnership reports whether key is an ownership label, under its
+// current or legacy key (a manager sends legacy keys to agents without
+// FeatureLabels; a job queued before the agent was upgraded keeps them).
+func ValidOwnership(key string) bool {
+	if cur, ok := currentLabels[key]; ok {
+		key = cur
+	}
+	return slices.Contains(OwnershipLabels, key)
+}
 
 // Validate checks a create-container input.
 func (in ContainerCreateInput) Validate() error {
@@ -799,7 +969,7 @@ func (in ContainerCreateInput) Validate() error {
 		return err
 	}
 	for k, v := range in.Ownership {
-		if !slices.Contains(OwnershipLabels, k) || v == "" || len(v) > 128 {
+		if !ValidOwnership(k) || v == "" || len(v) > 128 {
 			return fieldErr("ownership", "label %q is not an ownership label", k)
 		}
 	}

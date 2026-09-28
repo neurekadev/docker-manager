@@ -479,7 +479,7 @@ func TestScopeResolutionRefusals(t *testing.T) {
 	f := newFixture(t)
 	for name, want := range map[string]string{
 		"plugin": protocol.CodeUnsupportedVolume, "nfs": protocol.CodeUnsupportedVolume, "agentstate": protocol.CodeUnsupportedVolume,
-		"docker-manager_stacks": protocol.CodeUnsupportedVolume, "missing": protocol.CodeNotFound,
+		"managerdata": protocol.CodeUnsupportedVolume, "docker-manager_stacks": protocol.CodeUnsupportedVolume, "missing": protocol.CodeNotFound,
 	} {
 		_, err := f.svc.List(f.ctx, protocol.FilesListInput{Scope: protocol.FileScope{Kind: protocol.ScopeVolume, ID: name}, Path: "."})
 		if code(err) != want {

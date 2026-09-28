@@ -48,7 +48,8 @@ only production process execution in Docker Manager.
   (`buildx_buildkit_<builder>_state`, `protocol.IsBuildxVolume`: rebuildable
   build cache) unless `buildxVolumes` is on (default off). The user-set
   label `docker-manager.backup.exclude=true` (`protocol.LabelBackupExclude`,
-  outside the reserved prefix like the update label) leaves a volume out:
+  one of the `protocol.UserLabels` users may set under the reserved
+  prefix, like the update label) leaves a volume out:
   on the volume itself, or on a container that mounts it. The manager
   applies it to standalone volumes (`standaloneVolumes`), the agent to a
   stack's named and anonymous volumes (`planStackVolumes`, source reason
@@ -62,13 +63,14 @@ only production process execution in Docker Manager.
   temporary replacement during a recreate, `<12 hex>_<name>` with
   `com.docker.compose.replace` (Compose keeps the label after renaming the
   replacement, so the name decides); the agent's self-update helper,
-  `dev.neureka.docker-manager.role=self-update`) never count as users of a
+  `docker-manager.role=self-update`, or its legacy key) never count as users of a
   volume: `standaloneVolumes` ignores them for the managed-stack and label
   checks and leaves out a volume only they use, `planStackVolumes`
   discovers anonymous volumes only on the other containers (one only a
   temporary container mounts is listed as excluded, "only a temporary
   container of Docker Manager or Compose uses it"). And a standalone volume
-  an **environment migration** created (`dev.neureka.docker-manager.migration=<migration ID>`,
+  an **environment migration** created (`docker-manager.migration=<migration ID>`
+  or its legacy key,
   #35) is selected only when that migration succeeded (`completed` or
   `source_removed` in the manager's migration record); a failed, cancelled,
   interrupted, still running or unknown one left a partial copy the next

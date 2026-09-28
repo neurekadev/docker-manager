@@ -211,8 +211,9 @@ func newContainer(env string, c protocol.ContainerSummary, v authz.View, stackID
 	for _, n := range c.NetworkList {
 		out.Networks = append(out.Networks, ContainerNetwork{Name: n.Name, IPAddress: n.IPAddress, IPv6Address: n.IPv6Address})
 	}
-	if c.Labels[protocol.LabelManaged] == protocol.ManagedStandalone {
-		out.Managed = &ContainerOwnership{Kind: protocol.ManagedStandalone, ThisInstance: instanceID != "" && c.Labels[protocol.LabelInstance] == instanceID}
+	if protocol.LabelValue(c.Labels, protocol.LabelManaged) == protocol.ManagedStandalone {
+		out.Managed = &ContainerOwnership{Kind: protocol.ManagedStandalone,
+			ThisInstance: instanceID != "" && protocol.LabelValue(c.Labels, protocol.LabelInstance) == instanceID}
 	}
 	return out
 }
@@ -285,7 +286,7 @@ type ContainerCreateBody struct {
 	Command       []string               `json:"command,omitempty" maxItems:"64"`
 	Entrypoint    []string               `json:"entrypoint,omitempty" maxItems:"64"`
 	Env           []string               `json:"env,omitempty" maxItems:"256" doc:"KEY=value. Values are stored sealed in the recreate specification and never returned."`
-	Labels        map[string]string      `json:"labels,omitempty" doc:"User labels; dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
+	Labels        map[string]string      `json:"labels,omitempty" doc:"User labels; docker-manager.* (except the docker-manager.*.exclude labels), dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
 	WorkingDir    string                 `json:"workingDir,omitempty" maxLength:"4096"`
 	User          string                 `json:"user,omitempty" maxLength:"256"`
 	Ports         []ContainerPortSpec    `json:"ports,omitempty" maxItems:"64"`

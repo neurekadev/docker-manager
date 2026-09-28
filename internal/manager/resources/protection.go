@@ -29,9 +29,9 @@ func (s *Service) ContainerProtection(c protocol.ContainerSummary) *protocol.Pro
 	case s.opts.ManagerContainerID != "" && c.ID == s.opts.ManagerContainerID:
 		return &protocol.Protection{Role: protection.RoleManager, Reason: "the Docker Manager of this installation: the UI and API run in it",
 			Self: true, RestartAllowed: true}
-	case c.Labels[protocol.LabelRole] == protection.RoleAgent:
+	case protocol.HasRole(c.Labels, protection.RoleAgent):
 		return &protocol.Protection{Role: protection.RoleAgent, Reason: "a Docker Agent container", RestartAllowed: true}
-	case c.Labels[protocol.LabelRole] == protection.RoleManager:
+	case protocol.HasRole(c.Labels, protection.RoleManager):
 		return &protocol.Protection{Role: protection.RoleManager, Reason: "a Docker Manager container", RestartAllowed: true}
 	}
 	return nil

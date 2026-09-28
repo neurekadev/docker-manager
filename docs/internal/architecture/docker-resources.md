@@ -133,7 +133,10 @@ memory, memory+swap, PIDs), health check and whether to start. Anything
 else (privileged mode, capabilities, devices, security options, ulimits,
 sysctls, log drivers, DNS, extra hosts, init, IPC/PID modes, GPUs, ...) is
 refused by the schema: use a Compose stack (#7). Labels under
-`dev.neureka.docker-manager.` and `com.docker.compose.` are reserved. Binding the
+`docker-manager.` (except the user-set exclusions `docker-manager.update.exclude`,
+`docker-manager.backup.exclude` and `docker-manager.maintenance.exclude`),
+the legacy `dev.neureka.docker-manager.` and `com.docker.compose.` are
+reserved (`protocol.ValidateLabels`, `OwnLabel`). Binding the
 Docker socket (or a directory containing it) is refused. Bind mounts
 otherwise give the container access to host files: `container.create` is
 an advanced capability.
@@ -143,9 +146,11 @@ an advanced capability.
   command, entrypoint, env, labels, working directory, user, ports,
   mounts, networks, health check.
 
-Containers Docker Manager creates carry `dev.neureka.docker-manager.managed=standalone`,
-`dev.neureka.docker-manager.instance=<manager instance ID>` and
-`dev.neureka.docker-manager.spec=<spec ID>`. The complete create form (including
+Containers Docker Manager creates carry `docker-manager.managed=standalone`,
+`docker-manager.instance=<manager instance ID>` and
+`docker-manager.spec=<spec ID>` (containers created before 2026-09-28 carry
+them under the legacy `dev.neureka.docker-manager.` prefix and are
+recognized the same way; see "Label keys" below). The complete create form (including
 environment values) is saved sealed (`secrets.Keyring`,
 `managed_containers/<id>/spec`) in `managed_containers`, updated with
 in-place changes and when a stack rename (#7) moved a volume it mounts
@@ -159,6 +164,47 @@ Automatic updates (#20) recreate a managed standalone container from
 The create job's input also holds the form (manager job record and the
 agent journal until acknowledged); neither is exposed by the API, audit or
 logs.
+
+## Label keys
+
+Docker Manager's labels use the prefix `docker-manager.` (owner decision,
+2026-09-28; `protocol.LabelPrefix`): `role`, `managed`, `instance`, `spec`,
+`migration`, `description` (read from Compose files only) and `depends_on`,
+plus the user-set exclusions `update.exclude`, `backup.exclude` and
+`maintenance.exclude` (`protocol.UserLabels`). Before, the prefix was
+`dev.neureka.docker-manager.` (`protocol.LegacyLabelPrefix`). Docker cannot
+relabel an existing object, so:
+
+- **Writes** use only the current keys: created and recreated containers
+  (`agent/resources.EngineSpec` writes ownership labels under their current
+  keys whatever the input used), updates of standalone containers, clones
+  of a stack rename (`engine.CloneOptions.RenameLabels` with
+  `protocol.LegacyLabelRenames`), the Compose loader's `depends_on` label,
+  migrated volumes, the self-update helper, the install command and the
+  documented compose files.
+- **Reads** accept both keys, the current one winning when an object
+  carries both: `protocol.LookupLabel`, `LabelValue` and `HasRole` (never
+  index a label map with a Docker Manager key directly). Readers:
+  self-protection (agent and manager), the file manager's own-volume check,
+  prune plans, updates, backups, migrations, the lifecycle graph, the
+  description import and the containers view; the web folds both prefixes
+  as system labels (except the exclusions) and reads both role keys.
+- **Old agents:** an agent of the previous version accepts ownership labels
+  in `container.create` only under the legacy keys and writes whatever
+  `update.run` sends. Agents announce `protocol.FeatureLabels`; the manager
+  sends ownership under the legacy keys to an agent without it (or offline:
+  a job dispatched after the upgrade is still accepted, and written under
+  the current keys). Such an agent keeps writing and reading the legacy
+  keys only; it does not recognize containers labeled with the new
+  `docker-manager.role` (an agent image of the previous version with a new
+  compose.yaml), which is why manager and agents are upgraded together.
+- **Saved specifications** hold user labels only (sealed, so no database
+  migration can rewrite them). Keys under `docker-manager.` other than the
+  exclusions were allowed before the prefix was reserved;
+  `resources.Service.ManagedSpec` drops Docker Manager's own labels
+  (`protocol.WithoutOwnLabels`) so recreating and cloning keep working.
+  Existing containers that carry such a user label (for example
+  `docker-manager.role`) are now read as Docker Manager's.
 
 ## Hooks for other workstreams
 

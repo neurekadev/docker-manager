@@ -24,7 +24,7 @@ const shopYAML = `services:
   db:
     image: registry.example:5000/db:${DB_TAG}
     labels:
-      dev.neureka.docker-manager.description: Orders database
+      docker-manager.description: Orders database
   web:
     image: nginx:1.27
     depends_on:

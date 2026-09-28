@@ -137,3 +137,30 @@ func TestHostWithOnlyAnAgent(t *testing.T) {
 		t.Fatal("nil set protects")
 	}
 }
+
+// TestLegacyRoleLabels: containers started from a compose.yaml or docker
+// run command written before the label prefix changed carry the legacy
+// role key; they are Docker Manager's all the same (and their Compose
+// project with them).
+func TestLegacyRoleLabels(t *testing.T) {
+	fe := enginefake.New("ENG")
+	legacy := protocol.LegacyLabel(protocol.LabelRole)
+	if legacy != "dev.neureka.docker-manager.role" || protocol.LabelRole != "docker-manager.role" {
+		t.Fatalf("keys %q / %q", protocol.LabelRole, legacy)
+	}
+	manager := fe.AddContainer(engine.ContainerSpec{Name: "old-manager", Image: "nginx:1.27",
+		Labels: map[string]string{legacy: "manager", protocol.ComposeProjectLabel: "old"}}, true)
+	agent := fe.AddContainer(engine.ContainerSpec{Name: "old-agent", Image: "nginx:1.27", Labels: map[string]string{legacy: "agent"}}, true)
+	helper := fe.AddContainer(engine.ContainerSpec{Name: "old-helper", Image: "nginx:1.27",
+		Labels: map[string]string{legacy: protocol.RoleSelfUpdate}}, false)
+	proxy := fe.AddContainer(engine.ContainerSpec{Name: "old-proxy", Image: "nginx:1.27",
+		Labels: map[string]string{protocol.ComposeProjectLabel: "old"}}, true)
+	fake := fe.AddContainer(engine.ContainerSpec{Name: "look-alike", Image: "nginx:1.27",
+		Labels: map[string]string{"dev.neureka.role": "agent", "role": "manager"}}, true)
+	s := identify(t, New(Options{}), fe)
+	role(t, "legacy manager", s.Container(manager), protection.RoleManager, false)
+	role(t, "legacy agent", s.Container(agent), protection.RoleAgent, false)
+	role(t, "legacy helper", s.Container(helper), protection.RoleAgent, false)
+	role(t, "project of a legacy manager", s.Container(proxy), protection.RoleProject, false)
+	role(t, "look-alike", s.Container(fake), "", false)
+}

@@ -3,6 +3,7 @@ package compose
 import (
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
@@ -34,7 +35,7 @@ func TestLoadFromContent(t *testing.T) {
     image: cache:1
     profiles: [extras]
 `),
-		"compose.override.yaml": []byte("services:\n  web:\n    labels:\n      dev.neureka.docker-manager.description: Web frontend\n"),
+		"compose.override.yaml": []byte("services:\n  web:\n    labels:\n      docker-manager.description: Web frontend\n"),
 		".env":                  []byte("TAG=16\n"),
 	}})
 	if err != nil {
@@ -73,5 +74,46 @@ func TestLoadFromContent(t *testing.T) {
 	// Without a Compose file in the content, loading fails.
 	if _, err := LoadProject(testutil.Context(t), ProjectSpec{Dir: dir, Content: map[string][]byte{".env": []byte("A=1\n")}}); err == nil {
 		t.Error("content without a Compose file loaded")
+	}
+}
+
+// TestDescriptionLabelKeys: the description label is read under its
+// current key and under its legacy key (Compose files written before the
+// label prefix changed); the current key wins when a service has both.
+func TestDescriptionLabelKeys(t *testing.T) {
+	p, err := LoadProject(testutil.Context(t), ProjectSpec{Dir: filepath.Join(t.TempDir(), "app"), Content: map[string][]byte{
+		"compose.yaml": []byte(`services:
+  db:
+    image: db:1
+    labels:
+      dev.neureka.docker-manager.description: Legacy database
+  web:
+    image: web:1
+    labels:
+      docker-manager.description: Current web
+      dev.neureka.docker-manager.description: Old web
+  cache:
+    image: cache:1
+`)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, s := range p.Services {
+		got[s.Name] = s.Description
+	}
+	if got["db"] != "Legacy database" || got["web"] != "Current web" || got["cache"] != "" {
+		t.Errorf("descriptions %v", got)
+	}
+	// Docker Manager writes its dependency label under the current key only.
+	for name, s := range p.model.Services {
+		if _, ok := s.CustomLabels[lifecycle.DependsOnLabel]; !ok || lifecycle.DependsOnLabel != "docker-manager.depends_on" {
+			t.Errorf("service %s lacks %s", name, lifecycle.DependsOnLabel)
+		}
+		for k := range s.CustomLabels {
+			if strings.HasPrefix(k, "dev.neureka.") {
+				t.Errorf("service %s gets the legacy label %s", name, k)
+			}
+		}
 	}
 }

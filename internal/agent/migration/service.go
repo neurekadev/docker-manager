@@ -530,7 +530,7 @@ func (s *Service) prepareVolume(ctx context.Context, eng engine.Engine, id strin
 	v, err := eng.InspectVolume(ctx, spec.Name)
 	switch {
 	case err == nil:
-		if v.Labels[protocol.LabelMigration] != id {
+		if protocol.LabelValue(v.Labels, protocol.LabelMigration) != id {
 			return v, fail(protocol.CodeAlreadyExists, "volume %s already exists on the destination", spec.Name)
 		}
 		return v, nil
@@ -549,7 +549,7 @@ func (s *Service) prepareVolume(ctx context.Context, eng engine.Engine, id strin
 	if err != nil {
 		return v, engineError(err)
 	}
-	if v.Labels[protocol.LabelMigration] != id {
+	if protocol.LabelValue(v.Labels, protocol.LabelMigration) != id {
 		return v, fail(protocol.CodeAlreadyExists, "volume %s appeared on the destination meanwhile", spec.Name)
 	}
 	return v, nil
@@ -773,7 +773,7 @@ func (s *Service) cleanup(ctx context.Context, raw json.RawMessage) (any, error)
 			if err != nil {
 				continue
 			}
-			if v.Labels[protocol.LabelMigration] != in.MigrationID {
+			if protocol.LabelValue(v.Labels, protocol.LabelMigration) != in.MigrationID {
 				out.Kept = append(out.Kept, "volume "+name+" (not created by this migration)")
 				continue
 			}

@@ -432,7 +432,14 @@ And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
 sends the shell's most common path as `cmd` (`protocol.LegacyShellCommand`:
-`/bin/bash`, `/bin/zsh`, else `/bin/sh`). Optional fields an agent adds to
+`/bin/bash`, `/bin/zsh`, else `/bin/sh`). And `labels.docker_manager`
+(`protocol.FeatureLabels`): those agents write Docker Manager's labels
+under the `docker-manager.` prefix, read them under it and under the
+legacy `dev.neureka.docker-manager.` prefix, and accept the `ownership`
+labels of `container.create` and `update.run` under either key (writing
+them under the current one); the manager sends ownership under the legacy
+keys (`protocol.LegacyLabels`) to other agents, which accept only those.
+Optional fields an agent adds to
 its own request outputs need no feature: agents are not newer than the
 manager, the manager decodes a response's `output` without refusing
 unknown fields, and it treats a missing field as not reported. Examples:
@@ -686,7 +693,8 @@ memory, nothing on disk), optionally rate-limited
   destination writes only into `<stacks>/.docker-manager-migrations/<id>/project`
   (moved to the new project directory by `migration.commit`, which never
   replaces an existing directory) and into volumes it creates itself with
-  the label `dev.neureka.docker-manager.migration=<id>`; extraction refuses
+  the label `docker-manager.migration=<id>` (a volume carrying the legacy
+  `dev.neureka.docker-manager.migration=<id>` counts too); extraction refuses
   escaping names, members below symlinks or files, hard links to anything
   but earlier regular files and device nodes.
 - `migration.cleanup` removes the staging directory and, unless
@@ -709,7 +717,8 @@ shared `internal/fsroot` operations), the manager side
   inspects it and serves only local-driver volumes under the verified volume
   directory (`storage.Result.AccessFor`), never the stacks volume and never
   volumes mounted by Docker Manager's own containers (label
-  `dev.neureka.docker-manager.role`). Before the storage check ran nothing is
+  `docker-manager.role`, or its legacy key `dev.neureka.docker-manager.role`).
+  Before the storage check ran nothing is
   served (`unsupported_volume`).
 - **Paths** are root-relative, slash-separated, without a leading `/`,
   `.`/`..` segments, backslashes or control characters

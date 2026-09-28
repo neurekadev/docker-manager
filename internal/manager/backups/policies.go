@@ -482,7 +482,7 @@ func (s *Service) selectVolumes(ctx context.Context, p domain.BackupPolicy, envi
 			if len(volume.UsedBy) > 0 && !slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return !helper[ref.ID] }) {
 				continue
 			}
-			if id := volume.Labels[protocol.LabelMigration]; id != "" {
+			if id := protocol.LabelValue(volume.Labels, protocol.LabelMigration); id != "" {
 				ok, known := migrations[id]
 				if !known {
 					if ok, err = s.migrationSucceeded(ctx, id); err != nil {

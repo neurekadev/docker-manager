@@ -260,8 +260,9 @@ never carry it.
 
 Display name, description, per-service descriptions and **links** are
 Docker Manager metadata, never written to Compose files. A service's
-description is filled once from its `dev.neureka.docker-manager.description`
-label when it has none (`importLabelMeta`).
+description is filled once from its `docker-manager.description` label
+(or the legacy `dev.neureka.docker-manager.description`, which Compose
+files written before 2026-09-28 carry) when it has none (`importLabelMeta`).
 
 Stacks and services have **no icon** of their own: the web shows the stack
 tile (or the image of the template the stack was created from) and one
@@ -270,9 +271,10 @@ service tile for every service. The former `icon` members of `POST
 the two imports are deprecated and ignored; the `icon` members of the
 stack and service responses are deprecated and never returned. Migration
 `20260928192810_clear_stack_icons` cleared the stored icons (the
-`stacks.icon` column stays, unused) and the `dev.neureka.docker-manager.icon`
-label is no longer read (`protocol.ComposeService.Icon` stays, deprecated,
-so results of agents of the previous version still decode).
+`stacks.icon` column stays, unused) and the former
+`dev.neureka.docker-manager.icon` label is no longer read
+(`protocol.ComposeService.Icon` stays, deprecated, so results of agents of
+the previous version still decode).
 
 Links
 (`domain.Link`: optional label, URL; `stacks.links`, a JSON list in the
@@ -523,9 +525,11 @@ stable codes (`dependency_failed`, `dependency_missing`, `timeout`,
 `EngineRuntime` drives a Compose project's service containers through the
 Engine adapter (inspect-based state, so the pre-26 container-list lag does
 not matter). `GraphFromContainers` builds the **deployed** graph from the
-containers' labels: Docker Manager's `dev.neureka.docker-manager.depends_on`
+containers' labels: Docker Manager's `docker-manager.depends_on`
 (`service:condition:restart:required`, set by the Compose adapter on every
-service) or Compose's own label (no `required`: treated as required).
+service; containers deployed before 2026-09-28 carry the legacy
+`dev.neureka.docker-manager.depends_on`, read the same way) or Compose's
+own label (no `required`: treated as required).
 Stack start/stop/restart jobs use it, so a stack whose files were edited
 but not deployed is operated as deployed.
 

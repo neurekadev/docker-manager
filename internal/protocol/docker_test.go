@@ -229,3 +229,168 @@ func TestOptionalInspectFields(t *testing.T) {
 		t.Errorf("container ref with addresses: %s", raw)
 	}
 }
+
+// TestLabelKeys: Docker Manager's labels use the docker-manager. prefix;
+// every label that existed under the legacy prefix maps to it.
+func TestLabelKeys(t *testing.T) {
+	for key, legacy := range map[string]string{
+		LabelRole: "dev.neureka.docker-manager.role", LabelManaged: "dev.neureka.docker-manager.managed",
+		LabelInstance: "dev.neureka.docker-manager.instance", LabelSpec: "dev.neureka.docker-manager.spec",
+		LabelMigration: "dev.neureka.docker-manager.migration", LabelDescription: "dev.neureka.docker-manager.description",
+		LabelDependsOn: "dev.neureka.docker-manager.depends_on",
+	} {
+		if !strings.HasPrefix(key, "docker-manager.") || LegacyLabel(key) != legacy || LegacyLabelRenames()[legacy] != key {
+			t.Errorf("%s: legacy %q", key, LegacyLabel(key))
+		}
+	}
+	for _, k := range UserLabels {
+		if LegacyLabel(k) != "" {
+			t.Errorf("user label %s has a legacy key", k)
+		}
+	}
+}
+
+// TestLookupLabel: readers accept the current key, the legacy key, and
+// prefer the current key when an object carries both.
+func TestLookupLabel(t *testing.T) {
+	legacy := LegacyLabelPrefix + "role"
+	for _, tc := range []struct {
+		labels map[string]string
+		want   string
+		ok     bool
+	}{
+		{map[string]string{LabelRole: "agent"}, "agent", true},
+		{map[string]string{legacy: "manager"}, "manager", true},
+		{map[string]string{LabelRole: "agent", legacy: "manager"}, "agent", true},
+		{map[string]string{LabelRole: ""}, "", true},
+		{map[string]string{"role": "agent"}, "", false},
+		{nil, "", false},
+	} {
+		if v, ok := LookupLabel(tc.labels, LabelRole); v != tc.want || ok != tc.ok {
+			t.Errorf("LookupLabel(%v) = %q, %t", tc.labels, v, ok)
+		}
+		if LabelValue(tc.labels, LabelRole) != tc.want {
+			t.Errorf("LabelValue(%v)", tc.labels)
+		}
+	}
+	if !HasRole(map[string]string{legacy: "agent"}, "agent") || HasRole(map[string]string{legacy: "agent"}, "manager") ||
+		HasRole(nil, "") || !HasRole(map[string]string{LabelRole: "manager", legacy: "agent"}, "manager") {
+		t.Error("HasRole")
+	}
+	// Labels without a legacy key are read under their key only.
+	if LabelValue(map[string]string{LegacyLabelPrefix + "update.exclude": "true"}, LabelUpdateExclude) != "" {
+		t.Error("an exclusion label has no legacy key")
+	}
+	if !IsHelperContainer("helper", map[string]string{legacy: RoleSelfUpdate}) {
+		t.Error("legacy self-update helper not recognized")
+	}
+}
+
+// TestCurrentAndLegacyLabels: recreated objects carry only current keys;
+// the ownership for an agent of the previous version only legacy ones.
+func TestCurrentAndLegacyLabels(t *testing.T) {
+	in := map[string]string{LegacyLabelPrefix + "managed": ManagedStandalone, LegacyLabelPrefix + "spec": "old",
+		LabelSpec: "new", "team": "ops", LabelUpdateExclude: "true"}
+	got := CurrentLabels(in)
+	want := map[string]string{LabelManaged: ManagedStandalone, LabelSpec: "new", "team": "ops", LabelUpdateExclude: "true"}
+	if len(got) != len(want) {
+		t.Fatalf("CurrentLabels = %v", got)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("CurrentLabels[%s] = %q, want %q", k, got[k], v)
+		}
+	}
+	if len(in) != 5 {
+		t.Error("CurrentLabels changed its input")
+	}
+	old := LegacyLabels(map[string]string{LabelManaged: ManagedStandalone, LabelInstance: "i", "team": "ops"})
+	if len(old) != 3 || old[LegacyLabelPrefix+"managed"] != ManagedStandalone || old[LegacyLabelPrefix+"instance"] != "i" || old["team"] != "ops" {
+		t.Errorf("LegacyLabels = %v", old)
+	}
+	if CurrentLabels(nil) != nil || LegacyLabels(nil) != nil {
+		t.Error("nil labels")
+	}
+}
+
+// TestOwnLabels: both prefixes are Docker Manager's except the user-set
+// exclusions; saved specifications lose Docker Manager's own labels.
+func TestOwnLabels(t *testing.T) {
+	for k, want := range map[string]bool{
+		LabelRole: true, LabelDescription: true, "docker-manager.anything": true, LegacyLabelPrefix + "role": true,
+		LegacyLabelPrefix + "update.exclude": true, LabelUpdateExclude: false, LabelBackupExclude: false,
+		LabelMaintenanceExclude: false, "traefik.enable": false, ComposeProjectLabel: false, "docker-manager": false,
+	} {
+		if OwnLabel(k) != want {
+			t.Errorf("OwnLabel(%q) = %t", k, !want)
+		}
+	}
+	got := WithoutOwnLabels(map[string]string{"docker-manager.team": "ops", LabelBackupExclude: "true", "team": "ops"})
+	if len(got) != 2 || got[LabelBackupExclude] != "true" || got["team"] != "ops" {
+		t.Errorf("WithoutOwnLabels = %v", got)
+	}
+	if WithoutOwnLabels(map[string]string{LabelSpec: "x"}) != nil {
+		t.Error("nothing left must be nil")
+	}
+}
+
+// TestValidateLabelsReserved: users cannot set labels under either
+// Docker Manager prefix or Compose's, except the three exclusions.
+func TestValidateLabelsReserved(t *testing.T) {
+	for _, k := range []string{LabelRole, LabelManaged, "docker-manager.custom", LabelDescription, LegacyLabelPrefix + "role",
+		LegacyLabelPrefix + "backup.exclude", ComposeServiceLabel} {
+		if fieldOf(ValidateLabels("labels", map[string]string{k: "x"})) != "labels" {
+			t.Errorf("label %s accepted", k)
+		}
+	}
+	ok := map[string]string{LabelUpdateExclude: "true", LabelBackupExclude: "true", LabelMaintenanceExclude: "true",
+		"team": "ops", "dev.neureka.other": "x"}
+	if err := ValidateLabels("labels", ok); err != nil {
+		t.Error(err)
+	}
+	if err := (VolumeCreateInput{Name: "v", Labels: map[string]string{LabelBackupExclude: "true"}}).Validate(); err != nil {
+		t.Error(err)
+	}
+	if err := (NetworkCreateInput{Name: "n", Labels: map[string]string{LabelMaintenanceExclude: "true"}}).Validate(); err != nil {
+		t.Error(err)
+	}
+}
+
+// TestOwnershipKeys: a create input carries ownership under the current
+// or the legacy keys (a job queued for an agent before its upgrade), never
+// other Docker Manager labels.
+func TestOwnershipKeys(t *testing.T) {
+	for _, own := range []map[string]string{
+		{LabelManaged: ManagedStandalone, LabelSpec: "s", LabelInstance: "i"},
+		LegacyLabels(map[string]string{LabelManaged: ManagedStandalone, LabelSpec: "s", LabelInstance: "i"}),
+	} {
+		in := ContainerCreateInput{Spec: ContainerSpec{Name: "x", Image: "nginx"}, Ownership: own}
+		if err := in.Validate(); err != nil {
+			t.Errorf("%v: %v", own, err)
+		}
+	}
+	for _, k := range []string{LabelRole, LegacyLabelPrefix + "role", LabelMigration, LegacyLabelPrefix + "migration", "team"} {
+		in := ContainerCreateInput{Spec: ContainerSpec{Name: "x", Image: "nginx"}, Ownership: map[string]string{k: "x"}}
+		if fieldOf(in.Validate()) != "ownership" {
+			t.Errorf("%s accepted as ownership", k)
+		}
+	}
+}
+
+// TestMigratedVolumeLabels: a migrated volume keeps Compose's labels and
+// the user-set exclusions, never Docker Manager's own labels (the
+// destination sets its own LabelMigration).
+func TestMigratedVolumeLabels(t *testing.T) {
+	in := func(labels map[string]string) error {
+		return MigrationReceiveInput{MigrationID: "0190a6e0-0000-7000", Part: PartVolume,
+			Volume: &MigrationVolumeSpec{Name: "shop_db", Labels: labels}}.Validate()
+	}
+	if err := in(map[string]string{ComposeProjectLabel: "shop", LabelBackupExclude: "true"}); err != nil {
+		t.Error(err)
+	}
+	for _, k := range []string{LabelMigration, LegacyLabelPrefix + "migration", "docker-manager.custom"} {
+		if in(map[string]string{k: "x"}) == nil {
+			t.Errorf("%s accepted", k)
+		}
+	}
+}

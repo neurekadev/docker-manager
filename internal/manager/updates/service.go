@@ -74,6 +74,11 @@ type Agents interface {
 	RequestEnvironment(ctx context.Context, environmentID, name string, input any, timeout time.Duration) (json.RawMessage, error)
 }
 
+// featureHub is the part of *agents.Hub that tells an agent's features.
+type featureHub interface {
+	EnvironmentHasFeature(environmentID, feature string) bool
+}
+
 // Environments reads environments (*agents.Service).
 type Environments interface {
 	GetEnvironment(ctx context.Context, id string) (domain.Environment, error)

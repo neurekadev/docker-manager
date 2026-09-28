@@ -31,10 +31,6 @@ type Engine interface {
 	ListContainers(ctx context.Context, f engine.ContainerFilter) ([]engine.Container, error)
 }
 
-// RoleLabel marks Docker Manager's own containers (their compose.yaml); the
-// volumes they mount are never served by the file manager.
-const RoleLabel = "dev.neureka.docker-manager.role"
-
 // Limits bound the service's work (fsroot.Limits).
 type Limits = fsroot.Limits
 
@@ -165,15 +161,19 @@ func (s *Service) volumeDir(ctx context.Context, st *storage.Result, name string
 	return mp, nil
 }
 
-// protectedVolumes lists the volumes mounted by Docker Manager's own containers
-// (manager data, agent state).
+// protectedVolumes lists the volumes mounted by Docker Manager's own
+// containers (manager data, agent state): containers carrying
+// protocol.LabelRole, under its current or legacy key.
 func (s *Service) protectedVolumes(ctx context.Context, eng Engine) ([]string, error) {
-	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true, Labels: []string{RoleLabel}})
+	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
 	if err != nil {
 		return nil, err
 	}
 	var out []string
 	for _, c := range cs {
+		if _, ours := protocol.LookupLabel(c.Labels, protocol.LabelRole); !ours {
+			continue
+		}
 		for _, m := range c.Mounts {
 			if m.Type == "volume" && m.Name != "" {
 				out = append(out, m.Name)

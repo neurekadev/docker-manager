@@ -417,7 +417,7 @@ func statesFrom(in []protocol.ServiceState) []domain.StackServiceState {
 }
 
 // importLabelMeta fills empty service descriptions from the
-// dev.neureka.docker-manager.description label (never overwriting the
+// docker-manager.description label (or its legacy key; never overwriting the
 // user's metadata). The former icon label is ignored: services have no
 // icon of their own.
 func importLabelMeta(st *domain.Stack, services []protocol.ComposeService) {

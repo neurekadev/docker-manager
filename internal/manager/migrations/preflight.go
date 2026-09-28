@@ -473,8 +473,10 @@ func evaluateStack(p *Plan, in PreflightInput) {
 		existingVols[v.Name] = v.Migration
 	}
 	for _, v := range src.Volumes {
+		// Docker Manager's own labels never travel (a source agent of the
+		// previous version still sends those under the current prefix).
 		vp := VolumePlan{Source: v.Name, Target: v.Name, Key: v.Key, Anonymous: v.Anonymous, Bytes: v.Bytes, Entries: v.Entries,
-			Truncated: v.Truncated, Labels: v.Labels}
+			Truncated: v.Truncated, Labels: protocol.WithoutOwnLabels(v.Labels)}
 		selected := !v.Anonymous && !slices.Contains(in.Selection.ExcludeVolumes, v.Name)
 		if v.Anonymous {
 			selected = slices.Contains(in.Selection.AnonymousVolumes, v.Name)
@@ -523,7 +525,8 @@ func evaluateVolume(p *Plan, in PreflightInput) {
 	if target == "" {
 		target = v.Name
 	}
-	vp := VolumePlan{Source: v.Name, Target: target, Action: VolumeCopy, Bytes: v.Bytes, Entries: v.Entries, Truncated: v.Truncated, Labels: v.Labels}
+	vp := VolumePlan{Source: v.Name, Target: target, Action: VolumeCopy, Bytes: v.Bytes, Entries: v.Entries, Truncated: v.Truncated,
+		Labels: protocol.WithoutOwnLabels(v.Labels)}
 	switch {
 	case v.Protected:
 		p.block(FindingDockerManagerResource, "volume %s is Docker Manager's own (%s); it cannot be migrated", v.Name, v.Reason)

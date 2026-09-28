@@ -25,7 +25,7 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
 - Stacks and services have no icon: never add one to `DisplayMeta`, the
   store or a response. The deprecated `icon` request members stay
   accepted and ignored, the response members are never set, and the
-  `dev.neureka.docker-manager.icon` label is not read (details in
+  former `dev.neureka.docker-manager.icon` label is not read (details in
   [architecture/stacks.md](../architecture/stacks.md#details-and-links)).
 - Stacks created from a template carry `domain.Stack.Template` (registry
   instance ID, template ID, name, version): informational only, never a

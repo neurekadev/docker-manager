@@ -98,13 +98,14 @@ func (s *Service) createContainer(ctx context.Context, sc *jobexec.StepContext) 
 // EngineSpec converts a validated create-container form (#6) and the
 // Docker Manager ownership labels into the Engine adapter's specification. The
 // update of a managed standalone container (#20) recreates it from the
-// same saved form through this function.
+// same saved form through this function. Ownership labels sent under their
+// legacy keys are written under their current keys.
 func EngineSpec(spec protocol.ContainerSpec, ownership map[string]string) engine.ContainerSpec {
 	labels := maps.Clone(spec.Labels)
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	maps.Copy(labels, ownership)
+	maps.Copy(labels, protocol.CurrentLabels(ownership))
 	es := engine.ContainerSpec{Name: spec.Name, Image: spec.Image, Cmd: spec.Command, Entrypoint: spec.Entrypoint, Env: spec.Env,
 		Labels: labels, WorkingDir: spec.WorkingDir, User: spec.User, RestartPolicy: spec.RestartPolicy,
 		Resources: engine.Resources{NanoCPUs: spec.Resources.NanoCPUs, CPUShares: spec.Resources.CPUShares, Memory: spec.Resources.Memory,

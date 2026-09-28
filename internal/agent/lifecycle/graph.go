@@ -21,6 +21,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // depends_on conditions.
@@ -34,8 +36,9 @@ const (
 const (
 	// DependsOnLabel is Docker Manager's dependency label on every service
 	// container it deploys: "service:condition:restart:required,..." (the
-	// Compose label below lacks `required`).
-	DependsOnLabel = "dev.neureka.docker-manager.depends_on"
+	// Compose label below lacks `required`). Containers deployed before
+	// the label prefix changed carry its legacy key, read as well.
+	DependsOnLabel = protocol.LabelDependsOn
 	// ComposeDependsOnLabel is Compose's "service:condition:restart,..."
 	// label (containers deployed by other Compose clients).
 	ComposeDependsOnLabel = "com.docker.compose.depends_on"

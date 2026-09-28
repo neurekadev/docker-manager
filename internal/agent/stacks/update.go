@@ -477,8 +477,10 @@ func (s *Service) updateConfirm(ctx context.Context, sc *jobexec.StepContext) er
 // Docker Manager-managed standalone container, or that is Docker Manager's own.
 func (s *Service) checkStandalone(ctx context.Context, eng engine.Engine, in protocol.UpdateRunInput, d engine.ContainerDetails) error {
 	c := in.Container
-	if d.Name != c.Name || d.Labels[protocol.LabelManaged] != protocol.ManagedStandalone ||
-		d.Labels[protocol.LabelSpec] != c.Ownership[protocol.LabelSpec] || d.Labels[protocol.ComposeProjectLabel] != "" {
+	// Labels under their current or legacy keys, on both sides.
+	if d.Name != c.Name || protocol.LabelValue(d.Labels, protocol.LabelManaged) != protocol.ManagedStandalone ||
+		protocol.LabelValue(d.Labels, protocol.LabelSpec) != protocol.LabelValue(c.Ownership, protocol.LabelSpec) ||
+		d.Labels[protocol.ComposeProjectLabel] != "" {
 		return updateRefusal(protocol.UpdateClassRecreated, recoveryRecreated, "container %s is not the planned Docker Manager-managed standalone container", c.Name)
 	}
 	if s.opts.Guard == nil {
