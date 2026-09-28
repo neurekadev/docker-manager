@@ -148,7 +148,7 @@
 			{/if}
 			{#if !preview.inWindow && policy.window}
 				<Notice tone="info" title="Outside the update window" live="none">
-					Scheduled updates wait for the window; this manual update runs now.
+					Scheduled updates only run inside the window; this manual update runs now.
 				</Notice>
 			{/if}
 
