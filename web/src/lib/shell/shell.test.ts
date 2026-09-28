@@ -155,8 +155,13 @@ describe('CommandPalette', () => {
 		const options = screen.getAllByRole('option');
 		expect(options[0]).toHaveAttribute('aria-selected', 'true');
 		expect(input).toHaveAttribute('aria-activedescendant', options[0].id);
-		await user.keyboard('{ArrowDown}');
-		expect(input).toHaveAttribute('aria-activedescendant', options[1].id);
+		// Walk down, one shown row at a time, to the container hit.
+		const target = options.findIndex((o) => /silo-silo-web-1/.test(o.textContent ?? ''));
+		expect(target).toBeGreaterThan(0);
+		for (let k = 1; k <= target; k++) {
+			await user.keyboard('{ArrowDown}');
+			expect(input).toHaveAttribute('aria-activedescendant', options[k].id);
+		}
 		await user.keyboard('{Enter}');
 		expect(onnavigate).toHaveBeenCalledWith('/containers/e1/silo-silo-web-1');
 		expect(fetchMock).toHaveBeenCalled();
