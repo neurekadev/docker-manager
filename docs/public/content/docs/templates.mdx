@@ -1,126 +1,135 @@
 ---
 title: Templates
-description: Save a complete Compose project once and create stacks from it again and again.
+description: Save a complete Compose app once and create stacks from it again and again.
 ---
 
-A template is a complete Compose project: the `compose.yaml`, an optional
+A **template** is a complete Compose app: the `compose.yaml`, an optional
 `.env` and every file next to them, such as a config file a service mounts.
-You keep editing a template's **draft** and **publish versions** of it.
+You edit a template's **draft** and **publish versions** of it. Stacks are
+created from a published version.
 
 ## Create a template
 
-1. **Templates → New template**: give it a name, a short description and
-   some tags (for example `cloud, files`).
+1. Open **Templates** and press **New template**. Give it a name, a short
+   description and some tags (for example `cloud, files`), and press
+   **Create template**.
 2. The template's **Files** tab opens with a starter `compose.yaml`. Edit
-   it, add a `.env` and upload or create the files your services need, the
-   same way as in a stack's **Files** tab.
-3. Press **Publish version**. Pick a version such as `1.0.0` and write what
-   changed. Publishing freezes the files as they are; you can keep editing
-   the draft afterwards and publish again.
+   it, add a `.env`, and upload or create the files your services need,
+   just like in a stack's **Files** tab.
+3. Press **Publish version**. Enter a **Version** such as `1.0.0` and **What
+   changed**. Publishing freezes the files as they are. You can keep
+   editing the draft and publish again later.
 
-A template can hold up to 32 MB of files. Its Compose file must not set a
-top-level `name:`, because every stack you create from it gets its own
-name.
+Rules:
+
+- A template holds up to 32 MB of files (your administrator can change
+  this limit).
+- It needs a `compose.yaml` at the top of its files.
+- Its Compose file must not set a top-level `name:`, because every stack
+  created from it gets its own name.
 
 ## Create a stack from a template
 
-1. **Stacks → Create stack ▾ → Create stack from template**, or **Create
-   stack** on a template's page.
-2. Find the template (search by name or pick a tag) and click its card.
-3. Pick the version, the host and a name for the stack. The template's
-   `.env` is shown: change the values for this stack, such as passwords.
-4. Press **Create stack** (or tick **Deploy after creating**).
+1. Open **Stacks → Create stack ▾ → Create stack from template**, or press
+   **Create stack** on a template's page.
+2. Find the template: search by name, description, tag or source, or pick a
+   tag. Click its card.
+3. Pick the **Version**, the **Environment** and a **Name** for the stack.
+4. The template's `.env` is shown. Change the values for this stack, such
+   as passwords.
+5. Press **Create stack**, or tick **Deploy after creating** and press
+   **Create and deploy**.
 
 Docker Manager copies every file of the version into a new folder on the
-host and saves your `.env` there before anything starts. It never
-overwrites an existing folder. The stack page shows **From template** with
-the template's name and version, and the stack shows the template's icon
-until you choose another icon for it. After that, the stack's files are its
-own: changing the template later does not change the stack.
+server and saves your `.env` there before anything starts. It never
+overwrites an existing folder.
+
+The stack page shows **From template** with the template's name and
+version. After that, the stack's files are its own: changing the template
+later does not change the stack.
+
+## What a template runs
+
+A template's **Overview** shows its latest version and what it runs: each
+service with its image and ports, and the names of the settings in its
+`.env` (never their values). Settings marked **(no value)** are the ones
+to fill in when you create a stack.
+
+The **Status** filter on the **Templates** page shows **Ready to use**
+templates or those that are a **Draft only**.
 
 ## Save a stack as a template
 
-On a stack's page, open the menu next to its buttons and choose **Save as
-template**. Pick which files and folders to include and save them as a new
-template, or replace the draft of one of your templates. Leave out data
-folders such as databases or uploads: a template holds up to 32 MB. The
-stack itself does not change.
+On a stack's page, open **More stack actions → Save as template**. Pick
+which files and folders to include, then save them as **A new template**,
+or into **An existing template's draft** (this replaces the draft). Leave
+out data folders such as databases or uploads. The stack itself does not
+change.
 
-## Copy a template
+## Versions
 
-**Duplicate as a new template**, above the list of versions on a
-template's **Versions** tab or on the page of another Docker Manager's
-template, makes your own private copy of a version. Change its
-files and publish your own versions; the original does not change.
+The **Versions** tab lists every published version.
+
+- **Restore draft** puts a version's files back into the draft. Changes to
+  the draft since then are lost.
+- Deleting a version does not affect stacks created from it.
+- **Duplicate as a new template** makes your own private copy of a
+  version. You can change it and publish your own versions; the original
+  does not change.
 
 ## Icons and tags
 
-- **Settings → Icon** takes a PNG, JPEG, GIF, WebP or SVG image up to
-  256 KB. A square image with a little empty space around it looks best.
-- Tags help people find templates. On the **Templates** page, pick one in
-  the **Tag** filter or click a tag on a template, or search by name,
-  description or tag.
+- **Settings → Upload icon** takes a PNG, JPEG, GIF, WebP or SVG image up to
+  256 KB and 1024 × 1024 pixels. A square image with a little empty space
+  around it looks best. Stacks created from the template show its icon
+  until you choose another one.
+- Tags help people find templates. Use lowercase letters, digits and
+  dashes, up to 16 tags per template.
 
 ## Private and public templates
 
-New templates are **private**: only people on this Docker Manager with
+New templates are **private**: only people on your Docker Manager who have
 access to them can use them.
 
 **Settings → Make public** shares a template with other Docker Manager
-instances. Anyone who has your Docker Manager's address can then download
-**every file of every published version, including `.env`**. Before you
-make a template public:
+installations. Anyone who knows your Docker Manager's address can then
+download **every file of every published version, including `.env`**.
+Before you make a template public:
 
 - remove passwords, keys and tokens from its files, and
 - publish a clean version.
 
 Docker Manager asks you to confirm this every time you make a template
-public or publish a version of a public template.
+public, and every time you publish a version of a public template.
 
 ### Share your templates
 
-Your Docker Manager's address, for example `https://docker.example.com`, is
-what other Docker Managers add to use your templates. **Templates →
-Template sources** shows it under **Share your templates**, with a copy
-button:
+**Templates → Template sources** shows your address under **Share your
+templates**, with a copy button.
 
-- Anyone can open `https://docker.example.com/registry` in a browser to see
-  your public templates, without signing in.
-- Another Docker Manager adds your address as a template source to browse
-  your public templates and create stacks from them.
+- Anyone can open `https://docker.example.com/registry` (with your address)
+  to see your public templates, without signing in.
+- Another Docker Manager can add your address as a template source.
 
 Only public templates with a published version are shared. Private
-templates and unpublished drafts never are.
+templates and drafts never are.
 
-## Use templates from another Docker Manager
+### Use templates from another Docker Manager
 
-1. On the other Docker Manager, copy the address shown under **Templates →
+1. On the other Docker Manager, copy the address under **Templates →
    Template sources → Share your templates**.
-2. Here, open **Templates → Template sources → Add template source** and
-   paste it. Only the owner of this Docker Manager can add template sources.
+2. On yours, open **Templates → Template sources**, press **Add template
+   source** and paste it. The address must use HTTPS. Only the owner can
+   add template sources.
 
-Its public templates now appear on the **Templates** page next to yours,
-with the other Docker Manager's name. Filter by source or tag, open one to
-see what it runs and its versions, and press **Create stack**. The list is
-refreshed every 30 minutes; **Sync now** refreshes it at once. If a
-source can't be reached, the **Templates** page says so.
+The other Docker Manager's public templates now appear on your
+**Templates** page, marked with its name. Open one to see what it runs and
+its versions, and press **Create stack**.
+
+The list refreshes every 30 minutes. To refresh it now, press the sync
+button next to the source. If a source can't be reached, the **Templates**
+page says so.
 
 If you remove a template source, its templates disappear from the list.
-Stacks you created from them keep working, but no longer show the
-template's icon. Add the source again and the icons come back.
-
-## What a template runs
-
-A template's **Overview** shows its latest version and, if you may create
-stacks from it, what that version runs: each service with its image and
-ports, and the names of the settings in its `.env` (never their values).
-Settings marked **(no value)** are the ones to fill in when you create a
-stack. The **Status** filter on the **Templates** page tells templates that
-are ready to use apart from drafts without a version.
-
-## Versions
-
-The **Versions** tab lists every published version. **Restore draft** puts
-a version's files back into the draft (the draft's changes since then are
-lost). Deleting a version does not affect stacks that were created from
-it.
+Stacks you created from them keep working, but lose the template's icon.
+Add the source again and the icons come back.

@@ -248,7 +248,7 @@ func Verify(ctx context.Context, o Options) Result {
 	if err != nil {
 		if engine.IsCode(err, engine.CodeNotFound) {
 			return global(CodeStacksVolumeMissing, fmt.Sprintf("the stacks volume %q does not exist: create it "+
-				"(the deploy examples declare it with `name: %s`) or set DOCKER_AGENT_STACKS_VOLUME", o.StacksVolume, o.StacksVolume))
+				"(the documented compose.yaml creates it) or set DOCKER_AGENT_STACKS_VOLUME", o.StacksVolume))
 		}
 		return global(CodeEngineUnavailable, "cannot inspect the stacks volume: "+err.Error())
 	}

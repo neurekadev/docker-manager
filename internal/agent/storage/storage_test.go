@@ -124,7 +124,7 @@ func TestIdenticalPathLayout(t *testing.T) {
 	if len(entries) != 0 {
 		t.Errorf("write check left %v", entries)
 	}
-	// The deploy examples' extra volume mount of the stacks volume at its
+	// The documented compose.yaml's extra volume mount of the stacks volume at its
 	// own mountpoint is equally fine.
 	e.mounts = append(e.mounts, map[string]any{"Type": "volume", "Name": "docker-manager_stacks", "Source": e.stacks, "Destination": e.stacks, "RW": true})
 	if r := e.verify(); !r.StacksOK() {

@@ -1,0 +1,127 @@
+---
+title: Stacks
+description: Create, deploy, update and edit your Compose apps.
+---
+
+A **stack** is a Compose app: a `compose.yaml`, an optional `.env` and any
+other files the app needs. Docker Manager keeps each stack in its own folder
+on its server and runs exactly what the files say.
+
+## Create a stack
+
+1. Open **Stacks** and press **Create stack**.
+2. Pick the **Environment** (only when you have more than one).
+3. Enter a **Name**, for example `photos`. Use lowercase letters, digits,
+   `-` and `_`. You can add a **Display name** and a **Description** too.
+4. Write or paste your **Compose file**, and a **.env file** if you use one.
+5. Press **Validate** to check the files, then **Create and deploy**.
+
+To only save the stack and start it later, turn off **Deploy after
+creating** first. The button then reads **Create stack**.
+
+Docker Manager never overwrites anything: if a folder or Compose project
+with that name already exists, it tells you, and suggests importing it
+instead.
+
+Other ways to start:
+
+- **Create stack ▾ → Create stack from template** (see
+  [Templates](/docs/templates)).
+- **Import project** takes over a project you already run (see
+  [Import existing projects](/docs/import-projects)).
+
+## The stack page
+
+- **Overview**: status, CPU, memory, uptime and last deploy, and a table of
+  the stack's services with their containers, image, networks and ports.
+- **Files**: the stack's folder. Edit `compose.yaml`, `.env` and every
+  other file (see [Files](/docs/files)).
+- **Logs** and **Terminal**: the output of the services, and a shell in a
+  container (see [Logs and terminals](/docs/logs-and-terminals)).
+- **Revisions**: every version of the Compose files, and what changed.
+- **Backups**: the stack's backups (see [Backups](/docs/backups)).
+- **Policies**: which update and backup policies cover the stack.
+- **Activity**: the stack's jobs and, if you may read it, its audit log.
+
+## Deploy
+
+**Deploy** makes the server run what your files say. Only services whose
+settings changed are recreated. If everything already matches, you see
+"Nothing to deploy".
+
+The menu next to **Deploy** has more options:
+
+- **Build and deploy**: builds the images of services that have a `build:`
+  section first.
+- **Pull images only**: downloads newer images and changes nothing else.
+  Press **Deploy** afterwards to run them.
+- **Deploy and remove orphaned containers**: also removes containers of
+  services you deleted from `compose.yaml`. Volumes and files are kept.
+
+When you remove a service from `compose.yaml`, its container stays on the
+server after a normal deploy. The stack page tells you, and offers **Remove
+old containers**.
+
+## Update
+
+A dot on the **Update** button means newer images are available. **Update**
+downloads every image of the stack and deploys it again, in one step. If no
+newer image is known, the dialog says the stack is up to date, and you can
+still update.
+
+To check for updates and apply them on a schedule, use an update policy
+(see [Image updates](/docs/updates)).
+
+## Start, stop and remove
+
+- **Start** and **Restart** run right away.
+- **Stop** asks first. It stops the containers and keeps them.
+- **More stack actions → Take down** removes the containers and the stack's
+  networks. Volumes and files are kept, and **Deploy** brings it back.
+- **More stack actions → Delete** removes the stack from Docker Manager and
+  the server. You must type the stack's name. Its volumes are kept unless
+  you tick **Also remove the stack's volumes**. The stack's folder is
+  always kept.
+
+In a service's row on the **Overview**, you can restart, start or stop just
+that service, open its logs, or open a terminal in it.
+
+## Edit the files
+
+Open the **Files** tab and open `compose.yaml`. Saving does **not** deploy:
+
+1. Change the file and press **Save** (or <kbd>Ctrl</kbd> <kbd>S</kbd>).
+2. Docker Manager checks the file and shows problems above it. A change
+   that would make the stack invalid is refused, and nothing is written.
+3. The stack now shows **Undeployed changes**. Press **Deploy** in the
+   message, or on the stack page, to run the change.
+
+Put the files your services need, such as a config file or an `./html`
+folder, into the **Files** tab before you deploy.
+
+## Revisions
+
+Every saved change to the Compose files is kept as a **revision**. The
+**Revisions** tab shows them all, who made them and whether they were
+deployed. Pick two revisions and press **Show changes** to compare them.
+
+With undeployed changes, the tab opens on them and offers:
+
+- **Deploy these changes**, or
+- **Restore deployed revision** to undo them.
+
+To go back to an older version, open its menu and choose **Restore to
+disk**. Your current files are kept as a revision first, and nothing is
+deployed until you press **Deploy**.
+
+## Edit details and icons
+
+**More stack actions → Edit details** changes the display name, the
+description and the icon of the stack and of each service. These are kept
+in Docker Manager. Your Compose files do not change.
+
+## Docker Manager's own stack
+
+If you import Docker Manager's own project as a stack, **Deploy** and
+**Update** work, so you can upgrade Docker Manager from the app. Restart,
+Stop, Take down, Migrate, Rename and Delete are turned off for it.

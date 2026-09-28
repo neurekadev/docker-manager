@@ -12,7 +12,7 @@ import (
 // Self-protection on the manager side (#32). The agent annotates its
 // inventory with protocol.Protection and refuses on its own; the manager
 // refuses first, from the annotation and from what it knows itself: the
-// Docker Manager role labels of the deploy examples and its own container ID.
+// Docker Manager role labels of the documented compose.yaml and its own container ID.
 // Other workstreams call these helpers (and internal/protection) to leave
 // Docker Manager's resources out of prune candidates (#14), automatic updates
 // (#20), backup/restore shutdown plans (#10), bulk selections and

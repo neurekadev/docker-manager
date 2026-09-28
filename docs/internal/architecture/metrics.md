@@ -54,7 +54,7 @@ container they describe the whole host (unless the host runs something like
 lxcfs that virtualizes them; then the agent sees the container's view).
 Network counters are per network namespace. The agent reads those of PID 1:
 
-- default deployment (`deploy/*`): PID 1 is the agent itself, so the rates
+- default deployment (the documented compose files): PID 1 is the agent itself, so the rates
   cover only the agent container's traffic; `networkScope` is `agent`;
 - with `pid: host` on the agent service, PID 1 is the host's init and the
   rates are the host's; `networkScope` is `host` (detected by comparing the

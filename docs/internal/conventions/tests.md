@@ -3,8 +3,8 @@
 Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 - The standard suite is format/lint plus isolated unit tests (owner decision,
-  2026-09-25). Unit tests live next to the code (`test/deploy` checks the
-  deploy example files), are Docker-free and deterministic: `go test ./...`
+  2026-09-25). Unit tests live next to the code, are Docker-free and
+  deterministic: `go test ./...`
   runs all of them. They may use in-process fakes (`enginefake`,
   `restictest`, `regclient/regtest`, `streammux/muxtest`, `migrationtest`,
   `containerio/ciotest`), `httptest` servers, temporary directories and

@@ -22,40 +22,26 @@ remain the written record of the roadmap and decisions.
 
 ## Quick start
 
-On a Linux amd64 host with Docker Engine 25.0+ and the Compose plugin, with
-a DNS name pointing at it. The registry is private: log in with your
-Forgejo username and a Forgejo access token with the `read:package` scope.
-
-```bash
-echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <forgejo-user> --password-stdin
-git clone https://code.neureka.dev/docker-manager/docker-manager.git && cd docker-manager/deploy/caddy
-cp .env.example .env        # set DOCKER_MANAGER_HOST=docker.example.com (and DOCKER_MANAGER_TLS)
-docker compose up -d        # manager + co-located agent + Caddy, from the :edge images
-```
-
-Then open `https://docker.example.com`, create the owner account, and enroll
-the co-located agent from **Environments → Add environment**:
-
-```bash
-printf '%s\n' '<token>' | docker compose exec -T docker-agent docker-agent enroll
-```
-
-Traefik and nginx variants live next to it (`deploy/traefik`,
-`deploy/nginx`), agents for other hosts in `deploy/remote-agent`. Step by
-step: the [user documentation](docs/public/content/docs/index.mdx).
+On a Linux amd64 host with Docker Engine 25.0+ and the Compose plugin,
+behind your own HTTPS reverse proxy. The
+[Quickstart](docs/public/content/docs/quickstart.mdx) has the
+`compose.yaml` and `.env` to copy, and
+[Add more servers](docs/public/content/docs/add-hosts.mdx) the agent for
+other hosts. The registry is private: log in with your Forgejo username and
+a Forgejo access token with the `read:package` scope first.
 
 ## Documentation
 
 - **User documentation** ([`docs/public`](docs/public/content/docs/index.mdx), published as the
-  `code.neureka.dev/docker-manager/docker-manager-docs:edge` site image): overview, quickstart,
-  usage, configuration and troubleshooting.
+  `code.neureka.dev/docker-manager/docker-manager-docs:edge` site image): installation, every
+  feature, configuration, upgrades and troubleshooting.
 
 For operators and contributors (`docs/internal`):
 
 - Operations: [upgrades and rollback](docs/internal/operations/upgrades.md) ·
   [removing hosts](docs/internal/operations/removing-hosts.md) · [diagnostics](docs/internal/operations/diagnostics.md)
 - [Support matrix](docs/internal/support-matrix.md) (hosts, Engine versions, Compose features, browsers, versions)
-- [Deploying with Docker Compose](deploy/README.md) · [Deployment topology](docs/internal/deployment.md) ·
+- [Deployment topology](docs/internal/deployment.md) ·
   [Configuration reference](docs/internal/configuration.md)
 - [Security review v1](docs/internal/security/review-v1.md) · [Verification status](docs/internal/support-matrix.md#verification-status)
 - [Architecture overview](docs/internal/architecture/overview.md) · [Engine integration](docs/internal/architecture/engine-integration.md)
@@ -77,11 +63,10 @@ internal/protocol      manager<->agent frames (docker-manager.agent/v1)
 internal/domain        shared domain types
 internal/db/migrations versioned Bun migrations
 web/                   SvelteKit PWA (embedded into the manager)
-deploy/                Dockerfiles and Compose examples
+deploy/docker          Dockerfiles of the manager and agent images
 docs/public            user documentation site (Fumadocs, served by nginx)
 docs/internal          conventions, architecture, API, protocol, operations, security
 scripts/               local gate, code generation, static builds, policy and license checks (bash)
-test/deploy            static checks of the deploy examples
 ```
 
 ## Checks

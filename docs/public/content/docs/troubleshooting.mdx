@@ -5,45 +5,108 @@ description: First checks and fixes for common problems.
 
 ## First checks
 
+On the manager's server, in the folder with your `compose.yaml`:
+
 ```bash
-cd deploy/caddy
 docker compose ps
 docker compose logs --tail 200 docker-manager docker-agent
 ```
 
-The logs never contain passwords, tokens or file contents. For more detail,
-set `DOCKER_MANAGER_LOG_LEVEL=debug` and `DOCKER_AGENT_LOG_LEVEL=debug` in
-`.env` and run `docker compose up -d`.
+On another server, check its agent the same way:
+`docker compose logs --tail 200 docker-agent` (or `docker logs docker-agent`
+if you used the single command).
 
-**Settings → Diagnostics** shows versions, the health of every host and the
-state of jobs. The owner can download a support bundle there: it never
-contains secrets, but it does contain host names and IP addresses.
+The logs never contain passwords, tokens or file contents. For more detail,
+set the log level to `debug` (see [Configuration](/docs/configuration)).
+
+The owner can download a support bundle under **Settings → Diagnostics**
+(see [Audit log and diagnostics](/docs/audit-and-diagnostics)).
 
 ## Common problems
 
-| Problem | What to do |
-| --- | --- |
-| Setup says the request did not come over HTTPS | Open your `https://` address, not the internal one. With your own proxy, add its address to `DOCKER_MANAGER_TRUSTED_PROXIES`. |
-| A host stays offline | Run `docker compose logs docker-agent` on that host. Usual causes: a wrong `DOCKER_AGENT_MANAGER_URL`, an untrusted certificate (set `DOCKER_AGENT_MANAGER_CA_FILE`), or a used or expired token (create a new one). |
-| Stack actions are refused with `storage_mount_missing` or `storage_path_mismatch` | The agent's mount of Docker's volume folder is missing or points elsewhere. See [Configuration](./configuration#mounts-you-must-keep). |
-| Live views stop updating after about a minute | A proxy or load balancer cuts idle connections too early or buffers responses. Allow idle connections longer than 15 seconds. |
-| The banner says too many Docker Manager tabs are open | Each open tab keeps its own live connection, and one account can have 32 at a time. Close tabs you no longer need; the tab reconnects on its own. |
-| An action on a Docker Manager container is refused | Docker Manager never stops or removes its own containers, data or images. |
-| A project cannot be imported | Its row in **Import project** says why: usually its folder is not mounted below `/import`, or its containers use settings that are not in its files. |
-| A job ended as `interrupted` | The manager or agent restarted during it. Check the result, then run it again. A failed or stopped deploy, image pull or update check has **Try again** on its job page. |
-| Connecting a host fails with `engine_already_enrolled` ("Docker on this host is already connected through another agent") | This host already has an agent. Open its environment, go to the **Agents** tab and choose **Remove agent** in the agent's menu, then run a new install command. |
-| An update is refused with `update_source_drift` | The stack's files changed but were not deployed. Deploy or undo the change first. |
-| A backup or retention job fails with `repository_locked` | Another backup, restore or retention run is using the same repository right now. Wait for it to finish and run the job again, or give your backup policies different start times. Locks left behind by a restart are removed automatically. |
-| Importing a backup fails with `backup_import_key_rejected` | Wrong Recovery Key, or the key was changed after that backup: enter the previous key too. |
-| Passkeys stop working after you changed the address | Passkeys belong to one address. Sign in with your password and authenticator code (or a recovery code) and add the passkey again. |
+### Setup says the page was not opened over HTTPS
 
-## Locked out of the owner account
+- Open your `https://` address, not `http://server:8080`.
+- The address must match `DOCKER_MANAGER_PUBLIC_URL` exactly.
+- Docker Manager can't see that your proxy used HTTPS. Add the proxy's IP
+  address to `DOCKER_MANAGER_TRUSTED_PROXIES` in `.env` and run
+  `docker compose up -d`. The message on the page tells you which of these
+  it is.
 
-On the manager's host, run:
+### A server stays offline
 
-```bash
-docker compose exec docker-manager docker-manager owner-recovery
-```
+Check the agent's log on that server. Usual causes:
 
-It prints a one-time link, valid for one hour. Open it, set a new password,
-then add your authenticator app or passkey again.
+- `DOCKER_AGENT_MANAGER_URL` is wrong. It must be your `https://` address.
+- The agent doesn't trust your certificate (see
+  [Your own certificate authority](/docs/configuration#your-own-certificate-authority)).
+- The install command was used already or expired. Create a new one.
+
+### Connecting a server says Docker is already connected through another agent
+
+The server already has an agent in Docker Manager. If that agent still
+works, there is nothing to do. To replace it, open the environment's
+**Agents** tab and choose **Remove agent**. Then press **Re-attach** there
+and run the new command. Don't use **Add environment** for a server Docker
+Manager already knows.
+
+### Stack actions are refused because of the storage layout
+
+The agent's mount of Docker's volume folder is missing or points somewhere
+else (`storage_mount_missing` or `storage_path_mismatch`). Keep the agent's
+volume lines exactly as in the Quickstart. If your Docker keeps its data
+elsewhere, see [Docker's data folder](/docs/configuration#dockers-data-folder).
+
+### Live views stop updating after about a minute
+
+Your proxy cuts idle connections too early or holds back responses. Allow
+idle connections of at least 60 seconds and turn off response buffering
+for Docker Manager. In Traefik, set the entry point's `readTimeout` to `0s`.
+
+### Uploads fail
+
+Your proxy limits the size of uploads. Raise its limit (for example
+`client_max_body_size` in nginx).
+
+### "Too many Docker Manager tabs are open"
+
+Each open tab keeps a live connection, and one account can have 32 at a
+time. Close tabs you no longer need; the tab reconnects on its own.
+
+### An action on a Docker Manager container is refused
+
+Docker Manager never stops or removes its own containers, data or images.
+Use Docker on the server if you really must.
+
+### A job ended as interrupted
+
+The manager or agent restarted during the job. Check the result, then
+start it again. Failed deploys, image pulls and update checks have **Try
+again** on their job page.
+
+### An update is refused because of undeployed changes
+
+The stack's files changed but were not deployed (`update_source_drift`).
+Deploy or undo the changes first (see [Stacks](/docs/stacks#revisions)).
+
+### A backup fails because the repository is locked
+
+Another backup, restore or cleanup is using the same repository
+(`repository_locked`). Docker Manager waits a while and removes locks left
+behind by a crash. If it still fails, run the backup again later, or give
+your backup policies different start times.
+
+### Importing a backup says the key is wrong
+
+The Recovery Key is wrong, or it was changed after that backup
+(`backup_import_key_rejected`). Enter the older key under **Previous
+Recovery Key** too.
+
+### Passkeys stopped working after changing the address
+
+Passkeys belong to one address. Sign in with your password and
+authenticator code (or a recovery code) and add the passkey again.
+
+### Locked out of the owner account
+
+See [Sign-in and security](/docs/sign-in-and-security#locked-out-of-the-owner-account).

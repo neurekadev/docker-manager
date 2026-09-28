@@ -1,0 +1,72 @@
+---
+title: Move and rename stacks
+description: Move a stack or volume to another server, or give a stack a new name.
+---
+
+## Move a stack to another server
+
+With more than one environment, open the stack and choose **More stack
+actions → Migrate**. The stack's files, volumes and settings move with it.
+
+1. **Destination**: pick the server and press **Check destination**.
+2. **Check**: Docker Manager lists what must be fixed first and what will
+   be copied.
+   - **Copy data**: untick it for a volume that should start empty on the
+     new server. Anonymous volumes are not copied unless you tick them.
+   - **Copy image**: tick it to copy an image from the old server instead
+     of downloading it again.
+3. **Confirm**: tick **I understand that … is unavailable during the
+   migration** and press **Start migration**.
+4. **Move**: the stack stops, its folder and volumes are copied, and it
+   starts on the new server.
+
+If anything fails, the stack goes back to the old server and starts there.
+
+The old copy stays on the old server, stopped. When everything works, press
+**Remove from …** to delete it there (you must type the name to confirm),
+or **Start again on …** to run it there once more. Docker Manager never
+deletes the old copy on its own.
+
+## Move a volume
+
+Open a volume and its **Migrate** tab. Pick the **Destination environment**
+and a **Name on the destination**, then press **Migrate volume**. The
+original volume is not changed.
+
+If containers use the volume, you can tick **Copy while the containers keep
+running**. The copy may then be slightly out of step, like a copy of a
+running database.
+
+## Rename a stack
+
+A stack's name is its Compose project name. It is part of the names of its
+containers, volumes and folder. To change it, open the stack and choose
+**More stack actions → Rename**.
+
+1. Type the **New project name** and press **Preview changes**.
+2. Check what will happen: the folder, the volumes and the services that
+   stop and start again.
+3. Type the current name to confirm, and press **Rename stack**.
+
+Docker Manager then:
+
+1. stops the stack,
+2. moves its folder and its volumes to the new name (the data comes along),
+3. recreates containers outside the stack that use those volumes, with the
+   new volume names,
+4. starts the stack again under the new name.
+
+Good to know:
+
+- If the stack's `compose.yaml` sets `name:` at the top, change `name:` in
+  the file first. Then open **Rename**, type a name and press **Preview
+  changes**: Docker Manager uses the name from the file instead. Until you
+  rename the stack, **Deploy** is refused, so
+  the stack never starts again with empty volumes.
+- If you may not stop and remove a container outside the stack that uses
+  its volumes, the rename is refused.
+- If something fails early, everything goes back to how it was. If it fails
+  late, the stack already has its new name: press **Deploy** to finish.
+- The stack's history, revisions, policies and permissions stay with it.
+- Only the project name changes. To change the name shown in lists, use
+  **Edit details**.

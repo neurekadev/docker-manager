@@ -1,0 +1,50 @@
+---
+title: Files
+description: Browse, upload and edit files of stacks and volumes in the browser.
+---
+
+The file manager opens on a stack's **Files** tab (the stack's folder) and
+on a volume's **Files** tab (the data inside the volume).
+
+## Browse and organize
+
+- **Upload** adds files, or a whole folder (**Upload folder**). You can also
+  drag files onto the page.
+- **New file** and **New folder** create empty ones.
+- **Filter by name** narrows the list. **Show hidden files** and **Show
+  permissions and owners** show more.
+- An item's menu offers **Download**, **Copy**, **Cut**, **Paste into
+  folder**, **Rename**, **Permissions** and **Delete**. A folder downloads
+  as a ZIP file.
+
+Deleting can't be undone: Docker Manager keeps no copy.
+
+## Archives
+
+- **Create archive** packs files into a `.zip` (opens anywhere) or a
+  `.tar.gz` (keeps Linux permissions).
+- **Extract** unpacks a `.zip`, `.tar.gz` or `.tgz` file, into a new folder
+  or the current one. Files that would be overwritten are listed first.
+
+Uploading a large amount of data? Upload it as one archive and extract it
+on the server.
+
+## Edit a file
+
+Click a file to open it in the editor. It highlights the syntax, can
+**Format** YAML and JSON, and has **Search and replace**. Press **Save** or
+<kbd>Ctrl</kbd> <kbd>S</kbd>.
+
+- In a stack, saving `compose.yaml` or `.env` does not deploy. See
+  [Stacks](/docs/stacks#edit-the-files).
+- If the file changed on the server while you edited it, Docker Manager
+  keeps your edits and lets you **Compare**, **Reload from disk**, **Save
+  as** another file or **Overwrite**.
+- Files larger than 512 KB open as a read-only preview. Images are
+  previewed; other binary files can be downloaded.
+
+## Limits
+
+- One upload can be up to 2 GB per file.
+- Your reverse proxy must allow uploads that large too.
+- Docker Manager's own volumes can't be opened in the file manager.

@@ -60,7 +60,7 @@ or a `.env` file, never in a URL:
 | --- | --- |
 | `colocated` | `printf '%s\n' "$TOKEN" \| docker compose exec -T docker-agent docker-agent enroll` next to the manager's compose file (the agent already runs on the internal URL) |
 | `remote` | `docker run -d … docker-agent` with the public origin, then the same `docker-agent enroll` on stdin |
-| `remote_compose` | `DOCKER_AGENT_ENROLLMENT_TOKEN=` in `deploy/remote-agent/.env`, then `docker compose up -d` |
+| `remote_compose` | `DOCKER_AGENT_ENROLLMENT_TOKEN=` in the `.env` next to the agent's `compose.yaml` (user documentation, "Add more servers"), then `docker compose up -d` |
 
 The enrollment records its intent:
 

@@ -59,14 +59,32 @@ files.
 
 **User-facing docs** (`docs/public/`, the documentation site) must match the
 product at all times. In the same commit, update them whenever a change
-alters what users see or do: installation and the deploy examples,
+alters what users see or do: installation and the compose files,
 configuration variables and defaults, requirements and limits, UI flows,
-and messages users must act on. Maintain them with care:
+and messages users must act on. The site is the only install guide: the
+`compose.yaml` and `.env` in Quickstart and "Add more servers" are the
+deployment (no proxy examples, no `deploy/` examples); keep them in sync
+with the install command text (`internal/manager/agents/install.go`) and
+`docs/internal/deployment.md`. Maintain them with care:
 
-- Write for people who run Docker but are not developers: plain words,
-  short sentences, one clear example per task, copy-ready commands.
-- Keep pages short and task-oriented; no internals, architecture, API
-  details for contributors or development setup.
+- **Verify every statement against the code** (UI labels in `web/src`,
+  defaults and limits in the Go code) before writing it. Never copy a claim
+  from older docs without checking it.
+- Write for people who run Docker but are not developers: friendly, plain
+  words, short sentences, active voice, "you". Explain a term once where
+  it first matters (an *environment* is one server with its agent).
+- Lead with what the feature does for the user, then numbered steps, then
+  a short "Good to know" list for limits and edge cases. Short and simple
+  beats complete; skip anything a user never needs to decide or do.
+- Name UI elements exactly as the app shows them, in bold, in the order
+  the user clicks them (**Stacks → Create stack**).
+- One clear example per task; copy-ready commands and complete YAML
+  snippets (mark kept lines with `# ...keep the existing lines...`).
+- No internals: no API paths, job kinds, package names, issue numbers or
+  architecture. Error codes appear only in Troubleshooting, next to the
+  words users see.
+- Use callouts sparingly: only for data loss, security or a step users
+  must not skip. Link between pages with absolute `/docs/<page>` links.
 - Add a page or section only for a real, recurring user need (a task users
   must do or a problem they will hit). Prefer extending an existing page;
   never add docs for the sake of having docs.

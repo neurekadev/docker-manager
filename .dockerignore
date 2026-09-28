@@ -15,7 +15,3 @@ web/node_modules
 web/.svelte-kit
 web/build/app
 docs
-deploy/caddy
-deploy/traefik
-deploy/nginx
-deploy/remote-agent

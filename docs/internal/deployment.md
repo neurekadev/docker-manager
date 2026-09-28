@@ -2,8 +2,15 @@
 
 How Docker Manager runs behind an operator-managed reverse proxy on **one public
 origin** (#27), how agents connect, and a complete two-environment example.
-Configuration reference: [configuration.md](configuration.md). The
-ready-to-run examples live in [`deploy/`](../../deploy/README.md).
+Configuration reference: [configuration.md](configuration.md).
+
+The Compose setup users run is the one in the user documentation
+([Quickstart](../public/content/docs/quickstart.mdx) and
+[Add more servers](../public/content/docs/add-hosts.mdx)): the manager and a
+co-located agent in the Compose project `docker-manager`, with the manager's
+port 8080 published for the operator's own HTTPS reverse proxy, and an
+agent-only project for other hosts. The repository ships no proxy examples;
+keep those two pages and this guide in sync.
 
 ## One origin
 
@@ -11,7 +18,7 @@ ready-to-run examples live in [`deploy/`](../../deploy/README.md).
                           https://docker.example.com
  browsers (PWA) ─┐   ┌──────────────────────────────┐         ┌──────────────────────┐
  API clients ────┼──▶│ reverse proxy (TLS, HTTP/2)  │──http──▶│ docker-manager     │
- remote agents ──┘   │ Caddy / Traefik / nginx      │  :8080  │ /        PWA         │
+ remote agents ──┘   │ the operator's own proxy     │  :8080  │ /        PWA         │
    (dial out)        └──────────────────────────────┘         │ /api/v1  API, SSE    │
                                                      ┌──http─▶│ /agent/v1 agents (WS)│
  co-located agent (same Docker network) ─────────────┘        └──────────────────────┘
@@ -28,20 +35,20 @@ ready-to-run examples live in [`deploy/`](../../deploy/README.md).
 
 ## Reverse proxy requirements
 
-Every example in `deploy/` implements these; if you bring your own proxy,
-check each row.
+The operator's proxy must meet every row. The user documentation states
+them in plain words (Quickstart, "Put HTTPS in front of it").
 
-| Requirement | Why | Caddy (`deploy/caddy`) | Traefik (`deploy/traefik`) | nginx (`deploy/nginx`) |
-| --- | --- | --- | --- | --- |
-| HTTPS for the public origin | passkeys, service worker, `Secure` cookies need a secure context; first-run setup refuses plain HTTP | automatic (`tls internal`, ACME, or your files) | Let's Encrypt resolver or your files | your certificate files |
-| HTTP/2 to browsers | several SSE/WebSocket streams across tabs share one connection instead of exhausting the HTTP/1.1 per-origin limit | default | default on TLS entry points | `http2 on;` |
-| WebSocket upgrades | agent sessions, container exec | automatic | automatic | `Upgrade`/`Connection` headers |
-| No response buffering for streams | SSE must arrive as written | `flush_interval -1` (and automatic for `text/event-stream`) | automatic | the manager sends `X-Accel-Buffering: no` on every stream; keep `proxy_buffering` on for the rest |
-| Idle/read timeout above the heartbeat | quiet streams must not be cut | `read_timeout 60s` | entry point `readTimeout=0s` (see below) | `proxy_read_timeout 60s` |
-| Pass the `Host` header (with port) | Origin/WebSocket checks against `DOCKER_MANAGER_PUBLIC_URL` | default | `passHostHeader: true` | `Host $http_host` |
-| Set `X-Forwarded-For/Proto/Host`, overwrite client values | client IP, https detection | default (client values ignored) | default (untrusted client values replaced) | `$remote_addr` (replaced, not appended), `$scheme`, `$http_host` |
-| Body size ≥ the manager's maximum upload/archive size (#15) | uploads, archives, restores | `request_body max_size` (`DOCKER_MANAGER_MAX_BODY_SIZE`, 1GB) | no limit by default | `client_max_body_size` (`DOCKER_MANAGER_MAX_BODY_SIZE`, 1024m); `proxy_request_buffering off` streams uploads |
-| Proxy address trusted by the manager | forwarded headers are honored only from `DOCKER_MANAGER_TRUSTED_PROXIES` | Docker's default address pools (below) | same | same |
+| Requirement | Why | Notes for common proxies |
+| --- | --- | --- |
+| HTTPS for the public origin | passkeys, service worker, `Secure` cookies need a secure context; first-run setup refuses plain HTTP | any certificate the browsers trust |
+| HTTP/2 to browsers | several SSE/WebSocket streams across tabs share one connection instead of exhausting the HTTP/1.1 per-origin limit | Caddy and Traefik: default; nginx: `http2 on;` |
+| WebSocket upgrades | agent sessions, container exec | nginx: `Upgrade`/`Connection` headers |
+| No response buffering for streams | SSE must arrive as written | Caddy: `flush_interval -1`; nginx: the manager sends `X-Accel-Buffering: no` on every stream |
+| Idle/read timeout above the heartbeat | quiet streams must not be cut | see below |
+| Pass the `Host` header (with port) | Origin/WebSocket checks against `DOCKER_MANAGER_PUBLIC_URL` | nginx: `Host $http_host`; Traefik: `passHostHeader: true` |
+| Set `X-Forwarded-For/Proto/Host`, overwrite client values | client IP, https detection | nginx: `$remote_addr` (replaced, not appended), `$scheme`, `$http_host` |
+| Body size ≥ the manager's maximum upload/archive size (#15) | uploads, archives, restores | Caddy: `request_body max_size`; nginx: `client_max_body_size`, `proxy_request_buffering off` |
+| Proxy address trusted by the manager | forwarded headers are honored only from `DOCKER_MANAGER_TRUSTED_PROXIES` | below |
 
 ### Trusted proxies
 
@@ -52,28 +59,24 @@ and they are removed from every request before a handler sees it. The
 client IP is the rightmost `X-Forwarded-For` entry that is not itself a
 trusted proxy, so addresses a client prepends are never used.
 
-The examples put the proxy and the manager on the `docker-manager` network
-without a fixed address or subnet and default `DOCKER_MANAGER_TRUSTED_PROXIES` to
-Docker's default address pools, `172.16.0.0/12,192.168.0.0/16`: whatever
-address Docker gives the proxy lies in them. Override it in `.env`:
+The documented `.env` sets `DOCKER_MANAGER_TRUSTED_PROXIES=172.16.0.0/12`,
+Docker's first default address pool. It covers a proxy container on the
+`docker-manager` network (or another bridge network on the host) and a
+proxy installed on the host that connects to the published port through
+`localhost` (Docker's port forwarding shows the bridge gateway as the
+peer). A proxy on another machine needs its own address instead; the user
+documentation says so next to the variable.
 
-- **Trade-off:** any container on a network the manager is attached to
-  can then set forwarded headers (fake its client IP for rate limits and
-  audit, claim https), and so can processes on the host itself (they reach
-  the container through the network's gateway address). In the examples
-  the manager publishes no port and its only network, `docker-manager`, holds
-  Docker Manager and its proxy alone. If other, untrusted containers join it, or
-  you attach the manager to a network shared with other applications (an
-  existing proxy's network, for example), narrow the value to the proxy's
-  network or address, e.g. the `docker-manager` subnet (`docker network inspect
-  docker-manager -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}'`).
+- **Trade-off:** any container on the host in that range can then set
+  forwarded headers (fake its client IP for rate limits and audit, claim
+  https). Narrow the value to the proxy's address or network if untrusted
+  containers run on the host. Machines on the LAN are not trusted by
+  default, even though the manager's port is published.
 - If your Engine allocates networks from other `default-address-pools`
   (`daemon.json`), list those ranges instead.
-- Clients whose own address lies in these ranges (a LAN in
-  `192.168.0.0/16`) are still resolved correctly because every example
-  proxy replaces `X-Forwarded-For` with the client's address instead of
-  appending to it (nginx: `$remote_addr`). If you put another proxy (CDN,
-  load balancer) in front, forward its chain
+- The proxy must replace `X-Forwarded-For` with the client's address
+  instead of appending to it (nginx: `$remote_addr`). If you put another
+  proxy (CDN, load balancer) in front, forward its chain
   (`$proxy_add_x_forwarded_for`) and trust its addresses as well.
 
 Without the right `DOCKER_MANAGER_TRUSTED_PROXIES` the manager sees every request
@@ -87,13 +90,13 @@ The manager sends an SSE `: heartbeat` comment and a WebSocket ping every
 `DOCKER_MANAGER_STREAM_HEARTBEAT` (default 15 s, at most 55 s). Proxy idle/read
 timeouts must be comfortably longer; 60 s (nginx's default) is fine.
 
-- **nginx:** `proxy_read_timeout`/`proxy_send_timeout` (`DOCKER_MANAGER_PROXY_READ_TIMEOUT`,
-  60 s). They also bound idle WebSockets; pings keep them alive.
-- **Caddy:** `transport http { read_timeout }` (same variable, 60 s). Caddy
-  has no default; the example sets one so a dead manager is noticed.
+- **nginx:** `proxy_read_timeout`/`proxy_send_timeout` (default 60 s).
+  They also bound idle WebSockets; pings keep them alive.
+- **Caddy:** `transport http { read_timeout }`. Caddy has no default; set
+  one (60 s) so a dead manager is noticed.
 - **Traefik:** v3's entry point `respondingTimeouts.readTimeout` defaults
   to 60 s and ends long-lived responses (SSE, WebSocket) after a minute,
-  heartbeats or not. The example sets it to `0s`. Trade-off: Traefik then
+  heartbeats or not. Set it to `0s`. Trade-off: Traefik then
   no longer bounds how slowly a client may send a request; the manager still
   bounds headers (10 s) and unauthenticated `/agent/v1` bodies (10 s), and
   Traefik's `idleTimeout` (180 s) still closes idle keep-alive connections.
@@ -103,9 +106,9 @@ timeouts must be comfortably longer; 60 s (nginx's default) is fine.
 These settings are not verified end to end by automated tests any more:
 the former Playwright proxy specs and `TestTLSProxyAgentSessions` (SSE,
 WebSocket, terminal and agent sessions idle for 70 s through each example
-proxy, reconnects, `Last-Event-ID` resumes) were removed on 2026-09-25.
-`test/deploy` still checks the example files statically. After changing a
-proxy configuration, check an idle log stream and terminal by hand.
+proxy, reconnects, `Last-Event-ID` resumes) were removed on 2026-09-25, and
+the proxy examples themselves on 2026-09-27. After changing a proxy
+configuration, check an idle log stream and terminal by hand.
 
 ### Optional: restrict `/agent/v1` by IP
 
@@ -114,10 +117,11 @@ rate-limits it per client IP, answers failures generically, bounds request
 bodies and frames, and times out unauthenticated requests. If your agents
 connect from known networks you can also allow only those at the proxy:
 
-- Caddy: uncomment the `@agent_blocked` matcher in `deploy/caddy/Caddyfile`.
-- Traefik: uncomment the `docker-agent-endpoint` router and the
-  `agent-allowlist` `ipAllowList` middleware in `deploy/traefik/dynamic/docker-manager.yml`.
-- nginx: add a `location /agent/v1/` block with `allow …; deny all;` and the
+- Caddy: a `path /agent/v1/*` matcher with `not remote_ip …` that responds
+  403.
+- Traefik: a router for the `/agent/v1` path prefix with an `ipAllowList`
+  middleware.
+- nginx: a `location /agent/v1/` block with `allow …; deny all;` and the
   same proxy settings as `location /`.
 
 Co-located agents use the internal URL and are unaffected.
@@ -160,7 +164,7 @@ container, so it must see those files at the same paths:
   stack; `DOCKER_AGENT_STACKS_VOLUME` selects another local volume).
 - The agent mounts Docker's volume directory at its identical path:
   `/var/lib/docker/volumes:/var/lib/docker/volumes`, plus the stacks volume
-  at its own mountpoint (every example in `deploy/` does this). No other
+  at its own mountpoint (the documented compose files do this). No other
   host paths are needed; Docker Manager's own state lives in named volumes.
 - Extra host directories with stacks (e.g. `/opt/stacks`) can be registered
   with `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` and must be bind-mounted at the
@@ -192,7 +196,7 @@ else (containers, images, logs, …) keeps working.
 | `storage_path_mismatch` | mounted, but from a different host path | use the identical path on both sides |
 | `storage_read_only` / `storage_not_writable` | read-only mount, or the agent is not root | read-write mount; the agent runs as UID 0 |
 | `storage_path_not_visible` | the directory does not exist inside the agent | check the mount |
-| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it with the local driver (the examples' `stacks` volume in the project `docker-manager` is `docker-manager_stacks`) |
+| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it with the local driver (the documented `stacks` volume in the project `docker-manager` is `docker-manager_stacks`) |
 | `storage_root_mismatch` | a `DOCKER_AGENT_STACK_ROOTS` entry is not mounted at its identical path (only that root is refused) | bind-mount it at the same path |
 | `storage_self_unknown` | the agent cannot identify its own container | do not override the agent's `hostname` |
 | `storage_rootless_engine` / `storage_docker_desktop` | unsupported Engines ([support matrix](support-matrix.md)) | use a rootful Linux Engine |
@@ -241,21 +245,20 @@ the environment reconnects within a minute. In the UI the stack's Restart,
 Stop, Take down, Migrate and Delete stay visible but disabled.
 
 To import the deployment **in place** (so a redeploy uses the same
-`compose.yaml`, `.env` and relative files such as the `Caddyfile`), keep its
-directory inside a registered stack root: for example put it in
-`/opt/stacks/docker-manager`, set `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` on
-the agent and bind-mount `/opt/stacks:/opt/stacks` (the commented lines in
-the co-located examples). Importing with pasted files instead copies only
-the Compose and env files into the stacks volume; relative bind sources
-would then be missing.
+`compose.yaml`, `.env` and relative files), keep its directory inside a
+registered stack root: for example put it in `/opt/stacks/docker-manager`,
+set `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` on the agent and bind-mount
+`/opt/stacks:/opt/stacks`. Otherwise **Import project** copies the whole
+directory into the stacks volume while it keeps running, and Docker Manager
+moves onto the copy at its next deploy.
 
 The agent finds its own container by itself. The co-located manager is
 found by its container ID, which the manager reports to its agents; keep the
-`dev.neureka.docker-manager.role: manager` / `agent` labels of the deploy
-examples on your containers too, so both are also recognized when that
-detection is not possible (custom setups, other installations on the same
-host). Every other container of Docker Manager's own Compose project (for example
-the reverse proxy of the examples) is protected with them. Details:
+`dev.neureka.docker-manager.role: manager` / `agent` labels of the
+documented compose files on your containers too, so both are also recognized
+when that detection is not possible (custom setups, other installations on
+the same host). Every other container of Docker Manager's own Compose project
+(for example a reverse proxy added to it) is protected with them. Details:
 [architecture/self-protection.md](architecture/self-protection.md).
 
 ## First-run setup over HTTPS
@@ -331,28 +334,22 @@ owner account is permanent and cannot be disabled or deleted.
 
 Two Docker hosts, each one Environment:
 
-- **host A** runs the manager, the proxy and a co-located agent;
+- **host A** runs the manager and a co-located agent, behind the
+  operator's HTTPS reverse proxy;
 - **host B** runs only an agent that connects through the public origin.
 
 Everything Docker Manager stores lives in named volumes: `docker-manager_data`
 (manager database, snapshots, secret key), `docker-manager_agent` (agent
 credential and job journal) and `docker-manager_stacks` (stack project
 directories), declared as `data`, `agent` and `stacks` in the Compose
-project `docker-manager` of every example (remote agents included). The only
+project `docker-manager` of both documented compose files. The only
 host paths are the Docker socket and Docker's volume directory, mounted at
 the **identical path** (`/var/lib/docker/volumes`) so stack and volume
 paths mean the same inside the agent and on the Engine (#28).
 
-**Host A** (public name `docker.example.com`, ports 80/443 reachable):
-
-```bash
-cd deploy/caddy                 # or deploy/traefik, deploy/nginx
-cp .env.example .env
-# .env: DOCKER_MANAGER_HOST=docker.example.com
-#       DOCKER_MANAGER_TLS=admin@example.com       (Caddy ACME; see the example for other modes)
-docker compose up -d
-docker compose ps               # manager, agent and proxy healthy/running
-```
+**Host A** (public name `docker.example.com`): the Quickstart's
+`compose.yaml` and `.env` (`DOCKER_MANAGER_PUBLIC_URL=https://docker.example.com`),
+then `docker compose up -d`. The proxy forwards the origin to port 8080.
 
 Enroll the co-located agent (#3). Create a one-use token (in the UI once
 #16/#22 ship, or now on the command line inside the manager container) and
@@ -369,16 +366,11 @@ printf '%s\n' "$TOKEN" | docker compose exec -T docker-agent docker-agent enroll
 (Putting the token into `.env` as `DOCKER_AGENT_ENROLLMENT_TOKEN` and running
 `docker compose up -d` works as well; remove it again afterwards.)
 
-**Host B:**
-
-```bash
-cd deploy/remote-agent
-cp .env.example .env
-# .env: DOCKER_AGENT_MANAGER_URL=https://docker.example.com
-#       DOCKER_AGENT_ENROLLMENT_TOKEN=<token created on host A>
-#       DOCKER_AGENT_ENVIRONMENT_NAME=host-b
-docker compose up -d
-```
+**Host B:** the agent `compose.yaml` of the user documentation's
+"Add more servers" page, with a `.env` holding
+`DOCKER_AGENT_MANAGER_URL=https://docker.example.com` and
+`DOCKER_AGENT_ENROLLMENT_TOKEN=<token created on host A>`, then
+`docker compose up -d`.
 
 One agent per Docker Engine: enrolling a second agent for an enrolled
 Engine is refused with `engine_already_enrolled` unless the token's intent
@@ -397,9 +389,9 @@ and rotate agent credentials if you suspect exposure. See Docker's
 [daemon attack surface](https://docs.docker.com/engine/security/#docker-daemon-attack-surface)
 and [protect daemon access](https://docs.docker.com/engine/security/protect-access/).
 
-For a private PKI, copy the CA bundle into the `docker-manager_agent_ca` volume
-and set `DOCKER_AGENT_MANAGER_CA_FILE=/etc/docker-manager/ca/ca.pem` (see the comment
-in `deploy/remote-agent/compose.yaml`).
+For a private PKI, mount the CA bundle into the agent read-only (for
+example `./ca.pem:/etc/docker-manager/ca.pem:ro`) and set
+`DOCKER_AGENT_MANAGER_CA_FILE=/etc/docker-manager/ca.pem`.
 
 Both environments then appear (`GET /api/v1/environments`, and in the UI
 with #22); host A's agent is marked as using the internal plain-HTTP URL

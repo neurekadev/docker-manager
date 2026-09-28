@@ -26,7 +26,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
-// Default in-container paths of the deploy examples' volumes.
+// Default in-container paths of the documented compose.yaml's volumes.
 const (
 	ManagerDataDir = "/var/lib/docker-manager"
 	AgentStateDir  = "/var/lib/docker-agent"

@@ -16,10 +16,6 @@ secret.key
 .env
 !.env.example
 
-# TLS material for the deploy examples (only their READMEs are tracked)
-/deploy/*/certs/*
-!/deploy/*/certs/README.md
-
 # Editors / OS
 .idea/
 .vscode/

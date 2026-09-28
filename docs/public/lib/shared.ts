@@ -1,2 +1,2 @@
 export const appName = 'Docker Manager';
-export const docsRoute = '/';
+export const docsRoute = '/docs';

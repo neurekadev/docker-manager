@@ -46,8 +46,11 @@ Docker, containers, browsers, real registries or restic.
 ## User documentation site
 
 `docs/public` is the user documentation (Fumadocs, static Next.js export,
-dark only, local search): pages in `docs/public/content/docs/*.mdx`, order
-in `meta.json`. `.github/workflows/Docs.yaml` builds `docs/public/Dockerfile`
+dark only, local search). The landing page (`app/page.tsx`, logo with
+**Docs** and **Screenshots** links) is at `/`, the Screenshots page at
+`/screenshots` (coming soon), and the docs at `/docs`: pages in
+`docs/public/content/docs/*.mdx`, order and sidebar sections in
+`meta.json`. `.github/workflows/Docs.yaml` builds `docs/public/Dockerfile`
 (nginx on port 3000) and publishes
 `code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
 `main` that change `docs/public/**`. Content rules: `CLAUDE.md`, "Keep the

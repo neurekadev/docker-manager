@@ -1,0 +1,40 @@
+---
+title: Schedules
+description: When backups, update checks, updates and cleanups run on their own.
+---
+
+Backup, update and maintenance policies each have a schedule. Nothing runs
+on its own until you turn a schedule on.
+
+## Set a schedule
+
+Where a policy asks for a schedule, pick how often it **Repeats**:
+
+- **Hourly**, at a minute you choose,
+- **Daily**, at a time you choose,
+- **Weekly**, on a day and at a time you choose,
+- **Custom**, with a cron expression such as `30 2 * * 1-5` (02:30 on
+  weekdays).
+
+Each schedule has a **Time zone** and shows its **Next runs**, so you can
+check it before saving.
+
+## All schedules in one place
+
+**Schedules** in the menu lists every schedule with its state, what it
+applies to, and its next and last run. Filter by kind, state or
+environment, and press **Details** to see its recent runs.
+
+**Change defaults** sets the default time zone, and the schedule new
+policies start with for each kind of policy.
+
+## Good to know
+
+- If a run is still going when the next one is due, the next one is
+  skipped. The schedule's history says so.
+- If Docker Manager was down when a run was due, backups, backup checks
+  and update checks run once when it is back. Cleanups and automatic
+  updates are skipped instead, so nothing is removed or restarted at an
+  unexpected time.
+- On days when clocks change, a time that doesn't exist runs right after
+  the change, and a time that happens twice runs once.

@@ -20,7 +20,7 @@ const (
 	// matched through manager.identity).
 	RoleManager = "manager"
 	// RoleProject is another container of Docker Manager's own Compose project
-	// (e.g. the reverse proxy of the deploy examples).
+	// (e.g. a reverse proxy added to the documented compose.yaml).
 	RoleProject = "docker_manager_project"
 	// RoleImage is an image a Docker Manager container runs.
 	RoleImage = "docker_manager_image"

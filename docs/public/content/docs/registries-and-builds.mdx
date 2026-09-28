@@ -1,0 +1,71 @@
+---
+title: Registries and builds
+description: Log in to private image registries and build images from Git.
+---
+
+## Registry connections
+
+A **registry connection** is a login Docker Manager uses to download
+private images, for deploys, image pulls and update checks. Only the owner
+can add and change them.
+
+1. Open **Registries** and press **Add connection**.
+2. Enter a **Name** and the **Registry host**: `docker.io` for Docker Hub,
+   `ghcr.io` for GitHub, or `host:port` for your own registry.
+3. Enter the **Username** and an **Access token** (recommended) or
+   password.
+4. Choose where to use it under **Use it for**: every environment and
+   stack, one environment, or one stack. You can also limit it to some
+   repositories with a pattern.
+
+When several connections fit an image, the most specific one wins: one for
+a stack before one for an environment before one for everything, and a
+narrower repository pattern before a wider one. After that, the higher
+**Priority** wins.
+
+**Test an image** shows which connection Docker Manager would use for an
+image, or that it would pull without a login.
+
+In a connection's menu you can **Test connection**, **Edit**, **Rotate
+credential** (enter a new token), **Revoke** or **Delete** it.
+
+## Git credentials
+
+The **Git credentials** tab holds logins for private Git repositories,
+used by builds. Add one with **Add credential**: a **Name**, the **Host**
+(for example `github.com`), the repositories it is for, a **Username** and
+an **Access token**.
+
+## Build an image
+
+Docker Manager builds images from a Git repository on one of your servers.
+
+1. Open **Builds** and press **Build image**.
+2. Pick the **Environment**: the image is built and stored there.
+3. Enter the **Repository URL** (HTTPS) and, if needed, the **Ref** (a
+   branch, tag or commit; empty uses the default branch).
+4. Enter one or more **Image names**, for example `myapp:latest`.
+5. Under **Advanced** you can set the folder, the Dockerfile, the target
+   stage, the platform and build arguments, or build without the cache.
+
+Press **Build image** and follow the build's output.
+
+Images are built on the server and not pushed to a registry. A stack on the
+same server can use them right away.
+
+<Callout type="warn" title="Build arguments are not secret">
+  Build argument values can be seen in the image's history. Never pass
+  passwords or tokens as build arguments.
+</Callout>
+
+## Build again and definitions
+
+- **Build again** on a finished build repeats it.
+- **Save as definition** keeps the build's settings, so you can start it
+  again from the **Definitions** tab. A definition also keeps its build
+  argument values.
+- A build that is not a definition keeps only the names of its build
+  arguments. When you build it again, enter the values once more.
+
+To build a stack's own images, use **Build and deploy** on the stack (see
+[Stacks](/docs/stacks#deploy)).

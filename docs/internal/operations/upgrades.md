@@ -39,11 +39,11 @@ UI show which agents are outdated and how to upgrade them.
 
 ## Upgrade the manager
 
-Compose deployments from `deploy/caddy`, `deploy/traefik` or `deploy/nginx`
-(manager, co-located agent and proxy on host A):
+The Compose deployment of the user documentation's Quickstart (manager and
+co-located agent on host A):
 
 ```bash
-cd deploy/caddy                       # your deploy directory
+cd /path/to/docker-manager            # the directory of its compose.yaml
 docker compose pull docker-manager
 docker compose up -d docker-manager
 docker compose ps                     # docker-manager healthy
@@ -72,7 +72,7 @@ upgraded), with `upgradeInstructions`.
 ## Upgrade the agents
 
 Every host running an agent (host A's co-located agent, and each remote
-host from `deploy/remote-agent`):
+host), in the directory of its `compose.yaml`:
 
 ```bash
 docker compose pull docker-agent
@@ -119,7 +119,7 @@ Compose files (`icon`, `description`, `depends_on`) and
 Per host, with the new example files:
 
 ```bash
-cd deploy/caddy                 # your deploy directory, still with the old files
+cd /path/to/docker-manager      # your deploy directory, still with the old files
 docker compose down             # removes containers and network, keeps volumes
 # Replace compose.yaml (and the proxy files) with the new example and rename
 # the variables in .env (table above).
@@ -135,7 +135,7 @@ volume's path. Keep the old stacks volume so they stay managed stacks: in
 `stacks: {name: dockyard_stacks, external: true}`, mount it at
 `/var/lib/docker/volumes/dockyard_stacks/_data` and set
 `DOCKER_AGENT_STACKS_VOLUME=dockyard_stacks`. On a remote host run the same
-steps in `deploy/remote-agent` (volumes `dockyard_agent` and, with a
+steps in the agent's directory (volumes `dockyard_agent` and, with a
 private PKI, `dockyard_agent_ca`). Once every environment is back online,
 remove the old volumes you no longer use with `docker volume rm`.
 
