@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 )
 
+// ImportLabelMetaForTest is importLabelMeta.
+var ImportLabelMetaForTest = importLabelMeta
+
 // ReconcileForTest runs the reconnect reconciliation synchronously with
 // requests sent through a.
 func (s *Service) ReconcileForTest(ctx context.Context, env string, a Agents) {

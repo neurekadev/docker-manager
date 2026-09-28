@@ -2,18 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHART_COLORS, EDITOR_COLORS, TERMINAL_THEME } from '$lib/lazy/palette';
 import { dockerManagerEchartsTheme } from '$lib/lazy/echarts-theme';
-import {
-	fnv1a,
-	iconForImage,
-	serviceHue,
-	serviceIdentity,
-	serviceSeriesColor,
-	SERVICE_ICON_CATEGORY,
-	TILE_COLORS,
-	TILE_HEX,
-	tileStyle
-} from './hue';
-import { SERVICE_ICONS } from './icons';
+import { fnv1a, serviceHue, serviceSeriesColor, TILE_COLORS, TILE_HEX, tileStyle } from './hue';
 
 const tokensCss = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8');
 
@@ -107,7 +96,7 @@ describe('design tokens (#22 brief)', () => {
 	});
 });
 
-describe('service hue identity', () => {
+describe('service hues (logs and chart series)', () => {
 	it('is stable and deterministic', () => {
 		expect(fnv1a('')).toBe(0x811c9dc5);
 		expect(fnv1a('a')).toBe(0xe40c292c);
@@ -129,40 +118,5 @@ describe('service hue identity', () => {
 			(s) => serviceHue(`stack-${s}`, 'web') !== serviceHue('stack-a', 'web')
 		);
 		expect(differs).toBe(true);
-	});
-
-	it('maps images to icons and keeps category colours for explicit icons', () => {
-		expect(iconForImage('postgres:16')).toBe('database');
-		expect(iconForImage('docker.io/library/mariadb:11')).toBe('database');
-		expect(iconForImage('redis:7-alpine')).toBe('layers');
-		expect(iconForImage('ghcr.io/silo/web:latest')).toBe('globe');
-		expect(iconForImage('nginx:1.27')).toBe('globe');
-		expect(iconForImage('ghcr.io/silo/worker:latest')).toBe('cog');
-		expect(iconForImage('ghcr.io/acme/thing:1', 'queue-runner')).toBe('cog');
-		expect(iconForImage('ghcr.io/acme/thing:1')).toBe('box');
-
-		expect(
-			serviceIdentity({
-				stackId: 's',
-				name: 'silo-db',
-				image: 'postgres:16',
-				icon: 'database'
-			})
-		).toEqual({
-			icon: 'database',
-			color: 'teal'
-		});
-		expect(serviceIdentity({ stackId: 's', name: 'x', icon: 'no-such-icon' })).toEqual({
-			icon: 'box',
-			color: 'blue'
-		});
-		const auto = serviceIdentity({ stackId: 's', name: 'silo-db', image: 'postgres:16' });
-		expect(auto).toEqual({ icon: 'database', color: serviceHue('s', 'silo-db') });
-	});
-
-	it('has a component for every nameable service icon', () => {
-		expect(Object.keys(SERVICE_ICONS).sort()).toEqual(
-			Object.keys(SERVICE_ICON_CATEGORY).sort()
-		);
 	});
 });

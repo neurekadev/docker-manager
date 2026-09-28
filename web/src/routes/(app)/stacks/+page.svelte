@@ -7,8 +7,8 @@
 	// status, changes and environment (ListCard, kept per list and browser
 	// tab). The whole row opens the stack; its menu deploys, restarts, stops
 	// (after a confirmation) or opens the logs, each with its capability.
-	// The stack icon shows only when the user chose one (or its template
-	// has one). Create and import are shown only with stack.create /
+	// Each row shows the stack tile, or the image of the template the stack
+	// was created from. Create and import are shown only with stack.create /
 	// stack.import (the server still decides). The Create stack button's
 	// menu creates a stack from a template.
 	import { goto } from '$app/navigation';

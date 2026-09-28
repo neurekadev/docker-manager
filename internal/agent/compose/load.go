@@ -100,12 +100,11 @@ type Bind struct {
 	ReadOnly bool
 }
 
-// Display metadata labels a Compose file may carry (#7). Docker Manager imports
-// them once as the service's display metadata; it never writes them.
-const (
-	LabelDescription = "dev.neureka.docker-manager.description"
-	LabelIcon        = "dev.neureka.docker-manager.icon"
-)
+// LabelDescription is the display metadata label a Compose file may carry
+// (#7). Docker Manager imports it once as the service's description; it
+// never writes it. (The former dev.neureka.docker-manager.icon label is
+// ignored: services have no icon of their own.)
+const LabelDescription = "dev.neureka.docker-manager.description"
 
 // ServiceInfo summarizes a service.
 type ServiceInfo struct {
@@ -115,9 +114,8 @@ type ServiceInfo struct {
 	Build     bool
 	DependsOn []Dependency
 	Profiles  []string
-	// Description and Icon are the service's LabelDescription/LabelIcon.
+	// Description is the service's LabelDescription.
 	Description string
-	Icon        string
 	// PullPolicy is the service's pull_policy (empty = default "missing").
 	PullPolicy string
 }
@@ -229,7 +227,7 @@ func LoadProject(ctx context.Context, spec ProjectSpec) (*Project, error) {
 	for _, name := range model.ServiceNames() {
 		s := model.Services[name]
 		si := ServiceInfo{Name: name, Image: api.GetImageNameOrDefault(s, model.Name), Build: s.Build != nil, Profiles: s.Profiles,
-			Description: s.Labels[LabelDescription], Icon: s.Labels[LabelIcon], PullPolicy: s.PullPolicy}
+			Description: s.Labels[LabelDescription], PullPolicy: s.PullPolicy}
 		for dep, d := range s.DependsOn {
 			si.DependsOn = append(si.DependsOn, Dependency{Service: dep, Condition: d.Condition, Required: d.Required, Restart: d.Restart})
 		}

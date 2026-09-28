@@ -22,6 +22,11 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   them apart from `DisplayMeta` (per-service metadata converts to its
   storage type), and never log or audit a URL (it may carry a query
   string): audit the number of links.
+- Stacks and services have no icon: never add one to `DisplayMeta`, the
+  store or a response. The deprecated `icon` request members stay
+  accepted and ignored, the response members are never set, and the
+  `dev.neureka.docker-manager.icon` label is not read (details in
+  [architecture/stacks.md](../architecture/stacks.md#details-and-links)).
 - Stacks created from a template carry `domain.Stack.Template` (registry
   instance ID, template ID, name, version): informational only, never a
   dependency. The user's own `.env` reaches the new stack through the file

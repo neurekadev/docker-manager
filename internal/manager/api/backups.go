@@ -445,6 +445,7 @@ func registerBackups(a huma.API, deps Deps) {
 	registerBackupPolicies(a, h)
 	registerBackupActivity(a, h)
 	registerResticSnapshots(a, h)
+	registerBackupStorage(a, h)
 	registerBackupImports(a, deps)
 	Register(a, Operation{
 		Operation: huma.Operation{

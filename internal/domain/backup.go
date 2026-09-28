@@ -179,6 +179,37 @@ type LocationStats struct {
 	Snapshots           int64
 }
 
+// BackupStorageSample is one measurement of a location's size in the
+// storage history (#10). A zero sample marks a removed repository.
+type BackupStorageSample struct {
+	RepositoryID      string
+	Scope             string
+	At                time.Time
+	SizeBytes         int64
+	UncompressedBytes int64
+}
+
+// BackupStorageQuery selects a storage history: the time range, the width
+// of its buckets and which locations count.
+type BackupStorageQuery struct {
+	From, To time.Time
+	Step     time.Duration
+	// Scope keeps only the locations of one scope ("" = all).
+	Scope string
+	// Repository reports whether a repository's samples count (nil = all).
+	Repository func(repositoryID string) bool
+}
+
+// BackupStoragePoint is the storage at one time: the sum over locations of
+// each one's latest sample at or before At. Known is false while no
+// location had a sample yet.
+type BackupStoragePoint struct {
+	At                time.Time
+	Known             bool
+	SizeBytes         int64
+	UncompressedBytes int64
+}
+
 // BackupKeyState is the instance's Recovery Key state (never the key).
 type BackupKeyState struct {
 	// Generation counts confirmed keys (0: none yet).

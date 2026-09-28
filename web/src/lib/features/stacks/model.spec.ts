@@ -29,7 +29,6 @@ import {
 	shortDigest,
 	shortHash,
 	spaceCheck,
-	stackIcon,
 	stackStatus,
 	stackTitle,
 	stackUsage,
@@ -59,15 +58,9 @@ const svc = (name: string, containers: StackContainer[]): StackServiceStatus =>
 	}) as StackServiceStatus;
 
 describe('stack status and counts', () => {
-	it('names and icons the stack from its display metadata', () => {
+	it('names the stack from its display metadata', () => {
 		expect(stackTitle({ name: 'silo', displayName: 'Silo' })).toBe('Silo');
 		expect(stackTitle({ name: 'silo', displayName: '  ' })).toBe('silo');
-		expect(stackIcon({ icon: 'database' })).toEqual({ icon: 'database', color: 'teal' });
-		expect(stackIcon({ icon: 'not-an-icon' })).toEqual({ icon: 'layers', color: 'blue' });
-		expect(stackIcon({})).toEqual({ icon: 'layers', color: 'blue' });
-		// The default stack icon stays on the blue stack tile, never the rose
-		// cache colour the same icon has on a service.
-		expect(stackIcon({ icon: 'layers' })).toEqual({ icon: 'layers', color: 'blue' });
 	});
 
 	it('prefers what Docker Manager did for failed, down and undeployed stacks, else the Engine state', () => {

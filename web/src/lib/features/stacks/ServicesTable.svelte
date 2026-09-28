@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Services of a stack (#22 mockup table), in the containers list's
-	// order: hue tile + name + description (linked to its container when the
+	// order: service tile (the same for every service) + name + description (linked to its container when the
 	// service has exactly one), status, running/desired containers, the live
 	// figures (CPU and memory from the newest samples, uptime ticking every
 	// second), the image (linked to its page when its ID is known) with its
@@ -26,8 +26,6 @@
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import Square from '@lucide/svelte/icons/square';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
-	import { serviceIdentity } from '$lib/design/hue';
-	import { serviceIcon } from '$lib/design/icons';
 	import { routes } from '$lib/routes';
 	import {
 		Button,
@@ -44,6 +42,7 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import type { StackOperation } from './actions';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import NetworkList from '$lib/features/resources/NetworkList.svelte';
 	import { uptimeSortValue } from '$lib/features/resources/model';
 	import {
@@ -90,6 +89,8 @@
 	}: Props = $props();
 	const can = (a: string) => stack.actions.includes(a);
 
+	/** Every service has the same tile: services have no icon of their own. */
+	const SERVICE_TILE = resourceIcon('service');
 	/** Ports shown in the cell; the rest are in its tooltip. */
 	const PORTS_SHOWN = 2;
 	/** Lines of the volumes cell; past them, "+N more" takes the last line. */
@@ -105,10 +106,6 @@
 		if (s.containers.some((c) => c.health === 'unhealthy')) return 'unhealthy';
 		if (s.containers.some((c) => c.state === 'restarting')) return 'restarting';
 		return s.status;
-	}
-
-	function identity(s: StackServiceStatus) {
-		return serviceIdentity({ stackId: stack.id, name: s.name, image: s.image, icon: s.icon });
 	}
 
 	/** The service's container page when it has exactly one container. */
@@ -262,10 +259,9 @@
 </script>
 
 {#snippet nameCell(s: StackServiceStatus)}
-	{@const id = identity(s)}
 	{@const href = containerHref(s)}
 	<span class="svc">
-		<IconTile icon={serviceIcon(id.icon)} color={id.color} size="sm" />
+		<IconTile {...SERVICE_TILE} size="sm" />
 		<span class="svc-text">
 			{#if href}
 				<a class="svc-name link" {href}>{s.name}</a>

@@ -113,7 +113,8 @@ old repositories until you no longer need them), and standalone containers
 created before the rename (their DockYard labels are no longer recognized,
 so Docker Manager no longer treats them as containers it created; recreate
 them from the UI to manage them again). Rename `dev.neureka.dockyard.*` labels in your own
-Compose files (`icon`, `description`, `depends_on`) and
+Compose files (`description`, `depends_on`; the former `icon` label is
+no longer read) and
 `dockyard.update.exclude` on containers you keep out of updates.
 
 Per host, with the new example files:

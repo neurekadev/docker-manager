@@ -126,6 +126,37 @@ describe('Edit details: links', () => {
 		]);
 	});
 
+	it('edits the service descriptions and offers no icon choice', async () => {
+		const user = setup();
+		show(EditDetailsDialog as unknown as Component<Record<string, unknown>>, {
+			// A leftover icon from an older server is neither shown nor sent.
+			stack: stack({
+				icon: 'database',
+				services: [
+					{
+						name: 'web',
+						image: 'nginx',
+						build: false,
+						dependsOn: [],
+						description: 'Front',
+						icon: 'globe'
+					}
+				]
+			}),
+			onclose: () => {}
+		});
+		const d = await screen.findByRole('dialog', { name: 'Edit details of Silo' });
+		expect(within(d).queryByText(/icon/i)).not.toBeInTheDocument();
+		const svc = within(d).getByLabelText('Description of web');
+		await user.clear(svc);
+		await user.type(svc, 'Web frontend');
+		await user.click(within(d).getByRole('button', { name: 'Save details' }));
+		await waitFor(() => expect(patches).toHaveLength(1));
+		const body = patches[0] as Record<string, unknown>;
+		expect(body).not.toHaveProperty('icon');
+		expect(body.services).toEqual({ web: { description: 'Web frontend' } });
+	});
+
 	it('does not save invalid links and says why', async () => {
 		const user = setup();
 		dialog();

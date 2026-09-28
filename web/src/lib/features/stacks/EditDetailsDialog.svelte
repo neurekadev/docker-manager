@@ -1,13 +1,12 @@
 <script lang="ts">
-	// Edit details (#22, #7): the stack's display name, description, icon
-	// and links (documentation, website, repository; checked inline with
-	// the server's rules) plus each service's description and icon. Docker
-	// Manager metadata only (PATCH /stacks/{id} with If-Match); Compose files
-	// are never touched.
+	// Edit details (#22, #7): the stack's display name, description and
+	// links (documentation, website, repository; checked inline with the
+	// server's rules) plus each service's description. Stacks and services
+	// have no icon of their own. Docker Manager metadata only (PATCH
+	// /stacks/{id} with If-Match); Compose files are never touched.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { untrack } from 'svelte';
-	import { SERVICE_ICON_CATEGORY } from '$lib/design/hue';
-	import { Button, Dialog, Select, TextArea, TextField, errorView, toast } from '$lib/ui';
+	import { Button, Dialog, TextArea, TextField, errorView, toast } from '$lib/ui';
 	import LinksEditor from '$lib/features/common/LinksEditor.svelte';
 	import {
 		cleanLinks,
@@ -33,27 +32,17 @@
 	let open = $state(true);
 	let displayName = $state(initial.displayName ?? '');
 	let description = $state(initial.description ?? '');
-	let icon = $state(initial.icon ?? '');
 	let links = $state(linkRows(initial.links));
 	let showLinkProblems = $state(false);
 	let linkServerProblems = $state<{ rows: LinkRowProblem[]; list: string | null } | null>(null);
 	let services = $state(
 		(initial.services ?? []).map((s) => ({
 			name: s.name,
-			description: s.description ?? '',
-			icon: s.icon ?? ''
+			description: s.description ?? ''
 		}))
 	);
 	let saving = $state(false);
 	let error = $state<string | null>(null);
-
-	const iconOptions = [
-		{ value: '', label: 'Default' },
-		...Object.keys(SERVICE_ICON_CATEGORY).map((k) => ({
-			value: k,
-			label: k.replaceAll('-', ' ')
-		}))
-	];
 
 	$effect(() => {
 		if (!open) onclose();
@@ -68,13 +57,11 @@
 		error = null;
 		linkServerProblems = null;
 		try {
-			const meta: Record<string, { description: string; icon: string }> = {};
-			for (const s of services)
-				meta[s.name] = { description: s.description.trim(), icon: s.icon };
+			const meta: Record<string, { description: string }> = {};
+			for (const s of services) meta[s.name] = { description: s.description.trim() };
 			const next = await patchStack(initial, {
 				displayName: displayName.trim(),
 				description: description.trim(),
-				icon,
 				links: cleanLinks(links),
 				services: meta
 			});
@@ -118,7 +105,6 @@
 			description="Optional. Shown instead of the project name {initial.name}."
 		/>
 		<TextArea label="Description" bind:value={description} description="Optional." />
-		<Select label="Icon" bind:value={icon} options={iconOptions} />
 		<LinksEditor
 			bind:rows={links}
 			showAll={showLinkProblems}
@@ -135,12 +121,6 @@
 							label="Description of {s.name}"
 							hideLabel
 							bind:value={s.description}
-						/>
-						<Select
-							label="Icon of {s.name}"
-							hideLabel
-							bind:value={s.icon}
-							options={iconOptions}
 						/>
 					</div>
 				{/each}
@@ -178,7 +158,7 @@
 
 	.svc {
 		display: grid;
-		grid-template-columns: minmax(96px, 140px) 1fr 140px;
+		grid-template-columns: minmax(96px, 140px) 1fr;
 		align-items: center;
 		gap: var(--space-2);
 	}

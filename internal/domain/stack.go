@@ -79,11 +79,11 @@ const (
 )
 
 // DisplayMeta is Docker Manager display metadata of a stack or service. It is
-// stored in the manager and never written to Compose files (#22).
+// stored in the manager and never written to Compose files (#22). Stacks
+// and services have no icon of their own: the web shows the type's icon
+// (a stack created from a template shows the template's image).
 type DisplayMeta struct {
 	Description string
-	// Icon is a Lucide icon name override.
-	Icon string
 }
 
 // StackDependency is a depends_on entry of a service.
@@ -147,7 +147,7 @@ type Stack struct {
 	// Name is the Compose project name (also the project directory name for
 	// stacks created by Docker Manager).
 	Name string
-	// DisplayName, Description and Icon are display metadata.
+	// DisplayName and Meta (the description) are display metadata.
 	DisplayName string
 	Meta        DisplayMeta
 	// ServiceMeta is per-service display metadata.

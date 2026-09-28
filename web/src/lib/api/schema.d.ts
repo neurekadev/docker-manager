@@ -742,6 +742,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backup-storage/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the storage history of the backup repositories
+         * @description What the repositories stored over time: a point at from, at every whole UTC hour (ranges up to 8 days) or day in between and at to, each the sum over locations of their latest measured size at or before it (measured after every backup and prune; a location keeps its last value until the next measurement, a removed repository counts zero from its removal). Only repositories the caller may read in full (backup_repository.read) count. Default range: the last 30 days; at most 731 days.
+         */
+        get: operations["get-backup-storage-history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backups": {
         parameters: {
             query?: never;
@@ -3413,7 +3433,7 @@ export interface paths {
         head?: never;
         /**
          * Edit a stack's display metadata
-         * @description Display name, description, Lucide icon override, links and per-service metadata, stored in Docker Manager and never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); a problem is a 422 naming the field (body.links[1].url). Requires If-Match.
+         * @description Display name, description, links and per-service descriptions, stored in Docker Manager and never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); a problem is a 422 naming the field (body.links[1].url). Requires If-Match.
          */
         patch: operations["update-stack"];
         trace?: never;
@@ -5945,6 +5965,23 @@ export interface components {
              */
             uncompressedBytes: number;
         };
+        BackupStorageHistory: {
+            /** Format: date-time */
+            from: string;
+            /**
+             * Format: int64
+             * @description Spacing of the points: 3600 (ranges up to 8 days) or 86400.
+             */
+            stepSeconds: number;
+            /** @description Stored at the destinations (after deduplication and compression) at each timestamp: the sum of every location's latest measurement at or before it. null before the first measurement. */
+            storedBytes: (number | null)[];
+            /** @description from, every whole UTC hour or day (stepSeconds) in between, and to. */
+            timestamps: string[];
+            /** Format: date-time */
+            to: string;
+            /** @description The same data before compression, summed the same way. null before the first measurement. */
+            uncompressedBytes: (number | null)[];
+        };
         BackupVerification: {
             /** @example 0 5 * * 0 */
             cron: string;
@@ -6727,7 +6764,10 @@ export interface components {
             env?: string;
             /** @description Required: the environment to create the stack in. */
             environmentId?: string;
-            /** @description Lucide icon name. */
+            /**
+             * @deprecated
+             * @description Deprecated and ignored: stacks have no icon of their own.
+             */
             icon?: string;
             /** @description Web links (documentation, website, repository), at most 10. */
             links?: components["schemas"]["WebLink"][];
@@ -7833,6 +7873,10 @@ export interface components {
         ImportCopyInputBody: {
             description?: string;
             displayName?: string;
+            /**
+             * @deprecated
+             * @description Deprecated and ignored: stacks have no icon of their own.
+             */
             icon?: string;
             /**
              * @description Required: the discovered Compose project to import (copyable in the discovery list).
@@ -7848,6 +7892,10 @@ export interface components {
         ImportStackInputBody: {
             description?: string;
             displayName?: string;
+            /**
+             * @deprecated
+             * @description Deprecated and ignored: stacks have no icon of their own.
+             */
             icon?: string;
             /**
              * @description Required: the discovered Compose project to adopt.
@@ -10318,7 +10366,10 @@ export interface components {
             environmentOnline?: boolean;
             /** @description Revision of the last failed deploy (cleared by a successful one). */
             failedRevision?: components["schemas"]["StackRevisionRef"];
-            /** @description Lucide icon name override. */
+            /**
+             * @deprecated
+             * @description Deprecated, never returned: stacks have no icon of their own (the web shows the stack icon, or the image of the template the stack was created from).
+             */
             icon?: string;
             /** @example 0190a6e0-7777-7000-8000-000000000007 */
             id: string;
@@ -10723,7 +10774,10 @@ export interface components {
             dependsOn: components["schemas"]["StackDependency"][];
             /** @description Docker Manager display metadata (never written to Compose files). */
             description?: string;
-            /** @description Lucide icon name override. */
+            /**
+             * @deprecated
+             * @description Deprecated, never returned: services have no icon of their own (the web shows one service icon).
+             */
             icon?: string;
             /**
              * @description Resolved image reference.
@@ -10735,7 +10789,11 @@ export interface components {
         };
         StackServiceMetaBody: {
             description: string;
-            icon: string;
+            /**
+             * @deprecated
+             * @description Deprecated and ignored: services have no icon of their own.
+             */
+            icon?: string;
         };
         StackServiceState: {
             /** Format: int64 */
@@ -10753,6 +10811,10 @@ export interface components {
             description?: string;
             /** @description missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied). */
             drift: string[];
+            /**
+             * @deprecated
+             * @description Deprecated, never returned: services have no icon of their own (the web shows one service icon).
+             */
             icon?: string;
             /** @description Image of the definition. */
             image?: string;
@@ -11549,8 +11611,8 @@ export interface components {
             /** @example Website */
             displayName?: string;
             /**
-             * @description Lucide icon name; empty clears the override.
-             * @example globe
+             * @deprecated
+             * @description Deprecated and ignored: stacks have no icon of their own.
              */
             icon?: string;
             /** @description Replaces the stack's links (an empty list removes them; absent: unchanged). */
@@ -17097,6 +17159,76 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-backup-storage-history": {
+        parameters: {
+            query?: {
+                /** @description Range start (RFC 3339; default: 30 days before to). */
+                from?: string;
+                /** @description Range end (RFC 3339; default and latest: now). */
+                to?: string;
+                /** @description Only the locations holding this environment's data (leaves out the manager state). */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "from": "2026-09-25T12:00:00Z",
+                     *       "stepSeconds": 1,
+                     *       "storedBytes": [
+                     *         1
+                     *       ],
+                     *       "timestamps": [
+                     *         "2026-09-25T12:00:00Z"
+                     *       ],
+                     *       "to": "2026-09-25T12:00:00Z",
+                     *       "uncompressedBytes": [
+                     *         1
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BackupStorageHistory"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -38695,7 +38827,6 @@ export interface operations {
                 /**
                  * @example {
                  *       "displayName": "Website",
-                 *       "icon": "globe",
                  *       "links": [
                  *         {
                  *           "label": "Documentation",

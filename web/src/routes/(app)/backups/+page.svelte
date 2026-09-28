@@ -3,7 +3,8 @@
 	// repository with a confirmed Recovery Key, then a policy); afterwards
 	// how backups stand (KPIs), what runs now (progress and the file being
 	// read), the policies (the main table: each opens its page), the recent
-	// runs (Details opens a drawer) and the storage the repositories use.
+	// runs (Details opens a drawer), the storage the repositories use and
+	// how it grew (the last 30 days by default).
 	// Every backup and the repositories have their own tabs.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
@@ -39,6 +40,7 @@
 	import RunningBackups from '$lib/features/backups/RunningBackups.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
 	import StorageCard from '$lib/features/backups/StorageCard.svelte';
+	import StorageHistoryCard from '$lib/features/backups/StorageHistoryCard.svelte';
 	import {
 		nextPolicyRun,
 		recentSets,
@@ -317,6 +319,10 @@
 		</Card>
 
 		<StorageCard totals={storage} />
+
+		{#if can(access, 'backup_repository.read')}
+			<StorageHistoryCard environmentId={environmentSelection.id} />
+		{/if}
 	{/if}
 </Page>
 

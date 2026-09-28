@@ -441,6 +441,11 @@ func UpsertBackupLocation(ctx context.Context, db bun.IDB, repositoryID, scope s
 		}
 		return fmt.Errorf("store: write backup location: %w", err)
 	}
+	if st := u.Stats; st != nil {
+		// The storage history: one sample per measurement.
+		return appendBackupStorageSample(ctx, db, domain.BackupStorageSample{RepositoryID: repositoryID, Scope: scope, At: now,
+			SizeBytes: st.SizeBytes, UncompressedBytes: st.UncompressedBytes})
+	}
 	return nil
 }
 

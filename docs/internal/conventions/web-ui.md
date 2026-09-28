@@ -19,9 +19,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   with the cron expression as tooltip; long names, images and paths in
   tables use `Column.maxWidth` + `truncate`, wide lists pin their actions
   column (`pin: 'end'`); headings inside a card are
-  `h3.subsection-title`. Service colours:
-  `serviceIdentity`/`serviceSeriesColor` (`$lib/design/hue`). Heavy
-  libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
+  `h3.subsection-title`. Service colours (only where several services'
+  output is interleaved: merged logs, chart series, filter chips):
+  `serviceHue`/`serviceSeriesColor` (`$lib/design/hue`), never on a tile.
+  Heavy libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Resource icons:** one icon and tile colour per resource type in
   `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's
   page header tile, its empty states, its ⌘K hits and the sidebar entry
@@ -33,8 +34,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   on the name block). The colour is the type's, as on its page header,
   never per row: the only variations are the ones its page header makes
   (an offline environment is slate, `environmentIcon`; Docker Manager's own
-  containers violet). Stacks show their own icon (`StackIcon size="xs"`:
-  the chosen icon, the template's, else the stack tile); schedules the
+  containers violet). Stacks and services have no icon of their own:
+  every service shows the `service` tile, stacks `StackIcon size="xs"`
+  (the image of the template the stack was created from, else the stack
+  tile); registry connections the key (`KeyRound`, slate); schedules the
   icon of the policy they run (`scheduleResource`). The icon is
   decorative (`aria-hidden`): the name stays the link and the row's
   accessible label, and the tile never replaces a status or mark.

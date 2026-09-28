@@ -147,7 +147,7 @@ func capabilities() []Capability {
 		// and run privileged containers once deployed.
 		adv(high("stack.create", TypeStack, "Create stacks", "Create managed stacks in an environment from a Compose definition. Deployed, it can mount host paths and run privileged containers.", instEnv)),
 		adv(normal("stack.import", TypeStack, "Import stacks", "Discover and adopt existing Compose projects.", instEnv)),
-		adv(normal("stack.manage", TypeStack, "Edit stack settings", "Edit a stack's display name, description, icon and service display settings.", stackScope)),
+		adv(normal("stack.manage", TypeStack, "Edit stack settings", "Edit a stack's display name, description, links and service descriptions.", stackScope)),
 		adv(normal("stack.down", TypeStack, "Take stack down", "Stop and remove a stack's containers and networks (volumes are kept).", stackScope)),
 		adv(normal("stack.build", TypeStack, "Build stack images", "Build the images of a stack's Compose build sections.", stackScope)),
 		adv(normal("stack.update", TypeStack, "Update stack images", "Pull a stack's images (Pull) and recreate the services whose image changed (image updates).", stackScope)),

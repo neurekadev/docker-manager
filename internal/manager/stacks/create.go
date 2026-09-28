@@ -30,7 +30,6 @@ var definitionNames = []string{
 const (
 	MaxDisplayName = 128
 	MaxDescription = 1024
-	MaxIcon        = 64
 )
 
 // checkDefinition validates a submitted definition's shape.
@@ -118,7 +117,7 @@ func validationOf(v protocol.ComposeValidateOutput) domain.StackValidation {
 	defs := servicesFrom(v.Services)
 	for i, sv := range v.Services {
 		out.Services = append(out.Services, domain.StackServiceInfo{StackServiceDef: defs[i], Profiles: sv.Profiles,
-			Meta: domain.DisplayMeta{Description: sv.Description, Icon: sv.Icon}})
+			Meta: domain.DisplayMeta{Description: sv.Description}})
 	}
 	return out
 }
@@ -158,22 +157,8 @@ func checkMeta(displayName string, m domain.DisplayMeta) error {
 		return &domain.InputError{Field: "displayName", Message: fmt.Sprintf("at most %d characters", MaxDisplayName)}
 	case utf8.RuneCountInString(m.Description) > MaxDescription:
 		return &domain.InputError{Field: "description", Message: fmt.Sprintf("at most %d characters", MaxDescription)}
-	case !validIcon(m.Icon):
-		return &domain.InputError{Field: "icon", Message: "must be a Lucide icon name (lower-case letters, digits and '-')"}
 	}
 	return nil
-}
-
-func validIcon(s string) bool {
-	if len(s) > MaxIcon {
-		return false
-	}
-	for _, c := range s {
-		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
-			return false
-		}
-	}
-	return true
 }
 
 // Create validates the definition on the agent, writes it into a new
@@ -448,9 +433,6 @@ func (s *Service) Update(ctx context.Context, id string, expectRevision int64, p
 		}
 		if p.Description != nil {
 			st.Meta.Description = strings.TrimSpace(*p.Description)
-		}
-		if p.Icon != nil {
-			st.Meta.Icon = *p.Icon
 		}
 		if err := checkMeta(st.DisplayName, st.Meta); err != nil {
 			return err

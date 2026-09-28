@@ -2745,6 +2745,63 @@
         ],
         "type": "object"
       },
+      "BackupStorageHistory": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stepSeconds": {
+            "description": "Spacing of the points: 3600 (ranges up to 8 days) or 86400.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "storedBytes": {
+            "description": "Stored at the destinations (after deduplication and compression) at each timestamp: the sum of every location's latest measurement at or before it. null before the first measurement.",
+            "items": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "type": "array"
+          },
+          "timestamps": {
+            "description": "from, every whole UTC hour or day (stepSeconds) in between, and to.",
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "uncompressedBytes": {
+            "description": "The same data before compression, summed the same way. null before the first measurement.",
+            "items": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "stepSeconds",
+          "timestamps",
+          "storedBytes",
+          "uncompressedBytes"
+        ],
+        "type": "object"
+      },
       "BackupVerification": {
         "additionalProperties": false,
         "properties": {
@@ -4937,7 +4994,8 @@
             "type": "string"
           },
           "icon": {
-            "description": "Lucide icon name.",
+            "deprecated": true,
+            "description": "Deprecated and ignored: stacks have no icon of their own.",
             "maxLength": 64,
             "type": "string"
           },
@@ -7754,6 +7812,8 @@
             "type": "string"
           },
           "icon": {
+            "deprecated": true,
+            "description": "Deprecated and ignored: stacks have no icon of their own.",
             "maxLength": 64,
             "type": "string"
           },
@@ -7787,6 +7847,8 @@
             "type": "string"
           },
           "icon": {
+            "deprecated": true,
+            "description": "Deprecated and ignored: stacks have no icon of their own.",
             "maxLength": 64,
             "type": "string"
           },
@@ -14453,7 +14515,8 @@
             "description": "Revision of the last failed deploy (cleared by a successful one)."
           },
           "icon": {
-            "description": "Lucide icon name override.",
+            "deprecated": true,
+            "description": "Deprecated, never returned: stacks have no icon of their own (the web shows the stack icon, or the image of the template the stack was created from).",
             "type": "string"
           },
           "id": {
@@ -15529,7 +15592,8 @@
             "type": "string"
           },
           "icon": {
-            "description": "Lucide icon name override.",
+            "deprecated": true,
+            "description": "Deprecated, never returned: services have no icon of their own (the web shows one service icon).",
             "type": "string"
           },
           "image": {
@@ -15562,13 +15626,14 @@
             "type": "string"
           },
           "icon": {
+            "deprecated": true,
+            "description": "Deprecated and ignored: services have no icon of their own.",
             "maxLength": 64,
             "type": "string"
           }
         },
         "required": [
-          "description",
-          "icon"
+          "description"
         ],
         "type": "object"
       },
@@ -15627,6 +15692,8 @@
             "type": "array"
           },
           "icon": {
+            "deprecated": true,
+            "description": "Deprecated, never returned: services have no icon of their own (the web shows one service icon).",
             "type": "string"
           },
           "image": {
@@ -17874,10 +17941,8 @@
             "type": "string"
           },
           "icon": {
-            "description": "Lucide icon name; empty clears the override.",
-            "examples": [
-              "globe"
-            ],
+            "deprecated": true,
+            "description": "Deprecated and ignored: stacks have no icon of their own.",
             "maxLength": 64,
             "type": "string"
           },
@@ -26316,6 +26381,132 @@
           }
         ],
         "summary": "List a repository's restic snapshots",
+        "tags": [
+          "Backups"
+        ],
+        "x-docker-manager-capability": "backup_repository.read",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/backup-storage/history": {
+      "get": {
+        "description": "What the repositories stored over time: a point at from, at every whole UTC hour (ranges up to 8 days) or day in between and at to, each the sum over locations of their latest measured size at or before it (measured after every backup and prune; a location keeps its last value until the next measurement, a removed repository counts zero from its removal). Only repositories the caller may read in full (backup_repository.read) count. Default range: the last 30 days; at most 731 days.",
+        "operationId": "get-backup-storage-history",
+        "parameters": [
+          {
+            "description": "Range start (RFC 3339; default: 30 days before to).",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "description": "Range start (RFC 3339; default: 30 days before to).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Range end (RFC 3339; default and latest: now).",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "Range end (RFC 3339; default and latest: now).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only the locations holding this environment's data (leaves out the manager state).",
+            "explode": false,
+            "in": "query",
+            "name": "environmentId",
+            "schema": {
+              "description": "Only the locations holding this environment's data (leaves out the manager state).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "from": "2026-09-25T12:00:00Z",
+                  "stepSeconds": 1,
+                  "storedBytes": [
+                    1
+                  ],
+                  "timestamps": [
+                    "2026-09-25T12:00:00Z"
+                  ],
+                  "to": "2026-09-25T12:00:00Z",
+                  "uncompressedBytes": [
+                    1
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStorageHistory"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get the storage history of the backup repositories",
         "tags": [
           "Backups"
         ],
@@ -59899,7 +60090,7 @@
         "x-docker-manager-scope": "resource"
       },
       "patch": {
-        "description": "Display name, description, Lucide icon override, links and per-service metadata, stored in Docker Manager and never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); a problem is a 422 naming the field (body.links[1].url). Requires If-Match.",
+        "description": "Display name, description, links and per-service descriptions, stored in Docker Manager and never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); a problem is a 422 naming the field (body.links[1].url). Requires If-Match.",
         "operationId": "update-stack",
         "parameters": [
           {
@@ -59929,7 +60120,6 @@
             "application/json": {
               "example": {
                 "displayName": "Website",
-                "icon": "globe",
                 "links": [
                   {
                     "label": "Documentation",

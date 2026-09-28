@@ -38,8 +38,8 @@
 		playDemoJob,
 		type DemoService
 	} from '$lib/design/demo';
-	import { serviceIdentity, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
-	import { serviceIcon } from '$lib/design/icons';
+	import { serviceHue, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import { mountLineChart, mountTerminal, mountYamlEditor, type Mounted } from '$lib/lazy';
 	import {
@@ -193,10 +193,7 @@
 		['silo-api', '[info] GET /health 200 2ms'],
 		['silo-web', '192.168.1.23 - - "GET / HTTP/1.1" 200 1532']
 	];
-	const idOf = (name: string) => {
-		const s = demoServices.find((x) => x.name === name);
-		return serviceIdentity({ stackId: DEMO_STACK_ID, name, image: s?.image, icon: s?.icon });
-	};
+	const hueOf = (name: string) => serviceHue(DEMO_STACK_ID, name);
 
 	const rowMenu = (s: DemoService): MenuEntry[] => [
 		{
@@ -344,9 +341,8 @@
 <svelte:head><title>Design system · Docker Manager</title></svelte:head>
 
 {#snippet nameCell(s: DemoService)}
-	{@const id = idOf(s.name)}
 	<span class="svc">
-		<IconTile icon={serviceIcon(id.icon)} color={id.color} size="sm" />
+		<IconTile {...resourceIcon('service')} size="sm" />
 		<span class="svc-text"
 			><span class="svc-name">{s.name}</span><span class="svc-desc">{s.description}</span
 			></span
@@ -547,28 +543,23 @@
 	</section>
 
 	<section aria-labelledby="hue-title" class="section">
-		<h2 id="hue-title">Service hue identity</h2>
+		<h2 id="hue-title">Service hues</h2>
 		<p class="muted">
-			Each service keeps one colour everywhere: its tile, its log prefix, its chart series and
-			its filter chip.
+			Every service has the same tile. Where the output of several services is interleaved,
+			each keeps one stable colour: its log prefix, its chart series and its filter chip.
 		</p>
 		<Card>
 			<div class="hues">
 				{#each demoServices as s (s.name)}
-					{@const id = idOf(s.name)}
-					<span
-						class="chip"
-						style="--c: {TILE_HEX[id.color].fg}; --b: {TILE_HEX[id.color].bg}"
-					>
-						<IconTile icon={serviceIcon(id.icon)} color={id.color} size="sm" />
+					{@const hue = hueOf(s.name)}
+					<span class="chip" style="--c: {TILE_HEX[hue].fg}; --b: {TILE_HEX[hue].bg}">
 						{s.name}
 					</span>
 				{/each}
 			</div>
 			<pre class="logs" aria-label="Log sample">{#each logLines as [svc, line], i (i)}<span
 						class="ts">2026-09-25 10:14:{22 + i}</span
-					>  <span style="color: {TILE_HEX[idOf(svc).color].fg}">{svc.padEnd(11)}</span
-					> {line}
+					>  <span style="color: {TILE_HEX[hueOf(svc)].fg}">{svc.padEnd(11)}</span> {line}
 				{/each}</pre>
 		</Card>
 	</section>
@@ -997,7 +988,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-2);
-		padding: 3px 10px 3px 3px;
+		padding: 6px 10px;
 		border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
 		border-radius: var(--radius-md);
 		background: color-mix(in srgb, var(--b) 45%, transparent);

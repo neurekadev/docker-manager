@@ -110,7 +110,7 @@ type StackServiceDef struct {
 	Build       bool              `json:"build" doc:"The service has a build section (#33)."`
 	DependsOn   []StackDependency `json:"dependsOn"`
 	Description string            `json:"description,omitempty" doc:"Docker Manager display metadata (never written to Compose files)."`
-	Icon        string            `json:"icon,omitempty" doc:"Lucide icon name override."`
+	Icon        string            `json:"icon,omitempty" deprecated:"true" doc:"Deprecated, never returned: services have no icon of their own (the web shows one service icon)."`
 }
 
 // StackImage is the image a service runs after the last deploy.
@@ -190,7 +190,7 @@ type Stack struct {
 
 	DisplayName string            `json:"displayName,omitempty"`
 	Description string            `json:"description,omitempty"`
-	Icon        string            `json:"icon,omitempty" doc:"Lucide icon name override."`
+	Icon        string            `json:"icon,omitempty" deprecated:"true" doc:"Deprecated, never returned: stacks have no icon of their own (the web shows the stack icon, or the image of the template the stack was created from)."`
 	Links       []WebLink         `json:"links,omitempty" doc:"Web links (documentation, website, repository) in the user's order."`
 	Origin      string            `json:"origin,omitempty" enum:"created,imported"`
 	Template    *StackTemplateRef `json:"template,omitempty" doc:"The template version the stack was created from (its files are the stack's own)."`
@@ -239,7 +239,7 @@ func serviceDefs(st domain.Stack) []StackServiceDef {
 	out := []StackServiceDef{}
 	for _, s := range st.Services {
 		d := StackServiceDef{Name: s.Name, Image: s.Image, Build: s.Build, DependsOn: []StackDependency{},
-			Description: st.ServiceMeta[s.Name].Description, Icon: st.ServiceMeta[s.Name].Icon}
+			Description: st.ServiceMeta[s.Name].Description}
 		for _, dep := range s.DependsOn {
 			d.DependsOn = append(d.DependsOn, StackDependency(dep))
 		}
@@ -272,7 +272,7 @@ func newStack(st domain.Stack, v authz.View, online bool) Stack {
 		return out
 	}
 	out.Revision = st.Revision
-	out.DisplayName, out.Description, out.Icon, out.Origin = st.DisplayName, st.Meta.Description, st.Meta.Icon, st.Origin
+	out.DisplayName, out.Description, out.Origin = st.DisplayName, st.Meta.Description, st.Origin
 	out.Links = webLinks(st.Links)
 	out.Location = &StackLocation{Root: st.Root, Dir: st.Dir}
 	out.Template = newStackTemplateRef(st.Template)
@@ -330,7 +330,7 @@ func newValidation(v domain.StackValidation) StackValidation {
 		out.Warnings = append(out.Warnings, StackIssue(i))
 	}
 	for _, s := range v.Services {
-		d := StackServiceDef{Name: s.Name, Image: s.Image, Build: s.Build, DependsOn: []StackDependency{}, Description: s.Meta.Description, Icon: s.Meta.Icon}
+		d := StackServiceDef{Name: s.Name, Image: s.Image, Build: s.Build, DependsOn: []StackDependency{}, Description: s.Meta.Description}
 		for _, dep := range s.DependsOn {
 			d.DependsOn = append(d.DependsOn, StackDependency(dep))
 		}
@@ -655,7 +655,7 @@ type createStackInput struct {
 		Name          string    `json:"name,omitempty" example:"web" maxLength:"63" doc:"Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume."`
 		DisplayName   string    `json:"displayName,omitempty" example:"Website" maxLength:"128"`
 		Description   string    `json:"description,omitempty" maxLength:"1024"`
-		Icon          string    `json:"icon,omitempty" maxLength:"64" doc:"Lucide icon name."`
+		Icon          string    `json:"icon,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated and ignored: stacks have no icon of their own."`
 		Links         []WebLink `json:"links,omitempty" maxItems:"10" doc:"Web links (documentation, website, repository), at most 10."`
 		StackDefinitionBody
 	}
@@ -677,7 +677,7 @@ func (h *stacksAPI) create(ctx context.Context, in *createStackInput) (*createSt
 	}
 	st, val, err := h.svc.Create(ctx, p, domain.StackCreate{
 		StackDefinition: domain.StackDefinition{EnvironmentID: in.Body.EnvironmentID, Name: in.Body.Name, Files: in.Body.files()},
-		DisplayName:     in.Body.DisplayName, Meta: domain.DisplayMeta{Description: in.Body.Description, Icon: in.Body.Icon},
+		DisplayName:     in.Body.DisplayName, Meta: domain.DisplayMeta{Description: in.Body.Description},
 		Links: domainLinks(in.Body.Links),
 	})
 	if err != nil {
@@ -737,7 +737,7 @@ func (h *stacksAPI) validateExisting(ctx context.Context, in *stackIDInput) (*va
 // StackServiceMetaBody is per-service display metadata in a patch.
 type StackServiceMetaBody struct {
 	Description string `json:"description" maxLength:"1024"`
-	Icon        string `json:"icon" maxLength:"64"`
+	Icon        string `json:"icon,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated and ignored: services have no icon of their own."`
 }
 
 type updateStackInput struct {
@@ -746,7 +746,7 @@ type updateStackInput struct {
 	Body struct {
 		DisplayName *string                         `json:"displayName,omitempty" example:"Website" maxLength:"128"`
 		Description *string                         `json:"description,omitempty" maxLength:"1024"`
-		Icon        *string                         `json:"icon,omitempty" example:"globe" maxLength:"64" doc:"Lucide icon name; empty clears the override."`
+		Icon        *string                         `json:"icon,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated and ignored: stacks have no icon of their own."`
 		Links       *[]WebLink                      `json:"links,omitempty" maxItems:"10" doc:"Replaces the stack's links (an empty list removes them; absent: unchanged)."`
 		Services    map[string]StackServiceMetaBody `json:"services,omitempty" doc:"Display metadata per service name (empty values clear it)."`
 	}
@@ -760,12 +760,13 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 	if err := in.CheckIfMatch(RevisionETag(st.Revision)); err != nil {
 		return nil, err
 	}
-	patch := domain.StackPatch{DisplayName: in.Body.DisplayName, Description: in.Body.Description, Icon: in.Body.Icon,
+	// A deprecated icon (of the stack or a service) is ignored.
+	patch := domain.StackPatch{DisplayName: in.Body.DisplayName, Description: in.Body.Description,
 		Links: domainLinksPatch(in.Body.Links)}
 	if len(in.Body.Services) > 0 {
 		patch.Services = map[string]domain.DisplayMeta{}
 		for k, m := range in.Body.Services {
-			patch.Services[k] = domain.DisplayMeta(m)
+			patch.Services[k] = domain.DisplayMeta{Description: m.Description}
 		}
 	}
 	before := st
@@ -781,9 +782,8 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 		return nil, stackErr(err)
 	}
 	// Links by their number only: a URL may carry a query string.
-	audit.SetDiff(ctx, map[string]any{"displayName": before.DisplayName, "description": before.Meta.Description, "icon": before.Meta.Icon,
-		"links": len(before.Links)},
-		map[string]any{"displayName": st.DisplayName, "description": st.Meta.Description, "icon": st.Meta.Icon, "links": len(st.Links)})
+	audit.SetDiff(ctx, map[string]any{"displayName": before.DisplayName, "description": before.Meta.Description, "links": len(before.Links)},
+		map[string]any{"displayName": st.DisplayName, "description": st.Meta.Description, "links": len(st.Links)})
 	return h.stackOut(ctx, st, v), nil
 }
 
@@ -1073,7 +1073,7 @@ type StackServiceStatus struct {
 	Build       bool              `json:"build"`
 	DependsOn   []StackDependency `json:"dependsOn"`
 	Description string            `json:"description,omitempty"`
-	Icon        string            `json:"icon,omitempty"`
+	Icon        string            `json:"icon,omitempty" deprecated:"true" doc:"Deprecated, never returned: services have no icon of their own (the web shows one service icon)."`
 	Applied     *StackImage       `json:"applied,omitempty" doc:"Image applied by the last deploy."`
 	Status      string            `json:"status" enum:"running,partial,exited,created,missing"`
 	Containers  []StackContainer  `json:"containers"`
@@ -1102,7 +1102,7 @@ func (h *stacksAPI) services(ctx context.Context, in *stackIDInput) (*servicesOu
 	}
 	out := StackServices{Live: view.Live, ObservedAt: view.ObservedAt, Drift: view.Drift, Services: []StackServiceStatus{}}
 	for _, sv := range view.Services {
-		s := StackServiceStatus{Name: sv.Name, Description: sv.Meta.Description, Icon: sv.Meta.Icon, Status: sv.Status,
+		s := StackServiceStatus{Name: sv.Name, Description: sv.Meta.Description, Status: sv.Status,
 			Containers: []StackContainer{}, Drift: append([]string{}, sv.Drift...), DependsOn: []StackDependency{}}
 		if e := sv.Expected; e != nil {
 			s.Image, s.Build = e.Image, e.Build
@@ -1361,7 +1361,7 @@ type importStackInput struct {
 		ProjectName string `json:"projectName,omitempty" example:"nextcloud" maxLength:"63" doc:"Required: the discovered Compose project to adopt."`
 		DisplayName string `json:"displayName,omitempty" maxLength:"128"`
 		Description string `json:"description,omitempty" maxLength:"1024"`
-		Icon        string `json:"icon,omitempty" maxLength:"64"`
+		Icon        string `json:"icon,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated and ignored: stacks have no icon of their own."`
 		// Source is the explicit Compose source for projects that cannot be
 		// adopted in place.
 		Source *StackDefinitionBody `json:"source,omitempty" doc:"Explicit Compose source (written into a new directory of the stacks volume); omit to adopt the project in place."`
@@ -1380,7 +1380,7 @@ func (h *stacksAPI) importStack(ctx context.Context, in *importStackInput) (*imp
 		return nil, err
 	}
 	r := domain.StackImport{EnvironmentID: in.EnvironmentID, ProjectName: in.Body.ProjectName, DisplayName: in.Body.DisplayName,
-		Meta: domain.DisplayMeta{Description: in.Body.Description, Icon: in.Body.Icon}}
+		Meta: domain.DisplayMeta{Description: in.Body.Description}}
 	if in.Body.Source != nil {
 		r.Files = in.Body.Source.files()
 	}
@@ -1404,7 +1404,7 @@ type importCopyInput struct {
 		ProjectName    string `json:"projectName,omitempty" example:"nextcloud" maxLength:"63" doc:"Required: the discovered Compose project to import (copyable in the discovery list)."`
 		DisplayName    string `json:"displayName,omitempty" maxLength:"128"`
 		Description    string `json:"description,omitempty" maxLength:"1024"`
-		Icon           string `json:"icon,omitempty" maxLength:"64"`
+		Icon           string `json:"icon,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated and ignored: stacks have no icon of their own."`
 		TimeoutSeconds int    `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period of the project's services (default: each service's own)."`
 	}
 }
@@ -1415,7 +1415,7 @@ func (h *stacksAPI) importCopy(ctx context.Context, in *importCopyInput) (*JobAc
 		return nil, err
 	}
 	r := domain.StackImport{EnvironmentID: in.EnvironmentID, ProjectName: in.Body.ProjectName, DisplayName: in.Body.DisplayName,
-		Meta: domain.DisplayMeta{Description: in.Body.Description, Icon: in.Body.Icon}}
+		Meta: domain.DisplayMeta{Description: in.Body.Description}}
 	st, j, err := h.svc.ImportCopy(ctx, p, r, domain.StackJobRequest{TimeoutSeconds: in.Body.TimeoutSeconds})
 	if err != nil {
 		return nil, stackErr(err)
@@ -1598,7 +1598,7 @@ func registerStacks(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "update-stack", Method: http.MethodPatch, Path: one, Summary: "Edit a stack's display metadata",
-		Description: "Display name, description, Lucide icon override, links and per-service metadata, stored in Docker Manager and " +
+		Description: "Display name, description, links and per-service descriptions, stored in Docker Manager and " +
 			"never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); " +
 			"a problem is a 422 naming the field (body.links[1].url). Requires If-Match.",
 		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,

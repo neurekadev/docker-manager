@@ -34,7 +34,7 @@ func TestLoadFromContent(t *testing.T) {
     image: cache:1
     profiles: [extras]
 `),
-		"compose.override.yaml": []byte("services:\n  web:\n    labels:\n      dev.neureka.docker-manager.icon: globe\n"),
+		"compose.override.yaml": []byte("services:\n  web:\n    labels:\n      dev.neureka.docker-manager.description: Web frontend\n"),
 		".env":                  []byte("TAG=16\n"),
 	}})
 	if err != nil {
@@ -54,14 +54,14 @@ func TestLoadFromContent(t *testing.T) {
 	if err != nil || len(deps) != 2 || deps[0].Required || !deps[1].Required {
 		t.Errorf("parsed %+v %v", deps, err)
 	}
-	var icon string
+	var description string
 	for _, s := range p.Services {
 		if s.Name == "web" {
-			icon = s.Icon
+			description = s.Description
 		}
 	}
-	if icon != "globe" {
-		t.Errorf("icon label %q", icon)
+	if description != "Web frontend" {
+		t.Errorf("description label %q", description)
 	}
 	if len(p.Binds) != 1 || p.Binds[0].Source != filepath.Join(dir, "html") {
 		t.Errorf("binds %+v", p.Binds)

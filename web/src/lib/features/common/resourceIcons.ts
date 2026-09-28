@@ -2,8 +2,9 @@
 // object's page header, its empty state, the small tile before its name in
 // every list (IconCell, NameCell `icon`), the sidebar entry of its section
 // and its ⌘K search hits all read this map, so a type looks the same
-// everywhere. Stacks show their own icon instead (StackIcon); services keep
-// their hue identity (serviceIdentity).
+// everywhere. Stacks and services have no icon of their own: every service
+// shows the service tile, every stack the stack tile (StackIcon shows the
+// image of the template a stack was created from instead, when it has one).
 import Activity from '@lucide/svelte/icons/activity';
 import Archive from '@lucide/svelte/icons/archive';
 import Box from '@lucide/svelte/icons/box';
@@ -46,7 +47,7 @@ export const RESOURCE_ICONS = {
 	buildDefinition: { icon: FileCode, color: 'violet' },
 	template: { icon: LayoutTemplate, color: 'violet' },
 	templateRegistry: { icon: Archive, color: 'violet' },
-	registry: { icon: Archive, color: 'slate' },
+	registry: { icon: KeyRound, color: 'slate' },
 	gitCredential: { icon: GitBranch, color: 'slate' },
 	backupPolicy: { icon: CalendarClock, color: 'teal' },
 	backupRepository: { icon: HardDrive, color: 'teal' },

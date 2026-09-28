@@ -28,6 +28,8 @@ export interface ChartLine {
 	values: (number | null)[];
 	color?: string;
 	area?: boolean;
+	/** A dashed line, also in the legend (a reference line next to a solid one). */
+	dashed?: boolean;
 }
 
 export interface TimeRange {

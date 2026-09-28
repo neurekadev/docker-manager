@@ -127,7 +127,12 @@
 		<ul class="legend" role="list">
 			{#each lines as l (l.name)}
 				<li>
-					<span class="key" style:background={l.color} aria-hidden="true"></span>{l.name}
+					<span
+						class="key"
+						class:dashed={l.dashed}
+						style:--key-color={l.color}
+						aria-hidden="true"
+					></span>{l.name}
 					<span class="num">{formatValue(latestValue(l.values), unit)}</span>
 				</li>
 			{/each}
@@ -206,7 +211,18 @@
 		width: 10px;
 		height: 3px;
 		border-radius: var(--radius-full);
-		background: var(--text-muted);
+		background: var(--key-color, var(--text-muted));
+	}
+
+	.key.dashed {
+		width: 12px;
+		border-radius: 0;
+		background: linear-gradient(
+			to right,
+			var(--key-color, var(--text-muted)) 0 4px,
+			transparent 4px 8px,
+			var(--key-color, var(--text-muted)) 8px 12px
+		);
 	}
 
 	.canvas {

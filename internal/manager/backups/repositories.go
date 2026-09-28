@@ -319,13 +319,16 @@ func repositoryAuditView(r domain.BackupRepository) map[string]any {
 
 // DeleteRepository removes a repository that no policy uses and the
 // backups indexed in it (they cannot be browsed or restored without it).
-// The restic repositories at the destination are left untouched.
+// The restic repositories at the destination are left untouched; the
+// storage history stops counting it from now on.
 func (s *Service) DeleteRepository(ctx context.Context, id string, revision int64) error {
 	var removed []string
 	if err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		var err error
-		removed, err = store.DeleteBackupRepository(ctx, tx, id, revision)
-		return err
+		if removed, err = store.DeleteBackupRepository(ctx, tx, id, revision); err != nil {
+			return err
+		}
+		return store.EndBackupStorage(ctx, tx, id, s.now())
 	}); err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import type { Environment } from '$lib/api/client';
 	import { JobWatcher } from '$lib/api/jobs.svelte';
-	import { serviceIcon } from '$lib/design/icons';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { routes } from '$lib/routes';
 	import {
 		Badge,
@@ -66,7 +66,6 @@
 	import {
 		deployFailure,
 		serviceCounts,
-		stackIcon,
 		stackStatus,
 		stackTitle,
 		updateAvailable,
@@ -116,7 +115,6 @@
 	const jobs = createQuery(() => stackJobsQuery(stack.id));
 	const restoring = $derived(!!activeRestore(jobs.data));
 	const counts = $derived(serviceCounts(stack));
-	const icon = $derived(stackIcon(stack));
 	const envName = $derived(environment?.name ?? 'Unknown environment');
 	// With one environment there is nowhere to migrate to and no need to name it.
 	const single = singleEnvironment();
@@ -397,8 +395,7 @@
 <PageHeader
 	{title}
 	description={stack.description || undefined}
-	icon={serviceIcon(icon.icon)}
-	color={icon.color}
+	{...resourceIcon('stack')}
 	{meta}
 	below={full && stack.links?.length ? links : undefined}
 >

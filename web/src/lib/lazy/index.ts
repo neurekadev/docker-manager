@@ -281,6 +281,8 @@ export interface TimeSeriesLine {
 	color?: string;
 	/** A faint fill under the line. */
 	area?: boolean;
+	/** A dashed line (a reference next to a solid one; identity not by color alone). */
+	dashed?: boolean;
 }
 
 export interface TimeSeriesOptions {
@@ -332,7 +334,11 @@ export function timeSeriesOption(o: TimeSeriesOptions) {
 			name: l.name,
 			showSymbol: false,
 			connectNulls: false,
-			lineStyle: l.color ? { color: l.color, width: 1.75 } : { width: 1.75 },
+			lineStyle: {
+				...(l.color ? { color: l.color } : {}),
+				width: 1.75,
+				...(l.dashed ? { type: 'dashed' } : {})
+			},
 			itemStyle: l.color ? { color: l.color } : undefined,
 			areaStyle: l.area ? { color: l.color, opacity: 0.08 } : undefined,
 			data: o.timestamps.map((t, j) => [t, l.values[j] ?? null]),

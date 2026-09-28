@@ -48,7 +48,6 @@ type StackImport struct {
 type StackPatch struct {
 	DisplayName *string
 	Description *string
-	Icon        *string
 	// Links replaces the stack's links (nil: unchanged).
 	Links *[]Link
 	// Services replaces the metadata of the named services (a zero value

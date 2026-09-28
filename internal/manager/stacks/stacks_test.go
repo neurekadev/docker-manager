@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -42,6 +43,23 @@ func revisions(t *testing.T, h *harness, id string) []domain.StackRevision {
 		t.Fatal(err)
 	}
 	return revs
+}
+
+// TestLabelMetaIgnoresTheIconLabel: the description label fills an empty
+// service description (never the user's own); the former icon label, still
+// reported by agents of the previous version, is ignored, so a service
+// with only an icon label gets no metadata.
+func TestLabelMetaIgnoresTheIconLabel(t *testing.T) {
+	st := domain.Stack{ServiceMeta: map[string]domain.DisplayMeta{"web": {Description: "Mine"}}}
+	stacks.ImportLabelMetaForTest(&st, []protocol.ComposeService{
+		{Name: "web", Description: "From the label", Icon: "globe"},
+		{Name: "db", Description: "Orders database", Icon: "database"},
+		{Name: "cache", Icon: "layers"},
+	})
+	want := map[string]domain.DisplayMeta{"web": {Description: "Mine"}, "db": {Description: "Orders database"}}
+	if !maps.Equal(st.ServiceMeta, want) {
+		t.Errorf("service metadata %+v, want %+v", st.ServiceMeta, want)
+	}
 }
 
 func TestCreateWritesProjectAndRecordsFirstRevision(t *testing.T) {

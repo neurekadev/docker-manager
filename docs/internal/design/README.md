@@ -10,7 +10,7 @@ only).
 
 - [Principles](#principles)
 - [Tokens](#tokens)
-- [Service hue identity](#service-hue-identity)
+- [Service hues](#service-hues)
 - [Type](#type)
 - [Layout and responsive rules](#layout-and-responsive-rules)
 - [Components](#components)
@@ -28,7 +28,7 @@ only).
 - **Quiet chrome, one memorable thing.** Cool blue-black surfaces separated
   by 1 px borders and surface steps (no shadows on cards), blue for primary
   actions, green/red/amber only for status. The single expressive system is
-  the service hue (below).
+  the service hue in merged logs and charts (below).
 - **Tokens, not values.** Components read CSS custom properties from
   `tokens.css`; a new value used twice becomes a token first. A light theme
   would be a second `:root` block, never a component change.
@@ -79,10 +79,11 @@ layout). `design.spec.ts` pins the sampled values and checks contrast.
 
 ### Category tiles
 
-`--tile-<color>-bg` / `--tile-<color>-fg` for `blue` (stacks, web,
-services), `cyan` (CPU), `indigo` (memory), `green` (uptime, healthy),
-`violet` (deploys, revisions), `teal` (databases), `rose` (cache), `slate`
-(workers, unknown). `TILE_HEX` in `hue.ts` mirrors them for canvases.
+`--tile-<color>-bg` / `--tile-<color>-fg` for `blue`, `cyan`, `indigo`,
+`green`, `violet`, `teal`, `rose` and `slate`: the colour of each resource
+type's tile (`RESOURCE_ICONS`, [Row icons](#row-icons)), of KPI cards
+(`cyan` CPU, `indigo` memory, `green` uptime, `violet` deploys) and the
+service hues. `TILE_HEX` in `hue.ts` mirrors them for canvases.
 
 ### Shape, spacing, elevation, motion, focus
 
@@ -107,31 +108,26 @@ ECharts.
 keys in its `changed` prop). `prefers-reduced-motion` turns it into a static
 marker and zeroes all durations.
 
-## Service hue identity
+## Service hues
 
-The memorable thing: **every service keeps one colour everywhere** — its
-icon tile in the services table, its name in the log viewer, its chart
-series and its filter chip — so "silo-db" can be followed across Overview,
-Logs and Metrics without reading.
+Every service has the **same tile** (`RESOURCE_ICONS.service`, blue): in
+the services table, the ⌘K hits and anywhere else a service shows an icon.
+Services (and stacks) have no icon or colour of their own. Where the output
+of several services is interleaved, **each service keeps one stable colour**
+so its lines can be told apart: its name in the stack's merged logs, its
+chart series and its filter chip.
 
 ```ts
-import { serviceIdentity, serviceHue, serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
-import { serviceIcon } from '$lib/design/icons';
+import { serviceHue, serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
 
-const id = serviceIdentity({ stackId, name: 'silo-db', image: 'postgres:16', icon: meta?.icon });
-// → { icon: 'database', color: 'teal' }
-<IconTile icon={serviceIcon(id.icon)} color={id.color} size="sm" />
-<span style="color: {TILE_HEX[id.color].fg}">silo-db</span>        // log prefix
+<IconTile {...resourceIcon('service')} size="sm" />                 // services table
+<span style="color: {TILE_HEX[serviceHue(stackId, 'silo-db')].fg}">silo-db</span> // log prefix
 series.color = serviceSeriesColor(stackId, 'silo-db');              // ECharts
 ```
 
 - The hue is FNV-1a of `stackId/serviceName` onto the eight tile colours:
   stable across sessions and browsers.
-- An explicit icon in the service's display metadata (#7) keeps its
-  **category** colour (`SERVICE_ICON_CATEGORY`); otherwise the icon comes
-  from the image heuristic (`postgres` → database, `redis` → layers,
-  `nginx`/`web` → globe, `worker` → cog, …) and the colour from the hue.
-- Only names in `SERVICE_ICONS` are valid icon overrides.
+- Never colour a service's tile with its hue: tiles are the type's.
 
 ## Type
 
@@ -282,21 +278,24 @@ icon, so a list is recognisable at a glance:
 - One map, `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`),
   gives each type one Lucide icon and one tile colour. The object's page
   header tile, its empty states, its ⌘K hits and the sidebar entry of a
-  section named after it (Containers, Jobs, …; Backups, Registries and
-  Access keep their own section icons) read the same map, so a type looks
-  the same everywhere.
+  section named after it (Containers, Jobs, …; Registries shows the
+  registry connection's key; Backups and Access keep their own section
+  icons) read the same map, so a type looks the same everywhere.
+  Registry connections and API tokens share the key icon and differ by
+  colour (slate, violet); they never meet in one list.
 - The row icon is an `IconTile size="xs"` (24 px, 14 px glyph) in a fixed
   24 px slot, centred on the name block, 12 px before the name. The
   colour is the type's as on its page header, never chosen per row; the
   only variations are the header's own (an offline environment is slate,
   Docker Manager's own containers violet).
-- Stacks show their own icon (`StackIcon size="xs"`: the chosen icon in
-  its category colour, the template's image, else the blue stack tile);
-  schedules show the icon of the policy they run (`scheduleResource`).
+- Stacks show `StackIcon size="xs"`: the image of the template the stack
+  was created from, else the blue stack tile (stacks have no icon of
+  their own); schedules show the icon of the policy they run
+  (`scheduleResource`).
 - Decorative (`aria-hidden`): the name stays the link, the stretched row
   link and the accessible label; marks and badges stay beside the name.
-  Nested tables of a detail page (a stack's services keep their hue
-  tiles, a policy's runs, revisions) have none.
+  Nested tables of a detail page (a policy's runs, revisions) have none;
+  a stack's services table shows the service tile on every row.
 
 ### Forms
 
@@ -361,7 +360,10 @@ the chart ("No samples since 12:40": offline intervals, #5), several
 lines get a text legend with their latest values, the figure is labelled
 with the latest value for assistive technology. `headline={false}` leaves out the
 value after the title when the legend already shows every line's value
-(network received and sent). Pure helpers in
+(network received and sent). A line with `dashed` is drawn and keyed
+dashed: a reference next to a solid line (backup storage before
+compression next to what is stored), so the two differ by more than
+colour. Pure helpers in
 `$lib/ui/timeseries.ts` (`gapIntervals`, `latestValue`, `formatValue`);
 the ECharts option is `timeSeriesOption` in `$lib/lazy` (unit-tested).
 Charts and sparklines apply data that arrives while ECharts is still
@@ -404,7 +406,7 @@ Show schedules in words with the expression as tooltip
 3. Build the page from `$lib/ui`: `PageHeader` (h1) → `TabNav` or KPI row →
    `Card`s with `Table`s. Headers: section pages have no icon tile, object
    pages have the object's tile (`{...resourceIcon(kind)}`; stacks: the
-   blue stack tile unless the user chose an icon), create pages repeat the button that opens them as
+   template's image when they were created from one), create pages repeat the button that opens them as
    their title ("Create update policy", "Build image"). Loading: `Skeleton` in an `aria-busy` region.
    Failure: `ErrorState` with `onretry={() => query.refetch()}`. Nothing
    yet: `EmptyState` with the action. Forbidden: hide the control (the

@@ -452,8 +452,9 @@ func TestValidateInMemory(t *testing.T) {
 		t.Errorf("binds %+v", out.Binds)
 	}
 	for _, s := range out.Services {
-		if s.Name == "db" && (s.Description != "Primary database" || s.Icon != "database" || s.Image != "registry.example:5000/db:16") {
-			t.Errorf("db %+v: .env interpolation and display labels", s)
+		// The former icon label is no longer read (services have no icon).
+		if s.Name == "db" && (s.Description != "Primary database" || s.Icon != "" || s.Image != "registry.example:5000/db:16") {
+			t.Errorf("db %+v: .env interpolation, the description label and no icon", s)
 		}
 	}
 	// Nothing was written.

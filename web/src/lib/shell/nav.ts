@@ -2,7 +2,6 @@
 // cannot use are hidden, not disabled. The filter only decides what to
 // show; the server still authorizes every request.
 import DatabaseBackup from '@lucide/svelte/icons/database-backup';
-import KeyRound from '@lucide/svelte/icons/key-round';
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import Settings from '@lucide/svelte/icons/settings';
 import Users from '@lucide/svelte/icons/users';
@@ -135,7 +134,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'registries',
 		label: 'Registries',
 		href: routes.registries(),
-		icon: KeyRound,
+		icon: RESOURCE_ICONS.registry.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'registry.')
 	},

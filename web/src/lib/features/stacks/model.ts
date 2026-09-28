@@ -2,7 +2,6 @@
 // into what the stack pages show. No Svelte, no fetch: tested in
 // model.spec.ts.
 import type { MyPermissions, Schema } from '$lib/api/client';
-import { SERVICE_ICON_CATEGORY, type TileColor } from '$lib/design/hue';
 import { networkEntries, type NetworkEntry } from '$lib/features/resources/model';
 import type {
 	ContainerMetrics,
@@ -15,22 +14,6 @@ import type {
 /** The name users see: the display name, else the Compose project name. */
 export function stackTitle(s: Pick<Stack, 'name' | 'displayName'>): string {
 	return s.displayName?.trim() || s.name;
-}
-
-/** The default stack icon (Lucide "layers"). */
-export const STACK_ICON = 'layers';
-
-/**
- * The stack's icon (Lucide name) and tile colour. Stacks use the blue
- * "stack" category tile (#22 brief), never a service hue. An icon override
- * in the display metadata keeps its category colour, except the default
- * stack icon itself ("layers" is also the cache icon, but on a stack it
- * means "stack").
- */
-export function stackIcon(s: Pick<Stack, 'icon'>): { icon: string; color: TileColor } {
-	const override = s.icon && s.icon in SERVICE_ICON_CATEGORY ? s.icon : null;
-	if (!override || override === STACK_ICON) return { icon: STACK_ICON, color: 'blue' };
-	return { icon: override, color: SERVICE_ICON_CATEGORY[override] };
 }
 
 /**

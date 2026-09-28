@@ -60,7 +60,7 @@ store: `internal/manager/store/templates.go`.
   `template.use` on the template. `GET /template-icons` (any signed-in
   user) maps registry + template to the current icon URL; the web joins it
   to `stack.template` (`StackIcon.svelte`), so icon changes need no stack
-  writes; a stack's own icon wins.
+  writes (stacks have no icon of their own).
 - The public registry (`api/template_registry.go`): `public` routes that
   never call `CheckerFor`; they only ever read templates that are public
   and have a version (`registryAPI.public`), throttle per client address

@@ -416,8 +416,10 @@ func statesFrom(in []protocol.ServiceState) []domain.StackServiceState {
 	return out
 }
 
-// importLabelMeta fills empty service display metadata from the
-// dev.neureka.docker-manager.* labels (never overwriting the user's metadata).
+// importLabelMeta fills empty service descriptions from the
+// dev.neureka.docker-manager.description label (never overwriting the
+// user's metadata). The former icon label is ignored: services have no
+// icon of their own.
 func importLabelMeta(st *domain.Stack, services []protocol.ComposeService) {
 	if st.ServiceMeta == nil {
 		st.ServiceMeta = map[string]domain.DisplayMeta{}
@@ -426,9 +428,6 @@ func importLabelMeta(st *domain.Stack, services []protocol.ComposeService) {
 		m := st.ServiceMeta[sv.Name]
 		if m.Description == "" {
 			m.Description = sv.Description
-		}
-		if m.Icon == "" {
-			m.Icon = sv.Icon
 		}
 		if m != (domain.DisplayMeta{}) {
 			st.ServiceMeta[sv.Name] = m

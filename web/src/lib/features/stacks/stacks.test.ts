@@ -5,11 +5,13 @@ import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import type { Environment } from '$lib/api/client';
 import { routes } from '$lib/routes';
+import { templateKeys } from '$lib/features/templates/queries';
 import DiffView from '$lib/ui/DiffView.svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import type { Stack, StackServiceStatus } from './queries';
 import ServicesTable from './ServicesTable.svelte';
 import StackHeader from './StackHeader.svelte';
+import StackIcon from './StackIcon.svelte';
 import { JobTray } from './tray.svelte';
 import ValidationResult from './ValidationResult.svelte';
 
@@ -43,6 +45,17 @@ beforeEach(() => {
 			new Response(JSON.stringify(body), {
 				status,
 				headers: { 'Content-Type': 'application/json' }
+			});
+		if (url.pathname.endsWith('/template-icons'))
+			return json(200, {
+				instanceId: 'inst-1',
+				items: [
+					{
+						instanceId: 'inst-1',
+						templateId: 'tpl-1',
+						url: '/api/v1/templates/tpl-1/icon?v=abc'
+					}
+				]
 			});
 		if (url.pathname.endsWith('/image-status'))
 			return json(200, {
@@ -449,6 +462,25 @@ describe('ServicesTable', () => {
 		).not.toBeInTheDocument();
 	});
 
+	it('shows every service with the same service tile, whatever its image or a leftover icon', () => {
+		const { container } = render(ServicesTable, {
+			props: {
+				stack: stack(),
+				services: [
+					{ ...services[0], image: 'postgres:16', icon: 'database' },
+					services[1]
+				] as StackServiceStatus[],
+				usage: null
+			}
+		});
+		const tiles = [...container.querySelectorAll('.svc > [data-color]')];
+		expect(tiles).toHaveLength(2);
+		for (const tile of tiles) {
+			expect(tile).toHaveAttribute('data-color', 'blue');
+			expect(tile.querySelector('svg')).toHaveClass('lucide-workflow');
+		}
+	});
+
 	it('offers each service its own start, stop and restart', async () => {
 		const user = setup();
 		const onoperate = vi.fn();
@@ -682,6 +714,64 @@ describe('ServicesTable', () => {
 			'aria-disabled',
 			'true'
 		);
+	});
+});
+
+describe('StackIcon', () => {
+	const icon = (s: Partial<Stack>) => {
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		const r = render(QueryHarness, {
+			props: {
+				client,
+				component: StackIcon as unknown as Component<Record<string, unknown>>,
+				props: { stack: s, size: 'xs' }
+			}
+		});
+		return { ...r, client };
+	};
+	const stackTile = (container: HTMLElement) => {
+		const tile = container.querySelector('[data-color]');
+		expect(tile).toHaveAttribute('data-color', 'blue');
+		expect(tile?.querySelector('svg')).toHaveClass('lucide-layers');
+		expect(container.querySelector('img')).toBeNull();
+	};
+
+	it('shows the stack tile, never an icon of the stack’s own', () => {
+		const { container } = icon({ icon: 'database' });
+		stackTile(container);
+		expect(seen.some((r) => r.path.endsWith('/template-icons'))).toBe(false);
+	});
+
+	it('shows the image of the template the stack was created from', async () => {
+		const { container } = icon({
+			template: {
+				instanceId: 'inst-1',
+				templateId: 'tpl-1',
+				name: 'Nextcloud',
+				version: 1,
+				versionLabel: '1.0.0'
+			}
+		});
+		await waitFor(() =>
+			expect(container.querySelector('img')).toHaveAttribute(
+				'src',
+				'/api/v1/templates/tpl-1/icon?v=abc'
+			)
+		);
+	});
+
+	it('keeps the stack tile when the template has no image', async () => {
+		const { container, client } = icon({
+			template: {
+				instanceId: 'inst-1',
+				templateId: 'tpl-2',
+				name: 'Wiki',
+				version: 1,
+				versionLabel: '1.0.0'
+			}
+		});
+		await waitFor(() => expect(client.getQueryData(templateKeys.icons())).toBeDefined());
+		stackTile(container);
 	});
 });
 

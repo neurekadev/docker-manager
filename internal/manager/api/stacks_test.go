@@ -28,7 +28,9 @@ type fakeStacks struct {
 	jobs    []domain.JobKind
 	online  bool
 	patches int
-	builds  []domain.StackBuildOptions
+	// lastPatch is the last metadata patch Update received.
+	lastPatch domain.StackPatch
+	builds    []domain.StackBuildOptions
 	// renames are the requested new names; renamePlan the preview.
 	renames    []string
 	renamePlan domain.StackRenamePlan
@@ -42,7 +44,7 @@ func newFakeStacks() *fakeStacks {
 	applied := &domain.RevisionRef{ID: "rev-2", Seq: 2, Hash: strings.Repeat("a", 64)}
 	return &fakeStacks{online: true, stacks: map[string]domain.Stack{
 		"st-1": {ID: "st-1", EnvironmentID: "env-1", Name: "shop", DisplayName: "Shop", Meta: domain.DisplayMeta{Description: "orders"},
-			ServiceMeta: map[string]domain.DisplayMeta{"web": {Icon: "globe"}}, Root: "stacks", Dir: "shop", Origin: "created",
+			ServiceMeta: map[string]domain.DisplayMeta{"web": {Description: "Web frontend"}}, Root: "stacks", Dir: "shop", Origin: "created",
 			Status: domain.StackDeployed, Applied: applied, AppliedAt: &now, Observed: &domain.RevisionRef{ID: "rev-3", Seq: 3, Hash: strings.Repeat("b", 64)},
 			Services:    []domain.StackServiceDef{{Name: "web", Image: "nginx:1.27", DependsOn: []domain.StackDependency{{Service: "db", Condition: "service_started", Required: true}}}},
 			Images:      []domain.StackImage{{Service: "web", Image: "nginx:1.27", ImageID: "sha256:img", Digest: "sha256:dig"}},
@@ -135,6 +137,7 @@ func (f *fakeStacks) Update(_ context.Context, id string, rev int64, p domain.St
 	st.Revision++
 	f.stacks[id] = st
 	f.patches++
+	f.lastPatch = p
 	return st, nil
 }
 
@@ -354,7 +357,7 @@ func TestStackReadDoesNotOpenTheDefinition(t *testing.T) {
 		t.Fatalf("get: %d %s", r.Status, r.Body)
 	}
 	if st.View != "full" || st.AppliedRevision == nil || st.SourceRevision == nil || !st.UndeployedChanges || len(st.Images) != 1 ||
-		st.Engine == nil || st.Engine.State != "running" || len(st.Services) != 1 || st.Services[0].Icon != "globe" {
+		st.Engine == nil || st.Engine.State != "running" || len(st.Services) != 1 || st.Services[0].Description != "Web frontend" {
 		t.Errorf("full view %+v", st)
 	}
 	// Bind sources come from the Compose definition, and host paths follow
@@ -575,6 +578,54 @@ func TestStackErrorMapping(t *testing.T) {
 	rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
 	if !strings.Contains(string(rr.Body), `"readOnly":true`) {
 		t.Errorf("offline get %s", rr.Body)
+	}
+}
+
+// TestStackIconIsDeprecatedAndIgnored: stacks and services have no icon
+// of their own any more. The deprecated icon request members are still
+// accepted (clients that send them keep working) but ignored, and no
+// response carries an icon.
+func TestStackIconIsDeprecatedAndIgnored(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.New().Owner("own"))
+	noIcon := func(what string, r authztest.Response) {
+		t.Helper()
+		if strings.Contains(string(r.Body), `"icon"`) {
+			t.Errorf("%s returns an icon: %s", what, r.Body)
+		}
+	}
+	r := authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks",
+		Body: map[string]any{"environmentId": "env-1", "name": "shop", "icon": "globe", "compose": "services: {}\n"}})
+	if r.Status != http.StatusCreated {
+		t.Fatalf("create with an icon: %d %s", r.Status, r.Body)
+	}
+	noIcon("create", r)
+
+	// A service entry with an empty description and an icon clears the
+	// service's metadata: the icon is not passed on.
+	r = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPatch, Path: "/api/v1/stacks/st-1",
+		Headers: map[string]string{"If-Match": `"4"`},
+		Body:    map[string]any{"displayName": "Shop", "icon": "globe", "services": map[string]any{"web": map[string]any{"description": "", "icon": "database"}}}})
+	if r.Status != http.StatusOK {
+		t.Fatalf("edit with icons: %d %s", r.Status, r.Body)
+	}
+	noIcon("edit", r)
+	if m, ok := svc.lastPatch.Services["web"]; !ok || m != (domain.DisplayMeta{}) {
+		t.Errorf("service metadata passed on %+v", svc.lastPatch.Services)
+	}
+	for _, path := range []string{"/api/v1/stacks/st-1", "/api/v1/stacks", "/api/v1/stacks/st-1/services"} {
+		noIcon(path, authztest.Do(t, h, "own", authztest.Call{Method: http.MethodGet, Path: path}))
+	}
+
+	r = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/environments/env-1/stacks/imports",
+		Body: map[string]any{"projectName": "legacy", "icon": "globe"}})
+	if r.Status != http.StatusCreated {
+		t.Fatalf("import with an icon: %d %s", r.Status, r.Body)
+	}
+	noIcon("import", r)
+	r = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/environments/env-1/stacks/import-copies",
+		Headers: map[string]string{"Idempotency-Key": "k-icon"}, Body: map[string]any{"projectName": "legacy", "icon": "globe"}})
+	if r.Status != http.StatusAccepted {
+		t.Errorf("import by copy with an icon: %d %s", r.Status, r.Body)
 	}
 }
 

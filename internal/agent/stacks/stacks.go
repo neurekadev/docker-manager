@@ -329,7 +329,7 @@ func serviceInfos(p *compose.Project) []protocol.ComposeService {
 	out := make([]protocol.ComposeService, 0, len(p.Services))
 	for _, s := range p.Services {
 		cs := protocol.ComposeService{Name: s.Name, Image: s.Image, Build: s.Build, Profiles: s.Profiles,
-			Description: s.Description, Icon: s.Icon, PullPolicy: s.PullPolicy}
+			Description: s.Description, PullPolicy: s.PullPolicy}
 		for _, d := range s.DependsOn {
 			cs.DependsOn = append(cs.DependsOn, protocol.ComposeDependency{Service: d.Service, Condition: d.Condition, Required: d.Required, Restart: d.Restart})
 		}

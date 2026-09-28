@@ -317,6 +317,32 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   uncompressed size, ratio, compression progress, restic snapshot count,
   `stats_at`). Repositories expose the sum as `storage` (with every measured
   location, so views can filter by environment).
+- **Storage history.** Every stats update (`store.UpsertBackupLocation`
+  with `Stats`) also appends a sample to `backup_storage_samples`
+  (repository, scope, time, stored and uncompressed bytes), at most one
+  per location and UTC hour (a later measurement in the hour replaces
+  it). It lives in the manager database, not `metrics.db`: it is backup
+  history the owner expects back after a manager-state restore (sets and
+  the index are there too), it is tiny (one row per measurement) and the
+  aggregation needs the repositories for authorization; `metrics.db` is
+  expendable, excluded from manager-state backups and written only
+  through `Store.Ingest` in 10 s slots. Samples older than two years are
+  pruned on every append, except each location's newest older one (its
+  value carries into the kept range); a zero sample without anything
+  newer goes too. Removing a repository appends a zero sample to each of
+  its locations (`store.EndBackupStorage`, in the removal's transaction;
+  no foreign key), so it counts until its removal and not afterwards.
+  The migration seeds every measured location's current size as its
+  first sample. `GET /backup-storage/history?from=&to=&environmentId=`
+  (`backup_repository.read`, filtered per repository like the storage
+  figures; default the last 30 days, at most 731) returns a point at
+  `from`, at every whole UTC hour (ranges up to 8 days) or day in between
+  and at `to` (clamped to now); each point is the sum over the readable
+  locations of their latest sample at or before it (carried forward;
+  `null` before the first). The overview's **Storage over time** card
+  draws stored (solid) and before compression (dashed; never below
+  stored), the last 30 days by default (7 days, 90 days, a year), with a
+  sentence on the change and the figures as a table.
 
 ## Restores (host data)
 
@@ -370,7 +396,7 @@ into a fresh manager (below), never over a running one.
 
 **UI.** The Backups section has three tabs: **Overview** (setup steps,
 KPIs, running backups, the policies as its main table, recent runs,
-storage), **Backups** (every backup grouped by run, with Restore per run)
+storage and storage over time), **Backups** (every backup grouped by run, with Restore per run)
 and **Repositories**. `/backups/policies` redirects to the overview;
 restic's raw snapshots (`/backups/snapshots?repository=`) open from a
 repository page. The header's primary action is "Create backup policy"

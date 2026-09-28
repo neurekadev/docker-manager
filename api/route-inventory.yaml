@@ -2414,6 +2414,15 @@ routes:
     status: implemented
     notes: "201 + the retention jobs (one per location); Idempotency-Key; confirm: true."
   - method: GET
+    path: /api/v1/backup-storage/history
+    operationId: get-backup-storage-history
+    capability: backup_repository.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: implemented
+    notes: "Stored and uncompressed bytes over time, summed over the repositories read in full; hourly up to 8 days, else daily."
+  - method: GET
     path: /api/v1/backup-activity
     operationId: list-backup-activity
     capability: job.read

@@ -113,6 +113,13 @@ The **Overview** tab shows your policies with their last and next run.
 The **Backups** tab lists every backup. A stack's or volume's **Backups**
 tab says which policy covers it and when it runs next.
 
+**Storage over time** on the **Overview** tab shows how much space your
+backups take in the repositories. **Stored** is the space they really
+use, after repeated data is kept once and the rest is compressed.
+**Before compression** is the same data without compression. The chart
+shows the last 30 days; choose another range next to its title. It
+changes after each backup and each time retention removes old backups.
+
 ## What is not backed up
 
 - Folders of the server that a stack mounts from outside its own folder,

@@ -13,6 +13,7 @@ import type {
 	RepositoryHealth,
 	ResticLocation
 } from './model';
+import { storageRangeFrom, type StorageHistory } from './storageHistory';
 
 export interface BackupFilter {
 	repositoryId?: string;
@@ -33,7 +34,9 @@ export const backupKeys = {
 	policy: (id: string) => liveKeys.item('policies', id),
 	backups: (f: BackupFilter) => liveKeys.list('backups', 'snapshots', f),
 	backup: (id: string) => liveKeys.item('backups', id),
-	contents: (id: string, path: string) => liveKeys.item('backups', id, 'contents', path)
+	contents: (id: string, path: string) => liveKeys.item('backups', id, 'contents', path),
+	storageHistory: (range: string, environmentId: string | null) =>
+		liveKeys.list('backups', 'storage-history', { range, environmentId })
 };
 
 export function repositoriesQuery(client: ApiClient = api) {
@@ -49,6 +52,33 @@ export function repositoriesQuery(client: ApiClient = api) {
 				)
 			),
 		staleTime: 15_000
+	});
+}
+
+/**
+ * What the repositories stored over a range ending now (hourly points for
+ * 7 days, daily beyond), optionally only one environment's locations.
+ */
+export function storageHistoryQuery(
+	range: string,
+	environmentId: string | null,
+	client: ApiClient = api
+) {
+	return queryOptions({
+		queryKey: backupKeys.storageHistory(range, environmentId),
+		queryFn: ({ signal }): Promise<StorageHistory> =>
+			unwrap(
+				client.GET('/api/v1/backup-storage/history', {
+					params: {
+						query: {
+							from: storageRangeFrom(range),
+							environmentId: environmentId ?? undefined
+						}
+					},
+					signal
+				})
+			),
+		staleTime: 60_000
 	});
 }
 

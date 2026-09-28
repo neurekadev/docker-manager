@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import KeyRound from '@lucide/svelte/icons/key-round';
+import Layers from '@lucide/svelte/icons/layers';
+import Workflow from '@lucide/svelte/icons/workflow';
 import { TILE_COLORS } from '$lib/design/hue';
 import { NAV_ITEMS } from '$lib/shell/nav';
 import NameCell from './NameCell.svelte';
@@ -26,6 +29,18 @@ describe('resource icons (#22 list rows)', () => {
 		expect(icon('volumes')).toBe(RESOURCE_ICONS.volume.icon);
 		expect(icon('jobs')).toBe(RESOURCE_ICONS.job.icon);
 		expect(icon('updates')).toBe(RESOURCE_ICONS.updatePolicy.icon);
+		expect(icon('registries')).toBe(RESOURCE_ICONS.registry.icon);
+	});
+
+	it('shows registry connections with the key icon, apart from API tokens by colour', () => {
+		expect(RESOURCE_ICONS.registry.icon).toBe(KeyRound);
+		expect(RESOURCE_ICONS.apiToken.icon).toBe(KeyRound);
+		expect(RESOURCE_ICONS.registry.color).not.toBe(RESOURCE_ICONS.apiToken.color);
+	});
+
+	it('gives stacks and services one icon each (they have none of their own)', () => {
+		expect(RESOURCE_ICONS.stack).toEqual({ icon: Layers, color: 'blue' });
+		expect(RESOURCE_ICONS.service).toEqual({ icon: Workflow, color: 'blue' });
 	});
 
 	it('shows an offline environment in slate', () => {

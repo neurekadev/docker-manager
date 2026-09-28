@@ -1,18 +1,20 @@
 <script lang="ts">
 	// A template's icon (template registry): the uploaded image in the icon
 	// tile's frame, or the template glyph when there is none (or it fails to
-	// load). Icons are only ever rendered with <img>, which runs no scripts;
+	// load; `fallback` replaces the glyph, e.g. a stack's tile). Icons are only ever rendered with <img>, which runs no scripts;
 	// the URL carries the icon's hash, so a changed icon is a new URL.
 	// Decorative: the adjacent text names the template.
-	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
+	import { resourceIcon, type ResourceIcon } from '$lib/features/common/resourceIcons';
 	import { IconTile } from '$lib/ui';
 
 	interface Props {
 		url?: string | null;
 		size?: 'xs' | 'sm' | 'md' | 'lg';
+		/** The tile shown without an image (default: the template tile). */
+		fallback?: ResourceIcon;
 	}
 
-	let { url, size = 'md' }: Props = $props();
+	let { url, size = 'md', fallback = resourceIcon('template') }: Props = $props();
 	let failed = $state<string | null>(null);
 	const show = $derived(!!url && failed !== url);
 </script>
@@ -28,7 +30,7 @@
 		/>
 	</span>
 {:else}
-	<IconTile icon={LayoutTemplate} color="violet" {size} />
+	<IconTile {...fallback} {size} />
 {/if}
 
 <style>

@@ -7,7 +7,6 @@ export interface DemoService {
 	name: string;
 	description: string;
 	image: string;
-	icon?: string;
 	status: string;
 	running: number;
 	desired: number;
@@ -24,7 +23,6 @@ export const demoServices: DemoService[] = [
 		name: 'silo-web',
 		description: 'Web frontend',
 		image: 'ghcr.io/silo/web:latest',
-		icon: 'globe',
 		status: 'running',
 		running: 1,
 		desired: 1,
@@ -37,7 +35,6 @@ export const demoServices: DemoService[] = [
 		name: 'silo-api',
 		description: 'Backend API',
 		image: 'ghcr.io/silo/api:latest',
-		icon: 'box',
 		status: 'running',
 		running: 1,
 		desired: 1,
@@ -50,7 +47,6 @@ export const demoServices: DemoService[] = [
 		name: 'silo-db',
 		description: 'PostgreSQL',
 		image: 'postgres:16',
-		icon: 'database',
 		status: 'running',
 		running: 1,
 		desired: 1,
@@ -63,7 +59,6 @@ export const demoServices: DemoService[] = [
 		name: 'silo-redis',
 		description: 'Redis cache',
 		image: 'redis:7-alpine',
-		icon: 'layers',
 		status: 'running',
 		running: 1,
 		desired: 1,
@@ -76,7 +71,6 @@ export const demoServices: DemoService[] = [
 		name: 'silo-worker',
 		description: 'Background worker',
 		image: 'ghcr.io/silo/worker:latest',
-		icon: 'cog',
 		status: 'restarting',
 		running: 0,
 		desired: 1,

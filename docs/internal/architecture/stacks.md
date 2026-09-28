@@ -258,8 +258,23 @@ never carry it.
 
 ### Details and links
 
-Display name, description, icon, per-service metadata and **links** are
-Docker Manager metadata, never written to Compose files. Links
+Display name, description, per-service descriptions and **links** are
+Docker Manager metadata, never written to Compose files. A service's
+description is filled once from its `dev.neureka.docker-manager.description`
+label when it has none (`importLabelMeta`).
+
+Stacks and services have **no icon** of their own: the web shows the stack
+tile (or the image of the template the stack was created from) and one
+service tile for every service. The former `icon` members of `POST
+/stacks`, `PATCH /stacks/{stackId}` (the stack's and each service's) and
+the two imports are deprecated and ignored; the `icon` members of the
+stack and service responses are deprecated and never returned. Migration
+`20260928192810_clear_stack_icons` cleared the stored icons (the
+`stacks.icon` column stays, unused) and the `dev.neureka.docker-manager.icon`
+label is no longer read (`protocol.ComposeService.Icon` stays, deprecated,
+so results of agents of the previous version still decode).
+
+Links
 (`domain.Link`: optional label, URL; `stacks.links`, a JSON list in the
 user's order, migration `20260928180542_stack_template_links`) point to
 the stack's documentation, website or repository. They come with a

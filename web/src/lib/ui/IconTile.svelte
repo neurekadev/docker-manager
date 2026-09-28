@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Icon tile (#22): the mockup's rounded square with a translucent tint and
-	// a saturated icon. Colour is a category (TileColor) or a service hue
-	// (serviceIdentity / serviceHue in $lib/design/hue). Decorative: the
+	// a saturated icon. Colour is the resource type's category (TileColor,
+	// RESOURCE_ICONS in $lib/features/common/resourceIcons). Decorative: the
 	// adjacent text names the thing. Sizes live in CSS classes (not inline
 	// styles) so a container can shrink a tile, e.g. the compact KPI card.
 	// `xs` is the row icon before a name in lists (IconCell).

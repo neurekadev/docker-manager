@@ -13,7 +13,7 @@
 	import type { Snippet } from 'svelte';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import { api, ApiRequestError, unwrap } from '$lib/api/client';
-	import { serviceIdentity } from '$lib/design/hue';
+	import { serviceHue } from '$lib/design/hue';
 	import { stackQuery, stackServicesQuery } from '$lib/features/files/resources';
 	import { routes } from '$lib/routes';
 	import { EmptyState, ErrorState, Skeleton, errorMessage } from '$lib/ui';
@@ -119,13 +119,8 @@
 		if (!env || !services.data) return null;
 		const stackId = t.stackId;
 		return services.data.services.flatMap((svc) => {
-			// The same colour as the service's tile in the services table.
-			const color = serviceIdentity({
-				stackId,
-				name: svc.name,
-				image: svc.image,
-				icon: svc.icon
-			}).color;
+			// The service's stable hue, so its lines stand out in the merged logs.
+			const color = serviceHue(stackId, svc.name);
 			return svc.containers
 				.filter((c) => c.name)
 				.map((c) => ({

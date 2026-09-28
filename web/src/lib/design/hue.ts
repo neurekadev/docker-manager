@@ -1,11 +1,11 @@
-// Service hue identity (#22 design brief, "the one memorable thing"): every
-// service gets a stable tile colour derived from stackId + serviceName, so
-// "silo-db" has the same colour in the services table, the log viewer's
-// name prefix, its chart series and its filter chip. An explicit icon in
-// the service's display metadata keeps its category colour instead.
+// Tile colours and service hues (#22). Services share one tile (the
+// service entry of RESOURCE_ICONS); where several services' output is
+// interleaved (a stack's merged logs, metrics chart series) each service
+// gets a stable colour derived from stackId + serviceName, so its lines and
+// series can be told apart.
 //
-// Pure functions; no Svelte. Components: IconTile, ServiceChip (feature
-// views), chart series (serviceSeriesColor).
+// Pure functions; no Svelte. Components: IconTile, the log viewer, chart
+// series (serviceSeriesColor).
 
 /** The eight category tile colours of the mockup (tokens --tile-<c>-bg/fg). */
 export const TILE_COLORS = [
@@ -58,73 +58,4 @@ export const TILE_HEX: Record<TileColor, { bg: string; fg: string }> = {
 /** A service's chart series colour (its hue's icon colour). */
 export function serviceSeriesColor(stackId: string, serviceName: string): string {
 	return TILE_HEX[serviceHue(stackId, serviceName)].fg;
-}
-
-/**
- * Service icon names (Lucide, kebab-case as stored in display metadata)
- * with their category colour. Unknown names fall back to "box".
- */
-export const SERVICE_ICON_CATEGORY: Record<string, TileColor> = {
-	globe: 'blue',
-	box: 'blue',
-	server: 'blue',
-	'app-window': 'blue',
-	database: 'teal',
-	'hard-drive': 'teal',
-	layers: 'rose',
-	zap: 'rose',
-	cog: 'slate',
-	workflow: 'slate',
-	clapperboard: 'violet',
-	film: 'violet',
-	shield: 'green',
-	'message-square': 'indigo',
-	cpu: 'cyan'
-};
-
-export interface ServiceIdentity {
-	/** Lucide icon name (a key of SERVICE_ICON_CATEGORY). */
-	icon: string;
-	color: TileColor;
-}
-
-const IMAGE_RULES: [RegExp, string][] = [
-	[
-		/(^|[/-])(postgres|postgis|mysql|mariadb|mongo|cockroach|clickhouse|influxdb|timescale|couchdb)/,
-		'database'
-	],
-	[/(^|[/-])(redis|valkey|memcached|keydb|dragonfly)/, 'layers'],
-	[/(^|[/-])(nginx|caddy|traefik|httpd|haproxy|apache|envoy|web)([:/-]|$)/, 'globe'],
-	[/(worker|celery|sidekiq|queue|cron)/, 'cog'],
-	[/(jellyfin|plex|emby)/, 'clapperboard'],
-	[/(rabbitmq|nats|mosquitto|kafka)/, 'message-square']
-];
-
-/** Lucide icon for an image reference or service name (#22 heuristic). */
-export function iconForImage(image: string, serviceName = ''): string {
-	const probe = `${image.toLowerCase()} ${serviceName.toLowerCase()}`;
-	for (const [re, icon] of IMAGE_RULES) if (re.test(probe)) return icon;
-	return 'box';
-}
-
-/**
- * A service's icon and tile colour. With an explicit icon override the
- * icon keeps its category colour; otherwise the icon comes from the image
- * heuristic and the colour from the stable hue.
- */
-export function serviceIdentity(opts: {
-	stackId: string;
-	name: string;
-	image?: string;
-	icon?: string | null;
-}): ServiceIdentity {
-	const override = opts.icon?.trim();
-	if (override) {
-		const icon = override in SERVICE_ICON_CATEGORY ? override : 'box';
-		return { icon, color: SERVICE_ICON_CATEGORY[icon] };
-	}
-	return {
-		icon: iconForImage(opts.image ?? '', opts.name),
-		color: serviceHue(opts.stackId, opts.name)
-	};
 }

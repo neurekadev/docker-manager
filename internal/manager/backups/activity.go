@@ -112,3 +112,9 @@ func (s *Service) Activity(ctx context.Context) ([]BackupActivity, error) {
 func (s *Service) ListLocations(ctx context.Context, repositoryID string) ([]domain.BackupLocation, error) {
 	return store.ListBackupLocations(ctx, s.db, repositoryID)
 }
+
+// StorageHistory returns the storage of the selected locations over time
+// (the sum of each location's latest measurement at every point).
+func (s *Service) StorageHistory(ctx context.Context, q domain.BackupStorageQuery) ([]domain.BackupStoragePoint, error) {
+	return store.BackupStorageHistory(ctx, s.db, q)
+}

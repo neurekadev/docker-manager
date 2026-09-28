@@ -1,8 +1,8 @@
 <script lang="ts">
 	// A list row's name with its type icon before it (#22): a small tile in
 	// the resource type's colour (resourceIcons.ts) in a fixed 24 px slot,
-	// then the name cell's content. `media` replaces the tile with an
-	// object's own icon (a stack's StackIcon size="xs"). The icon is
+	// then the name cell's content. `media` replaces the tile with a
+	// stack's template image (StackIcon size="xs"). The icon is
 	// decorative: the name stays the row's accessible label and link.
 	import type { Snippet } from 'svelte';
 	import type { TileColor } from '$lib/design/hue';

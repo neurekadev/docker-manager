@@ -38,6 +38,12 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `backup.compression`.
 - Features that remove environments (#34) or migrate data (#35) must keep
   backup repositories, sets and snapshots (instance history).
+- A location's measured size changes only through
+  `store.UpsertBackupLocation` with `Stats`, which also appends the
+  storage-history sample (`backup_storage_samples`); anything that stops
+  a repository from counting (removal) appends zero samples with
+  `store.EndBackupStorage` in the same transaction. Never delete samples
+  by hand outside `PruneBackupStorageSamples`.
 - Manager-state restores happen only in a fresh manager (setup import,
   `backup.import`, then `app.Run`'s controlled restart applying
   `<data>/restore-pending`); never swap the database of a running manager.
