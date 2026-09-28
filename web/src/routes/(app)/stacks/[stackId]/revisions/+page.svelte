@@ -424,7 +424,7 @@
 						icon={History}
 						color="violet"
 						title="No revisions yet."
-						description="Docker Manager records one at every deploy and whenever the files change."
+						description="Docker Manager records one whenever the files change."
 						level={3}
 						compact
 					/>

@@ -289,6 +289,29 @@ func (s *Service) recordRevision(ctx context.Context, db bun.IDB, st *domain.Sta
 	return rev, nil
 }
 
+// deployedRevision is the revision of the bytes a deploy (or an import or
+// rename, which deploy too) reported: the stack's newest observed revision
+// or else its applied one when either has the same hash, since a revision
+// is a version of the definition files and redeploying them (to run a
+// pulled image, say) changes none; otherwise a new "deploy" revision. It
+// makes the result the observed revision.
+func (s *Service) deployedRevision(ctx context.Context, db bun.IDB, st *domain.Stack, snap protocol.SourceSnapshot, j domain.Job) (*domain.RevisionRef, error) {
+	now := s.now()
+	for _, ref := range []*domain.RevisionRef{st.Observed, st.Applied} {
+		if ref != nil && ref.Hash == snap.Hash {
+			same := *ref
+			st.Observed, st.ObservedAt = &same, &now
+			return &same, nil
+		}
+	}
+	rev, err := s.recordRevision(ctx, db, st, snap, domain.RevisionDeploy, initiator(j), j.ID, "")
+	if err != nil {
+		return nil, err
+	}
+	st.Observed, st.ObservedAt = rev.Ref(), &now
+	return rev.Ref(), nil
+}
+
 // observe records snap as observed on disk when it differs from the newest
 // observed revision (deduplicated by hash). It reports whether a revision
 // was recorded.

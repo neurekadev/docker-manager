@@ -153,12 +153,13 @@ func TestDeployRecordsAppliedRevisionAndLeavesSourcesUntouched(t *testing.T) {
 		t.Fatalf("deploy %s: %s %s", j.State, j.ErrorClass, j.ErrorMessage)
 	}
 	st = h.get(st.ID)
-	if st.Status != domain.StackDeployed || st.Applied == nil || st.Applied.Seq != 2 || st.UndeployedChanges() {
+	if st.Status != domain.StackDeployed || st.Applied == nil || st.Applied.Seq != 1 || st.UndeployedChanges() {
 		t.Fatalf("after deploy: status %s applied %+v observed %+v", st.Status, st.Applied, st.Observed)
 	}
-	revs := revisions(t, h, st.ID)
-	if revs[0].Source != domain.RevisionDeploy || revs[0].JobID != j.ID || revs[0].AuthorUserID != "alice" || revs[0].Hash != revs[1].Hash {
-		t.Errorf("deploy revision %+v (created %+v)", revs[0], revs[1])
+	// The deployed bytes are the created ones: the deploy applies that
+	// revision rather than numbering the same files again.
+	if revs := revisions(t, h, st.ID); len(revs) != 1 || revs[0].ID != st.Applied.ID || revs[0].Source != domain.RevisionEditor {
+		t.Errorf("revisions after deploy %+v", revs)
 	}
 	// Deploys only read: the Compose and env files are byte-for-byte the
 	// ones created, and nothing wrote them.
@@ -197,7 +198,7 @@ func TestObservedChangesAndRestore(t *testing.T) {
 	edited := strings.Replace(shopYAML, "nginx:1.27", "nginx:1.28", 1)
 	h.write(edited, "shop", "compose.yaml")
 	rev, err := h.svc.RecordObserved(h.ctx, st.ID, domain.RevisionExternal, authz.Service())
-	if err != nil || rev == nil || rev.Seq != 3 || rev.Source != domain.RevisionExternal {
+	if err != nil || rev == nil || rev.Seq != 2 || rev.Source != domain.RevisionExternal {
 		t.Fatalf("observed %+v %v", rev, err)
 	}
 	st = h.get(st.ID)
@@ -248,7 +249,7 @@ func TestObservedChangesAndRestore(t *testing.T) {
 	for _, r := range revisions(t, h, st.ID) {
 		seqs = append(seqs, r.Seq)
 	}
-	if !slices.Equal(seqs, []int64{6, 5, 4, 3, 2, 1}) {
+	if !slices.Equal(seqs, []int64{5, 4, 3, 2, 1}) {
 		t.Errorf("history %v", seqs)
 	}
 }
@@ -370,9 +371,9 @@ func TestTwoDeploysOfAStackSerialize(t *testing.T) {
 	if h.job(second.ID).State != domain.JobSucceeded {
 		t.Error("second deploy did not succeed")
 	}
-	// Each deploy recorded its own revision.
-	if n := len(revisions(t, h, st.ID)); n != 3 {
-		t.Errorf("%d revisions, want create + two deploys", n)
+	// Deploying the same files twice numbers no new revision.
+	if n := len(revisions(t, h, st.ID)); n != 1 {
+		t.Errorf("%d revisions, want only the creation's", n)
 	}
 }
 

@@ -140,14 +140,11 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 		return s.forget(ctx, db, st, j, "stack import did not switch to the copy; the stack is forgotten")
 	}
 	now := s.now()
-	var rev *domain.StackRevision
+	var rev *domain.RevisionRef
 	if ok && out.Sources != nil {
-		r, err := s.recordRevision(ctx, db, &st, *out.Sources, domain.RevisionDeploy, initiator(j), j.ID, "")
-		if err != nil {
+		if rev, err = s.deployedRevision(ctx, db, &st, *out.Sources, j); err != nil {
 			return err
 		}
-		rev = &r
-		st.Observed, st.ObservedAt = r.Ref(), &now
 	}
 	if ok {
 		st.PreviousState = statesFrom(out.Before)
@@ -168,7 +165,7 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 		st.Failed, st.Images = nil, nil
 		st.AppliedAt = &now
 		if rev != nil {
-			st.Applied = rev.Ref()
+			st.Applied = rev
 		}
 		for _, i := range out.Images {
 			st.Images = append(st.Images, domain.StackImage{Service: i.Service, Image: i.Image, ImageID: i.ImageID,
@@ -177,7 +174,7 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 	default: // failed after the switch: deploy to finish
 		st.Status = domain.StackFailed
 		if rev != nil {
-			st.Failed = rev.Ref()
+			st.Failed = rev
 		}
 	}
 	st.UpdatedAt = now

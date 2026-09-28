@@ -245,14 +245,11 @@ func (s *Service) onRenameFinished(ctx context.Context, db bun.IDB, j domain.Job
 		st.Revision++
 	}
 	now := s.now()
-	var rev *domain.StackRevision
+	var rev *domain.RevisionRef
 	if out.Sources != nil {
-		r, err := s.recordRevision(ctx, db, &st, *out.Sources, domain.RevisionDeploy, initiator(j), j.ID, "")
-		if err != nil {
+		if rev, err = s.deployedRevision(ctx, db, &st, *out.Sources, j); err != nil {
 			return err
 		}
-		rev = &r
-		st.Observed, st.ObservedAt = r.Ref(), &now
 	}
 	st.PreviousState = statesFrom(out.Before)
 	if len(out.Services) > 0 {
@@ -271,7 +268,7 @@ func (s *Service) onRenameFinished(ctx context.Context, db bun.IDB, j domain.Job
 		}
 		st.Failed = nil
 		if rev != nil {
-			st.Applied, st.AppliedAt, st.Images = rev.Ref(), &now, nil
+			st.Applied, st.AppliedAt, st.Images = rev, &now, nil
 			for _, i := range out.Images {
 				st.Images = append(st.Images, domain.StackImage{Service: i.Service, Image: i.Image, ImageID: i.ImageID,
 					Digest: i.Digest, Platform: i.Platform, Build: i.Build})
@@ -280,7 +277,7 @@ func (s *Service) onRenameFinished(ctx context.Context, db bun.IDB, j domain.Job
 	default: // failed after the switch: deploy to finish
 		st.Status = domain.StackFailed
 		if rev != nil {
-			st.Failed = rev.Ref()
+			st.Failed = rev
 		}
 	}
 	st.UpdatedAt = now

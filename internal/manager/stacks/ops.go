@@ -564,8 +564,9 @@ func initiator(j domain.Job) authz.Principal {
 }
 
 // onDeployFinished records the applied revision (the bytes the agent
-// deployed, a new "deploy" revision at every deploy), the applied images and
-// the observed state. A deploy that failed while applying keeps the last
+// deployed: the existing revision of those bytes, or a new "deploy"
+// revision when the files changed), the applied images and the observed
+// state. A deploy that failed while applying keeps the last
 // applied revision and records the failed one and the pre-deploy state for
 // recovery; a deploy that failed before applying changes nothing.
 func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job) error {
@@ -578,14 +579,11 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 	}
 	out, ok := s.output(j)
 	now := s.now()
-	var rev *domain.StackRevision
+	var rev *domain.RevisionRef
 	if ok && out.Sources != nil {
-		r, err := s.recordRevision(ctx, db, &st, *out.Sources, domain.RevisionDeploy, initiator(j), j.ID, "")
-		if err != nil {
+		if rev, err = s.deployedRevision(ctx, db, &st, *out.Sources, j); err != nil {
 			return err
 		}
-		rev = &r
-		st.Observed, st.ObservedAt = r.Ref(), &now
 	}
 	switch {
 	case j.State == domain.JobSucceeded:
@@ -599,7 +597,7 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 		}
 		st.Images = nil
 		if rev != nil {
-			st.Applied = rev.Ref()
+			st.Applied = rev
 		} else {
 			// The deploy succeeded but its report was lost: what is applied
 			// is unknown, so the stack shows undeployed changes until the
@@ -616,7 +614,7 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 		}
 	case rev != nil: // failed while applying
 		st.Status = domain.StackFailed
-		st.Failed = rev.Ref()
+		st.Failed = rev
 		st.PreviousState = statesFrom(out.Before)
 	}
 	if ok && out.After != nil {

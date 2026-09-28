@@ -45,6 +45,10 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   follows a rename through `stacks.Service.OnRenamed` (transactional, like
   `Migrations().OnStackMoved`); outside containers need the caller's own
   container rights (`StackJobRequest.MayRecreate`).
+- A revision is a version of the definition files, never a deploy: the
+  deploy, import and rename finish hooks resolve reported sources with
+  `stacks.Service.deployedRevision` (reuses the observed or applied
+  revision of the same hash), and a digest update never records one.
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:

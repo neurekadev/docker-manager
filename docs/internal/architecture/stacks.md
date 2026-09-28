@@ -24,12 +24,17 @@ The definition files on disk are authoritative. The manager keeps:
   secret-protection key because `.env` holds secrets, #25: no secret store)
   plus its hash (`protocol.SourceHash`: SHA-256 over `"<sha256>  <path>\n"`
   lines sorted by path; the agent computes the same). Sources:
-  `deploy` (every deploy, from the bytes the agent deployed), `editor`
+  `deploy` (a deploy of bytes no revision holds yet), `editor`
   (created or imported with an explicit source), `file_manager` (a save
   through #15), `external` (an edit observed on disk: #23's watcher,
   reconciliation after an agent reconnect, adoption in place), `restore`.
-  The author (user, API token) is audit metadata. Observations are
-  deduplicated by hash; every deploy records a revision.
+  The author (user, API token) is audit metadata. A revision is a version
+  of the files, not a deploy: observations are deduplicated by hash, and a
+  deploy (or an import or rename) whose bytes the newest observed revision
+  or else the applied one holds reuses that revision
+  (`stacks.Service.deployedRevision`), so redeploying unchanged files (to
+  run a pulled image) or a digest update (#20) never numbers a new one.
+  Deploys themselves are in the job history and the audit log.
 - **Deployment intent** on the stack: the **applied revision** (last
   successful deploy), applied images (reference, image ID, repository
   digest, platform: #20's baseline), the services, binds and dependency
@@ -103,11 +108,12 @@ agent's steps:
    fails.
 
 The manager's finish hook (`jobs.Engine.OnFinish`, in the job's finishing
-transaction) records a `deploy` revision from the reported sources and, on
+transaction) resolves the reported sources to their revision (the
+existing one with the same hash, otherwise a new `deploy` revision) and, on
 success, makes it the applied revision. The agent compares every container's
 start time before and after `up`: a deploy that started no container (none
 created, recreated or restarted) reports `unchanged`, and the manager then
-keeps the stack's last deploy time (the applied revision still moves).
+keeps the stack's last deploy time (the applied revision is still set).
 **The agent never writes
 definition files during a deploy**; only `compose.write` (stack creation
 and explicit restores) writes them.
@@ -213,9 +219,10 @@ project, so the agent carries the data over (`internal/agent/stacks/rename.go`):
 After the switch the stack lives under the new name even when the job
 fails; the manager's finish hook records the new name and directory (a new
 revision, so the ETag changes) and, like an import, the definition the
-rename created as a `deploy` revision; `stacks.Service.OnRenamed` hooks run
-in the same transaction (the resources service rewrites the moved volume
-names in saved specs of Docker Manager–managed standalone containers).
+rename created as its revision (reused when the bytes are unchanged);
+`stacks.Service.OnRenamed` hooks run in the same transaction (the
+resources service rewrites the moved volume names in saved specs of
+Docker Manager–managed standalone containers).
 Rules that follow the stack (stack and service scopes) keep applying;
 rules on individual containers name containers, whose names follow the
 project, so they must be granted again for the new names. Restores of
@@ -374,8 +381,9 @@ changes nothing: the copy is removed, the services that ran start again
 from the original directory, and the finish hook forgets the stack. After
 the switch the project lives in the stacks volume: a failure leaves the
 stack `failed` on its copy and a deploy finishes it (no automatic rollback,
-#25). A successful import records the copy's definition as a `deploy`
-revision and makes it the applied revision (Docker Manager created the
+#25). A successful import records the copy's definition as its revision
+(a new `deploy` one unless a revision already holds those bytes) and makes
+it the applied revision (Docker Manager created the
 containers from exactly those bytes), with the applied images. Remove the
 original directory by hand once the stack runs from its copy.
 

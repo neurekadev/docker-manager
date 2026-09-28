@@ -3911,7 +3911,7 @@ export interface paths {
         };
         /**
          * List a stack's revisions
-         * @description Immutable revisions of the definition, newest first: recorded at every deploy and whenever a change was observed (stack editor, file manager, external edit, restore). Metadata only; GET a revision for its contents. Diffs are computed client-side from two revisions' contents.
+         * @description Immutable revisions of the definition, newest first: recorded whenever the files change (stack editor, file manager, external edit, restore, or a deploy of files no revision holds yet); redeploying unchanged files reuses their revision. Metadata only; GET a revision for its contents. Diffs are computed client-side from two revisions' contents.
          */
         get: operations["list-stack-revisions"];
         put?: never;
