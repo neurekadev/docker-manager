@@ -4227,6 +4227,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/templates/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Duplicate a template version
+         * @description Creates a private template whose draft holds every file of a published version: of this instance's templates (template.use on it) or of an added registry's (template.use on the instance; downloaded and checked now). Needs template.create.
+         */
+        post: operations["create-template-duplicate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/stack-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a stack as a template
+         * @description Copies the chosen entries of a stack's project directory (default: all of it) from its host into a new private template (template.create) or into an existing template's draft, replacing it (template.files.write and template.files.delete). Needs stack.files.download and stack.definition.read on the stack. Escaping symlinks, hard-linked and special files are left out; the template size limit applies (413 template_too_large: leave out data folders).
+         */
+        post: operations["create-template-stack-import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/templates/{templateId}": {
         parameters: {
             query?: never;
@@ -4250,6 +4290,26 @@ export interface paths {
          * @description Edits the name, description and tags. Requires If-Match.
          */
         patch: operations["update-template"];
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/draft-restores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a draft to a version
+         * @description Replaces the template's draft with the files of one of its versions (the draft's current files are gone). Needs template.files.write and template.files.delete.
+         */
+        post: operations["create-template-draft-restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/templates/{templateId}/files": {
@@ -6857,6 +6917,22 @@ export interface components {
             networks: number;
             /** Format: int64 */
             volumes: number;
+        };
+        DuplicateTemplateInputBody: {
+            description?: string;
+            /** @description The source's registry (empty: this instance). */
+            instanceId?: string;
+            /** @example My Nextcloud */
+            name: string;
+            /**
+             * @example [
+             *       "cloud"
+             *     ]
+             */
+            tags?: string[];
+            templateId: string;
+            /** Format: int64 */
+            version: number;
         };
         EffectivePermission: {
             allowed: boolean;
@@ -9635,6 +9711,14 @@ export interface components {
              */
             volumes?: string[];
         };
+        RestoreDraftInputBody: {
+            /**
+             * Format: int64
+             * @description The version whose files replace the draft.
+             * @example 3
+             */
+            version: number;
+        };
         RestoreInputBody: {
             /**
              * @description Must be true: a restore overwrites the current data (preview it first).
@@ -10311,6 +10395,24 @@ export interface components {
              * @enum {string}
              */
             update: "no_policy" | "ineligible" | "unchecked" | "up_to_date" | "update_available" | "quarantined" | "check_failed" | "run_failed";
+        };
+        StackImportInputBody: {
+            description?: string;
+            /** @description Name of the new template. */
+            name?: string;
+            /**
+             * @description Entries of the stack's directory to include (default: everything).
+             * @example [
+             *       "compose.yaml",
+             *       ".env",
+             *       "config"
+             *     ]
+             */
+            paths?: string[];
+            stackId: string;
+            tags?: string[];
+            /** @description Replace this template's draft (default: create a new private template). */
+            templateId?: string;
         };
         StackIssue: {
             /** @description invalid_project, unsupported_compose_feature, obsolete_version, bind_outside_project, ... */
@@ -44091,6 +44193,331 @@ export interface operations {
             };
         };
     };
+    "create-template-duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "My Nextcloud",
+                 *       "tags": [
+                 *         "cloud"
+                 *       ],
+                 *       "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "version": 1
+                 *     }
+                 */
+                "application/json": components["schemas"]["DuplicateTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-stack-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "paths": [
+                 *         "compose.yaml",
+                 *         ".env",
+                 *         "config"
+                 *       ],
+                 *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
+                "application/json": components["schemas"]["StackImportInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-template": {
         parameters: {
             query?: never;
@@ -44434,6 +44861,162 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-draft-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "version": 3
+                 *     }
+                 */
+                "application/json": components["schemas"]["RestoreDraftInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

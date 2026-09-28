@@ -233,6 +233,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerTemplates(a, deps)
 	registerTemplateRegistry(a, deps)
 	registerTemplateRegistries(a, deps)
+	registerTemplateImports(a, deps)
 	registerLive(a, deps)
 	registerSearch(a, deps)
 	addExamples(a)

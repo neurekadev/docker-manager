@@ -112,6 +112,17 @@ above. Registry icons are served from the cache
 (`/template-registries/{instanceId}/templates/{templateId}/icon`) and are
 part of `GET /template-icons`.
 
+## Copies: duplicate, restore, save a stack
+
+`POST /api/v1/templates/duplicates` copies a published version (this
+instance's, or a registry's downloaded now) into a new private template;
+`POST /api/v1/templates/{id}/draft-restores` puts a version's files back
+into the draft; `POST /api/v1/templates/stack-imports` reads the chosen
+entries of a stack's project directory from its agent (`files.download`,
+tar.gz; escaping symlinks, hard links and special files are left out) into
+a new template or an existing draft. All three fill a fresh directory and
+swap it in, so the draft never ends half-written.
+
 ## Icons and live updates
 
 Icons are served by `GET /api/v1/templates/{id}/icon` to any signed-in

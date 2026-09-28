@@ -71,6 +71,7 @@
 	import type { JobTray } from './tray.svelte';
 	import UpdateDrawer from './UpdateDrawer.svelte';
 	import StackIcon from './StackIcon.svelte';
+	import SaveAsTemplateDialog from '$lib/features/templates/SaveAsTemplateDialog.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 
 	interface Props {
@@ -165,6 +166,7 @@
 	});
 	let editing = $state(false);
 	let renaming = $state(false);
+	let savingTemplate = $state(false);
 	let updating = $state(false);
 	let starting = $state<'deploy' | 'build' | 'pull' | null>(null);
 
@@ -345,6 +347,13 @@
 			});
 		if (can('stack.manage') && stack.revision !== undefined)
 			items.push({ label: 'Edit details', icon: Pencil, onSelect: () => (editing = true) });
+		if (can('stack.files.download') && can('stack.definition.read'))
+			items.push({
+				label: 'Save as template',
+				icon: LayoutTemplate,
+				onSelect: () => (savingTemplate = true),
+				disabled: offline
+			});
 		if (can('stack.remove')) {
 			if (items.length) items.push({ separator: true });
 			items.push({
@@ -483,6 +492,10 @@
 
 {#if can('stack.rename')}
 	<RenameStackDialog bind:open={renaming} {stack} {tray} />
+{/if}
+
+{#if can('stack.files.download') && can('stack.definition.read')}
+	<SaveAsTemplateDialog bind:open={savingTemplate} {stack} />
 {/if}
 
 {#if canUpdate}
