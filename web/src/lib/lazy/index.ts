@@ -110,26 +110,39 @@ async function languageSupport(language: EditorLanguage): Promise<Extension> {
 /**
  * CodeMirror 6 for the file editor (#15): line numbers, undo/redo, search
  * and replace (Mod-f, or openSearch()), bracket matching, the language's
- * highlighting, Docker Manager's theme. Tab keeps moving focus (no tab trap).
+ * highlighting, Docker Manager's theme. Tab and Shift-Tab indent and
+ * outdent (indentWithTab); the editor is still no tab trap: Escape, then
+ * Tab or Shift-Tab within two seconds, moves focus out (CodeMirror's tab
+ * focus mode, also toggled with Ctrl-m / Shift-Alt-m on macOS).
  */
 export async function mountCodeEditor(
 	parent: HTMLElement,
 	doc: string,
 	opts: CodeEditorOptions = {}
 ): Promise<CodeEditorHandle> {
-	const [{ EditorView, basicSetup }, { EditorState, Compartment }, search, theme, lang] =
-		await Promise.all([
-			import('codemirror'),
-			import('@codemirror/state'),
-			import('@codemirror/search'),
-			import('./codemirror-theme'),
-			languageSupport(opts.language ?? 'text')
-		]);
+	const [
+		{ EditorView, basicSetup },
+		{ EditorState, Compartment },
+		{ keymap },
+		{ indentWithTab },
+		search,
+		theme,
+		lang
+	] = await Promise.all([
+		import('codemirror'),
+		import('@codemirror/state'),
+		import('@codemirror/view'),
+		import('@codemirror/commands'),
+		import('@codemirror/search'),
+		import('./codemirror-theme'),
+		languageSupport(opts.language ?? 'text')
+	]);
 	const language = new Compartment();
 	const readOnly = new Compartment();
 	const wrapping = new Compartment();
 	const extensions = [
 		basicSetup,
+		keymap.of([indentWithTab]),
 		language.of(lang),
 		theme.dockerManagerEditorTheme,
 		readOnly.of(EditorState.readOnly.of(!!opts.readOnly)),

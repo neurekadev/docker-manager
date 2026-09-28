@@ -528,7 +528,10 @@ const editor = await mountYamlEditor(element, text, { label: 'compose.yaml', onC
 
 Prefer the `$lib/ui` wrappers `CodeEditor`, `Sparkline` and `TerminalView`;
 every mount applies Docker Manager's theme (`codemirror-theme.ts`,
-`echarts-theme.ts`, `TERMINAL_THEME`).
+`echarts-theme.ts`, `TERMINAL_THEME`). The code editor binds Tab and
+Shift-Tab to indent and outdent (`indentWithTab`); it is still no keyboard
+trap: Escape, then Tab within two seconds, moves focus out (CodeMirror's
+tab focus mode, also toggled with Ctrl-m).
 
 `verify-build.mjs` fails the web gate if one of them is statically imported
 by any entry chunk. Bits UI and Lucide are imported directly (Lucide per
