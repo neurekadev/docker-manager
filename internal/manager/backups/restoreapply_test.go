@@ -1,12 +1,14 @@
 package backups
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
 )
 
 func writeTestFile(t *testing.T, p, content string) {
@@ -108,6 +110,49 @@ func TestRestoreApplyIsRepeatable(t *testing.T) {
 	}
 	if applied, err := AppliedRestore(data); err != nil || applied != nil {
 		t.Fatalf("after finishing: %+v %v", applied, err)
+	}
+}
+
+// TestRestoreApplyPutsBackTemplateDrafts: the snapshot's template drafts
+// replace the current ones, which are kept in the pre-restore directory.
+func TestRestoreApplyPutsBackTemplateDrafts(t *testing.T) {
+	data := t.TempDir()
+	dbPath := filepath.Join(data, "docker-manager.db")
+	keyFile := filepath.Join(data, "secret.key")
+	if _, err := secrets.CreateKeyFile(keyFile, nil); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, dbPath, "fresh database")
+	current := templates.DraftsDir(data)
+	writeTestFile(t, filepath.Join(current, "tcurrent", "draft", "compose.yaml"), "current")
+
+	src := t.TempDir()
+	writeTestFile(t, filepath.Join(src, "trestored", "draft", "compose.yaml"), "restored")
+	var drafts bytes.Buffer
+	if err := templates.WriteDrafts(&drafts, src); err != nil {
+		t.Fatal(err)
+	}
+	pending := filepath.Join(data, PendingRestoreDir)
+	writeTestFile(t, filepath.Join(pending, restoredDBFile), "restored database")
+	writeTestFile(t, filepath.Join(pending, restoredDraftsFile), drafts.String())
+	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+	if err := writeJSONFile(filepath.Join(pending, restoreMarkerFile), RestoreMarker{Format: RestoreMarkerFormat, Version: 1, JobID: "j1",
+		SetID: "s1", StagedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+
+	mk, err := ApplyPendingRestore(data, dbPath, keyFile, now)
+	if err != nil || mk == nil {
+		t.Fatalf("apply: %+v %v", mk, err)
+	}
+	if readTestFile(t, filepath.Join(current, "trestored", "draft", "compose.yaml")) != "restored" {
+		t.Error("the snapshot's drafts are not in place")
+	}
+	if readTestFile(t, filepath.Join(current, "tcurrent", "draft", "compose.yaml")) != "<missing>" {
+		t.Error("a replaced draft is left in place")
+	}
+	if readTestFile(t, filepath.Join(mk.PreRestoreDir, "templates", "tcurrent", "draft", "compose.yaml")) != "current" {
+		t.Error("the replaced drafts were not kept")
 	}
 }
 

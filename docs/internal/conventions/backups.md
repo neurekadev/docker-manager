@@ -26,3 +26,8 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `<data>/restore-pending`); never swap the database of a running manager.
   Anything new that must not survive a restore (sessions, tokens, agent
   credentials) is revoked in `app.(*Manager).finishRestore`.
+- Manager data kept outside the database goes into the manager-state
+  snapshot next to it (template drafts: `templates.tar.gz`, flagged in
+  `state.json`) and is put back by `ApplyPendingRestore`, keeping the
+  replaced copy in the pre-restore directory; every step stays
+  repeatable.

@@ -16,6 +16,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
@@ -44,6 +45,9 @@ type StateInfo struct {
 	Schema          backup.SchemaInfo `json:"schema"`
 	SecretKeyID     string            `json:"secretKeyId"`
 	MetricsIncluded bool              `json:"metricsIncluded"`
+	// TemplatesIncluded: the template drafts are in templates.tar.gz (the
+	// published versions are in the database).
+	TemplatesIncluded bool `json:"templatesIncluded,omitempty"`
 }
 
 // StateFormat identifies state.json.
@@ -130,6 +134,14 @@ func (s *Service) stepSnapshotDatabase(ctx context.Context, sc *jobexec.StepCont
 			return fmt.Errorf("metrics snapshot: %w", err)
 		}
 	}
+	templatesIncluded := false
+	if s.opts.DataDir != "" {
+		sc.Progress(ctx, 10, "copying the template drafts")
+		if err := writeDrafts(filepath.Join(dir, templates.DraftsArchiveName), templates.DraftsDir(s.opts.DataDir)); err != nil {
+			return fmt.Errorf("template drafts: %w", err)
+		}
+		templatesIncluded = true
+	}
 	cur, _, _, _, err := s.currentKeys(ctx, s.db)
 	if err != nil {
 		return err
@@ -153,12 +165,25 @@ func (s *Service) stepSnapshotDatabase(ctx context.Context, sc *jobexec.StepCont
 	}
 	info := StateInfo{Format: StateFormat, Version: 1, InstanceID: s.opts.InstanceID, CreatedAt: s.now(),
 		App: backup.AppInfo{Version: s.opts.Build.Version, Commit: s.opts.Build.Commit}, Schema: backup.SchemaInfo{Migrations: migrations},
-		SecretKeyID: s.opts.Keyring.Primary().ID(), MetricsIncluded: in.IncludeMetrics}
+		SecretKeyID: s.opts.Keyring.Primary().ID(), MetricsIncluded: in.IncludeMetrics, TemplatesIncluded: templatesIncluded}
 	b, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dir, stateInfoFile), b, 0o600)
+}
+
+// writeDrafts writes the template drafts archive of a snapshot.
+func writeDrafts(file, templatesDir string) error {
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // staging path below the data directory
+	if err != nil {
+		return err
+	}
+	werr := templates.WriteDrafts(f, templatesDir)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	return werr
 }
 
 func (s *Service) stepManagerBackup(ctx context.Context, sc *jobexec.StepContext) error {

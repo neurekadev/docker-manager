@@ -52,6 +52,10 @@ Drafts are plain files (like a stack's directory on its host); `.env`
 values in a draft are readable to whoever can read the manager's data
 directory. Published versions are sealed.
 
+Manager-state backups carry every draft as `templates.tar.gz` next to the
+database snapshot (see [backups](backups.md#manager-state)); restoring
+such a set puts them back before the manager starts serving.
+
 ## Publication
 
 `Publish` takes the draft's exclusive lock (file operations hold it

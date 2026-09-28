@@ -175,7 +175,9 @@ complete); a completed one-shot that was not running satisfies
 `<data>/backup-staging/<job>/docker-manager-state/`, adds `secret-key.bundle`
 (the secret-protection key sealed with XChaCha20-Poly1305 under
 HKDF-SHA256(Recovery Key)) and `state.json` (app version, applied
-migrations, instance, secret key ID), backs the directory up
+migrations, instance, secret key ID, `templatesIncluded`) and
+`templates.tar.gz` (every template draft, `templates.WriteDrafts`;
+published versions are in the database), backs the directory up
 (`docker-manager-state` tag), then writes the **set manifest**. The
 metrics database is included only when the policy asks for it. The staging
 directory is removed after the run and at every start.
@@ -333,8 +335,9 @@ Recovery Key; not the old volume, database or a running old manager.
    schema. With `setId`, the set's secret-key bundle is opened too.
 3. **Import** (`POST .../restores`, `confirm: true`, 202 + `backup.import`
    job; progress in `GET /setup/status` → `backupImport`): `scan` dumps
-   `state.json`, the bundle and the database from the manager-state
-   snapshot into `<data>/backup-import/<job>/`, opens the bundle with the
+   `state.json`, the bundle, the database and (when `templatesIncluded`)
+   `templates.tar.gz` from the manager-state snapshot into
+   `<data>/backup-import/<job>/`, opens the bundle with the
    Recovery Key (the current, else the previous one), runs
    `PRAGMA quick_check`, checks the instance and the schema, and opens the
    restored Recovery Key record with the recovered secret key (proof that
@@ -348,7 +351,12 @@ Recovery Key; not the old volume, database or a running old manager.
    database (with `-wal`/`-shm`) and key file move to
    `<data>/pre-restore-<time>/`, the restored database and the recovered
    secret key (`DOCKER_MANAGER_SECRET_KEY_FILE`, which must be writable) take
-   their places, migrations run as usual.
+   their places, migrations run as usual. A staged `templates.tar.gz`
+   replaces `<data>/templates` (`templates.RestoreDrafts`: extracted into
+   `templates.restoring` with checked names, the current directory kept as
+   `pre-restore-<time>/templates`); a snapshot without drafts leaves the
+   directory alone and the templates service's startup sweep removes the
+   drafts of unknown templates and creates empty ones for the rest.
 5. **Complete** (before anything is served; the marker is removed only
    when every step succeeded): every stored session is deleted and every
    user's session epoch bumped (no session of the snapshot is revived);
