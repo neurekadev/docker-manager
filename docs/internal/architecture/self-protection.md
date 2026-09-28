@@ -93,7 +93,11 @@ splits the work:
    journals the outcome, #26). A deploy that would remove the agent as an
    orphan (its service dropped with `removeOrphans`) is refused.
 2. The step schedules a `Plan` (the exact definition bytes the job loaded)
-   and reports an `agent_self_update` warning.
+   and reports an `agent_self_update` warning. The job's applied images
+   name, for the handed-off services, the image their reference names
+   after the pull (the one the helper runs), not the old container that
+   still runs when the job reports; otherwise the stack would show image
+   drift for the agent after every self-update.
 3. After the job's outcome is journaled and sent (`jobs.Options.OnFinished`),
    a succeeded job starts a helper container: the agent's image and mounts,
    `docker-agent self-update <plan>`, label
@@ -105,6 +109,6 @@ splits the work:
    (`Collect`).
 
 Tests: `TestHandoff`, `TestLauncher`, `TestCollect`
-(`internal/agent/selfupdate`), `TestDeployOfDockerManagerHandsTheAgentOver`
-(`internal/agent/stacks`), `TestGuardStacksLetsDockerManagerUpdateItself`,
+(`internal/agent/selfupdate`), `TestDeployOfDockerManagerHandsTheAgentOver`,
+`TestDeployReportsTheHandedOverAgentsNewImage` (`internal/agent/stacks`), `TestGuardStacksLetsDockerManagerUpdateItself`,
 `TestDockerManagerProjectCanBeUpdated`.

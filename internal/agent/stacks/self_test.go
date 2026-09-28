@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/selfupdate"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
@@ -84,5 +86,42 @@ func TestDeployOfDockerManagerHandsTheAgentOver(t *testing.T) {
 	res, _ = run(t, e.svc, jobspec.StackDeploy, protocol.StackJobInput{Stack: ref("docker-manager"), RemoveOrphans: true})
 	if res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
 		t.Fatalf("orphan removal of the agent: %+v", res)
+	}
+}
+
+// TestDeployReportsTheHandedOverAgentsNewImage (#32): the agent's own
+// service still runs its old container when the job reports; the deploy
+// records the image its reference names now (the one the helper runs), so
+// the stack shows no image drift for the agent after a self-update.
+func TestDeployReportsTheHandedOverAgentsNewImage(t *testing.T) {
+	e := newEnv(t)
+	e.svc.opts.Self = &fakeSelf{own: "docker-agent"}
+	writeTree(t, filepath.Join(e.root, "docker-manager"), map[string]string{"compose.yaml": ownYAML})
+	lbl := func(svc string) map[string]string {
+		return map[string]string{lifecycle.ComposeProjectLabel: "docker-manager", lifecycle.ComposeServiceLabel: svc}
+	}
+	const agentRef = "code.neureka.dev/docker-manager/docker-agent:edge"
+	e.eng.containers = []engine.Container{
+		{ID: "mgr", Names: []string{"/docker-manager"}, ImageID: "sha256:mgr", State: "running", Labels: lbl("docker-manager")},
+		{ID: "agent", Names: []string{"/docker-agent"}, ImageID: "sha256:agent-old", State: "running", Labels: lbl("docker-agent")},
+	}
+	// The deploy pulled the new agent image: its tag names it now.
+	e.eng.images[agentRef] = engine.ImageDetails{ID: "sha256:agent-new"}
+	e.eng.images["sha256:agent-new"] = engine.ImageDetails{ID: "sha256:agent-new", OS: "linux", Architecture: "amd64",
+		RepoDigests: []string{"code.neureka.dev/docker-manager/docker-agent@sha256:9999"}}
+
+	res, out := run(t, e.svc, jobspec.StackDeploy, protocol.StackJobInput{Stack: ref("docker-manager")})
+	if res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("result %+v", res)
+	}
+	img := map[string]protocol.AppliedImage{}
+	for _, i := range out.Images {
+		img[i.Service] = i
+	}
+	if a := img["docker-agent"]; a.ImageID != "sha256:agent-new" || a.Digest != "sha256:9999" || a.Platform != "linux/amd64" {
+		t.Errorf("agent image %+v, want the pulled image", a)
+	}
+	if m := img["docker-manager"]; m.ImageID != "sha256:mgr" {
+		t.Errorf("manager image %+v, want its running container's image", m)
 	}
 }

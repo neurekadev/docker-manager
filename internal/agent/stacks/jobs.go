@@ -328,7 +328,7 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 	after, aerr := serviceStates(ctx, eng, in.Stack.ProjectName)
 	startsAfter, serr := containerStarts(ctx, eng, in.Stack.ProjectName)
 	unchanged := serr == nil && upErr == nil && len(handoff) == 0 && !startedAny(startsBefore, startsAfter)
-	images := appliedImages(ctx, eng, p)
+	images := appliedImages(ctx, eng, p, handoff...)
 	bs := binds(p, dir)
 	if err := update(ctx, sc, func(o *protocol.StackJobOutput) {
 		o.Unchanged = unchanged
@@ -442,14 +442,23 @@ func short(hash string) string {
 
 // appliedImages resolves each service's running image: its ID, the
 // repository digest matching the reference (the #20 baseline) and the
-// platform.
-func appliedImages(ctx context.Context, eng engine.Engine, p *compose.Project) []protocol.AppliedImage {
+// platform. The handed-off services (#32: the agent's own service, which
+// a helper recreates after the job) still run their old container when the
+// job reports, so they get the image their reference names now (the one
+// the deploy pulled and the helper runs); otherwise the stack would show
+// image drift for the agent after every self-update.
+func appliedImages(ctx context.Context, eng engine.Engine, p *compose.Project, handoff ...string) []protocol.AppliedImage {
 	list, _ := lifecycle.ProjectContainers(ctx, eng, p.Name)
 	out := make([]protocol.AppliedImage, 0, len(p.Services))
 	for _, svc := range p.Services {
 		ai := protocol.AppliedImage{Service: svc.Name, Image: svc.Image, Build: svc.Build}
+		if slices.Contains(handoff, svc.Name) && svc.Image != "" {
+			if img, err := eng.InspectImage(ctx, svc.Image); err == nil {
+				ai.ImageID = img.ID
+			}
+		}
 		for _, c := range list {
-			if c.Labels[lifecycle.ComposeServiceLabel] == svc.Name && c.ImageID != "" {
+			if ai.ImageID == "" && c.Labels[lifecycle.ComposeServiceLabel] == svc.Name && c.ImageID != "" {
 				ai.ImageID = c.ImageID
 				break
 			}
