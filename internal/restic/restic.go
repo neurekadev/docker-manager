@@ -43,6 +43,33 @@ type Location struct {
 	Repository string
 	// S3 settings (Repository starts with "s3:").
 	S3 *S3
+	// Compression is the compression mode of the data restic writes
+	// (backup and prune): CompressionAuto ("" means the same), Max or Off.
+	Compression string
+}
+
+// Compression modes (restic's --compression). restic compresses only
+// repositories of format version 2 (restic 0.14 or newer).
+const (
+	// CompressionAuto is restic's default: it compresses what is worth
+	// compressing, quickly.
+	CompressionAuto = "auto"
+	// CompressionMax compresses as much as possible (smaller repositories,
+	// more CPU while backing up and pruning).
+	CompressionMax = "max"
+	// CompressionOff stores data blobs uncompressed (restic still
+	// compresses its metadata).
+	CompressionOff = "off"
+)
+
+// ValidCompression reports whether mode is a compression mode ("" is
+// CompressionAuto).
+func ValidCompression(mode string) bool {
+	switch mode {
+	case "", CompressionAuto, CompressionMax, CompressionOff:
+		return true
+	}
+	return false
 }
 
 // S3 carries the S3 connection settings of a Location. The credentials are

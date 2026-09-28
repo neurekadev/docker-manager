@@ -121,11 +121,13 @@ function retentionParts(r: BackupRetention): string[] {
 
 /** Plain-language retention, e.g. "7 daily, 4 weekly; always keeps 3 of each". */
 export function retentionText(r: BackupRetention | undefined): string {
-	if (!r) return 'Keep every backup';
-	const parts = retentionParts(r);
-	if (!parts.length) return 'Keep every backup';
-	const floor = r.minKeep ? `; always keeps the newest ${r.minKeep} of each` : '';
-	return `Keep ${parts.join(', ')}${floor}`;
+	const expiry = r?.expireDeletedDays
+		? `; backups of deleted stacks and volumes go after ${r.expireDeletedDays} ${r.expireDeletedDays === 1 ? 'day' : 'days'}`
+		: '';
+	const parts = r ? retentionParts(r) : [];
+	if (!parts.length) return `Keep every backup${expiry}`;
+	const floor = r?.minKeep ? `; always keeps the newest ${r.minKeep} of each` : '';
+	return `Keep ${parts.join(', ')}${floor}${expiry}`;
 }
 
 /** Retention in a few words for tables and KPIs: "7 daily, 4 weekly", "Keep everything". */
@@ -175,8 +177,9 @@ const PRESET_RULES: Record<Exclude<RetentionPreset, 'custom'>, Partial<BackupRet
 
 /**
  * The preset a policy's retention matches (editing opens on it): no rules
- * is "Keep everything"; a preset's rules with the default floor (1) match
- * it; anything else, a higher floor included, is Custom.
+ * is "Keep everything"; a preset's rules with no floor (or 1, which keeps
+ * the same: the rules always keep an item's newest backup) match it;
+ * anything else, a higher floor included, is Custom.
  */
 export function retentionPreset(r: BackupRetention | undefined): RetentionPreset {
 	if (!r || !hasRetentionRules(r)) return 'everything';
@@ -189,17 +192,13 @@ export function retentionPreset(r: BackupRetention | undefined): RetentionPreset
 }
 
 /**
- * The retention a preset sets: its rules (every other rule off) and a
- * floor of 1; "after every backup" is kept. Custom changes nothing.
+ * The retention a preset sets: its rules (every other rule off) and no
+ * floor; "after every backup" and the expiry of deleted items are kept.
+ * Custom changes nothing.
  */
 export function applyRetentionPreset(preset: RetentionPreset, r: BackupRetention): BackupRetention {
 	if (preset === 'custom') return r;
-	return {
-		...r,
-		...NO_RULES,
-		...PRESET_RULES[preset],
-		minKeep: preset === 'everything' ? Math.max(1, r.minKeep ?? 1) : 1
-	};
+	return { ...r, ...NO_RULES, ...PRESET_RULES[preset], minKeep: 0 };
 }
 
 /** Retention of a new policy: the recommended preset (7 daily, 4 weekly, 12 monthly). */
@@ -208,14 +207,22 @@ export const DEFAULT_RETENTION: BackupRetention = {
 	daily: 7,
 	weekly: 4,
 	monthly: 12,
-	minKeep: 1
+	minKeep: 0
 };
+
+/** Days a deleted stack's or volume's backups are kept when the expiry is turned on. */
+export const DEFAULT_EXPIRE_DELETED_DAYS = 30;
 
 export function hasRetentionRules(r: BackupRetention | undefined): boolean {
 	return (
 		!!r &&
 		!!(r.last || r.hourly || r.daily || r.weekly || r.monthly || r.yearly || r.withinDays)
 	);
+}
+
+/** Whether retention would remove anything: rules are set or deleted items' backups expire. */
+export function retentionActive(r: BackupRetention | undefined): boolean {
+	return hasRetentionRules(r) || !!r?.expireDeletedDays;
 }
 
 /** Recovery Keys are DYRK- plus 13 groups of four base32 characters. */
@@ -303,11 +310,27 @@ export function jobHref(id: string | undefined, job: (id: string) => string): st
 
 /** The Engine's label on volumes it created for anonymous mounts. */
 export const ANONYMOUS_VOLUME_LABEL = 'com.docker.volume.anonymous';
+/** The label that leaves a volume, or the volumes of a container, out of backups. */
+export const BACKUP_EXCLUDE_LABEL = 'docker-manager.backup.exclude';
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
+
+/** A buildx builder's state volume (buildx_buildkit_<builder>_state): rebuildable build cache. */
+export function isBuildxVolume(name: string): boolean {
+	const m = /^buildx_buildkit_(.+)_state$/.exec(name);
+	return !!m && m[1] !== '';
+}
+
+function backupExcluded(labels: Record<string, string> | undefined): boolean {
+	return (labels?.[BACKUP_EXCLUDE_LABEL] ?? '').toLowerCase() === 'true';
+}
 
 export interface CoveredVolume {
 	name: string;
 	anonymous: boolean;
+	/** A buildx builder's state (left out unless the policy includes them). */
+	buildx: boolean;
+	/** Left out by the backup exclude label (on the volume or a container using it). */
+	labelled: boolean;
 	/** The managed stack the volume belongs to; undefined: standalone. */
 	stackId?: string;
 }
@@ -333,9 +356,11 @@ export function coveredVolumes(
 ): CoveredVolume[] {
 	const stackByName = new Map(stacks.map((s) => [s.name, s.id]));
 	const stackOfContainer = new Map<string, string>();
+	const labelledContainers = new Set<string>();
 	for (const c of containers) {
 		const id = stackByName.get(c.labels?.[COMPOSE_PROJECT_LABEL] ?? '');
 		if (id) stackOfContainer.set(c.id, id);
+		if (backupExcluded(c.labels)) labelledContainers.add(c.id);
 	}
 	const out: CoveredVolume[] = [];
 	for (const v of volumes) {
@@ -347,7 +372,15 @@ export function coveredVolumes(
 			stackByName.get(v.stack?.project ?? v.labels?.[COMPOSE_PROJECT_LABEL] ?? '') ??
 			(v.usedBy ?? []).map((c) => stackOfContainer.get(c.id)).find(Boolean);
 		if (v.stack && !stackId) continue;
-		out.push({ name: v.name, anonymous: ANONYMOUS_VOLUME_LABEL in (v.labels ?? {}), stackId });
+		out.push({
+			name: v.name,
+			anonymous: ANONYMOUS_VOLUME_LABEL in (v.labels ?? {}),
+			buildx: !stackId && isBuildxVolume(v.name),
+			labelled:
+				backupExcluded(v.labels) ||
+				(v.usedBy ?? []).some((c) => labelledContainers.has(c.id)),
+			stackId
+		});
 	}
 	return out.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -874,4 +907,42 @@ export function restoreTargetName(t: { kind: string; name?: string; path: string
 	if (t.kind === 'volume') return `Volume ${t.name || base}`;
 	if (t.kind === 'file') return `File ${base}`;
 	return t.name || base;
+}
+
+// --- Repository compression (#10) ---
+
+export type CompressionMode = 'auto' | 'max' | 'off';
+
+/** How a repository compresses what it stores (a choice, in plain words). */
+export const COMPRESSION_OPTIONS: { value: CompressionMode; label: string; description: string }[] =
+	[
+		{
+			value: 'auto',
+			label: 'Automatic',
+			description: 'Recommended. Compresses what is worth compressing, quickly.'
+		},
+		{
+			value: 'max',
+			label: 'Maximum',
+			description:
+				'Smallest backups. Uses more CPU while backing up and removing old backups.'
+		},
+		{
+			value: 'off',
+			label: 'Off',
+			description: 'For data that is already compressed, such as videos, photos or archives.'
+		}
+	];
+
+/** Shown with the choice when editing: what a change affects. */
+export const COMPRESSION_CHANGE_NOTE =
+	'A change applies to data backed up from then on; existing backups stay as they are.';
+
+/** Shown with the choice when adding a repository. */
+export const COMPRESSION_NEW_NOTE =
+	'You can change it later; a change applies only to data backed up from then on.';
+
+/** "Automatic", "Maximum", "Off" (a missing mode is Automatic). */
+export function compressionText(mode: string | undefined): string {
+	return COMPRESSION_OPTIONS.find((o) => o.value === mode)?.label ?? COMPRESSION_OPTIONS[0].label;
 }

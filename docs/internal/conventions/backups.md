@@ -13,12 +13,29 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   return, log, audit or put it in inputs; agents get it only in
   `CommandSecrets.Repositories` (jobs) or the request/stream `credential`.
   Audit key administration by fingerprint (`rk_…`) only.
+- Retention runs once per finished set and location, never per stack or
+  volume, and prunes only after it forgot snapshots. A new follow-up or
+  trigger must keep both (prune costs downloads at remote destinations).
+  The rules and the deleted-item expiry are one decision (`backup.Plan`
+  then `RetentionPlan.Expire`) shared by the preview and the executor.
+- Volumes are left out by the user-set label
+  `docker-manager.backup.exclude=true` (on the volume or a container using
+  it) and buildx builder volumes by default; change the rule in
+  `standaloneVolumes`, `planStackVolumes` and the UI's `coveredVolumes`
+  together.
 - Stop/restart containers for backups/restores only through
   `internal/agent/lifecycle`, registering the `start_containers`
   compensation before stopping anything.
 - Snapshot contents hold secrets: authorize browsing with
   `backups.ContentsCapabilities` (stack.definition.read / volume.files.read,
   manager state owner-only).
+- A repository's compression mode reaches restic only through
+  `backup.Destination.Compression` → `restic.Location.Compression`
+  (`--compression` on backup and prune only; dropped for repository
+  format version 1 in `backup.OpenLocation`). Repository references sent
+  to agents never carry it; `Service.CommandInput` adds it at dispatch to
+  `backup.run`/`backup.retention` for agents announcing
+  `backup.compression`.
 - Features that remove environments (#34) or migrate data (#35) must keep
   backup repositories, sets and snapshots (instance history).
 - Manager-state restores happen only in a fresh manager (setup import,
@@ -45,6 +62,8 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   documentation). Retention is chosen as a preset (`RETENTION_PRESETS`,
   `retentionPreset`/`applyRetentionPreset`) with Custom for the rules, and
   shown in words (`retentionText`, `retentionShort`); verification amounts
-  are the choices of `VERIFY_READ_OPTIONS`. Sizes say what they measure: a
+  are the choices of `VERIFY_READ_OPTIONS`, a repository's compression
+  those of `COMPRESSION_OPTIONS` (`CompressionField`, shown with
+  `compressionText`: Automatic, Maximum, Off). Sizes say what they measure: a
   run's size is the data it backed up, storage is what the repositories
   hold after deduplication and compression.

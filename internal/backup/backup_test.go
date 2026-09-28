@@ -2,11 +2,14 @@ package backup
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 func sampleManifest() Manifest {
@@ -188,11 +191,44 @@ func TestRetentionFloorAlwaysWins(t *testing.T) {
 	if got := p.Remove(); !slices.Equal(got, []string{"old"}) {
 		t.Errorf("within remove = %v", got)
 	}
-	if errs := (RetentionRules{Daily: 3}).Validate(); errs["minKeep"] == "" {
-		t.Error("rules without a floor accepted")
+	// The floor is optional: without it the rules alone decide, and they
+	// still keep an item's newest snapshot.
+	if errs := (RetentionRules{Daily: 3}).Validate(); len(errs) != 0 {
+		t.Errorf("rules without a floor refused: %v", errs)
+	}
+	if got := Plan(RetentionRules{Last: 1}, snaps, time.UTC).Remove(); !slices.Equal(got, []string{"2", "1"}) {
+		t.Errorf("last 1 without a floor removed %v", got)
 	}
 	if errs := (RetentionRules{Daily: -1, MinKeep: 1}).Validate(); errs["daily"] == "" {
 		t.Error("negative rule accepted")
+	}
+}
+
+// TestRetentionExpiresDeletedItems: the rules alone would keep a deleted
+// item's last snapshots forever (they judge it by its own snapshots);
+// Expire removes all of them, floor included, and leaves other items to
+// the rules.
+func TestRetentionExpiresDeletedItems(t *testing.T) {
+	snaps := []RetentionSnapshot{
+		{ID: "g1", Time: day(1, 1), Item: "volume/gone"}, {ID: "g2", Time: day(2, 1), Item: "volume/gone"},
+		{ID: "k1", Time: day(1, 1), Item: "volume/kept"}, {ID: "k2", Time: day(2, 1), Item: "volume/kept"},
+	}
+	rules := RetentionRules{Last: 5, MinKeep: 2}
+	if got := Plan(rules, snaps, time.UTC).Remove(); len(got) != 0 {
+		t.Fatalf("the rules removed %v", got)
+	}
+	p := Plan(rules, snaps, time.UTC).Expire([]string{"volume/gone"})
+	if got := p.Remove(); !slices.Equal(got, []string{"g2", "g1"}) {
+		t.Errorf("expired removal = %v", got)
+	}
+	for _, d := range p.Decisions {
+		if d.Item == "volume/gone" && !slices.Equal(d.Reasons, []string{ReasonDeleted}) {
+			t.Errorf("expired decision %+v", d)
+		}
+	}
+	// Expiry works without rules too (keep everything else).
+	if got := Plan(RetentionRules{}, snaps, time.UTC).Expire([]string{"volume/gone"}).Remove(); len(got) != 2 {
+		t.Errorf("expiry without rules removed %v", got)
 	}
 }
 
@@ -233,6 +269,7 @@ func TestDestinations(t *testing.T) {
 		{Kind: KindS3, Endpoint: "ftp://x", Bucket: "bkt"}, {Kind: KindS3, Endpoint: "https://u:p@x", Bucket: "bkt"},
 		{Kind: KindS3, Endpoint: "https://x", Bucket: "B"}, {Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Prefix: "/a"},
 		{Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Prefix: "a/../b"}, {Kind: "nfs"},
+		{Kind: KindLocal, Path: "/backups", Compression: "fastest"}, {Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Compression: "MAX"},
 	} {
 		if bad.Validate() == nil {
 			t.Errorf("accepted %+v", bad)
@@ -258,6 +295,34 @@ func TestDestinations(t *testing.T) {
 // TestScopeEnvironment: only environment scopes name an environment; the
 // manager scope (and anything else) names none, even if the caller ignores
 // the second result.
+func TestDestinationCompression(t *testing.T) {
+	for _, tc := range []struct{ mode, want string }{
+		{"", ""}, {restic.CompressionAuto, ""}, {restic.CompressionMax, restic.CompressionMax}, {restic.CompressionOff, restic.CompressionOff},
+	} {
+		for _, d := range []Destination{
+			{Kind: KindLocal, Path: "/backups", Compression: tc.mode},
+			{Kind: KindS3, Endpoint: "https://s3.example.com", Bucket: "bkt", Compression: tc.mode},
+		} {
+			if err := d.Validate(); err != nil {
+				t.Errorf("%s %q: %v", d.Kind, tc.mode, err)
+			}
+			if got := d.Location(ScopeManager, S3Credentials{}).Compression; got != tc.want {
+				t.Errorf("%s %q: location compression = %q, want %q", d.Kind, tc.mode, got, tc.want)
+			}
+		}
+	}
+	// Auto is never written out: older agents and manifests see the
+	// destination they know.
+	b, err := json.Marshal(Destination{Kind: KindLocal, Path: "/backups"})
+	if err != nil || strings.Contains(string(b), "compression") {
+		t.Errorf("auto destination = %s (%v)", b, err)
+	}
+	b, _ = json.Marshal(Destination{Kind: KindLocal, Path: "/backups", Compression: restic.CompressionMax})
+	if !strings.Contains(string(b), `"compression":"max"`) {
+		t.Errorf("max destination = %s", b)
+	}
+}
+
 func TestScopeEnvironment(t *testing.T) {
 	for scope, want := range map[string]string{EnvironmentScope("e1"): "e1", ScopeManager: "", "env:": "", "other": ""} {
 		if got, ok := ScopeEnvironment(scope); got != want || ok != (want != "") {

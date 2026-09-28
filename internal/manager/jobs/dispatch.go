@@ -375,7 +375,13 @@ func (e *Engine) sendCommand(ctx context.Context, j *domain.Job, spec jobspec.Sp
 		}
 		secrets = s
 	}
-	cmd := protocol.CommandPayload{Kind: string(j.Kind), Input: j.Input, CompletedSteps: j.CompletedSteps, Secrets: secrets}
+	input := j.Input
+	if e.opts.CommandInput != nil {
+		if in := e.opts.CommandInput(ctx, j); in != nil {
+			input = in
+		}
+	}
+	cmd := protocol.CommandPayload{Kind: string(j.Kind), Input: input, CompletedSteps: j.CompletedSteps, Secrets: secrets}
 	if len(j.CompletedSteps) > 0 {
 		// A resumed attempt continues from the output the earlier attempts
 		// reported: later steps read what the completed ones recorded.

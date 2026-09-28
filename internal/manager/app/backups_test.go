@@ -126,6 +126,8 @@ type hostOpts struct {
 	fe       *enginefake.Engine
 	// localRoots are the agent's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS.
 	localRoots []string
+	// features are announced besides restore.selection.
+	features []string
 }
 
 type backupHost struct {
@@ -239,7 +241,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 			}
 			return protocol.CapabilitiesPayload{AgentVersion: buildinfo.Get().Version, Protocols: []string{protocol.Version}, OS: "linux",
 				Arch: "amd64", Engine: info, Commands: cmds, Requests: []string{protocol.ReqVolumeList, protocol.ReqContainerList}, Streams: []string{},
-				Features:  []string{protocol.FeatureRestoreSelection},
+				Features:  append([]string{protocol.FeatureRestoreSelection}, o.features...),
 				Transport: protocol.TransportInfo{ManagerURL: e.srv.URL, PlainHTTP: true}}, true
 		},
 		Requests: requests, Streams: svc.Streams(),
@@ -1165,5 +1167,111 @@ func TestScheduledBackupSurvivesCreatorRemoval(t *testing.T) {
 	sam.must(http.StatusOK, http.MethodGet, "/api/v1/backups", nil).json(t, &page)
 	if len(page.Items) != 1 || page.Items[0].PolicyID != pol.ID || page.Items[0].View != "full" {
 		t.Fatalf("sam's backups %+v", page.Items)
+	}
+}
+
+// TestBackupCompressionPerRepository: a repository's compression mode is
+// validated, shown and editable; the manager writes its state with it, and
+// an agent gets it only when it announces backup.compression (an older
+// agent writes with restic's default and never sees the field).
+func TestBackupCompressionPerRepository(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		features []string
+		agent    string
+	}{
+		{"agent announces the feature", []string{protocol.FeatureBackupCompression}, restic.CompressionMax},
+		{"older agent", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := newBackupEnv(t)
+			owner, _ := b.setupOwner()
+			h := b.connectHost(hostOpts{name: "prod", stacks: b.stacks, volumes: b.volumes, features: tc.features})
+			b.fe, b.agent = h.fe, h.agent
+			b.seedStack()
+			env := b.agent.env
+
+			body := func(name, compression string) map[string]any {
+				m := map[string]any{"name": name, "kind": "s3", "endpoint": b.s3.URL, "bucket": "backups", "prefix": "docker-manager",
+					"pathStyle": true, "accessKeyId": b.s3.AccessKey, "secretAccessKey": b.secrets.New(canary.S3SecretKey, "s3 secret "+name)}
+				if compression != "" {
+					m["compression"] = compression
+				}
+				return m
+			}
+			owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, "/api/v1/backup-repositories", body("Bad", "fastest"), secretOK)
+			var created struct {
+				Repository struct {
+					ID          string `json:"id"`
+					Compression string `json:"compression"`
+				} `json:"repository"`
+				RecoveryKey *struct {
+					Key string `json:"key"`
+				} `json:"recoveryKey"`
+			}
+			owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", body("Offsite", "max"), secretOK).json(t, &created)
+			if created.Repository.Compression != restic.CompressionMax || created.RecoveryKey == nil {
+				t.Fatalf("created %+v", created)
+			}
+			b.secrets.Register(canary.RecoveryKey, "recovery key", created.RecoveryKey.Key)
+			id := created.Repository.ID
+			owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
+				map[string]any{"recoveryKey": created.RecoveryKey.Key, "backedUp": true})
+
+			// A repository without a mode is auto.
+			var auto struct {
+				Repository struct {
+					Compression string `json:"compression"`
+				} `json:"repository"`
+			}
+			owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", body("Second", ""), secretOK).json(t, &auto)
+			if auto.Repository.Compression != restic.CompressionAuto {
+				t.Errorf("default compression = %q", auto.Repository.Compression)
+			}
+
+			policy := map[string]any{"name": "Nightly", "scope": "environment", "environmentId": env, "repositoryId": id, "includeManagerState": true,
+				"schedule": map[string]any{"cron": "0 2 * * *", "timeZone": "UTC", "enabled": true}, "retention": map[string]any{"daily": 7, "minKeep": 2}}
+			var pol struct {
+				ID string `json:"id"`
+			}
+			owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", policy).json(t, &pol)
+			if jobs := b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 2 {
+				t.Fatalf("jobs %v", jobs)
+			}
+			var manager, agent int
+			for _, c := range b.store.Calls() {
+				if c.Op != "backup" {
+					continue
+				}
+				switch {
+				case strings.HasSuffix(c.Repository, "/"+backup.ScopeDir(backup.ScopeManager)):
+					manager++
+					if c.Compression != restic.CompressionMax {
+						t.Errorf("manager backup compression = %q, want max", c.Compression)
+					}
+				case strings.HasSuffix(c.Repository, "/"+backup.ScopeDir(backup.EnvironmentScope(env))):
+					agent++
+					if c.Compression != tc.agent {
+						t.Errorf("agent backup compression = %q, want %q", c.Compression, tc.agent)
+					}
+				}
+			}
+			if manager == 0 || agent == 0 {
+				t.Fatalf("backups: manager %d, agent %d", manager, agent)
+			}
+
+			// Edit: an unknown mode is refused, off is kept.
+			r := owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories/"+id, nil)
+			owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, "/api/v1/backup-repositories/"+id,
+				map[string]any{"compression": "better"}, header("If-Match", r.header.Get("ETag")))
+			var edited struct {
+				Compression string `json:"compression"`
+			}
+			owner.must(http.StatusOK, http.MethodPatch, "/api/v1/backup-repositories/"+id, map[string]any{"compression": "off"},
+				header("If-Match", r.header.Get("ETag"))).json(t, &edited)
+			if edited.Compression != restic.CompressionOff {
+				t.Errorf("edited compression = %q", edited.Compression)
+			}
+		})
 	}
 }

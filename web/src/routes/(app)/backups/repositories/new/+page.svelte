@@ -32,14 +32,17 @@
 	import { fieldErrors, actionError } from '$lib/features/common/errors';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import Page from '$lib/features/common/Page.svelte';
+	import CompressionField from '$lib/features/backups/CompressionField.svelte';
 	import ConnectionTestResult from '$lib/features/backups/ConnectionTestResult.svelte';
 	import DestinationFields from '$lib/features/backups/DestinationFields.svelte';
 	import { destinationReady, emptyDestination } from '$lib/features/backups/destination';
 	import RecoveryKeyChallenge from '$lib/features/backups/RecoveryKeyChallenge.svelte';
 	import {
+		COMPRESSION_NEW_NOTE,
 		RECOVERY_KEY_SCOPE,
 		RECOVERY_KEY_WARNING,
 		type BackupRepository,
+		type CompressionMode,
 		type ConnectionTest
 	} from '$lib/features/backups/model';
 
@@ -59,6 +62,7 @@
 	let current = $state(0);
 	let name = $state('');
 	let dest = $state(emptyDestination());
+	let compression = $state<string>('auto');
 	let error = $state<unknown>(null);
 	let created = $state<Schema<'CreatedBackupRepository'> | null>(null);
 	let keyStored = $state(false);
@@ -137,7 +141,8 @@
 										name: name.trim(),
 										kind: 'local',
 										executor: dest.executor,
-										path: dest.path.trim()
+										path: dest.path.trim(),
+										compression: compression as CompressionMode
 									}
 								: {
 										name: name.trim(),
@@ -148,7 +153,8 @@
 										region: dest.region.trim() || undefined,
 										pathStyle: dest.pathStyle,
 										accessKeyId: dest.accessKeyId.trim(),
-										secretAccessKey: dest.secretAccessKey
+										secretAccessKey: dest.secretAccessKey,
+										compression: compression as CompressionMode
 									}
 					})
 				);
@@ -247,6 +253,11 @@
 									error={fields['body.name']}
 								/>
 								<DestinationFields bind:value={dest} {executors} errors={fields} />
+								<CompressionField
+									bind:value={compression}
+									description={COMPRESSION_NEW_NOTE}
+									error={fields['body.compression']}
+								/>
 							</Fields>
 						{/if}
 					{:else if s.id === 'key'}

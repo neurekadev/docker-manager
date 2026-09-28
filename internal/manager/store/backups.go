@@ -119,6 +119,7 @@ type backupRepositoryRow struct {
 	Prefix                string     `bun:"prefix,notnull"`
 	Region                string     `bun:"region,notnull"`
 	PathStyle             int        `bun:"path_style,notnull"`
+	Compression           string     `bun:"compression,notnull"`
 	AccessKeySealed       string     `bun:"access_key_sealed,notnull"`
 	SecretKeySealed       string     `bun:"secret_key_sealed,notnull"`
 	CredentialFingerprint string     `bun:"credential_fingerprint,notnull"`
@@ -150,17 +151,17 @@ func fromBackupRepository(r *domain.BackupRepository, sealed BackupRepositorySea
 	}
 	return backupRepositoryRow{ID: r.ID, Name: r.Name, NameKey: NameKey(r.Name), Kind: r.Kind, Executor: r.Executor, Path: r.Path,
 		Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: b2i(r.PathStyle),
-		AccessKeySealed: sealed.AccessKey, SecretKeySealed: sealed.SecretKey, CredentialFingerprint: r.CredentialFingerprint,
-		State: r.State, ConfirmedAt: utcPtr(r.ConfirmedAt), VerifyCron: r.VerifyCron, VerifyTimeZone: r.VerifyTimeZone,
+		Compression: compressionOrAuto(r.Compression), AccessKeySealed: sealed.AccessKey, SecretKeySealed: sealed.SecretKey,
+		CredentialFingerprint: r.CredentialFingerprint, State: r.State, ConfirmedAt: utcPtr(r.ConfirmedAt), VerifyCron: r.VerifyCron, VerifyTimeZone: r.VerifyTimeZone,
 		VerifyEnabled: b2i(r.VerifyEnabled), VerifyReadData: r.VerifyReadData, LastTestAt: utcPtr(r.LastTestAt),
 		LastTestResult: r.LastTestResult, LastTest: test, Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 }
 
 func (r backupRepositoryRow) toDomain() domain.BackupRepository {
 	out := domain.BackupRepository{ID: r.ID, Name: r.Name, Kind: r.Kind, Executor: r.Executor, Path: r.Path, Endpoint: r.Endpoint,
-		Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle == 1, CredentialFingerprint: r.CredentialFingerprint,
-		State: r.State, ConfirmedAt: utcPtr(r.ConfirmedAt), VerifyCron: r.VerifyCron, VerifyTimeZone: r.VerifyTimeZone,
-		VerifyEnabled: r.VerifyEnabled == 1, VerifyReadData: r.VerifyReadData, LastTestAt: utcPtr(r.LastTestAt),
+		Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle == 1, Compression: r.Compression,
+		CredentialFingerprint: r.CredentialFingerprint, State: r.State, ConfirmedAt: utcPtr(r.ConfirmedAt), VerifyCron: r.VerifyCron,
+		VerifyTimeZone: r.VerifyTimeZone, VerifyEnabled: r.VerifyEnabled == 1, VerifyReadData: r.VerifyReadData, LastTestAt: utcPtr(r.LastTestAt),
 		LastTestResult: r.LastTestResult, Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 	if r.LastTest != "" {
 		var t domain.BackupConnectionTest
@@ -169,6 +170,14 @@ func (r backupRepositoryRow) toDomain() domain.BackupRepository {
 		}
 	}
 	return out
+}
+
+// compressionOrAuto stores an unset compression mode as auto.
+func compressionOrAuto(mode string) string {
+	if mode == "" {
+		return domain.BackupCompressionAuto
+	}
+	return mode
 }
 
 // InsertBackupRepository stores a new repository.
@@ -194,8 +203,8 @@ func InsertBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRep
 func UpdateBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRepository, expectRevision int64,
 	sealed *BackupRepositorySealed) error {
 	var s BackupRepositorySealed
-	cols := []string{"name", "name_key", "region", "path_style", "state", "confirmed_at", "verify_cron", "verify_time_zone",
-		"verify_enabled", "verify_read_data", "revision", "updated_at"}
+	cols := []string{"name", "name_key", "region", "path_style", "compression", "state", "confirmed_at", "verify_cron",
+		"verify_time_zone", "verify_enabled", "verify_read_data", "revision", "updated_at"}
 	if sealed != nil {
 		s = *sealed
 		cols = append(cols, "access_key_sealed", "secret_key_sealed", "credential_fingerprint")
@@ -464,6 +473,7 @@ type backupPolicyRow struct {
 	ExcludeStacks    string    `bun:"exclude_stacks,notnull"`
 	ExcludeVolumes   string    `bun:"exclude_volumes,notnull"`
 	AnonymousVolumes int       `bun:"anonymous_volumes,notnull"`
+	BuildxVolumes    int       `bun:"buildx_volumes,notnull"`
 	RepositoryID     string    `bun:"repository_id,notnull"`
 	EnvironmentRepos string    `bun:"environment_repos,notnull"`
 	IncludeManager   int       `bun:"include_manager,notnull"`
@@ -501,7 +511,7 @@ func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
 		volumes = []domain.BackupVolumeSelection{}
 	}
 	return backupPolicyRow{ID: p.ID, Name: p.Name, NameKey: NameKey(p.Name), EnvironmentID: p.EnvironmentID,
-		ExcludeStacks: jsonText(p.ExcludeStacks), ExcludeVolumes: jsonText(p.ExcludeVolumes), AnonymousVolumes: b2i(p.AnonymousVolumes), RepositoryID: p.RepositoryID,
+		ExcludeStacks: jsonText(p.ExcludeStacks), ExcludeVolumes: jsonText(p.ExcludeVolumes), AnonymousVolumes: b2i(p.AnonymousVolumes), BuildxVolumes: b2i(p.BuildxVolumes), RepositoryID: p.RepositoryID,
 		EnvironmentRepos: jsonText(repos), IncludeManager: b2i(p.IncludeManager), IncludeMetrics: b2i(p.IncludeMetrics),
 		Stacks: jsonText(stacks), Volumes: jsonText(volumes), Shutdown: b2i(p.Shutdown), Cron: p.Cron, TimeZone: p.TimeZone,
 		Enabled: b2i(p.Enabled), Retention: jsonText(p.Retention), Revision: p.Revision, CreatedAt: p.CreatedAt.UTC(),
@@ -510,7 +520,7 @@ func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
 
 func (r backupPolicyRow) toDomain() domain.BackupPolicy {
 	p := domain.BackupPolicy{ID: r.ID, Name: r.Name, EnvironmentID: r.EnvironmentID, AnonymousVolumes: r.AnonymousVolumes == 1,
-		RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
+		BuildxVolumes: r.BuildxVolumes == 1, RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
 		IncludeMetrics: r.IncludeMetrics == 1, Shutdown: r.Shutdown == 1, Cron: r.Cron, TimeZone: r.TimeZone, Enabled: r.Enabled == 1,
 		Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 	_ = json.Unmarshal([]byte(r.EnvironmentRepos), &p.EnvironmentRepos)

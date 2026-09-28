@@ -22,6 +22,7 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -113,6 +114,12 @@ type Options struct {
 	// class credential_unavailable (the error's message must not contain
 	// secrets) and nothing is sent.
 	CommandSecrets func(ctx context.Context, j *domain.Job) (*protocol.CommandSecrets, error)
+	// CommandInput adapts a job's input to the agent receiving it at every
+	// dispatch (an optional field only agents announcing its feature
+	// accept, filled with the current setting, #10 backup compression).
+	// It returns the input to send; nil sends j.Input as stored. It never
+	// changes the stored input.
+	CommandInput func(ctx context.Context, j *domain.Job) json.RawMessage
 }
 
 // Engine is the job engine. Create it with New.

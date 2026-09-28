@@ -81,6 +81,10 @@ func (s *Service) openForJob(ctx context.Context, sc *jobexec.StepContext, ref p
 	if err != nil {
 		return o, classed(err)
 	}
+	if o.CompressionIgnored {
+		s.log.Info("the backup location has restic repository format 1, which cannot compress; writing without the compression setting",
+			"repository_id", ref.RepositoryID, "scope", ref.Scope)
+	}
 	return o, nil
 }
 

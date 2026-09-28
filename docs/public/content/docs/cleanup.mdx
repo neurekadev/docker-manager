@@ -53,6 +53,10 @@ Existing policies keep their own.
 - Stacks Docker Manager manages, with their images.
 - The images of containers Docker Manager created, so it can recreate them.
 - Backup data.
+- Containers, images, volumes and networks with the label
+  `docker-manager.maintenance.exclude=true`. In a Compose file, put it
+  under `labels:` of the service, volume or network; for an image, use a
+  `LABEL` line in its Dockerfile.
 
 Every object is checked again right before it is removed, so something
 that came into use after the preview is kept.

@@ -256,7 +256,8 @@ func (s *Service) insideDockerRoot(p string) bool {
 }
 
 // planStackVolumes selects a stack's named (and optionally anonymous)
-// volumes.
+// volumes. A volume a container carrying the backup exclude label mounts
+// is left out, like one carrying the label itself (includeVolume).
 func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *itemPlan, proj *compose.Project) {
 	it := p.item
 	type vol struct{ key, name, service string }
@@ -269,6 +270,22 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 		seen[v.Name] = true
 		named = append(named, vol{v.Key, v.Name, v.Service})
 	}
+	// Anonymous volumes and the exclude label only exist on containers.
+	containers, listErr := lifecycle.ProjectContainers(ctx, eng, p.project)
+	if listErr != nil {
+		p.warnings = append(p.warnings, "the project's containers could not be listed: "+listErr.Error())
+	}
+	labelled := map[string]bool{}
+	for _, c := range containers {
+		if !protocol.BackupExcluded(c.Labels) {
+			continue
+		}
+		for _, m := range c.Mounts {
+			if m.Type == "volume" && m.Name != "" {
+				labelled[m.Name] = true
+			}
+		}
+	}
 	matches := func(list []string, v vol) bool { return slices.Contains(list, v.key) || slices.Contains(list, v.name) }
 	for _, v := range named {
 		ss := protocol.ScopeSource{Kind: protocol.SourceVolume, Name: v.name, Service: v.service}
@@ -277,15 +294,14 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 			ss.State, ss.Reason = protocol.SourceExcluded, "excluded by the policy"
 		case len(it.Rules.VolumeInclude) > 0 && !matches(it.Rules.VolumeInclude, v):
 			ss.State, ss.Reason = protocol.SourceExcluded, "not in the policy's volume selection"
+		case labelled[v.name]:
+			ss.State, ss.Reason = protocol.SourceExcluded, labelledContainerReason
 		default:
 			s.includeVolume(ctx, eng, p, &ss, v.name)
 		}
 		p.sources = append(p.sources, ss)
 	}
-	// Anonymous volumes only exist on containers.
-	containers, err := lifecycle.ProjectContainers(ctx, eng, p.project)
-	if err != nil {
-		p.warnings = append(p.warnings, "the project's containers could not be listed: "+err.Error())
+	if listErr != nil {
 		return
 	}
 	for _, c := range containers {
@@ -300,6 +316,8 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 				ss.State, ss.Reason = protocol.SourceExcluded, "anonymous volumes are off (enable them in the policy)"
 			case slices.Contains(it.Rules.VolumeExclude, m.Name):
 				ss.State, ss.Reason = protocol.SourceExcluded, "excluded by the policy"
+			case labelled[m.Name]:
+				ss.State, ss.Reason = protocol.SourceExcluded, labelledContainerReason
 			default:
 				s.includeVolume(ctx, eng, p, &ss, m.Name)
 			}
@@ -307,6 +325,12 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 		}
 	}
 }
+
+// Reasons of volumes left out by the backup exclude label.
+const (
+	labelledContainerReason = "a container using it has the label " + protocol.LabelBackupExclude + "=true"
+	labelledVolumeReason    = "the volume has the label " + protocol.LabelBackupExclude + "=true"
+)
 
 // includeVolume adds a volume's data directory when it is supported and
 // not Docker Manager's own.
@@ -321,6 +345,10 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 		return
 	}
 	ss.Path = filepath.ToSlash(osPath(v.Mountpoint))
+	if protocol.BackupExcluded(v.Labels) {
+		ss.State, ss.Reason = protocol.SourceExcluded, labelledVolumeReason
+		return
+	}
 	if p.prot != nil {
 		if prot := p.prot.Volume(v.Name, v.Labels); prot != nil {
 			ss.State, ss.Reason = protocol.SourceExcluded, "Docker Manager's own volume: "+prot.Reason

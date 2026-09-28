@@ -12,6 +12,9 @@ Guide: `docs/internal/architecture/maintenance.md`. Manager:
 - Every rule and schedule starts disabled; volume rules need their own
   `volumeOptIn`; manual runs need `confirm: true`; `background` is
   presentation only (same durable job).
+- An object labelled `docker-manager.maintenance.exclude=true` is never
+  removed: `ruleDecision` checks it first, so planning and the removal
+  re-check agree.
 - Objects to protect from pruning: Docker Manager's own (#32, agent guard),
   Docker Manager stacks' projects and images, saved container specifications
   (`resources.Service.ManagedSpecRefs`), backups (#10 installs

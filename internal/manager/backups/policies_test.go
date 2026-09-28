@@ -66,6 +66,32 @@ func TestStandaloneVolumesSkipAnonymousAndExcludedVolumes(t *testing.T) {
 	}
 }
 
+// TestStandaloneVolumesSkipLabelledAndBuildxVolumes: the backup exclude
+// label on a volume or on a container using it leaves the volume out, and
+// buildx builder volumes (rebuildable build cache) are left out unless the
+// policy includes them.
+func TestStandaloneVolumesSkipLabelledAndBuildxVolumes(t *testing.T) {
+	ctx := testutil.Context(t)
+	exclude := map[string]string{protocol.LabelBackupExclude: "true"}
+	s := &Service{volumes: fakeVolumes{
+		volumes: []protocol.VolumeInfo{
+			{Name: "media"},
+			{Name: "cache", Labels: exclude},
+			{Name: "dumps", UsedBy: []protocol.ContainerRef{{ID: "c1"}}},
+			{Name: "buildx_buildkit_builder0_state"},
+		},
+		containers: []protocol.ContainerSummary{{ID: "c1", Labels: exclude}},
+	}}
+	p := domain.BackupPolicy{EnvironmentID: "e1"}
+	if got, err := s.standaloneVolumes(ctx, p, "e1", nil); err != nil || !slices.Equal(got, []string{"media"}) {
+		t.Errorf("volumes %v %v, want only media", got, err)
+	}
+	p.BuildxVolumes = true
+	if got, _ := s.standaloneVolumes(ctx, p, "e1", nil); !slices.Equal(got, []string{"media", "buildx_buildkit_builder0_state"}) {
+		t.Errorf("with buildx volumes: %v", got)
+	}
+}
+
 func TestExcludedVolumesPerEnvironment(t *testing.T) {
 	one := domain.BackupPolicy{EnvironmentID: "e1", ExcludeVolumes: []string{"shop_db", "media"}}
 	if got := excludedVolumes(one, "e1"); !slices.Equal(got, []string{"shop_db", "media"}) {

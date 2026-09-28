@@ -14,8 +14,10 @@ import {
 	policySentence,
 	repositoryStatusLine,
 	restoreTargetName,
+	retentionActive,
 	retentionPreset,
 	retentionShort,
+	retentionText,
 	scopeName,
 	verificationText,
 	verifyReadOptions,
@@ -37,6 +39,7 @@ function policy(over: Partial<BackupPolicy> = {}): BackupPolicy {
 		excludeStacks: [],
 		excludeVolumes: [],
 		anonymousVolumes: false,
+		buildxVolumes: false,
 		enabled: true,
 		view: 'full',
 		actions: [],
@@ -82,14 +85,22 @@ describe('retention presets', () => {
 		expect(retentionPreset({ last: 30, hourly: 0, minKeep: 1, afterBackup: true })).toBe(
 			'last30'
 		);
+		// No floor matches too (a floor of 1 keeps the same).
+		expect(retentionPreset({ last: 30, minKeep: 0 })).toBe('last30');
 		// Another rule, or a higher floor, is Custom.
 		expect(retentionPreset({ last: 30, daily: 1, minKeep: 1 })).toBe('custom');
 		expect(retentionPreset({ daily: 7, weekly: 4, monthly: 12, minKeep: 3 })).toBe('custom');
 		expect(retentionPreset({ last: 168, minKeep: 1 })).toBe('custom');
 	});
 
-	it('sets a preset’s rules, turns the others off and keeps "after every backup"', () => {
-		const custom = { last: 5, hourly: 24, minKeep: 2, afterBackup: true };
+	it('sets a preset’s rules, turns the others off, drops the floor and keeps "after every backup" and the expiry', () => {
+		const custom = {
+			last: 5,
+			hourly: 24,
+			minKeep: 2,
+			afterBackup: true,
+			expireDeletedDays: 30
+		};
 		expect(applyRetentionPreset('recommended', custom)).toEqual({
 			last: 0,
 			hourly: 0,
@@ -98,14 +109,15 @@ describe('retention presets', () => {
 			monthly: 12,
 			yearly: 0,
 			withinDays: 0,
-			minKeep: 1,
-			afterBackup: true
+			minKeep: 0,
+			afterBackup: true,
+			expireDeletedDays: 30
 		});
 		expect(applyRetentionPreset('last30', custom)).toMatchObject({ last: 30, hourly: 0 });
 		expect(applyRetentionPreset('everything', custom)).toMatchObject({
 			last: 0,
 			hourly: 0,
-			minKeep: 2
+			minKeep: 0
 		});
 		expect(applyRetentionPreset('custom', custom)).toBe(custom);
 	});
@@ -115,6 +127,15 @@ describe('retention presets', () => {
 		expect(retentionShort({ minKeep: 1 })).toBe('Keep everything');
 		expect(retentionShort(DEFAULT_RETENTION)).toBe('7 daily, 4 weekly, 12 monthly');
 		expect(retentionShort({ last: 30 })).toBe('Last 30');
+	});
+
+	it('counts the expiry of deleted items as retention', () => {
+		expect(retentionActive({ expireDeletedDays: 30 })).toBe(true);
+		expect(retentionActive({ minKeep: 3 })).toBe(false);
+		expect(retentionActive(DEFAULT_RETENTION)).toBe(true);
+		expect(retentionText({ expireDeletedDays: 30 })).toBe(
+			'Keep every backup; backups of deleted stacks and volumes go after 30 days'
+		);
 	});
 });
 

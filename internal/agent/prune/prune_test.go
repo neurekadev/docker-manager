@@ -719,3 +719,19 @@ func TestRunLimitDefersTheRest(t *testing.T) {
 		t.Fatalf("removed %d deferred %d left %d", out.Removed, out.Deferred, len(fe.VolumeNames()))
 	}
 }
+
+// TestMaintenanceExcludeLabel: an object carrying
+// docker-manager.maintenance.exclude=true is never removed, whatever the
+// rule and however old it is; any other value leaves it to the rule.
+func TestMaintenanceExcludeLabel(t *testing.T) {
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	r := protocol.PruneRule{Category: protocol.PruneNamedVolumes}
+	labelled := map[string]string{protocol.LabelMaintenanceExclude: "true"}
+	if d, why := ruleDecision(r, "data", []string{"data"}, labelled, now.Add(-365*24*time.Hour), now); d != protocol.PruneExcluded ||
+		!strings.Contains(why, protocol.LabelMaintenanceExclude) {
+		t.Errorf("labelled object: %s %q", d, why)
+	}
+	if d, _ := ruleDecision(r, "data", []string{"data"}, map[string]string{protocol.LabelMaintenanceExclude: "false"}, now.Add(-time.Hour), now); d != protocol.PruneRemove {
+		t.Errorf("label set to false: %s", d)
+	}
+}

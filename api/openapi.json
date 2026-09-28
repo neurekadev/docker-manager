@@ -2063,6 +2063,10 @@
             "description": "Also back up anonymous volumes (default off).",
             "type": "boolean"
           },
+          "buildxVolumes": {
+            "description": "Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off).",
+            "type": "boolean"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -2170,6 +2174,7 @@
           "excludeStacks",
           "excludeVolumes",
           "anonymousVolumes",
+          "buildxVolumes",
           "enabled",
           "view",
           "actions",
@@ -2191,6 +2196,15 @@
             "type": "array"
           },
           "bucket": {
+            "type": "string"
+          },
+          "compression": {
+            "description": "How restic compresses the data written to the repository (full view): auto (default), max or off. A change applies to data written afterwards (backups, and data prune repacks).",
+            "enum": [
+              "auto",
+              "max",
+              "off"
+            ],
             "type": "string"
           },
           "confirmedAt": {
@@ -2365,7 +2379,7 @@
         "additionalProperties": false,
         "properties": {
           "afterBackup": {
-            "description": "Apply retention automatically after every successful backup of the policy.",
+            "description": "Apply retention automatically after every finished backup run of the policy.",
             "type": "boolean"
           },
           "daily": {
@@ -2374,6 +2388,13 @@
             ],
             "format": "int64",
             "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expireDeletedDays": {
+            "description": "Remove every backup of a stack Docker Manager no longer has or a standalone volume its environment no longer has once its newest backup is N days old (0 = off, the default). Nothing counts as deleted while the environment is offline or archived.",
+            "format": "int64",
+            "maximum": 3650,
             "minimum": 0,
             "type": "integer"
           },
@@ -2390,7 +2411,7 @@
             "type": "integer"
           },
           "minKeep": {
-            "description": "Minimum recovery floor: the newest N snapshots of each stack/volume are always kept (at least 1 when rules are set).",
+            "description": "Optional minimum recovery floor: the newest N snapshots of each stack/volume are always kept on top of the rules (0 = off, the default).",
             "format": "int64",
             "maximum": 10000,
             "minimum": 0,
@@ -4351,6 +4372,15 @@
           },
           "bucket": {
             "maxLength": 63,
+            "type": "string"
+          },
+          "compression": {
+            "description": "How restic compresses the data written to the repository (local and S3): auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data).",
+            "enum": [
+              "auto",
+              "max",
+              "off"
+            ],
             "type": "string"
           },
           "endpoint": {
@@ -11147,6 +11177,10 @@
             "description": "Also back up anonymous volumes (default off).",
             "type": "boolean"
           },
+          "buildxVolumes": {
+            "description": "Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off).",
+            "type": "boolean"
+          },
           "environmentId": {
             "maxLength": 64,
             "type": "string"
@@ -13192,7 +13226,7 @@
             "type": "boolean"
           },
           "reasons": {
-            "description": "Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest.",
+            "description": "Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest; or deleted for a snapshot removed because its stack or volume was deleted.",
             "items": {
               "type": "string"
             },
@@ -16839,6 +16873,9 @@
           "anonymousVolumes": {
             "type": "boolean"
           },
+          "buildxVolumes": {
+            "type": "boolean"
+          },
           "environmentId": {
             "type": "string"
           },
@@ -16911,6 +16948,15 @@
             "maxLength": 256,
             "type": "string",
             "writeOnly": true
+          },
+          "compression": {
+            "description": "Change the compression mode (local and S3); it applies to data written afterwards (backups, and data prune repacks).",
+            "enum": [
+              "auto",
+              "max",
+              "off"
+            ],
+            "type": "string"
           },
           "name": {
             "examples": [
@@ -22004,6 +22050,7 @@
                         "example"
                       ],
                       "anonymousVolumes": false,
+                      "buildxVolumes": false,
                       "createdAt": "2026-09-25T12:00:00Z",
                       "enabled": false,
                       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -22047,6 +22094,7 @@
                       "retention": {
                         "afterBackup": false,
                         "daily": 7,
+                        "expireDeletedDays": 1,
                         "hourly": 1,
                         "last": 1,
                         "minKeep": 1,
@@ -22201,6 +22249,7 @@
                     "example"
                   ],
                   "anonymousVolumes": false,
+                  "buildxVolumes": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -22244,6 +22293,7 @@
                   "retention": {
                     "afterBackup": false,
                     "daily": 7,
+                    "expireDeletedDays": 1,
                     "hourly": 1,
                     "last": 1,
                     "minKeep": 1,
@@ -22592,6 +22642,7 @@
                     "example"
                   ],
                   "anonymousVolumes": false,
+                  "buildxVolumes": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -22635,6 +22686,7 @@
                   "retention": {
                     "afterBackup": false,
                     "daily": 7,
+                    "expireDeletedDays": 1,
                     "hourly": 1,
                     "last": 1,
                     "minKeep": 1,
@@ -22828,6 +22880,7 @@
                     "example"
                   ],
                   "anonymousVolumes": false,
+                  "buildxVolumes": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -22871,6 +22924,7 @@
                   "retention": {
                     "afterBackup": false,
                     "daily": 7,
+                    "expireDeletedDays": 1,
                     "hourly": 1,
                     "last": 1,
                     "minKeep": 1,
@@ -23129,6 +23183,7 @@
                   "retention": {
                     "afterBackup": false,
                     "daily": 7,
+                    "expireDeletedDays": 1,
                     "hourly": 1,
                     "last": 1,
                     "minKeep": 1,
@@ -24154,6 +24209,7 @@
                         "example"
                       ],
                       "bucket": "example",
+                      "compression": "auto",
                       "confirmedAt": "2026-09-25T12:00:00Z",
                       "createdAt": "2026-09-25T12:00:00Z",
                       "credential": {
@@ -24352,6 +24408,7 @@
                       "example"
                     ],
                     "bucket": "example",
+                    "compression": "auto",
                     "confirmedAt": "2026-09-25T12:00:00Z",
                     "createdAt": "2026-09-25T12:00:00Z",
                     "credential": {
@@ -24724,6 +24781,7 @@
                     "example"
                   ],
                   "bucket": "example",
+                  "compression": "auto",
                   "confirmedAt": "2026-09-25T12:00:00Z",
                   "createdAt": "2026-09-25T12:00:00Z",
                   "credential": {
@@ -24938,6 +24996,7 @@
                     "example"
                   ],
                   "bucket": "example",
+                  "compression": "auto",
                   "confirmedAt": "2026-09-25T12:00:00Z",
                   "createdAt": "2026-09-25T12:00:00Z",
                   "credential": {
@@ -25765,6 +25824,7 @@
                       "example"
                     ],
                     "bucket": "example",
+                    "compression": "auto",
                     "confirmedAt": "2026-09-25T12:00:00Z",
                     "createdAt": "2026-09-25T12:00:00Z",
                     "credential": {

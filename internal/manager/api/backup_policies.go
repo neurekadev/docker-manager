@@ -42,15 +42,17 @@ type BackupVolumeSelection struct {
 
 // BackupRetention configures retention.
 type BackupRetention struct {
-	Last        int  `json:"last,omitempty" minimum:"0" maximum:"10000"`
-	Hourly      int  `json:"hourly,omitempty" minimum:"0" maximum:"10000"`
-	Daily       int  `json:"daily,omitempty" example:"7" minimum:"0" maximum:"10000"`
-	Weekly      int  `json:"weekly,omitempty" minimum:"0" maximum:"10000"`
-	Monthly     int  `json:"monthly,omitempty" minimum:"0" maximum:"10000"`
-	Yearly      int  `json:"yearly,omitempty" minimum:"0" maximum:"10000"`
-	WithinDays  int  `json:"withinDays,omitempty" minimum:"0" maximum:"10000" doc:"Keep every snapshot of the newest N days."`
-	MinKeep     int  `json:"minKeep,omitempty" minimum:"0" maximum:"10000" doc:"Minimum recovery floor: the newest N snapshots of each stack/volume are always kept (at least 1 when rules are set)."`
-	AfterBackup bool `json:"afterBackup,omitempty" doc:"Apply retention automatically after every successful backup of the policy."`
+	Last       int `json:"last,omitempty" minimum:"0" maximum:"10000"`
+	Hourly     int `json:"hourly,omitempty" minimum:"0" maximum:"10000"`
+	Daily      int `json:"daily,omitempty" example:"7" minimum:"0" maximum:"10000"`
+	Weekly     int `json:"weekly,omitempty" minimum:"0" maximum:"10000"`
+	Monthly    int `json:"monthly,omitempty" minimum:"0" maximum:"10000"`
+	Yearly     int `json:"yearly,omitempty" minimum:"0" maximum:"10000"`
+	WithinDays int `json:"withinDays,omitempty" minimum:"0" maximum:"10000" doc:"Keep every snapshot of the newest N days."`
+	MinKeep    int `json:"minKeep,omitempty" minimum:"0" maximum:"10000" doc:"Optional minimum recovery floor: the newest N snapshots of each stack/volume are always kept on top of the rules (0 = off, the default)."`
+	// ExpireDeletedDays removes the backups of deleted items.
+	ExpireDeletedDays int  `json:"expireDeletedDays,omitempty" minimum:"0" maximum:"3650" doc:"Remove every backup of a stack Docker Manager no longer has or a standalone volume its environment no longer has once its newest backup is N days old (0 = off, the default). Nothing counts as deleted while the environment is offline or archived."`
+	AfterBackup       bool `json:"afterBackup,omitempty" doc:"Apply retention automatically after every finished backup run of the policy."`
 }
 
 // BackupSchedule is a policy's schedule (#13).
@@ -152,6 +154,7 @@ type BackupPolicy struct {
 	ExcludeStacks           []string                `json:"excludeStacks"`
 	ExcludeVolumes          []string                `json:"excludeVolumes" doc:"Volumes not backed up: standalone ones and those of the selected stacks."`
 	AnonymousVolumes        bool                    `json:"anonymousVolumes" doc:"Also back up anonymous volumes (default off)."`
+	BuildxVolumes           bool                    `json:"buildxVolumes" doc:"Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off)."`
 	Enabled                 bool                    `json:"enabled"`
 	View                    string                  `json:"view" enum:"minimal,full"`
 	Actions                 []string                `json:"actions"`
@@ -182,6 +185,7 @@ func newBackupPolicy(p domain.BackupPolicy, v authz.View) BackupPolicy {
 	}
 	out.RepositoryID, out.EnvironmentRepositories = p.RepositoryID, p.EnvironmentRepos
 	out.ExcludeStacks, out.ExcludeVolumes, out.AnonymousVolumes = p.ExcludeStacks, p.ExcludeVolumes, p.AnonymousVolumes
+	out.BuildxVolumes = p.BuildxVolumes
 	if out.ExcludeStacks == nil {
 		out.ExcludeStacks = []string{}
 	}
@@ -199,7 +203,7 @@ func newBackupPolicy(p domain.BackupPolicy, v authz.View) BackupPolicy {
 	out.Schedule = &BackupSchedule{Cron: p.Cron, TimeZone: p.TimeZone, Enabled: p.Enabled}
 	r := p.Retention
 	out.Retention = &BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly, Yearly: r.Yearly,
-		WithinDays: r.WithinDays, MinKeep: r.MinKeep, AfterBackup: r.AfterBackup}
+		WithinDays: r.WithinDays, MinKeep: r.MinKeep, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}
 	out.Revision, out.CreatedAt, out.UpdatedAt = p.Revision, p.CreatedAt, p.UpdatedAt
 	return out
 }
@@ -226,7 +230,7 @@ func toRetention(r *BackupRetention) domain.BackupRetention {
 		return domain.BackupRetention{}
 	}
 	return domain.BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly, Yearly: r.Yearly,
-		WithinDays: r.WithinDays, MinKeep: r.MinKeep, AfterBackup: r.AfterBackup}
+		WithinDays: r.WithinDays, MinKeep: r.MinKeep, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}
 }
 
 // policyInputBody is the editable part of a policy.
@@ -237,6 +241,7 @@ type policyInputBody struct {
 	ExcludeStacks           []string                `json:"excludeStacks,omitempty" maxItems:"256"`
 	ExcludeVolumes          []string                `json:"excludeVolumes,omitempty" maxItems:"256" doc:"Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks."`
 	AnonymousVolumes        bool                    `json:"anonymousVolumes,omitempty" doc:"Also back up anonymous volumes (default off)."`
+	BuildxVolumes           bool                    `json:"buildxVolumes,omitempty" doc:"Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off)."`
 	RepositoryID            string                  `json:"repositoryId" minLength:"1" maxLength:"64"`
 	EnvironmentRepositories map[string]string       `json:"environmentRepositories,omitempty"`
 	IncludeManagerState     bool                    `json:"includeManagerState,omitempty" doc:"Back up the manager's state (owner only: manager backups are owner-only)."`
@@ -250,7 +255,7 @@ type policyInputBody struct {
 
 func (b policyInputBody) domain() domain.BackupPolicy {
 	p := domain.BackupPolicy{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
-		AnonymousVolumes: b.AnonymousVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+		AnonymousVolumes: b.AnonymousVolumes, BuildxVolumes: b.BuildxVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Stacks: toStackSelections(b.Stacks),
 		Volumes: toVolumeSelections(b.Volumes), Shutdown: b.Shutdown, Retention: toRetention(b.Retention)}
 	if b.Schedule != nil {
@@ -471,6 +476,7 @@ type updateBackupPolicyInput struct {
 		ExcludeStacks           *[]string                `json:"excludeStacks,omitempty" maxItems:"256"`
 		ExcludeVolumes          *[]string                `json:"excludeVolumes,omitempty" maxItems:"256"`
 		AnonymousVolumes        *bool                    `json:"anonymousVolumes,omitempty"`
+		BuildxVolumes           *bool                    `json:"buildxVolumes,omitempty"`
 		RepositoryID            *string                  `json:"repositoryId,omitempty" maxLength:"64"`
 		EnvironmentRepositories *map[string]string       `json:"environmentRepositories,omitempty"`
 		IncludeManagerState     *bool                    `json:"includeManagerState,omitempty"`
@@ -504,7 +510,7 @@ func (h *backupsAPI) updatePolicy(ctx context.Context, in *updateBackupPolicyInp
 		return nil, err
 	}
 	pp := backups.PolicyPatch{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
-		AnonymousVolumes: b.AnonymousVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+		AnonymousVolumes: b.AnonymousVolumes, BuildxVolumes: b.BuildxVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Shutdown: b.Shutdown}
 	if s := b.Schedule; s != nil {
 		if err := ValidateSchedule(s.Cron, s.TimeZone, "body.schedule"); err != nil {
@@ -665,7 +671,7 @@ type RetentionDecision struct {
 	Time       time.Time `json:"time"`
 	Item       string    `json:"item"`
 	Keep       bool      `json:"keep"`
-	Reasons    []string  `json:"reasons,omitempty" doc:"Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest."`
+	Reasons    []string  `json:"reasons,omitempty" doc:"Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest; or deleted for a snapshot removed because its stack or volume was deleted."`
 }
 
 // RetentionLocationPreview is the preview of one repository location.
@@ -708,7 +714,7 @@ func (h *backupsAPI) previewRetention(ctx context.Context, in *retentionPreviewI
 	}
 	r := pol.Retention
 	out := RetentionPreview{Retention: BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly,
-		Yearly: r.Yearly, WithinDays: r.WithinDays, MinKeep: r.MinKeep, AfterBackup: r.AfterBackup}, Locations: []RetentionLocationPreview{}}
+		Yearly: r.Yearly, WithinDays: r.WithinDays, MinKeep: r.MinKeep, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}, Locations: []RetentionLocationPreview{}}
 	for _, l := range locs {
 		lp := RetentionLocationPreview{RepositoryID: l.RepositoryID, Scope: l.Scope, Decisions: []RetentionDecision{}}
 		for _, d := range l.Decisions {

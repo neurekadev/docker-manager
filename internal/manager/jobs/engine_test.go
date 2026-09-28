@@ -1,6 +1,7 @@
 package jobs_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -677,5 +678,38 @@ func TestActivityFramesStayInMemory(t *testing.T) {
 	}
 	if cur := h.job(j.ID); cur.Progress.Percent != 40 || cur.Progress.Message != "restoring" {
 		t.Errorf("activity changed the job progress: %+v", cur.Progress)
+	}
+}
+
+// TestCommandInputAdaptsTheSentInputOnly: the CommandInput hook shapes the
+// input of the command sent to the agent; the stored job keeps its input,
+// and a nil answer sends the stored input.
+func TestCommandInputAdaptsTheSentInputOnly(t *testing.T) {
+	stored := json.RawMessage(`{"name":"web"}`)
+	h := newHarness(t, func(o *jobs.Options) {
+		o.CommandInput = func(_ context.Context, j *domain.Job) json.RawMessage {
+			if j.Targets[0].ID == "web" {
+				return json.RawMessage(`{"name":"web","extra":true}`)
+			}
+			return nil
+		}
+	})
+	h.disp.Connect("e1")
+	adapted := h.enqueue(jobs.Request{Kind: jobspec.StackDeploy, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("web")}, Input: stored})
+	plain := h.enqueue(jobs.Request{Kind: jobspec.StackDeploy, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("db")}, Input: stored})
+	h.dispatch()
+	sent := map[string]string{}
+	for _, f := range h.commands("e1") {
+		p, err := protocol.DecodePayload[protocol.CommandPayload](f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sent[f.JobID] = string(p.Input)
+	}
+	if sent[adapted.ID] != `{"name":"web","extra":true}` || sent[plain.ID] != string(stored) {
+		t.Errorf("sent inputs = %v", sent)
+	}
+	if got := h.job(adapted.ID).Input; string(got) != string(stored) {
+		t.Errorf("stored input = %s, want %s", got, stored)
 	}
 }

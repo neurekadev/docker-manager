@@ -316,3 +316,30 @@ func TestNextScheduledRuns(t *testing.T) {
 		t.Errorf("next runs %v", got)
 	}
 }
+
+// TestBackupRepositoryCompressionRoundTrip: an unset mode is stored as
+// auto, a chosen one survives an update, and the column refuses unknown
+// modes.
+func TestBackupRepositoryCompressionRoundTrip(t *testing.T) {
+	ctx, db := backupTestDB(t)
+	r := testRepository("r1")
+	if err := InsertBackupRepository(ctx, db, &r, BackupRepositorySealed{}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := GetBackupRepository(ctx, db, "r1")
+	if err != nil || got.Compression != domain.BackupCompressionAuto {
+		t.Fatalf("inserted compression = %q (%v), want auto", got.Compression, err)
+	}
+	got.Compression, got.Revision = domain.BackupCompressionMax, 2
+	if err := UpdateBackupRepository(ctx, db, &got, 1, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = GetBackupRepository(ctx, db, "r1"); err != nil || got.Compression != domain.BackupCompressionMax || got.Revision != 2 {
+		t.Fatalf("updated = %q rev %d (%v), want max rev 2", got.Compression, got.Revision, err)
+	}
+	bad := testRepository("r2")
+	bad.Compression = "fastest"
+	if err := InsertBackupRepository(ctx, db, &bad, BackupRepositorySealed{}); err == nil {
+		t.Error("stored an unknown compression mode")
+	}
+}

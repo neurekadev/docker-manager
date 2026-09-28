@@ -209,6 +209,19 @@ type BackupRunInput struct {
 // BackupRunInput.Activity and then report ProgressPayload.Activity (#10).
 const FeatureBackupActivity = "backup.activity"
 
+// FeatureBackupExpire is the capabilities feature of agents that accept
+// BackupRetentionInput.Expire (backups of deleted stacks and volumes). The
+// manager sends the field only to these agents; for others the expiry
+// waits until the agent is updated.
+const FeatureBackupExpire = "backup.expire"
+
+// FeatureBackupCompression is the capabilities feature of agents that
+// accept a destination's compression mode (backup.Destination.Compression)
+// in backup.run and backup.retention inputs (#10). The manager adds it at
+// dispatch, only for these agents; other agents write with restic's
+// default (auto) and never see the field.
+const FeatureBackupCompression = "backup.compression"
+
 // RepositoryStats is a location's size as restic stats --mode raw-data
 // reports it (index and directory metadata only; #10).
 type RepositoryStats struct {
@@ -303,6 +316,11 @@ type BackupRetentionInput struct {
 	// Expected lists the snapshot IDs a preview showed as removable; when
 	// set, nothing outside it is removed (the preview is binding).
 	Expected []string `json:"expected,omitempty"`
+	// Expire lists the items (stack/<id>, volume/<name>) whose snapshots are
+	// all removed: deleted stacks and volumes whose newest backup is older
+	// than the policy's expiry. Sent only to agents announcing
+	// FeatureBackupExpire.
+	Expire []string `json:"expire,omitempty"`
 }
 
 // RetentionOutput is the result output of the retention kinds.

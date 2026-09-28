@@ -391,7 +391,16 @@ the manager sets the envelope's `requestId` only on sessions whose agent
 announced it (#34). Likewise `backup.activity`
 (`protocol.FeatureBackupActivity`, #10): only those agents get
 `backup.run` inputs with `activity: true`, and only then send progress
-frames with `activity`. And `stack.remove_volumes`
+frames with `activity`. And `backup.compression`
+(`protocol.FeatureBackupCompression`, #10): only those agents get
+`backup.run` and `backup.retention` inputs whose
+`repository.destination` has `compression` (`max` or `off`; auto is
+never sent), added by the manager at dispatch; other agents back up and
+prune with restic's default. And `backup.expire`
+(`protocol.FeatureBackupExpire`): only those agents get `backup.retention`
+inputs with `expire` (items whose snapshots all go: deleted stacks and
+volumes past the policy's expiry); other agents apply the rules alone.
+And `stack.remove_volumes`
 (`protocol.FeatureStackRemoveVolumes`): only those agents get
 `stack.remove` inputs with `removeVolumes` (and `keepVolumes`); the manager
 refuses the option for other agents (they would keep the volumes). And
@@ -875,7 +884,9 @@ Backup and restore are explicit, capability-gated commands: the agent runs
 restic itself against the repository named in the command input, with
 bounded paths from the policy; there are no pre/post hooks (#25). The
 command input names the destination and the environment scope
-(`protocol.BackupRepositoryRef`); the repository credentials (the Recovery
+(`protocol.BackupRepositoryRef`; the destination's optional `compression`
+is restic's `--compression` for backup and prune, see `backup.compression`
+above); the repository credentials (the Recovery
 Key, during a key rotation also the previous key, and the S3 key pair)
 travel only in the command's `secrets.repositories` and are never
 journaled. The `backup.snapshots`, `backup.contents` requests and the

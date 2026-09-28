@@ -13,6 +13,7 @@ import {
 	coveredVolumes,
 	hasRetentionRules,
 	incompleteMembers,
+	isBuildxVolume,
 	looksLikeRecoveryKey,
 	modeText,
 	normalizeRecoveryKey,
@@ -136,15 +137,37 @@ describe('backup sets', () => {
 			[{ id: 's1', name: 'shop' }],
 			[{ id: 'c1', labels: { 'com.docker.compose.project': 'shop' } }]
 		);
+		const plain = { buildx: false, labelled: false };
 		expect(out).toEqual([
-			{ name: '3f2a', anonymous: true, stackId: 's1' },
-			{ name: '9c1b', anonymous: true, stackId: undefined },
-			{ name: 'media', anonymous: false, stackId: undefined },
-			{ name: 'shop_cache', anonymous: false, stackId: 's1' },
-			{ name: 'shop_db', anonymous: false, stackId: 's1' }
+			{ name: '3f2a', anonymous: true, stackId: 's1', ...plain },
+			{ name: '9c1b', anonymous: true, stackId: undefined, ...plain },
+			{ name: 'media', anonymous: false, stackId: undefined, ...plain },
+			{ name: 'shop_cache', anonymous: false, stackId: 's1', ...plain },
+			{ name: 'shop_db', anonymous: false, stackId: 's1', ...plain }
 		]);
 		expect(volumeKey(true, 'e1', 'media')).toBe('e1/media');
 		expect(volumeKey(false, 'e1', 'media')).toBe('media');
+	});
+
+	it('marks buildx builder volumes and volumes the backup exclude label leaves out', () => {
+		const exclude = { 'docker-manager.backup.exclude': 'TRUE' };
+		const out = coveredVolumes(
+			[
+				{ name: 'buildx_buildkit_builder0_state' },
+				{ name: 'cache', labels: exclude },
+				{ name: 'dumps', usedBy: [{ id: 'c1' }] },
+				{ name: 'media' }
+			],
+			[],
+			[{ id: 'c1', labels: exclude }]
+		);
+		expect(out.map((v) => [v.name, v.buildx, v.labelled])).toEqual([
+			['buildx_buildkit_builder0_state', true, false],
+			['cache', false, true],
+			['dumps', false, true],
+			['media', false, false]
+		]);
+		expect(isBuildxVolume('buildx_buildkit__state')).toBe(false);
 	});
 });
 

@@ -17,6 +17,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
@@ -70,8 +71,14 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 	}
 	now := s.now()
 	r := domain.BackupRepository{ID: ids.New(), Name: name, Kind: in.Kind, Executor: in.Executor, Path: in.Path, Endpoint: in.Endpoint,
-		Bucket: in.Bucket, Prefix: in.Prefix, Region: in.Region, PathStyle: in.PathStyle, State: domain.BackupRepositoryAwaitingConfirmation,
-		VerifyReadData: in.VerifyReadData, Revision: 1, CreatedAt: now, UpdatedAt: now}
+		Bucket: in.Bucket, Prefix: in.Prefix, Region: in.Region, PathStyle: in.PathStyle, Compression: in.Compression,
+		State: domain.BackupRepositoryAwaitingConfirmation, VerifyReadData: in.VerifyReadData, Revision: 1, CreatedAt: now, UpdatedAt: now}
+	if r.Compression == "" {
+		r.Compression = domain.BackupCompressionAuto
+	}
+	if !validCompression(r.Compression) {
+		return CreatedRepository{}, fieldErr("compression", "must be auto, max or off")
+	}
 	if err := s.validateDestination(ctx, &r); err != nil {
 		return CreatedRepository{}, err
 	}
@@ -131,6 +138,7 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeBackupRepository, ID: r.ID})
 	audit.SetDetail(ctx, "kind", r.Kind)
 	audit.SetDetail(ctx, "location", destination(r).Base())
+	audit.SetDetail(ctx, "compression", r.Compression)
 	audit.SetDetail(ctx, "keyGenerated", out.RecoveryKey != nil)
 	if out.RecoveryKey != nil {
 		audit.SetDetail(ctx, "pendingKeyFingerprint", out.RecoveryKey.Fingerprint())
@@ -241,6 +249,14 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, revision int6
 			}
 			r.PathStyle = *p.PathStyle
 		}
+		if p.Compression != nil {
+			// Local and S3 repositories alike; only data written from now
+			// on (backups, and what prune repacks) uses the new mode.
+			if !validCompression(*p.Compression) {
+				return fieldErr("compression", "must be auto, max or off")
+			}
+			r.Compression = *p.Compression
+		}
 		if err := destination(r).Validate(); err != nil {
 			return fieldErr("region", "%s", err.Error())
 		}
@@ -296,8 +312,9 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, revision int6
 }
 
 func repositoryAuditView(r domain.BackupRepository) map[string]any {
-	return map[string]any{"name": r.Name, "region": r.Region, "pathStyle": r.PathStyle, "s3KeyPairFingerprint": r.CredentialFingerprint,
-		"verifyCron": r.VerifyCron, "verifyTimeZone": r.VerifyTimeZone, "verifyEnabled": r.VerifyEnabled, "verifyReadData": r.VerifyReadData}
+	return map[string]any{"name": r.Name, "region": r.Region, "pathStyle": r.PathStyle, "compression": r.Compression,
+		"s3KeyPairFingerprint": r.CredentialFingerprint,
+		"verifyCron":           r.VerifyCron, "verifyTimeZone": r.VerifyTimeZone, "verifyEnabled": r.VerifyEnabled, "verifyReadData": r.VerifyReadData}
 }
 
 // DeleteRepository removes a repository that no policy uses and the
@@ -343,10 +360,82 @@ func (s *Service) credentials(ctx context.Context, db bun.IDB, id string) (backu
 	return backup.S3Credentials{AccessKeyID: string(a), SecretAccessKey: string(b)}, nil
 }
 
-// repositoryRef is the wire reference of a repository's scope.
+// repositoryRef is the wire reference of a repository's scope. It never
+// carries the compression mode: requests and most commands do not write
+// data, and older agents do not know the field. CommandInput adds it at
+// dispatch to the commands that write, for agents announcing
+// protocol.FeatureBackupCompression.
 func repositoryRef(r domain.BackupRepository, scope string, k domain.BackupKeyState) protocol.BackupRepositoryRef {
-	return protocol.BackupRepositoryRef{RepositoryID: r.ID, Destination: destination(r), Scope: scope, KeyGeneration: k.Generation,
+	d := destination(r)
+	d.Compression = ""
+	return protocol.BackupRepositoryRef{RepositoryID: r.ID, Destination: d, Scope: scope, KeyGeneration: k.Generation,
 		KeyFingerprint: k.Fingerprint}
+}
+
+// compressionKinds are the agent commands that write pack files (backup,
+// and retention's prune), so they carry the compression mode.
+var compressionKinds = []domain.JobKind{jobspec.BackupRun, jobspec.BackupRetention}
+
+// CommandInput sets the repository's current compression mode in the
+// destination of a backup.run or backup.retention command at dispatch,
+// when the receiving agent announces protocol.FeatureBackupCompression and
+// the mode is not auto (#10). Otherwise, or when the input cannot be
+// adapted, it returns nil: the command carries the stored input and the
+// agent writes with restic's default. The stored job never changes.
+func (s *Service) CommandInput(ctx context.Context, j *domain.Job) json.RawMessage {
+	if !slices.Contains(compressionKinds, j.Kind) {
+		return nil
+	}
+	id := repositoryOf(*j)
+	if id == "" {
+		return nil
+	}
+	fh, ok := s.opts.Agents.(FeatureHub)
+	if !ok || !fh.EnvironmentHasFeature(j.EnvironmentID, protocol.FeatureBackupCompression) {
+		return nil
+	}
+	repo, err := store.GetBackupRepository(ctx, s.db, id)
+	if err != nil {
+		return nil // CommandSecrets fails the job
+	}
+	mode := DestinationCompression(repo.Compression)
+	if mode == "" {
+		return nil
+	}
+	out, err := withCompression(j.Input, mode)
+	if err != nil {
+		s.log.Warn("could not add the compression mode to a backup command; it writes with restic's default",
+			"job_id", j.ID, "error", err)
+		return nil
+	}
+	return out
+}
+
+// withCompression sets repository.destination.compression in a job input.
+func withCompression(input json.RawMessage, mode string) (json.RawMessage, error) {
+	var in map[string]json.RawMessage
+	if err := json.Unmarshal(input, &in); err != nil {
+		return nil, err
+	}
+	var ref map[string]json.RawMessage
+	if err := json.Unmarshal(in["repository"], &ref); err != nil || ref == nil {
+		return nil, errors.New("the input has no repository")
+	}
+	var dest map[string]json.RawMessage
+	if err := json.Unmarshal(ref["destination"], &dest); err != nil || dest == nil {
+		return nil, errors.New("the repository has no destination")
+	}
+	var err error
+	if dest["compression"], err = json.Marshal(mode); err != nil {
+		return nil, err
+	}
+	if ref["destination"], err = json.Marshal(dest); err != nil {
+		return nil, err
+	}
+	if in["repository"], err = json.Marshal(ref); err != nil {
+		return nil, err
+	}
+	return json.Marshal(in)
 }
 
 // credentialFor builds the credential of a repository for one call.

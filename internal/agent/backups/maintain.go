@@ -13,7 +13,9 @@ import (
 )
 
 // backup.retention: forget what the policy's rules do not keep in this
-// environment's repository (exactly the preview's decision), then prune.
+// environment's repository (exactly the preview's decision), then prune
+// when anything was forgotten (a prune downloads and rewrites pack data,
+// so a retention that removed nothing never pays for one).
 // backup.verify: check the repository (optionally reading a subset of the
 // data) and list its snapshots and host manifests so the manager's index
 // catches up (#24).
@@ -30,7 +32,7 @@ func (s *Service) stepForget(ctx context.Context, sc *jobexec.StepContext) error
 	if err != nil {
 		return err
 	}
-	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, in.TimeZone)
+	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, in.Expire, in.TimeZone)
 	out := protocol.RetentionOutput{ResticRepositoryID: o.ResticRepositoryID, KeyGeneration: in.Repository.KeyGeneration,
 		Forgotten: res.Forgotten, Kept: res.Kept}
 	if serr := sc.SetOutput(ctx, out); serr != nil {
@@ -46,6 +48,9 @@ func (s *Service) stepPrune(ctx context.Context, sc *jobexec.StepContext) error 
 	}
 	var out protocol.RetentionOutput
 	_ = json.Unmarshal(sc.Output(), &out)
+	if len(out.Forgotten) == 0 {
+		return nil
+	}
 	o, err := s.openForJob(ctx, sc, in.Repository, false)
 	if err != nil {
 		return err

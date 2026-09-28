@@ -24,6 +24,14 @@ only production process execution in Docker Manager.
   `docker-manager-env-<environmentId>` for an environment's data. A local
   repository serves only its own executor's scope; an S3 repository serves
   every scope. Ownership, locking and retention stay per location.
+- Every repository (local or S3) has a **compression** mode: `auto`
+  (default, restic's), `max` or `off` (`domain.BackupCompression*`,
+  column `backup_repositories.compression`). It is editable at any time
+  and applies to data written afterwards: new backups, and the data a
+  prune repacks; what is stored keeps its compression.
+  `backup.Destination.Compression` carries it (`""` for auto, never
+  written out, so manifests and older agents see the destination they
+  know); `Destination.Location` sets `restic.Location.Compression`.
 - Removing a repository (refused while a policy uses it) also removes
   its snapshots from the index and the sets held only by it: they cannot
   be browsed or restored without it. Finish hooks do not index snapshots
@@ -36,7 +44,16 @@ only production process execution in Docker Manager.
   exclusions use `environmentID/volumeName`. Anonymous volumes (Engine
   label `com.docker.volume.anonymous`, and a stack container's unnamed
   mounts) are left out unless the policy's `anonymousVolumes` switch is on
-  (default off). The policy also configures manager state
+  (default off), and so are buildx builder volumes
+  (`buildx_buildkit_<builder>_state`, `protocol.IsBuildxVolume`: rebuildable
+  build cache) unless `buildxVolumes` is on (default off). The user-set
+  label `docker-manager.backup.exclude=true` (`protocol.LabelBackupExclude`,
+  outside the reserved prefix like the update label) leaves a volume out:
+  on the volume itself, or on a container that mounts it. The manager
+  applies it to standalone volumes (`standaloneVolumes`), the agent to a
+  stack's named and anonymous volumes (`planStackVolumes`, source reason
+  names the label); a stack's project directory is always backed up. The
+  UI's `coveredVolumes` repeats these rules. The policy also configures manager state
   (owner only), container shutdown (off by default), a schedule (#13,
   starts disabled), and retention. A migrated stack is covered by the
   destination environment's policy. Existing snapshots retain their source
@@ -119,6 +136,30 @@ stale locks: not refreshed for 30 minutes, or whose process is gone on the
 same host) and repeats the call once. Calls reading stdin are not
 repeated. A `repository_locked` failure therefore means a live run holds
 the lock.
+The compression mode is `--compression max|off`, passed only to the calls
+that write pack files (`backup`, `prune`); auto passes nothing, and no
+other call (`cat config`, `check`, `snapshots`, ...) gets the flag.
+restic compresses only repositories of format version 2 (restic 0.14 or
+newer; every repository Docker Manager initializes): `backup.OpenLocation`
+reads the version with `cat config` and, for a version 1 repository (an
+old one imported from another restic), reopens the location without the
+mode (`Opened.CompressionIgnored`, logged by the agent) instead of failing
+the backup, so it keeps writing uncompressed as before. Upgrading such a
+repository (`restic migrate upgrade_repo_v2`) is left to the operator.
+The manager's own restic (manager-state backups and their prune) uses the
+same `Destination`, so it honors the mode as well.
+
+Agents get the mode only when they announce `backup.compression`
+(`protocol.FeatureBackupCompression`). Repository references
+(`repositoryRef`) never carry it, so no request (scope preview, snapshot
+listing, contents, restore preview) and no stored job input does; at
+every dispatch, `backups.Service.CommandInput` (`jobs.Options.CommandInput`)
+sets the repository's current mode in `repository.destination.compression`
+of `backup.run` and `backup.retention` commands for agents announcing the
+feature (other kinds, such as `backup.verify` and `restore.run`, do not
+write data). An older agent gets the input as stored and backs up and
+prunes with restic's default (auto) instead of failing; it works again
+with the chosen mode once upgraded.
 restic retries every backend error its S3 backend does not deem permanent
 for 15 minutes, with no option to shorten that (a wrong secret key,
 `SignatureDoesNotMatch`, is retried); the runner reads restic's retry
@@ -214,13 +255,33 @@ JSON; decoding detects truncation (`ErrManifestTruncated`), corruption
 Retention rules (last, hourly, daily, weekly, monthly, yearly, within days)
 follow restic's keep policies but are **computed by Docker Manager**
 (`backup.Plan`) so the preview and the execution are the same decision: the
-executor forgets exactly the IDs the plan removes (`restic forget <ids>`),
-then prunes. A **minimum recovery floor** (`minKeep`, at least 1 when rules
-are set) always keeps the newest N snapshots of each stack/volume, and the
-newest is never removed. Only the policy's snapshots of that location are
-considered; manifests of sets without remaining data there go too.
-Retention runs manually (`retention-runs`, `confirm: true`) or after every
-finished set when `afterBackup` is set; it takes the repository lock
+executor forgets exactly the IDs the plan removes (`restic forget <ids>`,
+one call per location), then prunes, **only when it forgot something** (a
+prune downloads and rewrites pack data; a retention that removed nothing
+skips it). Like restic's, the rules judge each stack/volume by its own
+snapshots, so an item's newest snapshot always stays and failing backups
+never shrink it. An optional **minimum recovery floor** (`minKeep`, 0 = off,
+the default) keeps the newest N snapshots of each item on top of the rules.
+Only the policy's snapshots of that location are considered; manifests of
+sets without remaining data there go too.
+
+Because the rules keep a **deleted** item's last snapshots forever, a policy
+may expire them: with `retention.expireDeletedDays` > 0 (default 0, off), a
+stack Docker Manager no longer has or a standalone volume its environment
+no longer has loses every snapshot once its newest one is older than that
+(`backups.Service.expiredItems`, then `RetentionPlan.Expire`, reason
+`deleted`; the preview shows the same). Nothing counts as deleted while the
+environment is archived or its volumes cannot be listed (offline agent),
+and manager state never does. The items travel in
+`BackupRetentionInput.Expire`, sent only to agents announcing
+`backup.expire`; an older agent applies the rules alone.
+
+Retention runs manually (`retention-runs`, `confirm: true`) or once after
+every finished set when `afterBackup` is set: once per set and location
+(repository and scope), never per stack or volume. A set stays `pending`
+until every member has reported, even when one already failed
+(`Service.settle`), so the follow-up (`flagRetention`, `RunFollowUps`) sees
+every location the run wrote to. It takes the repository lock
 exclusively (#26), serialized with backups and restores, and reports
 reclaimed space and failures (Object Lock refusing deletions).
 

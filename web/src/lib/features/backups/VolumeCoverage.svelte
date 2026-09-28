@@ -2,8 +2,10 @@
 	// The volumes of one environment a backup policy (#10) covers: the
 	// volumes of the included stacks and the standalone ones, all included
 	// until unchecked (unchecking adds the volume to the policy's
-	// exclusions). Anonymous volumes appear only when the policy backs them
-	// up. Docker Manager's own volumes are never offered (#32).
+	// exclusions). Anonymous and buildx builder volumes appear only when the
+	// policy backs them up; volumes left out by the backup exclude label are
+	// counted, never offered. Docker Manager's own volumes are never offered
+	// (#32).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { Skeleton } from '$lib/ui';
 	import CoverageList from '$lib/features/common/CoverageList.svelte';
@@ -17,6 +19,7 @@
 		excluded,
 		excludedStacks,
 		anonymous,
+		buildx,
 		onchange
 	}: {
 		environmentId: string;
@@ -25,6 +28,7 @@
 		excluded: string[];
 		excludedStacks: string[];
 		anonymous: boolean;
+		buildx: boolean;
 		onchange: (values: string[]) => void;
 	} = $props();
 
@@ -38,8 +42,13 @@
 	const list = $derived(
 		coveredVolumes(volumes.data ?? [], stacks.data ?? [], containers.data ?? [])
 	);
-	const hiddenAnonymous = $derived(anonymous ? 0 : list.filter((v) => v.anonymous).length);
-	const shown = $derived(list.filter((v) => anonymous || !v.anonymous));
+	const labelled = $derived(list.filter((v) => v.labelled).length);
+	const unlabelled = $derived(list.filter((v) => !v.labelled));
+	const hiddenAnonymous = $derived(anonymous ? 0 : unlabelled.filter((v) => v.anonymous).length);
+	const hiddenBuildx = $derived(buildx ? 0 : unlabelled.filter((v) => v.buildx).length);
+	const shown = $derived(
+		unlabelled.filter((v) => (anonymous || !v.anonymous) && (buildx || !v.buildx))
+	);
 	const stackVolumes = $derived(
 		shown.filter((v) => v.stackId && !excludedStacks.includes(v.stackId))
 	);
@@ -97,6 +106,20 @@
 				{hiddenAnonymous}
 				{hiddenAnonymous === 1 ? 'anonymous volume is' : 'anonymous volumes are'} not backed up
 				(turn on anonymous volumes to include them).
+			</p>
+		{/if}
+		{#if hiddenBuildx}
+			<p class="muted small">
+				{hiddenBuildx}
+				{hiddenBuildx === 1 ? 'buildx builder volume is' : 'buildx builder volumes are'} not backed
+				up (turn on buildx builder volumes to include them).
+			</p>
+		{/if}
+		{#if labelled}
+			<p class="muted small">
+				{labelled}
+				{labelled === 1 ? 'volume is' : 'volumes are'} left out by the label
+				<code>docker-manager.backup.exclude=true</code>.
 			</p>
 		{/if}
 	{/if}

@@ -23,6 +23,14 @@ const (
 // (other local repositories name their environment).
 const BackupExecutorManager = "manager"
 
+// Backup repository compression modes (restic's --compression; the
+// values match restic.Compression*).
+const (
+	BackupCompressionAuto = "auto"
+	BackupCompressionMax  = "max"
+	BackupCompressionOff  = "off"
+)
+
 // BackupRepository is a destination for restic repositories: a local
 // directory on one executor (the manager or one environment's agent) or an
 // S3 bucket/prefix. S3 credentials are sealed; only their fingerprint is
@@ -41,6 +49,11 @@ type BackupRepository struct {
 	Prefix    string
 	Region    string
 	PathStyle bool
+	// Compression is the compression mode of the data written to the
+	// repository: BackupCompressionAuto (default), Max or Off. A change
+	// affects only data written afterwards (backups, and data prune
+	// repacks).
+	Compression string
 	// CredentialFingerprint identifies the stored S3 key pair ("" none).
 	CredentialFingerprint string
 	State                 string
@@ -63,15 +76,17 @@ type BackupRepository struct {
 
 // BackupRepositoryInput creates a repository.
 type BackupRepositoryInput struct {
-	Name            string
-	Kind            string
-	Executor        string
-	Path            string
-	Endpoint        string
-	Bucket          string
-	Prefix          string
-	Region          string
-	PathStyle       bool
+	Name      string
+	Kind      string
+	Executor  string
+	Path      string
+	Endpoint  string
+	Bucket    string
+	Prefix    string
+	Region    string
+	PathStyle bool
+	// Compression is BackupCompressionAuto ("" means the same), Max or Off.
+	Compression     string
 	AccessKeyID     string
 	SecretAccessKey string
 	VerifyCron      string
@@ -85,6 +100,7 @@ type BackupRepositoryPatch struct {
 	Name            *string
 	Region          *string
 	PathStyle       *bool
+	Compression     *string
 	AccessKeyID     *string
 	SecretAccessKey *string
 	VerifyCron      *string
@@ -211,10 +227,16 @@ type BackupRetention struct {
 	Yearly     int
 	WithinDays int
 	MinKeep    int
-	// AfterBackup applies retention automatically after every successful
-	// scheduled backup of the policy.
+	// ExpireDeletedDays removes every backup of a deleted stack or volume
+	// once its newest backup is this many days old (0 = off, the default).
+	ExpireDeletedDays int
+	// AfterBackup applies retention automatically after every finished
+	// backup run of the policy.
 	AfterBackup bool
 }
+
+// MaxExpireDeletedDays bounds BackupRetention.ExpireDeletedDays.
+const MaxExpireDeletedDays = 3650
 
 // BackupPolicy is a backup policy (instance resource).
 type BackupPolicy struct {
@@ -231,6 +253,9 @@ type BackupPolicy struct {
 	// AnonymousVolumes also backs up anonymous volumes (default off): those
 	// of the selected stacks' containers and standalone ones.
 	AnonymousVolumes bool
+	// BuildxVolumes also backs up buildx builder volumes (default off:
+	// rebuildable build cache, protocol.IsBuildxVolume).
+	BuildxVolumes bool
 	// RepositoryID is the destination of every scope; EnvironmentRepos
 	// overrides it per environment (local repositories live on each
 	// environment's own agent).

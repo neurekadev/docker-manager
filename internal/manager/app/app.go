@@ -13,6 +13,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -392,6 +393,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.jobs, err = jobs.New(jobs.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
 		Dispatcher: m.agents.Hub(), Authorizer: authorizer, Audit: m.audit, CommandSecrets: m.commandSecrets,
+		CommandInput: m.commandInput,
 		Limits: jobs.Limits{
 			ConcurrencyCaps: map[string]int{jobspec.ClassPull: cfg.Jobs.MaxConcurrentPulls, jobspec.ClassBuild: cfg.Jobs.MaxConcurrentBuilds},
 			HistoryMaxAge:   cfg.Jobs.HistoryRetention,
@@ -772,6 +774,12 @@ func (m *Manager) commandSecrets(ctx context.Context, j *domain.Job) (*protocol.
 		return nil, nil
 	}
 	return s, nil
+}
+
+// commandInput adapts a job's input to the agent receiving it (#10: the
+// backup repository's compression mode, for agents announcing it).
+func (m *Manager) commandInput(ctx context.Context, j *domain.Job) json.RawMessage {
+	return m.backups.CommandInput(ctx, j)
 }
 
 func (m *Manager) initInstance(ctx context.Context) error {

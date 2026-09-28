@@ -53,7 +53,7 @@ type fakeAnswer struct {
 func command(args []string) string {
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
-		case a == "-o" || a == "--retry-lock":
+		case a == "-o" || a == "--retry-lock" || a == "--compression":
 			i++
 		case strings.HasPrefix(a, "-"):
 		default:
@@ -289,6 +289,76 @@ func TestRunnerParsesBackupProgressAndSummary(t *testing.T) {
 	// With a progress receiver, restic reports every second.
 	if fps, _ := envValue(f.calls()[0].Env, "RESTIC_PROGRESS_FPS"); fps != "1" {
 		t.Errorf("RESTIC_PROGRESS_FPS = %q, want 1", fps)
+	}
+}
+
+func TestRunnerPassesCompressionOnlyToWritingCalls(t *testing.T) {
+	for _, tc := range []struct {
+		mode string
+		want []string
+	}{
+		{"", nil},
+		{CompressionAuto, nil},
+		{CompressionMax, []string{"--compression", "max"}},
+		{CompressionOff, []string{"--compression", "off"}},
+	} {
+		t.Run("mode "+tc.mode, func(t *testing.T) {
+			f := newFake(t, map[string]fakeAnswer{
+				"backup": {Stdout: `{"message_type":"summary","snapshot_id":"abc123"}` + "\n"},
+				"cat":    {Stdout: `{"id":"r1","version":1}`},
+				"*":      {},
+			})
+			repo := f.r.Open(Location{Repository: f.dir, Compression: tc.mode}, "password-123456")
+			ctx := testutil.Context(t)
+			if _, err := repo.Config(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.Backup(ctx, BackupRequest{Paths: []string{"/data"}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := repo.Prune(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.Check(ctx, CheckRequest{}); err != nil {
+				t.Fatal(err)
+			}
+			calls := f.calls()
+			if len(calls) != 4 {
+				t.Fatalf("calls = %d", len(calls))
+			}
+			for i, c := range calls {
+				got := compressionArgs(c.Args)
+				want := tc.want
+				if cmd := command(c.Args); cmd != "backup" && cmd != "prune" {
+					want = nil // cat config and check never get the flag
+				}
+				if !slices.Equal(got, want) {
+					t.Errorf("call %d (%s): compression args = %v, want %v", i, command(c.Args), got, want)
+				}
+			}
+		})
+	}
+}
+
+func compressionArgs(args []string) []string {
+	for i, a := range args {
+		if a == "--compression" && i+1 < len(args) {
+			return args[i : i+2]
+		}
+	}
+	return nil
+}
+
+func TestValidCompression(t *testing.T) {
+	for _, ok := range []string{"", CompressionAuto, CompressionMax, CompressionOff} {
+		if !ValidCompression(ok) {
+			t.Errorf("rejected %q", ok)
+		}
+	}
+	for _, bad := range []string{"fastest", "better", "MAX", " auto"} {
+		if ValidCompression(bad) {
+			t.Errorf("accepted %q", bad)
+		}
 	}
 }
 

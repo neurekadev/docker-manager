@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Retention of a backup policy (#10): a preset ("7 daily, 4 weekly, 12
 	// monthly", the last 30, everything) or Custom, which reveals restic-like
-	// keep rules; the minimum recovery floor per stack/volume (the newest is
-	// never forgotten) waits under Advanced. The rule reads as a live
+	// keep rules; the optional minimum recovery floor per stack/volume waits
+	// under Advanced. Removing the backups of deleted stacks and volumes is
+	// a separate switch (off by default). The rule reads as a live
 	// sentence, and a saved policy previews exactly which snapshots would go.
 	// Docker Manager computes the decision, so the preview and the run agree.
 	import { untrack } from 'svelte';
@@ -11,9 +12,9 @@
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import RetentionPreviewPanel from './RetentionPreviewPanel.svelte';
 	import {
+		DEFAULT_EXPIRE_DELETED_DAYS,
 		RETENTION_PRESETS,
 		applyRetentionPreset,
-		hasRetentionRules,
 		retentionPreset,
 		retentionText,
 		type BackupRetention,
@@ -54,12 +55,6 @@
 		value = { ...value, [key]: Number.isFinite(n) ? n : 0 };
 		onchange?.();
 	}
-
-	const floorError = $derived(
-		hasRetentionRules(value) && (value.minKeep ?? 0) < 1
-			? 'Keep at least 1 per stack and volume when rules are set.'
-			: null
-	);
 </script>
 
 <div class="retention">
@@ -85,17 +80,39 @@
 				{/each}
 			</div>
 		</FieldGroup>
-		<Disclosure summary="Advanced" open={!!floorError}>
+		<Disclosure summary="Advanced" open={!!value.minKeep}>
 			<TextField
 				label="Minimum recovery floor"
 				type="number"
 				min="0"
-				description="Always keep at least this many of the newest backups of each stack and volume, whatever the rules say."
+				description="Optional: always keep at least this many of the newest backups of each stack and volume, on top of the rules. 0 turns it off; the rules always keep the newest backup anyway."
 				value={String(value.minKeep ?? 0)}
-				error={floorError}
 				onchange={(e) => num('minKeep', e.currentTarget.value)}
 			/>
 		</Disclosure>
+	{/if}
+	<Switch
+		label="Remove backups of deleted stacks and volumes"
+		description="Off by default. The rules keep the last backups of a stack or volume forever once it is deleted. On: they are removed once the newest one is older than the days below. Nothing counts as deleted while its server is offline."
+		checked={!!value.expireDeletedDays}
+		onchange={(v) => {
+			value = { ...value, expireDeletedDays: v ? DEFAULT_EXPIRE_DELETED_DAYS : 0 };
+			onchange?.();
+		}}
+	/>
+	{#if value.expireDeletedDays}
+		<TextField
+			label="Remove them after"
+			type="number"
+			min="1"
+			description="Days since their newest backup."
+			value={String(value.expireDeletedDays)}
+			onchange={(e) => {
+				const n = Math.max(1, Math.floor(Number(e.currentTarget.value.trim() || '1')));
+				value = { ...value, expireDeletedDays: Number.isFinite(n) ? n : 1 };
+				onchange?.();
+			}}
+		/>
 	{/if}
 	<Switch
 		label="Apply retention after every backup"
@@ -107,7 +124,7 @@
 		}}
 	/>
 	{#if policyId}
-		<RetentionPreviewPanel {policyId} retention={value} disabled={!!floorError} />
+		<RetentionPreviewPanel {policyId} retention={value} />
 	{/if}
 </div>
 

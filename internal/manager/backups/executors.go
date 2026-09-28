@@ -366,7 +366,7 @@ func (s *Service) stepManagerForget(ctx context.Context, sc *jobexec.StepContext
 	if err != nil {
 		return err
 	}
-	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, in.TimeZone)
+	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, nil, in.TimeZone) // manager state is never a deleted item
 	out := protocol.RetentionOutput{ResticRepositoryID: o.ResticRepositoryID, KeyGeneration: gen, Forgotten: res.Forgotten, Kept: res.Kept}
 	if serr := sc.SetOutput(ctx, out); serr != nil {
 		return serr
@@ -381,6 +381,9 @@ func (s *Service) stepManagerPrune(ctx context.Context, sc *jobexec.StepContext)
 	}
 	var out protocol.RetentionOutput
 	_ = json.Unmarshal(sc.Output(), &out)
+	if len(out.Forgotten) == 0 {
+		return nil // nothing forgotten: no prune (it downloads and rewrites pack data)
+	}
 	o, _, _, err := s.managerLocation(ctx, in.RepositoryID, false)
 	if err != nil {
 		return err

@@ -237,21 +237,23 @@ type BackupScopeProbe struct {
 // Shaping (#17): backup_repository.read shows it in full; any other
 // capability on it only id, name, kind and state.
 type BackupRepository struct {
-	ID         string                 `json:"id"`
-	Name       string                 `json:"name" example:"Offsite S3"`
-	Kind       string                 `json:"kind" enum:"local,s3"`
-	State      string                 `json:"state" enum:"awaiting_confirmation,ready" doc:"awaiting_confirmation until the owner re-enters the Recovery Key for it; nothing is initialized before."`
-	View       string                 `json:"view" enum:"minimal,full"`
-	Actions    []string               `json:"actions"`
-	Executor   string                 `json:"executor,omitempty" doc:"Local repositories: manager or the environment ID whose agent owns the path."`
-	Location   string                 `json:"location,omitempty" example:"https://s3.example.com/backups/docker-manager" doc:"Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>."`
-	Path       string                 `json:"path,omitempty"`
-	Endpoint   string                 `json:"endpoint,omitempty"`
-	Bucket     string                 `json:"bucket,omitempty"`
-	Prefix     string                 `json:"prefix,omitempty"`
-	Region     string                 `json:"region,omitempty"`
-	PathStyle  bool                   `json:"pathStyle,omitempty"`
-	Credential *BackupCredentialState `json:"credential,omitempty"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name" example:"Offsite S3"`
+	Kind      string   `json:"kind" enum:"local,s3"`
+	State     string   `json:"state" enum:"awaiting_confirmation,ready" doc:"awaiting_confirmation until the owner re-enters the Recovery Key for it; nothing is initialized before."`
+	View      string   `json:"view" enum:"minimal,full"`
+	Actions   []string `json:"actions"`
+	Executor  string   `json:"executor,omitempty" doc:"Local repositories: manager or the environment ID whose agent owns the path."`
+	Location  string   `json:"location,omitempty" example:"https://s3.example.com/backups/docker-manager" doc:"Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>."`
+	Path      string   `json:"path,omitempty"`
+	Endpoint  string   `json:"endpoint,omitempty"`
+	Bucket    string   `json:"bucket,omitempty"`
+	Prefix    string   `json:"prefix,omitempty"`
+	Region    string   `json:"region,omitempty"`
+	PathStyle bool     `json:"pathStyle,omitempty"`
+	// Compression is shown in the full view only.
+	Compression string                 `json:"compression,omitempty" enum:"auto,max,off" doc:"How restic compresses the data written to the repository (full view): auto (default), max or off. A change applies to data written afterwards (backups, and data prune repacks)."`
+	Credential  *BackupCredentialState `json:"credential,omitempty"`
 	// Recovery documents what a fresh restore needs (#10).
 	RecoveryRequirements []string              `json:"recoveryRequirements,omitempty"`
 	ConfirmedAt          *time.Time            `json:"confirmedAt,omitempty"`
@@ -349,9 +351,10 @@ func newBackupRepository(r domain.BackupRepository, v authz.View, locs []domain.
 	if !v.Full() {
 		return out
 	}
-	d := backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle}
+	d := backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle,
+		Compression: backups.DestinationCompression(r.Compression)}
 	out.Executor, out.Location, out.Path, out.Endpoint, out.Bucket, out.Prefix = r.Executor, d.Base(), r.Path, r.Endpoint, r.Bucket, r.Prefix
-	out.Region, out.PathStyle, out.ConfirmedAt = r.Region, r.PathStyle, r.ConfirmedAt
+	out.Region, out.PathStyle, out.Compression, out.ConfirmedAt = r.Region, r.PathStyle, r.Compression, r.ConfirmedAt
 	if r.Kind == backup.KindS3 {
 		out.Credential = &BackupCredentialState{Set: r.CredentialFingerprint != "", Fingerprint: r.CredentialFingerprint}
 	}
@@ -546,6 +549,7 @@ type createBackupRepositoryInput struct {
 		Prefix          string `json:"prefix,omitempty" maxLength:"512" example:"docker-manager"`
 		Region          string `json:"region,omitempty" maxLength:"64"`
 		PathStyle       bool   `json:"pathStyle,omitempty" doc:"Path-style bucket addressing (MinIO and most self-hosted S3)."`
+		Compression     string `json:"compression,omitempty" enum:"auto,max,off" doc:"How restic compresses the data written to the repository (local and S3): auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data)."`
 		AccessKeyID     string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true"`
 		SecretAccessKey string `json:"secretAccessKey,omitempty" maxLength:"1024" writeOnly:"true" doc:"Write-only: never returned, logged or audited."`
 		VerifyCron      string `json:"verifyCron,omitempty" maxLength:"128" doc:"Verification schedule (default: the instance default of backup_verification)."`
@@ -582,8 +586,9 @@ func (h *backupsAPI) createRepository(ctx context.Context, in *createBackupRepos
 		}
 	}
 	res, err := svc.CreateRepository(ctx, domain.BackupRepositoryInput{Name: b.Name, Kind: b.Kind, Executor: b.Executor, Path: b.Path,
-		Endpoint: b.Endpoint, Bucket: b.Bucket, Prefix: b.Prefix, Region: b.Region, PathStyle: b.PathStyle, AccessKeyID: b.AccessKeyID,
-		SecretAccessKey: b.SecretAccessKey, VerifyCron: b.VerifyCron, VerifyTimeZone: b.VerifyTimeZone, VerifyReadData: b.VerifyReadData})
+		Endpoint: b.Endpoint, Bucket: b.Bucket, Prefix: b.Prefix, Region: b.Region, PathStyle: b.PathStyle, Compression: b.Compression,
+		AccessKeyID: b.AccessKeyID, SecretAccessKey: b.SecretAccessKey, VerifyCron: b.VerifyCron, VerifyTimeZone: b.VerifyTimeZone,
+		VerifyReadData: b.VerifyReadData})
 	if err != nil {
 		return nil, backupError(err)
 	}
@@ -610,6 +615,7 @@ type updateBackupRepositoryInput struct {
 		Name            *string `json:"name,omitempty" example:"Offsite S3" minLength:"1" maxLength:"100"`
 		Region          *string `json:"region,omitempty" maxLength:"64"`
 		PathStyle       *bool   `json:"pathStyle,omitempty"`
+		Compression     *string `json:"compression,omitempty" enum:"auto,max,off" doc:"Change the compression mode (local and S3); it applies to data written afterwards (backups, and data prune repacks)."`
 		AccessKeyID     *string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true" doc:"Replace the S3 credentials (both fields)."`
 		SecretAccessKey *string `json:"secretAccessKey,omitempty" maxLength:"1024" writeOnly:"true"`
 		VerifyCron      *string `json:"verifyCron,omitempty" example:"0 5 * * 0" maxLength:"128"`
@@ -629,8 +635,8 @@ func (h *backupsAPI) updateRepository(ctx context.Context, in *updateBackupRepos
 	}
 	b := in.Body
 	_, after, err := svc.UpdateRepository(ctx, r.ID, r.Revision, domain.BackupRepositoryPatch{Name: b.Name, Region: b.Region,
-		PathStyle: b.PathStyle, AccessKeyID: b.AccessKeyID, SecretAccessKey: b.SecretAccessKey, VerifyCron: b.VerifyCron,
-		VerifyTimeZone: b.VerifyTimeZone, VerifyEnabled: b.VerifyEnabled, VerifyReadData: b.VerifyReadData})
+		PathStyle: b.PathStyle, Compression: b.Compression, AccessKeyID: b.AccessKeyID, SecretAccessKey: b.SecretAccessKey,
+		VerifyCron: b.VerifyCron, VerifyTimeZone: b.VerifyTimeZone, VerifyEnabled: b.VerifyEnabled, VerifyReadData: b.VerifyReadData})
 	if errors.Is(err, domain.ErrRevisionMismatch) {
 		cur, gerr := svc.GetRepository(ctx, r.ID)
 		if gerr != nil {
@@ -792,7 +798,8 @@ func (h *backupsAPI) repositoryHealth(ctx context.Context, in *backupRepositoryI
 		return nil, backupError(err)
 	}
 	pending, _ := svc.LocationKeyStatus(ctx)
-	d := backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle}
+	d := backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle,
+		Compression: backups.DestinationCompression(r.Compression)}
 	out := BackupRepositoryHealth{RepositoryID: r.ID, State: r.State, Healthy: len(hl.Problems) == 0, Problems: hl.Problems,
 		LastBackupAt: hl.LastBackupAt, LastVerifiedAt: hl.LastVerifiedAt, Snapshots: hl.Snapshots, SizeBytes: hl.SizeBytes,
 		Locations: []BackupLocationHealth{}, KeyState: newRecoveryKeyState(hl.Key, pending), LastTest: newBackupConnectionTest(r.LastTest)}

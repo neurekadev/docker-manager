@@ -669,6 +669,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	// Its backup.run reports live activity when asked (#10).
 	if slices.Contains(p.Commands, "backup.run") {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)
+		// Its backup.retention removes the backups of deleted items.
+		p.Features = append(p.Features, protocol.FeatureBackupExpire)
+		// It writes with the destination's compression mode (#10).
+		p.Features = append(p.Features, protocol.FeatureBackupCompression)
 	}
 	// Its container.exec.create resolves terminal shells (#8).
 	if a.execShell {

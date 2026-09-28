@@ -10,9 +10,13 @@ import (
 // Retention (#10) follows restic's keep policies, computed by Docker Manager so
 // the preview and the execution are the same decision: the executor
 // forgets exactly the snapshot IDs Plan returns (restic forget <ids>),
-// then prunes. On top of restic's rules a minimum recovery floor always
-// keeps the newest MinKeep snapshots of each item, and the newest snapshot
-// of an item is never removed.
+// then prunes. Like restic's, the rules judge each item (stack or volume)
+// by its own snapshots, so the newest snapshot of an item is always kept;
+// an optional minimum recovery floor (MinKeep, 0 = off) keeps its newest
+// MinKeep snapshots on top. Because an item that no longer exists keeps its
+// last snapshots under any rule, a policy may expire deleted items: every
+// snapshot of an item Expire names is removed (the manager decides which
+// items are deleted and old enough; see RetentionPlan.Expire).
 
 // RetentionRules configure retention per policy.
 type RetentionRules struct {
@@ -25,8 +29,9 @@ type RetentionRules struct {
 	// WithinDays keeps every snapshot taken within this many days of the
 	// item's newest snapshot.
 	WithinDays int `json:"withinDays,omitempty"`
-	// MinKeep is the minimum recovery floor: at least this many of the
-	// newest snapshots of each item are kept whatever the rules say.
+	// MinKeep is the optional minimum recovery floor: at least this many
+	// of the newest snapshots of each item are kept whatever the rules say
+	// (0 = off: the rules alone decide).
 	MinKeep int `json:"minKeep"`
 }
 
@@ -54,9 +59,6 @@ func (r RetentionRules) Validate() map[string]string {
 	check("yearly", r.Yearly)
 	check("withinDays", r.WithinDays)
 	check("minKeep", r.MinKeep)
-	if !r.Empty() && r.MinKeep < 1 {
-		errs["minKeep"] = "must be at least 1 when retention rules are set (the minimum recovery floor)"
-	}
 	return errs
 }
 
@@ -75,7 +77,8 @@ type RetentionDecision struct {
 	Item string
 	Keep bool
 	// Reasons lists the rules that keep it (last, hourly, daily, weekly,
-	// monthly, yearly, within, floor, newest).
+	// monthly, yearly, within, floor, newest), or "deleted" for a snapshot
+	// removed because its item was deleted (Expire).
 	Reasons []string
 }
 
@@ -93,6 +96,23 @@ func (p RetentionPlan) Remove() []string {
 		}
 	}
 	return out
+}
+
+// ReasonDeleted marks a snapshot removed because its item was deleted.
+const ReasonDeleted = "deleted"
+
+// Expire removes every snapshot of the given items, whatever the rules
+// kept: the backups of stacks and volumes that were deleted.
+func (p RetentionPlan) Expire(items []string) RetentionPlan {
+	if len(items) == 0 {
+		return p
+	}
+	for i := range p.Decisions {
+		if slices.Contains(items, p.Decisions[i].Item) {
+			p.Decisions[i].Keep, p.Decisions[i].Reasons = false, []string{ReasonDeleted}
+		}
+	}
+	return p
 }
 
 // Kept counts kept snapshots.

@@ -338,7 +338,9 @@ func (s *Service) failPlanned(ctx context.Context, setID string, req jobs.Reques
 				set.Members[i].State, set.Members[i].ErrorClass = backup.StateFailed, class
 			}
 		}
+		wasPending := set.State == backup.StatePending
 		s.settle(&set)
+		s.flagRetention(ctx, tx, &set, wasPending)
 		return store.UpdateBackupSet(ctx, tx, &set)
 	})
 	if err != nil {
@@ -347,16 +349,39 @@ func (s *Service) failPlanned(ctx context.Context, setID string, req jobs.Reques
 }
 
 // settle recomputes a set's state and finish time.
+//
+// A set stays pending while any member still runs, even when another one
+// already failed (Completeness calls that partial): the set finishes, and
+// its retention follows, only once every environment has reported.
 func (s *Service) settle(set *domain.BackupSet) {
 	members := make([]backup.Member, 0, len(set.Members))
+	running := false
 	for _, m := range set.Members {
 		members = append(members, backup.Member{State: m.State, SnapshotID: m.SnapshotID})
+		running = running || m.State == backup.StatePending
 	}
 	set.State = backup.Completeness(members)
+	if running {
+		set.State = backup.StatePending
+	}
 	now := s.now()
 	set.UpdatedAt = now
 	if set.State != backup.StatePending && set.FinishedAt == nil {
 		set.FinishedAt = &now
+	}
+}
+
+// flagRetention marks a set that has just finished for its policy's
+// retention after the backup (RunFollowUps queues it): once per set, only
+// after every member settled, never for a failed set. Retention therefore
+// runs once per backup run and location, never per stack or volume.
+func (s *Service) flagRetention(ctx context.Context, db bun.IDB, set *domain.BackupSet, wasPending bool) {
+	if !wasPending || set.State == backup.StatePending || set.State == backup.StateFailed || set.FollowUp != "" || set.PolicyID == "" {
+		return
+	}
+	if p, err := store.GetBackupPolicy(ctx, db, set.PolicyID); err == nil && p.Retention.AfterBackup && retentionActive(p.Retention) {
+		set.FollowUp = "retention"
+		s.poke()
 	}
 }
 
@@ -377,8 +402,7 @@ func (s *Service) RetentionRun(ctx context.Context, policyID string, principal a
 	if err != nil {
 		return nil, err
 	}
-	rules := retentionRules(p.Retention)
-	if rules.Empty() {
+	if !retentionActive(p.Retention) {
 		return nil, fieldErr("retention", "the policy has no retention rules")
 	}
 	reqs, err := s.retentionRequests(ctx, p, "")
@@ -406,12 +430,20 @@ func (s *Service) RetentionRun(ctx context.Context, policyID string, principal a
 }
 
 // retentionRequests builds one retention job per location that holds the
-// policy's snapshots (setID limits it to the set's locations).
+// policy's snapshots (setID limits it to the set's locations). Each
+// environment location also names the deleted items whose backups expire,
+// judged from every snapshot of the policy there.
 func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, setID string) ([]jobs.Request, error) {
 	f := domain.BackupSnapshotFilter{PolicyID: p.ID, SetID: setID}
 	snaps, err := store.ListBackupSnapshots(ctx, s.db, f)
 	if err != nil {
 		return nil, err
+	}
+	all := snaps
+	if setID != "" && p.Retention.ExpireDeletedDays > 0 {
+		if all, err = store.ListBackupSnapshots(ctx, s.db, domain.BackupSnapshotFilter{PolicyID: p.ID}); err != nil {
+			return nil, err
+		}
 	}
 	key, _, err := store.GetBackupKey(ctx, s.db)
 	if err != nil {
@@ -436,9 +468,21 @@ func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, 
 			continue
 		}
 		env, _ := backup.ScopeEnvironment(sn.Scope)
+		in := protocol.BackupRetentionInput{Repository: repositoryRef(repo, sn.Scope, key.State), PolicyID: p.ID, Rules: rules,
+			TimeZone: p.TimeZone}
+		// Agents reject unknown input fields: the expiry is sent only to
+		// agents announcing it (an older one applies the rules alone).
+		if fh, ok := s.opts.Agents.(FeatureHub); ok && fh.EnvironmentHasFeature(env, protocol.FeatureBackupExpire) {
+			var here []domain.BackupSnapshot
+			for _, x := range all {
+				if x.RepositoryID == sn.RepositoryID && x.Scope == sn.Scope {
+					here = append(here, x)
+				}
+			}
+			in.Expire = s.expiredItems(ctx, p, sn.Scope, here)
+		}
 		reqs = append(reqs, jobs.Request{Kind: jobspec.BackupRetention, EnvironmentID: env, Targets: []domain.JobTarget{repoTarget(repo.ID)},
-			Input: protocol.BackupRetentionInput{Repository: repositoryRef(repo, sn.Scope, key.State), PolicyID: p.ID, Rules: rules,
-				TimeZone: p.TimeZone}})
+			Input: in})
 	}
 	return reqs, nil
 }

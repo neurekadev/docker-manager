@@ -282,7 +282,25 @@ func (s *Service) Wake() { s.poke() }
 // destination converts a repository to its backup.Destination.
 func destination(r domain.BackupRepository) backup.Destination {
 	return backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix,
-		Region: r.Region, PathStyle: r.PathStyle}
+		Region: r.Region, PathStyle: r.PathStyle, Compression: DestinationCompression(r.Compression)}
+}
+
+// DestinationCompression is a repository's compression mode as a
+// destination carries it: "" for auto (never written out), else the mode.
+func DestinationCompression(mode string) string {
+	if mode == domain.BackupCompressionAuto {
+		return ""
+	}
+	return mode
+}
+
+// validCompression reports whether mode is a repository compression mode.
+func validCompression(mode string) bool {
+	switch mode {
+	case domain.BackupCompressionAuto, domain.BackupCompressionMax, domain.BackupCompressionOff:
+		return true
+	}
+	return false
 }
 
 // Serves reports whether repository r can hold scope (a local repository

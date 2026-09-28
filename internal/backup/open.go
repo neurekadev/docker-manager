@@ -19,6 +19,11 @@ type Opened struct {
 	// PreviousRemoved: a previous key left over from an interrupted
 	// rotation was removed.
 	PreviousRemoved bool
+	// CompressionIgnored: the location asked for a compression mode other
+	// than auto, but the repository has format version 1 (created by
+	// restic before 0.14), which cannot compress; Repo writes without the
+	// mode.
+	CompressionIgnored bool
 }
 
 // ErrKeyNotCurrent wraps a rejected key when no previous key could open
@@ -35,12 +40,17 @@ var ErrKeyNotCurrent = errors.New("neither the current nor the previous Recovery
 //     and the previous one removed;
 //   - no repository: it is initialized with the current key when init is
 //     true, otherwise restic.CodeRepositoryNotFound is returned.
+//
+// A repository of format version 1 cannot compress: a compression mode
+// other than auto is dropped for it (Opened.CompressionIgnored) instead of
+// failing every backup; a new repository is always version 2.
 func OpenLocation(ctx context.Context, o restic.Opener, loc restic.Location, current, previous string, init bool) (Opened, error) {
 	repo := o.Open(loc, current)
 	cfg, err := repo.Config(ctx)
 	switch {
 	case err == nil:
 		out := Opened{Repo: repo, ResticRepositoryID: cfg.ID}
+		out.Repo, out.CompressionIgnored = compressible(o, repo, loc, current, cfg)
 		if previous != "" && previous != current {
 			removed, rerr := removeKeyOf(ctx, o, repo, loc, previous)
 			if rerr != nil {
@@ -73,9 +83,22 @@ func OpenLocation(ctx context.Context, o restic.Opener, loc restic.Location, cur
 		if _, err := removeKeyOf(ctx, o, repo, loc, previous); err != nil {
 			return Opened{}, err
 		}
-		return Opened{Repo: repo, ResticRepositoryID: cfg.ID, Migrated: true}, nil
+		out := Opened{Repo: repo, ResticRepositoryID: cfg.ID, Migrated: true}
+		out.Repo, out.CompressionIgnored = compressible(o, repo, loc, current, cfg)
+		return out, nil
 	}
 	return Opened{}, err
+}
+
+// compressible returns repo, or, when loc asks for a compression mode the
+// repository's format version cannot honor, the location reopened without
+// it (and true).
+func compressible(o restic.Opener, repo restic.Repo, loc restic.Location, password string, cfg restic.Config) (restic.Repo, bool) {
+	if cfg.Version >= 2 || loc.Compression == "" || loc.Compression == restic.CompressionAuto {
+		return repo, false
+	}
+	loc.Compression = ""
+	return o.Open(loc, password), true
 }
 
 // removeKeyOf removes the key that password opens, using repo (opened

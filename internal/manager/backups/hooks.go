@@ -183,12 +183,7 @@ func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, s
 	}
 	wasPending := set.State == backup.StatePending
 	s.settle(&set)
-	if wasPending && set.State != backup.StatePending && set.State != backup.StateFailed && set.FollowUp == "" && set.PolicyID != "" {
-		if p, err := store.GetBackupPolicy(ctx, db, set.PolicyID); err == nil && p.Retention.AfterBackup && !retentionRules(p.Retention).Empty() {
-			set.FollowUp = "retention"
-			s.poke()
-		}
-	}
+	s.flagRetention(ctx, db, &set, wasPending)
 	if err := store.UpdateBackupSet(ctx, db, &set); err != nil {
 		return err
 	}

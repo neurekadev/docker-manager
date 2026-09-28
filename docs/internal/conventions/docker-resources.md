@@ -13,7 +13,12 @@ tests: `internal/agent/engine/enginefake`.
   `*domain.DockerError` with stable codes); never a second path to the
   agent for the same data.
 - Docker Manager's labels (`protocol.Label*`, prefix `dev.neureka.docker-manager.`)
-  and Compose's are reserved: user input may not set them. Stack
+  and Compose's are reserved: user input may not set them. The user-set
+  exclusions sit outside that prefix and read `true` in any case:
+  `docker-manager.update.exclude`, `docker-manager.backup.exclude` and
+  `docker-manager.maintenance.exclude` (`protocol.UpdateExcluded`,
+  `BackupExcluded`, `MaintenanceExcluded`); a new one follows the same
+  `docker-manager.<feature>.exclude` pattern. Stack
   membership: `protocol.StackRef` (`Managed`: working directory in a
   verified stack root) plus `resources.Service.StackManaged`; containers of
   a managed stack are changed through the stack, never directly

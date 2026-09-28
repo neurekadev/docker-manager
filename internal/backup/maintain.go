@@ -36,11 +36,12 @@ type RetentionResult struct {
 }
 
 // ApplyRetention forgets a policy's snapshots in one location that rules
-// do not keep (the same decision as the preview: Plan), plus the manifests
-// of the policy's sets that have no data left there.
-func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rules RetentionRules, tz string) (RetentionResult, error) {
+// do not keep, and every snapshot of the expired (deleted) items (the same
+// decision as the preview: Plan, then Expire), plus the manifests of the
+// policy's sets that have no data left there.
+func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rules RetentionRules, expire []string, tz string) (RetentionResult, error) {
 	out := RetentionResult{Forgotten: []string{}}
-	if rules.Empty() {
+	if rules.Empty() && len(expire) == 0 {
 		return out, nil
 	}
 	loc, err := time.LoadLocation(tz)
@@ -58,7 +59,7 @@ func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rule
 		}
 		cands = append(cands, RetentionSnapshot{ID: sn.ID, Time: sn.Time, Item: ItemOf(sn.Tags)})
 	}
-	plan := Plan(rules, cands, loc)
+	plan := Plan(rules, cands, loc).Expire(expire)
 	remove := plan.Remove()
 	out.Kept = plan.Kept()
 	policySets := map[string]bool{}

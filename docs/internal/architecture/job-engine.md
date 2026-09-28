@@ -444,6 +444,13 @@ running attempt only (`jobexec.State.Secrets` is never serialized). An
 unavailable credential fails the job with `credential_unavailable` before
 anything is sent. See [registries](registries.md).
 
+**Per-agent input (#10)**: `Options.CommandInput` may return the input a
+command carries instead of the stored one, at every dispatch, for the
+agent receiving it (an optional field only agents announcing its feature
+accept, filled with the current setting: a backup repository's
+compression mode, [backups](backups.md#secrets-and-restic)). nil sends the
+stored input; the stored job never changes.
+
 **Transport (#3)**: `internal/manager/agents.Hub` implements
 `jobs.AgentDispatcher` (ordered `Send` through one writer per session,
 `Online`), feeds `job_report`/`ack`/`progress`/`result` frames to

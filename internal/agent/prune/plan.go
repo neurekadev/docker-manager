@@ -197,9 +197,13 @@ func shortID(id string) string {
 	return id
 }
 
-// ruleDecision applies a rule's exclusions and age threshold to an object
-// that is in the rule's category and not protected.
+// ruleDecision applies the maintenance exclude label, a rule's exclusions
+// and its age threshold to an object that is in the rule's category and
+// not protected (the removal re-check uses it too).
 func ruleDecision(r protocol.PruneRule, id string, names []string, labels map[string]string, since, now time.Time) (string, string) {
+	if protocol.MaintenanceExcluded(labels) {
+		return protocol.PruneExcluded, "carries the label " + protocol.LabelMaintenanceExclude + "=true"
+	}
 	for _, e := range r.Exclude {
 		e = strings.TrimPrefix(e, "/")
 		bare := strings.TrimPrefix(e, "sha256:")

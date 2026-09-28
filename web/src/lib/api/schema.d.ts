@@ -5698,6 +5698,8 @@ export interface components {
             actions: string[];
             /** @description Also back up anonymous volumes (default off). */
             anonymousVolumes: boolean;
+            /** @description Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off). */
+            buildxVolumes: boolean;
             /** Format: date-time */
             createdAt?: string;
             enabled: boolean;
@@ -5735,6 +5737,11 @@ export interface components {
         BackupRepository: {
             actions: string[];
             bucket?: string;
+            /**
+             * @description How restic compresses the data written to the repository (full view): auto (default), max or off. A change applies to data written afterwards (backups, and data prune repacks).
+             * @enum {string}
+             */
+            compression?: "auto" | "max" | "off";
             /** Format: date-time */
             confirmedAt?: string;
             /** Format: date-time */
@@ -5794,20 +5801,25 @@ export interface components {
             state: string;
         };
         BackupRetention: {
-            /** @description Apply retention automatically after every successful backup of the policy. */
+            /** @description Apply retention automatically after every finished backup run of the policy. */
             afterBackup?: boolean;
             /**
              * Format: int64
              * @example 7
              */
             daily?: number;
+            /**
+             * Format: int64
+             * @description Remove every backup of a stack Docker Manager no longer has or a standalone volume its environment no longer has once its newest backup is N days old (0 = off, the default). Nothing counts as deleted while the environment is offline or archived.
+             */
+            expireDeletedDays?: number;
             /** Format: int64 */
             hourly?: number;
             /** Format: int64 */
             last?: number;
             /**
              * Format: int64
-             * @description Minimum recovery floor: the newest N snapshots of each stack/volume are always kept (at least 1 when rules are set).
+             * @description Optional minimum recovery floor: the newest N snapshots of each stack/volume are always kept on top of the rules (0 = off, the default).
              */
             minKeep?: number;
             /** Format: int64 */
@@ -6510,6 +6522,11 @@ export interface components {
         CreateBackupRepositoryInputBody: {
             accessKeyId?: string;
             bucket?: string;
+            /**
+             * @description How restic compresses the data written to the repository (local and S3): auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data).
+             * @enum {string}
+             */
+            compression?: "auto" | "max" | "off";
             /** @example https://s3.eu-central-1.amazonaws.com */
             endpoint?: string;
             /** @description Local repositories: manager, or the environment ID whose agent owns the path. */
@@ -9110,6 +9127,8 @@ export interface components {
         PolicyInputBody: {
             /** @description Also back up anonymous volumes (default off). */
             anonymousVolumes?: boolean;
+            /** @description Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off). */
+            buildxVolumes?: boolean;
             environmentId?: string;
             environmentRepositories?: {
                 [key: string]: string;
@@ -9860,7 +9879,7 @@ export interface components {
         RetentionDecision: {
             item: string;
             keep: boolean;
-            /** @description Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest. */
+            /** @description Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest; or deleted for a snapshot removed because its stack or volume was deleted. */
             reasons?: string[];
             snapshotId: string;
             /** Format: date-time */
@@ -11184,6 +11203,7 @@ export interface components {
         };
         UpdateBackupPolicyInputBody: {
             anonymousVolumes?: boolean;
+            buildxVolumes?: boolean;
             environmentId?: string;
             environmentRepositories?: {
                 [key: string]: string;
@@ -11203,6 +11223,11 @@ export interface components {
         UpdateBackupRepositoryInputBody: {
             /** @description Replace the S3 credentials (both fields). */
             accessKeyId?: string;
+            /**
+             * @description Change the compression mode (local and S3); it applies to data written afterwards (backups, and data prune repacks).
+             * @enum {string}
+             */
+            compression?: "auto" | "max" | "off";
             /** @example Offsite S3 */
             name?: string;
             pathStyle?: boolean;
@@ -14063,6 +14088,7 @@ export interface operations {
                      *             "example"
                      *           ],
                      *           "anonymousVolumes": false,
+                     *           "buildxVolumes": false,
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "enabled": false,
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -14106,6 +14132,7 @@ export interface operations {
                      *           "retention": {
                      *             "afterBackup": false,
                      *             "daily": 7,
+                     *             "expireDeletedDays": 1,
                      *             "hourly": 1,
                      *             "last": 1,
                      *             "minKeep": 1,
@@ -14231,6 +14258,7 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "anonymousVolumes": false,
+                     *       "buildxVolumes": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -14274,6 +14302,7 @@ export interface operations {
                      *       "retention": {
                      *         "afterBackup": false,
                      *         "daily": 7,
+                     *         "expireDeletedDays": 1,
                      *         "hourly": 1,
                      *         "last": 1,
                      *         "minKeep": 1,
@@ -14397,6 +14426,7 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "anonymousVolumes": false,
+                     *       "buildxVolumes": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -14440,6 +14470,7 @@ export interface operations {
                      *       "retention": {
                      *         "afterBackup": false,
                      *         "daily": 7,
+                     *         "expireDeletedDays": 1,
                      *         "hourly": 1,
                      *         "last": 1,
                      *         "minKeep": 1,
@@ -14669,6 +14700,7 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "anonymousVolumes": false,
+                     *       "buildxVolumes": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -14712,6 +14744,7 @@ export interface operations {
                      *       "retention": {
                      *         "afterBackup": false,
                      *         "daily": 7,
+                     *         "expireDeletedDays": 1,
                      *         "hourly": 1,
                      *         "last": 1,
                      *         "minKeep": 1,
@@ -14890,6 +14923,7 @@ export interface operations {
                      *       "retention": {
                      *         "afterBackup": false,
                      *         "daily": 7,
+                     *         "expireDeletedDays": 1,
                      *         "hourly": 1,
                      *         "last": 1,
                      *         "minKeep": 1,
@@ -15619,6 +15653,7 @@ export interface operations {
                      *             "example"
                      *           ],
                      *           "bucket": "example",
+                     *           "compression": "auto",
                      *           "confirmedAt": "2026-09-25T12:00:00Z",
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "credential": {
@@ -15788,6 +15823,7 @@ export interface operations {
                      *           "example"
                      *         ],
                      *         "bucket": "example",
+                     *         "compression": "auto",
                      *         "confirmedAt": "2026-09-25T12:00:00Z",
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "credential": {
@@ -15939,6 +15975,7 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "bucket": "example",
+                     *       "compression": "auto",
                      *       "confirmedAt": "2026-09-25T12:00:00Z",
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "credential": {
@@ -16189,6 +16226,7 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "bucket": "example",
+                     *       "compression": "auto",
                      *       "confirmedAt": "2026-09-25T12:00:00Z",
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "credential": {
@@ -16780,6 +16818,7 @@ export interface operations {
                      *           "example"
                      *         ],
                      *         "bucket": "example",
+                     *         "compression": "auto",
                      *         "confirmedAt": "2026-09-25T12:00:00Z",
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "credential": {

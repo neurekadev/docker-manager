@@ -37,6 +37,27 @@ func TestUpdateExcluded(t *testing.T) {
 	}
 }
 
+// TestBackupAndMaintenanceExcluded: the user-set exclusion labels read
+// "true" in any case, and users may set them.
+func TestBackupAndMaintenanceExcluded(t *testing.T) {
+	for _, fn := range []struct {
+		label string
+		read  func(map[string]string) bool
+	}{{LabelBackupExclude, BackupExcluded}, {LabelMaintenanceExclude, MaintenanceExcluded}} {
+		if fn.read(nil) || fn.read(map[string]string{fn.label: "false"}) || !fn.read(map[string]string{fn.label: "True"}) {
+			t.Errorf("%s is not read as true only", fn.label)
+		}
+		if err := ValidateLabels("labels", map[string]string{fn.label: "true"}); err != nil {
+			t.Errorf("%s must be user-settable: %v", fn.label, err)
+		}
+	}
+	for name, want := range map[string]bool{"buildx_buildkit_builder0_state": true, "buildx_buildkit_state": false, "app_state": false, "buildx_cache": false} {
+		if IsBuildxVolume(name) != want {
+			t.Errorf("IsBuildxVolume(%q) = %t", name, !want)
+		}
+	}
+}
+
 // TestContainerSpecValidation: the v1 create form accepts the common
 // options and refuses reserved labels, the Docker socket, malformed ports,
 // mounts, networks and environment entries (without echoing values).

@@ -92,6 +92,11 @@ type Destination struct {
 	Prefix    string `json:"prefix,omitempty"`
 	Region    string `json:"region,omitempty"`
 	PathStyle bool   `json:"pathStyle,omitempty"`
+	// Compression is the compression mode of the data written to the
+	// destination (restic.CompressionMax or restic.CompressionOff; "" is
+	// restic.CompressionAuto, never written out so older readers and
+	// agents see the destination they know).
+	Compression string `json:"compression,omitempty"`
 }
 
 var bucketRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
@@ -111,6 +116,9 @@ func AbsPath(p string) bool {
 
 // Validate checks the destination's form (not its reachability).
 func (d Destination) Validate() error {
+	if !restic.ValidCompression(d.Compression) {
+		return errors.New("compression must be auto, max or off")
+	}
 	switch d.Kind {
 	case KindLocal:
 		if !AbsPath(d.Path) {
@@ -181,6 +189,9 @@ type S3Credentials struct {
 // Location returns the restic location of a scope with the credentials.
 func (d Destination) Location(scope string, creds S3Credentials) restic.Location {
 	loc := restic.Location{Repository: d.Repository(scope)}
+	if d.Compression != restic.CompressionAuto {
+		loc.Compression = d.Compression
+	}
 	if d.Kind == KindS3 {
 		loc.S3 = &restic.S3{AccessKeyID: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey, Region: d.Region, PathStyle: d.PathStyle}
 	}

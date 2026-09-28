@@ -47,7 +47,6 @@
 	import VolumeCoverage from './VolumeCoverage.svelte';
 	import {
 		DEFAULT_RETENTION,
-		hasRetentionRules,
 		repositoryLocation,
 		type BackupPolicy,
 		type BackupRetention,
@@ -91,6 +90,7 @@
 	let excludeStacks = $state<string[]>(p0?.excludeStacks ?? []);
 	let excludeVolumes = $state<string[]>(p0?.excludeVolumes ?? []);
 	let anonymousVolumes = $state(p0?.anonymousVolumes ?? false);
+	let buildxVolumes = $state(p0?.buildxVolumes ?? false);
 	let shutdown = $state(p0?.shutdown ?? false);
 	let enabled = $state(p0?.schedule?.enabled ?? false);
 	let cron = $state(p0?.schedule?.cron ?? '');
@@ -130,6 +130,7 @@
 			excludeStacks,
 			excludeVolumes,
 			anonymousVolumes,
+			buildxVolumes,
 			shutdown,
 			enabled,
 			cron,
@@ -198,6 +199,7 @@
 			excludeStacks,
 			excludeVolumes,
 			anonymousVolumes,
+			buildxVolumes,
 			repositoryId,
 			environmentRepositories: er,
 			includeManagerState: includeManager,
@@ -298,15 +300,8 @@
 	);
 	const scopeOk = $derived(involvedEnvs.every((e) => !needsEnvRepo(e)));
 	const scheduleOk = $derived(!!cron.trim());
-	const retentionOk = $derived(!(hasRetentionRules(retention) && (retention.minKeep ?? 0) < 1));
 	const canAdvance = $derived(
-		current === 0
-			? destinationOk
-			: current === 1
-				? scopeOk
-				: current === 2
-					? scheduleOk
-					: retentionOk
+		current === 0 ? destinationOk : current === 1 ? scopeOk : current === 2 ? scheduleOk : true
 	);
 
 	async function onnext(step: { id: string }) {
@@ -357,7 +352,6 @@
 		if (!destinationOk) return (saveError = 'Enter a name and choose a repository.');
 		if (!scopeOk) return (saveError = 'Choose a repository for every environment below.');
 		if (!scheduleOk) return (saveError = 'Choose when backups run.');
-		if (!retentionOk) return (saveError = 'Keep at least 1 per stack and volume.');
 		saving = true;
 		try {
 			await finish();
@@ -373,6 +367,7 @@
 		void excludeStacks;
 		void excludeVolumes;
 		void anonymousVolumes;
+		void buildxVolumes;
 		void includeManager;
 		untrack(() => (scope = null));
 	});
@@ -499,6 +494,12 @@
 				bind:checked={anonymousVolumes}
 				onchange={() => (touched = true)}
 			/>
+			<Switch
+				label="Back up buildx builder volumes"
+				description="Off by default: they hold the build cache of buildx builders, which is rebuilt when needed. Volumes with the label docker-manager.backup.exclude=true, or used by a container with it, are never backed up."
+				bind:checked={buildxVolumes}
+				onchange={() => (touched = true)}
+			/>
 			{#each activeEnvs.filter((e) => e.online && involvedEnvs.includes(e.id)) as e (e.id)}
 				<VolumeCoverage
 					environmentId={e.id}
@@ -507,6 +508,7 @@
 					excluded={excludeVolumes}
 					excludedStacks={excludeStacks}
 					anonymous={anonymousVolumes}
+					buildx={buildxVolumes}
 					onchange={(v) => {
 						excludeVolumes = v;
 						touched = true;

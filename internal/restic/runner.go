@@ -133,7 +133,7 @@ func (p *repo) runOnce(ctx context.Context, c call) (result, error) {
 	if err != nil {
 		return result{}, &Error{Op: c.op, Code: CodeFailed, Message: "deliver the repository password: " + scrub(err.Error(), secrets)}
 	}
-	args := p.globalArgs()
+	args := p.globalArgs(c.op)
 	args = append(args, c.args...)
 	if c.newPassword != "" {
 		np, err := files.add(c.newPassword)
@@ -221,10 +221,17 @@ func (p *repo) runOnce(ctx context.Context, c call) (result, error) {
 	return res, nil
 }
 
-func (p *repo) globalArgs() []string {
+// globalArgs are the flags of every call of op. The compression mode is
+// passed only to the calls that write pack files (backup, prune); every
+// other call, including cat config, runs without it, so a repository of
+// format version 1 still opens (restic compresses only version 2).
+func (p *repo) globalArgs(op string) []string {
 	var args []string
 	if p.loc.S3 != nil && p.loc.S3.PathStyle {
 		args = append(args, "-o", "s3.bucket-lookup=path")
+	}
+	if (op == "backup" || op == "prune") && (p.loc.Compression == CompressionMax || p.loc.Compression == CompressionOff) {
+		args = append(args, "--compression", p.loc.Compression)
 	}
 	if p.r.CacheDir == "" {
 		args = append(args, "--no-cache")

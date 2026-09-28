@@ -32,6 +32,8 @@ type Call struct {
 	Password   string
 	// Args summarizes non-secret arguments (paths, tags, IDs).
 	Args []string
+	// Compression is the location's compression mode ("" auto).
+	Compression string
 }
 
 // Store holds the fake repositories.
@@ -57,6 +59,8 @@ type repoState struct {
 	snaps []*snap
 	// damaged makes Check fail.
 	damaged bool
+	// version is the repository format version (0 means 2).
+	version int
 }
 
 type key struct {
@@ -109,6 +113,16 @@ func (s *Store) Damage(repository string) {
 	defer s.unlock()
 	if r := s.repos[repository]; r != nil {
 		r.damaged = true
+	}
+}
+
+// SetVersion sets a repository's format version (1: a repository created
+// by restic before 0.14, which cannot compress).
+func (s *Store) SetVersion(repository string, version int) {
+	s.mu.Lock()
+	defer s.unlock()
+	if r := s.repos[repository]; r != nil {
+		r.version = version
 	}
 }
 
@@ -209,7 +223,7 @@ func (p *repo) begin(ctx context.Context, op string, needRepo bool, args ...stri
 		return nil, &restic.Error{Op: op, Code: restic.CodeCancelled, Message: "cancelled"}
 	}
 	s := p.s
-	s.calls = append(s.calls, Call{Op: op, Repository: p.loc.Repository, Password: p.password, Args: args})
+	s.calls = append(s.calls, Call{Op: op, Repository: p.loc.Repository, Password: p.password, Args: args, Compression: p.loc.Compression})
 	if err := s.fail[op+"@"+p.loc.Repository]; err != nil {
 		return nil, err
 	}
@@ -251,7 +265,11 @@ func (p *repo) Config(ctx context.Context) (restic.Config, error) {
 	if err != nil {
 		return restic.Config{}, err
 	}
-	return restic.Config{ID: r.id, Version: 2}, nil
+	version := r.version
+	if version == 0 {
+		version = 2
+	}
+	return restic.Config{ID: r.id, Version: version}, nil
 }
 
 // storedPath maps an absolute OS path to restic's slash form (Windows

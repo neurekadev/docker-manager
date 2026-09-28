@@ -728,4 +728,57 @@ func TestRetentionKeepsFloorAndForgetsOnlyThePolicy(t *testing.T) {
 		// Every run reused set-1, so its manifests stay while it has data.
 		t.Logf("manifests left: %d", manifests)
 	}
+	prunes := func() int {
+		n := 0
+		for _, c := range e.store.Calls() {
+			if c.Op == "prune" {
+				n++
+			}
+		}
+		return n
+	}
+	if n := prunes(); n != 1 {
+		t.Errorf("%d prunes after forgetting snapshots, want 1", n)
+	}
+	// Nothing left to forget: no prune (it would download and rewrite
+	// pack data for nothing).
+	res, _, err = e.run(ctx, jobspec.BackupRetention, in, e.credential("DYRK-K"), nil)
+	if err != nil || res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("second retention: %+v %v", res, err)
+	}
+	out = protocol.RetentionOutput{}
+	_ = json.Unmarshal(res.Output, &out)
+	if len(out.Forgotten) != 0 || prunes() != 1 {
+		t.Errorf("retention with nothing to forget: forgot %v, %d prunes", out.Forgotten, prunes())
+	}
+}
+
+// TestBackupExcludeLabel: a container carrying docker-manager.backup.exclude
+// leaves the volumes it mounts out of its stack's backup, and a volume
+// carrying the label is never backed up.
+func TestBackupExcludeLabel(t *testing.T) {
+	e := newEnv(t)
+	ctx := testutil.Context(t)
+	repo := e.repoRef()
+	if p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false); p.err != nil {
+		t.Fatal(p.err)
+	} else if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceIncluded {
+		t.Fatalf("before the label: %+v", s)
+	}
+	e.eng.AddContainer(engine.ContainerSpec{Name: "app-dump-1", Image: "example/dump:1",
+		Labels: map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: "dump", protocol.LabelBackupExclude: "true"},
+		Mounts: []engine.MountSpec{{Type: "volume", Source: "app_dbdata", Target: "/dump"}}}, false)
+	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
+	if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceExcluded || s.Reason != labelledContainerReason {
+		t.Errorf("volume of a labelled container: %+v", s)
+	}
+
+	e.eng.AddVolume("cache", map[string]string{protocol.LabelBackupExclude: "True"})
+	mp := filepath.Join(e.volumes, "cache", "_data")
+	write(t, filepath.Join(mp, "x"), "x")
+	e.eng.SetVolumeMountpoint("cache", filepath.ToSlash(mp))
+	p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "cache"}, &repo, false)
+	if s, _ := sourceState(p, protocol.SourceVolume, "cache"); s.State != protocol.SourceExcluded || s.Reason != labelledVolumeReason || p.err == nil {
+		t.Errorf("labelled volume: %+v %v", s, p.err)
+	}
 }

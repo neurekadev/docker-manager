@@ -22,12 +22,18 @@ Setting up takes two steps: add a repository, then create a backup policy.
    - **S3-compatible storage**: the **Endpoint**, the **Bucket**, and an
      **Access key ID** and **Secret access key**. **Region** and **Prefix**
      are optional.
-3. Press **Save and continue**.
-4. The first time, Docker Manager shows your **Recovery Key**. Store it
+3. Choose the **Compression**. **Automatic** suits most data. **Maximum**
+   makes backups smaller but uses more CPU. **Off** is for data that is
+   already compressed, such as videos and photos. You can change it later
+   with **Edit repository**; a change applies to data backed up from then
+   on. A server whose agent is older than the manager backs up with
+   **Automatic** until you update the agent.
+4. Press **Save and continue**.
+5. The first time, Docker Manager shows your **Recovery Key**. Store it
    outside Docker Manager (see below), then press **I saved it, continue**.
-5. Type the Recovery Key once to confirm it, tick **I saved the Recovery Key
+6. Type the Recovery Key once to confirm it, tick **I saved the Recovery Key
    outside Docker Manager** and press **Confirm Recovery Key**.
-6. Docker Manager tests the repository. Press **Done**.
+7. Docker Manager tests the repository. Press **Done**.
 
 **A local folder only holds what its writer backs up.** A folder written by
 the manager holds only Docker Manager's own data. A folder written by a
@@ -73,8 +79,14 @@ A **backup policy** says what to back up, where, when and for how long.
    [Schedules](/docs/schedules)).
 5. **Retention**: how many backups to keep. **7 daily, 4 weekly, 12
    monthly** is a good start. **Custom** lets you set each rule. Turn on
-   **Apply retention after every backup** to remove old backups right away;
-   otherwise use **Apply retention now** on the policy's page.
+   **Apply retention after every backup** to remove old backups once the
+   whole backup has finished; otherwise use **Apply retention now** on the
+   policy's page.
+
+   Retention always keeps the last backups of a stack or volume, even after
+   you delete it. To free that space too, turn on **Remove backups of
+   deleted stacks and volumes** and set **Remove them after** (30 days by
+   default, counted from their newest backup).
 6. Tick **Run the first backup after creating** if you like, and press
    **Create policy**.
 
@@ -106,8 +118,38 @@ tab says which policy covers it and when it runs next.
 - Folders of the server that a stack mounts from outside its own folder,
   such as `/mnt/media:/media`. Back those up another way.
 - Anonymous volumes, unless you turn on **Back up anonymous volumes**.
+- Build cache of buildx builders (volumes named
+  `buildx_buildkit_<builder>_state`), unless you turn on **Back up buildx
+  builder volumes**.
+- Volumes with the label `docker-manager.backup.exclude=true`, and every
+  volume a container with that label uses.
 - Docker Manager's metrics history, unless you turn on **Include the
   metrics database**.
+
+To leave a volume out from your Compose file, add the label to the volume,
+or to the service to skip all of its volumes. The stack's own folder with
+its Compose files is still backed up.
+
+```yaml
+services:
+  app:
+    image: example/app:1
+    # Skip every volume this service uses:
+    labels:
+      - docker-manager.backup.exclude=true
+    volumes:
+      - cache:/cache
+
+volumes:
+  cache:
+    # Or skip only this volume:
+    labels:
+      - docker-manager.backup.exclude=true
+```
+
+Docker sets a volume's labels only when it creates the volume. To skip a
+volume that already exists, put the label on the service that uses it and
+deploy the stack again.
 
 ## Check your backups
 

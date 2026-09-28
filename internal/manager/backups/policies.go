@@ -79,6 +79,7 @@ type PolicyPatch struct {
 	ExcludeStacks    *[]string
 	ExcludeVolumes   *[]string
 	AnonymousVolumes *bool
+	BuildxVolumes    *bool
 	RepositoryID     *string
 	EnvironmentRepos *map[string]string
 	IncludeManager   *bool
@@ -122,6 +123,9 @@ func (s *Service) UpdatePolicy(ctx context.Context, id string, revision int64, p
 		}
 		if pp.AnonymousVolumes != nil {
 			p.AnonymousVolumes = *pp.AnonymousVolumes
+		}
+		if pp.BuildxVolumes != nil {
+			p.BuildxVolumes = *pp.BuildxVolumes
 		}
 		if pp.RepositoryID != nil {
 			p.RepositoryID = *pp.RepositoryID
@@ -184,7 +188,7 @@ func policyAuditView(p domain.BackupPolicy) map[string]any {
 		vols = append(vols, v.EnvironmentID+"/"+v.Volume)
 	}
 	return map[string]any{"name": p.Name, "environmentId": p.EnvironmentID, "excludeStacks": p.ExcludeStacks, "excludeVolumes": p.ExcludeVolumes,
-		"anonymousVolumes": p.AnonymousVolumes, "repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
+		"anonymousVolumes": p.AnonymousVolumes, "buildxVolumes": p.BuildxVolumes, "repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
 		"includeManager": p.IncludeManager, "includeMetrics": p.IncludeMetrics, "stacks": stackIDs, "volumes": vols,
 		"shutdown": p.Shutdown, "cron": p.Cron, "timeZone": p.TimeZone, "enabled": p.Enabled, "retention": p.Retention}
 }
@@ -211,9 +215,8 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 	if err := scheduler.ValidateSpec(p.Cron, p.TimeZone); err != nil {
 		return fieldErr("schedule", "%s", err.Error())
 	}
-	rules := retentionRules(p.Retention)
-	for f, msg := range rules.Validate() {
-		return fieldErr("retention."+f, "%s", msg)
+	if err := validateRetention(p.Retention); err != nil {
+		return err
 	}
 	if p.EnvironmentID != "" {
 		if _, err := s.environment(ctx, p.EnvironmentID); err != nil {
@@ -417,8 +420,9 @@ func excludedVolumes(p domain.BackupPolicy, environmentID string) []string {
 
 // standaloneVolumes lists the environment's volumes a scope-wide policy
 // selects: not Docker Manager's own, not a managed stack's (by label or by
-// a stack container using it), not excluded, and anonymous ones only when
-// the policy includes anonymous volumes.
+// a stack container using it), not excluded (by the policy, or by the
+// backup exclude label on the volume or on a container using it), and
+// anonymous and buildx builder volumes only when the policy includes them.
 func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, environmentID string, stacks []domain.Stack) ([]string, error) {
 	if s.volumes == nil {
 		return nil, nil
@@ -435,10 +439,13 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 	for _, stack := range stacks {
 		stackNames[stack.Name] = true
 	}
-	managedContainer := map[string]bool{}
+	managedContainer, labelled := map[string]bool{}, map[string]bool{}
 	for _, container := range containers {
 		if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
 			managedContainer[container.ID] = true
+		}
+		if protocol.BackupExcluded(container.Labels) {
+			labelled[container.ID] = true
 		}
 	}
 	excluded := excludedVolumes(p, environmentID)
@@ -447,7 +454,9 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 		_, anonymous := volume.Labels[protocol.AnonymousVolumeLabel]
 		if volume.Stack != nil || volume.Protection != nil || stackNames[volume.Labels[protocol.ComposeProjectLabel]] ||
 			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) ||
-			slices.Contains(excluded, volume.Name) || (anonymous && !p.AnonymousVolumes) {
+			slices.Contains(excluded, volume.Name) || (anonymous && !p.AnonymousVolumes) ||
+			(protocol.IsBuildxVolume(volume.Name) && !p.BuildxVolumes) || protocol.BackupExcluded(volume.Labels) ||
+			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return labelled[ref.ID] }) {
 			continue
 		}
 		out = append(out, volume.Name)
@@ -505,6 +514,91 @@ func (s *Service) stack(ctx context.Context, id string) (domain.Stack, error) {
 		return domain.Stack{}, domain.ErrStackNotFound
 	}
 	return s.opts.Stacks.Get(ctx, id)
+}
+
+// validateRetention checks a policy's retention rules and expiry.
+func validateRetention(r domain.BackupRetention) error {
+	for f, msg := range retentionRules(r).Validate() {
+		return fieldErr("retention."+f, "%s", msg)
+	}
+	if r.ExpireDeletedDays < 0 || r.ExpireDeletedDays > domain.MaxExpireDeletedDays {
+		return fieldErr("retention.expireDeletedDays", "must be between 0 and %d", domain.MaxExpireDeletedDays)
+	}
+	return nil
+}
+
+// retentionActive reports whether retention would remove anything: rules
+// are set or backups of deleted items expire.
+func retentionActive(r domain.BackupRetention) bool {
+	return !retentionRules(r).Empty() || r.ExpireDeletedDays > 0
+}
+
+// expiredItems lists the items of one location (snaps are its indexed
+// snapshots) whose backups the policy's expiry removes: stacks Docker
+// Manager no longer knows and standalone volumes the environment no longer
+// has, whose newest backup is older than ExpireDeletedDays. Nothing is
+// judged deleted when the environment is archived or unknown or its
+// volumes cannot be listed (offline agent), and the manager's own state
+// never is.
+func (s *Service) expiredItems(ctx context.Context, p domain.BackupPolicy, scope string, snaps []domain.BackupSnapshot) []string {
+	days := p.Retention.ExpireDeletedDays
+	envID, ok := backup.ScopeEnvironment(scope)
+	if days <= 0 || !ok {
+		return nil
+	}
+	cutoff := s.now().Add(-time.Duration(days) * 24 * time.Hour)
+	newest := map[string]domain.BackupSnapshot{}
+	for _, sn := range snaps {
+		if cur, seen := newest[sn.Item]; sn.Scope == scope && (!seen || sn.SnapshotTime.After(cur.SnapshotTime)) {
+			newest[sn.Item] = sn
+		}
+	}
+	var present map[string]bool // the environment's volumes, listed once
+	listed := false
+	var out []string
+	for item, sn := range newest {
+		if !sn.SnapshotTime.Before(cutoff) {
+			continue
+		}
+		switch sn.Kind {
+		case backup.MemberStack:
+			if s.opts.Stacks == nil || sn.StackID == "" {
+				continue
+			}
+			if _, err := s.stack(ctx, sn.StackID); errors.Is(err, domain.ErrStackNotFound) {
+				out = append(out, item)
+			}
+		case backup.MemberVolume:
+			if !listed {
+				listed, present = true, s.environmentVolumes(ctx, envID)
+			}
+			if present != nil && sn.Volume != "" && !present[sn.Volume] {
+				out = append(out, item)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// environmentVolumes lists the volume names of an active environment, nil
+// when they cannot be known.
+func (s *Service) environmentVolumes(ctx context.Context, envID string) map[string]bool {
+	if s.volumes == nil || s.opts.Environments == nil {
+		return nil
+	}
+	if env, err := s.environment(ctx, envID); err != nil || env.Status != domain.EnvironmentActive {
+		return nil
+	}
+	volumes, err := s.volumes.ListVolumes(ctx, envID)
+	if err != nil {
+		return nil
+	}
+	out := make(map[string]bool, len(volumes))
+	for _, v := range volumes {
+		out[v.Name] = true
+	}
+	return out
 }
 
 func retentionRules(r domain.BackupRetention) backup.RetentionRules {
@@ -706,8 +800,8 @@ func (s *Service) PreviewRetention(ctx context.Context, id string, override *dom
 	}
 	if override != nil {
 		p.Retention = *override
-		for f, msg := range retentionRules(p.Retention).Validate() {
-			return nil, p, fieldErr("retention."+f, "%s", msg)
+		if err := validateRetention(p.Retention); err != nil {
+			return nil, p, err
 		}
 	}
 	snaps, err := store.ListBackupSnapshots(ctx, s.db, domain.BackupSnapshotFilter{PolicyID: id})
@@ -719,9 +813,11 @@ func (s *Service) PreviewRetention(ctx context.Context, id string, override *dom
 		loc = time.UTC
 	}
 	groups := map[[2]string][]backup.RetentionSnapshot{}
+	indexed := map[[2]string][]domain.BackupSnapshot{}
 	for _, sn := range snaps {
 		k := [2]string{sn.RepositoryID, sn.Scope}
 		groups[k] = append(groups[k], backup.RetentionSnapshot{ID: sn.ResticSnapshotID, Time: sn.SnapshotTime, Item: sn.Item})
+		indexed[k] = append(indexed[k], sn)
 	}
 	keys := make([][2]string, 0, len(groups))
 	for k := range groups {
@@ -744,7 +840,7 @@ func (s *Service) PreviewRetention(ctx context.Context, id string, override *dom
 	})
 	var out []RetentionLocation
 	for _, k := range keys {
-		plan := backup.Plan(retentionRules(p.Retention), groups[k], loc)
+		plan := backup.Plan(retentionRules(p.Retention), groups[k], loc).Expire(s.expiredItems(ctx, p, k[1], indexed[k]))
 		out = append(out, RetentionLocation{RepositoryID: k[0], Scope: k[1], Decisions: plan.Decisions})
 	}
 	return out, p, nil

@@ -62,7 +62,7 @@
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
 	import {
 		coverageSummary,
-		hasRetentionRules,
+		retentionActive,
 		policySentence,
 		retentionShort,
 		retentionText,
@@ -192,7 +192,7 @@
 
 	function menuFor(p: BackupPolicy): MenuEntry[] {
 		const items: MenuEntry[] = [];
-		if (has(p, 'backup.retention') && hasRetentionRules(p.retention))
+		if (has(p, 'backup.retention') && retentionActive(p.retention))
 			items.push({
 				label: 'Apply retention now',
 				icon: Eraser,
@@ -330,7 +330,7 @@
 				<KpiCard
 					label="Retention"
 					value={retentionShort(p.retention)}
-					secondary={hasRetentionRules(p.retention)
+					secondary={retentionActive(p.retention)
 						? p.retention?.afterBackup
 							? 'Applied after every backup'
 							: 'Applied by hand'
@@ -391,6 +391,10 @@
 											value: p.anonymousVolumes
 												? 'Backed up'
 												: 'Not backed up'
+										},
+										{
+											label: 'Buildx builder volumes',
+											value: p.buildxVolumes ? 'Backed up' : 'Not backed up'
 										}
 									]),
 							{ label: 'Manager state', value: manager },

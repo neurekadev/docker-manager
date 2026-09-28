@@ -27,6 +27,7 @@ const policy: BackupPolicy = {
 	excludeStacks: [],
 	excludeVolumes: [],
 	anonymousVolumes: false,
+	buildxVolumes: false,
 	enabled: false,
 	view: 'full',
 	actions: ['backup_policy.manage'],
@@ -200,7 +201,7 @@ describe('PolicyWizard (#10)', () => {
 					monthly: 0,
 					yearly: 0,
 					withinDays: 0,
-					minKeep: 1
+					minKeep: 0
 				}
 			}
 		});

@@ -32,8 +32,16 @@ const (
 	// Docker Manager-managed standalone container (manager side, used by #20).
 	LabelSpec = LabelPrefix + "spec"
 	// LabelUpdateExclude is a user-set opt-out from automatic image updates.
-	// It deliberately sits outside the reserved Docker Manager prefix.
+	// It deliberately sits outside the reserved Docker Manager prefix, like
+	// the other user-set exclusions below.
 	LabelUpdateExclude = "docker-manager.update.exclude"
+	// LabelBackupExclude is a user-set opt-out from backups: on a volume it
+	// leaves that volume out, on a container the volumes it mounts (a
+	// stack's Compose files are always backed up).
+	LabelBackupExclude = "docker-manager.backup.exclude"
+	// LabelMaintenanceExclude is a user-set opt-out from maintenance: a
+	// container, image, volume or network carrying it is never pruned.
+	LabelMaintenanceExclude = "docker-manager.maintenance.exclude"
 
 	// ManagedStandalone is the LabelManaged value of standalone containers.
 	ManagedStandalone = "standalone"
@@ -49,6 +57,27 @@ const (
 // UpdateExcluded reports whether a container has opted out of automatic updates.
 func UpdateExcluded(labels map[string]string) bool {
 	return strings.EqualFold(labels[LabelUpdateExclude], "true")
+}
+
+// BackupExcluded reports whether a volume or container has opted out of
+// backups.
+func BackupExcluded(labels map[string]string) bool {
+	return strings.EqualFold(labels[LabelBackupExclude], "true")
+}
+
+// MaintenanceExcluded reports whether a Docker object has opted out of
+// maintenance (pruning).
+func MaintenanceExcluded(labels map[string]string) bool {
+	return strings.EqualFold(labels[LabelMaintenanceExclude], "true")
+}
+
+// IsBuildxVolume reports whether a volume holds a buildx builder's state
+// (the docker-container driver names it buildx_buildkit_<builder>_state):
+// build cache that can be rebuilt, left out of backups by default.
+func IsBuildxVolume(name string) bool {
+	builder, ok := strings.CutPrefix(name, "buildx_buildkit_")
+	builder, found := strings.CutSuffix(builder, "_state")
+	return ok && found && builder != ""
 }
 
 // ContainerPort is a container port and its host binding.

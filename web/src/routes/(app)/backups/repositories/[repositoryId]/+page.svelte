@@ -54,11 +54,13 @@
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
+	import CompressionField from '$lib/features/backups/CompressionField.svelte';
 	import ConnectionTestResult from '$lib/features/backups/ConnectionTestResult.svelte';
 	import KeyRotationDialog from '$lib/features/backups/KeyRotationDialog.svelte';
 	import RecoveryKeyChallenge from '$lib/features/backups/RecoveryKeyChallenge.svelte';
 	import {
 		RECOVERY_KEY_SCOPE,
+		compressionText,
 		connectionTestText,
 		ratioText,
 		repositoryLocation,
@@ -110,6 +112,7 @@
 	let editName = $state('');
 	let editRegion = $state('');
 	let editPathStyle = $state(true);
+	let editCompression = $state<string>('auto');
 	let editAccessKey = $state('');
 	let editSecret = $state('');
 	let vEnabled = $state(false);
@@ -141,6 +144,7 @@
 		editName = r.name;
 		editRegion = r.region ?? '';
 		editPathStyle = r.pathStyle ?? true;
+		editCompression = r.compression ?? 'auto';
 		editAccessKey = '';
 		editSecret = '';
 		saveError = null;
@@ -398,6 +402,10 @@
 												? `${formatBytes(r.storage.sizeBytes)} (${ratioText(r.storage.compressionRatio)} compression)`
 												: 'Measured after the next backup'
 										},
+										{
+											label: 'Compression',
+											value: compressionText(r.compression)
+										},
 										{ label: 'Backups kept', value: h.snapshots },
 										{
 											label: 'Newest backup',
@@ -575,6 +583,7 @@
 							autocomplete="off"
 						/>
 					{/if}
+					<CompressionField bind:value={editCompression} />
 					{#if saveError}<Notice tone="danger" title="Not saved" live="alert"
 							>{saveError}</Notice
 						>{/if}
@@ -590,6 +599,7 @@
 								r,
 								{
 									name: editName.trim(),
+									compression: editCompression,
 									...(r.kind === 's3'
 										? {
 												region: editRegion.trim(),
