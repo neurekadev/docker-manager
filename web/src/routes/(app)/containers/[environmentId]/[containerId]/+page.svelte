@@ -11,7 +11,13 @@
 	import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-	import { containerMetricsQuery, containerQuery, type Container } from '$lib/api/queries';
+	import {
+		containerMetricsQuery,
+		containerQuery,
+		latestContainerMetricsQuery,
+		type Container
+	} from '$lib/api/queries';
+	import { pollWhileDown } from '$lib/live';
 	import { serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
 	import { routes } from '$lib/routes';
 	import {
@@ -46,11 +52,19 @@
 
 	let range = $state('3600');
 	const metricsAllowed = $derived(!!c && can(c.actions, 'container.metrics.read'));
+	// The charts: stored samples, refreshed by new samples (every 10 s).
 	const metrics = createQuery(() => ({
 		...containerMetricsQuery(env, name, Number(range)),
 		enabled: metricsAllowed,
-		refetchInterval: 30_000
+		refetchInterval: pollWhileDown(30_000)
 	}));
+	// The KPI figures: the current CPU and memory (live, about every second
+	// while the stream is open), the charts' newest values until it answers.
+	const usage = createQuery(() => ({
+		...latestContainerMetricsQuery(env),
+		enabled: metricsAllowed
+	}));
+	const current = $derived(c ? usage.data?.[c.name] : undefined);
 
 	function series(key: string): (number | null)[] {
 		return metrics.data?.series.find((s) => s.key === key)?.values ?? [];
@@ -61,8 +75,15 @@
 	}
 	const cpu = $derived(series('cpu.percent'));
 	const mem = $derived(series('memory.used_bytes'));
+	const cpuNow = $derived(current?.cpuPercent ?? latest(cpu));
+	const memNow = $derived(current?.memoryUsedBytes ?? latest(mem));
+	// With a current memory reading its limit is current too (absent: none).
 	const memLimit = $derived(
-		latest(series('memory.limit_bytes')) ?? d?.resources.memoryBytes ?? null
+		(current && current.memoryUsedBytes !== undefined
+			? current.memoryLimitBytes
+			: latest(series('memory.limit_bytes'))) ??
+			d?.resources.memoryBytes ??
+			null
 	);
 	const times = $derived((metrics.data?.timestamps ?? []).map((t) => new Date(t)));
 	const cpuColor = $derived(TILE_HEX.cyan.fg);
@@ -191,7 +212,7 @@
 			{#if metricsAllowed}
 				<KpiCard
 					label="CPU"
-					value={formatPercent(latest(cpu))}
+					value={formatPercent(cpuNow)}
 					icon={Cpu}
 					color="cyan"
 					secondary="of {scope.environment(env)?.name ?? 'the host'}'s cores"
@@ -208,19 +229,19 @@
 				</KpiCard>
 				<KpiCard
 					label="Memory"
-					value={formatBytes(latest(mem))}
+					value={formatBytes(memNow)}
 					unit={memLimit ? `/ ${formatBytes(memLimit)}` : undefined}
 					icon={MemoryStick}
 					color="indigo"
 					secondary={memLimit ? undefined : 'No memory limit'}
 				>
 					{#snippet bar()}
-						{#if memLimit && latest(mem) !== null}
+						{#if memLimit && memNow !== null}
 							<Meter
-								value={latest(mem) ?? 0}
+								value={memNow}
 								max={memLimit}
 								label="Memory of {c.name}"
-								valueText="{formatBytes(latest(mem))} of {formatBytes(memLimit)}"
+								valueText="{formatBytes(memNow)} of {formatBytes(memLimit)}"
 								warnAt={0.8}
 								dangerAt={0.95}
 							/>

@@ -7,7 +7,7 @@ import { liveKeys } from './keys';
 
 export { LiveClient, LIVE_URL, type LiveScopes } from './client';
 export { liveKeys, type FileScopeRef, type Topic } from './keys';
-export { liveStatus, LiveStatus, type LiveState } from './status.svelte';
+export { liveStatus, LiveStatus, pollWhileDown, type LiveState } from './status.svelte';
 export { criticalWork, CriticalWork, type CriticalKind } from './critical.svelte';
 
 let current: LiveClient | null = null;

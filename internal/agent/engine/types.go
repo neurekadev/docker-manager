@@ -483,9 +483,16 @@ type LogEntry struct {
 type Stats struct {
 	Read time.Time
 	// CPUPercent is the share of one CPU times the number of online CPUs
-	// (100% = one full CPU), 0 for the first sample of a stream.
+	// (100% = one full CPU), 0 for a single sample and for the first sample
+	// of a stream (it needs a previous sample).
 	CPUPercent float64
 	OnlineCPUs uint32
+	// CPUTotalUsage (the container's CPU time) and SystemCPUUsage (the
+	// host's CPU time over all cores) are cumulative nanosecond counters:
+	// a caller keeping the previous sample computes CPU use from their
+	// deltas (SystemCPUUsage is 0 where the Engine does not report it).
+	CPUTotalUsage  uint64
+	SystemCPUUsage uint64
 	// MemoryUsage excludes the page cache (as `docker stats`); MemoryLimit
 	// is the cgroup limit or host memory.
 	MemoryUsage   uint64

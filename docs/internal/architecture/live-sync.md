@@ -26,7 +26,7 @@ watch.Watcher ──fs_invalidation (seq)► (dedupe, gaps)  ├─► events.Bu
 | source | bus events |
 | --- | --- |
 | agent sessions (#3, #5) | `docker.event`, `environment.*` (online after reconciliation, `resync` after reconnects and event gaps), `agent.*`, `enrollment.*`, `files.invalidated` (a whole-environment overflow after an fs `seq` gap) |
-| observation (#5) | `metrics.sampled`, `inventory.updated` |
+| observation (#5) | `metrics.sampled` (stored samples, every 10 s), `metrics.live` (live CPU and memory in memory, about every second per environment while at least one live stream is open: the hub's subscriber count is the manager's demand signal, [metrics.md](metrics.md#live-metrics)), `inventory.updated` |
 | stacks (#7) | `stack.created/updated/removed/revision_recorded` |
 | jobs (#26) | `job.updated` from `live.JobSource` (engine change listener, batched per 250 ms, one database read per job) |
 | API mutations (#30 audit path) | `resource.changed` for every target of a successful non-GET operation (policies, schedules, backups, registries, Git credentials, build definitions, settings, groups, users, invitations, API tokens); file operations and job targets are left to their precise sources |
@@ -43,10 +43,14 @@ Every event type has a visibility rule in `internal/manager/authz/events.go`
   that environment.
 - Coalescing per resource (type, resource, environment): first event of a
   250 ms window immediately, the rest merged (paths united, members united)
-  and emitted when the window ends; metrics use 10 s per environment.
+  and emitted when the window ends; stored and live metrics use 1 s per
+  environment.
 - Records get a strictly increasing sequence; the replay log keeps the
   newest 10 000 or 15 minutes. Cursors are `<epoch>.<seq>`; the epoch
-  changes with every manager process.
+  changes with every manager process. `metrics.live` records are fanned
+  out but not kept for replay (one per environment and second would push
+  everything else out); a cursor is expired only when a retained record
+  after it was dropped.
 - Subscribers have 512-record queues; overflow drains the queue and the
   stream sends `reset overflow` with a fresh cursor. At most 8 streams per
   principal.
@@ -95,7 +99,7 @@ update prompt consults, and the polling fallback.
 
 | what | tests |
 | --- | --- |
-| snapshot, cursor resume, expired/foreign cursors, replay, coalescing, overflow resets, bus-loss and environment resets, stream limit | `internal/manager/live` (`TestSnapshotCursorAndReplay`, `TestCoalescingAndDedupe`, `TestSlowSubscriberOverflowReset`, `TestLossesBecomeResets`, `TestStreamsPerPrincipal`), `internal/manager/api` (`TestLiveStreamSnapshotResumeAndReset`) |
+| snapshot, cursor resume, expired/foreign cursors, replay, coalescing, overflow resets, bus-loss and environment resets, stream limit | `internal/manager/live` (`TestSnapshotCursorAndReplay`, `TestCoalescingAndDedupe`, `TestLiveMetricsAreNotReplayed`, `TestSlowSubscriberOverflowReset`, `TestLossesBecomeResets`, `TestStreamsPerPrincipal`), `internal/manager/api` (`TestLiveStreamSnapshotResumeAndReset`) |
 | permission filtering and shaping (metrics-only, files, jobs, policies) | `TestLiveEventFiltering`, `TestEventVisibility`, `TestLiveStreamThroughTheRealManager` |
 | revocation closes the stream | `TestLiveStreamRevocation`, `TestLiveStreamThroughTheRealManager` (real `AccessChanged`) |
 | two sessions converge, high volume | `TestTwoSessionsConverge`, `TestLiveHighEventVolume`, `TestLiveSustainedVolumeIsLossless` |

@@ -31,6 +31,14 @@ func Topics() []string {
 		TopicTemplates}
 }
 
+// Invalidation kinds of the metrics topic: new stored samples (charts and
+// the latest values refetch) and new live values (only the current CPU
+// and memory refetch: GET …/metrics/containers, …/capacity, /overview).
+const (
+	KindMetrics     = "metrics"
+	KindLiveMetrics = "live_metrics"
+)
+
 // Invalidation actions.
 const (
 	ActionCreated = "created"
@@ -83,7 +91,9 @@ func Classify(e events.Event) (topic, kind string) {
 	case events.FilesInvalidated:
 		return TopicFiles, events.ResourceFileScope
 	case events.MetricsSampled:
-		return TopicMetrics, "metrics"
+		return TopicMetrics, KindMetrics
+	case events.MetricsLive:
+		return TopicMetrics, KindLiveMetrics
 	case events.StackCreated, events.StackUpdated, events.StackRemoved, events.StackRevisionRecorded:
 		return TopicStacks, events.ResourceStack
 	case events.JobUpdated:

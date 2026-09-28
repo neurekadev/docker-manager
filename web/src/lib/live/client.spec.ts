@@ -8,7 +8,7 @@ import {
 	type QueryClientLike,
 	type Scheduler
 } from './client';
-import { LiveStatus } from './status.svelte';
+import { LiveStatus, pollWhileDown } from './status.svelte';
 import type { QueryKey } from './keys';
 
 class FakeSource implements EventSourceLike {
@@ -339,7 +339,8 @@ describe('LiveClient', () => {
 		expect(status.state).toBe('live');
 	});
 
-	it('refreshes lists at most every second however many events arrive', () => {
+	it('refreshes lists at most twice a second however many events arrive', () => {
+		expect(REFRESH_MS.list).toBe(500);
 		const { client, qc, clock, last } = setup();
 		client.start();
 		last().emit('hello', hello('ep.0'));
@@ -351,6 +352,30 @@ describe('LiveClient', () => {
 		expect(lists()).toHaveLength(1);
 		clock.advance(REFRESH_MS.list * 5);
 		expect(lists()).toHaveLength(0);
+	});
+
+	it('refreshes the current CPU and memory about every second from live metrics', () => {
+		expect(REFRESH_MS.metrics).toBe(1_000);
+		const { client, qc, clock, last } = setup();
+		client.start();
+		last().emit('hello', hello('ep.0'));
+		qc.take();
+		const liveMetrics = { ...container('e1'), topic: 'metrics', kind: 'live_metrics' };
+		const latest = JSON.stringify(['metrics', 'item', 'e1', 'containers-latest']);
+		const refreshed = () => qc.take().filter((c) => c === latest);
+		// One live event per second: each one refreshes at once.
+		for (let i = 1; i <= 5; i++) {
+			last().emit('invalidate', liveMetrics, 'ep.' + i);
+			expect(refreshed()).toHaveLength(1);
+			clock.advance(1_000);
+		}
+		// A burst within one second: one now, one when the second is over.
+		last().emit('invalidate', liveMetrics, 'ep.6');
+		last().emit('invalidate', liveMetrics, 'ep.7');
+		last().emit('invalidate', liveMetrics, 'ep.8');
+		expect(refreshed()).toHaveLength(1);
+		clock.advance(1_000);
+		expect(refreshed()).toHaveLength(1);
 	});
 
 	it('reconnects from the cursor when the open views change', () => {
@@ -373,5 +398,17 @@ describe('LiveClient', () => {
 		expect(status.environments).toEqual({ e1: 'offline' });
 		client.stop();
 		expect(status.state).toBe('stopped');
+	});
+});
+
+describe('pollWhileDown', () => {
+	it('polls only while the stream is not live', () => {
+		const status = new LiveStatus();
+		const interval = pollWhileDown(10_000, status);
+		expect(interval()).toBe(10_000); // idle: not connected yet
+		status.set('live', 1);
+		expect(interval()).toBe(false);
+		status.set('reconnecting', 2);
+		expect(interval()).toBe(10_000);
 	});
 });

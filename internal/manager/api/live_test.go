@@ -343,6 +343,7 @@ func TestLiveEventFiltering(t *testing.T) {
 		"files-s2":     {Type: events.FilesInvalidated, ResourceType: events.ResourceFileScope, ResourceID: "stack:s2", EnvironmentID: "e1", Paths: []string{"other.txt"}, Attributes: map[string]string{"scopeKind": "stack", "scopeId": "s2"}},
 		"files-gap":    {Type: events.FilesInvalidated, ResourceType: events.ResourceFileScope, ResourceID: "*", EnvironmentID: "e1", Overflow: true},
 		"metrics":      {Type: events.MetricsSampled, EnvironmentID: "e1", Members: []string{"web", "db"}, Attributes: map[string]string{"host": "true"}},
+		"live-metrics": {Type: events.MetricsLive, EnvironmentID: "e1", Members: []string{"web", "db"}, Attributes: map[string]string{"host": "true"}},
 		"job":          live.JobEvent(job),
 		"policy":       {Type: events.ResourceChanged, ResourceType: "backup_policy", ResourceID: "p1", Attributes: map[string]string{"op": "update"}},
 		"stack-s1":     {Type: events.StackUpdated, ResourceType: events.ResourceStack, ResourceID: "s1", EnvironmentID: "e1", Revision: 4},
@@ -378,17 +379,25 @@ func TestLiveEventFiltering(t *testing.T) {
 	}
 	for user, want := range map[string][]string{
 		"own": {"db=invalidate", "enrollment=invalidate", "files-gap=files.changed", "files-s1=files.changed", "files-s2=files.changed",
-			"group=invalidate", "job=job", "metrics=invalidate", "online=agent", "other-volume=invalidate", "policy=invalidate",
-			"resync=reset", "stack-s1=invalidate", "web=invalidate"},
-		// Metrics-only: its container's status and metrics, the
-		// environment it sees minimally; no files, jobs or policies.
-		"metrics": {"files-gap=files.changed", "metrics=invalidate", "online=agent", "resync=reset", "web=invalidate"},
-		"filer":   {"files-gap=files.changed", "files-s1=files.changed", "online=agent", "resync=reset", "stack-s1=invalidate"},
-		"nobody":  nil,
+			"group=invalidate", "job=job", "live-metrics=invalidate", "metrics=invalidate", "online=agent", "other-volume=invalidate",
+			"policy=invalidate", "resync=reset", "stack-s1=invalidate", "web=invalidate"},
+		// Metrics-only: its container's status and metrics (stored and
+		// live), the environment it sees minimally; no files, jobs or
+		// policies.
+		"metrics": {"files-gap=files.changed", "live-metrics=invalidate", "metrics=invalidate", "online=agent", "resync=reset",
+			"web=invalidate"},
+		"filer":  {"files-gap=files.changed", "files-s1=files.changed", "online=agent", "resync=reset", "stack-s1=invalidate"},
+		"nobody": nil,
 	} {
 		if got := visible(user); !slices.Equal(got, want) {
 			t.Errorf("%s sees %v, want %v", user, got, want)
 		}
+	}
+	// Live metrics are a metrics invalidation of their own kind (only the
+	// current values refetch), without members or values.
+	if _, data, _ := liveEvent(checker("own"), all, live.Record{Event: recs["live-metrics"]}, "x.1"); data != (LiveInvalidate{Topic: live.TopicMetrics,
+		Kind: live.KindLiveMetrics, ResourceID: "e1", EnvironmentID: "e1", Action: live.ActionUpdated}) {
+		t.Errorf("live metrics shaped as %+v", data)
 	}
 	// Narrowing: environment, topics and open file views.
 	narrow, err := parseLiveFilter(&streamLiveEventsInput{Topics: "files,jobs", EnvironmentID: "e2", StackID: "s1"})

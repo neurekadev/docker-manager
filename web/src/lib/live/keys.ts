@@ -5,7 +5,7 @@
 // TanStack Query matches by prefix: invalidating ['containers', 'item',
 // 'e1', 'web'] also refreshes ['containers', 'item', 'e1', 'web', 'logs'].
 //
-//   [topic, 'list', ...filters]          lists (throttled: at most every 1 s)
+//   [topic, 'list', ...filters]          lists (throttled: at most every 0.5 s)
 //   [topic, 'item', id, ...sub]          details of instance-wide resources
 //                                        (stacks, jobs, environments, agents,
 //                                        policies, backups, registries,
@@ -13,7 +13,12 @@
 //   [topic, 'item', envId, id, ...sub]   details of Docker objects (containers,
 //                                        images, volumes, networks), named per
 //                                        environment
-//   ['metrics', 'item', envId, ...sub]   charts (throttled: at most every 10 s)
+//   ['metrics', 'item', envId, ...sub]   charts (throttled: at most every 1 s);
+//                                        sub 'containers-latest' and
+//                                        'capacity' (and ['overview']) hold
+//                                        the current CPU and memory, also
+//                                        refreshed by live metrics (about
+//                                        every second)
 //   ['stacks', 'services', stackId]      a stack's containers (refreshed on
 //                                        container events, throttled)
 //   ['files', kind, scopeId, part, path] scoped files; kind stack|volume, scopeId
@@ -49,6 +54,9 @@ export const TOPICS = [
 	'templates'
 ] as const;
 export type Topic = (typeof TOPICS)[number];
+
+/** The `invalidate` kind of new live CPU and memory values (topic metrics). */
+export const LIVE_METRICS_KIND = 'live_metrics';
 
 /** Topics whose resource names are only unique within an environment. */
 const ENV_SCOPED = new Set<string>(['containers', 'images', 'volumes', 'networks', 'metrics']);
@@ -111,8 +119,17 @@ function parentOf(path: string): string {
 export function keysForInvalidate(e: LiveInvalidate): Invalidation[] {
 	const env = e.environmentId ?? '';
 	const topic = e.topic as Topic;
-	// New samples refresh the environment's charts and the overview's
-	// latest usage (dashboard CPU and memory), both at most every 10 s.
+	// New live values (about every second while the stream is open) refresh
+	// only the current CPU and memory: containers' latest usage, the
+	// environment's capacity and the overview (dashboard). New stored
+	// samples (every 10 s) refresh the environment's charts too. Both are
+	// throttled as metrics (at most every second).
+	if (topic === 'metrics' && e.kind === LIVE_METRICS_KIND)
+		return [
+			{ key: liveKeys.metrics(e.resourceId, 'containers-latest'), class: 'metrics' },
+			{ key: liveKeys.metrics(e.resourceId, 'capacity'), class: 'metrics' },
+			{ key: ['overview'], class: 'metrics' }
+		];
 	if (topic === 'metrics')
 		return [
 			{ key: liveKeys.metrics(e.resourceId), class: 'metrics' },

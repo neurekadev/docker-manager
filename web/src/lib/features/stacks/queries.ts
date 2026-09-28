@@ -6,6 +6,7 @@
 import { queryOptions } from '@tanstack/svelte-query';
 import { api, unwrap, type ApiClient, type Job, type Schema } from '$lib/api/client';
 import { liveKeys } from '$lib/live/keys';
+import { pollWhileDown } from '$lib/live/status.svelte';
 
 export type Stack = Schema<'Stack'>;
 export type StackServices = Schema<'StackServices'>;
@@ -202,8 +203,10 @@ export function stackMetricsQuery(
 		},
 		enabled: containers.length > 0,
 		staleTime: 10_000,
-		// Metrics events refresh at most every 10 s; samples also age out.
-		refetchInterval: 60_000
+		// New stored samples (every 10 s) refresh it through metrics events
+		// (live CPU and memory values do not: the KPIs read those from
+		// latestContainerMetricsQuery). Polling only while the stream is down.
+		refetchInterval: pollWhileDown(60_000)
 	});
 }
 

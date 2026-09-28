@@ -103,7 +103,7 @@ func TestSnapshotCursorAndReplay(t *testing.T) {
 // TestCoalescingAndDedupe: repeated events of one resource within the
 // window are one immediate record plus one merged record when the window
 // ends (file paths united); other resources are independent; metrics
-// coalesce per environment over 10 s.
+// coalesce per environment over 1 s.
 func TestCoalescingAndDedupe(t *testing.T) {
 	h, clk := newHub(t, Options{})
 	s, _ := h.Subscribe("user:a", "")
@@ -163,7 +163,10 @@ func TestCoalescingAndDedupe(t *testing.T) {
 	if len(got) != 2 || !got[1].Event.Overflow || len(got[1].Event.Paths) != 0 {
 		t.Fatalf("overflowing merge %+v", got)
 	}
-	// Metrics: at most one record per environment every 10 s.
+	// Metrics: at most one record per environment every second.
+	if DefaultMetricsCoalesce != time.Second {
+		t.Fatalf("metrics coalesce %v", DefaultMetricsCoalesce)
+	}
 	metric := func(host bool, members ...string) events.Event {
 		return events.Event{Type: events.MetricsSampled, EnvironmentID: "e1", Members: members, Attributes: map[string]string{"host": strconv.FormatBool(host)}}
 	}
@@ -173,13 +176,62 @@ func TestCoalescingAndDedupe(t *testing.T) {
 	clk.Advance(DefaultCoalesce)
 	h.Flush()
 	if got := drain(s.Sub); len(got) != 1 {
-		t.Fatalf("metrics within 10 s %+v", got)
+		t.Fatalf("metrics within 1 s %+v", got)
 	}
 	clk.Advance(DefaultMetricsCoalesce)
 	h.Flush()
 	got = drain(s.Sub)
 	if len(got) != 1 || !slices.Equal(got[0].Event.Members, []string{"cache", "db"}) {
 		t.Fatalf("merged metrics %+v", got)
+	}
+	// Live metrics too, merging the host flag.
+	clk.Advance(time.Minute)
+	h.Flush()
+	live := func(host bool, members ...string) events.Event {
+		e := metric(host, members...)
+		e.Type = events.MetricsLive
+		return e
+	}
+	h.Offer(live(false, "web"))
+	h.Offer(live(true, "db"))
+	h.Offer(live(false, "cache"))
+	if got := drain(s.Sub); len(got) != 1 {
+		t.Fatalf("live metrics within 1 s %+v", got)
+	}
+	clk.Advance(DefaultMetricsCoalesce)
+	h.Flush()
+	got = drain(s.Sub)
+	if len(got) != 1 || got[0].Event.Type != events.MetricsLive || got[0].Event.Attributes["host"] != "true" ||
+		!slices.Equal(got[0].Event.Members, []string{"cache", "db"}) {
+		t.Fatalf("merged live metrics %+v", got)
+	}
+}
+
+// TestLiveMetricsAreNotReplayed: live metric records reach subscribers
+// but stay out of the replay log, so their volume never shortens the
+// replay window, and a cursor pointing at one still resumes.
+func TestLiveMetricsAreNotReplayed(t *testing.T) {
+	h, clk := newHub(t, Options{ReplaySize: 3})
+	s, _ := h.Subscribe("user:a", "")
+	defer s.Sub.Close()
+	h.Offer(container("web", "start"))
+	for i := range 10 {
+		clk.Advance(DefaultMetricsCoalesce)
+		h.Offer(events.Event{Type: events.MetricsLive, EnvironmentID: "e" + strconv.Itoa(i), Attributes: map[string]string{"host": "true"}})
+	}
+	got := drain(s.Sub)
+	if len(got) != 11 {
+		t.Fatalf("records %d", len(got))
+	}
+	resumed, _ := h.Subscribe("user:a", h.Cursor(got[0]))
+	defer resumed.Sub.Close()
+	if !resumed.Resumed || len(resumed.Replay) != 0 {
+		t.Fatalf("resumed after the container event %+v", resumed)
+	}
+	atLive, _ := h.Subscribe("user:a", h.Cursor(got[5]))
+	defer atLive.Sub.Close()
+	if !atLive.Resumed || len(atLive.Replay) != 0 {
+		t.Fatalf("cursor at a live record %+v", atLive)
 	}
 }
 
@@ -332,6 +384,7 @@ func TestClassify(t *testing.T) {
 		{events.Event{Type: events.ResourceChanged, ResourceType: "registry"}, TopicRegistries, ActionUpdated},
 		{events.Event{Type: events.FilesInvalidated}, TopicFiles, ActionUpdated},
 		{events.Event{Type: events.MetricsSampled}, TopicMetrics, ActionUpdated},
+		{events.Event{Type: events.MetricsLive}, TopicMetrics, ActionUpdated},
 		{events.Event{Type: events.InventoryUpdated}, TopicEnvironments, ActionUpdated},
 		{events.Event{Type: events.EnrollmentCreated}, TopicAgents, ActionCreated},
 	} {

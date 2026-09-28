@@ -891,6 +891,7 @@ on a new session with a new frame ID.
 | `engine.disk_usage` | request | `environment.metrics.read` | no | #5 |
 | `engine.compatibility` | request | manager service (session setup) | no | #21 |
 | `host.metrics` | request | `environment.metrics.read` | no | #5 |
+| `metrics.live` | request | manager service: about once a second while a browser live stream is open, only to agents that advertise it; the answers are served with `environment.metrics.read` / `container.metrics.read` | no | #5 |
 | `container.list` | request | any container capability (fields shaped per #17; entries carry their network addresses and, while running, `startedAt`) | no | #6 |
 | `container.inspect` | request | `container.details.read` | no | #6 |
 | `container.stats` | request | `container.metrics.read` | no | #5 |
@@ -946,7 +947,7 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   dockerDesktop, containers, containersRunning, containersPaused,
   containersStopped, images, volumes, networks, collectedAt}` (counts the
   agent could not read are `-1`; never host paths). The manager asks after
-  every reconnect (a reconciler, before the environment is online), 5 s
+  every reconnect (a reconciler, before the environment is online), 1 s
   after Docker events or a capabilities change, and every 5 minutes.
 - `host.metrics {epoch?, afterSeq?, maxBatches?}` → `HostMetricsOutput {epoch,
   now, intervalSeconds, oldestSeq, lastSeq, more, batches}`. The agent samples
@@ -956,6 +957,24 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   `afterSeq`); another epoch returns the whole ring. An answer holds at most
   60 batches or 768 KiB (`more: true` asks for the next page). `now` is the
   agent clock for skew estimation. Absent values are unknown (gaps).
+  The manager fetches 2 s after each 10 s slot.
+- `metrics.live {}` → `LiveMetricsOutput {at, flags, host {cpuPercent,
+  cpus, memoryUsedBytes, memoryTotalBytes}, containers [{name, id,
+  cpuPercent, memoryBytes, memoryLimitBytes}]}`: the current CPU and memory
+  of the host (procfs) and of every running container (one-shot stats),
+  read when asked and never buffered or stored (added after the 10 s
+  sampler: the manager sends it only to agents whose capabilities list
+  it). CPU is the change since the previous `metrics.live` read; a previous
+  read older than 5 s (`protocol.LiveMetricsBaselineAge`) is dropped, so
+  the first answer after a pause has no CPU. The manager asks every
+  second while a browser live stream is open, one request per
+  environment at a time (2 s timeout), and simply stops asking when none
+  is: there is no lease to release. Containers are read within 800 ms
+  (`protocol.LiveMetricsBudget`), at most 1 000; those not reached are
+  left out with `flags` `BatchContainersTruncated` (1) and read first by
+  the next request; without an Engine `flags` is
+  `BatchEngineUnavailable` (2) and only host values are present. Absent
+  values are unknown.
 
 ## Allowed streams
 
@@ -1082,7 +1101,7 @@ The manager maps them to public errors: `not_found` → 404,
 | job dispatch over the session (`jobs.AgentDispatcher`) and job frame routing, reconcile-before-online | `internal/manager/agents` (`Hub`), `internal/agent/session` + `internal/agent/jobs` | implemented (#3) |
 | byte streams: open/accept, credit flow control, half close, results, aborts, limits | `internal/streammux` (both ends), `agents.Session.OpenStream` / `Hub.OpenStream`, `session.Options.Streams` | implemented (#15) |
 | scoped files: `files.*` requests, `files.download` / `files.upload` streams, `files.*` job executors | `internal/agent/files`, `internal/manager/files` | implemented (#15) |
-| `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
+| `engine.info`, `host.metrics`, `metrics.live`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect/usage`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
 | `files.watch` watch set, scoped filesystem watcher (inotify, debounce, rename handling, watch-limit accounting, bounded reconciliation), `rescan` | `internal/agent/watch`, `internal/manager/files` (`Watcher`), `agents.Session.Rescan` | implemented (#23) |
 | agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stub | not needed in v1 |

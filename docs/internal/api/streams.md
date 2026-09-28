@@ -135,9 +135,13 @@ Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 What the sources are: Docker events relayed by agents (#5) → `invalidate`
 on `containers`/`images`/`volumes`/`networks`; environment and agent state
 and enrollments → `environments`/`agents` (online/offline as `agent`);
-Engine inventory refreshes → `invalidate` kind `inventory`; new metric
-samples → `invalidate` topic `metrics` (at most every 10 s per
-environment); stacks and their revisions (#7, including revisions the
+Engine inventory refreshes → `invalidate` kind `inventory`; new stored
+metric samples → `invalidate` topic `metrics` kind `metrics` (charts and
+current values, normally every 10 s per environment); new live CPU and
+memory values → `invalidate` topic `metrics` kind `live_metrics` (only the
+current values: `…/metrics/containers`, `…/capacity`, `/overview`; about
+once a second per environment, and only while at least one live stream is
+open, which is what makes the manager ask the agents for them); stacks and their revisions (#7, including revisions the
 watcher recorded after an external edit) → `stacks`; jobs (#26: created,
 state, progress) → `job`; file-scope invalidations (#15/#23) →
 `files.changed`; every successful API mutation of other resources
@@ -153,7 +157,9 @@ tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
   10 000 records or 15 minutes). Reconnecting with a `Last-Event-ID` (or
   `cursor`) inside the log replays the missed events (`hello.resumed:
   true`); a cursor older than the log gets `reset` `cursor_expired`, one of
-  another manager process `reset` `server_restart`. When the manager itself
+  another manager process `reset` `server_restart`. `live_metrics` records
+  are not kept in the log (their volume would shorten it): a resumed
+  stream gets the next one within a second. When the manager itself
   lost events (its bus subscription overflowed) every stream gets `reset`
   `gap`; when an agent reconnected or lost events (a sequence gap) the
   streams get `reset` `gap` with that `environmentId`, before the
@@ -162,8 +168,8 @@ tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
   an event whose `id` is not above the last one applied. The manager
   coalesces repeated events of one resource: the first in a 250 ms window
   is sent at once, the rest are merged (file paths united; beyond 256 paths
-  an overflow) and sent once when the window ends; metrics per environment
-  use a 10 s window. Duplicate agent events are dropped by their agent
+  an overflow) and sent once when the window ends; stored and live metrics
+  per environment use a 1 s window. Duplicate agent events are dropped by their agent
   `seq` before they reach the bus.
 - **Backpressure:** each stream has a queue of 512 records. A client that
   falls behind loses its queue and gets `reset` `overflow` with a fresh
@@ -281,7 +287,7 @@ event is then filtered per subscriber with the #17 event rules
 | `reset` | — | `{reason: server_restart\|cursor_expired\|gap\|overflow, cursor}` | after `hello` when `Last-Event-ID` cannot be resumed, or when the manager lost events |
 | `engine` | cursor | `{type, action, resourceId, attributes, at}` | holders of any capability on the resource (containers and networks by name). For a container seen only minimally (e.g. metrics-only or restart-only) `attributes` keep only `name`, `exitCode` and `health`; `image` and `signal` need `container.details.read`. |
 | `status` | cursor | `{environmentId, status: online\|offline\|resync\|updated\|archived\|reattached, reason?, at}` | everyone who sees the environment; `resync` (reason `reconnect` or `event_gap`) means refetch the environment's inventory |
-| `metrics` | cursor | `{environmentId, host, containers, at}` | new samples: `host` with `environment.metrics.read`, `containers` with `container.metrics.read` on at least one sampled container; refetch open charts (at most every 10 s per environment) |
+| `metrics` | cursor | `{environmentId, host, containers, at}` | new stored samples: `host` with `environment.metrics.read`, `containers` with `container.metrics.read` on at least one sampled container; refetch open charts (normally every 10 s per environment; live values are on the live stream only) |
 | `inventory` | cursor | `{environmentId, at}` | `environment.system.read` or `environment.metrics.read`: refetch system information and capacity |
 | `close` | — | `{reason: max_age\|permissions_changed\|session_expired}` | stream ends |
 

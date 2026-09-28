@@ -1,7 +1,9 @@
 // Package observe is the manager side of observation (#5): the metrics
-// collector that fetches each online agent's sample buffer every 10 s
-// (host.metrics) into the metrics store with clock-skew correction and
-// idempotent cursors, the Engine inventory cache refreshed on change
+// collector that fetches each online agent's sample buffer every 10 s,
+// shortly after each sampling slot (host.metrics), into the metrics store
+// with clock-skew correction and idempotent cursors, the live CPU and
+// memory kept in memory about every second while a browser is watching
+// (metrics.live, live.go), the Engine inventory cache refreshed on change
 // (engine.info), and the per-environment event journal behind the
 // environment event stream (bounded replay of Docker events, status and
 // metric invalidations). docs/internal/architecture/metrics.md.
@@ -36,7 +38,7 @@ const (
 	DefaultConcurrency       = 8
 	DefaultSkewTolerance     = 2 * time.Second
 	DefaultInventoryInterval = 5 * time.Minute
-	DefaultInventoryDebounce = 5 * time.Second
+	DefaultInventoryDebounce = time.Second
 	// maxPagesPerFetch bounds the host.metrics requests of one fetch (a
 	// full 30 min buffer of a large host needs a few).
 	maxPagesPerFetch = 40
@@ -67,9 +69,18 @@ type Options struct {
 	// Environments lists the environments to collect from (default: the
 	// ones with an online agent among those seen on the bus).
 	Environments func() []string
+	// LiveDemand reports whether live metrics are wanted (a browser live
+	// stream is open); nil disables live metrics. LiveInterval is the
+	// request period, LiveTimeout bounds one request, LiveFresh is the
+	// age up to which a live value is served (live.go).
+	LiveDemand   func() bool
+	LiveInterval time.Duration
+	LiveTimeout  time.Duration
+	LiveFresh    time.Duration
 }
 
-// Service runs collection, inventory refresh and the event journal.
+// Service runs collection, live metrics, inventory refresh and the event
+// journal.
 type Service struct {
 	opts    Options
 	log     *slog.Logger
@@ -82,6 +93,11 @@ type Service struct {
 	known     map[string]bool
 	inv       map[string]Inventory
 	host      map[string]HostExtra
+	// Live metrics (live.go): the newest answer per environment, requests
+	// in flight and agents that do not serve metrics.live.
+	live         map[string]*liveValues
+	liveInflight map[string]bool
+	liveSkip     map[string]time.Time
 }
 
 // HostExtra are values of an environment's last sample that are not
@@ -134,8 +150,18 @@ func New(opts Options) *Service {
 	if opts.InventoryDebounce <= 0 {
 		opts.InventoryDebounce = DefaultInventoryDebounce
 	}
+	if opts.LiveInterval <= 0 {
+		opts.LiveInterval = DefaultLiveInterval
+	}
+	if opts.LiveTimeout <= 0 {
+		opts.LiveTimeout = DefaultLiveTimeout
+	}
+	if opts.LiveFresh <= 0 {
+		opts.LiveFresh = DefaultLiveFresh
+	}
 	s := &Service{opts: opts, log: opts.Logger.With("component", "observe"), cursors: map[string]*envCursor{}, inflight: map[string]bool{},
-		skipUntil: map[string]time.Time{}, known: map[string]bool{}, inv: map[string]Inventory{}, host: map[string]HostExtra{}}
+		skipUntil: map[string]time.Time{}, known: map[string]bool{}, inv: map[string]Inventory{}, host: map[string]HostExtra{},
+		live: map[string]*liveValues{}, liveInflight: map[string]bool{}, liveSkip: map[string]time.Time{}}
 	s.journal = NewJournal(JournalOptions{Bus: opts.Bus, Clock: opts.Clock, Logger: s.log, Size: opts.JournalSize, MaxAge: opts.JournalAge})
 	return s
 }
@@ -166,14 +192,15 @@ func (s *Service) Load(ctx context.Context) error {
 	return nil
 }
 
-// Run collects metrics, refreshes inventories and feeds the journal until
-// ctx ends.
+// Run collects metrics, asks for live metrics, refreshes inventories and
+// feeds the journal until ctx ends.
 func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); s.journal.Run(ctx) }()
 	go func() { defer wg.Done(); s.runInventory(ctx) }()
 	go func() { defer wg.Done(); s.runCollector(ctx) }()
+	go func() { defer wg.Done(); s.runLive(ctx) }()
 	wg.Wait()
 }
 
@@ -212,15 +239,26 @@ func (s *Service) Query(ctx context.Context, q domain.MetricQuery) (domain.Metri
 	return s.opts.Store.Query(ctx, q)
 }
 
-// Latest returns an environment's latest host sample.
+// Latest returns an environment's latest host sample: the stored one, with
+// the live CPU and memory while they are fresh (live.go).
 func (s *Service) Latest(ctx context.Context, environmentID string) (domain.LatestMetrics, bool, error) {
-	return s.opts.Store.Latest(ctx, environmentID)
+	l, ok, err := s.opts.Store.Latest(ctx, environmentID)
+	if err != nil {
+		return l, ok, err
+	}
+	l, ok = withLiveHost(l, ok, s.liveFor(environmentID))
+	return l, ok, nil
 }
 
 // LatestContainers returns the latest sample of each container of an
-// environment sampled within window.
+// environment sampled within window, with the live CPU and memory while
+// they are fresh (live.go).
 func (s *Service) LatestContainers(ctx context.Context, environmentID string, window time.Duration) ([]domain.LatestContainerMetrics, error) {
-	return s.opts.Store.LatestContainers(ctx, environmentID, window)
+	stored, err := s.opts.Store.LatestContainers(ctx, environmentID, window)
+	if err != nil {
+		return nil, err
+	}
+	return withLiveContainers(stored, s.liveFor(environmentID)), nil
 }
 
 // noteEnvironment remembers an environment seen on the bus.

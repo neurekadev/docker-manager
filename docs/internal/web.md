@@ -293,10 +293,11 @@ anything themselves; they only have to
 
    | data | key |
    | --- | --- |
-   | a list of a topic | `liveKeys.list('stacks', filters)` → `['stacks', 'list', filters]` (refreshed at most every second) |
+   | a list of a topic | `liveKeys.list('stacks', filters)` → `['stacks', 'list', filters]` (refreshed at most twice a second) |
    | an instance-wide resource | `liveKeys.item('stacks', stackId, 'revisions')` → `['stacks', 'item', id, …]` (stacks, jobs, environments, agents, policies, backups, registries, settings, permissions) |
    | a Docker object | `liveKeys.item('containers', envId, name, 'logs')` (containers, images, volumes, networks are named per environment) |
-   | charts | `liveKeys.metrics(envId, …)` (at most every 10 s; the same `metrics` event also refreshes `['overview']`, the dashboard's latest usage) |
+   | charts | `liveKeys.metrics(envId, …)` (new stored samples, every 10 s; the same `metrics` event also refreshes `['overview']`, the dashboard's latest usage; at most every second) |
+   | current CPU and memory | `liveKeys.metrics(envId, 'containers-latest')` (`latestContainerMetricsQuery`), `liveKeys.metrics(envId, 'capacity')` and `['overview']`: also refreshed by `live_metrics` events, about every second while the stream is open (the manager asks the agents only then); read current figures from these, never from a chart's last point |
    | a stack's containers | `liveKeys.stackServices(stackId)` (refreshed on container events) |
    | scoped files | `liveKeys.files({kind: 'stack', id: stackId}, 'list' \| 'stat' \| 'content', path)`; volumes use `id: '<envId>/<volume>'` |
    | the caller's permissions | `liveKeys.myPermissions` |
@@ -322,7 +323,10 @@ session_expired` stops until `liveClient()?.reconnectNow()` (after signing
 in); the browser's `offline` event drops the stream at once and `online`
 reconnects from the cursor; three failed connections within a minute switch
 to polling (details every 10 s, lists and metrics every 30 s) until the
-stream is back.
+stream is back. Queries the stream keeps current (the current CPU and
+memory, the overview, charts) poll on their own only while it is not live:
+`refetchInterval: pollWhileDown(ms)` (`$lib/live`) rather than a fixed
+interval.
 
 **`liveStatus`** (`src/lib/live/status.svelte.ts`) is the interface for the
 shell (#22): reactive `state` (`idle`, `connecting`, `live`,

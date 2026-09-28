@@ -191,14 +191,16 @@ func (w *lineWriter) emit(line []byte) error {
 }
 
 // Stats streams resource usage samples of a container to fn (a single
-// sample unless stream is set). CPU percent needs two samples: with stream
-// the first sample reports 0; without stream the Engine collects a prior
-// sample itself.
+// sample unless stream is set). A single sample is read at once (one-shot:
+// the Engine does not wait a second for a prior sample), so its CPUPercent
+// is 0; callers compute CPU use from the cumulative counters of two
+// samples (CPUTotalUsage, SystemCPUUsage). With stream the first sample
+// reports 0 and later ones the change since the previous.
 func (c *Client) Stats(ctx context.Context, id string, stream bool, fn func(Stats) error) error {
 	const op = "stats.stream"
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	res, err := c.api.ContainerStats(ctx, id, client.ContainerStatsOptions{Stream: stream, IncludePreviousSample: !stream})
+	res, err := c.api.ContainerStats(ctx, id, client.ContainerStatsOptions{Stream: stream})
 	if err != nil {
 		return wrap(op, err)
 	}
@@ -226,7 +228,8 @@ func (c *Client) Stats(ctx context.Context, id string, stream bool, fn func(Stat
 
 // statsFrom computes `docker stats`-style values from a raw sample.
 func statsFrom(s *container.StatsResponse) Stats {
-	out := Stats{Read: s.Read.UTC(), PIDs: s.PidsStats.Current, MemoryLimit: s.MemoryStats.Limit}
+	out := Stats{Read: s.Read.UTC(), PIDs: s.PidsStats.Current, MemoryLimit: s.MemoryStats.Limit,
+		CPUTotalUsage: s.CPUStats.CPUUsage.TotalUsage, SystemCPUUsage: s.CPUStats.SystemUsage}
 	online := s.CPUStats.OnlineCPUs
 	if online == 0 {
 		online = uint32(len(s.CPUStats.CPUUsage.PercpuUsage)) //nolint:gosec // G115: a CPU count

@@ -13,20 +13,26 @@
 
 	let { values, color, label }: Props = $props();
 	let el = $state<HTMLElement>();
-	let chart: Sparkline | null = null;
+	// Reactive, so the effect below re-runs once the chart exists.
+	let chart = $state.raw<Sparkline | null>(null);
 	let destroyed = false;
 
 	onMount(() => {
 		if (!el) return;
-		void mountSparkline(el, values, color).then((c) => {
-			if (destroyed) return c.destroy();
-			chart = c;
-			// Values that arrived while ECharts was loading.
-			c.update(values);
-		});
+		mountSparkline(el, values, color)
+			.then((c) => {
+				if (destroyed) return c.destroy();
+				chart = c;
+			})
+			.catch(() => {
+				// The chart chunk failed to load: the KPI's value still shows.
+			});
 	});
 	$effect(() => {
-		chart?.update(values);
+		// Read the values first: the effect must track them even while the
+		// chart is still loading, or it never runs again.
+		const v = values;
+		chart?.update(v);
 	});
 	onDestroy(() => {
 		destroyed = true;

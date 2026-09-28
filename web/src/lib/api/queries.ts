@@ -14,6 +14,7 @@ import {
 	type QueryKey
 } from '@tanstack/svelte-query';
 import { liveKeys } from '$lib/live/keys';
+import { pollWhileDown } from '$lib/live/status.svelte';
 import { acrossEnvironments, allPages, type EnvList, type EnvTarget } from './multi-env';
 import {
 	api,
@@ -68,7 +69,8 @@ export const queryKeys = {
 	},
 	containerMetrics: (env: string, name: string, rangeSeconds: number) =>
 		liveKeys.metrics(env, 'container', name, rangeSeconds),
-	// Refreshed by metrics.sampled (at most every 10 s, #23).
+	// Refreshed by live metrics (about every second while the stream is
+	// open) and new stored samples (#5, #23).
 	latestContainerMetrics: (env: string) => liveKeys.metrics(env, 'containers-latest'),
 	// Under the volume lists: volume events refresh it too (the manager
 	// answers from its one-minute cache).
@@ -161,10 +163,10 @@ export function overviewQuery(client: ApiClient = api) {
 		queryFn: ({ signal }): Promise<Overview> =>
 			unwrap(client.GET('/api/v1/overview', { signal })),
 		staleTime: 15_000,
-		// Live events refresh it: connection and inventory changes, and new
-		// metric samples (latest usage, at most every 10 s; keysForInvalidate).
-		// The interval is only a safety net for a stalled stream.
-		refetchInterval: 60_000
+		// Live events refresh it: connection and inventory changes, and the
+		// current CPU and memory (live metrics, about every second;
+		// keysForInvalidate). Polling only while the stream is down.
+		refetchInterval: pollWhileDown(30_000)
 	});
 }
 
@@ -283,7 +285,11 @@ export function enrollmentsQuery(client: ApiClient = api) {
 	});
 }
 
-/** GET /environments/{id}/capacity: cores, memory, disks and the latest usage. */
+/**
+ * GET /environments/{id}/capacity: cores, memory, disks and the latest
+ * usage (CPU and memory live while the stream is open: live metrics
+ * refresh it about every second).
+ */
 export function environmentCapacityQuery(id: string, client: ApiClient = api) {
 	return queryOptions({
 		queryKey: liveKeys.metrics(id, 'capacity'),
@@ -301,7 +307,8 @@ export function environmentCapacityQuery(id: string, client: ApiClient = api) {
 /**
  * GET /environments/{id}/metrics over the last `seconds` (read at fetch
  * time, so live refreshes move the window). Keyed by the range, not the
- * instant: `metrics` live events refresh it at most every 10 s.
+ * instant: `metrics` live events (new stored samples, every 10 s) refresh
+ * it; live CPU and memory values do not.
  */
 export function environmentMetricsQuery(
 	id: string,
@@ -586,9 +593,10 @@ export function containerMetricsQuery(
 }
 
 /**
- * The newest CPU and memory sample of each container of an environment the
- * caller may chart (#5), by container name. Live: metrics events refresh
- * it about every 10 s; the interval covers a stream outage.
+ * The current CPU and memory of each container of an environment the
+ * caller may chart (#5), by container name: live values while the stream
+ * is open (live metrics refresh it about every second), else the newest
+ * 10 s sample. It polls only while the stream is down.
  */
 export function latestContainerMetricsQuery(env: string, client: ApiClient = api) {
 	return queryOptions({
@@ -602,8 +610,8 @@ export function latestContainerMetricsQuery(env: string, client: ApiClient = api
 			);
 			return Object.fromEntries(r.items.map((m) => [m.container, m]));
 		},
-		staleTime: 10_000,
-		refetchInterval: 30_000,
+		staleTime: 2_000,
+		refetchInterval: pollWhileDown(10_000),
 		retry: false
 	});
 }

@@ -108,4 +108,24 @@ describe('Sparkline', () => {
 		await waitFor(() => expect(lazy.spark.at(-1)).toEqual([1, 2, null, 3]));
 		expect(screen.getByText('CPU trend')).toBeInTheDocument();
 	});
+
+	it('redraws when the values change after ECharts loaded', async () => {
+		const { rerender } = render(Sparkline, { props: { values: [1] } });
+		lazy.resolve?.();
+		await waitFor(() => expect(lazy.spark.at(-1)).toEqual([1]));
+		await rerender({ values: [1, 5] });
+		await waitFor(() => expect(lazy.spark.at(-1)).toEqual([1, 5]));
+		await rerender({ values: [1, 5, 7] });
+		await waitFor(() => expect(lazy.spark.at(-1)).toEqual([1, 5, 7]));
+	});
+
+	it('keeps working when the chart library fails to load', async () => {
+		const { mountSparkline } = await import('$lib/lazy');
+		vi.mocked(mountSparkline).mockImplementationOnce(() =>
+			Promise.reject(new Error('chunk failed'))
+		);
+		const { rerender } = render(Sparkline, { props: { values: [1], label: 'Memory trend' } });
+		await rerender({ values: [1, 2], label: 'Memory trend' });
+		expect(screen.getByText('Memory trend')).toBeInTheDocument();
+	});
 });

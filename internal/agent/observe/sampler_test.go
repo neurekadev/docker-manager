@@ -258,11 +258,12 @@ func TestContainerSamples(t *testing.T) {
 			{ID: "c4", Names: []string{"/broken"}, State: "running"},
 			{ID: "c5", Names: []string{"/stopped"}, State: "exited"},
 		},
+		// One-shot stats: cumulative CPU counters, no CPU percentage.
 		stats: map[string]engine.Stats{
-			// 200% of one CPU on 4 cores = 50% of the environment.
-			"c1": {CPUPercent: 200, MemoryUsage: 300, MemoryLimit: 1000, NetworkRx: 100, NetworkTx: 50, BlockRead: 10, BlockWrite: 20, PIDs: 7},
+			"c1": {CPUTotalUsage: 1000, SystemCPUUsage: 10_000, OnlineCPUs: 4, MemoryUsage: 300, MemoryLimit: 1000, NetworkRx: 100,
+				NetworkTx: 50, BlockRead: 10, BlockWrite: 20, PIDs: 7},
 			// A limit below the host memory is the container's own limit.
-			"c2": {CPUPercent: 40, MemoryUsage: 100, MemoryLimit: 256},
+			"c2": {CPUTotalUsage: 0, SystemCPUUsage: 10_000, OnlineCPUs: 4, MemoryUsage: 100, MemoryLimit: 256},
 		},
 		statsErr: map[string]error{"c4": &engine.Error{Code: engine.CodeTimeout, Op: "stats.stream"}},
 	}
@@ -273,32 +274,43 @@ func TestContainerSamples(t *testing.T) {
 	if len(b.Containers) != 2 || b.Flags != protocol.BatchContainersTruncated {
 		t.Fatalf("batch %+v", b)
 	}
+	// The first read has no previous counters: CPU and rates are gaps.
 	db, web := b.Containers[0], b.Containers[1]
-	if web.Name != "web" || *web.CPUPercent != 50 || *web.MemoryBytes != 300 || web.MemoryLimitBytes != nil || *web.PIDs != 7 ||
+	if web.Name != "web" || web.CPUPercent != nil || *web.MemoryBytes != 300 || web.MemoryLimitBytes != nil || *web.PIDs != 7 ||
 		web.NetworkRxBytesPerSecond != nil {
 		t.Fatalf("web %+v", web)
 	}
-	if db.Name != "db" || *db.CPUPercent != 10 || *db.MemoryLimitBytes != 256 {
+	if db.Name != "db" || db.CPUPercent != nil || *db.MemoryLimitBytes != 256 {
 		t.Fatalf("db %+v", db)
 	}
 	eng.mu.Lock()
-	eng.stats["c1"] = engine.Stats{CPUPercent: 800, MemoryUsage: 300, MemoryLimit: 1000, NetworkRx: 1100, NetworkTx: 150, BlockRead: 10, BlockWrite: 520}
+	// web: +2000 of +4000 host CPU time on 4 online cores = 200% of one
+	// core, 50% of the environment's 4 cores; db: +400 = 10%.
+	eng.stats["c1"] = engine.Stats{CPUTotalUsage: 3000, SystemCPUUsage: 14_000, OnlineCPUs: 4, MemoryUsage: 300, MemoryLimit: 1000,
+		NetworkRx: 1100, NetworkTx: 150, BlockRead: 10, BlockWrite: 520}
+	eng.stats["c2"] = engine.Stats{CPUTotalUsage: 400, SystemCPUUsage: 14_000, OnlineCPUs: 4, MemoryUsage: 100, MemoryLimit: 256}
 	delete(eng.statsErr, "c4")
 	eng.stats["c4"] = engine.Stats{}
 	eng.mu.Unlock()
 	b = s.Tick(context.Background(), testutil.Epoch.Add(10*time.Second))
-	web = b.Containers[2]
-	if b.Flags != 0 || web.Name != "web" || *web.CPUPercent != 100 || *web.NetworkRxBytesPerSecond != 100 || *web.NetworkTxBytesPerSecond != 10 ||
+	db, web = b.Containers[1], b.Containers[2]
+	if b.Flags != 0 || web.Name != "web" || *web.CPUPercent != 50 || *web.NetworkRxBytesPerSecond != 100 || *web.NetworkTxBytesPerSecond != 10 ||
 		*web.BlockReadBytesPerSecond != 0 || *web.BlockWriteBytesPerSecond != 50 {
 		t.Fatalf("second batch %+v web %+v", b, web)
 	}
-	// A restarted container's counters reset: no negative rate.
+	if db.Name != "db" || *db.CPUPercent != 10 {
+		t.Fatalf("db %+v", db)
+	}
+	if broken := b.Containers[0]; broken.Name != "broken" || broken.CPUPercent != nil {
+		t.Fatalf("broken %+v", broken)
+	}
+	// A restarted container's counters reset: no negative rate or CPU.
 	eng.mu.Lock()
-	eng.stats["c1"] = engine.Stats{NetworkRx: 5}
+	eng.stats["c1"] = engine.Stats{NetworkRx: 5, CPUTotalUsage: 10, SystemCPUUsage: 15_000, OnlineCPUs: 4}
 	eng.mu.Unlock()
 	b = s.Tick(context.Background(), testutil.Epoch.Add(20*time.Second))
-	if web := b.Containers[2]; web.NetworkRxBytesPerSecond != nil {
-		t.Fatalf("rate after reset %v", *web.NetworkRxBytesPerSecond)
+	if web := b.Containers[2]; web.NetworkRxBytesPerSecond != nil || web.CPUPercent != nil {
+		t.Fatalf("values after reset %+v", web)
 	}
 	// The Engine failing to list is flagged.
 	eng.mu.Lock()

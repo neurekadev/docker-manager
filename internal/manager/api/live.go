@@ -67,7 +67,7 @@ type LiveHello struct {
 // LiveInvalidate says a resource changed: refetch its queries and lists.
 type LiveInvalidate struct {
 	Topic         string    `json:"topic" example:"containers"`
-	Kind          string    `json:"kind" example:"container" doc:"Resource type (for example container, stack, backup_policy, inventory, metrics)."`
+	Kind          string    `json:"kind" example:"container" doc:"Resource type (for example container, stack, backup_policy, inventory, metrics). On the metrics topic: metrics (new stored samples: charts and current values) or live_metrics (new current CPU and memory, about once a second while a stream is open: only the current values)."`
 	ResourceID    string    `json:"resourceId" doc:"Stable resource ID (container and network names, volume names, image references)."`
 	EnvironmentID string    `json:"environmentId,omitempty"`
 	Revision      int64     `json:"revision,omitempty" doc:"The resource's revision after the change, when it has one: ignore when not above the cached revision."`
@@ -243,7 +243,7 @@ func liveEvent(c authz.Checker, f liveFilter, r live.Record, cursor string) (str
 			fc.Paths = []string{}
 		}
 		return "files.changed", fc, true
-	case events.MetricsSampled, events.InventoryUpdated:
+	case events.MetricsSampled, events.MetricsLive, events.InventoryUpdated:
 		return "invalidate", LiveInvalidate{Topic: topic, Kind: kind, ResourceID: e.EnvironmentID, EnvironmentID: e.EnvironmentID,
 			Action: live.ActionUpdated, At: e.At}, true
 	}

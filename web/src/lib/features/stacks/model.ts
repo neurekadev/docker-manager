@@ -200,8 +200,8 @@ export interface LatestSample {
 /**
  * Sums the containers' CPU series per timestamp (a stack uses the sum of
  * its containers' share of the environment's cores, #5) and takes each
- * container's latest CPU and memory. With `latest` (the newest 10 s
- * samples of the stack's containers) the current values come from there
+ * container's latest CPU and memory. With `latest` (the current values of
+ * the stack's containers: live, or the newest 10 s samples) they come from there
  * instead of the last minute bucket; containers without a recent sample
  * (stopped) then have no current value.
  */

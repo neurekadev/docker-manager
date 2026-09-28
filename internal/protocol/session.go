@@ -44,6 +44,7 @@ const (
 	ReqEngineInfo              = "engine.info"
 	ReqEngineDiskUsage         = "engine.disk_usage"
 	ReqHostMetrics             = "host.metrics"
+	ReqMetricsLive             = "metrics.live" // current CPU and memory, not stored (#5)
 	ReqContainerList           = "container.list"
 	ReqContainerInspect        = "container.inspect"
 	ReqContainerStats          = "container.stats"
@@ -118,7 +119,7 @@ const (
 )
 
 var requestNames = []string{
-	ReqEngineInfo, ReqEngineDiskUsage, ReqHostMetrics, ReqContainerList, ReqContainerInspect,
+	ReqEngineInfo, ReqEngineDiskUsage, ReqHostMetrics, ReqMetricsLive, ReqContainerList, ReqContainerInspect,
 	ReqContainerStats, ReqContainerLogs, ReqContainerExecCreate, ReqContainerExecResize,
 	ReqContainerExecDelete, ReqImageList, ReqImageInspect, ReqImageTag, ReqVolumeList,
 	ReqVolumeInspect, ReqVolumeUsage, ReqNetworkList, ReqNetworkInspect, ReqComposeDiscover, ReqComposeValidate,

@@ -188,6 +188,10 @@ func TestStatsComputation(t *testing.T) {
 	if got.CPUPercent != 100 || got.OnlineCPUs != 4 {
 		t.Errorf("cpu %.2f%% on %d CPUs, want 100%% on 4", got.CPUPercent, got.OnlineCPUs)
 	}
+	// The cumulative counters for callers that keep the previous sample.
+	if got.CPUTotalUsage != 1_500_000_000 || got.SystemCPUUsage != 102_000_000_000 {
+		t.Errorf("counters %d/%d", got.CPUTotalUsage, got.SystemCPUUsage)
+	}
 	if got.MemoryUsage != 200<<20 || got.MemoryLimit != 1<<30 || got.MemoryPercent < 19.5 || got.MemoryPercent > 19.6 {
 		t.Errorf("memory %d/%d (%.2f%%)", got.MemoryUsage, got.MemoryLimit, got.MemoryPercent)
 	}

@@ -1,7 +1,8 @@
 // Package observe is the agent side of observation (#5): host telemetry
 // from procfs, per-container usage and the Engine inventory through the
 // Moby adapter (#21), sampled every 10 s into a bounded ring the manager
-// fetches with the host.metrics request, and the Docker event relay
+// fetches with the host.metrics request, the current CPU and memory read
+// on demand for metrics.live (live.go), and the Docker event relay
 // (events.go). It never listens on a socket and never runs the docker CLI.
 // Units, buffering and the host mounts it needs: docs/internal/architecture/metrics.md.
 package observe
@@ -111,6 +112,9 @@ type Sampler struct {
 	// with more containers than one interval can sample, every container
 	// is sampled in turn instead of always the same ones.
 	resume string
+
+	// live is the metrics.live state (live.go; its own lock).
+	live liveState
 }
 
 type netCounters struct {
@@ -118,8 +122,12 @@ type netCounters struct {
 	at     time.Time
 }
 
+// ctrCounters are a container's cumulative counters from one stats read:
+// network and block bytes, and its CPU time (cpu) against the host's CPU
+// time over all cores (sys), both in nanoseconds.
 type ctrCounters struct {
 	rx, tx, br, bw uint64
+	cpu, sys       uint64
 	at             time.Time
 }
 
@@ -242,9 +250,7 @@ func (s *Sampler) sampleHost(at time.Time) protocol.HostSample {
 	if err == nil {
 		h.CPUs = cpus
 		s.lastCPUs = cpus
-		if p := s.prevCPU; p != nil && cpu.total > p.total && cpu.busy >= p.busy {
-			h.CPUPercent = f64(clampPercent(float64(cpu.busy-p.busy) / float64(cpu.total-p.total) * 100))
-		}
+		h.CPUPercent = hostCPUPercent(s.prevCPU, cpu)
 		s.prevCPU = &cpu
 	} else {
 		s.prevCPU = nil
@@ -283,6 +289,15 @@ func (s *Sampler) sampleHost(at time.Time) protocol.HostSample {
 		s.prevNet = nil
 	}
 	return h
+}
+
+// hostCPUPercent is the busy share of all cores between two /proc/stat
+// reads, nil without a usable previous read.
+func hostCPUPercent(prev *cpuTimes, cur cpuTimes) *float64 {
+	if prev == nil || cur.total <= prev.total || cur.busy < prev.busy {
+		return nil
+	}
+	return f64(clampPercent(float64(cur.busy-prev.busy) / float64(cur.total-prev.total) * 100))
 }
 
 // netScope is host when PID 1 lives in another network namespace than the
@@ -348,50 +363,46 @@ func containerName(c engine.Container) string {
 	return c.ID
 }
 
-// sampleContainers reads one stats sample of every running container,
-// StatsConcurrency at a time, within 80% of the interval. Containers that
-// could not be sampled in time are left out and the batch is flagged; the
-// next tick starts with them (round robin by name).
-func (s *Sampler) sampleContainers(ctx context.Context, at time.Time) ([]protocol.ContainerSample, int) {
-	eng := s.opts.Engine()
-	if eng == nil {
-		return nil, protocol.BatchEngineUnavailable
-	}
-	ctx, cancel := context.WithTimeout(ctx, s.opts.Interval*8/10)
-	defer cancel()
+// runningContainers lists the running containers sorted by name, at most
+// MaxContainerSamples (more set BatchContainersTruncated).
+func runningContainers(ctx context.Context, eng EngineAPI) ([]engine.Container, int, error) {
 	list, err := eng.ListContainers(ctx, engine.ContainerFilter{})
-	s.logOnce("containers", err)
 	if err != nil {
-		return nil, protocol.BatchEngineUnavailable
+		return nil, 0, err
 	}
 	flags := 0
 	slices.SortFunc(list, func(a, b engine.Container) int { return strings.Compare(containerName(a), containerName(b)) })
 	if len(list) > protocol.MaxContainerSamples {
 		list, flags = list[:protocol.MaxContainerSamples], protocol.BatchContainersTruncated
 	}
-	id := eng.Identity()
-	cpus := id.NCPU
-	if cpus <= 0 {
-		cpus = s.lastCPUs
+	return list, flags, nil
+}
+
+// startAt is the index of the container named name in a list sorted by
+// name (or of the next one), 0 when name is empty or past the end.
+func startAt(list []engine.Container, name string) int {
+	if name == "" {
+		return 0
 	}
-	memTotal := id.MemTotal
-	if memTotal <= 0 {
-		memTotal = s.lastMemSize
+	i, _ := slices.BinarySearchFunc(list, name, func(c engine.Container, name string) int {
+		return strings.Compare(containerName(c), name)
+	})
+	if i >= len(list) {
+		return 0
 	}
-	results := make([]*engine.Stats, len(list))
-	errs := make([]error, len(list))
-	sem := make(chan struct{}, s.opts.StatsConcurrency)
+	return i
+}
+
+// readStats reads one stats sample (one-shot: no wait for a prior sample)
+// of each container of list, concurrency at a time, starting at
+// list[start] and wrapping around, until ctx ends. results[i] is nil when
+// the read failed (errs[i]) or was never started; stopped names the first
+// container whose read was not started ("" when every one was).
+func readStats(ctx context.Context, eng EngineAPI, list []engine.Container, start, concurrency int) (results []*engine.Stats, errs []error, stopped string) {
+	results = make([]*engine.Stats, len(list))
+	errs = make([]error, len(list))
+	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
-	start := 0
-	if s.resume != "" {
-		start, _ = slices.BinarySearchFunc(list, s.resume, func(c engine.Container, name string) int {
-			return strings.Compare(containerName(c), name)
-		})
-		if start >= len(list) {
-			start = 0
-		}
-		s.resume = ""
-	}
 	for k := range list {
 		i := (start + k) % len(list)
 		c := list[i]
@@ -400,7 +411,7 @@ func (s *Sampler) sampleContainers(ctx context.Context, at time.Time) ([]protoco
 		case <-ctx.Done():
 		}
 		if ctx.Err() != nil {
-			s.resume = containerName(c)
+			stopped = containerName(c)
 			break
 		}
 		wg.Add(1)
@@ -413,32 +424,97 @@ func (s *Sampler) sampleContainers(ctx context.Context, at time.Time) ([]protoco
 		}()
 	}
 	wg.Wait()
+	return results, errs, stopped
+}
+
+// cpuShare is a container's CPU use between two stats reads as a share of
+// the environment's cores, 0..100: its CPU time delta over the host's CPU
+// time delta (which counts every online core) gives the share of one core
+// times the online cores, like `docker stats`, divided by the
+// environment's cores (cpus; the online cores when unknown). A container
+// using two full cores on an 8-core host is 25%. nil without a usable
+// previous read: none, a restart (counters reset) or a host counter that
+// did not advance.
+func cpuShare(prev ctrCounters, cur engine.Stats, cpus int) *float64 {
+	if prev.sys == 0 || cur.SystemCPUUsage <= prev.sys || cur.CPUTotalUsage < prev.cpu {
+		return nil
+	}
+	n := cpus
+	if n <= 0 {
+		n = int(cur.OnlineCPUs)
+	}
+	if cur.OnlineCPUs == 0 || n <= 0 {
+		return nil
+	}
+	oneCore := float64(cur.CPUTotalUsage-prev.cpu) / float64(cur.SystemCPUUsage-prev.sys) * float64(cur.OnlineCPUs) * 100
+	return f64(clampPercent(oneCore / float64(n)))
+}
+
+// memoryLimit is a container's memory limit when one is set below the
+// host memory (memTotal; the Engine reports the host memory otherwise).
+func memoryLimit(st engine.Stats, memTotal int64) *int64 {
+	if st.MemoryLimit > 0 && (memTotal <= 0 || int64(min(st.MemoryLimit, math.MaxInt64)) < memTotal) { //nolint:gosec // G115: clamped
+		return i64(clampInt64(st.MemoryLimit))
+	}
+	return nil
+}
+
+// missing reports whether a container without stats counts as missing
+// from the batch: a container that stopped between the list and its
+// stats (not found) is simply gone; anything else (timeout, Engine error,
+// not reached in time) is missing.
+func missing(err error) bool {
+	return err == nil || engine.CodeOf(err) != engine.CodeNotFound
+}
+
+// sampleContainers reads one stats sample of every running container,
+// StatsConcurrency at a time, within 80% of the interval. CPU and the
+// rates are deltas against the previous tick's counters (the first tick
+// of a container has none). Containers that could not be sampled in time
+// are left out and the batch is flagged; the next tick starts with them
+// (round robin by name) and still has their counters.
+func (s *Sampler) sampleContainers(ctx context.Context, at time.Time) ([]protocol.ContainerSample, int) {
+	eng := s.opts.Engine()
+	if eng == nil {
+		return nil, protocol.BatchEngineUnavailable
+	}
+	ctx, cancel := context.WithTimeout(ctx, s.opts.Interval*8/10)
+	defer cancel()
+	list, flags, err := runningContainers(ctx, eng)
+	s.logOnce("containers", err)
+	if err != nil {
+		return nil, protocol.BatchEngineUnavailable
+	}
+	id := eng.Identity()
+	cpus := id.NCPU
+	if cpus <= 0 {
+		cpus = s.lastCPUs
+	}
+	memTotal := id.MemTotal
+	if memTotal <= 0 {
+		memTotal = s.lastMemSize
+	}
+	results, errs, stopped := readStats(ctx, eng, list, startAt(list, s.resume), s.opts.StatsConcurrency)
+	s.resume = stopped
 	out := make([]protocol.ContainerSample, 0, len(list))
 	seen := make(map[string]ctrCounters, len(list))
 	for i, c := range list {
 		st := results[i]
+		p, had := s.prevCtr[c.ID]
 		if st == nil {
-			// A container that stopped between the list and its stats is
-			// simply gone; anything else (timeout, Engine error) is missing.
-			if errs[i] == nil || engine.CodeOf(errs[i]) != engine.CodeNotFound {
+			if missing(errs[i]) {
 				flags |= protocol.BatchContainersTruncated
+				if had {
+					seen[c.ID] = p // the next read still has a baseline
+				}
 			}
 			continue
 		}
 		cs := protocol.ContainerSample{Name: containerName(c), ID: c.ID, MemoryBytes: i64(clampInt64(st.MemoryUsage)),
-			PIDs: i64(clampInt64(st.PIDs))}
-		n := cpus
-		if n <= 0 {
-			n = int(st.OnlineCPUs)
-		}
-		if n > 0 {
-			cs.CPUPercent = f64(clampPercent(st.CPUPercent / float64(n)))
-		}
-		if st.MemoryLimit > 0 && (memTotal <= 0 || int64(min(st.MemoryLimit, math.MaxInt64)) < memTotal) { //nolint:gosec // G115: clamped
-			cs.MemoryLimitBytes = i64(clampInt64(st.MemoryLimit))
-		}
-		cur := ctrCounters{rx: st.NetworkRx, tx: st.NetworkTx, br: st.BlockRead, bw: st.BlockWrite, at: at}
-		if p, ok := s.prevCtr[c.ID]; ok {
+			PIDs: i64(clampInt64(st.PIDs)), MemoryLimitBytes: memoryLimit(*st, memTotal), CPUPercent: cpuShare(p, *st, cpus)}
+		cur := ctrCounters{rx: st.NetworkRx, tx: st.NetworkTx, br: st.BlockRead, bw: st.BlockWrite, cpu: st.CPUTotalUsage,
+			sys: st.SystemCPUUsage, at: at}
+		if had {
 			if dt := at.Sub(p.at).Seconds(); dt > 0 {
 				cs.NetworkRxBytesPerSecond = rate(p.rx, cur.rx, dt)
 				cs.NetworkTxBytesPerSecond = rate(p.tx, cur.tx, dt)
