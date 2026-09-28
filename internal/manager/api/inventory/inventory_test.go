@@ -194,7 +194,7 @@ agentRoutes:
 
 func TestSummary(t *testing.T) {
 	s := Summary(load(t))
-	if !strings.Contains(s, "| #26 | 4 | 0 |") || !strings.Contains(s, "**total**") {
+	if !strings.Contains(s, "| #26 | 5 | 0 |") || !strings.Contains(s, "**total**") {
 		t.Fatalf("summary:\n%s", s)
 	}
 }

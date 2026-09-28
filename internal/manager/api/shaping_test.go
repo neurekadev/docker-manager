@@ -151,15 +151,15 @@ func TestEditGrantShowsTheRevision(t *testing.T) {
 // TestAuthztestHelpers pins the helper contract feature workstreams rely on.
 func TestAuthztestHelpers(t *testing.T) {
 	calls := authztest.Routes(t, map[string]string{"jobId": "j1"}, "/api/v1/jobs")
-	if len(calls) != 4 {
+	if len(calls) != 5 {
 		t.Fatalf("job routes %v", calls)
 	}
 	allowed, denied := authztest.Split(calls, "job.cancel")
-	if len(allowed) != 1 || allowed[0].OperationID != "create-job-cancellation" || len(denied) != 3 {
+	if len(allowed) != 1 || allowed[0].OperationID != "create-job-cancellation" || len(denied) != 4 {
 		t.Fatalf("split %v / %v", allowed, denied)
 	}
 	allowed, denied = authztest.Discoverable(allowed, denied, "get-job")
-	if len(allowed) != 2 || len(denied) != 2 {
+	if len(allowed) != 2 || len(denied) != 3 {
 		t.Fatalf("discoverable %v / %v", allowed, denied)
 	}
 	if !authztest.EmptyPage([]byte(`{"items":[]}`)) || authztest.EmptyPage([]byte(`{"items":[1]}`)) || authztest.EmptyPage([]byte(`{}`)) {

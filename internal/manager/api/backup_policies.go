@@ -332,12 +332,16 @@ func (h *backupsAPI) listPolicies(ctx context.Context, in *struct{ PageParams })
 // backups and one for the next runs, however many policies there are.
 func addPolicyRuns(ctx context.Context, svc BackupService, c authz.Checker, pols []domain.BackupPolicy, out []BackupPolicy) {
 	var full, enabled []string
-	for i, p := range pols {
-		if out[i].View != authz.Full.String() {
+	for i := range out {
+		if i >= len(pols) {
+			break
+		}
+		p, o := pols[i], &out[i]
+		if o.View != authz.Full.String() {
 			continue
 		}
 		full = append(full, p.ID)
-		if p.Enabled && out[i].Schedule != nil {
+		if p.Enabled && o.Schedule != nil {
 			enabled = append(enabled, p.ID)
 		}
 	}
@@ -357,15 +361,19 @@ func addPolicyRuns(ctx context.Context, svc BackupService, c authz.Checker, pols
 	if len(enabled) > 0 {
 		next = svc.NextRuns(ctx, "backup", enabled)
 	}
-	for i, p := range pols {
-		if out[i].View != authz.Full.String() {
+	for i := range out {
+		if i >= len(pols) {
+			break
+		}
+		p, o := pols[i], &out[i]
+		if o.View != authz.Full.String() {
 			continue
 		}
 		for _, s := range sets[p.ID] {
-			out[i].RecentSets = append(out[i].RecentSets, newBackupSet(s, backups))
+			o.RecentSets = append(o.RecentSets, newBackupSet(s, backups))
 		}
-		if t, ok := next[p.ID]; ok && p.Enabled && out[i].Schedule != nil {
-			out[i].Schedule.NextRun = &t
+		if t, ok := next[p.ID]; ok && p.Enabled && o.Schedule != nil {
+			o.Schedule.NextRun = &t
 		}
 	}
 }
