@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Install command variants.
@@ -17,6 +18,8 @@ const (
 // managerURL is DOCKER_MANAGER_PUBLIC_URL; name is the optional preset display
 // name.
 //
+// The docker run variant sets the agent role label like the compose files,
+// so other agents on the host also see the container as Docker Manager's.
 // The remote variants mount the Docker socket and Docker's volume
 // directory at its identical path (#28), as the agent's compose.yaml in the
 // user documentation (Quickstart, "Add more servers") does; the
@@ -35,6 +38,7 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 	run.WriteString("  -v /var/lib/docker/volumes:/var/lib/docker/volumes \\\n")
 	run.WriteString("  -v docker-manager_stacks:/var/lib/docker/volumes/docker-manager_stacks/_data \\\n")
 	run.WriteString("  -v docker-manager_agent:/var/lib/docker-agent \\\n")
+	run.WriteString("  --label " + protocol.LabelRole + "=agent \\\n")
 	run.WriteString("  " + image + "\n")
 	run.WriteString("printf '%s\\n' " + shellQuote(token) + " | docker exec -i docker-agent docker-agent enroll")
 
