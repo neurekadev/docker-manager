@@ -114,6 +114,9 @@ func changedVisible(c Checker, e events.Event) bool {
 		return ViewOf(c, EnvironmentResource(e.ResourceID)).Visible()
 	case catalog.TypeInstance, catalog.TypeAdministration, catalog.TypeAPIToken, catalog.TypeAudit:
 		return c.Can("groups.manage", Instance()).Allowed
+	case "template_registry":
+		// Registries' cached templates are browsed with template.read.
+		return c.Can("template.read", Instance()).Allowed
 	}
 	if _, ok := catalog.Default().Type(e.ResourceType); !ok {
 		return c.Can("groups.manage", Instance()).Allowed

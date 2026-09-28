@@ -134,6 +134,9 @@ type Deps struct {
 	Backups BackupService
 	// Templates serves the instance's stack templates (template registry).
 	Templates TemplateService
+	// TemplateRegistries serves the registries of other instances and the
+	// template catalog (template registry).
+	TemplateRegistries TemplateRegistryService
 	// TemplateRegistryDisabled turns this instance's public template
 	// registry off (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).
 	TemplateRegistryDisabled bool
@@ -229,6 +232,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerBackups(a, deps)
 	registerTemplates(a, deps)
 	registerTemplateRegistry(a, deps)
+	registerTemplateRegistries(a, deps)
 	registerLive(a, deps)
 	registerSearch(a, deps)
 	addExamples(a)

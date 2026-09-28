@@ -175,19 +175,23 @@ describe('CreateFromTemplateDialog', () => {
 							}
 						]
 					});
-				case '/api/v1/templates':
+				case '/api/v1/template-catalog':
 					return json(200, {
 						items: [
 							{
-								...template,
+								instanceId: 'self',
+								registryName: 'Home',
+								own: true,
+								templateId: 'tp-1',
 								name: 'Next Cloud',
-								actions: ['template.read', 'template.use'],
-								latest: { number: 3, label: '1.2.0', definition: [] }
+								tags: [],
+								actions: ['template.use'],
+								versions: [
+									{ number: 3, label: '1.2.0', publishedAt: '', contentSize: 1 }
+								]
 							}
 						]
 					});
-				case '/api/v1/templates/tp-1/versions':
-					return json(200, { items: [{ number: 3, label: '1.2.0', definition: [] }] });
 				case '/api/v1/templates/tp-1/versions/3/definition':
 					return json(200, {
 						version: { number: 3, label: '1.2.0', definition: [] },

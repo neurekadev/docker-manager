@@ -75,7 +75,11 @@ const calls: Record<keyof typeof routes, string[]> = {
 	stackTerminal: [routes.stackTerminal('st-1'), routes.stackTerminal('st-1', 'silo-web-1')],
 	newStack: [routes.newStack(), routes.newStack('env-1')],
 	importStack: [routes.importStack(), routes.importStack('env-1')],
-	stackFromTemplate: [routes.stackFromTemplate(), routes.stackFromTemplate('tp-1', 'env-1')],
+	stackFromTemplate: [
+		routes.stackFromTemplate(),
+		routes.stackFromTemplate('tp-1', 'env-1'),
+		routes.stackFromTemplate('tp-1', null, 'inst-2')
+	],
 	containers: [routes.containers()],
 	newContainer: [routes.newContainer(), routes.newContainer('env-1', 'nginx:1')],
 	container: [
@@ -101,6 +105,8 @@ const calls: Record<keyof typeof routes, string[]> = {
 	registry: [routes.registry()],
 	templates: [routes.templates(), routes.templates('web')],
 	newTemplate: [routes.newTemplate()],
+	templateRegistries: [routes.templateRegistries()],
+	remoteTemplate: [routes.remoteTemplate('inst-2', 'tp-9')],
 	template: [
 		routes.template('tp-1'),
 		...(['files', 'versions', 'settings'] as const).map((t) => routes.template('tp-1', t))

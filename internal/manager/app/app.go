@@ -111,6 +111,9 @@ type Options struct {
 	// GitHTTPClient overrides the HTTP client of Git credential connection
 	// tests (#33; tests trust a fake Git server's certificate).
 	GitHTTPClient *http.Client
+	// TemplateHTTPClient overrides the HTTP client that reads other
+	// instances' template registries (tests).
+	TemplateHTTPClient *http.Client
 	// ContainerID overrides the detection of the manager's own container
 	// (selfid.Detect; #32 tells co-located agents which container is the
 	// manager). Tests set it.
@@ -505,12 +508,14 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.templates, err = templates.New(ctx, templates.Options{
 		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: log.With("component", "templates"), DataDir: cfg.DataDir,
 		MaxSize: cfg.TemplateMaxSize, Bus: m.events, Executors: m.jobs.RegisterManagerExecutor, ForgetResource: m.perms.ForgetResource,
+		InstanceID: m.instance.ID, HTTPClient: opts.TemplateHTTPClient, SyncInterval: cfg.TemplateRegistrySync,
 	})
 	if err != nil {
 		return nil, err
 	}
 	m.files.SetTemplates(m.templates)
 	m.stacks.SetTemplates(templateSource{own: m.templates, instanceID: m.instance.ID})
+	m.templates.StartSync()
 	m.perms.RegisterLocator(catalog.TypeTemplate, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
 		err := m.templates.Exists(ctx, ref.ID)
 		if errors.Is(err, domain.ErrTemplateNotFound) {
@@ -717,6 +722,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Updates:                  m.updates,
 			Backups:                  m.backups,
 			Templates:                m.templates,
+			TemplateRegistries:       m.templates,
 			TemplateRegistryDisabled: !cfg.TemplateRegistryEnabled,
 			Removal:                  removal.New(db),
 			Diagnostics:              m.diag,
@@ -1015,6 +1021,9 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 // Close stops manager-local jobs (recovered on the next start) and releases
 // the database.
 func (m *Manager) Close() error {
+	if m.templates != nil {
+		m.templates.Close()
+	}
 	if m.resources != nil {
 		m.resources.Close()
 	}

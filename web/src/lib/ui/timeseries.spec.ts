@@ -45,7 +45,8 @@ describe('time-series gaps (#5: offline intervals are visible)', () => {
 	});
 
 	it('words gap ranges, open ones as "since"', () => {
-		const now = Date.now();
+		// Midday local time: the first two ranges stay within one day.
+		const now = new Date(2026, 8, 25, 12, 0).getTime();
 		const from = now - 30 * 60_000;
 		expect(formatTimeRange({ from, to: now, open: true }, now)).toMatch(/^since \d\d:\d\d$/);
 		expect(formatTimeRange({ from, to: from + 60_000 }, now)).toMatch(/^\d\d:\d\d–\d\d:\d\d$/);

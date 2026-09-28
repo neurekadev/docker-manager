@@ -52,7 +52,7 @@ var topicOfType = map[string]string{
 	"settings": TopicSettings, "setting": TopicSettings,
 	"group": TopicPermissions, "user": TopicPermissions, "invitation": TopicPermissions, "permission": TopicPermissions,
 	"api_token": TopicPermissions,
-	"template":  TopicTemplates,
+	"template":  TopicTemplates, "template_registry": TopicTemplates,
 }
 
 // Classify returns the topic and invalidation kind of a bus event ("" when

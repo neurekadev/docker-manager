@@ -61,6 +61,23 @@ store: `internal/manager/store/templates.go`.
   (`If-None-Match` → 304) lets other managers revalidate cheaply. The web
   shows it at `/registry` (public page) and the registry URL is
   `DOCKER_MANAGER_PUBLIC_URL`.
+- Registries of other instances (`registries.go`, `registryclient.go`):
+  a registry is the other manager's origin, identified by its instance ID
+  (the `template_registries` primary key and `stack.template.instanceId`),
+  so adding it again under any URL restores its stacks' icons. The client
+  only follows same-origin redirects, only fetches paths below
+  `/api/v1/template-registry/templates/` of that origin, limits every body
+  (index 4 MiB, icons 256 KiB, archives their declared size up to twice
+  the template limit), validates the index (never trust another instance)
+  and checks archive digests. HTTPS only (plain HTTP for loopback); private
+  addresses are allowed because only the owner adds registries
+  (`template_registry.manage`, owner-only). Cached entries and icons are
+  replaced by each sync (`SyncDue` every `SyncInterval`, backoff up to 6 h)
+  and deleted with the registry. `/template-catalog` merges this
+  instance's templates (per-template views) with every registry's cached
+  templates (`template.read` on the instance); creating a stack from a
+  registry template needs `template.use` on the instance and downloads
+  the version at that moment.
 - Capabilities: `template.read`, `template.use` (high: version files incl.
   `.env`), `template.create` (instance), `template.manage`,
   `template.publish` (high), `template.remove` (high) and the

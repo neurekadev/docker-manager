@@ -2,7 +2,8 @@
 // for discovery and the suggested next version label. Pure; tested in
 // model.spec.ts.
 import type { ListFilter } from '$lib/features/resources/filters';
-import type { Template } from './queries';
+import { routes } from '$lib/routes';
+import type { Template, TemplateCatalogItem } from './queries';
 
 /** Search texts of a template: name, description and tags. */
 export const templateSearch = (t: Template) => [t.name, t.description, ...(t.tags ?? [])];
@@ -95,4 +96,62 @@ export function projectNameFor(name: string): string {
 		.replace(/^[^a-z0-9]+/, '')
 		.replace(/-+$/, '')
 		.slice(0, 63);
+}
+
+/** Search texts of a catalog item. */
+export const catalogSearch = (t: TemplateCatalogItem) => [
+	t.name,
+	t.description,
+	t.registryName,
+	...(t.tags ?? [])
+];
+
+/** The filters of the catalog: registry, tag and publication. */
+export function catalogFilters(
+	items: readonly TemplateCatalogItem[]
+): ListFilter<TemplateCatalogItem>[] {
+	const registries = new Map<string, string>();
+	for (const t of items) registries.set(t.instanceId, t.registryName);
+	return [
+		{
+			id: 'registry',
+			label: 'Registry',
+			all: 'All registries',
+			dynamic: true,
+			options: [...registries]
+				.map(([value, label]) => ({ value, label }))
+				.sort((a, b) => a.label.localeCompare(b.label)),
+			match: (t, v) => t.instanceId === v
+		},
+		{
+			id: 'tag',
+			label: 'Tag',
+			all: 'All tags',
+			dynamic: true,
+			options: tagCounts(items).map((t) => ({
+				value: t.tag,
+				label: `${t.tag} (${t.count})`
+			})),
+			match: (t, v) => (t.tags ?? []).includes(v)
+		},
+		{
+			id: 'published',
+			label: 'Published',
+			all: 'Published or not',
+			options: [
+				{ value: 'yes', label: 'Has a version' },
+				{ value: 'no', label: 'Draft only' }
+			],
+			match: (t, v) => (v === 'yes') === t.versions.length > 0
+		}
+	];
+}
+
+/** The page of a catalog item: own templates open their management pages. */
+export function catalogHref(
+	t: Pick<TemplateCatalogItem, 'own' | 'instanceId' | 'templateId'>
+): string {
+	return t.own
+		? routes.template(t.templateId)
+		: routes.remoteTemplate(t.instanceId, t.templateId);
 }

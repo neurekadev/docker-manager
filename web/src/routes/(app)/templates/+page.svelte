@@ -1,10 +1,13 @@
 <script lang="ts">
-	// Templates (template registry): discover and manage stack templates.
-	// Browse by tag, search and filter this instance's templates, shown as
-	// cards; open one to edit its draft, publish versions and change its
-	// settings. "New template" needs template.create (the server decides).
+	// Templates (template registry): the discovery dashboard. The registries
+	// this instance browses (its own first), templates by tag, and every
+	// template of every registry as cards with search and filters (registry,
+	// tag, publication). This instance's templates open their management
+	// pages; registry templates open a read-only page to create stacks from.
+	// "New template" needs template.create (the server decides).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
+	import Archive from '@lucide/svelte/icons/archive';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { myPermissionsQuery } from '$lib/api/queries';
@@ -15,26 +18,31 @@
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
 	import CreateTemplateDialog from '$lib/features/templates/CreateTemplateDialog.svelte';
-	import OwnRegistryCard from '$lib/features/templates/OwnRegistryCard.svelte';
 	import TemplateCard from '$lib/features/templates/TemplateCard.svelte';
-	import { tagCounts, templateFilters, templateSearch } from '$lib/features/templates/model';
-	import { templatesQuery } from '$lib/features/templates/queries';
+	import {
+		catalogFilters,
+		catalogHref,
+		catalogSearch,
+		tagCounts
+	} from '$lib/features/templates/model';
+	import { templateCatalogQuery, templateRegistriesQuery } from '$lib/features/templates/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
-	import { Button, EmptyState, ErrorState, Skeleton } from '$lib/ui';
+	import { Badge, Button, EmptyState, ErrorState, Skeleton } from '$lib/ui';
 
 	usePage({ title: 'Templates', crumbs: [{ label: 'Templates' }] });
 
-	const templates = createQuery(() => templatesQuery());
+	const catalog = createQuery(() => templateCatalogQuery());
+	const registries = createQuery(() => templateRegistriesQuery());
 	const perms = createQuery(() => myPermissionsQuery());
 	const createDialog = urlDialog('create');
 	const canCreate = $derived(canAnywhere(perms.data, 'template.create'));
 
-	const filters = new ListFilters('templates');
-	const all = $derived(templates.data ?? []);
-	const defs = $derived(templateFilters(all));
+	const filters = new ListFilters('template-catalog');
+	const all = $derived(catalog.data ?? []);
+	const defs = $derived(catalogFilters(all));
 	const rows = $derived(
-		applyListFilters(all, defs, filters.state, templateSearch).sort((a, b) =>
+		applyListFilters(all, defs, filters.state, catalogSearch).sort((a, b) =>
 			a.name.localeCompare(b.name)
 		)
 	);
@@ -47,8 +55,8 @@
 		if (tag) filters.set('tag', tag);
 	});
 
-	function pickTag(tag: string) {
-		filters.set('tag', filters.get('tag') === tag ? '' : tag);
+	function toggle(id: string, value: string) {
+		filters.set(id, filters.get(id) === value ? '' : value);
 	}
 </script>
 
@@ -58,29 +66,58 @@
 			<h1>Templates</h1>
 			<p class="muted">
 				Complete Compose projects (compose.yaml, .env and the files next to them) to create
-				stacks from. Publish a version to use it; make it public to share it with other
-				Docker Manager instances.
+				stacks from: this instance's templates and those of the registries it browses.
 			</p>
 		</div>
-		{#if canCreate}
-			<div class="actions">
+		<div class="actions">
+			<Button icon={Archive} href={routes.templateRegistries()}>Registries</Button>
+			{#if canCreate}
 				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
 					>New template</Button
 				>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</header>
 
+	{#if registries.data?.length}
+		<section aria-labelledby="registries-title">
+			<h2 id="registries-title" class="section">Registries</h2>
+			<ul class="registries">
+				{#each registries.data as r (r.instanceId)}
+					<li>
+						<button
+							type="button"
+							class="registry"
+							aria-pressed={filters.get('registry') === r.instanceId}
+							onclick={() => toggle('registry', r.instanceId)}
+						>
+							<span class="registry-name"
+								>{r.own ? `${r.name} (this instance)` : r.name}</span
+							>
+							<span class="registry-meta">
+								{r.own
+									? 'Your templates'
+									: `${r.templates} ${r.templates === 1 ? 'template' : 'templates'}`}
+								{#if r.status === 'error'}<Badge tone="warn" dot>Sync failed</Badge
+									>{/if}
+							</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	{#if tags.length}
-		<section class="tags" aria-labelledby="tags-title">
-			<h2 id="tags-title">Browse by tag</h2>
+		<section aria-labelledby="tags-title">
+			<h2 id="tags-title" class="section">Browse by tag</h2>
 			<div class="chips">
 				{#each tags as t (t.tag)}
 					<button
 						type="button"
 						class="chip"
 						aria-pressed={filters.get('tag') === t.tag}
-						onclick={() => pickTag(t.tag)}
+						onclick={() => toggle('tag', t.tag)}
 						>#{t.tag} <span class="count">{t.count}</span></button
 					>
 				{/each}
@@ -88,40 +125,41 @@
 		</section>
 	{/if}
 
-	{#if templates.isError}
+	{#if catalog.isError}
 		<ErrorState
-			error={templates.error}
+			error={catalog.error}
 			title="The templates could not be loaded."
-			onretry={() => templates.refetch()}
+			onretry={() => catalog.refetch()}
 		/>
 	{:else}
 		<ListCard
-			title="This instance's templates"
+			title="All templates"
 			id="templates"
-			summary={templates.data
+			summary={catalog.data
 				? listSummary(rows.length, all.length, filtered, 'template', 'templates')
 				: undefined}
 			label="Filter templates"
 			searchLabel="Search templates"
-			placeholder="Search by name, description or tag"
+			placeholder="Search by name, description, tag or registry"
 			filters={defs}
 			store={filters}
 		>
-			{#if templates.isPending}
+			{#if catalog.isPending}
 				<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 			{:else if rows.length}
 				<ul class="grid" aria-label="Templates">
-					{#each rows as t (t.id)}
+					{#each rows as t (`${t.instanceId}/${t.templateId}`)}
 						<li>
 							<TemplateCard
-								href={routes.template(t.id)}
+								href={catalogHref(t)}
 								name={t.name}
 								description={t.description}
 								tags={t.tags}
-								iconUrl={t.icon?.url}
+								iconUrl={t.iconUrl}
 								visibility={t.visibility}
-								latest={t.latest?.label}
-								onTag={pickTag}
+								latest={t.versions[0]?.label}
+								source={t.own ? 'This instance' : t.registryName}
+								onTag={(tag) => toggle('tag', tag)}
 							/>
 						</li>
 					{/each}
@@ -134,7 +172,7 @@
 					color="violet"
 					title="No templates yet."
 					description={canCreate
-						? 'Create a template from scratch, then add its compose.yaml, .env and files.'
+						? 'Create a template, or add another Docker Manager as a registry to use its public templates.'
 						: 'Templates you are given access to appear here.'}
 					level={3}
 					compact
@@ -144,13 +182,12 @@
 								variant="primary"
 								onclick={() => (createDialog.open = true)}>New template</Button
 							>{/if}
+						<Button href={routes.templateRegistries()}>Open registries</Button>
 					{/snippet}
 				</EmptyState>
 			{/if}
 		</ListCard>
 	{/if}
-
-	{#if templates.data}<OwnRegistryCard templates={templates.data} />{/if}
 
 	<CreateTemplateDialog bind:open={createDialog.open} />
 </div>
@@ -184,14 +221,64 @@
 
 	.actions {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 	}
 
-	.tags h2 {
+	.section {
 		margin-bottom: var(--space-2);
 		color: var(--text-muted);
 		font-size: var(--text-caption);
 		font-weight: var(--weight-medium);
+	}
+
+	.registries {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: var(--space-2);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.registry {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		width: 100%;
+		padding: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		background: var(--surface-panel);
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.registry:hover {
+		border-color: var(--border-strong);
+	}
+
+	.registry[aria-pressed='true'] {
+		border-color: var(--accent-text);
+	}
+
+	.registry-name {
+		overflow: hidden;
+		color: var(--text-strong);
+		font-weight: var(--weight-medium);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.registry-meta {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		color: var(--text-muted);
+		font-size: var(--text-caption);
 	}
 
 	.chips {

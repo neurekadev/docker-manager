@@ -390,3 +390,119 @@ func TestPublicRegistryIsRateLimited(t *testing.T) {
 		t.Fatalf("third request: %v", err)
 	}
 }
+
+// fakeTemplateRegistries is the registry side of the template service.
+type fakeTemplateRegistries struct {
+	added []string
+}
+
+func (f *fakeTemplateRegistries) Registries(context.Context) ([]domain.TemplateRegistry, error) {
+	return []domain.TemplateRegistry{{InstanceID: "remote-1", URL: "https://friend.example", Name: "Friend", Status: domain.TemplateRegistryOK, Templates: 1}}, nil
+}
+
+func (f *fakeTemplateRegistries) Registry(_ context.Context, id string) (domain.TemplateRegistry, error) {
+	if id != "remote-1" {
+		return domain.TemplateRegistry{}, domain.ErrTemplateRegistryNotFound
+	}
+	return domain.TemplateRegistry{InstanceID: "remote-1", Name: "Friend"}, nil
+}
+
+func (f *fakeTemplateRegistries) AddRegistry(_ context.Context, rawURL, _ string) (domain.TemplateRegistry, error) {
+	f.added = append(f.added, rawURL)
+	return domain.TemplateRegistry{InstanceID: "remote-2", URL: rawURL, Name: "New", Status: domain.TemplateRegistryOK}, nil
+}
+
+func (f *fakeTemplateRegistries) RemoveRegistry(context.Context, string) error { return nil }
+
+func (f *fakeTemplateRegistries) SyncRegistry(ctx context.Context, id string) (domain.TemplateRegistry, error) {
+	return f.Registry(ctx, id)
+}
+
+func (f *fakeTemplateRegistries) RegistryTemplates(context.Context, string) ([]domain.RegistryTemplate, error) {
+	return []domain.RegistryTemplate{{RegistryID: "remote-1", TemplateID: "rt-1", Name: "Remote cloud", Tags: []string{"cloud"}, IconSHA256: "abc",
+		Versions: []domain.RegistryTemplateVersion{{Number: 3, Label: "3.0.0"}}}}, nil
+}
+
+func (f *fakeTemplateRegistries) RegistryTemplate(_ context.Context, reg, id string) (domain.RegistryTemplate, error) {
+	ts, _ := f.RegistryTemplates(context.Background(), reg)
+	for _, t := range ts {
+		if t.TemplateID == id {
+			return t, nil
+		}
+	}
+	return domain.RegistryTemplate{}, domain.ErrTemplateNotFound
+}
+
+func (f *fakeTemplateRegistries) RegistryIcon(context.Context, string, string) (domain.TemplateIcon, []byte, error) {
+	return domain.TemplateIcon{MediaType: "image/svg+xml", SHA256: "abc"}, []byte("<svg/>"), nil
+}
+
+func (f *fakeTemplateRegistries) RegistryDefinition(context.Context, string, string, int) (domain.RegistryTemplateVersion, []domain.TemplateFileContent, error) {
+	return domain.RegistryTemplateVersion{Number: 3, Label: "3.0.0"}, []domain.TemplateFileContent{{Path: "compose.yaml", Content: []byte("services: {}")}}, nil
+}
+
+var _ TemplateRegistryService = (*fakeTemplateRegistries)(nil)
+
+func TestTemplateRegistryAndCatalogRoutes(t *testing.T) {
+	pol := authztest.New().Owner("olga").
+		Member("rea", "readers").Group("readers", "allow template.read @all").
+		Member("una", "users").Group("users", "allow template.read @all", "allow template.use @all").
+		Member("rita", "nobody")
+	regs := &fakeTemplateRegistries{}
+	mux := http.NewServeMux()
+	New(mux, Deps{Templates: newFakeTemplates(), TemplateRegistries: regs, InstanceID: "inst-self", Authorizer: pol,
+		Clock: testutil.FakeClock(), Idempotency: &memIdempotency{}, Builds: emptyBuilds{},
+		Deployment: DeploymentInfo{PublicURL: "https://me.example"}})
+	h := authztest.Authenticate(withTestContext(t, mux, ""))
+
+	r := authztest.Do(t, h, "rea", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-registries"})
+	var list Page[TemplateRegistryInfo]
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &list) != nil || len(list.Items) != 2 || !list.Items[0].Own ||
+		list.Items[0].Removable || list.Items[0].URL != "https://me.example" || list.Items[1].InstanceID != "remote-1" {
+		t.Fatalf("registries: %d %s", r.Status, r.Body)
+	}
+	if r := authztest.Do(t, h, "rita", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-registries"}); r.Status != http.StatusForbidden {
+		t.Errorf("registries without template.read: %d", r.Status)
+	}
+	// Only the owner adds registries.
+	add := authztest.Call{Method: http.MethodPost, Path: "/api/v1/template-registries", Body: map[string]any{"url": "https://friend2.example"}}
+	if r := authztest.Do(t, h, "una", add); r.Status != http.StatusForbidden {
+		t.Errorf("add as a user: %d %s", r.Status, r.Body)
+	}
+	if r := authztest.Do(t, h, "olga", add); r.Status != http.StatusCreated || len(regs.added) != 1 {
+		t.Errorf("add as the owner: %d %s", r.Status, r.Body)
+	}
+
+	// The catalog merges this instance's templates and registry templates.
+	r = authztest.Do(t, h, "una", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-catalog"})
+	var cat Page[TemplateCatalogItem]
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &cat) != nil || len(cat.Items) != 3 {
+		t.Fatalf("catalog: %d %s", r.Status, r.Body)
+	}
+	var remote *TemplateCatalogItem
+	for i := range cat.Items {
+		if !cat.Items[i].Own {
+			remote = &cat.Items[i]
+		}
+	}
+	if remote == nil || remote.InstanceID != "remote-1" || remote.RegistryName != "Friend" || remote.IconURL == "" ||
+		!slices.Contains(remote.Actions, "template.use") {
+		t.Fatalf("remote item %+v", remote)
+	}
+	r = authztest.Do(t, h, "rea", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-catalog?registry=remote-1&tag=cloud"})
+	if json.Unmarshal(r.Body, &cat) != nil || len(cat.Items) != 1 || slices.Contains(cat.Items[0].Actions, "template.use") {
+		t.Fatalf("filtered catalog for a reader: %s", r.Body)
+	}
+	def := authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-catalog/remote-1/rt-1/versions/3/definition"}
+	if r := authztest.Do(t, h, "rea", def); r.Status != http.StatusForbidden {
+		t.Errorf("definition without template.use: %d", r.Status)
+	}
+	if r := authztest.Do(t, h, "una", def); r.Status != http.StatusOK || !strings.Contains(string(r.Body), "compose.yaml") {
+		t.Errorf("definition: %d %s", r.Status, r.Body)
+	}
+	// Icons of registry templates are in the icon map for everyone.
+	r = authztest.Do(t, h, "rita", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-icons"})
+	if !strings.Contains(string(r.Body), "/api/v1/template-registries/remote-1/templates/rt-1/icon?v=abc") {
+		t.Errorf("icon map lacks the registry icon: %s", r.Body)
+	}
+}

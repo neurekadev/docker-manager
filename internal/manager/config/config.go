@@ -58,6 +58,9 @@ const (
 	// EnvTemplateRegistryEnabled serves this instance's public template
 	// registry (template registry).
 	EnvTemplateRegistryEnabled = "DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED"
+	// EnvTemplateRegistrySyncInterval is how often added template
+	// registries are read again (0 turns it off).
+	EnvTemplateRegistrySyncInterval = "DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL"
 
 	EnvMigrationBandwidthLimit = "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT"
 	// Backups (#10).
@@ -184,6 +187,9 @@ type Config struct {
 	// TemplateRegistryEnabled serves the public template registry (public
 	// templates only; default true).
 	TemplateRegistryEnabled bool
+	// TemplateRegistrySync is how often added registries are synced
+	// (negative: never).
+	TemplateRegistrySync time.Duration
 	// MigrationBandwidthLimit caps the data environment migrations relay
 	// through the manager, in bytes per second (#35; 0: unlimited).
 	MigrationBandwidthLimit int64
@@ -243,6 +249,7 @@ func (c Config) Settings() []Setting {
 		{EnvFilesMaxUploadMB, mb(c.FilesMaxUpload)},
 		{EnvTemplateMaxSizeMB, mb(c.TemplateMaxSize)},
 		{EnvTemplateRegistryEnabled, strconv.FormatBool(c.TemplateRegistryEnabled)},
+		{EnvTemplateRegistrySyncInterval, c.TemplateRegistrySync.String()},
 		{EnvMigrationBandwidthLimit, strconv.FormatInt(c.MigrationBandwidthLimit, 10) + " B/s (0: unlimited)"},
 		{EnvBackupLocalRoots, strings.Join(c.BackupLocalRoots, ",")},
 		{EnvResticBinary, c.ResticBinary},
@@ -376,6 +383,13 @@ func Load(src envconfig.Source) (Config, error) {
 	cfg.TemplateMaxSize = int64(templateMB) << 20
 	if cfg.TemplateRegistryEnabled, err = src.Bool(EnvTemplateRegistryEnabled, true); err != nil {
 		errs = append(errs, err)
+	}
+	if cfg.TemplateRegistrySync, err = time.ParseDuration(src.String(EnvTemplateRegistrySyncInterval, "30m")); err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", EnvTemplateRegistrySyncInterval, err))
+	} else if cfg.TemplateRegistrySync == 0 {
+		cfg.TemplateRegistrySync = -1
+	} else if cfg.TemplateRegistrySync < 5*time.Minute {
+		errs = append(errs, fmt.Errorf("%s: at least 5m (or 0 to turn syncing off)", EnvTemplateRegistrySyncInterval))
 	}
 
 	if cfg.MigrationBandwidthLimit, err = transfer.ParseRate(src.String(EnvMigrationBandwidthLimit, "0")); err != nil {

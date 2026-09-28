@@ -84,6 +84,10 @@ func (h *stacksAPI) createFromTemplate(ctx context.Context, in *createStackFromT
 		if errors.Is(err, domain.ErrTemplateNotFound) || errors.Is(err, domain.ErrTemplateVersionNotFound) {
 			return nil, NotFound("template version not found")
 		}
+		var rc interface{ RegistryClass() string }
+		if errors.As(err, &rc) {
+			return nil, tmplRegistryError(err)
+		}
 		return nil, stackErr(err)
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeStack, ID: st.ID, EnvironmentID: st.EnvironmentID})
@@ -178,6 +182,9 @@ func (h *templatesAPI) iconMap(ctx context.Context, _ *struct{}) (*templateIconM
 			out.Items = append(out.Items, TemplateIconRef{InstanceID: h.instanceID, TemplateID: t.ID, URL: i.URL})
 		}
 	}
+	// Templates of added registries (a removed registry's icons are gone;
+	// adding it back brings them back).
+	out.Items = append(out.Items, remoteIcons(ctx, h.registries)...)
 	return &templateIconMapOutput{Body: out}, nil
 }
 

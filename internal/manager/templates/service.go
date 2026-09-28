@@ -14,10 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/uptrace/bun"
@@ -62,6 +64,15 @@ type Options struct {
 	Executors func(jobexec.Executor) error
 	// ForgetResource drops authorization state of deleted templates.
 	ForgetResource func(ctx context.Context, ref authz.ResourceRef) (int, error)
+	// InstanceID is this instance's ID (its own registry; adding it as a
+	// registry is refused).
+	InstanceID string
+	// HTTPClient reads other registries (nil: a default client; tests
+	// inject httptest clients).
+	HTTPClient *http.Client
+	// SyncInterval is how often added registries are synced (0: the
+	// default; negative: never, for tests).
+	SyncInterval time.Duration
 }
 
 // Service manages templates.
@@ -77,6 +88,9 @@ type Service struct {
 	drafts  map[string]*sync.RWMutex
 	usageMu sync.Mutex
 	usage   map[string]draftUsage
+
+	client *RegistryClient
+	syncer *syncer
 }
 
 // New returns the service, removes drafts of templates that no longer
@@ -97,7 +111,11 @@ func New(ctx context.Context, o Options) (*Service, error) {
 	if o.MaxEntries <= 0 {
 		o.MaxEntries = DefaultMaxEntries
 	}
-	s := &Service{opts: o, db: o.DB, log: o.Logger, drafts: map[string]*sync.RWMutex{}, usage: map[string]draftUsage{}}
+	if o.SyncInterval == 0 {
+		o.SyncInterval = DefaultSyncInterval
+	}
+	s := &Service{opts: o, db: o.DB, log: o.Logger, drafts: map[string]*sync.RWMutex{}, usage: map[string]draftUsage{},
+		client: NewRegistryClient(o.HTTPClient)}
 	s.files = fsroot.New(fsroot.Options{
 		Resolve: s.resolve, Clock: o.Clock, Logger: o.Logger,
 		Limits: fsroot.Limits{MaxUpload: o.MaxSize, MaxDownload: 4 * o.MaxSize, MaxArchiveEntries: o.MaxEntries,

@@ -60,7 +60,7 @@
 	// routes.importStack() opens the import dialog (discovered projects).
 	const importDialog = urlDialog('import', ['environment']);
 	// routes.stackFromTemplate() opens the template dialog.
-	const templateDialog = urlDialog('fromTemplate', ['template', 'environment']);
+	const templateDialog = urlDialog('fromTemplate', ['template', 'registry', 'environment']);
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
@@ -310,6 +310,7 @@
 		bind:open={templateDialog.open}
 		environmentId={templateDialog.param('environment') ?? envId}
 		templateId={templateDialog.param('template')}
+		registry={templateDialog.param('registry')}
 	/>
 </div>
 

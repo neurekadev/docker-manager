@@ -195,6 +195,7 @@ func newTemplate(t domain.Template, v authz.View) Template {
 
 type templatesAPI struct {
 	svc        TemplateService
+	registries TemplateRegistryService
 	authz      authz.Authorizer
 	instanceID string
 }
@@ -553,7 +554,8 @@ func (h *templatesAPI) deleteVersion(ctx context.Context, in *templateVersionInp
 }
 
 func registerTemplates(a huma.API, deps Deps) {
-	h := &templatesAPI{svc: deps.Templates, authz: authz.OrDenyAll(deps.Authorizer), instanceID: deps.InstanceID}
+	h := &templatesAPI{svc: deps.Templates, registries: deps.TemplateRegistries, authz: authz.OrDenyAll(deps.Authorizer),
+		instanceID: deps.InstanceID}
 	registerTemplateUse(a, h)
 	editErrs := []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed,
 		http.StatusPreconditionRequired, http.StatusUnprocessableEntity}

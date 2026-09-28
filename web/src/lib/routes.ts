@@ -12,6 +12,7 @@
 //   /builds[/new|/definitions], /builds/{env}/{buildId}
 //   /registries[/git|/matches]          registry connections, Git credentials, match preview
 //   /templates[?create=1], /templates/{id}[/files|versions|settings]   stack templates
+//   /templates/registries, /templates/remote/{instanceId}/{templateId}  registries, registry templates
 //   /registry                           this instance's public template registry (public)
 //   /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
@@ -61,9 +62,14 @@ export const routes = {
 	newStack: (environmentId?: string | null) =>
 		`/stacks?create=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,
 	/** The stack list with the create-from-template dialog open. */
-	stackFromTemplate: (templateId?: string, environmentId?: string | null) => {
+	stackFromTemplate: (
+		templateId?: string,
+		environmentId?: string | null,
+		instanceId?: string | null
+	) => {
 		const q = new URLSearchParams({ fromTemplate: '1' });
 		if (templateId) q.set('template', templateId);
+		if (instanceId) q.set('registry', instanceId);
 		if (environmentId) q.set('environment', environmentId);
 		return `/stacks?${q}`;
 	},
@@ -104,6 +110,10 @@ export const routes = {
 	newTemplate: () => '/templates?create=1',
 	template: (id: string, tab?: 'files' | 'versions' | 'settings') =>
 		`/templates/${e(id)}${tab ? `/${tab}` : ''}`,
+	templateRegistries: () => '/templates/registries',
+	/** A template of an added registry. */
+	remoteTemplate: (instanceId: string, templateId: string) =>
+		`/templates/remote/${e(instanceId)}/${e(templateId)}`,
 	registries: () => '/registries',
 	gitCredentials: () => '/registries/git',
 	registryMatches: () => '/registries/matches',

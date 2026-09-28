@@ -89,6 +89,29 @@ No sign-in; per-address token buckets (60/s burst for the index and icons,
 instance ID identifies a registry across URL changes. The web app's public
 page `/registry` renders the same index for people.
 
+## Registries of other instances
+
+The owner adds another manager by its address (`POST
+/api/v1/template-registries`; `internal/manager/templates/registries.go`).
+The index is read at once and cached (`template_registries`,
+`template_registry_entries`, `template_registry_icons`, migration
+`20260928013000_create_template_registries`); a background loop syncs every
+`DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL` (default 30m, conditional
+with the index ETag; failures back off, doubling up to 6 h). The registry
+is keyed by the remote instance ID: the same instance under a new address
+replaces the URL, this instance's own ID is refused, and a registry that is
+removed and added again finds the stacks created from its templates (their
+`stack.template.instanceId`), so their icons come back.
+
+`GET /api/v1/template-catalog` lists this instance's templates and every
+registry's cached templates; `/templates/remote/{instanceId}/{templateId}`
+shows one read-only. Creating a stack from a registry template downloads
+the version (`templateSource` in `internal/manager/app`) and checks its
+size and digest against the cached index before the transfer described
+above. Registry icons are served from the cache
+(`/template-registries/{instanceId}/templates/{templateId}/icon`) and are
+part of `GET /template-icons`.
+
 ## Icons and live updates
 
 Icons are served by `GET /api/v1/templates/{id}/icon` to any signed-in

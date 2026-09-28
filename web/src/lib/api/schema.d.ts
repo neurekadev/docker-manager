@@ -3982,6 +3982,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/template-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse templates of every registry
+         * @description This instance's templates the caller sees in full (template.read on them) and, with template.read on the instance, the cached templates of every added registry; q, tag and registry filter it.
+         */
+        get: operations["list-template-catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-catalog/{instanceId}/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a registry template */
+        get: operations["get-template-catalog-item"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-catalog/{instanceId}/{templateId}/versions/{version}/definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a registry template version's Compose files
+         * @description Downloads the version from its registry (checked against the cached digest) and returns its Compose files and .env. Needs template.use on the instance. 502 when the registry cannot be read.
+         */
+        get: operations["get-template-catalog-definition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/template-icons": {
         parameters: {
             query?: never;
@@ -3994,6 +4051,90 @@ export interface paths {
          * @description The current icon of every template with one, by registry (instance ID) and template ID, so stack lists show the icon of the template a stack was created from. Any signed-in user may read it; it changes with the templates live topic.
          */
         get: operations["list-template-icons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-registries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List template registries
+         * @description This instance's own registry (first; never removable) and the registries of other Docker Manager instances added by the owner, with their sync state.
+         */
+        get: operations["list-template-registries"];
+        put?: never;
+        /**
+         * Add a template registry
+         * @description Adds another Docker Manager by its address (HTTPS; its /registry page works too) and reads its public templates now; they are synced every DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL afterwards. The registry is identified by the other instance's ID: adding it again (even under a new address) restores the icons of stacks created from its templates. 409 template_registry_exists / template_registry_is_self, 422 template_registry_insecure, 502 template_registry_unreachable / template_registry_invalid. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-template-registry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-registries/{instanceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a template registry
+         * @description Removes the registry and its cached templates and icons. Stacks created from its templates keep working; they show their template's icon again when the registry is added back. Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-template-registry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-registries/{instanceId}/syncs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync a template registry now
+         * @description Reads the registry's templates now (a failed read is a 200 with status error). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-template-registry-sync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-registries/{instanceId}/templates/{templateId}/icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a registry template's icon
+         * @description The cached icon of a registry's template for any signed-in user (stacks created from it show it); sandboxed, cacheable forever with v set to its sha256.
+         */
+        get: operations["get-template-registry-template-icon"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4817,6 +4958,13 @@ export interface components {
             recoveryCodesRemaining: number;
             /** @description TOTP (authenticator app) is enabled. */
             totp: boolean;
+        };
+        AddRegistryInputBody: {
+            /**
+             * @description The other Docker Manager's address (its /registry page works too). HTTPS only.
+             * @example https://docker.example.com
+             */
+            url: string;
         };
         AffectedContainer: {
             name: string;
@@ -8572,6 +8720,28 @@ export interface components {
              */
             total?: number;
         };
+        PageTemplateCatalogItem: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["TemplateCatalogItem"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageTemplateRegistryInfo: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["TemplateRegistryInfo"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageTemplateVersion: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["TemplateVersion"][];
@@ -9214,6 +9384,10 @@ export interface components {
              * @description The registry's retry guidance for rate limits.
              */
             retryAfterSeconds?: number;
+        };
+        RegistryDefinition: {
+            files: components["schemas"]["TemplateDefinitionFile"][];
+            version: components["schemas"]["TemplateCatalogVersion"];
         };
         RegistryMatch: {
             /** @description Every matching connection, best first. */
@@ -10534,6 +10708,42 @@ export interface components {
              */
             visibility: "private" | "public";
         };
+        TemplateCatalogItem: {
+            /** @description template.use when you may create stacks from it. */
+            actions: string[];
+            description?: string;
+            iconUrl?: string;
+            /** @description The registry. */
+            instanceId: string;
+            /** @example Nextcloud */
+            name: string;
+            /** @description This instance's template (open it under /templates/{templateId}). */
+            own: boolean;
+            /** @example Homelab */
+            registryName: string;
+            tags: string[];
+            templateId: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @description Published versions, newest first. */
+            versions: components["schemas"]["TemplateCatalogVersion"][];
+            /**
+             * @description Own templates only.
+             * @enum {string}
+             */
+            visibility?: "private" | "public";
+        };
+        TemplateCatalogVersion: {
+            /** Format: int64 */
+            contentSize: number;
+            /** @example 1.2.0 */
+            label: string;
+            notes?: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: date-time */
+            publishedAt: string;
+        };
         TemplateDefinition: {
             files: components["schemas"]["TemplateDefinitionFile"][];
             version: components["schemas"]["TemplateVersion"];
@@ -10634,6 +10844,32 @@ export interface components {
              * @example https://docker.example.com
              */
             url?: string;
+        };
+        TemplateRegistryInfo: {
+            /** Format: date-time */
+            attemptedAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** @enum {string} */
+            errorClass?: "unreachable" | "insecure" | "invalid" | "not_found";
+            errorMessage?: string;
+            instanceId: string;
+            /** @example Homelab */
+            name: string;
+            /** @description This instance's own registry: always listed, cannot be removed. */
+            own: boolean;
+            removable: boolean;
+            /** @enum {string} */
+            status: "ok" | "error";
+            /** Format: date-time */
+            syncedAt?: string;
+            /**
+             * Format: int64
+             * @description Templates listed (own registry: public templates with a version).
+             */
+            templates: number;
+            /** @example https://docker.example.com */
+            url: string;
         };
         TemplateRegistryVersion: {
             archive: components["schemas"]["TemplateRegistryArchive"];
@@ -42678,6 +42914,289 @@ export interface operations {
             };
         };
     };
+    "list-template-catalog": {
+        parameters: {
+            query?: {
+                /** @description Matches the name, description or a tag. */
+                q?: string;
+                tag?: string;
+                /** @description Only this registry's templates (instance ID). */
+                registry?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "description": "example",
+                     *           "iconUrl": "example",
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "Nextcloud",
+                     *           "own": false,
+                     *           "registryName": "Homelab",
+                     *           "tags": [
+                     *             "example"
+                     *           ],
+                     *           "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "versions": [
+                     *             {
+                     *               "contentSize": 1,
+                     *               "label": "1.2.0",
+                     *               "notes": "example",
+                     *               "number": 1,
+                     *               "publishedAt": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "visibility": "private"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageTemplateCatalogItem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-catalog-item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The registry's instance ID. */
+                instanceId: string;
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "description": "example",
+                     *       "iconUrl": "example",
+                     *       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "Nextcloud",
+                     *       "own": false,
+                     *       "registryName": "Homelab",
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": [
+                     *         {
+                     *           "contentSize": 1,
+                     *           "label": "1.2.0",
+                     *           "notes": "example",
+                     *           "number": 1,
+                     *           "publishedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateCatalogItem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-catalog-definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The registry's instance ID. */
+                instanceId: string;
+                /** @description Template ID. */
+                templateId: string;
+                /** @description Version number. */
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "files": [
+                     *         {
+                     *           "content": "example",
+                     *           "path": ".env"
+                     *         }
+                     *       ],
+                     *       "version": {
+                     *         "contentSize": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["RegistryDefinition"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-template-icons": {
         parameters: {
             query?: never;
@@ -42710,6 +43229,388 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-template-registries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "attemptedAt": "2026-09-25T12:00:00Z",
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "errorClass": "unreachable",
+                     *           "errorMessage": "example",
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "Homelab",
+                     *           "own": false,
+                     *           "removable": false,
+                     *           "status": "ok",
+                     *           "syncedAt": "2026-09-25T12:00:00Z",
+                     *           "templates": 1,
+                     *           "url": "https://docker.example.com"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageTemplateRegistryInfo"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "url": "https://docker.example.com"
+                 *     }
+                 */
+                "application/json": components["schemas"]["AddRegistryInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attemptedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "errorClass": "unreachable",
+                     *       "errorMessage": "example",
+                     *       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "Homelab",
+                     *       "own": false,
+                     *       "removable": false,
+                     *       "status": "ok",
+                     *       "syncedAt": "2026-09-25T12:00:00Z",
+                     *       "templates": 1,
+                     *       "url": "https://docker.example.com"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateRegistryInfo"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-template-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The registry's instance ID. */
+                instanceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-registry-sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The registry's instance ID. */
+                instanceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attemptedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "errorClass": "unreachable",
+                     *       "errorMessage": "example",
+                     *       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "Homelab",
+                     *       "own": false,
+                     *       "removable": false,
+                     *       "status": "ok",
+                     *       "syncedAt": "2026-09-25T12:00:00Z",
+                     *       "templates": 1,
+                     *       "url": "https://docker.example.com"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateRegistryInfo"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-registry-template-icon": {
+        parameters: {
+            query?: {
+                /** @description The icon's sha256: cacheable forever. */
+                v?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The registry's instance ID. */
+                instanceId: string;
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Icon bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

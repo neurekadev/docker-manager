@@ -95,6 +95,7 @@ export function createStackFromTemplate(
 		name: string;
 		displayName?: string;
 		description?: string;
+		/** The registry (instance ID); empty: this instance. */
 		instanceId?: string;
 		templateId: string;
 		version: number;
@@ -115,4 +116,27 @@ export function fileToBase64(file: Blob): Promise<string> {
 		r.onerror = () => reject(r.error ?? new Error('The file could not be read.'));
 		r.readAsDataURL(file);
 	});
+}
+
+/** Adds another instance's registry (owner). */
+export function addRegistry(url: string, client: ApiClient = api) {
+	return unwrap(client.POST('/api/v1/template-registries', { body: { url } }));
+}
+
+/** Removes an added registry (owner). */
+export async function removeRegistry(instanceId: string, client: ApiClient = api): Promise<void> {
+	await unwrap(
+		client.DELETE('/api/v1/template-registries/{instanceId}', {
+			params: { path: { instanceId } }
+		})
+	);
+}
+
+/** Syncs an added registry now (owner). */
+export function syncRegistry(instanceId: string, client: ApiClient = api) {
+	return unwrap(
+		client.POST('/api/v1/template-registries/{instanceId}/syncs', {
+			params: { path: { instanceId } }
+		})
+	);
 }
