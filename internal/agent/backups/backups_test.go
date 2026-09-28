@@ -769,8 +769,8 @@ func TestBackupExcludeLabel(t *testing.T) {
 		Labels: map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: "dump", protocol.LabelBackupExclude: "true"},
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "app_dbdata", Target: "/dump"}}}, false)
 	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
-	if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceExcluded || s.Reason != labelledContainerReason {
-		t.Errorf("volume of a labelled container: %+v", s)
+	if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceExcluded || s.Reason != labeledContainerReason {
+		t.Errorf("volume of a labeled container: %+v", s)
 	}
 
 	e.eng.AddVolume("cache", map[string]string{protocol.LabelBackupExclude: "True"})
@@ -778,7 +778,7 @@ func TestBackupExcludeLabel(t *testing.T) {
 	write(t, filepath.Join(mp, "x"), "x")
 	e.eng.SetVolumeMountpoint("cache", filepath.ToSlash(mp))
 	p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "cache"}, &repo, false)
-	if s, _ := sourceState(p, protocol.SourceVolume, "cache"); s.State != protocol.SourceExcluded || s.Reason != labelledVolumeReason || p.err == nil {
-		t.Errorf("labelled volume: %+v %v", s, p.err)
+	if s, _ := sourceState(p, protocol.SourceVolume, "cache"); s.State != protocol.SourceExcluded || s.Reason != labeledVolumeReason || p.err == nil {
+		t.Errorf("labeled volume: %+v %v", s, p.err)
 	}
 }

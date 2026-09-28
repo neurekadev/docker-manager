@@ -275,14 +275,14 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 	if listErr != nil {
 		p.warnings = append(p.warnings, "the project's containers could not be listed: "+listErr.Error())
 	}
-	labelled := map[string]bool{}
+	labeled := map[string]bool{}
 	for _, c := range containers {
 		if !protocol.BackupExcluded(c.Labels) {
 			continue
 		}
 		for _, m := range c.Mounts {
 			if m.Type == "volume" && m.Name != "" {
-				labelled[m.Name] = true
+				labeled[m.Name] = true
 			}
 		}
 	}
@@ -294,8 +294,8 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 			ss.State, ss.Reason = protocol.SourceExcluded, "excluded by the policy"
 		case len(it.Rules.VolumeInclude) > 0 && !matches(it.Rules.VolumeInclude, v):
 			ss.State, ss.Reason = protocol.SourceExcluded, "not in the policy's volume selection"
-		case labelled[v.name]:
-			ss.State, ss.Reason = protocol.SourceExcluded, labelledContainerReason
+		case labeled[v.name]:
+			ss.State, ss.Reason = protocol.SourceExcluded, labeledContainerReason
 		default:
 			s.includeVolume(ctx, eng, p, &ss, v.name)
 		}
@@ -316,8 +316,8 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 				ss.State, ss.Reason = protocol.SourceExcluded, "anonymous volumes are off (enable them in the policy)"
 			case slices.Contains(it.Rules.VolumeExclude, m.Name):
 				ss.State, ss.Reason = protocol.SourceExcluded, "excluded by the policy"
-			case labelled[m.Name]:
-				ss.State, ss.Reason = protocol.SourceExcluded, labelledContainerReason
+			case labeled[m.Name]:
+				ss.State, ss.Reason = protocol.SourceExcluded, labeledContainerReason
 			default:
 				s.includeVolume(ctx, eng, p, &ss, m.Name)
 			}
@@ -328,8 +328,8 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 
 // Reasons of volumes left out by the backup exclude label.
 const (
-	labelledContainerReason = "a container using it has the label " + protocol.LabelBackupExclude + "=true"
-	labelledVolumeReason    = "the volume has the label " + protocol.LabelBackupExclude + "=true"
+	labeledContainerReason = "a container using it has the label " + protocol.LabelBackupExclude + "=true"
+	labeledVolumeReason    = "the volume has the label " + protocol.LabelBackupExclude + "=true"
 )
 
 // includeVolume adds a volume's data directory when it is supported and
@@ -346,7 +346,7 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 	}
 	ss.Path = filepath.ToSlash(osPath(v.Mountpoint))
 	if protocol.BackupExcluded(v.Labels) {
-		ss.State, ss.Reason = protocol.SourceExcluded, labelledVolumeReason
+		ss.State, ss.Reason = protocol.SourceExcluded, labeledVolumeReason
 		return
 	}
 	if p.prot != nil {

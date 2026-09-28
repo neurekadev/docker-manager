@@ -157,8 +157,10 @@ func TestMigrationDropsOrphanedBackupIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"gone", "kept"} {
+		// Columns added after the cleanup do not exist yet.
 		r := testRepository(id)
-		if err := InsertBackupRepository(ctx, db, &r, BackupRepositorySealed{}); err != nil {
+		row := fromBackupRepository(&r, BackupRepositorySealed{})
+		if _, err := db.NewInsert().Model(&row).ExcludeColumn("compression").Exec(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}

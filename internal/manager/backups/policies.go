@@ -439,13 +439,13 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 	for _, stack := range stacks {
 		stackNames[stack.Name] = true
 	}
-	managedContainer, labelled := map[string]bool{}, map[string]bool{}
+	managedContainer, labeled := map[string]bool{}, map[string]bool{}
 	for _, container := range containers {
 		if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
 			managedContainer[container.ID] = true
 		}
 		if protocol.BackupExcluded(container.Labels) {
-			labelled[container.ID] = true
+			labeled[container.ID] = true
 		}
 	}
 	excluded := excludedVolumes(p, environmentID)
@@ -456,7 +456,7 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) ||
 			slices.Contains(excluded, volume.Name) || (anonymous && !p.AnonymousVolumes) ||
 			(protocol.IsBuildxVolume(volume.Name) && !p.BuildxVolumes) || protocol.BackupExcluded(volume.Labels) ||
-			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return labelled[ref.ID] }) {
+			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return labeled[ref.ID] }) {
 			continue
 		}
 		out = append(out, volume.Name)

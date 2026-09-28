@@ -726,10 +726,10 @@ func TestRunLimitDefersTheRest(t *testing.T) {
 func TestMaintenanceExcludeLabel(t *testing.T) {
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	r := protocol.PruneRule{Category: protocol.PruneNamedVolumes}
-	labelled := map[string]string{protocol.LabelMaintenanceExclude: "true"}
-	if d, why := ruleDecision(r, "data", []string{"data"}, labelled, now.Add(-365*24*time.Hour), now); d != protocol.PruneExcluded ||
+	labeled := map[string]string{protocol.LabelMaintenanceExclude: "true"}
+	if d, why := ruleDecision(r, "data", []string{"data"}, labeled, now.Add(-365*24*time.Hour), now); d != protocol.PruneExcluded ||
 		!strings.Contains(why, protocol.LabelMaintenanceExclude) {
-		t.Errorf("labelled object: %s %q", d, why)
+		t.Errorf("labeled object: %s %q", d, why)
 	}
 	if d, _ := ruleDecision(r, "data", []string{"data"}, map[string]string{protocol.LabelMaintenanceExclude: "false"}, now.Add(-time.Hour), now); d != protocol.PruneRemove {
 		t.Errorf("label set to false: %s", d)

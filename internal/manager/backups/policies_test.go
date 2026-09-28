@@ -66,11 +66,11 @@ func TestStandaloneVolumesSkipAnonymousAndExcludedVolumes(t *testing.T) {
 	}
 }
 
-// TestStandaloneVolumesSkipLabelledAndBuildxVolumes: the backup exclude
+// TestStandaloneVolumesSkipLabeledAndBuildxVolumes: the backup exclude
 // label on a volume or on a container using it leaves the volume out, and
 // buildx builder volumes (rebuildable build cache) are left out unless the
 // policy includes them.
-func TestStandaloneVolumesSkipLabelledAndBuildxVolumes(t *testing.T) {
+func TestStandaloneVolumesSkipLabeledAndBuildxVolumes(t *testing.T) {
 	ctx := testutil.Context(t)
 	exclude := map[string]string{protocol.LabelBackupExclude: "true"}
 	s := &Service{volumes: fakeVolumes{
