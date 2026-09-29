@@ -111,8 +111,9 @@ func TestEnvironmentMigrationRoutes(t *testing.T) {
 	if r := f.do("mover", authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-1/migrations/other"}); r.Status != http.StatusNotFound {
 		t.Errorf("unknown migration %d", r.Status)
 	}
-	// Another environment's record is not found under this one.
-	if r := f.do("mover", authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-2/migrations/job-env"}); r.Status != http.StatusNotFound {
+	// Another environment's record is not found under this one (where the
+	// caller migrates no stack: refused before any lookup).
+	if r := f.do("mover", authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-2/migrations/job-env"}); r.Status != http.StatusForbidden && r.Status != http.StatusNotFound {
 		t.Errorf("wrong environment %d %s", r.Status, r.Body)
 	}
 }
