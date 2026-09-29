@@ -203,9 +203,10 @@ func (h *environmentMigrationsAPI) available() error {
 	return nil
 }
 
-// source requires a visible source environment and, for previews and
-// starts, stack.migrate on one of its stacks and a visible destination
-// where the caller may create stacks.
+// source requires a visible source environment and stack.migrate on one
+// of its stacks (the answer never depends on whether the service runs),
+// and, for previews and starts, a visible destination where the caller
+// may create stacks.
 func (h *environmentMigrationsAPI) source(ctx context.Context, envID, target string, mutation bool) (*scope, error) {
 	c, p, err := CheckerFor(ctx, h.authz)
 	if err != nil {
@@ -222,12 +223,12 @@ func (h *environmentMigrationsAPI) source(ctx context.Context, envID, target str
 		return nil, Internal(err)
 	}
 	sc := &scope{c: c, p: p, env: env}
+	if !h.migratesAny(ctx, c, env.ID) {
+		return nil, Forbidden("not permitted: " + string(CapStackMigrate))
+	}
 	if mutation {
 		if env.Status == domain.EnvironmentArchived {
 			return nil, Conflict(CodeEnvironmentArchived, "the environment is archived")
-		}
-		if !h.migratesAny(ctx, c, env.ID) {
-			return nil, Forbidden("not permitted: " + string(CapStackMigrate))
 		}
 		if err := requireTarget(target); err != nil {
 			return nil, err

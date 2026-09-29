@@ -670,13 +670,17 @@ func (s *Service) StartVolume(ctx context.Context, p authz.Principal, env, volum
 	return j, m, nil
 }
 
-// ensureRecord inserts the record unless it exists (the executor may have
-// created it first).
+// ensureRecord inserts the record unless it exists: the executor and the
+// request that queued its job may both create it, at the same time.
 func (s *Service) ensureRecord(ctx context.Context, db bun.IDB, m *domain.Migration) error {
 	if _, err := store.GetMigration(ctx, db, m.ID); err == nil {
 		return nil
 	}
-	return store.InsertMigration(ctx, db, m)
+	err := store.InsertMigration(ctx, db, m)
+	if _, gerr := store.GetMigration(ctx, db, m.ID); err != nil && gerr == nil {
+		return nil // the other one created it first
+	}
+	return err
 }
 
 // RemoveSource enqueues stack.remove_source for a completed migration the

@@ -525,11 +525,17 @@ func environmentRecord(id, source string, plan EnvironmentPlan, now time.Time) d
 	return m
 }
 
+// ensureEnvironmentRecord inserts the record unless it exists (the
+// executor and the request that queued its job may both create it).
 func (s *Service) ensureEnvironmentRecord(ctx context.Context, m *domain.EnvironmentMigration) error {
 	if _, err := store.GetEnvironmentMigration(ctx, s.db, m.ID); err == nil {
 		return nil
 	}
-	return store.InsertEnvironmentMigration(ctx, s.db, m)
+	err := store.InsertEnvironmentMigration(ctx, s.db, m)
+	if _, gerr := store.GetEnvironmentMigration(ctx, s.db, m.ID); err != nil && gerr == nil {
+		return nil // the other one created it first
+	}
+	return err
 }
 
 // GetEnvironmentMigration returns an environment migration (with each
