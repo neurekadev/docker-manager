@@ -88,8 +88,9 @@ func TestManagerMoveLocksTheOldManager(t *testing.T) {
 		t.Fatalf("agent session while moved: %d %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 
-	// A restart stays locked.
+	// A restart stays locked (the restarted server has a new address).
 	e.restartManager()
+	owner.base, anon.base = e.srv.URL, e.srv.URL
 	owner.fail(http.StatusConflict, "manager_moved", http.MethodPost, "/api/v1/registries", map[string]any{"name": "x", "host": "registry.example.com"})
 
 	anon.must(http.StatusOK, http.MethodPost, "/api/v1/manager/move/confirm", nil, bearer(code))

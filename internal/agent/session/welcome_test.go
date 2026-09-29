@@ -113,8 +113,21 @@ func runWelcome(t *testing.T, st *state.Store, generation int64) (managerSession
 	case <-time.After(10 * time.Second):
 		t.Fatal("the session did not end")
 	}
-	// The fake clock holds the reconnect backoff: Run waits in it (it did
-	// not stop for good) until canceled.
+	// The manager sees the close before the client reports its end: wait
+	// until it settled (back in the reconnect backoff, or connected when
+	// the manager was accepted and answered). The fake clock holds the
+	// backoff: Run waits in it (it did not stop for good) until canceled.
+	settled := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(states) > 0 && (states[len(states)-1] == session.StateDisconnected || ms.answered)
+	}
+	for end := time.Now().Add(10 * time.Second); !settled(); {
+		if time.Now().After(end) {
+			t.Fatal("the client did not settle after the session ended")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatalf("Run: %v", err)

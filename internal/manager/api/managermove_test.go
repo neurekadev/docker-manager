@@ -25,7 +25,7 @@ func (l fakeMoveLock) ReadOnly() bool { return bool(l) }
 // sign-in, sign-out and the move routes; reads keep working.
 func TestMoveLockRefusesMutations(t *testing.T) {
 	h, _ := newTestAPI(t, Deps{MoveLock: fakeMoveLock(true)})
-	decodeError(t, do(t, h, http.MethodPost, "/api/v1/test/echo", `{"name":"x"}`), http.StatusConflict, CodeManagerMoved)
+	decodeError(t, do(t, h, http.MethodPost, "/api/v1/test/echo", `{"name":"x","count":1}`), http.StatusConflict, CodeManagerMoved)
 	if rec := do(t, h, http.MethodGet, "/api/v1/health", ""); rec.Code != http.StatusOK {
 		t.Fatalf("health while moving: %d", rec.Code)
 	}
@@ -36,7 +36,7 @@ func TestMoveLockRefusesMutations(t *testing.T) {
 		}
 	}
 	open, _ := newTestAPI(t, Deps{MoveLock: fakeMoveLock(false)})
-	if rec := do(t, open, http.MethodPost, "/api/v1/test/echo", `{"name":"x"}`); rec.Code != http.StatusOK {
+	if rec := do(t, open, http.MethodPost, "/api/v1/test/echo", `{"name":"x","count":1}`); rec.Code != http.StatusOK {
 		t.Fatalf("echo without the lock: %d %s", rec.Code, rec.Body)
 	}
 }

@@ -215,9 +215,12 @@ func readPackage(r io.Reader, dir string, progress func(int64)) (Manifest, error
 			manifest = &m
 			continue
 		}
-		if !slices.Contains(packageParts, name) {
+		i := slices.Index(packageParts, name)
+		if i < 0 {
 			return Manifest{}, packageError("unexpected part %q", name)
 		}
+		// The file name comes from the known parts, never from the archive.
+		name = packageParts[i]
 		if _, dup := got[name]; dup {
 			return Manifest{}, packageError("the part %q is repeated", name)
 		}

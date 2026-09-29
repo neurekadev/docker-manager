@@ -51,9 +51,11 @@ func GetInstance(ctx context.Context, db bun.IDB) (domain.Instance, bool, error)
 }
 
 // CreateInstance inserts the instance row. It fails if one already exists.
+// The generation is the column's default (1), so a database migrated only
+// up to an older schema (upgrade tests, snapshots) is written too.
 func CreateInstance(ctx context.Context, db bun.IDB, now time.Time) (domain.Instance, error) {
 	row := instanceRow{Singleton: 1, ID: ids.New(), CreatedAt: now.UTC(), Generation: 1}
-	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
+	if _, err := db.NewInsert().Model(&row).ExcludeColumn("generation").Exec(ctx); err != nil {
 		return domain.Instance{}, fmt.Errorf("store: create instance: %w", err)
 	}
 	return row.toDomain(), nil
