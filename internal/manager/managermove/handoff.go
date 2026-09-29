@@ -2,6 +2,7 @@ package managermove
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,6 +77,36 @@ func (s *Service) authenticate(ctx context.Context, a MoveAuth) (string, string,
 	return p.moveID, string(code), nil
 }
 
+// sameCode reports whether code is still move id's code (under mu). New
+// setup files replace the code: a request signed with the old one that
+// raced the change is refused like any other wrong code.
+func (s *Service) sameCode(ctx context.Context, id, code string) bool {
+	sealed, err := store.ManagerMoveSealedCode(ctx, s.db, id)
+	if err != nil || sealed == "" {
+		return false
+	}
+	cur, err := s.opts.Keyring.Open(sealed, SealContext(id))
+	return err == nil && subtle.ConstantTimeCompare(cur, []byte(code)) == 1
+}
+
+// recordCheckIn records the waiting manager's request on m (under mu) and
+// announces it when the check-in starts counting again or comes from
+// another address (a check-in every 10 s changes nothing else the owner
+// sees).
+func (s *Service) recordCheckIn(ctx context.Context, m *domain.ManagerMove, addr string) error {
+	now, from := s.now(), m.State
+	news := !s.checkInFresh(m.CheckedInAt) || m.HandoffAddress != addr
+	m.CheckedInAt, m.HandoffAddress, m.UpdatedAt = &now, addr, now
+	if err := store.UpdateManagerMove(ctx, s.db, m, from); err != nil {
+		return err
+	}
+	if news {
+		s.publish(m.ID)
+		s.notify() // the Run loop announces when it stops counting
+	}
+	return nil
+}
+
 // clientAddress is the request's client IP ("" unknown).
 func clientAddress(ctx context.Context) string {
 	info, _ := requestinfo.From(ctx)
@@ -104,7 +135,7 @@ func (s *Service) CheckIn(ctx context.Context, a MoveAuth) (CheckIn, error) {
 	if a.Method != http.MethodGet {
 		return CheckIn{}, domain.ErrMoveCodeInvalid
 	}
-	id, _, err := s.authenticate(ctx, a)
+	id, code, err := s.authenticate(ctx, a)
 	if err != nil {
 		return CheckIn{}, err
 	}
@@ -113,6 +144,10 @@ func (s *Service) CheckIn(ctx context.Context, a MoveAuth) (CheckIn, error) {
 		s.mu.Unlock()
 		return CheckIn{}, err
 	}
+	if !s.sameCode(ctx, id, code) {
+		s.mu.Unlock()
+		return CheckIn{}, domain.ErrMoveCodeInvalid
+	}
 	m, err := store.GetManagerMove(ctx, s.db, id)
 	if err != nil {
 		s.mu.Unlock()
@@ -120,9 +155,7 @@ func (s *Service) CheckIn(ctx context.Context, a MoveAuth) (CheckIn, error) {
 	}
 	switch m.State {
 	case domain.MoveOpen, domain.MoveMoving, domain.MoveReady, domain.MoveDraining:
-		now, from := s.now(), m.State
-		m.CheckedInAt, m.HandoffAddress, m.UpdatedAt = &now, clientAddress(ctx), now
-		if err := store.UpdateManagerMove(ctx, s.db, &m, from); err != nil {
+		if err := s.recordCheckIn(ctx, &m, clientAddress(ctx)); err != nil {
 			s.mu.Unlock()
 			return CheckIn{}, err
 		}
@@ -170,22 +203,24 @@ func (s *Service) Handoff(ctx context.Context, a MoveAuth) (*Package, error) {
 		s.mu.Unlock()
 		return nil, err
 	}
+	if !s.sameCode(ctx, id, code) {
+		s.mu.Unlock()
+		return nil, domain.ErrMoveCodeInvalid
+	}
 	m, err := store.GetManagerMove(ctx, s.db, id)
 	if err != nil {
 		s.mu.Unlock()
 		return nil, err
 	}
-	now := s.now()
 	switch m.State {
 	case domain.MoveOpen, domain.MoveMoving, domain.MoveReady, domain.MoveDraining:
 		// The waiting manager checked in.
-		from := m.State
-		m.CheckedInAt, m.HandoffAddress, m.UpdatedAt = &now, addr, now
-		if err := store.UpdateManagerMove(ctx, s.db, &m, from); err != nil {
+		if err := s.recordCheckIn(ctx, &m, addr); err != nil {
 			s.mu.Unlock()
 			return nil, err
 		}
 	}
+	now := s.now()
 	switch m.State {
 	case domain.MoveOpen, domain.MoveMoving:
 		s.mu.Unlock()
@@ -202,6 +237,7 @@ func (s *Service) Handoff(ctx context.Context, a MoveAuth) (*Package, error) {
 		s.opts.Lock.Set(movelock.ReadOnly)
 		s.log.Warn("the new manager asked for the handoff: this manager is read-only while its jobs finish", "move_id", m.ID,
 			"handoff_address", addr)
+		s.published(m, domain.MoveReady)
 		s.notify()
 	case domain.MoveDraining:
 	case domain.MoveHandedOff:
@@ -245,6 +281,7 @@ func (s *Service) Handoff(ctx context.Context, a MoveAuth) (*Package, error) {
 			return nil, err
 		}
 		audit.SetDetail(ctx, "redirectCount", countSent(m.Redirects))
+		s.publish(m.ID)
 	}
 	s.opts.Lock.Set(movelock.AgentsRefused)
 	pkg, err := s.buildPackage(ctx, m, code)
@@ -265,6 +302,7 @@ func (s *Service) Handoff(ctx context.Context, a MoveAuth) (*Package, error) {
 		}
 		return nil, err
 	}
+	s.published(m, domain.MoveDraining)
 	audit.SetDetail(ctx, "state", string(domain.MoveHandedOff))
 	audit.SetDetail(ctx, "generation", s.opts.Instance.Generation+1)
 	s.log.Warn("the manager state was handed to a new manager: agents are refused from now on", "move_id", m.ID,
@@ -473,6 +511,7 @@ func (s *Service) Confirm(ctx context.Context, a MoveAuth) (domain.ManagerMove, 
 		return domain.ManagerMove{}, err
 	}
 	_ = os.RemoveAll(s.outgoingDir(m.ID))
+	s.published(m, domain.MoveHandedOff)
 	s.log.Warn("the new manager confirmed the move: it runs the instance now; this manager stays read-only", "move_id", m.ID)
 	return m, nil
 }

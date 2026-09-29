@@ -177,6 +177,8 @@ func TestEventVisibility(t *testing.T) {
 	group := events.Event{Type: events.ResourceChanged, ResourceType: "group", ResourceID: "g1"}
 	token := events.Event{Type: events.ResourceChanged, ResourceType: "api_token", ResourceID: "t1"}
 	unknown := events.Event{Type: "future.event"}
+	move := events.Event{Type: events.ManagerMoveUpdated, ResourceType: events.ResourceManagerMove, ResourceID: "m1"}
+	moveLock := events.Event{Type: events.ManagerMoveLockChanged, ResourceType: events.ResourceManagerMoveLock, ResourceID: "instance"}
 	cases := []struct {
 		name  string
 		c     authz.Checker
@@ -200,6 +202,8 @@ func TestEventVisibility(t *testing.T) {
 		{"policy change: others", c("allow environment.read @all"), policy, false},
 		{"group change: users", c("allow environment.read @all"), group, false},
 		{"token change: users", c("allow api_tokens.create @all"), token, false},
+		{"manager move: users", c("allow environment.read @all", "allow settings.read @all"), move, false},
+		{"manager move lock: every signed-in user", c(), moveLock, true},
 	}
 	for _, tc := range cases {
 		if got := authz.EventVisible(tc.c, tc.event); got != tc.want {
@@ -207,7 +211,8 @@ func TestEventVisibility(t *testing.T) {
 		}
 	}
 	owner := authz.For(ctx, authztest.New().Owner("o"), principal("o"))
-	if !authz.EventVisible(owner, unknown) || !authz.EventVisible(owner, files) || !authz.EventVisible(owner, group) || !authz.EventVisible(owner, token) {
+	if !authz.EventVisible(owner, unknown) || !authz.EventVisible(owner, files) || !authz.EventVisible(owner, group) || !authz.EventVisible(owner, token) ||
+		!authz.EventVisible(owner, move) || !authz.EventVisible(owner, moveLock) {
 		t.Fatal("owner sees every event")
 	}
 }

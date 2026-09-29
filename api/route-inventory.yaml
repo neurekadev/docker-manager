@@ -2615,6 +2615,15 @@ routes:
     kind: json
     status: implemented
     notes: "Step-up; returns the new server's compose.yaml and .env (move code and enrollment token) once."
+  - method: POST
+    path: /api/v1/manager/move/setup-files
+    operationId: create-manager-move-setup-files
+    capability: owner
+    scope: instance
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Step-up; open or ready move: the new server's files again with a new move code (the previous one stops working) and a new enrollment token unless its agent already enrolled."
   - method: GET
     path: /api/v1/manager/move
     operationId: get-manager-move

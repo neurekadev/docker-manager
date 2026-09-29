@@ -28,7 +28,7 @@
 	import AttentionStrip, { presetFilters } from '$lib/features/dashboard/AttentionStrip.svelte';
 	import EnvironmentCard from '$lib/features/dashboard/EnvironmentCard.svelte';
 	import MoveCompleteCard from '$lib/features/managermove/MoveCompleteCard.svelte';
-	import { moveCompleteDone, oldManagerSettled } from '$lib/features/managermove/model';
+	import { moveCompleteDone } from '$lib/features/managermove/model';
 	import { managerMoveQuery } from '$lib/features/managermove/queries';
 	import {
 		attentionItems,
@@ -64,14 +64,8 @@
 
 	const overview = createQuery(() => ({ ...overviewQuery(), enabled: ready }));
 	// Move complete: the move this manager arrived by (owner only).
-	const move = createQuery(() => ({
-		...managerMoveQuery(),
-		enabled: access.owner,
-		refetchInterval: (q) => {
-			const m = q.state.data;
-			return m?.state === 'arrived' && !oldManagerSettled(m) ? 15_000 : false;
-		}
-	}));
+	// Live events of the move (topic manager) keep it current.
+	const move = createQuery(() => ({ ...managerMoveQuery(), enabled: access.owner }));
 	const arrived = $derived(
 		access.owner && move.data?.state === 'arrived' && !moveCompleteDone(move.data)
 			? move.data

@@ -66,7 +66,7 @@ same change.
 | `invalid_code` | 400 | no | The one-time code (invitation, password reset or owner recovery) is unknown, expired, revoked or already used. The response never says which. | #16 |
 | `unauthenticated` | 401 | no | No valid session cookie or API token; sign in again or send a valid bearer token. | #2 |
 | `invalid_credentials` | 401 | no | Sign-in, second factor or step-up failed: unknown account, wrong password or code, disabled account and bad passkey assertions all look alike. | #16 |
-| `move_code_invalid` | 401 | no | A manager move request is not signed with the move's code, replays a nonce, or names a move that ended (cancelled, expired after seven days); the response never says which. Check `DOCKER_MANAGER_MOVE_CODE` on the new server. | #35 |
+| `move_code_invalid` | 401 | no | A manager move request is not signed with the move's code, replays a nonce, or names a move that ended (cancelled, expired after seven days), or uses a code that new setup files replaced; the response never says which. Check `DOCKER_MANAGER_MOVE_CODE` on the new server (the newest `.env`). | #35 |
 | `move_clock_skew` | 401 | no | A correctly signed manager move request carries a time more than five minutes away from this manager's clock; set both servers' clocks right (NTP). | #35 |
 | `forbidden` | 403 | no | Authenticated, but the named capability is not granted for this resource. Returned only when the caller may know the resource exists; otherwise `not_found`. | #2 |
 | `insecure_origin` | 403 | no | The request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL (first-run setup); the message explains how to fix the proxy or URL. | #16 |
@@ -174,7 +174,7 @@ same change.
 | `manager_moved` | 409 | no | Docker Manager is moving (or moved) to a new server: it is read-only. Every non-GET request except sign-in, sign-out and the move routes is refused; use the new server's manager. | #35 |
 | `jobs_running` | 409 | no | The handoff waits for the jobs still running on the old manager; `Retry-After` says when to ask again and `X-Docker-Manager-Jobs-Running` how many run. | #35 |
 | `manager_move_exists` | 409 | no | A move of this manager is already open or in progress; cancel it before creating another. | #35 |
-| `manager_move_state` | 409 | no | The move is not in a state that allows this (Move everything needs an open or ready move; a confirmed move cannot be cancelled; a confirmation needs a handed-off move). | #35 |
+| `manager_move_state` | 409 | no | The move is not in a state that allows this (Move everything needs an open or ready move; new setup files need an open or ready move; a confirmed move cannot be cancelled; a confirmation needs a handed-off move). | #35 |
 | `manager_move_not_ready` | 409 | no | The handoff waits until Move everything moved the apps; `Retry-After` says when to ask again and `X-Docker-Manager-Move-State`, `X-Docker-Manager-Move-Stacks` and `X-Docker-Manager-Move-Current-Stack` carry the progress. | #35 |
 | `manager_move_new_server_missing` | 409 | no | Move everything needs the new server: its agent connected and its Docker Manager (waiting mode) checked in within two minutes. | #35 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |

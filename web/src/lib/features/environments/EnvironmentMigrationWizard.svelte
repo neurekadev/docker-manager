@@ -10,23 +10,28 @@
 	// moved; EnvironmentMigrationCheck, shared with the manager move),
 	// confirmation, then the environment.migrate job's progress and
 	// each stack's outcome. Moved stacks' old copies stay stopped on the
-	// source until the user removes them (one request per stack, one summary
-	// toast); what did not move can be migrated again. A running migration
-	// of the environment (after a reload, or when the user comes back) opens
-	// the wizard at the move step on its progress (the running list,
-	// docs/internal/web.md "Job progress after reload").
+	// source until the user removes them (one request per stack, followed as
+	// tracked jobs, one summary toast); what did not move can be migrated
+	// again. A running migration of the environment (after a reload, or when
+	// the user comes back) opens the wizard at the move step on its progress
+	// (the running list, docs/internal/web.md "Job progress after reload");
+	// the latest one, once it ended, opens on its result while old copies
+	// wait for their removal or stacks it did not move are still on the
+	// source (restoredMigration), with "Start a new migration".
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import Archive from '@lucide/svelte/icons/archive';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
+	import Plus from '@lucide/svelte/icons/plus';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import type { Environment, Job } from '$lib/api/client';
 	import { containersQuery, environmentsQuery } from '$lib/api/queries';
+	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
-	import { bulkSummary } from '$lib/features/resources/bulk';
+	import { bulkSummary, type BulkOutcome } from '$lib/features/resources/bulk';
 	import { count, migrationTargets, toggled } from '$lib/features/stacks/migration';
 	import { downtimeText, stackTitle } from '$lib/features/stacks/model';
 	import { stackKeys, stacksQuery } from '$lib/features/stacks/queries';
@@ -46,6 +51,7 @@
 		StepWizard,
 		errorView,
 		formatBytes,
+		formatRelative,
 		toast,
 		type WizardStep
 	} from '$lib/ui';
@@ -59,24 +65,37 @@
 		environmentMigrationMatch,
 		everyStackMoved,
 		finishToast,
+		jobStackIds,
+		migrationEnded,
 		migrationOutcome,
 		moveState,
 		oldCopies,
+		oldCopyRemovalMatch,
+		oldCopyState,
 		ownStackIds,
+		pendingCopies,
+		restoredMigration,
+		resultNotice,
 		stackChoices,
+		stacksLeft,
 		warningCount,
 		withOwnFromCheck,
 		type EnvironmentMigration,
 		type EnvironmentMigrationPreview,
 		type EnvironmentMigrationSelection,
+		type OldCopy,
 		type TitleOf
 	} from './environment-migration';
 	import {
 		previewEnvironmentMigration,
-		removeOldCopies,
-		startEnvironmentMigration
+		startEnvironmentMigration,
+		startOldCopyRemovals
 	} from './migration-actions';
-	import { environmentMigrationQuery } from './queries';
+	import {
+		environmentMigrationKeys,
+		environmentMigrationQuery,
+		environmentMigrationsQuery
+	} from './queries';
 
 	interface Props {
 		/** The environment whose stacks move (the source). */
@@ -103,6 +122,11 @@
 	const choices = $derived(stackChoices(stacks.data ?? [], source, ownAll));
 	const movable = $derived(choices.filter((c) => !c.blocked).length);
 
+	// The latest migrations away from this environment: the ended one the
+	// page opens on, and the old copies of every ended one. Keyed under the
+	// jobs list, so a removal or a stack migration ending refreshes it.
+	const recent = createQuery(() => environmentMigrationsQuery(source));
+
 	// The titles of the stacks seen: moved stacks leave the source's list.
 	let titles = $state<Record<string, string>>({});
 	$effect(() => {
@@ -113,6 +137,8 @@
 		});
 	});
 	const titleOf: TitleOf = (id, name) => titles[id] ?? name;
+	const onSource = (id: string) =>
+		(stacks.data ?? []).some((s) => s.id === id && s.environmentId === source);
 
 	const others = $derived(migrationTargets(envs.data, source));
 	const destOptions = $derived(destinationOptions(others));
@@ -129,6 +155,8 @@
 	let acknowledged = $state(false);
 	let jobId = $state<string | null>(null);
 	let finished = $state<Job | null>(null);
+	// The run shown ended before the page opened: its result, no toast.
+	let restored = $state(false);
 
 	// One destination online: nothing to choose.
 	$effect(() => {
@@ -154,7 +182,8 @@
 	});
 
 	function resume(job: Job) {
-		if (jobId || starting || shown.has(job.id)) return;
+		// A restored result gives way to a migration started since.
+		if ((jobId && !restored) || starting || shown.has(job.id)) return;
 		follow(job.id);
 		current = steps.length - 1;
 	}
@@ -163,22 +192,54 @@
 		shown.add(id);
 		jobId = id;
 		finished = null;
+		restored = false;
 		release?.();
 		release = criticalWork.register('other', `Migration of ${environment.name}`);
 	}
 
 	onDestroy(() => release?.());
 
-	// The run's record: where it goes (after a reload) and each stack's state.
+	// The ended run to open on, decided once when the list first answers
+	// (a later refresh never takes the user away from a new migration).
+	let decided = false;
+	$effect.pre(() => {
+		const items = recent.data;
+		if (decided || !items || !stacks.data) return;
+		untrack(() => {
+			decided = true;
+			if (jobId || starting || current !== 0) return;
+			const r = restoredMigration(items, onSource);
+			if (r) restore(r);
+		});
+	});
+
+	function restore(r: EnvironmentMigration) {
+		shown.add(r.id);
+		queryClient.setQueryData(environmentMigrationKeys.record(r.id), r);
+		jobId = r.id;
+		finished = null;
+		restored = true;
+		current = steps.length - 1;
+	}
+
+	// The run's record: where it goes (after a reload) and each stack's
+	// state. The list, refreshed by every job event, is the fresher copy
+	// once it has the run ended (or while it runs).
 	const record = createQuery(() => ({
 		...environmentMigrationQuery(source, jobId ?? ''),
 		enabled: !!jobId
 	}));
-	const rec = $derived<EnvironmentMigration | undefined>(
-		jobId && record.data?.id === jobId ? record.data : undefined
-	);
-	const dest = $derived(target || rec?.targetEnvironmentId || '');
+	const rec = $derived.by<EnvironmentMigration | undefined>(() => {
+		if (!jobId) return undefined;
+		const listed = recent.data?.find((r) => r.id === jobId);
+		if (listed && (migrationEnded(listed) || !finished)) return listed;
+		return record.data?.id === jobId ? record.data : listed;
+	});
+	// A run goes where its record says (the picker may hold another choice).
+	const dest = $derived((jobId && rec?.targetEnvironmentId) || target || '');
 	const destName = $derived(dest ? envName(dest) : 'the other environment');
+	// The run shown has ended (this page saw it end, or it had before).
+	const ended = $derived(!!finished || restored);
 
 	const steps: WizardStep[] = [
 		{
@@ -275,9 +336,11 @@
 
 	async function done(job: Job) {
 		finished = job;
+		if (restored) return; // it ended before the page opened: no toast
 		runs.markFinished(job);
 		release?.();
 		release = null;
+		void queryClient.invalidateQueries({ queryKey: environmentMigrationKeys.list(source) });
 		void queryClient.invalidateQueries({ queryKey: stackKeys.all });
 		void queryClient.invalidateQueries({ queryKey: ['overview'] });
 		let r: EnvironmentMigration | undefined;
@@ -299,37 +362,130 @@
 		});
 	}
 
-	// After a run that left stacks on the source: check again for the rest.
-	async function migrateRest() {
-		target = dest;
+	// Leaves the result for a new run (the run stays in the list).
+	function leaveResult() {
 		jobId = null;
 		finished = null;
+		restored = false;
 		acknowledged = false;
 		preview = null;
 		checkError = null;
 		deselected = [];
-		removal = 'idle';
+	}
+
+	// The step the user was sent to gets the focus (the button they pressed
+	// is gone).
+	async function focusStep() {
+		await tick();
+		document.getElementById('wizard-step-title')?.focus();
+	}
+
+	// After a run that left stacks on the source: check again for the rest.
+	async function migrateRest() {
+		const to = dest;
+		leaveResult();
+		target = to;
 		await queryClient.invalidateQueries({ queryKey: stackKeys.list(source) });
 		current = 1;
+		void focusStep();
 		checkAgain();
 	}
 
-	// The old copies of the moved stacks, stopped on the source.
-	let removing = $state(false);
-	let removal = $state<'idle' | 'running' | 'done'>('idle');
-	const outcome = $derived(rec ? migrationOutcome(rec) : null);
-	const copies = $derived(rec ? oldCopies(rec, titleOf) : []);
+	// From a result: a new migration from the first step.
+	function startNew() {
+		leaveResult();
+		target = '';
+		current = 0;
+		void queryClient.invalidateQueries({ queryKey: stackKeys.list(source) });
+		void focusStep();
+	}
 
-	function removeCopies() {
-		const list = copies;
-		removal = 'running';
-		void removeOldCopies(list).then((o) => {
-			removal = 'done';
-			const s = bulkSummary('remove', { one: 'old copy', many: 'old copies' }, o);
-			const title = o.succeeded.length ? `${s.title} from ${environment.name}` : s.title;
-			toast[s.tone](title, s.body ? { body: s.body } : undefined);
-			void queryClient.invalidateQueries({ queryKey: stackKeys.all });
-		});
+	const outcome = $derived(rec ? migrationOutcome(rec) : null);
+	// This run's stacks still on the source (not those moved since).
+	const left = $derived(rec ? stacksLeft(rec, onSource) : []);
+
+	// The old copies of the moved stacks, stopped on the source: this run's
+	// and earlier runs' (one per stack). Their removals are tracked jobs, so
+	// a reload finds them again; a copy being removed is not offered again.
+	const removals = useTrackedJobs(() => oldCopyRemovalMatch(source));
+	const beingRemoved = $derived(
+		removals.entries.filter((e) => e.active).flatMap((e) => jobStackIds(e.job))
+	);
+	const allCopies = $derived.by<OldCopy[]>(() => {
+		// This run as the wizard knows it (the list may not have its end yet).
+		const mine = rec && ended ? oldCopies(rec, titleOf) : [];
+		const earlier = pendingCopies(
+			(recent.data ?? []).filter((r) => r.id !== rec?.id),
+			titleOf
+		).filter((c) => !mine.some((m) => m.stackId === c.stackId));
+		return [...mine, ...earlier];
+	});
+	const copies = $derived(allCopies.filter((c) => !beingRemoved.includes(c.stackId)));
+	const notice = $derived(
+		outcome
+			? resultNotice(outcome.moved.length, allCopies.length, {
+					source: sourceName,
+					destination: destName
+				})
+			: null
+	);
+	// Names of the stacks of the listed runs (a removal names its stack).
+	const recordNames = $derived<Record<string, string>>(
+		Object.fromEntries(
+			(recent.data ?? []).flatMap((r) => r.stacks.map((st) => [st.stackId, st.name]))
+		)
+	);
+
+	let removing = $state(false);
+	// The removals started together, for their one summary toast (a reload
+	// loses the toast, not the removals: they stay tracked jobs).
+	interface RemovalBatch {
+		/** Job IDs still running, each with its copy's title. */
+		open: Record<string, string>;
+		outcome: BulkOutcome;
+	}
+	let batch: RemovalBatch | null = null;
+
+	async function removeCopies() {
+		const { started, refused } = await startOldCopyRemovals(copies);
+		for (const { copy, job } of started) removals.add(job, removalTitle(copy.title));
+		batch = {
+			open: Object.fromEntries(started.map((st) => [st.job.id, st.copy.title])),
+			outcome: { succeeded: [], failed: refused.map((c) => c.title), refused: [], skipped: 0 }
+		};
+		if (!started.length) summarize();
+		void queryClient.invalidateQueries({ queryKey: environmentMigrationKeys.list(source) });
+	}
+
+	const removalTitle = (title: string) => `Remove the old copy of ${title}`;
+
+	function removalJobTitle(job: Job): string | undefined {
+		const id = jobStackIds(job)[0];
+		if (!id) return undefined;
+		return removalTitle(titleOf(id, recordNames[id] ?? 'a stack'));
+	}
+
+	function removalEnded(job: Job) {
+		void queryClient.invalidateQueries({ queryKey: environmentMigrationKeys.list(source) });
+		if (jobId)
+			void queryClient.invalidateQueries({
+				queryKey: environmentMigrationKeys.record(jobId)
+			});
+		void queryClient.invalidateQueries({ queryKey: stackKeys.all });
+		const title = batch?.open[job.id];
+		if (!batch || title === undefined) return;
+		(job.state === 'succeeded' ? batch.outcome.succeeded : batch.outcome.failed).push(title);
+		delete batch.open[job.id];
+		if (!Object.keys(batch.open).length) summarize();
+	}
+
+	function summarize() {
+		if (!batch) return;
+		const o = batch.outcome;
+		batch = null;
+		const s = bulkSummary('remove', { one: 'old copy', many: 'old copies' }, o);
+		const title = o.succeeded.length ? `${s.title} from ${environment.name}` : s.title;
+		toast[s.tone](title, s.body ? { body: s.body } : undefined);
 	}
 
 	const canAdvance = $derived.by(() => {
@@ -341,9 +497,27 @@
 			case 'confirm':
 				return acknowledged;
 			case 'move':
-				return !!finished;
+				return ended;
 		}
 		return true;
+	});
+	// Why Next is off (its tooltip).
+	const disabledReason = $derived.by(() => {
+		switch (steps[current].id) {
+			case 'destination':
+				if (!environment.online)
+					return `${sourceName} is offline: the check needs it online.`;
+				if (!target) return 'Choose the destination environment first.';
+				return 'Choose at least one stack to migrate.';
+			case 'check':
+				if (checking || !preview) return 'Wait for the check to finish.';
+				return 'Fix the problems first, then check again.';
+			case 'confirm':
+				return 'Tick the box above to confirm first.';
+			case 'move':
+				return 'Wait for the migration to finish.';
+		}
+		return undefined;
 	});
 	const nextLabel = $derived(
 		steps[current].id === 'destination'
@@ -483,40 +657,45 @@
 		</div>
 	{:else if s.id === 'move' && jobId}
 		<div class="move">
-			<JobProgress
-				{jobId}
-				title={dest ? `Migrate ${sourceName} to ${destName}` : `Migrate ${sourceName}`}
-				onfinish={done}
-			/>
-			{#if finished}
+			{#if restored && rec}
+				<p class="muted">
+					This migration ended {formatRelative(rec.finishedAt ?? rec.updatedAt)}. What it
+					left to do is below.
+				</p>
+			{/if}
+			{#key jobId}
+				<JobProgress
+					{jobId}
+					title={dest ? `Migrate ${sourceName} to ${destName}` : `Migrate ${sourceName}`}
+					onfinish={done}
+					notices={restored ? null : undefined}
+				/>
+			{/key}
+			{#if ended}
 				{#if rec && outcome}
 					<section aria-labelledby="result-title">
 						<h3 id="result-title" class="subsection-title">Stacks</h3>
 						<ul class="result" role="list">
 							{#each rec.stacks as st (st.stackId)}
 								{@const ms = moveState(st.state)}
+								{@const copy = oldCopyState(st)}
 								<li>
 									<a href={routes.stack(st.stackId)}
 										>{titleOf(st.stackId, st.name)}</a
 									>
-									<Badge tone={ms.tone} dot>{ms.label}</Badge>
+									<span class="outcome">
+										{#if copy}<span class="muted caption">{copy}</span>{/if}
+										<Badge tone={ms.tone} dot>{ms.label}</Badge>
+									</span>
 								</li>
 							{/each}
 						</ul>
 					</section>
-					{#if outcome.moved.length}
-						<Notice
-							tone="info"
-							title="{count(outcome.moved.length, 'stack')} {outcome.moved.length ===
-							1
-								? 'runs'
-								: 'run'} on {destName} now."
-							live="none"
-						>
-							Their old copies on {sourceName} are stopped and kept. Remove them once you
-							are sure.
+					{#if notice}
+						<Notice tone="info" title={notice.title} live="none">
+							{notice.body}
 							{#snippet actions()}
-								{#if copies.length && removal === 'idle'}
+								{#if copies.length && !removals.busy}
 									<Button
 										size="sm"
 										variant="danger-soft"
@@ -524,36 +703,54 @@
 										onclick={() => (removing = true)}
 										>Remove old copies from {sourceName}</Button
 									>
-								{:else if removal === 'running'}
-									<span class="muted" role="status">Removing the old copies…</span
-									>
 								{/if}
 							{/snippet}
 						</Notice>
 					{/if}
-					{#if outcome.left.length}
+					<ActiveJobs
+						jobs={removals}
+						variant="inline"
+						titleOf={removalJobTitle}
+						onfinish={removalEnded}
+						label="Removing old copies"
+					/>
+					{#if left.length || everyStackMoved(rec) || movable}
 						<div class="again">
-							<p class="muted">
-								{count(outcome.left.length, 'stack')}
-								{outcome.left.length === 1 ? 'is' : 'are'} still on {sourceName}.
-								Fix the cause above, then migrate the rest.
-							</p>
-							<Button icon={ArrowRightLeft} onclick={migrateRest}
-								>Migrate the rest</Button
-							>
-						</div>
-					{:else if everyStackMoved(rec)}
-						<div class="again">
-							<p class="muted">
-								Every stack moved. Archive {sourceName} from its page once you no longer
-								need it.
-							</p>
-							<Button icon={Archive} href={routes.environment(source)}
-								>Archive {sourceName}</Button
-							>
+							{#if left.length}
+								<p class="muted">
+									{count(left.length, 'stack')}
+									{left.length === 1 ? 'is' : 'are'} still on {sourceName}. Fix
+									the cause above, then migrate the rest.
+								</p>
+							{:else if everyStackMoved(rec) && !movable}
+								<p class="muted">
+									Every stack moved. Archive {sourceName} from its page once you no
+									longer need it.
+								</p>
+							{:else}
+								<p class="muted">
+									{sourceName} still has {count(movable, 'stack')} you can migrate.
+								</p>
+							{/if}
+							<div class="buttons">
+								{#if left.length}
+									<Button icon={ArrowRightLeft} onclick={migrateRest}
+										>Migrate the rest</Button
+									>
+								{:else if everyStackMoved(rec) && !movable}
+									<Button icon={Archive} href={routes.environment(source)}
+										>Archive {sourceName}</Button
+									>
+								{/if}
+								{#if movable}
+									<Button icon={Plus} onclick={startNew}
+										>Start a new migration</Button
+									>
+								{/if}
+							</div>
 						</div>
 					{/if}
-				{:else if record.isError}
+				{:else if record.isError && !rec}
 					<ErrorState
 						error={record.error}
 						title="The outcome of each stack could not be loaded."
@@ -569,7 +766,7 @@
 	{/if}
 {/snippet}
 
-{#if envs.isPending || stacks.isPending}
+{#if envs.isPending || stacks.isPending || recent.isPending}
 	<div aria-busy="true"><Skeleton lines={5} /></div>
 {:else if envs.isError && !envs.data}
 	<ErrorState
@@ -620,6 +817,7 @@
 		{step}
 		{onnext}
 		{canAdvance}
+		{disabledReason}
 		canGoBack={!jobId}
 		{nextLabel}
 		finishLabel="Back to {sourceName}"
@@ -684,6 +882,24 @@
 		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-sm);
+	}
+
+	.outcome {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: var(--space-3);
+	}
+
+	.caption {
+		font-size: var(--text-caption);
+	}
+
+	.buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
 	}
 
 	.again {

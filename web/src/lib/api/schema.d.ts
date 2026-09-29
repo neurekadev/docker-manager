@@ -1732,7 +1732,7 @@ export interface paths {
         };
         /**
          * List environment migrations
-         * @description The latest migrations away from the environment (at most 20, newest first), with each stack the caller can see and its state.
+         * @description The latest migrations away from the environment (at most 20, newest first), with each stack the caller can see and its state. Readable with stack.migrate on a stack of the environment, or on one of a migration's stacks where it is now (after every stack moved away).
          */
         get: operations["list-environment-migrations"];
         put?: never;
@@ -1756,7 +1756,7 @@ export interface paths {
         };
         /**
          * Get an environment migration
-         * @description An environment migration's groups, each stack the caller can see with its stack migration and state, and the networks created on the destination.
+         * @description An environment migration's groups, each stack the caller can see with its stack migration and state, and the networks created on the destination. Readable with stack.migrate on a stack of the environment, or on one of its stacks where it is now.
          */
         get: operations["get-environment-migration"];
         put?: never;
@@ -2980,6 +2980,26 @@ export interface paths {
          * @description Queues manager.move (202 + job): an environment migration of every stack of the environment next to this manager to the new server's environment, then the move is ready and the new manager gets the handoff when it asks next. Needs an open or ready move whose new server's agent is connected and whose new manager checked in (409 manager_move_new_server_missing); a move that is already moving answers 409 manager_move_state. When the migration does not complete the move stays open; run it again to move what is left. Requires a recent step-up. Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-manager-move-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manager/move/setup-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create new setup files for the new server
+         * @description Returns the new server's compose.yaml and .env again (the same shape as the move's creation, once) with a new move code: the previous code stops working at once (a new manager started with the previous .env is refused with move_code_invalid). Unless the new server's agent already enrolled, the previous enrollment token is revoked and the .env carries a new one (24 hours); when it enrolled, its environment is kept and the .env has no enrollment token (agentEnrolled: the agent keeps its credential in its volume; replace the .env in the same folder and run docker compose up -d). The last check-in is forgotten: the new manager checks in again with the new code. Allowed while the move is open or ready; 409 manager_move_state while the apps move (the new server's agent would restart) and from the handoff on; 404 without a move. The move's expiry does not change. Requires a recent step-up. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-manager-move-setup-files"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7264,6 +7284,8 @@ export interface components {
             repository: components["schemas"]["BackupRepository"];
         };
         CreatedManagerMove: {
+            /** @description New setup files: the new server's agent already enrolled, so the .env has no enrollment token (the agent keeps its credential in its volume: replace the .env in the same folder and run docker compose up -d). Always false on creation. */
+            agentEnrolled: boolean;
             /** @description The new server's compose.yaml (no secrets). */
             composeYaml: string;
             /** @description The new server's .env: it carries the move code and the agent's enrollment token. Shown once; never stored in clear, logged or shown again. */
@@ -8775,7 +8797,7 @@ export interface components {
             at: string;
             environmentId?: string;
             /**
-             * @description Resource type (for example container, stack, backup_policy, inventory, metrics). On the metrics topic: metrics (new stored samples: charts and current values) or live_metrics (new current CPU and memory, about once a second while a stream is open: only the current values).
+             * @description Resource type (for example container, stack, backup_policy, inventory, metrics). On the metrics topic: metrics (new stored samples: charts and current values) or live_metrics (new current CPU and memory, about once a second while a stream is open: only the current values). On the manager topic: manager_move (the owner's move to a new server changed: GET /manager/move) or manager_move_lock (the move lock of GET /auth/session changed; every signed-in user, resourceId instance).
              * @example container
              */
             kind: string;
@@ -9113,7 +9135,7 @@ export interface components {
              */
             checkedInAt?: string;
             /**
-             * @description The new server's enrollment token (24 hours; expired: cancel the move and start again).
+             * @description The new server's enrollment token (24 hours; expired: create new setup files).
              * @enum {string}
              */
             enrollmentState?: "pending" | "used" | "expired" | "revoked";
@@ -26217,6 +26239,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Error"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -26485,6 +26516,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -36418,6 +36458,156 @@ export interface operations {
             };
         };
     };
+    "create-manager-move-setup-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "agentEnrolled": false,
+                     *       "composeYaml": "example",
+                     *       "env": "example",
+                     *       "move": {
+                     *         "arrivedAt": "2026-09-25T12:00:00Z",
+                     *         "confirmAcknowledgedAt": "2026-09-25T12:00:00Z",
+                     *         "confirmAttempts": 1,
+                     *         "confirmError": "unreachable",
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "drainingAt": "2026-09-25T12:00:00Z",
+                     *         "endedAt": "2026-09-25T12:00:00Z",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "handedOffAt": "2026-09-25T12:00:00Z",
+                     *         "handoffAddress": "192.168.1.20",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000035",
+                     *         "jobsRunning": 0,
+                     *         "lastConfirmAt": "2026-09-25T12:00:00Z",
+                     *         "newServer": {
+                     *           "checkedInAt": "2026-09-25T12:00:00Z",
+                     *           "enrollmentState": "pending",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "192.168.1.20",
+                     *           "managerCheckedIn": false,
+                     *           "online": false
+                     *         },
+                     *         "newServerAddress": "192.168.1.20:8080",
+                     *         "oldEnvironment": {
+                     *           "archived": false,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "migrationId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "online": false,
+                     *           "stackCount": 1,
+                     *           "stoppedCopies": 1
+                     *         },
+                     *         "oldManagerConfirmed": false,
+                     *         "progress": {
+                     *           "currentStack": "example",
+                     *           "errorCode": "manager_move_apps_not_moved",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "jobState": "queued",
+                     *           "migrationId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "recovery": "example",
+                     *           "stacksMoved": 1,
+                     *           "stacksTotal": 1
+                     *         },
+                     *         "readyAt": "2026-09-25T12:00:00Z",
+                     *         "redirects": [
+                     *           {
+                     *             "connected": false,
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "environmentName": "nas",
+                     *             "errorCode": "offline",
+                     *             "needsFix": false,
+                     *             "role": "new_server",
+                     *             "sent": false,
+                     *             "url": "http://192.168.1.20:8080"
+                     *           }
+                     *         ],
+                     *         "sourceEnvironment": {
+                     *           "environmentId": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "name": "old-server",
+                     *           "online": false,
+                     *           "stackCount": 1
+                     *         },
+                     *         "sourceUrl": "http://192.168.1.10:8080",
+                     *         "state": "open",
+                     *         "statusUrl": "http://192.168.1.20:8080",
+                     *         "thisServerAddress": "192.168.1.10:8080"
+                     *       },
+                     *       "statusUrl": "http://192.168.1.20:8080"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CreatedManagerMove"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "create-manager-move": {
         parameters: {
             query?: never;
@@ -36446,6 +36636,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "agentEnrolled": false,
                      *       "composeYaml": "example",
                      *       "env": "example",
                      *       "move": {

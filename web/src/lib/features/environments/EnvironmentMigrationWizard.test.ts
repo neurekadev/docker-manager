@@ -2,9 +2,12 @@
 // Manager's own stack off), the check with the move order and what is not
 // moved, a running migration of the environment reopening the wizard at
 // the move step after a reload (docs/internal/web.md, "Job progress after
-// reload"), and the empty state with a single environment.
+// reload"), the latest ended migration's result restored while it left
+// something to do (old copies to remove, stacks to migrate), the removal of
+// the old copies as tracked jobs, Next's reason while it is off, and the
+// empty state with a single environment.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
@@ -37,10 +40,10 @@ const env = (id: string, name: string, online = true) => ({
 	actions: []
 });
 
-const stack = (id: string, name: string) => ({
+const stack = (id: string, name: string, environmentId = 'env-1') => ({
 	id,
 	name,
-	environmentId: 'env-1',
+	environmentId,
 	status: 'deployed',
 	view: 'full',
 	actions: ['stack.migrate']
@@ -111,6 +114,16 @@ const record: EnvironmentMigration = {
 	updatedAt: '2026-09-29T10:00:00Z'
 };
 
+function removal(state: Job['state']): Job {
+	return migration({
+		id: 'rm-1',
+		kind: 'stack.remove_source',
+		state,
+		targets: [{ type: 'stack', id: 'st-1' }],
+		progress: { percent: state === 'succeeded' ? 100 : 0 }
+	});
+}
+
 function migration(p: Partial<Job> = {}): Job {
 	return {
 		id: 'job-e',
@@ -137,14 +150,40 @@ function migration(p: Partial<Job> = {}): Job {
 	} as Job;
 }
 
+// The latest migration, ended: proxy moved (its old copy still on
+// homelab), app did not and is still there.
+const endedRecord = (removed = false): EnvironmentMigration => ({
+	...record,
+	state: 'failed',
+	stacks: [
+		{
+			stackId: 'st-1',
+			name: 'proxy',
+			state: 'moved',
+			migrationId: 'm-1',
+			sourceRemoved: removed || undefined
+		},
+		{ stackId: 'st-2', name: 'app', state: 'failed', migrationId: 'm-2' }
+	],
+	finishedAt: '2026-09-29T10:05:00Z'
+});
+
 let environments: unknown[] = [];
 let running: Job[] = [];
 let previews: unknown[] = [];
+let stacks: unknown[] = [];
+let recent: EnvironmentMigration[] = [];
+let jobState: Job['state'] = 'running';
+let removals: string[] = [];
 
 beforeEach(() => {
 	environments = [env('env-1', 'homelab'), env('env-2', 'nas'), env('env-3', 'lab', false)];
 	running = [];
 	previews = [];
+	stacks = [stack('st-1', 'proxy'), stack('st-2', 'app'), stack('st-dm', 'docker-manager')];
+	recent = [];
+	jobState = 'running';
+	removals = [];
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -155,14 +194,7 @@ beforeEach(() => {
 			});
 		const path = url.pathname;
 		if (path === '/api/v1/environments') return json(200, { items: environments });
-		if (path === '/api/v1/stacks')
-			return json(200, {
-				items: [
-					stack('st-1', 'proxy'),
-					stack('st-2', 'app'),
-					stack('st-dm', 'docker-manager')
-				]
-			});
+		if (path === '/api/v1/stacks') return json(200, { items: stacks });
 		if (path === '/api/v1/environments/env-1/containers')
 			return json(200, {
 				items: [
@@ -184,8 +216,22 @@ beforeEach(() => {
 			return json(200, preview);
 		}
 		if (path === '/api/v1/jobs') return json(200, { items: running, total: running.length });
-		if (path === '/api/v1/jobs/job-e') return json(200, migration());
-		if (path === '/api/v1/environments/env-1/migrations/job-e') return json(200, record);
+		if (path === '/api/v1/jobs/job-e') return json(200, migration({ state: jobState }));
+		if (path === '/api/v1/environments/env-1/migrations') return json(200, { items: recent });
+		if (path === '/api/v1/environments/env-1/migrations/job-e')
+			return json(200, recent[0] ?? record);
+		if (
+			req.method === 'POST' &&
+			path === '/api/v1/stacks/st-1/migrations/m-1/source-removals'
+		) {
+			removals.push('st-1/m-1');
+			return json(202, removal('queued'));
+		}
+		if (path === '/api/v1/jobs/rm-1') {
+			// The removal ended: the record says so from now on.
+			recent = [endedRecord(true)];
+			return json(200, removal('succeeded'));
+		}
 		return json(404, {
 			code: 'not_found',
 			message: 'no',
@@ -255,6 +301,116 @@ describe('EnvironmentMigrationWizard', () => {
 		).toBeInTheDocument();
 		expect(screen.getByRole('heading', { level: 2, name: 'Move' })).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+	});
+
+	it('opens on the result of the latest ended migration while it left something to do', async () => {
+		recent = [endedRecord()];
+		jobState = 'failed';
+		stacks = [
+			stack('st-1', 'proxy', 'env-2'),
+			stack('st-2', 'app'),
+			stack('st-dm', 'docker-manager')
+		];
+		wizard();
+
+		expect(await screen.findByRole('heading', { level: 2, name: 'Move' })).toBeInTheDocument();
+		expect(screen.getByText(/This migration ended/)).toBeInTheDocument();
+		const rows = within(screen.getByRole('region', { name: 'Stacks' }));
+		const proxy = rows.getByRole('link', { name: 'proxy' }).closest('li') as HTMLElement;
+		expect(within(proxy).getByText('Moved')).toBeInTheDocument();
+		expect(within(proxy).getByText('Old copy kept')).toBeInTheDocument();
+		const app = rows.getByRole('link', { name: 'app' }).closest('li') as HTMLElement;
+		expect(within(app).getByText('Did not move')).toBeInTheDocument();
+
+		expect(screen.getByText('1 stack runs on nas now.')).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				'Its old copy on homelab is stopped and kept. Remove it once you are sure.'
+			)
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole('button', { name: 'Remove old copies from homelab' })
+		).toBeInTheDocument();
+		expect(screen.getByText(/1 stack is still on homelab\./)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Migrate the rest' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Start a new migration' })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Back to homelab' })).toBeEnabled()
+		);
+		// It ended before the page opened: no toast about it.
+		expect(screen.queryByText('app did not move to nas')).toBeNull();
+	});
+
+	it('starts a new migration from a restored result, focus on the first step', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		recent = [endedRecord()];
+		jobState = 'failed';
+		stacks = [stack('st-1', 'proxy', 'env-2'), stack('st-2', 'app')];
+		wizard();
+
+		await user.click(await screen.findByRole('button', { name: 'Start a new migration' }));
+
+		const heading = await screen.findByRole('heading', { level: 2, name: 'Destination' });
+		await waitFor(() => expect(heading).toHaveFocus());
+		expect(screen.getByRole('checkbox', { name: 'app' })).toBeChecked();
+		expect(screen.queryByRole('checkbox', { name: 'proxy' })).toBeNull();
+	});
+
+	it('removes the old copies as tracked jobs and shows the result from the record', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		recent = [endedRecord()];
+		jobState = 'failed';
+		stacks = [stack('st-1', 'proxy', 'env-2'), stack('st-2', 'app')];
+		wizard();
+
+		await user.click(
+			await screen.findByRole('button', { name: 'Remove old copies from homelab' })
+		);
+		const dialog = await screen.findByRole('alertdialog', {
+			name: 'Remove the old copies from homelab?'
+		});
+		await user.type(
+			within(dialog).getByRole('textbox', { name: 'Type homelab to confirm' }),
+			'homelab'
+		);
+		await user.click(within(dialog).getByRole('button', { name: 'Remove old copies' }));
+
+		expect(await screen.findByText('Removed 1 old copy from homelab')).toBeInTheDocument();
+		expect(removals).toEqual(['st-1/m-1']);
+		expect(
+			within(screen.getByRole('region', { name: 'Removing old copies' })).getAllByText(
+				/Remove the old copy of proxy/
+			).length
+		).toBeGreaterThan(0);
+		// The record now says the copy is gone.
+		expect(await screen.findByText('Old copy removed')).toBeInTheDocument();
+		expect(screen.getByText('Its old copy was removed from homelab.')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Remove old copies from homelab' })).toBeNull();
+	});
+
+	it('starts a new migration when the latest one left nothing to do', async () => {
+		const moved = endedRecord(true);
+		recent = [{ ...moved, state: 'completed', stacks: [moved.stacks[0]] }];
+		stacks = [stack('st-1', 'proxy', 'env-2'), stack('st-2', 'app')];
+		wizard();
+
+		expect(
+			await screen.findByRole('heading', { level: 2, name: 'Destination' })
+		).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Start a new migration' })).toBeNull();
+	});
+
+	it('says why Next is off', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		stacks = [stack('st-2', 'app')];
+		wizard();
+
+		const next = await screen.findByRole('button', { name: 'Check migration' });
+		await waitFor(() => expect(next).toBeEnabled());
+		await user.click(screen.getByRole('checkbox', { name: 'app' }));
+		expect(next).toBeDisabled();
+		expect(next).toHaveAttribute('title', 'Choose at least one stack to migrate.');
 	});
 
 	it('says a second environment is needed when there is only one', async () => {

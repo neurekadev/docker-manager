@@ -47,6 +47,7 @@ const capManagerMove = "manager.move"
 type ManagerMoveService interface {
 	Defaults(ctx context.Context) (managermove.Defaults, error)
 	CreateMove(ctx context.Context, req managermove.CreateRequest) (managermove.Created, error)
+	NewSetupFiles(ctx context.Context) (managermove.Created, error)
 	Current(ctx context.Context) (managermove.View, error)
 	StartRun(ctx context.Context) (domain.Job, error)
 	Cancel(ctx context.Context, req managermove.CancelRequest) (domain.ManagerMove, error)
@@ -164,7 +165,7 @@ type ManagerMove struct {
 type ManagerMoveNewServer struct {
 	EnvironmentID    string     `json:"environmentId,omitempty" doc:"The new server's environment, once its agent enrolled."`
 	EnvironmentName  string     `json:"environmentName,omitempty" example:"192.168.1.20"`
-	EnrollmentState  string     `json:"enrollmentState,omitempty" enum:"pending,used,expired,revoked" doc:"The new server's enrollment token (24 hours; expired: cancel the move and start again)."`
+	EnrollmentState  string     `json:"enrollmentState,omitempty" enum:"pending,used,expired,revoked" doc:"The new server's enrollment token (24 hours; expired: create new setup files)."`
 	Online           bool       `json:"online" doc:"The new server's agent is connected."`
 	ManagerCheckedIn bool       `json:"managerCheckedIn" doc:"The new server's Docker Manager (waiting mode) asked for the handoff within the last two minutes."`
 	CheckedInAt      *time.Time `json:"checkedInAt,omitempty" doc:"Its last request."`
@@ -273,10 +274,16 @@ type createManagerMoveInput struct {
 
 // CreatedManagerMove is a new move with the new server's files, shown once.
 type CreatedManagerMove struct {
-	Move        ManagerMove `json:"move"`
-	ComposeYAML string      `json:"composeYaml" doc:"The new server's compose.yaml (no secrets)."`
-	Env         string      `json:"env" doc:"The new server's .env: it carries the move code and the agent's enrollment token. Shown once; never stored in clear, logged or shown again."`
-	StatusURL   string      `json:"statusUrl" example:"http://192.168.1.20:8080" doc:"Where the new manager shows the move's progress."`
+	Move          ManagerMove `json:"move"`
+	ComposeYAML   string      `json:"composeYaml" doc:"The new server's compose.yaml (no secrets)."`
+	Env           string      `json:"env" doc:"The new server's .env: it carries the move code and the agent's enrollment token. Shown once; never stored in clear, logged or shown again."`
+	StatusURL     string      `json:"statusUrl" example:"http://192.168.1.20:8080" doc:"Where the new manager shows the move's progress."`
+	AgentEnrolled bool        `json:"agentEnrolled" doc:"New setup files: the new server's agent already enrolled, so the .env has no enrollment token (the agent keeps its credential in its volume: replace the .env in the same folder and run docker compose up -d). Always false on creation."`
+}
+
+func newCreatedManagerMove(c managermove.Created) CreatedManagerMove {
+	return CreatedManagerMove{Move: newManagerMove(managermove.View{Move: c.Move}), ComposeYAML: c.Files.ComposeYAML, Env: c.Files.Env,
+		StatusURL: c.StatusURL, AgentEnrolled: c.AgentEnrolled}
 }
 
 type createdManagerMoveOutput struct {
@@ -393,7 +400,7 @@ func moveError(err error) error {
 	case errors.Is(err, domain.ErrManagerMoveState):
 		return Conflict(CodeManagerMoveState, "the move is not in a state that allows this")
 	case errors.Is(err, domain.ErrManagerMoveNewServerMissing):
-		return Conflict(CodeManagerMoveNewServerMissing, "the new server is not ready: start it with the files shown when the move was created, "+
+		return Conflict(CodeManagerMoveNewServerMissing, "the new server is not ready: start it with the setup files (or create new ones), "+
 			"and wait until its agent is connected and its Docker Manager has checked in")
 	case errors.Is(err, domain.ErrMoveCodeInvalid):
 		return NewError(http.StatusUnauthorized, CodeMoveCodeInvalid, "the move's authentication is not valid (wrong code, replayed, expired or cancelled move)").
@@ -521,8 +528,35 @@ func registerManagerMove(a huma.API, deps Deps) {
 		if err != nil {
 			return nil, moveError(err)
 		}
-		return &createdManagerMoveOutput{Body: CreatedManagerMove{Move: newManagerMove(managermove.View{Move: c.Move}),
-			ComposeYAML: c.Files.ComposeYAML, Env: c.Files.Env, StatusURL: c.StatusURL}}, nil
+		return &createdManagerMoveOutput{Body: newCreatedManagerMove(c)}, nil
+	})
+
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-manager-move-setup-files", Method: http.MethodPost, Path: BasePath + "/manager/move/setup-files",
+			Summary: "Create new setup files for the new server",
+			Description: "Returns the new server's compose.yaml and .env again (the same shape as the move's creation, once) with a new " +
+				"move code: the previous code stops working at once (a new manager started with the previous .env is refused with " +
+				"move_code_invalid). Unless the new server's agent already enrolled, the previous enrollment token is revoked and the .env " +
+				"carries a new one (24 hours); when it enrolled, its environment is kept and the .env has no enrollment token " +
+				"(agentEnrolled: the agent keeps its credential in its volume; replace the .env in the same folder and run docker " +
+				"compose up -d). The last check-in is forgotten: the new manager checks in again with the new code. Allowed while the " +
+				"move is open or ready; 409 manager_move_state while the apps move (the new server's agent would restart) and from the " +
+				"handoff on; 404 without a move. The move's expiry does not change. Requires a recent step-up. " + ownerOnly,
+			Tags: []string{tag}, Security: cookieOnly,
+			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusServiceUnavailable},
+		},
+		Capability: CapabilityOwner, Scope: ScopeInstance, AuditAction: "manager.move.setup_files",
+	}, func(ctx context.Context, _ *struct{}) (*createdManagerMoveOutput, error) {
+		svc, err := h.owner(ctx)
+		if err != nil {
+			return nil, err
+		}
+		c, err := svc.NewSetupFiles(ctx)
+		if err != nil {
+			return nil, moveError(err)
+		}
+		return &createdManagerMoveOutput{Body: newCreatedManagerMove(c)}, nil
 	})
 
 	Register(a, Operation{

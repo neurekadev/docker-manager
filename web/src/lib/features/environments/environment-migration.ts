@@ -4,9 +4,10 @@
 // caller may not migrate are shown but off), the request body, the check's
 // headline, the order the stacks move in (groups that share a network or
 // volume stop together and move one after the other), the stacks left out
-// and why, and the outcome of a run (what moved, what failed, the old
-// copies left stopped on the source). Pure; tested in
-// environment-migration.spec.ts.
+// and why, the outcome of a run (what moved, what failed, the old copies
+// left stopped on the source), the ended run the migrate page opens on
+// while it still has something to act on, and the environment page's
+// notice about old copies. Pure; tested in environment-migration.spec.ts.
 import type { Job, Schema } from '$lib/api/client';
 import type { JobMatch } from '$lib/features/jobs/active';
 import { count } from '$lib/features/stacks/migration';
@@ -25,6 +26,16 @@ const plainTitle: TitleOf = (_id, name) => name;
 /** The running environment migrations away from `environmentId` (the move step reopens on them). */
 export function environmentMigrationMatch(environmentId: string): JobMatch {
 	return { kinds: ['environment.migrate'], environmentId };
+}
+
+/** Removals of moved stacks' old copies on `environmentId` (the result view follows them). */
+export function oldCopyRemovalMatch(environmentId: string): JobMatch {
+	return { kinds: ['stack.remove_source'], environmentId };
+}
+
+/** The stacks a job acts on (a removal acts on one). */
+export function jobStackIds(job: Pick<Job, 'targets'> | undefined): string[] {
+	return (job?.targets ?? []).filter((t) => t.type === 'stack').map((t) => t.id);
 }
 
 /**
@@ -250,6 +261,24 @@ export function moveState(state: MovedStack['state']): { label: string; tone: Mo
 	return MOVE_STATES[state] ?? MOVE_STATES.pending;
 }
 
+/** What became of a moved stack's old copy on the source, in words (nothing for the others). */
+export function oldCopyState(s: Pick<MovedStack, 'state' | 'sourceRemoved'>): string | undefined {
+	if (s.state !== 'moved') return undefined;
+	return s.sourceRemoved ? 'Old copy removed' : 'Old copy kept';
+}
+
+const ENDED_RUNS: readonly EnvironmentMigration['state'][] = [
+	'completed',
+	'failed',
+	'cancelled',
+	'interrupted'
+];
+
+/** The run has ended (its result stays to read; nothing moves any more). */
+export function migrationEnded(r: Pick<EnvironmentMigration, 'state'>): boolean {
+	return ENDED_RUNS.includes(r.state);
+}
+
 /** A run's stacks by outcome. */
 export function migrationOutcome(r: Pick<EnvironmentMigration, 'stacks'>): {
 	moved: MovedStack[];
@@ -291,6 +320,122 @@ export function oldCopies(
 				title: titleOf(s.stackId, s.name)
 			});
 	return out;
+}
+
+/** A moved stack's old copy still on the source, with where the stack went. */
+export interface PendingCopy extends OldCopy {
+	/** The environment the stack moved to. */
+	destinationId: string;
+}
+
+/**
+ * The old copies still on the source after the ended runs (`records`
+ * newest first, as the list answers): one per stack, the newest run's.
+ * A run still moving is left out (its copies are offered once it ended).
+ */
+export function pendingCopies(
+	records: readonly EnvironmentMigration[],
+	titleOf: TitleOf = plainTitle
+): PendingCopy[] {
+	const out: PendingCopy[] = [];
+	const seen = new Set<string>();
+	for (const r of records) {
+		if (!migrationEnded(r)) continue;
+		for (const c of oldCopies(r, titleOf)) {
+			if (seen.has(c.stackId)) continue;
+			seen.add(c.stackId);
+			out.push({ ...c, destinationId: r.targetEnvironmentId });
+		}
+	}
+	return out;
+}
+
+/**
+ * The stacks of a run still on the source (they did not move or did not
+ * start) that can move again: `onSource` says which are there now (a
+ * later migration or the stack's own may have moved one since).
+ */
+export function stacksLeft(
+	r: Pick<EnvironmentMigration, 'stacks'>,
+	onSource: (stackId: string) => boolean
+): MovedStack[] {
+	return r.stacks.filter((s) => s.state !== 'moved' && onSource(s.stackId));
+}
+
+/**
+ * The run the migrate page opens on instead of a new migration: the
+ * latest one (`records` newest first) once it ended, while something is
+ * left to do: old copies to remove (of this run or an earlier one) or
+ * stacks of this run still on the source. A running latest one is not
+ * restored here: the running list reopens it at the move step.
+ */
+export function restoredMigration(
+	records: readonly EnvironmentMigration[],
+	onSource: (stackId: string) => boolean
+): EnvironmentMigration | null {
+	const latest = records[0];
+	if (!latest || !migrationEnded(latest)) return null;
+	if (stacksLeft(latest, onSource).length || pendingCopies(records).length) return latest;
+	return null;
+}
+
+/**
+ * The result view's notice about the moved stacks and their old copies:
+ * `moved` stacks of this run, `copies` old copies left to remove (of this
+ * run and earlier ones). Null: nothing moved and nothing to remove.
+ */
+export function resultNotice(
+	moved: number,
+	copies: number,
+	names: { source: string; destination: string }
+): { title: string; body: string } | null {
+	const one = copies === 1;
+	const keep = `Remove ${one ? 'it' : 'them'} once you are sure.`;
+	if (moved) {
+		const title = `${count(moved, 'stack')} ${moved === 1 ? 'runs' : 'run'} on ${names.destination} now.`;
+		if (!copies)
+			return {
+				title,
+				body: `${moved === 1 ? 'Its old copy was' : 'Their old copies were'} removed from ${names.source}.`
+			};
+		if (copies === moved)
+			return {
+				title,
+				body: `${one ? 'Its old copy' : 'Their old copies'} on ${names.source} ${one ? 'is' : 'are'} stopped and kept. ${keep}`
+			};
+		return {
+			title,
+			body: `Old copies of ${count(copies, 'stack')} are stopped and kept on ${names.source}. ${keep}`
+		};
+	}
+	if (!copies) return null;
+	return {
+		title: `${count(copies, 'old copy', 'old copies')} still on ${names.source}`,
+		body: `${one ? 'It is' : 'They are'} stopped and kept from an earlier migration. ${keep}`
+	};
+}
+
+/**
+ * The environment page's notice while moved stacks' old copies are still
+ * on it: "3 stacks moved to NAS" / "Their old copies are still on this
+ * server." (null: nothing to remove).
+ */
+export function oldCopiesNotice(
+	records: readonly EnvironmentMigration[],
+	envName: (id: string) => string
+): { title: string; body: string; count: number } | null {
+	const copies = pendingCopies(records);
+	if (!copies.length) return null;
+	const to = [...new Set(copies.map((c) => c.destinationId))];
+	const where = to.length === 1 ? envName(to[0]) : 'other environments';
+	return {
+		title: `${count(copies.length, 'stack')} moved to ${where}`,
+		body:
+			copies.length === 1
+				? 'Its old copy is still on this server.'
+				: 'Their old copies are still on this server.',
+		count: copies.length
+	};
 }
 
 /** The toast when a run ends, and the job "Open job" opens (the failed stack's migration). */

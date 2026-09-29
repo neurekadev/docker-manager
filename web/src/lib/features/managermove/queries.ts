@@ -1,7 +1,9 @@
 // Moving Docker Manager to a new server: the move of this manager (owner
 // only). The new server's .env carries the move code and an enrollment
 // token: it lives only in the component that shows it, never in a query,
-// a URL or storage.
+// a URL or storage. The move's queries follow the live stream (topic
+// manager: the move and the session's move lock); only the new server's
+// status page polls (no sign-in there, so no stream).
 import { queryOptions } from '@tanstack/svelte-query';
 import {
 	api,
@@ -22,15 +24,15 @@ import {
 } from './model';
 
 export const managerMoveKeys = {
-	// No live event announces moves: the move pages poll while it changes.
-	current: liveKeys.item('settings', 'manager-move'),
-	defaults: liveKeys.item('settings', 'manager-move', 'defaults'),
+	// Live events of the move (topic manager) refresh both by prefix.
+	current: liveKeys.managerMove(),
+	defaults: liveKeys.managerMove('defaults'),
 	// Public, outside the signed-in data: the new manager's waiting status.
 	status: ['move-status'] as const
 };
 
-/** How often the move pages read the move while it changes (ms). */
-export const MOVE_POLL_MS = 3_000;
+/** How often the new server's status page reads the move (ms; it has no live stream). */
+export const WAIT_POLL_MS = 3_000;
 
 /** The running Move everything (manager.move), found again after a reload. */
 export const managerMoveJobMatch: JobMatch = { kinds: [MOVE_JOB_KIND] };
@@ -63,6 +65,34 @@ export function createMove(
 	client: ApiClient = api
 ): Promise<Schema<'CreatedManagerMove'>> {
 	return withStepUp(() => unwrap(client.POST('/api/v1/manager/moves', { body })));
+}
+
+/**
+ * New setup files (owner, step-up): the new server's compose.yaml and .env
+ * again, with a new pairing code (the old files stop working) and, unless
+ * the new server's agent already enrolled, a new enrollment token. Shown
+ * once, like the first ones.
+ */
+export function createSetupFiles(client: ApiClient = api): Promise<Schema<'CreatedManagerMove'>> {
+	return withStepUp(() => unwrap(client.POST('/api/v1/manager/move/setup-files')));
+}
+
+/**
+ * Whether Docker Manager answers (GET /api/v1/health, not cached): the
+ * wait for its restart after a resume. A plain request, so a manager that
+ * is down for a moment is not reported as a failure anywhere else.
+ */
+export async function managerAnswers(signal?: AbortSignal): Promise<boolean> {
+	try {
+		const res = await fetch('/api/v1/health', {
+			cache: 'no-store',
+			credentials: 'same-origin',
+			signal
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
 }
 
 /**

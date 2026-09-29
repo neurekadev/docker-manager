@@ -120,7 +120,7 @@
 								size="sm"
 								icon={Archive}
 								href={routes.environment(old.environmentId)}
-								>Archive {old.name}</Button
+								>Open {old.name} to archive it</Button
 							>
 						</div>
 					{/if}

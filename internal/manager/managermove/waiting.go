@@ -518,8 +518,9 @@ func handoffRefusal(resp *http.Response) error {
 			"Set the clock of both servers right (turn on time synchronization, NTP). Docker Manager keeps asking.")
 	case resp.StatusCode == http.StatusUnauthorized:
 		return refuse(ClassCodeInvalid, "the old manager did not accept the move code",
-			"Check DOCKER_MANAGER_MOVE_CODE in .env: it must be the code of the move shown on the old Docker Manager (the code of a "+
-				"cancelled or expired move no longer works). Fix it, then run docker compose up -d.")
+			"Check DOCKER_MANAGER_MOVE_CODE in .env: it must be the code of the newest setup files shown on the old Docker Manager "+
+				"(after Create new setup files, or for a cancelled or expired move, an older code no longer works). Replace the .env "+
+				"with the newest one, then run docker compose up -d.")
 	case resp.StatusCode == http.StatusConflict && e.Code == "manager_move_state":
 		return errMoveConfirmed
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed:

@@ -170,6 +170,7 @@ func (s *Service) ConfirmOnce(ctx context.Context) (done bool, err error) {
 	if err := store.UpdateManagerMove(ctx, s.db, &a, domain.MoveArrived); err != nil {
 		return false, err
 	}
+	s.publish(a.ID)
 	switch {
 	case class == "":
 		if err := store.SetManagerMoveSealedCode(ctx, s.db, a.ID, ""); err != nil {
@@ -275,6 +276,7 @@ func (s *Service) acknowledge(ctx context.Context) (domain.ManagerMove, error) {
 	if err := store.SetManagerMoveSealedCode(ctx, s.db, a.ID, ""); err != nil {
 		return a, err
 	}
+	s.publish(a.ID)
 	s.log.Warn("the owner acknowledged that the old manager no longer runs the instance; the move confirmation stops",
 		"move_id", a.ID, "class", a.ConfirmError)
 	return a, nil

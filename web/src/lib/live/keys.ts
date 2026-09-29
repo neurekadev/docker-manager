@@ -26,6 +26,10 @@
 //                                        part list|stat|content, path
 //                                        root-relative ('.' for the root)
 //   ['me', 'permissions']                the caller's effective permissions
+//   ['manager', 'item', 'move', ...sub]  the owner's move to a new server
+//                                        (topic manager, kind manager_move)
+//   ['session']                          the session, with the move lock
+//                                        (kind manager_move_lock)
 //
 // Build keys with liveKeys so they stay consistent.
 import type { components } from '$lib/api/schema';
@@ -51,12 +55,20 @@ export const TOPICS = [
 	'settings',
 	'permissions',
 	'metrics',
-	'templates'
+	'templates',
+	'manager'
 ] as const;
 export type Topic = (typeof TOPICS)[number];
 
 /** The `invalidate` kind of new live CPU and memory values (topic metrics). */
 export const LIVE_METRICS_KIND = 'live_metrics';
+
+/**
+ * The `invalidate` kind of the move lock every session reads (topic
+ * manager): the session refetches. Any other kind of the manager topic is
+ * the owner's move.
+ */
+export const MOVE_LOCK_KIND = 'manager_move_lock';
 
 /** Topics whose resource names are only unique within an environment. */
 const ENV_SCOPED = new Set<string>(['containers', 'images', 'volumes', 'networks', 'metrics']);
@@ -94,7 +106,11 @@ export const liveKeys = {
 		if (part && path !== undefined) k.push(path);
 		return k;
 	},
-	myPermissions: ['me', 'permissions'] as QueryKey
+	myPermissions: ['me', 'permissions'] as QueryKey,
+	/** GET /auth/session (queryKeys.session): refreshed when the move lock changes. */
+	session: ['session'] as QueryKey,
+	/** GET /manager/move (the owner's move to a new server) and its sub-keys. */
+	managerMove: (...sub: string[]): QueryKey => ['manager', 'item', 'move', ...sub]
 };
 
 /** The file scope of a files.changed event, or null for a whole environment. */
@@ -134,6 +150,14 @@ export function keysForInvalidate(e: LiveInvalidate): Invalidation[] {
 		return [
 			{ key: liveKeys.metrics(e.resourceId), class: 'metrics' },
 			{ key: ['overview'], class: 'metrics' }
+		];
+	// The move to a new server: the owner's move (and its form's defaults),
+	// or the move lock every session reads.
+	if (topic === 'manager')
+		return [
+			e.kind === MOVE_LOCK_KIND
+				? { key: liveKeys.session, class: 'detail' }
+				: { key: liveKeys.managerMove(), class: 'detail' }
 		];
 	if (e.kind === 'inventory') {
 		return [

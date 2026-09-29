@@ -46,6 +46,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
@@ -169,6 +170,10 @@ type Options struct {
 	// the move).
 	Waiting          *WaitingConfig
 	MoveVariablesSet bool
+	// Bus receives the move's live events (ManagerMoveUpdated,
+	// ManagerMoveLockChanged) and is followed for what changes elsewhere
+	// (live.go); nil publishes nothing.
+	Bus *events.Bus
 }
 
 // Service is the move service.
@@ -198,6 +203,10 @@ type Service struct {
 	confirmMu      sync.Mutex
 	nextConfirm    time.Time
 	confirmBackoff time.Duration
+
+	// staleAnnounced is the stale check-in last announced (live.go).
+	staleMu        sync.Mutex
+	staleAnnounced time.Time
 }
 
 // New creates the service and registers manager.move with the job engine
@@ -346,6 +355,7 @@ func (s *Service) endMove(ctx context.Context, m *domain.ManagerMove, to domain.
 			s.log.Debug("the move's enrollment token was not revoked", "move_id", m.ID, "error", err)
 		}
 	}
+	s.published(*m, from)
 	if raise {
 		s.log.Warn("agents were told the new manager's address: the instance's generation went up so they accept this manager again; restarting",
 			"move_id", m.ID, "generation", gen)
@@ -449,6 +459,10 @@ type Created struct {
 	Files Files
 	// StatusURL is where the new manager shows its progress.
 	StatusURL string
+	// AgentEnrolled (new setup files): the new server's agent already
+	// enrolled; the .env has no enrollment token and the agent keeps its
+	// credential.
+	AgentEnrolled bool
 }
 
 // CreateMove starts a move (owner, recent step-up): it creates the move
@@ -537,6 +551,7 @@ func (s *Service) CreateMove(ctx context.Context, req CreateRequest) (Created, e
 	audit.SetDetail(ctx, "enrollmentId", en.Enrollment.ID)
 	audit.SetDetail(ctx, "sourceEnvironmentId", m.SourceEnvironmentID)
 	s.log.Info("a move of this manager to a new server was created", "move_id", m.ID, "new_server", newAddr)
+	s.publish(m.ID)
 	s.notify()
 	return Created{Move: m, Files: files, StatusURL: serverURL(newAddr)}, nil
 }
@@ -685,12 +700,13 @@ func (s *Service) resolveTarget(ctx context.Context, m domain.ManagerMove) domai
 	if err := store.UpdateManagerMove(ctx, s.db, &cur, cur.State); err != nil {
 		return m
 	}
+	s.publish(cur.ID)
 	return cur
 }
 
 func (s *Service) newServerStatus(ctx context.Context, m domain.ManagerMove) *NewServerStatus {
 	st := &NewServerStatus{EnvironmentID: m.TargetEnvironmentID, CheckedInAt: m.CheckedInAt, ManagerAddress: m.HandoffAddress}
-	st.ManagerCheckedIn = m.CheckedInAt != nil && s.opts.Clock.Now().Sub(*m.CheckedInAt) <= CheckInFresh
+	st.ManagerCheckedIn = s.checkInFresh(m.CheckedInAt)
 	if s.opts.Enrollments != nil && m.EnrollmentID != "" {
 		if en, err := s.opts.Enrollments.GetEnrollment(ctx, m.EnrollmentID); err == nil {
 			st.EnrollmentState = string(en.State(s.opts.Clock.Now()))
@@ -893,12 +909,14 @@ func (s *Service) Run(ctx context.Context) {
 	if s.opts.Waiting != nil {
 		waiting.Go(func() { s.runWaiting(ctx) })
 	}
+	waiting.Go(func() { s.followBus(ctx) })
 	defer waiting.Wait()
 	for {
 		if err := s.Expire(ctx); err != nil && ctx.Err() == nil {
 			s.log.Error("could not expire the manager move", "error", err)
 		}
 		s.confirmDue(ctx)
+		s.announceStaleCheckIn(ctx)
 		wait := s.nextWake(ctx)
 		t := s.opts.Clock.NewTimer(wait)
 		select {
@@ -915,12 +933,16 @@ func (s *Service) Run(ctx context.Context) {
 // idleWake bounds the Run loop's sleep.
 const idleWake = time.Hour
 
-// nextWake is the time until the next expiry or confirmation attempt.
+// nextWake is the time until the next expiry, confirmation attempt or
+// check-in that stops counting.
 func (s *Service) nextWake(ctx context.Context) time.Duration {
 	now := s.opts.Clock.Now()
 	wait := idleWake
 	if m, found, err := store.ActiveManagerMove(ctx, s.db); err == nil && found && expirable(m.State) {
 		wait = min(wait, m.ExpiresAt.Sub(now))
+		if at := checkInStaleAt(m); at.After(now) {
+			wait = min(wait, at.Sub(now)+time.Millisecond)
+		}
 	}
 	s.confirmMu.Lock()
 	next := s.nextConfirm

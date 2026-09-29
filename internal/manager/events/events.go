@@ -87,6 +87,16 @@ const (
 	// tokens, ...). ResourceType/ResourceID/EnvironmentID name the target;
 	// Attributes["action"] is the audited action key (#23).
 	ResourceChanged = "resource.changed"
+
+	// ManagerMoveUpdated: the move of this manager to a new server changed
+	// (its state, the new server's agent or check-in, Move everything's
+	// progress, the confirmation; docs/internal/architecture/manager-move.md).
+	// ResourceID is the move's ID; it reaches the owner only.
+	ManagerMoveUpdated = "manager_move.updated"
+	// ManagerMoveLockChanged: the move lock every signed-in user reads
+	// (GET /auth/session, managerMove: none, moving, moved) changed. It
+	// carries no move ID (ResourceID "instance").
+	ManagerMoveLockChanged = "manager_move.lock_changed"
 )
 
 // Resource types.
@@ -101,6 +111,10 @@ const (
 	ResourceFileScope   = "file_scope"
 	ResourceStack       = "stack"
 	ResourceJob         = "job"
+	// ResourceManagerMove and ResourceManagerMoveLock: a move of the
+	// manager (owner) and its lock (everyone).
+	ResourceManagerMove     = "manager_move"
+	ResourceManagerMoveLock = "manager_move_lock"
 )
 
 // Event is one published change.

@@ -117,6 +117,7 @@ func (s *Service) StartRun(ctx context.Context) (domain.Job, error) {
 	if err := store.UpdateManagerMove(ctx, s.db, &m, domain.MoveMoving); err != nil && !errors.Is(err, domain.ErrManagerMoveState) {
 		return j, err
 	}
+	s.publish(m.ID)
 	audit.AddTarget(ctx, domain.AuditTarget{Type: auditTargetType, ID: m.ID})
 	audit.SetDetail(ctx, "sourceEnvironmentId", m.SourceEnvironmentID)
 	audit.SetDetail(ctx, "targetEnvironmentId", m.TargetEnvironmentID)
@@ -224,7 +225,9 @@ func (s *Service) startMigration(ctx context.Context, sc *jobexec.StepContext, m
 	cur, gerr := store.GetManagerMove(ctx, s.db, m.ID)
 	if gerr == nil && cur.State == domain.MoveMoving {
 		cur.MigrationID, cur.UpdatedAt = mj.ID, s.now()
-		gerr = store.UpdateManagerMove(ctx, s.db, &cur, domain.MoveMoving)
+		if gerr = store.UpdateManagerMove(ctx, s.db, &cur, domain.MoveMoving); gerr == nil {
+			s.publish(cur.ID)
+		}
 	}
 	s.mu.Unlock()
 	if gerr != nil {
@@ -318,13 +321,15 @@ func (s *Service) stepReady(ctx context.Context, sc *jobexec.StepContext) error 
 	if err := store.UpdateManagerMove(ctx, s.db, &m, domain.MoveMoving); err != nil {
 		return err
 	}
+	s.publish(m.ID)
 	s.log.Warn("every app moved: Docker Manager hands itself over when the new manager asks next", "move_id", m.ID)
 	return nil
 }
 
 // onMoveFinished puts a move whose manager.move did not succeed back to
 // open (inside the job's finishing transaction: db only, no service
-// lock).
+// lock; the job's own change, followed on the bus, announces the move
+// once it is committed).
 func (s *Service) onMoveFinished(ctx context.Context, db bun.IDB, j domain.Job) error {
 	if j.State == domain.JobSucceeded {
 		return nil

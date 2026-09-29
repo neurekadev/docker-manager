@@ -22,13 +22,16 @@ const (
 	TopicPermissions  = "permissions"
 	TopicMetrics      = "metrics"
 	TopicTemplates    = "templates"
+	// TopicManager: the move of this manager to a new server (the owner's
+	// move, everyone's move lock).
+	TopicManager = "manager"
 )
 
 // Topics returns every topic.
 func Topics() []string {
 	return []string{TopicEnvironments, TopicAgents, TopicContainers, TopicImages, TopicVolumes, TopicNetworks, TopicStacks,
 		TopicJobs, TopicFiles, TopicPolicies, TopicBackups, TopicRegistries, TopicSettings, TopicPermissions, TopicMetrics,
-		TopicTemplates}
+		TopicTemplates, TopicManager}
 }
 
 // Invalidation kinds of the metrics topic: new stored samples (charts and
@@ -61,6 +64,7 @@ var topicOfType = map[string]string{
 	"group": TopicPermissions, "user": TopicPermissions, "invitation": TopicPermissions, "permission": TopicPermissions,
 	"api_token": TopicPermissions, "session": TopicPermissions,
 	"template": TopicTemplates, "template_registry": TopicTemplates,
+	"manager_move": TopicManager,
 }
 
 // Classify returns the topic and invalidation kind of a bus event ("" when
@@ -98,6 +102,10 @@ func Classify(e events.Event) (topic, kind string) {
 		return TopicStacks, events.ResourceStack
 	case events.JobUpdated:
 		return TopicJobs, events.ResourceJob
+	case events.ManagerMoveUpdated:
+		return TopicManager, events.ResourceManagerMove
+	case events.ManagerMoveLockChanged:
+		return TopicManager, events.ResourceManagerMoveLock
 	case events.ResourceChanged:
 		if t, ok := topicOfType[e.ResourceType]; ok {
 			return t, e.ResourceType

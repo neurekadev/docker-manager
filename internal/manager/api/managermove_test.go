@@ -110,6 +110,7 @@ type fakeMoves struct {
 	createErr error
 	ackErr    error
 	runErr    error
+	filesErr  error
 	created   []managermove.CreateRequest
 }
 
@@ -127,6 +128,14 @@ func (f *fakeMoves) CreateMove(_ context.Context, req managermove.CreateRequest)
 	f.mu.Unlock()
 	return managermove.Created{Move: testMove, Files: managermove.Files{ComposeYAML: "name: docker-manager\n", Env: "DOCKER_MANAGER_MOVE_CODE=dmm_move-1_secret\n"},
 		StatusURL: "http://192.168.1.20:8080"}, f.createErr
+}
+
+func (f *fakeMoves) NewSetupFiles(context.Context) (managermove.Created, error) {
+	if f.filesErr != nil {
+		return managermove.Created{}, f.filesErr
+	}
+	return managermove.Created{Move: testMove, Files: managermove.Files{ComposeYAML: "name: docker-manager\n",
+		Env: "DOCKER_MANAGER_MOVE_CODE=dmm_move-1_new\n"}, StatusURL: "http://192.168.1.20:8080", AgentEnrolled: true}, nil
 }
 
 func (f *fakeMoves) Current(context.Context) (managermove.View, error) {
@@ -222,6 +231,7 @@ func TestManagerMoveOwnerRoutes(t *testing.T) {
 		{Method: http.MethodPost, Path: "/api/v1/manager/move/runs"},
 		{Method: http.MethodPost, Path: "/api/v1/manager/move/cancellations", Body: map[string]any{}},
 		{Method: http.MethodPost, Path: "/api/v1/manager/move/acknowledgements"},
+		{Method: http.MethodPost, Path: "/api/v1/manager/move/setup-files"},
 	}
 	svc := &fakeMoves{}
 	h := moveHandler(t, svc)
@@ -349,6 +359,31 @@ func TestManagerMoveAcknowledgement(t *testing.T) {
 	svc.ackErr = domain.ErrManagerMoveNotFound
 	if r := authztest.Do(t, h, "olga", call); r.Status != http.StatusNotFound {
 		t.Fatalf("no arrived move: %d %s", r.Status, r.Body)
+	}
+}
+
+// TestManagerMoveSetupFiles: new setup files answer the creation's shape
+// (200, the files once, agentEnrolled when the new server's agent keeps
+// its enrollment); a move that allows none answers 409
+// manager_move_state, no move 404.
+func TestManagerMoveSetupFiles(t *testing.T) {
+	svc := &fakeMoves{}
+	h := moveHandler(t, svc)
+	call := authztest.Call{Method: http.MethodPost, Path: "/api/v1/manager/move/setup-files"}
+	r := authztest.Do(t, h, "olga", call)
+	var c CreatedManagerMove
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &c) != nil || c.Env == "" || c.ComposeYAML == "" || !c.AgentEnrolled ||
+		c.StatusURL != "http://192.168.1.20:8080" || c.Move.ID != "move-1" {
+		t.Fatalf("setup files: %d %s", r.Status, r.Body)
+	}
+	svc.filesErr = domain.ErrManagerMoveState
+	var e Error
+	if r := authztest.Do(t, h, "olga", call); r.Status != http.StatusConflict || json.Unmarshal(r.Body, &e) != nil || e.Code != CodeManagerMoveState {
+		t.Fatalf("not allowed: %d %s", r.Status, r.Body)
+	}
+	svc.filesErr = domain.ErrManagerMoveNotFound
+	if r := authztest.Do(t, h, "olga", call); r.Status != http.StatusNotFound {
+		t.Fatalf("no move: %d %s", r.Status, r.Body)
 	}
 }
 

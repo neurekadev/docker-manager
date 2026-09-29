@@ -245,7 +245,11 @@ source and `stack.create` in the destination at the API; each stack needs
 what its own migration needs (stacks without it are left out, not
 refused), `network.create` in the destination when networks are created;
 the engine authorizes `stack.migrate` on every stack target and each
-child job checks its own again.
+child job checks its own again. Its records (list, get) are readable with
+`stack.migrate` on a stack of the source or on one of the record's stacks
+where it is now (after every stack moved away the source has none left,
+while their old copies still wait there for their removal); each lists
+only the stacks the caller can see.
 
 ## Audit
 

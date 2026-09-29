@@ -133,7 +133,7 @@ describe('MoveCompleteCard', () => {
 		expect(
 			await screen.findByRole('button', { name: 'Remove old copies from old-box' })
 		).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Archive old-box' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Open old-box to archive it' })).toHaveAttribute(
 			'href',
 			'/environments/env-old'
 		);

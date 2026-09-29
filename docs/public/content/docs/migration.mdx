@@ -78,6 +78,12 @@ If a stack can't be moved, the migration stops there. That stack and the
 rest of its group start again on the old server. Stacks that already moved
 stay on the new server. Fix the problem and press **Migrate the rest**.
 
+You can leave the page while the stacks move. When you come back to
+**Migrate environment**, it shows the last migration and what each stack
+did, until nothing is left to do: the old copies are removed and no stack
+of it waits on the old server. To begin again from the first step, press
+**Start a new migration**.
+
 ## Move Docker Manager to a new server
 
 Use this when you replace the server Docker Manager runs on. Your apps on
@@ -88,16 +94,20 @@ You do three things:
 
 1. **Set up the new server.** Open **Settings → Move to a new server**.
    Enter **This server's address** and **New server's address** (their IP
-   addresses on your network) and press **Create setup files**. Save the
-   `compose.yaml` and `.env` it shows in an empty folder on the new server
-   and run:
+   addresses or host names on your network) and press **Create setup
+   files**. Save the `compose.yaml` and `.env` it shows in an empty folder
+   on the new server and run:
 
    ```bash
    docker compose up -d
    ```
 
+   Or copy the command under **Or paste this on the new server** and paste
+   it into a terminal on the new server. It creates a `docker-manager`
+   folder with both files and starts Docker Manager for you.
+
    The page ticks off **New server's agent connected** and **New Docker
-   Manager is waiting**. Then press **Next**.
+   Manager is waiting** by itself. Then press **Next**.
 2. **Check and move.** The **Check** step shows what moves, what must be
    fixed first and how long each group of apps is down. Read **Before you
    start**, then press **Move everything** on the **Move** step. Your apps
@@ -113,13 +123,15 @@ server's status page, **Moving Docker Manager here**, at
 `http://<new server's address>:8080`. It needs no sign-in.
 
 After you sign in on the new server, the **Move complete** card on the
-dashboard offers **Remove old copies from …** and **Archive …** for the
-old server.
+dashboard offers **Remove old copies from …** and **Open … to archive it**
+for the old server.
 
 <Callout type="warn">
   The setup files are shown once and contain a pairing code. Keep them
-  private. If you lose them before the move, press **Cancel the move** and
-  start again.
+  private. If you lose them, or they expire before the new server's agent
+  connects (after 24 hours), press **Create new setup files** on the **New
+  server** step. The old files stop working: put the new `.env` in the
+  same folder on the new server and run `docker compose up -d` again.
 </Callout>
 
 Good to know:
@@ -130,6 +142,8 @@ Good to know:
   Apps that already moved stay on the new server.
 - While Docker Manager hands over, nothing can be changed. A banner says
   so. Running tasks finish first.
+- If your browser saves the downloaded `.env` without its leading dot,
+  rename the file to `.env`.
 - If your reverse proxy sends Docker Manager's address to the old
   server's IP address, change it to the new server's IP address.
 - The two servers talk over plain HTTP on your network. The move is
@@ -151,7 +165,11 @@ on the new server first.
   more.
 - After an environment migration, **Remove old copies from …** deletes the
   old copies of all moved stacks at once. You must type the old server's
-  name to confirm.
+  name to confirm. Each stack then shows **Old copy removed**.
+- While old copies are left, the old server's page reminds you, for
+  example "3 stacks moved to NAS. Their old copies are still on this
+  server." Press **Review the migration** to see the result and remove
+  them.
 
 Removing an old copy deletes its containers, networks, copied volumes and
 folder on the old server. Docker Manager never deletes an old copy on its

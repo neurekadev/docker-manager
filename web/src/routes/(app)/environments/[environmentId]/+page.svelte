@@ -6,9 +6,10 @@
 	// information with identifiers under "Advanced", the agents with
 	// credential rotation and removal, the jobs (paged), edit (name, service
 	// address), "Migrate environment" (its stacks to another environment;
-	// with a second environment and a stack the caller may migrate) and
-	// archive with the removal preview. The tab lives in the URL
-	// (?tab=system|agents|jobs).
+	// with a second environment and a stack the caller may migrate), a
+	// notice while stacks migrated away left their old copies here
+	// ("Review the migration") and archive with the removal preview. The
+	// tab lives in the URL (?tab=system|agents|jobs).
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
@@ -42,6 +43,7 @@
 	import AgentsPanel from '$lib/features/environments/AgentsPanel.svelte';
 	import ArchiveEnvironmentDialog from '$lib/features/environments/ArchiveEnvironmentDialog.svelte';
 	import EditEnvironmentDialog from '$lib/features/environments/EditEnvironmentDialog.svelte';
+	import EnvironmentMigrationNotice from '$lib/features/environments/EnvironmentMigrationNotice.svelte';
 	import MetricsPanel from '$lib/features/environments/MetricsPanel.svelte';
 	import SystemPanel from '$lib/features/environments/SystemPanel.svelte';
 	import {
@@ -294,6 +296,15 @@
 					Upgrade the agent container on the host; it does not update itself.
 				{/if}
 			</Notice>
+		{/if}
+
+		<!-- Stacks migrated away whose old copies are still here (callers who
+		     may migrate stacks; the server lists only what they see). -->
+		{#if !archived}
+			<EnvironmentMigrationNotice
+				environmentId={e.id}
+				enabled={hasAny(access, 'stack.migrate')}
+			/>
 		{/if}
 
 		<Tabs items={tabItems} value={tab} label="{e.name} sections" onchange={selectTab}>

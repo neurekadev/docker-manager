@@ -2,19 +2,23 @@
 	// Settings → Move to a new server (the old manager, owner;
 	// docs/internal/architecture/manager-move.md, "The flow"). Three steps:
 	// New server (both addresses → "Create setup files": the new server's
-	// compose.yaml and .env, shown once and kept only in this component's
-	// memory, then a live checklist until its agent connected and its Docker
-	// Manager waits), Check (the environment migration's check of the apps
-	// next to Docker Manager, EnvironmentMigrationCheck, and the reminders)
-	// and Move ("Move everything": the apps move, then Docker Manager hands
-	// itself over). Everything is read from the move (polled every 3 s while
-	// it changes), so a reload or coming back opens where the move stands;
-	// the manager.move job is tracked too (the running list brings a running
-	// one back). After the handoff the moved panel says where to point DNS
-	// and offers "Resume on this server" (type-to-confirm); on a manager that
-	// arrived by a move, Move complete shows until everything is done.
+	// compose.yaml and .env, and the same as one command to paste, shown
+	// once and kept only in this component's memory, then a live checklist
+	// until its agent connected and its Docker Manager waits; files that are
+	// gone or expired are replaced with "Create new setup files"), Check (the
+	// environment migration's check of the apps next to Docker Manager,
+	// EnvironmentMigrationCheck, and the reminders) and Move ("Move
+	// everything": the apps move, then Docker Manager hands itself over).
+	// Everything is read from the move, which the live stream keeps current
+	// (topic manager), so a reload or coming back opens where the move
+	// stands; the manager.move job is tracked too (the running list brings a
+	// running one back). After the handoff the moved panel says where to
+	// point DNS and offers "Resume on this server" (type-to-confirm); ending
+	// a move that restarts Docker Manager waits until it answers again and
+	// reloads the page. On a manager that arrived by a move, Move complete
+	// shows until everything is done.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import { untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
@@ -49,22 +53,28 @@
 	} from '$lib/ui';
 	import MoveCompleteCard from './MoveCompleteCard.svelte';
 	import {
+		AGENT_KEPT,
+		cancelConsequences,
 		BEFORE_YOU_START,
 		MOVE_STEPS,
 		ONLY_MANAGER_MOVES,
+		SETUP_FOLDER,
 		canMoveEverything,
 		isActive,
 		isHandedOver,
-		isPolled,
 		moveButtonLabel,
 		moveCompleteDone,
 		moveStatus,
 		movedPanel,
 		newServerChecklist,
 		newServerReady,
-		oldManagerSettled,
 		onlyManagerMoves,
+		restartsWhenEnded,
 		runView,
+		setupFilesConsequences,
+		setupFilesNotice,
+		setupFilesReason,
+		setupScript,
 		stepOf,
 		type CreatedManagerMove,
 		type ManagerMove,
@@ -72,25 +82,21 @@
 		type RunPhase
 	} from './model';
 	import {
-		MOVE_POLL_MS,
 		cancelMove,
 		createMove,
+		createSetupFiles,
+		managerAnswers,
 		managerMoveDefaultsQuery,
 		managerMoveJobMatch,
 		managerMoveKeys,
 		managerMoveQuery,
 		startMoveRun
 	} from './queries';
+	import { waitForRestart } from './restart';
 
 	const qc = useQueryClient();
-	const move = createQuery(() => ({
-		...managerMoveQuery(),
-		refetchInterval: (q) => {
-			const m = q.state.data;
-			if (isPolled(m?.state)) return MOVE_POLL_MS;
-			return m?.state === 'arrived' && !oldManagerSettled(m) ? 15_000 : false;
-		}
-	}));
+	// Live events of the move (topic manager) keep it current: no polling.
+	const move = createQuery(() => managerMoveQuery());
 	const active = $derived(isActive(move.data) ? move.data : null);
 	const arrived = $derived(
 		move.data?.state === 'arrived' && !moveCompleteDone(move.data) ? move.data : null
@@ -131,6 +137,31 @@
 	// The new server's files: shown once, only in this component's memory.
 	let created = $state<CreatedManagerMove | null>(null);
 	const files = $derived(created && active && created.move.id === active.id ? created : null);
+	const script = $derived(files ? setupScript(files) : '');
+	// Files gone (a reload) or expired: offer new ones.
+	const reason = $derived(active ? setupFilesReason(active, !!files) : null);
+	const reasonNotice = $derived(reason ? setupFilesNotice(reason) : null);
+	let renewing = $state(false);
+
+	// Focus: after a step changes by itself (the move went on elsewhere or
+	// ended) or new files appear, the step's heading (or the files' one)
+	// takes the focus, unless the person is busy elsewhere on the page (a
+	// dialog, another control).
+	let root = $state<HTMLElement>();
+	async function focusIn(selector: string) {
+		await tick();
+		const now = document.activeElement;
+		if (now && now !== document.body && !root?.contains(now)) return;
+		root?.querySelector<HTMLElement>(selector)?.focus();
+	}
+	const focusStep = () => focusIn('#wizard-step-title');
+	let focusedFiles: CreatedManagerMove | null = null;
+	$effect(() => {
+		const f = files;
+		if (!f || f === untrack(() => focusedFiles)) return;
+		focusedFiles = f;
+		void focusIn('#files-title');
+	});
 
 	const steps: WizardStep[] = MOVE_STEPS.map((s) => ({ ...s }));
 	const indexOf = (id: MoveStepId) => steps.findIndex((s) => s.id === id);
@@ -148,10 +179,12 @@
 			if (!placed) {
 				placed = true;
 				current = want;
-			} else if (!isActive(data)) {
+			} else if (!isActive(data) && current !== 0) {
 				current = 0;
-			} else if (data.state !== 'open' && current < want) {
+				void focusStep();
+			} else if (isActive(data) && data.state !== 'open' && current < want) {
 				current = want;
+				void focusStep();
 			}
 		});
 	});
@@ -228,6 +261,15 @@
 		}
 	}
 
+	// New setup files: a new pairing code (the old files stop working) and,
+	// unless the new server's agent enrolled, a new enrollment token.
+	async function renewFiles() {
+		const c = await createSetupFiles();
+		created = c;
+		void qc.invalidateQueries({ queryKey: managerMoveKeys.current });
+		toast.success('Created new setup files');
+	}
+
 	async function start() {
 		const job = await startMoveRun();
 		runs.add(job, 'Move everything');
@@ -268,6 +310,21 @@
 		}
 		return true;
 	});
+	// Why the main button is off (its tooltip).
+	const disabledReason = $derived.by(() => {
+		switch (stepId) {
+			case 'server':
+				return "Wait until the new server's agent is connected and its Docker Manager is waiting.";
+			case 'check':
+				if (checking) return 'Wait for the check to finish.';
+				return preview
+					? 'Fix the problems the check found, then check again.'
+					: 'Run the check again.';
+			case 'move':
+				return 'Your apps are moving. Wait until the move finishes.';
+		}
+		return undefined;
+	});
 	const nextLabel = $derived(stepId === 'server' && !active ? 'Create setup files' : 'Next');
 	const canStop = $derived(!!active && moveStatus(active).stop === 'cancel');
 
@@ -276,23 +333,49 @@
 	let resuming = $state(false);
 	const instanceName = $derived(instance.data?.name ?? '');
 
+	// Ending a move after agents heard the new address restarts Docker
+	// Manager: wait until it answers again, then reload the page.
+	let restarting = $state<'no' | 'waiting' | 'slow'>('no');
+	const leaving = new AbortController();
+	onDestroy(() => leaving.abort());
+	async function followRestart() {
+		restarting = 'waiting';
+		const outcome = await waitForRestart({
+			probe: () => managerAnswers(leaving.signal),
+			sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+			now: () => Date.now(),
+			signal: leaving.signal
+		});
+		if (outcome === 'up') location.reload();
+		else if (outcome === 'timeout') restarting = 'slow';
+	}
+
 	async function cancel() {
+		const restarts = !!active && restartsWhenEnded(active);
 		const m = await cancelMove();
 		created = null;
 		preview = null;
 		own = [];
 		submitted = false;
+		if (restarts) {
+			toast.success('Cancelled the move', {
+				body: 'Docker Manager restarts now. This page reloads by itself when it is back.'
+			});
+			void followRestart();
+			return;
+		}
 		qc.setQueryData(managerMoveKeys.current, m);
 		void qc.invalidateQueries({ queryKey: managerMoveKeys.current });
 		toast.success('Cancelled the move');
+		void focusStep();
 	}
 
 	async function resume() {
-		const m = await cancelMove({ resumeHere: true, instanceName });
-		qc.setQueryData(managerMoveKeys.current, m);
+		await cancelMove({ resumeHere: true, instanceName });
 		toast.success('Resumed Docker Manager on this server', {
-			body: 'It restarts now. Reload the page in a minute.'
+			body: 'It restarts now. This page reloads by itself when it is back.'
 		});
+		void followRestart();
 	}
 </script>
 
@@ -315,7 +398,7 @@
 				required
 				autocomplete="off"
 				placeholder="192.168.1.20"
-				description="The new server's IP address on your network"
+				description="The new server's IP address or host name on your network."
 				error={submitted && !newAddr.trim()
 					? "Enter the new server's address."
 					: fieldError(createError, 'body.newServerAddress')}
@@ -330,40 +413,71 @@
 		</div>
 	{:else}
 		<div class="server">
+			{#if reason && reasonNotice}
+				<Notice
+					tone={reason === 'expired' ? 'warn' : 'info'}
+					title={reasonNotice.title}
+					live="none"
+				>
+					{reasonNotice.body}
+					{#snippet actions()}
+						<Button size="sm" icon={RotateCw} onclick={() => (renewing = true)}
+							>Create new setup files</Button
+						>
+					{/snippet}
+				</Notice>
+			{/if}
 			{#if files}
 				<Notice
 					tone="warn"
 					icon={KeyRound}
 					title="These files are shown once. They contain a one-time pairing code."
 					live="none"
-				/>
-				<InstallCommand
-					title="compose.yaml"
-					description=""
-					command={files.composeYaml}
-					what="compose.yaml"
-					filename="compose.yaml"
-				/>
-				<InstallCommand
-					title=".env"
-					description=""
-					command={files.env}
-					what=".env"
-					filename=".env"
-				/>
-				<InstallCommand
-					title="Start command"
-					description="On the new server, save both files in an empty folder and run:"
-					command="docker compose up -d"
-				/>
-			{:else}
-				<Notice
-					tone="info"
-					title="The setup files were shown when you created the move."
-					live="none"
 				>
-					If you no longer have them, cancel the move and start again.
+					Save them now. If you lose them, you can create new ones here.
 				</Notice>
+				{#if files.agentEnrolled}
+					<Notice
+						tone="info"
+						title="The agent on the new server stays connected."
+						live="none">{AGENT_KEPT}</Notice
+					>
+				{/if}
+				<section class="files" aria-labelledby="files-title">
+					<h3 id="files-title" class="subsection-title" tabindex="-1">
+						Set up the new server
+					</h3>
+					<InstallCommand
+						title="compose.yaml"
+						description="Save this as compose.yaml in an empty folder on the new server."
+						command={files.composeYaml}
+						what="compose.yaml"
+						filename="compose.yaml"
+					/>
+					<InstallCommand
+						title=".env"
+						description="Save this as .env in the same folder. If your browser drops the dot from the downloaded file's name, rename it to .env."
+						command={files.env}
+						what=".env"
+						filename=".env"
+					/>
+					<InstallCommand
+						title="Start command"
+						description="Then run this in that folder:"
+						command="docker compose up -d"
+					/>
+				</section>
+				<section class="files" aria-labelledby="script-title">
+					<h3 id="script-title" class="subsection-title">
+						Or paste this on the new server
+					</h3>
+					<InstallCommand
+						title="One command"
+						description="Creates the folder {SETUP_FOLDER} with both files and starts Docker Manager."
+						command={script}
+						what="command"
+					/>
+				</section>
 			{/if}
 			<section aria-labelledby="checklist-title">
 				<h3 id="checklist-title" class="subsection-title">On the new server</h3>
@@ -501,80 +615,113 @@
 	{/if}
 {/snippet}
 
-{#if move.isPending}
-	<Card><div aria-busy="true"><Skeleton lines={5} /></div></Card>
-{:else if move.isError && move.data === undefined}
-	<ErrorState
-		error={move.error}
-		title="The move could not be loaded."
-		onretry={() => move.refetch()}
-	/>
-{:else if handedOver}
-	{@const panel = movedPanel(handedOver, publicUrl)}
-	<Card>
-		<div class="moved">
-			<Notice tone="info" icon={Truck} title={panel.title} live="status">
-				{panel.body}
-				{#if panel.statusUrl}
-					Follow it at <a href={panel.statusUrl} target="_blank" rel="noopener noreferrer"
-						>{panel.statusUrl}</a
-					>.
-				{/if}
-			</Notice>
-			<p class="busy">
-				{#if handedOver.state === 'handed_off'}
-					<Spinner /> Handed over. Waiting for the new Docker Manager to confirm.
-				{:else}
-					<CircleCheck size={16} strokeWidth={1.75} aria-hidden="true" /> Handed over. The new
-					Docker Manager confirmed.
-				{/if}
-			</p>
-			{#if handedOver.state === 'handed_off' && instanceName}
-				<section class="resume" aria-labelledby="resume-title">
-					<h3 id="resume-title" class="subsection-title">
-						The new server did not start?
-					</h3>
+<div class="wizard-root" bind:this={root}>
+	{#if restarting !== 'no'}
+		<Card>
+			{#if restarting === 'waiting'}
+				<div class="restarting" role="status" aria-busy="true">
+					<p class="busy strong"><Spinner /> Restarting Docker Manager…</p>
 					<p class="muted">
-						Only if Docker Manager on the new server never started with the copy, you
-						can go back to this server.
+						This page reloads by itself as soon as Docker Manager answers again.
 					</p>
-					<div>
-						<Button variant="danger-soft" icon={Undo2} onclick={() => (resuming = true)}
-							>Resume on this server</Button
+				</div>
+			{:else}
+				<Notice tone="warn" title="Docker Manager does not answer yet." live="status">
+					It may still be starting. Reload the page in a moment.
+					{#snippet actions()}
+						<Button size="sm" icon={RotateCw} onclick={() => location.reload()}
+							>Reload</Button
 						>
-					</div>
-				</section>
+					{/snippet}
+				</Notice>
 			{/if}
-		</div>
-	</Card>
-{:else if arrived}
-	<MoveCompleteCard move={arrived} />
-{:else}
-	<Card>
-		<StepWizard
-			label="Move to a new server"
-			{steps}
-			bind:current
-			{step}
-			{onnext}
-			{canAdvance}
-			canGoBack={phase === 'idle' || phase === 'failed'}
-			{nextLabel}
-			finishLabel={moveButtonLabel(phase)}
-			oncancel={canStop ? () => (cancelling = true) : undefined}
-			cancelLabel="Cancel the move"
+		</Card>
+	{:else if move.isPending}
+		<Card><div aria-busy="true"><Skeleton lines={5} /></div></Card>
+	{:else if move.isError && move.data === undefined}
+		<ErrorState
+			error={move.error}
+			title="The move could not be loaded."
+			onretry={() => move.refetch()}
 		/>
-	</Card>
+	{:else if handedOver}
+		{@const panel = movedPanel(handedOver, publicUrl)}
+		<Card>
+			<div class="moved">
+				<Notice tone="info" icon={Truck} title={panel.title} live="status">
+					{panel.body}
+					{#if panel.statusUrl}
+						Follow it at <a
+							href={panel.statusUrl}
+							target="_blank"
+							rel="noopener noreferrer">{panel.statusUrl}</a
+						>.
+					{/if}
+				</Notice>
+				<p class="busy">
+					{#if handedOver.state === 'handed_off'}
+						<Spinner /> Handed over. Waiting for the new Docker Manager to confirm.
+					{:else}
+						<CircleCheck size={16} strokeWidth={1.75} aria-hidden="true" /> Handed over. The
+						new Docker Manager confirmed.
+					{/if}
+				</p>
+				{#if handedOver.state === 'handed_off' && instanceName}
+					<section class="resume" aria-labelledby="resume-title">
+						<h3 id="resume-title" class="subsection-title">
+							The new server did not start?
+						</h3>
+						<p class="muted">
+							Only if Docker Manager on the new server never started with the copy,
+							you can go back to this server.
+						</p>
+						<div>
+							<Button
+								variant="danger-soft"
+								icon={Undo2}
+								onclick={() => (resuming = true)}>Resume on this server</Button
+							>
+						</div>
+					</section>
+				{/if}
+			</div>
+		</Card>
+	{:else if arrived}
+		<MoveCompleteCard move={arrived} />
+	{:else}
+		<Card>
+			<StepWizard
+				label="Move to a new server"
+				{steps}
+				bind:current
+				{step}
+				{onnext}
+				{canAdvance}
+				{disabledReason}
+				canGoBack={phase === 'idle' || phase === 'failed'}
+				{nextLabel}
+				finishLabel={moveButtonLabel(phase)}
+				oncancel={canStop ? () => (cancelling = true) : undefined}
+				cancelLabel="Cancel the move"
+			/>
+		</Card>
+	{/if}
+</div>
+
+{#if active}
+	<ConfirmDialog
+		bind:open={renewing}
+		title="Create new setup files?"
+		consequences={setupFilesConsequences(active)}
+		confirmLabel="Create new setup files"
+		onconfirm={renewFiles}
+	/>
 {/if}
 
 <ConfirmDialog
 	bind:open={cancelling}
 	title="Cancel the move?"
-	consequences={[
-		'Docker Manager stays on this server and works as before.',
-		'Apps that already moved stay on the new server.',
-		'The setup files stop working. Stop Docker Manager on the new server and remove its folder there.'
-	]}
+	consequences={cancelConsequences(active)}
 	confirmLabel="Cancel the move"
 	cancelLabel="Keep the move"
 	tone="danger"
@@ -602,6 +749,16 @@
 	.moved {
 		display: grid;
 		gap: var(--space-5);
+	}
+
+	.files,
+	.restarting {
+		display: grid;
+		gap: var(--space-3);
+	}
+
+	.files h3 {
+		outline: none;
 	}
 
 	.subsection-title {

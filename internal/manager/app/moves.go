@@ -65,7 +65,7 @@ func (m *Manager) startMoves(waiting *managermove.WaitingConfig) error {
 				OldManagerURL: in.OldManagerURL, MoveCode: in.MoveCode, EnrollmentToken: in.EnrollmentToken, EnvironmentName: in.EnvironmentName})
 			return managermove.Files{ComposeYAML: compose, Env: env}
 		},
-		Waiting: waiting, MoveVariablesSet: cfg.Move.Set(),
+		Waiting: waiting, MoveVariablesSet: cfg.Move.Set(), Bus: m.events,
 		SchemaMigrations: func(ctx context.Context) ([]string, error) {
 			applied, _, err := store.Status(ctx, m.db, m.opts.Migrations)
 			return applied, err
