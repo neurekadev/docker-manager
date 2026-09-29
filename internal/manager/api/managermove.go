@@ -325,11 +325,11 @@ func sessionManagerMove(ctx context.Context, svc ManagerMoveService) *SessionMan
 // ManagerMoveCheckIn answers the waiting manager's check-in: the move's
 // state and the apps' progress (no secrets, no content).
 type ManagerMoveCheckIn struct {
-	State        string `json:"state" enum:"open,moving,ready,draining,handed_off,confirmed" doc:"open, moving: keep checking in; ready, draining, handed_off: call the handoff; confirmed: the move is over."`
-	StacksMoved  int    `json:"stacksMoved"`
-	StacksTotal  int    `json:"stacksTotal"`
-	CurrentStack string `json:"currentStack,omitempty"`
-	JobsRunning  int    `json:"jobsRunning" doc:"draining: the jobs the handoff waits for."`
+	State        string `json:"state" example:"moving" enum:"open,moving,ready,draining,handed_off,confirmed" doc:"open, moving: keep checking in; ready, draining, handed_off: call the handoff; confirmed: the move is over."`
+	StacksMoved  int    `json:"stacksMoved" example:"3"`
+	StacksTotal  int    `json:"stacksTotal" example:"8"`
+	CurrentStack string `json:"currentStack,omitempty" example:"traefik"`
+	JobsRunning  int    `json:"jobsRunning" example:"0" doc:"draining: the jobs the handoff waits for."`
 }
 
 type managerMoveCheckInOutput struct {
@@ -381,7 +381,7 @@ func moveError(err error) error {
 		if c := headerSafe(nr.CurrentStack); c != "" {
 			e = e.WithHeader(managermove.MoveCurrentStackHeader, c)
 		}
-		return e.WithRetryable(true)
+		return e
 	case errors.Is(err, managermove.ErrResumeRequired):
 		return Invalid(err.Error(), Field("body.resumeHere", "must be true once the state was handed off"))
 	case errors.Is(err, managermove.ErrInstanceNameMismatch):

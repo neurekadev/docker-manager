@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -100,6 +101,9 @@ type CheckIn struct {
 // waiting manager asks every 10 s and calls the handoff once the move is
 // ready (a read: unaudited, unlike the handoff).
 func (s *Service) CheckIn(ctx context.Context, a MoveAuth) (CheckIn, error) {
+	if a.Method != http.MethodGet {
+		return CheckIn{}, domain.ErrMoveCodeInvalid
+	}
 	id, _, err := s.authenticate(ctx, a)
 	if err != nil {
 		return CheckIn{}, err

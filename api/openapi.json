@@ -9899,18 +9899,30 @@
         "additionalProperties": false,
         "properties": {
           "currentStack": {
+            "examples": [
+              "traefik"
+            ],
             "type": "string"
           },
           "jobsRunning": {
             "description": "draining: the jobs the handoff waits for.",
+            "examples": [
+              0
+            ],
             "format": "int64",
             "type": "integer"
           },
           "stacksMoved": {
+            "examples": [
+              3
+            ],
             "format": "int64",
             "type": "integer"
           },
           "stacksTotal": {
+            "examples": [
+              8
+            ],
             "format": "int64",
             "type": "integer"
           },
@@ -9923,6 +9935,9 @@
               "draining",
               "handed_off",
               "confirmed"
+            ],
+            "examples": [
+              "moving"
             ],
             "type": "string"
           }
@@ -55865,11 +55880,11 @@
             "content": {
               "application/json": {
                 "example": {
-                  "currentStack": "example",
-                  "jobsRunning": 1,
-                  "stacksMoved": 1,
-                  "stacksTotal": 1,
-                  "state": "open"
+                  "currentStack": "traefik",
+                  "jobsRunning": 0,
+                  "stacksMoved": 3,
+                  "stacksTotal": 8,
+                  "state": "moving"
                 },
                 "schema": {
                   "$ref": "#/components/schemas/ManagerMoveCheckIn"

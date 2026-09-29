@@ -445,8 +445,16 @@ func TestCheckIn(t *testing.T) {
 	if got := f.move(m.ID); got.CheckedInAt == nil || got.HandoffAddress != "192.168.1.20" || got.State != domain.MoveOpen {
 		t.Fatalf("after the check-in %+v", got)
 	}
-	if _, err := f.svc.CheckIn(f.from(), f.signed(code, CheckInPath)); !errors.Is(err, domain.ErrMoveCodeInvalid) {
+	// Signed for POST, sent as the check-in's GET: the signature covers the
+	// method.
+	postSigned := f.signed(code, CheckInPath)
+	postSigned.Method = http.MethodGet
+	if _, err := f.svc.CheckIn(f.from(), postSigned); !errors.Is(err, domain.ErrMoveCodeInvalid) {
 		t.Fatalf("signed for POST: %v", err)
+	}
+	// A check-in is a GET, whatever it was signed for.
+	if _, err := f.svc.CheckIn(f.from(), f.signed(code, CheckInPath)); !errors.Is(err, domain.ErrMoveCodeInvalid) {
+		t.Fatalf("POST check-in: %v", err)
 	}
 	mig, _, err := f.migr.StartEnvironment(f.ctx, f.migr.principal, "env-old", envmigrations.EnvironmentRequest{TargetEnvironmentID: "env-new"})
 	if err != nil {

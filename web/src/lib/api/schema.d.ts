@@ -9060,18 +9060,27 @@ export interface components {
             thisServerAddress?: string;
         };
         ManagerMoveCheckIn: {
+            /** @example traefik */
             currentStack?: string;
             /**
              * Format: int64
              * @description draining: the jobs the handoff waits for.
+             * @example 0
              */
             jobsRunning: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 3
+             */
             stacksMoved: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 8
+             */
             stacksTotal: number;
             /**
              * @description open, moving: keep checking in; ready, draining, handed_off: call the handoff; confirmed: the move is over.
+             * @example moving
              * @enum {string}
              */
             state: "open" | "moving" | "ready" | "draining" | "handed_off" | "confirmed";
@@ -35986,11 +35995,11 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "currentStack": "example",
-                     *       "jobsRunning": 1,
-                     *       "stacksMoved": 1,
-                     *       "stacksTotal": 1,
-                     *       "state": "open"
+                     *       "currentStack": "traefik",
+                     *       "jobsRunning": 0,
+                     *       "stacksMoved": 3,
+                     *       "stacksTotal": 8,
+                     *       "state": "moving"
                      *     }
                      */
                     "application/json": components["schemas"]["ManagerMoveCheckIn"];

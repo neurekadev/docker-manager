@@ -136,7 +136,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeJobsRunning, http.StatusConflict, false, "The handoff waits for the jobs still running on the old manager; Retry-After says when to ask again and X-Docker-Manager-Jobs-Running how many run.", 35},
 		{CodeManagerMoveExists, http.StatusConflict, false, "A move of this manager is already open or in progress; cancel it before creating another.", 35},
 		{CodeManagerMoveState, http.StatusConflict, false, "The move is not in a state that allows this (Move everything needs an open or ready move; a confirmed move cannot be cancelled; a confirmation needs a handed-off move).", 35},
-		{CodeManagerMoveNotReady, http.StatusConflict, true, "The handoff waits until Move everything moved the apps; Retry-After says when to ask again and X-Docker-Manager-Move-State, X-Docker-Manager-Move-Stacks and X-Docker-Manager-Move-Current-Stack carry the progress.", 35},
+		{CodeManagerMoveNotReady, http.StatusConflict, false, "The handoff waits until Move everything moved the apps; Retry-After says when to ask again and X-Docker-Manager-Move-State, X-Docker-Manager-Move-Stacks and X-Docker-Manager-Move-Current-Stack carry the progress.", 35},
 		{CodeManagerMoveNewServerMissing, http.StatusConflict, false, "Move everything needs the new server: its agent connected and its Docker Manager (waiting mode) checked in within two minutes.", 35},
 		{CodeGone, http.StatusGone, false, "The resource existed but was removed permanently (for example an expired invitation).", 2},
 		{CodeLengthRequired, http.StatusLengthRequired, false, "Uploads need a Content-Length header.", 15},
