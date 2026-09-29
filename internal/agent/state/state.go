@@ -11,6 +11,9 @@
 //	                        by `docker-agent enroll` to report the result
 //	enrollment-used.json    SHA-256 of tokens already used, so a token left
 //	                        in DOCKER_AGENT_ENROLLMENT_TOKEN is not retried
+//	manager.json            the highest manager generation seen in
+//	                        manager.identity (a manager with a lower one is
+//	                        refused, docs/internal/architecture/manager-move.md)
 //
 // Every write is atomic: temporary file (0600), fsync, rename, directory
 // fsync. The credential is written before the agent opens a session with it.
@@ -42,6 +45,7 @@ const (
 	TokenFile            = "enrollment-token"
 	EnrollmentStatusFile = "enrollment-status.json"
 	UsedTokensFile       = "enrollment-used.json"
+	ManagerFile          = "manager.json"
 )
 
 // maxUsedTokens bounds enrollment-used.json.
@@ -292,6 +296,38 @@ func (s *Store) EnrollStatus() (*EnrollStatus, error) {
 		return nil, err
 	}
 	return &st, nil
+}
+
+type managerState struct {
+	Generation int64 `json:"generation"`
+}
+
+// ManagerGeneration returns the highest manager generation this agent has
+// seen: 0 when none was recorded yet, and 0 with an error when manager.json
+// is unreadable or corrupt (the caller warns and treats it as 0).
+func (s *Store) ManagerGeneration() (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var m managerState
+	ok, err := readJSON(s.path(ManagerFile), &m)
+	if err != nil || !ok {
+		return 0, err
+	}
+	if m.Generation < 0 {
+		return 0, fmt.Errorf("state: %s is corrupt: negative generation", ManagerFile)
+	}
+	return m.Generation, nil
+}
+
+// SaveManagerGeneration records the highest manager generation seen
+// (atomically, 0600).
+func (s *Store) SaveManagerGeneration(generation int64) error {
+	if generation < 0 {
+		return errors.New("state: negative manager generation")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return writeJSON(s.dir, ManagerFile, managerState{Generation: generation})
 }
 
 func readJSON(path string, v any) (bool, error) {

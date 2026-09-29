@@ -96,6 +96,24 @@ func clientIP(r *http.Request) string {
 	return info.ClientIP.String()
 }
 
+// MovedRetryAfter is the Retry-After (seconds) of agent requests refused
+// because the manager moved to a new server.
+const MovedRetryAfter = "60"
+
+// moved refuses agent requests once the manager handed its state to a new
+// server (docs/internal/architecture/manager-move.md): 503 with
+// Retry-After, before any credential check, so agents keep their
+// credential and retry (never 401: they would delete it).
+func (h *handler) moved(w http.ResponseWriter, r *http.Request) bool {
+	if !h.svc.opts.MoveLock.AgentsRefused() {
+		return false
+	}
+	api.WriteError(w, r, api.Unavailable(api.CodeUnavailable,
+		"Docker Manager moved to a new server; this manager no longer accepts agents (point the agent at the public address)").
+		WithHeader("Retry-After", MovedRetryAfter))
+	return true
+}
+
 // versionUnsupported answers 426 with an upgrade message.
 func versionUnsupported(w http.ResponseWriter, r *http.Request, msg string) {
 	api.WriteError(w, r, api.NewError(http.StatusUpgradeRequired, api.CodeVersionUnsupported, msg))
@@ -105,6 +123,9 @@ func (h *handler) enroll(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(withUserAgent(r.Context(), r.UserAgent()))
 	log := logging.FromContext(r.Context()).With("client_ip", clientIP(r))
 	if browserRequest(w, r) {
+		return
+	}
+	if h.moved(w, r) {
 		return
 	}
 	tok, ok := authsep.BearerToken(r.Header)
@@ -186,6 +207,9 @@ func (h *handler) session(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(withUserAgent(r.Context(), r.UserAgent()))
 	log := logging.FromContext(r.Context()).With("client_ip", clientIP(r))
 	if browserRequest(w, r) {
+		return
+	}
+	if h.moved(w, r) {
 		return
 	}
 	tok, ok := authsep.BearerToken(r.Header)

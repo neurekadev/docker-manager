@@ -128,6 +128,13 @@ manager, e.g. `app.Manager.Audit()`):
   `system.restore` (actor `service`, the set as target, counts of deleted
   sessions, revoked API tokens and agents, relocation and reconciliation),
   `agent.restore_revoke` per revoked agent, and `api_token.revoke_all`.
+- Manager move ([manager-move.md](manager-move.md)): `manager.move.create`,
+  `manager.move.cancel`, `manager.move.handoff` (detail `handoffAddress`,
+  anonymous actor: the move code authenticates it) and
+  `manager.move.confirm` are recorded by construction on the old manager
+  (target `manager_move`, never the code); `system.move` (actor `service`,
+  the move as target, `sourceHost`, `generation`, `fromVersion`) at the
+  first start of the new manager.
 
 Inside a database transaction (single-connection SQLite), use
 `RecordTx(ctx, tx, ev)`; calling `Record` while holding a transaction

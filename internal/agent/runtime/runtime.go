@@ -779,6 +779,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.store, err = state.Open(cfg.StateDir); err != nil {
 		return err
 	}
+	// manager.identity refuses a manager older than the newest one this
+	// agent has seen (manager moves, #35); the state directory keeps it.
+	a.guard.SetGenerations(a.store)
 	installID, err := a.store.InstallID()
 	if err != nil {
 		return err
@@ -795,6 +798,9 @@ func (a *Agent) Run(ctx context.Context) error {
 		AgentVersion: info0.Version, UserAgent: userAgent(), Capabilities: a.CapabilitiesPayload,
 		Requests: a.opts.Requests, Streams: a.opts.Streams, Backoff: a.opts.Backoff, OnStatus: a.onSessionStatus,
 		Rescan: a.rescan(),
+		// A manager older than the newest one seen is refused at the
+		// handshake (manager moves, #35); manager.identity checks again.
+		AcceptWelcome: func(w protocol.WelcomePayload) error { return a.guard.AcceptGeneration("", w.Generation) },
 	})
 	// A helper that recreated this agent (#32) left its result behind.
 	selfupdate.Collect(cfg.StateDir, log)

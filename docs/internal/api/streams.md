@@ -538,3 +538,21 @@ secrets are files whose paths only are listed), `support-matrix.json`
 `logs.ndjson` (the manager's recent in-memory log lines, redacted again).
 It never contains secret values. Owner only (`system.support_bundle`, never
 an API token) and audited. A failure mid-stream aborts the connection.
+
+## Manager move handoff (`create-manager-move-handoff`)
+
+`POST /manager/move/handoff` (the old manager of a move to a new server,
+[manager-move.md](../architecture/manager-move.md)) is authenticated by the
+move code (`Authorization: Bearer dmm_<id>_<secret>`, never a session or
+API token) over a secure origin (403 `insecure_origin`). While jobs still
+run it answers 409 `jobs_running` with `Retry-After` and
+`X-Docker-Manager-Jobs-Running` (the count). Then it answers 200
+`application/x-tar` with `X-Docker-Manager-Move-Size` (the parts' total
+length) and streams, in this order, `state.json` (format
+`docker-manager-move`), `docker-manager.db`, `secret-key.sealed`,
+`templates.tar.gz` (when the drafts are included) and last
+`manifest.json` (every part's name, length and SHA-256). The receiver
+stores each part under its fixed name, refuses unknown, repeated or
+oversized parts and trusts nothing before the manifest matched. A stream
+that breaks off is retried: after the handoff every call streams the same
+copy. Audited (`manager.move.handoff`, with the requesting address).

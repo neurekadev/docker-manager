@@ -139,16 +139,17 @@ func TestInvalidPayloads(t *testing.T) {
 		typ Type
 		p   any
 	}{
-		"hello wrong protocol":    {TypeHello, mut(func(h *HelloPayload) { h.Protocol = "docker-manager.agent/v2" })},
-		"hello bad agent id":      {TypeHello, mut(func(h *HelloPayload) { h.AgentID = "a b" })},
-		"hello empty version":     {TypeHello, mut(func(h *HelloPayload) { h.AgentVersion = "" })},
-		"welcome bad status":      {TypeWelcome, wmut(func(w *WelcomePayload) { w.AgentStatus = "ancient" })},
-		"welcome heartbeat order": {TypeWelcome, wmut(func(w *WelcomePayload) { w.HeartbeatTimeoutMs = w.HeartbeatIntervalMs })},
-		"welcome frame too big":   {TypeWelcome, wmut(func(w *WelcomePayload) { w.Limits.MaxFrameBytes = MaxFrameSize + 1 })},
-		"caps without protocol":   {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Protocols = []string{"v0"} })},
-		"caps unknown request":    {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Requests = []string{"host.shell"} })},
-		"caps unknown stream":     {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Streams = []string{"host.pty"} })},
-		"caps without transport":  {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Transport = TransportInfo{} })},
+		"hello wrong protocol":        {TypeHello, mut(func(h *HelloPayload) { h.Protocol = "docker-manager.agent/v2" })},
+		"hello bad agent id":          {TypeHello, mut(func(h *HelloPayload) { h.AgentID = "a b" })},
+		"hello empty version":         {TypeHello, mut(func(h *HelloPayload) { h.AgentVersion = "" })},
+		"welcome bad status":          {TypeWelcome, wmut(func(w *WelcomePayload) { w.AgentStatus = "ancient" })},
+		"welcome heartbeat order":     {TypeWelcome, wmut(func(w *WelcomePayload) { w.HeartbeatTimeoutMs = w.HeartbeatIntervalMs })},
+		"welcome frame too big":       {TypeWelcome, wmut(func(w *WelcomePayload) { w.Limits.MaxFrameBytes = MaxFrameSize + 1 })},
+		"welcome negative generation": {TypeWelcome, wmut(func(w *WelcomePayload) { w.Generation = -1 })},
+		"caps without protocol":       {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Protocols = []string{"v0"} })},
+		"caps unknown request":        {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Requests = []string{"host.shell"} })},
+		"caps unknown stream":         {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Streams = []string{"host.pty"} })},
+		"caps without transport":      {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Transport = TransportInfo{} })},
 		"caps hides plain http": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) {
 			c.Transport = TransportInfo{ManagerURL: "http://docker-manager:8080"}
 		})},
@@ -300,7 +301,8 @@ func TestCheckAgentVersion(t *testing.T) {
 func TestCloseCodes(t *testing.T) {
 	for code, want := range map[websocket.StatusCode]bool{
 		CloseNormal: true, CloseGoingAway: true, CloseInternal: true, CloseTooLarge: true, CloseProtocolError: true,
-		CloseHeartbeatTimeout: true, CloseUnauthorized: false, CloseRevoked: false, CloseReplaced: false, CloseVersionUnsupported: false,
+		CloseHeartbeatTimeout: true, CloseManagerSuperseded: true, CloseUnauthorized: false, CloseRevoked: false, CloseReplaced: false,
+		CloseVersionUnsupported: false,
 	} {
 		if ReconnectAllowed(code) != want {
 			t.Errorf("ReconnectAllowed(%d) != %v", code, want)
@@ -325,7 +327,7 @@ func TestProtocolDocListsNames(t *testing.T) {
 		want = append(want, "`"+n+"`")
 	}
 	for _, c := range []websocket.StatusCode{CloseNormal, CloseGoingAway, CloseTooLarge, CloseInternal, CloseProtocolError,
-		CloseUnauthorized, CloseRevoked, CloseHeartbeatTimeout, CloseReplaced, CloseVersionUnsupported} {
+		CloseUnauthorized, CloseRevoked, CloseHeartbeatTimeout, CloseReplaced, CloseManagerSuperseded, CloseVersionUnsupported} {
 		want = append(want, "| "+strconv.Itoa(int(c))+" |")
 	}
 	for _, w := range want {

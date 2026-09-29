@@ -2826,6 +2826,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/manager/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the current move
+         * @description The move that is open or in progress on this manager (with the jobs a draining move waits for), else the move this manager arrived by, with whether the old manager confirmed and the finish checklist. 404 when there is none. Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-manager-move"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manager/move/cancellations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel the current move
+         * @description Ends an open or draining move and unlocks this manager. After the handoff only with resumeHere and the typed instance name: you state that the new manager never started with the copy (agents that met the new manager refuse this one). A confirmed move cannot be cancelled (409 manager_move_state). Requires a recent step-up. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-manager-move-cancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manager/move/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm that the new manager runs the instance
+         * @description Called by the new manager after it started with the copy: handed_off becomes confirmed (repeating it is harmless). This manager stays read-only and keeps refusing agents. 409 manager_move_state in any other state (the move was cancelled or resumed here, or this address reaches the new manager). Authenticated by the move code (Authorization: Bearer dmm_<id>_<secret>), not by a session; refused with 403 insecure_origin unless the request reaches this manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL.
+         */
+        post: operations["create-manager-move-confirmation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manager/move/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand this manager's state to a new manager
+         * @description Called by the new manager (manager.receive). The first call makes this manager read-only (no new job, no schedule; running jobs finish). While jobs run it answers 409 jobs_running with Retry-After and X-Docker-Manager-Jobs-Running (the count). Then agents are refused, the state is copied (the copy's generation goes up by one) and the response streams a tar: state.json, docker-manager.db, secret-key.sealed (the secret key sealed under the code), templates.tar.gz, then manifest.json (length and SHA-256 of every part). Repeating it after the handoff streams the same copy. 401 move_code_invalid for a wrong, expired or cancelled code. Authenticated by the move code (Authorization: Bearer dmm_<id>_<secret>), not by a session; refused with 403 insecure_origin unless the request reaches this manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL.
+         */
+        post: operations["create-manager-move-handoff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manager/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a move code (move Docker Manager to a new server)
+         * @description Starts a move of this manager to a new server and returns the move code once: enter it with this manager's address on the new manager's setup page within one hour. Nothing is locked until the new manager asks for the handoff. One move at a time (409 manager_move_exists). Requires a recent step-up. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-manager-move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -3424,6 +3524,26 @@ export interface paths {
          * @description Queues backup.import (202 + job): the set's manager-state snapshot is restored into a staging directory, its secret-key bundle is opened with the Recovery Key and the database is checked; then the manager restarts and applies it. Follow the progress with GET /api/v1/setup/status (backupImport). After the restart the owner signs in with the restored account: no session is revived, every API token is revoked, every agent must re-attach (enrollment intent reattach:<environmentId>), and the repository uses the destination and S3 credentials supplied here.
          */
         post: operations["create-setup-backup-import-restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/setup/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive a moving manager's state (first-run setup)
+         * @description Before an owner exists only (then 409 setup_complete), over HTTPS on DOCKER_MANAGER_PUBLIC_URL (403 insecure_origin). Queues manager.receive (202 + job): it asks the old manager (sourceUrl, https only) for the handoff, waits up to 30 minutes for its running jobs, stores the package and checks it (sums, the code opens the secret key, the database's integrity, instance, schema and settings), stages it and restarts as the moved instance. Follow the progress with GET /api/v1/setup/status (managerMove). Sessions, API tokens and agents of the old manager keep working.
+         */
+        post: operations["create-setup-move"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6260,6 +6380,15 @@ export interface components {
              */
             timeoutSeconds?: number;
         };
+        CancelManagerMoveInputBody: {
+            /**
+             * @description Required with resumeHere: this Docker Manager's name, typed.
+             * @example Docker Manager
+             */
+            instanceName?: string;
+            /** @description Required after the handoff: the new manager never started with the copy, and this manager takes over again. */
+            resumeHere?: boolean;
+        };
         CapabilitiesBody: {
             /** @example docker-manager.agent/v1 */
             agentProtocolVersion: string;
@@ -7036,6 +7165,14 @@ export interface components {
             /** @description Present only when this creation generated the instance Recovery Key: shown exactly once. */
             recoveryKey?: components["schemas"]["RecoveryKeyReveal"];
             repository: components["schemas"]["BackupRepository"];
+        };
+        CreatedManagerMove: {
+            /**
+             * @description The move code, shown once: enter it on the new manager's setup page within the hour. Never stored, logged or shown again.
+             * @example dmm_0190a6e0-0000-7000-8000-000000000035_3q2-7wEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE
+             */
+            code: string;
+            move: components["schemas"]["ManagerMove"];
         };
         CredentialRotation: {
             /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
@@ -8415,14 +8552,14 @@ export interface components {
             status: "succeeded" | "failed" | "skipped";
         };
         JobLock: {
-            /** @description Absent for instance-wide scopes (repository). */
+            /** @description Absent for instance-wide scopes (repository, template, manager). */
             environmentId?: string;
             /** @enum {string} */
             mode: "shared" | "exclusive";
             /** @description Resource name; * locks every resource of the scope in the environment; absent for host. */
             name?: string;
             /** @enum {string} */
-            scope: "host" | "stack" | "container" | "volume" | "image" | "network" | "file_path" | "repository";
+            scope: "host" | "stack" | "container" | "volume" | "image" | "network" | "file_path" | "repository" | "template" | "manager";
         };
         JobProgress: {
             message?: string;
@@ -8443,7 +8580,7 @@ export interface components {
              * @description Target resource type.
              * @enum {string}
              */
-            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition" | "maintenance_policy" | "template";
+            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition" | "maintenance_policy" | "template" | "manager";
         };
         KeyRotationStarted: {
             keyState: components["schemas"]["RecoveryKeyState"];
@@ -8725,6 +8862,93 @@ export interface components {
             enabled?: boolean;
             /** @description IANA time zone (default: the instance's default zone). */
             timeZone?: string;
+        };
+        ManagerMove: {
+            /** Format: date-time */
+            arrivedAt?: string;
+            /** @description Arrived: what is left to finish the move. */
+            checklist?: components["schemas"]["ManagerMoveChecklist"];
+            /**
+             * Format: int64
+             * @description Arrived: confirmation attempts so far (retried in the background until the old manager answers).
+             */
+            confirmAttempts: number;
+            /**
+             * @description Arrived: the last failed confirmation: unreachable, insecure_origin, http_<status> (retried), code_invalid or state_refused (the old manager refused: make sure it no longer runs the instance).
+             * @example unreachable
+             */
+            confirmError?: string;
+            /**
+             * Format: date-time
+             * @description Old manager: when the new manager confirmed. Arrived: when the old manager accepted the confirmation.
+             */
+            confirmedAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            drainingAt?: string;
+            /**
+             * Format: date-time
+             * @description When the move was cancelled or expired.
+             */
+            endedAt?: string;
+            /**
+             * Format: date-time
+             * @description An open or draining move ends at this time (one hour after the code was created).
+             */
+            expiresAt: string;
+            /** Format: date-time */
+            handedOffAt?: string;
+            /**
+             * @description Client IP of the handoff request.
+             * @example 203.0.113.7
+             */
+            handoffAddress?: string;
+            /** @example 0190a6e0-0000-7000-8000-000000000035 */
+            id: string;
+            /**
+             * Format: int64
+             * @description Draining: the jobs the handoff waits for.
+             * @example 0
+             */
+            jobsRunning: number;
+            /** Format: date-time */
+            lastConfirmAt?: string;
+            /** @description Arrived: the old manager accepted the confirmation (it stays locked for good). */
+            oldManagerConfirmed: boolean;
+            /**
+             * @description Arrived: the old manager's address.
+             * @example https://docker.example.com
+             */
+            sourceUrl?: string;
+            /**
+             * @description Old manager: open (code created), draining (read-only, jobs finish), handed_off (the state was copied; agents refused), confirmed (the new manager runs the instance), cancelled, expired. New manager: arrived (this manager runs the moved instance).
+             * @example open
+             * @enum {string}
+             */
+            state: "open" | "draining" | "handed_off" | "confirmed" | "cancelled" | "expired" | "arrived";
+        };
+        ManagerMoveChecklist: {
+            /** @description Environments with something left to do. */
+            environments: components["schemas"]["ManagerMoveEnvironment"][];
+            /** @description An environment was added after the move (the new server's own agent). False: add it (Add environment, the co-located install command). */
+            newEnvironmentAdded: boolean;
+        };
+        ManagerMoveEnvironment: {
+            /** @description set_manager_url: set DOCKER_AGENT_MANAGER_URL to the public URL; migrate: move its stacks to the new server's environment; archive: it is empty, archive it. */
+            actions: ("set_manager_url" | "migrate" | "archive")[];
+            /** @example 0190a6e0-0000-7000-8000-000000000001 */
+            environmentId: string;
+            /**
+             * @description The manager address the agent last dialed.
+             * @example http://docker-manager:8080
+             */
+            managerUrl: string;
+            /** @example old-server */
+            name: string;
+            online: boolean;
+            /** Format: int64 */
+            stackCount: number;
         };
         ManagerScopePreview: {
             /** Format: int64 */
@@ -10707,6 +10931,43 @@ export interface components {
             /** @enum {string} */
             state: "queued" | "waiting" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
         };
+        SetupManagerMove: {
+            /** Format: int64 */
+            bytesReceived: number;
+            /**
+             * Format: int64
+             * @description 0 until the transfer starts.
+             */
+            bytesTotal: number;
+            /** @example move_code_invalid */
+            errorCode?: string;
+            jobId: string;
+            /** @description What to do after a failure. */
+            recovery?: string;
+            /** @description The state is staged; the manager restarts to run it. Sign in afterwards with the old manager's accounts. */
+            restartPending: boolean;
+            /** @enum {string} */
+            state: "queued" | "waiting" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+            /**
+             * @description The step running (or failed).
+             * @enum {string}
+             */
+            step?: "handoff" | "verify" | "stage";
+            /**
+             * Format: int64
+             * @description Jobs the old manager still finishes before it hands off its state.
+             */
+            waitingJobs: number;
+        };
+        SetupMoveInputBody: {
+            /** @description The move code created on the old manager. Never returned, logged, stored or audited. */
+            code: string;
+            /**
+             * @description The old Docker Manager's public HTTPS address.
+             * @example https://docker.example.com
+             */
+            sourceUrl: string;
+        };
         SetupOwnerInputBody: {
             displayName?: string;
             email?: string;
@@ -10720,6 +10981,8 @@ export interface components {
             backupImport?: components["schemas"]["SetupBackupImport"];
             /** @description Why setup cannot complete over this request, and how to fix it. */
             explanation?: string;
+            /** @description The newest move of a manager into this one (manager.receive) while setup is open. */
+            managerMove?: components["schemas"]["SetupManagerMove"];
             /** @description This request reached Docker Manager over HTTPS on its public URL, so setup can complete. */
             secureOrigin: boolean;
             /**
@@ -34980,6 +35243,501 @@ export interface operations {
             };
         };
     };
+    "get-manager-move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "arrivedAt": "2026-09-25T12:00:00Z",
+                     *       "checklist": {
+                     *         "environments": [
+                     *           {
+                     *             "actions": [
+                     *               "set_manager_url"
+                     *             ],
+                     *             "environmentId": "0190a6e0-0000-7000-8000-000000000001",
+                     *             "managerUrl": "http://docker-manager:8080",
+                     *             "name": "old-server",
+                     *             "online": false,
+                     *             "stackCount": 1
+                     *           }
+                     *         ],
+                     *         "newEnvironmentAdded": false
+                     *       },
+                     *       "confirmAttempts": 1,
+                     *       "confirmError": "unreachable",
+                     *       "confirmedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "drainingAt": "2026-09-25T12:00:00Z",
+                     *       "endedAt": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "handedOffAt": "2026-09-25T12:00:00Z",
+                     *       "handoffAddress": "203.0.113.7",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000035",
+                     *       "jobsRunning": 0,
+                     *       "lastConfirmAt": "2026-09-25T12:00:00Z",
+                     *       "oldManagerConfirmed": false,
+                     *       "sourceUrl": "https://docker.example.com",
+                     *       "state": "open"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ManagerMove"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-manager-move-cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "instanceName": "Docker Manager"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CancelManagerMoveInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "arrivedAt": "2026-09-25T12:00:00Z",
+                     *       "checklist": {
+                     *         "environments": [
+                     *           {
+                     *             "actions": [
+                     *               "set_manager_url"
+                     *             ],
+                     *             "environmentId": "0190a6e0-0000-7000-8000-000000000001",
+                     *             "managerUrl": "http://docker-manager:8080",
+                     *             "name": "old-server",
+                     *             "online": false,
+                     *             "stackCount": 1
+                     *           }
+                     *         ],
+                     *         "newEnvironmentAdded": false
+                     *       },
+                     *       "confirmAttempts": 1,
+                     *       "confirmError": "unreachable",
+                     *       "confirmedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "drainingAt": "2026-09-25T12:00:00Z",
+                     *       "endedAt": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "handedOffAt": "2026-09-25T12:00:00Z",
+                     *       "handoffAddress": "203.0.113.7",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000035",
+                     *       "jobsRunning": 0,
+                     *       "lastConfirmAt": "2026-09-25T12:00:00Z",
+                     *       "oldManagerConfirmed": false,
+                     *       "sourceUrl": "https://docker.example.com",
+                     *       "state": "open"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ManagerMove"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-manager-move-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "arrivedAt": "2026-09-25T12:00:00Z",
+                     *       "checklist": {
+                     *         "environments": [
+                     *           {
+                     *             "actions": [
+                     *               "set_manager_url"
+                     *             ],
+                     *             "environmentId": "0190a6e0-0000-7000-8000-000000000001",
+                     *             "managerUrl": "http://docker-manager:8080",
+                     *             "name": "old-server",
+                     *             "online": false,
+                     *             "stackCount": 1
+                     *           }
+                     *         ],
+                     *         "newEnvironmentAdded": false
+                     *       },
+                     *       "confirmAttempts": 1,
+                     *       "confirmError": "unreachable",
+                     *       "confirmedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "drainingAt": "2026-09-25T12:00:00Z",
+                     *       "endedAt": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "handedOffAt": "2026-09-25T12:00:00Z",
+                     *       "handoffAddress": "203.0.113.7",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000035",
+                     *       "jobsRunning": 0,
+                     *       "lastConfirmAt": "2026-09-25T12:00:00Z",
+                     *       "oldManagerConfirmed": false,
+                     *       "sourceUrl": "https://docker.example.com",
+                     *       "state": "open"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ManagerMove"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-manager-move-handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The handoff package (tar) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-tar": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-manager-move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dmm_0190a6e0-0000-7000-8000-000000000035_3q2-7wEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE",
+                     *       "move": {
+                     *         "arrivedAt": "2026-09-25T12:00:00Z",
+                     *         "checklist": {
+                     *           "environments": [
+                     *             {
+                     *               "actions": [
+                     *                 "set_manager_url"
+                     *               ],
+                     *               "environmentId": "0190a6e0-0000-7000-8000-000000000001",
+                     *               "managerUrl": "http://docker-manager:8080",
+                     *               "name": "old-server",
+                     *               "online": false,
+                     *               "stackCount": 1
+                     *             }
+                     *           ],
+                     *           "newEnvironmentAdded": false
+                     *         },
+                     *         "confirmAttempts": 1,
+                     *         "confirmError": "unreachable",
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "drainingAt": "2026-09-25T12:00:00Z",
+                     *         "endedAt": "2026-09-25T12:00:00Z",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "handedOffAt": "2026-09-25T12:00:00Z",
+                     *         "handoffAddress": "203.0.113.7",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000035",
+                     *         "jobsRunning": 0,
+                     *         "lastConfirmAt": "2026-09-25T12:00:00Z",
+                     *         "oldManagerConfirmed": false,
+                     *         "sourceUrl": "https://docker.example.com",
+                     *         "state": "open"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CreatedManagerMove"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-me": {
         parameters: {
             query?: never;
@@ -38658,6 +39416,142 @@ export interface operations {
             };
         };
     };
+    "create-setup-move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "code": "example",
+                 *       "sourceUrl": "https://docker.example.com"
+                 *     }
+                 */
+                "application/json": components["schemas"]["SetupMoveInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "create-setup-owner": {
         parameters: {
             query?: never;
@@ -38798,6 +39692,17 @@ export interface operations {
                      *         "state": "queued"
                      *       },
                      *       "explanation": "example",
+                     *       "managerMove": {
+                     *         "bytesReceived": 1,
+                     *         "bytesTotal": 1,
+                     *         "errorCode": "move_code_invalid",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "recovery": "example",
+                     *         "restartPending": false,
+                     *         "state": "queued",
+                     *         "step": "handoff",
+                     *         "waitingJobs": 1
+                     *       },
                      *       "secureOrigin": false,
                      *       "setupComplete": false,
                      *       "staySignedInAllowed": false

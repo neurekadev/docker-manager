@@ -28,8 +28,12 @@ import (
 // plaintext secrets: the credentials and the adopted Recovery Key are
 // sealed with the restored secret key.
 type RestoreMarker struct {
-	Format       string             `json:"format"`
-	Version      int                `json:"version"`
+	Format  string `json:"format"`
+	Version int    `json:"version"`
+	// Kind is "" for a backup import and RestoreKindMove for the copy a
+	// moving manager handed over (docs/internal/architecture/manager-move.md);
+	// the restarted manager finishes each kind differently.
+	Kind         string             `json:"kind,omitempty"`
 	JobID        string             `json:"jobId"`
 	SetID        string             `json:"setId"`
 	InstanceID   string             `json:"instanceId"`
@@ -49,10 +53,20 @@ type RestoreMarker struct {
 	// PreRestoreDir keeps the replaced database, key file and template
 	// drafts.
 	PreRestoreDir string `json:"preRestoreDir,omitempty"`
+	// Move (Kind RestoreKindMove): the move, the old manager's address and
+	// the move code sealed with the restored secret key (the new manager
+	// confirms the move to the old one with it).
+	MoveID         string `json:"moveId,omitempty"`
+	SourceURL      string `json:"sourceUrl,omitempty"`
+	SealedMoveCode string `json:"sealedMoveCode,omitempty"`
+	Generation     int64  `json:"generation,omitempty"`
 }
 
 // RestoreMarkerFormat identifies RestoreMarker files.
 const RestoreMarkerFormat = "docker-manager-restore"
+
+// RestoreKindMove marks the staged copy of a manager move.
+const RestoreKindMove = "move"
 
 // importScanOutput is the output of backup.import's scan step.
 type importScanOutput struct {

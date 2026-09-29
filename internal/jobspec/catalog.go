@@ -90,6 +90,9 @@ const (
 	ManagerBackup    domain.JobKind = "manager.backup"
 	ManagerRetention domain.JobKind = "manager.retention"
 	ManagerVerify    domain.JobKind = "manager.verify"
+	// ManagerReceive pulls a moving manager's state into this fresh
+	// manager (docs/internal/architecture/manager-move.md).
+	ManagerReceive domain.JobKind = "manager.receive"
 )
 
 // Compensation names shared by several kinds.
@@ -522,6 +525,14 @@ func catalogSpecs() []Spec {
 			Locks:            []LockRule{target(domain.LockRepository, shared, domain.TargetRepository)},
 			Steps:            []Step{idem("scan"), idem("import_index")},
 			OnManagerRestart: RestartResume,
+		},
+		{
+			Kind: ManagerReceive, Summary: "Receive a moving manager's state (move to a new server)",
+			Capability: "manager.move", Executor: domain.ExecutorManager,
+			Locks: []LockRule{target(domain.LockManager, exclusive, domain.TargetManager)},
+			Steps: []Step{idem("handoff"), idem("verify"), idem("stage")},
+			// The move code lives in memory only: a restart loses it.
+			OnManagerRestart: RestartInterrupt,
 		},
 		{
 			Kind: ManagerBackup, Summary: "Back up the manager's own state",

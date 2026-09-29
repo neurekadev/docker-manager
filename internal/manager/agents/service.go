@@ -30,12 +30,14 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/coder/websocket"
 	"github.com/uptrace/bun"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
@@ -75,6 +77,16 @@ type Options struct {
 	Attempts AttemptLimits
 	// Audit records /agent/v1 events (#30); nil records nothing.
 	Audit AuditLog
+	// Generation is the instance's generation, sent in every welcome: an
+	// agent that has seen a higher one refuses this manager
+	// (docs/internal/architecture/manager-move.md). 0 sends none.
+	Generation int64
+	// MoveLock is the manager-move lock: once agents are refused (the
+	// state was handed to a new manager) enrollment and session upgrades
+	// answer 503 with Retry-After and every open session closes with 1012
+	// (service restart). Never 401, 4401, 4403 or 4409: agents would drop
+	// their credential or stop. nil: never locked.
+	MoveLock *movelock.Lock
 }
 
 // Service implements enrollment, the agent/environment model and the
@@ -114,6 +126,11 @@ func New(opts Options) (*Service, error) {
 	}
 	s := &Service{db: opts.DB, clk: opts.Clock, log: opts.Logger, keyring: opts.Keyring, bus: opts.Bus, audit: opts.Audit, opts: opts}
 	s.hub = newHub(s, opts.Session.withDefaults())
+	opts.MoveLock.OnChange(func(l movelock.Level) {
+		if l >= movelock.AgentsRefused {
+			s.hub.closeAll(websocket.StatusServiceRestart, "Docker Manager moved to a new server")
+		}
+	})
 	return s, nil
 }
 

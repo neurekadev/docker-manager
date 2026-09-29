@@ -127,12 +127,15 @@ const (
 	// TargetTemplate is a stack template of the instance (its draft is
 	// the root of template file jobs).
 	TargetTemplate TargetType = "template"
+	// TargetManager is this manager instance itself (manager.receive, a
+	// move of the manager to a new server; ID "instance").
+	TargetManager TargetType = "manager"
 )
 
 // TargetTypes returns every target type.
 func TargetTypes() []TargetType {
 	return []TargetType{TargetStack, TargetContainer, TargetVolume, TargetImage, TargetNetwork,
-		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition, TargetMaintenancePolicy, TargetTemplate}
+		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition, TargetMaintenancePolicy, TargetTemplate, TargetManager}
 }
 
 // JobTarget is one resource a job acts on.
@@ -162,15 +165,19 @@ const (
 	LockRepository LockScope = "repository"
 	// LockTemplate serializes jobs on one stack template.
 	LockTemplate LockScope = "template"
+	// LockManager serializes jobs on the manager instance itself.
+	LockManager LockScope = "manager"
 )
 
 // InstanceLevel reports whether locks of the scope belong to no environment
-// (backup repositories and templates are instance resources).
-func (s LockScope) InstanceLevel() bool { return s == LockRepository || s == LockTemplate }
+// (backup repositories, templates and the manager are instance resources).
+func (s LockScope) InstanceLevel() bool {
+	return s == LockRepository || s == LockTemplate || s == LockManager
+}
 
 // LockScopes returns every scope.
 func LockScopes() []LockScope {
-	return []LockScope{LockHost, LockStack, LockContainer, LockVolume, LockImage, LockNetwork, LockFilePath, LockRepository, LockTemplate}
+	return []LockScope{LockHost, LockStack, LockContainer, LockVolume, LockImage, LockNetwork, LockFilePath, LockRepository, LockTemplate, LockManager}
 }
 
 // LockMode is shared or exclusive.

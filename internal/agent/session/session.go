@@ -126,6 +126,43 @@ type StreamHandler func(ctx context.Context, s *streammux.Stream) error
 // HandlerError is a request failure with a protocol error code.
 type HandlerError = protocol.Error
 
+// EndSessionError is returned by a RequestHandler that refuses to serve
+// this manager any further: the session answers the request with Err (an
+// error frame), then closes with Code once that frame is written. The
+// client reconnects with its normal backoff and keeps its credential:
+// Code must allow reconnecting (protocol.ReconnectAllowed), any other code
+// is replaced by protocol.CloseInternal, so a handler can never make the
+// agent delete its credential or go idle.
+type EndSessionError struct {
+	Err    *HandlerError
+	Code   websocket.StatusCode
+	Reason string
+}
+
+func (e *EndSessionError) Error() string {
+	if e.Err == nil {
+		return "request refused; closing the session: " + e.Reason
+	}
+	return e.Err.Error() + "; closing the session: " + e.Reason
+}
+
+// Unwrap returns the error frame's HandlerError.
+func (e *EndSessionError) Unwrap() error {
+	if e.Err == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// closeCode returns the close code to use (always one the agent
+// reconnects after).
+func (e *EndSessionError) closeCode() websocket.StatusCode {
+	if e.Code == 0 || !protocol.ReconnectAllowed(e.Code) {
+		return protocol.CloseInternal
+	}
+	return e.Code
+}
+
 // JobRunner is the agent job runner (internal/agent/jobs.Runner).
 type JobRunner interface {
 	Report() protocol.JobReportPayload
@@ -159,8 +196,15 @@ type Options struct {
 	Streams map[string]StreamHandler
 	// Rescan answers the manager's rescan frames (the file watcher, #23);
 	// nil answers unsupported_request.
-	Rescan  func(ctx context.Context, p protocol.RescanPayload) (protocol.RescanResult, error)
-	Backoff Backoff
+	Rescan func(ctx context.Context, p protocol.RescanPayload) (protocol.RescanResult, error)
+	// AcceptWelcome vets the manager when its welcome arrives (the manager
+	// generation, docs/internal/architecture/manager-move.md). A non-nil
+	// error refuses it before anything else runs (no capabilities or job
+	// report sent; no request, job, stream or rescan served): the session
+	// closes with protocol.CloseManagerSuperseded and Run reconnects with
+	// backoff, keeping the credential. nil accepts every manager.
+	AcceptWelcome func(protocol.WelcomePayload) error
+	Backoff       Backoff
 	// WelcomeTimeout bounds the wait for welcome (default 30 s).
 	WelcomeTimeout time.Duration
 	// OnStatus observes connection state changes (must not block).

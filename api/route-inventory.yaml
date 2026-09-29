@@ -2597,6 +2597,60 @@ routes:
     kind: json
     status: implemented
     notes: "Protected first-run setup session only (#16, #24); refused once an owner exists. 202 + job."
+  - method: POST
+    path: /api/v1/setup/move
+    operationId: create-setup-move
+    capability: public
+    scope: none
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Protected first-run setup session only; refused once an owner exists. 202 + manager.receive job (move to a new server)."
+  - method: POST
+    path: /api/v1/manager/moves
+    operationId: create-manager-move
+    capability: owner
+    scope: instance
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Returns the move code once; step-up."
+  - method: GET
+    path: /api/v1/manager/move
+    operationId: get-manager-move
+    capability: owner
+    scope: instance
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "The open or in-progress move, else the arrived move with the finish checklist."
+  - method: POST
+    path: /api/v1/manager/move/cancellations
+    operationId: create-manager-move-cancellation
+    capability: owner
+    scope: instance
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Step-up; after the handoff only with resumeHere and the typed instance name."
+  - method: POST
+    path: /api/v1/manager/move/handoff
+    operationId: create-manager-move-handoff
+    capability: public
+    scope: none
+    owner: 35
+    kind: stream
+    status: implemented
+    notes: "Authenticated by the move code (Bearer dmm_...), secure origin only; streams the handoff tar."
+  - method: POST
+    path: /api/v1/manager/move/confirm
+    operationId: create-manager-move-confirmation
+    capability: public
+    scope: none
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Authenticated by the move code (Bearer dmm_...), secure origin only."
   - method: GET
     path: /api/v1/jobs
     operationId: list-jobs

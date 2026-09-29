@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -128,5 +129,56 @@ func TestRelaySequenceAndGaps(t *testing.T) {
 	// Invalid items are never sent.
 	if c.FileInvalidations().Publish(protocol.FSInvalidationPayload{Scope: protocol.ScopeRef{Kind: "stack", ID: "s"}, Paths: []string{"../etc"}, At: testutil.Epoch}) {
 		t.Fatal("escaping path relayed")
+	}
+}
+
+// TestEndSessionError: a handler refusing the manager for good answers the
+// request with its error frame and closes the session after that frame
+// with a code the agent reconnects after (never one that deletes the
+// credential or idles the agent); the close is classified as retryable.
+func TestEndSessionError(t *testing.T) {
+	c := New(Options{Clock: testutil.FakeClock(), Logger: testutil.Logger(t)})
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+	defer cancel()
+	k := &conn{c: c, ctx: ctx, cancel: cancel, out: make(chan outFrame, 4), idBase: "b", requestSlots: make(chan struct{}, 1)}
+	f := &protocol.Frame{Type: protocol.TypeRequest, ID: "req-1"}
+	serve := func(err error) outFrame {
+		t.Helper()
+		k.run(f, protocol.ReqManagerIdentity, func(context.Context) (any, error) { return nil, err })
+		k.wg.Wait()
+		select {
+		case o := <-k.out:
+			return o
+		default:
+			t.Fatal("no answer queued")
+			return outFrame{}
+		}
+	}
+	for code, want := range map[websocket.StatusCode]websocket.StatusCode{
+		protocol.CloseManagerSuperseded: protocol.CloseManagerSuperseded,
+		protocol.CloseRevoked:           protocol.CloseInternal, // would delete the credential
+		protocol.CloseReplaced:          protocol.CloseInternal, // would idle the agent
+		0:                               protocol.CloseInternal,
+	} {
+		o := serve(&EndSessionError{Err: &HandlerError{Code: protocol.CodeConflict, Message: "older manager"}, Code: code, Reason: "superseded"})
+		p, err := protocol.DecodePayload[protocol.ErrorPayload](o.f)
+		if o.f.Type != protocol.TypeError || o.f.CorrelationID != "req-1" || err != nil || p.Code != protocol.CodeConflict || p.Message != "older manager" {
+			t.Fatalf("code %d: answer %+v %+v %v", code, o.f, p, err)
+		}
+		if o.closeCode != want || o.reason != "superseded" {
+			t.Fatalf("code %d: closes with %d %q, want %d", code, o.closeCode, o.reason, want)
+		}
+	}
+	// An ordinary handler error keeps the session.
+	if o := serve(&HandlerError{Code: protocol.CodeNotFound, Message: "x"}); o.closeCode != 0 {
+		t.Fatalf("ordinary error closes the session with %d", o.closeCode)
+	}
+
+	// The echoed close is not a StopError: Run reconnects with backoff and
+	// the control loop keeps the credential.
+	res := (&conn{}).ended(websocket.CloseError{Code: protocol.CloseManagerSuperseded, Reason: "superseded"})
+	var stop *StopError
+	if res == nil || errors.As(res, &stop) || !protocol.ReconnectAllowed(protocol.CloseManagerSuperseded) {
+		t.Fatalf("superseded close classified as %v", res)
 	}
 }

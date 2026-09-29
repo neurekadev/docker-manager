@@ -53,8 +53,10 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/live"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/maintenance"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/managermove"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/metrics"
 	envmigrations "code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/observe"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
@@ -133,6 +135,9 @@ type Options struct {
 	Restic restic.Opener
 	// BackupHTTPClient overrides the HTTP client of S3 connection tests.
 	BackupHTTPClient *http.Client
+	// MoveHTTPClient overrides the HTTP client that reaches the old manager
+	// of a move (tests trust a fake's certificate).
+	MoveHTTPClient *http.Client
 	// LogRing keeps the recent log lines for the support bundle (#34);
 	// Run and Start create it (and tee Logger into it) when nil.
 	LogRing *logging.Ring
@@ -177,6 +182,10 @@ type Manager struct {
 	backups    *backups.Service
 	// diag serves the internal metrics and the support bundle (#34).
 	diag *diagnostics.Service
+	// moveLock and moves move the manager to a new server
+	// (docs/internal/architecture/manager-move.md).
+	moveLock *movelock.Lock
+	moves    *managermove.Service
 	// restart is signaled when the manager must restart in process (a
 	// staged manager-state restore, #24); Serve returns ErrRestart.
 	restart chan struct{}
@@ -224,15 +233,16 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
-	// A manager-state restore staged by a backup import (#24) replaces the
-	// database and the secret key before anything opens them.
+	// A manager-state restore staged by a backup import (#24) or a move to
+	// this server (kind move) replaces the database and the secret key
+	// before anything opens them.
 	applied, err := backups.ApplyPendingRestore(cfg.DataDir, cfg.DatabasePath(), cfg.SecretKeyFile, opts.Clock.Now())
 	if err != nil {
 		return nil, fmt.Errorf("apply the staged manager restore: %w", err)
 	}
 	if applied != nil {
 		log.Warn("applied a staged manager-state restore; the previous database and key are kept",
-			"set_id", applied.SetID, "kept_in", applied.PreRestoreDir)
+			"kind", applied.Kind, "set_id", applied.SetID, "move_id", applied.MoveID, "kept_in", applied.PreRestoreDir)
 	}
 	db, err := store.Open(ctx, cfg.DatabasePath())
 	if err != nil {
@@ -257,6 +267,15 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 
 	if err := m.initInstance(ctx); err != nil {
 		return nil, err
+	}
+	// A manager moving (or moved) to a new server stays locked across
+	// restarts: the level is read before anything runs.
+	m.moveLock = movelock.New()
+	if lvl, err := managermove.LockLevel(ctx, db, opts.Clock.Now()); err != nil {
+		return nil, fmt.Errorf("read the manager move state: %w", err)
+	} else if lvl != movelock.Open {
+		m.moveLock.Set(lvl)
+		log.Warn("this manager is moving (or moved) to a new server: it is read-only", "lock", lvl.String())
 	}
 
 	// Auth primitives (#18): a public URL that cannot be a WebAuthn relying
@@ -329,6 +348,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.agents, err = agents.New(agents.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "agents"), Keyring: m.keyring, Bus: m.events,
 		ManagerVersion: buildinfo.Get().Version, PublicURL: cfg.PublicURL, Audit: m.audit, Session: opts.AgentSession,
+		Generation: m.instance.Generation, MoveLock: m.moveLock,
 	})
 	if err != nil {
 		return nil, err
@@ -396,6 +416,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
 		Dispatcher: m.agents.Hub(), Authorizer: authorizer, Audit: m.audit, CommandSecrets: m.commandSecrets,
 		CommandInput: m.commandInput,
+		MoveLock:     m.moveLock,
 		Limits: jobs.Limits{
 			ConcurrencyCaps: map[string]int{jobspec.ClassPull: cfg.Jobs.MaxConcurrentPulls, jobspec.ClassBuild: cfg.Jobs.MaxConcurrentBuilds},
 			HistoryMaxAge:   cfg.Jobs.HistoryRetention,
@@ -423,7 +444,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// revalidation of scheduled jobs are installed on the engine before
 	// recovery; policy workstreams (#10, #14, #20) Register their sources.
 	if m.sched, err = scheduler.New(scheduler.Options{DB: db, Clock: opts.Clock, Logger: log.With("component", "scheduler"),
-		Jobs: m.jobs, Audit: m.audit}); err != nil {
+		Jobs: m.jobs, Audit: m.audit, MoveLock: m.moveLock}); err != nil {
 		m.jobs.Close()
 		return nil, err
 	}
@@ -483,6 +504,12 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	// Moving the manager (manager.receive runs here, registered before
+	// recovery).
+	if err := m.startMoves(); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
 	// Policies that target a stack follow it when it migrates (#35): the
 	// hooks run in the transaction that completes the migration. Update
 	// policies move to the destination; backup policies select stacks by
@@ -502,6 +529,12 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err := m.finishRestore(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("finish the manager restore: %w", err)
+	}
+	// A move applied above is finished the other way: this manager is the
+	// same instance, so sessions, API tokens and agents are kept.
+	if err := m.finishMove(ctx); err != nil {
+		m.jobs.Close()
+		return nil, fmt.Errorf("finish the manager move: %w", err)
 	}
 	// The scoped file manager (#15): stack scopes resolve through the stack
 	// service (#7), which records a revision when a definition file changes.
@@ -673,7 +706,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		// and which container is that manager (co-located or not).
 		if s.Serves(protocol.ReqManagerIdentity) {
 			if _, err := s.Request(ctx, protocol.ReqManagerIdentity,
-				protocol.ManagerIdentityInput{InstanceID: m.instance.ID, ContainerID: containerID}, reconcileRequestTimeout); err != nil {
+				protocol.ManagerIdentityInput{InstanceID: m.instance.ID, ContainerID: containerID, Generation: m.instance.Generation}, reconcileRequestTimeout); err != nil {
 				log.Warn("could not send the manager identity to the agent", "environment_id", s.EnvironmentID(), "error", err)
 			}
 		}
@@ -738,6 +771,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Settings:                 settings.New(db, opts.Clock),
 			Deployment: api.DeploymentInfo{PublicURL: originString(cfg.PublicURL), LocalDevelopment: cfg.LocalDevelopment,
 				TrustedProxies: len(cfg.TrustedProxies), MetricsEnabled: cfg.MetricsEnabled},
+			ManagerMove: m.moves,
+			MoveLock:    m.moveLock,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -970,6 +1005,12 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(schedDone)
 		_ = m.sched.Run(engineCtx)
 	}()
+	// Manager moves: code expiry and the confirmation to the old manager.
+	movesDone := make(chan struct{})
+	go func() {
+		defer close(movesDone)
+		m.moves.Run(engineCtx)
+	}()
 	// Backups (#10): retention after finished sets.
 	backupsDone := make(chan struct{})
 	go func() {
@@ -997,6 +1038,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		<-metricsDone
 		<-schedDone
 		<-backupsDone
+		<-movesDone
 		<-liveDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)

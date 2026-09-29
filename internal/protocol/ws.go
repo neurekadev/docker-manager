@@ -33,6 +33,12 @@ const (
 	// (the live agent already runs that session). Do not reconnect: a second
 	// process sharing the credential must not fight the first one.
 	CloseReplaced websocket.StatusCode = 4409
+	// CloseManagerSuperseded: sent by the agent after refusing
+	// manager.identity: the manager's generation is lower than the highest
+	// the agent has seen (an old manager after a move,
+	// docs/internal/architecture/manager-move.md). The agent reconnects
+	// with backoff and keeps its credential.
+	CloseManagerSuperseded websocket.StatusCode = 4421
 	// CloseVersionUnsupported: the agent version is outside the window
 	// (CheckAgentVersion) or the protocol was not negotiated. Upgrade first.
 	CloseVersionUnsupported websocket.StatusCode = 4426

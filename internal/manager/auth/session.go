@@ -155,6 +155,13 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			// Bearer requests are never authenticated by cookies (and so
 			// need no CSRF protection).
 			r.Header.Del("Cookie")
+			if authsep.IsMoveCode(tok) {
+				// A manager move code (docs/internal/architecture/manager-move.md)
+				// authenticates only the handoff and confirmation routes,
+				// which verify it themselves: the request stays anonymous.
+				loaded.ServeHTTP(w, r)
+				return
+			}
 			p, err := s.AuthenticateAPIToken(r.Context(), tok)
 			if errors.Is(err, domain.ErrAPITokenInvalid) {
 				logging.FromContext(r.Context()).Info("API token refused",

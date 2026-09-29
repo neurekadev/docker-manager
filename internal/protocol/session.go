@@ -285,6 +285,12 @@ type WelcomePayload struct {
 	HeartbeatIntervalMs int64         `json:"heartbeatIntervalMs"`
 	HeartbeatTimeoutMs  int64         `json:"heartbeatTimeoutMs"`
 	Limits              SessionLimits `json:"limits"`
+	// Generation is the manager instance's generation (raised by every
+	// move to a new server). The agent refuses the session, before
+	// anything else runs, when it has seen a higher one
+	// (docs/internal/architecture/manager-move.md). 0: a manager that
+	// predates moves (treated as 1).
+	Generation int64 `json:"generation,omitempty"`
 }
 
 // EngineInfo describes the controlled Docker Engine.
@@ -565,6 +571,8 @@ func (p WelcomePayload) Validate() error {
 	case p.Limits.MaxFrameBytes <= 0 || p.Limits.MaxFrameBytes > MaxFrameSize || p.Limits.MaxStreams <= 0 ||
 		p.Limits.StreamWindowBytes <= 0 || p.Limits.MaxChunkBytes <= 0 || p.Limits.MaxChunkBytes > MaxChunk || p.Limits.MaxPaths <= 0:
 		return invalid("welcome limits out of range")
+	case p.Generation < 0:
+		return invalid("welcome generation must not be negative")
 	}
 	return nil
 }

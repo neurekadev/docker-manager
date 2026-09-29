@@ -32,6 +32,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Moving stacks between environments | `internal/manager/migrations`, `internal/agent/migration`, `internal/transfer` | [environment-migration.md](environment-migration.md) |
 | Image updates | `internal/manager/updates`, `internal/agent/stacks/update.go` | [updates.md](updates.md) |
 | Backups and restores | `internal/restic`, `internal/backup`, `internal/manager/backups`, `internal/agent/backups` | [backups.md](backups.md) |
+| Moving the manager to a new server | `internal/manager/managermove`, `internal/manager/movelock`, the move lock in `api`, `jobs`, `scheduler`, `agents` | [manager-move.md](manager-move.md) |
 | Version window, host removal, diagnostics | `protocol` versions, `internal/manager/removal`, `diagnostics` | [operability.md](operability.md) |
 | Live updates to the browser | `internal/manager/live`, `internal/manager/events`, `web/src/lib/live` | [live-sync.md](live-sync.md) |
 | Web UI | `web/` | [web-ui.md](web-ui.md) |

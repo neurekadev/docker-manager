@@ -49,15 +49,15 @@ const DefaultSSEHeartbeat = sse.DefaultHeartbeat
 
 // JobTarget is a resource a job acts on.
 type JobTarget struct {
-	Type          string `json:"type" enum:"stack,container,volume,image,network,repository,path,destination_path,build_definition,maintenance_policy,template" doc:"Target resource type."`
+	Type          string `json:"type" enum:"stack,container,volume,image,network,repository,path,destination_path,build_definition,maintenance_policy,template,manager" doc:"Target resource type."`
 	ID            string `json:"id" doc:"Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID, template ID)."`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"Environment of the target when it differs from the job's (migrations)."`
 }
 
 // JobLock is one entry of a job's lock set (see docs/internal/architecture/job-engine.md).
 type JobLock struct {
-	Scope         string `json:"scope" enum:"host,stack,container,volume,image,network,file_path,repository"`
-	EnvironmentID string `json:"environmentId,omitempty" doc:"Absent for instance-wide scopes (repository)."`
+	Scope         string `json:"scope" enum:"host,stack,container,volume,image,network,file_path,repository,template,manager"`
+	EnvironmentID string `json:"environmentId,omitempty" doc:"Absent for instance-wide scopes (repository, template, manager)."`
 	Name          string `json:"name,omitempty" doc:"Resource name; * locks every resource of the scope in the environment; absent for host."`
 	Mode          string `json:"mode" enum:"shared,exclusive"`
 }
@@ -192,6 +192,8 @@ func JobErrorFor(err error) error {
 		return NewError(http.StatusNotImplemented, CodeJobKindUnavailable, "this manager cannot run this kind of job yet")
 	case errors.Is(err, domain.ErrEnvironmentArchived):
 		return Conflict(CodeEnvironmentArchived, "the environment is archived; re-attach it to operate it")
+	case errors.Is(err, domain.ErrManagerMoved):
+		return Conflict(CodeManagerMoved, managerMovedMessage)
 	case errors.Is(err, domain.ErrRestoreInProgress):
 		return Conflict(CodeRestoreInProgress,
 			"a restore is running on this data: it starts the containers that were running when it ends; wait for it")

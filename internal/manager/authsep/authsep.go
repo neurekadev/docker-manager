@@ -6,8 +6,9 @@
 //   - agent credentials and enrollment tokens (#3) authenticate only
 //     /agent/v1.
 //
-// API tokens are "dy_<id>_<secret>" (MintAPIToken); agent secrets are
-// "dya_..." and "dye_...", so the three never parse as each other.
+// API tokens are "dy_<id>_<secret>" (MintAPIToken), manager move codes
+// "dmm_<id>_<secret>" (MintMoveCode); agent secrets are
+// "dya_..." and "dye_...", so none of them parses as another.
 //
 // Agent credentials and enrollment tokens are recognizable by their
 // prefixes, so the server can refuse them on /api/v1 before any handler
@@ -39,6 +40,9 @@ const (
 	EnrollmentTokenPrefix = protocol.EnrollmentTokenPrefix
 	// APITokenPrefix marks a user's API token (#31, /api/v1 only).
 	APITokenPrefix = "dy_"
+	// MoveCodePrefix marks a manager move code (/api/v1 handoff and
+	// confirmation only, docs/internal/architecture/manager-move.md).
+	MoveCodePrefix = "dmm_"
 )
 
 // secretBytes is the entropy of generated agent secrets.
@@ -130,6 +134,11 @@ func MintEnrollmentToken(id string) (Minted, error) { return mint(EnrollmentToke
 // "dy_<id>_<256-bit secret>". Only Verifier is stored.
 func MintAPIToken(id string) (Minted, error) { return mint(APITokenPrefix, id) }
 
+// MintMoveCode returns a new manager move code for move id:
+// "dmm_<id>_<256-bit secret>". Only Verifier is stored; the secret part
+// also keys the sealed secret key of the handoff.
+func MintMoveCode(id string) (Minted, error) { return mint(MoveCodePrefix, id) }
+
 func mint(prefix, id string) (Minted, error) {
 	if !validRecordID(id) {
 		return Minted{}, errInvalidID
@@ -177,6 +186,15 @@ func ParseEnrollmentToken(token string) (id, secret string, ok bool) {
 func ParseAPIToken(token string) (id, secret string, ok bool) {
 	return parse(APITokenPrefix, token)
 }
+
+// ParseMoveCode splits a manager move code into its move ID and secret.
+func ParseMoveCode(token string) (id, secret string, ok bool) {
+	return parse(MoveCodePrefix, token)
+}
+
+// IsMoveCode reports whether token looks like a manager move code (it is
+// never authenticated as an API token or a session).
+func IsMoveCode(token string) bool { return strings.HasPrefix(token, MoveCodePrefix) }
 
 // maxTokenLen bounds a parsed token (prefix, 64-byte ID, separator and a
 // 43-character secret fit comfortably).

@@ -134,3 +134,44 @@ func TestTokenHandoverAndUsedTokens(t *testing.T) {
 		t.Fatalf("status %+v", got)
 	}
 }
+
+// TestManagerGeneration: nothing recorded reads as 0; the value is stored
+// atomically (0600) and read back; a corrupt or negative file reads as 0
+// with an error (the caller warns) and is overwritten by the next save.
+func TestManagerGeneration(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	if g, err := s.ManagerGeneration(); g != 0 || err != nil {
+		t.Fatalf("fresh state: %d %v", g, err)
+	}
+	if err := s.SaveManagerGeneration(3); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		fi, err := os.Stat(filepath.Join(dir, ManagerFile))
+		if err != nil || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("manager file mode %v %v", fi.Mode(), err)
+		}
+	}
+	s2, _ := Open(dir)
+	if g, err := s2.ManagerGeneration(); g != 3 || err != nil {
+		t.Fatalf("read back %d %v", g, err)
+	}
+	if err := s.SaveManagerGeneration(-1); err == nil {
+		t.Fatal("negative generation saved")
+	}
+	for _, corrupt := range []string{"{not json", `{"generation":-2}`} {
+		if err := os.WriteFile(filepath.Join(dir, ManagerFile), []byte(corrupt), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if g, err := s.ManagerGeneration(); g != 0 || err == nil {
+			t.Fatalf("corrupt %q: %d %v", corrupt, g, err)
+		}
+	}
+	if err := s.SaveManagerGeneration(4); err != nil {
+		t.Fatal(err)
+	}
+	if g, err := s.ManagerGeneration(); g != 4 || err != nil {
+		t.Fatalf("after overwrite %d %v", g, err)
+	}
+}

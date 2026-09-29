@@ -61,6 +61,8 @@ recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
 | `internal/protection` | Self-protection decisions and exclusion helpers shared by manager and agent (#32) | `protocol` |
 | `internal/selfid` | ID of the container the process runs in (#32) | stdlib |
 | `internal/manager/migrations` | Environment migration (#35): previews, the `stack.migrate`/`volume.migrate` executors relaying data between agents, the `environment.migrate` executor moving every stack of an environment group by group, source removals | `jobs`, `store`, `authz`, `permissions`, `registries`, `transfer`, `protocol` |
+| `internal/manager/managermove` | Moving the manager to a new server ([manager-move.md](manager-move.md)): move codes, the handoff (lock, copy, sealed key, package stream), `manager.receive`, the arrival and its confirmation, the finish checklist | `jobs`, `store`, `backups`, `movelock`, `authsep`, `secrets`, `templates`, `requestinfo` |
+| `internal/manager/movelock` | The move lock (read-only, agents refused) consulted by the API, the job engine, the scheduler and the agent handler | stdlib |
 | `internal/agent/migration` | Agent side of migrations (#35): contained tar archive/extract, send/receive streams, stop/start/commit/cleanup requests, `stack.remove_source` | `engine`, `compose`, `lifecycle`, `protect`, `storage`, `transfer`, `protocol` |
 | `internal/transfer` | Checksummed chunk framing and bandwidth limiter of migration data (shared) | `clock` |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |

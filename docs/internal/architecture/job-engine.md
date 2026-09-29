@@ -146,6 +146,7 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `image.pull` | agent | `image.pull` | `host` S (each environment)<br>`image` **X** (image targets) | `pull` (i,c) | 30m | pull | — | — |
 | `image.remove` | agent | `image.remove` | `host` S (each environment)<br>`image` **X** (image targets) | `remove` (i,c) | 10m | — | — | — |
 | `manager.backup` | manager | `manager.backup` | `repository` **X** (repository targets) | `snapshot_database` (i,c) → `backup` (c) → `write_manifest` (i,c) | — | — | — | interrupt |
+| `manager.receive` | manager | `manager.move` | `manager` **X** (manager targets) | `handoff` (i,c) → `verify` (i,c) → `stage` (i,c) | — | — | — | interrupt |
 | `manager.retention` | manager | `backup.retention` | `repository` **X** (repository targets) | `forget` (i,c) → `prune_repository` (i,c) | — | — | — | resume |
 | `manager.verify` | manager | `backup.verify` | `repository` S (repository targets) | `check` (i,c) | — | — | — | resume |
 | `network.create` | agent | `network.create` | `host` S (each environment)<br>`network` **X** (network targets) | `create` (c) | 10m | — | — | — |

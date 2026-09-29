@@ -5,7 +5,8 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 Manager side: `internal/manager/agents` (`Service`: enrollment, agents,
 environments; `Hub`: live sessions). Agent side: `internal/agent/session`
 (outbound session client), `internal/agent/state` (install ID, credential,
-handed-over tokens), `internal/agent/runtime` (control loop). Protocol:
+handed-over tokens, highest manager generation), `internal/agent/runtime`
+(control loop). Protocol:
 `docs/internal/protocol/agent-v1.md`.
 
 - **Call an agent** (named, bounded, non-job operation):
@@ -21,7 +22,19 @@ handed-over tokens), `internal/agent/runtime` (control loop). Protocol:
   `protocol.Error`, which shared packages such as `internal/fsroot` return).
   The handler's ctx ends at the request deadline; at most 16 run at once per
   session. The session advertises every registered name in the
-  capabilities' `requests`.
+  capabilities' `requests`. A handler that must stop serving this manager
+  returns `&session.EndSessionError{Err, Code, Reason}`: the error frame is
+  sent, then the session closes with `Code` and reconnects with backoff.
+  `Code` must be reconnectable (others become 1011); a handler never
+  deletes the credential or idles the agent (only the manager's
+  4401/4403/4409/4426 do).
+- **Manager generation:** `welcome` and `manager.identity` carry the
+  manager's `generation` (0 = 1). The agent refuses a lower one than
+  `<state>/manager.json` holds (`protect.Guard.AcceptGeneration`): at the
+  welcome through `session.Options.AcceptWelcome`, before any frame is
+  handled; at `manager.identity` with `conflict`. Both close with 4421
+  and keep the credential; a higher generation is recorded first
+  ([manager-move.md](../architecture/manager-move.md)).
 - **Jobs:** do not talk to agents for job work; enqueue in the job engine.
   `Hub` is the engine's `jobs.AgentDispatcher`; agent executors go in
   `runtime.Options.Executors`.

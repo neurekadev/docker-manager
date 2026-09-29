@@ -475,6 +475,12 @@ type (
 	ManagerIdentityInput struct {
 		InstanceID  string `json:"instanceId"`
 		ContainerID string `json:"containerId,omitempty"`
+		// Generation is the instance's generation: every move of the
+		// manager to a new server raises it. An agent keeps the highest it
+		// has seen and closes the session of a manager with a lower one
+		// (docs/internal/architecture/manager-move.md). 0: a manager that
+		// predates moves (treated as 1).
+		Generation int64 `json:"generation,omitempty"`
 	}
 	// ManagerIdentityOutput answers manager.identity: whether the manager's
 	// container runs on this agent's Engine.

@@ -66,6 +66,7 @@ same change.
 | `invalid_code` | 400 | no | The one-time code (invitation, password reset or owner recovery) is unknown, expired, revoked or already used. The response never says which. | #16 |
 | `unauthenticated` | 401 | no | No valid session cookie or API token; sign in again or send a valid bearer token. | #2 |
 | `invalid_credentials` | 401 | no | Sign-in, second factor or step-up failed: unknown account, wrong password or code, disabled account and bad passkey assertions all look alike. | #16 |
+| `move_code_invalid` | 401 | no | The manager move code is unknown, wrong, expired (one hour), cancelled or no longer usable; the response never says which. Create a new code on the old manager. | #35 |
 | `forbidden` | 403 | no | Authenticated, but the named capability is not granted for this resource. Returned only when the caller may know the resource exists; otherwise `not_found`. | #2 |
 | `insecure_origin` | 403 | no | The request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL (first-run setup); the message explains how to fix the proxy or URL. | #16 |
 | `cross_origin_request` | 403 | no | A browser sent an unsafe request from another origin (cross-site request forgery protection). | #16 |
@@ -169,6 +170,11 @@ same change.
 | `backup_import_schema_incompatible` | 409 | no | The backup set was written by a newer Docker Manager whose database this build cannot run; install at least that version and import again. | #24 |
 | `backup_import_state_missing` | 409 | no | The backup set has no readable manager state (missing manager repository or snapshot, damaged secret-key bundle or database); choose another set. Host-only recovery is documented. | #24 |
 | `backup_import_in_progress` | 409 | no | A backup import is already running on this manager; follow it in the setup status. | #24 |
+| `manager_moved` | 409 | no | Docker Manager is moving (or moved) to a new server: it is read-only. Every non-GET request except sign-in, sign-out and the move routes is refused; use the new server's manager. | #35 |
+| `jobs_running` | 409 | no | The handoff waits for the jobs still running on the old manager; `Retry-After` says when to ask again and `X-Docker-Manager-Jobs-Running` how many run. | #35 |
+| `manager_move_exists` | 409 | no | A move of this manager is already open or in progress; cancel it before creating another code. | #35 |
+| `manager_move_state` | 409 | no | The move is not in a state that allows this (a confirmed move cannot be cancelled; a confirmation needs a handed-off move). | #35 |
+| `manager_move_in_progress` | 409 | no | A move into this manager or a backup import is already running or staged; follow it in the setup status. | #35 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |

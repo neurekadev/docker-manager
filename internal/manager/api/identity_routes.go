@@ -13,6 +13,8 @@ type identityAPI struct {
 	svc IdentityService
 	// backups reports a running backup import in the setup status (#24).
 	backups BackupService
+	// moves reports a running move into this manager in the setup status.
+	moves ManagerMoveService
 }
 
 func (h *identityAPI) service() (IdentityService, error) {
@@ -33,7 +35,7 @@ type emptyOutput struct{}
 var errsSignIn = []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests}
 
 func registerIdentity(a huma.API, deps Deps) {
-	h := &identityAPI{svc: deps.Identity, backups: deps.Backups}
+	h := &identityAPI{svc: deps.Identity, backups: deps.Backups, moves: deps.ManagerMove}
 	registerSetup(a, h)
 	registerSignIn(a, h)
 	registerFactors(a, h)
@@ -67,6 +69,11 @@ func registerSetup(a huma.API, h *identityAPI) {
 			if imp, err := h.backups.LatestImport(ctx); err == nil && imp != nil {
 				out.Body.BackupImport = &SetupBackupImport{JobID: imp.JobID, State: string(imp.State), ErrorCode: imp.ErrorClass,
 					Recovery: imp.Message, RestartPending: imp.RestartPending}
+			}
+		}
+		if !st.Complete && h.moves != nil {
+			if mv, err := h.moves.LatestReceive(ctx); err == nil && mv != nil {
+				out.Body.ManagerMove = newSetupManagerMove(mv)
 			}
 		}
 		return out, nil

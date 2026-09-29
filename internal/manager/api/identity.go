@@ -315,6 +315,7 @@ type setupStatusOutput struct {
 		SecureOrigin  bool               `json:"secureOrigin" doc:"This request reached Docker Manager over HTTPS on its public URL, so setup can complete."`
 		Explanation   string             `json:"explanation,omitempty" doc:"Why setup cannot complete over this request, and how to fix it."`
 		BackupImport  *SetupBackupImport `json:"backupImport,omitempty" doc:"The newest backup import (#24) while setup is open."`
+		ManagerMove   *SetupManagerMove  `json:"managerMove,omitempty" doc:"The newest move of a manager into this one (manager.receive) while setup is open."`
 		// StaySignedInAllowed lets the sign-in page offer Stay signed in.
 		StaySignedInAllowed bool `json:"staySignedInAllowed" doc:"The sign-in policy allows Stay signed in (staySignedIn on sign-in)."`
 	}

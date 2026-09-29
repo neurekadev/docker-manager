@@ -35,6 +35,9 @@ type waiting struct {
 func (e *Engine) DispatchPending(ctx context.Context) error {
 	e.dispatchMu.Lock()
 	defer e.dispatchMu.Unlock()
+	if e.opts.MoveLock.ReadOnly() {
+		return nil // moving to a new server: queued jobs travel in the copy
+	}
 
 	if err := e.expireUnacknowledged(ctx); err != nil {
 		return err

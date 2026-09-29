@@ -10,7 +10,7 @@ override in v1; Docker on the host is the escape hatch).
 | Package | Role |
 | --- | --- |
 | `internal/protection` | The decisions, shared by manager and agent: roles, `Check(p, action, confirmed)`, `Excluded(p)`, `Filter(items, protectionOf)`, `Refusal` (a `jobexec.ClassedError`: job class `protected` / `confirmation_required`). |
-| `internal/agent/protect` | Identification on the agent: `Guard` (own container ID, manager identity, stacks volume), `Identify` → `Set` (containers, images, volumes, networks, Compose projects, Docker data root), the `manager.identity` request handler. |
+| `internal/agent/protect` | Identification on the agent: `Guard` (own container ID, manager identity, stacks volume), `Identify` → `Set` (containers, images, volumes, networks, Compose projects, Docker data root), the `manager.identity` request handler, `AcceptGeneration` (refuses a manager with a lower generation than `<state>/manager.json` at the welcome and at `manager.identity`, see [manager-move.md](manager-move.md)). |
 | `internal/selfid` | The ID of the container the process runs in, from `/proc/self/mountinfo` (fallback `/proc/self/cgroup`); used by the agent (itself) and the manager (co-located manager). |
 | `internal/agent/resources` | Annotates every inventory answer with `protocol.Protection` and checks before every destructive step. |
 | `internal/manager/resources` (`protection.go`) | Manager-side checks before a job exists (`ContainerProtection` adds the role labels and the manager's own container ID to the agent's annotation), `ProjectProtection`, `ProtectedContainers`. |

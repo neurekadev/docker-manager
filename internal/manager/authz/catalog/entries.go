@@ -305,6 +305,7 @@ func capabilities() []Capability {
 		ownerOnly("maintenance_policy.manage_all", "Manage maintenance across all environments", "Create and change a maintenance policy covering current and future environments."),
 		ownerOnly("backup.import", "Import backup repositories", "Import an existing repository into a fresh manager (first-run recovery)."),
 		ownerOnly("system.restore", "Restore the manager", "Restore Docker Manager itself from a manager backup."),
+		ownerOnly("manager.move", "Move the manager", "Move Docker Manager to a new server: create and cancel move codes; a fresh manager receives the moved state."),
 		ownerOnly("system.support_bundle", "Download support bundles", "Download a diagnostics bundle: versions, redacted configuration, recent logs, agent states and audit chain verification (never secrets)."),
 	)
 	return out
