@@ -151,7 +151,7 @@ describe('MoveCompleteCard', () => {
 			)
 		).toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: 'Mark as done' }));
-		const dialog = await screen.findByRole('dialog', { name: 'Mark the move as done?' });
+		const dialog = await screen.findByRole('alertdialog', { name: 'Mark the move as done?' });
 		expect(dialog).toHaveTextContent('Two copies must never manage the same servers.');
 		const confirm = screen
 			.getAllByRole('button', { name: 'Mark as done' })
