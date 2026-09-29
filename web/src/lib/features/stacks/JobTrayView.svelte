@@ -1,15 +1,15 @@
 <script lang="ts">
-	// The stack page's running and finished jobs (tray.svelte.ts): one
-	// JobProgress panel each (per-item results, partial failures, recovery
-	// advice), a toast repeating the action when it ends, and Dismiss. At
-	// most MAX_JOB_STREAMS running jobs follow their own event stream; the
-	// others are compact rows fed by the running list (`running`).
+	// The stack page's running jobs (tray.svelte.ts): one JobProgress panel
+	// each while it runs. When a job ends it leaves the tray and a toast
+	// reports the outcome (a failure keeps its advice and "Open job" until
+	// closed). At most MAX_JOB_STREAMS running jobs follow their own event
+	// stream; the others are compact rows fed by the running list
+	// (`running`).
 	import { goto } from '$app/navigation';
 	import { useQueryClient } from '@tanstack/svelte-query';
-	import X from '@lucide/svelte/icons/x';
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
-	import { IconButton, JobProgress, toast } from '$lib/ui';
+	import { JobProgress, toast } from '$lib/ui';
 	import { streamedIds } from '$lib/features/jobs/active';
 	import JobRow from '$lib/features/jobs/JobRow.svelte';
 	import { stackKeys } from './queries';
@@ -46,7 +46,6 @@
 	}
 
 	function finished(t: TrackedJob, job: Job) {
-		tray.markFinished(t.id);
 		if (t.silent) {
 			// reported by the caller
 		} else if (job.state === 'succeeded') {
@@ -64,6 +63,8 @@
 		// The stack, its services, revisions and image status changed.
 		void queryClient.invalidateQueries({ queryKey: stackKeys.all });
 		t.onfinish?.(job);
+		// The toast reports the outcome; the panel does not stay behind.
+		tray.dismiss(t.id);
 	}
 </script>
 
@@ -76,16 +77,6 @@
 					<JobProgress jobId={t.id} title={t.title} onfinish={(j) => finished(t, j)} />
 				{:else}
 					<JobRow {job} title={t.title} />
-				{/if}
-				{#if tray.finished.includes(t.id)}
-					<span class="dismiss">
-						<IconButton
-							size="sm"
-							label="Dismiss {t.title}"
-							icon={X}
-							onclick={() => tray.dismiss(t.id)}
-						/>
-					</span>
 				{/if}
 			</div>
 		{/each}
@@ -100,17 +91,6 @@
 	}
 
 	.entry {
-		position: relative;
 		min-width: 0;
-	}
-
-	.dismiss {
-		position: absolute;
-		top: var(--space-2);
-		right: var(--space-2);
-	}
-
-	.entry :global(.job.panel .head) {
-		padding-right: var(--space-8);
 	}
 </style>
