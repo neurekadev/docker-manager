@@ -1,0 +1,50 @@
+---
+title: File Manager
+description: Browse, upload, edit and download files of stacks and volumes in the browser.
+---
+
+The File Manager opens on a stack's **Files** tab (the stack's folder) and
+on a volume's **Files** tab (the data inside the volume). You never need to
+copy files to a server by hand.
+
+## Browse and organize
+
+- **Upload → Upload files** adds files, and **Upload → Upload folder** a
+  whole folder. You can also drag files onto the page.
+- **New file** and **New folder** create empty ones.
+- An item's menu has **Download** (**Download as ZIP** for a folder),
+  **Copy**, **Cut**, **Paste into folder**, **Rename…**, **Permissions…**
+  and **Delete…**.
+- **Create archive…** packs files into a `.zip` or `.tar.gz`. **Extract…**
+  unpacks a `.zip`, `.tar.gz` or `.tgz`.
+
+For a lot of data, upload one archive and extract it on the server.
+
+Deleting can't be undone. Uploads stop if you reload or close the tab;
+copying, extracting and the other file jobs keep running on the server.
+
+## Edit a file
+
+Click a file to open it in the editor. It highlights the syntax, has
+**Search and replace**, and can **Format** YAML and JSON. Press **Save** or
+<kbd>Ctrl</kbd> <kbd>S</kbd>.
+
+- If the file changed on the server while you edited it, you can
+  **Compare**, **Reload from disk**, **Save as…** another file or
+  **Overwrite**.
+- In a stack, saving `compose.yaml` or `.env` does not deploy (see
+  [Stacks](/docs/stacks#edit-the-files)).
+- Images are previewed; other binary files can be downloaded.
+
+## Limits
+
+| Limit | Default |
+| --- | --- |
+| Largest file you can edit (larger files open read-only) | 512 KB |
+| Largest upload, per file | 2 GB |
+| Largest download, or archive you create | 10 GB |
+
+Your reverse proxy must allow uploads this large too. To change the limits,
+see [Configuration](/docs/configuration#file-manager). Docker Manager's own
+volumes, and volumes with a driver other than `local`, have no **Files**
+tab.

@@ -1,6 +1,6 @@
 # Scheduled policies (#13)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/scheduler.md`. One parser (`internal/cron`: five
 fields, explicit IANA zone, DST gap → first instant after it, repeated

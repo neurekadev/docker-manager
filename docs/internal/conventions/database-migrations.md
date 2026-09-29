@@ -1,6 +1,6 @@
 # Database migrations
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 - New file `internal/db/migrations/<UTC YYYYMMDDHHMMSS>_<snake_name>.go`.
 - In `init()`: `Migrations.MustRegister(Tx(up), Tx(down))` — call it directly

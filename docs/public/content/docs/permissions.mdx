@@ -1,0 +1,44 @@
+---
+title: Permissions
+description: Decide what each group and person may see and do.
+---
+
+Permissions are rules on a group: for each action, **Allow** or **Deny**.
+Without a rule, an action is denied. Only the owner manages permissions.
+
+## Give permissions
+
+1. Open **Access → Groups**, then a group.
+2. In the tree on the left, pick where the rules apply:
+   - **All resources**: everything, including servers you add later,
+   - one environment, with everything on it,
+   - or one stack, container, volume, policy and so on.
+3. Pick a preset under **Start from**, or set single actions. Risky actions
+   are marked **High risk**.
+4. Press **Save permissions** and confirm the list of changes.
+
+The presets:
+
+- **Viewer**: sees everything, changes nothing. Logs, files and secrets
+  stay hidden.
+- **Operator**: also reads logs, starts, stops, restarts and deploys,
+  pulls images and runs backups. It can't delete anything.
+- **Admin**: can do everything in that place.
+
+The most specific rule decides: a rule on one stack wins over its
+environment, which wins over **All resources**.
+
+## Rules for one person
+
+Open a person under **Access** to set **Overrides**: rules for just them,
+which win over their group's rules. **Effective access** shows what they
+may do in the end. **View as this user** checks their access again,
+including overrides you haven't saved yet.
+
+## What only the owner can do
+
+Some things can't be given to anyone else: managing people, groups and the
+sign-in policy, other people's API tokens, registry connections and Git
+credentials, template sources, policies for all environments, backing up,
+restoring and moving Docker Manager itself, and the support bundle. Rules
+never apply to the owner.

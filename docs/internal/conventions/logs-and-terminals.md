@@ -1,6 +1,6 @@
 # Container logs and terminals (#8)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 - Agent `internal/agent/containerio` (`container.logs` request/stream,
   `container.exec.*` requests, `container.exec` stream; scripted Engine

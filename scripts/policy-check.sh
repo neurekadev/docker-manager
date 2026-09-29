@@ -9,6 +9,9 @@
 #   - files with CRLF line endings
 #   - a project LICENSE/COPYING file (no project license for now, #25)
 #   - the UI mockup image (lives only on issue #22)
+#   - user documentation out of step with the code: a configuration variable
+#     missing from the Configuration page, a variable that no longer exists,
+#     a broken /docs link or anchor, meta.json not matching the pages
 # Keep each check a small function with a clear failure message. The
 # narrowly documented exceptions are listed next to each check and in
 # docs/internal/architecture/engine-integration.md.
@@ -158,6 +161,66 @@ check_mockup() {
 	done
 }
 
+# User documentation (docs/internal/conventions/user-docs.md): the
+# Configuration page lists every variable the manager and the agent read, no
+# page names a variable they no longer read, meta.json lists exactly the
+# pages that exist, and every /docs link and #anchor resolves.
+USER_DOCS=docs/public/content/docs
+
+# slug HEADING: the anchor Fumadocs gives a heading (github-slugger, ASCII).
+slug() {
+	tr '[:upper:]' '[:lower:]' <<<"$1" | sed -E 's/[^a-z0-9 _-]//g; s/ /-/g'
+}
+
+check_user_docs() {
+	[ -d "$USER_DOCS" ] || return 0
+	local code_vars v f page link target anchor pages meta heading found
+	code_vars="$(grep -hE '^\s*Env[A-Za-z0-9]+\s*=\s*"' internal/manager/config/config.go internal/agent/config/config.go |
+		grep -oE '"[A-Z0-9_]+"' | tr -d '"' | sort -u)"
+	for v in $code_vars; do
+		grep -qF "\`$v\`" "$USER_DOCS/configuration.mdx" ||
+			fail "user docs: $v is missing from $USER_DOCS/configuration.mdx (it lists every variable)"
+	done
+	for v in $(grep -ohE 'DOCKER_(MANAGER|AGENT)_[A-Z0-9_]+' "$USER_DOCS"/*.mdx | sort -u); do
+		grep -qxF "$v" <<<"$code_vars" || grep -qxF "${v%_FILE}" <<<"$code_vars" || fail "user docs name $v, which the manager and the agent do not read"
+	done
+
+	pages="$(for f in "$USER_DOCS"/*.mdx; do basename "$f" .mdx; done | sort)"
+	meta="$(grep -oE '"[a-z0-9-]+"' "$USER_DOCS/meta.json" | tr -d '"' | grep -vx pages | sort)"
+	[ "$pages" = "$meta" ] ||
+		fail "user docs: $USER_DOCS/meta.json must list exactly the pages in $USER_DOCS:"$'\n'"$(diff <(echo "$meta") <(echo "$pages") || true)"
+
+	for f in "$USER_DOCS"/*.mdx; do
+		page="$(basename "$f" .mdx)"
+		while IFS= read -r link; do
+			[ -n "$link" ] || continue
+			anchor=""
+			[[ "$link" == *"#"* ]] && anchor="${link#*#}"
+			if [[ "$link" == "#"* ]]; then
+				target="$page"
+			else
+				target="${link%%#*}"
+				target="${target#/docs}"
+				target="${target#/}"
+				target="${target%/}"
+				[ -n "$target" ] || target=index
+			fi
+			if [ ! -f "$USER_DOCS/$target.mdx" ]; then
+				fail "user docs: $f links to $link, but there is no page $target"
+				continue
+			fi
+			[ -n "$anchor" ] || continue
+			found=""
+			while IFS= read -r heading; do
+				[ "$(slug "$heading")" = "$anchor" ] && found=1 && break
+			done < <(grep -E '^#{2,6} ' "$USER_DOCS/$target.mdx" | sed -E 's/^#+ //')
+			[ -n "$found" ] || fail "user docs: $f links to $link, but $target has no heading with that anchor"
+		done < <(grep -oE '\]\((/docs[^)#]*)?#?[^)[:space:]]*\)|href="/docs[^"]*"' "$f" |
+			sed -E 's/^\]\(//; s/\)$//; s/^href="//; s/"$//' | grep -E '^(/docs|#)')
+	done
+	return 0
+}
+
 check_legacy_docker
 check_legacy_docker_graph
 check_docker_cli
@@ -166,6 +229,7 @@ check_sdk_boundary
 check_crlf
 check_license_file
 check_mockup
+check_user_docs
 
 if [ "$failures" -gt 0 ]; then
 	echo "policy-check: $failures problem(s)" >&2

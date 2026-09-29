@@ -5,12 +5,12 @@ origin** (#27), how agents connect, and a complete two-environment example.
 Configuration reference: [configuration.md](configuration.md).
 
 The Compose setup users run is the one in the user documentation
-([Quickstart](../public/content/docs/quickstart.mdx) and
-[Add more servers](../public/content/docs/add-hosts.mdx)): the manager and a
-co-located agent in the Compose project `docker-manager`, with the manager's
-port 8080 published for the operator's own HTTPS reverse proxy, and an
-agent-only project for other hosts. The repository ships no proxy examples;
-keep those two pages and this guide in sync.
+([Quickstart](../public/content/docs/quickstart.mdx), with its "Add more
+servers" section): the manager and a co-located agent in the Compose
+project `docker-manager`, with the manager's port 8080 published for the
+operator's own HTTPS reverse proxy, and an agent-only project for other
+hosts. The repository ships no proxy examples; keep that page and this
+guide in sync.
 
 ## One origin
 

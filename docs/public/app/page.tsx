@@ -14,7 +14,7 @@ export default function Home() {
       <img src="/logo-512.png" alt="" width={176} height={176} className="size-36 sm:size-44" />
       <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">{appName}</h1>
       <p className="mt-4 max-w-lg text-lg text-fd-muted-foreground">
-        Run Docker on all your servers from one simple web app.
+        One place to manage Docker on all your servers.
       </p>
       <nav className="mt-10 grid w-full max-w-md gap-3 sm:grid-cols-2">
         <Link

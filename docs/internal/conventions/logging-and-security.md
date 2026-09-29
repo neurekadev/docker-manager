@@ -1,6 +1,6 @@
 # Logging and security defaults
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 ## Logging
 

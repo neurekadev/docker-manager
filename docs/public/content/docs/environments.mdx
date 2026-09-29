@@ -1,84 +1,70 @@
 ---
 title: Environments
-description: See your servers, their health and their agents.
+description: Your servers, their health and their agents.
 ---
 
 An **environment** is one Docker server with its agent. The
-**Environments** page lists them all, with their status, Docker version,
-agent version, containers, CPU and memory.
+**Environments** page lists them all with their status, Docker and agent
+version, containers, CPU and memory. To add one, see
+[Add more servers](/docs/quickstart#add-more-servers).
 
-An environment is **Online** while its agent is connected. When it goes
-**Offline**, you can still see its last known state, but actions on it are
-turned off until it reconnects.
+An environment is **Online** while its agent is connected. When it is
+**Offline**, you still see its last known state, but actions on it are off
+until it reconnects.
 
 ## An environment's page
 
-Open an environment to see:
-
-- **Overview**: CPU, memory, the disk that holds Docker's data, uptime, the
-  number of containers, images, volumes and networks, and the server's
-  filesystems. The charts show CPU, memory, network, load and disk use for
-  the last hour up to the last 90 days.
+- **Overview**: CPU, memory, disk, uptime, the number of containers,
+  images, volumes and networks, and charts from the last hour up to the
+  last 90 days.
 - **System**: details about the server and its Docker Engine.
-- **Agents**: the agent of this environment, its version and when it was
-  last seen.
+- **Agents**: the agent, its version and when it was last seen.
 - **Jobs**: the latest jobs on this server.
 
-The **Stacks** button opens the stacks of this environment.
+**Edit** changes the environment's **Name** and its **Service address**:
+the host name or IP address you browse to. With an address, published ports
+become links.
 
-<Callout title="Network chart">
-  By default the network chart shows only the agent's own traffic. To see
-  the whole server's traffic, add `pid: host` to the agent in its
-  `compose.yaml`. This lets the agent see every process on the server.
-</Callout>
-
-## Rename an environment
-
-Press **Edit**, change the **Name** and save.
+By default the network chart shows only the agent's own traffic. To see the
+whole server's traffic, add `pid: host` to the agent in its `compose.yaml`.
+This lets the agent see every process on the server.
 
 ## Archive an environment
 
-To stop managing a server, open **More actions → Archive environment**.
-Docker Manager first shows what depends on the server. When you archive it:
+To stop managing a server, choose **More actions → Archive environment**.
+Docker Manager first shows what depends on it. Archiving:
 
-- its agent is disconnected for good,
-- its stacks, policies, history and backups are kept, so you can bring it
-  back later,
-- permissions given for this environment are removed,
-- nothing on the server itself changes. Stop or remove the agent container
-  there if you no longer need it.
+- disconnects the agent for good,
+- keeps the stacks, policies, history and backups, so you can bring it
+  back,
+- removes the permissions given for this environment,
+- changes nothing on the server. Remove the agent container there yourself
+  if you no longer need it.
 
-To keep a stack running under Docker Manager, move it to another server
-first (see [Migration](/docs/migration)).
-
-Archived environments are listed on the **Archived** tab of the
-**Environments** page.
+To keep its apps under Docker Manager, [migrate](/docs/migrations) them to
+another server first. Archived environments are on the **Archived** tab.
 
 ## Re-attach an environment
 
-Use **Re-attach** to connect a server again that you archived, whose agent
-you removed, or after you recovered Docker Manager from a backup. You find
-it on the **Archived** tab or on the environment's **Agents** tab. It
-creates an install command, just like adding a new server (see
-[Add more servers](/docs/add-hosts)).
+**Re-attach** connects a server again that Docker Manager already knows. It
+creates an install command, as for a new server.
 
-## Remove an agent
+1. After you removed the agent or recovered Docker Manager from a backup,
+   archive the environment first (**More actions → Archive environment**).
+2. Open the archived environment and press **Re-attach**.
+3. Run the command on that server. For the agent next to the manager, use
+   the **On the Docker Manager host** tab.
 
-On the **Agents** tab, open the agent's menu and choose **Remove agent**.
-Type the environment's name to confirm. The agent can no longer connect,
-and the environment shows as offline until you re-attach it. Nothing on
-the server changes.
+## Manage the agent
 
-**Rotate credential** in the same menu gives the agent a new secret. Use it
-if you think the old one leaked.
+On the **Agents** tab, the agent's menu has:
 
-## Agent versions
+- **Remove agent**: the agent can no longer connect. Type the environment's
+  name to confirm. Nothing on the server changes.
+- **Rotate credential**: gives the agent a new secret, if you think the old
+  one leaked.
 
-Upgrade the manager first, then the agents. An agent that is one version
-behind still works and shows **Upgrade recommended**. An older one is
-refused until you upgrade it (see [Upgrade](/docs/upgrade)).
-
-## Move everything to another environment
-
-**More actions → Migrate environment** moves all stacks of this server to
-another one, group by group. See [Migration](/docs/migration).
+Upgrade the manager first, then the agents. An agent one release behind
+the manager still works and shows **Upgrade recommended**. An older agent,
+or one newer than the manager, is refused until you
+[upgrade](/docs/quickstart#upgrade) it.

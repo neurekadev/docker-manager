@@ -5,7 +5,7 @@ import './global.css';
 
 export const metadata: Metadata = {
   title: { template: `%s | ${appName}`, default: appName },
-  description: 'Install and run Docker Manager, the self-hosted web UI for your Docker hosts.',
+  description: 'Docker Manager: one place to manage Docker on all your servers.',
 };
 
 export default function Layout({ children }: LayoutProps<'/'>) {

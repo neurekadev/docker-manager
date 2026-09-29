@@ -1,6 +1,6 @@
 # Local checks, CI and repository rules
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 ## Local checks and CI
 
@@ -45,15 +45,8 @@ Docker, containers, browsers, real registries or restic.
 
 ## User documentation site
 
-`docs/public` is the user documentation (Fumadocs, static Next.js export,
-dark only, local search). The landing page (`app/page.tsx`, logo with
-**Documentation** and **Screenshots** links) is at `/`, the Screenshots page at
-`/screenshots` (coming soon), and the docs at `/docs`: pages in
-`docs/public/content/docs/*.mdx`, order and sidebar sections in
-`meta.json`. `.github/workflows/Docs.yaml` builds `docs/public/Dockerfile`
-(nginx on port 3000) and publishes
-`code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
-`main` that change `docs/public/**`. Content rules: `CLAUDE.md`, "Keep the
-documentation true". Build locally (`npm --prefix docs/public ci && npm
---prefix docs/public run build`) only after changing the site's code or
-structure, not for text edits.
+`docs/public` is the user documentation site. Its structure, content and
+update rules, the site build and the screenshots: [user-docs.md](user-docs.md).
+`scripts/policy-check.sh` (lint) checks that the Configuration page lists
+every configuration variable, that no page names a removed one, and that
+every `/docs` link, anchor and `meta.json` entry resolves.

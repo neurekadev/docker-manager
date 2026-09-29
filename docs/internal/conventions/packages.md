@@ -1,6 +1,6 @@
 # Package boundaries
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 - `cmd/*` only parse args/env and call into `internal/...`.
 - Manager code lives under `internal/manager/...`; agent code under

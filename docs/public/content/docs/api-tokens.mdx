@@ -1,40 +1,35 @@
 ---
-title: API tokens
+title: API Tokens
 description: Let scripts use Docker Manager with only the permissions you give them.
 ---
 
-An **API token** lets a script or another tool use the Docker Manager API
-as you, with only the actions you grant it. A token can never do more than
-you can do yourself.
+An **API token** lets a script or another tool use Docker Manager as you,
+with only the actions you grant it. A token can never do more than you can.
 
 ## Create a token
 
 1. Click the round button with your initial at the top right, choose
    **API tokens** and press **Create token**.
-2. Enter a **Name**, for example `Backup script`.
-3. Choose when it **Expires**: in 7, 30 or 90 days, or on a date.
-4. Under **What the token may do**, allow only what the script needs. You
-   can start from a preset.
-5. Press **Create token** and confirm it's you.
+2. Enter a **Name**, for example `Backup script`, and when it **Expires**.
+3. Under **What the token may do**, allow only what the script needs.
+4. Press **Create token** and confirm it's you.
 
 The token is shown **once**. Copy it and store it safely. Scripts send it
 as `Authorization: Bearer <token>`.
 
 ## Manage tokens
 
-The **API tokens** page (**Profile → API tokens**) lists your tokens with
-their status, expiry and when they were last used.
+The **API tokens** page lists your tokens with their expiry and when they
+were last used. **Revoke** stops a token at once.
 
-- **Rename** changes a token's name.
-- **Revoke** stops a token at once. This is final.
+The owner sees everyone's tokens under **Settings → API tokens** and can
+revoke them there.
 
-The owner sees every user's tokens under **Settings → API tokens**, and
-can revoke them there. Nobody can see a token's value again.
+Good to know:
 
-## Good to know
-
-- Tokens can't manage people, permissions or other tokens. Those need a
-  signed-in browser.
-- The owner decides in the [sign-in policy](/docs/sign-in-and-security#the-sign-in-policy)
-  whether tokens are allowed and how long they may live.
-- Disabling a person's account revokes their tokens for good.
+- Everyone except the owner needs the **Create API tokens** permission.
+- Tokens can't manage people, permissions or other tokens.
+- The owner decides in the [sign-in policy](/docs/users-and-groups#sign-in-policy)
+  whether tokens are allowed and how long they may live (90 days by
+  default).
+- Disabling a person's account revokes their tokens.

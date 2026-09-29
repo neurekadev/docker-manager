@@ -1,5 +1,6 @@
 // Package config loads and validates the agent's environment configuration.
-// Every variable is documented in docs/internal/configuration.md; keep both in sync.
+// Every variable is documented in docs/internal/configuration.md and in the
+// user docs (docs/public/content/docs/configuration.mdx); keep all three in sync.
 package config
 
 import (

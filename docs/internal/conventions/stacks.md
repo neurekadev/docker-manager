@@ -1,6 +1,6 @@
 # Compose stacks (#7)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks`
 (`app.Manager.Stacks()`); agent: `internal/agent/stacks`; lifecycle:

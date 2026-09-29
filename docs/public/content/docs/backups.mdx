@@ -1,187 +1,113 @@
 ---
 title: Backups
-description: Back up your stacks, volumes and Docker Manager itself.
+description: Back up and restore your stacks, volumes and Docker Manager itself.
 ---
 
 Docker Manager backs up your stacks (their folder and volumes), your other
 volumes and its own data. Backups are encrypted and stored in a
-**repository**: a folder on a server, or S3-compatible storage. The owner
-sets up backups, because only the owner can create and confirm the
-Recovery Key that makes a repository usable.
-
-Setting up takes two steps: add a repository, then create a backup policy.
+**repository**: S3-compatible storage or a folder on a server. The owner
+adds repositories; people with permission can create backup policies.
 
 ## 1. Add a repository
 
-1. Open **Backups** and press **Add repository** (or **Add backup
-   repository** the first time).
+1. Open **Backups** and press **Add repository**.
 2. Enter a **Name** and choose the **Storage**:
-   - **Local directory**: a folder on a server. Choose which server writes
-     it (**Written by**) and the **Directory**. The folder must be allowed
-     first (see [Allow a local folder](#allow-a-local-folder)).
-   - **S3-compatible storage**: the **Endpoint**, the **Bucket**, and an
-     **Access key ID** and **Secret access key**. **Region** and **Prefix**
-     are optional.
-3. Choose the **Compression**. **Automatic** suits most data. **Maximum**
-   makes backups smaller but uses more CPU. **Off** is for data that is
-   already compressed, such as videos and photos. You can change it later
-   with **Edit repository**; a change applies to data backed up from then
-   on. A server whose agent is older than the manager backs up with
-   **Automatic** until you update the agent.
+   - **S3-compatible storage**: the **Endpoint**, **Bucket**, **Access key
+     ID** and **Secret access key**. This is the easiest choice, and the
+     only one that holds backups of every server.
+   - **Local directory**: a folder on one server (**Written by**). Allow
+     the folder first (see [Allow a local folder](#allow-a-local-folder)).
+3. Choose the **Compression**. **Automatic** suits most data.
 4. Press **Save and continue**.
 5. The first time, Docker Manager shows your **Recovery Key**. Store it
-   outside Docker Manager (see below), then press **I saved it, continue**.
-6. Type the Recovery Key once to confirm it, tick **I saved the Recovery Key
-   outside Docker Manager** and press **Confirm Recovery Key**.
-7. Docker Manager tests the repository. Press **Done**.
+   outside Docker Manager and press **I saved it, continue**.
+6. Paste the key, tick that you saved it and press **Confirm Recovery
+   Key**. Later repositories use the same key and ask you to type it again.
 
-**A local folder only holds what its writer backs up.** A folder written by
-the manager holds only Docker Manager's own data. A folder written by a
-server holds only that server's stacks and volumes. S3 storage holds
-everything. For several servers, S3 is the easiest choice.
-
-## The Recovery Key
-
-One Recovery Key encrypts all your backups. It is shown **only once**,
-when you add your first repository. Copy it or download it, and keep it
-somewhere safe outside Docker Manager, such as a password manager.
-
-Your running Docker Manager keeps its own copy, so everyday restores don't
-ask for it. You need it to restore on a new Docker Manager, for example
-after losing the server it ran on. If you lose both the key and your Docker
-Manager, nobody can open your backups.
-
-Every new repository asks you to type the key once to confirm it. Nothing
-is written to a repository before that.
-
-To change the key, open a repository and choose **Rotate Recovery Key**.
-Keep the old key until every repository has moved to the new one.
+<Callout type="warn" title="Keep the Recovery Key safe">
+  One Recovery Key encrypts all your backups, and it is shown only once.
+  You need it to restore on a new Docker Manager, for example after losing
+  the server it ran on. Without it, nobody can open your backups.
+</Callout>
 
 ## 2. Create a backup policy
 
 A **backup policy** says what to back up, where, when and for how long.
+Each server can be covered by one policy.
 
 1. Press **Create backup policy**.
-2. **Destination**: a **Name**, the **Environments** (all or one) and the
+2. **Destination**: a **Name**, the **Environments** and the
    **Repository**.
-3. **What to back up**: every stack and volume is included; untick what to
-   leave out. Stacks you add later are included too. Also:
-   - **Back up the manager state**: Docker Manager's own data (settings,
-     users, stacks, templates). Only the owner can turn it on. It needs an
-     S3 repository or a local folder written by **The manager**.
-   - **Stop containers during backups**: off by default. Backups then run
-     while your apps keep running. Turn it on for databases that must be
-     stopped for a clean copy.
-   - **Repositories per environment**: when a server can't write to the
-     chosen repository (a local folder on another server), pick one it
-     can use.
-4. **Schedule**: turn on **Back up automatically** and pick when (see
-   [Schedules](/docs/schedules)).
+3. **What to back up**: every stack and volume is included, and stacks you
+   add later too. Untick what to leave out.
+   - Turn on **Back up the manager state** to back up Docker Manager itself.
+   - **Stop containers during backups** is off: apps keep running. Turn it
+     on for databases that need a clean copy.
+4. **Schedule**: turn on **Back up automatically** and pick when.
 5. **Retention**: how many backups to keep. **7 daily, 4 weekly, 12
-   monthly** is a good start. **Custom** lets you set each rule. Turn on
-   **Apply retention after every backup** to remove old backups once the
-   whole backup has finished; otherwise use **Apply retention now** on the
-   policy's page.
+   monthly** is a good start.
+6. Press **Create policy**.
 
-   Retention always keeps the last backups of a stack or volume, even after
-   you delete it. To free that space too, turn on **Remove backups of
-   deleted stacks and volumes** and set **Remove them after** (30 days by
-   default, counted from their newest backup).
-6. Tick **Run the first backup after creating** if you like, and press
-   **Create policy**.
-
-Press **Preview what gets backed up** at any time to see the exact list.
-
-Each server can be covered by only one backup policy.
+**Preview what gets backed up** shows the exact list. **Back up now** on
+the policy runs it right away, and **Retry missing** backs up only what
+failed.
 
 <Callout type="warn" title="Back up Docker Manager itself">
-  Turn on **Back up the manager state** in at least one policy, and store
-  those backups away from the manager's disk (S3, or a network share
-  mounted on the manager's server). Otherwise a lost disk means a lost
-  Docker Manager.
+  Turn on **Back up the manager state** in one policy, and store it away
+  from the manager's disk (S3, or a network share). Otherwise a lost disk
+  means a lost Docker Manager.
 </Callout>
-
-## Run and follow backups
-
-- **Back up now** on a policy starts a backup right away. While it runs,
-  the button shows **Backing up…**.
-- A policy runs one backup at a time. A scheduled time that comes around
-  meanwhile is skipped, and the schedule's history says so.
-- **Retry missing** on a run backs up only what failed.
-- A volume or stack folder that was deleted after the run started, before
-  its turn came (for example a temporary volume of a CI job), is shown as
-  **Skipped**, not as failed. A run where everything was skipped shows
-  **Skipped**. **Retry missing** does not run skipped ones again.
-
-The **Overview** tab shows your policies with their last and next run.
-The **Backups** tab lists every backup. A stack's or volume's **Backups**
-tab says which policy covers it and when it runs next.
-
-**Storage over time** on the **Overview** tab shows how much space your
-backups take in the repositories. **Stored** is the space they really
-use, after repeated data is kept once and the rest is compressed.
-**Before compression** is the same data without compression. The chart
-shows the last 30 days; choose another range next to its title. It
-changes after each backup and each time retention removes old backups.
 
 ## What is not backed up
 
-- Folders of the server that a stack mounts from outside its own folder,
-  such as `/mnt/media:/media`. Back those up another way.
+- Folders a stack mounts from outside its own folder, such as
+  `/mnt/media:/media`. Back those up another way.
 - Anonymous volumes, unless you turn on **Back up anonymous volumes**.
-- Build cache of buildx builders (volumes named
-  `buildx_buildkit_<builder>_state`), unless you turn on **Back up buildx
-  builder volumes**.
-- Volumes with the label `docker-manager.backup.exclude=true`, and every
-  volume a container with that label uses.
-- Docker Manager's metrics history, unless you turn on **Include the
-  metrics database**.
-- Volumes that only temporary containers use. While Docker Manager updates
-  or renames a container, it sets the old one aside for a few seconds
-  (named `<name>-docker-manager-update-…` or `<name>-docker-manager-rename-…`),
-  and Compose briefly creates a replacement named `<id>_<name>`. If such a
-  container is left behind, a volume only it uses is not backed up.
-- Volumes left on a server by a move to another server that did not
-  finish (or is still running). The next move of the same stack or volume
-  to that server removes them. A volume from a move that finished is
-  backed up like any other.
+- Volumes with the label `docker-manager.backup.exclude=true`, and the
+  volumes of a container with that label.
 
-To leave a volume out from your Compose file, add the label to the volume,
-or to the service to skip all of its volumes. The stack's own folder with
-its Compose files is still backed up.
+## Restore
 
-```yaml
-services:
-  app:
-    image: example/app:1
-    # Skip every volume this service uses:
-    labels:
-      - docker-manager.backup.exclude=true
-    volumes:
-      - cache:/cache
+Open the stack or volume and its **Backups** tab:
 
-volumes:
-  cache:
-    # Or skip only this volume:
-    labels:
-      - docker-manager.backup.exclude=true
-```
+- **Restore all** puts back everything from a backup: for a stack, its
+  folder and all its volumes. Type the name to confirm and press **Replace
+  everything**. Leave **Deploy … afterwards** on to start the stack again
+  with the restored files.
+- **Choose files** restores only the files or folders you pick. A folder
+  you pick is made exactly like it was in the backup: newer files in it are
+  removed.
 
-Docker sets a volume's labels only when it creates the volume. To skip a
-volume that already exists, put the label on the service that uses it and
-deploy the stack again.
+Containers that use the data are stopped during the restore and started
+again afterwards. The data is restored next to the original first, so a
+failed restore leaves the original as it was.
 
-## Check your backups
+## Recover Docker Manager
 
-Open a repository and use **Verify automatically** under **Verification**
-to check it on a schedule. It is off by default. You can check only the
-structure, or also read some or all of the data.
+If you lost the manager, you can bring it back from a backup of the manager
+state. You need the repository's details and your **Recovery Key**.
+
+1. Install Docker Manager again as in the [Quickstart](/docs/quickstart).
+   If the backup is in a local folder, mount and allow that folder on the
+   new manager first (see [Allow a local folder](#allow-a-local-folder)).
+2. On the setup page, press **Import from backup** instead of creating an
+   account.
+3. Enter where the backups are and your **Recovery Key**, and press **Check
+   access**.
+4. Press **Show backups**, pick one and press **Next**.
+5. Tick **Replace this manager's state with the backup and restart** and
+   press **Import and restart**.
+6. Sign in with your old owner account.
+
+Then [re-attach](/docs/environments#re-attach-an-environment) each
+environment, and create new [API tokens](/docs/api-tokens): the old ones
+were revoked.
 
 ## Allow a local folder
 
-Docker Manager writes only to folders you allow. Mount the folder into the
-container that writes it, and list it in a setting. For example, for
-`/srv/backups` on the manager's server:
+Docker Manager only writes to folders you allow. Mount the folder at the
+same path into the container that writes it, and list it in a setting. For
+example, for `/srv/backups` on the manager's server:
 
 ```yaml title="compose.yaml"
 services:
@@ -202,16 +128,6 @@ services:
       - /srv/backups:/srv/backups
 ```
 
-Then run `docker compose up -d`.
-
-- The manager writes the manager state. The agent writes the stacks and
-  volumes of its server. Use a different folder for each repository, for
-  example `/srv/backups/manager` and `/srv/backups/apps`.
-- On other servers, add the agent's lines to that server's agent.
-- The folder must be below a folder you listed. For the agent, it can't
-  be inside Docker's data folder, and can't contain or sit inside a stack
-  folder or Docker's volume folder. For the manager, it can't be inside
-  Docker Manager's own data volume.
-- Mount it at the same path inside the container, as above. After a
-  recovery, the folders must be at the same paths again.
-- Separate several folders with commas.
+The manager writes the manager state; the agent writes the stacks and
+volumes of its server. Use a separate folder for each repository, for
+example `/srv/backups/manager` and `/srv/backups/apps`.

@@ -1,0 +1,20 @@
+---
+title: Terminal
+description: Open a shell inside a container from your browser.
+---
+
+Open the **Terminal** tab of a stack or a container. Pick the **Container**
+(on a stack) and the **Shell**, and press **Connect**. The terminal icon in
+a service's row on the stack's **Overview** opens one quickly.
+
+**Detect automatically** uses Bash if the container has it, otherwise sh.
+You can also choose Bash, sh or Zsh.
+
+Good to know:
+
+- A terminal only works in a running container that has a shell. It never
+  opens a shell on the server itself.
+- You can have up to 4 terminals open at once.
+- A terminal closes after 30 minutes without typing or output (you get a
+  warning at 25), and after 8 hours in total. Press **Connect again** to
+  start a new one.

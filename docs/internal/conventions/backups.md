@@ -1,6 +1,6 @@
 # Backups (#10, #24)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/backups.md`. restic runs only through
 `internal/restic` (`Runner`, the one lint-exempt process execution; tests

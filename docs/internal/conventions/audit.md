@@ -1,6 +1,6 @@
 # Audit (#30)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 - Guide: `docs/internal/architecture/audit.md`. Package `internal/manager/audit`.
 - HTTP operations and job lifecycles (`job.queued/started/cancel_requested/

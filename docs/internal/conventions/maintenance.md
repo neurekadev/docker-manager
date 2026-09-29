@@ -1,6 +1,6 @@
 # Docker maintenance (#14)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/maintenance.md`. Manager:
 `internal/manager/maintenance` (`app.Manager.Maintenance()`); agent:

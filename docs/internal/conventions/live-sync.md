@@ -1,6 +1,6 @@
 # Live synchronization (#23)
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/live-sync.md`. Manager `internal/manager/live`
 (`app.Manager.Live()`: hub, `JobSource`), stream handler

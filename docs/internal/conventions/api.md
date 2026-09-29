@@ -1,6 +1,6 @@
 # Adding an API operation
 
-Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
+Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
 
 1. Put it in `internal/manager/api` (one file per resource, e.g. `stacks.go`).
 2. Register with `api.Register` (never `huma.Register`/`huma.Get`):
