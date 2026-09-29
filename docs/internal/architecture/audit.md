@@ -130,6 +130,8 @@ manager, e.g. `app.Manager.Audit()`):
   `agent.restore_revoke` per revoked agent, and `api_token.revoke_all`.
 - Manager move ([manager-move.md](manager-move.md)): `manager.move.create`
   (details both server addresses, `enrollmentId`, `sourceEnvironmentId`),
+  `manager.move.setup_files` (new setup files: `state`, `enrollmentId`,
+  `previousEnrollmentId`, `agentEnrolled`),
   `manager.move.run` (Move everything), `manager.move.cancel`,
   `manager.move.handoff` (detail `handoffAddress`, `redirectCount`;
   anonymous actor: a signature of the move code authenticates it) and

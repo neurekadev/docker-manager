@@ -109,6 +109,9 @@ type MoveFilesInput struct {
 // Quickstart's setup once the move lines are removed) and its .env (the
 // Quickstart's variables, then the move lines to remove after the move).
 // The .env carries the move code and the enrollment token: show it once.
+// Without an enrollment token (new setup files after the new server's
+// agent enrolled) the .env has neither the token nor the environment
+// name: the agent keeps its credential.
 // Like the install commands, the agent mounts the Docker socket and
 // Docker's volume directory at their identical paths.
 func MoveFiles(in MoveFilesInput) (composeYAML, env string) {
@@ -177,6 +180,12 @@ func MoveFiles(in MoveFilesInput) (composeYAML, env string) {
 	e.WriteString("DOCKER_MANAGER_MOVE_FROM=" + in.OldManagerURL + "\n")
 	e.WriteString("DOCKER_MANAGER_MOVE_CODE=" + in.MoveCode + "\n")
 	e.WriteString("DOCKER_AGENT_MANAGER_URL=" + in.OldManagerURL + "\n")
+	if in.EnrollmentToken == "" {
+		// New setup files after the agent enrolled: it keeps its
+		// credential (in its volume) and must not enroll again.
+		e.WriteString("# The agent on this server is already connected: it needs no enrollment token.\n")
+		return c.String(), e.String()
+	}
 	e.WriteString("DOCKER_AGENT_ENROLLMENT_TOKEN=" + in.EnrollmentToken + "\n")
 	if in.EnvironmentName != "" {
 		e.WriteString("DOCKER_AGENT_ENVIRONMENT_NAME=" + envFileValue(in.EnvironmentName) + "\n")

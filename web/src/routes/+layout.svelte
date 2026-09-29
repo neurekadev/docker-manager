@@ -4,7 +4,8 @@
 	// connection and update notices, the toast region and the app-wide
 	// tooltips (every title attribute, TooltipLayer). A new server waiting
 	// for a move shows only its status page (MoveGate reads the move status
-	// before any sign-in or setup routing). Page chrome lives
+	// before any sign-in or setup routing) and starts no live stream (it
+	// would answer 503 while the manager waits). Page chrome lives
 	// in (app)/+layout.svelte (the shell) and (auth)/+layout.svelte (sign-in
 	// and onboarding).
 	import '$lib/design/global.css';
@@ -49,22 +50,30 @@
 			})
 	});
 
+	// Live synchronization (#23): one stream per tab invalidates the
+	// queries of changed resources. Started by MoveGate once this manager is
+	// known not to wait for a move.
+	let stopLive: (() => void) | null = null;
+	let mounted = true;
+	function liveReady() {
+		if (mounted && !stopLive) stopLive = startLive(queryClient);
+	}
+
 	onMount(() => {
 		const stopWatching = connectivity.watch(window, navigator.onLine);
 		const stopServiceWorker = startServiceWorker();
-		// Live synchronization (#23): one stream per tab invalidates the
-		// queries of changed resources.
-		const stopLive = startLive(queryClient);
 		return () => {
+			mounted = false;
 			stopWatching();
 			stopServiceWorker();
-			stopLive();
+			stopLive?.();
+			stopLive = null;
 		};
 	});
 </script>
 
 <QueryClientProvider client={queryClient}>
-	<MoveGate>{@render children()}</MoveGate>
+	<MoveGate onready={liveReady}>{@render children()}</MoveGate>
 	<div class="status-stack">
 		<ConnectionStatus />
 		<UpdatePrompt />

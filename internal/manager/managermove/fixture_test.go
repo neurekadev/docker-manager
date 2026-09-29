@@ -25,6 +25,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 	envmigrations "code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
@@ -110,9 +111,11 @@ func (e *fakeEnrollments) RevokeEnrollment(_ context.Context, id string) (domain
 	defer e.mu.Unlock()
 	e.revoked = append(e.revoked, id)
 	en := e.byID[id]
-	now := e.f.clk.Now().UTC()
-	en.RevokedAt = &now
-	e.byID[id] = en
+	if en.UsedAt == nil { // like the agents service: only a pending token is revoked
+		now := e.f.clk.Now().UTC()
+		en.RevokedAt = &now
+		e.byID[id] = en
+	}
 	return en, nil
 }
 
@@ -257,6 +260,7 @@ type fixture struct {
 	enroll   *fakeEnrollments
 	hub      *fakeHub
 	migr     *fakeMigrations
+	bus      *events.Bus
 	waiting  *WaitingConfig
 	varsSet  bool
 	svc      *Service
@@ -278,6 +282,7 @@ func newFixtureWith(t *testing.T, clk *clock.Fake, client *http.Client, waiting 
 	f.enroll = &fakeEnrollments{f: f, byID: map[string]domain.Enrollment{}, agents: map[string]domain.Agent{}}
 	f.hub = newFakeHub()
 	f.migr = &fakeMigrations{f: f}
+	f.bus = events.New(clk)
 	f.open()
 	return f
 }
@@ -338,7 +343,7 @@ func (f *fixture) open() {
 			return Files{ComposeYAML: "name: docker-manager\n", Env: "DOCKER_MANAGER_MOVE_FROM=" + in.OldManagerURL + "\nDOCKER_MANAGER_MOVE_CODE=" +
 				in.MoveCode + "\nDOCKER_AGENT_ENROLLMENT_TOKEN=" + in.EnrollmentToken + "\n"}
 		},
-		Waiting: f.waiting, MoveVariablesSet: f.varsSet,
+		Waiting: f.waiting, MoveVariablesSet: f.varsSet, Bus: f.bus,
 		SchemaMigrations: func(ctx context.Context) ([]string, error) {
 			applied, _, err := store.Status(ctx, db, migrations.Migrations)
 			return applied, err

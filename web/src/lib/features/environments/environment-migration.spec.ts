@@ -10,21 +10,30 @@ import {
 	environmentMigrationMatch,
 	everyStackMoved,
 	finishToast,
+	jobStackIds,
+	migrationEnded,
 	migrationOutcome,
 	moveOrder,
 	moveState,
 	oldCopies,
+	oldCopiesNotice,
+	oldCopyRemovalMatch,
+	oldCopyState,
 	ownStackIds,
+	pendingCopies,
+	restoredMigration,
+	resultNotice,
 	selectionKey,
 	skippedRows,
 	stackChoices,
 	stackMoveSummary,
+	stacksLeft,
 	withOwnFromCheck,
 	type EnvironmentMigration,
 	type EnvironmentMigrationPreview,
 	type StackMove
 } from './environment-migration';
-import { removeOldCopies } from './migration-actions';
+import { removeOldCopies, startOldCopyRemovals } from './migration-actions';
 
 type Preview = EnvironmentMigrationPreview['stacks'][number]['preview'];
 
@@ -370,5 +379,165 @@ describe('removeOldCopies', () => {
 
 	it('resolves at once without copies', async () => {
 		expect((await removeOldCopies([])).succeeded).toEqual([]);
+	});
+});
+
+describe('an ended migration to act on', () => {
+	type Moved = EnvironmentMigration['stacks'][number];
+	const run = (
+		id: string,
+		state: EnvironmentMigration['state'],
+		stacks: Moved[],
+		targetEnvironmentId = 'e2'
+	): EnvironmentMigration => ({ ...record(stacks), id, state, targetEnvironmentId });
+	const moved = (stackId: string, name: string, sourceRemoved = false): Moved => ({
+		stackId,
+		name,
+		state: 'moved',
+		migrationId: `m-${stackId}`,
+		sourceRemoved: sourceRemoved || undefined
+	});
+	const failed = (stackId: string, name: string): Moved => ({
+		stackId,
+		name,
+		state: 'failed',
+		migrationId: `m-${stackId}`
+	});
+	const nowhere = () => false;
+
+	it('tells ended runs from running ones and words an old copy', () => {
+		expect(migrationEnded({ state: 'running' })).toBe(false);
+		for (const st of ['completed', 'failed', 'cancelled', 'interrupted'] as const)
+			expect(migrationEnded({ state: st })).toBe(true);
+		expect(oldCopyState(moved('st-1', 'app'))).toBe('Old copy kept');
+		expect(oldCopyState(moved('st-1', 'app', true))).toBe('Old copy removed');
+		expect(oldCopyState(failed('st-1', 'app'))).toBeUndefined();
+	});
+
+	it("collects every ended run's old copies, newest first, one per stack", () => {
+		const records = [
+			run('j3', 'running', [moved('st-9', 'live')]),
+			run('j2', 'completed', [moved('st-2', 'web'), moved('st-1', 'app')], 'e3'),
+			run('j1', 'failed', [moved('st-1', 'app'), moved('st-3', 'db', true)])
+		];
+		expect(pendingCopies(records, (_id, name) => name.toUpperCase())).toEqual([
+			{ stackId: 'st-2', migrationId: 'm-st-2', title: 'WEB', destinationId: 'e3' },
+			{ stackId: 'st-1', migrationId: 'm-st-1', title: 'APP', destinationId: 'e3' }
+		]);
+	});
+
+	it('lists the stacks of a run still on the source', () => {
+		const r = run('j1', 'failed', [
+			moved('st-1', 'app'),
+			failed('st-2', 'web'),
+			failed('st-3', 'db')
+		]);
+		expect(stacksLeft(r, (id) => id !== 'st-3').map((s) => s.stackId)).toEqual(['st-2']);
+	});
+
+	it('restores the latest run once it ended, while something is left to do', () => {
+		const copy = run('j1', 'completed', [moved('st-1', 'app')]);
+		const left = run('j2', 'failed', [failed('st-2', 'web')]);
+		const done = run('j3', 'completed', [moved('st-3', 'db', true)]);
+		expect(restoredMigration([], nowhere)).toBeNull();
+		expect(restoredMigration([run('j4', 'running', [])], nowhere)).toBeNull();
+		expect(restoredMigration([copy], nowhere)).toBe(copy);
+		expect(restoredMigration([left], (id) => id === 'st-2')).toBe(left);
+		// web moved since (the stack's own migration): nothing left of j2.
+		expect(restoredMigration([left], nowhere)).toBeNull();
+		// An earlier run's old copy keeps the latest run's result open.
+		expect(restoredMigration([done, copy], nowhere)).toBe(done);
+		expect(restoredMigration([done], nowhere)).toBeNull();
+	});
+
+	it("words the result's notice for what moved and what is left to remove", () => {
+		const names = { source: 'homelab', destination: 'NAS' };
+		expect(resultNotice(2, 2, names)).toEqual({
+			title: '2 stacks run on NAS now.',
+			body: 'Their old copies on homelab are stopped and kept. Remove them once you are sure.'
+		});
+		expect(resultNotice(1, 1, names)).toEqual({
+			title: '1 stack runs on NAS now.',
+			body: 'Its old copy on homelab is stopped and kept. Remove it once you are sure.'
+		});
+		expect(resultNotice(2, 3, names)?.body).toBe(
+			'Old copies of 3 stacks are stopped and kept on homelab. Remove them once you are sure.'
+		);
+		expect(resultNotice(2, 0, names)?.body).toBe('Their old copies were removed from homelab.');
+		expect(resultNotice(0, 1, names)).toEqual({
+			title: '1 old copy still on homelab',
+			body: 'It is stopped and kept from an earlier migration. Remove it once you are sure.'
+		});
+		expect(resultNotice(0, 0, names)).toBeNull();
+	});
+
+	it("words the environment page's notice", () => {
+		const names: Record<string, string> = { e2: 'NAS', e3: 'lab' };
+		const envName = (id: string) => names[id] ?? id;
+		expect(
+			oldCopiesNotice(
+				[run('j1', 'completed', [moved('st-1', 'app'), moved('st-2', 'web')])],
+				envName
+			)
+		).toEqual({
+			title: '2 stacks moved to NAS',
+			body: 'Their old copies are still on this server.',
+			count: 2
+		});
+		expect(oldCopiesNotice([run('j1', 'failed', [moved('st-1', 'app')])], envName)).toEqual({
+			title: '1 stack moved to NAS',
+			body: 'Its old copy is still on this server.',
+			count: 1
+		});
+		expect(
+			oldCopiesNotice(
+				[
+					run('j2', 'completed', [moved('st-2', 'web')], 'e3'),
+					run('j1', 'completed', [moved('st-1', 'app')])
+				],
+				envName
+			)?.title
+		).toBe('2 stacks moved to other environments');
+		expect(
+			oldCopiesNotice([run('j1', 'completed', [moved('st-1', 'app', true)])], envName)
+		).toBeNull();
+		expect(oldCopiesNotice([run('j1', 'running', [moved('st-1', 'app')])], envName)).toBeNull();
+	});
+
+	it('matches the removals of old copies on the environment', () => {
+		const m = oldCopyRemovalMatch('e1');
+		const job = {
+			kind: 'stack.remove_source',
+			environmentId: 'e1',
+			targets: [{ type: 'stack', id: 'st-1' }]
+		};
+		expect(matchJob(job, m)).toBe(true);
+		expect(matchJob({ ...job, environmentId: 'e2' }, m)).toBe(false);
+		expect(matchJob({ ...job, kind: 'stack.migrate' }, m)).toBe(false);
+		expect(
+			jobStackIds({
+				targets: [
+					{ type: 'stack', id: 'st-1' },
+					{ type: 'volume', id: 'data' }
+				]
+			} as Pick<Job, 'targets'>)
+		).toEqual(['st-1']);
+		expect(jobStackIds(undefined)).toEqual([]);
+	});
+});
+
+describe('startOldCopyRemovals', () => {
+	it('starts one removal per copy and reports the refused ones', async () => {
+		const copies = [
+			{ stackId: 'st-1', migrationId: 'm-1', title: 'app' },
+			{ stackId: 'st-2', migrationId: 'm-2', title: 'web' }
+		];
+		const out = await startOldCopyRemovals(copies, async (c) => {
+			if (c.stackId === 'st-2') throw new Error('refused');
+			return { id: `job-${c.stackId}` } as Job;
+		});
+		expect(out.started.map((s) => [s.copy.title, s.job.id])).toEqual([['app', 'job-st-1']]);
+		expect(out.refused.map((c) => c.title)).toEqual(['web']);
+		expect(await startOldCopyRemovals([])).toEqual({ started: [], refused: [] });
 	});
 });

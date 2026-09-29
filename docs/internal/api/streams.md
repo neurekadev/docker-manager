@@ -117,7 +117,7 @@ reconnects with its cursor; nothing is lost.
 
 Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 `networks`, `stacks`, `jobs`, `files`, `policies`, `backups`, `registries`,
-`settings`, `permissions`, `metrics`, `templates`.
+`settings`, `permissions`, `metrics`, `templates`, `manager`.
 
 ### Events
 
@@ -148,7 +148,12 @@ state, progress) → `job`; file-scope invalidations (#15/#23) →
 (policies, schedules, backups and repositories, registry and Git
 credentials, build definitions, settings, groups, users, invitations, API
 tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
-`settings` or `permissions` with `kind` the resource type.
+`settings` or `permissions` with `kind` the resource type; the move of
+Docker Manager to a new server → `invalidate` topic `manager`: kind
+`manager_move` (the move's ID; the owner only: its state, the new
+server's agent and check-in, Move everything's progress, the
+confirmation) and kind `manager_move_lock` (`resourceId` `instance`,
+every signed-in user: the move lock of `GET /auth/session` changed).
 
 - **Snapshot + cursor:** `hello` is sent first and fixes the cursor before
   the client fetches; anything that changes after it arrives as an event, so

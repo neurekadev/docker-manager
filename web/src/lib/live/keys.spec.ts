@@ -92,6 +92,12 @@ describe('invalidation map', () => {
 			'item',
 			'e1'
 		]);
+
+		// The move to a new server: the owner's move (and its form's
+		// defaults, by prefix), or everyone's session for the move lock.
+		expect(inv('manager', 'manager_move', 'mv-1')).toEqual([['manager', 'item', 'move']]);
+		expect(inv('manager', 'manager_move_lock', 'instance')).toEqual([['session']]);
+		expect(liveKeys.managerMove('defaults')).toEqual(['manager', 'item', 'move', 'defaults']);
 	});
 
 	it('finds the keys of one environment', () => {

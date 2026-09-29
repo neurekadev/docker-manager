@@ -31,8 +31,11 @@ export function thisAddress(publicUrl?: string | null, origin?: string | null): 
 	return publicUrl || origin || EXAMPLE_ADDRESS;
 }
 
-/** States that change on their own: the move pages poll while one holds. */
-export const POLLED_STATES: readonly MoveState[] = [
+/**
+ * States of a move under way on this manager (created, not ended, not
+ * arrived). Live events (topic manager) keep the move pages current.
+ */
+export const ACTIVE_STATES: readonly MoveState[] = [
 	'open',
 	'moving',
 	'ready',
@@ -42,10 +45,6 @@ export const POLLED_STATES: readonly MoveState[] = [
 
 /** States in which this manager is read-only (every change answers manager_moved). */
 export const LOCKED_STATES: readonly MoveState[] = ['draining', 'handed_off', 'confirmed'];
-
-export function isPolled(state: MoveState | undefined): boolean {
-	return !!state && POLLED_STATES.includes(state);
-}
 
 export function isLocked(state: MoveState | undefined): boolean {
 	return !!state && LOCKED_STATES.includes(state);
@@ -155,7 +154,7 @@ export function lockOf(state: MoveState | undefined): MoveLock | undefined {
 
 /**
  * The banner of a locked manager: from the lock every session reads (the
- * owner's polled move state first) or, as a fallback, from a change the
+ * owner's move state first) or, as a fallback, from a change the
  * manager refused with manager_moved. Null while nothing is locked.
  */
 export function moveBanner(
@@ -207,7 +206,7 @@ export type MoveStepId = (typeof MOVE_STEPS)[number]['id'];
 
 /** A move that is under way on this manager (created, not ended, not arrived). */
 export function isActive(move: ManagerMove | null | undefined): move is ManagerMove {
-	return !!move && isPolled(move.state);
+	return !!move && ACTIVE_STATES.includes(move.state);
 }
 
 /** The move was handed over (or confirmed): the wizard gives way to the moved panel. */
@@ -238,10 +237,7 @@ export function newServerChecklist(move: ManagerMove): ChecklistItem[] {
 		{
 			label: "New server's agent connected",
 			done: !!n?.online,
-			detail:
-				!n?.online && expired
-					? 'The setup files expired. Cancel the move and start again.'
-					: undefined
+			detail: !n?.online && expired ? SETUP_FILES_EXPIRED : undefined
 		},
 		{ label: 'New Docker Manager is waiting', done: !!n?.managerCheckedIn }
 	];
@@ -251,6 +247,107 @@ export function newServerChecklist(move: ManagerMove): ChecklistItem[] {
 export function newServerReady(move: ManagerMove | null | undefined): boolean {
 	return !!move && newServerChecklist(move).every((i) => i.done);
 }
+
+/** The checklist's words when the new server's enrollment token ran out. */
+export const SETUP_FILES_EXPIRED = 'The setup files expired. Create new setup files.';
+
+/** Why the New server step offers "Create new setup files". */
+export type SetupFilesReason = 'expired' | 'not_shown';
+
+/**
+ * Whether the New server step offers new setup files: while the move is
+ * open and the new server is not ready yet, when the files are no longer
+ * on the page (a reload, coming back) or its enrollment token ran out.
+ */
+export function setupFilesReason(move: ManagerMove, shown: boolean): SetupFilesReason | null {
+	if (move.state !== 'open' || newServerReady(move)) return null;
+	if (newServerChecklist(move)[0].detail === SETUP_FILES_EXPIRED) return 'expired';
+	return shown ? null : 'not_shown';
+}
+
+/** The notice above "Create new setup files". */
+export function setupFilesNotice(reason: SetupFilesReason): { title: string; body: string } {
+	return reason === 'expired'
+		? {
+				title: 'The setup files expired.',
+				body: "The new server's agent can no longer connect with them. Create new setup files and use them on the new server instead."
+			}
+		: {
+				title: 'The setup files were shown when you created the move.',
+				body: 'If you no longer have them, create new ones. The old files then stop working.'
+			};
+}
+
+/** The new server's agent already connected with the move's token (it keeps its connection). */
+export function agentEnrolled(move: ManagerMove): boolean {
+	return !!move.newServer?.environmentId;
+}
+
+/** What "Create new setup files" does, for its confirmation. */
+export function setupFilesConsequences(move: ManagerMove): string[] {
+	return [
+		'The setup files you have now stop working. Docker Manager on the new server must use the new ones.',
+		agentEnrolled(move)
+			? 'The agent on the new server stays connected.'
+			: "The new server's agent gets a new enrollment token, valid for 24 hours.",
+		'On the new server, replace both files in the same folder, then run docker compose up -d.'
+	];
+}
+
+/** The folder the one-command setup creates on the new server. */
+export const SETUP_FOLDER = 'docker-manager';
+
+const HEREDOC_BASE = 'DOCKER_MANAGER_EOF';
+
+/**
+ * A here-document delimiter that is not a line of content: the base, else
+ * the base with the first free number (DOCKER_MANAGER_EOF_2, ...).
+ */
+export function heredocDelimiter(content: string, base = HEREDOC_BASE): string {
+	const lines = new Set(content.split('\n').map((l) => l.replace(/\r$/, '')));
+	let d = base;
+	for (let i = 2; lines.has(d); i++) d = `${base}_${i}`;
+	return d;
+}
+
+/** `cat > file` from a quoted here-document: the content stays literal ($, `, \ included). */
+function writeFile(file: string, content: string): string[] {
+	const body = content.replace(/\r\n?/g, '\n');
+	const d = heredocDelimiter(body);
+	const text = body.endsWith('\n') ? body.slice(0, -1) : body;
+	return [`cat > ${file} <<'${d}'`, text, d];
+}
+
+/**
+ * The new server's setup in one paste: a subshell that stops at the first
+ * failure (set -e; the person's own shell stays open), creates the folder,
+ * writes compose.yaml and .env from quoted here-documents (nothing in them
+ * is expanded), keeps .env readable only by its owner (created empty with
+ * mode 600 before the secrets are written) and starts Docker Manager.
+ * The files hold the pairing code and the enrollment token: the text lives
+ * only in the page, like the files.
+ */
+export function setupScript(
+	files: { composeYaml: string; env: string },
+	folder = SETUP_FOLDER
+): string {
+	return [
+		'(',
+		'set -e',
+		`mkdir -p ${folder}`,
+		`cd ${folder}`,
+		...writeFile('compose.yaml', files.composeYaml),
+		'touch .env',
+		'chmod 600 .env',
+		...writeFile('.env', files.env),
+		'docker compose up -d',
+		')'
+	].join('\n');
+}
+
+/** Said with new setup files when the new server's agent keeps its connection. */
+export const AGENT_KEPT =
+	'The new .env has no enrollment token, because the agent keeps its connection. On the new server, replace the .env in the folder you used before and run docker compose up -d, or paste the command again.';
 
 /** The host of an address without its port ("192.168.1.20:8080" → "192.168.1.20"). */
 export function hostOnly(address: string | undefined): string {
@@ -339,7 +436,12 @@ export function runView(move: ManagerMove): RunView {
 		case 'handed_off':
 			return { ...base, phase: 'handed_over', title: 'Handed over' };
 		case 'ready':
-			return { ...base, phase: 'handing_over', title: 'Handing over Docker Manager…' };
+			return {
+				...base,
+				phase: 'handing_over',
+				title: 'Handing over Docker Manager…',
+				detail: move.newServer?.managerCheckedIn === false ? NOT_ASKING : undefined
+			};
 		case 'draining':
 			return {
 				...base,
@@ -384,6 +486,31 @@ export function moveButtonLabel(phase: RunPhase): string {
 	if (phase === 'failed') return 'Try again';
 	if (phase === 'moving' || phase === 'handing_over') return 'Moving…';
 	return 'Move everything';
+}
+
+/**
+ * Whether ending the move restarts this Docker Manager: once agents heard
+ * the new address (a redirect was sent) or the state was handed off, the
+ * manager raises its generation and restarts.
+ */
+export function restartsWhenEnded(move: ManagerMove): boolean {
+	return move.state === 'handed_off' || move.redirects.some((r) => r.sent);
+}
+
+/** Said while the move is ready but the new Docker Manager stopped asking for it. */
+export const NOT_ASKING =
+	'The new Docker Manager has not asked for the handoff in the last two minutes. Check that it still runs on the new server.';
+
+/** What "Cancel the move" does, for its confirmation. */
+export function cancelConsequences(move: ManagerMove | null): string[] {
+	const out = [
+		'Docker Manager stays on this server and works as before.',
+		'Apps that already moved stay on the new server.',
+		'The setup files stop working. On the new server, stop the waiting Docker Manager with docker compose stop docker-manager. Its agent keeps managing the apps that moved.'
+	];
+	if (move && restartsWhenEnded(move))
+		out.push('Docker Manager restarts, because its agents already heard the new address.');
+	return out;
 }
 
 /** The panel once the move was handed over. */

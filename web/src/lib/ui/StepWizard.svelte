@@ -26,6 +26,8 @@
 		onnext?: (step: WizardStep) => boolean | void | Promise<boolean | void>;
 		onfinish?: () => unknown;
 		canAdvance?: boolean;
+		/** Why Next is off while `canAdvance` is false (its tooltip). */
+		disabledReason?: string;
 		/** false hides Back (e.g. once a job the wizard started is running). */
 		canGoBack?: boolean;
 		nextLabel?: string;
@@ -50,6 +52,7 @@
 		onnext,
 		onfinish,
 		canAdvance = true,
+		disabledReason,
 		canGoBack = true,
 		nextLabel = 'Next',
 		finishLabel = 'Finish',
@@ -164,7 +167,13 @@
 			>
 		{/if}
 		{#if !oncancel}<span class="spacer"></span>{/if}
-		<Button variant="primary" loading={busy} disabled={!canAdvance} onclick={next}>
+		<Button
+			variant="primary"
+			loading={busy}
+			disabled={!canAdvance}
+			title={!canAdvance && !busy ? disabledReason : undefined}
+			onclick={next}
+		>
 			{last ? finishLabel : nextLabel}
 		</Button>
 	</footer>

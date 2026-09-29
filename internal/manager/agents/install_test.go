@@ -80,4 +80,12 @@ func TestMoveFilesAreTheQuickstartsPlusTheMoveLines(t *testing.T) {
 	if !strings.Contains(env, "DOCKER_MANAGER_TRUSTED_PROXIES=10.0.0.5/32\n") || strings.Contains(env, "DOCKER_AGENT_ENVIRONMENT_NAME") {
 		t.Errorf(".env with the old manager's proxies:\n%s", env)
 	}
+	// New setup files after the agent enrolled: no token, no name; the
+	// agent still dials the old manager (its credential is there).
+	_, env = MoveFiles(MoveFilesInput{PublicURL: "https://docker.example.com", OldManagerURL: "http://a:8080", MoveCode: "c2",
+		EnvironmentName: "new server"})
+	if strings.Contains(env, "DOCKER_AGENT_ENROLLMENT_TOKEN") || strings.Contains(env, "DOCKER_AGENT_ENVIRONMENT_NAME") ||
+		!strings.Contains(env, "DOCKER_AGENT_MANAGER_URL=http://a:8080\n") || !strings.Contains(env, "DOCKER_MANAGER_MOVE_CODE=c2\n") {
+		t.Errorf(".env of an enrolled agent:\n%s", env)
+	}
 }

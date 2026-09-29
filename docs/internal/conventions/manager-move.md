@@ -17,7 +17,13 @@ check's documented socket exception).
   (`manager_moves.sealed_code`, `managermove.SealContext`); an ended move
   forgets it. Never log, audit, return, put it in job inputs or error
   messages. The enrollment token in the same `.env` follows the agents'
-  rules.
+  rules. New setup files (`create-manager-move-setup-files`,
+  `NewSetupFiles`, open or ready only) are the one other answer that
+  carries them: a new code of the same move replaces the sealed one, and
+  a new token unless the new server's agent already enrolled (then its
+  environment is kept and the `.env` has no token). Anything that accepts
+  a signed request and changes the move compares its code with the
+  current one under the service lock (`sameCode`).
 - **The code never travels.** Move requests carry `Authorization: DMM
   <id>:<unix time>:<nonce>:<mac>` (`managermove.SignRequest`; HMAC-SHA256
   under HKDF-SHA256(secret, `docker-manager-move/auth/v1`) over method,
@@ -83,15 +89,28 @@ check's documented socket exception).
 - "Move complete" decides "needs a fix" from the redirects that were not
   sent and the agent not connecting since the arrival, never from the
   address an agent reports.
+- **Live, not polled:** every change of a move publishes
+  `manager_move.updated` (owner) and, when the session's lock changes,
+  `manager_move.lock_changed` (everyone, no ID) through
+  `managermove/live.go` (`published`); a new transition or field the
+  view shows publishes too, and what changes elsewhere is followed on the
+  bus (`followBus`). Never add polling of `GET /manager/move`; only the
+  new server's status page polls (no stream without a sign-in).
 - **Web UI** (`web/src/lib/features/managermove`, `docs/internal/web.md`):
-  the new server's `.env` is shown once and kept only in the page's
-  memory; a locked manager shows the shell's `MoveBanner` (the owner reads
-  the move, everyone else the first 409 `manager_moved`, heard through
-  `onApiFailure`), never a toast; the new manager's status page is built
-  from `GET /api/v1/move/status` alone and the app reads that route before
-  any sign-in or setup routing (`MoveGate`); the check step reuses the
-  environment migration's check (`EnvironmentMigrationCheck`), never a copy
-  of it; new move states get their words in `model.ts` first.
+  the new server's `.env` (and the one-command setup built from it,
+  `setupScript`) is shown once and kept only in the page's memory; lost
+  or expired files are replaced with "Create new setup files", never by
+  cancelling; a locked manager shows the shell's `MoveBanner` (the owner
+  reads the move, everyone the session's lock, both refreshed live, and
+  the first 409 `manager_moved`, heard through `onApiFailure`), never a
+  toast; the new manager's status page is built from `GET
+  /api/v1/move/status` alone and the app reads that route before any
+  sign-in or setup routing (`MoveGate`, which starts the live stream only
+  when not waiting); an action that restarts the manager waits for it
+  (`waitForRestart`) and reloads, never asks the user to reload; the
+  check step reuses the environment migration's check
+  (`EnvironmentMigrationCheck`), never a copy of it; new move states get
+  their words in `model.ts` first.
 - Tests: `managermove` fixtures (fakes of the agents, hub and migration
   services; a plain-HTTP `httptest` old manager for waiting mode), fake
   clocks for expiry, retries and polls; the lock is tested where it is

@@ -36,6 +36,13 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   overview queries (refreshed by `live_metrics` about every second), not
   from a chart's last point; queries the stream keeps current poll only
   through `pollWhileDown(ms)`.
+- **Manager move:** the move service publishes `manager_move.updated`
+  (owner, the move's ID) on every change and `manager_move.lock_changed`
+  (everyone, no ID) when the session's lock changes (`managermove/live.go`,
+  `published`); what the move's view shows from elsewhere (the new
+  server's agent, Move everything's job) is followed on the bus
+  (`followBus`), never polled. Web keys: `liveKeys.managerMove(...)` and
+  `liveKeys.session` (topic `manager`).
 - **Agents:** `files.watch`, `rescan` and `metrics.live` reach only agents
   that serve them (`Session.Serves` / `Hub.EnvironmentServes`; an N-1 agent
   would close the session on an unknown request name).

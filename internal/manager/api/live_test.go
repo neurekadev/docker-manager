@@ -353,6 +353,8 @@ func TestLiveEventFiltering(t *testing.T) {
 		"group":        {Type: events.ResourceChanged, ResourceType: "group", ResourceID: "g-files"},
 		"enrollment":   {Type: events.EnrollmentCreated, ResourceType: events.ResourceEnrollment, ResourceID: "en1"},
 		"other-volume": {Type: events.DockerEvent, ResourceType: events.ResourceVolume, ResourceID: "pgdata", EnvironmentID: "e1", Attributes: map[string]string{"action": "create"}},
+		"move":         {Type: events.ManagerMoveUpdated, ResourceType: events.ResourceManagerMove, ResourceID: "move-1"},
+		"move-lock":    {Type: events.ManagerMoveLockChanged, ResourceType: events.ResourceManagerMoveLock, ResourceID: "instance"},
 	}
 	visible := func(user string) []string {
 		c := checker(user)
@@ -380,15 +382,18 @@ func TestLiveEventFiltering(t *testing.T) {
 	}
 	for user, want := range map[string][]string{
 		"own": {"db=invalidate", "enrollment=invalidate", "files-gap=files.changed", "files-s1=files.changed", "files-s2=files.changed",
-			"group=invalidate", "job=job", "live-metrics=invalidate", "metrics=invalidate", "online=agent", "other-volume=invalidate",
-			"policy=invalidate", "resync=reset", "stack-s1=invalidate", "web=invalidate"},
+			"group=invalidate", "job=job", "live-metrics=invalidate", "metrics=invalidate", "move-lock=invalidate", "move=invalidate",
+			"online=agent", "other-volume=invalidate", "policy=invalidate", "resync=reset", "stack-s1=invalidate", "web=invalidate"},
 		// Metrics-only: its container's status and metrics (stored and
 		// live), the environment it sees minimally; no files, jobs or
 		// policies.
-		"metrics": {"files-gap=files.changed", "live-metrics=invalidate", "metrics=invalidate", "online=agent", "resync=reset",
-			"web=invalidate"},
-		"filer":  {"files-gap=files.changed", "files-s1=files.changed", "online=agent", "resync=reset", "stack-s1=invalidate"},
-		"nobody": nil,
+		// Everyone signed in hears the move lock (no move ID); only the
+		// owner the move itself.
+		"metrics": {"files-gap=files.changed", "live-metrics=invalidate", "metrics=invalidate", "move-lock=invalidate", "online=agent",
+			"resync=reset", "web=invalidate"},
+		"filer": {"files-gap=files.changed", "files-s1=files.changed", "move-lock=invalidate", "online=agent", "resync=reset",
+			"stack-s1=invalidate"},
+		"nobody": {"move-lock=invalidate"},
 	} {
 		if got := visible(user); !slices.Equal(got, want) {
 			t.Errorf("%s sees %v, want %v", user, got, want)
@@ -414,6 +419,11 @@ func TestLiveEventFiltering(t *testing.T) {
 		if _, _, ok := liveEvent(checker(user), all, live.Record{Event: recs["job"]}, "x.1"); ok {
 			t.Errorf("%s received a job it may not read", user)
 		}
+	}
+	// The move lock names no move.
+	if _, data, _ := liveEvent(checker("nobody"), all, live.Record{Event: recs["move-lock"]}, "x.1"); data != (LiveInvalidate{
+		Topic: live.TopicManager, Kind: events.ResourceManagerMoveLock, ResourceID: "instance", Action: live.ActionUpdated}) {
+		t.Errorf("move lock shaped as %+v", data)
 	}
 	// Live metrics are a metrics invalidation of their own kind (only the
 	// current values refetch), without members or values.

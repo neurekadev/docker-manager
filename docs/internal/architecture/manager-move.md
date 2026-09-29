@@ -45,9 +45,13 @@ network.
    The compose file reads the move variables from `.env` with defaults
    (`${DOCKER_AGENT_MANAGER_URL:-http://docker-manager:8080}`, empty
    otherwise), so removing the move lines from `.env` afterwards leaves
-   exactly the Quickstart's setup. The owner runs `docker compose up -d`;
-   the old manager's page follows `get-manager-move` (`newServer`: the
-   environment enrolled and online, the waiting manager checked in).
+   exactly the Quickstart's setup. The owner runs `docker compose up -d`
+   (the page also offers both files as one command to paste, see
+   `docs/internal/web.md`); the old manager's page follows
+   `get-manager-move` (`newServer`: the environment enrolled and online,
+   the waiting manager checked in), kept current by live events (see "Live
+   updates"). Files that are lost or expired are replaced, see "New setup
+   files".
 2. **Check**: the environment migration's preview (the environment next to
    the manager → the new server's, `create-environment-migration-preview`)
    plus the move's own state, in one screen, with the reminders: the usual
@@ -73,6 +77,75 @@ network.
    always and sees **Move complete** (`get-manager-move` on the new
    manager), with removing the old server's stopped copies and archiving
    the old environment one click away.
+
+## New setup files
+
+The files are shown once and the enrollment token lives 24 hours. When
+the owner lost them (a reload) or the token expired before the new server
+was set up, **Create new setup files** (`create-manager-move-setup-files`,
+owner, step-up, `managermove.NewSetupFiles`) returns them again, in the
+creation's shape:
+
+- **A new move code for the same move** (`dmm_<same id>_<new secret>`,
+  sealed in place of the old one). The old code stops working at once:
+  the waiting manager started with the old `.env` gets 401
+  `move_code_invalid` (its status page says to use the newest `.env`).
+  The check-in and handoff compare the request's code with the sealed one
+  again under the service lock (`sameCode`), so a request signed with the
+  old code that raced the change is refused too. The last check-in is
+  forgotten (`checkedInAt`, `handoffAddress`): the new manager checks in
+  again with the new code. The move's expiry does not change.
+- **The agent part:** unless the new server's agent already enrolled with
+  the move's token, the old token is revoked and a new one issued (24
+  hours, the same environment name). Once it enrolled (the move's
+  `targetEnvironmentId`, or the used token's agent) its environment is
+  kept: the `.env` has no `DOCKER_AGENT_ENROLLMENT_TOKEN` and no
+  `DOCKER_AGENT_ENVIRONMENT_NAME` (a comment says the agent is already
+  connected; `agents.MoveFiles` without a token) and the answer says
+  `agentEnrolled`. The agent keeps its credential in its volume (an
+  enrolled agent ignores an enrollment token anyway): the owner replaces
+  the `.env` in the same folder and runs `docker compose up -d`. An
+  environment removed or archived since gets a new token.
+- **Allowed while the move is `open` or `ready`.** `moving` is refused
+  (409 `manager_move_state`): the new server's agent restarts with the new
+  `.env` and would cut off the app that is moving. From `draining` on the
+  handoff has begun (the lock refuses it with `manager_moved` first).
+  Audited `manager.move.setup_files` (details `state`, `enrollmentId`,
+  `previousEnrollmentId`, `agentEnrolled`; never the code or the token).
+
+The wizard offers it on the New server step while the move is open and
+the new server not ready, when the files are no longer on the page or the
+token expired.
+
+## Live updates
+
+The old manager's wizard, the shell's banner and Move complete follow the
+live stream ([live-sync.md](live-sync.md)) instead of polling. The move
+service (`managermove/live.go`) publishes on the bus:
+
+- `manager_move.updated` (`ResourceID` the move's ID; the owner only,
+  `manager.move`): the move's state changed (created, moving, ready,
+  draining, handed off, confirmed, cancelled, expired), new setup files,
+  the target environment recorded, the migration started, the redirects
+  recorded, a check-in that starts counting (or comes from another
+  address; not every check-in), a check-in that stopped counting (the Run
+  loop wakes when `checkedInAt + CheckInFresh` passes), each confirmation
+  attempt and the acknowledgement on the new manager. What the view shows
+  from elsewhere is followed on the bus (`followBus`): the new server's
+  environment online, offline, archived or reattached, enrollments used or
+  revoked, agents enrolled, and every change of the `manager.move` job
+  (its progress carries the apps' progress); each republishes the move
+  the view shows (active, else arrived).
+- `manager_move.lock_changed` (`ResourceID` `instance`, no move ID; every
+  signed-in stream): the lock `GET /auth/session` reports (`none`,
+  `moving`, `moved`) changed: draining begins, the new manager confirms, a
+  locked move ends.
+
+The stream shapes both as `invalidate` on topic `manager` (kinds
+`manager_move`, `manager_move_lock`); the web refreshes the move, or the
+session. The new server's status page keeps polling `GET
+/api/v1/move/status` (no sign-in, no stream there), and a manager in
+waiting mode starts no live stream at all (`MoveGate`).
 
 ## Waiting mode and status page (new manager)
 
@@ -148,7 +221,8 @@ ignored with a warning.
   alter a request.
 - The code is valid until the move is confirmed or cancelled (a large
   migration may take hours), at most 7 days (`CodeLifetime`); from the
-  handoff on it no longer expires.
+  handoff on it no longer expires. New setup files replace it with a new
+  code of the same move (see "New setup files").
 
 ## Agents follow
 
@@ -362,9 +436,10 @@ whether the old manager confirmed (or the owner acknowledged it), and:
   code.
 - Only the owner creates, runs or cancels a move; a new manager accepts a
   move only on an empty data directory.
-- Audit: `manager.move.create`, `manager.move.run`, `manager.move.cancel`,
-  `manager.move.handoff` (with the requesting address and the number of
-  redirects), `manager.move.confirm` on the old manager; `system.move` and
+- Audit: `manager.move.create`, `manager.move.setup_files`,
+  `manager.move.run`, `manager.move.cancel`, `manager.move.handoff` (with
+  the requesting address and the number of redirects),
+  `manager.move.confirm` on the old manager; `system.move` and
   `manager.move.acknowledge` on the new one.
 
 ## Routes
@@ -373,6 +448,7 @@ whether the old manager confirmed (or the owner acknowledged it), and:
 | --- | --- | --- |
 | `GET /api/v1/manager/move/defaults` (`get-manager-move-defaults`) | owner (`manager.move`) | this server's address prefill and the environment next to the manager |
 | `POST /api/v1/manager/moves` (`create-manager-move`) | owner, step-up | 201: the move, `composeYaml`, `env` (once), `statusUrl`; audited `manager.move.create` |
+| `POST /api/v1/manager/move/setup-files` (`create-manager-move-setup-files`) | owner, step-up | open or ready move: the files again (same shape, `agentEnrolled`), a new code, a new token unless the agent enrolled; audited `manager.move.setup_files` |
 | `GET /api/v1/manager/move` (`get-manager-move`) | owner | the open or in-progress move (new server, source environment, progress, `jobsRunning`, redirects), else the arrived move (Move complete); 404 none |
 | `POST /api/v1/manager/move/runs` (`create-manager-move-run`) | owner, step-up | 202 + `manager.move`; audited `manager.move.run` |
 | `POST /api/v1/manager/move/cancellations` (`create-manager-move-cancellation`) | owner, step-up | body `resumeHere`, `instanceName`; audited `manager.move.cancel` |
@@ -392,7 +468,8 @@ availability. API tokens never reach them.
 | Move rows, generation | `manager_moves`, `instance.generation` (`store/managermoves.go`, `store/instance.go`); `domain.ManagerMove` |
 | Configuration | `config.MoveConfig` (`DOCKER_MANAGER_MOVE_FROM`, `DOCKER_MANAGER_MOVE_CODE`); waiting mode decided in `app.decideWaiting` |
 | Lock | `internal/manager/movelock` (levels open, read-only, agents refused, waiting), set by `managermove` from the current move and at start (`managermove.LockLevel`) and by `app.decideWaiting`; consulted by `api.Register` (`moveGuard` with `allowedWhileMoved`, `waitingGuard` with `allowedWhileWaiting`), `jobs.Engine` (`Enqueue`, `DispatchPending`), `scheduler.Service` (`Tick`) and `agents` (handler 503, hub 1012) |
-| Creation, files | `managermove/service.go` (`CreateMove`, `Defaults`, `Current`, `Cancel`, `endMove`), `render.go` (addresses), `agents.MoveFiles` |
+| Creation, files | `managermove/service.go` (`CreateMove`, `Defaults`, `Current`, `Cancel`, `endMove`), `setupfiles.go` (`NewSetupFiles`), `render.go` (addresses), `agents.MoveFiles` |
+| Live updates | `managermove/live.go` (`publish`, `published`, `followBus`, `announceStaleCheckIn`), `events.ManagerMoveUpdated`, `events.ManagerMoveLockChanged`, topic `manager` |
 | Move everything | `managermove/movejob.go` (`manager.move`, `jobspec.ManagerMove`) |
 | Signatures, encryption | `managermove/auth.go`, `crypt.go`, `seal.go` (the key part) |
 | Check-in, handoff, redirects, confirm | `managermove/handoff.go`, `redirect.go`, `package.go` |
@@ -400,4 +477,4 @@ availability. API tokens never reach them.
 | Arrival | `app.(*Manager).finishMove` → `managermove.FinishArrival`, `StartConfirming` (`finish.go`) |
 | Move complete | `managermove/complete.go` |
 | Co-location | `app`'s `manager.identity` reconciler → `managermove.ObserveColocation` |
-| Web UI | `web/src/lib/features/managermove` (`docs/internal/web.md`): Settings, Move to a new server (`ManagerMoveWizard`), the new server's status page `/moving` (`WaitingStatus`, reached through the root layout's `MoveGate`), Move complete (`MoveCompleteCard`), the shell's banner of a locked manager |
+| Web UI | `web/src/lib/features/managermove` (`docs/internal/web.md`): Settings, Move to a new server (`ManagerMoveWizard`: the files and the one command to paste, Create new setup files, waiting for the restart after a resume), the new server's status page `/moving` (`WaitingStatus`, reached through the root layout's `MoveGate`, which starts the live stream only when not waiting), Move complete (`MoveCompleteCard`), the shell's banner of a locked manager |

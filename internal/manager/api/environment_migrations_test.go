@@ -118,6 +118,47 @@ func TestEnvironmentMigrationRoutes(t *testing.T) {
 	}
 }
 
+// TestEnvironmentMigrationRecordsAfterEveryStackMoved (#35): once every
+// stack the caller migrates moved away, the source has none left; the
+// records stay readable to whoever may migrate one of their stacks where
+// it is now (the old copies wait for their removal), and to no one else.
+func TestEnvironmentMigrationRecordsAfterEveryStackMoved(t *testing.T) {
+	mig := &fakeMigrations{}
+	stacks := newFakeStacks()
+	moved := stacks.stacks["st-1"]
+	moved.EnvironmentID = "env-2"
+	stacks.stacks["st-1"] = moved
+	pol := authztest.New().
+		User("mover", "allow stack.migrate @env:env-2", "allow stack.read @env:env-1").
+		User("reader", "allow stack.read @env:env-1", "allow stack.read @env:env-2")
+	f := newDockerFixtureWith(t, pol, func(d *Deps) { d.EnvironmentMigrations, d.Stacks = mig, stacks })
+	list := authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-1/migrations"}
+	get := authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-1/migrations/job-env"}
+
+	r := f.do("mover", get)
+	var m EnvironmentMigration
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &m) != nil || len(m.Stacks) != 1 || m.Stacks[0].StackID != "st-1" {
+		t.Fatalf("get %d %s", r.Status, r.Body)
+	}
+	if r := f.do("mover", list); r.Status != http.StatusOK || !strings.Contains(string(r.Body), `"id":"job-env"`) {
+		t.Fatalf("list %d %s", r.Status, r.Body)
+	}
+	if r := f.do("mover", authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-1/migrations/other"}); r.Status != http.StatusForbidden {
+		t.Errorf("unknown migration without stack.migrate on the source: %d", r.Status)
+	}
+	for _, c := range []authztest.Call{list, get} {
+		if r := f.do("reader", c); r.Status != http.StatusForbidden {
+			t.Errorf("reader %s: %d %s", c.Path, r.Status, r.Body)
+		}
+	}
+	// Starting still needs a stack of the source the caller may migrate.
+	start := authztest.Call{Method: http.MethodPost, Path: "/api/v1/environments/env-1/migrations",
+		Body: map[string]any{"targetEnvironmentId": "env-2"}, Headers: map[string]string{"Idempotency-Key": "k1"}}
+	if r := f.do("mover", start); r.Status != http.StatusForbidden {
+		t.Errorf("start %d %s", r.Status, r.Body)
+	}
+}
+
 // TestEnvironmentMigrationBlocked: blockers are 409 migration_blocked,
 // with each stack's blockers in details under its ID.
 func TestEnvironmentMigrationBlocked(t *testing.T) {

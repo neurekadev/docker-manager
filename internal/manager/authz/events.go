@@ -124,6 +124,17 @@ func changedVisible(c Checker, e events.Event) bool {
 	return ViewOf(c, Resource{Type: e.ResourceType, ID: e.ResourceID, EnvironmentID: e.EnvironmentID}).Visible()
 }
 
+// managerMoveVisible: the move of the manager (its state, the new server,
+// the progress) is the owner's (the manager.move capability).
+func managerMoveVisible(c Checker, _ events.Event) bool {
+	return c.Can("manager.move", Instance()).Allowed
+}
+
+// moveLockVisible: the move lock (read-only while the manager moves) is
+// what every signed-in user reads in GET /auth/session; the event names
+// no move.
+func moveLockVisible(Checker, events.Event) bool { return true }
+
 var eventRules = map[string]eventRule{
 	events.EnvironmentCreated:      envVisible,
 	events.EnvironmentUpdated:      envVisible,
@@ -152,6 +163,8 @@ var eventRules = map[string]eventRule{
 	events.StackRevisionRecorded:   stackVisible,
 	events.JobUpdated:              jobVisible,
 	events.ResourceChanged:         changedVisible,
+	events.ManagerMoveUpdated:      managerMoveVisible,
+	events.ManagerMoveLockChanged:  moveLockVisible,
 }
 
 // HasEventRule reports whether an event type has a visibility rule.

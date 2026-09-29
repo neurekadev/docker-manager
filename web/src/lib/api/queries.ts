@@ -43,13 +43,14 @@ import {
 /**
  * Query keys. Invalidate by prefix, e.g. queryKeys.environments.all.
  * Server resources use liveKeys shapes ([topic, 'list', ...filters],
- * [topic, 'item', id, ...sub]) so live events refresh them; session, setup
- * and health are not resources of the live stream.
+ * [topic, 'item', id, ...sub]) so live events refresh them; setup and
+ * health are not resources of the live stream, the session only for its
+ * move lock (liveKeys.session).
  */
 export const queryKeys = {
 	health: ['health'] as const,
 	setupStatus: ['setup', 'status'] as const,
-	session: ['session'] as const,
+	session: liveKeys.session,
 	me: ['me'] as const,
 	overview: ['overview'] as const,
 	myPermissions: liveKeys.myPermissions,

@@ -3,7 +3,7 @@
 	// "Waiting mode and status page"). A manager in waiting mode answers
 	// every route but GET /api/v1/move/status with 503, so this page is
 	// built from that route alone (no session, no cookies: it works over
-	// plain http). Polls every 3 s; while the manager restarts the last
+	// plain http, and no live stream). Polls every 3 s; while the manager restarts the last
 	// answer stays with a note. The steps, with the current one
 	// highlighted, and one notice: done (point DNS here), a problem with
 	// its recovery, or what to do next.
@@ -15,11 +15,11 @@
 	import { routes } from '$lib/routes';
 	import { Button, ErrorState, Notice, Skeleton, Spinner } from '$lib/ui';
 	import { waitNotice, waitSteps } from './model';
-	import { MOVE_POLL_MS, moveStatusQuery } from './queries';
+	import { WAIT_POLL_MS, moveStatusQuery } from './queries';
 
 	const status = createQuery(() => ({
 		...moveStatusQuery(),
-		refetchInterval: MOVE_POLL_MS,
+		refetchInterval: WAIT_POLL_MS,
 		refetchIntervalInBackground: true
 	}));
 	const s = $derived(status.data);

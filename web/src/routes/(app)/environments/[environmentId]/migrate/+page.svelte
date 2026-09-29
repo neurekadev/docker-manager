@@ -2,7 +2,10 @@
 	// Environment migration (#35): move every stack of the environment with
 	// its data to another environment (EnvironmentMigrationWizard). With one
 	// environment the wizard says that a second one is needed instead of
-	// showing its steps; an archived environment runs no jobs.
+	// showing its steps; a running migration opens on its progress, the last
+	// one on its result while it left something to do (the environment
+	// page's "Review the migration" leads here); an archived environment
+	// runs no jobs.
 	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { environmentQuery } from '$lib/api/queries';

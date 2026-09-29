@@ -268,6 +268,27 @@ describe('StepWizard', () => {
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		expect(cancel).toHaveBeenCalledTimes(1);
 	});
+
+	it('says why Next is off while it is', async () => {
+		const step = createRawSnippet(() => ({ render: () => '<p>Pick one</p>' }));
+		const props = {
+			label: 'Setup',
+			steps: [
+				{ id: 'a', label: 'Destination' },
+				{ id: 'b', label: 'Check' }
+			],
+			step,
+			canAdvance: false,
+			disabledReason: 'Choose the destination first.'
+		};
+		const { rerender } = render(StepWizard, { props });
+		const next = screen.getByRole('button', { name: 'Next' });
+		expect(next).toBeDisabled();
+		expect(next).toHaveAttribute('title', 'Choose the destination first.');
+		await rerender({ ...props, canAdvance: true });
+		await waitFor(() => expect(next).toBeEnabled());
+		expect(next).not.toHaveAttribute('title');
+	});
 });
 
 describe('Toaster', () => {

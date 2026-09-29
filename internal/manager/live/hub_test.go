@@ -387,6 +387,9 @@ func TestClassify(t *testing.T) {
 		{events.Event{Type: events.MetricsLive}, TopicMetrics, ActionUpdated},
 		{events.Event{Type: events.InventoryUpdated}, TopicEnvironments, ActionUpdated},
 		{events.Event{Type: events.EnrollmentCreated}, TopicAgents, ActionCreated},
+		{events.Event{Type: events.ManagerMoveUpdated, ResourceType: events.ResourceManagerMove}, TopicManager, ActionUpdated},
+		{events.Event{Type: events.ManagerMoveLockChanged, ResourceType: events.ResourceManagerMoveLock}, TopicManager, ActionUpdated},
+		{events.Event{Type: events.ResourceChanged, ResourceType: "manager_move"}, TopicManager, ActionUpdated},
 	} {
 		topic, _ := Classify(tc.e)
 		if topic != tc.topic || ActionOf(tc.e) != tc.action {

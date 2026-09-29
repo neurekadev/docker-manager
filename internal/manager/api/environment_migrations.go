@@ -206,7 +206,9 @@ func (h *environmentMigrationsAPI) available() error {
 // source requires a visible source environment and stack.migrate on one
 // of its stacks (the answer never depends on whether the service runs),
 // and, for previews and starts, a visible destination where the caller
-// may create stacks.
+// may create stacks. Reads (mutation false) skip the stack.migrate check:
+// once every stack moved away the source has none left, so list and get
+// decide per record (readable).
 func (h *environmentMigrationsAPI) source(ctx context.Context, envID, target string, mutation bool) (*scope, error) {
 	c, p, err := CheckerFor(ctx, h.authz)
 	if err != nil {
@@ -223,21 +225,42 @@ func (h *environmentMigrationsAPI) source(ctx context.Context, envID, target str
 		return nil, Internal(err)
 	}
 	sc := &scope{c: c, p: p, env: env}
+	if !mutation {
+		return sc, nil
+	}
 	if !h.migratesAny(ctx, c, env.ID) {
 		return nil, Forbidden("not permitted: " + string(CapStackMigrate))
 	}
-	if mutation {
-		if env.Status == domain.EnvironmentArchived {
-			return nil, Conflict(CodeEnvironmentArchived, "the environment is archived")
-		}
-		if err := requireTarget(target); err != nil {
-			return nil, err
-		}
-		if err := destination(sc.c, target, []migrations.Check{{Capability: "stack.create", Resource: authz.InEnvironment(catalog.TypeStack, target)}}); err != nil {
-			return nil, err
-		}
+	if env.Status == domain.EnvironmentArchived {
+		return nil, Conflict(CodeEnvironmentArchived, "the environment is archived")
+	}
+	if err := requireTarget(target); err != nil {
+		return nil, err
+	}
+	if err := destination(sc.c, target, []migrations.Check{{Capability: "stack.create", Resource: authz.InEnvironment(catalog.TypeStack, target)}}); err != nil {
+		return nil, err
 	}
 	return sc, h.available()
+}
+
+// readable reports whether the caller may read a record of the
+// environment: stack.migrate on one of the environment's stacks
+// (sourceAllowed), or on one of the record's stacks where it is now (after
+// a migration that moved every stack the source has none left, while the
+// moved stacks' old copies still wait there for their removal).
+func (h *environmentMigrationsAPI) readable(ctx context.Context, c authz.Checker, sourceAllowed bool, m domain.EnvironmentMigration) bool {
+	if sourceAllowed {
+		return true
+	}
+	if h.stacks == nil {
+		return false
+	}
+	for _, s := range m.Stacks {
+		if st, err := h.stacks.Get(ctx, s.StackID); err == nil && c.Can(string(CapStackMigrate), stackResource(st)).Allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // migratesAny reports whether the caller may migrate a stack of the
@@ -307,6 +330,13 @@ func (h *environmentMigrationsAPI) list(ctx context.Context, in *environmentMigr
 	if err != nil {
 		return nil, err
 	}
+	sourceAllowed := h.migratesAny(ctx, sc.c, sc.env.ID)
+	if err := h.available(); err != nil {
+		if !sourceAllowed {
+			return nil, Forbidden("not permitted: " + string(CapStackMigrate))
+		}
+		return nil, err
+	}
 	ms, err := h.svc.EnvironmentMigrations(ctx, sc.env.ID, 20)
 	if err != nil {
 		return nil, Internal(err)
@@ -314,10 +344,18 @@ func (h *environmentMigrationsAPI) list(ctx context.Context, in *environmentMigr
 	visible := h.stackVisible(ctx, sc.c)
 	out := &environmentMigrationListOutput{}
 	out.Body.Items = []EnvironmentMigration{}
+	permitted := sourceAllowed
 	for _, m := range ms {
+		if !h.readable(ctx, sc.c, sourceAllowed, m) {
+			continue
+		}
+		permitted = true
 		if e := newEnvironmentMigration(m, visible); len(e.Stacks) > 0 {
 			out.Body.Items = append(out.Body.Items, e)
 		}
+	}
+	if !permitted {
+		return nil, Forbidden("not permitted: " + string(CapStackMigrate))
 	}
 	return out, nil
 }
@@ -327,9 +365,23 @@ func (h *environmentMigrationsAPI) get(ctx context.Context, in *environmentMigra
 	if err != nil {
 		return nil, err
 	}
+	sourceAllowed := h.migratesAny(ctx, sc.c, sc.env.ID)
+	if err := h.available(); err != nil {
+		if !sourceAllowed {
+			return nil, Forbidden("not permitted: " + string(CapStackMigrate))
+		}
+		return nil, err
+	}
 	m, err := h.svc.GetEnvironmentMigration(ctx, in.MigrationID)
-	if err != nil || m.SourceEnvironmentID != sc.env.ID {
+	found := err == nil && m.SourceEnvironmentID == sc.env.ID
+	if !found {
+		if !sourceAllowed {
+			return nil, Forbidden("not permitted: " + string(CapStackMigrate))
+		}
 		return nil, NotFound("migration not found")
+	}
+	if !h.readable(ctx, sc.c, sourceAllowed, m) {
+		return nil, Forbidden("not permitted: " + string(CapStackMigrate))
 	}
 	e := newEnvironmentMigration(m, h.stackVisible(ctx, sc.c))
 	if len(e.Stacks) == 0 {
@@ -367,15 +419,17 @@ func registerEnvironmentMigrations(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "list-environment-migrations", Method: http.MethodGet, Path: env + "/migrations",
-		Summary:     "List environment migrations",
-		Description: "The latest migrations away from the environment (at most 20, newest first), with each stack the caller can see and its state.",
-		Tags:        []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusServiceUnavailable},
+		Summary: "List environment migrations",
+		Description: "The latest migrations away from the environment (at most 20, newest first), with each stack the caller can see and its state. " +
+			"Readable with stack.migrate on a stack of the environment, or on one of a migration's stacks where it is now (after every stack moved away).",
+		Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusServiceUnavailable},
 	}, Capability: CapStackMigrate, Scope: ScopeEnvironment}, h.list)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "get-environment-migration", Method: http.MethodGet, Path: env + "/migrations/{migrationId}",
-		Summary:     "Get an environment migration",
-		Description: "An environment migration's groups, each stack the caller can see with its stack migration and state, and the networks created on the destination.",
-		Tags:        []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusServiceUnavailable},
+		Summary: "Get an environment migration",
+		Description: "An environment migration's groups, each stack the caller can see with its stack migration and state, and the networks created on the destination. " +
+			"Readable with stack.migrate on a stack of the environment, or on one of its stacks where it is now.",
+		Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusServiceUnavailable},
 	}, Capability: CapStackMigrate, Scope: ScopeEnvironment}, h.get)
 }

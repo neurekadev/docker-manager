@@ -1,10 +1,12 @@
 // Settings → Move to a new server (the old manager's wizard): the setup
-// files after a step-up, shown once; Next only once the new server's agent
-// connected and its Docker Manager waits; the check with the reminders;
-// Move everything and its progress read from the move; a stopped run with
-// "Try again"; the moved panel after the handoff.
+// files after a step-up, shown once, with the one command to paste; new
+// setup files when they are gone or expired; Next only once the new
+// server's agent connected and its Docker Manager waits (its tooltip says
+// why); the check with the reminders; Move everything and its progress
+// read from the move; a stopped run with "Try again"; the moved panel
+// after the handoff; resuming here waits for the restart.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
@@ -118,12 +120,16 @@ const job = {
 let current: ManagerMove | null = null;
 let created: unknown[] = [];
 let runsStarted = 0;
+let newFiles = 0;
+let cancels: unknown[] = [];
 let stepUpDone = false;
 
 beforeEach(() => {
 	current = null;
 	created = [];
 	runsStarted = 0;
+	newFiles = 0;
+	cancels = [];
 	stepUpDone = false;
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
@@ -163,6 +169,22 @@ beforeEach(() => {
 				statusUrl: 'http://192.168.1.20:8080'
 			});
 		}
+		if (req.method === 'POST' && path === '/api/v1/manager/move/setup-files') {
+			newFiles++;
+			return json(200, {
+				move: current,
+				composeYaml: 'services:\n  docker-manager:\n    image: docker-manager\n',
+				env: 'DOCKER_MANAGER_MOVE_CODE=dmm_x_new\n',
+				statusUrl: 'http://192.168.1.20:8080',
+				agentEnrolled: false
+			});
+		}
+		if (req.method === 'POST' && path === '/api/v1/manager/move/cancellations') {
+			cancels.push(await req.json());
+			return json(200, move({ state: 'cancelled' }));
+		}
+		// Restarting: Docker Manager does not answer yet.
+		if (path === '/api/v1/health') return problem(503, 'unavailable');
 		if (req.method === 'POST' && path === '/api/v1/environments/env-1/migration-previews')
 			return json(200, preview);
 		if (req.method === 'POST' && path === '/api/v1/manager/move/runs') {
@@ -231,15 +253,36 @@ describe('ManagerMoveWizard', () => {
 		expect(screen.getByRole('button', { name: 'Copy .env' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Download compose.yaml' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Download .env' })).toBeInTheDocument();
-		expect(
-			screen.getByText('On the new server, save both files in an empty folder and run:')
-		).toBeInTheDocument();
+		expect(screen.getByText('Then run this in that folder:')).toBeInTheDocument();
 		expect(screen.getByText('docker compose up -d')).toBeInTheDocument();
+		// The same in one paste: the folder, both files and the start.
+		expect(
+			screen.getByRole('heading', { name: 'Or paste this on the new server' })
+		).toBeInTheDocument();
+		const script = screen.getByLabelText('One command: command').textContent ?? '';
+		expect(script).toContain('mkdir -p docker-manager');
+		expect(script).toContain(
+			"cat > .env <<'DOCKER_MANAGER_EOF'\nDOCKER_MANAGER_MOVE_CODE=dmm_x_y\n"
+		);
+		expect(script).toContain('chmod 600 .env');
+		expect(script.trimEnd().endsWith('docker compose up -d\n)')).toBe(true);
+		// The files' heading takes the focus.
+		await waitFor(() =>
+			expect(screen.getByRole('heading', { name: 'Set up the new server' })).toHaveFocus()
+		);
 
-		// The checklist waits for the new server; Next stays off until it is ready.
+		// The checklist waits for the new server; Next stays off until it is
+		// ready, and says why.
 		expect(screen.getByText(/New server's agent connected/)).toBeInTheDocument();
 		expect(screen.getByText(/New Docker Manager is waiting/)).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+		const next = screen.getByRole('button', { name: 'Next' });
+		expect(next).toBeDisabled();
+		expect(next).toHaveAttribute(
+			'title',
+			"Wait until the new server's agent is connected and its Docker Manager is waiting."
+		);
+		// The files are on the page: nothing to create again.
+		expect(screen.queryByRole('button', { name: 'Create new setup files' })).toBeNull();
 		expect(screen.getByRole('button', { name: 'Cancel the move' })).toBeInTheDocument();
 	});
 
@@ -248,10 +291,7 @@ describe('ManagerMoveWizard', () => {
 		current = move(ready);
 		wizard();
 
-		expect(
-			await screen.findByText('The setup files were shown when you created the move.')
-		).toBeInTheDocument();
-		const next = screen.getByRole('button', { name: 'Next' });
+		const next = await screen.findByRole('button', { name: 'Next' });
 		await waitFor(() => expect(next).toBeEnabled());
 		await user.click(next);
 
@@ -277,6 +317,55 @@ describe('ManagerMoveWizard', () => {
 		expect(screen.getByText('Moving your apps: 1 of 2 stacks')).toBeInTheDocument();
 		expect(screen.getByText('Now moving app.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Moving…' })).toBeDisabled();
+	});
+
+	it('creates new setup files when the page no longer has them', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		current = move({
+			newServer: { online: false, managerCheckedIn: false },
+			sourceEnvironment: source
+		});
+		wizard();
+
+		expect(
+			await screen.findByText('The setup files were shown when you created the move.')
+		).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Create new setup files' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Create new setup files?' });
+		expect(dialog).toHaveTextContent(
+			'The setup files you have now stop working. Docker Manager on the new server must use the new ones.'
+		);
+		expect(dialog).toHaveTextContent(
+			"The new server's agent gets a new enrollment token, valid for 24 hours."
+		);
+		await user.click(within(dialog).getByRole('button', { name: 'Create new setup files' }));
+
+		expect(
+			await screen.findByText(
+				'These files are shown once. They contain a one-time pairing code.'
+			)
+		).toBeInTheDocument();
+		expect(newFiles).toBe(1);
+		expect(screen.getByLabelText('.env: .env')).toHaveTextContent(
+			'DOCKER_MANAGER_MOVE_CODE=dmm_x_new'
+		);
+		expect(
+			screen.queryByText('The setup files were shown when you created the move.')
+		).toBeNull();
+	});
+
+	it('offers new setup files once the enrollment token expired', async () => {
+		current = move({
+			newServer: { online: false, managerCheckedIn: false, enrollmentState: 'expired' },
+			sourceEnvironment: source
+		});
+		wizard();
+
+		expect(await screen.findByText('The setup files expired.')).toBeInTheDocument();
+		expect(
+			screen.getByText('The setup files expired. Create new setup files.')
+		).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Create new setup files' })).toBeInTheDocument();
 	});
 
 	it('says only Docker Manager moves when there are no apps', async () => {
@@ -335,5 +424,24 @@ describe('ManagerMoveWizard', () => {
 			await screen.findByRole('button', { name: 'Resume on this server' })
 		).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Cancel the move' })).toBeNull();
+	});
+
+	it('waits for Docker Manager to restart after resuming here', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		current = move({ ...ready, state: 'handed_off' });
+		wizard();
+
+		await user.click(await screen.findByRole('button', { name: 'Resume on this server' }));
+		const dialog = await screen.findByRole('alertdialog', {
+			name: 'Resume Docker Manager on this server?'
+		});
+		await user.type(within(dialog).getByLabelText('Type Home to confirm'), 'Home');
+		await user.click(within(dialog).getByRole('button', { name: 'Resume on this server' }));
+
+		expect(await screen.findByText(/Restarting Docker Manager…/)).toBeInTheDocument();
+		expect(
+			screen.getByText('This page reloads by itself as soon as Docker Manager answers again.')
+		).toBeInTheDocument();
+		expect(cancels).toEqual([{ resumeHere: true, instanceName: 'Home' }]);
 	});
 });

@@ -344,7 +344,11 @@ dialog's "Migrate N stacks first". The wizard is
 model `environment-migration.ts`, requests `migration-actions.ts`, the
 run's record in `queries.ts`, keyed under its job,
 `liveKeys.item('jobs', id, 'environment-migration')`, so the job's events
-refresh it). Destination: the other active environments (offline ones
+refresh it; the environment's latest migrations,
+`environmentMigrationsQuery`, keyed under the jobs list,
+`liveKeys.list('jobs', 'environment-migrations', envId)`, so every job
+event refreshes them: the run's own, its stack migrations' and the
+removals'). Destination: the other active environments (offline ones
 off) and the stacks, all ticked; Docker Manager's own stack (found from
 its protected containers and the check's `skipped`) and stacks without
 `stack.migrate` are off with the reason, and nothing unticked sends no
@@ -356,14 +360,33 @@ what is not moved and why, warnings, and each stack's details (volumes,
 images, warnings, access changes). Confirm, then Move: the
 `environment.migrate` job's progress and each stack's outcome from the
 record, one toast (the stack that did not move, with "Open job" on its
-stack migration), "Migrate the rest" (back to Check), "Remove old copies
-from <source>" (type-to-confirm; one source removal per moved stack, one
-`bulkSummary` toast) and, when every stack moved, a link to archive the
-source. The check's findings (everything below the headline and "Check
-again") are `EnvironmentMigrationCheck.svelte`, shared with the manager
-move's Check step. Both migration wizards list findings with
+stack migration), each stack's state ("Moved" with "Old copy kept" or
+"Old copy removed", "Did not move", "Not started"), "Migrate the rest"
+(back to Check, for the run's stacks still on the source), "Remove old
+copies from <source>" (type-to-confirm; the moved stacks' copies of this
+run and of earlier ones, `pendingCopies`; one source removal per stack,
+followed as tracked jobs, `oldCopyRemovalMatch` in `ActiveJobs`, so they
+survive a reload; one `bulkSummary` toast when the ones started together
+ended; the result reads `sourceRemoved` from the record), "Start a new
+migration" (the first step, while the source has stacks to migrate)
+and, when every stack moved, a link to archive the source. The wizard
+opens on the latest run's result once it ended (no toast, no
+notification) while it left something to do: old copies to remove or
+its stacks still on the source (`restoredMigration`, decided once when
+the list first answers). Next's tooltip says why it is off
+(`StepWizard` `disabledReason`); "Migrate the rest" and "Start a new
+migration" move the focus to the step's heading. The environment page
+shows `EnvironmentMigrationNotice.svelte` while old copies wait on it
+("3 stacks moved to NAS", "Their old copies are still on this server.",
+"Review the migration" to the migrate page; `oldCopiesNotice`; only for
+callers with a `stack.migrate` grant: the list answers 403 to others and
+lists only the stacks the caller sees). The check's findings
+(everything below the headline and "Check again") are
+`EnvironmentMigrationCheck.svelte`, shared with the manager move's Check
+step. Both migration wizards list findings with
 `$lib/features/stacks/MigrationFindings.svelte`. Tests:
-`environment-migration.spec.ts`, `EnvironmentMigrationWizard.test.ts`.
+`environment-migration.spec.ts`, `EnvironmentMigrationWizard.test.ts`,
+`EnvironmentMigrationNotice.test.ts`.
 
 Moving Docker Manager to a new server
 ([manager-move.md](architecture/manager-move.md)) lives in
@@ -371,10 +394,15 @@ Moving Docker Manager to a new server
 move's states, the wizard's steps, checklist, reminders and progress, the
 status page's steps and notices, Move complete's items, all in words);
 requests in `queries.ts` (`managerMoveQuery` resolves the 404 of "no
-move" to `null`; `createMove`, `startMoveRun`, `cancelMove` and
-`acknowledgeConfirmation` go through `withStepUp`; `moveStatusQuery` is
-public). The move pages poll the move every 3 s while it changes
-(`MOVE_POLL_MS`); no live event announces moves.
+move" to `null`; `createMove`, `createSetupFiles`, `startMoveRun`,
+`cancelMove` and `acknowledgeConfirmation` go through `withStepUp`;
+`moveStatusQuery` is public). The move's queries are keyed
+`liveKeys.managerMove(...)` (`['manager', 'item', 'move', ...]`) and follow
+the live stream (topic `manager`): kind `manager_move` refreshes the
+owner's move (and the form's defaults), kind `manager_move_lock` every
+session (`liveKeys.session`, the banner's lock). Nothing on the old or new
+manager polls the move; only the new server's status page polls
+(`WAIT_POLL_MS`, 3 s: no sign-in there, so no stream).
 
 - **Settings, Move to a new server** (`routes.managerMove`,
   `/settings/move`, an owner-only Settings tab; the palette finds Settings
@@ -382,11 +410,22 @@ public). The move pages poll the move every 3 s while it changes
   `StepWizard` of three steps. *New server*: "This server's address"
   (prefilled from `GET /manager/move/defaults`), "New server's address",
   optional "Name for the new server", then "Create setup files"
-  (step-up) shows the returned `compose.yaml` and `.env` once (copy and
-  download buttons through `InstallCommand`'s `filename`; the answer
-  lives only in the component, never in a query, URL or storage) and
-  the checklist "New server's agent connected" / "New Docker Manager is
-  waiting"; Next waits for both. *Check*: the environment migration's
+  (step-up) shows the returned `compose.yaml` and `.env` once under "Set
+  up the new server" (copy and download buttons through
+  `InstallCommand`'s `filename`; the answer lives only in the component,
+  never in a query, URL or storage; its heading takes the focus), the
+  same as one paste under "Or paste this on the new server"
+  (`setupScript`: a `set -e` subshell that creates `docker-manager/`,
+  writes both files from quoted here-documents whose delimiter is no line
+  of the file (`heredocDelimiter`), makes `.env` mode 600 before the
+  secrets go in and runs `docker compose up -d`) and the checklist "New
+  server's agent connected" / "New Docker Manager is waiting"; Next waits
+  for both (`disabledReason` says why). Files that are no longer on the
+  page (a reload) or whose enrollment token expired
+  (`setupFilesReason`, `setupFilesNotice`) are replaced with "Create new
+  setup files" (`ConfirmDialog` with `setupFilesConsequences`, step-up,
+  `POST /manager/move/setup-files`; `agentEnrolled` answers say the
+  agent stays connected, `AGENT_KEPT`). *Check*: the environment migration's
   check from the environment next to Docker Manager to the new server's
   (`EnvironmentMigrationCheck`), or "Only Docker Manager moves" when
   there is none or it has no stacks, plus "Before you start" (the proxy
@@ -394,14 +433,23 @@ public). The move pages poll the move every 3 s while it changes
   (step-up), then the progress read from the move alone (`runView`:
   stacks moved of all, the current stack, "Handing over Docker
   Manager"); a stopped run shows its reason and recovery with "Try
-  again". "Cancel the move" (`ConfirmDialog`) sits in the wizard's footer
-  until the handoff. The wizard opens where the move stands (`stepOf`),
-  so a reload or coming back resumes; the `manager.move` job is tracked
-  (`runs.add`, `managerMoveJobMatch`) and a change of the running list
-  reads the move at once. After the handoff the moved panel says where to
-  point DNS and where to follow the move (`movedPanel`), with "Resume on
-  this server" (`DestructiveConfirm` typing the instance name) until the
-  new manager confirms.
+  again"; a ready move whose new manager stopped asking says so
+  (`NOT_ASKING`). "Cancel the move" (`ConfirmDialog`,
+  `cancelConsequences`) sits in the wizard's footer until the handoff.
+  The wizard opens where the move stands (`stepOf`), so a reload or
+  coming back resumes; a step that changes by itself (the move went on,
+  or ended) moves the focus to its heading; the `manager.move` job is
+  tracked (`runs.add`, `managerMoveJobMatch`) and a change of the running
+  list reads the move at once. After the handoff the moved panel says
+  where to point DNS and where to follow the move (`movedPanel`), with
+  "Resume on this server" (`DestructiveConfirm` typing the instance name)
+  until the new manager confirms. Resuming, or cancelling once agents
+  heard the new address (`restartsWhenEnded`), restarts Docker Manager:
+  the wizard shows "Restarting Docker Manager…", waits for it
+  (`waitForRestart` in `restart.ts`: `GET /api/v1/health` until it went
+  down, then until it answers again with backoff, 3 minutes at most; then
+  "Docker Manager does not answer yet." with Reload) and reloads the
+  page.
 - **The new server's status page** (`routes.moveStatus`, `/moving`,
   public, `(auth)` layout): `WaitingStatus.svelte`, built from `GET
   /api/v1/move/status` alone (polled every 3 s, no session or cookie, so
@@ -414,28 +462,31 @@ public). The move pages poll the move every 3 s while it changes
   or setup routing and sends every page to `/moving` while
   `isWaitingPhase` (not `none`, not `complete`: after the move sign-in
   works as usual); no answer (offline, an older manager) lets the app
-  start as always.
+  start as always. The root layout starts the live stream only from
+  `MoveGate`'s `onready` (known, not waiting), so a waiting manager gets
+  no stream requests it would answer with 503.
 - **Move complete** (the new manager, owner): `MoveCompleteCard.svelte`
   on the dashboard (and on the Settings tab) while `moveCompleteDone` is
-  false: the old manager's confirmation (polled every 15 s until settled;
-  "Mark as done" with a warning once a confirmation failed), agents that
-  did not get the new address with their one-line fix, the moved stacks'
-  stopped copies on the old server (removed from the environment
+  false: the old manager's confirmation (live: each attempt announces the
+  move; "Mark as done" with a warning once a confirmation failed), agents
+  that did not get the new address with their one-line fix, the moved
+  stacks' stopped copies on the old server (removed from the environment
   migration's record with `removeOldCopies`, type-to-confirm, one summary
-  toast) and "Archive <old environment>" (its page).
+  toast) and "Open <old environment> to archive it" (its page).
 
 A locked manager shows a persistent banner in the shell (`MoveBanner`
-in `AppShell`, `moveBanner`): the owner's shell reads the move (polled
-every 15 s while it changes); everyone else learns it from the first
-request answered 409 `manager_moved` (`onApiFailure` in
+in `AppShell`, `moveBanner`): the owner's shell reads the move, everyone
+the session's lock (both refreshed by the live stream, never polled); a
+change refused before either knew it is heard from the first request
+answered 409 `manager_moved` (`onApiFailure` in
 `$lib/api/client.ts` hears every error `unwrap` throws;
 `managerMoved.refused` in `moved.svelte.ts` holds it for the page load).
 Only the lock states (`draining`, `handed_off`, `confirmed`) show it:
 the apps moving (`open`, `moving`, `ready`) lock nothing.
 `errorView` words `manager_moved` the same everywhere
 (`KNOWN_ERRORS` in `$lib/ui/errors.ts`). Tests: `model.spec.ts`,
-`ManagerMoveWizard.test.ts`, `WaitingStatus.test.ts`,
-`MoveCompleteCard.test.ts`.
+`restart.spec.ts`, `ManagerMoveWizard.test.ts`, `WaitingStatus.test.ts`,
+`MoveCompleteCard.test.ts`; the live keys in `$lib/live/keys.spec.ts`.
 
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
@@ -491,7 +542,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 | --- | --- |
 | stack page (tray, all tabs) | target `stack:<id>`, every kind but `update.check` (`stackTrayMatch`); on `/migrate` also not `stack.migrate` |
 | migration wizard | a running `stack.migrate` of the stack reopens it at the move step (`migration-resume.ts`); the wizard shows it instead of the tray and hands it back when left while it runs |
-| environment migration wizard | a running `environment.migrate` from the environment reopens it at the move step (`environmentMigrationMatch` in `environment-migration.ts`); the stacks it moves say "Migrating" in the stacks list |
+| environment migration wizard | a running `environment.migrate` from the environment reopens it at the move step (`environmentMigrationMatch` in `environment-migration.ts`); the stacks it moves say "Migrating" in the stacks list; an ended one reopens on its result from its record (`restoredMigration`); the removals of old copies on the environment (`oldCopyRemovalMatch`) show under the result |
 | manager move wizard | a running `manager.move` (`managerMoveJobMatch`) reads the move again; the Move step shows its progress from the move (`runView`), which also survives a reload |
 | stacks list | one match for the list (`stackListMatch`), the newest job per stack as a status word in the row (`StackJobStatus`) |
 | import dialog | `stack.import` of the environment, matched to projects by their stack target |
@@ -591,7 +642,8 @@ proxy and installation on devices are not verified by automated tests.
 ## Live data (#23)
 
 The root layout starts one live client per tab (`startLive(queryClient)`,
-`src/lib/live`): a single `EventSource` on `/api/v1/live/stream`
+`src/lib/live`, once `MoveGate` knows the manager does not wait for a
+move): a single `EventSource` on `/api/v1/live/stream`
 ([streams.md](api/streams.md#live-invalidation-stream-23)) whose events
 invalidate the affected Svelte Query keys. Views do not subscribe to
 anything themselves; they only have to
@@ -609,6 +661,8 @@ anything themselves; they only have to
    | a stack's containers | `liveKeys.stackServices(stackId)` (refreshed on container events) |
    | scoped files | `liveKeys.files({kind: 'stack', id: stackId}, 'list' \| 'stat' \| 'content', path)`; volumes use `id: '<envId>/<volume>'` |
    | the caller's permissions | `liveKeys.myPermissions` |
+   | the move to a new server | `liveKeys.managerMove(...)` → `['manager', 'item', 'move', …]` (topic `manager`, kind `manager_move`; owner) |
+   | the session (its move lock) | `liveKeys.session` (`queryKeys.session`; kind `manager_move_lock`, every signed-in user) |
 
 2. **declare open file views** so their changes arrive and volumes stay
    watched: `liveClient()?.setScopes({ stackIds: [id], volumes: ['e1/pgdata'] })`

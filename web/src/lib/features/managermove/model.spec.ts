@@ -3,9 +3,20 @@
 // status page and Move complete.
 import { describe, expect, it } from 'vitest';
 import {
+	ACTIVE_STATES,
+	AGENT_KEPT,
 	BEFORE_YOU_START,
 	MOVE_STEPS,
+	NOT_ASKING,
 	ONLY_MANAGER_MOVES,
+	SETUP_FILES_EXPIRED,
+	cancelConsequences,
+	heredocDelimiter,
+	restartsWhenEnded,
+	setupFilesConsequences,
+	setupFilesNotice,
+	setupFilesReason,
+	setupScript,
 	canAcknowledge,
 	canMoveEverything,
 	completeItems,
@@ -14,7 +25,6 @@ import {
 	isActive,
 	isHandedOver,
 	isLocked,
-	isPolled,
 	isWaitingPhase,
 	lockOf,
 	moveBanner,
@@ -86,12 +96,8 @@ describe('move status on the old manager', () => {
 		expect(moveStatus(move({ state: 'arrived' })).label).toBe('Arrived');
 	});
 
-	it('polls while the move changes on its own and locks from the handoff on', () => {
-		expect(
-			['open', 'moving', 'ready', 'draining', 'handed_off'].every((s) => isPolled(s as never))
-		).toBe(true);
-		expect(isPolled('confirmed')).toBe(false);
-		expect(isPolled(undefined)).toBe(false);
+	it('knows a move under way and locks from the handoff on', () => {
+		expect(ACTIVE_STATES).toEqual(['open', 'moving', 'ready', 'draining', 'handed_off']);
 		expect(isLocked('open')).toBe(false);
 		expect(isLocked('moving')).toBe(false);
 		expect(['draining', 'handed_off', 'confirmed'].every((s) => isLocked(s as never))).toBe(
@@ -197,8 +203,130 @@ describe('the old manager’s wizard', () => {
 		expect(newServerReady(move(newServer(true, true)))).toBe(true);
 		expect(newServerReady(null)).toBe(false);
 		expect(newServerChecklist(move(newServer(false, false, 'expired')))[0].detail).toBe(
-			'The setup files expired. Cancel the move and start again.'
+			SETUP_FILES_EXPIRED
 		);
+		expect(SETUP_FILES_EXPIRED).toBe('The setup files expired. Create new setup files.');
+	});
+
+	it('offers new setup files while the new server is not ready and the files are gone or expired', () => {
+		const waiting = move({ newServer: { online: false, managerCheckedIn: false } });
+		expect(setupFilesReason(waiting, false)).toBe('not_shown');
+		expect(setupFilesReason(waiting, true)).toBeNull();
+		const expired = move(newServer(false, false, 'expired'));
+		expect(setupFilesReason(expired, true)).toBe('expired');
+		expect(setupFilesReason(move(newServer(false, false, 'revoked')), false)).toBe('expired');
+		// Ready, or past the New server step: nothing to offer.
+		expect(setupFilesReason(move(newServer(true, true)), false)).toBeNull();
+		expect(
+			setupFilesReason(
+				move({ ...newServer(false, false, 'expired'), state: 'moving' }),
+				false
+			)
+		).toBeNull();
+		expect(setupFilesNotice('expired').title).toBe('The setup files expired.');
+		expect(setupFilesNotice('not_shown')).toEqual({
+			title: 'The setup files were shown when you created the move.',
+			body: 'If you no longer have them, create new ones. The old files then stop working.'
+		});
+	});
+
+	it('says what new setup files do, keeping an agent that already connected', () => {
+		const fresh = setupFilesConsequences(
+			move({ newServer: { online: false, managerCheckedIn: false } })
+		);
+		expect(fresh[0]).toBe(
+			'The setup files you have now stop working. Docker Manager on the new server must use the new ones.'
+		);
+		expect(fresh[1]).toBe(
+			"The new server's agent gets a new enrollment token, valid for 24 hours."
+		);
+		expect(setupFilesConsequences(move(newServer(true, false)))[1]).toBe(
+			'The agent on the new server stays connected.'
+		);
+		expect(AGENT_KEPT).toContain('no enrollment token');
+	});
+
+	it('writes both files and starts Docker Manager in one paste', () => {
+		const script = setupScript({
+			composeYaml: 'name: docker-manager\nservices: {}\n',
+			env: 'DOCKER_MANAGER_MOVE_CODE=dmm_a_$HOME`x`\\n\nDOCKER_AGENT_ENROLLMENT_TOKEN=dye_t\n'
+		});
+		expect(script.split('\n')).toEqual([
+			'(',
+			'set -e',
+			'mkdir -p docker-manager',
+			'cd docker-manager',
+			"cat > compose.yaml <<'DOCKER_MANAGER_EOF'",
+			'name: docker-manager',
+			'services: {}',
+			'DOCKER_MANAGER_EOF',
+			'touch .env',
+			'chmod 600 .env',
+			"cat > .env <<'DOCKER_MANAGER_EOF'",
+			// Quoted delimiters: $, backticks and backslashes stay literal.
+			'DOCKER_MANAGER_MOVE_CODE=dmm_a_$HOME`x`\\n',
+			'DOCKER_AGENT_ENROLLMENT_TOKEN=dye_t',
+			'DOCKER_MANAGER_EOF',
+			'docker compose up -d',
+			')'
+		]);
+		// A file without a final newline still ends before its delimiter.
+		expect(setupScript({ composeYaml: 'a', env: '' }, 'dm').split('\n')).toEqual([
+			'(',
+			'set -e',
+			'mkdir -p dm',
+			'cd dm',
+			"cat > compose.yaml <<'DOCKER_MANAGER_EOF'",
+			'a',
+			'DOCKER_MANAGER_EOF',
+			'touch .env',
+			'chmod 600 .env',
+			"cat > .env <<'DOCKER_MANAGER_EOF'",
+			'',
+			'DOCKER_MANAGER_EOF',
+			'docker compose up -d',
+			')'
+		]);
+	});
+
+	it('picks a here-document delimiter that is no line of the file', () => {
+		expect(heredocDelimiter('a\nb\n')).toBe('DOCKER_MANAGER_EOF');
+		expect(heredocDelimiter('x\nDOCKER_MANAGER_EOF\n')).toBe('DOCKER_MANAGER_EOF_2');
+		expect(heredocDelimiter('DOCKER_MANAGER_EOF\r\nDOCKER_MANAGER_EOF_2\n')).toBe(
+			'DOCKER_MANAGER_EOF_3'
+		);
+		// Only whole lines end a here-document.
+		expect(heredocDelimiter('  DOCKER_MANAGER_EOF\nDOCKER_MANAGER_EOF=1')).toBe(
+			'DOCKER_MANAGER_EOF'
+		);
+		const tricky = setupScript({ composeYaml: 'DOCKER_MANAGER_EOF\n', env: 'A=1\n' });
+		expect(tricky).toContain(
+			"cat > compose.yaml <<'DOCKER_MANAGER_EOF_2'\nDOCKER_MANAGER_EOF\nDOCKER_MANAGER_EOF_2\n"
+		);
+		expect(tricky).toContain("cat > .env <<'DOCKER_MANAGER_EOF'\nA=1\nDOCKER_MANAGER_EOF\n");
+	});
+
+	it('knows when ending the move restarts Docker Manager, and says so', () => {
+		const sent = {
+			environmentId: 'e',
+			environmentName: 'old',
+			role: 'old_server' as const,
+			url: 'http://x',
+			sent: true,
+			connected: false,
+			needsFix: false
+		};
+		expect(restartsWhenEnded(move())).toBe(false);
+		expect(restartsWhenEnded(move({ state: 'handed_off' }))).toBe(true);
+		expect(
+			restartsWhenEnded(move({ state: 'draining', redirects: [{ ...sent, sent: false }] }))
+		).toBe(false);
+		expect(restartsWhenEnded(move({ state: 'draining', redirects: [sent] }))).toBe(true);
+		expect(cancelConsequences(move())).toHaveLength(3);
+		expect(cancelConsequences(move({ state: 'draining', redirects: [sent] })).at(-1)).toBe(
+			'Docker Manager restarts, because its agents already heard the new address.'
+		);
+		expect(cancelConsequences(null)).toHaveLength(3);
 	});
 
 	it('names hosts without their port', () => {
@@ -266,8 +394,14 @@ describe('the old manager’s wizard', () => {
 		).toMatchObject({ phase: 'moving', title: 'Moving your apps…' });
 		expect(runView(move({ state: 'ready' }))).toMatchObject({
 			phase: 'handing_over',
-			title: 'Handing over Docker Manager…'
+			title: 'Handing over Docker Manager…',
+			detail: undefined
 		});
+		// Ready, but the new Docker Manager stopped asking (announced live).
+		expect(
+			runView(move({ state: 'ready', newServer: { online: true, managerCheckedIn: false } }))
+				.detail
+		).toBe(NOT_ASKING);
 		expect(runView(move({ state: 'draining', jobsRunning: 2 })).detail).toBe(
 			'Waiting for 2 running jobs to finish.'
 		);

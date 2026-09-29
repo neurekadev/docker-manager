@@ -354,7 +354,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `OfflineEnvironment` | "homelab is offline", since when, what it means ("Actions on homelab are unavailable until it reconnects."). The shell shows it for the selected environment, except on that environment's own page (which shows it itself). |
 | `JobProgress` | `jobId` (follows `/api/v1/jobs/{id}/events/stream` via `JobWatcher`, polling fallback) or a `watcher`; `inline` or `panel`; per-item results, partial failure summary, recovery advice, completion announced; `onfinish`; `summary={false}` leaves out the title/state line and the error (the job page shows them once itself). |
 | `SecretReveal` | One-time secrets: copy, download, fingerprint, "I stored it" gate; dropped from the page after Continue. |
-| `StepWizard` | Numbered steps, `onnext` validation (throw or return false), focus to the step heading, `onfinish`; `canGoBack={false}` hides Back once the wizard started a job. `oncancel` (+ `cancelLabel`) adds Cancel to every step; `stepsClickable` turns visited steps into buttons (back at once, forward after the current step's `onnext` passes); `minHeight` keeps the step body from jumping between steps (wizards in dialogs). |
+| `StepWizard` | Numbered steps, `onnext` validation (throw or return false), focus to the step heading, `onfinish`; `disabledReason` is Next's tooltip while `canAdvance` is false (why it is off); `canGoBack={false}` hides Back once the wizard started a job. `oncancel` (+ `cancelLabel`) adds Cancel to every step; `stepsClickable` turns visited steps into buttons (back at once, forward after the current step's `onnext` passes); `minHeight` keeps the step body from jumping between steps (wizards in dialogs). |
 
 ### Lazy surfaces
 

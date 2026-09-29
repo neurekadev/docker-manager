@@ -3,15 +3,17 @@
 	// because it moves to a new server (not a toast: it stays). Every
 	// session reads the lock (GET /auth/session, managerMove: none, moving
 	// or moved, with the address); the owner's shell also reads the move
-	// itself (GET /manager/move, polled while it changes). The first change
-	// the manager refuses with 409 manager_moved (moved.svelte.ts) shows the
-	// banner too and reads the session again.
+	// itself (GET /manager/move). Both follow the live stream (topic
+	// manager: the move lock refreshes every session, the move the owner's
+	// query), so nothing polls. The first change the manager refuses with
+	// 409 manager_moved (moved.svelte.ts) shows the banner too and reads the
+	// session again.
 	import { onMount } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Truck from '@lucide/svelte/icons/truck';
 	import { queryKeys, sessionQuery } from '$lib/api/queries';
 	import { Notice } from '$lib/ui';
-	import { isPolled, lockOf, moveBanner, thisAddress } from './model';
+	import { lockOf, moveBanner, thisAddress } from './model';
 	import { managerMoved, watchManagerMoved } from './moved.svelte';
 	import { managerMoveKeys, managerMoveQuery } from './queries';
 
@@ -21,11 +23,7 @@
 	onMount(() => watchManagerMoved());
 
 	const session = createQuery(() => sessionQuery());
-	const move = createQuery(() => ({
-		...managerMoveQuery(),
-		enabled: owner,
-		refetchInterval: (q) => (isPolled(q.state.data?.state) ? 15_000 : false)
-	}));
+	const move = createQuery(() => ({ ...managerMoveQuery(), enabled: owner }));
 
 	// A refusal the last reads did not explain: read the lock again.
 	$effect(() => {
@@ -34,7 +32,7 @@
 		if (owner) void qc.invalidateQueries({ queryKey: managerMoveKeys.current });
 	});
 
-	// The owner's polled move is the freshest (null: no move); else the session's lock.
+	// The owner's move is the freshest (null: no move); else the session's lock.
 	const lock = $derived(
 		owner && move.data !== undefined
 			? move.data
