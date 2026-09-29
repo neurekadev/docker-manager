@@ -76,7 +76,7 @@
 							},
 							{
 								label: 'Contents',
-								value: `${contentsSummary(v.entries, v.definition)}, ${formatBytes(v.contentSize)}`
+								value: `${contentsSummary(v.entries)}, ${formatBytes(v.contentSize)}`
 							},
 							{
 								label: 'Compose files',
