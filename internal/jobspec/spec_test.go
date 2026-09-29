@@ -164,7 +164,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 		"container.create", "container.start", "container.stop", "container.restart", "container.pause",
 		"container.unpause", "container.remove", "container.update",
 		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build", "stack.update",
-		"stack.migrate", "stack.remove_source", "stack.import", "stack.rename", "stack.pull", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
+		"stack.migrate", "environment.migrate", "stack.remove_source", "stack.import", "stack.rename", "stack.pull", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
 		"backup.import", "files.archive", "files.extract", "files.metadata", "files.copy", "files.move", "files.delete",
 		"manager.backup", "manager.retention", "manager.verify",
@@ -453,5 +453,25 @@ func TestSpecHelpers(t *testing.T) {
 	}
 	if fmtDuration(90*time.Second) != "1m30s" || fmtDuration(2*time.Hour) != "2h" || fmtDuration(10*time.Minute) != "10m" {
 		t.Fatal("fmtDuration")
+	}
+}
+
+// TestEnvironmentMigrateTakesAnyNumberOfStacks: an environment migration
+// targets every stack it moves, however many; other kinds keep the bound.
+func TestEnvironmentMigrateTakesAnyNumberOfStacks(t *testing.T) {
+	many := make([]domain.JobTarget, 0, MaxTargets*20)
+	for i := range MaxTargets * 20 {
+		many = append(many, domain.JobTarget{Type: domain.TargetStack, ID: "st-" + strings.Repeat("a", 1+i%40) + string(rune('a'+i%26))})
+	}
+	env, _ := Lookup(EnvironmentMigrate)
+	if err := env.ValidateTargets("src", many); err != nil {
+		t.Fatalf("environment.migrate: %v", err)
+	}
+	if locks, err := env.ComputeLocks("src", many); err != nil || len(locks) != 1 {
+		t.Fatalf("environment.migrate locks only the source host: %v %v", locks, err)
+	}
+	deploy, _ := Lookup(StackDeploy)
+	if err := deploy.ValidateTargets("src", many); !errors.Is(err, domain.ErrJobInvalid) {
+		t.Fatalf("stack.deploy with %d targets: %v", len(many), err)
 	}
 }

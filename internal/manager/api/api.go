@@ -128,6 +128,9 @@ type Deps struct {
 	// Migrations moves stacks and volumes between environments (#35); nil
 	// answers those routes with 503 (after authorization).
 	Migrations MigrationService
+	// EnvironmentMigrations moves every stack of an environment (#35); nil
+	// answers those routes with 503 (after authorization).
+	EnvironmentMigrations EnvironmentMigrationService
 	// Updates serves update policies, checks, candidates, previews and
 	// runs (#20); nil answers those routes with 503 (after
 	// authentication).
@@ -223,6 +226,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerImages(a, deps)
 	registerVolumes(a, deps)
 	registerMigrations(a, deps)
+	registerEnvironmentMigrations(a, deps)
 	registerNetworks(a, deps)
 	registerFiles(a, deps)
 	registerGitCredentials(a, deps)

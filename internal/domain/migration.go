@@ -119,7 +119,94 @@ func (m Migration) VolumeTargets() []string {
 // Migration errors.
 var (
 	ErrMigrationNotFound = errors.New("migration not found")
+	// ErrEnvironmentMigrationNotFound: no environment migration with the ID.
+	ErrEnvironmentMigrationNotFound = errors.New("environment migration not found")
 )
+
+// EnvironmentMigration moves the stacks of an environment to another one
+// (environment.migrate, #35). The stacks move in groups: stacks linked by a
+// network or volume that one creates and another joins as external form a
+// group, stop together and move one after the other, the creating stack
+// first. Each stack moves as its own stack migration. The ID is the job ID.
+type EnvironmentMigration struct {
+	ID                  string
+	SourceEnvironmentID string
+	TargetEnvironmentID string
+	State               MigrationState
+	// Groups are the stack IDs of each group in the order they move.
+	Groups [][]string
+	Stacks []EnvironmentMigrationStack
+	// Networks are the networks created on the destination first: made on
+	// the source outside any stack and joined as external by a moving stack.
+	Networks   []EnvironmentNetwork
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	FinishedAt *time.Time
+}
+
+// EnvironmentStackState is where one stack of an environment migration
+// stands.
+type EnvironmentStackState string
+
+// Environment migration stack states.
+const (
+	// EnvironmentStackPending: not started yet.
+	EnvironmentStackPending EnvironmentStackState = "pending"
+	// EnvironmentStackMoving: its stack migration runs.
+	EnvironmentStackMoving EnvironmentStackState = "moving"
+	// EnvironmentStackMoved: its stack migration completed.
+	EnvironmentStackMoved EnvironmentStackState = "moved"
+	// EnvironmentStackFailed: its stack migration did not complete; the
+	// stack is back on the source.
+	EnvironmentStackFailed EnvironmentStackState = "failed"
+)
+
+// EnvironmentMigrationStack is one stack of an environment migration.
+type EnvironmentMigrationStack struct {
+	StackID string
+	// Name is the stack's Compose project name when the migration started.
+	Name string
+	// MigrationID is its stack migration ("" until it starts).
+	MigrationID string
+	State       EnvironmentStackState
+	// Stopped: the environment migration stopped the stack on the source
+	// (with its group); StoppedServices ran before and are started again
+	// when the stack does not move.
+	Stopped         bool
+	StoppedServices []string
+	// SourceRemoved: the stopped copy on the source was removed (read
+	// from its stack migration; not stored with the record).
+	SourceRemoved bool
+}
+
+// EnvironmentNetwork is a network an environment migration creates on the
+// destination, as the source has it.
+type EnvironmentNetwork struct {
+	Name       string
+	Driver     string
+	Internal   bool
+	Attachable bool
+	Labels     map[string]string
+}
+
+// Stack returns the entry of a stack (false when it is not part of it).
+func (m EnvironmentMigration) Stack(id string) (EnvironmentMigrationStack, bool) {
+	for _, s := range m.Stacks {
+		if s.StackID == id {
+			return s, true
+		}
+	}
+	return EnvironmentMigrationStack{}, false
+}
+
+// SetStack updates the entry of a stack.
+func (m *EnvironmentMigration) SetStack(id string, fn func(s *EnvironmentMigrationStack)) {
+	for i := range m.Stacks {
+		if m.Stacks[i].StackID == id {
+			fn(&m.Stacks[i])
+		}
+	}
+}
 
 // StackPlacement is where a stack record points and what Docker Manager last did
 // there: a migration moves it to the destination at cut-over and restores

@@ -37,6 +37,9 @@ const (
 	StackBuild   domain.JobKind = "stack.build"
 	StackUpdate  domain.JobKind = "stack.update"
 	StackMigrate domain.JobKind = "stack.migrate"
+	// EnvironmentMigrate moves the stacks of an environment to another one,
+	// group by group, each as its own stack.migrate job (#35).
+	EnvironmentMigrate domain.JobKind = "environment.migrate"
 	// StackImport imports a discovered project by copying its directory
 	// from the agent's import mount into the stacks volume (#7).
 	StackImport domain.JobKind = "stack.import"
@@ -93,6 +96,9 @@ const (
 const (
 	CompStartContainers = "start_containers"
 	CompStartSource     = "start_source"
+	// CompStartGroup starts again on the source what an environment.migrate
+	// stopped of a group's stacks and did not move.
+	CompStartGroup = "start_group"
 	// CompRemoveImportCopy removes the copy a stack.import made before the
 	// project switched to it.
 	CompRemoveImportCopy = "remove_import_copy"
@@ -334,6 +340,22 @@ func catalogSpecs() []Spec {
 				Description: "put the stack back on its source environment and start the services that ran before, when the migration stops before cut-over"}},
 			OnManagerRestart: RestartInterrupt,
 			LockOnly:         LockOnlyRule{Types: []domain.TargetType{domain.TargetVolume}, OtherEnvironments: true},
+		},
+		// Environment migration: the stacks of a group (linked by networks
+		// or volumes one creates and another joins as external) stop
+		// together, then move one after the other as stack.migrate jobs in
+		// dependency order. Each of those takes its stack's lock, so this
+		// job locks only the source host (shared); the engine authorizes
+		// stack.migrate on every stack target.
+		{
+			Kind: EnvironmentMigrate, Summary: "Migrate the stacks of an environment to another environment, group by group",
+			Capability: "stack.migrate", Executor: domain.ExecutorManager,
+			Locks: []LockRule{hostShared()},
+			Steps: []Step{idem("prepare"), idem("create_networks"), idem("migrate"), step("finalize", true, false, "")},
+			Compensations: []Compensation{{Name: CompStartGroup,
+				Description: "start again on the source the services of a group's stacks that the migration stopped and did not move"}},
+			OnManagerRestart: RestartInterrupt,
+			UnboundedTargets: true,
 		},
 		{
 			Kind: StackRemoveSource, Summary: "Remove a migrated stack's containers, volumes and files from its source environment",

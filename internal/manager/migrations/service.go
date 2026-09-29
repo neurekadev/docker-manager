@@ -81,6 +81,7 @@ type Jobs interface {
 // Stacks is the stack service (*stacks.Service).
 type Stacks interface {
 	Get(ctx context.Context, id string) (domain.Stack, error)
+	List(ctx context.Context, f domain.StackFilter) ([]domain.Stack, error)
 	Place(ctx context.Context, db bun.IDB, stackID string, p domain.StackPlacement) (domain.Stack, error)
 	Published(st domain.Stack, attrs map[string]string)
 	Deploy(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackDeployOptions) (domain.Job, error)
@@ -155,7 +156,8 @@ type Service struct {
 }
 
 // New creates the service, registers the manager executors of
-// stack.migrate and volume.migrate and the finish hooks.
+// stack.migrate, volume.migrate and environment.migrate and the finish
+// hooks.
 func New(o Options) (*Service, error) {
 	if o.DB == nil || o.Agents == nil || o.Environments == nil || o.Jobs == nil || o.Stacks == nil {
 		return nil, errors.New("migrations: DB, Agents, Environments, Jobs and Stacks are required")
@@ -184,7 +186,7 @@ func New(o Options) (*Service, error) {
 	o.Authorizer = authz.OrDenyAll(o.Authorizer)
 	s := &Service{opts: o, db: o.DB, clk: o.Clock, log: o.Logger.With("component", "migrations"),
 		limiter: transfer.NewLimiter(o.Clock, o.BandwidthLimit), cat: o.Catalog}
-	for _, x := range []jobexec.Executor{s.stackExecutor(), s.volumeExecutor()} {
+	for _, x := range []jobexec.Executor{s.stackExecutor(), s.volumeExecutor(), s.environmentExecutor()} {
 		if err := o.Jobs.RegisterManagerExecutor(x); err != nil {
 			return nil, err
 		}
@@ -192,6 +194,7 @@ func New(o Options) (*Service, error) {
 	o.Jobs.OnFinish(jobspec.StackMigrate, s.onMigrationFinished)
 	o.Jobs.OnFinish(jobspec.VolumeMigrate, s.onMigrationFinished)
 	o.Jobs.OnFinish(jobspec.StackRemoveSource, s.onRemovalFinished)
+	o.Jobs.OnFinish(jobspec.EnvironmentMigrate, s.onEnvironmentMigrationFinished)
 	return s, nil
 }
 
@@ -667,13 +670,17 @@ func (s *Service) StartVolume(ctx context.Context, p authz.Principal, env, volum
 	return j, m, nil
 }
 
-// ensureRecord inserts the record unless it exists (the executor may have
-// created it first).
+// ensureRecord inserts the record unless it exists: the executor and the
+// request that queued its job may both create it, at the same time.
 func (s *Service) ensureRecord(ctx context.Context, db bun.IDB, m *domain.Migration) error {
 	if _, err := store.GetMigration(ctx, db, m.ID); err == nil {
 		return nil
 	}
-	return store.InsertMigration(ctx, db, m)
+	err := store.InsertMigration(ctx, db, m)
+	if _, gerr := store.GetMigration(ctx, db, m.ID); err != nil && gerr == nil {
+		return nil // the other one created it first
+	}
+	return err
 }
 
 // RemoveSource enqueues stack.remove_source for a completed migration the

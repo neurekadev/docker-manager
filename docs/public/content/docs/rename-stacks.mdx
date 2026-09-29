@@ -1,47 +1,7 @@
 ---
-title: Move and rename stacks
-description: Move a stack or volume to another server, or give a stack a new name.
+title: Rename a stack
+description: Give a stack a new name, with its containers, volumes and folder.
 ---
-
-## Move a stack to another server
-
-With more than one environment, open the stack and choose **More stack
-actions → Migrate**. The stack's files, volumes and settings move with it.
-
-1. **Destination**: pick the server and press **Check destination**.
-2. **Check**: Docker Manager lists what must be fixed first and what will
-   be copied.
-   - **Copy data**: untick it for a volume that should start empty on the
-     new server. Anonymous volumes are not copied unless you tick them.
-   - **Copy image**: tick it to copy an image from the old server instead
-     of downloading it again.
-3. **Confirm**: tick **I understand that … is unavailable during the
-   migration** and press **Start migration**.
-4. **Move**: the stack stops, its folder and volumes are copied, and it
-   starts on the new server.
-
-If anything fails, the stack goes back to the old server and starts there.
-
-The old copy stays on the old server, stopped. When everything works, press
-**Remove from …** to delete it there (you must type the name to confirm),
-or **Start again on …** to run it there once more. Docker Manager never
-deletes the old copy on its own.
-
-## Move a volume
-
-Open a volume and its **Migrate** tab.
-
-1. **Destination**: pick the **Destination environment** and a **Name on
-   the destination**.
-2. **Check**: Docker Manager checks the copy can go ahead. If running
-   containers use the volume, you can tick **Copy while the containers keep
-   running**. The copy may then be slightly out of step, like a copy of a
-   running database.
-3. Press **Migrate volume**.
-
-The original volume is not changed.
-
-## Rename a stack
 
 A stack's name is its Compose project name. It is part of the names of its
 containers, volumes and folder.
@@ -82,3 +42,5 @@ Good to know:
 - If something fails early, everything goes back to how it was. If it fails
   late, the stack already has its new name: press **Deploy** to finish.
 - The stack's history, revisions, policies and permissions stay with it.
+
+To move a stack to another server instead, see [Migration](/docs/migration).

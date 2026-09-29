@@ -31,6 +31,7 @@ export function runningByStack(
 }
 
 const RUNNING: Record<string, string> = {
+	'environment.migrate': 'Migrating',
 	'stack.build': 'Building',
 	'stack.deploy': 'Deploying',
 	'stack.down': 'Taking down',

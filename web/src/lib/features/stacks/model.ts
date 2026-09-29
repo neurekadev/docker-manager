@@ -488,12 +488,13 @@ export function canAnywhere(perms: MyPermissions | undefined, capability: string
 
 export type MigrationFinding = Schema<'MigrationFinding'>;
 
-/** Plain-language names of the preflight's finding codes (#35). */
+/** Plain-language names of the preflight's finding codes (#35; stack, volume and environment migrations). */
 const FINDING_TITLES: Record<string, string> = {
 	agent_unsupported: 'Agent too old',
 	anonymous_volume_skipped: 'Anonymous volume skipped',
 	container_name_conflict: 'Container name taken',
 	containers_running: 'Containers still running',
+	dependency_cycle: 'Stacks depend on each other',
 	device_mapping: 'Device mapping',
 	directory_conflict: 'Project directory exists',
 	docker_manager_resource: "Docker Manager's own resource",
@@ -508,7 +509,11 @@ const FINDING_TITLES: Record<string, string> = {
 	image_unverified: 'Image not verified',
 	insufficient_space: 'Not enough free space',
 	leftovers_removed: 'Earlier partial copy removed',
+	network_create_denied: 'Network cannot be created',
+	network_created: 'Network created first',
 	network_name_conflict: 'Network name taken',
+	network_not_creatable: 'Network must be created by hand',
+	no_stacks: 'No stacks to migrate',
 	plain_http_transport: 'Unencrypted transfer',
 	platform_mismatch: 'Platform mismatch',
 	port_conflict: 'Port already in use',
@@ -556,6 +561,7 @@ const JOB_KINDS: Record<string, string> = {
 	'stack.remove': 'Delete',
 	'stack.build': 'Build images',
 	'stack.migrate': 'Migrate',
+	'environment.migrate': 'Migrate environment',
 	'stack.remove_source': 'Remove from source',
 	'stack.rename': 'Rename',
 	'stack.pull': 'Pull images',

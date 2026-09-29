@@ -86,7 +86,16 @@
 	const envName = (envId?: string) =>
 		envId ? (envs.data?.find((e) => e.id === envId)?.name ?? 'Unknown environment') : undefined;
 
-	const headline = $derived(j ? jobHeadline(j, { nameOf }) : { title: 'Job', subtitle: '' });
+	// Jobs without a nameable target (a prune run, an environment
+	// migration) name their environment, as in the jobs list.
+	const headline = $derived(
+		j
+			? jobHeadline(j, {
+					nameOf,
+					fallback: envs.data?.find((e) => e.id === j.environmentId)?.name
+				})
+			: { title: 'Job', subtitle: '' }
+	);
 	const title = $derived(headline.title);
 	usePage(() => ({
 		title: headline.subtitle ? `${headline.title} — ${headline.subtitle}` : headline.title,

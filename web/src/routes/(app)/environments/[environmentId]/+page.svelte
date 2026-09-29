@@ -5,8 +5,10 @@
 	// filesystems and metrics charts (live, gaps visible), system
 	// information with identifiers under "Advanced", the agents with
 	// credential rotation and removal, the jobs (paged), edit (name, service
-	// address) and archive with the removal preview. The tab lives in the
-	// URL (?tab=system|agents|jobs).
+	// address), "Migrate environment" (its stacks to another environment;
+	// with a second environment and a stack the caller may migrate) and
+	// archive with the removal preview. The tab lives in the URL
+	// (?tab=system|agents|jobs).
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
@@ -49,6 +51,7 @@
 	} from '$lib/features/environments/model';
 	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
 	import { stackNames } from '$lib/features/jobs/labels';
+	import { stacksQuery } from '$lib/features/stacks/queries';
 	import { routes } from '$lib/routes';
 	import { environmentIcon } from '$lib/features/common/resourceIcons';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
@@ -118,6 +121,18 @@
 		enabled: !!e && tab === 'jobs' && hasAny(access, 'stack.')
 	}));
 	const nameOf = $derived(stackNames(stacks.data));
+	// "Migrate environment": a second environment and a stack here the
+	// caller may migrate.
+	const envStacks = createQuery(() => ({
+		...stacksQuery(id),
+		enabled: !!e && !archived && !only.current && hasAny(access, 'stack.')
+	}));
+	const canMigrate = $derived(
+		!only.current &&
+			(envStacks.data ?? []).some(
+				(s) => s.environmentId === id && s.actions.includes('stack.migrate')
+			)
+	);
 
 	const tabItems = $derived(
 		[
@@ -175,14 +190,11 @@
 	});
 	const menu = $derived.by<MenuEntry[]>(() => {
 		const out: MenuEntry[] = [];
-		if (can('environment.read') && !only.current)
+		if (canMigrate)
 			out.push({
-				label: 'Migrate stacks',
+				label: 'Migrate environment',
 				icon: Truck,
-				onSelect: () => {
-					environmentSelection.select(id);
-					void goto(routes.stacks());
-				}
+				href: routes.environmentMigrate(id)
 			});
 		if (can('environment.remove')) {
 			if (out.length) out.push({ separator: true });
