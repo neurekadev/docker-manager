@@ -376,7 +376,9 @@ the web refetches the list.)
   live stream takes one); the others are compact `JobRow`s fed by the
   running list, and switch to `JobProgress` when they end (its stream
   replays the end and closes). The stack page's `JobTrayView` applies the
-  same cap (`streamedIds`).
+  same cap (`streamedIds`) and, unlike `ActiveJobs`, drops a job when it
+  ends: the toast reports the outcome (a failure's toast stays until
+  closed, with the recovery advice and "Open job").
 - **Top bar**: `RunningJobs` (`$lib/shell`) shows "N running" from the
   same list, linking to `/jobs?state=active` (the jobs list's "In
   progress" filter); hidden while nothing runs and for restricted users.
@@ -407,7 +409,8 @@ reload or closing the tab cancels them (the browser asks first; see
 
 Tests: `active.spec.ts` (matching, the tracked union, the stream cap),
 `active.test.ts` (`ActiveJobs`), `running-jobs.test.ts`, `tray.test.ts`
-(the stack layout's tray after a reload and the Create stack handoff).
+(the stack layout's tray after a reload, the Create stack handoff and
+ended jobs leaving the tray for a toast).
 
 ## PWA
 

@@ -4,8 +4,9 @@
 // Silo" / "Silo was not deployed"), and the layout adopts the stack's
 // running jobs from the running list (`adopt`), so a reload or coming back
 // finds them again (docs/internal/web.md, "Job progress after reload").
-// Finished jobs stay until the user dismisses them, so failures and their
-// recovery advice are not lost.
+// A job leaves the tray when it ends (`dismiss`): its toast reports the
+// outcome, and a failure's toast keeps the recovery advice and "Open job"
+// until the user closes it.
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import type { Job } from '$lib/api/client';

@@ -691,6 +691,11 @@
 		font-size: var(--text-body);
 	}
 
+	/* The headline is as tall as the close button, so both share a centre line. */
+	.validation :global(.result > p:first-child) {
+		min-height: var(--control-height-sm);
+	}
+
 	@media (max-width: 767px) {
 		.bar {
 			flex-wrap: wrap;
