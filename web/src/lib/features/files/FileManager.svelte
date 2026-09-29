@@ -155,7 +155,7 @@
 	}
 
 	// Listing, filters ---------------------------------------------------------
-	let filters = $state<ListFilters>({ sort: 'type', q: '', hidden: false });
+	let filters = $state<ListFilters>({ sort: 'type', q: '', hidden: true });
 	let filterText = $state('');
 	/** The details view: Permissions and Owner columns. */
 	let details = $state(false);

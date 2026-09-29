@@ -8,7 +8,6 @@ import {
 	composeServices,
 	contentsSummary,
 	envKeys,
-	isHiddenPath,
 	nextVersionLabel,
 	parseTags,
 	portText,
@@ -125,14 +124,9 @@ describe('templates model', () => {
 		expect(versionTitle(undefined)).toBe('Draft only');
 	});
 
-	it('counts contents like the Files tab, naming hidden files', () => {
-		expect(isHiddenPath('.env')).toBe(true);
-		expect(isHiddenPath('conf/.htaccess')).toBe(true);
-		expect(isHiddenPath('compose.yaml')).toBe(false);
-		const def = [{ path: 'compose.yaml' }, { path: '.env' }];
-		expect(contentsSummary(2, def)).toBe('2 items (1 hidden)');
-		expect(contentsSummary(1, [{ path: 'compose.yaml' }])).toBe('1 item');
-		expect(contentsSummary(5, [])).toBe('5 items');
+	it('counts contents like the Files tab', () => {
+		expect(contentsSummary(2)).toBe('2 items');
+		expect(contentsSummary(1)).toBe('1 item');
 	});
 
 	it('orders Compose files as Compose reads them and leaves out .env', () => {

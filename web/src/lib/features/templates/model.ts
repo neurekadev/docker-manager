@@ -168,21 +168,9 @@ export function versionTitle(label: string | undefined): string {
 	return label ? `Version ${label}` : 'Draft only';
 }
 
-/** Whether a file or folder is hidden (its name starts with a dot, like .env). */
-export function isHiddenPath(path: string): boolean {
-	return (path.split('/').pop() ?? '').startsWith('.');
-}
-
-/**
- * The contents of a version in the file manager's words: "2 items (1
- * hidden)". `entries` counts files, folders and links; the hidden ones
- * known here are the root files of its definition (.env), which the Files
- * tab only lists with "Show hidden files".
- */
-export function contentsSummary(entries: number, definition: readonly { path: string }[]): string {
-	const hidden = definition.filter((f) => isHiddenPath(f.path)).length;
-	const items = `${entries} ${entries === 1 ? 'item' : 'items'}`;
-	return hidden > 0 && hidden <= entries ? `${items} (${hidden} hidden)` : items;
+/** The contents of a version in the file manager's words: "2 items". */
+export function contentsSummary(entries: number): string {
+	return `${entries} ${entries === 1 ? 'item' : 'items'}`;
 }
 
 /**

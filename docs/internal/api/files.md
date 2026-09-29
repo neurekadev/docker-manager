@@ -272,9 +272,10 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
 
 - **Browsing:** breadcrumbs, sortable columns (name with folders first,
   size, modified; permissions and owners in the details view, off by
-  default), filter (`q`), hidden files, pages of 200 loaded as the
-  list scrolls, rows windowed past a screenful, the `..` row below the
-  root (opens the parent, accepts drops).
+  default), filter (`q`), hidden (dot) files shown by default with a
+  toggle to hide them, pages of 200 loaded as the list scrolls, rows
+  windowed past a screenful, the `..` row below the root (opens the
+  parent, accepts drops).
 - **Selection and keyboard** (only while the list has focus, never in the
   editor or a form): click (a click that opens a file only moves the
   cursor, it selects nothing), Ctrl/Cmd-click, Shift-click, row checkboxes

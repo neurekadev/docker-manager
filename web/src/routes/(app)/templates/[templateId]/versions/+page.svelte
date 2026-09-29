@@ -125,7 +125,7 @@
 {#snippet notesCell(v: TemplateVersion)}
 	{#if v.notes}<span class="notes">{v.notes}</span>{:else}<span class="muted">—</span>{/if}
 {/snippet}
-{#snippet sizeCell(v: TemplateVersion)}{contentsSummary(v.entries, v.definition)}, {formatBytes(
+{#snippet sizeCell(v: TemplateVersion)}{contentsSummary(v.entries)}, {formatBytes(
 		v.contentSize
 	)}{/snippet}
 {#snippet publishedCell(v: TemplateVersion)}

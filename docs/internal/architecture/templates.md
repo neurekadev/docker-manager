@@ -152,7 +152,7 @@ settings (`DefinitionSummary`, pure helpers `composeServices`/`envKeys` in
 version definition, so it needs `template.use`; values are never rendered.
 Without `template.use` it names the Compose files only; with the minimal
 view the overview says access is limited. Contents count like the Files
-tab: "2 items (1 hidden)" (`contentsSummary`). "Duplicate as a new
+tab: "2 items" (`contentsSummary`). "Duplicate as a new
 template" sits in the versions card's header.
 
 ## Copies: duplicate, restore, save a stack
