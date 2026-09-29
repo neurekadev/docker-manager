@@ -3,22 +3,49 @@
 	// a copy button. The text contains the one-use enrollment token: it lives
 	// only in this component's memory and is never stored or logged. Also
 	// shows a file to copy (the move page's compose.yaml and .env): `what`
-	// names it on the copy button.
-	import { CopyButton } from '$lib/ui';
+	// names it on the copy button, and `filename` adds a download button.
+	import Download from '@lucide/svelte/icons/download';
+	import { Button, CopyButton } from '$lib/ui';
 
 	let {
 		title,
 		description,
 		command,
-		what = 'command'
-	}: { title: string; description: string; command: string; what?: string } = $props();
+		what = 'command',
+		filename
+	}: {
+		title: string;
+		description: string;
+		command: string;
+		what?: string;
+		/** Offers the text as a file with this name. */
+		filename?: string;
+	} = $props();
+
+	function download() {
+		if (!filename) return;
+		const text = command.endsWith('\n') ? command : `${command}\n`;
+		const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 0);
+	}
 </script>
 
 <div class="install">
-	<p class="desc">{description}</p>
+	{#if description}<p class="desc">{description}</p>{/if}
 	<div class="box">
 		<pre class="cmd mono" aria-label="{title}: {what}">{command}</pre>
-		<div class="copy"><CopyButton value={command} {what} text /></div>
+		<div class="copy">
+			{#if filename}
+				<Button size="sm" icon={Download} onclick={download}>Download {what}</Button>
+			{/if}
+			<CopyButton value={command} {what} text />
+		</div>
 	</div>
 </div>
 
@@ -54,6 +81,8 @@
 
 	.copy {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: flex-end;
+		gap: var(--space-2);
 	}
 </style>

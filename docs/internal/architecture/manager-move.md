@@ -400,4 +400,4 @@ availability. API tokens never reach them.
 | Arrival | `app.(*Manager).finishMove` → `managermove.FinishArrival`, `StartConfirming` (`finish.go`) |
 | Move complete | `managermove/complete.go` |
 | Co-location | `app`'s `manager.identity` reconciler → `managermove.ObserveColocation` |
-| Web UI | `web/src/lib/features/managermove` (words of the states, the shell's banner of a locked manager; the move's pages are rebuilt for this flow, `docs/internal/web.md`) |
+| Web UI | `web/src/lib/features/managermove` (`docs/internal/web.md`): Settings, Move to a new server (`ManagerMoveWizard`), the new server's status page `/moving` (`WaitingStatus`, reached through the root layout's `MoveGate`), Move complete (`MoveCompleteCard`), the shell's banner of a locked manager |

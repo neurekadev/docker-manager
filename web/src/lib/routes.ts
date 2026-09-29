@@ -23,11 +23,12 @@
 //   ?defaults=1) so links can open them.
 //   /access[/users/{id}|/groups[/{id}]|/invitations]
 //   /profile[/tokens[/new]|/sessions]   the caller's own account, API tokens and signed-in devices
-//   /settings[/tokens/all|/sign-in|/schedules|/audit|/diagnostics]   instance administration
+//   /settings[/tokens/all|/sign-in|/schedules|/audit|/diagnostics|/move]   instance administration
 //   (/settings/security and /settings/tokens[/new] redirect to /profile[/tokens[/new]])
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
 //   /popout/logs?stack=|environment=&container= (files, logs, terminals)
 //   /setup[/import], /sign-in, /enroll, /invitation, /password-reset (public)
+//   /moving                             a new server's move status (public; every page while it waits)
 //
 // IDs are path-encoded; environment-scoped Docker objects carry their
 // environment in the path because their names are only unique within one
@@ -189,6 +190,10 @@ export const routes = {
 	scheduleDefaults: () => '/settings/schedules',
 	audit: () => '/settings/audit',
 	diagnostics: () => '/settings/diagnostics',
+	/** Move Docker Manager to a new server (owner only), a Settings tab. */
+	managerMove: () => '/settings/move',
+	/** The new server's move status (public, waiting mode). */
+	moveStatus: () => '/moving',
 	setup: () => '/setup',
 	setupImport: () => '/setup/import',
 	signIn: (next?: string, reason?: 'expired' | 'signed-out' | 'moved') => {

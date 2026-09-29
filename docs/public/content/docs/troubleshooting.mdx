@@ -42,6 +42,18 @@ Check the agent's log on that server. Usual causes:
   [Your own certificate authority](/docs/configuration#your-own-certificate-authority)).
 - The install command was used already or expired. Create a new one.
 
+### Moving Docker Manager: the new server waits for the old one
+
+The status page on the new server says **The old server does not answer**.
+
+- Check that **This server's address** was right: from the new server,
+  `http://<old server's address>:8080` must open Docker Manager.
+- A firewall on the old server may block port 8080 from the new server.
+
+It keeps trying on its own. If it says **This Docker Manager is older than
+the old one**, use the same image version as the old server in the new
+server's `compose.yaml` and run `docker compose up -d`.
+
 ### Connecting a server says Docker is already connected through another agent
 
 The server already has an agent in Docker Manager. If that agent still

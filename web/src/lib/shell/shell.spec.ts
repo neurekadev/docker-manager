@@ -486,6 +486,11 @@ describe('command palette model', () => {
 		expect(pageResults(restricted, 'Passkeys').map((p) => p.label)).toEqual(['Profile']);
 		expect(pageResults(restricted, 'password').map((p) => p.label)).toEqual(['Profile']);
 		expect(pageResults(restricted, 'audit').map((p) => p.label)).toEqual(['Settings']);
+		// Settings → Move to a new server, found by the words people use for it.
+		expect(pageResults(restricted, 'migrate manager').map((p) => p.label)).toEqual([
+			'Settings'
+		]);
+		expect(pageResults(restricted, 'new server').map((p) => p.label)).toEqual(['Settings']);
 		// My tokens are in Profile, every user's tokens in Settings.
 		expect(pageResults(restricted, 'api tokens').map((p) => p.label)).toEqual([
 			'Settings',

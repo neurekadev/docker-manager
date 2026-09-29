@@ -262,7 +262,8 @@ describe('Settings tabs', () => {
 			['Sign-in policy', '/settings/sign-in'],
 			['Schedule defaults', '/settings/schedules'],
 			['Audit log', '/settings/audit'],
-			['Diagnostics', '/settings/diagnostics']
+			['Diagnostics', '/settings/diagnostics'],
+			['Move to a new server', '/settings/move']
 		]);
 		// The caller's own account and tokens are the Profile, not Settings.
 		expect(tabs.map((t) => t.label)).not.toContain('Profile');

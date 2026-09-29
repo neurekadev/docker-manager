@@ -2,7 +2,9 @@
 	// Root layout: global design styles (#22), Svelte Query with the session
 	// expiry hook, service worker (#11), live synchronization (#23),
 	// connection and update notices, the toast region and the app-wide
-	// tooltips (every title attribute, TooltipLayer). Page chrome lives
+	// tooltips (every title attribute, TooltipLayer). A new server waiting
+	// for a move shows only its status page (MoveGate reads the move status
+	// before any sign-in or setup routing). Page chrome lives
 	// in (app)/+layout.svelte (the shell) and (auth)/+layout.svelte (sign-in
 	// and onboarding).
 	import '$lib/design/global.css';
@@ -15,6 +17,7 @@
 	import { connectivity } from '$lib/pwa/connectivity.svelte';
 	import { startServiceWorker } from '$lib/pwa/register.svelte';
 	import { startLive } from '$lib/live';
+	import MoveGate from '$lib/features/managermove/MoveGate.svelte';
 	import ConnectionStatus from '$lib/pwa/ConnectionStatus.svelte';
 	import UpdatePrompt from '$lib/pwa/UpdatePrompt.svelte';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
@@ -61,7 +64,7 @@
 </script>
 
 <QueryClientProvider client={queryClient}>
-	{@render children()}
+	<MoveGate>{@render children()}</MoveGate>
 	<div class="status-stack">
 		<ConnectionStatus />
 		<UpdatePrompt />

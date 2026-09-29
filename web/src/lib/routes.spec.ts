@@ -170,6 +170,8 @@ const calls: Record<keyof typeof routes, string[]> = {
 	scheduleDefaults: [routes.scheduleDefaults()],
 	audit: [routes.audit()],
 	diagnostics: [routes.diagnostics()],
+	managerMove: [routes.managerMove()],
+	moveStatus: [routes.moveStatus()],
 	setup: [routes.setup()],
 	setupImport: [routes.setupImport()],
 	signIn: [

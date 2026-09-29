@@ -88,8 +88,10 @@ check's documented socket exception).
   memory; a locked manager shows the shell's `MoveBanner` (the owner reads
   the move, everyone else the first 409 `manager_moved`, heard through
   `onApiFailure`), never a toast; the new manager's status page is built
-  from `GET /api/v1/move/status` alone; new move states get their words in
-  `model.ts` first.
+  from `GET /api/v1/move/status` alone and the app reads that route before
+  any sign-in or setup routing (`MoveGate`); the check step reuses the
+  environment migration's check (`EnvironmentMigrationCheck`), never a copy
+  of it; new move states get their words in `model.ts` first.
 - Tests: `managermove` fixtures (fakes of the agents, hub and migration
   services; a plain-HTTP `httptest` old manager for waiting mode), fake
   clocks for expiry, retries and polls; the lock is tested where it is

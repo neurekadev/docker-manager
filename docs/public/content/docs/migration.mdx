@@ -1,6 +1,6 @@
 ---
 title: Migration
-description: Move a stack, a volume or everything on a server to another server.
+description: Move a stack, a volume, everything on a server, or Docker Manager itself to another server.
 ---
 
 Migration moves your apps and their data from one server to another. It
@@ -18,6 +18,7 @@ the old server is deleted until you say so.
 | **A stack** | Its folder with `compose.yaml`, `.env` and the files next to them. Its named volumes with all their data. Its history, revisions, display name, update and backup policies, and the permissions given for the stack or its services. | Folders it mounts from outside its own folder, host devices, the data of volumes with a special driver or driver options (for example NFS), and permissions given for the whole environment. |
 | **A volume** | A copy of its data, under the same or a new name. | The volume itself: the original is not changed. |
 | **A whole environment** | Every stack, as above, moved group by group. Networks you made by hand that the stacks join are created on the new server first. | Docker Manager's own stack, containers that are not part of a stack, and volumes no stack uses. |
+| **Docker Manager itself** | Docker Manager with everything in it (users, sign-ins, settings, API tokens, templates, history, connected servers), plus every stack on its server. | The same as for a whole environment. |
 
 Images come along in the easiest way: images from a registry are
 downloaded again on the new server, images with a `build:` section are
@@ -76,6 +77,69 @@ it. Open the environment and choose **More actions → Migrate environment**.
 If a stack can't be moved, the migration stops there. That stack and the
 rest of its group start again on the old server. Stacks that already moved
 stay on the new server. Fix the problem and press **Migrate the rest**.
+
+## Move Docker Manager to a new server
+
+Use this when you replace the server Docker Manager runs on. Your apps on
+that server move along, and your other servers stay connected. Nobody has
+to sign up again or reconnect a server by hand.
+
+You do three things:
+
+1. **Set up the new server.** Open **Settings → Move to a new server**.
+   Enter **This server's address** and **New server's address** (their IP
+   addresses on your network) and press **Create setup files**. Save the
+   `compose.yaml` and `.env` it shows in an empty folder on the new server
+   and run:
+
+   ```bash
+   docker compose up -d
+   ```
+
+   The page ticks off **New server's agent connected** and **New Docker
+   Manager is waiting**. Then press **Next**.
+2. **Check and move.** The **Check** step shows what moves, what must be
+   fixed first and how long each group of apps is down. Read **Before you
+   start**, then press **Move everything** on the **Move** step. Your apps
+   move group by group; then Docker Manager hands itself over to the new
+   server.
+3. **Point DNS at the new server.** When the page says **Docker Manager
+   moved.**, point your Docker Manager address (and your apps' addresses)
+   at the new server. Then sign in as usual.
+
+Your usual address stops working while your reverse proxy moves, until
+DNS points at the new server. Follow the move meanwhile on the new
+server's status page, **Moving Docker Manager here**, at
+`http://<new server's address>:8080`. It needs no sign-in.
+
+After you sign in on the new server, the **Move complete** card on the
+dashboard offers **Remove old copies from …** and **Archive …** for the
+old server.
+
+<Callout type="warn">
+  The setup files are shown once and contain a pairing code. Keep them
+  private. If you lose them before the move, press **Cancel the move** and
+  start again.
+</Callout>
+
+Good to know:
+
+- Until you press **Move everything**, nothing changes and you can
+  **Cancel the move**. If an app can't move, the move stops before
+  Docker Manager is handed over: fix the problem and press **Try again**.
+  Apps that already moved stay on the new server.
+- While Docker Manager hands over, nothing can be changed. A banner says
+  so. Running tasks finish first.
+- If your reverse proxy sends Docker Manager's address to the old
+  server's IP address, change it to the new server's IP address.
+- The two servers talk over plain HTTP on your network. The move is
+  encrypted with the pairing code, so that is safe.
+- The new server must run the same Docker Manager version as the old one,
+  or a newer one.
+- After the move you can remove `DOCKER_MANAGER_MOVE_FROM` and
+  `DOCKER_MANAGER_MOVE_CODE` from the new server's `.env`.
+- If a server was offline during the move, the **Move complete** card
+  shows the one line to change in its agent's settings.
 
 ## After a move
 
