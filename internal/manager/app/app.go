@@ -135,8 +135,8 @@ type Options struct {
 	Restic restic.Opener
 	// BackupHTTPClient overrides the HTTP client of S3 connection tests.
 	BackupHTTPClient *http.Client
-	// MoveHTTPClient overrides the HTTP client that reaches the old manager
-	// of a move (tests trust a fake's certificate).
+	// MoveHTTPClient overrides the HTTP client with which a new manager in
+	// waiting mode reaches the old manager of a move (tests).
 	MoveHTTPClient *http.Client
 	// LogRing keeps the recent log lines for the support bundle (#34);
 	// Run and Start create it (and tee Logger into it) when nil.
@@ -276,6 +276,12 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	} else if lvl != movelock.Open {
 		m.moveLock.Set(lvl)
 		log.Warn("this manager is moving (or moved) to a new server: it is read-only", "lock", lvl.String())
+	}
+	// A new, empty manager with DOCKER_MANAGER_MOVE_FROM and
+	// DOCKER_MANAGER_MOVE_CODE waits for the move's handoff.
+	waiting, err := m.decideWaiting(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("decide the move's waiting mode: %w", err)
 	}
 
 	// Auth primitives (#18): a public URL that cannot be a WebAuthn relying
@@ -504,9 +510,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
-	// Moving the manager (manager.receive runs here, registered before
+	// Moving the manager (manager.move runs here, registered before
 	// recovery).
-	if err := m.startMoves(); err != nil {
+	if err := m.startMoves(waiting); err != nil {
 		m.jobs.Close()
 		return nil, err
 	}
@@ -705,9 +711,17 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		// Self-protection (#32): the agent learns which manager it serves
 		// and which container is that manager (co-located or not).
 		if s.Serves(protocol.ReqManagerIdentity) {
-			if _, err := s.Request(ctx, protocol.ReqManagerIdentity,
-				protocol.ManagerIdentityInput{InstanceID: m.instance.ID, ContainerID: containerID, Generation: m.instance.Generation}, reconcileRequestTimeout); err != nil {
+			raw, err := s.Request(ctx, protocol.ReqManagerIdentity,
+				protocol.ManagerIdentityInput{InstanceID: m.instance.ID, ContainerID: containerID, Generation: m.instance.Generation}, reconcileRequestTimeout)
+			if err != nil {
 				log.Warn("could not send the manager identity to the agent", "environment_id", s.EnvironmentID(), "error", err)
+			} else {
+				// A move of the manager moves the apps of the environment
+				// next to it (docs/internal/architecture/manager-move.md).
+				var out protocol.ManagerIdentityOutput
+				if json.Unmarshal(raw, &out) == nil {
+					m.moves.ObserveColocation(s.EnvironmentID(), out.Colocated)
+				}
 			}
 		}
 		if !s.Serves(protocol.ReqContainerList) {

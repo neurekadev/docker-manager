@@ -80,6 +80,11 @@ const (
 	// Diagnostics (#34): the Prometheus endpoint of Docker Manager's own
 	// internals (not the host metrics of #5, which are always collected).
 	EnvMetricsEnabled = "DOCKER_MANAGER_METRICS_ENABLED"
+	// Moving Docker Manager to a new server: a new, empty manager with
+	// both set waits for the old manager's handoff
+	// (docs/internal/architecture/manager-move.md).
+	EnvMoveFrom = "DOCKER_MANAGER_MOVE_FROM"
+	EnvMoveCode = "DOCKER_MANAGER_MOVE_CODE" //nolint:gosec // G101: a variable name, not a credential
 )
 
 // Defaults.
@@ -232,7 +237,23 @@ type Config struct {
 	ResticBinary     string
 	// MetricsEnabled serves GET /api/v1/system/metrics (#34; default off).
 	MetricsEnabled bool
+	// Move are DOCKER_MANAGER_MOVE_FROM and DOCKER_MANAGER_MOVE_CODE.
+	Move MoveConfig
 }
+
+// MoveConfig starts a new, empty manager in waiting mode: it asks the old
+// manager at From for the handoff of the move whose code is Code. Both or
+// neither are set.
+type MoveConfig struct {
+	// From is the old manager's origin (http or https; plain http is
+	// allowed: the handoff is encrypted and authenticated by the code).
+	From *url.URL
+	// Code is the move code (dmm_...); never logged or listed.
+	Code logging.Secret
+}
+
+// Set reports whether both move variables are set.
+func (m MoveConfig) Set() bool { return m.From != nil && string(m.Code) != "" }
 
 // Setting is one effective configuration value for diagnostics (#34).
 type Setting struct {
@@ -251,6 +272,13 @@ func (c Config) Settings() []Setting {
 	proxies := make([]string, 0, len(c.TrustedProxies))
 	for _, p := range c.TrustedProxies {
 		proxies = append(proxies, p.String())
+	}
+	moveFrom, moveCode := "", ""
+	if c.Move.From != nil {
+		moveFrom = c.Move.From.String()
+	}
+	if string(c.Move.Code) != "" {
+		moveCode = "(set)"
 	}
 	d := func(v time.Duration) string { return v.String() }
 	i := func(v int) string { return strconv.Itoa(v) }
@@ -294,6 +322,8 @@ func (c Config) Settings() []Setting {
 		{EnvBackupLocalRoots, strings.Join(c.BackupLocalRoots, ",")},
 		{EnvResticBinary, c.ResticBinary},
 		{EnvMetricsEnabled, strconv.FormatBool(c.MetricsEnabled)},
+		{EnvMoveFrom, moveFrom},
+		{EnvMoveCode, moveCode},
 		{"local_development", strconv.FormatBool(c.LocalDevelopment)},
 	}
 }
@@ -469,6 +499,9 @@ func Load(src envconfig.Source) (Config, error) {
 	if cfg.MetricsEnabled, err = src.Bool(EnvMetricsEnabled, false); err != nil {
 		errs = append(errs, err)
 	}
+	if cfg.Move, err = loadMove(src); err != nil {
+		errs = append(errs, err)
+	}
 	cfg.ResticBinary = src.String(EnvResticBinary, DefaultResticBinary)
 	if !filepath.IsAbs(cfg.ResticBinary) && !strings.HasPrefix(cfg.ResticBinary, "/") {
 		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvResticBinary, cfg.ResticBinary))
@@ -478,6 +511,45 @@ func Load(src envconfig.Source) (Config, error) {
 		return Config{}, errors.Join(errs...)
 	}
 	return cfg, nil
+}
+
+// loadMove reads DOCKER_MANAGER_MOVE_FROM and DOCKER_MANAGER_MOVE_CODE:
+// both or neither; the address an http or https origin (no credentials,
+// path, query or fragment), the code a move code's shape.
+func loadMove(src envconfig.Source) (MoveConfig, error) {
+	from := strings.TrimSpace(src.String(EnvMoveFrom, ""))
+	code := strings.TrimSpace(src.String(EnvMoveCode, ""))
+	switch {
+	case from == "" && code == "":
+		return MoveConfig{}, nil
+	case from == "":
+		return MoveConfig{}, fmt.Errorf("%s is set but %s is not: set both (the old Docker Manager's address and the move code) or neither",
+			EnvMoveCode, EnvMoveFrom)
+	case code == "":
+		return MoveConfig{}, fmt.Errorf("%s is set but %s is not: set both (the old Docker Manager's address and the move code) or neither",
+			EnvMoveFrom, EnvMoveCode)
+	}
+	u, err := ParseMoveFrom(from)
+	if err != nil {
+		return MoveConfig{}, fmt.Errorf("%s: %w", EnvMoveFrom, err)
+	}
+	if !strings.HasPrefix(code, "dmm_") || len(code) > 256 || strings.ContainsAny(code, " \t") {
+		return MoveConfig{}, fmt.Errorf("%s: not a move code (it starts with dmm_); copy it from the .env shown on the old Docker Manager", EnvMoveCode)
+	}
+	return MoveConfig{From: u, Code: logging.Secret(code)}, nil
+}
+
+// ParseMoveFrom checks the old manager's address of a move: an http or
+// https origin without credentials, path, query or fragment.
+func ParseMoveFrom(raw string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return nil, errors.New("enter the old Docker Manager's address, like http://192.168.1.10:8080")
+	}
+	if u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return nil, errors.New("enter only the address (scheme, host and port), like http://192.168.1.10:8080")
+	}
+	return &url.URL{Scheme: u.Scheme, Host: strings.ToLower(u.Host)}, nil
 }
 
 func loadJobs(src envconfig.Source) (JobsConfig, error) {

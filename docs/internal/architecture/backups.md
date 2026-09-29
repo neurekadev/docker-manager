@@ -537,9 +537,10 @@ that were running (recovered as interrupted), metrics (never backed up by
 default).
 
 The same staging and startup path applies the copy a moving manager hands
-over ([manager-move.md](manager-move.md)): `manager.receive` stages it with
-`backups.StageRestore` as a marker of kind `move` (the move, the old
-manager's address, the move code sealed with the moved secret key), and
+over ([manager-move.md](manager-move.md)): the new manager's waiting mode
+stages it with `backups.StageRestore` as a marker of kind `move` (the
+move, the old manager's address, the move code sealed with the moved
+secret key), and
 `ApplyPendingRestore` puts it in place like an import.
 `app.(*Manager).finishRestore` leaves such a marker to `finishMove`, which
 revokes nothing: the moved manager is the same instance.

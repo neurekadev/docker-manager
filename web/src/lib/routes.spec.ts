@@ -172,7 +172,11 @@ const calls: Record<keyof typeof routes, string[]> = {
 	diagnostics: [routes.diagnostics()],
 	setup: [routes.setup()],
 	setupImport: [routes.setupImport()],
-	signIn: [routes.signIn(), routes.signIn('/stacks', 'expired')],
+	signIn: [
+		routes.signIn(),
+		routes.signIn('/stacks', 'expired'),
+		routes.signIn(undefined, 'moved')
+	],
 	enroll: [routes.enroll()],
 	volumeFiles: [routes.volumeFiles('env-1', 'data')],
 	containerLogs: [routes.containerLogs('env-1', 'web')],

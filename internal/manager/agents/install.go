@@ -75,6 +75,115 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 	}
 }
 
+// Moving Docker Manager to a new server (docs/internal/architecture/
+// manager-move.md): the new server's compose.yaml and .env.
+const (
+	// DefaultManagerImage is the manager image of the generated compose.yaml.
+	DefaultManagerImage = "code.neureka.dev/docker-manager/docker-manager:edge"
+	// DefaultTrustedProxies is the Quickstart's DOCKER_MANAGER_TRUSTED_PROXIES
+	// (a proxy on the same server).
+	DefaultTrustedProxies = "172.16.0.0/12"
+	// MoveAgentManagerURL is the new server's own manager for its agent
+	// (the service name in the generated compose.yaml).
+	MoveAgentManagerURL = "http://docker-manager:8080"
+)
+
+// MoveFilesInput is what the new server's files of a move need.
+type MoveFilesInput struct {
+	// ManagerImage and AgentImage default to DefaultManagerImage and
+	// DefaultAgentImage.
+	ManagerImage, AgentImage string
+	PublicURL                string
+	// TrustedProxies defaults to DefaultTrustedProxies.
+	TrustedProxies string
+	// OldManagerURL is http://<old server>:<port>: the waiting manager asks
+	// it for the handoff and the new agent enrolls into it.
+	OldManagerURL   string
+	MoveCode        string
+	EnrollmentToken string
+	EnvironmentName string
+}
+
+// MoveFiles renders the new server's compose.yaml (the Quickstart's, with
+// the move variables read from .env and defaults that give the
+// Quickstart's setup once the move lines are removed) and its .env (the
+// Quickstart's variables, then the move lines to remove after the move).
+// The .env carries the move code and the enrollment token: show it once.
+// Like the install commands, the agent mounts the Docker socket and
+// Docker's volume directory at their identical paths.
+func MoveFiles(in MoveFilesInput) (composeYAML, env string) {
+	if in.ManagerImage == "" {
+		in.ManagerImage = DefaultManagerImage
+	}
+	if in.AgentImage == "" {
+		in.AgentImage = DefaultAgentImage
+	}
+	if in.TrustedProxies == "" {
+		in.TrustedProxies = DefaultTrustedProxies
+	}
+	var c strings.Builder
+	c.WriteString("name: docker-manager\n\n")
+	c.WriteString("services:\n")
+	c.WriteString("  docker-manager:\n")
+	c.WriteString("    image: " + in.ManagerImage + "\n")
+	c.WriteString("    restart: unless-stopped\n")
+	c.WriteString("    ports:\n")
+	c.WriteString("      - \"8080:8080\"\n")
+	c.WriteString("    environment:\n")
+	c.WriteString("      DOCKER_MANAGER_PUBLIC_URL: ${DOCKER_MANAGER_PUBLIC_URL}\n")
+	c.WriteString("      DOCKER_MANAGER_TRUSTED_PROXIES: ${DOCKER_MANAGER_TRUSTED_PROXIES}\n")
+	c.WriteString("      DOCKER_MANAGER_MOVE_FROM: ${DOCKER_MANAGER_MOVE_FROM:-}\n")
+	c.WriteString("      DOCKER_MANAGER_MOVE_CODE: ${DOCKER_MANAGER_MOVE_CODE:-}\n")
+	c.WriteString("    volumes:\n")
+	c.WriteString("      - data:/var/lib/docker-manager\n")
+	c.WriteString("    labels:\n")
+	c.WriteString("      " + protocol.LabelRole + ": manager\n")
+	c.WriteString("    networks:\n")
+	c.WriteString("      - docker-manager\n\n")
+	c.WriteString("  docker-agent:\n")
+	c.WriteString("    image: " + in.AgentImage + "\n")
+	c.WriteString("    restart: unless-stopped\n")
+	c.WriteString("    depends_on:\n")
+	c.WriteString("      - docker-manager\n")
+	c.WriteString("    environment:\n")
+	c.WriteString("      DOCKER_AGENT_MANAGER_URL: ${DOCKER_AGENT_MANAGER_URL:-" + MoveAgentManagerURL + "}\n")
+	c.WriteString("      DOCKER_AGENT_MANAGER_ALLOW_HTTP: \"true\"\n")
+	c.WriteString("      DOCKER_AGENT_ENROLLMENT_TOKEN: ${DOCKER_AGENT_ENROLLMENT_TOKEN:-}\n")
+	c.WriteString("      DOCKER_AGENT_ENVIRONMENT_NAME: ${DOCKER_AGENT_ENVIRONMENT_NAME:-}\n")
+	c.WriteString("    volumes:\n")
+	c.WriteString("      - /var/run/docker.sock:/var/run/docker.sock\n")
+	c.WriteString("      - /var/lib/docker/volumes:/var/lib/docker/volumes\n")
+	c.WriteString("      - stacks:/var/lib/docker/volumes/docker-manager_stacks/_data\n")
+	c.WriteString("      - agent:/var/lib/docker-agent\n")
+	c.WriteString("    labels:\n")
+	c.WriteString("      " + protocol.LabelRole + ": agent\n")
+	c.WriteString("    networks:\n")
+	c.WriteString("      - docker-manager\n\n")
+	c.WriteString("networks:\n")
+	c.WriteString("  docker-manager:\n")
+	c.WriteString("    name: docker-manager\n\n")
+	c.WriteString("volumes:\n")
+	c.WriteString("  data:\n")
+	c.WriteString("  agent:\n")
+	c.WriteString("  stacks:\n")
+
+	var e strings.Builder
+	e.WriteString("# The address you open Docker Manager at (the same as on the old server).\n")
+	e.WriteString("DOCKER_MANAGER_PUBLIC_URL=" + in.PublicURL + "\n\n")
+	e.WriteString("# The address of your reverse proxy (as on the old server).\n")
+	e.WriteString("DOCKER_MANAGER_TRUSTED_PROXIES=" + in.TrustedProxies + "\n\n")
+	e.WriteString("# Moving Docker Manager to this server. Remove these lines once the move\n")
+	e.WriteString("# is complete, then run: docker compose up -d\n")
+	e.WriteString("DOCKER_MANAGER_MOVE_FROM=" + in.OldManagerURL + "\n")
+	e.WriteString("DOCKER_MANAGER_MOVE_CODE=" + in.MoveCode + "\n")
+	e.WriteString("DOCKER_AGENT_MANAGER_URL=" + in.OldManagerURL + "\n")
+	e.WriteString("DOCKER_AGENT_ENROLLMENT_TOKEN=" + in.EnrollmentToken + "\n")
+	if in.EnvironmentName != "" {
+		e.WriteString("DOCKER_AGENT_ENVIRONMENT_NAME=" + envFileValue(in.EnvironmentName) + "\n")
+	}
+	return c.String(), e.String()
+}
+
 // shellQuote quotes s for POSIX shells.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"

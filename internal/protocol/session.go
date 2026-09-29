@@ -87,6 +87,11 @@ const (
 	// the ID of the manager's own container, so the agent recognizes a
 	// co-located manager (#32).
 	ReqManagerIdentity = "manager.identity"
+	// ReqManagerRedirect tells the agent, when Docker Manager moves to a
+	// new server, the address to dial from now on (instead of
+	// DOCKER_AGENT_MANAGER_URL); the agent keeps it in its state and
+	// reconnects there (docs/internal/architecture/manager-move.md).
+	ReqManagerRedirect = "manager.redirect"
 )
 
 // Job-linked migration requests (#35): the manager's stack.migrate and
@@ -128,13 +133,13 @@ var requestNames = []string{
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
 	ReqMaintenancePreview, ReqMigrationPreview, ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit,
 	ReqMigrationCleanup, ReqImageLocalDigests, ReqAgentCredentialRotate,
-	ReqAgentDiagnostics, ReqEngineCompatibilityInfo, ReqManagerIdentity,
+	ReqAgentDiagnostics, ReqEngineCompatibilityInfo, ReqManagerIdentity, ReqManagerRedirect,
 }
 
 // mutatingRequests change state on the agent or Engine.
 var mutatingRequests = []string{
 	ReqContainerExecCreate, ReqContainerExecResize, ReqContainerExecDelete, ReqImageTag,
-	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite, ReqManagerIdentity,
+	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite, ReqManagerIdentity, ReqManagerRedirect,
 	ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit, ReqMigrationCleanup,
 }
 

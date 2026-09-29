@@ -205,9 +205,14 @@ func (a *Agent) enroll(ctx context.Context, token string) (ok, retry bool) {
 	info := buildinfo.Get()
 	req := protocol.EnrollRequest{Protocol: protocol.Version, AgentVersion: info.Version, InstallID: installID, Engine: caps.Engine,
 		Hostname: truncate(hostname, protocol.MaxHostname), EnvironmentName: a.opts.Config.EnvironmentName}
-	a.log.Info("enrolling with the manager", "manager_url", a.transport.Info().ManagerURL, "engine_id", caps.Engine.ID, "install_id", installID)
+	// Enrollment uses the address the agent dials now: after a manager move
+	// the one the manager sent (manager.redirect), which the credential
+	// records and which stays in effect.
+	tr := a.currentTransport()
+	a.log.Info("enrolling with the manager", "manager_url", tr.Info().ManagerURL, "manager_url_source", managerURLSource(tr),
+		"engine_id", caps.Engine.ID, "install_id", installID)
 	ectx, cancel := context.WithTimeout(ctx, time.Minute)
-	resp, err := enroll.Enroll(ectx, a.transport.HTTPClient(), a.transport.URL(protocol.EnrollPath), token, userAgent(), req)
+	resp, err := enroll.Enroll(ectx, tr.HTTPClient(), tr.URL(protocol.EnrollPath), token, userAgent(), req)
 	cancel()
 	if err != nil {
 		var ee *enroll.Error
@@ -234,7 +239,7 @@ func (a *Agent) enroll(ctx context.Context, token string) (ok, retry bool) {
 		return false, false
 	}
 	cred := state.Credential{AgentID: resp.AgentID, EnvironmentID: resp.EnvironmentID, EnvironmentName: resp.EnvironmentName,
-		Credential: resp.Credential, ManagerURL: a.transport.Info().ManagerURL, EnrolledAt: a.opts.Clock.Now().UTC()}
+		Credential: resp.Credential, ManagerURL: tr.Info().ManagerURL, EnrolledAt: a.opts.Clock.Now().UTC()}
 	// The credential is on disk before any session uses it.
 	if err := a.store.SaveCredential(cred); err != nil {
 		a.log.Error("enrolled, but the credential could not be stored; create a new enrollment", "error", err)

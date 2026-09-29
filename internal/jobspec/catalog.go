@@ -90,9 +90,10 @@ const (
 	ManagerBackup    domain.JobKind = "manager.backup"
 	ManagerRetention domain.JobKind = "manager.retention"
 	ManagerVerify    domain.JobKind = "manager.verify"
-	// ManagerReceive pulls a moving manager's state into this fresh
-	// manager (docs/internal/architecture/manager-move.md).
-	ManagerReceive domain.JobKind = "manager.receive"
+	// ManagerMove moves every app of the environment next to the manager
+	// to the new server's environment before the manager hands itself over
+	// (docs/internal/architecture/manager-move.md).
+	ManagerMove domain.JobKind = "manager.move"
 )
 
 // Compensation names shared by several kinds.
@@ -527,11 +528,14 @@ func catalogSpecs() []Spec {
 			OnManagerRestart: RestartResume,
 		},
 		{
-			Kind: ManagerReceive, Summary: "Receive a moving manager's state (move to a new server)",
+			Kind: ManagerMove, Summary: "Move every app to the new server before Docker Manager moves there",
 			Capability: "manager.move", Executor: domain.ExecutorManager,
 			Locks: []LockRule{target(domain.LockManager, exclusive, domain.TargetManager)},
-			Steps: []Step{idem("handoff"), idem("verify"), idem("stage")},
-			// The move code lives in memory only: a restart loses it.
+			// migrate runs the environment migration and waits for it
+			// (resumed with its ID); ready makes the move ready to hand off.
+			Steps: []Step{idem("migrate"), idem("ready")},
+			// The environment migration itself is interrupted by a restart:
+			// Move everything again moves what is left.
 			OnManagerRestart: RestartInterrupt,
 		},
 		{

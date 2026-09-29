@@ -7,7 +7,7 @@ import (
 
 func TestLockLevels(t *testing.T) {
 	var nilLock *Lock
-	if nilLock.ReadOnly() || nilLock.AgentsRefused() || nilLock.Level() != Open {
+	if nilLock.ReadOnly() || nilLock.AgentsRefused() || nilLock.Waiting() || nilLock.Level() != Open {
 		t.Fatal("a nil lock must be open")
 	}
 	nilLock.Set(AgentsRefused) // no panic
@@ -28,14 +28,21 @@ func TestLockLevels(t *testing.T) {
 	if !l.ReadOnly() || !l.AgentsRefused() {
 		t.Fatal("agents refused implies read-only")
 	}
+	if l.Waiting() {
+		t.Fatal("agents refused is not waiting")
+	}
+	l.Set(Waiting)
+	if !l.ReadOnly() || !l.AgentsRefused() || !l.Waiting() {
+		t.Fatal("waiting implies read-only and agents refused")
+	}
 	l.Set(Open)
-	if l.ReadOnly() {
+	if l.ReadOnly() || l.Waiting() {
 		t.Fatal("open again")
 	}
-	if want := []Level{ReadOnly, AgentsRefused, Open}; !slices.Equal(seen, want) {
+	if want := []Level{ReadOnly, AgentsRefused, Waiting, Open}; !slices.Equal(seen, want) {
 		t.Fatalf("notifications = %v, want %v", seen, want)
 	}
-	if AgentsRefused.String() != "agents_refused" || ReadOnly.String() != "read_only" || Open.String() != "open" {
+	if AgentsRefused.String() != "agents_refused" || ReadOnly.String() != "read_only" || Open.String() != "open" || Waiting.String() != "waiting" {
 		t.Fatal("level names")
 	}
 }

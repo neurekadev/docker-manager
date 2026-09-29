@@ -5,8 +5,10 @@
 //     system roots plus the optional DOCKER_AGENT_MANAGER_CA_FILE bundle (private
 //     PKI); verification is never disabled;
 //   - http manager URLs exist only with DOCKER_AGENT_MANAGER_ALLOW_HTTP=true
-//     (validated by internal/agent/config) and are reported as flagged in
-//     the agent's capabilities (protocol.TransportInfo);
+//     (validated by internal/agent/config) or as the address a moving
+//     manager sent in manager.redirect (NewRedirected, the one narrow
+//     exception), and are reported as flagged in the agent's capabilities
+//     (protocol.TransportInfo);
 //   - redirects are never followed, so enrollment tokens and credentials
 //     cannot be forwarded to another origin or downgraded to http.
 //
@@ -19,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/coder/websocket"
@@ -33,16 +36,36 @@ var ErrRedirect = errors.New("manager responded with a redirect; refusing to fol
 
 // Transport is the agent's connection setup for one manager origin.
 type Transport struct {
-	client *http.Client
-	info   protocol.TransportInfo
-	base   string
+	client     *http.Client
+	info       protocol.TransportInfo
+	base       string
+	redirected bool
 }
 
-// New builds the transport from the validated configuration.
+// New builds the transport for DOCKER_AGENT_MANAGER_URL from the validated
+// configuration.
 func New(cfg config.Config) (*Transport, error) {
 	if cfg.ManagerURL == nil {
 		return nil, errors.New("transport: manager URL is required")
 	}
+	return build(cfg, cfg.ManagerURL, cfg.PlainHTTP, false)
+}
+
+// NewRedirected builds the transport for the manager address received in
+// manager.redirect (validated by config.ParseRedirectURL): the only case
+// where the agent uses plain http without DOCKER_AGENT_MANAGER_ALLOW_HTTP,
+// because the authenticated manager it was connected to sent it. https
+// keeps the same TLS trust as New (system roots plus
+// DOCKER_AGENT_MANAGER_CA_FILE); redirects are still never followed.
+func NewRedirected(cfg config.Config, rawURL string) (*Transport, error) {
+	u, err := config.ParseRedirectURL(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	return build(cfg, u, u.Scheme == "http", true)
+}
+
+func build(cfg config.Config, origin *url.URL, plainHTTP, redirected bool) (*Transport, error) {
 	roots, err := x509.SystemCertPool()
 	if err != nil || roots == nil {
 		roots = x509.NewCertPool()
@@ -57,7 +80,7 @@ func New(cfg config.Config) (*Transport, error) {
 	tr = tr.Clone()
 	tr.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
 	tr.ResponseHeaderTimeout = 30 * time.Second
-	base := cfg.ManagerURL.Scheme + "://" + cfg.ManagerURL.Host
+	base := origin.Scheme + "://" + origin.Host
 	return &Transport{
 		client: &http.Client{
 			Transport: tr,
@@ -65,10 +88,15 @@ func New(cfg config.Config) (*Transport, error) {
 				return ErrRedirect
 			},
 		},
-		info: protocol.TransportInfo{ManagerURL: base, PlainHTTP: cfg.PlainHTTP, CustomCA: len(cfg.ManagerCAPEM) > 0},
-		base: base,
+		info:       protocol.TransportInfo{ManagerURL: base, PlainHTTP: plainHTTP, CustomCA: len(cfg.ManagerCAPEM) > 0},
+		base:       base,
+		redirected: redirected,
 	}, nil
 }
+
+// Redirected reports whether this transport dials the address of a
+// manager.redirect instead of DOCKER_AGENT_MANAGER_URL.
+func (t *Transport) Redirected() bool { return t.redirected }
 
 // HTTPClient is the client for manager requests (enrollment, #3).
 func (t *Transport) HTTPClient() *http.Client { return t.client }

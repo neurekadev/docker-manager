@@ -1,18 +1,24 @@
 <script lang="ts">
 	// One generated install command (#3): what it does, the shell text with
 	// a copy button. The text contains the one-use enrollment token: it lives
-	// only in this component's memory and is never stored or logged.
+	// only in this component's memory and is never stored or logged. Also
+	// shows a file to copy (the move page's compose.yaml and .env): `what`
+	// names it on the copy button.
 	import { CopyButton } from '$lib/ui';
 
-	let { title, description, command }: { title: string; description: string; command: string } =
-		$props();
+	let {
+		title,
+		description,
+		command,
+		what = 'command'
+	}: { title: string; description: string; command: string; what?: string } = $props();
 </script>
 
 <div class="install">
 	<p class="desc">{description}</p>
 	<div class="box">
-		<pre class="cmd mono" aria-label="{title}: command">{command}</pre>
-		<div class="copy"><CopyButton value={command} what="command" text /></div>
+		<pre class="cmd mono" aria-label="{title}: {what}">{command}</pre>
+		<div class="copy"><CopyButton value={command} {what} text /></div>
 	</div>
 </div>
 

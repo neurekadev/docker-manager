@@ -17,6 +17,15 @@ export interface ErrorView {
 	fields: { field: string; message: string }[];
 }
 
+/**
+ * Codes whose meaning is the same on every screen: their message replaces
+ * the server's text wherever errors are shown.
+ */
+export const KNOWN_ERRORS: Record<string, string> = {
+	manager_moved:
+		'This Docker Manager is moving, or moved, to a new server, so nothing can be changed here. Use Docker Manager on the new server.'
+};
+
 /** Normalizes anything thrown by the API layer into an ErrorView. */
 export function errorView(e: unknown): ErrorView {
 	if (e instanceof ApiRequestError) {
@@ -32,9 +41,9 @@ export function errorView(e: unknown): ErrorView {
 		}
 		const a = e.apiError;
 		return {
-			message: a?.message
-				? sentence(a.message)
-				: `The manager answered with HTTP ${e.status}.`,
+			message:
+				(a?.code && KNOWN_ERRORS[a.code]) ||
+				(a?.message ? sentence(a.message) : `The manager answered with HTTP ${e.status}.`),
 			code: a?.code,
 			requestId: a?.requestId,
 			retryable: a?.retryable ?? (e.status !== null && e.status >= 500),

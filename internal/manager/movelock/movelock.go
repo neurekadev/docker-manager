@@ -1,10 +1,11 @@
 // Package movelock is the lock a manager takes while it moves to a new
 // server (docs/internal/architecture/manager-move.md): one shared level,
-// consulted by the API (read-only), the job engine (no new jobs, no
-// dispatch), the scheduler (fires nothing) and the agent handler (agents
-// refused). The move service (internal/manager/managermove) sets it from
-// the state of the current move, also at start, so a restarted old
-// manager stays locked.
+// consulted by the API (read-only; everything closed while waiting), the
+// job engine (no new jobs, no dispatch), the scheduler (fires nothing) and
+// the agent handler (agents refused). The move service
+// (internal/manager/managermove) sets it from the state of the current
+// move, also at start, so a restarted old manager stays locked; a new
+// manager in waiting mode starts at Waiting.
 //
 // Every method is safe on a nil *Lock (never locked), so components built
 // without one (focused tests) behave normally.
@@ -29,6 +30,10 @@ const (
 	// AgentsRefused: the state was copied out (handed off, confirmed):
 	// read-only, and agents are refused and disconnected.
 	AgentsRefused
+	// Waiting: a new manager waits for the move's handoff: agents are
+	// refused and every API route except the move status (and health) is
+	// closed.
+	Waiting
 )
 
 // String names the level (logs).
@@ -38,6 +43,8 @@ func (l Level) String() string {
 		return "read_only"
 	case AgentsRefused:
 		return "agents_refused"
+	case Waiting:
+		return "waiting"
 	}
 	return "open"
 }
@@ -66,6 +73,9 @@ func (l *Lock) ReadOnly() bool { return l.Level() >= ReadOnly }
 
 // AgentsRefused reports whether agents are refused.
 func (l *Lock) AgentsRefused() bool { return l.Level() >= AgentsRefused }
+
+// Waiting reports whether this manager waits for a move's handoff.
+func (l *Lock) Waiting() bool { return l.Level() == Waiting }
 
 // Set changes the level and, when it changed, calls every listener with
 // the new level (in registration order, on the caller's goroutine).

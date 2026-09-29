@@ -53,6 +53,8 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | empty | Comma-separated absolute directories (mounted into the manager) that local backup repositories on the manager may live in (#10). A local manager repository must be below one of them and outside the data directory. Empty: only S3 repositories can hold the manager state. |
 | `DOCKER_MANAGER_RESTIC_BINARY` | `/usr/local/bin/restic` | The pinned, checksum-verified restic of the image (#10). Restic's cache and temporary files live in `<data dir>/restic-cache` and `<data dir>/tmp`. |
 | `DOCKER_MANAGER_METRICS_ENABLED` | `false` | Serve Docker Manager's own metrics (job queue, agent sessions, event streams, database sizes, audit chain length) in the Prometheus text format at `GET /api/v1/system/metrics` (#34). Off: the route answers 404. Scrape it with an API token holding only `system.metrics.read`. Unrelated to the host and container metrics of #5, which are always collected. See `docs/internal/operations/diagnostics.md`. |
+| `DOCKER_MANAGER_MOVE_FROM` | empty | Moving Docker Manager to this server: the old manager's address, `http://<old server>:<port>` (or https; no path). Set together with `DOCKER_MANAGER_MOVE_CODE` (both or neither, else startup fails). On an empty data directory (no owner, no environment) the manager starts in **waiting mode**: it serves only `GET /api/v1/move/status`, health and the web app, refuses agents with 503, asks the old manager for the handoff every 10 s and restarts as the moved instance (`docs/internal/architecture/manager-move.md`). With an owner or environments both are ignored with a warning. The old manager's "Move to a new server" writes both into the generated `.env`; remove them after the move. |
+| `DOCKER_MANAGER_MOVE_CODE` | empty | The move code (`dmm_…`), a secret: never logged (the support bundle lists it as `(set)`). It signs the requests to the old manager and decrypts the handoff; it never travels itself. |
 
 ### File manager limits
 
@@ -116,11 +118,11 @@ Manager-state backups (#10) leave it out by default.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `DOCKER_AGENT_MANAGER_URL` | — (required) | Manager origin the agent dials, e.g. `https://docker.example.com`. Remote agents use the public HTTPS origin; an agent on the manager's Docker network may use `http://docker-manager:8080` with the opt-in below. |
-| `DOCKER_AGENT_MANAGER_ALLOW_HTTP` | `false` | Must be `true` to accept an `http://` manager URL. Only for an internal network; tokens and credentials otherwise require HTTPS (#27). A plain-HTTP agent is reported as flagged in its capabilities and shown as a warning on its host page. |
+| `DOCKER_AGENT_MANAGER_URL` | — (required) | Manager origin the agent dials, e.g. `https://docker.example.com`. Remote agents use the public HTTPS origin; an agent on the manager's Docker network may use `http://docker-manager:8080` with the opt-in below. After a manager move the address the manager sent replaces it (see "Manager address after a move" below) until this variable is changed. |
+| `DOCKER_AGENT_MANAGER_ALLOW_HTTP` | `false` | Must be `true` to accept an `http://` manager URL. Only for an internal network; tokens and credentials otherwise require HTTPS (#27). A plain-HTTP agent is reported as flagged in its capabilities and shown as a warning on its host page. Not needed for a plain-HTTP address a moving manager sent (below). |
 | `DOCKER_AGENT_MANAGER_CA_FILE` | empty | Optional PEM bundle of extra CA certificates trusted for the manager's HTTPS origin (private PKI), in addition to the system roots. Validated at startup (certificates only). Certificate verification is never disabled; redirects from the manager are never followed. |
 | `DOCKER_AGENT_ENROLLMENT_TOKEN` / `_FILE` | empty | One-use enrollment token (`dye_…`, #3) used while the agent is not enrolled. Never logged; a used or refused token is remembered and never sent again, so leaving it configured is harmless, but remove it after enrollment. Alternatively hand a token to the running agent with `docker-agent enroll` (stdin). |
-| `DOCKER_AGENT_STATE_DIR` | `/var/lib/docker-agent` | Agent state: `install-id`, the agent credential `credential.json` (0600), the highest manager generation seen `manager.json` (an older manager is refused after a move), handed-over tokens and enrollment status, the health file and the job journal `jobs/journal.json` with the fencing high-water mark (#26). Mount a named volume; losing it means enrolling again (intent `replace`) and in-flight jobs end as `journal_lost`. |
+| `DOCKER_AGENT_STATE_DIR` | `/var/lib/docker-agent` | Agent state: `install-id`, the agent credential `credential.json` (0600), `manager.json` (0600: the highest manager generation seen, so an older manager is refused after a move, and the manager address a move gave), handed-over tokens and enrollment status, the health file and the job journal `jobs/journal.json` with the fencing high-water mark (#26). Mount a named volume; losing it means enrolling again (intent `replace`) and in-flight jobs end as `journal_lost`. |
 | `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine endpoint (`unix://`, or plain `tcp://`; TLS to a remote Engine is not supported because one agent runs next to each Engine). See "Docker Engine" below. |
 | `DOCKER_AGENT_ENVIRONMENT_NAME` | empty | Optional initial display name of this Environment (≤ 63 characters). |
 | `DOCKER_AGENT_STACKS_VOLUME` | `docker-manager_stacks` | Local named volume holding one directory per stack (#28). Must be mounted into the agent at its identical path (see "Host storage layout" in `docs/internal/deployment.md`). |
@@ -138,7 +140,28 @@ opens no listening socket. Its container health check verifies that
 `<state dir>/health.json` was updated within the last 60 seconds; the file's
 `status` is the connection state (`not_enrolled`, `enrolling`,
 `enrollment_failed`, `connecting`, `connected`, `online`, `disconnected`,
-`unauthorized`, `replaced`, `version_unsupported`).
+`unauthorized`, `replaced`, `version_unsupported`); `managerUrl` and
+`managerUrlSource` (`config` or `move`) show the manager address it dials.
+
+### Manager address after a move
+
+When Docker Manager moves to a new server, the old manager tells each
+agent it can place the new address (`manager.redirect`,
+`docs/internal/architecture/manager-move.md`, "Agents follow"). The agent
+keeps it in `<state dir>/manager.json` together with the
+`DOCKER_AGENT_MANAGER_URL` value it replaces, and from then on dials it
+instead of `DOCKER_AGENT_MANAGER_URL`, also after restarts and for
+enrollment (the new credential records it). A plain-HTTP address is
+accepted without `DOCKER_AGENT_MANAGER_ALLOW_HTTP` (the authenticated
+manager sent it) and flagged like any plain-HTTP agent; an HTTPS address
+keeps `DOCKER_AGENT_MANAGER_CA_FILE`. The startup log names the address
+and `manager_url_source: move`.
+
+To stop using it, set `DOCKER_AGENT_MANAGER_URL` to the address you want
+(for example the public HTTPS origin once DNS points at the new server)
+and recreate the agent container: a value other than the one the redirect
+replaced wins, and the agent forgets the redirect (it keeps the manager
+generation, so the old manager stays refused).
 
 ### Commands
 

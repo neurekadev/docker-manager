@@ -363,6 +363,28 @@ source. Both migration wizards list findings with
 `$lib/features/stacks/MigrationFindings.svelte`. Tests:
 `environment-migration.spec.ts`, `EnvironmentMigrationWizard.test.ts`.
 
+Moving Docker Manager to a new server
+([manager-move.md](architecture/manager-move.md)) lives in
+`$lib/features/managermove` (pure `model.ts` with `model.spec.ts`, the
+move's states in words; requests in `queries.ts`: `managerMoveQuery`
+resolves the 404 of "no move" to `null`, `createMove` and `cancelMove`
+go through `withStepUp`). Its pages are being rebuilt for the new flow:
+the old manager's wizard (create the move with both addresses, show the
+generated `compose.yaml` and `.env` once, wait for the new server, check,
+Move everything with its progress), the new manager's status page (a
+manager in waiting mode answers every route but `GET /api/v1/move/status`
+with 503 `manager_move_waiting`, so the app must render it from that
+route alone) and Move complete on the new manager.
+
+A locked manager shows a persistent banner in the shell (`MoveBanner`
+in `AppShell`, `moveBanner`): the owner's shell reads the move (polled
+every 15 s while it changes); everyone else learns it from the first
+request answered 409 `manager_moved` (`onApiFailure` in
+`$lib/api/client.ts` hears every error `unwrap` throws;
+`managerMoved.refused` in `moved.svelte.ts` holds it for the page load).
+`errorView` words `manager_moved` the same everywhere
+(`KNOWN_ERRORS` in `$lib/ui/errors.ts`). Tests: `model.spec.ts`.
+
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
 `$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for

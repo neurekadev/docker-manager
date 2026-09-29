@@ -18,7 +18,7 @@ import (
 )
 
 // FinishArrival completes a move applied at this start (the marker of kind
-// move written by manager.receive): the sessions, API tokens and agents of
+// move written by waiting mode): the sessions, API tokens and agents of
 // the copy are kept (this manager is the same instance), the arrived move
 // records the old manager's address and keeps the move code sealed for
 // the confirmation, system.move is audited and the marker is removed.
@@ -96,10 +96,10 @@ func (s *Service) StartConfirming(ctx context.Context) error {
 
 // Confirmation outcome classes (ManagerMove.ConfirmError).
 const (
-	ConfirmUnreachable    = "unreachable"
-	ConfirmCodeInvalid    = "code_invalid"
-	ConfirmStateRefused   = "state_refused"
-	ConfirmInsecureOrigin = "insecure_origin"
+	ConfirmUnreachable  = "unreachable"
+	ConfirmCodeInvalid  = "code_invalid"
+	ConfirmStateRefused = "state_refused"
+	ConfirmClockSkew    = "clock_skew"
 )
 
 // confirmDue calls the old manager's confirmation when it is due. It
@@ -134,7 +134,7 @@ func (s *Service) ConfirmOnce(ctx context.Context) (done bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	if !found || a.ConfirmedAt != nil {
+	if !found || a.ConfirmedAt != nil || a.ConfirmAcknowledgedAt != nil {
 		return true, nil
 	}
 	sealed, err := store.ManagerMoveSealedCode(ctx, s.db, a.ID)
@@ -154,6 +154,13 @@ func (s *Service) ConfirmOnce(ctx context.Context) (done bool, err error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Read the move again: the owner may have acknowledged meanwhile.
+	if a, err = store.GetManagerMove(ctx, s.db, a.ID); err != nil {
+		return false, err
+	}
+	if a.ConfirmAcknowledgedAt != nil {
+		terminal = true
+	}
 	now := s.now()
 	a.ConfirmAttempts++
 	a.LastConfirmAt, a.ConfirmError, a.UpdatedAt = &now, class, now
@@ -182,14 +189,18 @@ func (s *Service) ConfirmOnce(ctx context.Context) (done bool, err error) {
 	return false, nil
 }
 
-// callConfirm posts the confirmation. class is "" on success; terminal
-// reports an answer that retrying cannot change.
+// callConfirm posts the confirmation, signed with the code. class is ""
+// on success; terminal reports an answer that retrying cannot change.
 func (s *Service) callConfirm(ctx context.Context, source, code string) (class string, terminal bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimSuffix(source, "/")+ConfirmPath, nil)
 	if err != nil {
 		return ConfirmUnreachable, true
 	}
-	req.Header.Set("Authorization", "Bearer "+code)
+	auth, err := SignRequest(code, http.MethodPost, ConfirmPath, s.opts.Clock.Now())
+	if err != nil {
+		return ConfirmCodeInvalid, true
+	}
+	req.Header.Set("Authorization", auth)
 	resp, err := s.http.Do(req)
 	if err != nil {
 		return ConfirmUnreachable, false
@@ -200,12 +211,71 @@ func (s *Service) callConfirm(ctx context.Context, source, code string) (class s
 	switch {
 	case resp.StatusCode == http.StatusOK:
 		return "", true
+	case resp.StatusCode == http.StatusUnauthorized && e.Code == "move_clock_skew":
+		return ConfirmClockSkew, false
 	case resp.StatusCode == http.StatusUnauthorized:
 		return ConfirmCodeInvalid, true
 	case resp.StatusCode == http.StatusConflict:
 		return ConfirmStateRefused, true
-	case resp.StatusCode == http.StatusForbidden && e.Code == "insecure_origin":
-		return ConfirmInsecureOrigin, false
 	}
 	return "http_" + strconv.Itoa(resp.StatusCode), false
+}
+
+// AcknowledgeConfirmation records the owner's statement (recent step-up)
+// that the old manager is stopped or no longer uses this instance,
+// although it never confirmed the move (it refused, or cannot be
+// reached): "Move complete" counts the confirmation as done and the
+// confirmation stops (the sealed move code is forgotten). Allowed for the
+// arrived, unconfirmed move after at least one failed attempt
+// (domain.ErrManagerMoveState otherwise, domain.ErrManagerMoveNotFound
+// without an arrived move); repeating it is harmless.
+func (s *Service) AcknowledgeConfirmation(ctx context.Context) (View, error) {
+	if _, err := s.requireOwner(ctx, true); err != nil {
+		return View{}, err
+	}
+	s.mu.Lock()
+	a, err := s.acknowledge(ctx)
+	s.mu.Unlock()
+	if err != nil {
+		return View{}, err
+	}
+	s.confirmMu.Lock()
+	s.nextConfirm, s.confirmBackoff = time.Time{}, 0
+	s.confirmMu.Unlock()
+	audit.AddTarget(ctx, domain.AuditTarget{Type: auditTargetType, ID: a.ID})
+	audit.SetDetail(ctx, "confirmError", a.ConfirmError)
+	audit.SetDetail(ctx, "confirmAttemptCount", a.ConfirmAttempts)
+	c, err := s.complete(ctx, a)
+	if err != nil {
+		return View{}, err
+	}
+	return View{Move: a, Complete: &c}, nil
+}
+
+// acknowledge marks the arrived move's confirmation acknowledged (under mu).
+func (s *Service) acknowledge(ctx context.Context) (domain.ManagerMove, error) {
+	a, found, err := store.LatestArrivedManagerMove(ctx, s.db)
+	if err != nil {
+		return a, err
+	}
+	if !found {
+		return a, domain.ErrManagerMoveNotFound
+	}
+	if a.ConfirmAcknowledgedAt != nil {
+		return a, nil
+	}
+	if a.ConfirmedAt != nil || a.ConfirmError == "" {
+		return a, domain.ErrManagerMoveState
+	}
+	now := s.now()
+	a.ConfirmAcknowledgedAt, a.UpdatedAt = &now, now
+	if err := store.UpdateManagerMove(ctx, s.db, &a, domain.MoveArrived); err != nil {
+		return a, err
+	}
+	if err := store.SetManagerMoveSealedCode(ctx, s.db, a.ID, ""); err != nil {
+		return a, err
+	}
+	s.log.Warn("the owner acknowledged that the old manager no longer runs the instance; the move confirmation stops",
+		"move_id", a.ID, "class", a.ConfirmError)
+	return a, nil
 }

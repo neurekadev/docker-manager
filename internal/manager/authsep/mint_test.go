@@ -1,6 +1,7 @@
 package authsep
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -83,7 +84,7 @@ func TestMintParseMoveCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(code.Token, "dmm_"+id+"_") || !IsMoveCode(code.Token) || Classify(code.Token) != KindOther {
+	if !strings.HasPrefix(code.Token, "dmm_"+id+"_") || Classify(code.Token) != KindOther {
 		t.Fatalf("format %q", code.Token)
 	}
 	gotID, secret, ok := ParseMoveCode(code.Token)
@@ -91,10 +92,28 @@ func TestMintParseMoveCode(t *testing.T) {
 		t.Fatalf("parse move code: %q %v", gotID, ok)
 	}
 	api, _ := MintAPIToken(id)
-	if _, _, ok := ParseMoveCode(api.Token); ok || IsMoveCode(api.Token) {
+	if _, _, ok := ParseMoveCode(api.Token); ok {
 		t.Fatal("an API token parsed as a move code")
 	}
 	if _, _, ok := ParseAPIToken(code.Token); ok {
 		t.Fatal("a move code parsed as an API token")
+	}
+}
+
+func TestIsMoveAuthorization(t *testing.T) {
+	for header, want := range map[string]bool{
+		"DMM 0190a6e0:1700000000:bm9uY2U:bWFj": true,
+		"dmm 0190a6e0:1:n:m":                   true,
+		"Bearer dmm_0190a6e0_secret":           false,
+		"DMM":                                  false,
+		"":                                     false,
+	} {
+		h := http.Header{}
+		if header != "" {
+			h.Set("Authorization", header)
+		}
+		if got := IsMoveAuthorization(h); got != want {
+			t.Errorf("%q: %v, want %v", header, got, want)
+		}
 	}
 }

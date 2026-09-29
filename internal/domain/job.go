@@ -127,7 +127,7 @@ const (
 	// TargetTemplate is a stack template of the instance (its draft is
 	// the root of template file jobs).
 	TargetTemplate TargetType = "template"
-	// TargetManager is this manager instance itself (manager.receive, a
+	// TargetManager is this manager instance itself (manager.move, a
 	// move of the manager to a new server; ID "instance").
 	TargetManager TargetType = "manager"
 )

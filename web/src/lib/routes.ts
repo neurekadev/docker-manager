@@ -27,7 +27,7 @@
 //   (/settings/security and /settings/tokens[/new] redirect to /profile[/tokens[/new]])
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
 //   /popout/logs?stack=|environment=&container= (files, logs, terminals)
-//   /setup, /sign-in, /enroll, /invitation, /password-reset (public)
+//   /setup[/import], /sign-in, /enroll, /invitation, /password-reset (public)
 //
 // IDs are path-encoded; environment-scoped Docker objects carry their
 // environment in the path because their names are only unique within one
@@ -191,7 +191,7 @@ export const routes = {
 	diagnostics: () => '/settings/diagnostics',
 	setup: () => '/setup',
 	setupImport: () => '/setup/import',
-	signIn: (next?: string, reason?: 'expired' | 'signed-out') => {
+	signIn: (next?: string, reason?: 'expired' | 'signed-out' | 'moved') => {
 		const q = new URLSearchParams();
 		if (next && next !== '/' && next.startsWith('/') && !next.startsWith('//'))
 			q.set('next', next);

@@ -169,6 +169,16 @@ func TestEndSessionError(t *testing.T) {
 			t.Fatalf("code %d: closes with %d %q, want %d", code, o.closeCode, o.reason, want)
 		}
 	}
+	// Without Err the request is answered with Output (a response), then
+	// the session closes (manager.redirect).
+	o := serve(&EndSessionError{Output: map[string]int{"n": 1}, Code: protocol.CloseGoingAway, Reason: "moving"})
+	rp, err := protocol.DecodePayload[protocol.ResponsePayload](o.f)
+	if o.f.Type != protocol.TypeResponse || o.f.CorrelationID != "req-1" || err != nil || string(rp.Output) != `{"n":1}` {
+		t.Fatalf("answer with output %+v %s %v", o.f, rp.Output, err)
+	}
+	if o.closeCode != protocol.CloseGoingAway || o.reason != "moving" {
+		t.Fatalf("output answer closes with %d %q", o.closeCode, o.reason)
+	}
 	// An ordinary handler error keeps the session.
 	if o := serve(&HandlerError{Code: protocol.CodeNotFound, Message: "x"}); o.closeCode != 0 {
 		t.Fatalf("ordinary error closes the session with %d", o.closeCode)

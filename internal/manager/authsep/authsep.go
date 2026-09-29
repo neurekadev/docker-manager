@@ -40,9 +40,14 @@ const (
 	EnrollmentTokenPrefix = protocol.EnrollmentTokenPrefix
 	// APITokenPrefix marks a user's API token (#31, /api/v1 only).
 	APITokenPrefix = "dy_"
-	// MoveCodePrefix marks a manager move code (/api/v1 handoff and
-	// confirmation only, docs/internal/architecture/manager-move.md).
+	// MoveCodePrefix marks a manager move code (docs/internal/architecture/
+	// manager-move.md). The code itself never travels in a request: move
+	// requests are signed with it (MoveAuthScheme).
 	MoveCodePrefix = "dmm_"
+	// MoveAuthScheme is the Authorization scheme of manager move requests
+	// ("DMM <id>:<time>:<nonce>:<mac>"; /api/v1 handoff and confirmation
+	// only).
+	MoveAuthScheme = "DMM"
 )
 
 // secretBytes is the entropy of generated agent secrets.
@@ -135,8 +140,9 @@ func MintEnrollmentToken(id string) (Minted, error) { return mint(EnrollmentToke
 func MintAPIToken(id string) (Minted, error) { return mint(APITokenPrefix, id) }
 
 // MintMoveCode returns a new manager move code for move id:
-// "dmm_<id>_<256-bit secret>". Only Verifier is stored; the secret part
-// also keys the sealed secret key of the handoff.
+// "dmm_<id>_<256-bit secret>". The manager keeps the code sealed with its
+// secret key (the verifier is unused): the secret part keys the move's
+// request signatures and the handoff's encryption.
 func MintMoveCode(id string) (Minted, error) { return mint(MoveCodePrefix, id) }
 
 func mint(prefix, id string) (Minted, error) {
@@ -192,9 +198,12 @@ func ParseMoveCode(token string) (id, secret string, ok bool) {
 	return parse(MoveCodePrefix, token)
 }
 
-// IsMoveCode reports whether token looks like a manager move code (it is
-// never authenticated as an API token or a session).
-func IsMoveCode(token string) bool { return strings.HasPrefix(token, MoveCodePrefix) }
+// IsMoveAuthorization reports whether h carries a manager move request's
+// Authorization (scheme MoveAuthScheme): never a session or an API token.
+func IsMoveAuthorization(h http.Header) bool {
+	scheme, _, ok := strings.Cut(strings.TrimSpace(h.Get("Authorization")), " ")
+	return ok && strings.EqualFold(scheme, MoveAuthScheme)
+}
 
 // maxTokenLen bounds a parsed token (prefix, 64-byte ID, separator and a
 // 43-character secret fit comfortably).

@@ -17,10 +17,10 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
 )
 
-// The handoff stream is a tar of the parts below, in this order, then
-// manifest.json with the length and SHA-256 of every part. The receiver
-// stores each part under a fixed name and trusts none of them before the
-// manifest matched.
+// The handoff package is a tar of the parts below, in this order, then
+// manifest.json with the length and SHA-256 of every part, streamed
+// encrypted (crypt.go). The receiver stores each part under a fixed name
+// and trusts none of them before the manifest matched.
 
 // Package format.
 const (
@@ -32,9 +32,6 @@ const (
 	PartSealedKey = "secret-key.sealed"
 	PartTemplates = "templates.tar.gz"
 	PartManifest  = "manifest.json"
-
-	// PackageContentType is the media type of the handoff stream.
-	PackageContentType = "application/x-tar"
 )
 
 // packageParts are the parts in stream order (templates only when

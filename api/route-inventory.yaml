@@ -2597,15 +2597,15 @@ routes:
     kind: json
     status: implemented
     notes: "Protected first-run setup session only (#16, #24); refused once an owner exists. 202 + job."
-  - method: POST
-    path: /api/v1/setup/move
-    operationId: create-setup-move
-    capability: public
-    scope: none
+  - method: GET
+    path: /api/v1/manager/move/defaults
+    operationId: get-manager-move-defaults
+    capability: owner
+    scope: instance
     owner: 35
     kind: json
     status: implemented
-    notes: "Protected first-run setup session only; refused once an owner exists. 202 + manager.receive job (move to a new server)."
+    notes: "Prefill of a move: this server's address and the environment next to the manager."
   - method: POST
     path: /api/v1/manager/moves
     operationId: create-manager-move
@@ -2614,7 +2614,7 @@ routes:
     owner: 35
     kind: json
     status: implemented
-    notes: "Returns the move code once; step-up."
+    notes: "Step-up; returns the new server's compose.yaml and .env (move code and enrollment token) once."
   - method: GET
     path: /api/v1/manager/move
     operationId: get-manager-move
@@ -2623,7 +2623,16 @@ routes:
     owner: 35
     kind: json
     status: implemented
-    notes: "The open or in-progress move, else the arrived move with the finish checklist."
+    notes: "The open or in-progress move (new server, apps, progress), else the arrived move (Move complete)."
+  - method: POST
+    path: /api/v1/manager/move/runs
+    operationId: create-manager-move-run
+    capability: owner
+    scope: instance
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Step-up; Move everything: 202 + manager.move job."
   - method: POST
     path: /api/v1/manager/move/cancellations
     operationId: create-manager-move-cancellation
@@ -2634,6 +2643,24 @@ routes:
     status: implemented
     notes: "Step-up; after the handoff only with resumeHere and the typed instance name."
   - method: POST
+    path: /api/v1/manager/move/acknowledgements
+    operationId: create-manager-move-acknowledgement
+    capability: owner
+    scope: instance
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Step-up; the arrived move's old manager never confirmed: the owner states it no longer runs the instance."
+  - method: GET
+    path: /api/v1/manager/move/check-in
+    operationId: get-manager-move-check-in
+    capability: public
+    scope: none
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Signed with the move code (Authorization: DMM ...); the waiting manager's check-in: the move's state and the apps' progress (unaudited read)."
+  - method: POST
     path: /api/v1/manager/move/handoff
     operationId: create-manager-move-handoff
     capability: public
@@ -2641,7 +2668,7 @@ routes:
     owner: 35
     kind: stream
     status: implemented
-    notes: "Authenticated by the move code (Bearer dmm_...), secure origin only; streams the handoff tar."
+    notes: "Signed with the move code (Authorization: DMM ...); 409 manager_move_not_ready until ready; streams the encrypted package."
   - method: POST
     path: /api/v1/manager/move/confirm
     operationId: create-manager-move-confirmation
@@ -2650,7 +2677,16 @@ routes:
     owner: 35
     kind: json
     status: implemented
-    notes: "Authenticated by the move code (Bearer dmm_...), secure origin only."
+    notes: "Signed with the move code (Authorization: DMM ...)."
+  - method: GET
+    path: /api/v1/move/status
+    operationId: get-move-status
+    capability: public
+    scope: none
+    owner: 35
+    kind: json
+    status: implemented
+    notes: "Waiting mode's public status (the only route besides health a waiting manager serves); never secrets."
   - method: GET
     path: /api/v1/jobs
     operationId: list-jobs

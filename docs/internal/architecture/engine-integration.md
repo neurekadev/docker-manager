@@ -225,8 +225,9 @@ Documented exceptions to "direct Engine HTTP": `internal/agent/engine/`
 `internal/agent/config/config.go` (the `DOCKER_HOST` default value only),
 `internal/testutil/fscorpus/` (a path-traversal test string),
 `internal/manager/agents/install.go`
-(the agent install command shown to operators, which bind-mounts the socket
-into the agent container; the manager never dials it) and
+(the agent install commands and the new server's `compose.yaml` of a
+manager move, shown to operators, which bind-mount the socket into the
+agent container; the manager never dials it) and
 `internal/protocol/docker.go` (+ its test: the create-container validation
 refuses binding the socket into containers created through Docker Manager, #6).
 

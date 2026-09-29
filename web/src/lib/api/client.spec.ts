@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiRequestError, createApiClient, unwrap } from './client';
+import { ApiRequestError, createApiClient, onApiFailure, unwrap } from './client';
 import { createQueryClient, healthQuery, queryKeys, shouldRetry } from './queries';
 
 const base = 'http://localhost:8080';
@@ -64,6 +64,26 @@ describe('unwrap', () => {
 		expect(err).toBeInstanceOf(ApiRequestError);
 		expect(err).toMatchObject({ message: 'manager is starting', status: 503, apiError });
 		expect(err.network).toBe(false);
+	});
+
+	it('tells failure listeners about every error answer, until they stop listening', async () => {
+		const heard: (string | undefined)[] = [];
+		const stop = onApiFailure((e) => heard.push(e.apiError?.code));
+		const noisy = onApiFailure(() => {
+			throw new Error('listener bug');
+		});
+		const moved = { ...apiError, code: 'manager_moved', retryable: false };
+		const f = fakeFetch(409, moved);
+		const err = await unwrap(createApiClient(f.impl, base).GET('/api/v1/health')).catch(
+			(e) => e
+		);
+		// A failing listener never replaces the caller's error.
+		expect(err).toMatchObject({ status: 409, apiError: moved });
+		expect(heard).toEqual(['manager_moved']);
+		stop();
+		noisy();
+		await unwrap(createApiClient(f.impl, base).GET('/api/v1/health')).catch(() => {});
+		expect(heard).toEqual(['manager_moved']);
 	});
 
 	it('falls back to the HTTP status for non-Docker Manager error bodies', async () => {

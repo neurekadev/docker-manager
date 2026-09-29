@@ -411,6 +411,11 @@ func Register[I, O any](a huma.API, op Operation, handler func(context.Context, 
 		// A manager moving to a new server is read-only (managermove.go).
 		hop.Middlewares = append(huma.Middlewares{moveGuard}, hop.Middlewares...)
 	}
+	if !allowedWhileWaiting[op.OperationID] {
+		// A manager waiting for a move's handoff serves nothing else
+		// (managermove.go).
+		hop.Middlewares = append(huma.Middlewares{waitingGuard}, hop.Middlewares...)
+	}
 	if op.Audited() {
 		// Outermost operation middleware: it sees the final status of
 		// everything below it (validation, idempotency replays, panics).

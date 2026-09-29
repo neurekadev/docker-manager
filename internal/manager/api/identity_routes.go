@@ -71,11 +71,6 @@ func registerSetup(a huma.API, h *identityAPI) {
 					Recovery: imp.Message, RestartPending: imp.RestartPending}
 			}
 		}
-		if !st.Complete && h.moves != nil {
-			if mv, err := h.moves.LatestReceive(ctx); err == nil && mv != nil {
-				out.Body.ManagerMove = newSetupManagerMove(mv)
-			}
-		}
 		return out, nil
 	})
 
@@ -144,7 +139,11 @@ func registerSignIn(a huma.API, h *identityAPI) {
 		if err != nil {
 			return nil, identityError(err)
 		}
-		return &sessionOutput{Body: newSession(st)}, nil
+		out := &sessionOutput{Body: newSession(st)}
+		if st.Stage == domain.StageAuthenticated {
+			out.Body.ManagerMove = sessionManagerMove(ctx, h.moves)
+		}
+		return out, nil
 	})
 
 	Register(a, Operation{

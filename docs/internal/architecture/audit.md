@@ -128,13 +128,17 @@ manager, e.g. `app.Manager.Audit()`):
   `system.restore` (actor `service`, the set as target, counts of deleted
   sessions, revoked API tokens and agents, relocation and reconciliation),
   `agent.restore_revoke` per revoked agent, and `api_token.revoke_all`.
-- Manager move ([manager-move.md](manager-move.md)): `manager.move.create`,
-  `manager.move.cancel`, `manager.move.handoff` (detail `handoffAddress`,
-  anonymous actor: the move code authenticates it) and
+- Manager move ([manager-move.md](manager-move.md)): `manager.move.create`
+  (details both server addresses, `enrollmentId`, `sourceEnvironmentId`),
+  `manager.move.run` (Move everything), `manager.move.cancel`,
+  `manager.move.handoff` (detail `handoffAddress`, `redirectCount`;
+  anonymous actor: a signature of the move code authenticates it) and
   `manager.move.confirm` are recorded by construction on the old manager
-  (target `manager_move`, never the code); `system.move` (actor `service`,
-  the move as target, `sourceHost`, `generation`, `fromVersion`) at the
-  first start of the new manager.
+  (target `manager_move`, never the code or the enrollment token); the
+  `manager.move` job's lifecycle like every job's; on the new manager
+  `manager.move.acknowledge` and `system.move` (actor `service`, the move
+  as target, `sourceHost`, `generation`, `fromVersion`) at its first start
+  as the moved instance.
 
 Inside a database transaction (single-connection SQLite), use
 `RecordTx(ctx, tx, ev)`; calling `Record` while holding a transaction

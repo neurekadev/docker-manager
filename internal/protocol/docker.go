@@ -482,6 +482,15 @@ type (
 		// predates moves (treated as 1).
 		Generation int64 `json:"generation,omitempty"`
 	}
+	// ManagerRedirectInput is the input of manager.redirect: the manager's
+	// new address (http or https origin; http allowed without
+	// DOCKER_AGENT_MANAGER_ALLOW_HTTP because the current, authenticated
+	// manager sends it) and the generation the new manager runs (at least
+	// the current one + 1).
+	ManagerRedirectInput struct {
+		URL        string `json:"url"`
+		Generation int64  `json:"generation"`
+	}
 	// ManagerIdentityOutput answers manager.identity: whether the manager's
 	// container runs on this agent's Engine.
 	ManagerIdentityOutput struct {

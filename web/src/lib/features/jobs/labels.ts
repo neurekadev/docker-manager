@@ -31,7 +31,7 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'image.pull': 'Pull image',
 	'image.remove': 'Remove image',
 	'manager.backup': 'Back up Docker Manager',
-	'manager.receive': 'Receive the moved Docker Manager',
+	'manager.move': 'Move every app to the new server',
 	'manager.retention': 'Apply Docker Manager backup retention',
 	'manager.verify': 'Verify Docker Manager backups',
 	'network.create': 'Create network',

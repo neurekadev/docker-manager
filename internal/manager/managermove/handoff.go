@@ -21,43 +21,142 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
 )
 
-// Package is a built handoff package: the parts in its directory and
-// their manifest.
+// Package is a built handoff package: the parts in its directory, their
+// manifest, and the key the stream is encrypted with.
 type Package struct {
 	dir      string
 	Manifest Manifest
 	modTime  time.Time
+	key      []byte
 }
 
-// Size is the total size of the parts (the manifest excluded).
+// Size is the total size of the parts (the manifest excluded; the
+// encrypted stream is a little longer).
 func (p *Package) Size() int64 { return p.Manifest.Size() }
 
-// Write streams the package: the parts, then manifest.json.
-func (p *Package) Write(w io.Writer) error { return writePackage(w, p.dir, p.Manifest, p.modTime) }
-
-// Handoff hands the state to the new manager holding code. It is refused
-// outside a secure origin (domain.InsecureOriginError) and for unknown,
-// wrong, expired or cancelled codes (domain.ErrMoveCodeInvalid). An open
-// move starts draining (read-only); while jobs run it answers
-// *domain.JobsRunningError. With no job left, agents are refused, the
-// state is copied (in the copy the instance's generation goes up by one
-// and the move's row becomes arrived) and the move is handed off. A
-// handed-off move returns the same package again (a broken transfer is
-// retried).
-func (s *Service) Handoff(ctx context.Context, code string) (*Package, error) {
-	if err := s.checkOrigin(ctx); err != nil {
-		return nil, err
+// Write streams the package encrypted (crypt.go): the parts, then
+// manifest.json.
+func (p *Package) Write(w io.Writer) error {
+	sw, err := newSealWriter(w, p.key)
+	if err != nil {
+		return err
 	}
-	id, err := s.verifyCode(ctx, code)
+	if err := writePackage(sw, p.dir, p.Manifest, p.modTime); err != nil {
+		return err
+	}
+	return sw.Close()
+}
+
+// authenticate resolves a move request to its move and code: the
+// Authorization header must be signed with the move's code (sealed in the
+// database), within AuthWindow, with a new nonce. Unknown moves, ended
+// moves (their code is forgotten), wrong signatures and replays answer
+// domain.ErrMoveCodeInvalid alike; a correct signature with a time too
+// far off answers domain.ErrMoveClockSkew.
+func (s *Service) authenticate(ctx context.Context, a MoveAuth) (string, string, error) {
+	p, err := parseAuth(a.Header)
+	if err != nil {
+		return "", "", err
+	}
+	sealed, err := store.ManagerMoveSealedCode(ctx, s.db, p.moveID)
+	if errors.Is(err, domain.ErrManagerMoveNotFound) || (err == nil && sealed == "") {
+		return "", "", domain.ErrMoveCodeInvalid
+	}
+	if err != nil {
+		return "", "", err
+	}
+	code, err := s.opts.Keyring.Open(sealed, SealContext(p.moveID))
+	if err != nil {
+		return "", "", domain.ErrMoveCodeInvalid
+	}
+	if err := verifyAuthMAC(p, string(code), a, s.opts.Clock.Now(), s.replay); err != nil {
+		return "", "", err
+	}
+	return p.moveID, string(code), nil
+}
+
+// clientAddress is the request's client IP ("" unknown).
+func clientAddress(ctx context.Context) string {
+	info, _ := requestinfo.From(ctx)
+	if info.ClientIP.IsValid() {
+		return info.ClientIP.String()
+	}
+	return ""
+}
+
+// CheckIn is the old manager's answer to the waiting manager's check-in.
+type CheckIn struct {
+	State domain.ManagerMoveState
+	// StacksMoved of StacksTotal moved (moving), CurrentStack moving now.
+	StacksMoved  int
+	StacksTotal  int
+	CurrentStack string
+	// JobsRunning are the jobs a draining move waits for.
+	JobsRunning int
+}
+
+// CheckIn records the waiting manager's check-in (open to draining) and
+// answers the move's state and progress; authenticated like Handoff. The
+// waiting manager asks every 10 s and calls the handoff once the move is
+// ready (a read: unaudited, unlike the handoff).
+func (s *Service) CheckIn(ctx context.Context, a MoveAuth) (CheckIn, error) {
+	id, _, err := s.authenticate(ctx, a)
+	if err != nil {
+		return CheckIn{}, err
+	}
+	s.mu.Lock()
+	if err := s.expireDue(ctx); err != nil {
+		s.mu.Unlock()
+		return CheckIn{}, err
+	}
+	m, err := store.GetManagerMove(ctx, s.db, id)
+	if err != nil {
+		s.mu.Unlock()
+		return CheckIn{}, err
+	}
+	switch m.State {
+	case domain.MoveOpen, domain.MoveMoving, domain.MoveReady, domain.MoveDraining:
+		now, from := s.now(), m.State
+		m.CheckedInAt, m.HandoffAddress, m.UpdatedAt = &now, clientAddress(ctx), now
+		if err := store.UpdateManagerMove(ctx, s.db, &m, from); err != nil {
+			s.mu.Unlock()
+			return CheckIn{}, err
+		}
+	case domain.MoveHandedOff, domain.MoveConfirmed:
+	default:
+		s.mu.Unlock()
+		return CheckIn{}, domain.ErrMoveCodeInvalid
+	}
+	s.mu.Unlock()
+	c := CheckIn{State: m.State}
+	c.StacksMoved, c.StacksTotal, c.CurrentStack = s.migrationProgress(ctx, m.MigrationID)
+	if m.State == domain.MoveDraining {
+		if c.JobsRunning, err = s.activeJobs(ctx); err != nil {
+			return CheckIn{}, err
+		}
+	}
+	return c, nil
+}
+
+// Handoff hands the state to the waiting manager that signed a. Refused
+// for unknown, wrong, replayed, expired or cancelled moves
+// (domain.ErrMoveCodeInvalid) and clocks too far apart
+// (domain.ErrMoveClockSkew). Every call records the waiting manager's
+// check-in. Until the apps moved (open, moving) it answers
+// *domain.MoveNotReadyError with their progress. A ready move starts
+// draining (read-only); while jobs run it answers
+// *domain.JobsRunningError. With no job left the agents it can place are
+// told the new address (manager.redirect), agents are refused, the state
+// is copied (in the copy the instance's generation goes up by one and the
+// move's row becomes arrived) and the move is handed off. A handed-off
+// move returns the same package again (a broken transfer is retried).
+func (s *Service) Handoff(ctx context.Context, a MoveAuth) (*Package, error) {
+	id, code, err := s.authenticate(ctx, a)
 	if err != nil {
 		return nil, err
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: auditTargetType, ID: id})
-	info, _ := requestinfo.From(ctx)
-	addr := ""
-	if info.ClientIP.IsValid() {
-		addr = info.ClientIP.String()
-	}
+	addr := clientAddress(ctx)
 	audit.SetDetail(ctx, "handoffAddress", addr)
 	s.buildMu.Lock()
 	defer s.buildMu.Unlock()
@@ -72,16 +171,32 @@ func (s *Service) Handoff(ctx context.Context, code string) (*Package, error) {
 		s.mu.Unlock()
 		return nil, err
 	}
+	now := s.now()
 	switch m.State {
-	case domain.MoveOpen:
-		now := s.now()
+	case domain.MoveOpen, domain.MoveMoving, domain.MoveReady, domain.MoveDraining:
+		// The waiting manager checked in.
+		from := m.State
+		m.CheckedInAt, m.HandoffAddress, m.UpdatedAt = &now, addr, now
+		if err := store.UpdateManagerMove(ctx, s.db, &m, from); err != nil {
+			s.mu.Unlock()
+			return nil, err
+		}
+	}
+	switch m.State {
+	case domain.MoveOpen, domain.MoveMoving:
+		s.mu.Unlock()
+		moved, total, current := s.migrationProgress(ctx, m.MigrationID)
+		audit.SetDetail(ctx, "state", string(m.State))
+		return nil, &domain.MoveNotReadyError{State: m.State, StacksMoved: moved, StacksTotal: total, CurrentStack: current,
+			RetryAfter: HandoffRetryAfter}
+	case domain.MoveReady:
 		m.State, m.DrainingAt, m.UpdatedAt = domain.MoveDraining, &now, now
-		if err := store.UpdateManagerMove(ctx, s.db, &m, domain.MoveOpen); err != nil {
+		if err := store.UpdateManagerMove(ctx, s.db, &m, domain.MoveReady); err != nil {
 			s.mu.Unlock()
 			return nil, err
 		}
 		s.opts.Lock.Set(movelock.ReadOnly)
-		s.log.Warn("a new manager asked for the handoff: this manager is read-only while its jobs finish", "move_id", m.ID,
+		s.log.Warn("the new manager asked for the handoff: this manager is read-only while its jobs finish", "move_id", m.ID,
 			"handoff_address", addr)
 		s.notify()
 	case domain.MoveDraining:
@@ -110,8 +225,23 @@ func (s *Service) Handoff(ctx context.Context, code string) (*Package, error) {
 	}
 	s.mu.Unlock()
 
-	// No job is left: agents are refused before the copy is taken, so no
-	// agent can change anything the copy should have seen.
+	// No job is left. The agents this manager can place hear the new
+	// manager's address first (once), then agents are refused before the
+	// copy is taken, so no agent changes anything the copy misses.
+	if m.Redirects == nil {
+		m.Redirects = s.sendRedirects(ctx, m)
+		s.mu.Lock()
+		m.UpdatedAt = s.now()
+		err := store.UpdateManagerMove(ctx, s.db, &m, domain.MoveDraining)
+		s.mu.Unlock()
+		if err != nil {
+			if errors.Is(err, domain.ErrManagerMoveState) {
+				return nil, domain.ErrMoveCodeInvalid
+			}
+			return nil, err
+		}
+		audit.SetDetail(ctx, "redirectCount", countSent(m.Redirects))
+	}
 	s.opts.Lock.Set(movelock.AgentsRefused)
 	pkg, err := s.buildPackage(ctx, m, code)
 	s.mu.Lock()
@@ -120,7 +250,7 @@ func (s *Service) Handoff(ctx context.Context, code string) (*Package, error) {
 		s.syncLock(ctx)
 		return nil, fmt.Errorf("copy the manager state: %w", err)
 	}
-	now := s.now()
+	now = s.now()
 	m.State, m.HandedOffAt, m.HandoffAddress, m.UpdatedAt = domain.MoveHandedOff, &now, addr, now
 	if err := store.UpdateManagerMove(ctx, s.db, &m, domain.MoveDraining); err != nil {
 		// The move ended meanwhile (expired or cancelled).
@@ -138,9 +268,23 @@ func (s *Service) Handoff(ctx context.Context, code string) (*Package, error) {
 	return pkg, nil
 }
 
+func countSent(rs []domain.ManagerMoveRedirect) int {
+	n := 0
+	for _, r := range rs {
+		if r.Sent {
+			n++
+		}
+	}
+	return n
+}
+
 // existingPackage returns the package of a handed-off move (built again
 // from the unchanged state when its directory is gone).
 func (s *Service) existingPackage(ctx context.Context, m domain.ManagerMove, code string) (*Package, error) {
+	key, err := packageKey(code, m.ID)
+	if err != nil {
+		return nil, err
+	}
 	dir := s.outgoingDir(m.ID)
 	raw, err := os.ReadFile(filepath.Join(dir, PartManifest)) //nolint:gosec // below the data directory
 	if err == nil {
@@ -150,7 +294,7 @@ func (s *Service) existingPackage(ctx context.Context, m domain.ManagerMove, cod
 			if st, err := os.Stat(filepath.Join(dir, PartManifest)); err == nil {
 				mod = st.ModTime().UTC()
 			}
-			return &Package{dir: dir, Manifest: man, modTime: mod}, nil
+			return &Package{dir: dir, Manifest: man, modTime: mod, key: key}, nil
 		}
 	}
 	s.log.Warn("the handoff package is missing; copying the (locked) state again", "move_id", m.ID)
@@ -173,6 +317,10 @@ func partsPresent(dir string, m Manifest) bool {
 // code, state.json and the manifest. The directory appears complete or not
 // at all.
 func (s *Service) buildPackage(ctx context.Context, m domain.ManagerMove, code string) (*Package, error) {
+	key, err := packageKey(code, m.ID)
+	if err != nil {
+		return nil, err
+	}
 	final := s.outgoingDir(m.ID)
 	tmp := final + ".tmp"
 	if err := os.RemoveAll(tmp); err != nil {
@@ -203,23 +351,23 @@ func (s *Service) buildPackage(ctx context.Context, m domain.ManagerMove, code s
 		}
 		templatesIncluded = true
 	}
-	key := s.opts.Keyring.Primary()
-	sealed, err := sealSecretKey(key, code, s.opts.Instance.ID)
+	sk := s.opts.Keyring.Primary()
+	sealed, err := sealSecretKey(sk, code, s.opts.Instance.ID)
 	if err != nil {
 		return nil, err
 	}
 	if err := os.WriteFile(filepath.Join(tmp, PartSealedKey), sealed, 0o600); err != nil {
 		return nil, err
 	}
-	var migrations []string
-	if s.opts.Migrations != nil {
-		if migrations, err = s.opts.Migrations(ctx); err != nil {
+	var applied []string
+	if s.opts.SchemaMigrations != nil {
+		if applied, err = s.opts.SchemaMigrations(ctx); err != nil {
 			return nil, err
 		}
 	}
 	info := StateInfo{Format: PackageFormat, Version: PackageVersion, MoveID: m.ID, InstanceID: s.opts.Instance.ID, Generation: gen,
 		CreatedAt: now, App: backup.AppInfo{Version: s.opts.Build.Version, Commit: s.opts.Build.Commit},
-		Schema: backup.SchemaInfo{Migrations: migrations}, SecretKeyID: key.ID(), TemplatesIncluded: templatesIncluded}
+		Schema: backup.SchemaInfo{Migrations: applied}, SecretKeyID: sk.ID(), TemplatesIncluded: templatesIncluded}
 	b, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return nil, err
@@ -245,7 +393,7 @@ func (s *Service) buildPackage(ctx context.Context, m domain.ManagerMove, code s
 		return nil, err
 	}
 	ok = true
-	return &Package{dir: final, Manifest: man, modTime: now}, nil
+	return &Package{dir: final, Manifest: man, modTime: now, key: key}, nil
 }
 
 // prepareCopy changes the database copy at path (never the live one): the
@@ -291,15 +439,11 @@ func writeDrafts(file, templatesDir string) error {
 }
 
 // Confirm records that the new manager runs the instance: handed_off →
-// confirmed (repeating it is harmless). Refused outside a secure origin
-// and for unknown or wrong codes (domain.ErrMoveCodeInvalid); any other
-// state answers domain.ErrManagerMoveState (the old manager was resumed,
-// the move ended, or the address reaches the new manager itself).
-func (s *Service) Confirm(ctx context.Context, code string) (domain.ManagerMove, error) {
-	if err := s.checkOrigin(ctx); err != nil {
-		return domain.ManagerMove{}, err
-	}
-	id, err := s.verifyCode(ctx, code)
+// confirmed (repeating it is harmless). Authenticated like Handoff; any
+// other state answers domain.ErrManagerMoveState (the old manager was
+// resumed, the move ended, or the address reaches the new manager itself).
+func (s *Service) Confirm(ctx context.Context, a MoveAuth) (domain.ManagerMove, error) {
+	id, _, err := s.authenticate(ctx, a)
 	if err != nil {
 		return domain.ManagerMove{}, err
 	}

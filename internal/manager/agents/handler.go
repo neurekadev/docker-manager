@@ -101,16 +101,19 @@ func clientIP(r *http.Request) string {
 const MovedRetryAfter = "60"
 
 // moved refuses agent requests once the manager handed its state to a new
-// server (docs/internal/architecture/manager-move.md): 503 with
+// server, or while it waits for a move's handoff
+// (docs/internal/architecture/manager-move.md): 503 with
 // Retry-After, before any credential check, so agents keep their
 // credential and retry (never 401: they would delete it).
 func (h *handler) moved(w http.ResponseWriter, r *http.Request) bool {
 	if !h.svc.opts.MoveLock.AgentsRefused() {
 		return false
 	}
-	api.WriteError(w, r, api.Unavailable(api.CodeUnavailable,
-		"Docker Manager moved to a new server; this manager no longer accepts agents (point the agent at the public address)").
-		WithHeader("Retry-After", MovedRetryAfter))
+	msg := "Docker Manager moved to a new server; this manager no longer accepts agents (point the agent at the public address)"
+	if h.svc.opts.MoveLock.Waiting() {
+		msg = "this Docker Manager waits for a move from another server and accepts agents once the move is done"
+	}
+	api.WriteError(w, r, api.Unavailable(api.CodeUnavailable, msg).WithHeader("Retry-After", MovedRetryAfter))
 	return true
 }
 

@@ -53,5 +53,8 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 8. While the manager moves to a new server, `Register` refuses every
    non-GET operation with 409 `manager_moved` (`moveGuard`, audited). An
    operation a moving manager must still serve (sign-in, sign-out, the
-   move routes) goes in `allowedWhileMoved` (`managermove.go`); see
+   move routes) goes in `allowedWhileMoved` (`managermove.go`). A new
+   manager in waiting mode answers every operation, GETs included, with
+   503 `manager_move_waiting` (`waitingGuard`) except `allowedWhileWaiting`
+   (health, capabilities, `get-move-status`); see
    [manager-move.md](manager-move.md).

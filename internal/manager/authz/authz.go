@@ -154,7 +154,7 @@ func targetType(t domain.TargetType) string {
 // service enforces containment) and the images a build definition run
 // tags are covered by the definition (its tags are part of the definition,
 // managed with build_definition.manage, #33). Repository and template targets are
-// instance resources; a manager target (manager.receive) is the instance.
+// instance resources; a manager target (manager.move) is the instance.
 // A job without targets is authorized on its environment (or the
 // instance).
 func TargetResources(environmentID string, targets []domain.JobTarget) []Resource {

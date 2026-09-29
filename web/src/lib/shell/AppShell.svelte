@@ -2,7 +2,8 @@
 	// The signed-in app shell (#22): sidebar (≥1280 px full, 1024–1279 px icon
 	// rail, <1024 px off-canvas drawer), top bar (sidebar toggle, breadcrumbs,
 	// live indicator, running jobs, ⌘K search, notices, user menu), the offline banner
-	// when the live stream has been down for 5 s, and the offline-environment
+	// when the live stream has been down for 5 s, the banner of a manager that
+	// moves to a new server (read-only, MoveBanner), and the offline-environment
 	// banner for the selected environment (not on that environment's own
 	// page, which says it itself). A single crumb that repeats the page
 	// title is left out. Visited pages feed the palette's "Recent".
@@ -25,6 +26,7 @@
 		updatePoliciesSummaryQuery
 	} from '$lib/api/queries';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
+	import MoveBanner from '$lib/features/managermove/MoveBanner.svelte';
 	import { liveStatus } from '$lib/live/status.svelte';
 	import { bannerDelay, bannerText } from './live-banner';
 	import { routes } from '$lib/routes';
@@ -278,6 +280,7 @@
 			{@const text = bannerText(liveStatus.tooManyStreams)}
 			<Notice tone="offline" icon={CloudOff} title={text.title} bar>{text.body}</Notice>
 		{/if}
+		<MoveBanner owner={access.owner} />
 		{#if selected && !selected.online && !onOwnEnvironmentPage}
 			<div class="env-offline">
 				<OfflineEnvironment name={selected.name} since={selected.connectionChangedAt} />

@@ -536,7 +536,11 @@ func (k *conn) run(f *protocol.Frame, name string, h func(ctx context.Context) (
 		}
 		var end *EndSessionError
 		if errors.As(err, &end) {
-			k.replyAndClose(f.ID, err, end.closeCode(), end.Reason)
+			if end.Err == nil {
+				k.replyAndClose(f.ID, end.Output, nil, end.closeCode(), end.Reason)
+			} else {
+				k.replyAndClose(f.ID, nil, err, end.closeCode(), end.Reason)
+			}
 			return
 		}
 		_ = k.reply(f.ID, out, err)
@@ -613,12 +617,12 @@ func (k *conn) reply(correlationID string, out any, err error) error {
 	return k.send(f)
 }
 
-// replyAndClose answers a request with the error err, then closes the
-// session with code once the answer is written (EndSessionError). code
+// replyAndClose answers a request with out or the error err, then closes
+// the session with code once the answer is written (EndSessionError). code
 // always allows reconnecting, so Run reconnects with backoff and the
 // credential stays.
-func (k *conn) replyAndClose(correlationID string, err error, code websocket.StatusCode, reason string) {
-	f, ferr := k.replyFrame(correlationID, nil, err)
+func (k *conn) replyAndClose(correlationID string, out any, err error, code websocket.StatusCode, reason string) {
+	f, ferr := k.replyFrame(correlationID, out, err)
 	if ferr != nil || k.queue(outFrame{f: f, closeCode: code, reason: reason}) != nil {
 		k.closeWith(code, reason)
 	}
