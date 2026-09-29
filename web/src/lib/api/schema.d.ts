@@ -10520,6 +10520,7 @@ export interface components {
             /**
              * Format: int64
              * @description How many devices were signed out.
+             * @example 2
              */
             count: number;
         };
@@ -35222,7 +35223,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "count": 1
+                     *       "count": 2
                      *     }
                      */
                     "application/json": components["schemas"]["SessionRevocationOutputBody"];

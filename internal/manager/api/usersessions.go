@@ -54,7 +54,7 @@ type userSessionIDInput struct {
 
 type sessionRevocationOutput struct {
 	Body struct {
-		Count int `json:"count" doc:"How many devices were signed out."`
+		Count int `json:"count" example:"2" doc:"How many devices were signed out."`
 	}
 }
 

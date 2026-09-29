@@ -30,5 +30,6 @@ type UserSession struct {
 	Current bool
 }
 
-// ErrUserSessionNotFound: no such session of the user (or it ended).
+// ErrUserSessionNotFound reports that the user has no such session (or it
+// ended).
 var ErrUserSessionNotFound = errors.New("session not found")

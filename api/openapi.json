@@ -14552,6 +14552,9 @@
         "properties": {
           "count": {
             "description": "How many devices were signed out.",
+            "examples": [
+              2
+            ],
             "format": "int64",
             "type": "integer"
           }
@@ -54901,7 +54904,7 @@
             "content": {
               "application/json": {
                 "example": {
-                  "count": 1
+                  "count": 2
                 },
                 "schema": {
                   "$ref": "#/components/schemas/SessionRevocationOutputBody"
