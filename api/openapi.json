@@ -6208,6 +6208,9 @@
           },
           "id": {
             "description": "The environment.migrate job's ID.",
+            "examples": [
+              "0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f"
+            ],
             "type": "string"
           },
           "networks": {
@@ -6271,6 +6274,9 @@
           },
           "targetEnvironmentId": {
             "description": "Required: the destination environment.",
+            "examples": [
+              "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+            ],
             "maxLength": 64,
             "type": "string"
           },
@@ -39436,7 +39442,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {},
+              "example": {
+                "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+              },
               "schema": {
                 "$ref": "#/components/schemas/EnvironmentMigrationBody"
               }
@@ -39798,7 +39806,7 @@
                           "example"
                         ]
                       ],
-                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f",
                       "networks": [
                         "example"
                       ],
@@ -39947,7 +39955,9 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {},
+              "example": {
+                "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+              },
               "schema": {
                 "$ref": "#/components/schemas/EnvironmentMigrationBody"
               }
@@ -40226,7 +40236,7 @@
                       "example"
                     ]
                   ],
-                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "id": "0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f",
                   "networks": [
                     "example"
                   ],

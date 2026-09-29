@@ -7462,7 +7462,10 @@ export interface components {
             /** Format: date-time */
             finishedAt?: string;
             groups: string[][];
-            /** @description The environment.migrate job's ID. */
+            /**
+             * @description The environment.migrate job's ID.
+             * @example 0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f
+             */
             id: string;
             /** @description Networks created on the destination first. */
             networks: string[];
@@ -7478,7 +7481,10 @@ export interface components {
         EnvironmentMigrationBody: {
             /** @description Only these stacks (IDs). Default: every stack of the environment the caller may migrate. */
             stacks?: string[];
-            /** @description Required: the destination environment. */
+            /**
+             * @description Required: the destination environment.
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f
+             */
             targetEnvironmentId?: string;
             /**
              * Format: int64
@@ -25334,7 +25340,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
                 "application/json": components["schemas"]["EnvironmentMigrationBody"];
             };
         };
@@ -25621,7 +25631,7 @@ export interface operations {
                      *               "example"
                      *             ]
                      *           ],
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f",
                      *           "networks": [
                      *             "example"
                      *           ],
@@ -25707,7 +25717,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
                 "application/json": components["schemas"]["EnvironmentMigrationBody"];
             };
         };
@@ -25894,7 +25908,7 @@ export interface operations {
                      *           "example"
                      *         ]
                      *       ],
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f",
                      *       "networks": [
                      *         "example"
                      *       ],

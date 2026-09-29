@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -29,7 +30,7 @@ type EnvironmentMigrationService interface {
 // EnvironmentMigrationBody selects an environment migration's destination
 // and stacks.
 type EnvironmentMigrationBody struct {
-	TargetEnvironmentID string   `json:"targetEnvironmentId,omitempty" maxLength:"64" doc:"Required: the destination environment."`
+	TargetEnvironmentID string   `json:"targetEnvironmentId,omitempty" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f" maxLength:"64" doc:"Required: the destination environment."`
 	Stacks              []string `json:"stacks,omitempty" maxItems:"64" doc:"Only these stacks (IDs). Default: every stack of the environment the caller may migrate."`
 	TimeoutSeconds      int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period of the source's containers."`
 }
@@ -119,7 +120,7 @@ type EnvironmentMigrationStack struct {
 
 // EnvironmentMigration is an environment migration's record.
 type EnvironmentMigration struct {
-	ID                  string                      `json:"id" doc:"The environment.migrate job's ID."`
+	ID                  string                      `json:"id" example:"0192f5e4-9c1d-7a2b-8e3f-4a5b6c7d8e9f" doc:"The environment.migrate job's ID."`
 	SourceEnvironmentID string                      `json:"sourceEnvironmentId"`
 	TargetEnvironmentID string                      `json:"targetEnvironmentId"`
 	State               string                      `json:"state" enum:"running,completed,failed,cancelled,interrupted"`
@@ -187,7 +188,8 @@ type environmentMigrationListOutput struct {
 
 type environmentMigrationsAPI struct {
 	svc    EnvironmentMigrationService
-	docker *dockerAPI
+	agents AgentService
+	authz  authz.Authorizer
 	stacks StackService
 }
 
@@ -199,13 +201,31 @@ func (h *environmentMigrationsAPI) available() error {
 }
 
 // source requires a visible source environment and, for previews and
-// starts, a visible destination where the caller may create stacks.
-func (h *environmentMigrationsAPI) source(ctx context.Context, env, target string, mutation bool) (*scope, error) {
-	sc, err := h.docker.environment(ctx, env, mutation)
+// starts, stack.migrate on one of its stacks and a visible destination
+// where the caller may create stacks.
+func (h *environmentMigrationsAPI) source(ctx context.Context, envID, target string, mutation bool) (*scope, error) {
+	c, p, err := CheckerFor(ctx, h.authz)
 	if err != nil {
 		return nil, err
 	}
+	if h.agents == nil {
+		return nil, Unavailable(CodeUnavailable, "the environment service is not available")
+	}
+	env, err := h.agents.GetEnvironment(ctx, envID)
+	if errors.Is(err, domain.ErrEnvironmentNotFound) || (err == nil && !authz.ViewOf(c, authz.EnvironmentResource(env.ID)).Visible()) {
+		return nil, NotFound("environment not found")
+	}
+	if err != nil {
+		return nil, Internal(err)
+	}
+	sc := &scope{c: c, p: p, env: env}
 	if mutation {
+		if env.Status == domain.EnvironmentArchived {
+			return nil, Conflict(CodeEnvironmentArchived, "the environment is archived")
+		}
+		if !h.migratesAny(ctx, c, env.ID) {
+			return nil, Forbidden("not permitted: " + string(CapStackMigrate))
+		}
 		if err := requireTarget(target); err != nil {
 			return nil, err
 		}
@@ -214,6 +234,24 @@ func (h *environmentMigrationsAPI) source(ctx context.Context, env, target strin
 		}
 	}
 	return sc, h.available()
+}
+
+// migratesAny reports whether the caller may migrate a stack of the
+// environment.
+func (h *environmentMigrationsAPI) migratesAny(ctx context.Context, c authz.Checker, env string) bool {
+	if h.stacks == nil {
+		return false
+	}
+	all, err := h.stacks.List(ctx, domain.StackFilter{EnvironmentID: env})
+	if err != nil {
+		return false
+	}
+	for _, st := range all {
+		if c.Can(string(CapStackMigrate), stackResource(st)).Allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // stackVisible reports whether the caller sees a stack where it is now.
@@ -297,7 +335,7 @@ func (h *environmentMigrationsAPI) get(ctx context.Context, in *environmentMigra
 }
 
 func registerEnvironmentMigrations(a huma.API, deps Deps) {
-	h := &environmentMigrationsAPI{svc: deps.EnvironmentMigrations, docker: newDockerAPI(deps), stacks: deps.Stacks}
+	h := &environmentMigrationsAPI{svc: deps.EnvironmentMigrations, agents: deps.Agents, authz: authz.OrDenyAll(deps.Authorizer), stacks: deps.Stacks}
 	previewErrs := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
 		http.StatusUnprocessableEntity, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout}
 	env := BasePath + "/environments/{environmentId}"
