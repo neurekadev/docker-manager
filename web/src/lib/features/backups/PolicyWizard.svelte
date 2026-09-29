@@ -92,6 +92,7 @@
 	let excludeVolumes = $state<string[]>(p0?.excludeVolumes ?? []);
 	let anonymousVolumes = $state(p0?.anonymousVolumes ?? false);
 	let buildxVolumes = $state(p0?.buildxVolumes ?? false);
+	let externalBinds = $state(p0?.externalBinds ?? false);
 	let shutdown = $state(p0?.shutdown ?? false);
 	let enabled = $state(p0?.schedule?.enabled ?? false);
 	let cron = $state(p0?.schedule?.cron ?? '');
@@ -134,6 +135,7 @@
 			excludeVolumes,
 			anonymousVolumes,
 			buildxVolumes,
+			externalBinds,
 			shutdown,
 			enabled,
 			cron,
@@ -203,6 +205,7 @@
 			excludeVolumes,
 			anonymousVolumes,
 			buildxVolumes,
+			externalBinds,
 			repositoryId,
 			environmentRepositories: er,
 			includeManagerState: includeManager,
@@ -375,6 +378,7 @@
 		void excludeVolumes;
 		void anonymousVolumes;
 		void buildxVolumes;
+		void externalBinds;
 		void includeManager;
 		void shutdown;
 		void scopeMode;
@@ -496,6 +500,12 @@
 					/>
 				</div>
 			{/each}
+			<Switch
+				label="Back up allowed folders outside stacks"
+				description="Off by default. On: folders a stack mounts from outside its own folder (such as /srv/media) are backed up too, but only those the server allows (see Backups in the documentation)."
+				bind:checked={externalBinds}
+				onchange={() => (touched = true)}
+			/>
 		</FieldGroup>
 		<FieldGroup
 			legend="Volumes"

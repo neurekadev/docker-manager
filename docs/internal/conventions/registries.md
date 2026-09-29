@@ -1,6 +1,6 @@
 # Registry connections (#19)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/registries.md`. Owner-administered, write-only
 registry credentials (`internal/manager/registries`, `app.Manager.Registries()`).

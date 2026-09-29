@@ -102,7 +102,7 @@ services:
   docker-agent:
     volumes:
       # ...keep the existing lines...
-      - /opt/stacks:/import:ro
+      - /opt/stacks:/import/stacks:ro
 ```
 
 To keep projects where they are instead of copying them, mount the folder

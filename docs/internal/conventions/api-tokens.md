@@ -1,6 +1,6 @@
 # API tokens (#31)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/api-tokens.md`. Tokens are `dy_<id>_<secret>`
 (`authsep.MintAPIToken`), verifier-only at rest, owned by one user, with

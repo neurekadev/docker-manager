@@ -346,7 +346,7 @@ Projects that live elsewhere on the host (for example `/opt/stacks/<name>`
 from another tool) are imported by **moving** them into the stacks volume.
 The agent needs to read them: mount the host directory, or one above it,
 into the agent **at or below `/import`** (`storage.ImportDir`; read-only is
-enough, e.g. `/opt/stacks:/import:ro`, or several mounts such as
+enough, e.g. `/opt/stacks:/import/stacks:ro`, or several mounts such as
 `/import/opt` and `/import/srv`). The mount is optional: without it
 everything else works and such projects are simply not copyable. The agent
 finds its import mounts in its own container's mounts at startup

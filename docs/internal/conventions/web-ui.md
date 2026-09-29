@@ -1,6 +1,6 @@
 # Web UI (#22)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
 `docs/internal/web.md` (client, PWA); live gallery `/design`. Dark-only v1.

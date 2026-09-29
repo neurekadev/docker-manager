@@ -28,6 +28,7 @@ const policy: BackupPolicy = {
 	excludeVolumes: [],
 	anonymousVolumes: false,
 	buildxVolumes: false,
+	externalBinds: false,
 	enabled: false,
 	view: 'full',
 	actions: ['backup_policy.manage'],
@@ -160,6 +161,9 @@ describe('PolicyWizard (#10)', () => {
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
 		await user.click(screen.getByRole('switch', { name: /Back up anonymous volumes/ }));
+		await user.click(
+			screen.getByRole('switch', { name: /Back up allowed folders outside stacks/ })
+		);
 		for (const next of ['Schedule', 'Retention']) {
 			await user.click(screen.getByRole('button', { name: 'Next' }));
 			expect(await heading(next)).toBeInTheDocument();
@@ -192,6 +196,7 @@ describe('PolicyWizard (#10)', () => {
 				scope: 'all',
 				repositoryId: 'r1',
 				anonymousVolumes: true,
+				externalBinds: true,
 				shutdown: false,
 				schedule: { enabled: false },
 				retention: {

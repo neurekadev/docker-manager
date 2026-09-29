@@ -479,6 +479,7 @@ type backupPolicyRow struct {
 	ExcludeVolumes   string    `bun:"exclude_volumes,notnull"`
 	AnonymousVolumes int       `bun:"anonymous_volumes,notnull"`
 	BuildxVolumes    int       `bun:"buildx_volumes,notnull"`
+	ExternalBinds    int       `bun:"external_binds,notnull"`
 	RepositoryID     string    `bun:"repository_id,notnull"`
 	EnvironmentRepos string    `bun:"environment_repos,notnull"`
 	IncludeManager   int       `bun:"include_manager,notnull"`
@@ -516,7 +517,7 @@ func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
 		volumes = []domain.BackupVolumeSelection{}
 	}
 	return backupPolicyRow{ID: p.ID, Name: p.Name, NameKey: NameKey(p.Name), EnvironmentID: p.EnvironmentID,
-		ExcludeStacks: jsonText(p.ExcludeStacks), ExcludeVolumes: jsonText(p.ExcludeVolumes), AnonymousVolumes: b2i(p.AnonymousVolumes), BuildxVolumes: b2i(p.BuildxVolumes), RepositoryID: p.RepositoryID,
+		ExcludeStacks: jsonText(p.ExcludeStacks), ExcludeVolumes: jsonText(p.ExcludeVolumes), AnonymousVolumes: b2i(p.AnonymousVolumes), BuildxVolumes: b2i(p.BuildxVolumes), ExternalBinds: b2i(p.ExternalBinds), RepositoryID: p.RepositoryID,
 		EnvironmentRepos: jsonText(repos), IncludeManager: b2i(p.IncludeManager), IncludeMetrics: b2i(p.IncludeMetrics),
 		Stacks: jsonText(stacks), Volumes: jsonText(volumes), Shutdown: b2i(p.Shutdown), Cron: p.Cron, TimeZone: p.TimeZone,
 		Enabled: b2i(p.Enabled), Retention: jsonText(p.Retention), Revision: p.Revision, CreatedAt: p.CreatedAt.UTC(),
@@ -525,7 +526,7 @@ func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
 
 func (r backupPolicyRow) toDomain() domain.BackupPolicy {
 	p := domain.BackupPolicy{ID: r.ID, Name: r.Name, EnvironmentID: r.EnvironmentID, AnonymousVolumes: r.AnonymousVolumes == 1,
-		BuildxVolumes: r.BuildxVolumes == 1, RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
+		BuildxVolumes: r.BuildxVolumes == 1, ExternalBinds: r.ExternalBinds == 1, RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
 		IncludeMetrics: r.IncludeMetrics == 1, Shutdown: r.Shutdown == 1, Cron: r.Cron, TimeZone: r.TimeZone, Enabled: r.Enabled == 1,
 		Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 	_ = json.Unmarshal([]byte(r.EnvironmentRepos), &p.EnvironmentRepos)

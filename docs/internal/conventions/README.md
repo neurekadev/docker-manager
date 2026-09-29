@@ -4,7 +4,7 @@ The binding rules for code changes, one file per area. Find the rows that
 match the code you are about to touch and read only those files (plus
 the guide a file points to, when you need its detail). Every change also
 follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
-`AGENTS.md`.
+`CLAUDE.md`.
 
 | Area | You touch | Read |
 | --- | --- | --- |

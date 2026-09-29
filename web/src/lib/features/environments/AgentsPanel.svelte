@@ -26,6 +26,7 @@
 		ErrorState,
 		IconButton,
 		Menu,
+		Notice,
 		Skeleton,
 		StatusBadge,
 		Table,
@@ -46,6 +47,10 @@
 				b.id.localeCompare(a.id)
 		)
 	);
+
+	// Detached: only removed agents are left. Re-attaching enrolls a new one
+	// (the empty list offers the same in its empty state).
+	const detached = $derived(rows.length > 0 && !rows.some((a) => a.status === 'active'));
 
 	let target = $state<Agent | null>(null);
 	let rotateOpen = $state(false);
@@ -200,6 +205,17 @@
 			/>
 		</div>
 	{:else}
+		{#if detached}
+			<div class="pad">
+				<Notice tone="info" title="No agent is attached." live="none">
+					{env.name} stays offline until you re-attach it by enrolling an agent on its Docker
+					Engine.
+					{#snippet actions()}
+						<Button size="sm" href={routes.addEnvironment(env.id)}>Re-attach</Button>
+					{/snippet}
+				</Notice>
+			</div>
+		{/if}
 		<Table label="Agents of {env.name}" {rows} {columns} rowKey={(a) => a.id} manualSort>
 			{#snippet empty()}
 				<EmptyState

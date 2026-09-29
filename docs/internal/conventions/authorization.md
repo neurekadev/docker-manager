@@ -1,6 +1,6 @@
 # Authorization (#17)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/authorization.md`. Owner bypass, then the most
 specific user rule, then the most specific group rule, then deny.

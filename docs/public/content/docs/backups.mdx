@@ -61,10 +61,35 @@ failed.
 ## What is not backed up
 
 - Folders a stack mounts from outside its own folder, such as
-  `/mnt/media:/media`. Back those up another way.
+  `/srv/media:/media`, unless you [allow them](#back-up-folders-outside-a-stack).
 - Anonymous volumes, unless you turn on **Back up anonymous volumes**.
 - Volumes with the label `docker-manager.backup.exclude=true`, and the
   volumes of a container with that label.
+
+## Back up folders outside a stack
+
+A stack can mount a folder of the server from outside its own folder, such
+as `/srv/media`. To back it up:
+
+1. Allow the folder on that server's agent: mount it at the same path and
+   list it in `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` (several folders
+   separated by commas).
+
+   ```yaml title="compose.yaml"
+   services:
+     docker-agent:
+       environment:
+         # ...keep the existing lines...
+         DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST: /srv/media
+       volumes:
+         # ...keep the existing lines...
+         - /srv/media:/srv/media
+   ```
+
+2. In the backup policy, turn on **Back up allowed folders outside stacks**.
+
+System folders such as `/proc` or `/dev`, and Docker's own data folder, are
+never backed up.
 
 ## Restore
 

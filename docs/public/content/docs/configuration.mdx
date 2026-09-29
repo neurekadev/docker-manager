@@ -125,7 +125,7 @@ Leave these as they are unless you know you need them.
 | `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your [own certificate authority](#your-own-certificate-authority). |
 | `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are, separated by commas (see [Import a project](/docs/stacks#import-a-project)). |
 | `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to, separated by commas. |
-| `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backup policies may include, separated by commas. Only policies created through the API can include them. |
+| `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/docs/backups#back-up-folders-outside-a-stack)). |
 | `DOCKER_AGENT_WATCH_MAX` | half the server's limit | How many folders the agent watches for live file changes. Beyond it, folders are checked every 30 seconds. |
 | `DOCKER_AGENT_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
 | `DOCKER_AGENT_LOG_FORMAT` | `json` | The log's format: `json` or `text`. |

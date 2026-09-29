@@ -1,6 +1,6 @@
 # Observation (#5)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/metrics.md`. Agent: `internal/agent/observe`
 (procfs sampler, container stats, ring, `engine.info`/`host.metrics`, Docker

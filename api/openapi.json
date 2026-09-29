@@ -2099,6 +2099,10 @@
             },
             "type": "array"
           },
+          "externalBinds": {
+            "description": "Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST.",
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
@@ -2176,6 +2180,7 @@
           "excludeStacks",
           "excludeVolumes",
           "anonymousVolumes",
+          "externalBinds",
           "buildxVolumes",
           "enabled",
           "view",
@@ -12477,6 +12482,10 @@
             "maxItems": 256,
             "type": "array"
           },
+          "externalBinds": {
+            "description": "Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST.",
+            "type": "boolean"
+          },
           "includeManagerState": {
             "description": "Back up the manager's state (owner only: manager backups are owner-only).",
             "type": "boolean"
@@ -18306,6 +18315,9 @@
             "maxItems": 256,
             "type": "array"
           },
+          "externalBinds": {
+            "type": "boolean"
+          },
           "includeManagerState": {
             "type": "boolean"
           },
@@ -23612,6 +23624,7 @@
                       "excludeVolumes": [
                         "example"
                       ],
+                      "externalBinds": false,
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "includeManagerState": false,
                       "includeMetrics": false,
@@ -23811,6 +23824,7 @@
                   "excludeVolumes": [
                     "example"
                   ],
+                  "externalBinds": false,
                   "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "includeManagerState": false,
                   "includeMetrics": false,
@@ -24204,6 +24218,7 @@
                   "excludeVolumes": [
                     "example"
                   ],
+                  "externalBinds": false,
                   "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "includeManagerState": false,
                   "includeMetrics": false,
@@ -24442,6 +24457,7 @@
                   "excludeVolumes": [
                     "example"
                   ],
+                  "externalBinds": false,
                   "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "includeManagerState": false,
                   "includeMetrics": false,

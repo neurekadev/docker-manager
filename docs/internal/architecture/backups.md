@@ -214,8 +214,12 @@ workspace, every relative bind source inside it) and its **named volumes**
 (per-volume include/exclude). **Anonymous volumes** only with the policy's
 toggle (default off). **Bind sources outside the project directory**
 (`../data`, `/srv/x`) are shown in the preview as `requires_opt_in`; they are
-included only when the policy lists them in `externalPaths` **and** they lie
-below the agent's `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`; system paths and
+included only when the stack's selection lists them in `externalPaths` **and** they lie
+below the agent's `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`. A policy's `externalBinds`
+switch (default off; UI: **Back up allowed folders outside stacks**) fills
+each selected stack's `externalPaths` with its recorded outside bind sources
+(`StackBind.External`, `externalBindSources`: clean absolute paths, at most
+64) in `scopeSelections`; system paths and
 Docker's data root never. Path excludes are relative to the project
 directory (or the volume root). Sources resolve through symlinks and must
 stay in their root (a symlinked bind leading out is `blocked`); restic

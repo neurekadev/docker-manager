@@ -1,6 +1,6 @@
 # Operability (#34)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guides: `docs/internal/operations/upgrades.md`, `docs/internal/operations/removing-hosts.md`,
 `docs/internal/operations/diagnostics.md`. Removal preview `internal/manager/removal`;

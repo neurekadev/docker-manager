@@ -1,6 +1,6 @@
 # Byte streams and scoped files (#15)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 - **Streams** (logs, exec, file transfers, migrations): the manager opens
   them with `hub.OpenStream(ctx, envID, protocol.StreamX, input,

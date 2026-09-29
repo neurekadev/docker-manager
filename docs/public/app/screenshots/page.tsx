@@ -27,7 +27,7 @@ export default function Screenshots() {
       {items.length > 0 ? (
         <>
           <p className="mt-3 max-w-xl text-lg text-fd-muted-foreground">
-            Every server, stack and container in one place, on any screen.
+            Every server, stack and container in one pane of glass, on any screen.
           </p>
           <ScreenshotGallery items={items} />
         </>

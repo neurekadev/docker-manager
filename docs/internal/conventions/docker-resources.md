@@ -1,6 +1,6 @@
 # Docker resources (#6)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/docker-resources.md`. Manager:
 `internal/manager/resources` (`app.Manager.Resources()`); agent:

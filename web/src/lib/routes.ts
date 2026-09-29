@@ -44,7 +44,7 @@ export const routes = {
 		`/environments/${e(id)}${tab ? `?tab=${tab}` : ''}`,
 	/** Move every stack of the environment to another one (#35). */
 	environmentMigrate: (id: string) => `/environments/${e(id)}/migrate`,
-	/** Enroll an agent: a new environment, or re-attach an archived one. */
+	/** Enroll an agent: a new environment, or re-attach an archived or detached one. */
 	addEnvironment: (reattach?: string) =>
 		`/environments/add${reattach ? `?reattach=${e(reattach)}` : ''}`,
 	stacks: () => '/stacks',

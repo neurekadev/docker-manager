@@ -286,6 +286,10 @@ type BackupPolicy struct {
 	// BuildxVolumes also backs up buildx builder volumes (default off:
 	// rebuildable build cache, protocol.IsBuildxVolume).
 	BuildxVolumes bool
+	// ExternalBinds also backs up the selected stacks' bind sources outside
+	// their project directories (default off); each agent still backs up
+	// only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST.
+	ExternalBinds bool
 	// RepositoryID is the destination of every scope; EnvironmentRepos
 	// overrides it per environment (local repositories live on each
 	// environment's own agent).

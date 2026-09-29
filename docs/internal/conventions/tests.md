@@ -1,6 +1,6 @@
 # Tests
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 - The standard suite is format/lint plus isolated unit tests (owner decision,
   2026-09-25). Unit tests live next to the code, are Docker-free and

@@ -1,5 +1,5 @@
 // The Screenshots page (app/screenshots): one entry per feature, in the
-// docs' order. Images live in public/screenshots/<slug>-<device>.png and are
+// docs' order. Images live in public/screenshots/<device>/<slug>.png and are
 // taken from a fresh instance that holds only the Docker Manager stack
 // (docs/internal/conventions/user-docs.md). Entries without images are
 // left out when the site is built.
@@ -40,5 +40,5 @@ export const screenshots: Screenshot[] = [
 ];
 
 export function screenshotSrc(slug: string, device: DeviceId): string {
-  return `/screenshots/${slug}-${device}.png`;
+  return `/screenshots/${device}/${slug}.png`;
 }

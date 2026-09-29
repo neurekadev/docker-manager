@@ -1,6 +1,6 @@
 # User documentation (`docs/public`)
 
-Binding conventions (split out of AGENTS.md). Read this file whenever a
+Binding conventions (split out of CLAUDE.md). Read this file whenever a
 change alters what users see or do, and before you touch
 `docs/public/content/docs`.
 
@@ -115,7 +115,7 @@ the docs at `/docs/` and to the Screenshots page (`app/screenshots`).
 `code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
 `main` that change `docs/public/**`.
 
-Screenshots live in `docs/public/public/screenshots/<page>-<desktop|tablet|mobile>.png`,
+Screenshots live in `docs/public/public/screenshots/<desktop|tablet|mobile>/<page>.png`,
 listed in `docs/public/lib/screenshots.ts`. Take them from a fresh instance
 that holds only the Docker Manager stack (never real data), at 1440×900
 (desktop), 820×1180 (tablet) and 390×844 (mobile). Retake the affected ones

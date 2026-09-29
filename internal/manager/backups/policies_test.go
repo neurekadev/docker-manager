@@ -105,3 +105,23 @@ func TestExcludedVolumesPerEnvironment(t *testing.T) {
 		t.Errorf("all environments, e3: %v", got)
 	}
 }
+
+// TestExternalBindSources: a policy with ExternalBinds opts in each bind
+// source outside the project directory once, never inside ones or paths
+// the agent would refuse as rules.
+func TestExternalBindSources(t *testing.T) {
+	binds := []domain.StackBind{
+		{Service: "app", Source: "/srv/media", External: true},
+		{Service: "worker", Source: "/srv/media", External: true},
+		{Service: "app", Source: "/opt/stacks/shop/data", RelPath: "data"},
+		{Service: "app", Source: "/", External: true},
+		{Service: "app", Source: "/srv/../etc", External: true},
+		{Service: "db", Source: "/mnt/backups", External: true},
+	}
+	if got, want := externalBindSources(binds), []string{"/srv/media", "/mnt/backups"}; !slices.Equal(got, want) {
+		t.Errorf("sources %v, want %v", got, want)
+	}
+	if got := externalBindSources(nil); len(got) != 0 {
+		t.Errorf("no binds gave %v", got)
+	}
+}

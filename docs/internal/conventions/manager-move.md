@@ -1,6 +1,6 @@
 # Moving the manager (manager move)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/manager-move.md`. Packages:
 `internal/manager/managermove` (the move, `manager.move`, the signed and

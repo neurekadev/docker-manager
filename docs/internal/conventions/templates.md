@@ -1,6 +1,6 @@
 # Stack templates (template registry)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/templates.md`. Manager:
 `internal/manager/templates` (`app.Manager` wires it); API:

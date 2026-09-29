@@ -1,6 +1,6 @@
 # Image builds (#33)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/builds.md`. Git credentials
 (`internal/manager/gitcreds`) mirror registry connections; builds

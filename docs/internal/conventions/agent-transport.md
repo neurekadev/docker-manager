@@ -1,6 +1,6 @@
 # Agent transport (#3)
 
-Binding conventions (split out of AGENTS.md). Read this file when your change touches this area.
+Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Manager side: `internal/manager/agents` (`Service`: enrollment, agents,
 environments; `Hub`: live sessions). Agent side: `internal/agent/session`
