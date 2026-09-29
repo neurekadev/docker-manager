@@ -300,7 +300,7 @@ describe('StackHeader', () => {
 			'aria-disabled',
 			'true'
 		);
-		expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAccessibleDescription(reason);
+		expect(screen.getByRole('menuitem', { name: 'Stop' })).not.toHaveAccessibleDescription();
 	});
 
 	it('hides what the caller may not do (the server still decides)', () => {
@@ -435,7 +435,7 @@ describe('StackHeader', () => {
 		});
 	});
 
-	it('pulls every image and deploys from the menu, saying when newer images are available', async () => {
+	it('pulls every image and deploys from the menu', async () => {
 		const user = setup();
 		const tray = header(stack());
 		// No separate Update button any more: Pull & Deploy replaces it.
@@ -446,7 +446,7 @@ describe('StackHeader', () => {
 			})
 		);
 		const item = await screen.findByRole('menuitem', { name: 'Pull & Deploy' });
-		expect(item).toHaveAccessibleDescription('Newer images are available');
+		expect(item).not.toHaveAccessibleDescription();
 		await user.click(item);
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and deploy Silo'));
 		expect(tray.jobs[0]).toMatchObject({ failure: 'Silo was not pulled and deployed' });

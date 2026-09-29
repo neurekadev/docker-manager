@@ -427,7 +427,6 @@
 						{
 							label: 'Pull & Deploy',
 							icon: Download,
-							description: 'Newer images are available',
 							onSelect: () => toast.success('Pulled newer images and redeployed Silo')
 						},
 						{

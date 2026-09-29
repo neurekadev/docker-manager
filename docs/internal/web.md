@@ -262,9 +262,9 @@ computes the success toast once it ended, from data read again (a deploy
 whose `appliedRevision.at` did not move started no container: "Nothing to
 deploy"). Deploy is the header's one primary action (a split button that
 deploys at once); its menu has "Build & Deploy" (stacks with a `build:`
-section), "Pull & Deploy" (one deploy with `pull: always`; its description
-says "Newer images are available" when `updateAvailable`, and the menu
-button's label says so too) and "Cleanup Orphans & Deploy", whose
+section), "Pull & Deploy" (one deploy with `pull: always`; the menu
+button's accessible label says "newer images are available" when
+`updateAvailable`) and "Cleanup Orphans & Deploy", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
 context's `removeOrphans` request) the overview's drift notice ("Remove old
 containers…") opens too. There is no separate Update button; schedules and
@@ -288,7 +288,8 @@ hides Start and Restart). Offline, a rename in
 progress or a running Start/Restart (`busy`: the main part shows that
 action with a spinner) turn the whole button off. Docker Manager's own
 stack keeps Restart and Stop visible but off, with the reason as the
-main part's tooltip, the menu items' description and an `sr-only` text;
+main part's tooltip and an `sr-only` text (menu items carry no
+description);
 Docker Manager's own containers keep them on (the server refuses with its
 reason; the page's notice says so up front). Start and Restart run at
 once; Stop confirms with its consequences. Row menus (services table,

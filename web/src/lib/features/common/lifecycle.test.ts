@@ -109,11 +109,11 @@ describe('LifecycleButton', () => {
 		const main = screen.getByRole('button', { name: 'Stop' });
 		expect(main).toBeDisabled();
 		expect(main).toHaveAttribute('title', reason);
-		// The menu stays open to read why.
+		// The menu items carry no description; the main part's tooltip says why.
 		const items = await menuItems(user);
 		expect(items[1]).toHaveAttribute('aria-disabled', 'true');
-		expect(items[1]).toHaveAccessibleDescription(reason);
-		expect(items[2]).toHaveAccessibleDescription(reason);
+		expect(items[1]).not.toHaveAccessibleDescription();
+		expect(items[2]).not.toHaveAccessibleDescription();
 		expect(spies.stop).not.toHaveBeenCalled();
 	});
 

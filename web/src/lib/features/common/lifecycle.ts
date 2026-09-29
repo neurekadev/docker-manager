@@ -11,7 +11,7 @@ export interface LifecycleAction {
 	run: () => void;
 	/** Off in this state or for this object; the menu still lists it. */
 	disabled?: boolean;
-	/** Why it is off: the menu item's description, the main part's tooltip. */
+	/** Why it is off: the main part's tooltip. */
 	reason?: string;
 }
 
@@ -45,7 +45,6 @@ export interface LifecycleEntry {
 	verb: LifecycleVerb;
 	label: string;
 	disabled: boolean;
-	description?: string;
 }
 
 /** The menu's entries: the held actions in the order Start, Restart, Stop. */
@@ -57,8 +56,7 @@ export function lifecycleEntries(actions: LifecycleActions, allOff = false): Lif
 			{
 				verb,
 				label: LIFECYCLE_LABELS[verb],
-				disabled: allOff || !!a.disabled,
-				description: a.disabled ? a.reason : undefined
+				disabled: allOff || !!a.disabled
 			}
 		];
 	});

@@ -36,16 +36,16 @@ describe('lifecycle button model', () => {
 		expect(lifecycleEntries({})).toEqual([]);
 	});
 
-	it('turns off what does not apply and says why', () => {
+	it('turns off what does not apply', () => {
 		const entries = lifecycleEntries({
 			start: { run, disabled: true },
 			restart: { run, disabled: true, reason: 'Protected' },
 			stop: { run }
 		});
 		expect(entries).toEqual([
-			{ verb: 'start', label: 'Start', disabled: true, description: undefined },
-			{ verb: 'restart', label: 'Restart', disabled: true, description: 'Protected' },
-			{ verb: 'stop', label: 'Stop', disabled: false, description: undefined }
+			{ verb: 'start', label: 'Start', disabled: true },
+			{ verb: 'restart', label: 'Restart', disabled: true },
+			{ verb: 'stop', label: 'Stop', disabled: false }
 		]);
 		expect(lifecycleEntries(all, true).every((e) => e.disabled)).toBe(true);
 	});

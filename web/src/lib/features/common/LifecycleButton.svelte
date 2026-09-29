@@ -68,7 +68,6 @@
 			icon: LOOK[e.verb].icon,
 			tone: e.verb === 'stop' ? 'danger' : undefined,
 			disabled: e.disabled,
-			description: e.description,
 			onSelect: () => actions[e.verb]?.run()
 		}))
 	);

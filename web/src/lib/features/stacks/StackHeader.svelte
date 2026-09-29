@@ -305,7 +305,6 @@
 		items.push({
 			label: 'Pull & Deploy',
 			icon: Download,
-			description: updateDot ? 'Newer images are available' : undefined,
 			onSelect: () => deploy({ pull: true })
 		});
 		items.push({
