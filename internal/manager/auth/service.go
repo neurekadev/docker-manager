@@ -50,10 +50,14 @@ type ServiceOptions struct {
 	Logger           *slog.Logger
 	PublicURL        *url.URL
 	LocalDevelopment bool
-	// IdleTimeout and Lifetime bound sessions (checked on the injected
-	// clock on every request, in addition to SCS's own expiry).
-	IdleTimeout time.Duration
-	Lifetime    time.Duration
+	// IdleTimeout and Lifetime bound sessions, StayIdleTimeout and
+	// StayLifetime those signed in with "Stay signed in" (checked on the
+	// injected clock on every request, in addition to SCS's own expiry;
+	// zero: the kit's).
+	IdleTimeout     time.Duration
+	Lifetime        time.Duration
+	StayIdleTimeout time.Duration
+	StayLifetime    time.Duration
 	// Audit records security events (#30). Nil logs them.
 	Audit Auditor
 	// Idempotency is told when a principal's sessions or credentials
@@ -72,6 +76,8 @@ type Service struct {
 	localDev  bool
 	idle      time.Duration
 	lifetime  time.Duration
+	stayIdle  time.Duration
+	stayLife  time.Duration
 	audit     Auditor
 	idem      Forgetter
 	hub       *hub
@@ -97,9 +103,16 @@ func NewService(ctx context.Context, o ServiceOptions) (*Service, error) {
 	if o.Lifetime <= 0 {
 		o.Lifetime = o.Kit.Lifetime
 	}
+	if o.StayIdleTimeout <= 0 {
+		o.StayIdleTimeout = o.Kit.StayIdleTimeout
+	}
+	if o.StayLifetime <= 0 {
+		o.StayLifetime = o.Kit.StayLifetime
+	}
 	s := &Service{
 		db: o.DB, kit: o.Kit, keyring: o.Keyring, clk: o.Kit.Clock, log: o.Logger, publicURL: o.PublicURL,
-		localDev: o.LocalDevelopment, idle: o.IdleTimeout, lifetime: o.Lifetime, audit: o.Audit, idem: o.Idempotency,
+		localDev: o.LocalDevelopment, idle: o.IdleTimeout, lifetime: o.Lifetime, stayIdle: o.StayIdleTimeout, stayLife: o.StayLifetime,
+		audit: o.Audit, idem: o.Idempotency,
 		hub: newHub(),
 	}
 	if id, ok, err := store.OwnerID(ctx, o.DB); err != nil {
@@ -210,7 +223,7 @@ func (s *Service) RunStreamSweeper(ctx context.Context) {
 // no longer valid (a token revoked by another process, expired while a
 // stream was open, or disabled instance-wide).
 func (s *Service) SweepStreams(ctx context.Context) error {
-	live, tokens := s.hub.snapshot()
+	live, sids, tokens := s.hub.snapshot()
 	if len(live) > 0 {
 		ids := make([]string, 0, len(live))
 		for id := range live {
@@ -227,6 +240,26 @@ func (s *Service) SweepStreams(ctx context.Context) error {
 				continue
 			}
 			s.hub.revoke(id, st.Epoch)
+		}
+	}
+	if len(sids) > 0 {
+		// Devices signed out by another request (or process) or ended.
+		ids := make([]string, 0, len(sids))
+		for id := range sids {
+			ids = append(ids, id)
+		}
+		alive, err := store.LiveUserSessionIDs(ctx, s.db, ids)
+		if err != nil {
+			return err
+		}
+		var ended []string
+		for _, id := range ids {
+			if !alive[id] {
+				ended = append(ended, id)
+			}
+		}
+		if len(ended) > 0 {
+			s.hub.revokeSessions(ended, authz.ErrSessionEnded, 0)
 		}
 	}
 	return s.sweepTokens(ctx, tokens)

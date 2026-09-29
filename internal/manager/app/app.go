@@ -263,7 +263,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// party fails startup here, before anything listens.
 	if m.auth, err = auth.NewKit(auth.KitOptions{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "auth"), PublicURL: cfg.PublicURL,
-		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime, PasswordParams: opts.PasswordParams,
+		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime,
+		StayIdleTimeout: cfg.Sessions.StayIdleTimeout, StayLifetime: cfg.Sessions.StayLifetime, PasswordParams: opts.PasswordParams,
 		OnPasswordCompute: opts.OnPasswordCompute,
 		SessionError: func(w http.ResponseWriter, r *http.Request, err error) {
 			api.WriteError(w, r, api.Internal(err))
@@ -300,6 +301,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		DB: db, Kit: m.auth, Keyring: m.keyring, Logger: log.With("component", "identity"),
 		PublicURL: cfg.PublicURL, LocalDevelopment: cfg.LocalDevelopment,
 		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime,
+		StayIdleTimeout: cfg.Sessions.StayIdleTimeout, StayLifetime: cfg.Sessions.StayLifetime,
 		Audit: identityAuditor, Idempotency: m.idem,
 	})
 	if err != nil {

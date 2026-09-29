@@ -277,10 +277,13 @@ func BumpAllSessionEpochs(ctx context.Context, db bun.IDB, now time.Time) ([]str
 	return ids, nil
 }
 
-// DeleteAllSessions removes every stored browser session (a restored
-// manager never revives the sessions of its snapshot, #24) and returns how
-// many were removed.
+// DeleteAllSessions removes every stored browser session and signed-in
+// device (a restored manager never revives the sessions of its snapshot,
+// #24) and returns how many sessions were removed.
 func DeleteAllSessions(ctx context.Context, db bun.IDB) (int, error) {
+	if _, err := db.NewRaw("DELETE FROM user_sessions").Exec(ctx); err != nil {
+		return 0, fmt.Errorf("store: delete signed-in devices: %w", err)
+	}
 	res, err := db.NewRaw("DELETE FROM sessions").Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: delete sessions: %w", err)

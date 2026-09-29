@@ -426,6 +426,7 @@ type securitySettingsRow struct {
 	APITokensEnabled      int       `bun:"api_tokens_enabled,notnull"`
 	APITokenMaxDays       int       `bun:"api_token_max_days,notnull"`
 	APITokensNonExpiring  int       `bun:"api_tokens_non_expiring,notnull"`
+	AllowStaySignedIn     int       `bun:"allow_stay_signed_in,notnull"`
 	Revision              int64     `bun:"revision,notnull"`
 	UpdatedAt             time.Time `bun:"updated_at,notnull"`
 }
@@ -436,7 +437,8 @@ func (r securitySettingsRow) toDomain() domain.SecuritySettings {
 		RequiredFactors: domain.RequiredFactors(r.RequiredFactors), EnrollmentGraceHours: r.EnrollmentGraceHours,
 		InvitationTTLHours: r.InvitationTTLHours, PasswordResetTTLHours: r.PasswordResetTTLHours,
 		APITokensEnabled: r.APITokensEnabled == 1, APITokenMaxDays: r.APITokenMaxDays, APITokensNonExpiring: r.APITokensNonExpiring == 1,
-		Revision: r.Revision, UpdatedAt: r.UpdatedAt.UTC(),
+		AllowStaySignedIn: r.AllowStaySignedIn == 1,
+		Revision:          r.Revision, UpdatedAt: r.UpdatedAt.UTC(),
 	}
 }
 
@@ -458,6 +460,7 @@ func UpdateSecuritySettings(ctx context.Context, db bun.IDB, revision int64, s d
 		Set("invitation_ttl_hours = ?", s.InvitationTTLHours).Set("password_reset_ttl_hours = ?", s.PasswordResetTTLHours).
 		Set("api_tokens_enabled = ?", boolInt(s.APITokensEnabled)).Set("api_token_max_days = ?", s.APITokenMaxDays).
 		Set("api_tokens_non_expiring = ?", boolInt(s.APITokensNonExpiring)).
+		Set("allow_stay_signed_in = ?", boolInt(s.AllowStaySignedIn)).
 		Set("revision = revision + 1").Set("updated_at = ?", now.UTC()).
 		Where("singleton = 1 AND revision = ?", revision).Exec(ctx)
 	if err != nil {

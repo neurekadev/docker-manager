@@ -246,17 +246,25 @@ func TestStreamHeartbeat(t *testing.T) {
 
 func TestSessionLimits(t *testing.T) {
 	cfg, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com"})
-	if err != nil || cfg.Sessions != (SessionsConfig{IdleTimeout: DefaultSessionIdleTimeout, Lifetime: DefaultSessionLifetime}) {
+	want := SessionsConfig{IdleTimeout: 8 * time.Hour, Lifetime: 24 * time.Hour, StayIdleTimeout: 30 * 24 * time.Hour, StayLifetime: 365 * 24 * time.Hour}
+	if err != nil || cfg.Sessions != want {
 		t.Fatalf("defaults %+v %v", cfg.Sessions, err)
 	}
-	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvSessionIdleTimeout: "30m", EnvSessionLifetime: "12h"})
-	if err != nil || cfg.Sessions.IdleTimeout != 30*time.Minute || cfg.Sessions.Lifetime != 12*time.Hour {
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvSessionIdleTimeout: "30m", EnvSessionLifetime: "12h",
+		EnvSessionStayIdleTimeout: "48h", EnvSessionStayLifetime: "2160h"})
+	want = SessionsConfig{IdleTimeout: 30 * time.Minute, Lifetime: 12 * time.Hour, StayIdleTimeout: 48 * time.Hour, StayLifetime: 90 * 24 * time.Hour}
+	if err != nil || cfg.Sessions != want {
 		t.Fatalf("custom %+v %v", cfg.Sessions, err)
 	}
 	for _, env := range []map[string]string{
 		{EnvSessionIdleTimeout: "1m"},
 		{EnvSessionLifetime: "1000h"},
 		{EnvSessionIdleTimeout: "6h", EnvSessionLifetime: "2h"},
+		{EnvSessionStayIdleTimeout: "30m"},
+		{EnvSessionStayLifetime: "20000h"},
+		{EnvSessionStayIdleTimeout: "2000h", EnvSessionStayLifetime: "1000h"},
+		{EnvSessionIdleTimeout: "100h", EnvSessionStayIdleTimeout: "50h"},
+		{EnvSessionLifetime: "700h", EnvSessionStayLifetime: "500h"},
 	} {
 		env[EnvPublicURL] = "https://d.example.com"
 		if _, err := load(t, env); err == nil || !strings.Contains(err.Error(), "DOCKER_MANAGER_SESSION_") {

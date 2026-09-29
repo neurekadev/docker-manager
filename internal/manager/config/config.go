@@ -34,8 +34,10 @@ const (
 	EnvTrustedProxies  = "DOCKER_MANAGER_TRUSTED_PROXIES"
 	EnvStreamHeartbeat = "DOCKER_MANAGER_STREAM_HEARTBEAT"
 
-	EnvSessionIdleTimeout = "DOCKER_MANAGER_SESSION_IDLE_TIMEOUT"
-	EnvSessionLifetime    = "DOCKER_MANAGER_SESSION_LIFETIME"
+	EnvSessionIdleTimeout     = "DOCKER_MANAGER_SESSION_IDLE_TIMEOUT"
+	EnvSessionLifetime        = "DOCKER_MANAGER_SESSION_LIFETIME"
+	EnvSessionStayIdleTimeout = "DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT"
+	EnvSessionStayLifetime    = "DOCKER_MANAGER_SESSION_STAY_LIFETIME"
 
 	EnvJobHistoryRetention   = "DOCKER_MANAGER_JOB_HISTORY_RETENTION"
 	EnvJobHistoryMax         = "DOCKER_MANAGER_JOB_HISTORY_MAX"
@@ -94,9 +96,13 @@ const (
 	DefaultJobMaxConcurrentPulls = 2
 	DefaultJobMaxConcurrentBuild = 1
 
-	// Browser session limits (#16): NIST SP 800-63B AAL2 reauthentication.
-	DefaultSessionIdleTimeout = time.Hour
-	DefaultSessionLifetime    = 24 * time.Hour
+	// Browser session limits (#16): a working day of inactivity and a day
+	// at most; "Stay signed in" keeps a device signed in for 30 days of
+	// inactivity and a year at most.
+	DefaultSessionIdleTimeout     = 8 * time.Hour
+	DefaultSessionLifetime        = 24 * time.Hour
+	DefaultSessionStayIdleTimeout = 30 * 24 * time.Hour
+	DefaultSessionStayLifetime    = 365 * 24 * time.Hour
 
 	DefaultAuditRetentionDays = 365
 	DefaultAuditMaxSizeMB     = 1024
@@ -149,6 +155,10 @@ type SessionsConfig struct {
 	IdleTimeout time.Duration
 	// Lifetime ends a session this long after sign-in, whatever the activity.
 	Lifetime time.Duration
+	// StayIdleTimeout and StayLifetime replace both for sessions signed in
+	// with "Stay signed in".
+	StayIdleTimeout time.Duration
+	StayLifetime    time.Duration
 }
 
 // AuditConfig bounds the audit trail (#30).
@@ -256,6 +266,8 @@ func (c Config) Settings() []Setting {
 		{EnvStreamHeartbeat, d(c.StreamHeartbeat)},
 		{EnvSessionIdleTimeout, d(c.Sessions.IdleTimeout)},
 		{EnvSessionLifetime, d(c.Sessions.Lifetime)},
+		{EnvSessionStayIdleTimeout, d(c.Sessions.StayIdleTimeout)},
+		{EnvSessionStayLifetime, d(c.Sessions.StayLifetime)},
 		{EnvJobHistoryRetention, d(c.Jobs.HistoryRetention)},
 		{EnvJobHistoryMax, i(c.Jobs.HistoryMax)},
 		{EnvJobEventsMax, i(c.Jobs.EventsMax)},
@@ -481,14 +493,26 @@ func loadJobs(src envconfig.Source) (JobsConfig, error) {
 
 func loadSessions(src envconfig.Source) (SessionsConfig, error) {
 	var c SessionsConfig
-	var errs [2]error
+	var errs [4]error
 	c.IdleTimeout, errs[0] = src.Duration(EnvSessionIdleTimeout, DefaultSessionIdleTimeout, 5*time.Minute, 7*24*time.Hour)
 	c.Lifetime, errs[1] = src.Duration(EnvSessionLifetime, DefaultSessionLifetime, 15*time.Minute, 30*24*time.Hour)
+	c.StayIdleTimeout, errs[2] = src.Duration(EnvSessionStayIdleTimeout, DefaultSessionStayIdleTimeout, time.Hour, 365*24*time.Hour)
+	c.StayLifetime, errs[3] = src.Duration(EnvSessionStayLifetime, DefaultSessionStayLifetime, 24*time.Hour, 2*365*24*time.Hour)
 	if err := errors.Join(errs[:]...); err != nil {
 		return c, err
 	}
-	if c.IdleTimeout > c.Lifetime {
-		return c, fmt.Errorf("%s (%s) must not exceed %s (%s)", EnvSessionIdleTimeout, c.IdleTimeout, EnvSessionLifetime, c.Lifetime)
+	for _, p := range []struct {
+		shorter, longer         time.Duration
+		shorterName, longerName string
+	}{
+		{c.IdleTimeout, c.Lifetime, EnvSessionIdleTimeout, EnvSessionLifetime},
+		{c.StayIdleTimeout, c.StayLifetime, EnvSessionStayIdleTimeout, EnvSessionStayLifetime},
+		{c.IdleTimeout, c.StayIdleTimeout, EnvSessionIdleTimeout, EnvSessionStayIdleTimeout},
+		{c.Lifetime, c.StayLifetime, EnvSessionLifetime, EnvSessionStayLifetime},
+	} {
+		if p.shorter > p.longer {
+			return c, fmt.Errorf("%s (%s) must not exceed %s (%s)", p.shorterName, p.shorter, p.longerName, p.longer)
+		}
 	}
 	return c, nil
 }

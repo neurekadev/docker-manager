@@ -221,8 +221,10 @@ type SecuritySettings struct {
 	APITokensEnabled     bool
 	APITokenMaxDays      int
 	APITokensNonExpiring bool
-	Revision             int64
-	UpdatedAt            time.Time
+	// AllowStaySignedIn offers "Stay signed in" at sign-in (#16).
+	AllowStaySignedIn bool
+	Revision          int64
+	UpdatedAt         time.Time
 }
 
 // Factor is a sign-in factor kind.
@@ -276,6 +278,10 @@ type SessionState struct {
 	ExpiresAt       *time.Time
 	IdleExpiresAt   *time.Time
 	RecentAuthUntil *time.Time
+	// SessionID identifies the session among the user's devices;
+	// StaySignedIn reports the longer "Stay signed in" limits.
+	SessionID    string
+	StaySignedIn bool
 }
 
 // SetupStatus is the first-run state.
@@ -285,6 +291,9 @@ type SetupStatus struct {
 	// (HTTPS on the public origin); Explanation says why not.
 	SecureOrigin bool
 	Explanation  string
+	// StaySignedInAllowed reports whether the sign-in page offers "Stay
+	// signed in" (the instance policy).
+	StaySignedInAllowed bool
 }
 
 // OwnerSetup is the first-run owner account.
@@ -340,6 +349,7 @@ type SecuritySettingsPatch struct {
 	APITokensEnabled      *bool
 	APITokenMaxDays       *int
 	APITokensNonExpiring  *bool
+	AllowStaySignedIn     *bool
 }
 
 // PasskeyPurpose selects what a passkey assertion is for.

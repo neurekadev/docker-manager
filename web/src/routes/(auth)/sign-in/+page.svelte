@@ -4,6 +4,9 @@
 	// sign-in. Failures never say which part was wrong. The buttons stay
 	// enabled (autofill may not report values before the user interacts);
 	// the forms check on submit and say what is missing next to the field.
+	// "Stay signed in" (when the sign-in policy offers it) applies to the
+	// password and the passkey sign-in alike; the browser remembers the last
+	// choice (stay.ts). The second step keeps the choice of the first.
 	import { tick } from 'svelte';
 	import { page } from '$app/state';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -17,8 +20,17 @@
 		requestOptions
 	} from '$lib/auth/webauthn';
 	import AuthHeader from '$lib/features/auth/AuthHeader.svelte';
+	import { readStaySignedIn, rememberStaySignedIn } from '$lib/features/auth/stay';
 	import { isValid, requiredErrors, submitted, untilFilled } from '$lib/features/auth/validate';
-	import { Button, Notice, PasswordField, Skeleton, TextField, errorView } from '$lib/ui';
+	import {
+		Button,
+		Checkbox,
+		Notice,
+		PasswordField,
+		Skeleton,
+		TextField,
+		errorView
+	} from '$lib/ui';
 
 	const flow = usePublicPage('sign-in');
 	const reason = $derived(page.url.searchParams.get('reason'));
@@ -32,6 +44,10 @@
 	let busy = $state<string | null>(null);
 	let message = $state<string | null>(null);
 	let factors = $state<string[]>([]);
+	let stay = $state(readStaySignedIn());
+	const stayOffered = $derived(!!flow.setup.data?.staySignedInAllowed);
+	/** The choice sent with a sign-in: only when the policy offers it. */
+	const staySignedIn = $derived(stayOffered && stay);
 	type Field = 'username' | 'password' | 'code' | 'recovery';
 	let invalid = $state<Partial<Record<Field, string>>>({});
 	const MISSING: Record<Field, string> = {
@@ -114,7 +130,7 @@
 			await after(
 				await unwrap(
 					api.POST('/api/v1/auth/session', {
-						body: { username: username.trim(), password }
+						body: { username: username.trim(), password, staySignedIn }
 					})
 				)
 			);
@@ -189,7 +205,7 @@
 			if (!cred) return;
 			const s = await unwrap(
 				api.POST('/api/v1/auth/passkeys/authentication-verifications', {
-					body: { credential: credentialToJSON(cred) }
+					body: { credential: credentialToJSON(cred), staySignedIn }
 				})
 			);
 			await after(s);
@@ -244,6 +260,14 @@
 				required
 				error={untilFilled(invalid.password, password)}
 			/>
+			{#if stayOffered}
+				<Checkbox
+					label="Stay signed in"
+					description="Keep this device signed in for longer. Don't use this on a shared computer."
+					bind:checked={stay}
+					onchange={(e) => rememberStaySignedIn(e.currentTarget.checked)}
+				/>
+			{/if}
 			<Button
 				type="submit"
 				variant="primary"

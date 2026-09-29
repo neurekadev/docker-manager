@@ -32,6 +32,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/sessions"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Throttling defaults for credential checks (failed attempts only).
@@ -53,9 +54,13 @@ type KitOptions struct {
 	Clock     clock.Clock
 	Logger    *slog.Logger
 	PublicURL *url.URL
-	// IdleTimeout and Lifetime bound sessions (zero: sessions defaults).
-	IdleTimeout time.Duration
-	Lifetime    time.Duration
+	// IdleTimeout and Lifetime bound sessions, StayIdleTimeout and
+	// StayLifetime those signed in with "Stay signed in" (zero: sessions
+	// defaults).
+	IdleTimeout     time.Duration
+	Lifetime        time.Duration
+	StayIdleTimeout time.Duration
+	StayLifetime    time.Duration
 	// SessionError answers requests whose session cannot be loaded or saved.
 	SessionError func(http.ResponseWriter, *http.Request, error)
 	// PasswordParams overrides password.Current (tests).
@@ -67,20 +72,25 @@ type KitOptions struct {
 // Kit holds the configured primitives.
 type Kit struct {
 	Clock clock.Clock
-	// IdleTimeout and Lifetime bound sessions. SCS enforces the lifetime
-	// (row expiry, cookie Max-Age); the identity service enforces both on
+	// IdleTimeout and Lifetime bound sessions; StayIdleTimeout and
+	// StayLifetime replace them for "Stay signed in" sessions. SCS enforces
+	// the lifetime (row expiry, cookie Max-Age; the identity service sets
+	// the deadline of each session); the identity service enforces both on
 	// the injected clock at every request (SCS's own idle handling is off:
 	// it would rewrite every session on every request).
-	IdleTimeout  time.Duration
-	Lifetime     time.Duration
-	SessionStore *sessions.Store
-	Sessions     *scs.SessionManager
-	Passwords    *password.Hasher
-	RP           *passkey.RelyingParty
-	CSRF         *csrf.Guard
-	IPLimit      *throttle.Limiter
-	AccountLimit *throttle.Limiter
-	logger       *slog.Logger
+	IdleTimeout     time.Duration
+	Lifetime        time.Duration
+	StayIdleTimeout time.Duration
+	StayLifetime    time.Duration
+	SessionStore    *sessions.Store
+	Sessions        *scs.SessionManager
+	Passwords       *password.Hasher
+	RP              *passkey.RelyingParty
+	CSRF            *csrf.Guard
+	IPLimit         *throttle.Limiter
+	AccountLimit    *throttle.Limiter
+	db              bun.IDB
+	logger          *slog.Logger
 }
 
 // NewKit validates the configuration (a public URL that cannot be a
@@ -101,15 +111,24 @@ func NewKit(o KitOptions) (*Kit, error) {
 	if o.Lifetime <= 0 {
 		o.Lifetime = sessions.DefaultLifetime
 	}
-	if o.IdleTimeout > o.Lifetime {
+	if o.StayIdleTimeout <= 0 {
+		o.StayIdleTimeout = max(sessions.DefaultStayIdleTimeout, o.IdleTimeout)
+	}
+	if o.StayLifetime <= 0 {
+		o.StayLifetime = max(sessions.DefaultStayLifetime, o.Lifetime)
+	}
+	if o.IdleTimeout > o.Lifetime || o.StayIdleTimeout > o.StayLifetime {
 		return nil, errors.New("auth: session idle timeout exceeds the lifetime")
+	}
+	if o.IdleTimeout > o.StayIdleTimeout || o.Lifetime > o.StayLifetime {
+		return nil, errors.New("auth: a \"Stay signed in\" limit is shorter than the normal one")
 	}
 	// SCS computes session deadlines from the wall clock, so its store must
 	// compare them with the wall clock too. Docker Manager's own idle/lifetime
 	// checks (identity service) run on the injected clock.
-	store := sessions.NewStore(o.DB, clock.Real())
+	sessionStore := sessions.NewStore(o.DB, clock.Real())
 	sm, err := sessions.NewManager(sessions.Options{
-		Store: store, IdleTimeout: -1, Lifetime: o.Lifetime, ErrorFunc: o.SessionError,
+		Store: sessionStore, IdleTimeout: -1, Lifetime: o.Lifetime, ErrorFunc: o.SessionError,
 	})
 	if err != nil {
 		return nil, err
@@ -127,7 +146,8 @@ func NewKit(o KitOptions) (*Kit, error) {
 		return nil, err
 	}
 	return &Kit{
-		Clock: o.Clock, IdleTimeout: o.IdleTimeout, Lifetime: o.Lifetime, SessionStore: store, Sessions: sm, Passwords: hasher, RP: rp, CSRF: guard,
+		Clock: o.Clock, IdleTimeout: o.IdleTimeout, Lifetime: o.Lifetime, StayIdleTimeout: o.StayIdleTimeout, StayLifetime: o.StayLifetime,
+		SessionStore: sessionStore, Sessions: sm, Passwords: hasher, RP: rp, CSRF: guard, db: o.DB,
 		IPLimit:      throttle.New(PerIP, o.Clock, 50000),
 		AccountLimit: throttle.New(PerAccount, o.Clock, 50000),
 		logger:       o.Logger,
@@ -144,8 +164,13 @@ func (k *Kit) VerifyTOTP(secret, code string, lastStep int64) (int64, bool, erro
 	return totp.Verify(secret, code, k.Clock.Now(), lastStep)
 }
 
-// RunHousekeeping deletes expired sessions every SweepInterval until ctx
-// ends.
+// Limits returns the session limits.
+func (k *Kit) Limits() store.SessionLimits {
+	return store.SessionLimits{Idle: k.IdleTimeout, Lifetime: k.Lifetime, StayIdle: k.StayIdleTimeout, StayLifetime: k.StayLifetime}
+}
+
+// RunHousekeeping deletes expired sessions and ended signed-in devices
+// every SweepInterval until ctx ends.
 func (k *Kit) RunHousekeeping(ctx context.Context) {
 	t := k.Clock.NewTicker(SweepInterval)
 	defer t.Stop()
@@ -167,4 +192,56 @@ func (k *Kit) sweep(ctx context.Context) {
 	case n > 0:
 		k.logger.Debug("deleted expired sessions", "count", n)
 	}
+	ended, err := store.DeleteStaleUserSessions(ctx, k.db, k.Clock.Now(), k.Limits())
+	switch {
+	case err != nil && ctx.Err() == nil:
+		k.logger.Warn("delete ended signed-in devices", "error", err)
+	case ended > 0:
+		k.logger.Debug("deleted ended signed-in devices", "count", ended)
+	}
+	orphans, err := k.deleteOrphanSessions(ctx)
+	switch {
+	case err != nil && ctx.Err() == nil:
+		k.logger.Warn("delete signed-out sessions", "error", err)
+	case orphans > 0:
+		k.logger.Debug("deleted signed-out sessions", "count", orphans)
+	}
+}
+
+// deleteOrphanSessions deletes the stored SCS sessions whose signed-in
+// device no longer exists (signed out, ended or swept). Such a session can
+// no longer authenticate; deleting it keeps the table small. The sessions
+// are read before the devices: a device row is always written before its
+// session, so a session signed in meanwhile is never taken for an orphan.
+func (k *Kit) deleteOrphanSessions(ctx context.Context) (int, error) {
+	var stored []string
+	sids := map[string]string{}
+	err := k.Sessions.Iterate(ctx, func(sctx context.Context) error {
+		if sid := k.Sessions.GetString(sctx, kSessionID); sid != "" {
+			token := k.Sessions.Token(sctx)
+			stored = append(stored, token)
+			sids[token] = sid
+		}
+		return nil
+	})
+	if err != nil || len(stored) == 0 {
+		return 0, err
+	}
+	live, err := store.UserSessionIDs(ctx, k.db)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, token := range stored {
+		if live[sids[token]] {
+			continue
+		}
+		// Iterate hands out the stored (hashed) token: delete it directly
+		// (see sessions.RevokeWhere).
+		if err := k.SessionStore.DeleteCtx(ctx, token); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }

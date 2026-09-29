@@ -2942,6 +2942,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/session-revocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign out my other devices
+         * @description Signs out every device of the caller except this one; their open streams close. Returns how many.
+         */
+        post: operations["create-my-session-revocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my signed-in devices
+         * @description The caller's browser sessions, most recently active first (a short list; no pagination): browser, IP, sign-in and last activity. current marks this one.
+         */
+        get: operations["list-my-sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out one of my devices
+         * @description The device is signed out at once and its open streams close. Signing out this device (current) signs the caller out.
+         */
+        delete: operations["delete-my-session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/overview": {
         parameters: {
             query?: never;
@@ -4998,6 +5058,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{userId}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a user's signed-in devices
+         * @description The account's browser sessions, most recently active first (no pagination). Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["list-user-sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{userId}/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out one of a user's devices
+         * @description The device is signed out at once and its open streams close. Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-user-session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6718,6 +6818,8 @@ export interface components {
         };
         CreateSessionInputBody: {
             password?: string;
+            /** @description Stay signed in on this device: longer session limits and a cookie that survives closing the browser (when the sign-in policy allows it). A pending sign-in keeps the choice of its first step. */
+            staySignedIn?: boolean;
             /** @description TOTP code: continues a pending sign-in, or completes one started in the same request. */
             totpCode?: string;
             /**
@@ -9085,6 +9187,17 @@ export interface components {
              */
             total?: number;
         };
+        PageUserSession: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["UserSession"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageVolume: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Volume"][];
@@ -9127,6 +9240,8 @@ export interface components {
              *     }
              */
             credential: unknown;
+            /** @description Stay signed in on this device (a passkey sign-in; when the sign-in policy allows it). A pending sign-in keeps the choice of its first step. */
+            staySignedIn?: boolean;
         };
         PasskeyAuthOptionsInputBody: {
             /**
@@ -9186,6 +9301,8 @@ export interface components {
             timeZone?: string;
         };
         PatchSecuritySettingsInputBody: {
+            /** @description Offer Stay signed in at sign-in. false moves devices that stayed signed in back to the normal limits. */
+            allowStaySignedIn?: boolean;
             /**
              * Format: int64
              * @description Applies to tokens created afterwards.
@@ -10320,6 +10437,8 @@ export interface components {
             query: string;
         };
         SecuritySettings: {
+            /** @description The sign-in page offers Stay signed in (on by default): a device then stays signed in with the longer DOCKER_MANAGER_SESSION_STAY_* limits. */
+            allowStaySignedIn: boolean;
             /**
              * Format: int64
              * @description Longest lifetime of a new API token (default 90 days).
@@ -10385,13 +10504,24 @@ export interface components {
              * @enum {string}
              */
             requiredFactors: "none" | "totp" | "passkey" | "either" | "both";
+            /** @description This session among the account's signed-in devices (GET /api/v1/me/sessions). */
+            sessionId?: string;
             /**
              * @description authenticated: full access (subject to permissions). second_factor_required: send one of factors. enrollment_required: a limited session that may only enroll missingFactors.
              * @enum {string}
              */
             state: "second_factor_required" | "enrollment_required" | "authenticated";
+            /** @description The session was signed in with Stay signed in: longer limits and a cookie that survives closing the browser. */
+            staySignedIn: boolean;
             /** @description The signed-in account (enrollment_required and authenticated). */
             user?: components["schemas"]["Account"];
+        };
+        SessionRevocationOutputBody: {
+            /**
+             * Format: int64
+             * @description How many devices were signed out.
+             */
+            count: number;
         };
         SetTemplateIconInputBody: {
             /**
@@ -10430,6 +10560,8 @@ export interface components {
              * @example false
              */
             setupComplete: boolean;
+            /** @description The sign-in policy allows Stay signed in (staySignedIn on sign-in). */
+            staySignedInAllowed: boolean;
         };
         Stack: {
             /** @description Granted stack capabilities. */
@@ -11740,6 +11872,44 @@ export interface components {
             end: string;
             /** @example 02:00 */
             start: string;
+        };
+        UserSession: {
+            /**
+             * Format: date-time
+             * @description When the device signed in.
+             */
+            createdAt: string;
+            /** @description The session of this request. */
+            current: boolean;
+            /**
+             * Format: date-time
+             * @description The session ends at this time at the latest.
+             */
+            expiresAt: string;
+            /** @example 0190a6e0-0000-7000-8000-000000000001 */
+            id: string;
+            /**
+             * Format: date-time
+             * @description The session ends at this time without further activity.
+             */
+            idleExpiresAt: string;
+            /**
+             * @description Client IP of the latest activity.
+             * @example 203.0.113.7
+             */
+            ip?: string;
+            /**
+             * Format: date-time
+             * @description The latest activity (recorded at most once a minute).
+             */
+            lastSeenAt: string;
+            /** @description Signed in with Stay signed in (longer limits). */
+            staySignedIn: boolean;
+            /**
+             * @description The browser's User-Agent (at most 256 bytes).
+             * @example Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0
+             */
+            userAgent?: string;
         };
         ValidateStackInputBody: {
             /** @description Required: compose.yaml content. */
@@ -13132,7 +13302,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -13321,7 +13493,9 @@ export interface operations {
                      *         ],
                      *         "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *         "requiredFactors": "none",
+                     *         "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "state": "second_factor_required",
+                     *         "staySignedIn": false,
                      *         "user": {
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "disabledAt": "2026-09-25T12:00:00Z",
@@ -13498,7 +13672,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -13610,7 +13786,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -13704,7 +13882,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -13870,7 +14050,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -14108,7 +14290,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -31639,7 +31823,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -35019,6 +35205,190 @@ export interface operations {
             };
         };
     };
+    "create-my-session-revocation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "count": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["SessionRevocationOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-my-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "current": false,
+                     *           "expiresAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *           "ip": "203.0.113.7",
+                     *           "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *           "staySignedIn": false,
+                     *           "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageUserSession"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-my-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session ID (from GET /api/v1/me/sessions). */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-overview": {
         parameters: {
             query?: never;
@@ -36903,6 +37273,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "allowStaySignedIn": false,
                      *       "apiTokenMaxLifetimeDays": 1,
                      *       "apiTokensEnabled": false,
                      *       "apiTokensNonExpiring": false,
@@ -36979,6 +37350,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "allowStaySignedIn": false,
                      *       "apiTokenMaxLifetimeDays": 1,
                      *       "apiTokensEnabled": false,
                      *       "apiTokensNonExpiring": false,
@@ -37509,7 +37881,9 @@ export interface operations {
                      *       ],
                      *       "recentAuthUntil": "2026-09-25T12:00:00Z",
                      *       "requiredFactors": "none",
+                     *       "sessionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "state": "second_factor_required",
+                     *       "staySignedIn": false,
                      *       "user": {
                      *         "createdAt": "2026-09-25T12:00:00Z",
                      *         "disabledAt": "2026-09-25T12:00:00Z",
@@ -37609,7 +37983,8 @@ export interface operations {
                      *       },
                      *       "explanation": "example",
                      *       "secureOrigin": false,
-                     *       "setupComplete": false
+                     *       "setupComplete": false,
+                     *       "staySignedInAllowed": false
                      *     }
                      */
                     "application/json": components["schemas"]["SetupStatusOutputBody"];
@@ -51070,6 +51445,159 @@ export interface operations {
             header?: never;
             path: {
                 userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-user-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "current": false,
+                     *           "expiresAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *           "ip": "203.0.113.7",
+                     *           "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *           "staySignedIn": false,
+                     *           "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageUserSession"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-user-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                /** @description Session ID (from GET /api/v1/users/{userId}/sessions). */
+                sessionId: string;
             };
             cookie?: never;
         };

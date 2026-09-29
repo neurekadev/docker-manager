@@ -34,6 +34,11 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   Identity events enrich the #30 audit record of the request (`auth.TrailAuditor`).
   Never add auth routes outside Huma, never log passwords, codes, seeds or
   tokens (canary tests in `internal/manager/app/identity*_test.go`).
+  Every browser session is a signed-in device (`user_sessions`: public ID,
+  IP, User-Agent, times; never the token), shown to its user and the owner.
+  Session changes go through the identity service: establish/rotate record
+  and keep the device, and ending a session deletes its device row (the
+  next request of that session is anonymous).
 - New dependencies: review them with `scripts/license-check.sh` and
   govulncheck by hand (neither runs in CI); pin exact versions. Pin workflow
   actions by commit SHA with a `# vX.Y.Z` comment.

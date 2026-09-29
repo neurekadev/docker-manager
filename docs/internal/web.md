@@ -128,7 +128,11 @@ against a built manager (below).
 
 Rules: the browser talks only to same-origin `/api/v1` (never an agent or
 Docker socket); tokens and secrets never go to `localStorage`,
-`sessionStorage` or Cache Storage.
+`sessionStorage` or Cache Storage. The sign-in page remembers the **Stay signed in** choice
+in `localStorage` (`docker-manager:stay-signed-in`, `"1"`/`"0"`, a
+preference only; `src/lib/features/auth/stay.ts`). Signed-in devices are
+listed by `SessionsTable` (`src/lib/features/access`) under **Profile →
+Sessions** and on a user's page (owner).
 
 ## Feature modules and step-up
 

@@ -93,6 +93,18 @@ export function factorChangeConsequences(
 	];
 }
 
+/**
+ * Consequences of turning "Stay signed in" off (#16): devices that stayed
+ * signed in fall back to the normal session limits. Empty otherwise.
+ */
+export function staySignedInConsequences(from: boolean, to: boolean): string[] {
+	if (!from || to) return [];
+	return [
+		'The sign-in page stops offering Stay signed in.',
+		'Devices that stayed signed in move back to the normal limits; those already past them are signed out.'
+	];
+}
+
 /** Diff of the editable fields for the confirmation dialog. */
 export function settingsChanges(
 	before: SecuritySettings,
@@ -110,6 +122,7 @@ export function settingsChanges(
 		after.requiredFactors && FACTOR_POLICY[after.requiredFactors]
 	);
 	add('Enrollment grace (hours)', before.enrollmentGraceHours, after.enrollmentGraceHours);
+	add('Stay signed in', before.allowStaySignedIn, after.allowStaySignedIn);
 	add('Invitation lifetime (hours)', before.invitationTtlHours, after.invitationTtlHours);
 	add(
 		'Password reset lifetime (hours)',

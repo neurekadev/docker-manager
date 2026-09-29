@@ -1,6 +1,7 @@
 package requestinfo
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net/http"
@@ -185,5 +186,24 @@ func TestCheckSecureOrigin(t *testing.T) {
 	err = CheckSecureOrigin(pub, false, Info{Scheme: "http", Host: "docker.example.com", TrustedPeer: true})
 	if strings.Contains(err.Error(), "DOCKER_MANAGER_TRUSTED_PROXIES") {
 		t.Fatalf("trusted peer should not get the proxy hint: %q", err)
+	}
+}
+
+func TestResolveUserAgent(t *testing.T) {
+	long := strings.Repeat("a", MaxUserAgentLen-1) + "é"
+	for _, c := range []struct{ in, want string }{
+		{"", ""},
+		{"Mozilla/5.0 (X11; Linux x86_64) Firefox/131.0", "Mozilla/5.0 (X11; Linux x86_64) Firefox/131.0"},
+		{" agent\x00with\ncontrols ", "agentwithcontrols"},
+		{long, strings.Repeat("a", MaxUserAgentLen-1)}, // cut before the two-byte é
+	} {
+		r := req("203.0.113.7:5555", "User-Agent", c.in)
+		if got := (&Resolver{}).Resolve(r).UserAgent; got != c.want {
+			t.Errorf("%q: got %q, want %q", c.in, got, c.want)
+		}
+	}
+	ctx := With(context.Background(), Info{UserAgent: "ua"})
+	if UserAgent(ctx) != "ua" || UserAgent(context.Background()) != "" {
+		t.Fatal("UserAgent(ctx)")
 	}
 }

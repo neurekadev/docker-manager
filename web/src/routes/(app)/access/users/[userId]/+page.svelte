@@ -1,8 +1,9 @@
 <script lang="ts">
 	// One user (#16, #17): account and status (disable, sessions, factor
-	// and password resets, delete), the group, user overrides (Inherit /
-	// Allow / Deny per action and scope, reset to inherit), the effective
-	// access with its reasons and a "view as" preview of unsaved changes.
+	// and password resets, delete), their signed-in devices, the group,
+	// user overrides (Inherit / Allow / Deny per action and scope, reset to
+	// inherit), the effective access with its reasons and a "view as"
+	// preview of unsaved changes.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -47,6 +48,7 @@
 	import EffectiveTable from '$lib/features/access/EffectiveTable.svelte';
 	import PermissionEditor from '$lib/features/access/PermissionEditor.svelte';
 	import RulesSaveBar from '$lib/features/access/RulesSaveBar.svelte';
+	import SessionsTable from '$lib/features/access/SessionsTable.svelte';
 	import { accountStatus, displayName, factorsText } from '$lib/features/access/model';
 	import { diffRules, type Rule } from '$lib/features/access/permissions';
 	import {
@@ -392,6 +394,16 @@
 					disabled or deleted.
 				</Notice>
 			{:else}
+				<Card
+					title="Sessions"
+					subtitle="The devices {displayName(
+						u
+					)} is signed in on. Signing one out ends it and its open pages at once."
+					padding="none"
+				>
+					<SessionsTable userId={u.id} label="Signed-in devices of {displayName(u)}" />
+				</Card>
+
 				<Card
 					title="Group"
 					subtitle="Every user belongs to exactly one group; its rules are the starting point of their access."

@@ -109,12 +109,16 @@ checked.
 ## Session revocation
 
 - SCS sessions in the manager's own Bun store, `__Host-` cookie
-  (HttpOnly, Secure, SameSite=Strict), idle 1 h / absolute 24 h on the
-  injectable clock, token renewal at sign-in. Disabling a user, password
-  or factor changes, access changes and "sign out everywhere" end sessions
-  and close open streams: `TestSessionLifecycle`, `TestRenewalPreventsFixation`,
+  (HttpOnly, Secure, SameSite=Strict; a browser-session cookie unless the
+  user chose Stay signed in), idle 8 h / absolute 24 h (Stay signed in:
+  30 days / a year) on the injectable clock, token renewal at sign-in.
+  Disabling a user, password or factor changes, access changes and "sign
+  out everywhere" end sessions and close open streams; each session is a
+  signed-in device (`user_sessions`) that its user or the owner can sign
+  out alone: `TestSessionLifecycle`, `TestRenewalPreventsFixation`,
   `TestDisableAndResetsEndSessionsAndStreams`, `TestLiveStreamRevocation`,
-  `TestOwnerJobStreamClosesOnRevocation`.
+  `TestOwnerJobStreamClosesOnRevocation`, `TestSignedInDevices`,
+  `TestStaySignedIn`, `TestStaySignedInPolicy`.
 
 ## API tokens
 

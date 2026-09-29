@@ -48,7 +48,11 @@ func (s *Service) SetupStatus(ctx context.Context) (domain.SetupStatus, error) {
 	if err != nil {
 		return domain.SetupStatus{}, err
 	}
-	st := domain.SetupStatus{Complete: done, SecureOrigin: true}
+	set, err := s.settings(ctx)
+	if err != nil {
+		return domain.SetupStatus{}, err
+	}
+	st := domain.SetupStatus{Complete: done, SecureOrigin: true, StaySignedInAllowed: set.AllowStaySignedIn}
 	if !done {
 		if err := s.checkSecureOrigin(ctx); err != nil {
 			var ie *domain.InsecureOriginError
@@ -148,7 +152,7 @@ func (s *Service) SetupOwner(ctx context.Context, in domain.OwnerSetup) (domain.
 	id := owner.ID
 	s.ownerID.Store(&id)
 	s.record(ctx, "setup.owner_create", OutcomeSuccess, owner.ID, "user", owner.ID, "")
-	return s.advance(ctx, owner, fPassword, false)
+	return s.advance(ctx, owner, fPassword, false, false)
 }
 
 // link builds a URL on the public origin with the code in the fragment
@@ -285,7 +289,7 @@ func (s *Service) RedeemInvitation(ctx context.Context, in domain.InvitationRede
 		return domain.SessionState{}, err
 	}
 	s.record(ctx, "invitation.redeem", OutcomeSuccess, user.ID, "invitation", inv.ID, "")
-	return s.advance(ctx, user, proven, false)
+	return s.advance(ctx, user, proven, false, false)
 }
 
 // ListUsers lists accounts by ID (owner).
@@ -562,6 +566,9 @@ func (s *Service) UpdateSecuritySettings(ctx context.Context, revision int64, p 
 	if p.APITokensNonExpiring != nil {
 		next.APITokensNonExpiring = *p.APITokensNonExpiring
 	}
+	if p.AllowStaySignedIn != nil {
+		next.AllowStaySignedIn = *p.AllowStaySignedIn
+	}
 	if err := validateSettings(next); err != nil {
 		return domain.SecuritySettings{}, err
 	}
@@ -573,6 +580,13 @@ func (s *Service) UpdateSecuritySettings(ctx context.Context, revision int64, p 
 		var err error
 		if saved, err = store.UpdateSecuritySettings(ctx, tx, revision, next, now); err != nil {
 			return err
+		}
+		if old.AllowStaySignedIn && !next.AllowStaySignedIn {
+			// Devices that stayed signed in fall back to the normal limits
+			// (sessions past them end on their next request).
+			if err := store.EndStaySignedIn(ctx, tx); err != nil {
+				return err
+			}
 		}
 		if !factorsChanged {
 			return nil

@@ -302,10 +302,18 @@ finish).
   session with a grace period (default 72 h) to add the factors. After the
   grace period only an owner factor or password reset helps. The owner has
   no deadline and is never locked out.
-- **Sessions** end after 1 h of inactivity and 24 h at most
-  (`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT`, `DOCKER_MANAGER_SESSION_LIFETIME`); disabling
-  a user, a factor or password reset, and "sign out everywhere" end the
-  user's sessions and open live streams immediately.
+- **Sessions** end after 8 h of inactivity and 24 h at most
+  (`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT`, `DOCKER_MANAGER_SESSION_LIFETIME`), and
+  their cookie ends with the browser. **Stay signed in** at sign-in (the
+  owner can turn the option off in the sign-in policy) keeps a device
+  signed in for 30 days of inactivity and a year at most
+  (`DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT`,
+  `DOCKER_MANAGER_SESSION_STAY_LIFETIME`) with a persistent cookie. Users
+  see their signed-in devices (browser, IP, last activity) under
+  **Profile → Sessions** and sign them out one by one; the owner does the
+  same on a user's page. Disabling a user, a factor or password reset, and
+  "sign out everywhere" end the user's sessions and open live streams
+  immediately.
 - **Lost factors:** a user completes a password sign-in with one of their
   ten one-time recovery codes, or asks the owner for a factor reset (TOTP,
   passkeys and recovery codes removed; sign in with the password and enroll
