@@ -14,6 +14,7 @@ package protect
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -43,6 +44,15 @@ type Options struct {
 	Logger       *slog.Logger
 }
 
+// GenerationStore persists the highest manager generation the agent has
+// seen (state.Store, manager.json).
+type GenerationStore interface {
+	// ManagerGeneration returns the recorded generation (0: none; 0 with an
+	// error: unreadable or corrupt).
+	ManagerGeneration() (int64, error)
+	SaveManagerGeneration(generation int64) error
+}
+
 // Guard knows the agent's identity and the manager's, and computes the
 // protected set of the Engine.
 type Guard struct {
@@ -52,6 +62,11 @@ type Guard struct {
 	mu               sync.Mutex
 	managerInstance  string
 	managerContainer string
+
+	// identityMu serializes the generation checks of welcome and
+	// manager.identity (read, compare and raise as one step).
+	identityMu  sync.Mutex
+	generations GenerationStore
 }
 
 // New returns a Guard.
@@ -73,6 +88,15 @@ func (g *Guard) SetManager(instanceID, containerID string) {
 	g.managerInstance, g.managerContainer = instanceID, containerID
 }
 
+// SetGenerations attaches the store of the highest manager generation
+// (the state directory, opened after the Guard is built). Without one,
+// AcceptGeneration accepts every generation.
+func (g *Guard) SetGenerations(s GenerationStore) {
+	g.identityMu.Lock()
+	defer g.identityMu.Unlock()
+	g.generations = s
+}
+
 // Manager returns the recorded manager identity.
 func (g *Guard) Manager() (instanceID, containerID string) {
 	g.mu.Lock()
@@ -83,12 +107,22 @@ func (g *Guard) Manager() (instanceID, containerID string) {
 var containerIDRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ManagerIdentityHandler serves manager.identity with the Engine returned by
-// eng (nil while disconnected).
+// eng (nil while disconnected). A manager whose generation is lower than
+// the highest this agent has seen is refused and its session closed
+// (docs/internal/architecture/manager-move.md); a higher one is persisted
+// before the answer.
 func (g *Guard) ManagerIdentityHandler(eng func() engine.Engine) session.RequestHandler {
 	return func(ctx context.Context, raw json.RawMessage) (any, error) {
 		var in protocol.ManagerIdentityInput
-		if err := json.Unmarshal(raw, &in); err != nil || len(in.InstanceID) > 128 || (in.ContainerID != "" && !containerIDRE.MatchString(in.ContainerID)) {
+		if err := json.Unmarshal(raw, &in); err != nil || len(in.InstanceID) > 128 || in.Generation < 0 ||
+			(in.ContainerID != "" && !containerIDRE.MatchString(in.ContainerID)) {
 			return nil, &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: "malformed manager identity"}
+		}
+		// Second line behind the welcome check (session.Options.AcceptWelcome).
+		var superseded *SupersededError
+		if err := g.AcceptGeneration(in.InstanceID, in.Generation); errors.As(err, &superseded) {
+			return nil, &session.EndSessionError{Err: &session.HandlerError{Code: protocol.CodeConflict, Message: superseded.Error()},
+				Code: protocol.CloseManagerSuperseded, Reason: "manager generation superseded"}
 		}
 		g.SetManager(in.InstanceID, in.ContainerID)
 		out := protocol.ManagerIdentityOutput{}
@@ -97,9 +131,65 @@ func (g *Guard) ManagerIdentityHandler(eng func() engine.Engine) session.Request
 				out.Colocated = true
 			}
 		}
-		g.log.Info("manager identity received", "manager_instance_id", in.InstanceID, "colocated", out.Colocated)
+		g.log.Info("manager identity received", "manager_instance_id", in.InstanceID, "manager_generation", max(1, in.Generation),
+			"colocated", out.Colocated)
 		return out, nil
 	}
+}
+
+// SupersededError refuses a manager whose generation is lower than the
+// highest this agent has seen (an old manager after a move).
+type SupersededError struct {
+	// Generation is the manager's (0 counted as 1); Followed the highest
+	// recorded.
+	Generation, Followed int64
+}
+
+func (e *SupersededError) Error() string {
+	return fmt.Sprintf("this agent follows a newer Docker Manager (generation %d); this manager has generation %d", e.Followed, e.Generation)
+}
+
+// AcceptGeneration compares a manager's generation (welcome or
+// manager.identity; 0, a manager that predates moves, counts as 1) with
+// the highest one recorded. Lower: a *SupersededError (logged as a
+// warning); the caller ends the session, which reconnects with backoff and
+// keeps the credential. Higher: recorded before returning. An unreadable
+// or corrupt record counts as 0. instanceID ("" when unknown) is only
+// logged. Without a GenerationStore every generation is accepted.
+func (g *Guard) AcceptGeneration(instanceID string, generation int64) error {
+	g.identityMu.Lock()
+	defer g.identityMu.Unlock()
+	if g.generations == nil {
+		return nil
+	}
+	generation = max(1, generation)
+	followed, err := g.generations.ManagerGeneration()
+	if err != nil {
+		g.log.Warn("cannot read the highest manager generation this agent has seen; treating it as 0", "error", err)
+		followed = 0
+	}
+	log := g.log
+	if instanceID != "" {
+		log = log.With("manager_instance_id", instanceID)
+	}
+	switch {
+	case generation < followed:
+		log.Warn("refused an older Docker Manager: this agent follows a newer one (the manager moved to another server); "+
+			"closing its session and retrying later. Point DOCKER_AGENT_MANAGER_URL at the new manager if this persists",
+			"manager_generation", generation, "followed_generation", followed)
+		return &SupersededError{Generation: generation, Followed: followed}
+	case generation > followed:
+		if err := g.generations.SaveManagerGeneration(generation); err != nil {
+			// The manager is still accepted (it is the newest one seen);
+			// the next welcome or manager.identity records it again.
+			log.Error("cannot record the manager generation", "manager_generation", generation, "error", err)
+			return nil
+		}
+		if followed > 0 {
+			log.Info("following a newer Docker Manager generation", "manager_generation", generation, "previous_generation", followed)
+		}
+	}
+	return nil
 }
 
 // Set is the protected objects of one Engine at one moment.

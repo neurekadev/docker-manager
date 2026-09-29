@@ -359,9 +359,83 @@ record, one toast (the stack that did not move, with "Open job" on its
 stack migration), "Migrate the rest" (back to Check), "Remove old copies
 from <source>" (type-to-confirm; one source removal per moved stack, one
 `bulkSummary` toast) and, when every stack moved, a link to archive the
-source. Both migration wizards list findings with
+source. The check's findings (everything below the headline and "Check
+again") are `EnvironmentMigrationCheck.svelte`, shared with the manager
+move's Check step. Both migration wizards list findings with
 `$lib/features/stacks/MigrationFindings.svelte`. Tests:
 `environment-migration.spec.ts`, `EnvironmentMigrationWizard.test.ts`.
+
+Moving Docker Manager to a new server
+([manager-move.md](architecture/manager-move.md)) lives in
+`$lib/features/managermove`: pure `model.ts` with `model.spec.ts` (the
+move's states, the wizard's steps, checklist, reminders and progress, the
+status page's steps and notices, Move complete's items, all in words);
+requests in `queries.ts` (`managerMoveQuery` resolves the 404 of "no
+move" to `null`; `createMove`, `startMoveRun`, `cancelMove` and
+`acknowledgeConfirmation` go through `withStepUp`; `moveStatusQuery` is
+public). The move pages poll the move every 3 s while it changes
+(`MOVE_POLL_MS`); no live event announces moves.
+
+- **Settings, Move to a new server** (`routes.managerMove`,
+  `/settings/move`, an owner-only Settings tab; the palette finds Settings
+  by "migrate manager" or "new server"): `ManagerMoveWizard.svelte`, a
+  `StepWizard` of three steps. *New server*: "This server's address"
+  (prefilled from `GET /manager/move/defaults`), "New server's address",
+  optional "Name for the new server", then "Create setup files"
+  (step-up) shows the returned `compose.yaml` and `.env` once (copy and
+  download buttons through `InstallCommand`'s `filename`; the answer
+  lives only in the component, never in a query, URL or storage) and
+  the checklist "New server's agent connected" / "New Docker Manager is
+  waiting"; Next waits for both. *Check*: the environment migration's
+  check from the environment next to Docker Manager to the new server's
+  (`EnvironmentMigrationCheck`), or "Only Docker Manager moves" when
+  there is none or it has no stacks, plus "Before you start" (the proxy
+  reminders and the status address). *Move*: "Move everything"
+  (step-up), then the progress read from the move alone (`runView`:
+  stacks moved of all, the current stack, "Handing over Docker
+  Manager"); a stopped run shows its reason and recovery with "Try
+  again". "Cancel the move" (`ConfirmDialog`) sits in the wizard's footer
+  until the handoff. The wizard opens where the move stands (`stepOf`),
+  so a reload or coming back resumes; the `manager.move` job is tracked
+  (`runs.add`, `managerMoveJobMatch`) and a change of the running list
+  reads the move at once. After the handoff the moved panel says where to
+  point DNS and where to follow the move (`movedPanel`), with "Resume on
+  this server" (`DestructiveConfirm` typing the instance name) until the
+  new manager confirms.
+- **The new server's status page** (`routes.moveStatus`, `/moving`,
+  public, `(auth)` layout): `WaitingStatus.svelte`, built from `GET
+  /api/v1/move/status` alone (polled every 3 s, no session or cookie, so
+  it works over plain http): the steps with the current one highlighted
+  (`waitSteps`) and one notice (`waitNotice`: done with where to point
+  DNS, a problem with the server's recovery, or "press Move everything
+  on the old server"). A manager in waiting mode answers every other
+  route with 503 `manager_move_waiting`, so the root layout wraps every
+  page in `MoveGate.svelte`: it reads the status once before any sign-in
+  or setup routing and sends every page to `/moving` while
+  `isWaitingPhase` (not `none`, not `complete`: after the move sign-in
+  works as usual); no answer (offline, an older manager) lets the app
+  start as always.
+- **Move complete** (the new manager, owner): `MoveCompleteCard.svelte`
+  on the dashboard (and on the Settings tab) while `moveCompleteDone` is
+  false: the old manager's confirmation (polled every 15 s until settled;
+  "Mark as done" with a warning once a confirmation failed), agents that
+  did not get the new address with their one-line fix, the moved stacks'
+  stopped copies on the old server (removed from the environment
+  migration's record with `removeOldCopies`, type-to-confirm, one summary
+  toast) and "Archive <old environment>" (its page).
+
+A locked manager shows a persistent banner in the shell (`MoveBanner`
+in `AppShell`, `moveBanner`): the owner's shell reads the move (polled
+every 15 s while it changes); everyone else learns it from the first
+request answered 409 `manager_moved` (`onApiFailure` in
+`$lib/api/client.ts` hears every error `unwrap` throws;
+`managerMoved.refused` in `moved.svelte.ts` holds it for the page load).
+Only the lock states (`draining`, `handed_off`, `confirmed`) show it:
+the apps moving (`open`, `moving`, `ready`) lock nothing.
+`errorView` words `manager_moved` the same everywhere
+(`KNOWN_ERRORS` in `$lib/ui/errors.ts`). Tests: `model.spec.ts`,
+`ManagerMoveWizard.test.ts`, `WaitingStatus.test.ts`,
+`MoveCompleteCard.test.ts`.
 
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
@@ -418,6 +492,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 | stack page (tray, all tabs) | target `stack:<id>`, every kind but `update.check` (`stackTrayMatch`); on `/migrate` also not `stack.migrate` |
 | migration wizard | a running `stack.migrate` of the stack reopens it at the move step (`migration-resume.ts`); the wizard shows it instead of the tray and hands it back when left while it runs |
 | environment migration wizard | a running `environment.migrate` from the environment reopens it at the move step (`environmentMigrationMatch` in `environment-migration.ts`); the stacks it moves say "Migrating" in the stacks list |
+| manager move wizard | a running `manager.move` (`managerMoveJobMatch`) reads the move again; the Move step shows its progress from the move (`runView`), which also survives a reload |
 | stacks list | one match for the list (`stackListMatch`), the newest job per stack as a status word in the row (`StackJobStatus`) |
 | import dialog | `stack.import` of the environment, matched to projects by their stack target |
 | container, network pages | target by name in the environment (`object-jobs.ts`) |

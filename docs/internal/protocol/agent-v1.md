@@ -12,7 +12,8 @@ document and the code disagree.
 - **Agents dial out.** An agent opens one outbound HTTPS WebSocket to the
   manager's single public origin (or an explicitly opted-in internal URL on
   the manager's Docker network, `DOCKER_AGENT_MANAGER_ALLOW_HTTP=true` for plain
-  HTTP, #27). Agents never listen on a socket.
+  HTTP, #27; after a manager move, the address the manager sent in
+  `manager.redirect`). Agents never listen on a socket.
 - **Named operations only.** The manager sends job commands, requests and
   stream openings whose names are on the allowlists below. There is no
   Docker Engine API passthrough and no host shell passthrough. The agent
@@ -135,6 +136,7 @@ Failures (bodies use the standard error shape):
 | 422 | `validation_failed` | malformed body |
 | 426 | `version_unsupported` | protocol or agent version outside the window (see below); message says what to upgrade. Checked before the token, so an outdated agent learns it even with a valid token |
 | 429 | `rate_limited` | honour `Retry-After` |
+| 503 | `unavailable` | the manager moved to a new server and refuses agents (checked before the token, `Retry-After: 60`); the token is not consumed |
 
 A 409 does **not** consume the token; the manager records the refused
 attempt on the enrollment (`lastRejection`: code, Engine ID, install ID,
@@ -157,7 +159,12 @@ and exits 0 (online), 1 (refused, with the manager's code), 2 (usage) or 3
 (`enrollment-used.json`) and never sent again; a 426 is not remembered (an
 upgraded agent may retry). Network failures, 429 and 5xx are retried with
 the session backoff. The state directory also holds `install-id` (generated
-once) and `credential.json` (0600, atomic write). When the manager refuses
+once), `credential.json` (0600, atomic write) and `manager.json` (the highest
+manager generation seen and the address a moving manager sent in
+`manager.redirect`, 0600, atomic write; see "Manager generation" under
+[welcome](#welcome)). Enrollment goes to the address the agent dials now
+(after a move the redirected one), which `credential.json` records as
+`managerUrl`; enrolling again keeps the redirect. When the manager refuses
 the credential (401 at the upgrade, close 4401/4403) the agent deletes it,
 reports `unauthorized` in `health.json` and waits for a new token.
 
@@ -199,8 +206,11 @@ User-Agent: docker-agent/1.4.0
 Before the upgrade the manager answers with an HTTP error (standard shape):
 `401 unauthenticated` (unknown, revoked or rotated-out credential), `403
 forbidden` (an `Origin` header is present), `426 version_unsupported` (the
-`docker-manager.agent/v1` subprotocol was not offered), `429 rate_limited`. The
-negotiated subprotocol is `docker-manager.agent/v1`.
+`docker-manager.agent/v1` subprotocol was not offered), `429 rate_limited`, and `503
+unavailable` with `Retry-After: 60` once the manager handed its state to a
+new server (checked before the credential; the agent keeps its credential
+and retries with backoff). The negotiated subprotocol is
+`docker-manager.agent/v1`.
 
 ### Handshake
 
@@ -211,12 +221,17 @@ agent                                   manager
                                             check agentId matches the credential,
                                             CheckAgentVersion (N-1 window)
   ◀─ welcome {WelcomePayload} ────────────  (or error version_unsupported + close 4426)
+  check the manager generation              (lower than recorded: close 4421)
   ── capabilities {CapabilitiesPayload} ─▶
   ── job_report {JobReportPayload} ──────▶  reconcile jobs (#26)
   ◀─ ack {forget} ────────────────────────
                                             environment is online; full resync (#23)
 ```
 
+- The agent checks the welcome's `generation` before anything else (see
+  "Manager generation" below); a refused manager gets no capabilities or
+  job report and none of its frames is handled: the agent closes with
+  `4421` and reconnects with backoff, keeping its credential.
 - The hello must match the credential: another agent or install ID closes
   with `4401`; another Engine ID than the enrolled one closes with `4403`
   (enroll the agent again). `capabilities` must follow `welcome`, then
@@ -321,11 +336,79 @@ socket with `1009`). Receivers drop a repeated frame `id` within a session
 { "sessionId": "…", "managerVersion": "1.4.2", "environmentId": "…",
   "agentStatus": "current", "heartbeatIntervalMs": 15000, "heartbeatTimeoutMs": 45000,
   "limits": { "maxFrameBytes": 1048576, "maxStreams": 32, "streamWindowBytes": 1048576,
-              "maxChunkBytes": 262144, "maxPaths": 256 } }
+              "maxChunkBytes": 262144, "maxPaths": 256 }, "generation": 2 }
 ```
 
 `agentStatus` is `current` or `outdated` (previous minor release, still
-supported; the UI shows an upgrade notice).
+supported; the UI shows an upgrade notice). `generation` is the manager
+instance's generation (below).
+
+#### Manager generation (#35)
+
+Every move of the manager to another server raises its instance's
+generation (0 or absent: a manager that predates moves, counted as 1). The
+agent keeps the highest generation it has seen in `<state dir>/manager.json`
+(missing or corrupt: 0, with a warning) so that an old manager (resurrected,
+or restored from a backup) never commands an agent that met the new one.
+It checks twice, against the same record:
+
+1. **welcome** (`session.Options.AcceptWelcome` →
+   `protect.Guard.AcceptGeneration`), before the read loop starts. Lower:
+   the agent logs a warning naming both generations, sends nothing more
+   (no capabilities, no job report), handles no frame of that session and
+   closes it with `4421`; `Client.Run` reconnects with its normal backoff
+   and the credential stays. Higher: written to `manager.json` before the
+   session continues.
+2. **`manager.identity`** (second line, e.g. a manager that fills only the
+   request): lower answers `error conflict` (message names both
+   generations), then closes with `4421` once the answer is written
+   (`session.EndSessionError`), keeping the previous identity; higher is
+   written before the answer.
+
+Equal generations pass. A failed write of a higher generation is logged
+and the manager is still accepted (the next check writes it again).
+Generation writes never lower the record (a concurrent `manager.redirect`
+may have raised it) and keep the redirect.
+
+#### Manager redirect (#35)
+
+When Docker Manager moves to a new server, the old manager sends
+`manager.redirect {url, generation}` to the agents it can place, just
+before it refuses agents ([manager-move.md](../architecture/manager-move.md),
+"Agents follow"). The agent (`internal/agent/runtime`, `redirect.go`):
+
+1. **Validates**: `url` is an http or https origin (scheme and host with
+   an optional port; no credentials, path other than `/`, query or
+   fragment; at most 2048 characters; `config.ParseRedirectURL`);
+   `generation` is at least 1 and higher than the one the agent follows.
+   Malformed JSON: `invalid_frame`; a bad `url` or `generation` < 1:
+   `invalid_argument`; a generation that is not higher: `conflict`
+   (the same `url` and `generation` again, e.g. a lost answer, is answered
+   like the first time). A refused redirect changes nothing and the
+   session stays.
+2. **Persists** the address (as an origin, lower-case host), the
+   `DOCKER_AGENT_MANAGER_URL` origin it replaces and the new generation in
+   `manager.json` in one atomic write (0600) **before** answering. A
+   failed write answers `internal` (retryable) and changes nothing.
+3. **Answers** `{}` and then closes the session with `1001` (the handler
+   returns `session.EndSessionError` with `Output`). `Client.Run`
+   reconnects with its normal backoff, asking the runtime's current
+   transport before every dial (`session.Options.Target`), so the next
+   session dials the new address with the same credential. The old
+   manager (lower generation) is refused from then on.
+
+From then on the redirected address replaces `DOCKER_AGENT_MANAGER_URL`,
+also after restarts and for enrollment. Plain `http` is allowed for it
+without `DOCKER_AGENT_MANAGER_ALLOW_HTTP`, because the authenticated
+manager of the current session sent it (`transport.NewRedirected`, the only
+exception to that rule); it is still reported as `transport.plainHttp`
+and flagged. `https` keeps the TLS trust of `DOCKER_AGENT_MANAGER_CA_FILE`.
+The capabilities' `transport.managerUrl`, the startup log
+(`manager_url_source: move`) and `health.json` (`managerUrl`,
+`managerUrlSource`) show the address dialed. The redirect is forgotten
+(the generation stays) when the agent starts with a
+`DOCKER_AGENT_MANAGER_URL` origin other than the one the redirect
+replaced: the operator's new value wins.
 
 ### capabilities
 
@@ -358,9 +441,11 @@ supported; the UI shows an upgrade notice).
   the diagnostics.
 
 - `transport` (required, #27) is how the agent reaches the manager:
-  `plainHttp` is true exactly for an `http://` manager URL
-  (`DOCKER_AGENT_MANAGER_ALLOW_HTTP=true`, co-located agents only) and the host
-  page flags such environments; `customCa` reports a
+  `managerUrl` is the origin the agent dials (after a move the redirected
+  one); `plainHttp` is true exactly for an `http://` manager URL
+  (`DOCKER_AGENT_MANAGER_ALLOW_HTTP=true`, co-located agents only, or a
+  plain-HTTP `manager.redirect` address) and the host page flags such
+  environments; `customCa` reports a
   `DOCKER_AGENT_MANAGER_CA_FILE` bundle. Built by `internal/agent/transport`.
 
 - `engine.apiVersion` is the version the Moby client negotiated (#21). The
@@ -994,7 +1079,17 @@ on a new session with a new frame ID.
 | `migration.cleanup` | request | job-linked (`stack.migrate` / `volume.migrate`): remove what a migration created on the destination | yes | #35 |
 | `agent.credential.rotate` | request | `agent.manage` | yes | #3 |
 | `agent.diagnostics` | request | owner (support bundle, redacted) | no | #34 |
-| `manager.identity` | request | manager service (after every reconnect, when advertised) | yes | #32 |
+| `manager.identity` | request | manager service (after every reconnect, when advertised) | yes | #32, #35 |
+| `manager.redirect` | request | manager service (a manager move, just before the old manager refuses agents) | yes | #35 |
+
+`manager.identity {instanceId, containerId?, generation?}` →
+`{colocated}`; a `generation` lower than the agent's record is refused
+(`error conflict`, then close `4421`), see "Manager generation" under
+[welcome](#welcome).
+
+`manager.redirect {url, generation}` → `{}`, then the agent closes the
+session with `1001` and reconnects to `url`; see "Manager redirect" under
+[welcome](#welcome).
 
 ### Observation requests (#5)
 
@@ -1067,7 +1162,7 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `unauthorized` | credential no longer valid |
 | `forbidden_path` | a path escapes its scope root or is not allowed |
 | `not_found` | the Engine object or file does not exist |
-| `conflict` | the object changed (for example an expected file revision) |
+| `conflict` | the object changed (for example an expected file revision); `manager.identity` from a manager with a lower generation (before close 4421); `manager.redirect` whose generation is not higher than the agent's |
 | `deadline_exceeded` | the deadline passed before or during the work |
 | `busy` | a conflicting operation is running on the agent |
 | `stream_limit` | too many open streams |
@@ -1117,14 +1212,16 @@ The manager maps them to public errors: `not_found` → 404,
 | code | name | agent reconnects? | meaning |
 | --- | --- | --- | --- |
 | 1000 | normal | yes (if still running) | orderly close |
-| 1001 | going away | yes | manager shutting down |
+| 1001 | going away | yes | manager shutting down; sent by the agent after answering `manager.redirect` (it reconnects to the new address) |
 | 1009 | too large | yes | a frame exceeded 1 MiB |
 | 1011 | internal | yes | unexpected failure |
+| 1012 | service restart | yes (backoff, credential kept) | sent by the manager: it moved to a new server and refuses agents from now on (the agent must reach the new one at the public URL) |
 | 4400 | protocol error | yes | invalid frame, hello missing or late, unexpected frame for the session state |
 | 4401 | unauthorized | no | credential stopped being valid (e.g. rotation completed elsewhere) |
 | 4403 | revoked | no | agent removed or replaced; re-enroll |
 | 4408 | heartbeat timeout | yes | nothing received for 45 s |
 | 4409 | replaced | no | a newer session with the same credential took over |
+| 4421 | manager superseded | yes (backoff, credential kept) | sent by the agent: the manager's generation (welcome or `manager.identity`) is lower than the highest the agent has seen (an old manager after a move) |
 | 4426 | version unsupported | no | outside the N-1 window or protocol not negotiated; upgrade |
 
 ## Deadlines, idempotency and replay
@@ -1173,5 +1270,6 @@ The manager maps them to public errors: `not_found` → 404,
 | backups and restores (`backup.snapshots/contents/scope_preview`, `restore.preview` requests, `backup.file` stream, backup/restore/verification executors) | `internal/protocol/backup.go`, `internal/agent/backups`, `internal/restic` | implemented (#10, #24, #28) |
 | environment migration (`migration.preview/stop/start/commit/cleanup` requests, `migration.send`/`migration.receive` streams relayed by the manager) | `internal/protocol/migration.go`, `internal/agent/migration`, `internal/manager/migrations` | implemented (#35) |
 | digest-driven updates (`update.run` executor) | `internal/protocol/updates.go`, `internal/agent/stacks/update.go` | implemented (#20) |
-| self-protection (`manager.identity` request) | `internal/agent/protect` | implemented (#32) |
+| self-protection (`manager.identity` request), manager generation check (welcome and `manager.identity`) | `internal/agent/protect`, `internal/agent/session` (`AcceptWelcome`), `internal/agent/state` (`manager.json`) | implemented (#32, #35) |
+| `manager.redirect` (agent side: validate, persist, switch the transport, reconnect) | `internal/agent/runtime` (`redirect.go`), `internal/agent/transport` (`NewRedirected`), `internal/agent/config` (`ParseRedirectURL`), `internal/agent/state` (`manager.json`), `internal/agent/session` (`Target`, `EndSessionError.Output`) | implemented (#35) |
 | Engine access for all of the above | `internal/agent/engine` (Moby adapter), `internal/agent/compose` | implemented (#21) |

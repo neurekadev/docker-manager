@@ -154,8 +154,9 @@ func targetType(t domain.TargetType) string {
 // service enforces containment) and the images a build definition run
 // tags are covered by the definition (its tags are part of the definition,
 // managed with build_definition.manage, #33). Repository and template targets are
-// instance resources. A job without targets is authorized on its
-// environment (or the instance).
+// instance resources; a manager target (manager.move) is the instance.
+// A job without targets is authorized on its environment (or the
+// instance).
 func TargetResources(environmentID string, targets []domain.JobTarget) []Resource {
 	hasRoot, hasDefinition := false, false
 	for _, t := range targets {
@@ -169,6 +170,10 @@ func TargetResources(environmentID string, targets []domain.JobTarget) []Resourc
 	var out []Resource
 	for _, t := range targets {
 		if hasRoot && (t.Type == domain.TargetPath || t.Type == domain.TargetDestinationPath) {
+			continue
+		}
+		if t.Type == domain.TargetManager {
+			out = append(out, Instance()) // the manager itself: an instance-wide operation
 			continue
 		}
 		if hasDefinition && t.Type == domain.TargetImage {

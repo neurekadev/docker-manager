@@ -303,12 +303,20 @@ func (h *Hub) untrack(s *Session) {
 	h.wg.Done()
 }
 
+// errMoved refuses sessions once the manager handed its state to a new
+// server.
+var errMoved = errors.New("the manager moved to a new server")
+
 // attach registers s as its agent's session, closing an older one (4409).
 func (h *Hub) attach(s *Session) error {
 	h.mu.Lock()
 	if h.shutdown {
 		h.mu.Unlock()
 		return errors.New("manager is shutting down")
+	}
+	if h.svc.opts.MoveLock.AgentsRefused() {
+		h.mu.Unlock()
+		return errMoved
 	}
 	old := h.byAgent[s.p.AgentID]
 	if o := h.byEnv[s.p.EnvironmentID]; o != nil && o != old {
@@ -367,4 +375,19 @@ func (h *Hub) String() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return fmt.Sprintf("agents.Hub{sessions: %d}", len(h.byAgent))
+}
+
+// closeAll closes every connection being served with code (the manager
+// moved to a new server: 1012, agents reconnect with backoff and keep
+// their credential).
+func (h *Hub) closeAll(code websocket.StatusCode, reason string) {
+	h.mu.Lock()
+	sessions := make([]*Session, 0, len(h.conns))
+	for s := range h.conns {
+		sessions = append(sessions, s)
+	}
+	h.mu.Unlock()
+	for _, s := range sessions {
+		s.closeWith(code, reason)
+	}
 }

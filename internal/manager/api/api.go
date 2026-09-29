@@ -164,6 +164,16 @@ type Deps struct {
 	// Deployment is the read-only deployment configuration GET /settings
 	// shows.
 	Deployment DeploymentInfo
+	// ManagerMove moves the manager to a new server (the move, Move
+	// everything, the handoff, waiting mode's status, Move complete); nil
+	// answers those routes with 503 (after authorization).
+	ManagerMove ManagerMoveService
+	// MoveLock makes the API read-only while the manager moves: every
+	// non-GET operation but sign-in, sign-out and the move routes answers
+	// 409 manager_moved; while a new manager waits for the handoff every
+	// operation but the move status and health answers 503
+	// manager_move_waiting. nil: never locked.
+	MoveLock MoveLock
 }
 
 func (d Deps) clock() clock.Clock {
@@ -243,6 +253,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerTemplateImports(a, deps)
 	registerLive(a, deps)
 	registerSearch(a, deps)
+	registerManagerMove(a, deps)
 	addExamples(a)
 	return a
 }

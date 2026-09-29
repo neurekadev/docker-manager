@@ -163,6 +163,16 @@ func (k *conn) serve(cred *state.Credential, installID string, caps protocol.Cap
 	if err != nil {
 		return k.ended(err)
 	}
+	if accept := c.opts.AcceptWelcome; accept != nil {
+		if err := accept(welcome); err != nil {
+			// Refused before the read loop starts: nothing the manager
+			// sends is handled. The close code is retryable, so Run
+			// reconnects with backoff and the credential stays.
+			k.closeWith(protocol.CloseManagerSuperseded, "manager generation superseded")
+			_ = k.drain(err)
+			return fmt.Errorf("refused the manager's session: %w", err)
+		}
+	}
 	k.sessionID = welcome.SessionID
 	c.lastSession = welcome.SessionID
 	k.hbStart <- time.Duration(welcome.HeartbeatIntervalMs) * time.Millisecond
@@ -524,6 +534,15 @@ func (k *conn) run(f *protocol.Frame, name string, h func(ctx context.Context) (
 		if err != nil && errors.Is(ctx.Err(), context.Canceled) && k.ctx.Err() == nil {
 			err = &HandlerError{Code: protocol.CodeDeadlineExceeded, Message: "the request deadline passed"}
 		}
+		var end *EndSessionError
+		if errors.As(err, &end) {
+			if end.Err == nil {
+				k.replyAndClose(f.ID, end.Output, nil, end.closeCode(), end.Reason)
+			} else {
+				k.replyAndClose(f.ID, nil, err, end.closeCode(), end.Reason)
+			}
+			return
+		}
 		_ = k.reply(f.ID, out, err)
 	}()
 }
@@ -591,32 +610,44 @@ func requestContext(ctx context.Context, log *slog.Logger, requestID, what, name
 
 // reply answers a request (or rescan) with response or error.
 func (k *conn) reply(correlationID string, out any, err error) error {
+	f, ferr := k.replyFrame(correlationID, out, err)
+	if ferr != nil {
+		return ferr
+	}
+	return k.send(f)
+}
+
+// replyAndClose answers a request with out or the error err, then closes
+// the session with code once the answer is written (EndSessionError). code
+// always allows reconnecting, so Run reconnects with backoff and the
+// credential stays.
+func (k *conn) replyAndClose(correlationID string, out any, err error, code websocket.StatusCode, reason string) {
+	f, ferr := k.replyFrame(correlationID, out, err)
+	if ferr != nil || k.queue(outFrame{f: f, closeCode: code, reason: reason}) != nil {
+		k.closeWith(code, reason)
+	}
+}
+
+// replyFrame builds the response or error frame answering a request.
+func (k *conn) replyFrame(correlationID string, out any, err error) (*protocol.Frame, error) {
 	if err != nil {
 		var he *HandlerError
 		if !errors.As(err, &he) {
 			k.c.log.Error("request failed", "error", err)
 			he = &HandlerError{Code: protocol.CodeInternal, Message: "internal agent error"}
 		}
-		f, ferr := protocol.NewFrame(protocol.TypeError, k.frameID("e"), correlationID, protocol.JobRef{},
+		return protocol.NewFrame(protocol.TypeError, k.frameID("e"), correlationID, protocol.JobRef{},
 			protocol.ErrorPayload{Code: he.Code, Message: he.Message, Retryable: he.Retryable})
-		if ferr != nil {
-			return ferr
-		}
-		return k.send(f)
 	}
 	var payload protocol.ResponsePayload
 	if out != nil {
 		b, merr := json.Marshal(out)
 		if merr != nil {
-			return merr
+			return nil, merr
 		}
 		payload.Output = b
 	}
-	f, ferr := protocol.NewFrame(protocol.TypeResponse, k.frameID("r"), correlationID, protocol.JobRef{}, payload)
-	if ferr != nil {
-		return ferr
-	}
-	return k.send(f)
+	return protocol.NewFrame(protocol.TypeResponse, k.frameID("r"), correlationID, protocol.JobRef{}, payload)
 }
 
 // dedup remembers the last 1024 inbound frame IDs.

@@ -208,6 +208,37 @@ func ParseManagerURL(raw string, allowHTTP bool) (*url.URL, bool, error) {
 	return &url.URL{Scheme: u.Scheme, Host: strings.ToLower(u.Host)}, u.Scheme == "http", nil
 }
 
+// MaxRedirectURLLen bounds the manager address of manager.redirect.
+const MaxRedirectURLLen = 2048
+
+// ParseRedirectURL validates the manager address received in
+// manager.redirect when Docker Manager moves to a new server
+// (docs/internal/architecture/manager-move.md): an http or https origin,
+// with the same shape rules as DOCKER_AGENT_MANAGER_URL. Plain http is
+// allowed without DOCKER_AGENT_MANAGER_ALLOW_HTTP because the manager of
+// the current, authenticated session sent it; this is the only exception
+// to that rule, and it covers only this address (persisted in the state
+// directory, transport.NewRedirected).
+func ParseRedirectURL(raw string) (*url.URL, error) {
+	if raw == "" || len(raw) > MaxRedirectURLLen {
+		return nil, fmt.Errorf("manager address must be 1 to %d characters", MaxRedirectURLLen)
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, errors.New("manager address is not a valid URL")
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return nil, errors.New("manager address must use http or https")
+	}
+	if u.Opaque != "" || u.Host == "" || u.Hostname() == "" {
+		return nil, errors.New("manager address has no host")
+	}
+	if u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return nil, errors.New("manager address must be an origin like http://192.0.2.10:8080 (no credentials, path or query)")
+	}
+	return &url.URL{Scheme: u.Scheme, Host: strings.ToLower(u.Host)}, nil
+}
+
 // LoadCABundle reads a PEM file and checks that it holds at least one
 // parsable certificate and nothing but certificates.
 func LoadCABundle(path string) ([]byte, error) {

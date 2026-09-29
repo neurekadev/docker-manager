@@ -6,6 +6,8 @@
 	// item and KPI links to its list. Everything is live: overview and
 	// charts are keyed with liveKeys, so connection, inventory and metrics
 	// events refresh them. A Restricted user sees the calm denied state (#17).
+	// After Docker Manager moved to this server, the owner sees Move complete
+	// on top until everything left to do is done.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Container from '@lucide/svelte/icons/container';
 	import Cpu from '@lucide/svelte/icons/cpu';
@@ -25,6 +27,9 @@
 	import Page from '$lib/features/common/Page.svelte';
 	import AttentionStrip, { presetFilters } from '$lib/features/dashboard/AttentionStrip.svelte';
 	import EnvironmentCard from '$lib/features/dashboard/EnvironmentCard.svelte';
+	import MoveCompleteCard from '$lib/features/managermove/MoveCompleteCard.svelte';
+	import { moveCompleteDone, oldManagerSettled } from '$lib/features/managermove/model';
+	import { managerMoveQuery } from '$lib/features/managermove/queries';
 	import {
 		attentionItems,
 		dashboardTotals,
@@ -58,6 +63,20 @@
 	const canEnroll = $derived(access.owner || access.allowed.has('agent.enroll'));
 
 	const overview = createQuery(() => ({ ...overviewQuery(), enabled: ready }));
+	// Move complete: the move this manager arrived by (owner only).
+	const move = createQuery(() => ({
+		...managerMoveQuery(),
+		enabled: access.owner,
+		refetchInterval: (q) => {
+			const m = q.state.data;
+			return m?.state === 'arrived' && !oldManagerSettled(m) ? 15_000 : false;
+		}
+	}));
+	const arrived = $derived(
+		access.owner && move.data?.state === 'arrived' && !moveCompleteDone(move.data)
+			? move.data
+			: null
+	);
 	const envList = createQuery(() => ({ ...environmentsQuery(), enabled: ready }));
 	const jobs = createQuery(() => ({ ...recentJobsQuery(50), enabled: ready }));
 	const stacks = createQuery(() => ({
@@ -116,6 +135,10 @@
 				{/if}
 			{/snippet}
 		</PageHeader>
+
+		{#if arrived}
+			<MoveCompleteCard move={arrived} />
+		{/if}
 
 		{#if overview.isError}
 			<ErrorState

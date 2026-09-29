@@ -11,6 +11,12 @@
 //	                        by `docker-agent enroll` to report the result
 //	enrollment-used.json    SHA-256 of tokens already used, so a token left
 //	                        in DOCKER_AGENT_ENROLLMENT_TOKEN is not retried
+//	manager.json            the highest manager generation seen (welcome,
+//	                        manager.identity, manager.redirect; a manager
+//	                        with a lower one is refused) and the address a
+//	                        moving manager sent in manager.redirect, dialed
+//	                        instead of DOCKER_AGENT_MANAGER_URL
+//	                        (docs/internal/architecture/manager-move.md)
 //
 // Every write is atomic: temporary file (0600), fsync, rename, directory
 // fsync. The credential is written before the agent opens a session with it.
@@ -42,6 +48,7 @@ const (
 	TokenFile            = "enrollment-token"
 	EnrollmentStatusFile = "enrollment-status.json"
 	UsedTokensFile       = "enrollment-used.json"
+	ManagerFile          = "manager.json"
 )
 
 // maxUsedTokens bounds enrollment-used.json.
@@ -292,6 +299,121 @@ func (s *Store) EnrollStatus() (*EnrollStatus, error) {
 		return nil, err
 	}
 	return &st, nil
+}
+
+// ManagerState is manager.json: the highest manager generation this agent
+// has seen and the manager address a move gave it.
+type ManagerState struct {
+	Generation int64 `json:"generation"`
+	// Redirect is the address received in manager.redirect (nil: none;
+	// the agent dials DOCKER_AGENT_MANAGER_URL).
+	Redirect *ManagerRedirect `json:"redirect,omitempty"`
+}
+
+// ManagerRedirect is the manager address received in manager.redirect.
+// It replaces DOCKER_AGENT_MANAGER_URL until that variable is changed.
+type ManagerRedirect struct {
+	// URL is the origin to dial (http or https, validated by the runtime).
+	URL string `json:"url"`
+	// Replaces is the DOCKER_AGENT_MANAGER_URL origin configured when the
+	// redirect arrived. A different configured origin at startup means the
+	// operator changed the variable since: the redirect is then dropped.
+	Replaces string `json:"replaces"`
+	// At is when the redirect arrived.
+	At time.Time `json:"at"`
+}
+
+// ErrGenerationNotNewer refuses a manager.redirect whose generation is not
+// higher than the highest recorded one.
+var ErrGenerationNotNewer = errors.New("state: the manager generation is not newer than the one this agent follows")
+
+// ManagerState returns manager.json: the zero state when none was recorded
+// yet, and the zero state with an error when it is unreadable or corrupt
+// (the caller warns and treats it as empty).
+func (s *Store) ManagerState() (ManagerState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.readManager()
+}
+
+func (s *Store) readManager() (ManagerState, error) {
+	var m ManagerState
+	ok, err := readJSON(s.path(ManagerFile), &m)
+	if err != nil || !ok {
+		return ManagerState{}, err
+	}
+	if m.Generation < 0 {
+		return ManagerState{}, fmt.Errorf("state: %s is corrupt: negative generation", ManagerFile)
+	}
+	if m.Redirect != nil && (m.Redirect.URL == "" || m.Redirect.Replaces == "") {
+		return ManagerState{}, fmt.Errorf("state: %s is corrupt: incomplete redirect", ManagerFile)
+	}
+	return m, nil
+}
+
+// ManagerGeneration returns the highest manager generation this agent has
+// seen: 0 when none was recorded yet, and 0 with an error when manager.json
+// is unreadable or corrupt (the caller warns and treats it as 0).
+func (s *Store) ManagerGeneration() (int64, error) {
+	m, err := s.ManagerState()
+	return m.Generation, err
+}
+
+// SaveManagerGeneration records the highest manager generation seen
+// (atomically, 0600). It never lowers the record (a concurrent
+// manager.redirect may have raised it meanwhile) and keeps the redirect;
+// an unreadable or corrupt record is replaced.
+func (s *Store) SaveManagerGeneration(generation int64) error {
+	if generation < 0 {
+		return errors.New("state: negative manager generation")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.readManager()
+	if err == nil && generation <= m.Generation {
+		return nil
+	}
+	m.Generation = generation
+	return writeJSON(s.dir, ManagerFile, m)
+}
+
+// SaveManagerRedirect records a manager.redirect: the new address and the
+// new manager's generation, in one atomic write (0600). generation must be
+// higher than the recorded one (else ErrGenerationNotNewer, nothing
+// written); the same redirect again (equal generation and URL) is a no-op.
+// An unreadable or corrupt record counts as empty and is replaced.
+func (s *Store) SaveManagerRedirect(generation int64, r ManagerRedirect) error {
+	if generation < 1 || r.URL == "" || r.Replaces == "" {
+		return errors.New("state: invalid manager redirect")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, _ := s.readManager()
+	if generation <= m.Generation {
+		if generation == m.Generation && m.Redirect != nil && m.Redirect.URL == r.URL {
+			return nil
+		}
+		return fmt.Errorf("%w (generation %d; this agent follows %d)", ErrGenerationNotNewer, generation, m.Generation)
+	}
+	m.Generation, m.Redirect = generation, &r
+	return writeJSON(s.dir, ManagerFile, m)
+}
+
+// ClearManagerRedirect forgets the redirect (the agent dials
+// DOCKER_AGENT_MANAGER_URL again) and keeps the generation. A corrupt
+// record is left for the next generation write to replace.
+func (s *Store) ClearManagerRedirect() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.readManager()
+	if err != nil {
+		return err
+	}
+	if m.Redirect == nil {
+		return nil
+	}
+	m.Redirect = nil
+	return writeJSON(s.dir, ManagerFile, m)
 }
 
 func readJSON(path string, v any) (bool, error) {

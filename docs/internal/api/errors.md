@@ -66,6 +66,8 @@ same change.
 | `invalid_code` | 400 | no | The one-time code (invitation, password reset or owner recovery) is unknown, expired, revoked or already used. The response never says which. | #16 |
 | `unauthenticated` | 401 | no | No valid session cookie or API token; sign in again or send a valid bearer token. | #2 |
 | `invalid_credentials` | 401 | no | Sign-in, second factor or step-up failed: unknown account, wrong password or code, disabled account and bad passkey assertions all look alike. | #16 |
+| `move_code_invalid` | 401 | no | A manager move request is not signed with the move's code, replays a nonce, or names a move that ended (cancelled, expired after seven days); the response never says which. Check `DOCKER_MANAGER_MOVE_CODE` on the new server. | #35 |
+| `move_clock_skew` | 401 | no | A correctly signed manager move request carries a time more than five minutes away from this manager's clock; set both servers' clocks right (NTP). | #35 |
 | `forbidden` | 403 | no | Authenticated, but the named capability is not granted for this resource. Returned only when the caller may know the resource exists; otherwise `not_found`. | #2 |
 | `insecure_origin` | 403 | no | The request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL (first-run setup); the message explains how to fix the proxy or URL. | #16 |
 | `cross_origin_request` | 403 | no | A browser sent an unsafe request from another origin (cross-site request forgery protection). | #16 |
@@ -169,6 +171,12 @@ same change.
 | `backup_import_schema_incompatible` | 409 | no | The backup set was written by a newer Docker Manager whose database this build cannot run; install at least that version and import again. | #24 |
 | `backup_import_state_missing` | 409 | no | The backup set has no readable manager state (missing manager repository or snapshot, damaged secret-key bundle or database); choose another set. Host-only recovery is documented. | #24 |
 | `backup_import_in_progress` | 409 | no | A backup import is already running on this manager; follow it in the setup status. | #24 |
+| `manager_moved` | 409 | no | Docker Manager is moving (or moved) to a new server: it is read-only. Every non-GET request except sign-in, sign-out and the move routes is refused; use the new server's manager. | #35 |
+| `jobs_running` | 409 | no | The handoff waits for the jobs still running on the old manager; `Retry-After` says when to ask again and `X-Docker-Manager-Jobs-Running` how many run. | #35 |
+| `manager_move_exists` | 409 | no | A move of this manager is already open or in progress; cancel it before creating another. | #35 |
+| `manager_move_state` | 409 | no | The move is not in a state that allows this (Move everything needs an open or ready move; a confirmed move cannot be cancelled; a confirmation needs a handed-off move). | #35 |
+| `manager_move_not_ready` | 409 | no | The handoff waits until Move everything moved the apps; `Retry-After` says when to ask again and `X-Docker-Manager-Move-State`, `X-Docker-Manager-Move-Stacks` and `X-Docker-Manager-Move-Current-Stack` carry the progress. | #35 |
+| `manager_move_new_server_missing` | 409 | no | Move everything needs the new server: its agent connected and its Docker Manager (waiting mode) checked in within two minutes. | #35 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
@@ -207,6 +215,7 @@ same change.
 | `agent_unsupported` | 501 | no | The environment's agent does not support this operation (it is older than the manager); upgrade the agent. | #6 |
 | `unavailable` | 503 | yes | A dependency (database, job engine, agent) is temporarily unavailable. | #2 |
 | `not_ready` | 503 | yes | Readiness check failed; `details` lists each failing check. | #2 |
+| `manager_move_waiting` | 503 | yes | This Docker Manager waits for a move from another server (`DOCKER_MANAGER_MOVE_FROM`): every route except `GET /api/v1/move/status` and health is closed until the move is done. | #35 |
 | `environment_offline` | 503 | yes | The environment's agent is not connected; retry when the environment is online again. | #6 |
 | `engine_unavailable` | 503 | yes | The environment's agent is connected but cannot reach its Docker Engine. | #6 |
 | `timeout` | 504 | yes | The operation did not finish within its deadline (also `408` for slow request bodies). | #2 |

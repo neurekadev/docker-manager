@@ -306,3 +306,54 @@ func TestMetricsConfig(t *testing.T) {
 		t.Fatalf("inverted retention accepted: %v", err)
 	}
 }
+
+// TestMoveVariables: DOCKER_MANAGER_MOVE_FROM and DOCKER_MANAGER_MOVE_CODE
+// are both set or neither; the address is an http or https origin, the
+// code a move code; the code never appears in the settings list.
+func TestMoveVariables(t *testing.T) {
+	const code = "dmm_0190a6e0-0000-7000-8000-000000000035_secretsecretsecretsecretsecretsecretsec"
+	base := map[string]string{EnvPublicURL: "https://docker.example.com"}
+	with := func(from, c string) map[string]string {
+		m := map[string]string{EnvMoveFrom: from, EnvMoveCode: c}
+		for k, v := range base {
+			m[k] = v
+		}
+		return m
+	}
+	cfg, err := load(t, base)
+	if err != nil || cfg.Move.Set() || cfg.Move.From != nil {
+		t.Fatalf("unset: %+v %v", cfg.Move, err)
+	}
+	cfg, err = load(t, with("http://192.168.1.10:8080/", " "+code+" "))
+	if err != nil || !cfg.Move.Set() || cfg.Move.From.String() != "http://192.168.1.10:8080" || string(cfg.Move.Code) != code {
+		t.Fatalf("set: %+v %v", cfg.Move, err)
+	}
+	for _, st := range cfg.Settings() {
+		if strings.Contains(st.Value, code) {
+			t.Fatalf("the move code is listed in %s", st.Name)
+		}
+		if st.Name == EnvMoveCode && st.Value != "(set)" {
+			t.Fatalf("%s = %q", st.Name, st.Value)
+		}
+	}
+	if cfg, err := load(t, with("https://Old.Example.com", code)); err != nil || cfg.Move.From.String() != "https://old.example.com" {
+		t.Fatalf("https: %+v %v", cfg.Move, err)
+	}
+	for name, vars := range map[string]map[string]string{
+		"only the address": with("http://192.168.1.10:8080", ""),
+		"only the code":    with("", code),
+		"not a code":       with("http://192.168.1.10:8080", "secret"),
+		"ftp":              with("ftp://192.168.1.10", code),
+		"path":             with("http://192.168.1.10:8080/api", code),
+		"credentials":      with("http://user:pw@192.168.1.10:8080", code),
+		"no host":          with("http://", code),
+	} {
+		_, err := load(t, vars)
+		if err == nil || (!strings.Contains(err.Error(), EnvMoveFrom) && !strings.Contains(err.Error(), EnvMoveCode)) {
+			t.Errorf("%s: %v", name, err)
+		}
+		if err != nil && strings.Contains(err.Error(), code) {
+			t.Errorf("%s: the error carries the code", name)
+		}
+	}
+}

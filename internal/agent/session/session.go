@@ -126,6 +126,48 @@ type StreamHandler func(ctx context.Context, s *streammux.Stream) error
 // HandlerError is a request failure with a protocol error code.
 type HandlerError = protocol.Error
 
+// EndSessionError is returned by a RequestHandler after which the session
+// must end: the session answers the request with Err (an error frame: the
+// handler refuses to serve this manager any further) or, when Err is nil,
+// with Output (a response frame: the handler did what was asked and the
+// agent must reconnect, e.g. manager.redirect), then closes with Code once
+// that frame is written. The client reconnects with its normal backoff and
+// keeps its credential: Code must allow reconnecting
+// (protocol.ReconnectAllowed), any other code is replaced by
+// protocol.CloseInternal, so a handler can never make the agent delete its
+// credential or go idle.
+type EndSessionError struct {
+	Err *HandlerError
+	// Output answers the request when Err is nil.
+	Output any
+	Code   websocket.StatusCode
+	Reason string
+}
+
+func (e *EndSessionError) Error() string {
+	if e.Err == nil {
+		return "request done; closing the session: " + e.Reason
+	}
+	return e.Err.Error() + "; closing the session: " + e.Reason
+}
+
+// Unwrap returns the error frame's HandlerError.
+func (e *EndSessionError) Unwrap() error {
+	if e.Err == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// closeCode returns the close code to use (always one the agent
+// reconnects after).
+func (e *EndSessionError) closeCode() websocket.StatusCode {
+	if e.Code == 0 || !protocol.ReconnectAllowed(e.Code) {
+		return protocol.CloseInternal
+	}
+	return e.Code
+}
+
 // JobRunner is the agent job runner (internal/agent/jobs.Runner).
 type JobRunner interface {
 	Report() protocol.JobReportPayload
@@ -144,7 +186,11 @@ type Options struct {
 	// options (HTTP client with the transport's TLS trust, headers).
 	URL         string
 	DialOptions func(header http.Header) *websocket.DialOptions
-	Dial        Dialer
+	// Target, when set, replaces URL and DialOptions: it is asked before
+	// every dial, so the manager address can change between sessions (the
+	// runtime's current transport, which manager.redirect replaces).
+	Target func(header http.Header) (url string, opts *websocket.DialOptions)
+	Dial   Dialer
 	// AgentVersion is sent in hello; UserAgent on the upgrade.
 	AgentVersion string
 	UserAgent    string
@@ -159,8 +205,15 @@ type Options struct {
 	Streams map[string]StreamHandler
 	// Rescan answers the manager's rescan frames (the file watcher, #23);
 	// nil answers unsupported_request.
-	Rescan  func(ctx context.Context, p protocol.RescanPayload) (protocol.RescanResult, error)
-	Backoff Backoff
+	Rescan func(ctx context.Context, p protocol.RescanPayload) (protocol.RescanResult, error)
+	// AcceptWelcome vets the manager when its welcome arrives (the manager
+	// generation, docs/internal/architecture/manager-move.md). A non-nil
+	// error refuses it before anything else runs (no capabilities or job
+	// report sent; no request, job, stream or rescan served): the session
+	// closes with protocol.CloseManagerSuperseded and Run reconnects with
+	// backoff, keeping the credential. nil accepts every manager.
+	AcceptWelcome func(protocol.WelcomePayload) error
+	Backoff       Backoff
 	// WelcomeTimeout bounds the wait for welcome (default 30 s).
 	WelcomeTimeout time.Duration
 	// OnStatus observes connection state changes (must not block).
@@ -353,10 +406,15 @@ func (c *Client) runOnce(ctx context.Context, cred *state.Credential) error {
 	h := http.Header{}
 	h.Set("Authorization", "Bearer "+cred.Credential)
 	h.Set("User-Agent", c.opts.UserAgent)
-	dopts := c.opts.DialOptions(h)
+	target, dopts := c.opts.URL, (*websocket.DialOptions)(nil)
+	if c.opts.Target != nil {
+		target, dopts = c.opts.Target(h)
+	} else {
+		dopts = c.opts.DialOptions(h)
+	}
 	dopts.Subprotocols = []string{protocol.Version}
 	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	ws, resp, err := c.opts.Dial(dctx, c.opts.URL, dopts)
+	ws, resp, err := c.opts.Dial(dctx, target, dopts)
 	cancel()
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()

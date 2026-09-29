@@ -205,7 +205,8 @@ export const NAV_ITEMS: NavItem[] = [
 		href: routes.settings(),
 		icon: Settings,
 		group: 'admin',
-		keywords: 'all api tokens sign-in policy schedule defaults audit log diagnostics',
+		keywords:
+			'all api tokens sign-in policy schedule defaults audit log diagnostics move to a new server migrate manager move docker manager new server',
 		visible: () => true
 	}
 ];

@@ -93,3 +93,30 @@ func TestHostProc(t *testing.T) {
 		t.Fatalf("relative path accepted: %v", err)
 	}
 }
+
+// TestParseRedirectURL (#35, manager moves): the address of a
+// manager.redirect is an http or https origin (plain http needs no
+// opt-in); anything else is refused without echoing credentials.
+func TestParseRedirectURL(t *testing.T) {
+	for raw, want := range map[string]string{
+		"http://192.0.2.10:8080":     "http://192.0.2.10:8080",
+		"http://Docker-Manager:80/":  "http://docker-manager:80",
+		"https://docker.example.com": "https://docker.example.com",
+		"https://[2001:db8::1]:8443": "https://[2001:db8::1]:8443",
+	} {
+		u, err := ParseRedirectURL(raw)
+		if err != nil || u.String() != want {
+			t.Errorf("ParseRedirectURL(%q) = %v, %v; want %s", raw, u, err, want)
+		}
+	}
+	for _, bad := range []string{"", "docker.example.com", "ftp://x", "ws://x", "http://", "http://:8080", "https://u:hunter2@x",
+		"https://x/path", "https://x?q=1", "https://x?", "https://x#f", "http:opaque", "http://x:port",
+		"https://" + strings.Repeat("a", MaxRedirectURLLen)} {
+		_, err := ParseRedirectURL(bad)
+		if err == nil {
+			t.Errorf("ParseRedirectURL(%q) accepted", bad)
+		} else if strings.Contains(err.Error(), "hunter2") {
+			t.Errorf("ParseRedirectURL(%q) echoes the password: %v", bad, err)
+		}
+	}
+}

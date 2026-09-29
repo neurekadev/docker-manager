@@ -47,12 +47,14 @@ the container doesn't start and keeps retrying. Its log says why:
 | `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of moving stacks between servers, for example `50MB`. |
 | `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | (none) | Folders the manager may write backups to (see [Backups](/docs/backups#allow-a-local-folder)). |
 | `DOCKER_MANAGER_METRICS_ENABLED` | `false` | Set to `true` for [Prometheus monitoring](/docs/audit-and-diagnostics#monitoring-with-prometheus). |
+| `DOCKER_MANAGER_MOVE_FROM` | (none) | Only in the setup files for [moving Docker Manager](/docs/migration#move-docker-manager-to-a-new-server): the old server's address. |
+| `DOCKER_MANAGER_MOVE_CODE` | (none) | Only in the same setup files: the pairing code. Keep it private; remove both after the move. |
 
 ## Agent settings
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `DOCKER_AGENT_MANAGER_URL` | (required) | Your Docker Manager address. On the manager's own server, keep `http://docker-manager:8080`. |
+| `DOCKER_AGENT_MANAGER_URL` | (required) | Your Docker Manager address. On the manager's own server, keep `http://docker-manager:8080`. After Docker Manager moved to a new server, the agent uses the new address it was given until you change this setting. |
 | `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none. |
 | `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are (see [Import existing projects](/docs/import-projects#manage-projects-where-they-are)). |
 | `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to. |

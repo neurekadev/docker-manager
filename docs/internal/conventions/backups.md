@@ -63,7 +63,9 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `backup.import`, then `app.Run`'s controlled restart applying
   `<data>/restore-pending`); never swap the database of a running manager.
   Anything new that must not survive a restore (sessions, tokens, agent
-  credentials) is revoked in `app.(*Manager).finishRestore`.
+  credentials) is revoked in `app.(*Manager).finishRestore`. The copy of a
+  manager move shares this path (marker kind `move`, `StageRestore`) and is
+  finished by `finishMove`, which keeps them ([manager-move.md](../architecture/manager-move.md)).
 - Manager data kept outside the database goes into the manager-state
   snapshot next to it (template drafts: `templates.tar.gz`, flagged in
   `state.json`) and is put back by `ApplyPendingRestore`, keeping the

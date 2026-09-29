@@ -136,6 +136,8 @@ type Session struct {
 	RecentAuthUntil    *time.Time `json:"recentAuthUntil,omitempty" doc:"Until when sensitive changes are allowed without a new step-up."`
 	SessionID          string     `json:"sessionId,omitempty" doc:"This session among the account's signed-in devices (GET /api/v1/me/sessions)."`
 	StaySignedIn       bool       `json:"staySignedIn" doc:"The session was signed in with Stay signed in: longer limits and a cookie that survives closing the browser."`
+	// ManagerMove is the move lock (GET /auth/session of a full session).
+	ManagerMove *SessionManagerMove `json:"managerMove,omitempty" doc:"GET /auth/session of an authenticated session only: whether this Docker Manager is moving (or moved) to a new server and therefore read-only."`
 }
 
 func factorStrings(fs []domain.Factor) []string {

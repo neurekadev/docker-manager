@@ -235,6 +235,10 @@
 		>
 	{:else if reason === 'signed-out' && step === 'password'}
 		<Notice tone="info" title="You signed out" live="status" />
+	{:else if reason === 'moved' && step === 'password'}
+		<Notice tone="info" title="Docker Manager moved to this server" live="status"
+			>Sign in with your usual account.</Notice
+		>
 	{/if}
 	{#if message}<Notice tone="danger" title={message} live="alert" />{/if}
 

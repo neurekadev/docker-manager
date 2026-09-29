@@ -31,6 +31,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
@@ -65,6 +66,8 @@ type fixtureOptions struct {
 	session        SessionOptions
 	attempts       *AttemptLimits
 	managerVersion string
+	moveLock       *movelock.Lock
+	generation     int64
 }
 
 func newFixture(t *testing.T, o ...fixtureOptions) *fixture {
@@ -104,7 +107,7 @@ func newFixture(t *testing.T, o ...fixtureOptions) *fixture {
 		t.Fatal(err)
 	}
 	f.svc, err = New(Options{DB: db, Clock: clk, Logger: logger, Keyring: secrets.NewKeyring(key), Bus: bus, Audit: f.audit,
-		ManagerVersion: managerVersion, PublicURL: pub, Session: opts.session, Attempts: attempts})
+		ManagerVersion: managerVersion, PublicURL: pub, Session: opts.session, Attempts: attempts, MoveLock: opts.moveLock, Generation: opts.generation})
 	if err != nil {
 		t.Fatal(err)
 	}

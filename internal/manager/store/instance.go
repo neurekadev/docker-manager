@@ -17,19 +17,30 @@ import (
 type instanceRow struct {
 	bun.BaseModel `bun:"table:instance"`
 
-	Singleton int       `bun:"singleton,pk"`
-	ID        string    `bun:"id,notnull"`
-	CreatedAt time.Time `bun:"created_at,notnull"`
+	Singleton  int       `bun:"singleton,pk"`
+	ID         string    `bun:"id,notnull"`
+	CreatedAt  time.Time `bun:"created_at,notnull"`
+	Generation int64     `bun:"generation,notnull"`
 }
 
 func (r instanceRow) toDomain() domain.Instance {
-	return domain.Instance{ID: r.ID, CreatedAt: r.CreatedAt.UTC()}
+	return domain.Instance{ID: r.ID, CreatedAt: r.CreatedAt.UTC(), Generation: max(r.Generation, 1)}
 }
 
 // GetInstance returns the instance row, or ok=false when it does not exist yet.
+// It also reads databases that predate the generation column (a restored
+// or moved copy is checked before it is migrated): their generation is 1.
 func GetInstance(ctx context.Context, db bun.IDB) (domain.Instance, bool, error) {
 	var row instanceRow
-	err := db.NewSelect().Model(&row).Where("singleton = 1").Scan(ctx)
+	cols := []string{"singleton", "id", "created_at"}
+	var hasGeneration int
+	if err := db.NewRaw("SELECT count(*) FROM pragma_table_info('instance') WHERE name = 'generation'").Scan(ctx, &hasGeneration); err != nil {
+		return domain.Instance{}, false, fmt.Errorf("store: read instance columns: %w", err)
+	}
+	if hasGeneration > 0 {
+		cols = append(cols, "generation")
+	}
+	err := db.NewSelect().Model(&row).Column(cols...).Where("singleton = 1").Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Instance{}, false, nil
 	}
@@ -40,9 +51,11 @@ func GetInstance(ctx context.Context, db bun.IDB) (domain.Instance, bool, error)
 }
 
 // CreateInstance inserts the instance row. It fails if one already exists.
+// The generation is the column's default (1), so a database migrated only
+// up to an older schema (upgrade tests, snapshots) is written too.
 func CreateInstance(ctx context.Context, db bun.IDB, now time.Time) (domain.Instance, error) {
-	row := instanceRow{Singleton: 1, ID: ids.New(), CreatedAt: now.UTC()}
-	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
+	row := instanceRow{Singleton: 1, ID: ids.New(), CreatedAt: now.UTC(), Generation: 1}
+	if _, err := db.NewInsert().Model(&row).ExcludeColumn("generation").Exec(ctx); err != nil {
 		return domain.Instance{}, fmt.Errorf("store: create instance: %w", err)
 	}
 	return row.toDomain(), nil
@@ -85,4 +98,18 @@ func UpdateInstanceSettings(ctx context.Context, db bun.IDB, revision int64, p d
 		return domain.ErrRevisionConflict
 	}
 	return nil
+}
+
+// BumpInstanceGeneration raises the instance's generation by one and
+// returns the new value (the copy a manager hands to a new server,
+// docs/internal/architecture/manager-move.md).
+func BumpInstanceGeneration(ctx context.Context, db bun.IDB) (int64, error) {
+	if _, err := db.NewUpdate().Model((*instanceRow)(nil)).Set("generation = generation + 1").Where("singleton = 1").Exec(ctx); err != nil {
+		return 0, fmt.Errorf("store: raise the instance generation: %w", err)
+	}
+	var gen int64
+	if err := db.NewSelect().Model((*instanceRow)(nil)).Column("generation").Where("singleton = 1").Scan(ctx, &gen); err != nil {
+		return 0, fmt.Errorf("store: read the instance generation: %w", err)
+	}
+	return gen, nil
 }

@@ -38,6 +38,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
@@ -120,7 +121,17 @@ type Options struct {
 	// It returns the input to send; nil sends j.Input as stored. It never
 	// changes the stored input.
 	CommandInput func(ctx context.Context, j *domain.Job) json.RawMessage
+	// MoveLock is the manager-move lock (docs/internal/architecture/manager-move.md):
+	// while it is read-only Enqueue refuses every request with
+	// ErrManagerMoved and DispatchPending starts nothing (running jobs
+	// finish; queued ones stay queued and travel in the handed-off copy).
+	// nil: never locked.
+	MoveLock *movelock.Lock
 }
+
+// ErrManagerMoved refuses new jobs while the manager moves to a new server
+// (or after it moved): nothing new starts here.
+var ErrManagerMoved = domain.ErrManagerMoved
 
 // Engine is the job engine. Create it with New.
 type Engine struct {

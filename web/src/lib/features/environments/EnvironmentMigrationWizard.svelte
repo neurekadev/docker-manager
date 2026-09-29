@@ -7,7 +7,8 @@
 	// each stack, data against free space, the longest downtime, the order:
 	// stacks that share a network or volume form a group that stops together
 	// and moves one after the other, networks created first, what is not
-	// moved), confirmation, then the environment.migrate job's progress and
+	// moved; EnvironmentMigrationCheck, shared with the manager move),
+	// confirmation, then the environment.migrate job's progress and
 	// each stack's outcome. Moved stacks' old copies stay stopped on the
 	// source until the user removes them (one request per stack, one summary
 	// toast); what did not move can be migrated again. A running migration
@@ -24,20 +25,10 @@
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import type { Environment, Job } from '$lib/api/client';
 	import { containersQuery, environmentsQuery } from '$lib/api/queries';
-	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { bulkSummary } from '$lib/features/resources/bulk';
-	import MigrationFindings from '$lib/features/stacks/MigrationFindings.svelte';
-	import {
-		accessChangeText,
-		count,
-		imageActionLabel,
-		migrationTargets,
-		sentence,
-		toggled,
-		volumeActionLabel
-	} from '$lib/features/stacks/migration';
-	import { downtimeText, spaceCheck, stackTitle } from '$lib/features/stacks/model';
+	import { count, migrationTargets, toggled } from '$lib/features/stacks/migration';
+	import { downtimeText, stackTitle } from '$lib/features/stacks/model';
 	import { stackKeys, stacksQuery } from '$lib/features/stacks/queries';
 	import { criticalWork } from '$lib/live';
 	import { routes } from '$lib/routes';
@@ -55,13 +46,12 @@
 		StepWizard,
 		errorView,
 		formatBytes,
-		shortId,
 		toast,
 		type WizardStep
 	} from '$lib/ui';
+	import EnvironmentMigrationCheck from './EnvironmentMigrationCheck.svelte';
 	import {
 		CHOICE_REASONS,
-		andList,
 		chosenStacks,
 		destinationOptions,
 		environmentCheckHeadline,
@@ -70,14 +60,10 @@
 		everyStackMoved,
 		finishToast,
 		migrationOutcome,
-		moveOrder,
 		moveState,
 		oldCopies,
 		ownStackIds,
-		problemCount,
-		skippedRows,
 		stackChoices,
-		stackMoveSummary,
 		warningCount,
 		withOwnFromCheck,
 		type EnvironmentMigration,
@@ -366,12 +352,6 @@
 				? 'Start migration'
 				: 'Next'
 	);
-
-	/** A moving stack's title by ID (networks name the stacks that join them). */
-	const moveTitle = (moving: EnvironmentMigrationPreview['stacks'], id: string) => {
-		const s = moving.find((x) => x.stackId === id);
-		return s ? titleOf(id, s.name) : 'a stack';
-	};
 </script>
 
 {#snippet step(s: WizardStep)}
@@ -433,10 +413,6 @@
 			{/if}
 		{:else}
 			{@const head = environmentCheckHeadline(preview, destName)}
-			{@const space = spaceCheck(preview.data)}
-			{@const blocked = preview.stacks.filter((x) => x.preview.blockers.length > 0)}
-			{@const skipped = skippedRows(preview, ownAll, titleOf)}
-			{@const moving = preview.stacks}
 			<div class="check" aria-busy={checking}>
 				<Notice tone={head.tone} title={head.title} live="none">
 					{#snippet actions()}
@@ -455,205 +431,13 @@
 						compact
 					/>
 				{/if}
-
-				{#if problemCount(preview)}
-					<section aria-labelledby="blockers-title">
-						<h3 id="blockers-title" class="subsection-title">To fix before moving</h3>
-						<div class="blockers">
-							{#if preview.blockers.length}
-								<MigrationFindings list={preview.blockers} tone="danger" />
-							{/if}
-							{#each blocked as b (b.stackId)}
-								<div>
-									<h4 class="stack-name">{titleOf(b.stackId, b.name)}</h4>
-									<MigrationFindings list={b.preview.blockers} tone="danger" />
-								</div>
-							{/each}
-						</div>
-					</section>
-				{/if}
-
-				<dl class="facts">
-					<div>
-						<dt>Data to copy</dt>
-						<dd class="num">
-							{formatBytes(preview.data.totalBytes)}{preview.data.truncated
-								? ' or more'
-								: ''}
-						</dd>
-					</div>
-					<div>
-						<dt>Free on {destName}</dt>
-						<dd class="num">
-							{#if space === 'unknown'}Unknown{:else}
-								{formatBytes(
-									Math.min(
-										preview.data.destinationStacksFree,
-										preview.data.destinationVolumesFree
-									)
-								)}
-								{#if space === 'short'}<Badge tone="danger" dot>Not enough</Badge
-									>{:else}<Badge tone="ok" dot>Enough</Badge>{/if}
-							{/if}
-						</dd>
-					</div>
-					<div>
-						<dt>Longest downtime</dt>
-						<dd>{downtimeText(preview.downtime.estimatedSeconds)}</dd>
-						<dd class="basis">{sentence(preview.downtime.basis)}</dd>
-					</div>
-				</dl>
-
-				{#if preview.groups.length}
-					<section aria-labelledby="order-title">
-						<h3 id="order-title" class="subsection-title">Order</h3>
-						<ol class="groups" role="list">
-							{#each moveOrder(preview, titleOf) as g (g.key)}
-								<li>
-									{#if g.stacks.length === 1}
-										<span class="strong">{g.stacks[0].title}</span> moves on its own.
-									{:else}
-										<p>
-											These share a network or volume: they stop together and
-											move in this order.
-										</p>
-										<ol class="plain">
-											{#each g.stacks as st (st.stackId)}
-												<li>
-													<span class="strong">{st.title}</span>
-													{#if st.after.length}<span class="muted">
-															· after {andList(st.after)}</span
-														>{/if}
-												</li>
-											{/each}
-										</ol>
-									{/if}
-								</li>
-							{/each}
-						</ol>
-					</section>
-				{/if}
-
-				{#if preview.networks.length}
-					<section aria-labelledby="networks-title">
-						<h3 id="networks-title" class="subsection-title">
-							Created first on {destName}
-						</h3>
-						<ul class="plain" role="list">
-							{#each preview.networks as n (n.name)}
-								<li>
-									<span class="strong mono">{n.name}</span>
-									<span class="muted">
-										· network used by {andList(
-											n.usedBy.map((id) => moveTitle(moving, id))
-										)}</span
-									>
-								</li>
-							{/each}
-						</ul>
-					</section>
-				{/if}
-
-				<section aria-labelledby="skipped-title">
-					<h3 id="skipped-title" class="subsection-title">Not moved</h3>
-					{#if skipped.length}
-						<ul class="plain" role="list">
-							{#each skipped as r (r.stackId)}
-								<li><span class="strong">{r.title}</span>: {r.reason}</li>
-							{/each}
-						</ul>
-					{/if}
-					<p class="muted hint">
-						Containers outside stacks and volumes no stack uses stay on {sourceName}.
-					</p>
-				</section>
-
-				{#if preview.warnings.length}
-					<section aria-labelledby="warnings-title">
-						<h3 id="warnings-title" class="subsection-title">Warnings</h3>
-						<MigrationFindings list={preview.warnings} tone="warn" />
-					</section>
-				{/if}
-
-				{#if preview.stacks.length}
-					<section aria-labelledby="stacks-title">
-						<h3 id="stacks-title" class="subsection-title">Stacks</h3>
-						<div class="details">
-							{#each preview.stacks as m (m.stackId)}
-								<Disclosure
-									summary="{titleOf(m.stackId, m.name)}: {stackMoveSummary(m)}"
-								>
-									<div class="detail">
-										{#if m.preview.volumes.length}
-											<div>
-												<h4 class="stack-name">Volumes</h4>
-												<ul class="plain" role="list">
-													{#each m.preview.volumes as v (v.source)}
-														<li>
-															{#if v.anonymous}Anonymous volume
-																<span class="mono muted"
-																	>{shortId(v.source)}</span
-																>{:else}<span class="strong"
-																	>{v.key ?? v.source}</span
-																>{/if}
-															<span class="muted">
-																· {volumeActionLabel(
-																	v.action
-																)}{v.action === 'copy'
-																	? `, ${formatBytes(v.bytes)}${v.truncated ? '+' : ''}`
-																	: ''}</span
-															>
-														</li>
-													{/each}
-												</ul>
-											</div>
-										{/if}
-										{#if m.preview.services.length}
-											<div>
-												<h4 class="stack-name">Images</h4>
-												<ul class="plain" role="list">
-													{#each m.preview.services as svc (svc.name)}
-														<li>
-															<span class="strong">{svc.name}</span>
-															<span class="mono">{svc.image}</span>
-															<span class="muted">
-																· {imageActionLabel(
-																	svc.action
-																)}</span
-															>
-														</li>
-													{/each}
-												</ul>
-											</div>
-										{/if}
-										{#if m.preview.warnings.length}
-											<div>
-												<h4 class="stack-name">Warnings</h4>
-												<MigrationFindings
-													list={m.preview.warnings}
-													tone="warn"
-												/>
-											</div>
-										{/if}
-										{#if m.preview.access.changes.length}
-											<div>
-												<h4 class="stack-name">Access changes</h4>
-												<ul class="plain" role="list">
-													{#each m.preview.access.changes as c (c.userId)}
-														<li>
-															<span class="strong">{c.username}</span>
-															{accessChangeText(c)}
-														</li>
-													{/each}
-												</ul>
-											</div>
-										{/if}
-									</div>
-								</Disclosure>
-							{/each}
-						</div>
-					</section>
-				{/if}
+				<EnvironmentMigrationCheck
+					{preview}
+					{sourceName}
+					{destName}
+					{titleOf}
+					own={ownAll}
+				/>
 			</div>
 		{/if}
 	{:else if s.id === 'confirm' && preview}
@@ -877,73 +661,6 @@
 		margin-bottom: var(--space-2);
 	}
 
-	.blockers,
-	.details,
-	.detail {
-		display: grid;
-		gap: var(--space-3);
-	}
-
-	.stack-name {
-		margin: 0 0 var(--space-1);
-		color: var(--text-strong);
-		font-size: var(--text-body);
-		font-weight: var(--weight-medium);
-	}
-
-	.facts {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: var(--space-3);
-		margin: 0;
-	}
-
-	.facts > div {
-		padding: var(--space-3);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--surface-raised);
-	}
-
-	dt {
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-	}
-
-	dd {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2);
-		margin: 2px 0 0;
-		color: var(--text-strong);
-	}
-
-	.basis {
-		margin-top: var(--space-1);
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-	}
-
-	.groups {
-		display: grid;
-		gap: var(--space-2);
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.groups > li {
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-	}
-
-	.groups > li > p {
-		margin-bottom: var(--space-2);
-	}
-
 	.plain {
 		display: grid;
 		gap: var(--space-2);
@@ -975,14 +692,6 @@
 		justify-content: space-between;
 		flex-wrap: wrap;
 		gap: var(--space-3);
-	}
-
-	.hint {
-		margin-top: var(--space-2);
-	}
-
-	.strong {
-		color: var(--text-strong);
 	}
 
 	.warn-line {

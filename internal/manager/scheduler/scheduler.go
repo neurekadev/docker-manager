@@ -46,6 +46,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
@@ -76,6 +77,9 @@ type Options struct {
 	// Audit records runs that did not enqueue a job (missed, skipped,
 	// rejected, failed); the engine audits jobs itself. Optional.
 	Audit audit.TxRecorder
+	// MoveLock is the manager-move lock: while it is read-only (the manager
+	// moves to a new server) Tick fires nothing (docs/internal/architecture/manager-move.md).
+	MoveLock *movelock.Lock
 	// Grace, MaxSleep and History override the defaults (tests).
 	Grace    time.Duration
 	MaxSleep time.Duration
@@ -220,11 +224,14 @@ func (s *Service) Run(ctx context.Context) error {
 			s.log.Error("scheduler pass failed", "error", err)
 		}
 		wait := s.opts.MaxSleep
-		if next, ok, err := s.nextDue(ctx); err != nil && ctx.Err() == nil {
-			s.log.Error("scheduler: could not read the next run", "error", err)
-		} else if ok {
-			if d := next.Sub(s.opts.Clock.Now()); d < wait {
-				wait = d
+		// Nothing fires while the manager moves: no need to wake for a due run.
+		if !s.opts.MoveLock.ReadOnly() {
+			if next, ok, err := s.nextDue(ctx); err != nil && ctx.Err() == nil {
+				s.log.Error("scheduler: could not read the next run", "error", err)
+			} else if ok {
+				if d := next.Sub(s.opts.Clock.Now()); d < wait {
+					wait = d
+				}
 			}
 		}
 		if wait <= 0 {
@@ -270,6 +277,9 @@ func (s *Service) nextDue(ctx context.Context) (time.Time, bool, error) {
 func (s *Service) Tick(ctx context.Context) error {
 	s.tickMu.Lock()
 	defer s.tickMu.Unlock()
+	if s.opts.MoveLock.ReadOnly() {
+		return nil // the manager moves to a new server: the new one runs the schedules
+	}
 	now := s.now()
 	var errs []error
 	for _, k := range s.Kinds() {

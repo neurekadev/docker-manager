@@ -90,9 +90,9 @@ with the owner's own token.
 Owner-only surfaces covered: users, groups and permission documents,
 invitations, security settings, registry and Git credential
 administration, other users' tokens (`/api/v1/api-tokens`), permission
-previews, ownership, manager backup and system restore (owner-only catalog
-keys `manager.backup`, `system.restore`, `backup.import`), and Recovery Key
-administration (session-only).
+previews, ownership, manager backup, system restore and moving the manager
+(owner-only catalog keys `manager.backup`, `system.restore`, `backup.import`,
+`manager.move`), and Recovery Key administration (session-only).
 
 ## Jobs, streams and exec
 

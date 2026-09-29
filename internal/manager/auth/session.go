@@ -151,6 +151,16 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	})
 	loaded := s.kit.Sessions.LoadAndSave(inner)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if authsep.IsMoveAuthorization(r.Header) {
+			// A manager move request ("Authorization: DMM ...", signed with
+			// the move code; docs/internal/architecture/manager-move.md)
+			// authenticates only the handoff and confirmation routes, which
+			// verify it themselves: never cookies (no CSRF), and the request
+			// stays anonymous.
+			r.Header.Del("Cookie")
+			loaded.ServeHTTP(w, r)
+			return
+		}
 		if tok, ok := authsep.BearerToken(r.Header); ok {
 			// Bearer requests are never authenticated by cookies (and so
 			// need no CSRF protection).

@@ -1,6 +1,7 @@
 package authsep
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -73,6 +74,46 @@ func TestMintParseAPIToken(t *testing.T) {
 	for _, bad := range []string{"", "dy_", "dy_" + id, "dy_" + id + "_short", "Dy_" + id + "_" + strings.Repeat("A", 43)} {
 		if _, _, ok := ParseAPIToken(bad); ok {
 			t.Errorf("parsed %q", bad)
+		}
+	}
+}
+
+func TestMintParseMoveCode(t *testing.T) {
+	const id = "0190a6e0-4444-7000-8000-000000000035"
+	code, err := MintMoveCode(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(code.Token, "dmm_"+id+"_") || Classify(code.Token) != KindOther {
+		t.Fatalf("format %q", code.Token)
+	}
+	gotID, secret, ok := ParseMoveCode(code.Token)
+	if !ok || gotID != id || !VerifierMatches(code.Verifier, secret) {
+		t.Fatalf("parse move code: %q %v", gotID, ok)
+	}
+	api, _ := MintAPIToken(id)
+	if _, _, ok := ParseMoveCode(api.Token); ok {
+		t.Fatal("an API token parsed as a move code")
+	}
+	if _, _, ok := ParseAPIToken(code.Token); ok {
+		t.Fatal("a move code parsed as an API token")
+	}
+}
+
+func TestIsMoveAuthorization(t *testing.T) {
+	for header, want := range map[string]bool{
+		"DMM 0190a6e0:1700000000:bm9uY2U:bWFj": true,
+		"dmm 0190a6e0:1:n:m":                   true,
+		"Bearer dmm_0190a6e0_secret":           false,
+		"DMM":                                  false,
+		"":                                     false,
+	} {
+		h := http.Header{}
+		if header != "" {
+			h.Set("Authorization", header)
+		}
+		if got := IsMoveAuthorization(h); got != want {
+			t.Errorf("%q: %v, want %v", header, got, want)
 		}
 	}
 }

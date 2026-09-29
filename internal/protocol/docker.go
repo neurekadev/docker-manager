@@ -475,6 +475,21 @@ type (
 	ManagerIdentityInput struct {
 		InstanceID  string `json:"instanceId"`
 		ContainerID string `json:"containerId,omitempty"`
+		// Generation is the instance's generation: every move of the
+		// manager to a new server raises it. An agent keeps the highest it
+		// has seen and closes the session of a manager with a lower one
+		// (docs/internal/architecture/manager-move.md). 0: a manager that
+		// predates moves (treated as 1).
+		Generation int64 `json:"generation,omitempty"`
+	}
+	// ManagerRedirectInput is the input of manager.redirect: the manager's
+	// new address (http or https origin; http allowed without
+	// DOCKER_AGENT_MANAGER_ALLOW_HTTP because the current, authenticated
+	// manager sends it) and the generation the new manager runs (at least
+	// the current one + 1).
+	ManagerRedirectInput struct {
+		URL        string `json:"url"`
+		Generation int64  `json:"generation"`
 	}
 	// ManagerIdentityOutput answers manager.identity: whether the manager's
 	// container runs on this agent's Engine.

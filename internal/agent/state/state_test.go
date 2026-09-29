@@ -1,11 +1,13 @@
 package state
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -132,5 +134,134 @@ func TestTokenHandoverAndUsedTokens(t *testing.T) {
 	}
 	if got, _ := s.EnrollStatus(); got == nil || got.Code != "unauthenticated" {
 		t.Fatalf("status %+v", got)
+	}
+}
+
+// TestManagerGeneration: nothing recorded reads as 0; the value is stored
+// atomically (0600) and read back; a corrupt or negative file reads as 0
+// with an error (the caller warns) and is overwritten by the next save.
+func TestManagerGeneration(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	if g, err := s.ManagerGeneration(); g != 0 || err != nil {
+		t.Fatalf("fresh state: %d %v", g, err)
+	}
+	if err := s.SaveManagerGeneration(3); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		fi, err := os.Stat(filepath.Join(dir, ManagerFile))
+		if err != nil || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("manager file mode %v %v", fi.Mode(), err)
+		}
+	}
+	s2, _ := Open(dir)
+	if g, err := s2.ManagerGeneration(); g != 3 || err != nil {
+		t.Fatalf("read back %d %v", g, err)
+	}
+	if err := s.SaveManagerGeneration(-1); err == nil {
+		t.Fatal("negative generation saved")
+	}
+	for _, corrupt := range []string{"{not json", `{"generation":-2}`} {
+		if err := os.WriteFile(filepath.Join(dir, ManagerFile), []byte(corrupt), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if g, err := s.ManagerGeneration(); g != 0 || err == nil {
+			t.Fatalf("corrupt %q: %d %v", corrupt, g, err)
+		}
+	}
+	if err := s.SaveManagerGeneration(4); err != nil {
+		t.Fatal(err)
+	}
+	if g, err := s.ManagerGeneration(); g != 4 || err != nil {
+		t.Fatalf("after overwrite %d %v", g, err)
+	}
+}
+
+// TestManagerRedirect (#35, manager moves): a redirect is written with its
+// generation in one step and read back after a restart; it needs a higher
+// generation (the same redirect again is a no-op); generation writes
+// never lower the record and keep the redirect; clearing it keeps the
+// generation.
+func TestManagerRedirect(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	at := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	r := ManagerRedirect{URL: "http://192.0.2.10:8080", Replaces: "https://docker.example.com", At: at}
+	if err := s.SaveManagerGeneration(2); err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range []int64{1, 2} {
+		if err := s.SaveManagerRedirect(g, r); !errors.Is(err, ErrGenerationNotNewer) {
+			t.Fatalf("generation %d: %v", g, err)
+		}
+	}
+	if ms, _ := s.ManagerState(); ms.Redirect != nil || ms.Generation != 2 {
+		t.Fatalf("refused redirect written: %+v", ms)
+	}
+	if err := s.SaveManagerRedirect(3, r); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		fi, err := os.Stat(filepath.Join(dir, ManagerFile))
+		if err != nil || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("manager file mode %v %v", fi.Mode(), err)
+		}
+	}
+	s2, _ := Open(dir)
+	ms, err := s2.ManagerState()
+	if err != nil || ms.Generation != 3 || ms.Redirect == nil || *ms.Redirect != r {
+		t.Fatalf("read back %+v %v", ms, err)
+	}
+	if err := s.SaveManagerRedirect(3, r); err != nil {
+		t.Fatalf("the same redirect again: %v", err)
+	}
+	other := r
+	other.URL = "http://192.0.2.20:8080"
+	if err := s.SaveManagerRedirect(3, other); !errors.Is(err, ErrGenerationNotNewer) {
+		t.Fatalf("another address at the same generation: %v", err)
+	}
+	for _, bad := range []ManagerRedirect{{Replaces: "https://m"}, {URL: "http://m"}} {
+		if err := s.SaveManagerRedirect(9, bad); err == nil {
+			t.Fatalf("incomplete redirect %+v saved", bad)
+		}
+	}
+	if err := s.SaveManagerRedirect(0, r); err == nil {
+		t.Fatal("generation 0 saved")
+	}
+
+	// Generation writes keep the redirect and never lower the record.
+	if err := s.SaveManagerGeneration(2); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveManagerGeneration(4); err != nil {
+		t.Fatal(err)
+	}
+	if ms, _ := s.ManagerState(); ms.Generation != 4 || ms.Redirect == nil || *ms.Redirect != r {
+		t.Fatalf("after generation writes %+v", ms)
+	}
+
+	if err := s.ClearManagerRedirect(); err != nil {
+		t.Fatal(err)
+	}
+	if ms, _ := s.ManagerState(); ms.Generation != 4 || ms.Redirect != nil {
+		t.Fatalf("after clearing %+v", ms)
+	}
+	if err := s.ClearManagerRedirect(); err != nil {
+		t.Fatalf("clearing twice: %v", err)
+	}
+
+	// An incomplete stored redirect is corrupt; the next redirect replaces it.
+	if err := os.WriteFile(filepath.Join(dir, ManagerFile), []byte(`{"generation":5,"redirect":{"url":""}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if ms, err := s.ManagerState(); err == nil || ms.Generation != 0 || ms.Redirect != nil {
+		t.Fatalf("corrupt redirect: %+v %v", ms, err)
+	}
+	if err := s.SaveManagerRedirect(1, r); err != nil {
+		t.Fatal(err)
+	}
+	if ms, err := s.ManagerState(); err != nil || ms.Generation != 1 || *ms.Redirect != r {
+		t.Fatalf("after replacing the corrupt record %+v %v", ms, err)
 	}
 }

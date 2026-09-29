@@ -538,3 +538,35 @@ secrets are files whose paths only are listed), `support-matrix.json`
 `logs.ndjson` (the manager's recent in-memory log lines, redacted again).
 It never contains secret values. Owner only (`system.support_bundle`, never
 an API token) and audited. A failure mid-stream aborts the connection.
+
+## Manager move handoff (`create-manager-move-handoff`)
+
+`POST /manager/move/handoff` (the old manager of a move to a new server,
+[manager-move.md](../architecture/manager-move.md)) is called by the new
+manager in waiting mode once its check-in (`GET /manager/move/check-in`)
+reports the move ready, signed with the move code
+(`Authorization: DMM <moveId>:<unix time>:<nonce>:<HMAC-SHA256>`, never a
+session, an API token or the code itself; plain HTTP is accepted). Until
+Move everything made the move ready it answers 409
+`manager_move_not_ready` with `Retry-After` and the progress in
+`X-Docker-Manager-Move-State` (`open`, `moving`),
+`X-Docker-Manager-Move-Stacks` (`<moved>/<total>`) and
+`X-Docker-Manager-Move-Current-Stack`; while jobs still run 409
+`jobs_running` with `Retry-After` and `X-Docker-Manager-Jobs-Running`
+(the count). Then it answers 200 `application/octet-stream` with
+`X-Docker-Manager-Move-Size` (the parts' total length, before
+encryption) and streams the package encrypted with XChaCha20-Poly1305 in
+64 KiB chunks (STREAM: an 8-byte magic `DMMPKG\x00\x01` and a random
+19-byte nonce prefix, then chunks sealed with the prefix, a big-endian
+counter and a last-chunk flag; the final chunk is shorter than 64 KiB)
+under HKDF-SHA256 of the code's secret (info
+`docker-manager-move/package/v1\x00<moveId>`). Inside is a tar of, in this
+order, `state.json` (format `docker-manager-move`), `docker-manager.db`,
+`secret-key.sealed`, `templates.tar.gz` (when the drafts are included)
+and last `manifest.json` (every part's name, length and SHA-256). The
+receiver refuses a stream that does not decrypt (cut, reordered or
+changed), stores each part under its fixed name, refuses unknown,
+repeated or oversized parts and trusts nothing before the manifest
+matched. A stream that breaks off is asked for again: after the handoff
+every call streams the same copy. Audited (`manager.move.handoff`, with
+the requesting address).

@@ -195,3 +195,75 @@ func TestCABundleValidation(t *testing.T) {
 		t.Error("missing CA file accepted")
 	}
 }
+
+// TestRedirectedAllowsPlainHTTPOnlyForTheRedirect (#35, manager moves): the
+// address of a manager.redirect may be plain http without
+// DOCKER_AGENT_MANAGER_ALLOW_HTTP (it is flagged like any http URL);
+// DOCKER_AGENT_MANAGER_URL itself still requires the opt-in.
+func TestRedirectedAllowsPlainHTTPOnlyForTheRedirect(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) }))
+	defer srv.Close()
+	cfg := load(t, map[string]string{config.EnvManagerURL: "https://docker.example.com"})
+	if _, err := config.Load(envconfig.Map(map[string]string{config.EnvManagerURL: srv.URL}, nil)); err == nil {
+		t.Fatal("plain-HTTP DOCKER_AGENT_MANAGER_URL accepted without the opt-in")
+	}
+	tr, err := NewRedirected(cfg, srv.URL+"/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tr.Redirected() || tr.URL("/x") != srv.URL+"/x" {
+		t.Fatalf("redirected %v url %s", tr.Redirected(), tr.URL("/x"))
+	}
+	if info := tr.Info(); !info.PlainHTTP || !info.Flagged() || info.ManagerURL != srv.URL || info.Validate() != nil {
+		t.Fatalf("info %+v", info)
+	}
+	if u := tr.WebSocketURL("/agent/v1/session"); u != "ws"+strings.TrimPrefix(srv.URL, "http")+"/agent/v1/session" {
+		t.Fatalf("ws url %s", u)
+	}
+	req, _ := http.NewRequestWithContext(ctx(t), http.MethodGet, tr.URL("/"), nil)
+	resp, err := tr.HTTPClient().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+
+	plain, err := New(cfg)
+	if err != nil || plain.Redirected() {
+		t.Fatalf("configured transport: %v", err)
+	}
+
+	for _, bad := range []string{"", "ftp://m:21", "http://", "http://user:secret@m:8080", "http://m:8080/path", "http://m:8080?x=1",
+		"http://m:8080?", "http://m:8080#f", "m:8080", "http://m:port", "https://" + strings.Repeat("a", config.MaxRedirectURLLen)} {
+		_, err := NewRedirected(cfg, bad)
+		if err == nil {
+			t.Errorf("%q accepted", bad)
+			continue
+		}
+		if strings.Contains(err.Error(), "secret") {
+			t.Errorf("%q: the error echoes credentials: %v", bad, err)
+		}
+	}
+}
+
+// TestRedirectedHTTPSKeepsCustomCA: an https redirect keeps the configured
+// CA bundle and is not flagged.
+func TestRedirectedHTTPSKeepsCustomCA(t *testing.T) {
+	srv, caFile := tlsManager(t)
+	cfg := load(t, map[string]string{config.EnvManagerURL: "https://docker.example.com", config.EnvManagerCAFile: caFile})
+	tr, err := NewRedirected(cfg, srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info := tr.Info(); info.PlainHTTP || !info.CustomCA || info.Flagged() || info.ManagerURL != srv.URL {
+		t.Fatalf("info %+v", info)
+	}
+	if u := tr.WebSocketURL("/agent/v1/session"); !strings.HasPrefix(u, "wss://") {
+		t.Fatalf("ws url %s", u)
+	}
+	req, _ := http.NewRequestWithContext(ctx(t), http.MethodGet, tr.URL("/"), nil)
+	resp, err := tr.HTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("private CA not trusted for the redirect: %v", err)
+	}
+	_ = resp.Body.Close()
+}

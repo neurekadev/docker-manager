@@ -114,11 +114,32 @@ export async function unwrap<T>(
 	const { data, error, response } = result;
 	if (response.ok && (data !== undefined || response.status === 204)) return data as T;
 	const apiError = isApiError(error) ? error : undefined;
-	throw new ApiRequestError(
+	const failure = new ApiRequestError(
 		apiError?.message ?? `HTTP ${response.status}`,
 		response.status,
 		apiError
 	);
+	for (const listener of failureListeners) {
+		try {
+			listener(failure);
+		} catch {
+			// A listener never changes the caller's error.
+		}
+	}
+	throw failure;
+}
+
+type FailureListener = (e: ApiRequestError) => void;
+const failureListeners = new Set<FailureListener>();
+
+/**
+ * Hears every error answer unwrap() throws, whoever made the call (the
+ * shell's "Docker Manager moved" banner listens for 409 manager_moved).
+ * Returns the function that stops listening.
+ */
+export function onApiFailure(listener: FailureListener): () => void {
+	failureListeners.add(listener);
+	return () => failureListeners.delete(listener);
 }
 
 /**

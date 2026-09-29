@@ -12,6 +12,10 @@ import "time"
 type Instance struct {
 	ID        string
 	CreatedAt time.Time
+	// Generation is raised by one in every copy a manager hands to a new
+	// server (docs/internal/architecture/manager-move.md); agents keep the
+	// highest they have seen and refuse managers with a lower one.
+	Generation int64
 }
 
 // InstanceSettings are the editable instance settings (GET/PATCH

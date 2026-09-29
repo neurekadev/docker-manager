@@ -87,6 +87,11 @@ const (
 	// the ID of the manager's own container, so the agent recognizes a
 	// co-located manager (#32).
 	ReqManagerIdentity = "manager.identity"
+	// ReqManagerRedirect tells the agent, when Docker Manager moves to a
+	// new server, the address to dial from now on (instead of
+	// DOCKER_AGENT_MANAGER_URL); the agent keeps it in its state and
+	// reconnects there (docs/internal/architecture/manager-move.md).
+	ReqManagerRedirect = "manager.redirect"
 )
 
 // Job-linked migration requests (#35): the manager's stack.migrate and
@@ -128,13 +133,13 @@ var requestNames = []string{
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
 	ReqMaintenancePreview, ReqMigrationPreview, ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit,
 	ReqMigrationCleanup, ReqImageLocalDigests, ReqAgentCredentialRotate,
-	ReqAgentDiagnostics, ReqEngineCompatibilityInfo, ReqManagerIdentity,
+	ReqAgentDiagnostics, ReqEngineCompatibilityInfo, ReqManagerIdentity, ReqManagerRedirect,
 }
 
 // mutatingRequests change state on the agent or Engine.
 var mutatingRequests = []string{
 	ReqContainerExecCreate, ReqContainerExecResize, ReqContainerExecDelete, ReqImageTag,
-	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite, ReqManagerIdentity,
+	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite, ReqManagerIdentity, ReqManagerRedirect,
 	ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit, ReqMigrationCleanup,
 }
 
@@ -285,6 +290,12 @@ type WelcomePayload struct {
 	HeartbeatIntervalMs int64         `json:"heartbeatIntervalMs"`
 	HeartbeatTimeoutMs  int64         `json:"heartbeatTimeoutMs"`
 	Limits              SessionLimits `json:"limits"`
+	// Generation is the manager instance's generation (raised by every
+	// move to a new server). The agent refuses the session, before
+	// anything else runs, when it has seen a higher one
+	// (docs/internal/architecture/manager-move.md). 0: a manager that
+	// predates moves (treated as 1).
+	Generation int64 `json:"generation,omitempty"`
 }
 
 // EngineInfo describes the controlled Docker Engine.
@@ -565,6 +576,8 @@ func (p WelcomePayload) Validate() error {
 	case p.Limits.MaxFrameBytes <= 0 || p.Limits.MaxFrameBytes > MaxFrameSize || p.Limits.MaxStreams <= 0 ||
 		p.Limits.StreamWindowBytes <= 0 || p.Limits.MaxChunkBytes <= 0 || p.Limits.MaxChunkBytes > MaxChunk || p.Limits.MaxPaths <= 0:
 		return invalid("welcome limits out of range")
+	case p.Generation < 0:
+		return invalid("welcome generation must not be negative")
 	}
 	return nil
 }

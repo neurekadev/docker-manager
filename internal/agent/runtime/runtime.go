@@ -24,15 +24,12 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net/http"
 	"os"
 	"path/filepath"
 	goruntime "runtime"
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/coder/websocket"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/backups"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/builds"
@@ -163,6 +160,11 @@ type HealthState struct {
 	// AgentID and EnvironmentID are set once enrolled.
 	AgentID       string `json:"agentId,omitempty"`
 	EnvironmentID string `json:"environmentId,omitempty"`
+	// ManagerURL is the manager origin the agent dials; ManagerURLSource
+	// says where it comes from: config (DOCKER_AGENT_MANAGER_URL) or move
+	// (the address a moving manager sent, manager.redirect).
+	ManagerURL       string `json:"managerUrl,omitempty"`
+	ManagerURLSource string `json:"managerUrlSource,omitempty"`
 }
 
 // Capabilities is what the agent reports to the manager in its
@@ -287,6 +289,7 @@ func New(opts Options) (*Agent, error) {
 		a.opts.Requests = reqs
 	}
 	a.addResources()
+	a.enableRedirect()
 	if opts.Files {
 		a.enableFiles()
 	}
@@ -768,17 +771,22 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	// The transport validates the TLS trust (system roots plus the optional
 	// DOCKER_AGENT_MANAGER_CA_FILE) before anything is sent to the manager.
-	tr, err := transport.New(cfg)
+	configured, err := transport.New(cfg)
 	if err != nil {
 		return err
 	}
-	ti := tr.Info()
-	a.mu.Lock()
-	a.transport, a.tinfo = tr, ti
-	a.mu.Unlock()
 	if a.store, err = state.Open(cfg.StateDir); err != nil {
 		return err
 	}
+	// After a manager move the agent dials the address the manager sent
+	// (manager.redirect, kept in manager.json) until DOCKER_AGENT_MANAGER_URL
+	// is changed.
+	tr := a.resolveTransport(configured)
+	a.setTransport(tr)
+	ti := tr.Info()
+	// manager.identity refuses a manager older than the newest one this
+	// agent has seen (manager moves, #35); the state directory keeps it.
+	a.guard.SetGenerations(a.store)
 	installID, err := a.store.InstallID()
 	if err != nil {
 		return err
@@ -790,11 +798,15 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.setIdentity(cred)
 	info0 := buildinfo.Get()
 	a.client = session.New(session.Options{
-		State: a.store, Clock: clk, Logger: log, URL: tr.WebSocketURL(protocol.SessionPath),
-		DialOptions:  func(h http.Header) *websocket.DialOptions { return tr.DialOptions(h, protocol.Version) },
+		State: a.store, Clock: clk, Logger: log,
+		// Asked before every dial: a manager.redirect switches the address.
+		Target:       a.sessionTarget,
 		AgentVersion: info0.Version, UserAgent: userAgent(), Capabilities: a.CapabilitiesPayload,
 		Requests: a.opts.Requests, Streams: a.opts.Streams, Backoff: a.opts.Backoff, OnStatus: a.onSessionStatus,
 		Rescan: a.rescan(),
+		// A manager older than the newest one seen is refused at the
+		// handshake (manager moves, #35); manager.identity checks again.
+		AcceptWelcome: func(w protocol.WelcomePayload) error { return a.guard.AcceptGeneration("", w.Generation) },
 	})
 	// A helper that recreated this agent (#32) left its result behind.
 	selfupdate.Collect(cfg.StateDir, log)
@@ -810,12 +822,21 @@ func (a *Agent) Run(ctx context.Context) error {
 	info := buildinfo.Get()
 	log.Info("starting docker-agent",
 		"version", info.Version, "commit", info.Commit,
-		"manager_url", cfg.ManagerURL.String(), "docker_host", cfg.DockerHost,
+		"manager_url", ti.ManagerURL, "manager_url_source", managerURLSource(tr), "docker_host", cfg.DockerHost,
 		"environment_name", cfg.EnvironmentName, "state_dir", cfg.StateDir, "install_id", installID,
 		"enrolled", cred != nil, "manager_plain_http", ti.PlainHTTP, "manager_custom_ca", ti.CustomCA)
-	if ti.Flagged() {
+	if tr.Redirected() {
+		log.Info("dialing the address Docker Manager gave when it moved to a new server instead of DOCKER_AGENT_MANAGER_URL; "+
+			"changing DOCKER_AGENT_MANAGER_URL makes the agent dial that value again", "manager_url", ti.ManagerURL,
+			"configured_manager_url", configured.Info().ManagerURL)
+	}
+	switch {
+	case ti.Flagged() && tr.Redirected():
 		// Reported to the manager in the capabilities (protocol.TransportInfo,
 		// #3) so the host page flags this environment.
+		log.Warn("the address Docker Manager gave when it moved uses plain HTTP; once its usual HTTPS address reaches the new " +
+			"server, set DOCKER_AGENT_MANAGER_URL to it")
+	case ti.Flagged():
 		log.Warn("manager URL uses plain HTTP (DOCKER_AGENT_MANAGER_ALLOW_HTTP=true); only acceptable on the manager's internal Docker network")
 	}
 	if cred == nil && cfg.EnrollmentToken == "" {
@@ -1082,6 +1103,9 @@ func (a *Agent) writeHealthFile(now time.Time) error {
 	a.mu.RLock()
 	if a.identity != nil {
 		st.AgentID, st.EnvironmentID = a.identity.AgentID, a.identity.EnvironmentID
+	}
+	if a.transport != nil {
+		st.ManagerURL, st.ManagerURLSource = a.tinfo.ManagerURL, managerURLSource(a.transport)
 	}
 	a.mu.RUnlock()
 	a.healthMu.Lock()

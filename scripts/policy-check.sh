@@ -78,7 +78,7 @@ in_list() {
 #   internal/agent/compose/*_test.go  tests scripting that fake Engine
 #   internal/agent/config/config.go   the DOCKER_HOST default value only
 #   internal/testutil/fscorpus/       a path-traversal test string
-#   internal/manager/agents/install.go  the agent install command's socket bind mount (text shown to operators)
+#   internal/manager/agents/install.go  the socket bind mount of the agent install commands and of a manager move's compose.yaml (text shown to operators)
 #   internal/protocol/docker{,_test}.go  refuses binding the Docker socket into containers created through Docker Manager (#6)
 engine_http_exceptions=(
 	'^internal/agent/engine/'

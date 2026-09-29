@@ -6,8 +6,9 @@
 //   - agent credentials and enrollment tokens (#3) authenticate only
 //     /agent/v1.
 //
-// API tokens are "dy_<id>_<secret>" (MintAPIToken); agent secrets are
-// "dya_..." and "dye_...", so the three never parse as each other.
+// API tokens are "dy_<id>_<secret>" (MintAPIToken), manager move codes
+// "dmm_<id>_<secret>" (MintMoveCode); agent secrets are
+// "dya_..." and "dye_...", so none of them parses as another.
 //
 // Agent credentials and enrollment tokens are recognizable by their
 // prefixes, so the server can refuse them on /api/v1 before any handler
@@ -39,6 +40,14 @@ const (
 	EnrollmentTokenPrefix = protocol.EnrollmentTokenPrefix
 	// APITokenPrefix marks a user's API token (#31, /api/v1 only).
 	APITokenPrefix = "dy_"
+	// MoveCodePrefix marks a manager move code (docs/internal/architecture/
+	// manager-move.md). The code itself never travels in a request: move
+	// requests are signed with it (MoveAuthScheme).
+	MoveCodePrefix = "dmm_"
+	// MoveAuthScheme is the Authorization scheme of manager move requests
+	// ("DMM <id>:<time>:<nonce>:<mac>"; /api/v1 handoff and confirmation
+	// only).
+	MoveAuthScheme = "DMM"
 )
 
 // secretBytes is the entropy of generated agent secrets.
@@ -130,6 +139,12 @@ func MintEnrollmentToken(id string) (Minted, error) { return mint(EnrollmentToke
 // "dy_<id>_<256-bit secret>". Only Verifier is stored.
 func MintAPIToken(id string) (Minted, error) { return mint(APITokenPrefix, id) }
 
+// MintMoveCode returns a new manager move code for move id:
+// "dmm_<id>_<256-bit secret>". The manager keeps the code sealed with its
+// secret key (the verifier is unused): the secret part keys the move's
+// request signatures and the handoff's encryption.
+func MintMoveCode(id string) (Minted, error) { return mint(MoveCodePrefix, id) }
+
 func mint(prefix, id string) (Minted, error) {
 	if !validRecordID(id) {
 		return Minted{}, errInvalidID
@@ -176,6 +191,18 @@ func ParseEnrollmentToken(token string) (id, secret string, ok bool) {
 // ParseAPIToken splits an API token into its record ID and secret.
 func ParseAPIToken(token string) (id, secret string, ok bool) {
 	return parse(APITokenPrefix, token)
+}
+
+// ParseMoveCode splits a manager move code into its move ID and secret.
+func ParseMoveCode(token string) (id, secret string, ok bool) {
+	return parse(MoveCodePrefix, token)
+}
+
+// IsMoveAuthorization reports whether h carries a manager move request's
+// Authorization (scheme MoveAuthScheme): never a session or an API token.
+func IsMoveAuthorization(h http.Header) bool {
+	scheme, _, ok := strings.Cut(strings.TrimSpace(h.Get("Authorization")), " ")
+	return ok && strings.EqualFold(scheme, MoveAuthScheme)
 }
 
 // maxTokenLen bounds a parsed token (prefix, 64-byte ID, separator and a

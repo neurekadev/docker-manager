@@ -31,6 +31,9 @@ func (m *Manager) finishRestore(ctx context.Context) error {
 	if err != nil || mk == nil {
 		return err
 	}
+	if mk.Kind == backups.RestoreKindMove {
+		return nil // finishMove
+	}
 	sessions, err := store.DeleteAllSessions(ctx, m.db)
 	if err != nil {
 		return err

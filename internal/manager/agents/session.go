@@ -417,7 +417,11 @@ func (s *Session) handshake() (protocol.HelloPayload, bool) {
 		return hello, false
 	}
 	if err := h.attach(s); err != nil {
-		s.closeWith(protocol.CloseGoingAway, err.Error())
+		code := protocol.CloseGoingAway
+		if errors.Is(err, errMoved) {
+			code = websocket.StatusServiceRestart
+		}
+		s.closeWith(code, err.Error())
 		s.drain()
 		return hello, false
 	}
@@ -431,7 +435,8 @@ func (s *Session) handshake() (protocol.HelloPayload, bool) {
 	welcome, err := protocol.NewFrame(protocol.TypeWelcome, s.frameID("w"), f.ID, protocol.JobRef{}, protocol.WelcomePayload{
 		SessionID: s.id, ManagerVersion: h.svc.opts.ManagerVersion, EnvironmentID: s.p.EnvironmentID, AgentStatus: status,
 		HeartbeatIntervalMs: h.opts.HeartbeatInterval.Milliseconds(), HeartbeatTimeoutMs: h.opts.HeartbeatTimeout.Milliseconds(),
-		Limits: protocol.DefaultLimits(),
+		Limits:     protocol.DefaultLimits(),
+		Generation: h.svc.opts.Generation,
 	})
 	if err == nil {
 		err = s.send(welcome)
@@ -552,7 +557,10 @@ func (s *Session) readLoop() {
 				s.drain()
 				return
 			}
-			if st := websocket.CloseStatus(err); st != -1 {
+			if st := websocket.CloseStatus(err); st == protocol.CloseManagerSuperseded {
+				s.log.Warn("an agent refused this manager: it follows a newer generation of this instance (Docker Manager was moved to "+
+					"another server); point the agent at the manager it follows, or remove it here", "close_code", int(st), "generation", s.hub.svc.opts.Generation)
+			} else if st != -1 {
 				s.log.Info("agent closed the session", "close_code", int(st))
 			} else if s.ctx.Err() == nil && !s.closing.Load() {
 				s.log.Info("agent session connection lost", "error", err)

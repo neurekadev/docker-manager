@@ -52,6 +52,9 @@ const MaxIdempotencyKeyLen = 128
 // Enqueue validates, authorizes and stores a queued job. created is false
 // when an existing job was returned for a repeated idempotency key.
 func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, created bool, err error) {
+	if e.opts.MoveLock.ReadOnly() {
+		return domain.Job{}, false, ErrManagerMoved
+	}
 	spec, ok := jobspec.Lookup(req.Kind)
 	if !ok {
 		return domain.Job{}, false, fmt.Errorf("%w: %q", domain.ErrJobUnknownKind, req.Kind)

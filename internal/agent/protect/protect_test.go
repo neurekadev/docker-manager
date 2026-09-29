@@ -3,11 +3,15 @@ package protect
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
@@ -163,4 +167,151 @@ func TestLegacyRoleLabels(t *testing.T) {
 	role(t, "legacy helper", s.Container(helper), protection.RoleAgent, false)
 	role(t, "project of a legacy manager", s.Container(proxy), protection.RoleProject, false)
 	role(t, "look-alike", s.Container(fake), "", false)
+}
+
+// identityWith sends manager.identity with generation to g.
+func identityWith(t *testing.T, g *Guard, instance string, generation int64) (any, error) {
+	t.Helper()
+	raw, _ := json.Marshal(protocol.ManagerIdentityInput{InstanceID: instance, Generation: generation})
+	return g.ManagerIdentityHandler(func() engine.Engine { return nil })(testutil.Context(t), raw)
+}
+
+func storedGeneration(t *testing.T, st *state.Store) int64 {
+	t.Helper()
+	g, err := st.ManagerGeneration()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+// TestManagerGeneration (#35, manager moves): the first manager.identity
+// records the generation (0, a manager that predates moves, counts as 1);
+// a higher one raises it; a lower one is refused with conflict and ends the
+// session with a close code the agent reconnects after (the credential
+// stays), without taking over the manager identity.
+func TestManagerGeneration(t *testing.T) {
+	dir := t.TempDir()
+	st, err := state.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cred := state.Credential{AgentID: "a1", EnvironmentID: "e1", Credential: "dya_c1_secret", ManagerURL: "https://m"}
+	if err := st.SaveCredential(cred); err != nil {
+		t.Fatal(err)
+	}
+	log, logs := testutil.CaptureLogger()
+	g := New(Options{Logger: log})
+	g.SetGenerations(st)
+
+	// First identity, from a manager that predates moves: stored as 1.
+	if _, err := identityWith(t, g, "old", 0); err != nil {
+		t.Fatalf("first identity: %v", err)
+	}
+	if n := storedGeneration(t, st); n != 1 {
+		t.Fatalf("stored %d, want 1 (0 counts as 1)", n)
+	}
+	// Generation 1 explicitly equals 0: accepted, nothing changes.
+	if _, err := identityWith(t, g, "old", 1); err != nil || storedGeneration(t, st) != 1 {
+		t.Fatalf("equal generation: %v", err)
+	}
+	// The moved manager (generation 2) raises it.
+	if _, err := identityWith(t, g, "new", 2); err != nil {
+		t.Fatalf("higher generation: %v", err)
+	}
+	if n := storedGeneration(t, st); n != 2 {
+		t.Fatalf("stored %d, want 2", n)
+	}
+	if inst, _ := g.Manager(); inst != "new" {
+		t.Fatalf("manager %q", inst)
+	}
+
+	// The old manager comes back (generation 0 = 1 < 2): refused.
+	for _, old := range []int64{0, 1} {
+		out, err := identityWith(t, g, "old", old)
+		var end *session.EndSessionError
+		if out != nil || !errors.As(err, &end) {
+			t.Fatalf("generation %d accepted: %+v %v", old, out, err)
+		}
+		if end.Code != protocol.CloseManagerSuperseded || !protocol.ReconnectAllowed(end.Code) {
+			t.Fatalf("close code %d", end.Code)
+		}
+		var he *session.HandlerError
+		if !errors.As(err, &he) || he.Code != protocol.CodeConflict || !strings.Contains(he.Message, "generation 2") {
+			t.Fatalf("error frame %+v", he)
+		}
+	}
+	if inst, _ := g.Manager(); inst != "new" {
+		t.Fatalf("the refused manager took over the identity: %q", inst)
+	}
+	if n := storedGeneration(t, st); n != 2 {
+		t.Fatalf("refusal changed the stored generation: %d", n)
+	}
+	if c, err := st.Credential(); err != nil || c == nil || *c != cred {
+		t.Fatalf("credential changed by the refusal: %+v %v", c, err)
+	}
+	if !strings.Contains(logs.String(), "refused an older Docker Manager") || strings.Contains(logs.String(), "dya_") {
+		t.Fatalf("log: %s", logs.String())
+	}
+
+	// A negative generation is malformed.
+	if _, err := identityWith(t, g, "x", -1); err == nil {
+		t.Fatal("negative generation accepted")
+	}
+}
+
+// TestManagerGenerationMissingOrCorrupt: no record accepts any manager; a
+// corrupt record counts as 0 (with a warning) and is replaced.
+func TestManagerGenerationMissingOrCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	st, _ := state.Open(dir)
+	if err := os.WriteFile(filepath.Join(dir, state.ManagerFile), []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	log, logs := testutil.CaptureLogger()
+	g := New(Options{Logger: log})
+	g.SetGenerations(st)
+	if _, err := identityWith(t, g, "m", 3); err != nil {
+		t.Fatalf("identity over a corrupt record: %v", err)
+	}
+	if !strings.Contains(logs.String(), "cannot read the highest manager generation") {
+		t.Fatalf("no warning: %s", logs.String())
+	}
+	if n := storedGeneration(t, st); n != 3 {
+		t.Fatalf("stored %d, want 3", n)
+	}
+
+	// Without a generation store (no state directory) nothing is checked.
+	bare := New(Options{Logger: testutil.Logger(t)})
+	if _, err := identityWith(t, bare, "m", 0); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAcceptGenerationSharedWithWelcome: the welcome check
+// (AcceptGeneration, wired as session.Options.AcceptWelcome) and
+// manager.identity share one record: 0 counts as 1, a higher welcome
+// raises it, a lower one is a *SupersededError, and manager.identity then
+// refuses what the welcome already refused.
+func TestAcceptGenerationSharedWithWelcome(t *testing.T) {
+	st, _ := state.Open(t.TempDir())
+	g := New(Options{Logger: testutil.Logger(t)})
+	g.SetGenerations(st)
+	if err := g.AcceptGeneration("", 0); err != nil || storedGeneration(t, st) != 1 {
+		t.Fatalf("welcome with 0: %v", err)
+	}
+	if err := g.AcceptGeneration("", 5); err != nil || storedGeneration(t, st) != 5 {
+		t.Fatalf("higher welcome: %v", err)
+	}
+	var superseded *SupersededError
+	if err := g.AcceptGeneration("", 4); !errors.As(err, &superseded) || superseded.Generation != 4 || superseded.Followed != 5 {
+		t.Fatalf("lower welcome: %v", err)
+	}
+	if storedGeneration(t, st) != 5 {
+		t.Fatal("a refusal lowered the record")
+	}
+	var end *session.EndSessionError
+	if _, err := identityWith(t, g, "old", 4); !errors.As(err, &end) {
+		t.Fatalf("manager.identity accepted what the welcome refused: %v", err)
+	}
 }

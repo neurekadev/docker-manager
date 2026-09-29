@@ -219,6 +219,21 @@ describe('error views', () => {
 		expect(fieldError(e, 'body.name')).toBeUndefined();
 	});
 
+	it('words the manager move refusal the same everywhere', () => {
+		const e = new ApiRequestError('moving', 409, {
+			code: 'manager_moved',
+			message:
+				'Docker Manager is moving (or moved) to a new server: this manager is read-only.',
+			details: [],
+			requestId: 'req-2',
+			retryable: false
+		});
+		expect(errorView(e)).toMatchObject({ code: 'manager_moved', status: 409 });
+		expect(errorView(e).message).toBe(
+			'This Docker Manager is moving, or moved, to a new server, so nothing can be changed here. Use Docker Manager on the new server.'
+		);
+	});
+
 	it('explains network failures without an HTTP status', () => {
 		const v = errorView(new ApiRequestError('Failed to fetch', null));
 		expect(v.network).toBe(true);
