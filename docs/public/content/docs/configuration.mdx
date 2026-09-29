@@ -32,8 +32,10 @@ the container doesn't start and keeps retrying. Its log says why:
 | `DOCKER_MANAGER_PUBLIC_URL` | (required) | The address you open Docker Manager at. Must start with `https://`. |
 | `DOCKER_MANAGER_TRUSTED_PROXIES` | (none) | The IP addresses or networks of your reverse proxy, separated by commas. Only these may tell Docker Manager that a visitor used HTTPS, and who the visitor is. |
 | `DOCKER_MANAGER_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
-| `DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` | `1h` | Sign out after this long without activity, for example `30m` or `4h`. |
+| `DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` | `8h` | Sign out after this long without activity, for example `30m` or `4h`. |
 | `DOCKER_MANAGER_SESSION_LIFETIME` | `24h` | Sign out this long after signing in, whatever you do. |
+| `DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT` | `720h` (30 days) | Like the idle timeout, for devices where you chose **Stay signed in**. |
+| `DOCKER_MANAGER_SESSION_STAY_LIFETIME` | `8760h` (1 year) | Like the lifetime, for devices where you chose **Stay signed in**. |
 | `DOCKER_MANAGER_FILES_MAX_EDIT_KB` | `512` | The largest file you can edit in the file manager, in KB (64 to 16384). Larger files open read-only. |
 | `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | The largest file you can upload, in MB. Your reverse proxy must allow uploads this large too. |
 | `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` | `10240` | The largest download, and the largest archive you can create, in MB. |

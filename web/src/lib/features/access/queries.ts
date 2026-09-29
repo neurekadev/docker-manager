@@ -1,5 +1,6 @@
 // Access administration (#16, #17, #31) for Svelte Query. Users, groups,
-// invitations, permission documents and API tokens are live topic
+// invitations, permission documents, API tokens and signed-in devices
+// (browser sessions) are live topic
 // 'permissions': any change refreshes these keys (and a permissions change
 // of the caller clears the cache, #23).
 import { queryOptions } from '@tanstack/svelte-query';
@@ -13,6 +14,7 @@ export type Invitation = Schema<'Invitation'>;
 export type PermissionDocument = Schema<'PermissionDocument'>;
 export type EffectivePermissions = Schema<'EffectivePermissions'>;
 export type APIToken = Schema<'APIToken'>;
+export type UserSession = Schema<'UserSession'>;
 
 export const accessKeys = {
 	users: () => liveKeys.list('permissions', 'users'),
@@ -24,6 +26,8 @@ export const accessKeys = {
 	invitations: () => liveKeys.list('permissions', 'invitations'),
 	myTokens: () => liveKeys.list('permissions', 'my-tokens'),
 	allTokens: () => liveKeys.list('permissions', 'all-tokens'),
+	mySessions: () => liveKeys.list('permissions', 'my-sessions'),
+	userSessions: (id: string) => liveKeys.item('permissions', id, 'sessions'),
 	catalog: ['permission-catalog'] as const
 };
 
@@ -156,5 +160,33 @@ export function allTokensQuery(client: ApiClient = api) {
 				)
 			),
 		staleTime: 15_000
+	});
+}
+
+/** My signed-in devices, most recently active first (one short page). */
+export function mySessionsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: accessKeys.mySessions(),
+		queryFn: async ({ signal }): Promise<UserSession[]> =>
+			(await unwrap(client.GET('/api/v1/me/sessions', { signal }))).items,
+		staleTime: 15_000
+	});
+}
+
+/** A user's signed-in devices (owner only), most recently active first. */
+export function userSessionsQuery(id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: accessKeys.userSessions(id),
+		queryFn: async ({ signal }): Promise<UserSession[]> =>
+			(
+				await unwrap(
+					client.GET('/api/v1/users/{userId}/sessions', {
+						params: { path: { userId: id } },
+						signal
+					})
+				)
+			).items,
+		staleTime: 15_000,
+		enabled: !!id
 	});
 }

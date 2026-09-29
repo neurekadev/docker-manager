@@ -19,6 +19,15 @@ initial at the top right and choose **Profile**. There you can:
 The **API tokens** tab next to it holds your
 [API tokens](/docs/api-tokens).
 
+The **Sessions** tab lists every device where you are signed in: the
+browser, its IP address, when it signed in and when it was last active.
+**This device** marks the one you are using.
+
+- Don't recognise a device, or left yourself signed in somewhere? Click
+  **Sign out** next to it. It is signed out at once.
+- **Sign out other devices** signs out everything except the device you
+  are using.
+
 Passwords need at least 15 characters. Long passphrases are welcome.
 Common and leaked passwords are refused.
 
@@ -30,8 +39,13 @@ ask the owner to reset your sign-in factors.
 
 Forgot your password? Ask the owner for a reset link.
 
-You are signed out after 1 hour without activity, and after 24 hours at
-the latest.
+You are signed out after 8 hours without activity, after 24 hours at the
+latest, and when you close the browser.
+
+On your own computer, tick **Stay signed in** when you sign in. That
+device then stays signed in for 30 days without activity, and a year at
+most, even when you close the browser. Don't use it on a shared
+computer.
 
 For sensitive actions, such as creating an API token, Docker Manager asks
 you to **Confirm it's you** again. That lasts 10 minutes.
@@ -55,6 +69,9 @@ The owner sets the rules for everyone under **Settings → Sign-in policy**:
 - How long invitation and password reset links work.
 - Whether **API tokens** are allowed, and their longest lifetime (90 days
   by default).
+- **Allow Stay signed in** (on by default). Turn it off, and devices that
+  stayed signed in fall back to the normal limits. Those already past them
+  are signed out.
 
 Changing the required factors signs everyone out.
 

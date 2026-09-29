@@ -252,6 +252,36 @@ routes:
     sessionOnly: true
     notes: Requires step-up.
   - method: GET
+    path: /api/v1/me/sessions
+    operationId: list-my-sessions
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: implemented
+    sessionOnly: true
+    notes: Signed-in devices (browser, IP, last activity); no pagination.
+  - method: DELETE
+    path: "/api/v1/me/sessions/{sessionId}"
+    operationId: delete-my-session
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: implemented
+    sessionOnly: true
+    notes: Signs out one device; its open streams close.
+  - method: POST
+    path: /api/v1/me/session-revocations
+    operationId: create-my-session-revocation
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: implemented
+    sessionOnly: true
+    notes: Signs out every other device of the caller.
+  - method: GET
     path: /api/v1/me/recovery-codes
     operationId: get-my-recovery-codes
     capability: authenticated
@@ -370,6 +400,22 @@ routes:
   - method: POST
     path: "/api/v1/users/{userId}/session-revocations"
     operationId: create-user-session-revocation
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/users/{userId}/sessions"
+    operationId: list-user-sessions
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: implemented
+  - method: DELETE
+    path: "/api/v1/users/{userId}/sessions/{sessionId}"
+    operationId: delete-user-session
     capability: owner
     scope: instance
     owner: 16

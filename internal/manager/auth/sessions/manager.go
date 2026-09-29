@@ -13,13 +13,16 @@ import (
 // single public origin (#27). api.SessionCookieName is the same value.
 const CookieName = "__Host-docker_manager_session"
 
-// Session lifetime defaults (DOCKER_MANAGER_SESSION_IDLE_TIMEOUT and
-// DOCKER_MANAGER_SESSION_LIFETIME override them). They follow NIST SP 800-63B
-// AAL2 reauthentication guidance: at most one hour of inactivity and a 24
-// hour absolute lifetime, whatever the activity.
+// Session lifetime defaults (DOCKER_MANAGER_SESSION_IDLE_TIMEOUT,
+// DOCKER_MANAGER_SESSION_LIFETIME and their _STAY_ variants override them):
+// a working day of inactivity and 24 hours at most, whatever the activity;
+// sessions signed in with "Stay signed in" last 30 days of inactivity and
+// a year at most.
 const (
-	DefaultIdleTimeout = time.Hour
-	DefaultLifetime    = 24 * time.Hour
+	DefaultIdleTimeout     = 8 * time.Hour
+	DefaultLifetime        = 24 * time.Hour
+	DefaultStayIdleTimeout = 30 * 24 * time.Hour
+	DefaultStayLifetime    = 365 * 24 * time.Hour
 )
 
 // Options configures the session manager.
@@ -29,7 +32,9 @@ type Options struct {
 	// disables SCS's idle handling (the caller enforces inactivity itself;
 	// SCS would otherwise rewrite the session on every request).
 	IdleTimeout time.Duration
-	// Lifetime is the absolute limit from sign-in (or the last renewal).
+	// Lifetime is the absolute limit from sign-in (or the last renewal);
+	// the identity service moves the deadline of "Stay signed in" sessions
+	// (SetDeadline).
 	Lifetime time.Duration
 	// ErrorFunc answers requests whose session cannot be loaded or saved
 	// (database failures). Required: SCS's default writes plain text and
@@ -39,7 +44,9 @@ type Options struct {
 
 // NewManager returns an SCS session manager with Docker Manager's cookie policy:
 // HttpOnly, Secure, SameSite=Strict, Path=/, no Domain, the __Host- name,
-// and tokens stored only as SHA-256 hashes. Handlers must call RenewToken
+// and tokens stored only as SHA-256 hashes. The cookie ends with the
+// browser unless the session asks to be remembered (RememberMe, "Stay
+// signed in"); then it persists until the session's deadline. Handlers must call RenewToken
 // on every privilege change (sign-in, second factor, step-up, enrollment
 // completion) to prevent session fixation.
 func NewManager(o Options) (*scs.SessionManager, error) {
@@ -75,7 +82,7 @@ func NewManager(o Options) (*scs.SessionManager, error) {
 		// Always Secure: the public origin is HTTPS, and browsers accept
 		// Secure cookies from http://localhost (the only plain-http mode).
 		Secure:  true,
-		Persist: true,
+		Persist: false,
 	}
 	return sm, nil
 }

@@ -162,6 +162,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	profile: [routes.profile()],
 	apiTokens: [routes.apiTokens()],
 	apiTokenNew: [routes.apiTokenNew()],
+	mySessions: [routes.mySessions()],
 	settings: [routes.settings()],
 	allApiTokens: [routes.allApiTokens()],
 	signInPolicy: [routes.signInPolicy()],
@@ -239,6 +240,7 @@ describe('routes', () => {
 		expect(routes.allApiTokens()).toBe('/settings/tokens/all');
 		expect(routes.apiTokens()).toBe('/profile/tokens');
 		expect(routes.apiTokenNew()).toBe('/profile/tokens/new');
+		expect(routes.mySessions()).toBe('/profile/sessions');
 		expect(routes.profile()).toBe('/profile');
 	});
 });

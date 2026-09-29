@@ -10,9 +10,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
@@ -55,8 +57,9 @@ func (s *Service) record(ctx context.Context, action, outcome, actor, targetType
 // accounts, wrong passwords, accounts without a password and disabled
 // accounts fail identically, after the same single Argon2id computation.
 // A following TOTP code (same request or a later one) continues a pending
-// sign-in.
-func (s *Service) SignIn(ctx context.Context, username, pw, totpCode string) (domain.SessionState, error) {
+// sign-in. stay asks for "Stay signed in" (when the policy allows it); a
+// pending sign-in keeps the choice of its first step.
+func (s *Service) SignIn(ctx context.Context, username, pw, totpCode string, stay bool) (domain.SessionState, error) {
 	if username == "" {
 		if totpCode == "" {
 			return domain.SessionState{}, &domain.FieldError{Field: "username", Message: "username and password, or a TOTP code for a pending sign-in, are required"}
@@ -86,7 +89,7 @@ func (s *Service) SignIn(ctx context.Context, username, pw, totpCode string) (do
 	if rehash {
 		s.upgradeHash(ctx, user.ID, pw)
 	}
-	st, err := s.advance(ctx, user, fPassword, false)
+	st, err := s.advance(ctx, user, fPassword, false, stay)
 	if err != nil || totpCode == "" || st.Stage != domain.StageSecondFactor {
 		return st, err
 	}
@@ -106,12 +109,14 @@ func (s *Service) upgradeHash(ctx context.Context, userID, pw string) {
 }
 
 // advance applies the instance policy after factors were proven and moves
-// the session to the resulting stage.
-func (s *Service) advance(ctx context.Context, user domain.User, proven factorSet, recovery bool) (domain.SessionState, error) {
+// the session to the resulting stage. stay asks for "Stay signed in"; it
+// applies only when the policy allows it.
+func (s *Service) advance(ctx context.Context, user domain.User, proven factorSet, recovery, stay bool) (domain.SessionState, error) {
 	set, err := s.settings(ctx)
 	if err != nil {
 		return domain.SessionState{}, err
 	}
+	stay = stay && set.AllowStaySignedIn
 	enrolled, err := s.enrolled(ctx, user)
 	if err != nil {
 		return domain.SessionState{}, err
@@ -119,7 +124,7 @@ func (s *Service) advance(ctx context.Context, user domain.User, proven factorSe
 	ev := evaluate(set.RequiredFactors, enrolled, proven, recovery)
 	switch ev.stage {
 	case domain.StageAuthenticated:
-		if err := s.establish(ctx, user, domain.StageAuthenticated, proven); err != nil {
+		if err := s.establish(ctx, user, domain.StageAuthenticated, proven, stay); err != nil {
 			return domain.SessionState{}, err
 		}
 		if user.EnrollmentDeadline != nil && enrollmentComplete(set.RequiredFactors, enrolled) {
@@ -130,6 +135,7 @@ func (s *Service) advance(ctx context.Context, user domain.User, proven factorSe
 		if recovery {
 			reason = "recovery_code"
 		}
+		audit.SetDetail(ctx, "staySignedIn", stay)
 		s.record(ctx, "auth.sign_in", OutcomeSuccess, user.ID, "user", user.ID, reason)
 	case domain.StageSecondFactor:
 		if ev.next.has(fPassword) {
@@ -137,15 +143,19 @@ func (s *Service) advance(ctx context.Context, user domain.User, proven factorSe
 			return domain.SessionState{}, domain.ErrMethodNotAllowed
 		}
 		sm := s.kit.Sessions
+		// A new sign-in replaces whatever this browser was signed in as.
+		if err := s.endDevice(ctx); err != nil {
+			return domain.SessionState{}, err
+		}
 		if err := sm.RenewToken(ctx); err != nil {
 			return domain.SessionState{}, err
 		}
-		// A new sign-in replaces whatever this browser was signed in as.
 		s.clearAuth(ctx)
 		s.clearCeremonies(ctx)
 		sm.Put(ctx, kPendingID, user.ID)
 		sm.Put(ctx, kPendingAt, s.now().UnixNano())
 		sm.Put(ctx, kPendingPf, int64(proven))
+		sm.Put(ctx, kPendingStay, stay)
 	case domain.StageEnrollment:
 		if !user.Owner {
 			// The owner is never locked out (no deadline); everyone else
@@ -161,10 +171,11 @@ func (s *Service) advance(ctx context.Context, user domain.User, proven factorSe
 				return domain.SessionState{}, domain.ErrEnrollmentExpired
 			}
 		}
-		if err := s.establish(ctx, user, domain.StageEnrollment, proven); err != nil {
+		if err := s.establish(ctx, user, domain.StageEnrollment, proven, stay); err != nil {
 			return domain.SessionState{}, err
 		}
 		_ = store.SetLastSignIn(ctx, s.db, user.ID, s.now())
+		audit.SetDetail(ctx, "staySignedIn", stay)
 		s.record(ctx, "auth.sign_in", OutcomeSuccess, user.ID, "user", user.ID, "enrollment_session")
 	}
 	return s.state(ctx)
@@ -215,7 +226,7 @@ func (s *Service) continueWithTOTP(ctx context.Context, code string) (domain.Ses
 		}
 		return domain.SessionState{}, err
 	}
-	return s.advance(ctx, user, proven|fTOTP, false)
+	return s.advance(ctx, user, proven|fTOTP, false, s.pendingStay(ctx))
 }
 
 // RedeemRecoveryCode completes a pending password sign-in with a one-time
@@ -242,7 +253,7 @@ func (s *Service) RedeemRecoveryCode(ctx context.Context, code string) (domain.S
 		return domain.SessionState{}, domain.ErrInvalidCredentials
 	}
 	s.record(ctx, "auth.recovery_code_use", OutcomeSuccess, user.ID, "user", user.ID, "")
-	return s.advance(ctx, user, proven, true)
+	return s.advance(ctx, user, proven, true, s.pendingStay(ctx))
 }
 
 // CurrentSession describes the caller's session (401 when there is none).
@@ -253,17 +264,19 @@ func (s *Service) CurrentSession(ctx context.Context) (domain.SessionState, erro
 	return s.state(ctx)
 }
 
-// SignOut ends the caller's session (also a pending one).
+// SignOut ends the caller's session (also a pending one) and its signed-in
+// device; the device's other open streams close.
 func (s *Service) SignOut(ctx context.Context) error {
 	cur := currentFrom(ctx)
 	if cur == nil && !s.kit.Sessions.Exists(ctx, kPendingID) {
 		return domain.ErrNotAuthenticated
 	}
-	if err := s.kit.Sessions.Destroy(ctx); err != nil {
+	if err := s.drop(ctx); err != nil {
 		return err
 	}
 	if cur != nil {
 		s.record(ctx, "auth.sign_out", OutcomeSuccess, cur.user.ID, "user", cur.user.ID, "")
+		s.hub.revokeSessions([]string{cur.session.ID}, authz.ErrSessionEnded, hubEntryFrom(ctx))
 	}
 	return nil
 }

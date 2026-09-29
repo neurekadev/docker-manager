@@ -38,6 +38,7 @@ func registerIdentity(a huma.API, deps Deps) {
 	registerSignIn(a, h)
 	registerFactors(a, h)
 	registerAccountAdmin(a, h)
+	registerUserSessions(a, h)
 }
 
 func registerSetup(a huma.API, h *identityAPI) {
@@ -61,6 +62,7 @@ func registerSetup(a huma.API, h *identityAPI) {
 		}
 		out := &setupStatusOutput{}
 		out.Body.SetupComplete, out.Body.SecureOrigin, out.Body.Explanation = st.Complete, st.SecureOrigin, st.Explanation
+		out.Body.StaySignedInAllowed = st.StaySignedInAllowed
 		if !st.Complete && h.backups != nil {
 			if imp, err := h.backups.LatestImport(ctx); err == nil && imp != nil {
 				out.Body.BackupImport = &SetupBackupImport{JobID: imp.JobID, State: string(imp.State), ErrorCode: imp.ErrorClass,
@@ -112,7 +114,7 @@ func registerSignIn(a huma.API, h *identityAPI) {
 		if err != nil {
 			return nil, err
 		}
-		st, err := svc.SignIn(ctx, in.Body.Username, in.Body.Password, in.Body.TOTPCode)
+		st, err := svc.SignIn(ctx, in.Body.Username, in.Body.Password, in.Body.TOTPCode, in.Body.StaySignedIn)
 		if err != nil {
 			return nil, identityError(err)
 		}
@@ -261,7 +263,7 @@ func registerSignIn(a huma.API, h *identityAPI) {
 		if err != nil {
 			return nil, err
 		}
-		st, err := svc.PasskeyAuthenticationVerification(ctx, in.Body.Credential)
+		st, err := svc.PasskeyAuthenticationVerification(ctx, in.Body.Credential, in.Body.StaySignedIn)
 		if err != nil {
 			return nil, identityError(err)
 		}

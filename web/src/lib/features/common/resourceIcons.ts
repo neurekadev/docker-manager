@@ -20,6 +20,7 @@ import KeyRound from '@lucide/svelte/icons/key-round';
 import Layers from '@lucide/svelte/icons/layers';
 import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 import MailPlus from '@lucide/svelte/icons/mail-plus';
+import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
 import Network from '@lucide/svelte/icons/network';
 import PackageCheck from '@lucide/svelte/icons/package-check';
 import Server from '@lucide/svelte/icons/server';
@@ -61,7 +62,8 @@ export const RESOURCE_ICONS = {
 	group: { icon: UsersRound, color: 'indigo' },
 	invitation: { icon: MailPlus, color: 'blue' },
 	apiToken: { icon: KeyRound, color: 'violet' },
-	passkey: { icon: Fingerprint, color: 'slate' }
+	passkey: { icon: Fingerprint, color: 'slate' },
+	session: { icon: MonitorSmartphone, color: 'slate' }
 } as const satisfies Record<string, ResourceIcon>;
 
 export type ResourceKind = keyof typeof RESOURCE_ICONS;

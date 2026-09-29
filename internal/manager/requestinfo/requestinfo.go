@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Forwarding headers honored from trusted proxies and stripped otherwise.
@@ -44,7 +46,13 @@ type Info struct {
 	Scheme string
 	// Host is the host[:port] the client addressed (lower case).
 	Host string
+	// UserAgent is the User-Agent header without control characters, at
+	// most MaxUserAgentLen bytes (signed-in devices, #16).
+	UserAgent string
 }
+
+// MaxUserAgentLen bounds Info.UserAgent.
+const MaxUserAgentLen = 256
 
 // Secure reports whether the client reached the manager over HTTPS.
 func (i Info) Secure() bool { return i.Scheme == "https" }
@@ -67,6 +75,29 @@ func From(ctx context.Context) (Info, bool) {
 func ClientIP(ctx context.Context) netip.Addr {
 	info, _ := From(ctx)
 	return info.ClientIP
+}
+
+// UserAgent returns the cleaned User-Agent of the request, or "" when the
+// context carries no Info.
+func UserAgent(ctx context.Context) string {
+	info, _ := From(ctx)
+	return info.UserAgent
+}
+
+// cleanUserAgent drops control characters and cuts s to MaxUserAgentLen
+// bytes at a character boundary.
+func cleanUserAgent(s string) string {
+	s = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || r == utf8.RuneError {
+			return -1
+		}
+		return r
+	}, s))
+	for len(s) > MaxUserAgentLen {
+		_, n := utf8.DecodeLastRuneInString(s)
+		s = s[:len(s)-n]
+	}
+	return s
 }
 
 // Resolver resolves Info from requests. The zero value trusts no proxy.
@@ -116,10 +147,11 @@ func (r *Resolver) Trusts(addr netip.Addr) bool {
 func (r *Resolver) Resolve(req *http.Request) Info {
 	peer := parseRemoteAddr(req.RemoteAddr)
 	info := Info{
-		ClientIP: peer,
-		Peer:     peer,
-		Scheme:   "http",
-		Host:     strings.ToLower(req.Host),
+		ClientIP:  peer,
+		Peer:      peer,
+		Scheme:    "http",
+		Host:      strings.ToLower(req.Host),
+		UserAgent: cleanUserAgent(req.UserAgent()),
 	}
 	if req.TLS != nil {
 		info.Scheme = "https"

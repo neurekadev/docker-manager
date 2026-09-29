@@ -22,7 +22,7 @@
 //   list or detail page, opened by a query parameter (?create=1, ?edit=1,
 //   ?defaults=1) so links can open them.
 //   /access[/users/{id}|/groups[/{id}]|/invitations]
-//   /profile[/tokens[/new]]             the caller's own account and API tokens
+//   /profile[/tokens[/new]|/sessions]   the caller's own account, API tokens and signed-in devices
 //   /settings[/tokens/all|/sign-in|/schedules|/audit|/diagnostics]   instance administration
 //   (/settings/security and /settings/tokens[/new] redirect to /profile[/tokens[/new]])
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
@@ -178,6 +178,8 @@ export const routes = {
 	/** The caller's own API tokens (every user's tokens: allApiTokens). */
 	apiTokens: () => '/profile/tokens',
 	apiTokenNew: () => '/profile/tokens/new',
+	/** The caller's own signed-in devices (browser sessions). */
+	mySessions: () => '/profile/sessions',
 	settings: () => '/settings',
 	/** Every user's API tokens (owner only), a Settings tab. */
 	allApiTokens: () => '/settings/tokens/all',

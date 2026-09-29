@@ -373,18 +373,23 @@ func TestSessionLifecycle(t *testing.T) {
 	stale := &client{e: e, cookie: first, ip: c.ip, base: c.base}
 	stale.fail(http.StatusUnauthorized, "unauthenticated", http.MethodGet, "/api/v1/me", nil)
 
-	// Idle timeout (1 h by default).
-	e.clk.Advance(59 * time.Minute)
+	// Without "Stay signed in" the cookie ends with the browser.
+	if strings.Contains(raw, "Max-Age=") || strings.Contains(raw, "Expires=") {
+		t.Fatalf("session cookie %q persists", raw)
+	}
+
+	// Idle timeout (8 h by default).
+	e.clk.Advance(7*time.Hour + 59*time.Minute)
 	c.must(http.StatusOK, http.MethodGet, "/api/v1/me", nil)
-	e.clk.Advance(59 * time.Minute)
+	e.clk.Advance(7*time.Hour + 59*time.Minute)
 	c.must(http.StatusOK, http.MethodGet, "/api/v1/me", nil)
-	e.clk.Advance(time.Hour)
+	e.clk.Advance(8 * time.Hour)
 	c.fail(http.StatusUnauthorized, "unauthenticated", http.MethodGet, "/api/v1/me", nil)
 
 	// Absolute lifetime (24 h) despite activity.
 	c.signIn("owner", pw)
-	for range 28 {
-		e.clk.Advance(50 * time.Minute)
+	for range 4 {
+		e.clk.Advance(5*time.Hour + 50*time.Minute)
 		c.must(http.StatusOK, http.MethodGet, "/api/v1/me", nil)
 	}
 	e.clk.Advance(50 * time.Minute) // 24h10m after sign-in

@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Sign-in policy (#16, #31; owner only): strict passwords, the factors
 	// every account must use (with the enrollment consequences stated before
-	// saving), invitation and reset lifetimes, and API tokens (on/off,
-	// longest lifetime, tokens without expiry). Saving needs a step-up.
+	// saving), whether the sign-in page offers Stay signed in, invitation
+	// and reset lifetimes, and API tokens (on/off, longest lifetime, tokens
+	// without expiry). Saving needs a step-up.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap } from '$lib/api/client';
@@ -33,6 +34,7 @@
 		FACTOR_POLICY,
 		factorChangeConsequences,
 		settingsChanges,
+		staySignedInConsequences,
 		type RequiredFactors
 	} from '$lib/features/settings/model';
 	import {
@@ -84,7 +86,8 @@
 						base.requiredFactors,
 						form.requiredFactors,
 						form.enrollmentGraceHours
-					)
+					),
+					...staySignedInConsequences(base.allowStaySignedIn, form.allowStaySignedIn)
 				]
 			: []
 	);
@@ -109,6 +112,7 @@
 							minPasswordLength: f.minPasswordLength,
 							requiredFactors: f.requiredFactors,
 							enrollmentGraceHours: f.enrollmentGraceHours,
+							allowStaySignedIn: f.allowStaySignedIn,
 							invitationTtlHours: f.invitationTtlHours,
 							passwordResetTtlHours: f.passwordResetTtlHours,
 							apiTokensEnabled: f.apiTokensEnabled,
@@ -193,6 +197,18 @@
 									error={fields['body.enrollmentGraceHours']}
 								/>
 							</Fields>
+						</Fields>
+					</Card>
+					<Card
+						title="Staying signed in"
+						subtitle="By default a browser is signed out after 8 hours without activity, 24 hours at most, and when it closes."
+					>
+						<Fields columns={2}>
+							<Switch
+								label="Allow Stay signed in"
+								description="People can keep a device signed in for longer: by default 30 days without activity, a year at most. Off moves those devices back to the normal limits."
+								bind:checked={form.allowStaySignedIn}
+							/>
 						</Fields>
 					</Card>
 					<Card title="Invitations and resets">

@@ -222,7 +222,7 @@ export const ACCOUNT_ITEMS: NavItem[] = [
 		icon: UserRound,
 		group: 'account',
 		keywords:
-			'account password authenticator app two-factor 2fa passkeys recovery codes my api tokens',
+			'account password authenticator app two-factor 2fa passkeys recovery codes my api tokens sessions signed-in devices sign out',
 		visible: () => true
 	}
 ];

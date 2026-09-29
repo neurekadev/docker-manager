@@ -43,7 +43,12 @@ administration); public operations have none.
   (a limited session that may only use `/me`, `/me/…` and `/auth/…` to
   enroll the factors the instance policy requires; everything else answers
   `403 enrollment_required`) or `authenticated`. The token changes at every
-  privilege change; sessions end after 1 h idle / 24 h.
+  privilege change; sessions end after 8 h idle / 24 h, or 30 days idle / a
+  year with `staySignedIn` (on `POST /auth/session` and the passkey
+  verification, when the sign-in policy allows it; the cookie then
+  persists). `GET /me/sessions` lists the account's signed-in devices;
+  `DELETE /me/sessions/{sessionId}` and `POST /me/session-revocations` sign
+  them out (the owner: `/users/{userId}/sessions`).
 - **Cross-site protection:** requests with unsafe methods authenticated by
   the cookie must come from the manager's own origin — the manager checks
   `Origin` (and `Sec-Fetch-Site`) against `DOCKER_MANAGER_PUBLIC_URL` and rejects

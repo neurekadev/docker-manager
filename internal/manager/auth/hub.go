@@ -21,27 +21,40 @@ type hub struct {
 }
 
 type hubEntry struct {
-	// epoch is the session epoch of a session request.
-	epoch int64
+	// epoch and sessionID are of a session request.
+	epoch     int64
+	sessionID string
 	// tokenID is set for API-token requests (epoch is unused then).
 	tokenID string
 	cancel  context.CancelCauseFunc
 }
 
+// hubEntryKey carries the hub registration of the request, so a request
+// ending its own session does not cancel itself.
+type hubEntryKey struct{}
+
+func hubEntryFrom(ctx context.Context) uint64 {
+	id, _ := ctx.Value(hubEntryKey{}).(uint64)
+	return id
+}
+
 func newHub() *hub { return &hub{subs: map[string]map[uint64]hubEntry{}} }
 
-// register tracks cancel for userID's request made with session epoch.
-func (h *hub) register(userID string, epoch int64, cancel context.CancelCauseFunc) func() {
-	return h.add(userID, hubEntry{epoch: epoch, cancel: cancel})
+// register tracks cancel for userID's request made with session sessionID
+// in session epoch. It returns the registration (see hubEntryKey) and the
+// function removing it.
+func (h *hub) register(userID string, epoch int64, sessionID string, cancel context.CancelCauseFunc) (uint64, func()) {
+	return h.add(userID, hubEntry{epoch: epoch, sessionID: sessionID, cancel: cancel})
 }
 
 // registerToken tracks cancel for a request made with API token tokenID
 // of userID.
 func (h *hub) registerToken(userID, tokenID string, cancel context.CancelCauseFunc) func() {
-	return h.add(userID, hubEntry{tokenID: tokenID, cancel: cancel})
+	_, done := h.add(userID, hubEntry{tokenID: tokenID, cancel: cancel})
+	return done
 }
 
-func (h *hub) add(userID string, e hubEntry) func() {
+func (h *hub) add(userID string, e hubEntry) (uint64, func()) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.next++
@@ -50,7 +63,7 @@ func (h *hub) add(userID string, e hubEntry) func() {
 		h.subs[userID] = map[uint64]hubEntry{}
 	}
 	h.subs[userID][id] = e
-	return func() {
+	return id, func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		delete(h.subs[userID], id)
@@ -68,14 +81,27 @@ func (h *hub) revoke(userID string, keep int64) { h.revokeCause(userID, keep, au
 // revokeCause cancels like revoke with the given cause, which streams
 // report to the client (authz.CloseReason).
 func (h *hub) revokeCause(userID string, keep int64, cause error) {
-	h.cancelWhere(cause, func(uid string, e hubEntry) bool {
+	h.cancelWhere(cause, func(uid string, _ uint64, e hubEntry) bool {
 		return uid == userID && e.tokenID == "" && (keep < 0 || e.epoch != keep)
 	})
 }
 
 // revokeUser cancels every request of userID: sessions and API tokens.
 func (h *hub) revokeUser(userID string, cause error) {
-	h.cancelWhere(cause, func(uid string, _ hubEntry) bool { return uid == userID })
+	h.cancelWhere(cause, func(uid string, _ uint64, _ hubEntry) bool { return uid == userID })
+}
+
+// revokeSessions cancels the requests made with the given sessions
+// (signed-in devices), except the registration skip (the calling request;
+// 0 skips none).
+func (h *hub) revokeSessions(sessionIDs []string, cause error, skip uint64) {
+	set := make(map[string]bool, len(sessionIDs))
+	for _, id := range sessionIDs {
+		set[id] = true
+	}
+	h.cancelWhere(cause, func(_ string, id uint64, e hubEntry) bool {
+		return e.tokenID == "" && e.sessionID != "" && set[e.sessionID] && id != skip
+	})
 }
 
 // revokeTokens cancels the requests made with the given API tokens.
@@ -84,20 +110,20 @@ func (h *hub) revokeTokens(tokenIDs []string, cause error) {
 	for _, id := range tokenIDs {
 		set[id] = true
 	}
-	h.cancelWhere(cause, func(_ string, e hubEntry) bool { return e.tokenID != "" && set[e.tokenID] })
+	h.cancelWhere(cause, func(_ string, _ uint64, e hubEntry) bool { return e.tokenID != "" && set[e.tokenID] })
 }
 
 // revokeAllTokens cancels every API-token request.
 func (h *hub) revokeAllTokens(cause error) {
-	h.cancelWhere(cause, func(_ string, e hubEntry) bool { return e.tokenID != "" })
+	h.cancelWhere(cause, func(_ string, _ uint64, e hubEntry) bool { return e.tokenID != "" })
 }
 
-func (h *hub) cancelWhere(cause error, match func(userID string, e hubEntry) bool) {
+func (h *hub) cancelWhere(cause error, match func(userID string, id uint64, e hubEntry) bool) {
 	h.mu.Lock()
 	var cancels []context.CancelCauseFunc
 	for uid, m := range h.subs {
 		for id, e := range m {
-			if match(uid, e) {
+			if match(uid, id, e) {
 				cancels = append(cancels, e.cancel)
 				delete(m, id)
 			}
@@ -112,22 +138,27 @@ func (h *hub) cancelWhere(cause error, match func(userID string, e hubEntry) boo
 	}
 }
 
-// snapshot returns the users with open session requests and the API
-// tokens with open requests (token ID -> user).
-func (h *hub) snapshot() (sessions map[string]struct{}, tokens map[string]string) {
+// snapshot returns the users with open session requests, the sessions
+// (signed-in devices) with open requests and the API tokens with open
+// requests (token ID -> user).
+func (h *hub) snapshot() (users, sessions map[string]struct{}, tokens map[string]string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	sessions, tokens = map[string]struct{}{}, map[string]string{}
+	users, sessions, tokens = map[string]struct{}{}, map[string]struct{}{}, map[string]string{}
 	for uid, m := range h.subs {
 		for _, e := range m {
-			if e.tokenID != "" {
+			switch {
+			case e.tokenID != "":
 				tokens[e.tokenID] = uid
-			} else {
-				sessions[uid] = struct{}{}
+			default:
+				users[uid] = struct{}{}
+				if e.sessionID != "" {
+					sessions[e.sessionID] = struct{}{}
+				}
 			}
 		}
 	}
-	return sessions, tokens
+	return users, sessions, tokens
 }
 
 func (h *hub) count() int {

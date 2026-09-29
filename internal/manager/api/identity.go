@@ -35,7 +35,7 @@ type IdentityService interface {
 	// SetupOpen admits the other first-run setup routes (backup import).
 	SetupOpen(ctx context.Context) error
 
-	SignIn(ctx context.Context, username, password, totpCode string) (domain.SessionState, error)
+	SignIn(ctx context.Context, username, password, totpCode string, staySignedIn bool) (domain.SessionState, error)
 	CurrentSession(ctx context.Context) (domain.SessionState, error)
 	SignOut(ctx context.Context) error
 	StepUp(ctx context.Context, req domain.StepUp) (domain.SessionState, error)
@@ -49,7 +49,7 @@ type IdentityService interface {
 	PasskeyRegistrationOptions(ctx context.Context) (json.RawMessage, error)
 	PasskeyRegistrationVerification(ctx context.Context, name string, response []byte) (domain.Passkey, domain.SessionState, error)
 	PasskeyAuthenticationOptions(ctx context.Context, purpose domain.PasskeyPurpose) (json.RawMessage, error)
-	PasskeyAuthenticationVerification(ctx context.Context, response []byte) (domain.SessionState, error)
+	PasskeyAuthenticationVerification(ctx context.Context, response []byte, staySignedIn bool) (domain.SessionState, error)
 	ListMyPasskeys(ctx context.Context) ([]domain.Passkey, error)
 	RenameMyPasskey(ctx context.Context, id, name string) (domain.Passkey, error)
 	DeleteMyPasskey(ctx context.Context, id string) error
@@ -69,6 +69,12 @@ type IdentityService interface {
 	PatchUser(ctx context.Context, id string, revision int64, p domain.UserPatch) (domain.Account, error)
 	DeleteUser(ctx context.Context, id string) error
 	RevokeUserSessions(ctx context.Context, id string) error
+	ListUserSessions(ctx context.Context, userID string) ([]domain.UserSession, error)
+	RevokeUserSession(ctx context.Context, userID, id string) error
+
+	ListMySessions(ctx context.Context) ([]domain.UserSession, error)
+	RevokeMySession(ctx context.Context, id string) error
+	RevokeMyOtherSessions(ctx context.Context) (int, error)
 	ResetUserFactors(ctx context.Context, id string, revokeAPITokens bool) (domain.Account, error)
 	CreatePasswordReset(ctx context.Context, id string, revokeAPITokens bool) (domain.IssuedCode, error)
 
@@ -128,6 +134,8 @@ type Session struct {
 	ExpiresAt          *time.Time `json:"expiresAt,omitempty" doc:"Absolute end of the session."`
 	IdleExpiresAt      *time.Time `json:"idleExpiresAt,omitempty" doc:"End of the session without further activity."`
 	RecentAuthUntil    *time.Time `json:"recentAuthUntil,omitempty" doc:"Until when sensitive changes are allowed without a new step-up."`
+	SessionID          string     `json:"sessionId,omitempty" doc:"This session among the account's signed-in devices (GET /api/v1/me/sessions)."`
+	StaySignedIn       bool       `json:"staySignedIn" doc:"The session was signed in with Stay signed in: longer limits and a cookie that survives closing the browser."`
 }
 
 func factorStrings(fs []domain.Factor) []string {
@@ -143,6 +151,7 @@ func newSession(st domain.SessionState) Session {
 		State: string(st.Stage), Factors: factorStrings(st.Factors), MissingFactors: factorStrings(st.MissingFactors),
 		RequiredFactors: string(st.RequiredFactors), EnrollmentDeadline: st.EnrollmentDeadline, AuthenticatedAt: st.AuthenticatedAt,
 		ExpiresAt: st.ExpiresAt, IdleExpiresAt: st.IdleExpiresAt, RecentAuthUntil: st.RecentAuthUntil,
+		SessionID: st.SessionID, StaySignedIn: st.StaySignedIn,
 	}
 	if st.Account != nil {
 		a := newAccount(*st.Account)
@@ -207,6 +216,7 @@ type SecuritySettings struct {
 	APITokensEnabled      bool      `json:"apiTokensEnabled" doc:"API tokens (#31) may be created and used. false: every token stops working at once (they work again when re-enabled; revoke them to end them for good)."`
 	APITokenMaxDays       int       `json:"apiTokenMaxLifetimeDays" minimum:"1" maximum:"3650" doc:"Longest lifetime of a new API token (default 90 days)."`
 	APITokensNonExpiring  bool      `json:"apiTokensNonExpiring" doc:"API tokens without an expiry may be created (off by default)."`
+	AllowStaySignedIn     bool      `json:"allowStaySignedIn" doc:"The sign-in page offers Stay signed in (on by default): a device then stays signed in with the longer DOCKER_MANAGER_SESSION_STAY_* limits."`
 	Revision              int64     `json:"revision"`
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
@@ -216,7 +226,7 @@ func newSecuritySettings(s domain.SecuritySettings) SecuritySettings {
 		RequiredFactors: string(s.RequiredFactors), EnrollmentGraceHours: s.EnrollmentGraceHours,
 		InvitationTTLHours: s.InvitationTTLHours, PasswordResetTTLHours: s.PasswordResetTTLHours,
 		APITokensEnabled: s.APITokensEnabled, APITokenMaxDays: s.APITokenMaxDays, APITokensNonExpiring: s.APITokensNonExpiring,
-		Revision: s.Revision, UpdatedAt: s.UpdatedAt}
+		AllowStaySignedIn: s.AllowStaySignedIn, Revision: s.Revision, UpdatedAt: s.UpdatedAt}
 }
 
 // identityError maps identity errors to API errors with stable codes.
@@ -283,6 +293,8 @@ func identityError(err error) error {
 		return NotFound("invitation not found")
 	case errors.Is(err, domain.ErrPasskeyNotFound):
 		return NotFound("passkey not found")
+	case errors.Is(err, domain.ErrUserSessionNotFound):
+		return NotFound("session not found")
 	case errors.Is(err, domain.ErrIdentityUnavailable):
 		return Unavailable(CodeUnavailable, "the identity service is not available")
 	}
@@ -303,6 +315,8 @@ type setupStatusOutput struct {
 		SecureOrigin  bool               `json:"secureOrigin" doc:"This request reached Docker Manager over HTTPS on its public URL, so setup can complete."`
 		Explanation   string             `json:"explanation,omitempty" doc:"Why setup cannot complete over this request, and how to fix it."`
 		BackupImport  *SetupBackupImport `json:"backupImport,omitempty" doc:"The newest backup import (#24) while setup is open."`
+		// StaySignedInAllowed lets the sign-in page offer Stay signed in.
+		StaySignedInAllowed bool `json:"staySignedInAllowed" doc:"The sign-in policy allows Stay signed in (staySignedIn on sign-in)."`
 	}
 }
 
@@ -317,9 +331,10 @@ type setupOwnerInput struct {
 
 type createSessionInput struct {
 	Body struct {
-		Username string `json:"username,omitempty" example:"olga" maxLength:"64" doc:"Start a sign-in with username and password."`
-		Password string `json:"password,omitempty" maxLength:"1024"`
-		TOTPCode string `json:"totpCode,omitempty" maxLength:"16" doc:"TOTP code: continues a pending sign-in, or completes one started in the same request."`
+		Username     string `json:"username,omitempty" example:"olga" maxLength:"64" doc:"Start a sign-in with username and password."`
+		Password     string `json:"password,omitempty" maxLength:"1024"`
+		TOTPCode     string `json:"totpCode,omitempty" maxLength:"16" doc:"TOTP code: continues a pending sign-in, or completes one started in the same request."`
+		StaySignedIn bool   `json:"staySignedIn,omitempty" doc:"Stay signed in on this device: longer session limits and a cookie that survives closing the browser (when the sign-in policy allows it). A pending sign-in keeps the choice of its first step."`
 	}
 }
 
@@ -379,7 +394,8 @@ type passkeyAuthOptionsInput struct {
 
 type passkeyAssertionInput struct {
 	Body struct {
-		Credential json.RawMessage `json:"credential" example:"{\"id\":\"q2Xs1Q\",\"rawId\":\"q2Xs1Q\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0\",\"authenticatorData\":\"SZYN5YgO\",\"signature\":\"MEUCIQ\",\"userHandle\":\"AAAB\"}}" doc:"The PublicKeyCredential JSON returned by navigator.credentials.get()."`
+		Credential   json.RawMessage `json:"credential" example:"{\"id\":\"q2Xs1Q\",\"rawId\":\"q2Xs1Q\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0\",\"authenticatorData\":\"SZYN5YgO\",\"signature\":\"MEUCIQ\",\"userHandle\":\"AAAB\"}}" doc:"The PublicKeyCredential JSON returned by navigator.credentials.get()."`
+		StaySignedIn bool            `json:"staySignedIn,omitempty" doc:"Stay signed in on this device (a passkey sign-in; when the sign-in policy allows it). A pending sign-in keeps the choice of its first step."`
 	}
 }
 
@@ -519,6 +535,7 @@ type patchSecuritySettingsInput struct {
 		APITokensEnabled      *bool   `json:"apiTokensEnabled,omitempty" doc:"false stops every API token at once (and closes their streams)."`
 		APITokenMaxDays       *int    `json:"apiTokenMaxLifetimeDays,omitempty" minimum:"1" maximum:"3650" doc:"Applies to tokens created afterwards."`
 		APITokensNonExpiring  *bool   `json:"apiTokensNonExpiring,omitempty" doc:"Allow new API tokens without expiry."`
+		AllowStaySignedIn     *bool   `json:"allowStaySignedIn,omitempty" doc:"Offer Stay signed in at sign-in. false moves devices that stayed signed in back to the normal limits."`
 	}
 }
 

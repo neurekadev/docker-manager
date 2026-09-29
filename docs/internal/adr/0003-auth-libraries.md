@@ -74,11 +74,17 @@ plus an expiry index. It never uses SCS's CGO-based `sqlite3store`.
 Cookie policy (`sessions.NewManager`): name `__Host-docker_manager_session`
 (browser-enforced `Secure`, `Path=/`, no `Domain`), `HttpOnly`,
 `SameSite=Strict`, `Secure` always (browsers accept it on
-`http://localhost`, the only plain-HTTP mode), persistent until the
-session's expiry. `HashTokenInStore` is on: the database holds only
-SHA-256 hashes of session tokens. Idle timeout 1 h and absolute lifetime
-24 h by default (NIST SP 800-63B AAL2), configurable with
-`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` / `DOCKER_MANAGER_SESSION_LIFETIME`. Handlers call
+`http://localhost`, the only plain-HTTP mode). The cookie ends with the
+browser (`Persist` off) unless the user signed in with **Stay signed in**
+(`RememberMe`); then it persists until the session's deadline.
+`HashTokenInStore` is on: the database holds only SHA-256 hashes of
+session tokens. Idle timeout 8 h and absolute lifetime 24 h by default
+(`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` / `DOCKER_MANAGER_SESSION_LIFETIME`);
+Stay signed in sessions get 30 days / a year
+(`DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT` /
+`DOCKER_MANAGER_SESSION_STAY_LIFETIME`). The owner decided these limits on
+2026-09-29 (the former 1 h / 24 h NIST AAL2 defaults meant signing in all
+the time). Handlers call
 `RenewToken` on every privilege change (sign-in, second factor, step-up,
 completed enrollment, password change) against session fixation.
 
@@ -87,10 +93,25 @@ token, the cookie, renewal and the absolute lifetime (row expiry and cookie
 `Max-Age`). SCS's own idle timeout is **off**: it marks every loaded
 session modified and rewrites it on every request, and it computes
 deadlines from `time.Now()`. The identity middleware enforces both idle
-timeout and lifetime on the injected clock at every request (and writes the
-last-activity time at most once a minute), and additionally checks the
-account (exists, active, current session epoch). The Bun store compares row
-expiry with the wall clock, the clock SCS computed it with.
+timeout and lifetime on the injected clock at every request, and
+additionally checks the account (exists, active, current session epoch).
+The Bun store compares row expiry with the wall clock, the clock SCS
+computed it with; the identity service sets each session's deadline
+(`SetDeadline`, also after every `RenewToken`, which restarts it) to the
+end of its own lifetime.
+
+Signed-in devices (2026-09-29): every signed-in session has a row in
+`user_sessions` (public ID, user, session epoch, Stay signed in, created,
+last activity and IP written at most once a minute, User-Agent); the SCS
+session carries the row ID (`sid`). A session whose row is gone, belongs to
+another user or to an older session epoch is signed out on its next
+request, so deleting the row signs out one device; its stored SCS session
+is deleted at once (`sessions.RevokeWhere`) and its open streams close
+through the request hub (per session ID; the stream sweeper also checks
+the rows). Housekeeping deletes ended rows (older epoch, idle or lifetime
+passed) and stored sessions without a row. Sessions made before devices
+existed are adopted on their next request. Turning Stay signed in off in
+the sign-in policy moves every device to the normal limits.
 
 SCS limitation found by the proof: with `HashTokenInStore`, `Iterate`
 yields the stored (hashed) tokens, so `Destroy` inside `Iterate` hashes

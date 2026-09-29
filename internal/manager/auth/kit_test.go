@@ -36,11 +36,22 @@ func TestNewKitValidates(t *testing.T) {
 	if k.RP.ID() != "docker.example.com" || k.Sessions.Cookie.Name != "__Host-docker_manager_session" || k.CSRF == nil || k.IPLimit == nil || k.AccountLimit == nil {
 		t.Fatalf("kit %+v", k)
 	}
-	if k.IdleTimeout != time.Hour || k.Lifetime != 24*time.Hour || k.Sessions.IdleTimeout != 0 || k.Sessions.Lifetime != 24*time.Hour {
+	if k.IdleTimeout != 8*time.Hour || k.Lifetime != 24*time.Hour || k.Sessions.IdleTimeout != 0 || k.Sessions.Lifetime != 24*time.Hour {
 		t.Fatalf("session limits: kit %v/%v, scs %v/%v", k.IdleTimeout, k.Lifetime, k.Sessions.IdleTimeout, k.Sessions.Lifetime)
 	}
-	if _, err := NewKit(KitOptions{DB: db, PublicURL: pub, SessionError: noSessionError, PasswordParams: cheapParams, IdleTimeout: 2 * time.Hour, Lifetime: time.Hour}); err == nil {
-		t.Error("idle timeout above lifetime accepted")
+	if k.StayIdleTimeout != 30*24*time.Hour || k.StayLifetime != 365*24*time.Hour || k.Sessions.Cookie.Persist {
+		t.Fatalf("stay signed in limits %v/%v, persistent cookie %v", k.StayIdleTimeout, k.StayLifetime, k.Sessions.Cookie.Persist)
+	}
+	for name, o := range map[string]KitOptions{
+		"idle above lifetime":           {IdleTimeout: 2 * time.Hour, Lifetime: time.Hour},
+		"stay idle above stay lifetime": {StayIdleTimeout: 2000 * time.Hour, StayLifetime: 1000 * time.Hour},
+		"stay idle below idle":          {IdleTimeout: 10 * time.Hour, StayIdleTimeout: 5 * time.Hour, StayLifetime: 100 * time.Hour},
+		"stay lifetime below lifetime":  {Lifetime: 48 * time.Hour, StayLifetime: 30 * time.Hour},
+	} {
+		o.DB, o.PublicURL, o.SessionError, o.PasswordParams = db, pub, noSessionError, cheapParams
+		if _, err := NewKit(o); err == nil {
+			t.Errorf("%s accepted", name)
+		}
 	}
 }
 

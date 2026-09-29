@@ -344,6 +344,7 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 			EnrollmentGraceHours: in.Body.EnrollmentGraceHours, InvitationTTLHours: in.Body.InvitationTTLHours,
 			PasswordResetTTLHours: in.Body.PasswordResetTTLHours, APITokensEnabled: in.Body.APITokensEnabled,
 			APITokenMaxDays: in.Body.APITokenMaxDays, APITokensNonExpiring: in.Body.APITokensNonExpiring,
+			AllowStaySignedIn: in.Body.AllowStaySignedIn,
 		}
 		if in.Body.RequiredFactors != nil {
 			rf := domain.RequiredFactors(*in.Body.RequiredFactors)

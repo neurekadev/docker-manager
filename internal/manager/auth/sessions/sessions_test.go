@@ -106,6 +106,7 @@ func newFixture(t *testing.T) *fixture {
 			t.Error(err)
 		}
 		sm.Put(r.Context(), "user", r.URL.Query().Get("u"))
+		sm.RememberMe(r.Context(), r.URL.Query().Get("stay") == "1")
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /me", func(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +147,7 @@ func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 // and the database holds only token hashes.
 func TestCookiePolicyAndHashedTokens(t *testing.T) {
 	f := newFixture(t)
-	rec := f.do(t, http.MethodPost, "/login?u=alice", nil)
+	rec := f.do(t, http.MethodPost, "/login?u=alice&stay=1", nil)
 	c := sessionCookie(t, rec)
 	raw := rec.Header().Get("Set-Cookie")
 	for _, want := range []string{"__Host-docker_manager_session=", "Path=/", "HttpOnly", "Secure", "SameSite=Strict", "Max-Age="} {
@@ -157,8 +158,13 @@ func TestCookiePolicyAndHashedTokens(t *testing.T) {
 	if strings.Contains(strings.ToLower(raw), "domain=") {
 		t.Errorf("Set-Cookie %q has a Domain", raw)
 	}
+	// Without "Stay signed in" the cookie ends with the browser.
+	raw = f.do(t, http.MethodPost, "/login?u=bob", nil).Header().Get("Set-Cookie")
+	if strings.Contains(raw, "Max-Age=") || strings.Contains(raw, "Expires=") {
+		t.Errorf("session cookie %q persists", raw)
+	}
 	all, err := f.store.All()
-	if err != nil || len(all) != 1 {
+	if err != nil || len(all) != 2 {
 		t.Fatalf("stored sessions %v %v", all, err)
 	}
 	for token := range all {

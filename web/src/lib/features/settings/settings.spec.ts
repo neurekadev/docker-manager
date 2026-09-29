@@ -15,7 +15,8 @@ import {
 	FACTOR_POLICY,
 	factorChangeConsequences,
 	instanceNameProblem,
-	settingsChanges
+	settingsChanges,
+	staySignedInConsequences
 } from './model';
 import { auditExportHref, cleanFilter, type AuditEvent, type SecuritySettings } from './queries';
 import { settingsTabs } from './tabs';
@@ -154,6 +155,7 @@ describe('audit viewer (#30)', () => {
 
 describe('sign-in policy (#16)', () => {
 	const base: SecuritySettings = {
+		allowStaySignedIn: true,
 		apiTokenMaxLifetimeDays: 90,
 		apiTokensEnabled: true,
 		apiTokensNonExpiring: false,
@@ -175,6 +177,18 @@ describe('sign-in policy (#16)', () => {
 			'Required sign-in: Password or passkey → Authenticator app and passkey',
 			'API tokens: on → off'
 		]);
+		expect(settingsChanges(base, { ...base, allowStaySignedIn: false })).toEqual([
+			'Stay signed in: on → off'
+		]);
+	});
+
+	it('says what turning Stay signed in off does to devices, and nothing otherwise', () => {
+		expect(staySignedInConsequences(true, true)).toEqual([]);
+		expect(staySignedInConsequences(false, true)).toEqual([]);
+		expect(staySignedInConsequences(false, false)).toEqual([]);
+		const c = staySignedInConsequences(true, false).join(' ');
+		expect(c).toMatch(/stops offering Stay signed in/);
+		expect(c).toMatch(/move back to the normal limits/);
 	});
 
 	it('states the enrollment consequences of new required factors, never a lock-out', () => {

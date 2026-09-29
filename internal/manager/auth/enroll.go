@@ -371,8 +371,9 @@ func (s *Service) recordPasskeyUse(ctx context.Context, userID string, cred *web
 
 // PasskeyAuthenticationVerification verifies an assertion begun by
 // PasskeyAuthenticationOptions and signs in (or completes the pending
-// sign-in, or records a step-up).
-func (s *Service) PasskeyAuthenticationVerification(ctx context.Context, response []byte) (domain.SessionState, error) {
+// sign-in, or records a step-up). stay asks for "Stay signed in" on a
+// passkey sign-in; a pending sign-in keeps the choice of its first step.
+func (s *Service) PasskeyAuthenticationVerification(ctx context.Context, response []byte, stay bool) (domain.SessionState, error) {
 	purpose := s.kit.Sessions.GetString(ctx, kWAPurpose)
 	if purpose == string(domain.PasskeyStepUp) {
 		// A step-up ceremony finished here counts like POST /auth/step-ups.
@@ -399,7 +400,7 @@ func (s *Service) PasskeyAuthenticationVerification(ctx context.Context, respons
 		if want, _, err = s.webauthnUser(ctx, pu); err != nil {
 			return domain.SessionState{}, err
 		}
-		user, proven = pu, pproven
+		user, proven, stay = pu, pproven, s.pendingStay(ctx)
 	}
 	wu, cred, err := s.kit.RP.FinishLogin(sd, response, want, s.lookupPasskeyUser(ctx))
 	if err != nil {
@@ -415,7 +416,7 @@ func (s *Service) PasskeyAuthenticationVerification(ctx context.Context, respons
 	if err := s.recordPasskeyUse(ctx, user.ID, cred); err != nil {
 		return domain.SessionState{}, err
 	}
-	return s.advance(ctx, user, proven|fPasskey, false)
+	return s.advance(ctx, user, proven|fPasskey, false, stay)
 }
 
 // finishStepUpPasskey verifies a step-up assertion for cur's account.

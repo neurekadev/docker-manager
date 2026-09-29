@@ -8,30 +8,38 @@ import (
 	"strings"
 	"time"
 
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Session data keys (SCS, gob-encoded basic types only).
 const (
-	kUserID    = "uid"
-	kEpoch     = "epoch"
-	kStage     = "stage"
-	kProven    = "proven"
-	kAuthAt    = "auth_at"
+	kUserID   = "uid"
+	kEpoch    = "epoch"
+	kStage    = "stage"
+	kProven   = "proven"
+	kAuthAt   = "auth_at"
+	kStepUpAt = "stepup_at"
+	// kSessionID is the signed-in device (user_sessions row) of the session.
+	kSessionID = "sid"
+	// kSeenAt is the last activity of a session made before signed-in
+	// devices existed (read once, when the session is adopted).
 	kSeenAt    = "seen_at"
-	kStepUpAt  = "stepup_at"
 	kPendingID = "p_uid"
 	kPendingAt = "p_at"
 	kPendingPf = "p_proven"
-	kWAReg     = "wa_reg"
-	kWARegName = "wa_reg_name"
-	kWALogin   = "wa_login"
-	kWAPurpose = "wa_purpose"
+	// kPendingStay is the "Stay signed in" choice of a pending sign-in.
+	kPendingStay = "p_stay"
+	kWAReg       = "wa_reg"
+	kWARegName   = "wa_reg_name"
+	kWALogin     = "wa_login"
+	kWAPurpose   = "wa_purpose"
 )
 
 // seenGranularity bounds how often the last-activity time is written.
@@ -44,6 +52,8 @@ type current struct {
 	proven   factorSet
 	authAt   time.Time
 	stepUpAt time.Time
+	// session is the signed-in device.
+	session domain.UserSession
 }
 
 type currentKey struct{}
@@ -128,8 +138,9 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		}
 		ctx, cancel := context.WithCancelCause(ctx)
 		defer cancel(nil)
-		defer s.hub.register(cur.user.ID, cur.user.SessionEpoch, cancel)()
-		ctx = context.WithValue(ctx, currentKey{}, cur)
+		entry, done := s.hub.register(cur.user.ID, cur.user.SessionEpoch, cur.session.ID, cancel)
+		defer done()
+		ctx = context.WithValue(context.WithValue(ctx, hubEntryKey{}, entry), currentKey{}, cur)
 		if cur.stage == domain.StageAuthenticated {
 			if ctx, err = authz.WithPrincipal(ctx, authz.Principal{Kind: authz.KindUser, UserID: cur.user.ID}); err != nil {
 				api.WriteError(w, r, api.Internal(err))
@@ -186,41 +197,146 @@ func (s *Service) resolve(ctx context.Context) (*current, error) {
 	if err != nil {
 		return nil, err
 	}
-	authAt := unixNano(sm.GetInt64(ctx, kAuthAt))
-	seenAt := unixNano(sm.GetInt64(ctx, kSeenAt))
 	stage := domain.SessionStage(sm.GetString(ctx, kStage))
-	switch {
-	case !user.Active(),
-		user.SessionEpoch != sm.GetInt64(ctx, kEpoch),
-		now.Sub(authAt) >= s.lifetime,
-		now.Sub(seenAt) >= s.idle,
-		stage != domain.StageAuthenticated && stage != domain.StageEnrollment:
+	if !user.Active() || user.SessionEpoch != sm.GetInt64(ctx, kEpoch) ||
+		(stage != domain.StageAuthenticated && stage != domain.StageEnrollment) {
 		return nil, s.drop(ctx)
 	}
-	if now.Sub(seenAt) >= seenGranularity {
-		sm.Put(ctx, kSeenAt, now.UnixNano())
+	authAt := unixNano(sm.GetInt64(ctx, kAuthAt))
+	sess, ok, err := s.device(ctx, user, authAt)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, s.drop(ctx)
+	}
+	idle, lifetime := s.limits(sess.StaySignedIn)
+	if now.Sub(authAt) >= lifetime || now.Sub(sess.LastSeenAt) >= idle {
+		return nil, s.drop(ctx)
+	}
+	if !sess.StaySignedIn && sm.GetBool(ctx, scsRememberKey) {
+		// The owner no longer allows "Stay signed in": the cookie ends with
+		// the browser again and the session gets the normal deadline.
+		sm.RememberMe(ctx, false)
+		s.applyDeadline(ctx, authAt, false)
+	}
+	if now.Sub(sess.LastSeenAt) >= seenGranularity {
+		ip := clientIP(ctx)
+		if err := store.TouchUserSession(ctx, s.db, sess.ID, now, ip); err != nil {
+			logging.FromContext(ctx).Warn("record session activity", slog.String("error", err.Error()))
+		} else {
+			sess.LastSeenAt, sess.IP = now, ip
+		}
 	}
 	return &current{
 		user: user, stage: stage, proven: factorSet(sm.GetInt64(ctx, kProven)), //nolint:gosec // small bit set
-		authAt: authAt, stepUpAt: unixNano(sm.GetInt64(ctx, kStepUpAt)),
+		authAt: authAt, stepUpAt: unixNano(sm.GetInt64(ctx, kStepUpAt)), session: sess,
 	}, nil
 }
 
-// drop destroys an invalid session (row deleted, cookie cleared).
+// scsRememberKey is where SCS keeps the RememberMe choice (scs v2.9.0).
+const scsRememberKey = "__rememberMe"
+
+// device returns the signed-in device of the request's session. ok is
+// false when the session was signed out: its device is gone, belongs to
+// someone else or to an ended session epoch. A session made before
+// signed-in devices existed is adopted: it gets a device with the normal
+// limits.
+func (s *Service) device(ctx context.Context, user domain.User, authAt time.Time) (domain.UserSession, bool, error) {
+	sm := s.kit.Sessions
+	sid := sm.GetString(ctx, kSessionID)
+	if sid == "" {
+		seenAt := unixNano(sm.GetInt64(ctx, kSeenAt))
+		if s.now().Sub(authAt) >= s.lifetime || s.now().Sub(seenAt) >= s.idle {
+			return domain.UserSession{}, false, nil
+		}
+		sess := domain.UserSession{
+			ID: newID(), UserID: user.ID, Epoch: user.SessionEpoch, CreatedAt: authAt, LastSeenAt: seenAt,
+			IP: clientIP(ctx), UserAgent: requestinfo.UserAgent(ctx),
+		}
+		if err := store.InsertUserSession(ctx, s.db, sess); err != nil {
+			return domain.UserSession{}, false, err
+		}
+		sm.Put(ctx, kSessionID, sess.ID)
+		sm.Remove(ctx, kSeenAt)
+		return sess, true, nil
+	}
+	sess, err := store.GetUserSession(ctx, s.db, sid)
+	if errors.Is(err, domain.ErrUserSessionNotFound) {
+		return domain.UserSession{}, false, nil
+	}
+	if err != nil {
+		return domain.UserSession{}, false, err
+	}
+	return sess, sess.UserID == user.ID && sess.Epoch == user.SessionEpoch, nil
+}
+
+// limits returns the idle timeout and absolute lifetime of a session.
+func (s *Service) limits(stay bool) (idle, lifetime time.Duration) {
+	if stay {
+		return s.stayIdle, s.stayLife
+	}
+	return s.idle, s.lifetime
+}
+
+// fill sets the expiry times of a signed-in device.
+func (s *Service) fill(sess *domain.UserSession) {
+	idle, lifetime := s.limits(sess.StaySignedIn)
+	sess.ExpiresAt = sess.CreatedAt.Add(lifetime)
+	sess.IdleExpiresAt = sess.LastSeenAt.Add(idle)
+	if sess.IdleExpiresAt.After(sess.ExpiresAt) {
+		sess.IdleExpiresAt = sess.ExpiresAt
+	}
+}
+
+// applyDeadline sets the stored session's expiry (row and cookie) to the
+// end of its lifetime. SCS keeps deadlines on the wall clock, so the time
+// left on the injected clock is added to the wall clock.
+func (s *Service) applyDeadline(ctx context.Context, authAt time.Time, stay bool) {
+	_, lifetime := s.limits(stay)
+	s.kit.Sessions.SetDeadline(ctx, clock.Real().Now().Add(authAt.Add(lifetime).Sub(s.now())))
+}
+
+func clientIP(ctx context.Context) string {
+	if ip := requestinfo.ClientIP(ctx); ip.IsValid() {
+		return ip.Unmap().String()
+	}
+	return ""
+}
+
+// drop destroys an invalid session (row deleted, cookie cleared) and its
+// signed-in device.
 func (s *Service) drop(ctx context.Context) error {
+	if err := s.endDevice(ctx); err != nil {
+		return err
+	}
 	return s.kit.Sessions.Destroy(ctx)
+}
+
+// endDevice deletes the signed-in device of the request's session, if any.
+func (s *Service) endDevice(ctx context.Context) error {
+	sm := s.kit.Sessions
+	sid := sm.GetString(ctx, kSessionID)
+	if sid == "" {
+		return nil
+	}
+	err := store.DeleteUserSession(ctx, s.db, sid, sm.GetString(ctx, kUserID))
+	if errors.Is(err, domain.ErrUserSessionNotFound) {
+		return nil
+	}
+	return err
 }
 
 func (s *Service) clearPending(ctx context.Context) {
 	sm := s.kit.Sessions
-	for _, k := range []string{kPendingID, kPendingAt, kPendingPf} {
+	for _, k := range []string{kPendingID, kPendingAt, kPendingPf, kPendingStay} {
 		sm.Remove(ctx, k)
 	}
 }
 
 func (s *Service) clearAuth(ctx context.Context) {
 	sm := s.kit.Sessions
-	for _, k := range []string{kUserID, kEpoch, kStage, kProven, kAuthAt, kSeenAt, kStepUpAt} {
+	for _, k := range []string{kUserID, kEpoch, kStage, kProven, kAuthAt, kSeenAt, kStepUpAt, kSessionID} {
 		sm.Remove(ctx, k)
 	}
 }
@@ -272,32 +388,57 @@ func (s *Service) requireOwner(ctx context.Context, recent bool) (*current, erro
 
 // establish starts a session of stage for user after a privilege change:
 // the token is renewed (session fixation), pending and ceremony state is
-// cleared.
-func (s *Service) establish(ctx context.Context, user domain.User, stage domain.SessionStage, proven factorSet) error {
+// cleared, and a signed-in device is recorded (replacing the one this
+// browser had). With stay ("Stay signed in") the session gets the longer
+// limits and a persistent cookie; otherwise the cookie ends with the
+// browser.
+func (s *Service) establish(ctx context.Context, user domain.User, stage domain.SessionStage, proven factorSet, stay bool) error {
 	sm := s.kit.Sessions
+	if err := s.endDevice(ctx); err != nil {
+		return err
+	}
 	if err := sm.RenewToken(ctx); err != nil {
 		return err
 	}
 	s.clearPending(ctx)
 	s.clearCeremonies(ctx)
-	now := s.now().UnixNano()
+	sm.Remove(ctx, kSeenAt)
+	at := s.now()
+	sess := domain.UserSession{
+		ID: newID(), UserID: user.ID, Epoch: user.SessionEpoch, StaySignedIn: stay, CreatedAt: at, LastSeenAt: at,
+		IP: clientIP(ctx), UserAgent: requestinfo.UserAgent(ctx),
+	}
+	if err := store.InsertUserSession(ctx, s.db, sess); err != nil {
+		return err
+	}
+	now := at.UnixNano()
+	sm.Put(ctx, kSessionID, sess.ID)
 	sm.Put(ctx, kUserID, user.ID)
 	sm.Put(ctx, kEpoch, user.SessionEpoch)
 	sm.Put(ctx, kStage, string(stage))
 	sm.Put(ctx, kProven, int64(proven))
 	sm.Put(ctx, kAuthAt, now)
-	sm.Put(ctx, kSeenAt, now)
 	sm.Put(ctx, kStepUpAt, now)
+	sm.RememberMe(ctx, stay)
+	s.applyDeadline(ctx, at, stay)
 	return nil
 }
 
 // rotate renews the caller's token and records a fresh authentication
 // (after a step-up or a credential change), optionally moving it to a new
-// stage/epoch.
+// stage/epoch. The signed-in device stays the same.
 func (s *Service) rotate(ctx context.Context, cur *current, stage domain.SessionStage, epoch int64, proven factorSet) error {
 	sm := s.kit.Sessions
 	if err := sm.RenewToken(ctx); err != nil {
 		return err
+	}
+	// RenewToken restarts the deadline; the session keeps its lifetime.
+	s.applyDeadline(ctx, cur.authAt, cur.session.StaySignedIn)
+	if epoch != cur.session.Epoch {
+		if err := store.SetUserSessionEpoch(ctx, s.db, cur.session.ID, epoch); err != nil {
+			return err
+		}
+		cur.session.Epoch = epoch
 	}
 	now := s.now()
 	sm.Put(ctx, kStage, string(stage))
@@ -330,8 +471,8 @@ func (s *Service) state(ctx context.Context) (domain.SessionState, error) {
 	if err != nil {
 		return domain.SessionState{}, err
 	}
-	if cur := currentFrom(ctx); cur != nil && sm.GetString(ctx, kUserID) == cur.user.ID {
-		return s.stateOf(ctx, cur.user, domain.SessionStage(sm.GetString(ctx, kStage)), set)
+	if cur := currentFrom(ctx); cur != nil && sm.GetString(ctx, kUserID) == cur.user.ID && sm.GetString(ctx, kSessionID) == cur.session.ID {
+		return s.stateOf(ctx, cur.user, domain.SessionStage(sm.GetString(ctx, kStage)), cur.session, set)
 	}
 	if uid := sm.GetString(ctx, kUserID); uid != "" {
 		// Established during this request (sign-in, setup, redemption).
@@ -339,7 +480,11 @@ func (s *Service) state(ctx context.Context) (domain.SessionState, error) {
 		if err != nil {
 			return domain.SessionState{}, err
 		}
-		return s.stateOf(ctx, u, domain.SessionStage(sm.GetString(ctx, kStage)), set)
+		sess, err := store.GetUserSession(ctx, s.db, sm.GetString(ctx, kSessionID))
+		if err != nil {
+			return domain.SessionState{}, err
+		}
+		return s.stateOf(ctx, u, domain.SessionStage(sm.GetString(ctx, kStage)), sess, set)
 	}
 	u, _, proven, err := s.pending(ctx)
 	if err != nil {
@@ -359,16 +504,16 @@ func (s *Service) state(ctx context.Context) (domain.SessionState, error) {
 	return st, nil
 }
 
-func (s *Service) stateOf(ctx context.Context, u domain.User, stage domain.SessionStage, set domain.SecuritySettings) (domain.SessionState, error) {
+func (s *Service) stateOf(ctx context.Context, u domain.User, stage domain.SessionStage, sess domain.UserSession, set domain.SecuritySettings) (domain.SessionState, error) {
 	sm := s.kit.Sessions
 	acct, err := s.account(ctx, u)
 	if err != nil {
 		return domain.SessionState{}, err
 	}
 	authAt := unixNano(sm.GetInt64(ctx, kAuthAt))
-	seenAt := unixNano(sm.GetInt64(ctx, kSeenAt))
-	expires := authAt.Add(s.lifetime)
-	idle := seenAt.Add(s.idle)
+	idleTimeout, lifetime := s.limits(sess.StaySignedIn)
+	expires := authAt.Add(lifetime)
+	idle := sess.LastSeenAt.Add(idleTimeout)
 	if idle.After(expires) {
 		idle = expires
 	}
@@ -376,6 +521,7 @@ func (s *Service) stateOf(ctx context.Context, u domain.User, stage domain.Sessi
 	st := domain.SessionState{
 		Stage: stage, Account: &acct, RequiredFactors: set.RequiredFactors,
 		AuthenticatedAt: &authAt, ExpiresAt: &expires, IdleExpiresAt: &idle,
+		SessionID: sess.ID, StaySignedIn: sess.StaySignedIn,
 	}
 	if recent.After(s.now()) {
 		st.RecentAuthUntil = &recent
