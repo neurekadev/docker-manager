@@ -137,6 +137,10 @@ type Spec struct {
 	// targets must still be in the job's environment when it is dispatched
 	// (class target_moved otherwise).
 	FormerStackLocation bool
+	// UnboundedTargets: the kind may name any number of targets (not
+	// MaxTargets). environment.migrate targets every stack it moves, and
+	// no environment is too large to move.
+	UnboundedTargets bool
 	// StartsContainers: the kind starts, restarts or recreates containers.
 	// While a restore holds or waits for a conflicting lock it is refused
 	// (domain.ErrRestoreInProgress), not queued behind it: the restore
@@ -327,7 +331,7 @@ func (s Spec) ValidateTargets(environmentID string, targets []domain.JobTarget) 
 	if s.RequiresEnvironment() && environmentID == "" {
 		return fmt.Errorf("%w: %s requires an environment", domain.ErrJobInvalid, s.Kind)
 	}
-	if len(targets) > MaxTargets {
+	if len(targets) > MaxTargets && !s.UnboundedTargets {
 		return fmt.Errorf("%w: at most %d targets", domain.ErrJobInvalid, MaxTargets)
 	}
 	for _, t := range targets {

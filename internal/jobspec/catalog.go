@@ -355,6 +355,7 @@ func catalogSpecs() []Spec {
 			Compensations: []Compensation{{Name: CompStartGroup,
 				Description: "start again on the source the services of a group's stacks that the migration stopped and did not move"}},
 			OnManagerRestart: RestartInterrupt,
+			UnboundedTargets: true,
 		},
 		{
 			Kind: StackRemoveSource, Summary: "Remove a migrated stack's containers, volumes and files from its source environment",

@@ -140,8 +140,11 @@ destination.
 `environment.migrate` (manager executor, `environment.go`; locks: host
 shared on the source only, because each stack moves as its own
 `stack.migrate` job holding its stack's lock; the engine authorizes
-`stack.migrate` on every stack target, at most `jobspec.MaxTargets` = 64)
-moves the chosen stacks of an environment:
+`stack.migrate` on every stack target) moves the chosen stacks of an
+environment. There is no limit on the number of stacks: the kind sets
+`jobspec.Spec.UnboundedTargets`, the confirmed stacks are the job's
+targets (not its input), and the groups, networks and stopped services
+live in the record, not in the job's output or journal:
 
 - **Order** (`order.go`, `orderStacks`, pure): a stack's links are the
   networks and named volumes its project creates (Docker names) and the
@@ -152,7 +155,8 @@ moves the chosen stacks of an environment:
   the name of their first stack. No setting marks a stack: the order
   comes from the definitions only.
 - **Preview** (`planEnvironment`, pure over each stack's own preview):
-  every stack of the source is previewed (`previewStack`); stacks the
+  every stack of the source is previewed (`previewStack`, four at a
+  time, so a large environment is checked in reasonable time); stacks the
   caller may not migrate to the destination (`stack.migrate` on the stack,
   `stack.create` and `stack.deploy` there) and Docker Manager's own
   project are left out (`skipped`: `not_permitted`, `docker_manager`,
@@ -189,8 +193,9 @@ moves the chosen stacks of an environment:
   moved before stay on the destination. A new environment migration moves
   what is left (the preview lists only stacks still on the source).
 - **Record**: `environment_migrations` keeps the groups, each stack's
-  state (`pending`, `moving`, `moved`, `failed`) with its stack migration,
-  and the created networks; the finish hook sets the state from the job.
+  state (`pending`, `moving`, `moved`, `failed`) with its stack migration
+  and the services this job stopped of it, and the networks to create
+  with their settings; the finish hook sets the state from the job.
   The moved stacks' sources are held and removed exactly as after a
   stack migration (per stack, `source-removals`).
 

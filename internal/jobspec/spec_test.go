@@ -455,3 +455,23 @@ func TestSpecHelpers(t *testing.T) {
 		t.Fatal("fmtDuration")
 	}
 }
+
+// TestEnvironmentMigrateTakesAnyNumberOfStacks: an environment migration
+// targets every stack it moves, however many; other kinds keep the bound.
+func TestEnvironmentMigrateTakesAnyNumberOfStacks(t *testing.T) {
+	many := make([]domain.JobTarget, 0, MaxTargets*20)
+	for i := range MaxTargets * 20 {
+		many = append(many, domain.JobTarget{Type: domain.TargetStack, ID: "st-" + strings.Repeat("a", 1+i%40) + string(rune('a'+i%26))})
+	}
+	env, _ := Lookup(EnvironmentMigrate)
+	if err := env.ValidateTargets("src", many); err != nil {
+		t.Fatalf("environment.migrate: %v", err)
+	}
+	if locks, err := env.ComputeLocks("src", many); err != nil || len(locks) != 1 {
+		t.Fatalf("environment.migrate locks only the source host: %v %v", locks, err)
+	}
+	deploy, _ := Lookup(StackDeploy)
+	if err := deploy.ValidateTargets("src", many); !errors.Is(err, domain.ErrJobInvalid) {
+		t.Fatalf("stack.deploy with %d targets: %v", len(many), err)
+	}
+}

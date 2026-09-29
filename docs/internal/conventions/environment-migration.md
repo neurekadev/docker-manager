@@ -11,7 +11,10 @@ Guide: `docs/internal/architecture/migrations.md`. Manager
   itself: each stack moves as its own `stack.migrate` job, so every rule
   below (relay, hold, compensation, policies following the stack) applies
   per stack. It locks only the source host (shared) and must never take a
-  stack lock (its children would wait for it). The order between stacks
+  stack lock (its children would wait for it). It has no stack limit:
+  never put per-stack data in its input or output (bounded by
+  `jobs.MaxInputSize` and `protocol.MaxResultOutput`); keep it in the
+  `environment_migrations` record. The order between stacks
   comes only from their definitions (`orderStacks`: networks and volumes
   one creates and another joins as external); keep `planEnvironment` and
   `orderStacks` pure and spec-tested.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -38,7 +39,6 @@ import (
 // Environment finding codes.
 const (
 	FindingNoStacks            = "no_stacks"
-	FindingTooManyStacks       = "too_many_stacks"
 	FindingNetworkCreated      = "network_created"
 	FindingDependencyCycle     = "dependency_cycle"
 	FindingNetworkNotCreatable = "network_not_creatable"
@@ -61,10 +61,6 @@ const (
 	ClassNetworkFailed   = "network_create_failed"
 	ClassEnvironmentMove = "environment_changed"
 )
-
-// MaxEnvironmentStacks is the most stacks one environment migration moves
-// (the job's targets).
-const MaxEnvironmentStacks = jobspec.MaxTargets
 
 // EnvironmentRequest is an environment migration preview or start.
 type EnvironmentRequest struct {
@@ -207,9 +203,6 @@ func planEnvironment(source, target string, entries []envEntry, sourceNetworks [
 	if len(links) == 0 {
 		p.block(FindingNoStacks, "the environment has no stack to migrate")
 		return p
-	}
-	if len(links) > MaxEnvironmentStacks {
-		p.block(FindingTooManyStacks, "one migration moves at most %d stacks; choose fewer and migrate the rest afterwards", MaxEnvironmentStacks)
 	}
 	order := orderStacks(links)
 	p.Groups = order.Groups
@@ -405,20 +398,39 @@ func (s *Service) previewEnvironment(ctx context.Context, p authz.Principal, sou
 	access := s.environmentAccess(ctx, p, r.TargetEnvironmentID)
 	entries := make([]envEntry, 0, len(all))
 	byID := map[string]envEntry{}
-	for _, st := range all {
-		e := envEntry{stack: st}
+	selected := map[string]bool{}
+	for _, id := range r.Stacks {
+		selected[id] = true
+	}
+	entries = entries[:len(all)]
+	errs := make([]error, len(all))
+	// The stacks' previews run a few at a time: a large environment is
+	// checked in reasonable time without flooding either agent.
+	sem := make(chan struct{}, previewParallelism)
+	var wg sync.WaitGroup
+	for i, st := range all {
+		entries[i] = envEntry{stack: st}
 		switch {
-		case len(r.Stacks) > 0 && !slices.Contains(r.Stacks, st.ID):
-			e.skipped = SkipNotSelected
+		case len(r.Stacks) > 0 && !selected[st.ID]:
+			entries[i].skipped = SkipNotSelected
 		case !access.stack(st):
-			e.skipped = SkipNotPermitted
+			entries[i].skipped = SkipNotPermitted
 		case source != r.TargetEnvironmentID:
-			if e.g, err = s.previewStack(ctx, st, StackRequest{TargetEnvironmentID: r.TargetEnvironmentID, TimeoutSeconds: r.TimeoutSeconds}, measure); err != nil {
-				return EnvironmentPlan{}, nil, err
-			}
+			wg.Add(1)
+			sem <- struct{}{}
+			go func() {
+				defer func() { <-sem; wg.Done() }()
+				entries[i].g, errs[i] = s.previewStack(ctx, st, StackRequest{TargetEnvironmentID: r.TargetEnvironmentID,
+					TimeoutSeconds: r.TimeoutSeconds}, measure)
+			}()
 		}
-		entries = append(entries, e)
-		byID[st.ID] = e
+	}
+	wg.Wait()
+	if err := firstError(errs); err != nil {
+		return EnvironmentPlan{}, nil, err
+	}
+	for _, e := range entries {
+		byID[e.stack.ID] = e
 	}
 	// The source's networks: which external networks were made by hand
 	// (unknown when the list fails: those stay missing on the destination).
@@ -433,12 +445,39 @@ func (s *Service) previewEnvironment(ctx context.Context, p authz.Principal, sou
 	return planEnvironment(source, r.TargetEnvironmentID, entries, networks, access.networks), byID, nil
 }
 
-// environmentJobInput is the environment.migrate job input: the stacks the
-// caller confirmed.
+// previewParallelism bounds the stack previews an environment preview runs
+// at once.
+const previewParallelism = 4
+
+func firstError(errs []error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// environmentJobInput is the environment.migrate job input. The stacks the
+// caller confirmed are the job's stack targets (any number: the input,
+// the job output and the step journal stay small whatever the size of the
+// environment; groups, networks and stopped services are in the
+// environment_migrations record).
 type environmentJobInput struct {
-	Target         string   `json:"target"`
-	Stacks         []string `json:"stacks"`
-	TimeoutSeconds int      `json:"timeoutSeconds,omitempty"`
+	Target         string `json:"target"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
+}
+
+// targetStacks returns a job's stack targets, sorted.
+func targetStacks(j domain.Job) []string {
+	var out []string
+	for _, t := range j.Targets {
+		if t.Type == domain.TargetStack {
+			out = append(out, t.ID)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // StartEnvironment re-runs the preview and, without blockers, enqueues the
@@ -454,10 +493,8 @@ func (s *Service) StartEnvironment(ctx context.Context, p authz.Principal, sourc
 	in := environmentJobInput{Target: r.TargetEnvironmentID, TimeoutSeconds: r.TimeoutSeconds}
 	targets := make([]domain.JobTarget, 0, len(plan.Stacks))
 	for _, st := range plan.Stacks {
-		in.Stacks = append(in.Stacks, st.StackID)
 		targets = append(targets, domain.JobTarget{Type: domain.TargetStack, ID: st.StackID})
 	}
-	slices.Sort(in.Stacks)
 	j, created, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: jobspec.EnvironmentMigrate, Principal: p, EnvironmentID: source,
 		Targets: targets, Input: in, IdempotencyKey: r.IdempotencyKey})
 	if err != nil {
@@ -482,7 +519,8 @@ func environmentRecord(id, source string, plan EnvironmentPlan, now time.Time) d
 		m.Stacks = append(m.Stacks, domain.EnvironmentMigrationStack{StackID: st.StackID, Name: st.Name, State: domain.EnvironmentStackPending})
 	}
 	for _, n := range plan.Networks {
-		m.Networks = append(m.Networks, n.Name)
+		m.Networks = append(m.Networks, domain.EnvironmentNetwork{Name: n.Name, Driver: n.Driver, Internal: n.Internal, Attachable: n.Attachable,
+			Labels: n.Labels})
 	}
 	return m
 }
@@ -541,32 +579,6 @@ func (s *Service) updateEnvironmentRecord(ctx context.Context, id string, fn fun
 	})
 }
 
-// environmentOutput is the environment.migrate job's journaled output.
-type environmentOutput struct {
-	Groups   [][]string        `json:"groups"`
-	Networks []NetworkCreation `json:"networks,omitempty"`
-	// Stopped are the services the job stopped per stack (before its own
-	// migration started).
-	Stopped map[string][]string `json:"stopped,omitempty"`
-}
-
-func readEnvironmentOutput(sc *jobexec.StepContext) environmentOutput {
-	var o environmentOutput
-	if b := sc.Output(); len(b) > 0 {
-		_ = json.Unmarshal(b, &o)
-	}
-	if o.Stopped == nil {
-		o.Stopped = map[string][]string{}
-	}
-	return o
-}
-
-func writeEnvironmentOutput(ctx context.Context, sc *jobexec.StepContext, fn func(o *environmentOutput)) error {
-	o := readEnvironmentOutput(sc)
-	fn(&o)
-	return sc.SetOutput(ctx, o)
-}
-
 // groupStartArgs are the start_group compensation's arguments: one stack
 // the job stopped.
 type groupStartArgs struct {
@@ -591,7 +603,7 @@ func environmentInput(sc *jobexec.StepContext) (environmentJobInput, error) {
 	if err := json.Unmarshal(sc.Input, &in); err != nil {
 		return in, fmt.Errorf("malformed environment.migrate input: %w", err)
 	}
-	if in.Target == "" || len(in.Stacks) == 0 {
+	if in.Target == "" {
 		return in, errors.New("incomplete environment.migrate input")
 	}
 	return in, nil
@@ -607,8 +619,12 @@ func (s *Service) environmentPrepare(ctx context.Context, sc *jobexec.StepContex
 		return err
 	}
 	sc.Progress(ctx, 2, "checking every stack and the destination")
+	confirmed := targetStacks(j)
+	if len(confirmed) == 0 {
+		return errors.New("environment.migrate has no stack targets")
+	}
 	plan, _, err := s.previewEnvironment(ctx, principalOf(j), j.EnvironmentID, EnvironmentRequest{TargetEnvironmentID: in.Target,
-		Stacks: in.Stacks, TimeoutSeconds: in.TimeoutSeconds}, false)
+		Stacks: confirmed, TimeoutSeconds: in.TimeoutSeconds}, false)
 	if err != nil {
 		return err
 	}
@@ -617,7 +633,7 @@ func (s *Service) environmentPrepare(ctx context.Context, sc *jobexec.StepContex
 		moving = append(moving, st.StackID)
 	}
 	slices.Sort(moving)
-	if !slices.Equal(moving, in.Stacks) {
+	if !slices.Equal(moving, confirmed) {
 		return &classed{class: ClassEnvironmentMove, err: errors.New("the environment's stacks changed since the migration was requested"),
 			recovery: "Nothing was changed. Preview the migration again."}
 	}
@@ -630,12 +646,9 @@ func (s *Service) environmentPrepare(ctx context.Context, sc *jobexec.StepContex
 	if err := s.ensureEnvironmentRecord(ctx, &m); err != nil {
 		return err
 	}
-	if err := s.updateEnvironmentRecord(ctx, sc.JobID, func(r *domain.EnvironmentMigration) {
+	return s.updateEnvironmentRecord(ctx, sc.JobID, func(r *domain.EnvironmentMigration) {
 		r.Groups, r.Networks = m.Groups, m.Networks
-	}); err != nil {
-		return err
-	}
-	return writeEnvironmentOutput(ctx, sc, func(o *environmentOutput) { o.Groups, o.Networks = plan.Groups, plan.Networks })
+	})
 }
 
 func firstBlocker(p EnvironmentPlan) Finding {
@@ -660,8 +673,11 @@ func (s *Service) environmentNetworks(ctx context.Context, sc *jobexec.StepConte
 	if err != nil {
 		return err
 	}
-	out := readEnvironmentOutput(sc)
-	if len(out.Networks) == 0 {
+	rec, err := store.GetEnvironmentMigration(ctx, s.db, sc.JobID)
+	if err != nil {
+		return err
+	}
+	if len(rec.Networks) == 0 {
 		return nil
 	}
 	j, err := s.opts.Jobs.Get(ctx, sc.JobID)
@@ -673,7 +689,7 @@ func (s *Service) environmentNetworks(ctx context.Context, sc *jobexec.StepConte
 		return &classed{class: ClassNetworkFailed, err: fmt.Errorf("list the destination's networks: %w", err),
 			recovery: "Nothing was stopped. Check the destination environment's agent, then migrate again."}
 	}
-	for _, n := range out.Networks {
+	for _, n := range rec.Networks {
 		if slices.ContainsFunc(existing.Networks, func(e protocol.NetworkInfo) bool { return e.Name == n.Name }) {
 			continue
 		}
@@ -725,13 +741,13 @@ func (s *Service) environmentMigrate(ctx context.Context, sc *jobexec.StepContex
 		return err
 	}
 	p := principalOf(j)
-	out := readEnvironmentOutput(sc)
-	total := 0
-	for _, g := range out.Groups {
-		total += len(g)
+	start, err := store.GetEnvironmentMigration(ctx, s.db, sc.JobID)
+	if err != nil {
+		return err
 	}
+	total := len(start.Stacks)
 	done := 0
-	for _, group := range out.Groups {
+	for _, group := range start.Groups {
 		rec, err := store.GetEnvironmentMigration(ctx, s.db, sc.JobID)
 		if err != nil {
 			return err
@@ -788,7 +804,11 @@ func (s *Service) environmentMigrate(ctx context.Context, sc *jobexec.StepContex
 // stopGroupMember stops a stack of the group on the source, after
 // registering the compensation that starts what ran again.
 func (s *Service) stopGroupMember(ctx context.Context, sc *jobexec.StepContext, in environmentJobInput, st domain.Stack) error {
-	if _, ok := readEnvironmentOutput(sc).Stopped[st.ID]; ok {
+	rec, err := store.GetEnvironmentMigration(ctx, s.db, sc.JobID)
+	if err != nil {
+		return err
+	}
+	if e, _ := rec.Stack(st.ID); e.Stopped {
 		return nil
 	}
 	ref := protocol.ProjectRef{Root: st.Root, RootPath: st.RootPath, Dir: st.Dir, ProjectName: st.Name, ConfigFiles: st.ConfigFiles, EnvFiles: st.EnvFiles}
@@ -800,7 +820,9 @@ func (s *Service) stopGroupMember(ctx context.Context, sc *jobexec.StepContext, 
 		Stack: ref, Services: running}); err != nil {
 		return err
 	}
-	if err := writeEnvironmentOutput(ctx, sc, func(o *environmentOutput) { o.Stopped[st.ID] = running }); err != nil {
+	if err := s.updateEnvironmentRecord(ctx, sc.JobID, func(m *domain.EnvironmentMigration) {
+		m.SetStack(st.ID, func(e *domain.EnvironmentMigrationStack) { e.Stopped, e.StoppedServices = true, running })
+	}); err != nil {
 		return err
 	}
 	sc.Progress(ctx, -1, fmt.Sprintf("stopping %s (%d services) on the source", st.Name, len(running)))

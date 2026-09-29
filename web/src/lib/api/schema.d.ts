@@ -7479,7 +7479,7 @@ export interface components {
             updatedAt: string;
         };
         EnvironmentMigrationBody: {
-            /** @description Only these stacks (IDs). Default: every stack of the environment the caller may migrate. */
+            /** @description Only these stacks (IDs; any number). Default: every stack of the environment the caller may migrate. */
             stacks?: string[];
             /**
              * @description Required: the destination environment.

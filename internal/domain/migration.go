@@ -138,7 +138,7 @@ type EnvironmentMigration struct {
 	Stacks []EnvironmentMigrationStack
 	// Networks are the networks created on the destination first: made on
 	// the source outside any stack and joined as external by a moving stack.
-	Networks   []string
+	Networks   []EnvironmentNetwork
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	FinishedAt *time.Time
@@ -169,9 +169,24 @@ type EnvironmentMigrationStack struct {
 	// MigrationID is its stack migration ("" until it starts).
 	MigrationID string
 	State       EnvironmentStackState
+	// Stopped: the environment migration stopped the stack on the source
+	// (with its group); StoppedServices ran before and are started again
+	// when the stack does not move.
+	Stopped         bool
+	StoppedServices []string
 	// SourceRemoved: the stopped copy on the source was removed (read
 	// from its stack migration; not stored with the record).
 	SourceRemoved bool
+}
+
+// EnvironmentNetwork is a network an environment migration creates on the
+// destination, as the source has it.
+type EnvironmentNetwork struct {
+	Name       string
+	Driver     string
+	Internal   bool
+	Attachable bool
+	Labels     map[string]string
 }
 
 // Stack returns the entry of a stack (false when it is not part of it).

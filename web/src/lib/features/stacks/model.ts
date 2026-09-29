@@ -524,7 +524,6 @@ const FINDING_TITLES: Record<string, string> = {
 	size_estimated: 'Size estimated',
 	stack_name_conflict: 'Stack name taken',
 	storage_unavailable: 'Storage unavailable',
-	too_many_stacks: 'Too many stacks at once',
 	volume_definition_only: 'Volume data not migrated',
 	volume_missing: 'Volume missing',
 	volume_name_conflict: 'Volume name taken'

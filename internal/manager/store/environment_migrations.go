@@ -16,16 +16,26 @@ import (
 // Environment migrations (#35).
 
 type environmentMigrationStack struct {
-	StackID     string `json:"stackId"`
-	Name        string `json:"name"`
-	MigrationID string `json:"migrationId,omitempty"`
-	State       string `json:"state"`
+	StackID         string   `json:"stackId"`
+	Name            string   `json:"name"`
+	MigrationID     string   `json:"migrationId,omitempty"`
+	State           string   `json:"state"`
+	Stopped         bool     `json:"stopped,omitempty"`
+	StoppedServices []string `json:"stoppedServices,omitempty"`
+}
+
+type environmentMigrationNetwork struct {
+	Name       string            `json:"name"`
+	Driver     string            `json:"driver,omitempty"`
+	Internal   bool              `json:"internal,omitempty"`
+	Attachable bool              `json:"attachable,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
 }
 
 type environmentMigrationDetail struct {
-	Groups   [][]string                  `json:"groups"`
-	Stacks   []environmentMigrationStack `json:"stacks"`
-	Networks []string                    `json:"networks,omitempty"`
+	Groups   [][]string                    `json:"groups"`
+	Stacks   []environmentMigrationStack   `json:"stacks"`
+	Networks []environmentMigrationNetwork `json:"networks,omitempty"`
 }
 
 type environmentMigrationRow struct {
@@ -42,12 +52,16 @@ type environmentMigrationRow struct {
 }
 
 func fromEnvironmentMigration(m *domain.EnvironmentMigration) (environmentMigrationRow, error) {
-	d := environmentMigrationDetail{Groups: m.Groups, Networks: m.Networks, Stacks: make([]environmentMigrationStack, 0, len(m.Stacks))}
+	d := environmentMigrationDetail{Groups: m.Groups, Stacks: make([]environmentMigrationStack, 0, len(m.Stacks))}
 	if d.Groups == nil {
 		d.Groups = [][]string{}
 	}
 	for _, s := range m.Stacks {
-		d.Stacks = append(d.Stacks, environmentMigrationStack{StackID: s.StackID, Name: s.Name, MigrationID: s.MigrationID, State: string(s.State)})
+		d.Stacks = append(d.Stacks, environmentMigrationStack{StackID: s.StackID, Name: s.Name, MigrationID: s.MigrationID, State: string(s.State),
+			Stopped: s.Stopped, StoppedServices: s.StoppedServices})
+	}
+	for _, n := range m.Networks {
+		d.Networks = append(d.Networks, environmentMigrationNetwork(n))
 	}
 	b, err := json.Marshal(d)
 	if err != nil {
@@ -63,14 +77,17 @@ func (r environmentMigrationRow) toDomain() (domain.EnvironmentMigration, error)
 		return domain.EnvironmentMigration{}, fmt.Errorf("store: environment migration detail: %w", err)
 	}
 	m := domain.EnvironmentMigration{ID: r.ID, SourceEnvironmentID: r.SourceEnvironmentID, TargetEnvironmentID: r.TargetEnvironmentID,
-		State: domain.MigrationState(r.State), Groups: d.Groups, Networks: d.Networks, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
+		State: domain.MigrationState(r.State), Groups: d.Groups, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 		FinishedAt: utcPtr(r.FinishedAt), Stacks: make([]domain.EnvironmentMigrationStack, 0, len(d.Stacks))}
 	if m.Groups == nil {
 		m.Groups = [][]string{}
 	}
 	for _, s := range d.Stacks {
 		m.Stacks = append(m.Stacks, domain.EnvironmentMigrationStack{StackID: s.StackID, Name: s.Name, MigrationID: s.MigrationID,
-			State: domain.EnvironmentStackState(s.State)})
+			State: domain.EnvironmentStackState(s.State), Stopped: s.Stopped, StoppedServices: s.StoppedServices})
+	}
+	for _, n := range d.Networks {
+		m.Networks = append(m.Networks, domain.EnvironmentNetwork(n))
 	}
 	return m, nil
 }

@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -244,5 +245,20 @@ func TestEnvironmentMigrationBlocked(t *testing.T) {
 	}
 	if len(w.jobs.enqueued) != 0 || w.agents.called(srcEnv, protocol.ReqMigrationStop) != 0 {
 		t.Fatal("a blocked migration changed something")
+	}
+}
+
+// TestPlanEnvironmentHasNoStackLimit: any number of stacks moves in one
+// migration; only the destination's space and conflicts can block it.
+func TestPlanEnvironmentHasNoStackLimit(t *testing.T) {
+	var entries []envEntry
+	for i := range 150 {
+		e := entry(fmt.Sprintf("st-%03d", i), project(fmt.Sprintf("app%03d", i)))
+		e.g.plan.Data.ProjectBytes, e.g.plan.Data.TargetStacksFree = 1, 1000
+		entries = append(entries, e)
+	}
+	p := planEnvironment("src", "dst", entries, nil, true)
+	if !p.Allowed() || len(p.Stacks) != 150 || len(p.Groups) != 150 {
+		t.Fatalf("blockers %v, %d stacks in %d groups", codes(p.Blockers), len(p.Stacks), len(p.Groups))
 	}
 }

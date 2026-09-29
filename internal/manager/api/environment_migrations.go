@@ -31,7 +31,7 @@ type EnvironmentMigrationService interface {
 // and stacks.
 type EnvironmentMigrationBody struct {
 	TargetEnvironmentID string   `json:"targetEnvironmentId,omitempty" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f" maxLength:"64" doc:"Required: the destination environment."`
-	Stacks              []string `json:"stacks,omitempty" maxItems:"64" doc:"Only these stacks (IDs). Default: every stack of the environment the caller may migrate."`
+	Stacks              []string `json:"stacks,omitempty" doc:"Only these stacks (IDs; any number). Default: every stack of the environment the caller may migrate."`
 	TimeoutSeconds      int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period of the source's containers."`
 }
 
@@ -134,8 +134,11 @@ type EnvironmentMigration struct {
 
 func newEnvironmentMigration(m domain.EnvironmentMigration, visible func(stackID string) bool) EnvironmentMigration {
 	out := EnvironmentMigration{ID: m.ID, SourceEnvironmentID: m.SourceEnvironmentID, TargetEnvironmentID: m.TargetEnvironmentID,
-		State: string(m.State), Groups: [][]string{}, Stacks: []EnvironmentMigrationStack{}, Networks: append([]string{}, m.Networks...),
+		State: string(m.State), Groups: [][]string{}, Stacks: []EnvironmentMigrationStack{}, Networks: []string{},
 		CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt, FinishedAt: m.FinishedAt}
+	for _, n := range m.Networks {
+		out.Networks = append(out.Networks, n.Name)
+	}
 	for _, g := range m.Groups {
 		var ids []string
 		for _, id := range g {

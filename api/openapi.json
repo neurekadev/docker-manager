@@ -6265,11 +6265,10 @@
         "additionalProperties": false,
         "properties": {
           "stacks": {
-            "description": "Only these stacks (IDs). Default: every stack of the environment the caller may migrate.",
+            "description": "Only these stacks (IDs; any number). Default: every stack of the environment the caller may migrate.",
             "items": {
               "type": "string"
             },
-            "maxItems": 64,
             "type": "array"
           },
           "targetEnvironmentId": {
