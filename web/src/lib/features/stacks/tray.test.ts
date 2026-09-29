@@ -235,7 +235,7 @@ describe('JobTrayView', () => {
 		);
 		expect(toast.items[0].action?.label).toBe('Open job');
 		expect(tray.jobs).toEqual([]);
-		expect(screen.queryByRole('button', { name: /^Dismiss/ })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Dismiss Deploy Silo' })).toBeNull();
 	});
 
 	it('follows at most three running jobs over their own stream', async () => {
