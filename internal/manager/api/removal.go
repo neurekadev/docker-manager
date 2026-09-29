@@ -132,7 +132,8 @@ func (h *agentsAPI) previewRemoval(ctx context.Context, in *environmentIDInput) 
 		out.BackupSnapshots = p.BackupSnapshots
 	}
 	out.Migration = RemovalMigrationOffer{Stacks: kinds[domain.DependentStack].Count,
-		Description: "Move stacks and volumes to another environment first to keep operating them: POST /api/v1/stacks/{stackId}/migration-previews " +
+		Description: "Move stacks and volumes to another environment first to keep operating them: every stack at once with POST " +
+			"/api/v1/environments/{environmentId}/migration-previews then /migrations, one stack with POST /api/v1/stacks/{stackId}/migration-previews " +
 			"then /migrations, and POST /api/v1/environments/{environmentId}/volumes/{volumeId}/migration-previews then /migrations (#35)."}
 	return &removalPreviewOutput{Body: out}, nil
 }

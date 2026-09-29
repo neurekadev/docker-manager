@@ -1,7 +1,8 @@
 # Environment migration (#35)
 
 A user moves a managed Compose stack (its project directory and named
-volumes) or copies a standalone named volume to another environment. The
+volumes), copies a standalone named volume, or moves every stack of an
+environment to another environment. The
 migration is previewed before anything stops, runs as a job, keeps the
 source intact until the user confirms its removal, and never deletes
 anything automatically.
@@ -12,8 +13,8 @@ anything automatically.
 | `internal/agent/migration` | The agent side: `migration.preview/stop/start/commit/cleanup` requests, `migration.send/receive` streams, the tar writer/extractor (`WriteTree`, `ExtractTree`) over a contained filesystem (`FS`, `os.Root`), the `stack.remove_source` executor. `migrationtest`: an in-memory host filesystem and simulated environments for tests. |
 | `internal/transfer` | Chunk framing with per-chunk and whole-payload SHA-256 (`Writer`, `Reader`, `Verifier`), the bandwidth limiter, `ParseRate`. |
 | `internal/protocol` (`migration.go`) | Request, stream and job payloads. |
-| `internal/manager/api` (`migrations.go`) | The five routes. |
-| `internal/manager/store` (`migrations.go`) | `migrations` (migration `20260925235142_create_migrations`). |
+| `internal/manager/api` (`migrations.go`, `environment_migrations.go`) | The stack and volume routes; the environment routes (preview, start, list, get). |
+| `internal/manager/store` (`migrations.go`, `environment_migrations.go`) | `migrations` (migration `20260925235142_create_migrations`), `environment_migrations` (`20260929140000_create_environment_migrations`). |
 
 ## Transfer
 
@@ -134,6 +135,65 @@ options and non-local drivers keep their definition only (data not
 migrated in v1). External volumes and networks must exist on the
 destination.
 
+## Environment migration
+
+`environment.migrate` (manager executor, `environment.go`; locks: host
+shared on the source only, because each stack moves as its own
+`stack.migrate` job holding its stack's lock; the engine authorizes
+`stack.migrate` on every stack target, at most `jobspec.MaxTargets` = 64)
+moves the chosen stacks of an environment:
+
+- **Order** (`order.go`, `orderStacks`, pure): a stack's links are the
+  networks and named volumes its project creates (Docker names) and the
+  ones it joins as `external`. Stacks linked this way (and stacks that
+  name the same network or volume) form a group; inside a group a stack
+  follows the stacks it joins (topological, then name order; a circle is
+  reported as `dependency_cycle` and moves in name order). Groups follow
+  the name of their first stack. No setting marks a stack: the order
+  comes from the definitions only.
+- **Preview** (`planEnvironment`, pure over each stack's own preview):
+  every stack of the source is previewed (`previewStack`); stacks the
+  caller may not migrate to the destination (`stack.migrate` on the stack,
+  `stack.create` and `stack.deploy` there) and Docker Manager's own
+  project are left out (`skipped`: `not_permitted`, `docker_manager`,
+  `not_selected`). Walking the order, an `external_network_missing` or
+  `external_volume_missing` of a stack is dropped when an earlier stack
+  creates it. An external network no moving stack creates that the source
+  has as a hand-made `bridge` network is created on the destination first
+  (`networks`, warning `network_created`: default addressing, fixed
+  subnets are not copied); other drivers stay blockers
+  (`network_not_creatable`), as does a caller without `network.create`
+  there (`network_create_denied`). The data of all stacks together is
+  checked against the destination's free space (`insufficient_space`);
+  the downtime is the longest group's (the sum of its stacks').
+- **Run**: `prepare` re-runs the preview (the stack set must equal the
+  confirmed one; blockers fail the job before anything changes) and
+  writes the `environment_migrations` record; `create_networks` starts a
+  `network.create` job per missing network on the destination (the
+  initiator's); `migrate` handles group by group: every stack of the group
+  still on the source stops first, in reverse order (`migration.stop`
+  with this job's ID), each after registering `start_group` with the
+  services that ran; then each stack moves as a `stack.migrate` job (the
+  initiator's, idempotency key `environment-<id>-<stackId>`) and the job
+  waits for it (a cancellation cancels it). Before each further stack of
+  the group moves, the group's stacks still waiting are stopped again
+  (this job holds no stack lock, so another job may have started one; a
+  shared volume must not be written while it is copied). When the group
+  moved, its `start_group` compensations are released.
+- **Failure**: when a stack's migration does not complete (or is blocked
+  when it starts), the job fails with `stack_not_moved`. That stack's own
+  compensation put it back on the source (it restarts nothing: this job
+  stopped it); `start_group` then starts the services this job stopped of
+  every stack of the group still on the source (it first waits for a
+  running `stack.migrate` of the stack, so the stack is back). Stacks
+  moved before stay on the destination. A new environment migration moves
+  what is left (the preview lists only stacks still on the source).
+- **Record**: `environment_migrations` keeps the groups, each stack's
+  state (`pending`, `moving`, `moved`, `failed`) with its stack migration,
+  and the created networks; the finish hook sets the state from the job.
+  The moved stacks' sources are held and removed exactly as after a
+  stack migration (per stack, `source-removals`).
+
 ## Volume migration
 
 `volume.migrate` copies a standalone volume to another environment,
@@ -175,12 +235,18 @@ codes; corpus: `TestPreflightCorpus`):
 `stack.create` in the destination and `stack.deploy` on the stack there
 (API check at preview and request, executor re-check in `prepare`, engine
 check of the destination deploy job). Volumes: `volume.migrate` on the
-volume plus `volume.create` in the destination.
+volume plus `volume.create` in the destination. Environments: a visible
+source and `stack.create` in the destination at the API; each stack needs
+what its own migration needs (stacks without it are left out, not
+refused), `network.create` in the destination when networks are created;
+the engine authorizes `stack.migrate` on every stack target and each
+child job checks its own again.
 
 ## Audit
 
 Requests are audited by `api.Register` (`stack.migrate`,
 `stack.migrate.preview`, `stack.migrate.remove_source`, `volume.migrate`,
-`volume.migrate.preview`) with source and destination; the job lifecycle
+`volume.migrate.preview`, `environment.migrate`,
+`environment.migrate.preview`) with source and destination; the job lifecycle
 by the engine; the outcome as `migration.finished` with source,
 destination, bytes, every part's size and checksum and the resulting state.

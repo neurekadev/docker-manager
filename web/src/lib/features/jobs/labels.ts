@@ -20,6 +20,7 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'container.stop': 'Stop container',
 	'container.unpause': 'Resume container',
 	'container.update': 'Update container settings',
+	'environment.migrate': 'Migrate environment',
 	'files.archive': 'Archive files',
 	'files.copy': 'Copy files',
 	'files.delete': 'Delete files',
@@ -135,19 +136,30 @@ function pathName(p: string): string {
 }
 
 /**
+ * Kinds that act on a whole environment: their headline leads with the
+ * environment's name (`fallback`), not with the first of their targets.
+ */
+const ENVIRONMENT_KINDS = new Set(['environment.migrate']);
+
+/**
  * The headline of a job row, leading with the target's name:
  * `{ title: 'zerobyte', subtitle: 'Check for updates' }`. Targets are named
  * by `nameOf` (stack IDs through `stackNames(stacks)`, policies by the
  * page's policy list), else by their ID when it is a name (containers,
  * volumes, networks, images; paths by their last segment). Jobs without a
  * nameable target (a prune policy's run) lead with the kind, and the
- * subtitle is `fallback` (e.g. the environment's name).
+ * subtitle is `fallback` (e.g. the environment's name). Jobs on a whole
+ * environment (an environment migration) lead with `fallback`.
  */
 export function jobHeadline(
 	job: Pick<Job, 'kind' | 'targets'>,
 	options: { nameOf?: NameOf; fallback?: string } = {}
 ): JobHeadline {
 	const kind = jobKindLabel(job.kind);
+	if (ENVIRONMENT_KINDS.has(job.kind))
+		return options.fallback
+			? { title: options.fallback, subtitle: kind }
+			: { title: kind, subtitle: '' };
 	const t = job.targets ?? [];
 	const first = t[0];
 	let name = first ? options.nameOf?.(first.type, first.id) : undefined;

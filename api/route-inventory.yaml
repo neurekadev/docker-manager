@@ -1155,6 +1155,39 @@ routes:
     kind: json
     status: implemented
     notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/migration-previews"
+    operationId: create-environment-migration-preview
+    capability: stack.migrate
+    scope: environment
+    owner: 35
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/migrations"
+    operationId: create-environment-migration
+    capability: stack.migrate
+    scope: environment
+    owner: 35
+    kind: json
+    status: implemented
+    notes: 202 + environment.migrate job; each stack moves as its own stack.migrate job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/migrations"
+    operationId: list-environment-migrations
+    capability: stack.migrate
+    scope: environment
+    owner: 35
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/migrations/{migrationId}"
+    operationId: get-environment-migration
+    capability: stack.migrate
+    scope: environment
+    owner: 35
+    kind: json
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/networks"
     operationId: list-networks

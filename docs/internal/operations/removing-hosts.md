@@ -30,9 +30,11 @@ or `replace:<agentId>` while the old agent is still active.
 
    Items the caller cannot see are left out (#17); permission rules are
    listed to the owner only. The preview also offers **migrating** the
-   host's stacks and volumes first (#35: `POST
-   /api/v1/stacks/{stackId}/migration-previews`, `…/migrations`, and the
-   volume equivalents) so they keep running under Docker Manager elsewhere.
+   host's stacks and volumes first (#35: every stack at once with `POST
+   /api/v1/environments/{environmentId}/migration-previews`, `…/migrations`,
+   one stack with `POST /api/v1/stacks/{stackId}/migration-previews`,
+   `…/migrations`, and the volume equivalents) so they keep running under
+   Docker Manager elsewhere.
 
 2. **Archive** — `DELETE /api/v1/environments/{environmentId}` with
    `If-Match` (`environment.remove`, the only removal in v1). The host

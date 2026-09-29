@@ -161,6 +161,20 @@ describe('ArchiveEnvironmentDialog (#34)', () => {
 		expect(goto).toHaveBeenCalledWith('/environments');
 	});
 
+	it('migrates the stacks first in the environment migration wizard', async () => {
+		const user = setup();
+		stubApi((req) =>
+			req.method === 'POST' &&
+			new URL(req.url).pathname === '/api/v1/environments/e1/removal-previews'
+				? json(preview)
+				: undefined
+		);
+		mount(ArchiveEnvironmentDialog, { env, open: true });
+		const dialog = await screen.findByRole('alertdialog', { name: 'Archive homelab' });
+		await user.click(within(dialog).getByRole('button', { name: 'Migrate 2 stacks first' }));
+		expect(goto).toHaveBeenCalledWith('/environments/e1/migrate');
+	});
+
 	it('shows why the preview failed with a retry', async () => {
 		stubApi(() =>
 			json(

@@ -1,9 +1,9 @@
 <script lang="ts">
 	// Archive (remove) an environment (#34): first the removal preview
 	// (POST …/removal-previews) lists every dependent record kind and what
-	// archiving does to it, and offers migrating stacks first (#35); then a
-	// type-to-confirm DELETE with If-Match of the previewed revision. Nothing
-	// on the host is touched.
+	// archiving does to it, and offers migrating its stacks first (#35: the
+	// environment migration wizard); then a type-to-confirm DELETE with
+	// If-Match of the previewed revision. Nothing on the host is touched.
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { useQueryClient } from '@tanstack/svelte-query';
@@ -59,8 +59,7 @@
 
 	function migrateFirst() {
 		open = false;
-		environmentSelection.select(env.id);
-		void goto(routes.stacks());
+		void goto(routes.environmentMigrate(env.id));
 	}
 
 	async function archive() {

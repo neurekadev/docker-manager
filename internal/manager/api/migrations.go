@@ -284,8 +284,20 @@ func requireTarget(env string) error {
 
 func migrationErr(err error) error {
 	var be *migrations.BlockedError
+	var eb *migrations.EnvironmentBlockedError
 	var ae *migrations.AgentError
 	switch {
+	case errors.As(err, &eb):
+		var details []ErrorDetail
+		for _, b := range eb.Plan.Blockers {
+			details = append(details, ErrorDetail{Field: "preflight." + b.Code, Message: b.Message})
+		}
+		for _, s := range eb.Plan.Stacks {
+			for _, b := range s.Plan.Blockers {
+				details = append(details, ErrorDetail{Field: "preflight." + s.StackID + "." + b.Code, Message: s.Name + ": " + b.Message})
+			}
+		}
+		return NewError(http.StatusConflict, CodeMigrationBlocked, "the preflight check has blockers; preview the migration for details", details...)
 	case errors.As(err, &be):
 		var details []ErrorDetail
 		for _, b := range be.Plan.Blockers {
@@ -298,7 +310,7 @@ func migrationErr(err error) error {
 		return Conflict(CodeMigrationSourceRemoved, "the migration's source was already removed")
 	case errors.Is(err, migrations.ErrSourceInUse):
 		return Conflict(CodeMigrationSourceInUse, "a Docker Manager stack on the source environment manages the source project again; its files are not removed")
-	case errors.Is(err, domain.ErrMigrationNotFound):
+	case errors.Is(err, domain.ErrMigrationNotFound), errors.Is(err, domain.ErrEnvironmentMigrationNotFound):
 		return NotFound("migration not found")
 	case errors.As(err, &ae):
 		switch {

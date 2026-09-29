@@ -59,6 +59,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 		routes.environment('env-1', 'agents'),
 		routes.environment('env-1', 'jobs')
 	],
+	environmentMigrate: [routes.environmentMigrate('env-1')],
 	addEnvironment: [routes.addEnvironment(), routes.addEnvironment('env-1')],
 	stacks: [routes.stacks()],
 	stack: [

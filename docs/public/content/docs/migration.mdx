@@ -1,0 +1,111 @@
+---
+title: Migration
+description: Move a stack, a volume or everything on a server to another server.
+---
+
+Migration moves your apps and their data from one server to another. It
+needs at least two environments (an *environment* is one server with its
+agent, see [Add more servers](/docs/add-hosts)).
+
+Every migration is checked first: Docker Manager lists what must be fixed
+before anything stops. Every copy is verified end to end, and nothing on
+the old server is deleted until you say so.
+
+## What you can move
+
+| You move | What comes along | What stays behind |
+| --- | --- | --- |
+| **A stack** | Its folder with `compose.yaml`, `.env` and the files next to them. Its named volumes with all their data. Its history, revisions, display name, update and backup policies, and the permissions given for the stack or its services. | Folders it mounts from outside its own folder, host devices, the data of volumes with a special driver or driver options (for example NFS), and permissions given for the whole environment. |
+| **A volume** | A copy of its data, under the same or a new name. | The volume itself: the original is not changed. |
+| **A whole environment** | Every stack, as above, moved group by group. Networks you made by hand that the stacks join are created on the new server first. | Docker Manager's own stack, containers that are not part of a stack, and volumes no stack uses. |
+
+Images come along in the easiest way: images from a registry are
+downloaded again on the new server, images with a `build:` section are
+built there, and images you built or loaded by hand are copied.
+
+## Move a stack
+
+Open the stack and choose **More stack actions → Migrate**.
+
+1. **Destination**: pick the server and press **Check destination**.
+2. **Check**: Docker Manager lists what must be fixed first and what will
+   be copied.
+   - **Copy data**: untick it for a volume that should start empty on the
+     new server. Anonymous volumes are not copied unless you tick them.
+   - **Copy image**: tick it to copy an image from the old server instead
+     of downloading it again.
+3. **Confirm**: tick **I understand that … is unavailable during the
+   migration** and press **Start migration**.
+4. **Move**: the stack stops, its folder and volumes are copied, and it
+   starts on the new server.
+
+If anything fails, the stack goes back to the old server and starts there.
+
+## Move a volume
+
+Open a volume and its **Migrate** tab.
+
+1. **Destination**: pick the **Destination environment** and a **Name on
+   the destination**.
+2. **Check**: Docker Manager checks the copy can go ahead. If running
+   containers use the volume, you can tick **Copy while the containers keep
+   running**. The copy may then be slightly out of step, like a copy of a
+   running database.
+3. Press **Migrate volume**.
+
+## Move a whole environment
+
+Use this to move to a new server, or to empty a server before you retire
+it. Open the environment and choose **More actions → Migrate environment**.
+
+1. **Destination**: pick the new server. All stacks are ticked; untick the
+   ones that should stay.
+2. **Check**: Docker Manager checks every stack at once and shows:
+   - what must be fixed first,
+   - the **Order**: stacks that share a network or a volume (for example a
+     reverse proxy and the apps behind it) form a group. A group stops
+     together and moves in order, the stack that creates the network
+     first, so the apps find their proxy when they start,
+   - the networks it creates on the new server first,
+   - what is **Not moved**, and why.
+3. **Confirm**: tick **I understand that each group's stacks are
+   unavailable while it moves** and press **Start migration**.
+4. **Move**: the groups move one after the other. The other groups keep
+   running on the old server until it is their turn.
+
+If a stack can't be moved, the migration stops there. That stack and the
+rest of its group start again on the old server. Stacks that already moved
+stay on the new server. Fix the problem and press **Migrate the rest**.
+
+## After a move
+
+The old copy stays on the old server, stopped. Check that everything works
+on the new server first.
+
+- For one stack, press **Remove from …** to delete the old copy (you must
+  type the name to confirm), or **Start again on …** to run it there once
+  more.
+- After an environment migration, **Remove old copies from …** deletes the
+  old copies of all moved stacks at once. You must type the old server's
+  name to confirm.
+
+Removing an old copy deletes its containers, networks, copied volumes and
+folder on the old server. Docker Manager never deletes an old copy on its
+own. When a server is empty, you can archive it (see
+[Environments](/docs/environments)).
+
+Good to know:
+
+- Each group of stacks is down while it moves: from the moment it stops
+  until each of its stacks runs on the new server. The check shows how long
+  that should take.
+- Networks created for you get Docker's default addresses. If a service
+  needs a fixed address, create the network on the new server by hand
+  before you start.
+- Networks other than bridge networks, and volumes a stack joins but no
+  stack creates, must already exist on the new server. The check tells you.
+- Backups made on the old server stay where they are. A moved stack can
+  only be restored from S3 storage (see [Restore](/docs/restore)).
+- Traffic between the servers goes through Docker Manager. If an agent
+  connects over plain HTTP, the check warns you that the data is not
+  encrypted on the way.

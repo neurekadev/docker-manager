@@ -2,7 +2,7 @@
 // concatenation in views, so every page agrees on the route layout:
 //
 //   /                                   Dashboard
-//   /environments[/{id}]                environments and environment detail
+//   /environments[/{id}[/migrate]]      environments, environment detail, environment migration
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity|migrate]]
 //   /stacks?create=1, /stacks?import=1, /stacks?fromTemplate=1[&template=] (create, import and template dialogs)
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
@@ -41,6 +41,8 @@ export const routes = {
 	environments: () => '/environments',
 	environment: (id: string, tab?: 'system' | 'agents' | 'jobs') =>
 		`/environments/${e(id)}${tab ? `?tab=${tab}` : ''}`,
+	/** Move every stack of the environment to another one (#35). */
+	environmentMigrate: (id: string) => `/environments/${e(id)}/migrate`,
 	/** Enroll an agent: a new environment, or re-attach an archived one. */
 	addEnvironment: (reattach?: string) =>
 		`/environments/add${reattach ? `?reattach=${e(reattach)}` : ''}`,

@@ -7,6 +7,14 @@ Guide: `docs/internal/architecture/migrations.md`. Manager
 `internal/agent/migration`, framing `internal/transfer`, payloads
 `internal/protocol/migration.go`.
 
+- An environment migration (`environment.migrate`) never moves data
+  itself: each stack moves as its own `stack.migrate` job, so every rule
+  below (relay, hold, compensation, policies following the stack) applies
+  per stack. It locks only the source host (shared) and must never take a
+  stack lock (its children would wait for it). The order between stacks
+  comes only from their definitions (`orderStacks`: networks and volumes
+  one creates and another joins as external); keep `planEnvironment` and
+  `orderStacks` pure and spec-tested.
 - Byte relays between two agents go through `migrations.Relay` (end-to-end
   credit, `transfer.Verifier`, three-way checksum comparison, shared
   `transfer.Limiter`); never buffer a part in memory or on disk.

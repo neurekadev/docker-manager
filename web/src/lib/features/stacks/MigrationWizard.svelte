@@ -19,7 +19,6 @@
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy, untrack } from 'svelte';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
-	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import Play from '@lucide/svelte/icons/play';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -77,14 +76,8 @@
 		type ServicePlan,
 		type VolumePlan
 	} from './migration';
-	import {
-		dependencyOrder,
-		downtimeText,
-		findingTitle,
-		spaceCheck,
-		stackTitle,
-		type MigrationFinding
-	} from './model';
+	import { dependencyOrder, downtimeText, spaceCheck, stackTitle } from './model';
+	import MigrationFindings from './MigrationFindings.svelte';
 	import { stackJobCopy } from './adopt';
 	import { migrationMatch, resumedMigration } from './migration-resume';
 	import { stackKeys, type Stack } from './queries';
@@ -396,9 +389,6 @@
 		},
 		{ id: 'copy', header: 'Copy data', cell: volCopy, width: '110px', stack: 'actions' }
 	];
-
-	const findingKey = (f: MigrationFinding, i: number) =>
-		`${f.code}/${f.service ?? ''}/${f.resource ?? ''}/${i}`;
 </script>
 
 {#snippet svcName(s: ServicePlan)}<span class="strong">{s.name}</span>{/snippet}
@@ -460,25 +450,6 @@
 {#snippet volSize(v: VolumePlan)}{formatBytes(v.bytes)}{v.truncated ? '+' : ''}{/snippet}
 {#snippet volAction(v: VolumePlan)}{volumeActionLabel(v.action)}{/snippet}
 
-{#snippet findings(list: MigrationFinding[], tone: 'danger' | 'warn')}
-	<ul class="findings {tone}" role="list">
-		{#each list as f, i (findingKey(f, i))}
-			<li>
-				{#if tone === 'danger'}<CircleAlert
-						size={16}
-						strokeWidth={1.75}
-						aria-hidden="true"
-					/>{:else}<TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
-				<div>
-					<span class="f-title">{findingTitle(f.code)}</span>
-					{#if f.service}<span class="muted"> · {f.service}</span>{/if}
-					<p class="f-msg">{sentence(f.message)}</p>
-				</div>
-			</li>
-		{/each}
-	</ul>
-{/snippet}
-
 {#snippet step(s: WizardStep)}
 	{#if s.id === 'destination'}
 		{#if targets.length === 1}
@@ -529,7 +500,7 @@
 			{#if preview.blockers.length}
 				<section aria-labelledby="blockers-title">
 					<h3 id="blockers-title" class="subsection-title">To fix before moving</h3>
-					{@render findings(preview.blockers, 'danger')}
+					<MigrationFindings list={preview.blockers} tone="danger" />
 				</section>
 			{/if}
 
@@ -568,7 +539,7 @@
 					summary="Show {count(preview.warnings.length, 'warning')}"
 					open={preview.warnings.length <= 2}
 				>
-					{@render findings(preview.warnings, 'warn')}
+					<MigrationFindings list={preview.warnings} tone="warn" />
 				</Disclosure>
 			{/if}
 
@@ -841,42 +812,6 @@
 
 	.subsection-title {
 		margin-bottom: var(--space-2);
-	}
-
-	.findings {
-		display: grid;
-		gap: var(--space-2);
-		margin: 0;
-	}
-
-	.findings li {
-		display: flex;
-		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-	}
-
-	.findings.danger :global(svg) {
-		flex: none;
-		margin-top: 2px;
-		color: var(--danger);
-	}
-
-	.findings.warn :global(svg) {
-		flex: none;
-		margin-top: 2px;
-		color: var(--warn);
-	}
-
-	.f-title {
-		color: var(--text-strong);
-		font-weight: var(--weight-medium);
-	}
-
-	.f-msg {
-		color: var(--text-default);
 	}
 
 	.again {

@@ -103,6 +103,22 @@ describe('job labels (#26 catalog)', () => {
 			title: 'Back up Docker Manager',
 			subtitle: ''
 		});
+		// An environment migration names the environment, not its first stack.
+		const migrate: Pick<Job, 'kind' | 'targets'> = {
+			kind: 'environment.migrate',
+			targets: [
+				{ type: 'stack', id },
+				{ type: 'stack', id: 'st-2' }
+			]
+		};
+		expect(jobHeadline(migrate, { nameOf: names, fallback: 'homelab' })).toEqual({
+			title: 'homelab',
+			subtitle: 'Migrate environment'
+		});
+		expect(jobHeadline(migrate, { nameOf: names })).toEqual({
+			title: 'Migrate environment',
+			subtitle: ''
+		});
 	});
 
 	it('measures durations and says why a job waits', () => {

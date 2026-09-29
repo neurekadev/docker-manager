@@ -6186,6 +6186,324 @@
         ],
         "type": "object"
       },
+      "EnvironmentMigration": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "id": {
+            "description": "The environment.migrate job's ID.",
+            "type": "string"
+          },
+          "networks": {
+            "description": "Networks created on the destination first.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sourceEnvironmentId": {
+            "type": "string"
+          },
+          "stacks": {
+            "description": "The stacks the caller can see.",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentMigrationStack"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "completed",
+              "failed",
+              "cancelled",
+              "interrupted"
+            ],
+            "type": "string"
+          },
+          "targetEnvironmentId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sourceEnvironmentId",
+          "targetEnvironmentId",
+          "state",
+          "groups",
+          "stacks",
+          "networks",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "EnvironmentMigrationBody": {
+        "additionalProperties": false,
+        "properties": {
+          "stacks": {
+            "description": "Only these stacks (IDs). Default: every stack of the environment the caller may migrate.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "targetEnvironmentId": {
+            "description": "Required: the destination environment.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "description": "Stop grace period of the source's containers.",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EnvironmentMigrationListOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "The latest migrations away from the environment, newest first (at most 20).",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentMigration"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "EnvironmentMigrationNetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "attachable": {
+            "type": "boolean"
+          },
+          "driver": {
+            "type": "string"
+          },
+          "internal": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "usedBy": {
+            "description": "The stacks that join it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "usedBy"
+        ],
+        "type": "object"
+      },
+      "EnvironmentMigrationPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "description": "Neither the migration nor any stack has blockers: it can start (warnings are accepted by starting it).",
+            "type": "boolean"
+          },
+          "blockers": {
+            "description": "Blockers of the whole migration (each stack's preview has its own).",
+            "items": {
+              "$ref": "#/components/schemas/MigrationFinding"
+            },
+            "type": "array"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MigrationData",
+            "description": "The stacks' transfers together."
+          },
+          "downtime": {
+            "$ref": "#/components/schemas/MigrationDowntime",
+            "description": "estimatedSeconds: the longest a group is down."
+          },
+          "groups": {
+            "description": "Stack IDs per group, in order: a group stops together, then its stacks move one after the other.",
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "networks": {
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentMigrationNetwork"
+            },
+            "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentMigrationSkipped"
+            },
+            "type": "array"
+          },
+          "sourceEnvironmentId": {
+            "type": "string"
+          },
+          "stacks": {
+            "description": "The stacks that move, in the order they move.",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentMigrationStackPreview"
+            },
+            "type": "array"
+          },
+          "targetEnvironmentId": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationFinding"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sourceEnvironmentId",
+          "targetEnvironmentId",
+          "allowed",
+          "blockers",
+          "warnings",
+          "stacks",
+          "groups",
+          "networks",
+          "skipped",
+          "data",
+          "downtime"
+        ],
+        "type": "object"
+      },
+      "EnvironmentMigrationSkipped": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "description": "docker_manager: Docker Manager's own stack (it moves with the manager); not_permitted: the caller may not migrate it to the destination; not_selected: the request names other stacks.",
+            "enum": [
+              "docker_manager",
+              "not_permitted",
+              "not_selected"
+            ],
+            "type": "string"
+          },
+          "stackId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stackId",
+          "name",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "EnvironmentMigrationStack": {
+        "additionalProperties": false,
+        "properties": {
+          "migrationId": {
+            "description": "Its stack migration (the stack.migrate job), once started.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceRemoved": {
+            "description": "The moved stack's stopped copy on the source was removed.",
+            "type": "boolean"
+          },
+          "stackId": {
+            "type": "string"
+          },
+          "state": {
+            "description": "moved: its migration completed (its source stays stopped until its removal is confirmed); failed: it did not, the stack is back on the source.",
+            "enum": [
+              "pending",
+              "moving",
+              "moved",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "stackId",
+          "name",
+          "state"
+        ],
+        "type": "object"
+      },
+      "EnvironmentMigrationStackPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "dependsOn": {
+            "description": "Stacks of its group that move before it: it joins a network or volume they create.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "group": {
+            "description": "Index of its group in groups.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/MigrationPreview",
+            "description": "The stack's own preview; external networks and volumes that move before it are no longer missing."
+          },
+          "stackId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stackId",
+          "name",
+          "group",
+          "dependsOn",
+          "preview"
+        ],
+        "type": "object"
+      },
       "EnvironmentPolicyBody": {
         "additionalProperties": false,
         "properties": {
@@ -39095,6 +39413,933 @@
           "Containers"
         ],
         "x-docker-manager-capability": "container.metrics.read",
+        "x-docker-manager-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/migration-previews": {
+      "post": {
+        "description": "The preflight check of moving every stack of the environment (or the ones named) to another environment, before anything stops: each stack's own preview, the order they move in (stacks linked by a network or volume one creates and another joins as external form a group, the creating stack first), the networks made by hand on the source that are created on the destination first, the stacks left out (Docker Manager's own, stacks the caller may not migrate) and the data together against the destination's free space. Needs stack.migrate on each stack plus stack.create and stack.deploy on the destination (network.create for networks it creates). Changes nothing.",
+        "operationId": "create-environment-migration-preview",
+        "parameters": [
+          {
+            "description": "The source environment.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "The source environment.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentMigrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "allowed": false,
+                  "blockers": [
+                    {
+                      "code": "example",
+                      "message": "example",
+                      "resource": "example",
+                      "service": "example"
+                    }
+                  ],
+                  "data": {
+                    "destinationStacksFree": 1,
+                    "destinationVolumesFree": 1,
+                    "imageBytes": 1,
+                    "projectBytes": 1,
+                    "totalBytes": 1,
+                    "truncated": false,
+                    "volumeBytes": 1
+                  },
+                  "downtime": {
+                    "basis": "example",
+                    "estimatedSeconds": 1
+                  },
+                  "groups": [
+                    [
+                      "example"
+                    ]
+                  ],
+                  "networks": [
+                    {
+                      "attachable": false,
+                      "driver": "example",
+                      "internal": false,
+                      "name": "web",
+                      "usedBy": [
+                        "example"
+                      ]
+                    }
+                  ],
+                  "skipped": [
+                    {
+                      "name": "web",
+                      "reason": "docker_manager",
+                      "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                    }
+                  ],
+                  "sourceEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "stacks": [
+                    {
+                      "dependsOn": [
+                        "example"
+                      ],
+                      "group": 1,
+                      "name": "web",
+                      "preview": {
+                        "access": {
+                          "changes": [
+                            {
+                              "gained": [
+                                "example"
+                              ],
+                              "lost": [
+                                "example"
+                              ],
+                              "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                              "username": "web"
+                            }
+                          ],
+                          "complete": false,
+                          "othersAffected": 1,
+                          "unavailable": "example"
+                        },
+                        "allowed": false,
+                        "blockers": [
+                          {
+                            "code": "example",
+                            "message": "example",
+                            "resource": "example",
+                            "service": "example"
+                          }
+                        ],
+                        "data": {
+                          "destinationStacksFree": 1,
+                          "destinationVolumesFree": 1,
+                          "imageBytes": 1,
+                          "projectBytes": 1,
+                          "totalBytes": 1,
+                          "truncated": false,
+                          "volumeBytes": 1
+                        },
+                        "downtime": {
+                          "basis": "example",
+                          "estimatedSeconds": 1
+                        },
+                        "excluded": [
+                          {
+                            "name": "web",
+                            "reason": "example"
+                          }
+                        ],
+                        "kind": "stack",
+                        "leftovers": [
+                          "example"
+                        ],
+                        "projectName": "web",
+                        "services": [
+                          {
+                            "action": "pull",
+                            "image": "nginx:1.27",
+                            "name": "web",
+                            "platform": "example",
+                            "reason": "example",
+                            "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                          }
+                        ],
+                        "sourceEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "targetDirectory": "example",
+                        "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "transport": {
+                          "bandwidthLimitBytesPerSecond": 1,
+                          "destinationPlainHttp": false,
+                          "sourcePlainHttp": false
+                        },
+                        "volumes": [
+                          {
+                            "action": "copy",
+                            "anonymous": false,
+                            "bytes": 1,
+                            "entries": 1,
+                            "key": "example",
+                            "reason": "example",
+                            "source": "example",
+                            "target": "example",
+                            "truncated": false
+                          }
+                        ],
+                        "warnings": [
+                          {
+                            "code": "example",
+                            "message": "example",
+                            "resource": "example",
+                            "service": "example"
+                          }
+                        ]
+                      },
+                      "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                    }
+                  ],
+                  "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "warnings": [
+                    {
+                      "code": "example",
+                      "message": "example",
+                      "resource": "example",
+                      "service": "example"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentMigrationPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Preview an environment migration",
+        "tags": [
+          "Environments"
+        ],
+        "x-docker-manager-audit": "environment.migrate.preview",
+        "x-docker-manager-capability": "stack.migrate",
+        "x-docker-manager-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/migrations": {
+      "get": {
+        "description": "The latest migrations away from the environment (at most 20, newest first), with each stack the caller can see and its state.",
+        "operationId": "list-environment-migrations",
+        "parameters": [
+          {
+            "description": "The source environment.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "The source environment.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "createdAt": "2026-09-25T12:00:00Z",
+                      "finishedAt": "2026-09-25T12:00:00Z",
+                      "groups": [
+                        [
+                          "example"
+                        ]
+                      ],
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "networks": [
+                        "example"
+                      ],
+                      "sourceEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "stacks": [
+                        {
+                          "migrationId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                          "name": "web",
+                          "sourceRemoved": false,
+                          "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                          "state": "pending"
+                        }
+                      ],
+                      "state": "running",
+                      "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "updatedAt": "2026-09-25T12:00:00Z"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentMigrationListOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List environment migrations",
+        "tags": [
+          "Environments"
+        ],
+        "x-docker-manager-capability": "stack.migrate",
+        "x-docker-manager-scope": "environment"
+      },
+      "post": {
+        "description": "Re-runs the preview (409 migration_blocked with the blockers in details) and starts an environment.migrate job (202; the migration ID is the job ID). Networks made by hand are created on the destination first; then group by group, the group's stacks stop together and move one after the other as stack migrations. When a stack does not move the job stops: that stack is back on its source, the group's other stacks still there start again, and stacks moved before stay on the destination; migrating again moves the rest. Moved stacks' sources stay stopped until their removal is confirmed.",
+        "operationId": "create-environment-migration",
+        "parameters": [
+          {
+            "description": "The source environment.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "The source environment.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "$ref": "#/components/schemas/EnvironmentMigrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attempt": 1,
+                  "blockedBy": {
+                    "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "reason": "lock"
+                  },
+                  "cancelRequested": false,
+                  "cancellable": false,
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "dispatchedAt": "2026-09-25T12:00:00Z",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "error": {
+                    "class": "agent_offline",
+                    "message": "example",
+                    "recovery": "example"
+                  },
+                  "executor": "agent",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "id": "0190a6e0-0000-7000-8000-000000000001",
+                  "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "message": "example",
+                      "name": "web",
+                      "status": "succeeded"
+                    }
+                  ],
+                  "kind": "stack.deploy",
+                  "locks": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "mode": "shared",
+                      "name": "web",
+                      "scope": "host"
+                    }
+                  ],
+                  "locksHeld": false,
+                  "origin": "manual",
+                  "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "progress": {
+                    "message": "example",
+                    "percent": 1,
+                    "step": "example"
+                  },
+                  "retryOf": "example",
+                  "retryable": false,
+                  "startedAt": "2026-09-25T12:00:00Z",
+                  "state": "queued",
+                  "targets": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "type": "stack"
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Migrate an environment",
+        "tags": [
+          "Environments"
+        ],
+        "x-docker-manager-audit": "environment.migrate",
+        "x-docker-manager-capability": "stack.migrate",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/migrations/{migrationId}": {
+      "get": {
+        "description": "An environment migration's groups, each stack the caller can see with its stack migration and state, and the networks created on the destination.",
+        "operationId": "get-environment-migration",
+        "parameters": [
+          {
+            "description": "The source environment.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "The source environment.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Environment migration ID (the environment.migrate job's ID).",
+            "in": "path",
+            "name": "migrationId",
+            "required": true,
+            "schema": {
+              "description": "Environment migration ID (the environment.migrate job's ID).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "groups": [
+                    [
+                      "example"
+                    ]
+                  ],
+                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "networks": [
+                    "example"
+                  ],
+                  "sourceEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "stacks": [
+                    {
+                      "migrationId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "name": "web",
+                      "sourceRemoved": false,
+                      "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "state": "pending"
+                    }
+                  ],
+                  "state": "running",
+                  "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentMigration"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get an environment migration",
+        "tags": [
+          "Environments"
+        ],
+        "x-docker-manager-capability": "stack.migrate",
         "x-docker-manager-scope": "environment"
       }
     },

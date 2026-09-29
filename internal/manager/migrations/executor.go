@@ -266,18 +266,9 @@ func (s *Service) stackStop(ctx context.Context, sc *jobexec.StepContext) error 
 	out := readOutput(sc)
 	running := out.SourceRunning
 	if running == nil {
-		var live protocol.ComposeServicesOutput
-		if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeServices, protocol.ComposeServicesInput{ProjectName: in.Source.Project},
-			&live, s.opts.RequestTimeout); err != nil {
+		if running, err = s.runningServices(ctx, st.EnvironmentID, in.Source.Project); err != nil {
 			return s.agentFailure("source", err, false)
 		}
-		running = []string{}
-		for _, c := range live.Containers {
-			if c.State == "running" && !c.OneOff && !slices.Contains(running, c.Service) {
-				running = append(running, c.Service)
-			}
-		}
-		slices.Sort(running)
 		if err := writeOutput(ctx, sc, func(o *stackOutput) { o.SourceRunning = running }); err != nil {
 			return err
 		}

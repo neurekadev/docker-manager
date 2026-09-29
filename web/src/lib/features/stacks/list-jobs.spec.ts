@@ -71,6 +71,7 @@ describe('stack list jobs', () => {
 		expect(runningLabel({ kind: 'stack.deploy', state: 'queued' })).toBe('Waiting');
 		expect(runningLabel({ kind: 'stack.deploy', state: 'blocked' })).toBe('Waiting');
 		expect(runningLabel({ kind: 'files.copy', state: 'running' })).toBe('Running');
+		expect(runningLabel({ kind: 'environment.migrate', state: 'running' })).toBe('Migrating');
 		expect(runningHint({ kind: 'stack.deploy' })).toBe('Deploy stack: open the job');
 	});
 });

@@ -440,6 +440,7 @@ describe('migration, updates and jobs', () => {
 		expect(downtimeText(185)).toBe('About 3 min');
 		expect(downtimeText(3 * 3600)).toBe('About 3 h');
 		expect(findingTitle('port_conflict')).toBe('Port already in use');
+		expect(findingTitle('network_not_creatable')).toBe('Network must be created by hand');
 		expect(findingTitle('some_new_code')).toBe('Some new code');
 	});
 

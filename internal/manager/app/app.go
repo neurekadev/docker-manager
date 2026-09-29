@@ -725,6 +725,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Schedules:                m.sched,
 			Maintenance:              m.maint,
 			Migrations:               m.migrations,
+			EnvironmentMigrations:    m.migrations,
 			Updates:                  m.updates,
 			Backups:                  m.backups,
 			Templates:                m.templates,

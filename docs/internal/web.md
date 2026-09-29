@@ -335,6 +335,34 @@ checks by default (`visibleJobs`), folds a job's audit records into one row
 (`auditRows` in `$lib/features/stacks/activity.ts`) and reads the audit
 log 50 records at a time ("Load more").
 
+An environment's stacks move together through **Migrate environment**
+(`routes.environmentMigrate`, `/environments/<id>/migrate`): the entry of
+the environment page's "More actions" menu (shown with a second
+environment and a stack there the caller may migrate) and the archive
+dialog's "Migrate N stacks first". The wizard is
+`$lib/features/environments/EnvironmentMigrationWizard.svelte` (view
+model `environment-migration.ts`, requests `migration-actions.ts`, the
+run's record in `queries.ts`, keyed under its job,
+`liveKeys.item('jobs', id, 'environment-migration')`, so the job's events
+refresh it). Destination: the other active environments (offline ones
+off) and the stacks, all ticked; Docker Manager's own stack (found from
+its protected containers and the check's `skipped`) and stacks without
+`stack.migrate` are off with the reason, and nothing unticked sends no
+stack list. Check (Next runs it; "Check again"): the problems of the
+whole migration, then each stack's under its name, data, free space, the
+longest downtime with its basis, the order (one row per group, its
+stacks in move order with what each waits for), networks created first,
+what is not moved and why, warnings, and each stack's details (volumes,
+images, warnings, access changes). Confirm, then Move: the
+`environment.migrate` job's progress and each stack's outcome from the
+record, one toast (the stack that did not move, with "Open job" on its
+stack migration), "Migrate the rest" (back to Check), "Remove old copies
+from <source>" (type-to-confirm; one source removal per moved stack, one
+`bulkSummary` toast) and, when every stack moved, a link to archive the
+source. Both migration wizards list findings with
+`$lib/features/stacks/MigrationFindings.svelte`. Tests:
+`environment-migration.spec.ts`, `EnvironmentMigrationWizard.test.ts`.
+
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
 `$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for
@@ -387,6 +415,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 | --- | --- |
 | stack page (tray, all tabs) | target `stack:<id>`, every kind but `update.check` (`stackTrayMatch`); on `/migrate` also not `stack.migrate` |
 | migration wizard | a running `stack.migrate` of the stack reopens it at the move step (`migration-resume.ts`); the wizard shows it instead of the tray and hands it back when left while it runs |
+| environment migration wizard | a running `environment.migrate` from the environment reopens it at the move step (`environmentMigrationMatch` in `environment-migration.ts`); the stacks it moves say "Migrating" in the stacks list |
 | stacks list | one match for the list (`stackListMatch`), the newest job per stack as a status word in the row (`StackJobStatus`) |
 | import dialog | `stack.import` of the environment, matched to projects by their stack target |
 | container, network pages | target by name in the environment (`object-jobs.ts`) |

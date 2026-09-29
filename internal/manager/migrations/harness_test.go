@@ -7,6 +7,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -205,6 +206,8 @@ type fakeJobs struct {
 	onDeploy      func(st domain.Stack)
 	cancelled     []string
 	seq           int
+	// onEnqueue runs after a job is enqueued (e.g. to run it).
+	onEnqueue func(j domain.Job)
 }
 
 func newFakeJobs() *fakeJobs {
@@ -218,12 +221,16 @@ func (f *fakeJobs) newID() string {
 
 func (f *fakeJobs) Enqueue(_ context.Context, req jobs.Request) (domain.Job, bool, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	in, _ := json.Marshal(req.Input)
 	j := domain.Job{ID: f.newID(), Kind: req.Kind, EnvironmentID: req.EnvironmentID, Targets: req.Targets, Input: in,
 		State: domain.JobQueued, Origin: domain.OriginManual, InitiatorUserID: req.Principal.UserID}
 	f.jobs[j.ID] = j
 	f.enqueued = append(f.enqueued, req)
+	hook := f.onEnqueue
+	f.mu.Unlock()
+	if hook != nil {
+		hook(j)
+	}
 	return j, true, nil
 }
 
@@ -287,6 +294,19 @@ func (f *fakeStacks) Get(_ context.Context, id string) (domain.Stack, error) {
 		return st, domain.ErrStackNotFound
 	}
 	return st, nil
+}
+
+func (f *fakeStacks) List(_ context.Context, flt domain.StackFilter) ([]domain.Stack, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []domain.Stack
+	for _, st := range f.stacks {
+		if flt.EnvironmentID == "" || st.EnvironmentID == flt.EnvironmentID {
+			out = append(out, st)
+		}
+	}
+	slices.SortFunc(out, func(a, b domain.Stack) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
 }
 
 func (f *fakeStacks) Place(_ context.Context, _ bun.IDB, id string, p domain.StackPlacement) (domain.Stack, error) {
