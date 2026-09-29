@@ -219,15 +219,16 @@ func readPackage(r io.Reader, dir string, progress func(int64)) (Manifest, error
 		if i < 0 {
 			return Manifest{}, packageError("unexpected part %q", name)
 		}
-		// The file name comes from the known parts, never from the archive.
-		name = packageParts[i]
 		if _, dup := got[name]; dup {
 			return Manifest{}, packageError("the part %q is repeated", name)
 		}
 		if limit, ok := partLimits[name]; ok && hdr.Size > limit {
 			return Manifest{}, packageError("the part %q is too large", name)
 		}
-		part, err := storePart(tr, filepath.Join(dir, name), hdr.Size, func(n int64) {
+		// The path is one of the fixed part names (checked above), never the
+		// archive's entry name.
+		path := filepath.Join(dir, packageParts[i]) //nolint:gosec // G305: packageParts is a constant allowlist
+		part, err := storePart(tr, path, hdr.Size, func(n int64) {
 			if progress != nil {
 				progress(total + n)
 			}
