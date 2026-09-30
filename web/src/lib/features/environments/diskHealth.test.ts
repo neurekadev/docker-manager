@@ -291,6 +291,9 @@ describe('RaidCard', () => {
 		expect(within(rows[0]).getByText('Rebuilding')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('RAID 5')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('sdd1 failed')).toHaveClass('failed');
+		// Active members are only in the tooltip; the cell names what is wrong.
+		expect(within(rows[0]).queryByText('sdc1')).toBeNull();
+		expect(within(rows[0]).getByText('2 of 3 disks working')).toBeInTheDocument();
 		expect(
 			within(rows[0]).getByText('Rebuilding 17.3%, about 1 h 18 min left')
 		).toBeInTheDocument();

@@ -88,11 +88,12 @@
 			cell: disksCell,
 			maxWidth: '360px',
 			truncate: true,
+			// Every member in the tooltip; the cell names only those that are
+			// not simply active (failed first).
 			title: (a) =>
 				[raidDisks(a), ...sortMembers(a.members).map((m) => memberLabel(m).text)]
 					.filter(Boolean)
-					.join(', '),
-			stack: 'hidden'
+					.join(', ')
 		},
 		{ id: 'progress', header: 'Progress', cell: progressCell, width: '320px' }
 	];
@@ -106,9 +107,12 @@
 	<StatusBadge status={b.status} label={b.label} />
 {/snippet}
 {#snippet disksCell(a: RaidArray)}
-	<span class="muted">{raidDisks(a)}</span>{#each sortMembers(a.members) as m (m.name)}{@const l =
-			memberLabel(m)}<span class="member mono" class:failed={l.failed} title={l.title}
-			>{l.text}</span
+	<span class="muted">{raidDisks(a)}</span
+	>{#each sortMembers(a.members).filter((m) => m.state !== 'active') as m (m.name)}{@const l =
+			memberLabel(m)}<span class="sep" aria-hidden="true">·</span><span
+			class="member mono"
+			class:failed={l.failed}
+			title={l.title}>{l.text}</span
 		>{/each}
 {/snippet}
 {#snippet progressCell(a: RaidArray)}
@@ -181,8 +185,9 @@
 		margin-left: var(--space-2);
 	}
 
-	.member {
-		margin-left: var(--space-2);
+	.sep {
+		margin: 0 var(--space-2);
+		color: var(--text-muted);
 	}
 
 	.member.failed {
@@ -192,8 +197,9 @@
 
 	.progress {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-3);
+		gap: var(--space-1) var(--space-3);
 		min-width: 0;
 	}
 
@@ -202,9 +208,6 @@
 	}
 
 	.text {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 		font-size: var(--text-caption);
 	}
 

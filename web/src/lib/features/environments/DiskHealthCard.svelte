@@ -119,7 +119,8 @@
 			cell: temperatureCell,
 			sortValue: (d) => d.temperatureC,
 			numeric: true,
-			width: '120px'
+			width: '120px',
+			stack: 'hidden'
 		},
 		{
 			id: 'powered',
@@ -135,8 +136,9 @@
 			cell: issuesCell,
 			maxWidth: '420px',
 			truncate: true,
-			title: (d) => issuesText(d),
-			stack: 'hidden'
+			// Phones show the issues: what needs doing matters more than the
+			// temperature.
+			title: (d) => issuesText(d)
 		}
 	];
 	const detailColumns: Column<DiskDevice>[] = [
