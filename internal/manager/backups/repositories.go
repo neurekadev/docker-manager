@@ -648,6 +648,9 @@ func agentErrorClass(err error) string {
 	if errors.Is(err, jobs.ErrAgentOffline) {
 		return "agent_offline"
 	}
+	if errors.Is(err, protocol.ErrRequestTimeout) {
+		return "timeout"
+	}
 	type coded interface{ AgentCode() string }
 	var c coded
 	if errors.As(err, &c) {

@@ -343,6 +343,68 @@ describe('ScopePreviewView (#10)', () => {
 			expect.stringContaining('Keeps running: Docker Manager itself')
 		]);
 	});
+
+	it('renders repeated sources once and names stacks, never by ID', () => {
+		const vol = (name: string) => ({
+			kind: 'volume',
+			name,
+			path: '',
+			state: 'excluded',
+			reason: 'the volume does not exist (not created yet)'
+		});
+		const bind = (service: string) => ({
+			kind: 'external_path',
+			path: '/etc/localtime',
+			service,
+			state: 'requires_opt_in',
+			reason: 'outside the project'
+		});
+		const repeated = {
+			shutdown: false,
+			environments: [
+				{
+					environmentId: 'e1',
+					environmentName: 'hyperion',
+					repositoryId: 'r1',
+					items: [
+						{
+							item: 'stack/0190-aaaa',
+							kind: 'stack',
+							stackId: '0190-aaaa',
+							estimateComplete: false,
+							estimatedBytes: 2048,
+							estimatedFiles: 1200,
+							sources: [
+								vol('a'),
+								vol('b'),
+								vol('a'),
+								bind('web'),
+								bind('web'),
+								bind('api')
+							],
+							conflicts: ['shared volume', 'shared volume'],
+							warnings: ['slow', 'slow']
+						}
+					]
+				}
+			]
+		};
+		render(ScopePreviewView, {
+			props: {
+				preview: repeated,
+				stackName: (id: string) => (id === '0190-aaaa' ? 'media' : undefined)
+			}
+		});
+		expect(screen.getByText('media')).toBeInTheDocument();
+		expect(screen.queryByText(/0190-aaaa/)).toBeNull();
+		// a and b once each; the bind once per service.
+		expect(screen.getAllByText('/etc/localtime')).toHaveLength(2);
+		expect(screen.getByText('2 excluded')).toBeInTheDocument();
+		expect(screen.getByText('2 needs opt-in')).toBeInTheDocument();
+		expect(screen.getAllByText('shared volume')).toHaveLength(2);
+		// Something needs the user: the details are open.
+		expect(screen.getByText('media').closest('details')).toHaveAttribute('open');
+	});
 });
 
 describe('StepUpDialog (#16)', () => {

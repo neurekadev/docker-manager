@@ -1,12 +1,24 @@
 <script lang="ts">
 	// A backup policy's scope preview (#10), computed by each environment's
-	// agent: the sources of every stack and volume with their state
-	// (included, excluded, needs opt-in, blocked) and why, the estimated
-	// size, and with shutdown on the containers that stop, in which order,
-	// the expected downtime and the conflicts a shutdown cannot cover.
+	// agent. Per environment a short summary (items, estimated size), then
+	// one row per stack or volume: its name, estimated size and how many of
+	// its sources are included, left out or need attention. The sources
+	// (with why) and, with shutdown on, the containers that stop are its
+	// details: open on their own when something needs the user (an opt-in,
+	// a blocked or missing source, an error, a conflict). Sources are listed
+	// once (the agent may repeat one) and never keyed by their text.
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import type { Schema } from '$lib/api/client';
 	import { Badge, Checkbox, Notice, Table, formatBytes, type Column } from '$lib/ui';
-	import { itemName, sourceState, type ScopeItem, type ScopePreview } from './model';
+	import {
+		scopeCounts,
+		scopeItemTitle,
+		scopeNeedsAttention,
+		scopeSources,
+		sourceState,
+		type ScopeItem,
+		type ScopePreview
+	} from './model';
 
 	interface Props {
 		preview: ScopePreview;
@@ -15,9 +27,11 @@
 		onOptIn?: (stackId: string, path: string, on: boolean) => void;
 		/** Show the shutdown plan (affected containers). */
 		showShutdown?: boolean;
+		/** A stack's name by its ID (items carry only the ID). */
+		stackName?: (stackId: string) => string | undefined;
 	}
 
-	let { preview, optedIn, onOptIn, showShutdown = true }: Props = $props();
+	let { preview, optedIn, onOptIn, showShutdown = true, stackName }: Props = $props();
 
 	type Affected = Schema<'AffectedContainer'>;
 	const stopColumns: Column<Affected>[] = [
@@ -27,13 +41,44 @@
 		{ id: 'during', header: 'During the backup', cell: duringCell }
 	];
 
-	function title(i: ScopeItem): string {
-		return itemName({
-			kind: i.kind as 'stack' | 'volume',
-			stackName: i.item,
-			volume: i.volume,
-			item: i.item
-		});
+	const title = (i: ScopeItem) => scopeItemTitle(i, stackName);
+	const count = (n: number) => n.toLocaleString('en');
+
+	function size(i: {
+		estimatedBytes: number;
+		estimatedFiles: number;
+		estimateComplete: boolean;
+	}) {
+		const more = i.estimateComplete ? '' : '+';
+		return `≈ ${formatBytes(i.estimatedBytes)}${more} · ${count(i.estimatedFiles)}${more} files`;
+	}
+
+	function envTotals(items: ScopeItem[]) {
+		return {
+			estimatedBytes: items.reduce((n, i) => n + i.estimatedBytes, 0),
+			estimatedFiles: items.reduce((n, i) => n + i.estimatedFiles, 0),
+			estimateComplete: items.every((i) => i.estimateComplete)
+		};
+	}
+
+	const ERROR_TEXT: Record<string, string> = {
+		agent_offline: 'the agent is offline',
+		timeout: 'the agent did not answer in time (large folders take long to measure)'
+	};
+	const errorText = (c: string) => ERROR_TEXT[c] ?? c.replaceAll('_', ' ');
+
+	function sourceName(s: ScopeItem['sources'][number]): string {
+		return s.path || s.name || s.kind.replaceAll('_', ' ');
+	}
+
+	function sourceDetail(s: ScopeItem['sources'][number]): string {
+		const kind = s.kind.replaceAll('_', ' ');
+		return [
+			s.path && s.name ? `${kind} ${s.name}` : kind,
+			s.service ? `service ${s.service}` : ''
+		]
+			.filter(Boolean)
+			.join(', ');
 	}
 </script>
 
@@ -56,142 +101,230 @@
 {/snippet}
 
 <div class="scope">
-	{#each preview.warnings ?? [] as w (w)}<Notice tone="warn" title="Warning" live="none"
+	{#each preview.warnings ?? [] as w, i (i)}<Notice tone="warn" title="Warning" live="none"
 			>{w}</Notice
 		>{/each}
 
 	{#if preview.manager}
 		<section class="env">
-			<h3>Manager state</h3>
-			<p>
-				Database <span class="num">{formatBytes(preview.manager.databaseBytes)}</span>;
-				metrics {preview.manager.metricsIncluded
-					? `included (${formatBytes(preview.manager.metricsBytes)})`
-					: `excluded (${formatBytes(preview.manager.metricsBytes)} not backed up)`}.
-			</p>
-			{#each preview.manager.notes as n (n)}<p class="muted small">{n}</p>{/each}
+			<div class="env-head">
+				<h3>Manager state</h3>
+				<span class="muted small num">
+					Database {formatBytes(preview.manager.databaseBytes)} · metrics {preview.manager
+						.metricsIncluded
+						? `included (${formatBytes(preview.manager.metricsBytes)})`
+						: `not backed up (${formatBytes(preview.manager.metricsBytes)})`}
+				</span>
+			</div>
+			{#each preview.manager.notes as n, i (i)}<p class="muted small">{n}</p>{/each}
 		</section>
 	{/if}
 
 	{#each preview.environments as env (env.environmentId)}
+		{@const items = env.items ?? []}
 		<section class="env">
-			<h3>
-				{env.environmentName ?? 'Environment'}
-				{#if env.errorClass}<Badge tone="danger"
-						>Preview unavailable: {env.errorClass.replaceAll('_', ' ')}</Badge
-					>{/if}
-			</h3>
+			<div class="env-head">
+				<h3>{env.environmentName ?? 'Environment'}</h3>
+				{#if env.errorClass}
+					<Badge tone="danger">Preview unavailable: {errorText(env.errorClass)}</Badge>
+				{:else if items.length}
+					<span class="muted small num"
+						>{items.length}
+						{items.length === 1 ? 'item' : 'items'} · {size(envTotals(items))}</span
+					>
+				{/if}
+			</div>
 			{#if showShutdown && preview.shutdown && env.downtime}
 				<Notice tone="warn" title="Downtime during backups" live="none"
 					>{env.downtime}</Notice
 				>
 			{/if}
-			{#each env.items ?? [] as item (item.item + (item.volume ?? ''))}
-				<div class="item">
-					<div class="item-head">
-						<strong>{title(item)}</strong>
-						<Badge>{item.kind === 'stack' ? 'Stack' : 'Volume'}</Badge>
-						<span class="muted num">
-							≈ {formatBytes(item.estimatedBytes)}, {item.estimatedFiles} files{item.estimateComplete
-								? ''
-								: ' or more'}
-						</span>
-					</div>
-					{#if item.error}<p class="danger small">{item.error}</p>{/if}
-					<ul class="sources" role="list">
-						{#each item.sources as s (s.kind + s.path)}
-							{@const st = sourceState(s.state)}
-							<li>
-								<Badge tone={st.tone} dot>{st.label}</Badge>
-								<span class="mono path">{s.path}</span>
-								<span class="muted small">
-									{s.kind.replaceAll('_', ' ')}{s.name
-										? ` ${s.name}`
-										: ''}{s.service ? `, service ${s.service}` : ''}
-								</span>
-								{#if s.reason}<span class="muted small">— {s.reason}</span>{/if}
-								{#if s.state === 'requires_opt_in' && onOptIn && item.stackId}
-									<Checkbox
-										label="Include this path"
-										checked={optedIn?.(item.stackId, s.path) ?? false}
-										onchange={(e) =>
-											onOptIn(item.stackId!, s.path, e.currentTarget.checked)}
-									/>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-					{#if item.excludes?.length}
-						<p class="muted small">
-							Excluded paths: <span class="mono">{item.excludes.join(', ')}</span>
-						</p>
-					{/if}
-					{#each item.warnings ?? [] as w (w)}<p class="warn small">{w}</p>{/each}
-					{#each item.conflicts ?? [] as c (c)}<p class="danger small">{c}</p>{/each}
-					{#if showShutdown && preview.shutdown && item.affectedContainers?.length}
-						<Table
-							label="Containers stopped for {title(item)}"
-							rows={[...item.affectedContainers].sort(
-								(a, b) => (a.stopOrder || 99) - (b.stopOrder || 99)
-							)}
-							columns={stopColumns}
-							rowKey={(c) => c.name}
-							manualSort
-						/>
-					{/if}
-				</div>
-			{:else}
-				{#if !env.errorClass}<p class="muted">Nothing selected on this environment.</p>{/if}
-			{/each}
+			{#if items.length}
+				<ul class="items" role="list">
+					{#each items as item, i (i)}
+						{@const sources = scopeSources(item.sources)}
+						<li>
+							<details class="item" open={scopeNeedsAttention(item)}>
+								<summary>
+									<ChevronRight size={14} aria-hidden="true" class="chev" />
+									<span class="name">{title(item)}</span>
+									<Badge>{item.kind === 'stack' ? 'Stack' : 'Volume'}</Badge>
+									<span class="counts">
+										{#each scopeCounts(item.sources) as c (c.state)}
+											{@const st = sourceState(c.state)}
+											<Badge tone={st.tone} dot
+												>{c.count} {st.label.toLowerCase()}</Badge
+											>
+										{/each}
+									</span>
+									<span class="size muted small num">{size(item)}</span>
+								</summary>
+								<div class="body">
+									{#if item.error}<p class="danger small">{item.error}</p>{/if}
+									<ul class="sources" role="list">
+										{#each sources as s, j (j)}
+											{@const st = sourceState(s.state)}
+											<li>
+												<Badge tone={st.tone} dot>{st.label}</Badge>
+												<span class="mono path">{sourceName(s)}</span>
+												<span class="muted small">{sourceDetail(s)}</span>
+												{#if s.reason}<span class="muted small"
+														>— {s.reason}</span
+													>{/if}
+												{#if s.state === 'requires_opt_in' && onOptIn && item.stackId}
+													<Checkbox
+														label="Include this path"
+														checked={optedIn?.(item.stackId, s.path) ??
+															false}
+														onchange={(e) =>
+															onOptIn(
+																item.stackId!,
+																s.path,
+																e.currentTarget.checked
+															)}
+													/>
+												{/if}
+											</li>
+										{/each}
+									</ul>
+									{#if item.excludes?.length}
+										<p class="muted small">
+											Excluded paths: <span class="mono"
+												>{item.excludes.join(', ')}</span
+											>
+										</p>
+									{/if}
+									{#each item.warnings ?? [] as w, j (j)}<p class="warn small">
+											{w}
+										</p>{/each}
+									{#each item.conflicts ?? [] as c, j (j)}<p class="danger small">
+											{c}
+										</p>{/each}
+									{#if showShutdown && preview.shutdown && item.affectedContainers?.length}
+										<Table
+											label="Containers stopped for {title(item)}"
+											rows={[...item.affectedContainers].sort(
+												(a, b) => (a.stopOrder || 99) - (b.stopOrder || 99)
+											)}
+											columns={stopColumns}
+											rowKey={(c) => c.name}
+											manualSort
+										/>
+									{/if}
+								</div>
+							</details>
+						</li>
+					{/each}
+				</ul>
+			{:else if !env.errorClass}
+				<p class="muted small">Nothing selected on this environment.</p>
+			{/if}
 		</section>
+	{:else}
+		{#if !preview.manager}
+			<p class="muted small">Nothing to back up with this selection.</p>
+		{/if}
 	{/each}
 </div>
 
 <style>
 	.scope {
 		display: grid;
-		gap: var(--space-4);
+		gap: var(--space-5);
+		min-width: 0;
 	}
 
 	.env {
 		display: grid;
-		gap: var(--space-3);
+		gap: var(--space-2);
+		min-width: 0;
+	}
+
+	.env-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-1) var(--space-3);
 	}
 
 	h3 {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2);
 		font-size: var(--text-control);
 		color: var(--text-strong);
 	}
 
-	.item {
+	.items {
 		display: grid;
-		gap: var(--space-2);
-		padding: var(--space-3);
+		margin: 0;
+		padding: 0;
+		list-style: none;
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-md);
 		background: var(--surface-raised);
-		min-width: 0;
 	}
 
-	.item-head,
-	.sources li {
+	.items > li + li {
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	summary {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-1) var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		list-style: none;
+		cursor: pointer;
 	}
 
-	.item-head strong {
+	summary::-webkit-details-marker {
+		display: none;
+	}
+
+	summary :global(.chev) {
+		flex: none;
+		color: var(--text-muted);
+		transition: transform var(--duration-fast) var(--ease-out);
+	}
+
+	details[open] > summary :global(.chev) {
+		transform: rotate(90deg);
+	}
+
+	.name {
 		color: var(--text-strong);
+		font-weight: var(--weight-medium);
+	}
+
+	.counts {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+	}
+
+	.size {
+		margin-left: auto;
+	}
+
+	.body {
+		display: grid;
+		gap: var(--space-2);
+		padding: 0 var(--space-3) var(--space-3) calc(var(--space-3) + 14px + var(--space-2));
+		min-width: 0;
 	}
 
 	.sources {
 		display: grid;
 		gap: var(--space-1);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.sources li {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1) var(--space-2);
 	}
 
 	.path {

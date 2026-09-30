@@ -318,8 +318,11 @@
 				`${overlapping.name} already covers ${overlapping.scope === 'all' ? 'all environments' : envName(overlapping.environmentId ?? '')}: policies can't overlap. Edit that policy, or choose another environment.`
 			);
 		}
-		if (step.id === 'scope' && shutdown && (!scope?.shutdown || scopeStale))
+		if (step.id === 'scope' && shutdown && (!scope?.shutdown || scopeStale)) {
 			await previewScope();
+			// Stay on the step: the error shows where the preview was asked for.
+			if (scopeError) throw new Error(scopeError);
+		}
 	}
 
 	async function finish() {
@@ -606,7 +609,14 @@
 				</Notice>
 			{/if}
 			<div class:stale={scopeStale}>
-				<ScopePreviewView preview={scope} showShutdown={shutdown && !scopeStale} />
+				<ScopePreviewView
+					preview={scope}
+					showShutdown={shutdown && !scopeStale}
+					stackName={(id) => {
+						const s = stacks.data?.find((x) => x.id === id);
+						return s?.displayName || s?.name;
+					}}
+				/>
 			</div>
 		{/if}
 	</Fields>

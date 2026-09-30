@@ -306,6 +306,53 @@ export function sourceState(s: string): Presentation {
 	return SOURCE_STATE[s] ?? { tone: 'neutral', label: s.replaceAll('_', ' ') };
 }
 
+type ScopeSourceOf = ScopeItem['sources'][number];
+
+/**
+ * An item's sources without repeats (the agent lists a bind two services
+ * mount, or several volumes without a path, more than once), the ones that
+ * need attention first (needs opt-in, blocked, missing), then included,
+ * then left out.
+ */
+export function scopeSources(sources: ScopeSourceOf[]): ScopeSourceOf[] {
+	const seen = new Set<string>();
+	const out: ScopeSourceOf[] = [];
+	for (const s of sources) {
+		const key = JSON.stringify([s.kind, s.path, s.name, s.service, s.state, s.reason]);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(s);
+	}
+	const rank = (st: string) => (st === 'included' ? 1 : st === 'excluded' ? 2 : 0);
+	return out.sort((a, b) => rank(a.state) - rank(b.state));
+}
+
+/** How many of an item's (distinct) sources are in each state. */
+export function scopeCounts(sources: ScopeSourceOf[]): { state: string; count: number }[] {
+	const counts = new Map<string, number>();
+	for (const s of scopeSources(sources)) counts.set(s.state, (counts.get(s.state) ?? 0) + 1);
+	return [...counts].map(([state, count]) => ({ state, count }));
+}
+
+/** An item whose details should be open: something needs the user. */
+export function scopeNeedsAttention(item: ScopeItem): boolean {
+	return (
+		!!item.error ||
+		!!item.conflicts?.length ||
+		item.sources.some((s) => s.state !== 'included' && s.state !== 'excluded')
+	);
+}
+
+/** An item's name: the stack's name (never its ID) or the volume. */
+export function scopeItemTitle(
+	item: ScopeItem,
+	stackName?: (id: string) => string | undefined
+): string {
+	if (item.kind === 'stack')
+		return (item.stackId && stackName?.(item.stackId)) || item.item.replace(/^stack\//, '');
+	return item.volume || item.item.replace(/^volume\//, '');
+}
+
 /** Server phrases as sentences: first letter upper case. */
 export function sentenceCase(s: string): string {
 	return s ? s[0].toUpperCase() + s.slice(1) : s;
