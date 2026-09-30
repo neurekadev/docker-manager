@@ -44,8 +44,6 @@ volumes:
   cache: {}
   shared:
     external: true
-    labels:
-      docker-manager.backup.exclude: "true"
   fresh:
     labels:
       docker-manager.maintenance.exclude: "true"
@@ -58,7 +56,8 @@ volumes:
 	e.eng.volumes = []engine.Volume{
 		{Name: "media_data", CreatedAt: created, Labels: map[string]string{protocol.ComposeProjectLabel: "media"}},
 		{Name: "media_cache", CreatedAt: created},
-		{Name: "shared", CreatedAt: created},
+		// External: Compose manages none of its labels (it refuses labels on it).
+		{Name: "shared", CreatedAt: created, Labels: map[string]string{protocol.LabelBackupExclude: "false"}},
 	}
 	store := volumelabels.New(t.TempDir())
 	e.svc.opts.VolumeLabels = store
