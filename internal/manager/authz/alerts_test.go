@@ -48,8 +48,10 @@ func TestAlertVisibilityFollowsTheSource(t *testing.T) {
 			[5]bool{false, false, false, true, false}, [5]bool{false, false, false, true, false}, true},
 		{"update policy read", authztest.Only("u", "allow update_policy.read @update_policy:p1", "allow alert.dismiss @update_policy:p1"),
 			[5]bool{false, false, false, false, true}, [5]bool{false, false, false, false, true}, true},
-		{"update policy read through the stack", authztest.Only("u", "allow update_policy.read @stack:s1"),
-			[5]bool{false, false, false, false, true}, [5]bool{}, true},
+		// update_policy.read is granted on policies only; checking for
+		// updates of the stack does not show the policy's alerts.
+		{"update check on the stack without read", authztest.Only("u", "allow update.check @stack:s1"),
+			[5]bool{}, [5]bool{}, true},
 		{"dismiss without seeing", authztest.Only("u", "allow alert.dismiss @stack:s9"),
 			[5]bool{}, [5]bool{}, true},
 		{"owner", authztest.New().Owner("u"), [5]bool{true, true, true, true, true}, [5]bool{true, true, true, true, true}, false},
