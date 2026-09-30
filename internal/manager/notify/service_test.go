@@ -61,6 +61,8 @@ type hook struct {
 	bodies []string
 	paths  []string
 	block  chan struct{}
+	// during runs while a request is answered (before the status).
+	during func()
 }
 
 func newHook(t *testing.T) *hook {
@@ -70,8 +72,11 @@ func newHook(t *testing.T) *hook {
 		h.mu.Lock()
 		h.bodies = append(h.bodies, string(b))
 		h.paths = append(h.paths, r.URL.Path)
-		status := h.status
+		status, during := h.status, h.during
 		h.mu.Unlock()
+		if during != nil {
+			during()
+		}
 		switch status {
 		case 0: // hang until the client gives up
 			select {
@@ -90,6 +95,12 @@ func newHook(t *testing.T) *hook {
 		h.srv.Close()
 	})
 	return h
+}
+
+func (h *hook) onRequest(f func()) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.during = f
 }
 
 func (h *hook) answer(status int) {
@@ -194,14 +205,15 @@ func (f *fixture) create(in domain.NotificationChannelInput) domain.Notification
 }
 
 func (f *fixture) channel(name string) domain.NotificationChannel {
-	return f.create(domain.NotificationChannelInput{Name: name, Address: f.address(name + " webhook"), Enabled: true, SendResolved: true})
+	return f.create(domain.NotificationChannelInput{Name: name, Address: f.address(name + " webhook"), Enabled: true, SendResolved: true,
+		AllEnvironments: true})
 }
 
 func TestCreateSealsTheAddressAndReturnsMetadataOnly(t *testing.T) {
 	f := newFixture(t, 0)
 	c := f.channel("Ops webhook")
 	if c.Service != "generic" || c.Target != "127.0.0.1" || !c.Enabled || !c.SendResolved || c.AddressVersion != 1 ||
-		!strings.HasPrefix(c.AddressFingerprint, "fp_") || c.Revision != 1 || c.LastResult != "" || len(c.EnvironmentIDs) != 0 {
+		!strings.HasPrefix(c.AddressFingerprint, "fp_") || c.Revision != 1 || c.LastResult != "" || !c.AllEnvironments || len(c.EnvironmentIDs) != 0 {
 		t.Fatalf("%+v", c)
 	}
 	// No event kinds given: every kind.
@@ -234,7 +246,7 @@ func TestCreateSealsTheAddressAndReturnsMetadataOnly(t *testing.T) {
 func TestRevealReturnsTheAddressToTheOwnerWithStepUp(t *testing.T) {
 	f := newFixture(t, 0)
 	addr := f.address("revealed webhook")
-	c := f.create(domain.NotificationChannelInput{Name: "Reveal", Address: addr, Enabled: true})
+	c := f.create(domain.NotificationChannelInput{Name: "Reveal", Address: addr, Enabled: true, AllEnvironments: true})
 	got, err := f.svc.Reveal(f.ctx, c.ID)
 	if err != nil || got != addr {
 		t.Fatalf("reveal: %v (matches %v)", err, got == addr)
@@ -309,6 +321,9 @@ func TestValidation(t *testing.T) {
 		"unknown kind":      {domain.NotificationChannelInput{Name: "x", Address: ok, EventKinds: []domain.NotificationEventKind{"weather"}}, "eventKinds"},
 		"no kinds":          {domain.NotificationChannelInput{Name: "x", Address: ok, EventKinds: []domain.NotificationEventKind{}}, "eventKinds"},
 		"unknown env":       {domain.NotificationChannelInput{Name: "x", Address: ok, EnvironmentIDs: []string{"env-9"}}, "environmentIds"},
+		// Every environment is a choice, never an empty list.
+		"no environments": {domain.NotificationChannelInput{Name: "x", Address: ok}, "environmentIds"},
+		"all and a list":  {domain.NotificationChannelInput{Name: "x", Address: ok, AllEnvironments: true, EnvironmentIDs: []string{"env-1"}}, "environmentIds"},
 	}
 	for name, c := range cases {
 		_, err := f.svc.Create(f.ctx, c.in)
@@ -322,7 +337,7 @@ func TestValidation(t *testing.T) {
 			t.Errorf("%s: the error repeats the address: %v", name, err)
 		}
 	}
-	if _, err := f.svc.Create(f.ctx, domain.NotificationChannelInput{Name: " taken ", Address: ok}); !errors.Is(err, domain.ErrNotificationChannelNameTaken) {
+	if _, err := f.svc.Create(f.ctx, domain.NotificationChannelInput{Name: " taken ", Address: ok, AllEnvironments: true}); !errors.Is(err, domain.ErrNotificationChannelNameTaken) {
 		t.Fatalf("taken name: %v", err)
 	}
 }
@@ -337,17 +352,102 @@ func TestCreateStoresTheSubscription(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Enabled || got.SendResolved || len(got.EventKinds) != 2 || got.EventKinds[0] != domain.NotifyDiskHealth ||
-		got.EventKinds[1] != domain.NotifyRAID || strings.Join(got.EnvironmentIDs, ",") != "env-1,env-2" {
+		got.EventKinds[1] != domain.NotifyRAID || got.AllEnvironments || strings.Join(got.EnvironmentIDs, ",") != "env-1,env-2" {
 		t.Fatalf("%+v", got)
 	}
-	// Clearing the environment filter means every environment again.
-	none := []string{}
-	next, err := f.svc.Update(f.ctx, c.ID, c.Revision, domain.NotificationChannelPatch{EnvironmentIDs: &none})
-	if err != nil || len(next.EnvironmentIDs) != 0 {
+	// An emptied list is refused: it never means every environment.
+	var fe *domain.FieldError
+	none, no, yes := []string{}, false, true
+	for name, p := range map[string]domain.NotificationChannelPatch{
+		"empty list":          {EnvironmentIDs: &none},
+		"restricted, no list": {AllEnvironments: &no, EnvironmentIDs: &none},
+	} {
+		if _, err := f.svc.Update(f.ctx, c.ID, c.Revision, p); !errors.As(err, &fe) || fe.Field != "environmentIds" {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	// Every environment is chosen explicitly (and clears the list).
+	next, err := f.svc.Update(f.ctx, c.ID, c.Revision, domain.NotificationChannelPatch{AllEnvironments: &yes})
+	if err != nil || !next.AllEnvironments || len(next.EnvironmentIDs) != 0 {
 		t.Fatalf("%+v %v", next, err)
 	}
-	if got, _ := f.svc.Get(f.ctx, c.ID); len(got.EnvironmentIDs) != 0 {
-		t.Fatalf("stored filter %v", got.EnvironmentIDs)
+	if got, _ := f.svc.Get(f.ctx, c.ID); !got.AllEnvironments || len(got.EnvironmentIDs) != 0 {
+		t.Fatalf("stored %+v", got)
+	}
+	// Listing environments restricts it again.
+	one := []string{"env-2"}
+	next, err = f.svc.Update(f.ctx, c.ID, next.Revision, domain.NotificationChannelPatch{EnvironmentIDs: &one})
+	if err != nil || next.AllEnvironments || strings.Join(next.EnvironmentIDs, ",") != "env-2" {
+		t.Fatalf("%+v %v", next, err)
+	}
+}
+
+func TestArchivedEnvironmentsStayInAFilterButAreNeverAdded(t *testing.T) {
+	f := newFixture(t, 0)
+	c := f.create(domain.NotificationChannelInput{Name: "Prod", Address: f.address("prod webhook"), Enabled: true,
+		EnvironmentIDs: []string{"env-2"}})
+	env, err := store.GetEnvironment(f.ctx, f.db, "env-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Status = domain.EnvironmentArchived
+	if err := store.UpdateEnvironment(f.ctx, f.db, &env, 0); err != nil {
+		t.Fatal(err)
+	}
+	// Saving the dialog again (same list, new name) keeps the archived one:
+	// the channel does not widen to every environment.
+	name, same := "Prod team", []string{"env-2"}
+	next, err := f.svc.Update(f.ctx, c.ID, c.Revision, domain.NotificationChannelPatch{Name: &name, EnvironmentIDs: &same})
+	if err != nil || next.AllEnvironments || strings.Join(next.EnvironmentIDs, ",") != "env-2" {
+		t.Fatalf("%+v %v", next, err)
+	}
+	if next.Wants(domain.NotifyJobFailed, "env-1") {
+		t.Fatal("a channel for an archived environment receives other environments' events")
+	}
+	// An archived environment is never added to another filter.
+	other := f.create(domain.NotificationChannelInput{Name: "Lab", Address: f.address("lab webhook"), Enabled: true,
+		EnvironmentIDs: []string{"env-1"}})
+	add := []string{"env-1", "env-2"}
+	var fe *domain.FieldError
+	if _, err := f.svc.Update(f.ctx, other.ID, other.Revision, domain.NotificationChannelPatch{EnvironmentIDs: &add}); !errors.As(err, &fe) ||
+		fe.Field != "environmentIds" {
+		t.Fatalf("adding an archived environment: %v", err)
+	}
+	if _, err := f.svc.Create(f.ctx, domain.NotificationChannelInput{Name: "New", Address: f.address("new webhook"),
+		EnvironmentIDs: []string{"env-2"}}); !errors.As(err, &fe) {
+		t.Fatalf("creating with an archived environment: %v", err)
+	}
+}
+
+// A test reads the channel and its address together: when the address is
+// replaced while the message is on its way, the message went to the
+// address that was read and its result is not recorded for the new one.
+func TestResultOfAReplacedAddressIsNotRecorded(t *testing.T) {
+	f := newFixture(t, 0)
+	c := f.channel("Ops")
+	replacement := f.address("replacement webhook")
+	var replaced domain.NotificationChannel
+	f.hook.onRequest(func() {
+		f.hook.onRequest(nil)
+		var err error
+		if replaced, err = f.svc.Update(f.ctx, c.ID, c.Revision, domain.NotificationChannelPatch{Address: &replacement}); err != nil {
+			t.Errorf("replace: %v", err)
+		}
+	})
+	res, err := f.svc.Test(f.ctx, c.ID)
+	if err != nil || !res.OK {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if replaced.AddressVersion != 2 {
+		t.Fatalf("replaced %+v", replaced)
+	}
+	_, paths := f.hook.received()
+	if len(paths) != 1 || strings.Contains(replacement, paths[0]) {
+		t.Fatalf("sent to %q", paths)
+	}
+	got, err := f.svc.Get(f.ctx, c.ID)
+	if err != nil || got.AddressVersion != 2 || got.LastResult != "" || got.LastAttemptAt != nil || got.LastSuccessAt != nil {
+		t.Fatalf("the new address got the old address's result: %+v %v", got, err)
 	}
 }
 
@@ -464,7 +564,7 @@ func TestSendCannotConnect(t *testing.T) {
 	token := f.secrets.New(canary.NotificationURL, "closed webhook")
 	addr := "generic+" + closed.URL + "/hook/" + token
 	closed.Close()
-	c := f.create(domain.NotificationChannelInput{Name: "Gone", Address: addr, Enabled: true})
+	c := f.create(domain.NotificationChannelInput{Name: "Gone", Address: addr, Enabled: true, AllEnvironments: true})
 	res, err := f.svc.Send(f.ctx, c.ID, domain.NotificationMessage{Body: "hello"})
 	if err != nil || res.OK || res.ErrorClass != domain.NotifyErrConnect {
 		t.Fatalf("%+v %v", res, err)
@@ -502,13 +602,18 @@ func TestTestsAreRateLimitedPerChannel(t *testing.T) {
 }
 
 func TestWants(t *testing.T) {
-	c := domain.NotificationChannel{Enabled: true, EventKinds: []domain.NotificationEventKind{domain.NotifyJobFailed}}
+	c := domain.NotificationChannel{Enabled: true, AllEnvironments: true, EventKinds: []domain.NotificationEventKind{domain.NotifyJobFailed}}
 	if !c.Wants(domain.NotifyJobFailed, "env-1") || c.Wants(domain.NotifyRAID, "env-1") {
 		t.Fatal("kinds")
 	}
-	c.EnvironmentIDs = []string{"env-2"}
+	c.AllEnvironments, c.EnvironmentIDs = false, []string{"env-2"}
 	if c.Wants(domain.NotifyJobFailed, "env-1") || !c.Wants(domain.NotifyJobFailed, "env-2") || !c.Wants(domain.NotifyJobFailed, "") {
 		t.Fatal("environments")
+	}
+	// A filter whose environments are all gone sends no environment's events.
+	c.EnvironmentIDs = nil
+	if c.Wants(domain.NotifyJobFailed, "env-2") {
+		t.Fatal("an emptied filter widened to every environment")
 	}
 	c.Enabled = false
 	if c.Wants(domain.NotifyJobFailed, "env-2") {

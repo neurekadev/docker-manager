@@ -56,6 +56,7 @@
 	let enabled = $state(true);
 	let kinds = $state<EventKind[]>([...ALL_KINDS]);
 	let sendResolved = $state(true);
+	/** "All environments" is an explicit choice, never an empty selection. */
 	let envMode = $state<'all' | 'some'>('all');
 	let envIds = $state<string[]>([]);
 
@@ -80,7 +81,7 @@
 			kinds = c ? [...c.eventKinds] : [...ALL_KINDS];
 			sendResolved = c?.sendResolved ?? true;
 			envIds = c ? [...c.environmentIds] : [];
-			envMode = envIds.length ? 'some' : 'all';
+			envMode = !c || c.allEnvironments ? 'all' : 'some';
 			revealed = null;
 			replacing = false;
 			revealing = false;
@@ -93,7 +94,23 @@
 
 	const editing = $derived(!!channel);
 	/** The environment picker: only with a choice (or a filter to keep). */
-	const showEnvs = $derived(activeEnvs.length > 1 || envIds.length > 0);
+	const showEnvs = $derived(activeEnvs.length > 1 || envMode === 'some');
+	/**
+	 * The environments to tick: the active ones, then every one the channel
+	 * lists or listed that is archived or gone, so a filter is never dropped
+	 * without the owner seeing it (the manager keeps them; it never widens a
+	 * filter to every environment).
+	 */
+	const envChoices = $derived.by(() => {
+		const out = activeEnvs.map((e) => ({ id: e.id, label: e.name }));
+		const listed = [...(channel?.environmentIds ?? []), ...envIds];
+		for (const id of listed) {
+			if (out.some((c) => c.id === id)) continue;
+			const known = envs.data?.find((e) => e.id === id);
+			out.push({ id, label: known ? `${known.name} (archived)` : 'Removed environment' });
+		}
+		return out;
+	});
 	/** The address fields are shown (adding, shown again, or replaced). */
 	const fieldsShown = $derived(!!service && (!editing || revealed !== null || replacing));
 	const spec = $derived(service ? serviceSpec(service) : null);
@@ -184,13 +201,10 @@
 		failure = null;
 		if (!ready || (!editing && !url) || (editing && replacing && !url)) return;
 		busy = true;
-		// Environments archived meanwhile are no longer offered (or accepted).
-		const environmentIds =
-			envMode === 'all' || !showEnvs
-				? []
-				: envs.data
-					? envIds.filter((id) => activeEnvs.some((e) => e.id === id))
-					: envIds;
+		// Sent as chosen: every environment explicitly, or the ticked ones
+		// (archived ones included; the manager keeps them).
+		const allEnvironments = envMode === 'all';
+		const environmentIds = allEnvironments ? [] : envIds;
 		try {
 			if (!channel) {
 				const created = await withStepUp(() =>
@@ -200,6 +214,7 @@
 						enabled,
 						eventKinds: kinds,
 						sendResolved,
+						allEnvironments,
 						environmentIds
 					})
 				);
@@ -216,6 +231,7 @@
 					enabled,
 					eventKinds: kinds,
 					sendResolved,
+					allEnvironments,
 					environmentIds,
 					address: newAddress
 				};
@@ -369,9 +385,9 @@
 						aria-describedby={envError ? 'channel-envs-error' : undefined}
 					>
 						<legend class="sr-only">Environments to send about</legend>
-						{#each activeEnvs as e (e.id)}
+						{#each envChoices as e (e.id)}
 							<Checkbox
-								label={e.name}
+								label={e.label}
 								checked={envIds.includes(e.id)}
 								onchange={(ev) => toggleEnv(e.id, ev.currentTarget.checked)}
 							/>

@@ -81,9 +81,12 @@ type NotificationChannel struct {
 	EventKinds []NotificationEventKind
 	// SendResolved also sends a message when a problem is resolved.
 	SendResolved bool
-	// EnvironmentIDs limits the channel to these environments; empty means
-	// every environment, including future ones.
-	EnvironmentIDs []string
+	// AllEnvironments sends events of every environment, including future
+	// ones (EnvironmentIDs is then empty). Otherwise only events of
+	// EnvironmentIDs are sent; an empty list (its environments were all
+	// removed) sends none: a filter never widens to every environment.
+	AllEnvironments bool
+	EnvironmentIDs  []string
 	// AddressFingerprint is a keyed fingerprint of the address (changes
 	// with it, never reveals it); AddressVersion increases with every
 	// address change.
@@ -101,7 +104,8 @@ type NotificationChannel struct {
 
 // Wants reports whether the channel sends events of kind about the
 // environment (an empty environmentID: an event of no environment): it is
-// enabled, subscribed to the kind, and not limited to other environments.
+// enabled, subscribed to the kind, and sends every environment's events or
+// lists this one.
 func (c NotificationChannel) Wants(kind NotificationEventKind, environmentID string) bool {
 	if !c.Enabled {
 		return false
@@ -116,7 +120,7 @@ func (c NotificationChannel) Wants(kind NotificationEventKind, environmentID str
 	if !subscribed {
 		return false
 	}
-	if len(c.EnvironmentIDs) == 0 || environmentID == "" {
+	if c.AllEnvironments || environmentID == "" {
 		return true
 	}
 	for _, id := range c.EnvironmentIDs {
@@ -134,18 +138,24 @@ type NotificationChannelInput struct {
 	Address string
 	Enabled bool
 	// EventKinds nil means every kind.
-	EventKinds     []NotificationEventKind
-	SendResolved   bool
-	EnvironmentIDs []string
+	EventKinds   []NotificationEventKind
+	SendResolved bool
+	// AllEnvironments or at least one of EnvironmentIDs (an explicit
+	// choice, never inferred from an empty list).
+	AllEnvironments bool
+	EnvironmentIDs  []string
 }
 
 // NotificationChannelPatch edits a channel; nil fields stay unchanged.
 type NotificationChannelPatch struct {
-	Name           *string
-	Enabled        *bool
-	EventKinds     *[]NotificationEventKind
-	SendResolved   *bool
-	EnvironmentIDs *[]string
+	Name         *string
+	Enabled      *bool
+	EventKinds   *[]NotificationEventKind
+	SendResolved *bool
+	// AllEnvironments true clears EnvironmentIDs; false needs at least one
+	// environment (given, or already in the filter).
+	AllEnvironments *bool
+	EnvironmentIDs  *[]string
 	// Address replaces the address (re-sealed, version bumped).
 	Address *string
 }

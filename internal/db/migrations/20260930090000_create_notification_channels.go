@@ -10,9 +10,12 @@ func init() {
 	//     (a mail or push server's host) or '';
 	//   - event_kinds is a JSON array of subscribed event kinds (never
 	//     empty); send_resolved also sends resolved problems;
+	//   - all_environments sends every environment's events (future ones
+	//     too); otherwise only those of notification_channel_environments,
+	//     and none once its rows are gone (a filter never widens);
 	//   - last_result is '' (never sent), 'ok' or a send error class;
-	//   - notification_channel_environments limits a channel to some
-	//     environments; no rows means every environment, future ones too.
+	//   - notification_channel_environments lists the environments of a
+	//     channel that does not send every environment's events.
 	Migrations.MustRegister(
 		Tx(Exec(
 			`CREATE TABLE notification_channels (
@@ -25,6 +28,7 @@ func init() {
 				event_kinds         TEXT    NOT NULL CHECK (json_valid(event_kinds) AND json_type(event_kinds) = 'array'
 				                                            AND json_array_length(event_kinds) >= 1),
 				send_resolved       INTEGER NOT NULL DEFAULT 1 CHECK (send_resolved IN (0, 1)),
+				all_environments    INTEGER NOT NULL DEFAULT 1 CHECK (all_environments IN (0, 1)),
 				secret_sealed       TEXT    NOT NULL CHECK (secret_sealed <> ''),
 				secret_fingerprint  TEXT    NOT NULL,
 				secret_version      INTEGER NOT NULL CHECK (secret_version >= 1),

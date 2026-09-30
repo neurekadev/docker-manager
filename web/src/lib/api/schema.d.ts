@@ -3321,7 +3321,7 @@ export interface paths {
         put?: never;
         /**
          * Add a notification channel
-         * @description Stores a destination by its Shoutrrr URL, sealed with the manager's secret-protection key. The address is checked without sending anything (422 body.address). Defaults: enabled, every event kind, every environment, resolved problems sent too. 409 notification_channel_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Stores a destination by its Shoutrrr URL, sealed with the manager's secret-protection key. The address is checked without sending anything (422 body.address). Defaults: enabled, every event kind, every environment (without environmentIds), resolved problems sent too. 409 notification_channel_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-notification-channel"];
         delete?: never;
@@ -7263,9 +7263,11 @@ export interface components {
              * @example discord://token@webhookid
              */
             address: string;
+            /** @description For every environment, including future ones. Default: true without environmentIds, false with them; false needs at least one environment. */
+            allEnvironments?: boolean;
             /** @default true */
             enabled: boolean;
-            /** @description Default (empty): every environment, including future ones. */
+            /** @description Active environments the channel is for (with allEnvironments false). */
             environmentIds?: string[];
             /** @description Default: every kind. */
             eventKinds?: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
@@ -9671,10 +9673,12 @@ export interface components {
         };
         NotificationChannel: {
             address: components["schemas"]["NotificationAddress"];
+            /** @description Sends events of every environment, including future ones. Otherwise only those of environmentIds (none once they are all removed: a filter never widens). */
+            allEnvironments: boolean;
             /** Format: date-time */
             createdAt: string;
             enabled: boolean;
-            /** @description Limits the channel to these environments; empty means every environment, including future ones. */
+            /** @description The environments of a channel that is not for every environment (empty when allEnvironments is true). */
             environmentIds: string[];
             /** @description The kinds of events the channel sends. */
             eventKinds: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
@@ -12656,8 +12660,10 @@ export interface components {
         UpdateNotificationChannelInputBody: {
             /** @description A new Shoutrrr URL (needs a recent step-up; resets the last result). */
             address?: string;
+            /** @description true: every environment (clears environmentIds); false: only environmentIds (given, or the current ones). */
+            allEnvironments?: boolean;
             enabled?: boolean;
-            /** @description Replaces the environment filter; an empty list means every environment. */
+            /** @description Replaces the environment list (restricting the channel). An empty list is refused unless allEnvironments is true: it never means every environment. Environments archived since may stay; new ones must be active. */
             environmentIds?: string[];
             /** @description Replaces the kinds (at least one). */
             eventKinds?: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
@@ -38474,6 +38480,7 @@ export interface operations {
                      *             "updatedAt": "2026-09-25T12:00:00Z",
                      *             "version": 1
                      *           },
+                     *           "allEnvironments": false,
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "enabled": false,
                      *           "environmentIds": [
@@ -38572,6 +38579,7 @@ export interface operations {
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "version": 1
                      *       },
+                     *       "allEnvironments": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentIds": [
@@ -38668,6 +38676,7 @@ export interface operations {
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "version": 1
                      *       },
+                     *       "allEnvironments": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentIds": [
@@ -38863,6 +38872,7 @@ export interface operations {
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "version": 1
                      *       },
+                     *       "allEnvironments": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentIds": [

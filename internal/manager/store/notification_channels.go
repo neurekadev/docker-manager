@@ -16,7 +16,9 @@ import (
 
 // Notification channel persistence (#142). The sealed address never leaves
 // this package inside a domain value: it is written with the channel and
-// read only through NotificationChannelSecret.
+// read only through NotificationChannelWithSecret, which returns it beside
+// the channel it belongs to (one row read, so a send never pairs an address
+// with another address's service, name or version).
 
 type notificationChannelRow struct {
 	bun.BaseModel `bun:"table:notification_channels"`
@@ -29,6 +31,7 @@ type notificationChannelRow struct {
 	Enabled           int        `bun:"enabled,notnull"`
 	EventKinds        string     `bun:"event_kinds,notnull"`
 	SendResolved      int        `bun:"send_resolved,notnull"`
+	AllEnvironments   int        `bun:"all_environments,notnull"`
 	SecretSealed      string     `bun:"secret_sealed,notnull"`
 	SecretFingerprint string     `bun:"secret_fingerprint,notnull"`
 	SecretVersion     int        `bun:"secret_version,notnull"`
@@ -55,7 +58,7 @@ func fromNotificationChannel(c *domain.NotificationChannel, sealed string) (noti
 	}
 	return notificationChannelRow{
 		ID: c.ID, Name: c.Name, NameKey: NameKey(c.Name), Service: c.Service, Target: c.Target, Enabled: b2i(c.Enabled),
-		EventKinds: string(kinds), SendResolved: b2i(c.SendResolved), SecretSealed: sealed, SecretFingerprint: c.AddressFingerprint,
+		EventKinds: string(kinds), SendResolved: b2i(c.SendResolved), AllEnvironments: b2i(c.AllEnvironments), SecretSealed: sealed, SecretFingerprint: c.AddressFingerprint,
 		SecretVersion: c.AddressVersion, SecretUpdatedAt: c.AddressUpdatedAt.UTC(), LastResult: c.LastResult,
 		LastAttemptAt: utcPtr(c.LastAttemptAt), LastSuccessAt: utcPtr(c.LastSuccessAt), Revision: c.Revision,
 		CreatedAt: c.CreatedAt.UTC(), UpdatedAt: c.UpdatedAt.UTC(),
@@ -69,8 +72,9 @@ func (r notificationChannelRow) toDomain(envs []string) (domain.NotificationChan
 	}
 	return domain.NotificationChannel{
 		ID: r.ID, Name: r.Name, Service: r.Service, Target: r.Target, Enabled: r.Enabled == 1, EventKinds: kinds,
-		SendResolved: r.SendResolved == 1, EnvironmentIDs: envs, AddressFingerprint: r.SecretFingerprint,
-		AddressVersion: r.SecretVersion, AddressUpdatedAt: r.SecretUpdatedAt.UTC(), LastResult: r.LastResult,
+		SendResolved: r.SendResolved == 1, AllEnvironments: r.AllEnvironments == 1, EnvironmentIDs: envs,
+		AddressFingerprint: r.SecretFingerprint,
+		AddressVersion:     r.SecretVersion, AddressUpdatedAt: r.SecretUpdatedAt.UTC(), LastResult: r.LastResult,
 		LastAttemptAt: utcPtr(r.LastAttemptAt), LastSuccessAt: utcPtr(r.LastSuccessAt), Revision: r.Revision,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 	}, nil
@@ -101,7 +105,8 @@ func UpdateNotificationChannel(ctx context.Context, db bun.IDB, c *domain.Notifi
 	if err != nil {
 		return err
 	}
-	cols := []string{"name", "name_key", "service", "target", "enabled", "event_kinds", "send_resolved", "revision", "updated_at"}
+	cols := []string{"name", "name_key", "service", "target", "enabled", "event_kinds", "send_resolved", "all_environments", "revision",
+		"updated_at"}
 	if sealed != "" {
 		cols = append(cols, "secret_sealed", "secret_fingerprint", "secret_version", "secret_updated_at", "last_result",
 			"last_attempt_at", "last_success_at")
@@ -139,18 +144,24 @@ func replaceNotificationChannelEnvironments(ctx context.Context, db bun.IDB, id 
 	return nil
 }
 
-// RecordNotificationResult stores the outcome of a send (no revision
-// change: it is status, not configuration). ok also stamps LastSuccessAt.
-func RecordNotificationResult(ctx context.Context, db bun.IDB, id string, at time.Time, result string, ok bool) error {
-	q := db.NewUpdate().Model((*notificationChannelRow)(nil)).Where("id = ?", id).
+// RecordNotificationResult stores the outcome of a send through the
+// address of version addressVersion (no revision change: it is status, not
+// configuration). ok also stamps LastSuccessAt. When the address was
+// replaced meanwhile nothing is recorded (the new address has not been
+// tried) and recorded is false.
+func RecordNotificationResult(ctx context.Context, db bun.IDB, id string, addressVersion int, at time.Time, result string,
+	ok bool) (recorded bool, err error) {
+	q := db.NewUpdate().Model((*notificationChannelRow)(nil)).Where("id = ?", id).Where("secret_version = ?", addressVersion).
 		Set("last_attempt_at = ?", at.UTC()).Set("last_result = ?", result)
 	if ok {
 		q = q.Set("last_success_at = ?", at.UTC())
 	}
-	if _, err := q.Exec(ctx); err != nil {
-		return fmt.Errorf("store: record notification result: %w", err)
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("store: record notification result: %w", err)
 	}
-	return nil
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }
 
 // DeleteNotificationChannel removes a channel (and its environment
@@ -239,16 +250,26 @@ func notificationChannelEnvironments(ctx context.Context, db bun.IDB, ids []stri
 	return out, nil
 }
 
-// NotificationChannelSecret returns a channel's sealed address and its
-// version.
-func NotificationChannelSecret(ctx context.Context, db bun.IDB, id string) (sealed string, version int, err error) {
+// NotificationChannelWithSecret returns a channel together with its sealed
+// address, both from the same row read: the address, its version
+// (AddressVersion) and the channel's name and service always belong
+// together, whatever changes run concurrently.
+func NotificationChannelWithSecret(ctx context.Context, db bun.IDB, id string) (domain.NotificationChannel, string, error) {
 	var row notificationChannelRow
-	err = db.NewSelect().Model(&row).Column("secret_sealed", "secret_version").Where("id = ?", id).Scan(ctx)
+	err := db.NewSelect().Model(&row).Where("id = ?", id).Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", 0, domain.ErrNotificationChannelNotFound
+		return domain.NotificationChannel{}, "", domain.ErrNotificationChannelNotFound
 	}
 	if err != nil {
-		return "", 0, fmt.Errorf("store: read notification channel address: %w", err)
+		return domain.NotificationChannel{}, "", fmt.Errorf("store: read notification channel address: %w", err)
 	}
-	return row.SecretSealed, row.SecretVersion, nil
+	envs, err := notificationChannelEnvironments(ctx, db, []string{id})
+	if err != nil {
+		return domain.NotificationChannel{}, "", err
+	}
+	c, err := row.toDomain(envs[id])
+	if err != nil {
+		return domain.NotificationChannel{}, "", err
+	}
+	return c, row.SecretSealed, nil
 }

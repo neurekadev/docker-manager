@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -166,29 +167,57 @@ func validKinds(kinds []domain.NotificationEventKind) ([]domain.NotificationEven
 	return out, nil
 }
 
-// validEnvironments checks an environment filter (existing, active
-// environments) and returns it de-duplicated ([] for every environment).
-func (s *Service) validEnvironments(ctx context.Context, envIDs []string) ([]string, error) {
+// validEnvironments checks an environment filter and returns it
+// de-duplicated: every environment must exist, and be active unless it is
+// in keep (the channel's current filter: an environment archived since
+// may stay, but is never added). One query for all of them.
+func (s *Service) validEnvironments(ctx context.Context, envIDs, keep []string) ([]string, error) {
 	if len(envIDs) > MaxEnvironments {
 		return nil, fieldErr("environmentIds", fmt.Sprintf("at most %d environments", MaxEnvironments))
 	}
+	out := make([]string, 0, len(envIDs))
 	seen := map[string]bool{}
-	out := []string{}
 	for _, id := range envIDs {
-		if seen[id] {
-			continue
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
 		}
-		seen[id] = true
-		env, err := store.GetEnvironment(ctx, s.db, id)
-		if errors.Is(err, domain.ErrEnvironmentNotFound) || (err == nil && env.Status != domain.EnvironmentActive) {
+	}
+	envs, err := store.GetEnvironmentsByID(ctx, s.db, out)
+	if err != nil {
+		return nil, err
+	}
+	status := make(map[string]domain.EnvironmentStatus, len(envs))
+	for _, e := range envs {
+		status[e.ID] = e.Status
+	}
+	for _, id := range out {
+		st, ok := status[id]
+		if !ok || (st != domain.EnvironmentActive && !slices.Contains(keep, id)) {
 			return nil, fieldErr("environmentIds", "no such active environment")
 		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, id)
 	}
 	return out, nil
+}
+
+// validScope checks the environment choice: every environment (and no
+// list), or at least one listed environment. An empty list is never read
+// as "every environment", so a filter cannot widen by accident.
+func (s *Service) validScope(ctx context.Context, all bool, envIDs, keep []string) ([]string, error) {
+	if all {
+		if len(envIDs) > 0 {
+			return nil, fieldErr("environmentIds", "leave the list empty when the channel is for every environment")
+		}
+		return []string{}, nil
+	}
+	envs, err := s.validEnvironments(ctx, envIDs, keep)
+	if err != nil {
+		return nil, err
+	}
+	if len(envs) == 0 {
+		return nil, fieldErr("environmentIds", "choose at least one environment, or every environment")
+	}
+	return envs, nil
 }
 
 // Create stores a new channel (owner, recent step-up).
@@ -208,14 +237,14 @@ func (s *Service) Create(ctx context.Context, in domain.NotificationChannelInput
 	if err != nil {
 		return domain.NotificationChannel{}, err
 	}
-	envs, err := s.validEnvironments(ctx, in.EnvironmentIDs)
+	envs, err := s.validScope(ctx, in.AllEnvironments, in.EnvironmentIDs, nil)
 	if err != nil {
 		return domain.NotificationChannel{}, err
 	}
 	now := s.opts.Clock.Now().UTC()
 	c := domain.NotificationChannel{
 		ID: ids.New(), Name: name, Service: service, Target: targetOf(in.Address), Enabled: in.Enabled, EventKinds: kinds,
-		SendResolved: in.SendResolved, EnvironmentIDs: envs, AddressVersion: 1, AddressUpdatedAt: now, Revision: 1,
+		SendResolved: in.SendResolved, AllEnvironments: in.AllEnvironments, EnvironmentIDs: envs, AddressVersion: 1, AddressUpdatedAt: now, Revision: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	sealed, err := s.opts.Keyring.Seal([]byte(in.Address), sealContext(c.ID))
@@ -267,10 +296,30 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, p domai
 	if p.SendResolved != nil {
 		next.SendResolved = *p.SendResolved
 	}
-	if p.EnvironmentIDs != nil {
-		if next.EnvironmentIDs, err = s.validEnvironments(ctx, *p.EnvironmentIDs); err != nil {
+	if p.AllEnvironments != nil || p.EnvironmentIDs != nil {
+		// Listing environments restricts the channel; switching to every
+		// environment clears the list. An emptied list of a restricted
+		// channel is refused, never read as every environment.
+		all, envs := cur.AllEnvironments, cur.EnvironmentIDs
+		if p.EnvironmentIDs != nil {
+			envs = *p.EnvironmentIDs
+			if p.AllEnvironments == nil && len(envs) > 0 {
+				all = false
+			}
+		}
+		if p.AllEnvironments != nil {
+			all = *p.AllEnvironments
+			if all && p.EnvironmentIDs == nil {
+				envs = nil
+			}
+			if !all && cur.AllEnvironments && p.EnvironmentIDs == nil {
+				envs = nil
+			}
+		}
+		if next.EnvironmentIDs, err = s.validScope(ctx, all, envs, cur.EnvironmentIDs); err != nil {
 			return domain.NotificationChannel{}, err
 		}
+		next.AllEnvironments = all
 	}
 	now := s.opts.Clock.Now().UTC()
 	sealed := ""
@@ -308,7 +357,8 @@ func auditView(c domain.NotificationChannel) map[string]any {
 	}
 	return map[string]any{
 		"name": c.Name, "service": c.Service, "enabled": c.Enabled, "eventKinds": kinds, "sendResolved": c.SendResolved,
-		"environmentIds": append([]string{}, c.EnvironmentIDs...), "addressVersion": c.AddressVersion,
+		"allEnvironments": c.AllEnvironments, "environmentIds": append([]string{}, c.EnvironmentIDs...),
+		"addressVersion": c.AddressVersion,
 	}
 }
 
@@ -331,17 +381,20 @@ func (s *Service) Delete(ctx context.Context, id string, revision int64) error {
 	return nil
 }
 
-// address opens a channel's address for one use.
-func (s *Service) address(ctx context.Context, id string) (logging.Secret, error) {
-	sealed, _, err := store.NotificationChannelSecret(ctx, s.db, id)
+// withAddress reads a channel and opens its address for one use, both from
+// one row read: the send, its recorded result and the audit details all
+// refer to the same address version, service and name even while the
+// address is replaced concurrently.
+func (s *Service) withAddress(ctx context.Context, id string) (domain.NotificationChannel, logging.Secret, error) {
+	c, sealed, err := store.NotificationChannelWithSecret(ctx, s.db, id)
 	if err != nil {
-		return "", err
+		return domain.NotificationChannel{}, "", err
 	}
 	pt, err := s.opts.Keyring.Open(sealed, sealContext(id))
 	if err != nil {
-		return "", fmt.Errorf("notify: open the address of notification channel %s: %w", id, err)
+		return domain.NotificationChannel{}, "", fmt.Errorf("notify: open the address of notification channel %s: %w", id, err)
 	}
-	return logging.Secret(pt), nil
+	return c, logging.Secret(pt), nil
 }
 
 // Reveal returns a channel's address to the owner (recent step-up). The
@@ -350,11 +403,7 @@ func (s *Service) Reveal(ctx context.Context, id string) (string, error) {
 	if err := s.owner(ctx, true); err != nil {
 		return "", err
 	}
-	c, err := store.GetNotificationChannel(ctx, s.db, id)
-	if err != nil {
-		return "", err
-	}
-	addr, err := s.address(ctx, id)
+	c, addr, err := s.withAddress(ctx, id)
 	if err != nil {
 		return "", err
 	}
@@ -378,7 +427,7 @@ func (s *Service) Test(ctx context.Context, id string) (Result, error) {
 	if err := s.owner(ctx, false); err != nil {
 		return Result{}, err
 	}
-	c, err := store.GetNotificationChannel(ctx, s.db, id)
+	c, addr, err := s.withAddress(ctx, id)
 	if err != nil {
 		return Result{}, err
 	}
@@ -391,7 +440,7 @@ func (s *Service) Test(ctx context.Context, id string) (Result, error) {
 	s.lastTests[id] = now
 	s.mu.Unlock()
 	msg := domain.NotificationMessage{Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name), URL: s.opts.PublicURL}
-	res, err := s.send(ctx, c, msg)
+	res, err := s.send(ctx, c, addr, msg)
 	if err != nil {
 		return Result{}, err
 	}
@@ -409,18 +458,16 @@ func (s *Service) Test(ctx context.Context, id string) (Result, error) {
 // domain.NotificationChannel.Wants). A failed delivery is a Result with
 // OK false, not an error.
 func (s *Service) Send(ctx context.Context, channelID string, msg domain.NotificationMessage) (Result, error) {
-	c, err := store.GetNotificationChannel(ctx, s.db, channelID)
+	c, addr, err := s.withAddress(ctx, channelID)
 	if err != nil {
 		return Result{}, err
 	}
-	return s.send(ctx, c, msg)
+	return s.send(ctx, c, addr, msg)
 }
 
-func (s *Service) send(ctx context.Context, c domain.NotificationChannel, msg domain.NotificationMessage) (Result, error) {
-	addr, err := s.address(ctx, c.ID)
-	if err != nil {
-		return Result{}, err
-	}
+// send delivers msg to addr, the address of c (both from withAddress), and
+// records the result for that address version only.
+func (s *Service) send(ctx context.Context, c domain.NotificationChannel, addr logging.Secret, msg domain.NotificationMessage) (Result, error) {
 	class := deliver(ctx, string(addr), msg, s.opts.Timeout)
 	if ctx.Err() != nil {
 		return Result{}, ctx.Err()
@@ -433,7 +480,9 @@ func (s *Service) send(ctx context.Context, c domain.NotificationChannel, msg do
 		s.opts.Logger.Warn("a notification could not be sent", "notification_channel_id", c.ID, "service", c.Service,
 			"error_class", class)
 	}
-	if err := store.RecordNotificationResult(context.WithoutCancel(ctx), s.db, c.ID, at, result, res.OK); err != nil {
+	// A result of an address replaced meanwhile is not recorded: the new
+	// address has not been tried.
+	if _, err := store.RecordNotificationResult(context.WithoutCancel(ctx), s.db, c.ID, c.AddressVersion, at, result, res.OK); err != nil {
 		s.opts.Logger.Warn("could not record a notification result", "notification_channel_id", c.ID, "error", err)
 	}
 	return res, nil

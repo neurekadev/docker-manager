@@ -17,7 +17,10 @@ web `web/src/lib/features/notifications`.
   never call `shoutrrr.Send` or the router, never set Shoutrrr's logger.
 - **The address is a secret.** A channel's Shoutrrr URL is sealed
   (`notification_channels/<id>/url`) and read only with
-  `store.NotificationChannelSecret` inside `notify` (a send, or `Reveal`).
+  `store.NotificationChannelWithSecret` inside `notify` (a send, or
+  `Reveal`): one row read returns the channel and its address together, so
+  a send, its recorded result and its audit details always refer to the
+  same address version, service and name.
   Never put it in a domain value, log, audit detail, job input, error,
   `last_result` or response other than the reveal operation; normal reads
   exclude `secret_sealed`. Tests seed `canary.NotificationURL` into the
@@ -27,7 +30,10 @@ web `web/src/lib/features/notifications`.
   words, mirrored in the web's `ERROR_TEXT`): never return, log or store a
   Shoutrrr or `url.Error` text. A failed delivery is a `notify.Result` with
   `OK` false, not an error; it is recorded as the channel's `last_result`
-  (no revision change). Log failures with the channel ID, service and
+  (no revision change) only while the address version it was sent with is
+  still the current one (`RecordNotificationResult` matches
+  `secret_version`): a replaced address is never marked Working or Failing
+  by its predecessor's send. Log failures with the channel ID, service and
   class only.
 - **Owner only.** Every route is `capability: owner` (never with an API
   token); handlers check the owner-only catalog key
@@ -37,8 +43,13 @@ web `web/src/lib/features/notifications`.
   and deletion need the owner. The reveal is `Audit: api.AuditAlways`.
 - **Subscriptions** are stored per channel: `event_kinds` (the
   `domain.NotificationEventKinds`; never empty; a new channel gets all),
-  `send_resolved`, and `notification_channel_environments` (no rows =
-  every environment, future ones included). Alerts pick channels with
+  `send_resolved`, and the environment choice: `all_environments` (every
+  environment, future ones included) **or** the rows of
+  `notification_channel_environments`. It is always explicit: an empty list
+  is refused unless `allEnvironments` is set, and a restricted channel whose
+  environments are all gone sends none (never widens to all). Environments
+  archived since stay in a filter; only active ones are added (validated in
+  one query, `store.GetEnvironmentsByID`). Alerts pick channels with
   `domain.NotificationChannel.Wants(kind, environmentID)` and send with
   `notify.Service.Send`. Adding an event kind extends the domain list, the
   API enum, the web's `EVENT_KINDS` and the user docs.

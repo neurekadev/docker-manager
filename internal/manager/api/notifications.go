@@ -55,16 +55,17 @@ type NotificationChannel struct {
 	Target  string `json:"target,omitempty" example:"mail.example.com" doc:"Where messages go when that is not secret: the host of a mail, push or chat server or of a generic webhook. Absent for services whose address holds only tokens."`
 	Enabled bool   `json:"enabled"`
 	// Subscription (what the channel sends).
-	EventKinds     []string            `json:"eventKinds" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"The kinds of events the channel sends."`
-	SendResolved   bool                `json:"sendResolved" doc:"Also send a message when a problem is resolved."`
-	EnvironmentIDs []string            `json:"environmentIds" doc:"Limits the channel to these environments; empty means every environment, including future ones."`
-	Address        NotificationAddress `json:"address"`
-	LastResult     string              `json:"lastResult,omitempty" enum:"ok,dns,connect,tls,timeout,auth,http_4xx,http_5xx,redirect,rejected,invalid_url" doc:"Outcome of the last send or test: ok or an error class; absent before the first one (and after an address change)."`
-	LastAttemptAt  *time.Time          `json:"lastAttemptAt,omitempty"`
-	LastSuccessAt  *time.Time          `json:"lastSuccessAt,omitempty"`
-	Revision       int64               `json:"revision" doc:"Edit revision (the ETag)."`
-	CreatedAt      time.Time           `json:"createdAt"`
-	UpdatedAt      time.Time           `json:"updatedAt"`
+	EventKinds      []string            `json:"eventKinds" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"The kinds of events the channel sends."`
+	SendResolved    bool                `json:"sendResolved" doc:"Also send a message when a problem is resolved."`
+	AllEnvironments bool                `json:"allEnvironments" doc:"Sends events of every environment, including future ones. Otherwise only those of environmentIds (none once they are all removed: a filter never widens)."`
+	EnvironmentIDs  []string            `json:"environmentIds" doc:"The environments of a channel that is not for every environment (empty when allEnvironments is true)."`
+	Address         NotificationAddress `json:"address"`
+	LastResult      string              `json:"lastResult,omitempty" enum:"ok,dns,connect,tls,timeout,auth,http_4xx,http_5xx,redirect,rejected,invalid_url" doc:"Outcome of the last send or test: ok or an error class; absent before the first one (and after an address change)."`
+	LastAttemptAt   *time.Time          `json:"lastAttemptAt,omitempty"`
+	LastSuccessAt   *time.Time          `json:"lastSuccessAt,omitempty"`
+	Revision        int64               `json:"revision" doc:"Edit revision (the ETag)."`
+	CreatedAt       time.Time           `json:"createdAt"`
+	UpdatedAt       time.Time           `json:"updatedAt"`
 }
 
 func newNotificationChannel(c domain.NotificationChannel) NotificationChannel {
@@ -78,7 +79,7 @@ func newNotificationChannel(c domain.NotificationChannel) NotificationChannel {
 	}
 	return NotificationChannel{
 		ID: c.ID, Name: c.Name, Service: c.Service, Target: c.Target, Enabled: c.Enabled, EventKinds: kinds,
-		SendResolved: c.SendResolved, EnvironmentIDs: envs,
+		SendResolved: c.SendResolved, AllEnvironments: c.AllEnvironments, EnvironmentIDs: envs,
 		Address:    NotificationAddress{Fingerprint: c.AddressFingerprint, Version: c.AddressVersion, UpdatedAt: c.AddressUpdatedAt},
 		LastResult: c.LastResult, LastAttemptAt: c.LastAttemptAt, LastSuccessAt: c.LastSuccessAt, Revision: c.Revision,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
@@ -149,12 +150,13 @@ type notificationChannelListOutput struct{ Body Page[NotificationChannel] }
 
 type createNotificationChannelInput struct {
 	Body struct {
-		Name           string   `json:"name" minLength:"1" maxLength:"100" example:"Ops on Discord"`
-		Address        string   `json:"address" minLength:"1" maxLength:"4096" writeOnly:"true" example:"discord://token@webhookid" doc:"The Shoutrrr URL of the destination. A secret: never returned by list or get, never logged or audited."`
-		Enabled        *bool    `json:"enabled,omitempty" default:"true"`
-		EventKinds     []string `json:"eventKinds,omitempty" maxItems:"16" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"Default: every kind."`
-		SendResolved   *bool    `json:"sendResolved,omitempty" default:"true"`
-		EnvironmentIDs []string `json:"environmentIds,omitempty" maxItems:"100" doc:"Default (empty): every environment, including future ones."`
+		Name            string   `json:"name" minLength:"1" maxLength:"100" example:"Ops on Discord"`
+		Address         string   `json:"address" minLength:"1" maxLength:"4096" writeOnly:"true" example:"discord://token@webhookid" doc:"The Shoutrrr URL of the destination. A secret: never returned by list or get, never logged or audited."`
+		Enabled         *bool    `json:"enabled,omitempty" default:"true"`
+		EventKinds      []string `json:"eventKinds,omitempty" maxItems:"16" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"Default: every kind."`
+		SendResolved    *bool    `json:"sendResolved,omitempty" default:"true"`
+		AllEnvironments *bool    `json:"allEnvironments,omitempty" doc:"For every environment, including future ones. Default: true without environmentIds, false with them; false needs at least one environment."`
+		EnvironmentIDs  []string `json:"environmentIds,omitempty" maxItems:"100" doc:"Active environments the channel is for (with allEnvironments false)."`
 	}
 }
 
@@ -162,12 +164,13 @@ type updateNotificationChannelInput struct {
 	ChannelID string `path:"channelId" maxLength:"64" doc:"Notification channel ID."`
 	IfMatchParam
 	Body struct {
-		Name           *string  `json:"name,omitempty" minLength:"1" maxLength:"100" example:"Ops on Discord"`
-		Enabled        *bool    `json:"enabled,omitempty"`
-		EventKinds     []string `json:"eventKinds,omitempty" maxItems:"16" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"Replaces the kinds (at least one)."`
-		SendResolved   *bool    `json:"sendResolved,omitempty"`
-		EnvironmentIDs []string `json:"environmentIds,omitempty" maxItems:"100" doc:"Replaces the environment filter; an empty list means every environment."`
-		Address        *string  `json:"address,omitempty" minLength:"1" maxLength:"4096" writeOnly:"true" doc:"A new Shoutrrr URL (needs a recent step-up; resets the last result)."`
+		Name            *string  `json:"name,omitempty" minLength:"1" maxLength:"100" example:"Ops on Discord"`
+		Enabled         *bool    `json:"enabled,omitempty"`
+		EventKinds      []string `json:"eventKinds,omitempty" maxItems:"16" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"Replaces the kinds (at least one)."`
+		SendResolved    *bool    `json:"sendResolved,omitempty"`
+		AllEnvironments *bool    `json:"allEnvironments,omitempty" doc:"true: every environment (clears environmentIds); false: only environmentIds (given, or the current ones)."`
+		EnvironmentIDs  []string `json:"environmentIds,omitempty" maxItems:"100" doc:"Replaces the environment list (restricting the channel). An empty list is refused unless allEnvironments is true: it never means every environment. Environments archived since may stay; new ones must be active."`
+		Address         *string  `json:"address,omitempty" minLength:"1" maxLength:"4096" writeOnly:"true" doc:"A new Shoutrrr URL (needs a recent step-up; resets the last result)."`
 	}
 }
 
@@ -260,8 +263,14 @@ func (h *notificationsAPI) create(ctx context.Context, in *createNotificationCha
 	if b.SendResolved != nil {
 		resolved = *b.SendResolved
 	}
+	// Explicit, never inferred from an emptied list: without the flag a
+	// channel is for every environment only when it lists none.
+	all := len(b.EnvironmentIDs) == 0
+	if b.AllEnvironments != nil {
+		all = *b.AllEnvironments
+	}
 	c, err := svc.Create(ctx, domain.NotificationChannelInput{Name: b.Name, Address: b.Address, Enabled: enabled,
-		EventKinds: eventKinds(b.EventKinds), SendResolved: resolved, EnvironmentIDs: b.EnvironmentIDs})
+		EventKinds: eventKinds(b.EventKinds), SendResolved: resolved, AllEnvironments: all, EnvironmentIDs: b.EnvironmentIDs})
 	if err != nil {
 		return nil, notificationError(err)
 	}
@@ -302,7 +311,8 @@ func (h *notificationsAPI) update(ctx context.Context, in *updateNotificationCha
 		return nil, err
 	}
 	b := in.Body
-	p := domain.NotificationChannelPatch{Name: b.Name, Enabled: b.Enabled, SendResolved: b.SendResolved, Address: b.Address}
+	p := domain.NotificationChannelPatch{Name: b.Name, Enabled: b.Enabled, SendResolved: b.SendResolved, AllEnvironments: b.AllEnvironments,
+		Address: b.Address}
 	if b.EventKinds != nil {
 		kinds := eventKinds(b.EventKinds)
 		p.EventKinds = &kinds
@@ -379,7 +389,7 @@ func registerNotifications(a huma.API, deps Deps) {
 			OperationID: "create-notification-channel", Method: http.MethodPost, Path: path,
 			Summary: "Add a notification channel", DefaultStatus: http.StatusCreated,
 			Description: "Stores a destination by its Shoutrrr URL, sealed with the manager's secret-protection key. The address is " +
-				"checked without sending anything (422 body.address). Defaults: enabled, every event kind, every environment, " +
+				"checked without sending anything (422 body.address). Defaults: enabled, every event kind, every environment (without environmentIds), " +
 				"resolved problems sent too. 409 notification_channel_name_taken." + stepUp + " " + ownerOnly,
 			Tags: []string{tagNotifications}, Security: cookieOnly,
 			Errors: []int{http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},

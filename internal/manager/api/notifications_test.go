@@ -32,12 +32,14 @@ type fakeNotifications struct {
 	addresses map[string]string
 	limited   bool
 	result    notify.Result
+	lastPatch domain.NotificationChannelPatch
 }
 
 func newFakeNotifications(address string) *fakeNotifications {
 	at := time.Date(2026, 9, 30, 9, 0, 0, 0, time.UTC)
 	c := domain.NotificationChannel{ID: "c-1", Name: "Ops", Service: "generic", Target: "hooks.example.com", Enabled: true,
-		EventKinds: domain.NotificationEventKinds(), SendResolved: true, AddressFingerprint: "fp_0000000000000001", AddressVersion: 1,
+		EventKinds: domain.NotificationEventKinds(), SendResolved: true, AllEnvironments: true, AddressFingerprint: "fp_0000000000000001",
+		AddressVersion:   1,
 		AddressUpdatedAt: at, Revision: 1, CreatedAt: at, UpdatedAt: at}
 	return &fakeNotifications{channels: map[string]domain.NotificationChannel{"c-1": c}, addresses: map[string]string{"c-1": address},
 		result: notify.Result{OK: true, At: at}}
@@ -73,7 +75,8 @@ func (f *fakeNotifications) Create(ctx context.Context, in domain.NotificationCh
 		}
 	}
 	c := domain.NotificationChannel{ID: "c-new", Name: in.Name, Service: "ntfy", Enabled: in.Enabled, EventKinds: in.EventKinds,
-		SendResolved: in.SendResolved, EnvironmentIDs: in.EnvironmentIDs, AddressFingerprint: "fp_2", AddressVersion: 1, Revision: 1}
+		SendResolved: in.SendResolved, AllEnvironments: in.AllEnvironments, EnvironmentIDs: in.EnvironmentIDs, AddressFingerprint: "fp_2",
+		AddressVersion: 1, Revision: 1}
 	if c.EventKinds == nil {
 		c.EventKinds = domain.NotificationEventKinds()
 	}
@@ -86,6 +89,7 @@ func (f *fakeNotifications) Create(ctx context.Context, in domain.NotificationCh
 func (f *fakeNotifications) Update(_ context.Context, id string, revision int64, p domain.NotificationChannelPatch) (domain.NotificationChannel, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lastPatch = p
 	c, ok := f.channels[id]
 	if !ok {
 		return c, domain.ErrNotificationChannelNotFound
@@ -104,6 +108,9 @@ func (f *fakeNotifications) Update(_ context.Context, id string, revision int64,
 	}
 	if p.EnvironmentIDs != nil {
 		c.EnvironmentIDs = *p.EnvironmentIDs
+	}
+	if p.AllEnvironments != nil {
+		c.AllEnvironments = *p.AllEnvironments
 	}
 	if p.Address != nil {
 		f.addresses[id] = *p.Address
@@ -280,7 +287,7 @@ func TestNotificationChannelsNeverShowTheAddressButTheReveal(t *testing.T) {
 		Body: map[string]any{"name": "Pager", "address": created, "eventKinds": []string{"job_failed"}, "environmentIds": []string{}}})
 	var c NotificationChannel
 	if r.Status != http.StatusCreated || json.Unmarshal(r.Body, &c) != nil || c.ID != "c-new" || !c.Enabled || !c.SendResolved ||
-		len(c.EventKinds) != 1 || r.Header.Get("ETag") != `"1"` {
+		!c.AllEnvironments || len(c.EventKinds) != 1 || r.Header.Get("ETag") != `"1"` {
 		t.Fatalf("create: %d %s", r.Status, r.Body)
 	}
 	f.secrets.AssertClean(t, "create response", r.Body)
@@ -332,11 +339,23 @@ func TestNotificationEditsAndErrors(t *testing.T) {
 		t.Fatalf("no If-Match: %d", r.Status)
 	}
 	r := do(authztest.Call{Method: http.MethodPatch, Path: path, Headers: map[string]string{"If-Match": `"1"`},
-		Body: map[string]any{"enabled": false, "eventKinds": []string{"raid"}, "environmentIds": []string{}}})
+		Body: map[string]any{"enabled": false, "eventKinds": []string{"raid"}, "allEnvironments": false, "environmentIds": []string{"env-1"}}})
 	var c NotificationChannel
 	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &c) != nil || c.Enabled || c.Revision != 2 || len(c.EventKinds) != 1 ||
-		r.Header.Get("ETag") != `"2"` {
+		c.AllEnvironments || len(c.EnvironmentIDs) != 1 || r.Header.Get("ETag") != `"2"` {
 		t.Fatalf("patch: %d %s", r.Status, r.Body)
+	}
+	// The environment choice is passed on explicitly, never inferred.
+	if p := f.svc.lastPatch; p.AllEnvironments == nil || *p.AllEnvironments || p.EnvironmentIDs == nil || len(*p.EnvironmentIDs) != 1 {
+		t.Fatalf("patch passed on %+v", p)
+	}
+	// Creating with environments restricts the channel to them.
+	r = do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/notification-channels",
+		Body: map[string]any{"name": "Lab", "address": "ntfy://ntfy.sh/lab-topic-12345", "environmentIds": []string{"env-1"}}})
+	var created NotificationChannel
+	if r.Status != http.StatusCreated || json.Unmarshal(r.Body, &created) != nil || created.AllEnvironments ||
+		len(created.EnvironmentIDs) != 1 {
+		t.Fatalf("create with environments: %d %s", r.Status, r.Body)
 	}
 	if r := do(authztest.Call{Method: http.MethodPatch, Path: path, Headers: map[string]string{"If-Match": `"1"`},
 		Body: map[string]any{"name": "y"}}); r.Status != http.StatusPreconditionFailed || r.Header.Get("ETag") != `"2"` {

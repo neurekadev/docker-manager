@@ -33,20 +33,23 @@ export function kindsSummary(kinds: readonly string[]): string {
 
 /** Where a channel's events come from: every environment, one by name, or a count. */
 export function environmentsSummary(
+	all: boolean,
 	ids: readonly string[],
 	nameOf: (id: string) => string | undefined
 ): string {
-	if (ids.length === 0) return 'every environment';
+	if (all) return 'every environment';
+	// A filter whose environments are all gone sends no environment's events.
+	if (ids.length === 0) return 'no environment';
 	if (ids.length === 1) return nameOf(ids[0]) ?? '1 environment';
 	return `${ids.length} environments`;
 }
 
 /** The "Sends" column: "All events, every environment". */
 export function sendsSummary(
-	c: Pick<NotificationChannel, 'eventKinds' | 'environmentIds'>,
+	c: Pick<NotificationChannel, 'eventKinds' | 'allEnvironments' | 'environmentIds'>,
 	nameOf: (id: string) => string | undefined
 ): string {
-	return `${kindsSummary(c.eventKinds)}, ${environmentsSummary(c.environmentIds, nameOf)}`;
+	return `${kindsSummary(c.eventKinds)}, ${environmentsSummary(c.allEnvironments, c.environmentIds, nameOf)}`;
 }
 
 /** What went wrong in a send, and what to check (the manager's classes). */

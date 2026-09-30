@@ -27,6 +27,7 @@ const channel: NotificationChannel = {
 	enabled: true,
 	eventKinds: ['job_failed', 'updates_available'],
 	sendResolved: false,
+	allEnvironments: true,
 	environmentIds: [],
 	address: { fingerprint: 'fp_1', version: 1, updatedAt: '2026-09-30T09:00:00Z' },
 	lastResult: 'ok',
@@ -37,18 +38,17 @@ const channel: NotificationChannel = {
 
 const STORED = 'discord://tok-123@123456789012345678';
 
+const ONE_ENVIRONMENT = [{ id: 'e1', name: 'prod', status: 'active', online: true }];
+
 /** Stubs the API; returns the requests other than the environments list. */
-function stubApi() {
+function stubApi(environments: object[] = ONE_ENVIRONMENT) {
 	const calls: { method: string; path: string; body: unknown }[] = [];
 	vi.stubGlobal(
 		'fetch',
 		vi.fn(async (input: Request) => {
 			const url = new URL(input.url);
 			if (url.pathname === '/api/v1/environments')
-				return json({
-					items: [{ id: 'e1', name: 'prod', status: 'active', online: true }],
-					nextCursor: null
-				});
+				return json({ items: environments, nextCursor: null });
 			const body =
 				input.method === 'GET' ? undefined : await input.json().catch(() => undefined);
 			calls.push({ method: input.method, path: url.pathname, body });
@@ -126,6 +126,7 @@ describe('ChannelDialog (#142)', () => {
 				'updates_available'
 			],
 			sendResolved: true,
+			allEnvironments: true,
 			environmentIds: []
 		});
 		await waitFor(() => expect(toast.items.map((t) => t.title)).toContain('Added Ops'));
@@ -195,6 +196,7 @@ describe('ChannelDialog (#142)', () => {
 			enabled: true,
 			eventKinds: ['raid', 'job_failed', 'updates_available'],
 			sendResolved: false,
+			allEnvironments: true,
 			environmentIds: []
 		});
 		await waitFor(() => expect(toast.items.map((t) => t.title)).toContain('Saved Ops'));
@@ -213,5 +215,45 @@ describe('ChannelDialog (#142)', () => {
 		expect(
 			(calls.find((c) => c.method === 'PATCH')!.body as { address?: string }).address
 		).toBe('discord://new-token@42');
+	});
+
+	it('keeps a filter on an archived environment instead of widening it to all', async () => {
+		const user = setup();
+		const calls = stubApi([
+			{ id: 'e1', name: 'prod', status: 'active', online: true },
+			{
+				id: 'e2',
+				name: 'old-lab',
+				status: 'archived',
+				online: false,
+				archivedAt: '2026-09-30T08:00:00Z'
+			},
+			{ id: 'e3', name: 'staging', status: 'active', online: true }
+		]);
+		show({
+			open: true,
+			channel: { ...channel, allEnvironments: false, environmentIds: ['e2'] }
+		});
+		const archived = await screen.findByRole('checkbox', { name: 'old-lab (archived)' });
+		expect(archived).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'prod' })).not.toBeChecked();
+		expect(screen.getByRole('combobox', { name: /^Environments/ })).toHaveTextContent(
+			'Some environments'
+		);
+
+		// Unticking the last one blocks the save; it never means every environment.
+		await user.click(archived);
+		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		expect(await screen.findByText('Choose at least one environment.')).toBeInTheDocument();
+		expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
+
+		// Kept as it is, the archived environment is sent back unchanged.
+		await user.click(archived);
+		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+		expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({
+			allEnvironments: false,
+			environmentIds: ['e2']
+		});
 	});
 });

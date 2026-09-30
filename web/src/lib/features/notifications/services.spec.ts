@@ -266,15 +266,13 @@ describe('notification channels in words (#142)', () => {
 		expect(kindsSummary(['updates_available', 'job_failed'])).toBe('Failed jobs and updates');
 		expect(kindsSummary(['raid', 'disk_health', 'job_failed'])).toBe('3 kinds of events');
 		const name = (id: string) => (id === 'e1' ? 'prod' : undefined);
-		expect(sendsSummary({ eventKinds: all as never, environmentIds: [] }, name)).toBe(
-			'All events, every environment'
-		);
-		expect(sendsSummary({ eventKinds: ['raid'], environmentIds: ['e1'] }, name)).toBe(
-			'RAID, prod'
-		);
-		expect(sendsSummary({ eventKinds: ['raid'], environmentIds: ['e1', 'e2'] }, name)).toBe(
-			'RAID, 2 environments'
-		);
+		const sends = (allEnvironments: boolean, environmentIds: string[], kinds = ['raid']) =>
+			sendsSummary({ eventKinds: kinds as never, allEnvironments, environmentIds }, name);
+		expect(sends(true, [], all)).toBe('All events, every environment');
+		expect(sends(false, ['e1'])).toBe('RAID, prod');
+		expect(sends(false, ['e1', 'e2'])).toBe('RAID, 2 environments');
+		// A filter whose environments are all gone never reads as every environment.
+		expect(sends(false, [])).toBe('RAID, no environment');
 	});
 
 	it('shows Off, Not tested, Working and Failing with the reason', () => {
