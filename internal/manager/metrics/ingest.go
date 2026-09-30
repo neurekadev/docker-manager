@@ -16,13 +16,14 @@ const RawResolution = 10 * time.Second
 
 // IngestResult counts what Ingest did.
 type IngestResult struct {
-	// Inserted samples (host, disk and container rows).
+	// Inserted samples (host, disk, sensor and container rows).
 	Inserted int
 	// Duplicates were already stored (same series and slot).
 	Duplicates int
 	// Expired samples were older than the raw retention.
 	Expired int
-	// Refused container/disk series exceeded the series or storage cap.
+	// Refused container, disk or sensor series exceeded the series or
+	// storage cap.
 	Refused int
 	// Containers lists the container names with an inserted sample.
 	Containers []string
@@ -92,6 +93,25 @@ func (s *Store) Ingest(ctx context.Context, envID string, samples []domain.Metri
 				}
 				n, err := exec(ctx, tx, `INSERT OR IGNORE INTO disk_raw (series_id, ts, flags, used, total) VALUES (?, ?, ?, ?, ?)`,
 					id, ts, smp.Flags, d.UsedBytes, d.TotalBytes)
+				if err != nil {
+					return err
+				}
+				res.count(n)
+				if n > 0 {
+					minTS = min(minTS, ts)
+				}
+			}
+			for _, t := range smp.Temperatures {
+				id, err := s.seriesID(ctx, tx, envID, domain.MetricSensor, t.Sensor, ts, false)
+				if err != nil {
+					return err
+				}
+				if id == 0 {
+					res.Refused++
+					continue
+				}
+				n, err := exec(ctx, tx, `INSERT OR IGNORE INTO sensor_raw (series_id, ts, flags, temp) VALUES (?, ?, ?, ?)`,
+					id, ts, smp.Flags, scaled(&t.Celsius, 100))
 				if err != nil {
 					return err
 				}

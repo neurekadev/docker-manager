@@ -1,6 +1,6 @@
 ---
 title: Metrics
-description: Charts of each server's and container's CPU, memory, network and disk use.
+description: Charts of each server's and container's CPU, memory, network and disk use, and of each server's temperatures.
 ---
 
 Docker Manager samples every server and its containers every 10 seconds
@@ -11,13 +11,19 @@ and which containers use it.
 
 1. Open **Environments** and pick an environment.
 2. On its **Overview** tab, the **Metrics** card shows **CPU**, **Memory**,
-   **Network** (received and sent), **Load** and one **Disk** chart per
-   storage area, for example **Disk: Docker data**.
+   **Network** (received and sent), **Load**, one **Disk** chart per
+   storage area, for example **Disk: Docker data**, and **Temperature**.
 3. Pick the time span in the card's menu, from **Last 1 hour** to
    **Last 90 days**.
 
 Longer ranges show averages. Shaded spans have no data: the server was
 offline or not reporting.
+
+The **Temperature** chart draws one line per sensor of the server (for
+example `coretemp: Package id 0` for the CPU or `nvme: Composite` for an
+NVMe drive), each in its own colour. Its headline is the hottest sensor's
+latest reading. Hover the chart to see every sensor at that moment, hottest
+first; on a phone, tap the chart and the list shows under it.
 
 ## Container charts
 
@@ -35,6 +41,9 @@ card, for the **Last hour**, **Last 6 hours** or **Last 24 hours**.
 
 Good to know:
 
+- The **Temperature** chart appears only when the agent can read
+  temperature sensors on the server during the chosen time span. A server
+  without readable sensors has no Temperature chart.
 - The charts include only the containers whose metrics you may see.
 - There is no storage chart per container, since several containers can
   share a volume.

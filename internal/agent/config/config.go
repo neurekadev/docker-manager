@@ -36,6 +36,7 @@ const (
 	EnvStacksVolume     = "DOCKER_AGENT_STACKS_VOLUME"
 	EnvStackRoots       = "DOCKER_AGENT_STACK_ROOTS"
 	EnvHostProc         = "DOCKER_AGENT_HOST_PROC"
+	EnvHostSys          = "DOCKER_AGENT_HOST_SYS"
 	// Backups (#10).
 	EnvBackupLocalRoots        = "DOCKER_AGENT_BACKUP_LOCAL_ROOTS"
 	EnvBackupExternalAllowlist = "DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST"
@@ -56,6 +57,9 @@ const (
 	MaxEnvironmentNameLen = 63
 	// DefaultHostProc is the procfs read for host telemetry (#5).
 	DefaultHostProc = "/proc"
+	// DefaultHostSys is the sysfs the temperature sensors are read from
+	// (#146).
+	DefaultHostSys = "/sys"
 	// DefaultStacksVolume is the named volume holding stack projects (#28).
 	DefaultStacksVolume = "docker-manager_stacks"
 	// MaxStackRoots bounds DOCKER_AGENT_STACK_ROOTS.
@@ -99,6 +103,9 @@ type Config struct {
 	StackRoots []string
 	// HostProc is the procfs mount host telemetry is read from (#5).
 	HostProc string
+	// HostSys is the sysfs mount the hwmon temperature sensors are read
+	// from (#146).
+	HostSys string
 	// BackupLocalRoots are the directories local backup repositories on
 	// this agent may live in; BackupExternalAllowlist the host paths
 	// outside stack project directories that policies may opt into (#10).
@@ -167,6 +174,10 @@ func Load(src envconfig.Source) (Config, error) {
 	cfg.HostProc = path.Clean(src.String(EnvHostProc, DefaultHostProc))
 	if !path.IsAbs(cfg.HostProc) {
 		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvHostProc, cfg.HostProc))
+	}
+	cfg.HostSys = path.Clean(src.String(EnvHostSys, DefaultHostSys))
+	if !path.IsAbs(cfg.HostSys) {
+		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvHostSys, cfg.HostSys))
 	}
 
 	if cfg.BackupLocalRoots, err = ParsePathList(src.String(EnvBackupLocalRoots, "")); err != nil {

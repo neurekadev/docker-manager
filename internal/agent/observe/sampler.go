@@ -1,6 +1,7 @@
 // Package observe is the agent side of observation (#5): host telemetry
-// from procfs, per-container usage and the Engine inventory through the
-// Moby adapter (#21), sampled every 10 s into a bounded ring the manager
+// from procfs, the hwmon temperature sensors from sysfs (#146),
+// per-container usage and the Engine inventory through the Moby adapter
+// (#21), sampled every 10 s into a bounded ring the manager
 // fetches with the host.metrics request, the current CPU and memory read
 // on demand for metrics.live (live.go), and the Docker event relay
 // (events.go). It never listens on a socket and never runs the docker CLI.
@@ -68,6 +69,11 @@ type Options struct {
 	// (default os.DirFS(ProcRoot)).
 	ProcRoot string
 	Proc     fs.FS
+	// SysRoot is the sysfs mount the hwmon temperature sensors are read
+	// from (default DefaultSysRoot); Sys reads it (default
+	// os.DirFS(SysRoot)).
+	SysRoot string
+	Sys     fs.FS
 	// NetNS returns the network namespace of "1" or "self" (default:
 	// readlink <ProcRoot>/<pid>/ns/net).
 	NetNS func(pid string) (string, error)
@@ -145,6 +151,12 @@ func New(opts Options) *Sampler {
 	if opts.Proc == nil {
 		opts.Proc = os.DirFS(opts.ProcRoot)
 	}
+	if opts.SysRoot == "" {
+		opts.SysRoot = DefaultSysRoot
+	}
+	if opts.Sys == nil {
+		opts.Sys = os.DirFS(opts.SysRoot)
+	}
 	if opts.NetNS == nil {
 		root := opts.ProcRoot
 		opts.NetNS = func(pid string) (string, error) { return os.Readlink(filepath.Join(root, pid, "ns", "net")) }
@@ -206,6 +218,7 @@ func (s *Sampler) Tick(ctx context.Context, at time.Time) protocol.MetricBatch {
 	b := protocol.MetricBatch{At: at.UTC()}
 	b.Host = s.sampleHost(at)
 	b.Disks = s.sampleDisks()
+	b.Temperatures = s.sampleTemperatures()
 	b.Containers, b.Flags = s.sampleContainers(ctx, at)
 	s.mu.Lock()
 	s.seq++
@@ -318,6 +331,14 @@ func (s *Sampler) netScope(bridge bool) string {
 		return "host"
 	}
 	return "agent"
+}
+
+// sampleTemperatures reads the hwmon temperature sensors (hwmon.go); a
+// failure to list them is logged once and the sample has none.
+func (s *Sampler) sampleTemperatures() []protocol.TemperatureSample {
+	t, err := readTemperatures(s.opts.Sys)
+	s.logOnce("temperatures", err)
+	return t
 }
 
 // sampleDisks reports each distinct filesystem of the verified roots once.

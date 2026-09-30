@@ -10794,13 +10794,21 @@
             ],
             "type": "string"
           },
+          "sensor": {
+            "description": "Temperature sensor of temperature series: the host's hardware monitoring chip and the input's label. Never a host path; only sensors with a reading in the range are listed.",
+            "examples": [
+              "coretemp: Package id 0"
+            ],
+            "type": "string"
+          },
           "unit": {
             "enum": [
               "percent",
               "bytes",
               "bytes_per_second",
               "load",
-              "count"
+              "count",
+              "celsius"
             ],
             "type": "string"
           },
@@ -36930,6 +36938,7 @@
                     {
                       "key": "cpu.percent",
                       "mount": "docker",
+                      "sensor": "coretemp: Package id 0",
                       "unit": "percent",
                       "values": [
                         1
@@ -41095,6 +41104,7 @@
                     {
                       "key": "cpu.percent",
                       "mount": "docker",
+                      "sensor": "coretemp: Package id 0",
                       "unit": "percent",
                       "values": [
                         1
@@ -41435,6 +41445,7 @@
                         {
                           "key": "cpu.percent",
                           "mount": "docker",
+                          "sensor": "coretemp: Package id 0",
                           "unit": "percent",
                           "values": [
                             1

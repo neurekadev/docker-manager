@@ -234,6 +234,9 @@ func sampleFrom(b protocol.MetricBatch, skew time.Duration, recv time.Time) doma
 	for _, d := range b.Disks {
 		out.Disks = append(out.Disks, domain.DiskValues{Mount: d.Mount, UsedBytes: d.UsedBytes, TotalBytes: d.TotalBytes})
 	}
+	for _, t := range b.Temperatures {
+		out.Temperatures = append(out.Temperatures, domain.TemperatureValues{Sensor: t.Sensor, Celsius: t.Celsius})
+	}
 	for _, c := range b.Containers {
 		out.Containers = append(out.Containers, domain.ContainerValues{Name: c.Name, CPUPercent: c.CPUPercent, MemoryBytes: c.MemoryBytes,
 			MemoryLimitBytes: c.MemoryLimitBytes, NetworkRxBPS: c.NetworkRxBytesPerSecond, NetworkTxBPS: c.NetworkTxBytesPerSecond,

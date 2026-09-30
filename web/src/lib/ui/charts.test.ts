@@ -186,6 +186,83 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 		}
 	});
 
+	describe('side by side (stacked={false}: temperatures)', () => {
+		const sensors = [
+			{
+				name: 'coretemp: Package id 0',
+				color: 'hsl(0, 60%, 55%)',
+				values: [45, 52.5, 48.5, null]
+			},
+			{
+				name: 'nvme: Composite',
+				color: 'hsl(120, 60%, 55%)',
+				values: [38.85, null, 40, null]
+			}
+		];
+
+		it('draws plain lines, heads with the hottest value and lists every sensor without a total', async () => {
+			const before = lazy.mounted.length;
+			render(MultiSeriesChart, {
+				props: {
+					title: 'Temperature',
+					unit: 'celsius',
+					stacked: false,
+					timestamps: ts,
+					items: sensors,
+					detail: 'hottest sensor'
+				}
+			});
+			const fig = screen.getByRole('figure', { name: 'Temperature' });
+			expect(fig).toHaveTextContent('48.5 °C');
+			expect(fig).toHaveTextContent('hottest sensor');
+			expect(fig).toHaveTextContent(
+				'Temperature: latest highest 48.5 °C. Highest: coretemp: Package id 0 48.5 °C, nvme: Composite 40 °C.'
+			);
+			await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
+			const o = lazy.mounted[before];
+			expect(o.stacked).toBe(false);
+			expect(o.yMin).toBeUndefined();
+			expect(o.format(48.5)).toBe('48.5 °C');
+			expect(o.lines.map((l) => l.name)).toEqual([
+				'nvme: Composite',
+				'coretemp: Package id 0'
+			]);
+			const tip = o.tooltip?.(2) ?? '';
+			// Hottest first, and no total: temperatures do not add up.
+			expect(tip.indexOf('coretemp')).toBeLessThan(tip.indexOf('nvme'));
+			expect(tip).not.toContain('Total');
+		});
+
+		it('shows the tapped moment under the chart on phones, without a total', async () => {
+			vi.stubGlobal(
+				'matchMedia',
+				vi.fn(() => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
+			);
+			try {
+				const before = lazy.mounted.length;
+				render(MultiSeriesChart, {
+					props: {
+						title: 'Temperature',
+						unit: 'celsius',
+						stacked: false,
+						timestamps: ts,
+						items: sensors
+					}
+				});
+				await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
+				const o = lazy.updates.at(-1) ?? lazy.mounted[before];
+				expect(o.hideTooltip).toBe(true);
+				o.onPointer?.(Date.parse(ts[0]));
+				const region = await screen.findByRole('region', { name: /^Temperature at / });
+				expect(within(region).getByText('nvme: Composite')).toBeInTheDocument();
+				expect(within(region).getByText('38.85 °C')).toBeInTheDocument();
+				expect(region).not.toHaveTextContent('Total');
+			} finally {
+				vi.unstubAllGlobals();
+			}
+		});
+	});
+
 	it('totals the newest bucket of the shown items, not of a hidden newer one', () => {
 		render(MultiSeriesChart, {
 			props: {

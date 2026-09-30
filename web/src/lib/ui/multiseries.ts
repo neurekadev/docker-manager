@@ -1,5 +1,6 @@
 // Multi-series charts (MultiSeriesChart): many items of one type on one
-// chart (every container of an environment), each with its own colour.
+// chart (every container of an environment, stacked; the host's
+// temperature sensors, side by side), each with its own colour.
 // The tooltip names every shown item with a value at the hovered bucket,
 // largest first; hidden items (left out by a filter) are greyed out on the
 // chart and absent from the tooltip. Pure functions.
@@ -137,6 +138,21 @@ export function lastIndex(items: readonly SeriesItem[]): number {
 				break;
 			}
 	return last;
+}
+
+/** The largest of the shown items' values at a bucket (null: none has one). */
+export function maxAt(
+	items: readonly SeriesItem[],
+	index: number,
+	shown: (name: string) => boolean = () => true
+): number | null {
+	let top: number | null = null;
+	for (const it of items) {
+		const v = it.values[index];
+		if (v === null || v === undefined || !shown(it.name)) continue;
+		top = top === null ? v : Math.max(top, v);
+	}
+	return top;
 }
 
 /** The sum of the shown items' values at a bucket (null: none has one). */

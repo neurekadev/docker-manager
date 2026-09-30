@@ -122,16 +122,24 @@ func (s *Store) Query(ctx context.Context, q domain.MetricQuery) (domain.MetricR
 	if err != nil {
 		return out, err
 	}
-	add := func(kind string, names []string, mount bool) error {
+	add := func(kind string, names []string) error {
 		sets, flags, err := s.collect(ctx, q.EnvironmentID, kind, names, pick(kind, keys), srcs, p)
 		if err != nil {
 			return err
 		}
 		out.Flags |= flags
 		for n, set := range sets {
+			// A sensor without a reading in the range (removed hardware)
+			// is left out; every filesystem stays (gaps when offline).
+			if kind == domain.MetricSensor && !hasValues(set) {
+				continue
+			}
 			for _, ser := range set {
-				if mount {
+				switch kind {
+				case domain.MetricDisk:
 					ser.Mount = names[n]
+				case domain.MetricSensor:
+					ser.Sensor = names[n]
 				}
 				out.Series = append(out.Series, ser)
 			}
@@ -139,9 +147,14 @@ func (s *Store) Query(ctx context.Context, q domain.MetricQuery) (domain.MetricR
 		return nil
 	}
 	if q.Kind == domain.MetricContainer {
-		err = add(domain.MetricContainer, []string{q.Name}, false)
-	} else if err = add(domain.MetricHost, []string{""}, false); err == nil && len(pick(domain.MetricDisk, keys)) > 0 {
-		err = add(domain.MetricDisk, s.names(q.EnvironmentID, domain.MetricDisk), true)
+		err = add(domain.MetricContainer, []string{q.Name})
+	} else {
+		err = add(domain.MetricHost, []string{""})
+		for _, k := range []string{domain.MetricDisk, domain.MetricSensor} {
+			if err == nil && len(pick(k, keys)) > 0 {
+				err = add(k, s.names(q.EnvironmentID, k))
+			}
+		}
 	}
 	if err != nil {
 		return domain.MetricResult{}, err
@@ -370,8 +383,8 @@ func (s *Store) aggregate(ctx context.Context, kind string, ids []int64, pos map
 	return flags, rows.Err()
 }
 
-// names lists the series names of a kind in an environment (sorted: the
-// Docker filesystem first for disks).
+// names lists the series names of a kind in an environment (sorted by
+// name; for disks the Docker filesystem, then the stacks one first).
 func (s *Store) names(env, kind string) []string {
 	s.mu.Lock()
 	var out []string
@@ -382,10 +395,11 @@ func (s *Store) names(env, kind string) []string {
 	}
 	s.mu.Unlock()
 	rank := func(n string) int {
-		switch n {
-		case "docker":
+		switch {
+		case kind != domain.MetricDisk:
+		case n == "docker":
 			return 0
-		case "stacks":
+		case n == "stacks":
 			return 1
 		}
 		return 2

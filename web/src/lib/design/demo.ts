@@ -121,6 +121,29 @@ export function demoContainerMemory(n = 60): { name: string; values: (number | n
 	}));
 }
 
+/**
+ * Deterministic host temperatures (°C) for the side-by-side
+ * MultiSeriesChart gallery: a CPU package that warms up under load, its
+ * cores, an NVMe drive with a few minutes without readings and the ACPI
+ * zone.
+ */
+export function demoTemperatures(n = 60): { name: string; values: (number | null)[] }[] {
+	const wave = (base: number, amp: number, k: number) => (i: number) =>
+		Math.round((base + amp * Math.sin((i + k) / 6)) * 100) / 100;
+	return [
+		{ name: 'coretemp: Package id 0', f: wave(52, 9, 0) },
+		{ name: 'coretemp: Core 0', f: wave(49, 8, 1) },
+		{ name: 'coretemp: Core 1', f: wave(47, 7, 2) },
+		{ name: 'nvme: Composite', f: wave(39, 2, 5), gap: [30, 36] },
+		{ name: 'acpitz', f: wave(27.8, 0.5, 9) }
+	].map(({ name, f, gap }) => ({
+		name,
+		values: Array.from({ length: n }, (_, i) =>
+			gap && i >= gap[0] && i < gap[1] ? null : f(i)
+		)
+	}));
+}
+
 /** A deterministic CPU series (percent) with one gap. */
 export function demoCpuSeries(n = 40): (number | null)[] {
 	return Array.from({ length: n }, (_, i) =>

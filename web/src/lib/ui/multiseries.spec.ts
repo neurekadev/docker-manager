@@ -3,6 +3,7 @@ import {
 	ROWS_PER_COLUMN,
 	escapeHtml,
 	lastIndex,
+	maxAt,
 	nearestIndex,
 	tipTimeText,
 	tooltipHtml,
@@ -123,6 +124,14 @@ describe('lastIndex and totalAt (the headline of MultiSeriesChart)', () => {
 		expect(totalAt(items, 1)).toBe(12);
 		expect(totalAt(items, 1, (n) => n === 'cache')).toBe(2);
 		expect(totalAt(items, 2)).toBeNull();
+	});
+
+	it('takes the largest shown value for charts that do not add up (temperatures)', () => {
+		expect(maxAt(items, 1)).toBe(5);
+		expect(maxAt(items, 1, (n) => n === 'cache')).toBe(2);
+		expect(maxAt(items, 0, (n) => n !== 'db')).toBe(1);
+		expect(maxAt(items, 1, () => false)).toBeNull();
+		expect(maxAt(items, 2)).toBeNull();
 	});
 });
 

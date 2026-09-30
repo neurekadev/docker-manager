@@ -124,7 +124,9 @@ disk I/O): dozens of stacked lines can only be followed by colour, so each
 container gets its own in Beszel's order: on each chart the containers are
 ranked by their total over the range and get `rankColor(rank, n)` from
 `$lib/design/hue` (hues spread evenly from red, the largest first; the
-stacking stays in name order). The tooltip and name filter name them.
+stacking stays in name order). The tooltip and name filter name them. The
+host's Temperature chart colours its sensors the same way, ranked by their
+maximum over the range (`rankByPeak`), the hottest first.
 
 ```ts
 import { SERVICE_HEX } from '$lib/design/hue';
@@ -374,7 +376,7 @@ libraries through `$lib/lazy` only (checked by `verify-build.mjs`).
 for charts; series colours come from `TILE_HEX` or `SERVICE_HEX`.
 
 `TimeSeriesChart` (`title`, `timestamps`, `lines: ChartLine[]`, `unit`:
-`percent | bytes | bytes_per_second | load | count`, `from`/`to`, `yMax`,
+`percent | bytes | bytes_per_second | load | count | celsius`, `from`/`to`, `yMax`,
 `detail`, `headline`) draws metric responses as they come from the API: nulls stay
 breaks, runs of missing samples are shaded **and** listed as text under
 the chart ("No samples since 12:40": offline intervals, #5), several
@@ -407,9 +409,15 @@ On phones and touch screens (`(max-width: 640px), (pointer: coarse)`)
 there is no floating tooltip, which could not fit the screen: a tap moves
 the pointer (`onPointer`, `hideTooltip` of `timeSeriesOption`) and the same
 list shows under the chart, scrollable, with a close button.
-The `/design` gallery shows it with twenty demo containers.
+Values that do not add up (temperatures) pass `stacked={false}`: plain
+1.75 px lines side by side without fills; the headline and the text
+summary name the largest shown value of the newest bucket (`maxAt`)
+instead of a total, and neither the tooltip nor the phone list has a
+total (the largest still first).
+The `/design` gallery shows it with twenty demo containers and, side by
+side, five demo temperature sensors.
 Pure helpers in `$lib/ui/multiseries.ts` (`tooltipRows`, `tooltipHtml`,
-`totalAt`); `timeSeriesOption` takes `stacked`, `muted` lines and a
+`totalAt`, `maxAt`); `timeSeriesOption` takes `stacked`, `muted` lines and a
 `tooltip` callback for it.
 
 ### Formatting
@@ -423,7 +431,7 @@ formatters, never with `toFixed`, `Math.round` or a hand-made unit
 1.005 → 1.01), `formatBytes` (binary units: 512 B, 1.5 KB, 312.46 MB,
 123.45 GB, 2 GB; whole bytes below 1 KB), `formatPercent` (0.07%, 12.34%,
 100%), `formatValue(v, unit)` for metric units (`bytes_per_second`
-"1.25 MB/s", `load` "0.5"; `count` stays whole), `Meter` (its percentage),
+"1.25 MB/s", `load` "0.5", `celsius` "48.5 °C"; `count` stays whole), `Meter` (its percentage),
 `ratioText` in backups ("2.01x", "2x"), `formatTemperature` ("38 °C",
 "41.5 °C"). Counts stay whole numbers.
 

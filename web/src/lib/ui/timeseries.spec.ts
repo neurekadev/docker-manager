@@ -48,6 +48,9 @@ describe('time-series gaps (#5: offline intervals are visible)', () => {
 		expect(formatValue(1.234, 'load')).toBe('1.23');
 		expect(formatValue(2, 'load')).toBe('2');
 		expect(formatValue(3.6, 'count')).toBe('4');
+		expect(formatValue(48.5, 'celsius')).toBe('48.5 °C');
+		expect(formatValue(38.854, 'celsius')).toBe('38.85 °C');
+		expect(formatValue(61, 'celsius')).toBe('61 °C');
 		expect(formatValue(null, 'percent')).toBe('—');
 	});
 

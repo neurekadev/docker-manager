@@ -95,6 +95,21 @@ func TestHostProc(t *testing.T) {
 	}
 }
 
+func TestHostSys(t *testing.T) {
+	cfg, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "https://d.example.com"}, nil))
+	if err != nil || cfg.HostSys != DefaultHostSys {
+		t.Fatalf("default %q %v", cfg.HostSys, err)
+	}
+	cfg, err = Load(envconfig.Map(map[string]string{EnvManagerURL: "https://d.example.com", EnvHostSys: "/host/sys/"}, nil))
+	if err != nil || cfg.HostSys != "/host/sys" {
+		t.Fatalf("custom %q %v", cfg.HostSys, err)
+	}
+	if _, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "https://d.example.com", EnvHostSys: "host/sys"}, nil)); err == nil ||
+		!strings.Contains(err.Error(), EnvHostSys) {
+		t.Fatalf("relative path accepted: %v", err)
+	}
+}
+
 // TestParseRedirectURL (#35, manager moves): the address of a
 // manager.redirect is an http or https origin (plain http needs no
 // opt-in); anything else is refused without echoing credentials.
