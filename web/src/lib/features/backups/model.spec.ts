@@ -16,6 +16,12 @@ import {
 	isBuildxVolume,
 	isHelperContainer,
 	labelLockReason,
+	retentionGroups,
+	retentionReasonText,
+	scopeCounts,
+	scopeItemTitle,
+	scopeNeedsAttention,
+	scopeSources,
 	memberReason,
 	memberState,
 	looksLikeRecoveryKey,
@@ -424,5 +430,91 @@ describe('fresh-manager import (#24)', () => {
 		])
 			expect(IMPORT_ERRORS[code]).toBeTruthy();
 		expect(IMPORT_ERRORS.backup_import_key_rejected).toMatch(/cannot be recovered/);
+	});
+});
+
+describe('scope preview (#10)', () => {
+	const src = (state: string, path = '/p', service?: string) => ({
+		kind: 'bind',
+		path,
+		state,
+		service
+	});
+	const item = (sources: ReturnType<typeof src>[], extra = {}) => ({
+		item: 'stack/s1',
+		kind: 'stack',
+		stackId: 's1',
+		estimateComplete: true,
+		estimatedBytes: 1,
+		estimatedFiles: 1,
+		sources,
+		...extra
+	});
+
+	it('lists each source once, what needs attention first', () => {
+		const out = scopeSources([
+			src('included', '/a'),
+			src('excluded', '/b'),
+			src('blocked', '/c'),
+			src('included', '/a')
+		]);
+		expect(out.map((s) => s.path)).toEqual(['/c', '/a', '/b']);
+		expect(scopeCounts(out)).toEqual([
+			{ state: 'blocked', count: 1 },
+			{ state: 'included', count: 1 },
+			{ state: 'excluded', count: 1 }
+		]);
+	});
+
+	it('opens items that need the user and names stacks and volumes', () => {
+		expect(scopeNeedsAttention(item([src('included')]))).toBe(false);
+		expect(scopeNeedsAttention(item([src('requires_opt_in')]))).toBe(true);
+		expect(scopeNeedsAttention(item([src('included')], { conflicts: ['x'] }))).toBe(true);
+		expect(scopeItemTitle(item([]), (id) => (id === 's1' ? 'media' : undefined))).toBe('media');
+		expect(scopeItemTitle(item([]))).toBe('s1');
+		expect(
+			scopeItemTitle({
+				...item([]),
+				kind: 'volume',
+				stackId: undefined,
+				item: 'volume/data',
+				volume: 'data'
+			})
+		).toBe('data');
+	});
+});
+
+describe('retention preview (#10)', () => {
+	const d = (item: string, keep: boolean, time: string, reasons?: string[]) => ({
+		snapshotId: `${item}@${time}`,
+		item,
+		keep,
+		time,
+		reasons
+	});
+
+	it('groups decisions per stack or volume by name, those losing backups first', () => {
+		const groups = retentionGroups(
+			[
+				d('volume/media', true, '2026-09-02T00:00:00Z', ['daily']),
+				d('stack/s1', true, '2026-09-01T00:00:00Z', ['last']),
+				d('stack/s1', false, '2026-08-01T00:00:00Z'),
+				d('stack/s1', true, '2026-09-03T00:00:00Z', ['last']),
+				d('manager', true, '2026-09-01T00:00:00Z', ['newest'])
+			],
+			(id) => (id === 's1' ? 'shop' : undefined)
+		);
+		expect(groups.map((g) => [g.name, g.forget, g.keep])).toEqual([
+			['Stack shop', 1, 2],
+			['Manager state', 0, 1],
+			['Volume media', 0, 1]
+		]);
+		expect(groups[0].decisions.map((x) => x.time)).toEqual([
+			'2026-09-03T00:00:00Z',
+			'2026-09-01T00:00:00Z',
+			'2026-08-01T00:00:00Z'
+		]);
+		expect(retentionReasonText('daily')).toBe('the daily rule');
+		expect(retentionReasonText('odd')).toBe('odd');
 	});
 });

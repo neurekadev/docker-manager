@@ -42,6 +42,7 @@
 	import StorageCard from '$lib/features/backups/StorageCard.svelte';
 	import StorageHistoryCard from '$lib/features/backups/StorageHistoryCard.svelte';
 	import {
+		isRetentionActivity,
 		nextPolicyRun,
 		recentSets,
 		setBytes,
@@ -115,8 +116,15 @@
 				a.environmentId === environmentSelection.id
 		)
 	);
+	// Policies with a backup running (their Back up now waits; a retention
+	// does not count).
 	const runningPolicies = $derived(
-		new Set(running.map((a) => a.policyId).filter((id): id is string => !!id))
+		new Set(
+			running
+				.filter((a) => !isRetentionActivity(a))
+				.map((a) => a.policyId)
+				.filter((id): id is string => !!id)
+		)
 	);
 	let seenJobs = new Set<string>();
 	$effect(() => {
@@ -253,7 +261,7 @@
 		{#if running.length}
 			<Card
 				title="Running now"
-				subtitle="Progress and the file each backup reads, updated every second."
+				subtitle="Backups with the file each one reads, and retentions, updated every second."
 			>
 				<RunningBackups jobs={running} {policyName} environmentName={envName} />
 			</Card>

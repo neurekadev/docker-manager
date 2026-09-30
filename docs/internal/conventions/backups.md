@@ -14,7 +14,9 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `CommandSecrets.Repositories` (jobs) or the request/stream `credential`.
   Audit key administration by fingerprint (`rk_…`) only.
 - Retention runs once per finished set and location, never per stack or
-  volume, and prunes only after it forgot snapshots. A new follow-up or
+  volume, and prunes only after it forgot snapshots, or when the
+  location's last prune did not finish (`backup.PrunePending`: marked
+  before every prune, cleared after a successful one). A new follow-up or
   trigger must keep both (prune costs downloads at remote destinations).
   The rules and the deleted-item expiry are one decision (`backup.Plan`
   then `RetentionPlan.Expire`) shared by the preview and the executor.
@@ -84,6 +86,11 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   policy on the server or a detail request per policy in the UI. Set
   members name their backup (`backupId`, only backups the caller sees);
   the UI links by it and never matches members to backups itself.
+- Running backups and retentions show only through `RunningBackups` (GET
+  `/backup-activity`, one fixed-height line per job), never as generic job
+  cards on the Backups pages. A step that runs restic for long (a
+  snapshot, a prune) stops on cancellation through
+  `StepContext.WatchCancel`; forget is never interrupted.
 - UI (`$lib/features/backups`, `routes/(app)/backups`): users see names,
   not internals. Scopes (`env:<id>`, `docker-manager-env-<id>`), restic
   locations, snapshot IDs, host paths, key generations and fingerprints,

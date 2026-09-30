@@ -353,6 +353,7 @@ func (a *Agent) enableBackups() {
 		Storage:           func() *storage.Result { return a.Capabilities().Storage },
 		Guard:             a.guard,
 		VolumeLabels:      a.volumeLabels,
+		StateDir:          cfg.StateDir,
 		Restic:            opener,
 		LocalRoots:        cfg.BackupLocalRoots,
 		ExternalAllowlist: cfg.BackupExternalAllowlist,

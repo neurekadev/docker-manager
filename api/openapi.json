@@ -1108,9 +1108,12 @@
             "type": "string"
           },
           "kind": {
+            "description": "backup.retention/manager.retention: the policy's retention (forget, then prune); no current item, its progress is the job's.",
             "enum": [
               "backup.run",
-              "manager.backup"
+              "manager.backup",
+              "backup.retention",
+              "manager.retention"
             ],
             "type": "string"
           },
@@ -1128,6 +1131,11 @@
           "setId": {
             "type": "string"
           },
+          "stacks": {
+            "description": "Stacks this backup.run backs up.",
+            "format": "int64",
+            "type": "integer"
+          },
           "state": {
             "enum": [
               "queued",
@@ -1137,6 +1145,11 @@
               "cancelling"
             ],
             "type": "string"
+          },
+          "volumes": {
+            "description": "Standalone volumes this backup.run backs up.",
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
@@ -1146,6 +1159,8 @@
           "setId",
           "percent",
           "itemCount",
+          "stacks",
+          "volumes",
           "cancellable"
         ],
         "type": "object"
@@ -23492,7 +23507,7 @@
     },
     "/api/v1/backup-activity": {
       "get": {
-        "description": "Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it (job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.",
+        "description": "Every unfinished backup or retention job the caller may read (job.read), with what a backup backs up now: the item, its progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it (job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.",
         "operationId": "list-backup-activity",
         "responses": {
           "200": {
@@ -23526,7 +23541,9 @@
                       "percent": 1,
                       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                      "state": "queued"
+                      "stacks": 1,
+                      "state": "queued",
+                      "volumes": 1
                     }
                   ]
                 },

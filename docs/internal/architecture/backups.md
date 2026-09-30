@@ -135,7 +135,21 @@ only production process execution in Docker Manager.
   `start_containers` compensation restarts what the run stopped. The
   `manager.backup` finish hook removes the job's staging copy of the
   database whatever the outcome (also when a cancel lands between restic's
-  end and `write_manifest`, or after a failure or restart).
+  end and `write_manifest`, or after a failure or restart). Between items
+  the snapshot step honors a request at once (`sc.CancelRequested`).
+- **Retention jobs** (`backup.retention`, `manager.retention`) report
+  their stages as job progress (opening, removing the backups the rules no
+  longer keep, "removed N backups, kept M", freeing space): restic's prune
+  has no live progress, only a closing summary. Cancelling stops a running
+  prune the same way (`WatchCancel`, then `ErrStepCancelled`; restic keeps
+  a repository usable wherever a prune stops and the next prune finishes
+  it); the output keeps what forget removed (the index follows it) with
+  `pruneError: cancelled`. Every prune marks its location as pending
+  first (`backup.MarkPrunePending`, files under `prune-pending/` in the
+  agent's state directory or the manager's data directory) and clears the
+  mark only after it succeeded, so the next retention of a location whose
+  prune was cancelled, failed or died prunes even when it forgets nothing. Forget itself is short and never interrupted
+  (its output must match what restic removed).
 - The **snapshot index** (`backup_snapshots`, the API's "backups") is
   filled by the jobs' finish hooks and caught up by verification jobs,
   which list what a location holds; a restored manager also reconciles it
@@ -373,13 +387,30 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   transaction or job event, and `backups.Service` keeps the latest report
   per job in memory (dropped when the job finishes, stale after 30 s).
   Agents announce `backup.activity`; only then does `backup.run` get
-  `activity: true`. `GET /backup-activity` lists unfinished backup jobs
-  the caller may read (`job.read`) and returns `currentFile` only with
+  `activity: true`. `GET /backup-activity` lists unfinished backup and
+  retention jobs the caller may read (`job.read`; a `backup.run` with its
+  `stacks` and `volumes` counts) and returns `currentFile` only with
   `stack.files.read` / `volume.files.read` on the item (the manager state:
   the owner), and `cancellable` when the caller holds `job.cancel` on the
-  job and no cancellation was requested yet. The overview polls it while
-  something runs; its running backups offer **Cancel** (with a
-  confirmation) on the cancellable ones.
+  job and no cancellation was requested yet. The overview and the policy
+  page poll it while something runs and show it in a "Running now" card
+  (`RunningBackups`): one fixed-height line per job (policy, where, stacks
+  and volumes, the item with its file and byte counts, a bar, the time
+  left, **Cancel** with a confirmation) and one line with the file restic
+  reads; never generic job cards, which appear, list every item and move
+  the page. A job leaving the list reports its outcome in a toast
+  (`onJobsFinished` reads the ended job once).
+- **Previews in the UI.** The scope preview (`ScopePreviewView`) lists
+  each item once per environment with its stack name, estimated size and
+  counts per source state; its sources (listed once: the agent repeats a
+  bind two services mount and volumes without a path) open by themselves
+  when something needs the user. Keyed `each` blocks never key by source
+  text (a repeated key throws and nothing renders). An agent that does
+  not answer the 2-minute request reads as `timeout`. "Apply retention
+  now" shows `RetentionPreviewPanel` by repository and environment name,
+  one row per stack or volume (removed/kept counts, the backups with the
+  rules keeping them), and confirms only once the preview is loaded and
+  removes something ("Remove N backups").
 - **Storage.** After every backup (agent `record`, manager `write_manifest`)
   and every prune, the executor runs `restic stats --mode raw-data`
   (`backup.MeasureStats`: index and directory metadata only, never file

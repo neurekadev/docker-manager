@@ -26,6 +26,8 @@ function activity(currentFile?: string): BackupActivity {
 		environmentId: 'e1',
 		percent: 20,
 		itemCount: 2,
+		stacks: 0,
+		volumes: 2,
 		cancellable: false,
 		current: {
 			item: 'volume/media',
@@ -78,6 +80,36 @@ describe('RunningBackups (#10)', () => {
 		expect(
 			screen.getAllByText('Waiting for another job on the same data').length
 		).toBeGreaterThan(0);
+	});
+
+	it('shows a retention on one line with its stage and no item', () => {
+		render(RunningBackups, {
+			props: {
+				jobs: [
+					{
+						jobId: 'j2',
+						kind: 'backup.retention',
+						state: 'running',
+						setId: '',
+						policyId: 'p1',
+						environmentId: 'e1',
+						percent: 40,
+						itemCount: 1,
+						stacks: 0,
+						volumes: 0,
+						cancellable: false,
+						message: 'freeing the space of the removed backups'
+					}
+				],
+				policyName: () => 'Nightly',
+				environmentName: envName
+			}
+		});
+		expect(screen.getByText('Retention of Nightly')).toBeInTheDocument();
+		expect(screen.getByText('Freeing the space of the removed backups')).toBeInTheDocument();
+		expect(
+			screen.getByRole('progressbar', { name: 'Retention progress of Nightly, prod' })
+		).toHaveAttribute('aria-valuenow', '40');
 	});
 
 	it('offers Cancel only when the server allows it', () => {

@@ -369,14 +369,19 @@ func (s *Service) stepManagerForget(ctx context.Context, sc *jobexec.StepContext
 	if err := json.Unmarshal(sc.Input, &in); err != nil {
 		return err
 	}
+	sc.Progress(ctx, 5, "opening the manager-state repository")
 	o, gen, _, err := s.managerLocation(ctx, in.RepositoryID, false)
 	if err != nil {
 		return err
 	}
+	sc.Progress(ctx, 10, "removing the backups the rules no longer keep")
 	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, nil, in.TimeZone) // manager state is never a deleted item
 	out := protocol.RetentionOutput{ResticRepositoryID: o.ResticRepositoryID, KeyGeneration: gen, Forgotten: res.Forgotten, Kept: res.Kept}
 	if serr := sc.SetOutput(ctx, out); serr != nil {
 		return serr
+	}
+	if err == nil {
+		sc.Progress(ctx, 30, fmt.Sprintf("removed %d backups, kept %d", len(res.Forgotten), res.Kept))
 	}
 	return err
 }
@@ -388,15 +393,38 @@ func (s *Service) stepManagerPrune(ctx context.Context, sc *jobexec.StepContext)
 	}
 	var out protocol.RetentionOutput
 	_ = json.Unmarshal(sc.Output(), &out)
-	if len(out.Forgotten) == 0 {
-		return nil // nothing forgotten: no prune (it downloads and rewrites pack data)
+	// Nothing forgotten: no prune (it downloads and rewrites pack data),
+	// unless the last one did not finish (backup.PrunePending).
+	if len(out.Forgotten) == 0 && !backup.PrunePending(s.opts.DataDir, in.RepositoryID, backup.ScopeManager) {
+		return nil
 	}
 	o, _, _, err := s.managerLocation(ctx, in.RepositoryID, false)
 	if err != nil {
 		return err
 	}
+	if merr := backup.MarkPrunePending(s.opts.DataDir, in.RepositoryID, backup.ScopeManager, true); merr != nil {
+		s.log.Warn("could not mark the prune as pending", "repository_id", in.RepositoryID, "error", merr)
+	}
+	sc.Progress(ctx, 40, "freeing the space of the removed backups")
+	// A cancellation stops restic's prune (the repository stays usable; the
+	// next prune finishes the job).
+	pctx, stop := sc.WatchCancel(ctx, s.opts.Clock, jobexec.DefaultCancelPoll)
+	defer stop()
 	var after *restic.Stats
-	out.ReclaimedBytes, after, err = backup.Prune(ctx, o.Repo)
+	out.ReclaimedBytes, after, err = backup.Prune(pctx, o.Repo)
+	if err != nil && ctx.Err() == nil && pctx.Err() != nil {
+		out.PruneError = restic.CodeCancelled
+		out.Stats = protocol.StatsOf(backup.MeasureStats(ctx, o.Repo))
+		if serr := sc.SetOutput(ctx, out); serr != nil {
+			return serr
+		}
+		return fmt.Errorf("the prune was stopped: %w", jobexec.ErrStepCancelled)
+	}
+	if err == nil {
+		if merr := backup.MarkPrunePending(s.opts.DataDir, in.RepositoryID, backup.ScopeManager, false); merr != nil {
+			s.log.Warn("could not clear the pending prune", "repository_id", in.RepositoryID, "error", merr)
+		}
+	}
 	if err != nil {
 		out.PruneError = restic.CodeOf(err)
 		after = backup.MeasureStats(ctx, o.Repo) // forget still changed it

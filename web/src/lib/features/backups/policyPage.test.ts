@@ -1,7 +1,7 @@
-// The backup policy page's running jobs (docs/internal/web.md, "Job
-// progress after reload"): the policy's running backup and retention jobs
-// come back from the running list with a bar each, the recent runs show
-// the set being written with its progress, and Back up now waits.
+// The backup policy page's running jobs: the policy's running backups and
+// retentions come back from GET /backup-activity as one steady line each
+// in "Running now", the recent runs show the set being written with its
+// progress, and Back up now waits.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
@@ -96,8 +96,24 @@ const activity = [
 		policyId: 'pol-1',
 		environmentId: 'env-1',
 		itemCount: 1,
+		stacks: 1,
+		volumes: 0,
 		cancellable: false,
 		percent: 40
+	},
+	{
+		jobId: '0190-2',
+		kind: 'backup.retention',
+		state: 'running',
+		setId: '',
+		policyId: 'pol-1',
+		environmentId: 'env-2',
+		itemCount: 1,
+		stacks: 0,
+		volumes: 0,
+		cancellable: true,
+		percent: 40,
+		message: 'freeing the space of the removed backups'
 	},
 	{
 		jobId: '0190-9',
@@ -107,6 +123,8 @@ const activity = [
 		policyId: 'pol-9',
 		environmentId: 'env-1',
 		itemCount: 1,
+		stacks: 1,
+		volumes: 0,
 		cancellable: false,
 		percent: 10
 	}
@@ -156,7 +174,7 @@ function openPage() {
 }
 
 describe('backup policy page: running jobs', () => {
-	it('restores the running backup and retention bars and the running set after a reload', async () => {
+	it('restores the running backup and retention lines and the running set after a reload', async () => {
 		running = [
 			job('0190-3', { policyId: 'pol-9' }),
 			job('0190-2', { kind: 'backup.retention', environmentId: 'env-2' }),
@@ -165,14 +183,17 @@ describe('backup policy page: running jobs', () => {
 		openPage();
 
 		expect(
-			await screen.findByRole('progressbar', { name: 'Back up: Silo progress' })
+			await screen.findByRole('progressbar', { name: 'Backup progress of Nightly, Silo' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Apply backup retention: Rack progress' })
+			screen.getByRole('progressbar', { name: 'Retention progress of Nightly, Rack' })
 		).toBeInTheDocument();
-		expect(screen.getByRole('region', { name: 'Running jobs of Nightly' })).toBeInTheDocument();
-		// Another policy's backup has no bar here.
-		expect(screen.queryAllByRole('progressbar', { name: /progress$/ })).toHaveLength(2);
+		expect(screen.getByText('Freeing the space of the removed backups')).toBeInTheDocument();
+		// Another policy's backup has no line here, and no generic job cards.
+		expect(screen.queryAllByRole('progressbar', { name: / progress of / })).toHaveLength(2);
+		expect(screen.queryByRole('region', { name: 'Running jobs of Nightly' })).toBeNull();
+		// The retention can be cancelled from its line.
+		expect(screen.getByRole('button', { name: 'Cancel Nightly, Rack' })).toBeInTheDocument();
 
 		// The recent runs show the set being written, from this policy's activity.
 		expect(

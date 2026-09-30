@@ -48,15 +48,23 @@ Each server can be covered by one policy.
    monthly** is a good start.
 6. Press **Create policy**.
 
-**Preview what gets backed up** shows the exact list. **Back up now** on
-the policy runs it right away, and **Retry missing** backs up only what
-failed.
+**Preview what gets backed up** shows each stack and volume with its
+estimated size; open one to see its paths and why each is included or
+left out. **Back up now** on the policy runs it right away, and **Retry
+missing** backs up only what failed.
 
-To stop a backup, press **Cancel** next to it under **Running now** on the
-**Backups** page, then **Cancel backup**. It stops shortly: what it
-already backed up is kept, the rest is left out until **Retry missing**,
-and containers it stopped start again. Each server's backup is cancelled
-on its own.
+**Running now**, on the **Backups** page and on the policy, shows one line
+per running backup: the stack or volume it is on, its files and bytes, the
+time left and the file it reads. To stop a backup, press **Cancel** on its
+line, then **Cancel backup**. It stops shortly: what it already backed up
+is kept, the rest is left out until **Retry missing**, and containers it
+stopped start again. Each server's backup is cancelled on its own.
+
+**Apply retention now** (the policy's **More actions** menu, ⋯) shows which backups of
+each stack and volume the rules remove and keep; confirm with **Remove N
+backups**. Its progress shows under **Running now**, where you can cancel
+it too: backups it already removed stay removed, and the next retention
+frees the rest of the space.
 
 <Callout type="warn" title="Back up Docker Manager itself">
   Turn on **Back up the manager state** in one policy, and store it away

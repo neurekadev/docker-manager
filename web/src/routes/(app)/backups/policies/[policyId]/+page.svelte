@@ -6,9 +6,10 @@
 	// the next runs, and its recent runs with their sizes. Editing opens the
 	// one-screen editor in a dialog (routes.backupPolicyEdit() links here
 	// with it open); retention runs with its preview and confirmation.
-	// Every running job of the policy (backups, retention) shows a progress
-	// bar and the recent runs show the sets being written, all found again
-	// after a reload (docs/internal/web.md, "Job progress after reload").
+	// The policy's running backups and retentions show in one "Running now"
+	// card, one steady line each (RunningBackups, from GET
+	// /backup-activity), and the recent runs show the sets being written;
+	// a job leaving the list reports its outcome in a toast.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -58,14 +59,16 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
-	import ActiveJobs from '$lib/features/jobs/ActiveJobs.svelte';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import RetentionPreviewPanel from '$lib/features/backups/RetentionPreviewPanel.svelte';
+	import RunningBackups from '$lib/features/backups/RunningBackups.svelte';
+	import { onJobsFinished } from '$lib/features/backups/finished.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
 	import {
 		coverageSummary,
+		isRetentionActivity,
 		retentionActive,
 		policySentence,
 		retentionShort,
@@ -119,11 +122,15 @@
 	// waits for it (the manager refuses a second run with
 	// backup_run_active); its sets show their progress.
 	const activity = createQuery(() =>
-		backupActivityQuery(() => policy.data?.recentSets?.[0]?.state === 'pending' || backingUp)
+		backupActivityQuery(
+			() => policy.data?.recentSets?.[0]?.state === 'pending' || policyJobs.busy
+		)
 	);
 	const policyActivity = $derived((activity.data ?? []).filter((a) => a.policyId === id));
-	const active = $derived(policyActivity.length > 0 || backingUp);
+	const active = $derived(policyActivity.some((a) => !isRetentionActivity(a)) || backingUp);
+	onJobsFinished(() => policyActivity.map((a) => a.jobId), finished);
 	let retentionOpen = $state(false);
+	let retentionState = $state({ ready: false, forget: 0 });
 	let deleteOpen = $state(false);
 
 	async function run(p: BackupPolicy) {
@@ -305,12 +312,18 @@
 				{/snippet}
 			</PageHeader>
 
-			<ActiveJobs
-				jobs={policyJobs}
-				titleOf={jobTitle}
-				onfinish={finished}
-				label="Running jobs of {p.name}"
-			/>
+			{#if policyActivity.length}
+				<Card
+					title="Running now"
+					subtitle="Progress and the file each backup reads, updated every second."
+				>
+					<RunningBackups
+						jobs={policyActivity}
+						policyName={() => p.name}
+						environmentName={envName}
+					/>
+				</Card>
+			{/if}
 
 			<KpiRow>
 				<KpiCard
@@ -506,18 +519,30 @@
 			<ConfirmDialog
 				bind:open={retentionOpen}
 				title="Apply the retention of {p.name}?"
-				message="Forgets the backups the rules no longer keep, then frees their space in the repositories. Review the preview first."
-				consequences={[
-					retentionText(p.retention) + '.',
-					'The minimum recovery floor and the newest backup of each stack and volume are always kept.',
-					'Forgotten backups cannot be restored afterwards. Object Lock may refuse some deletions.'
-				]}
-				confirmLabel="Apply retention"
+				message="{retentionText(
+					p.retention
+				)}. Removed backups can't be restored; the newest backup of each stack and volume always stays."
+				confirmLabel={retentionState.ready && retentionState.forget
+					? `Remove ${retentionState.forget} ${retentionState.forget === 1 ? 'backup' : 'backups'}`
+					: 'Apply retention'}
+				canConfirm={retentionState.ready && retentionState.forget > 0}
 				tone="danger"
 				size="lg"
 				onconfirm={() => applyRetention(p)}
 			>
-				<RetentionPreviewPanel policyId={p.id} auto />
+				{#if retentionOpen}
+					<RetentionPreviewPanel
+						policyId={p.id}
+						auto
+						environmentName={envName}
+						repositoryName={(r) => repos.data?.find((x) => x.id === r)?.name}
+						stackName={(s) => {
+							const st = stacks.data?.find((x) => x.id === s);
+							return st?.displayName || st?.name;
+						}}
+						onstate={(s) => (retentionState = s)}
+					/>
+				{/if}
 			</ConfirmDialog>
 			<DestructiveConfirm
 				bind:open={deleteOpen}

@@ -430,7 +430,7 @@ export interface paths {
         };
         /**
          * List running backups
-         * @description Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it (job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.
+         * @description Every unfinished backup or retention job the caller may read (job.read), with what a backup backs up now: the item, its progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it (job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.
          */
         get: operations["list-backup-activity"];
         put?: never;
@@ -5766,8 +5766,11 @@ export interface components {
              */
             itemCount: number;
             jobId: string;
-            /** @enum {string} */
-            kind: "backup.run" | "manager.backup";
+            /**
+             * @description backup.retention/manager.retention: the policy's retention (forget, then prune); no current item, its progress is the job's.
+             * @enum {string}
+             */
+            kind: "backup.run" | "manager.backup" | "backup.retention" | "manager.retention";
             message?: string;
             /**
              * Format: int64
@@ -5776,8 +5779,18 @@ export interface components {
             percent: number;
             policyId?: string;
             setId: string;
+            /**
+             * Format: int64
+             * @description Stacks this backup.run backs up.
+             */
+            stacks: number;
             /** @enum {string} */
             state: "queued" | "blocked" | "dispatched" | "running" | "cancelling";
+            /**
+             * Format: int64
+             * @description Standalone volumes this backup.run backs up.
+             */
+            volumes: number;
         };
         BackupActivityItem: {
             /** Format: int64 */
@@ -15172,7 +15185,9 @@ export interface operations {
                      *           "percent": 1,
                      *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "state": "queued"
+                     *           "stacks": 1,
+                     *           "state": "queued",
+                     *           "volumes": 1
                      *         }
                      *       ]
                      *     }

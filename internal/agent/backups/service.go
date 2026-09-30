@@ -68,8 +68,11 @@ type Options struct {
 	// VolumeLabels are the Compose labels of stack volumes: a backup
 	// exclude label declared there counts like one on the volume (nil: none).
 	VolumeLabels *volumelabels.Store
-	Clock        clock.Clock
-	Logger       *slog.Logger
+	// StateDir keeps the agent's pending-prune marks (backup.PrunePending;
+	// "": none).
+	StateDir string
+	Clock    clock.Clock
+	Logger   *slog.Logger
 	// WaitTimeout bounds each dependency wait when restarting containers.
 	WaitTimeout time.Duration
 	// EstimateBudget bounds the entries walked per item for size
