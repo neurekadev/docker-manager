@@ -26,6 +26,7 @@ function activity(currentFile?: string): BackupActivity {
 		environmentId: 'e1',
 		percent: 20,
 		itemCount: 2,
+		cancellable: false,
 		current: {
 			item: 'volume/media',
 			kind: 'volume',
@@ -77,6 +78,51 @@ describe('RunningBackups (#10)', () => {
 		expect(
 			screen.getAllByText('Waiting for another job on the same data').length
 		).toBeGreaterThan(0);
+	});
+
+	it('offers Cancel only when the server allows it', () => {
+		render(RunningBackups, {
+			props: { jobs: [activity()], policyName: () => 'Nightly', environmentName: envName }
+		});
+		expect(screen.queryByRole('button', { name: /^Cancel Nightly/ })).toBeNull();
+	});
+
+	it('cancels a running backup after a confirmation', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const posted: string[] = [];
+		vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+			const req = input instanceof Request ? input : new Request(String(input), init);
+			posted.push(`${req.method} ${new URL(req.url).pathname}`);
+			return new Response(JSON.stringify({ id: 'j1', state: 'cancelling' }), {
+				status: 202,
+				headers: { 'Content-Type': 'application/json' }
+			});
+		});
+		render(RunningBackups, {
+			props: {
+				jobs: [{ ...activity(), cancellable: true }],
+				policyName: () => 'Nightly',
+				environmentName: envName
+			}
+		});
+		await user.click(screen.getByRole('button', { name: 'Cancel Nightly, prod' }));
+		const dialog = await screen.findByRole('alertdialog');
+		expect(
+			within(dialog).getByText('Containers stopped for the backup start again.')
+		).toBeInTheDocument();
+		await user.click(within(dialog).getByRole('button', { name: 'Keep backing up' }));
+		expect(posted).toEqual([]);
+
+		await user.click(screen.getByRole('button', { name: 'Cancel Nightly, prod' }));
+		await user.click(
+			within(await screen.findByRole('alertdialog')).getByRole('button', {
+				name: 'Cancel backup'
+			})
+		);
+		expect(posted).toEqual(['POST /api/v1/jobs/j1/cancellations']);
+		// Stopping at once; no second Cancel while the list catches up.
+		expect(await screen.findByText('Stopping')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /^Cancel Nightly/ })).toBeNull();
 	});
 });
 

@@ -8,8 +8,9 @@
 //   - Before a step starts it is journaled as in flight (durably); after it
 //     returns it is journaled as completed. A crash in between leaves an
 //     in-flight step whose outcome is unknown.
-//   - Cancellation is honored only immediately before a step declared as a
-//     safe point.
+//   - Cancellation is honored immediately before a step declared as a
+//     safe point; a step whose work may be interrupted safely can also stop
+//     mid-way (StepContext.WatchCancel, ErrStepCancelled).
 //   - Steps may register compensations (e.g. "start the containers I
 //     stopped"), journaled before the step continues. Unreleased
 //     compensations always run when the attempt does not succeed, including
@@ -27,7 +28,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/protocol"
@@ -274,6 +277,42 @@ func (sc *StepContext) Output() json.RawMessage { return slices.Clone(sc.st.Outp
 // it for information; cancellation only takes effect at safe points.
 func (sc *StepContext) CancelRequested() bool {
 	return sc.opts.CancelRequested != nil && sc.opts.CancelRequested()
+}
+
+// DefaultCancelPoll is how often WatchCancel checks for cancellation.
+const DefaultCancelPoll = time.Second
+
+// WatchCancel returns a context derived from ctx that also ends once
+// cancellation is requested (sc.CancelRequested, checked every poll on
+// clk), and a stop function that ends the watch and waits for it. A step
+// whose work may be interrupted safely runs that work under the returned
+// context; when it ended while ctx did not, the step returns an error
+// wrapping ErrStepCancelled.
+func (sc *StepContext) WatchCancel(ctx context.Context, clk clock.Clock, poll time.Duration) (context.Context, context.CancelFunc) {
+	wctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	// The ticker exists when WatchCancel returns (a fake clock advanced
+	// right after it fires it).
+	t := clk.NewTicker(poll)
+	go func() {
+		defer close(done)
+		defer t.Stop()
+		for {
+			select {
+			case <-wctx.Done():
+				return
+			case <-t.C():
+				if sc.CancelRequested() {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return wctx, func() {
+		cancel()
+		<-done
+	}
 }
 
 // Run executes the attempt described by st (resuming after st.Completed)

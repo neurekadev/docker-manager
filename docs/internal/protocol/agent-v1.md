@@ -582,7 +582,8 @@ Defined in `internal/protocol/jobs.go` and
   instead of re-running. A job the report lists as `running` sends its
   `result` after the report, never before it.
 - `cancel` carries the job reference; it is honoured at the kind's next
-  cancellation safe point and compensations always run.
+  cancellation safe point (or mid-step by steps that stop safely, such as
+  an image build or a backup snapshot) and compensations always run.
 
 ### request / response
 

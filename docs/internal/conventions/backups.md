@@ -38,6 +38,12 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   neither for nor against a set (`backup.Completeness`), are never
   retried and hold no snapshot; a set of skipped members only is
   `skipped`.
+- A backup's snapshot step stops on cancellation mid-item: restic runs
+  under `StepContext.WatchCancel`'s context and the step returns
+  `jobexec.ErrStepCancelled`, keeping in its output the members backed up
+  so far (they keep their snapshots) and leaving the rest pending. A new
+  long restic call in a backup step follows the same pattern; restores,
+  retention and verification still stop only at safe points.
 - Stop/restart containers for backups/restores only through
   `internal/agent/lifecycle`, registering the `start_containers`
   compensation before stopping anything.

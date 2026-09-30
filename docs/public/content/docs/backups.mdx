@@ -52,6 +52,12 @@ Each server can be covered by one policy.
 the policy runs it right away, and **Retry missing** backs up only what
 failed.
 
+To stop a backup, press **Cancel** next to it under **Running now** on the
+**Backups** page, then **Cancel backup**. It stops shortly: what it
+already backed up is kept, the rest is left out until **Retry missing**,
+and containers it stopped start again. Each server's backup is cancelled
+on its own.
+
 <Callout type="warn" title="Back up Docker Manager itself">
   Turn on **Back up the manager state** in one policy, and store it away
   from the manager's disk (S3, or a network share). Otherwise a lost disk

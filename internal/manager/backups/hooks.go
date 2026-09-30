@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"os"
 	"strings"
 	"time"
 
@@ -71,6 +72,12 @@ func (s *Service) onBackupRun(ctx context.Context, db bun.IDB, j domain.Job) err
 
 func (s *Service) onManagerBackup(ctx context.Context, db bun.IDB, j domain.Job) error {
 	s.forgetActivity(j.ID)
+	// The staged database copy exists for this job only: remove it whatever
+	// the outcome (write_manifest removes it after a success; a failure, a
+	// cancellation or a restart before that step would leave it behind).
+	if err := os.RemoveAll(s.staging(j.ID)); err != nil {
+		s.log.Warn("could not remove the manager backup's staging copy", "job_id", j.ID, "error", err)
+	}
 	var in managerBackupInput
 	if err := json.Unmarshal(j.Input, &in); err != nil {
 		return nil

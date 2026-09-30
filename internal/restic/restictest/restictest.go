@@ -45,9 +45,10 @@ type Store struct {
 	// fail maps "op" or "op@repository" to an injected error.
 	fail  map[string]error
 	calls []Call
-	// OnBackup runs at the start of every Backup (tests use it to observe
-	// container state while "restic" runs); an error fails the backup.
-	OnBackup func(req restic.BackupRequest) error
+	// OnBackup runs at the start of every Backup with its context (tests
+	// use it to observe container state while "restic" runs, or to wait for
+	// a cancellation); an error fails the backup.
+	OnBackup func(ctx context.Context, req restic.BackupRequest) error
 }
 
 // unlock releases s.mu.
@@ -308,7 +309,7 @@ func excluded(stored string, patterns []string) bool {
 
 func (p *repo) Backup(ctx context.Context, req restic.BackupRequest) (restic.BackupSummary, error) {
 	if p.s.OnBackup != nil {
-		if err := p.s.OnBackup(req); err != nil {
+		if err := p.s.OnBackup(ctx, req); err != nil {
 			return restic.BackupSummary{}, err
 		}
 	}

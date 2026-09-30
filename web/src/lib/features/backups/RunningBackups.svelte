@@ -3,8 +3,19 @@
 	// bar and, below it, the file restic reads right now (updated every
 	// second while the page polls GET /backup-activity). The server sends
 	// the file only to holders of the item's files-read capability; others
-	// see the bar and the counts.
-	import { Badge, Meter, formatBytes, formatDuration } from '$lib/ui';
+	// see the bar and the counts. Holders of job.cancel (the server's
+	// cancellable) can cancel a backup after a confirmation.
+	import Square from '@lucide/svelte/icons/square';
+	import { api, unwrap } from '$lib/api/client';
+	import {
+		Badge,
+		Button,
+		ConfirmDialog,
+		Meter,
+		formatBytes,
+		formatDuration,
+		toast
+	} from '$lib/ui';
 	import {
 		activityItemName,
 		activityPercent,
@@ -32,10 +43,45 @@
 				: 'Environment';
 	}
 
+	// Jobs cancelled here: stopping at once, before the next poll says so.
+	let requested = $state<string[]>([]);
+	let confirmOpen = $state(false);
+	let confirming = $state<BackupActivity>();
+
+	const stopping = (a: BackupActivity) => a.state === 'cancelling' || requested.includes(a.jobId);
+
+	function askCancel(a: BackupActivity) {
+		confirming = a;
+		confirmOpen = true;
+	}
+
+	function consequences(a: BackupActivity): string[] {
+		if (a.state === 'queued' || a.state === 'blocked')
+			return ['It has not started yet: nothing is backed up in this run.'];
+		if (a.kind === 'manager.backup') return ['The manager state is not saved in this run.'];
+		return [
+			'What it backs up right now is not saved in this run.',
+			'Everything it backed up before stays and can be restored.',
+			'Containers stopped for the backup start again.'
+		];
+	}
+
+	async function cancel() {
+		const a = confirming;
+		if (!a) return;
+		await unwrap(
+			api.POST('/api/v1/jobs/{jobId}/cancellations', {
+				params: { path: { jobId: a.jobId } }
+			})
+		);
+		requested = [...requested, a.jobId];
+		toast.info(`Cancelling ${policyName(a.policyId)}`, { body: where(a) });
+	}
+
 	function waiting(a: BackupActivity): string | undefined {
+		if (stopping(a)) return 'Stopping';
 		if (a.state === 'queued') return 'Waiting to start';
 		if (a.state === 'blocked') return 'Waiting for another job on the same data';
-		if (a.state === 'cancelling') return 'Stopping';
 		if (!a.current) return a.message ? a.message : 'Preparing';
 		return undefined;
 	}
@@ -46,17 +92,21 @@
 		{@const pct = activityPercent(a)}
 		{@const c = a.current}
 		{@const note = waiting(a)}
+		{@const cancellable = a.cancellable && !stopping(a)}
 		<li class="job">
 			{#if !compact}
 				<div class="head">
 					<span class="title">{policyName(a.policyId)}</span>
 					<span class="muted">{where(a)}</span>
-					{#if a.state === 'cancelling'}<Badge tone="warn" dot>Stopping</Badge>{/if}
-					{#if c?.secondsRemaining}
-						<span class="eta muted num"
-							>About {formatDuration(c.secondsRemaining)} left</span
-						>
-					{/if}
+					{#if stopping(a)}<Badge tone="warn" dot>Stopping</Badge>{/if}
+					<span class="end">
+						{#if c?.secondsRemaining}
+							<span class="muted num"
+								>About {formatDuration(c.secondsRemaining)} left</span
+							>
+						{/if}
+						{#if cancellable}{@render cancelButton(a)}{/if}
+					</span>
 				</div>
 			{/if}
 			<div class="facts muted num">
@@ -75,6 +125,7 @@
 				{:else}
 					<span>{note}</span>
 				{/if}
+				{#if compact && cancellable}<span class="end">{@render cancelButton(a)}</span>{/if}
 			</div>
 			<Meter
 				value={Math.max(0, pct)}
@@ -96,6 +147,29 @@
 		</li>
 	{/each}
 </ul>
+
+{#snippet cancelButton(a: BackupActivity)}
+	<Button
+		variant="ghost"
+		size="sm"
+		icon={Square}
+		aria-label="Cancel {policyName(a.policyId)}, {where(a)}"
+		onclick={() => askCancel(a)}>Cancel</Button
+	>
+{/snippet}
+
+{#if confirming}
+	<ConfirmDialog
+		bind:open={confirmOpen}
+		title="Cancel this backup?"
+		message="{policyName(confirming.policyId)} · {where(confirming)}"
+		consequences={consequences(confirming)}
+		confirmLabel="Cancel backup"
+		cancelLabel="Keep backing up"
+		tone="danger"
+		onconfirm={cancel}
+	/>
+{/if}
 
 <style>
 	.jobs {
@@ -130,7 +204,10 @@
 		font-weight: var(--weight-semibold);
 	}
 
-	.eta {
+	.end {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-3);
 		margin-left: auto;
 	}
 

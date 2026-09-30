@@ -456,7 +456,7 @@ func TestBackupRunWithShutdownStopsAndRestartsInDependencyOrder(t *testing.T) {
 	set := canary.New()
 	key := set.New(canary.RecoveryKey, "recovery key")
 	var runningDuringSnapshot []string
-	e.store.OnBackup = func(req restic.BackupRequest) error {
+	e.store.OnBackup = func(_ context.Context, req restic.BackupRequest) error {
 		if req.Stdin != nil {
 			return nil
 		}
@@ -573,7 +573,7 @@ func TestBackupRunRestartsAfterFailureAndCancellation(t *testing.T) {
 func TestBackupRunRecoversAfterAgentCrash(t *testing.T) {
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(testutil.Context(t))
-	e.store.OnBackup = func(restic.BackupRequest) error {
+	e.store.OnBackup = func(context.Context, restic.BackupRequest) error {
 		cancel() // the process "dies" while restic runs
 		return context.Canceled
 	}

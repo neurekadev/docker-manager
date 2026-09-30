@@ -113,6 +113,20 @@ only production process execution in Docker Manager.
   refused with 409 `backup_run_active` (a retry and an idempotent replay
   are not). The UI spins the policy's **Back up now** button while
   `/backup-activity` lists a job of the policy.
+- **Cancelling a run** (`POST /jobs/{jobId}/cancellations` on its
+  `backup.run` or `manager.backup` job) does not wait for the snapshot
+  step to end: the step runs restic under `StepContext.WatchCancel`, which
+  ends restic's context within a second of the request (SIGINT, restic
+  writes no snapshot for the item it was reading), and the step returns
+  `jobexec.ErrStepCancelled`, so the job ends `cancelled`. Items backed up
+  before keep their snapshots (the output carries them; the finish hook
+  indexes them), the item being read and the ones after it stay pending and
+  are recorded as failed with class `cancelled`, so the set is `partial`
+  (or `failed`) and a retry re-runs them. No host manifest is written; the
+  `start_containers` compensation restarts what the run stopped. The
+  `manager.backup` finish hook removes the job's staging copy of the
+  database whatever the outcome (also when a cancel lands between restic's
+  end and `write_manifest`, or after a failure or restart).
 - The **snapshot index** (`backup_snapshots`, the API's "backups") is
   filled by the jobs' finish hooks and caught up by verification jobs,
   which list what a location holds; a restored manager also reconciles it
@@ -353,7 +367,10 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   `activity: true`. `GET /backup-activity` lists unfinished backup jobs
   the caller may read (`job.read`) and returns `currentFile` only with
   `stack.files.read` / `volume.files.read` on the item (the manager state:
-  the owner). The overview polls it while something runs.
+  the owner), and `cancellable` when the caller holds `job.cancel` on the
+  job and no cancellation was requested yet. The overview polls it while
+  something runs; its running backups offer **Cancel** (with a
+  confirmation) on the cancellable ones.
 - **Storage.** After every backup (agent `record`, manager `write_manifest`)
   and every prune, the executor runs `restic stats --mode raw-data`
   (`backup.MeasureStats`: index and directory metadata only, never file

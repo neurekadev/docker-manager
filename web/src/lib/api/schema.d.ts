@@ -430,7 +430,7 @@ export interface paths {
         };
         /**
          * List running backups
-         * @description Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its progress, file and byte counts, restic's estimate and the file being read. The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.
+         * @description Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it (job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.
          */
         get: operations["list-backup-activity"];
         put?: never;
@@ -5756,6 +5756,8 @@ export interface components {
             volumes?: string[];
         };
         BackupActivity: {
+            /** @description The caller may cancel the job (job.cancel) and no cancellation was requested yet. */
+            cancellable: boolean;
             current?: components["schemas"]["BackupActivityItem"];
             environmentId?: string;
             /**
@@ -15141,6 +15143,7 @@ export interface operations {
                      * @example {
                      *       "jobs": [
                      *         {
+                     *           "cancellable": false,
                      *           "current": {
                      *             "bytesDone": 1,
                      *             "bytesTotal": 1,

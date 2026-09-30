@@ -1,6 +1,7 @@
 package backups
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -57,7 +58,7 @@ func (e *env) hostManifest(t *testing.T, out protocol.BackupRunOutput, key strin
 // complete.
 func TestBackupRunSkipsVolumeRemovedBeforeItsTurn(t *testing.T) {
 	e := newEnv(t)
-	e.store.OnBackup = func(req restic.BackupRequest) error {
+	e.store.OnBackup = func(_ context.Context, req restic.BackupRequest) error {
 		if req.Stdin == nil && slices.Contains(req.Paths, e.project) {
 			if err := e.eng.RemoveVolume(testutil.Context(t), "uploads", false); err != nil {
 				t.Errorf("remove the volume: %v", err)

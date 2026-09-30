@@ -120,6 +120,7 @@ describe('running backups', () => {
 			setId: 's1',
 			percent: 30,
 			itemCount,
+			cancellable: false,
 			current: current && {
 				item: 'volume/media',
 				kind: 'volume',

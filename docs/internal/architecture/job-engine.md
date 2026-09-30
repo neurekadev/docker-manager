@@ -237,7 +237,12 @@ executor checks the destination's capabilities).
   the kind's next safe point. Unreleased compensations (e.g. restart the
   containers stopped for a backup) always run when a job does not succeed —
   on failure, cancellation and crash recovery. A job that finishes before
-  reaching a safe point keeps its outcome.
+  reaching a safe point keeps its outcome. A step whose work may be
+  interrupted safely stops mid-way instead: it runs that work under
+  `StepContext.WatchCancel` (a context that ends within
+  `jobexec.DefaultCancelPoll`, 1 s, of the request) and returns
+  `jobexec.ErrStepCancelled`, which ends the attempt `cancelled` (image
+  builds, backup snapshots).
 
 ## Authorization
 
