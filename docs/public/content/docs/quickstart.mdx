@@ -95,7 +95,7 @@ Replace `docker.example.com` with your own domain name.
   line with `/import/docker-manager` lets it read this folder, so you can
   [upgrade from the app](#upgrade). Keep the project name `docker-manager`
   too. If your Docker keeps its data
-  somewhere else, see [Configuration](/docs/configuration#dockers-data-folder).
+  somewhere else, see [Configuration](/configuration#dockers-data-folder).
 </Callout>
 
 ## 3. Start it
@@ -138,7 +138,7 @@ Open your address, for example `https://docker.example.com`.
 
 Choose a username and a password of at least 15 characters, then press
 **Create owner account**. Then add an authenticator app or a passkey under
-**Profile** (see [Users & Groups](/docs/users-and-groups#your-account)).
+**Profile** (see [Users & Groups](/users-and-groups#your-account)).
 
 ## 6. Connect this server
 
@@ -151,7 +151,7 @@ Choose a username and a password of at least 15 characters, then press
 
 The page shows **Connected** within a few seconds. Your server now appears
 with its containers, images, volumes and networks. Next,
-[create your first stack](/docs/stacks).
+[create your first stack](/stacks).
 
 ## Add more servers
 
@@ -203,13 +203,13 @@ DOCKER_AGENT_ENROLLMENT_TOKEN=dye_...
 
 The page shows **Connected** within a few seconds. You can then remove the
 `DOCKER_AGENT_ENROLLMENT_TOKEN` line; it works only once anyway. If the
-server doesn't connect, see [Troubleshooting](/docs/troubleshooting#a-server-stays-offline).
+server doesn't connect, see [Troubleshooting](/troubleshooting#a-server-stays-offline).
 
 Good to know:
 
 - One Docker server can have only one agent. To connect a server again that
   Docker Manager already knows, use **Re-attach** (see
-  [Environments](/docs/environments#re-attach-an-environment)).
+  [Environments](/environments#re-attach-an-environment)).
 - For a cloned virtual machine, tick **This host is a clone of a connected
   host** under **More options** before you create the command.
 - Unused commands are listed under **Waiting for an agent** on the
@@ -236,9 +236,9 @@ Good to know:
 - Upgrade the manager first, then your other servers: import each server's
   `docker-manager` project the same way and use **Pull & Deploy** on it.
 - To upgrade automatically, cover these stacks with an
-  [update policy](/docs/updates).
+  [update policy](/updates).
 - An agent you started with the single command is not a Compose project,
   so it can't be upgraded from the app. Set it up with Compose instead.
 - Before the manager changes its database for a new version, it saves a
   copy. If an upgrade fails, see
-  [Troubleshooting](/docs/troubleshooting#an-upgrade-failed).
+  [Troubleshooting](/troubleshooting#an-upgrade-failed).

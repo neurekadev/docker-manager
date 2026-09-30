@@ -12,10 +12,11 @@ import {
 } from 'fumadocs-ui/components/dialog/search';
 import { useDocsSearch } from 'fumadocs-core/search/client';
 import { staticClient } from 'fumadocs-core/search/client/orama-static';
+import { withBase } from '@/lib/shared';
 
 // Local search over the exported index (no search service).
 export default function DefaultSearchDialog(props: SharedProps) {
-  const { search, setSearch, query } = useDocsSearch({ client: staticClient() });
+  const { search, setSearch, query } = useDocsSearch({ client: staticClient({ from: withBase('/api/search') }) });
 
   return (
     <SearchDialog search={search} onSearchChange={setSearch} isLoading={query.isLoading} {...props}>

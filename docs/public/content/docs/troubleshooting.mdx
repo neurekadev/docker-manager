@@ -8,7 +8,7 @@ description: First checks and fixes for common problems.
 On the manager's server, in the folder with Docker Manager's
 `compose.yaml` (`/opt/docker-manager`, or
 `/var/lib/docker/volumes/docker-manager_stacks/_data/docker-manager` once
-Docker Manager [manages its own stack](/docs/quickstart#upgrade)):
+Docker Manager [manages its own stack](/quickstart#upgrade)):
 
 ```bash
 docker compose ps
@@ -18,7 +18,7 @@ docker compose logs --tail 200 docker-manager docker-agent
 On another server, check its agent the same way, or with
 `docker logs docker-agent` if you used the single command. For more
 detail, set the log level to `debug` (see
-[Configuration](/docs/configuration)).
+[Configuration](/configuration)).
 
 When you ask for help, the owner can download a support bundle under
 **Settings → Diagnostics**. It never holds passwords, tokens or file
@@ -38,14 +38,14 @@ Check the agent's log on that server. Usual causes:
 
 - `DOCKER_AGENT_MANAGER_URL` is wrong. It must be your `https://` address.
 - The agent doesn't trust your certificate (see
-  [Your own certificate authority](/docs/configuration#your-own-certificate-authority)).
+  [Your own certificate authority](/configuration#your-own-certificate-authority)).
 - The install command was used already or expired. Create a new one.
 
 ## Docker is already connected through another agent
 
 The server already has an agent in Docker Manager. To replace it, choose
 **Remove agent** on the environment's **Agents** tab, then
-[re-attach](/docs/environments#re-attach-an-environment) it. Don't use **Add
+[re-attach](/environments#re-attach-an-environment) it. Don't use **Add
 environment** for a server Docker Manager already knows.
 
 ## Stack actions are refused because of the storage layout
@@ -53,7 +53,7 @@ environment** for a server Docker Manager already knows.
 The agent's mount of Docker's volume folder is missing or wrong
 (`storage_mount_missing` or `storage_path_mismatch`). Keep the agent's
 volume lines exactly as in the Quickstart, or see
-[Docker's data folder](/docs/configuration#dockers-data-folder).
+[Docker's data folder](/configuration#dockers-data-folder).
 
 ## Live views stop updating after about a minute
 
@@ -84,7 +84,7 @@ on their job page.
 ## An update is refused because of undeployed changes
 
 The stack's files changed but were not deployed (`update_source_drift`).
-Deploy or undo the changes first (see [Stacks](/docs/stacks#revisions)).
+Deploy or undo the changes first (see [Stacks](/stacks#revisions)).
 
 ## A backup fails because the repository is locked
 

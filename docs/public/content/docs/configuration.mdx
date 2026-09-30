@@ -4,7 +4,7 @@ description: Every setting of Docker Manager and its agent, with its default.
 ---
 
 Docker Manager is set up with settings in its `compose.yaml`. Most people
-only need the two in `.env` from the [Quickstart](/docs/quickstart). Every
+only need the two in `.env` from the [Quickstart](/quickstart). Every
 other setting is optional.
 
 ## Change a setting
@@ -22,7 +22,7 @@ services:
 ```
 
 - If Docker Manager manages its own stack (see
-  [Upgrade](/docs/quickstart#upgrade)), open that stack, edit
+  [Upgrade](/quickstart#upgrade)), open that stack, edit
   `compose.yaml` on its **Files** tab and press **Deploy**.
 - Otherwise, edit `compose.yaml` on the server and run
   `docker compose up -d` in its folder.
@@ -75,7 +75,7 @@ agent.
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED` | `true` | Set to `false` to stop sharing your public templates. |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL` | `30m` | How often template sources are read again (at least `5m`; `0` turns it off). |
 | `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of migrations, for example `50MB` (per second, at least `1KiB`). |
-| `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | (none) | Folders the manager may write backups to, separated by commas (see [Backups](/docs/backups#allow-a-local-folder)). |
+| `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | (none) | Folders the manager may write backups to, separated by commas (see [Backups](/backups#allow-a-local-folder)). |
 
 ### History and monitoring
 
@@ -100,7 +100,7 @@ agent.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `DOCKER_MANAGER_MOVE_FROM` | (none) | Only in the setup files for [moving Docker Manager](/docs/migrations#move-docker-manager-to-a-new-server): the old server's address. |
+| `DOCKER_MANAGER_MOVE_FROM` | (none) | Only in the setup files for [moving Docker Manager](/migrations#move-docker-manager-to-a-new-server): the old server's address. |
 | `DOCKER_MANAGER_MOVE_CODE` | (none) | Only in the same setup files: the pairing code. Keep it private. You can remove both after the move. |
 
 ### Advanced
@@ -123,9 +123,9 @@ Leave these as they are unless you know you need them.
 | `DOCKER_AGENT_ENROLLMENT_TOKEN` | (none) | The one-time code from **Add environment**. Remove it once the server is connected. `DOCKER_AGENT_ENROLLMENT_TOKEN_FILE` reads it from a file instead. |
 | `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none (up to 63 characters). |
 | `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your [own certificate authority](#your-own-certificate-authority). |
-| `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are, separated by commas (see [Import a project](/docs/stacks#import-a-project)). |
+| `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are, separated by commas (see [Import a project](/stacks#import-a-project)). |
 | `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to, separated by commas. |
-| `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/docs/backups#back-up-folders-outside-a-stack)). |
+| `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/backups#back-up-folders-outside-a-stack)). |
 | `DOCKER_AGENT_WATCH_MAX` | half the server's limit | How many folders the agent watches for live file changes. Beyond it, folders are checked every 30 seconds. |
 | `DOCKER_AGENT_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
 | `DOCKER_AGENT_LOG_FORMAT` | `json` | The log's format: `json` or `text`. |
@@ -193,7 +193,7 @@ Docker Manager can report its own health (jobs, agent connections, database
 size) to Prometheus.
 
 1. Set `DOCKER_MANAGER_METRICS_ENABLED: "true"` on the manager.
-2. Create an [API token](/docs/api-tokens) that may only **Scrape internal
+2. Create an [API token](/api-tokens) that may only **Scrape internal
    metrics**.
 3. **Settings → Diagnostics** shows the address to scrape with that token.
 
@@ -202,6 +202,6 @@ size) to Prometheus.
 Everything Docker Manager stores is in Docker volumes:
 
 - `docker-manager_data`: the manager's database and its key file. Never
-  delete it, and [back it up](/docs/backups).
+  delete it, and [back it up](/backups).
 - `docker-manager_agent`: the agent's identity.
 - `docker-manager_stacks`: your stacks' folders.

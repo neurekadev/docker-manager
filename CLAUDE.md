@@ -74,5 +74,5 @@ rules are binding:
 - **Single pane of glass**: describe the app's way of doing things; show a
   shell step only where the app has none.
 - `scripts/policy-check.sh` (CI) fails on a variable missing from or
-  stale in the docs, a broken `/docs` link or anchor, or `meta.json` out of
+  stale in the docs, a broken docs link or anchor, or `meta.json` out of
   step with the pages. Labels and behavior are on you.

@@ -11,7 +11,7 @@
 #   - the UI mockup image (lives only on issue #22)
 #   - user documentation out of step with the code: a configuration variable
 #     missing from the Configuration page, a variable that no longer exists,
-#     a broken /docs link or anchor, meta.json not matching the pages
+#     a broken docs link or anchor, meta.json not matching the pages
 # Keep each check a small function with a clear failure message. The
 # narrowly documented exceptions are listed next to each check and in
 # docs/internal/architecture/engine-integration.md.
@@ -164,7 +164,8 @@ check_mockup() {
 # User documentation (docs/internal/conventions/user-docs.md): the
 # Configuration page lists every variable the manager and the agent read, no
 # page names a variable they no longer read, meta.json lists exactly the
-# pages that exist, and every /docs link and #anchor resolves.
+# pages that exist, and every docs link (/<page>, /<page>#anchor, #anchor)
+# resolves.
 USER_DOCS=docs/public/content/docs
 
 # slug HEADING: the anchor Fumadocs gives a heading (github-slugger, ASCII).
@@ -200,10 +201,8 @@ check_user_docs() {
 				target="$page"
 			else
 				target="${link%%#*}"
-				target="${target#/docs}"
 				target="${target#/}"
 				target="${target%/}"
-				[ -n "$target" ] || target=index
 			fi
 			if [ ! -f "$USER_DOCS/$target.mdx" ]; then
 				fail "user docs: $f links to $link, but there is no page $target"
@@ -215,8 +214,8 @@ check_user_docs() {
 				[ "$(slug "$heading")" = "$anchor" ] && found=1 && break
 			done < <(grep -E '^#{2,6} ' "$USER_DOCS/$target.mdx" | sed -E 's/^#+ //')
 			[ -n "$found" ] || fail "user docs: $f links to $link, but $target has no heading with that anchor"
-		done < <(grep -oE '\]\((/docs[^)#]*)?#?[^)[:space:]]*\)|href="/docs[^"]*"' "$f" |
-			sed -E 's/^\]\(//; s/\)$//; s/^href="//; s/"$//' | grep -E '^(/docs|#)')
+		done < <(grep -oE '\]\((/[^)#[:space:]]*)?#?[^)[:space:]]*\)|href="/[^"]*"' "$f" |
+			sed -E 's/^\]\(//; s/\)$//; s/^href="//; s/"$//' | grep -E '^(/|#)')
 	done
 	return 0
 }

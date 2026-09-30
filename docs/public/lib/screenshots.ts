@@ -6,6 +6,8 @@
 // (docs/internal/conventions/user-docs.md). Entries without an image for
 // every size are left out when the site is built.
 
+import { withBase } from './shared';
+
 export const devices = [
   { id: 'desktop', label: 'Desktop', width: 1440, height: 900 },
   { id: 'tablet', label: 'Tablet', width: 820, height: 1180 },
@@ -22,29 +24,35 @@ export interface Screenshot {
 }
 
 export const screenshots: Screenshot[] = [
-  { slug: 'dashboard', title: 'Dashboard', docs: '/docs/' },
-  { slug: 'environments', title: 'Environments', docs: '/docs/environments/' },
-  { slug: 'stacks', title: 'Stacks', docs: '/docs/stacks/' },
-  { slug: 'file-manager', title: 'File Manager', docs: '/docs/file-manager/' },
-  { slug: 'logs', title: 'Logs', docs: '/docs/logs/' },
-  { slug: 'terminal', title: 'Terminal', docs: '/docs/terminal/' },
-  { slug: 'containers', title: 'Containers', docs: '/docs/containers/' },
-  { slug: 'images', title: 'Images', docs: '/docs/images/' },
-  { slug: 'volumes', title: 'Volumes', docs: '/docs/volumes/' },
-  { slug: 'networks', title: 'Networks', docs: '/docs/networks/' },
-  { slug: 'builds', title: 'Builds', docs: '/docs/builds/' },
-  { slug: 'templates', title: 'Templates', docs: '/docs/templates/' },
-  { slug: 'registries', title: 'Registries', docs: '/docs/registries/' },
-  { slug: 'backups', title: 'Backups', docs: '/docs/backups/' },
-  { slug: 'updates', title: 'Updates', docs: '/docs/updates/' },
-  { slug: 'maintenance', title: 'Maintenance', docs: '/docs/maintenance/' },
-  { slug: 'jobs', title: 'Jobs', docs: '/docs/#how-it-works' },
-  { slug: 'schedules', title: 'Schedules', docs: '/docs/#how-it-works' },
-  { slug: 'access', title: 'Users & Groups', docs: '/docs/users-and-groups/' },
-  { slug: 'audit-log', title: 'Audit Log', docs: '/docs/audit-log/' },
-  { slug: 'migrations', title: 'Move to a new server', docs: '/docs/migrations/' },
+  { slug: 'dashboard', title: 'Dashboard', docs: '/overview/' },
+  { slug: 'environments', title: 'Environments', docs: '/environments/' },
+  { slug: 'stacks', title: 'Stacks', docs: '/stacks/' },
+  { slug: 'file-manager', title: 'File Manager', docs: '/file-manager/' },
+  { slug: 'logs', title: 'Logs', docs: '/logs/' },
+  { slug: 'terminal', title: 'Terminal', docs: '/terminal/' },
+  { slug: 'containers', title: 'Containers', docs: '/containers/' },
+  { slug: 'images', title: 'Images', docs: '/images/' },
+  { slug: 'volumes', title: 'Volumes', docs: '/volumes/' },
+  { slug: 'networks', title: 'Networks', docs: '/networks/' },
+  { slug: 'builds', title: 'Builds', docs: '/builds/' },
+  { slug: 'templates', title: 'Templates', docs: '/templates/' },
+  { slug: 'registries', title: 'Registries', docs: '/registries/' },
+  { slug: 'backups', title: 'Backups', docs: '/backups/' },
+  { slug: 'updates', title: 'Updates', docs: '/updates/' },
+  { slug: 'maintenance', title: 'Maintenance', docs: '/maintenance/' },
+  { slug: 'jobs', title: 'Jobs', docs: '/overview/#how-it-works' },
+  { slug: 'schedules', title: 'Schedules', docs: '/overview/#how-it-works' },
+  { slug: 'access', title: 'Users & Groups', docs: '/users-and-groups/' },
+  { slug: 'audit-log', title: 'Audit Log', docs: '/audit-log/' },
+  { slug: 'migrations', title: 'Move to a new server', docs: '/migrations/' },
 ];
 
-export function screenshotSrc(slug: string, device: DeviceId): string {
+/** The image's path in public/. */
+export function screenshotFile(slug: string, device: DeviceId): string {
   return `/screenshots/${device}/${slug}.webp`;
+}
+
+/** The image's URL on the site. */
+export function screenshotSrc(slug: string, device: DeviceId): string {
+  return withBase(screenshotFile(slug, device));
 }

@@ -76,6 +76,7 @@ jobs:
           build-args: |
             GIT_TAG=0.0.0-edge
             GIT_HASH=${{ github.sha }}
+            DOCS_BASE_PATH=/docker-manager
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true

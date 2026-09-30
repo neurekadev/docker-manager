@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { BookOpen, Images } from 'lucide-react';
-import { appName, docsRoute } from '@/lib/shared';
+import { appName, docsRoute, withBase } from '@/lib/shared';
 
 export default function Home() {
   return (
@@ -11,7 +11,7 @@ export default function Home() {
         className="pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[36rem] -translate-x-1/2 -translate-y-[60%] rounded-full bg-fd-primary/10 blur-3xl"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-512.png" alt="" width={176} height={176} className="size-36 sm:size-44" />
+      <img src={withBase('/logo-512.png')} alt="" width={176} height={176} className="size-36 sm:size-44" />
       <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">{appName}</h1>
       <p className="mt-4 max-w-xl text-xl text-balance sm:text-2xl">
         One pane of glass for your entire Docker infrastructure.
