@@ -21,6 +21,16 @@ tests: `internal/agent/engine/enginefake`.
   `docker-manager.maintenance.exclude` (`protocol.UpdateExcluded`,
   `BackupExcluded`, `MaintenanceExcluded`); a new one follows the same
   `docker-manager.<feature>.exclude` pattern and joins `UserLabels`.
+- Docker never relabels an existing volume and deploys never recreate one,
+  so the `UserLabels` a stack's Compose file declares on a volume with a
+  value the volume lacks are **Compose labels**: every `stack.deploy`
+  records them (`internal/agent/volumelabels`, `<state>/volume-labels.json`,
+  keyed by volume name and creation time; `stack.remove` forgets the
+  project). Code that decides by a volume's labels on the agent reads
+  `volumelabels.Effective(v.Labels, store.Compose(v.Name, v.CreatedAt))`
+  (Compose labels win); volume details return them apart as
+  `composeLabels` (the UI's Labels card groups them, with an (i)). Never
+  write them onto a volume and never take any other label from the file.
 - Write Docker Manager's labels only under the current keys; read them only
   with `protocol.LookupLabel` / `LabelValue` / `HasRole`, which also accept
   the legacy key (objects created before 2026-09-28 keep it forever;

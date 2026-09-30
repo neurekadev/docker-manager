@@ -12665,6 +12665,10 @@ export interface components {
         };
         Volume: {
             actions: string[];
+            /** @description Docker Manager's labels (docker-manager.*.exclude) the stack's Compose file declared on the volume at its last deploy with a value the volume lacks: Docker keeps the labels a volume was created with, so they are honored as if the volume carried them (backups, maintenance). Full view. */
+            composeLabels?: {
+                [key: string]: string;
+            };
             /** Format: date-time */
             createdAt?: string;
             /** @description Full view. */
@@ -28391,6 +28395,7 @@ export interface operations {
                      *           "actions": [
                      *             "example"
                      *           ],
+                     *           "composeLabels": {},
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "driver": "example",
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -28709,6 +28714,7 @@ export interface operations {
                      *       "actions": [
                      *         "example"
                      *       ],
+                     *       "composeLabels": {},
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "driver": "example",
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",

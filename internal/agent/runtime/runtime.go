@@ -50,6 +50,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/state"
 	"github.com/neurekadev/docker-manager/internal/agent/storage"
 	"github.com/neurekadev/docker-manager/internal/agent/transport"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/agent/watch"
 	"github.com/neurekadev/docker-manager/internal/buildinfo"
 	"github.com/neurekadev/docker-manager/internal/clock"
@@ -204,6 +205,10 @@ type Agent struct {
 
 	// guard identifies Docker Manager's own resources (#32).
 	guard *protect.Guard
+	// volumeLabels are the labels stack definitions declare on volumes that
+	// Docker could not apply (recorded at deploys, honored by backups and
+	// maintenance, shown on volumes).
+	volumeLabels *volumelabels.Store
 	// self hands the agent's own Compose service to a helper container
 	// when Docker Manager redeploys or updates itself (#32).
 	self *selfupdate.Launcher
@@ -288,6 +293,7 @@ func New(opts Options) (*Agent, error) {
 		}
 		a.opts.Requests = reqs
 	}
+	a.volumeLabels = volumelabels.New(opts.Config.StateDir)
 	a.addResources()
 	a.enableRedirect()
 	if opts.Files {
@@ -298,7 +304,7 @@ func New(opts Options) (*Agent, error) {
 	a.self = selfupdate.New(selfupdate.Options{StateDir: opts.Config.StateDir, SelfContainerID: a.guard.SelfContainerID(),
 		Engine: a.Engine, DockerHost: opts.Config.DockerHost, Logger: opts.Logger})
 	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks"), Guard: a.guard,
-		Self: a.self})
+		Self: a.self, VolumeLabels: a.volumeLabels})
 	own := map[domain.JobKind]bool{}
 	for _, x := range a.opts.Executors {
 		own[x.Kind] = true
@@ -346,6 +352,7 @@ func (a *Agent) enableBackups() {
 		},
 		Storage:           func() *storage.Result { return a.Capabilities().Storage },
 		Guard:             a.guard,
+		VolumeLabels:      a.volumeLabels,
 		Restic:            opener,
 		LocalRoots:        cfg.BackupLocalRoots,
 		ExternalAllowlist: cfg.BackupExternalAllowlist,
@@ -414,6 +421,7 @@ func (a *Agent) addResources() {
 		Engine:          a.Engine,
 		ManagedStackDir: func(dir string) bool { return a.StackGuard(dir) == nil },
 		Guard:           a.guard,
+		VolumeLabels:    a.volumeLabels,
 		Logger:          a.log,
 	})
 	reqs := svc.Requests()
@@ -435,6 +443,7 @@ func (a *Agent) addResources() {
 		Engine:          a.Engine,
 		ManagedStackDir: func(dir string) bool { return a.StackGuard(dir) == nil },
 		Guard:           a.guard,
+		VolumeLabels:    a.volumeLabels,
 		Clock:           a.opts.Clock,
 		Logger:          a.log,
 	})

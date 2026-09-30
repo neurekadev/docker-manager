@@ -196,6 +196,24 @@ describe('marks and notices', () => {
 		).not.toHaveAttribute('open');
 	});
 
+	it("groups a volume's Compose labels apart from the labels on the volume, with why", () => {
+		render(LabelsCard, {
+			props: {
+				label: 'Labels of media_data',
+				labels: { 'com.docker.compose.project': 'media' },
+				composeLabels: { 'docker-manager.backup.exclude': 'true' }
+			}
+		});
+		const compose = screen.getByLabelText('Labels of media_data: from the Compose file');
+		expect(compose).toHaveTextContent('docker-manager.backup.exclude');
+		expect(compose.closest('details')).toHaveAttribute('open');
+		expect(screen.getByText('None on the volume itself.')).toBeInTheDocument();
+		expect(
+			screen.getByRole('img', { name: /Docker keeps the labels a volume was created with/ })
+		).toBeInTheDocument();
+		expect(screen.getByText('1 system label')).toBeInTheDocument();
+	});
+
 	it('names offline and failing environments instead of silently shortening the list', () => {
 		render(EnvironmentGaps, {
 			props: {

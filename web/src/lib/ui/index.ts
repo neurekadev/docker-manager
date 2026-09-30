@@ -79,6 +79,7 @@ export { default as TypeToConfirm } from './TypeToConfirm.svelte';
 export { default as Drawer } from './Drawer.svelte';
 export { default as Popover } from './Popover.svelte';
 export { default as Tooltip } from './Tooltip.svelte';
+export { default as InfoTip } from './InfoTip.svelte';
 export { default as TooltipLayer } from './TooltipLayer.svelte';
 export { placeTooltip, tooltipAnchor, type Placement } from './tooltip';
 

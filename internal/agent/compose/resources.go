@@ -34,6 +34,8 @@ type VolumeDef struct {
 	// DriverOpts reports whether driver options are set (e.g. a local
 	// volume bound to a host path or NFS: its data lives elsewhere).
 	DriverOpts bool
+	// Labels are the labels the definition declares on the volume.
+	Labels map[string]string
 }
 
 // NetworkDef is a top-level network of the project.
@@ -110,7 +112,7 @@ func (p *Project) Resources() Resources {
 	}
 	for key, v := range m.Volumes {
 		r.Volumes = append(r.Volumes, VolumeDef{Key: key, Name: volumeName(m.Name, key, v), External: bool(v.External),
-			Driver: driverOr(v.Driver), DriverOpts: len(v.DriverOpts) > 0})
+			Driver: driverOr(v.Driver), DriverOpts: len(v.DriverOpts) > 0, Labels: maps.Clone(map[string]string(v.Labels))})
 	}
 	sort.Slice(r.Volumes, func(i, j int) bool { return r.Volumes[i].Key < r.Volumes[j].Key })
 	for key, n := range m.Networks {

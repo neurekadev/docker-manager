@@ -53,7 +53,16 @@ only production process execution in Docker Manager.
   on the volume itself, or on a container that mounts it. The manager
   applies it to standalone volumes (`standaloneVolumes`), the agent to a
   stack's named and anonymous volumes (`planStackVolumes`, source reason
-  names the label); a stack's project directory is always backed up.
+  names the label); a stack's project directory is always backed up. A
+  stack volume created before the label was added to its Compose file
+  never carries it (Docker keeps a volume's labels): the deploy records it
+  as a Compose label (`internal/agent/volumelabels`, see
+  [docker-resources](docker-resources.md)) and `includeVolume` honors it
+  (reason "the stack's Compose file gives the volume the label …"; a
+  declared `"false"` wins over the volume's `true`). The policy wizard
+  (`VolumeCoverage`) lists label-excluded volumes unchecked and locked with
+  an (i) naming where the label is (`labelledBy`: volume, compose,
+  container).
   Docker Manager's temporary objects never get into a backup:
   **temporary containers** (`protocol.IsHelperContainer`: a container set
   aside during a standalone image update or a stack rename,

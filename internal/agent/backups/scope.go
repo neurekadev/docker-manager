@@ -17,6 +17,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
 	"github.com/neurekadev/docker-manager/internal/agent/stacks"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/backup"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -383,6 +384,9 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 const (
 	labeledContainerReason = "a container using it has the label " + protocol.LabelBackupExclude + "=true"
 	labeledVolumeReason    = "the volume has the label " + protocol.LabelBackupExclude + "=true"
+	// composeLabeledReason: the stack's Compose file declares the label on
+	// the volume, which was created before (Docker keeps a volume's labels).
+	composeLabeledReason = "the stack's Compose file gives the volume the label " + protocol.LabelBackupExclude + "=true"
 	// helperOnlyReason: only temporary containers of Docker Manager or
 	// Compose mount the volume (protocol.IsHelperContainer).
 	helperOnlyReason = "only a temporary container of Docker Manager or Compose uses it"
@@ -404,6 +408,10 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 	ss.Path = filepath.ToSlash(osPath(v.Mountpoint))
 	if protocol.BackupExcluded(v.Labels) {
 		ss.State, ss.Reason = protocol.SourceExcluded, labeledVolumeReason
+		return
+	}
+	if protocol.BackupExcluded(volumelabels.Effective(v.Labels, s.opts.VolumeLabels.Compose(v.Name, v.CreatedAt))) {
+		ss.State, ss.Reason = protocol.SourceExcluded, composeLabeledReason
 		return
 	}
 	if p.prot != nil {

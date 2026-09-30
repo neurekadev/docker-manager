@@ -10,6 +10,11 @@ describe('policy coverage', () => {
 	it('counts what is covered', () => {
 		const items = [{ key: 'a' }, { key: 'b' }, { key: 'c' }];
 		expect(coverageCount(items, ['b', 'gone'])).toEqual({ included: 2, total: 3 });
+		// Locked items (left out by a label) never count as included.
+		expect(coverageCount([...items, { key: 'd', locked: 'label' }], [])).toEqual({
+			included: 3,
+			total: 4
+		});
 	});
 
 	it('names exclusion counts', () => {

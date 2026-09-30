@@ -23,6 +23,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -35,9 +36,12 @@ type Options struct {
 	// a verified stack root (the project is a Docker Manager stack, #7).
 	ManagedStackDir func(dir string) bool
 	// Guard identifies Docker Manager's own resources (#32).
-	Guard  *protect.Guard
-	Clock  clock.Clock
-	Logger *slog.Logger
+	Guard *protect.Guard
+	// VolumeLabels are the Compose labels of stack volumes: a maintenance
+	// exclude label declared there counts like one on the volume (nil: none).
+	VolumeLabels *volumelabels.Store
+	Clock        clock.Clock
+	Logger       *slog.Logger
 }
 
 // Service implements the request and the executor.

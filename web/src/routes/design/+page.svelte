@@ -81,6 +81,7 @@
 		TextArea,
 		TextField,
 		Tooltip,
+		InfoTip,
 		TriState,
 		Uptime,
 		formatBytes,
@@ -630,6 +631,7 @@
 			<Tooltip text="Tooltips name controls; they never replace the name.">
 				{#snippet trigger(props)}<Button {...props}>Hover or focus me</Button>{/snippet}
 			</Tooltip>
+			<span>Explained label <InfoTip text="An (i) explains the label beside it." /></span>
 		</div>
 		<div class="row">
 			{#each ['running', 'healthy', 'stopped', 'exited', 'paused', 'restarting', 'unhealthy', 'offline', 'queued', 'blocked', 'failed'] as s (s)}

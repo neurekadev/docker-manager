@@ -128,6 +128,33 @@ describe('CoverageList (#10, #20)', () => {
 		await rerender({ label: 'Stacks covered', items, excluded: [], onchange });
 		expect(screen.queryByRole('button', { name: 'Include all' })).not.toBeInTheDocument();
 	});
+
+	it('shows a locked item unchecked and disabled, with its reason, never included', async () => {
+		const user = setup();
+		const onchange = vi.fn();
+		const reason =
+			'Managed by a volume label: docker-manager.backup.exclude=true leaves it out of backups.';
+		const locked = [...items, { key: 'cache', label: 'cache', locked: reason }];
+		const { rerender } = render(CoverageList, {
+			props: { label: 'Volumes covered', items: locked, excluded: [], onchange }
+		});
+		const group = screen.getByRole('group', { name: 'Volumes covered' });
+		const box = within(group).getByRole('checkbox', { name: /^cache/ });
+		expect(box).not.toBeChecked();
+		expect(box).toBeDisabled();
+		expect(within(group).getByRole('img', { name: reason })).toBeInTheDocument();
+		expect(group).toHaveTextContent('3 of 4 included');
+		// Nothing the user left out: no Include all for the locked item.
+		expect(screen.queryByRole('button', { name: 'Include all' })).not.toBeInTheDocument();
+		await rerender({
+			label: 'Volumes covered',
+			items: locked,
+			excluded: ['s1', 'cache'],
+			onchange
+		});
+		await user.click(screen.getByRole('button', { name: 'Include all' }));
+		expect(onchange).toHaveBeenLastCalledWith(['cache']);
+	});
 });
 
 describe('CandidatesTable (#20)', () => {

@@ -39,6 +39,7 @@ type Volume struct {
 	Scope         string              `json:"scope,omitempty"`
 	CreatedAt     *time.Time          `json:"createdAt,omitempty"`
 	Labels        map[string]string   `json:"labels,omitempty"`
+	ComposeLabels map[string]string   `json:"composeLabels,omitempty" doc:"Docker Manager's labels (docker-manager.*.exclude) the stack's Compose file declared on the volume at its last deploy with a value the volume lacks: Docker keeps the labels a volume was created with, so they are honored as if the volume carried them (backups, maintenance). Full view."`
 	Options       map[string]string   `json:"options,omitempty"`
 	UsedBy        []ContainerRef      `json:"usedBy,omitempty"`
 	Stack         *StackMembership    `json:"stack,omitempty"`
@@ -60,6 +61,7 @@ func newVolume(env string, v protocol.VolumeInfo, view authz.View, stackIDs map[
 		created = nil
 	}
 	out.Driver, out.Scope, out.CreatedAt, out.Labels, out.Options = v.Driver, v.Scope, created, v.Labels, v.Options
+	out.ComposeLabels = v.ComposeLabels
 	out.UsedBy = newContainerRefs(v.UsedBy)
 	out.Stack = membership(v.Stack, stackIDs, managedStack(v.Stack, stackIDs))
 	return out

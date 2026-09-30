@@ -384,6 +384,8 @@ export interface CoveredVolume {
 	buildx: boolean;
 	/** Left out by the backup exclude label (on the volume or a container using it). */
 	labelled: boolean;
+	/** Where that label is: the volume, its stack's Compose file, a container using it. */
+	labelledBy?: 'volume' | 'compose' | 'container';
 	/** Used only by temporary containers of Docker Manager or Compose: left out. */
 	temporary: boolean;
 	/** The managed stack the volume belongs to; undefined: standalone. */
@@ -396,7 +398,9 @@ export interface CoveredVolume {
  * that are no managed stack (the manager backs up neither); a volume
  * belongs to a managed stack by its membership, its Compose project label
  * or a stack container using it (the manager's rule); anonymous volumes
- * carry the Engine's label. Temporary containers (isHelperContainer) never
+ * carry the Engine's label. The backup exclude label counts on the
+ * volume, in its Compose labels (the agent honors them too) or on a
+ * container using it. Temporary containers (isHelperContainer) never
  * count as users: a standalone volume only they use is marked temporary.
  * The manager also leaves out volumes of unfinished environment
  * migrations, which this list cannot tell (it does not know how the
@@ -406,6 +410,8 @@ export function coveredVolumes(
 	volumes: {
 		name: string;
 		labels?: Record<string, string>;
+		/** Labels the stack's Compose file declares that Docker kept off the volume. */
+		composeLabels?: Record<string, string>;
 		protection?: unknown;
 		stack?: { stackId?: string; project: string };
 		usedBy?: { id: string }[];
@@ -440,9 +446,7 @@ export function coveredVolumes(
 			name: v.name,
 			anonymous: ANONYMOUS_VOLUME_LABEL in (v.labels ?? {}),
 			buildx: !stackId && isBuildxVolume(v.name),
-			labelled:
-				backupExcluded(v.labels) ||
-				(v.usedBy ?? []).some((c) => labelledContainers.has(c.id)),
+			...labelling(v, labelledContainers),
 			temporary:
 				!stackId &&
 				(v.usedBy ?? []).length > 0 &&
@@ -451,6 +455,40 @@ export function coveredVolumes(
 		});
 	}
 	return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function labelling(
+	v: {
+		labels?: Record<string, string>;
+		composeLabels?: Record<string, string>;
+		usedBy?: { id: string }[];
+	},
+	labelledContainers: Set<string>
+): Pick<CoveredVolume, 'labelled' | 'labelledBy'> {
+	const by: CoveredVolume['labelledBy'] =
+		v.composeLabels?.[BACKUP_EXCLUDE_LABEL] !== undefined
+			? backupExcluded(v.composeLabels)
+				? 'compose'
+				: undefined
+			: backupExcluded(v.labels)
+				? 'volume'
+				: undefined;
+	const labelledBy =
+		by ??
+		((v.usedBy ?? []).some((c) => labelledContainers.has(c.id)) ? 'container' : undefined);
+	return { labelled: !!labelledBy, labelledBy };
+}
+
+/** Why a volume the backup exclude label leaves out can't be selected (its (i)). */
+export function labelLockReason(by: NonNullable<CoveredVolume['labelledBy']>): string {
+	switch (by) {
+		case 'compose':
+			return `Managed by a volume label in the stack's Compose file: ${BACKUP_EXCLUDE_LABEL}=true leaves it out of backups.`;
+		case 'container':
+			return `Managed by a container label: a container using it has ${BACKUP_EXCLUDE_LABEL}=true, which leaves it out of backups.`;
+		default:
+			return `Managed by a volume label: ${BACKUP_EXCLUDE_LABEL}=true leaves it out of backups.`;
+	}
 }
 
 /** The exclusion key of a volume: environmentID/name for All Environments. */

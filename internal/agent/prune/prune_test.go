@@ -15,6 +15,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/engine/enginefake"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
@@ -717,6 +718,30 @@ func TestRunLimitDefersTheRest(t *testing.T) {
 	_, out := runJob(t, s, protocol.PruneInput{PolicyID: "p", Rules: []protocol.PruneRule{{Category: protocol.PruneNamedVolumes}}}, nil)
 	if out.Removed != protocol.PruneRunItemsMax || out.Deferred != 5 || len(fe.VolumeNames()) != 5 {
 		t.Fatalf("removed %d deferred %d left %d", out.Removed, out.Deferred, len(fe.VolumeNames()))
+	}
+}
+
+// TestMaintenanceExcludeComposeLabel: a maintenance exclude label the
+// stack's Compose file declares on a volume created before it (recorded at
+// the deploy; Docker never relabels a volume) keeps the volume like a label
+// on the volume itself.
+func TestMaintenanceExcludeComposeLabel(t *testing.T) {
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	created := now.Add(-365 * 24 * time.Hour)
+	r := protocol.PruneRule{Category: protocol.PruneNamedVolumes}
+	v := engine.Volume{Name: "media_data", CreatedAt: created, Labels: map[string]string{protocol.ComposeProjectLabel: "media"}}
+	store := volumelabels.New(t.TempDir())
+	f := &facts{now: now, volumeLabels: store}
+	if it, _ := f.volumeItem(r, v, 10); it.Decision != protocol.PruneRemove {
+		t.Fatalf("before the deploy: %+v", it)
+	}
+	if err := store.Record("media", []volumelabels.Volume{{Name: v.Name, Created: created, Actual: v.Labels,
+		Declared: map[string]string{protocol.LabelMaintenanceExclude: "true"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if it, _ := f.volumeItem(r, v, 10); it.Decision != protocol.PruneExcluded ||
+		!strings.Contains(it.Reason, protocol.LabelMaintenanceExclude) {
+		t.Errorf("volume labeled in the Compose file: %+v", it)
 	}
 }
 

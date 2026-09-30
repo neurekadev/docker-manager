@@ -64,7 +64,15 @@ failed.
   `/srv/media:/media`, unless you [allow them](#back-up-folders-outside-a-stack).
 - Anonymous volumes, unless you turn on **Back up anonymous volumes**.
 - Volumes with the label `docker-manager.backup.exclude=true`, and the
-  volumes of a container with that label.
+  volumes of a container with that label. In a policy they show unticked
+  and can't be ticked; the (i) next to them says which label keeps them
+  out.
+
+Docker never changes the labels of a volume that already exists. If you add
+the label to a volume in a stack's `compose.yaml` later, deploy the stack:
+from then on its backups leave the volume out, although Docker still shows
+the volume without the label. Set the label to `"false"` there to back the
+volume up again.
 
 ## Back up folders outside a stack
 
