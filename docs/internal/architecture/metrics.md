@@ -353,7 +353,11 @@ them with "Check disks now" and "Check RAID now".
   `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
   disks now". A disk in standby is not woken (exit status 3 plus the
   standby message): it keeps its previous values with state `sleeping`.
-  A failed read keeps the last good values. The exit status is a bitmask
+  A failed read keeps the last measurements (and their read time) for
+  reference but reports the failure: state `error`, `open_failed` (a disk
+  the agent cannot read never looks healthy). A device is identified by
+  its path **and** smartctl type: disks behind one RAID controller share
+  the controller's path (`/dev/bus/0` as `megaraid,0`, `megaraid,1`). The exit status is a bitmask
   (bits 3–7 describe the disk and still come with complete JSON, so the
   values decide).
 - **Values and state** per device: model, serial, firmware, capacity,
@@ -385,9 +389,15 @@ them with "Check disks now" and "Check RAID now".
   resync, reshape, check or repair line with percent, finish estimate and
   speed, `=DELAYED` / `=PENDING`) and `/proc/spl/kstat/zfs/<pool>/state`
   (`ONLINE` healthy, `DEGRADED` degraded, `FAULTED`/`UNAVAIL`/`SUSPENDED`/
-  `REMOVED` failed, `OFFLINE` inactive). An md array is **failed** when it
-  lost more members than its level tolerates (raid1: all, raid4/5: more
-  than one, raid6: more than two, raid0/linear: any), **rebuilding**
+  `REMOVED` failed, `OFFLINE` inactive); a pool whose state file cannot be
+  read (other than missing: exported meanwhile) or holds an unknown value
+  is left out and reported in `raid.message` (the API's RAID status
+  `error`). An md array is **failed** when no member works (any level) or
+  it lost more members than its level tolerates (raid4/5: more than one,
+  raid6: more than two, raid0/linear: any; raid10: fewer working members
+  than devices ÷ copies, from "2 near-copies", 2 when not shown; losing
+  fewer is degraded, since /proc/mdstat does not show which copies are
+  gone), **rebuilding**
   during (or waiting for) a recovery, resync or reshape, **degraded** with
   missing or failed members, **checking** during a check or repair,
   **inactive** when stopped, else **healthy**. btrfs and hardware RAID

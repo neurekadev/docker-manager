@@ -33,6 +33,8 @@ func TestParseScanKeepsValidDevicesOnce(t *testing.T) {
 		{Name: "/dev/sdb", Type: "scsi", Protocol: protocol.DiskSCSI},
 		{Name: "/dev/sdc", Type: "scsi", Protocol: protocol.DiskSCSI, OpenError: "/dev/sdc: Unknown USB bridge [0x152d:0x0578 (0x508)]"},
 		{Name: "/dev/nvme0", Type: "nvme", Protocol: protocol.DiskNVMe},
+		{Name: "/dev/bus/0", Type: "megaraid,0", Protocol: protocol.DiskSCSI},
+		{Name: "/dev/bus/0", Type: "megaraid,1", Protocol: protocol.DiskSCSI},
 	}
 	if !reflect.DeepEqual(devs, want) {
 		t.Fatalf("scan = %+v\nwant %+v", devs, want)

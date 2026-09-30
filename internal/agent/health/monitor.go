@@ -202,7 +202,7 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 	scanned := m.scannedAt
 	prev := make(map[string]protocol.SMARTDevice, len(m.devices))
 	for _, d := range m.devices {
-		prev[d.Name] = d
+		prev[deviceKey(d.Name, d.Type)] = d
 	}
 	m.mu.Unlock()
 	now := m.opts.Clock.Now()
@@ -267,6 +267,11 @@ func (m *Monitor) finish(covers uint64, apply func()) {
 	m.done = make(chan struct{})
 }
 
+// deviceKey identifies a device: its path and smartctl type (disks
+// behind one RAID controller share the controller's path and differ by
+// type, e.g. megaraid,0 and megaraid,1).
+func deviceKey(name, typ string) string { return name + "\x00" + typ }
+
 // readAll reads every scanned device (Concurrency at a time) in scan
 // order. A device in standby keeps its previous values, marked sleeping.
 func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice) []protocol.SMARTDevice {
@@ -284,7 +289,7 @@ func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev 
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			out[i] = m.readOne(ctx, dev, prev[dev.Name])
+			out[i] = m.readOne(ctx, dev, prev[deviceKey(dev.Name, dev.Type)])
 		}()
 	}
 	wg.Wait()
@@ -297,8 +302,12 @@ func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev pro
 		if ctx.Err() == nil {
 			m.logOnce("read "+dev.Name, "SMART read failed", "device", dev.Name, "error", err)
 		}
-		if prev.Name != "" && prev.State != protocol.DiskError {
-			// Keep the last good values; the next round tries again.
+		if prev.Name != "" {
+			// Keep the last measurements (and their read time) for
+			// reference, but report that this read failed: a disk the
+			// agent cannot read never looks healthy. The next round tries
+			// again.
+			prev.State, prev.ErrorCode = protocol.DiskError, protocol.DiskErrOpenFailed
 			return prev
 		}
 		return protocol.SMARTDevice{Name: dev.Name, Type: dev.Type, Protocol: dev.Protocol, State: protocol.DiskError,

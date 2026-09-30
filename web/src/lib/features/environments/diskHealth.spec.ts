@@ -6,14 +6,18 @@ import {
 	attributeName,
 	canCheckDisks,
 	checkedToast,
+	deviceName,
 	diskBadge,
+	diskKey,
 	diskIssues,
 	diskKind,
 	diskNotice,
 	diskSummary,
 	issuesText,
 	memberLabel,
+	noDisks,
 	noRaidText,
+	noSmartDisks,
 	poweredOn,
 	raidBadge,
 	raidCheckedToast,
@@ -180,6 +184,16 @@ describe('disks', () => {
 		expect(sorted).toEqual(['/dev/sde', '/dev/sdd', '/dev/sdc', '/dev/sda', '/dev/sdb']);
 	});
 
+	it('tells disks behind one controller path apart by their type', () => {
+		const slot1 = disk({ name: '/dev/bus/0', type: 'megaraid,1' });
+		const slot0 = disk({ name: '/dev/bus/0', type: 'megaraid,0' });
+		const all = [slot1, slot0, disk()];
+		expect(diskKey(slot0)).not.toBe(diskKey(slot1));
+		expect(deviceName(slot1, all)).toBe('/dev/bus/0 (megaraid,1)');
+		expect(deviceName(all[2], all)).toBe('/dev/sda');
+		expect(sortDisks(all).map((d) => d.type)).toEqual(['megaraid,0', 'megaraid,1', 'sat']);
+	});
+
 	it('summarizes and toasts in words', () => {
 		const h = health({
 			devices: [
@@ -193,6 +207,9 @@ describe('disks', () => {
 		expect(diskSummary(health({ devices: [] }))).toBe('');
 		expect(checkedToast(h, 'homelab')).toBe('Checked 2 disks on homelab');
 		expect(checkedToast(health(), 'nas')).toBe('Checked 1 disk on nas');
+		expect(checkedToast(health({ devices: [] }), 'nas')).toBe(
+			'No disks with SMART data found on nas'
+		);
 	});
 });
 
@@ -209,9 +226,19 @@ describe('notices', () => {
 		expect(diskNotice(health({ status: 'agent_outdated', devices: [] }))!.title).toBe(
 			'Update the agent to see disk health.'
 		);
-		expect(diskNotice(health({ devices: [] }))!.title).toBe(
-			'This server’s disks don’t report SMART data (for example virtual disks).'
-		);
+		// A finished scan without any disk (a VM's virtio disks, which
+		// smartctl does not list) is not "disks without SMART data".
+		expect(noSmartDisks(health({ devices: [] }))).toBe(false);
+		const none = health({ devices: [], checkedAt: '2026-09-29T11:48:00Z' });
+		expect(noDisks(none)).toBe(true);
+		expect(diskNotice(none)!.title).toBe('No disks with SMART data were found on this server.');
+		// While the first read runs, the card says it is reading.
+		expect(noDisks(health({ devices: [], checking: true }))).toBe(false);
+		expect(diskNotice(health({ devices: [], checking: true }))).toBeNull();
+		expect(
+			diskNotice(health({ devices: [disk({ state: 'error', errorCode: 'unsupported' })] }))!
+				.title
+		).toBe('This server’s disks don’t report SMART data (for example virtual disks).');
 		expect(
 			diskNotice(health({ devices: [disk({ state: 'error', errorCode: 'unsupported' })] }))!
 				.replacesList

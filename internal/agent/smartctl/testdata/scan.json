@@ -48,6 +48,18 @@
       "protocol": "ATA"
     },
     {
+      "name": "/dev/bus/0",
+      "info_name": "/dev/bus/0 [megaraid_disk_00]",
+      "type": "megaraid,0",
+      "protocol": "SCSI"
+    },
+    {
+      "name": "/dev/bus/0",
+      "info_name": "/dev/bus/0 [megaraid_disk_01]",
+      "type": "megaraid,1",
+      "protocol": "SCSI"
+    },
+    {
       "name": "-oops",
       "info_name": "-oops",
       "type": "sat",

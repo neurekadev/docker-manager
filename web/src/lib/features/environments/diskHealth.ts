@@ -139,21 +139,51 @@ const SEVERITY: Record<DiskDevice['state'], number> = {
 	ok: 4
 };
 
-/** Disks that need attention first, then by name. */
+/** Disks that need attention first, then by name and controller slot. */
 export function sortDisks(ds: DiskDevice[]): DiskDevice[] {
 	return [...ds].sort(
 		(a, b) =>
 			(SEVERITY[a.state] ?? 9) - (SEVERITY[b.state] ?? 9) ||
-			a.name.localeCompare(b.name, 'en', { numeric: true })
+			a.name.localeCompare(b.name, 'en', { numeric: true }) ||
+			a.type.localeCompare(b.type, 'en', { numeric: true })
 	);
 }
 
-/** True when no disk reports SMART data (virtual disks, unknown bridges). */
+/**
+ * True when the agent found disks but none reports SMART data (virtual
+ * disks, unknown USB bridges). A scan without any disk is noDisks.
+ */
 export function noSmartDisks(h: DiskHealth): boolean {
 	return (
 		h.status === 'ok' &&
+		h.devices.length > 0 &&
 		h.devices.every((d) => d.state === 'error' && d.errorCode === 'unsupported')
 	);
+}
+
+/**
+ * True when a finished scan found no disk at all. The agent reports
+ * no_access instead when the server has disks it can't open, so this is a
+ * server whose disks smartctl does not list (a virtual machine's virtio
+ * disks) or one without local disks. While the first read runs it is
+ * false (the card says "Reading the disks…").
+ */
+export function noDisks(h: DiskHealth): boolean {
+	return h.status === 'ok' && h.devices.length === 0 && !!h.checkedAt;
+}
+
+/** A key per disk: disks behind one RAID controller share its path. */
+export function diskKey(d: DiskDevice): string {
+	return `${d.name}|${d.type}`;
+}
+
+/**
+ * The device's name as shown: the path, plus the controller slot when
+ * another disk shares the path ("/dev/bus/0 (megaraid,1)").
+ */
+export function deviceName(d: DiskDevice, all: DiskDevice[]): string {
+	const shared = all.some((o) => o !== d && o.name === d.name);
+	return shared ? `${d.name} (${d.type})` : d.name;
 }
 
 /** Notice text: plain parts and code (a setting to type). */
@@ -226,6 +256,13 @@ export function diskNotice(h: DiskHealth): DiskNotice | null {
 					title: 'This server’s disks don’t report SMART data (for example virtual disks).',
 					replacesList: true
 				};
+			if (noDisks(h))
+				return {
+					tone: 'info',
+					title: 'No disks with SMART data were found on this server.',
+					body: ['Virtual disks, such as a virtual machine’s, don’t report it.'],
+					replacesList: true
+				};
 			return null;
 	}
 	return null;
@@ -243,6 +280,7 @@ export function canCheckDisks(h: DiskHealth): boolean {
 /** The toast after a check: "Checked 6 disks on homelab". */
 export function checkedToast(h: DiskHealth, environment: string): string {
 	const readable = h.devices.filter((d) => d.state !== 'error' || d.errorCode !== 'unsupported');
+	if (!readable.length) return `No disks with SMART data found on ${environment}`;
 	return `Checked ${count(readable.length, 'disk')} on ${environment}`;
 }
 

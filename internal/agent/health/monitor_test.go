@@ -47,7 +47,15 @@ func (f *fakeSMART) scanCount() int {
 func (f *fakeSMART) Read(ctx context.Context, dev smartctl.ScanDevice) (smartctl.Reading, error) {
 	f.mu.Lock()
 	gate, entered := f.gate, f.entered
-	r, err := f.readings[dev.Name], f.readErr[dev.Name]
+	// "name|type" answers one of several disks behind a controller path.
+	r, ok := f.readings[dev.Name+"|"+dev.Type]
+	if !ok {
+		r = f.readings[dev.Name]
+	}
+	err := f.readErr[dev.Name+"|"+dev.Type]
+	if err == nil {
+		err = f.readErr[dev.Name]
+	}
 	f.mu.Unlock()
 	if gate != nil {
 		entered <- dev.Name
@@ -178,15 +186,52 @@ func TestMonitorKeepsLastValuesWhenAReadFails(t *testing.T) {
 	smart.mu.Lock()
 	smart.readErr = map[string]error{"/dev/sda": &smartctl.Error{Op: "read", Code: smartctl.CodeTimeout}}
 	smart.mu.Unlock()
+	before := *m.Report().SMART.Devices[0].ReadAt
 	m.round(ctx, false)
-	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskOK || d.Serial != "S1" {
+	// The failure shows (never "healthy"); the last measurements and
+	// their read time stay for reference.
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed ||
+		d.Serial != "S1" || d.TemperatureC == nil || !d.ReadAt.Equal(before) {
+		t.Fatalf("%+v", d)
+	}
+	if err := m.Report().Validate(); err != nil {
+		t.Fatal(err)
+	}
+	// The next good read clears it.
+	smart.mu.Lock()
+	smart.readErr = nil
+	smart.mu.Unlock()
+	m.round(ctx, false)
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskOK || d.ErrorCode != "" {
 		t.Fatalf("%+v", d)
 	}
 	// A device never read successfully is an error.
-	m2, _ := newMonitor(t, &fakeSMART{scan: smart.scan, readErr: smart.readErr}, hostProc(), true)
+	m2, _ := newMonitor(t, &fakeSMART{scan: smart.scan, readErr: map[string]error{"/dev/sda": &smartctl.Error{Op: "read", Code: smartctl.CodeTimeout}}},
+		hostProc(), true)
 	m2.round(ctx, true)
 	if d := m2.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed {
 		t.Fatalf("%+v", d)
+	}
+}
+
+// TestMonitorKeepsDisksBehindOneControllerApart: disks behind a RAID
+// controller share its path and differ by type; each keeps its own values.
+func TestMonitorKeepsDisksBehindOneControllerApart(t *testing.T) {
+	disk0, disk1 := healthy("/dev/bus/0", "S0"), healthy("/dev/bus/0", "S1")
+	disk0.Device.Type, disk1.Device.Type = "megaraid,0", "megaraid,1"
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{{Name: "/dev/bus/0", Type: "megaraid,0"}, {Name: "/dev/bus/0", Type: "megaraid,1"}},
+		readings: map[string]smartctl.Reading{"/dev/bus/0|megaraid,0": disk0, "/dev/bus/0|megaraid,1": disk1}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	ctx := testutil.Context(t)
+	m.round(ctx, true)
+	smart.mu.Lock()
+	smart.readings["/dev/bus/0|megaraid,1"] = standby("/dev/bus/0")
+	smart.mu.Unlock()
+	m.round(ctx, false)
+	devs := m.Report().SMART.Devices
+	if len(devs) != 2 || devs[0].Serial != "S0" || devs[0].State != protocol.DiskOK ||
+		devs[1].Serial != "S1" || devs[1].State != protocol.DiskSleeping || devs[1].Type != "megaraid,1" {
+		t.Fatalf("%+v", devs)
 	}
 }
 
@@ -345,9 +390,35 @@ func TestReadRAIDWithoutMDOrZFS(t *testing.T) {
 	if r.Message != "" || r.MD == nil || r.ZFS == nil || len(r.MD)+len(r.ZFS) != 0 || !r.ReadAt.Equal(testEpoch) {
 		t.Fatalf("%+v", r)
 	}
-	// A pool with an unknown state line is left out.
+	// A pool with an unknown state line is left out and reported.
 	r = ReadRAID(fstest.MapFS{"spl/kstat/zfs/odd/state": {Data: []byte("WEIRD\n")}}, testEpoch)
-	if len(r.ZFS) != 0 {
-		t.Fatalf("%+v", r.ZFS)
+	if len(r.ZFS) != 0 || r.Message == "" {
+		t.Fatalf("%+v", r)
+	}
+}
+
+// TestReadRAIDReportsUnreadablePools: a pool whose state cannot be read
+// is reported (the RAID card says the state could not be read) while the
+// readable pools stay; a directory without a state file is not a pool.
+func TestReadRAIDReportsUnreadablePools(t *testing.T) {
+	proc := fstest.MapFS{
+		"spl/kstat/zfs/tank/state":     {Data: []byte("ONLINE\n")},
+		"spl/kstat/zfs/broken/state/x": {Data: []byte("a directory, not a state file")},
+		"spl/kstat/zfs/gone/io":        {Data: []byte("no state file")},
+	}
+	r := ReadRAID(proc, testEpoch)
+	if r.Message != "the state of some ZFS pools could not be read" {
+		t.Fatalf("message %q", r.Message)
+	}
+	if want := []protocol.ZFSPool{{Name: "tank", Health: "ONLINE", State: protocol.RAIDHealthy}}; !reflect.DeepEqual(r.ZFS, want) {
+		t.Fatalf("pools %+v", r.ZFS)
+	}
+	if err := (protocol.HostHealthOutput{SampledAt: testEpoch, SMART: protocol.SMARTReport{Status: protocol.SMARTOK}, RAID: r}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	// Without the unreadable pool nothing is reported.
+	delete(proc, "spl/kstat/zfs/broken/state/x")
+	if r := ReadRAID(proc, testEpoch); r.Message != "" || len(r.ZFS) != 1 {
+		t.Fatalf("%+v", r)
 	}
 }

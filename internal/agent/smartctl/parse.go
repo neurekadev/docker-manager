@@ -49,19 +49,23 @@ type scanOutput struct {
 }
 
 // parseScan reads --scan-open --json output. Devices whose name or type
-// the runner would refuse are left out.
+// the runner would refuse are left out, and so are repeats of a name and
+// type: disks behind one RAID controller share its path and differ by
+// type (megaraid,0 and megaraid,1), so both identify a device.
 func parseScan(b []byte) ([]ScanDevice, error) {
 	var out scanOutput
 	if err := json.Unmarshal(b, &out); err != nil {
 		return nil, errors.New("unexpected scan output")
 	}
 	devs := make([]ScanDevice, 0, len(out.Devices))
-	seen := map[string]bool{}
+	type key struct{ name, typ string }
+	seen := map[key]bool{}
 	for _, d := range out.Devices {
-		if !validName(d.Name) || !validType(d.Type) || seen[d.Name] {
+		k := key{d.Name, d.Type}
+		if !validName(d.Name) || !validType(d.Type) || seen[k] {
 			continue
 		}
-		seen[d.Name] = true
+		seen[k] = true
 		devs = append(devs, ScanDevice{Name: d.Name, Type: d.Type, Protocol: protocolOf(d.Protocol), OpenError: bound(d.OpenError, 512)})
 	}
 	return devs, nil
@@ -227,9 +231,8 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 	if p := protocolOf(out.Device.Protocol); p != "" {
 		d.Protocol = p
 	}
-	if out.Device.Type != "" && validType(out.Device.Type) {
-		d.Type = out.Device.Type
-	}
+	// The type stays the scan's (the one passed with -d): with the path it
+	// identifies the device across reads.
 	d.Model = firstNonEmpty(out.ModelName, out.SCSIModelName, strings.TrimSpace(out.SCSIVendor+" "+out.SCSIProduct))
 	d.Serial = bound(strings.TrimSpace(out.SerialNumber), 255)
 	d.Firmware = bound(firstNonEmpty(out.FirmwareVersion, out.SCSIRevision), 255)

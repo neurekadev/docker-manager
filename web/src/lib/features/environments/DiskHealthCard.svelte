@@ -32,7 +32,9 @@
 		canCheckDisks,
 		capacity,
 		checkedToast,
+		deviceName,
 		diskBadge,
+		diskKey,
 		diskKind,
 		diskNotice,
 		diskSummary,
@@ -106,10 +108,10 @@
 			id: 'device',
 			header: 'Device',
 			cell: deviceCell,
-			sortValue: (d) => d.name,
+			sortValue: (d) => deviceName(d, health.devices),
 			maxWidth: '340px',
 			truncate: true,
-			title: (d) => [d.name, d.model].filter(Boolean).join(' · '),
+			title: (d) => [deviceName(d, health.devices), d.model].filter(Boolean).join(' · '),
 			stack: 'title'
 		},
 		{ id: 'health', header: 'Health', cell: healthCell, width: '130px', stack: 'status' },
@@ -142,7 +144,14 @@
 		}
 	];
 	const detailColumns: Column<DiskDevice>[] = [
-		{ id: 'name', header: 'Device', mono: true, sortValue: (d) => d.name, stack: 'title' },
+		{
+			id: 'name',
+			header: 'Device',
+			cell: nameCell,
+			mono: true,
+			sortValue: (d) => deviceName(d, health.devices),
+			stack: 'title'
+		},
 		{ id: 'serial', header: 'Serial number', cell: serialCell, mono: true },
 		{ id: 'firmware', header: 'Firmware', cell: firmwareCell, mono: true },
 		{ id: 'capacity', header: 'Capacity', cell: capacityCell, numeric: true },
@@ -152,8 +161,13 @@
 </script>
 
 {#snippet dash()}<span class="muted">—</span>{/snippet}
+{#snippet nameCell(d: DiskDevice)}
+	{deviceName(d, health.devices)}
+{/snippet}
 {#snippet deviceCell(d: DiskDevice)}
-	<span class="mono">{d.name}</span>{#if d.model}<span class="muted model">{d.model}</span>{/if}
+	<span class="mono">{deviceName(d, health.devices)}</span>{#if d.model}<span class="muted model"
+			>{d.model}</span
+		>{/if}
 {/snippet}
 {#snippet healthCell(d: DiskDevice)}
 	{@const b = diskBadge(d)}
@@ -223,7 +237,7 @@
 		</div>
 	{/if}
 	{#if rows.length}
-		<Table label="Disks of {env.name}" {rows} {columns} rowKey={(d) => d.name} />
+		<Table label="Disks of {env.name}" {rows} {columns} rowKey={diskKey} />
 		<div class="advanced">
 			<Disclosure summary="Advanced">
 				<div class="details">
@@ -231,7 +245,7 @@
 						label="Disk details of {env.name}"
 						{rows}
 						columns={detailColumns}
-						rowKey={(d) => d.name}
+						rowKey={diskKey}
 					/>
 				</div>
 			</Disclosure>

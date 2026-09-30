@@ -37,8 +37,9 @@ func readProc(fsys fs.FS, name string) ([]byte, error) {
 
 // ReadRAID reads the md arrays (/proc/mdstat) and the ZFS pools
 // (/proc/spl/kstat/zfs/<pool>/state) from procfs. Missing files are not
-// errors (no md driver, no ZFS); other read errors are reported in
-// Message and leave that part empty.
+// errors (no md driver, no ZFS, a pool exported meanwhile); other read
+// errors and unknown pool states are reported in Message, next to what
+// could be read.
 func ReadRAID(proc fs.FS, now time.Time) protocol.RAIDReport {
 	r := protocol.RAIDReport{ReadAt: now.UTC(), MD: []protocol.MDArray{}, ZFS: []protocol.ZFSPool{}}
 	var problems []string
@@ -52,7 +53,7 @@ func ReadRAID(proc fs.FS, now time.Time) protocol.RAIDReport {
 	}
 	pools, err := readZFS(proc)
 	if err != nil {
-		problems = append(problems, "the ZFS pool state could not be read")
+		problems = append(problems, "the state of some ZFS pools could not be read")
 	}
 	r.ZFS = pools
 	r.Message = strings.Join(problems, "; ")
@@ -62,6 +63,10 @@ func ReadRAID(proc fs.FS, now time.Time) protocol.RAIDReport {
 // zfsDir holds one directory per imported pool with a state file.
 const zfsDir = "spl/kstat/zfs"
 
+// readZFS returns the pools whose state it could read and an error for
+// the others: a pool directory without a state file (not a pool, or
+// exported meanwhile) is skipped, any other read error and an unknown
+// state are reported (the pools read so far are kept).
 func readZFS(proc fs.FS) ([]protocol.ZFSPool, error) {
 	pools := []protocol.ZFSPool{}
 	entries, err := fs.ReadDir(proc, zfsDir)
@@ -71,23 +76,29 @@ func readZFS(proc fs.FS) ([]protocol.ZFSPool, error) {
 	if err != nil {
 		return pools, err
 	}
+	var errs []error
 	for _, e := range entries {
 		if !e.IsDir() || len(pools) >= protocol.MaxHealthArrays {
 			continue
 		}
 		b, err := readProc(proc, path.Join(zfsDir, e.Name(), "state"))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
-			continue // not a pool (or exported meanwhile)
+			errs = append(errs, fmt.Errorf("zfs pool %s: %w", e.Name(), err))
+			continue
 		}
 		health := strings.TrimSpace(string(b))
 		st, ok := zfsState(health)
 		if !ok {
+			errs = append(errs, fmt.Errorf("zfs pool %s: unknown state %q", e.Name(), truncate(health, 32)))
 			continue
 		}
 		pools = append(pools, protocol.ZFSPool{Name: truncate(e.Name(), 255), Health: health, State: st})
 	}
 	sort.Slice(pools, func(i, j int) bool { return pools[i].Name < pools[j].Name })
-	return pools, nil
+	return pools, errors.Join(errs...)
 }
 
 // zfsState maps a pool's health to its RAID state.

@@ -42,6 +42,7 @@ var (
 	mdPendingRE  = regexp.MustCompile(`\b(recovery|resync|reshape|check|repair)\s*=\s*(DELAYED|PENDING)`)
 	mdFinishRE   = regexp.MustCompile(`finish\s*=\s*([\d.]+)min`)
 	mdSpeedRE    = regexp.MustCompile(`speed\s*=\s*(\d+)K/sec`)
+	mdCopiesRE   = regexp.MustCompile(`\b(\d+) (?:near|far|offset)-copies\b`)
 )
 
 // ParseMDStat parses /proc/mdstat into arrays (at most
@@ -50,9 +51,11 @@ var (
 func ParseMDStat(b []byte) []protocol.MDArray {
 	var out []protocol.MDArray
 	var cur *protocol.MDArray
+	// copies is the current raid10 array's data copies ("2 near-copies").
+	copies := 0
 	flush := func() {
 		if cur != nil {
-			cur.State = mdState(*cur)
+			cur.State = mdState(*cur, copies)
 			if len(out) < protocol.MaxHealthArrays {
 				out = append(out, *cur)
 			}
@@ -73,13 +76,19 @@ func ParseMDStat(b []byte) []protocol.MDArray {
 				continue
 			}
 			a := parseMDHead(m[1], m[2])
-			cur = &a
+			cur, copies = &a, 0
 			continue
 		}
 		if cur == nil {
 			continue
 		}
-		parseMDDetail(cur, strings.TrimSpace(line))
+		detail := strings.TrimSpace(line)
+		if m := mdCopiesRE.FindStringSubmatch(detail); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil && n > 0 {
+				copies = n
+			}
+		}
+		parseMDDetail(cur, detail)
 	}
 	flush()
 	return out
@@ -195,11 +204,14 @@ func redundancy(level string) int {
 }
 
 // mdState derives an array's state: inactive; failed when it lost more
-// members than its level tolerates (or a member of an array without
-// redundancy failed); rebuilding while a recovery, resync or reshape runs
-// or waits; degraded with missing or failed members; checking during a
-// check or repair; else healthy.
-func mdState(a protocol.MDArray) string {
+// members than its level tolerates (no working member at all, whatever
+// the level; raid10 with fewer working members than its data needs; a
+// failed member of an array without redundancy); rebuilding while a
+// recovery, resync or reshape runs or waits; degraded with missing or
+// failed members; checking during a check or repair; else healthy.
+// copies is a raid10 array's number of data copies (0: not reported, 2
+// assumed).
+func mdState(a protocol.MDArray, copies int) string {
 	if a.State == protocol.RAIDInactive {
 		return protocol.RAIDInactive
 	}
@@ -210,11 +222,24 @@ func mdState(a protocol.MDArray) string {
 		}
 	}
 	missing := a.Devices - a.Active
+	if a.Devices > 0 && a.Active == 0 {
+		return protocol.RAIDFailed
+	}
+	if a.Level == "raid10" && a.Devices > 0 {
+		if copies <= 0 {
+			copies = 2
+		}
+		// Every block lives on copies members: fewer than devices/copies
+		// working members cannot hold the data. Losing fewer may still
+		// have lost both copies of a block (the layout decides), which
+		// /proc/mdstat does not show: degraded.
+		if a.Active*copies < a.Devices {
+			return protocol.RAIDFailed
+		}
+	}
 	if r := redundancy(a.Level); r >= 0 {
 		switch {
 		case r == 0 && failed > 0:
-			return protocol.RAIDFailed
-		case a.Level == "raid1" && a.Devices > 0 && a.Active == 0:
 			return protocol.RAIDFailed
 		case r > 0 && a.Level != "raid1" && a.Devices > 0 && missing > r:
 			return protocol.RAIDFailed

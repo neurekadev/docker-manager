@@ -182,7 +182,7 @@ func TestRunnerScanAndReadArgumentsAndEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(devs) != 4 {
+	if len(devs) != 6 {
 		t.Fatalf("devices %+v", devs)
 	}
 	r, err := f.r.Read(ctx, devs[0])

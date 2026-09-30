@@ -80,6 +80,27 @@ md2 : active raid5 sde1[4](S) sdd1[3](F) sdc1[2] sdb1[1] sda1[0](W)
 `, []protocol.MDArray{{Name: "md3", Level: "raid5", State: protocol.RAIDFailed, Devices: 3, Active: 1, SizeBytes: 100 * 1024,
 			Members: []protocol.MDMember{{Name: "sdc1", Slot: 2, State: protocol.MemberFailed}, {Name: "sdb1", Slot: 1, State: protocol.MemberFailed},
 				active("sda1", 0)}}}},
+		{"raid10 without a working member", `md6 : active raid10 sdd[3](F) sdc[2](F) sdb[1](F) sda[0](F)
+      2000 blocks super 1.2 512K chunks 2 near-copies [4/0] [____]
+`, []protocol.MDArray{{Name: "md6", Level: "raid10", State: protocol.RAIDFailed, Devices: 4, SizeBytes: 2000 * 1024,
+			Members: []protocol.MDMember{{Name: "sdd", Slot: 3, State: protocol.MemberFailed}, {Name: "sdc", Slot: 2, State: protocol.MemberFailed},
+				{Name: "sdb", Slot: 1, State: protocol.MemberFailed}, {Name: "sda", Slot: 0, State: protocol.MemberFailed}}}}},
+		{"raid10 with fewer members than its data needs", `md7 : active raid10 sdb[1] sda[0](F)
+      2000 blocks super 1.2 512K chunks 2 near-copies [4/1] [_U__]
+`, []protocol.MDArray{{Name: "md7", Level: "raid10", State: protocol.RAIDFailed, Devices: 4, Active: 1, SizeBytes: 2000 * 1024,
+			Members: []protocol.MDMember{active("sdb", 1), {Name: "sda", Slot: 0, State: protocol.MemberFailed}}}}},
+		{"raid10 that lost one copy of each block", `md8 : active raid10 sdd[3] sdb[1]
+      2000 blocks super 1.2 512K chunks 2 near-copies [4/2] [_U_U]
+`, []protocol.MDArray{{Name: "md8", Level: "raid10", State: protocol.RAIDDegraded, Devices: 4, Active: 2, SizeBytes: 2000 * 1024,
+			Members: []protocol.MDMember{active("sdd", 3), active("sdb", 1)}}}},
+		{"raid10 with three copies", `md9 : active raid10 sda[0]
+      1000 blocks super 1.2 512K chunks 3 near-copies [3/1] [U__]
+`, []protocol.MDArray{{Name: "md9", Level: "raid10", State: protocol.RAIDDegraded, Devices: 3, Active: 1, SizeBytes: 1000 * 1024,
+			Members: []protocol.MDMember{active("sda", 0)}}}},
+		{"multipath without a working path", `md10 : active multipath sdb[1](F) sda[0](F)
+      1000 blocks [2/0] [__]
+`, []protocol.MDArray{{Name: "md10", Level: "multipath", State: protocol.RAIDFailed, Devices: 2, SizeBytes: 1000 * 1024,
+			Members: []protocol.MDMember{{Name: "sdb", Slot: 1, State: protocol.MemberFailed}, {Name: "sda", Slot: 0, State: protocol.MemberFailed}}}}},
 		{"raid0 without status", `Personalities : [raid0]
 md4 : active raid0 sdg1[1] sdf1[0]
       1953260544 blocks super 1.2 512k chunks

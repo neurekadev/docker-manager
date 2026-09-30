@@ -1162,7 +1162,10 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   `failed` or `inactive`; `whenFailed` is `now` or `past`. At most 256
   devices, 64 md arrays, 64 pools, 128 members per array and 32 failing
   attributes per device; the manager validates every bound
-  (`HostHealthOutput.Validate`). Serial numbers are data, never logged.
+  (`HostHealthOutput.Validate`). A device is identified by `name` and
+  `type` together (disks behind one RAID controller share its path). A
+  read that failed reports `state` `error` with the last measurements
+  kept. Serial numbers are data, never logged.
   Rules and derivation: [metrics.md](../architecture/metrics.md#host-health).
 
 ## Allowed streams

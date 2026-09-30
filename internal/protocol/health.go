@@ -158,7 +158,9 @@ type SMARTReport struct {
 // environment.system.read and stored, but never logged.
 type SMARTDevice struct {
 	// Name is the device path (/dev/sda); Type the smartctl device type
-	// (sat, nvme, scsi, usbjmicron, ...).
+	// (sat, nvme, scsi, usbjmicron, megaraid,N, ...). Together they
+	// identify the device: disks behind one RAID controller share its
+	// path.
 	Name          string `json:"name"`
 	Type          string `json:"type"`
 	Protocol      string `json:"protocol,omitempty"`
@@ -195,7 +197,8 @@ type SMARTDevice struct {
 	UncorrectedErrors *int64 `json:"uncorrectedErrors,omitempty"`
 	// State is derived from the values (DiskOK, DiskWarning, DiskFailing),
 	// DiskSleeping (in standby: the values are the previous read's) or
-	// DiskError (ErrorCode says why).
+	// DiskError (ErrorCode says why; after a failed read the previous
+	// values stay for reference).
 	State     string `json:"state"`
 	ErrorCode string `json:"errorCode,omitempty"`
 	// ReadAt is when the values were read (absent when never).

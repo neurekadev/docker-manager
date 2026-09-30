@@ -154,6 +154,29 @@ describe('DiskHealthCard', () => {
 		expect(screen.queryByRole('table', { name: 'Disks of homelab' })).toBeNull();
 	});
 
+	it('lists disks behind one controller path as separate rows', () => {
+		const slot0: DiskDevice = { ...sda, name: '/dev/bus/0', type: 'megaraid,0', serial: 'S0' };
+		const slot1: DiskDevice = { ...sda, name: '/dev/bus/0', type: 'megaraid,1', serial: 'S1' };
+		mount(DiskHealthCard, {
+			env,
+			health: report({ devices: [slot1, slot0] }),
+			online: true,
+			now
+		});
+		const table = screen.getByRole('table', { name: 'Disks of homelab' });
+		const rows = within(table).getAllByRole('row').slice(1);
+		expect(rows).toHaveLength(2);
+		expect(within(rows[0]).getByText('/dev/bus/0 (megaraid,0)')).toBeInTheDocument();
+		expect(within(rows[1]).getByText('/dev/bus/0 (megaraid,1)')).toBeInTheDocument();
+	});
+
+	it('says when a finished scan found no disks', () => {
+		mount(DiskHealthCard, { env, health: report({ devices: [] }), online: true, now });
+		expect(
+			screen.getByText('No disks with SMART data were found on this server.')
+		).toBeInTheDocument();
+	});
+
 	it('hides the check while the environment is offline', () => {
 		mount(DiskHealthCard, { env, health: report(), online: false, now });
 		expect(screen.queryByRole('button', { name: 'Check disks now' })).toBeNull();
