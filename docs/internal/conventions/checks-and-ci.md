@@ -25,10 +25,10 @@ run (`bash scripts/check.sh lint|unit-tests|build`):
   `scripts/build-static.sh` (static linux/amd64 + linux/arm64 binaries).
 
 CI (GitHub Actions) runs on pushes to `main` and manual
-dispatch only (no pull-request trigger); it also builds the amd64 images and,
+dispatch only (no pull-request trigger); it also builds the images and,
 from `main`, publishes `ghcr.io/neurekadev/docker-{manager,agent}:edge`.
-Images are amd64 only for now; arm64 would use the native `ubuntu-24.04-arm`
-runner (never QEMU).
+Images are linux/amd64 and linux/arm64, each built on its native runner
+(`ubuntu-24.04`, `ubuntu-24.04-arm`; never QEMU).
 The only tests are isolated unit tests (see [tests.md](tests.md)); nothing starts
 Docker, containers, browsers, real registries or restic.
 

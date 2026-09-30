@@ -13,7 +13,7 @@ v1 is in release acceptance (#12; the roadmap in #1 tracks what is still
 open). There are no versioned releases yet: `main` publishes the rolling
 `edge` images
 `ghcr.io/neurekadev/docker-manager:edge` and
-`ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 only for now).
+`ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 and linux/arm64).
 
 The code lives at <https://github.com/neurekadev/docker-manager>. Its GitHub
 issues #1–#35 (`#N` in these docs) remain the written record of the roadmap
@@ -21,7 +21,7 @@ and decisions.
 
 ## Quick start
 
-On a Linux amd64 host with Docker Engine 25.0+ and the Compose plugin,
+On a Linux amd64 or arm64 host with Docker Engine 25.0+ and the Compose plugin,
 behind your own HTTPS reverse proxy. The
 [Quickstart](docs/public/content/docs/quickstart.mdx) has the
 `compose.yaml` and `.env` to copy, and

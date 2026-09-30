@@ -73,8 +73,8 @@ the layout, conventions and gates every later workstream builds on.
    `docker-agent healthcheck` (max age 60 s).
 10. **Images:** multi-stage, all builder stages on `$BUILDPLATFORM`, final
     stage `gcr.io/distroless/static-debian12` (root variant) with no `RUN`,
-    so arm64 needs no QEMU (images are linux/amd64 only since 2026-09-25, see
-    "Later changes"). restic 0.19.1 is downloaded per `TARGETARCH` and
+    so arm64 needs no QEMU (images were linux/amd64 only from 2026-09-25 to
+    2026-09-30, see "Later changes"). restic 0.19.1 is downloaded per `TARGETARCH` and
     verified against SHA-256 values from the release's GPG-signed
     `SHA256SUMS` (key `CF8F18F2844575973F79D4E191A6868BD3F7A907`). No
     `VOLUME` instruction: persistence is explicit via named volumes. All
@@ -113,7 +113,8 @@ a new ADR.
   format/lint, isolated deterministic unit tests and a test-free build:
   `.github/workflows/CI.yaml` (GitHub Actions) runs on pushes to `main`
   and manual dispatch only, mirrors `bash scripts/check.sh`
-  (`lint`, `unit-tests`, `build`), builds linux/amd64 images and publishes
+  (`lint`, `unit-tests`, `build`), builds linux/amd64 images (linux/arm64
+  too since 2026-09-30, on the native `ubuntu-24.04-arm` runner) and publishes
   `ghcr.io/neurekadev/docker-{manager,agent}:edge` from `main` with
   BuildKit provenance and SBOM attestations. `ci.yaml`, `extended.yaml`,
   `api-contract.yaml`, the Docker-backed, browser, fuzz, race and crash

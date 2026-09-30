@@ -1,7 +1,7 @@
 # User documentation site (docs/public): builds the static-site image and
 # publishes ghcr.io/neurekadev/docker-manager-docs:edge from main. The
-# Docker build runs the site build; there is no separate Node job. linux/amd64
-# only for now, like CI.yaml.
+# Docker build runs the site build; there is no separate Node job. Like
+# CI.yaml, linux/amd64 and linux/arm64 build on their native runners.
 name: Docs
 
 on:
@@ -37,6 +37,10 @@ jobs:
             arch: amd64
             runner: ubuntu-24.04
             platform: linux/amd64
+          - name: ARM64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
     steps:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,7 +53,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
       - name: Extract Image Metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -115,10 +119,10 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
       - name: Set Up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Create Manifest
+      - name: Create Multi-Platform Manifest
         run: |
           args=(--tag "${IMAGE}:edge"
             --annotation "index:org.opencontainers.image.title=docker-manager-docs"
@@ -128,5 +132,8 @@ jobs:
             args+=("${IMAGE}@sha256:$(basename "$digest")")
           done
           docker buildx imagetools create "${args[@]}"
-      - name: Inspect Manifest
-        run: docker buildx imagetools inspect "${IMAGE}:edge"
+      - name: Verify Published Platforms
+        run: |
+          docker buildx imagetools inspect "${IMAGE}:edge"
+          manifest="$(docker buildx imagetools inspect "${IMAGE}:edge" --format '{{json .Manifest}}')"
+          jq -e '[.manifests[].platform | select(. != null) | "\(.os)/\(.architecture)"] | (index("linux/amd64") != null and index("linux/arm64") != null)' <<<"$manifest"

@@ -3,8 +3,8 @@
 # (ghcr.io/neurekadev/docker-{manager,agent}:edge) from main only.
 # Local mirror: bash scripts/check.sh (lint, unit-tests, build).
 #
-# Images are linux/amd64 only for now; linux/arm64 rows would run on the
-# native ubuntu-24.04-arm runner (never QEMU or cross-built images).
+# Images are linux/amd64 and linux/arm64, each built on its native runner
+# (ubuntu-24.04, ubuntu-24.04-arm; never QEMU or cross-built images).
 name: CI
 
 on:
@@ -149,8 +149,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # linux/arm64 rows (Manager ARM64, Agent ARM64) would use runner
-        # ubuntu-24.04-arm; images are never emulated or cross-built.
         include:
           - name: Manager AMD64
             component: manager
@@ -160,12 +158,28 @@ jobs:
             platform: linux/amd64
             context: .
             dockerfile: deploy/docker/manager.Dockerfile
+          - name: Manager ARM64
+            component: manager
+            image: ghcr.io/neurekadev/docker-manager
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            context: .
+            dockerfile: deploy/docker/manager.Dockerfile
           - name: Agent AMD64
             component: agent
             image: ghcr.io/neurekadev/docker-agent
             arch: amd64
             runner: ubuntu-24.04
             platform: linux/amd64
+            context: .
+            dockerfile: deploy/docker/agent.Dockerfile
+          - name: Agent ARM64
+            component: agent
+            image: ghcr.io/neurekadev/docker-agent
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
             context: .
             dockerfile: deploy/docker/agent.Dockerfile
     env:
@@ -186,7 +200,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
       - name: Extract Image Metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -284,7 +298,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
       - name: Extract Image Metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -316,4 +330,4 @@ jobs:
           docker buildx imagetools inspect "${IMAGE}:edge"
           manifest="$(docker buildx imagetools inspect "${IMAGE}:edge" --format '{{json .Manifest}}')"
           echo "index digest: $(jq -r '.digest' <<<"$manifest")"
-          jq -e '[.manifests[].platform | select(. != null) | "\(.os)/\(.architecture)"] | index("linux/amd64") != null' <<<"$manifest"
+          jq -e '[.manifests[].platform | select(. != null) | "\(.os)/\(.architecture)"] | (index("linux/amd64") != null and index("linux/arm64") != null)' <<<"$manifest"

@@ -36,13 +36,12 @@ fails fast with a summary. Run one or more classes with
 
 CI (GitHub Actions) runs on pushes to `main` and on
 manual dispatch only; there is no pull-request trigger. Besides the three
-classes above it builds the linux/amd64 manager and agent images with
+classes above it builds the linux/amd64 and linux/arm64 manager and agent
+images on native runners with
 BuildKit and, on `main`, publishes them as `:edge` with BuildKit provenance
 and SBOM attestations (`deploy/docker/*.Dockerfile`); the
 `Build` job uploads the release
-binaries as the artifact `release-binaries-linux`. Images are linux/amd64
-only for now (arm64 would use the native `ubuntu-24.04-arm` runner); the
-arm64 binaries are built but not run.
+binaries as the artifact `release-binaries-linux`.
 
 Not part of the gate or CI any more (run them by hand when relevant):
 

@@ -38,7 +38,7 @@ with fake agents) and the build of both executables for linux/amd64 and linux/ar
 
 | Area | Supported in v1 | Not supported |
 | --- | --- | --- |
-| Host OS / CPU | Linux on amd64; linux/arm64 executables are built, but no arm64 images are published yet | Windows Engines, other architectures |
+| Host OS / CPU | Linux on amd64 or arm64 (images for both) | Windows Engines, other architectures |
 | Docker Engine | standalone Engine ≥ 25.0 (API ≥ 1.44); 25.0.5, 28.5.2 and 29.8.1 passed the former Engine matrix (not re-verified) | < 25.0 (refused), rootless Engines, Docker Desktop, NAS vendor Engines, Swarm, Kubernetes |
 | Containers | both Docker Manager containers run as **root (UID 0)** | running them as a non-root user |
 | Deployment | one public HTTPS origin behind an operator's TLS reverse proxy; agents dial out | extra domain names or ports for agents; agents that listen |
@@ -69,8 +69,8 @@ with fake agents) and the build of both executables for linux/amd64 and linux/ar
 
 | Artifact | Contents | Published as |
 | --- | --- | --- |
-| `docker-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `ghcr.io/neurekadev/docker-manager:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
-| `docker-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
+| `docker-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `ghcr.io/neurekadev/docker-manager:edge` (linux/amd64 and linux/arm64; BuildKit provenance and SBOM attestations) |
+| `docker-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 and linux/arm64; BuildKit provenance and SBOM attestations) |
 | restic | 0.19.1, SHA-256 verified per architecture (`deploy/docker/*.Dockerfile`), in both images | inside the images only |
 
 Only the rolling `:edge` tag is published from `main`; there are no git
@@ -204,7 +204,7 @@ hosts should run a maintained Engine (28 or 29 today).
 
 | host | v1 | why |
 | --- | --- | --- |
-| Linux amd64 / arm64, standalone Docker Engine ≥ 25.0, default or custom data root with the identical-path volume mount | supported (arm64: executables only, no published images yet) | the supported configuration (#28 verifies the mount at startup); not verified on real hosts by automated tests |
+| Linux amd64 / arm64, standalone Docker Engine ≥ 25.0, default or custom data root with the identical-path volume mount | supported | the supported configuration (#28 verifies the mount at startup); not verified on real hosts by automated tests |
 | Rootless Docker Engine | unsupported | the data root lives in the user's home (`~/.local/share/docker`) and the socket in `$XDG_RUNTIME_DIR`, so the documented identical-path layout does not apply, and the agent's UID 0 is an unprivileged host user (#25 requires root for file access). Detected from the Engine's security options (`Identity.Rootless`); stack operations are refused (#28) |
 | Docker Desktop (macOS, Windows, Linux) | unsupported | the Engine runs in a VM: volume paths and bind sources are VM paths, not host paths. Detected (`Identity.DockerDesktop`); stack operations are refused (#28) |
 | NAS vendor Engines (Synology Container Manager, QNAP Container Station, Unraid, TrueNAS apps) | unsupported (untested) | vendor-patched Engines, often older than 25.0, custom data roots (e.g. `/volume1/@docker`); not in the matrix. They are refused below API 1.44; above it the #28 identical-path check decides |
