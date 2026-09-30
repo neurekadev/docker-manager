@@ -7,19 +7,24 @@
 # DOCS_BASE_PATH (for example /docker-manager) serves the site under that
 # path of its domain, behind a reverse proxy that passes the path through
 # unchanged; / then redirects there. Empty: the domain's root.
+# DOCS_SITE_URL (https://docs.neureka.dev) is the public origin link previews
+# load the share image from.
 #
 # Base images are pinned by digest; update tag and digest together.
 
 ARG NODE_IMAGE=node:26.9.0-trixie-slim@sha256:3a771f83944bb763050c23c0225c260638c4b7899e7a72485ef75e5e570499e5
 ARG RUNTIME_IMAGE=ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
 ARG DOCS_BASE_PATH=
+ARG DOCS_SITE_URL=
 
 # ---------------------------------------------------------------- site
 FROM ${NODE_IMAGE} AS build
 ARG DOCS_BASE_PATH
+ARG DOCS_SITE_URL
 WORKDIR /src
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    DOCS_BASE_PATH=${DOCS_BASE_PATH}
+    DOCS_BASE_PATH=${DOCS_BASE_PATH} \
+    DOCS_SITE_URL=${DOCS_SITE_URL}
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY . .

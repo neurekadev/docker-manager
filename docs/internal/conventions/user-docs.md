@@ -125,8 +125,26 @@ passes the path through unchanged; a prefix-stripping rewrite can't work,
 because the pages link their assets by absolute paths. Next adds the prefix
 to `next/link` links and its assets; write every other root-absolute path
 (images, files in `public/`, the search index) through `withBase()` from
-`lib/shared.ts`. For a local check, build with
-`DOCS_BASE_PATH=/docker-manager` (in Git Bash also `MSYS_NO_PATHCONV=1`).
+`lib/shared.ts`.
+
+Link previews (Discord, Slack, X) use one source of truth in `lib/shared.ts`
+and `lib/metadata.ts`, and every page sets them through `shareMetadata()`
+(a page's own `openGraph` replaces its parent's):
+
+- Share image: the logo (`/logo-512.png`, 512×512, `twitter:card`
+  `summary`) as an absolute URL. `DOCS_SITE_URL=https://docs.neureka.dev`
+  (Docs.yaml) sets `metadataBase`; the helper adds the base path.
+- Strip color: `viewport.themeColor` = `brandColor`, the logo's blue, the
+  same value as `--color-fd-primary` in `app/global.css`.
+- Text: the site's title is the app name; its description is exactly the
+  landing page's `tagline`, a capitalized sentence ending in a period,
+  never prefixed with the app name ("Docker Manager: ...") and never
+  lowercased. Docs pages use their own title and `description`.
+
+Check the tags in the built HTML (`og:image`, `twitter:image`,
+`theme-color`, `og:description`) after changing them. For a local check, build with
+`DOCS_BASE_PATH=/docker-manager DOCS_SITE_URL=https://docs.neureka.dev` (in Git
+Bash also `MSYS_NO_PATHCONV=1`).
 
 Screenshots live in `docs/public/public/screenshots/<desktop|tablet|mobile>/<page>.webp`,
 listed in `docs/public/lib/screenshots.ts` in the order of the app's side menu

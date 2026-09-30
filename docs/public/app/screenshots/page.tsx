@@ -4,10 +4,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { ScreenshotGallery } from '@/components/screenshot-gallery';
-import { docsRoute, withBase } from '@/lib/shared';
+import { appName, docsRoute, withBase } from '@/lib/shared';
+import { shareMetadata } from '@/lib/metadata';
 import { devices, screenshotFile, screenshots } from '@/lib/screenshots';
 
-export const metadata: Metadata = { title: 'Screenshots' };
+export const metadata: Metadata = {
+  title: 'Screenshots',
+  ...shareMetadata('Screenshots', `${appName} on desktop, tablet and mobile.`),
+};
 
 // Built once (static export): only features with an image for every screen
 // size are shown.

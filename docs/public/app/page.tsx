@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { BookOpen, Images } from 'lucide-react';
-import { appName, docsRoute, withBase } from '@/lib/shared';
+import { appName, docsRoute, tagline, withBase } from '@/lib/shared';
 
 export default function Home() {
   return (
@@ -15,7 +15,7 @@ export default function Home() {
       {/* Two lines only, each kept on one line on every screen size. */}
       <h1 className="mt-6 whitespace-nowrap text-4xl font-semibold tracking-tight sm:text-5xl">{appName}</h1>
       <p className="mt-4 whitespace-nowrap text-base text-fd-muted-foreground sm:text-xl">
-        One pane of glass for your infrastructure.
+        {tagline}
       </p>
       <nav className="mt-10 grid w-full max-w-md gap-3 sm:grid-cols-2">
         <Link
