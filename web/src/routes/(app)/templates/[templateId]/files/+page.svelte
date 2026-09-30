@@ -26,7 +26,7 @@
 </script>
 
 {#if t}
-	<div class="page" use:fillViewport={{ bottom: 24, min: 520 }}>
+	<div class="page" use:fillViewport={{ min: 520 }}>
 		{#key t.id}
 			<FileManager
 				scope={{ kind: 'template', templateId: t.id }}

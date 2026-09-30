@@ -26,7 +26,7 @@
 	}));
 </script>
 
-<div class="page" use:fillViewport={{ bottom: 24, min: 420 }}>
+<div class="page" use:fillViewport={{ min: 420 }}>
 	{#key `${environmentId}/${containerId}`}
 		<LogPanel target={{ kind: 'container', environmentId, containerId }} name={containerId} />
 	{/key}

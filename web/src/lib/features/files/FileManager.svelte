@@ -6,8 +6,8 @@
 	// the toolbar and each row's menu (touch), drag and drop, uploads, jobs
 	// with progress, and the editor beside the list (Files and Editor tabs
 	// below 1024 px, never both squeezed). Permissions and owners are a
-	// details view (off by default). The card takes the height of its
-	// content and grows to the page's height while the editor is open. The
+	// details view (off by default). The card always takes the page's
+	// height (fillViewport: the rest of the window, no page scroll). The
 	// server authorizes every call; the UI hides what the caller's
 	// capabilities do not allow.
 	import { createInfiniteQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
@@ -15,7 +15,6 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ClipboardPaste from '@lucide/svelte/icons/clipboard-paste';
 	import Copy from '@lucide/svelte/icons/copy';
 	import Download from '@lucide/svelte/icons/download';
@@ -888,7 +887,7 @@
 <input bind:this={fileInput} type="file" multiple hidden onchange={onPicked} />
 <input bind:this={folderInput} type="file" webkitdirectory multiple hidden onchange={onPicked} />
 
-<section class="fm" class:full={showEditor} aria-label={label}>
+<section class="fm" aria-label={label}>
 	{#if !environmentOnline}
 		<div class="offline"><OfflineEnvironment name={environmentName} /></div>
 	{/if}
@@ -1015,50 +1014,45 @@
 							</Menu>
 						</div>
 					{:else if can('write') && writable}
-						<Menu
-							label="Upload"
-							align="start"
-							items={[
-								{
-									label: 'Upload files',
-									icon: Upload,
-									onSelect: () => pickFiles(false)
-								},
-								{
-									label: 'Upload folder',
-									icon: FolderUp,
-									onSelect: () => pickFiles(true)
-								}
-							]}
-						>
-							{#snippet trigger(props)}
-								<Button
-									{...props}
-									variant="secondary"
-									icon={Upload}
-									iconEnd={ChevronDown}
-									aria-label="Upload"
-									><span class="btn-label">Upload</span></Button
-								>
-							{/snippet}
-						</Menu>
-						<Button
-							variant="secondary"
-							icon={FilePlus}
-							aria-label="New file"
-							onclick={() => create('file')}
-							><span class="btn-label">New file</span></Button
-						>
-						<Button
-							variant="secondary"
-							icon={FolderPlus}
-							aria-label="New folder"
-							onclick={() => create('dir')}
-							><span class="btn-label">New folder</span></Button
-						>
+						<!-- Small icon buttons; the tooltip (their accessible name) says
+						     what each does, so the filter keeps its room. -->
+						<div class="create" role="group" aria-label="Add">
+							<IconButton
+								icon={Upload}
+								size="sm"
+								variant="secondary"
+								label="Upload files"
+								onclick={() => pickFiles(false)}
+							/>
+							<IconButton
+								icon={FolderUp}
+								size="sm"
+								variant="secondary"
+								label="Upload folder"
+								onclick={() => pickFiles(true)}
+							/>
+							<IconButton
+								icon={FilePlus}
+								size="sm"
+								variant="secondary"
+								label="New file"
+								onclick={() => create('file')}
+							/>
+							<IconButton
+								icon={FolderPlus}
+								size="sm"
+								variant="secondary"
+								label="New folder"
+								onclick={() => create('dir')}
+							/>
+						</div>
 					{/if}
 					{#if clip && canPaste}
-						<Button variant="secondary" icon={ClipboardPaste} onclick={() => paste()}
+						<Button
+							size="sm"
+							variant="secondary"
+							icon={ClipboardPaste}
+							onclick={() => paste()}
 							>Paste {clip.paths.length}
 							{clip.paths.length === 1 ? 'item' : 'items'}</Button
 						>
@@ -1074,6 +1068,7 @@
 					</div>
 					<IconButton
 						icon={filters.hidden ? Eye : EyeOff}
+						size="sm"
 						label={filters.hidden ? 'Hide hidden files' : 'Show hidden files'}
 						pressed={filters.hidden}
 						onclick={() => (filters = { ...filters, hidden: !filters.hidden })}
@@ -1081,12 +1076,13 @@
 					<span class="details-toggle">
 						<IconButton
 							icon={ListTree}
+							size="sm"
 							label="Show permissions and owners"
 							pressed={details}
 							onclick={() => (details = !details)}
 						/>
 					</span>
-					<IconButton icon={RefreshCw} label="Refresh" onclick={refresh} />
+					<IconButton icon={RefreshCw} size="sm" label="Refresh" onclick={refresh} />
 				</div>
 
 				<div class="list">
@@ -1408,23 +1404,18 @@
 />
 
 <style>
-	/* As tall as its content (a short folder is a short card), at most the
-	   page's height; while the editor is open it takes the whole height. */
+	/* Always the page's whole height (the page fills the window below its
+	   header), with or without the editor. */
 	.fm {
 		display: flex;
-		flex: 0 1 auto;
+		flex: 1 1 auto;
 		flex-direction: column;
+		height: 100%;
 		min-height: 0;
-		max-height: 100%;
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		background: var(--surface-panel);
 		overflow: hidden;
-	}
-
-	.fm.full {
-		flex: 1 1 auto;
-		height: 100%;
 	}
 
 	.offline {
@@ -1544,14 +1535,6 @@
 		}
 	}
 
-	/* A narrow list beside the editor: icon-only Upload, New file and New
-	   folder (their names stay their accessible names). */
-	@container (max-width: 520px) {
-		.btn-label {
-			display: none;
-		}
-	}
-
 	@container (max-width: 460px) {
 		.browser .filter {
 			min-width: 64px;
@@ -1601,10 +1584,16 @@
 		padding: var(--space-2) var(--space-3);
 	}
 
+	.create {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+	}
+
 	.filter {
 		flex: 1;
-		min-width: 120px;
-		max-width: 280px;
+		min-width: 160px;
+		max-width: 420px;
 		margin-left: auto;
 	}
 

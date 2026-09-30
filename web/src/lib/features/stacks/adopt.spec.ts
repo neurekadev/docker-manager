@@ -12,11 +12,13 @@ const on = (kind: string, id = 's1') => ({
 });
 
 describe('stackTrayMatch', () => {
-	it('takes every job acting on the stack but update checks', () => {
+	it('takes every job acting on the stack but update checks and backups', () => {
 		const m = stackTrayMatch('s1');
 		for (const kind of ['stack.deploy', 'stack.rename', 'stack.migrate', 'restore.run'])
 			expect(matchJob(on(kind), m)).toBe(true);
 		expect(matchJob(on('update.check'), m)).toBe(false);
+		expect(matchJob(on('backup.run'), m)).toBe(false);
+		expect(matchJob(on('backup.run'), stackTrayMatch('s1', { wizard: true }))).toBe(false);
 		expect(matchJob(on('stack.deploy', 's2'), m)).toBe(false);
 	});
 

@@ -49,7 +49,7 @@
 	const autoConnect = $derived(!!initial && choices.some((c) => c.containerId === initial));
 </script>
 
-<div class="page" use:fillViewport={{ bottom: 24, min: 420 }}>
+<div class="page" use:fillViewport={{ min: 420 }}>
 	{#if stack.isPending || services.isPending}
 		<div aria-busy="true"><Skeleton lines={10} /></div>
 	{:else if error}

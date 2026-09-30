@@ -84,7 +84,7 @@
 	let logsOpen = $state(false);
 </script>
 
-<div class="page" use:fillViewport={{ bottom: 24, min: 520 }}>
+<div class="page" use:fillViewport={{ min: 520 }}>
 	{#if stack.isPending}
 		<div aria-busy="true" class="loading"><Skeleton lines={10} /></div>
 	{:else if stack.error}
