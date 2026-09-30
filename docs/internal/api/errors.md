@@ -103,6 +103,7 @@ same change.
 | `default_group_protected` | 409 | no | The default group cannot be deleted; make another group the default first. | #17 |
 | `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly; the owner does not count and moves to the default group). | #17 |
 | `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
+| `notification_channel_name_taken` | 409 | no | Another notification channel already uses this name. | #142 |
 | `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
 | `git_credential_name_taken` | 409 | no | Another Git credential already uses this name. | #33 |
 | `ambiguous_git_credential` | 409 | no | Several Git credentials match the repository equally well (same host and path prefix length); name one explicitly (`gitCredentialId`). | #33 |
@@ -206,6 +207,7 @@ same change.
 | `version_unsupported` | 426 | no | Agent routes: the agent's protocol or version is outside the manager's window (same or previous minor release, never newer than the manager); upgrade as the message says. | #3 |
 | `precondition_required` | 428 | no | The edit requires an `If-Match` header with the resource's current `ETag`. | #4 |
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |
+| `notification_test_rate_limited` | 429 | yes | A test message was sent to this notification channel less than 5 seconds ago; retry after the `Retry-After` delay. | #142 |
 | `internal` | 500 | no | Unexpected server error. The cause is logged under the request ID and never returned. | #2 |
 | `template_registry_unreachable` | 502 | yes | The template registry could not be reached (address, network, or it does not share templates); the message says which. | #7 |
 | `template_registry_invalid` | 502 | yes | The template registry answered with something unusable (not a registry, an unknown format, a bad digest or icon); the message says which. | #7 |

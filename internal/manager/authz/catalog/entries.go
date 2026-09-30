@@ -298,6 +298,7 @@ func capabilities() []Capability {
 		ownerOnly("security_settings.manage", "Change the security policy", "Password rules, required sign-in factors and enrollment grace."),
 		ownerOnly("registry.manage", "Manage registry credentials", "Create, rotate and delete registry connections."),
 		ownerOnly("git_credential.manage", "Manage Git credentials", "Create, rotate and delete Git credentials."),
+		ownerOnly("notification_channel.manage", "Manage notification channels", "Add, edit, test and delete notification channels and view their addresses (they hold webhook tokens and passwords)."),
 		ownerOnly("template_registry.manage", "Manage template registries", "Add, sync and remove other Docker Manager instances' template registries."),
 		ownerOnly("api_tokens.manage", "Manage other users' API tokens", "List and revoke API tokens of every user."),
 		ownerOnly("manager.backup", "Back up the manager", "Back up Docker Manager's own state (database, keys)."),

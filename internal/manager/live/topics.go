@@ -60,7 +60,7 @@ var topicOfType = map[string]string{
 	"schedule_default": TopicPolicies, "maintenance_default": TopicPolicies,
 	"backup": TopicBackups, "backup_repository": TopicBackups, "restore": TopicBackups,
 	"registry": TopicRegistries, "git_credential": TopicRegistries,
-	"settings": TopicSettings, "setting": TopicSettings,
+	"settings": TopicSettings, "setting": TopicSettings, "notification_channel": TopicSettings,
 	"group": TopicPermissions, "user": TopicPermissions, "invitation": TopicPermissions, "permission": TopicPermissions,
 	"api_token": TopicPermissions, "session": TopicPermissions,
 	"template": TopicTemplates, "template_registry": TopicTemplates,

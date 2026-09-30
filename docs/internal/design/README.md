@@ -285,7 +285,7 @@ Every resource list (stacks, containers, images, volumes, networks,
 builds and saved builds, registries and Git credentials, template
 sources, backup policies, runs, repositories and snapshots, update and
 maintenance policies, jobs, schedules, environments, users, groups,
-invitations, API tokens, passkeys) starts each row's name with the type's
+invitations, API tokens, passkeys, notification channels) starts each row's name with the type's
 icon, so a list is recognisable at a glance:
 
 ```svelte
@@ -326,7 +326,7 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | --- | --- |
 | `TextField` | `mono` for identifiers and paths; `bind:value`. |
 | `PasswordField` | Reveal toggle ("Show password"/"Hide password", `aria-pressed`); `autocomplete: current-password \| new-password`. |
-| `TextArea`, `Select` (Bits UI listbox in the input's look: chevron trigger, check on the chosen option, typeahead; `onchange(value)`), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | No native `<select>` anywhere. |
+| `TextArea`, `Select` (Bits UI listbox in the input's look: chevron trigger, check on the chosen option, typeahead; `onchange(value)`; an option's optional `icon` shows before its label in the list and the trigger, e.g. the notification service picker), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | No native `<select>` anywhere. |
 | `SuggestField` | Free text with a themed suggestion listbox (`suggestions: string[]`, combobox pattern: arrows, Enter, Escape, pointer); for values that may be new (a volume name). No `<datalist>`. |
 | `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection. |
 | `Switch` | `role="switch"`; for settings that apply immediately. |

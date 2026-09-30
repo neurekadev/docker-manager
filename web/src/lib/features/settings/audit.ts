@@ -144,7 +144,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 	'git_credential.create': 'Added a Git credential',
 	'git_credential.update': 'Changed a Git credential',
 	'git_credential.delete': 'Removed a Git credential',
-	'container.exec.end': 'Closed a terminal'
+	'container.exec.end': 'Closed a terminal',
+	'notification_channel.create': 'Added a notification channel',
+	'notification_channel.update': 'Changed a notification channel',
+	'notification_channel.delete': 'Deleted a notification channel',
+	'notification_channel.reveal': 'Viewed the address of a notification channel',
+	'notification_channel.test': 'Sent a test message'
 };
 
 interface LabelCatalog {
@@ -198,7 +203,8 @@ export const TARGET_TYPES: Record<string, string> = {
 	build_definition: 'Build definition',
 	template: 'Stack template',
 	schedule: 'Schedule',
-	settings: 'Settings'
+	settings: 'Settings',
+	notification_channel: 'Notification channel'
 };
 
 /** An ID nobody reads: a UUID, a long hex string or a digest. */

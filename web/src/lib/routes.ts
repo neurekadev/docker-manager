@@ -23,7 +23,7 @@
 //   ?defaults=1) so links can open them.
 //   /access[/users/{id}|/groups[/{id}]|/invitations]
 //   /profile[/tokens[/new]|/sessions]   the caller's own account, API tokens and signed-in devices
-//   /settings[/tokens/all|/sign-in|/schedules|/audit|/diagnostics|/move]   instance administration
+//   /settings[/tokens/all|/sign-in|/schedules|/notifications[?create=1]|/audit|/diagnostics|/move]   instance administration
 //   (/settings/security and /settings/tokens[/new] redirect to /profile[/tokens[/new]])
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
 //   /popout/logs?stack=|environment=&container= (files, logs, terminals)
@@ -188,6 +188,8 @@ export const routes = {
 	allApiTokens: () => '/settings/tokens/all',
 	signInPolicy: () => '/settings/sign-in',
 	scheduleDefaults: () => '/settings/schedules',
+	/** Notification channels (owner only), a Settings tab; `create` opens the add dialog. */
+	notifications: (create?: boolean) => `/settings/notifications${create ? '?create=1' : ''}`,
 	audit: () => '/settings/audit',
 	diagnostics: () => '/settings/diagnostics',
 	/** Move Docker Manager to a new server (owner only), a Settings tab. */

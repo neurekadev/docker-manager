@@ -66,6 +66,7 @@
 		targetText,
 		type AuditRow
 	} from '$lib/features/settings/audit';
+	import { notificationChannelsQuery } from '$lib/features/notifications/queries';
 	import {
 		auditExportHref,
 		auditPage,
@@ -103,6 +104,11 @@
 		enabled: can(access, 'git_credential.read'),
 		retry: false
 	}));
+	const channels = createQuery(() => ({
+		...notificationChannelsQuery(),
+		enabled: access.owner,
+		retry: false
+	}));
 	const oneEnvironment = $derived(onlyOneEnvironment(envs.data));
 
 	function nameOf(type: string, id: string): string | undefined {
@@ -121,6 +127,8 @@
 				return registries.data?.find((x) => x.id === id)?.name;
 			case 'git_credential':
 				return gitCredentials.data?.find((x) => x.id === id)?.name;
+			case 'notification_channel':
+				return channels.data?.find((x) => x.id === id)?.name;
 		}
 		return undefined;
 	}

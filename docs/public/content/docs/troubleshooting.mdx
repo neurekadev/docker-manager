@@ -98,6 +98,24 @@ The Recovery Key is wrong, or it was changed after that backup
 (`backup_import_key_rejected` or `backup_import_key_rotated`). Enter the older key under **Previous
 Recovery Key** too.
 
+## A test message fails
+
+The message names the cause; the channel's **Failing** status shows it
+again. Usual fixes:
+
+- **Could not connect** or **the server name could not be found**: the
+  service must be reachable from the manager's server. Check the host,
+  the port and its firewall.
+- **The secure connection failed**: for email, match **Port** and
+  **Encryption** (587 with **Explicit TLS (STARTTLS)**, 465 with
+  **Implicit TLS**); a self-signed certificate is refused.
+- **Refused the credentials** or **rejected the message**: press **Edit →
+  Show address** and check the token, password, webhook URL, chat, topic
+  or recipients. A webhook deleted in Discord or Slack needs a new URL.
+- **Redirected to another address**: enter the address the service
+  redirects to.
+- **A test message was just sent**: wait a few seconds and try again.
+
 ## Passkeys stopped working after changing the address
 
 Passkeys belong to one address. Sign in with your password and

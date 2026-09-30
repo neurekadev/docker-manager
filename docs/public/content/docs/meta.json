@@ -20,6 +20,8 @@
     "terminal",
     "logs",
     "migrations",
+    "---Monitoring and notifications---",
+    "notifications",
     "---Administration---",
     "users-and-groups",
     "api-tokens",

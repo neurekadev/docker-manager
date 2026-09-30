@@ -7,6 +7,7 @@
 // image of the template a stack was created from instead, when it has one).
 import Activity from '@lucide/svelte/icons/activity';
 import Archive from '@lucide/svelte/icons/archive';
+import Bell from '@lucide/svelte/icons/bell';
 import Box from '@lucide/svelte/icons/box';
 import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 import Camera from '@lucide/svelte/icons/camera';
@@ -63,7 +64,8 @@ export const RESOURCE_ICONS = {
 	invitation: { icon: MailPlus, color: 'blue' },
 	apiToken: { icon: KeyRound, color: 'violet' },
 	passkey: { icon: Fingerprint, color: 'slate' },
-	session: { icon: MonitorSmartphone, color: 'slate' }
+	session: { icon: MonitorSmartphone, color: 'slate' },
+	notificationChannel: { icon: Bell, color: 'cyan' }
 } as const satisfies Record<string, ResourceIcon>;
 
 export type ResourceKind = keyof typeof RESOURCE_ICONS;

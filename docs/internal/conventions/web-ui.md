@@ -44,7 +44,8 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   containers violet). Stacks and services have no icon of their own:
   every service shows the `service` tile, stacks `StackIcon size="xs"`
   (the image of the template the stack was created from, else the stack
-  tile); registry connections the key (`KeyRound`, slate); schedules the
+  tile); registry connections the key (`KeyRound`, slate); notification channels
+  the bell (`Bell`, cyan); schedules the
   icon of the policy they run (`scheduleResource`). The icon is
   decorative (`aria-hidden`): the name stays the link and the row's
   accessible label, and the tile never replaces a status or mark.

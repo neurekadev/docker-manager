@@ -235,8 +235,10 @@ app, passkeys and recovery codes (`/profile`) and the caller's API tokens
 `TotpSetup`, the passkey and recovery-code queries). **Settings**
 (`routes/(app)/settings`, the sidebar's Administration group) is
 instance administration only: Overview, every user's API tokens
-(`/settings/tokens/all`, owner), sign-in policy, schedule defaults, audit
-log and diagnostics, each tab hidden without its capability
+(`/settings/tokens/all`, owner), sign-in policy, schedule defaults,
+notification channels (`/settings/notifications`, owner;
+`$lib/features/notifications`), audit log and diagnostics, each tab hidden
+without its capability
 (`settingsTabs` in `$lib/features/settings/tabs.ts`, `SettingsHeader`).
 Both token lists use `$lib/features/access/TokensTable.svelte`. The old
 addresses `/settings/security` and `/settings/tokens[/new]` are

@@ -48,13 +48,18 @@ check_sdk_graph() { # bin out meta
 	done
 }
 
-# The auth libraries pinned in go.mod (#18, docs/internal/adr/0003-auth-libraries.md):
-# the manager must link exactly these versions into its static binary; the
-# agent authenticates with its agent credential only and links none of them.
-auth_modules=(github.com/alexedwards/scs/v2 github.com/go-webauthn/webauthn github.com/pquerna/otp github.com/alexedwards/argon2id golang.org/x/time)
-check_auth_graph() { # bin out meta
+# Manager-only libraries pinned in go.mod: the manager must link exactly
+# these versions into its static binary; the agent links none of them.
+#   - authentication (#18, docs/internal/adr/0003-auth-libraries.md): the
+#     agent authenticates with its agent credential only (golang.org/x/time
+#     is also linked by the agent's own dependencies, so it is only pinned);
+#   - notifications (#142, docs/internal/adr/0004-notification-library.md):
+#     only the manager sends notifications.
+manager_modules=(github.com/alexedwards/scs/v2 github.com/go-webauthn/webauthn github.com/pquerna/otp github.com/alexedwards/argon2id golang.org/x/time
+	github.com/nicholas-fedor/shoutrrr)
+check_manager_graph() { # bin out meta
 	local mod want have
-	for mod in "${auth_modules[@]}"; do
+	for mod in "${manager_modules[@]}"; do
 		have="$(awk -F'\t' -v m="$mod" '$2 == "dep" && $3 == m { print $4 }' <<<"$3")"
 		if [ "$1" = docker-manager ]; then
 			want="$(pinned "$mod")"
@@ -64,7 +69,7 @@ check_auth_graph() { # bin out meta
 			fi
 			echo "    ${mod} ${have}"
 		elif [ -n "$have" ] && [ "$mod" != golang.org/x/time ]; then
-			echo "$2: the agent must not link ${mod} (browser authentication is manager-only)" >&2
+			echo "$2: the agent must not link ${mod} (manager-only: browser authentication, notifications)" >&2
 			exit 1
 		fi
 	done
@@ -96,7 +101,7 @@ for arch in amd64 arm64; do
 			exit 1
 		fi
 		check_sdk_graph "$bin" "$out" "$meta"
-		check_auth_graph "$bin" "$out" "$meta"
+		check_manager_graph "$bin" "$out" "$meta"
 		if command -v file >/dev/null 2>&1; then
 			desc="$(file -b "$out")"
 			case "$desc" in

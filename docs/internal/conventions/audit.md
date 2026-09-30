@@ -16,6 +16,13 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 - Never pass secret values, tokens, file contents, `.env` values or error
   messages; the redaction layer is a safety net, not a licence. Record error
   classes (stable codes), not messages.
+- The redaction layer also redacts notification addresses (#142) wherever
+  they appear: Shoutrrr service URLs (`discord://…`, `smtp://…`,
+  `generic+https://…`, …), Discord and Slack webhook URLs, Telegram bot
+  tokens and signed webhook URLs (`?sig=`). Channel operations record the
+  service name, the result class and settings diffs, never the address;
+  every reveal of an address is audited (`notification_channel.reveal`,
+  category credentials).
 - Detail keys containing secret words (`token`, `secret`, `key`, ...) are
   redacted unless they end in a metadata suffix (`Id`, `Ids`, `Name`,
   `Count`, `Type`, `At`, ...): name counts `apiTokenCount`, not
