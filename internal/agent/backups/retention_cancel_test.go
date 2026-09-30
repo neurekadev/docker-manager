@@ -33,6 +33,7 @@ func TestRetentionCancelledDuringPrune(t *testing.T) {
 			t.Fatalf("backup: %+v", res)
 		}
 	}
+	e.svc.opts.StateDir = t.TempDir()
 	clk := e.svc.opts.Clock.(*clock.Fake)
 	var cancel atomic.Bool
 	e.store.OnPrune = func(ctx context.Context) error {
@@ -52,5 +53,31 @@ func TestRetentionCancelledDuringPrune(t *testing.T) {
 	}
 	if len(out.Forgotten) == 0 || out.PruneError != restic.CodeCancelled {
 		t.Errorf("output = %+v", out)
+	}
+
+	// The next retention forgets nothing but finishes the stopped prune;
+	// the one after that has nothing to do.
+	e.store.OnPrune = nil
+	prunes := func() int {
+		n := 0
+		for _, c := range e.store.Calls() {
+			if c.Op == "prune" {
+				n++
+			}
+		}
+		return n
+	}
+	before := prunes()
+	for i, want := range []int{1, 0} {
+		res, _, err = e.run(ctx, jobspec.BackupRetention, in, e.credential("DYRK-K"), nil)
+		out = protocol.RetentionOutput{}
+		_ = json.Unmarshal(res.Output, &out)
+		if err != nil || res.Outcome != jobexec.OutcomeSucceeded || len(out.Forgotten) != 0 {
+			t.Fatalf("retention %d: %+v %v", i, res, err)
+		}
+		if got := prunes() - before; got != want {
+			t.Errorf("retention %d: %d prunes, want %d", i, got, want)
+		}
+		before = prunes()
 	}
 }

@@ -393,12 +393,17 @@ func (s *Service) stepManagerPrune(ctx context.Context, sc *jobexec.StepContext)
 	}
 	var out protocol.RetentionOutput
 	_ = json.Unmarshal(sc.Output(), &out)
-	if len(out.Forgotten) == 0 {
-		return nil // nothing forgotten: no prune (it downloads and rewrites pack data)
+	// Nothing forgotten: no prune (it downloads and rewrites pack data),
+	// unless the last one did not finish (backup.PrunePending).
+	if len(out.Forgotten) == 0 && !backup.PrunePending(s.opts.DataDir, in.RepositoryID, backup.ScopeManager) {
+		return nil
 	}
 	o, _, _, err := s.managerLocation(ctx, in.RepositoryID, false)
 	if err != nil {
 		return err
+	}
+	if merr := backup.MarkPrunePending(s.opts.DataDir, in.RepositoryID, backup.ScopeManager, true); merr != nil {
+		s.log.Warn("could not mark the prune as pending", "repository_id", in.RepositoryID, "error", merr)
 	}
 	sc.Progress(ctx, 40, "freeing the space of the removed backups")
 	// A cancellation stops restic's prune (the repository stays usable; the
@@ -414,6 +419,11 @@ func (s *Service) stepManagerPrune(ctx context.Context, sc *jobexec.StepContext)
 			return serr
 		}
 		return fmt.Errorf("the prune was stopped: %w", jobexec.ErrStepCancelled)
+	}
+	if err == nil {
+		if merr := backup.MarkPrunePending(s.opts.DataDir, in.RepositoryID, backup.ScopeManager, false); merr != nil {
+			s.log.Warn("could not clear the pending prune", "repository_id", in.RepositoryID, "error", merr)
+		}
 	}
 	if err != nil {
 		out.PruneError = restic.CodeOf(err)

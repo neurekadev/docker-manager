@@ -14,7 +14,9 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `CommandSecrets.Repositories` (jobs) or the request/stream `credential`.
   Audit key administration by fingerprint (`rk_…`) only.
 - Retention runs once per finished set and location, never per stack or
-  volume, and prunes only after it forgot snapshots. A new follow-up or
+  volume, and prunes only after it forgot snapshots, or when the
+  location's last prune did not finish (`backup.PrunePending`: marked
+  before every prune, cleared after a successful one). A new follow-up or
   trigger must keep both (prune costs downloads at remote destinations).
   The rules and the deleted-item expiry are one decision (`backup.Plan`
   then `RetentionPlan.Expire`) shared by the preview and the executor.

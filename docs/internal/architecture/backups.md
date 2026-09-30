@@ -144,7 +144,11 @@ only production process execution in Docker Manager.
   prune the same way (`WatchCancel`, then `ErrStepCancelled`; restic keeps
   a repository usable wherever a prune stops and the next prune finishes
   it); the output keeps what forget removed (the index follows it) with
-  `pruneError: cancelled`. Forget itself is short and never interrupted
+  `pruneError: cancelled`. Every prune marks its location as pending
+  first (`backup.MarkPrunePending`, files under `prune-pending/` in the
+  agent's state directory or the manager's data directory) and clears the
+  mark only after it succeeded, so the next retention of a location whose
+  prune was cancelled, failed or died prunes even when it forgets nothing. Forget itself is short and never interrupted
   (its output must match what restic removed).
 - The **snapshot index** (`backup_snapshots`, the API's "backups") is
   filled by the jobs' finish hooks and caught up by verification jobs,
