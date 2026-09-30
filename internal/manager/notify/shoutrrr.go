@@ -75,10 +75,10 @@ func (p *probe) setErr(err error) {
 	p.netErr = err
 }
 
-func (p *probe) snapshot() (status int, netErr error, redirect, offline, panicked bool) {
+func (p *probe) snapshot() (status int, redirect, offline, panicked bool, netErr error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.status, p.netErr, p.redirect, p.offline, p.panicked
+	return p.status, p.redirect, p.offline, p.panicked, p.netErr
 }
 
 // recordingTransport passes requests to base and records their outcome.
@@ -250,7 +250,7 @@ func validate(address string, timeout time.Duration) (service string, err error)
 	}
 	w := newWire(timeout, true)
 	if _, err := locate(address, w); err != nil {
-		if _, _, _, offline, _ := w.p.snapshot(); offline {
+		if _, _, offline, _, _ := w.p.snapshot(); offline {
 			return service, nil
 		}
 		return "", errInvalidAddress
@@ -268,7 +268,7 @@ func deliver(ctx context.Context, address string, msg domain.NotificationMessage
 		// A service that failed while contacting its server (Matrix
 		// signing in) is classified like a send; anything else is an
 		// address Shoutrrr cannot use.
-		status, netErr, redirect, _, _ := w.p.snapshot()
+		status, redirect, _, _, netErr := w.p.snapshot()
 		if errors.Is(err, errInitialize) && (status != 0 || netErr != nil || redirect) {
 			return classify(ctx, err, w.p)
 		}

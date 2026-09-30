@@ -199,7 +199,7 @@ func diskDevice(d protocol.SMARTDevice) DiskDevice {
 // DiskHealthCheck answers a check: the fresh disk health and RAID state.
 type DiskHealthCheck struct {
 	EnvironmentID string     `json:"environmentId"`
-	Scope         string     `json:"scope" enum:"smart,raid"`
+	Scope         string     `json:"scope" enum:"smart,raid" example:"smart"`
 	DiskHealth    DiskHealth `json:"diskHealth"`
 	RAID          RAIDHealth `json:"raid"`
 }
@@ -207,7 +207,7 @@ type DiskHealthCheck struct {
 type diskHealthCheckInput struct {
 	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
 	Body          struct {
-		Scope string `json:"scope" enum:"smart,raid" doc:"smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken); raid: read the RAID state now (never a scrub)."`
+		Scope string `json:"scope" enum:"smart,raid" example:"smart" doc:"smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken); raid: read the RAID state now (never a scrub)."`
 	}
 }
 

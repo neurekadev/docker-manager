@@ -238,7 +238,7 @@ func notificationChannelEnvironments(ctx context.Context, db bun.IDB, ids []stri
 		return out, nil
 	}
 	var rows []notificationChannelEnvironmentRow
-	if err := db.NewSelect().Model(&rows).Where("channel_id IN (?)", bun.In(ids)).Scan(ctx); err != nil {
+	if err := db.NewSelect().Model(&rows).Where("channel_id IN (?)", bun.List(ids)).Scan(ctx); err != nil {
 		return nil, fmt.Errorf("store: list notification channel environments: %w", err)
 	}
 	for _, r := range rows {
