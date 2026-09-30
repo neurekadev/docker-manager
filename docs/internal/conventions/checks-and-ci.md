@@ -49,4 +49,4 @@ Docker, containers, browsers, real registries or restic.
 update rules, the site build and the screenshots: [user-docs.md](user-docs.md).
 `scripts/policy-check.sh` (lint) checks that the Configuration page lists
 every configuration variable, that no page names a removed one, and that
-every `/docs` link, anchor and `meta.json` entry resolves.
+every docs link, anchor and `meta.json` entry resolves.

@@ -6,7 +6,7 @@ description: Your servers, their health and their agents.
 An **environment** is one Docker server with its agent. The
 **Environments** page lists them all with their status, Docker and agent
 version, containers, CPU and memory. To add one, see
-[Add more servers](/docs/quickstart#add-more-servers).
+[Add more servers](/quickstart#add-more-servers).
 
 An environment is **Online** while its agent is connected. When it is
 **Offline**, you still see its last known state, but actions on it are off
@@ -41,7 +41,7 @@ Docker Manager first shows what depends on it. Archiving:
 - changes nothing on the server. Remove the agent container there yourself
   if you no longer need it.
 
-To keep its apps under Docker Manager, [migrate](/docs/migrations) them to
+To keep its apps under Docker Manager, [migrate](/migrations) them to
 another server first. Archived environments are on the **Archived** tab.
 
 ## Re-attach an environment
@@ -68,4 +68,4 @@ On the **Agents** tab, the agent's menu has:
 Upgrade the manager first, then the agents. An agent one release behind
 the manager still works and shows **Upgrade recommended**. An older agent,
 or one newer than the manager, is refused until you
-[upgrade](/docs/quickstart#upgrade) it.
+[upgrade](/quickstart#upgrade) it.

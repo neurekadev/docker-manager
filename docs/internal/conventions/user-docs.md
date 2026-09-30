@@ -30,7 +30,7 @@ you changed (`grep -rn "<old label>" docs/public/content`).
 
 `scripts/policy-check.sh` (CI lint) fails when a configuration variable is
 missing from the Configuration page, a page names a variable the code no
-longer reads, a `/docs` link or `#anchor` is broken, or `meta.json` and the
+longer reads, a docs link or `#anchor` is broken, or `meta.json` and the
 page files differ. It can't check labels or behavior: that is on you.
 
 ## Verify every statement
@@ -53,7 +53,7 @@ for a new major feature, and never add pages for the sake of having them.
 
 | Section | Pages |
 | --- | --- |
-| Getting started | `index` (Overview), `quickstart` (install, add more servers, upgrade) |
+| Getting started | `overview`, `quickstart` (install, add more servers, upgrade) |
 | Features | `environments`, `stacks` (with import and rename), `containers`, `images`, `volumes`, `networks`, `builds`, `templates`, `registries` (with Git credentials), `backups` (with restore and recovery), `updates`, `maintenance` (prune and maintenance policies), `file-manager`, `terminal`, `logs`, `migrations` (with moving Docker Manager) |
 | Administration | `users-and-groups` (people, groups, your account, sign-in policy), `api-tokens`, `permissions`, `audit-log` |
 | Help | `configuration` (every variable), `troubleshooting` |
@@ -85,7 +85,8 @@ grows past that, cut explanation before you cut steps.
   has no way to do it (installing, agent settings, recovery), and say so.
 - Callouts only for data loss, security, or a step users must not skip; at
   most two per page.
-- Links are absolute: `/docs/<page>` or `/docs/<page>#<anchor>`.
+- Links are absolute from the site's root: `/<page>` or `/<page>#<anchor>`
+  (for example `/quickstart#upgrade`). Never add the base path.
 
 ## Never include
 
@@ -110,10 +111,22 @@ and the move files (`internal/manager/agents/install.go`) and with
 search, served by nginx on port 3000 (`docs/public/Dockerfile`,
 `nginx.conf`; `absolute_redirect off` keeps redirects relative so a reverse
 proxy's host and port survive). The landing page (`app/page.tsx`) links to
-the docs at `/docs/` and to the Screenshots page (`app/screenshots`).
+the docs at `/overview/` and to the Screenshots page (`app/screenshots`). Docs
+pages live at the site's root, `/<page>/` (route group `app/(docs)`).
 `.github/workflows/Docs.yaml` builds the image and publishes
 `code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
 `main` that change `docs/public/**`.
+
+The published site lives under a path, `https://docs.neureka.dev/docker-manager`:
+the build argument `DOCS_BASE_PATH=/docker-manager` (Docs.yaml) sets
+Next's `basePath`, puts the files under that path in the image and fills
+it into `nginx.conf` (`__BASE__`; `/` redirects there). The reverse proxy
+passes the path through unchanged; a prefix-stripping rewrite can't work,
+because the pages link their assets by absolute paths. Next adds the prefix
+to `next/link` links and its assets; write every other root-absolute path
+(images, files in `public/`, the search index) through `withBase()` from
+`lib/shared.ts`. For a local check, build with
+`DOCS_BASE_PATH=/docker-manager` (in Git Bash also `MSYS_NO_PATHCONV=1`).
 
 Screenshots live in `docs/public/public/screenshots/<desktop|tablet|mobile>/<page>.webp`,
 listed in `docs/public/lib/screenshots.ts` in the order of the app's side menu

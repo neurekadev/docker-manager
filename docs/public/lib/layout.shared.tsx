@@ -1,5 +1,5 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
-import { appName } from './shared';
+import { appName, withBase } from './shared';
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -7,7 +7,7 @@ export function baseOptions(): BaseLayoutProps {
       title: (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" width={24} height={24} />
+          <img src={withBase('/logo.png')} alt="" width={24} height={24} />
           {appName}
         </>
       ),

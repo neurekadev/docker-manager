@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { ScreenshotGallery } from '@/components/screenshot-gallery';
-import { docsRoute } from '@/lib/shared';
-import { devices, screenshots, screenshotSrc } from '@/lib/screenshots';
+import { docsRoute, withBase } from '@/lib/shared';
+import { devices, screenshotFile, screenshots } from '@/lib/screenshots';
 
 export const metadata: Metadata = { title: 'Screenshots' };
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'Screenshots' };
 // size are shown.
 function available() {
   const root = join(process.cwd(), 'public');
-  return screenshots.filter((s) => devices.every((d) => existsSync(join(root, screenshotSrc(s.slug, d.id)))));
+  return screenshots.filter((s) => devices.every((d) => existsSync(join(root, screenshotFile(s.slug, d.id)))));
 }
 
 export default function Screenshots() {
@@ -22,7 +22,7 @@ export default function Screenshots() {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center px-6 py-16 text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-512.png" alt="" width={96} height={96} className="size-24" />
+      <img src={withBase('/logo-512.png')} alt="" width={96} height={96} className="size-24" />
       <h1 className="mt-6 text-3xl font-semibold tracking-tight">Screenshots</h1>
       {items.length > 0 ? (
         <>

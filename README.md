@@ -32,7 +32,7 @@ a Forgejo access token with the `read:package` scope first.
 
 ## Documentation
 
-- **User documentation** ([`docs/public`](docs/public/content/docs/index.mdx), published as the
+- **User documentation** ([`docs/public`](docs/public/content/docs/overview.mdx), published as the
   `code.neureka.dev/docker-manager/docker-manager-docs:edge` site image): installation, every
   feature, configuration, upgrades and troubleshooting.
 
