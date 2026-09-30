@@ -6152,6 +6152,9 @@
               "smart",
               "raid"
             ],
+            "examples": [
+              "smart"
+            ],
             "type": "string"
           }
         },
@@ -6171,6 +6174,9 @@
             "enum": [
               "smart",
               "raid"
+            ],
+            "examples": [
+              "smart"
             ],
             "type": "string"
           }

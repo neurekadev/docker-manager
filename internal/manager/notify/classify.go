@@ -18,7 +18,7 @@ import (
 // do not use HTTP (SMTP). The error text is only inspected here, never
 // returned, logged or stored: it may contain the address.
 func classify(ctx context.Context, err error, p *probe) string {
-	status, netErr, redirect, _, panicked := p.snapshot()
+	status, redirect, _, panicked, netErr := p.snapshot()
 	switch {
 	case redirect:
 		return domain.NotifyErrRedirect

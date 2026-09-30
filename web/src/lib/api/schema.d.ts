@@ -7786,12 +7786,16 @@ export interface components {
             diskHealth: components["schemas"]["DiskHealth"];
             environmentId: string;
             raid: components["schemas"]["RAIDHealth"];
-            /** @enum {string} */
+            /**
+             * @example smart
+             * @enum {string}
+             */
             scope: "smart" | "raid";
         };
         DiskHealthCheckInputBody: {
             /**
              * @description smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken); raid: read the RAID state now (never a scrub).
+             * @example smart
              * @enum {string}
              */
             scope: "smart" | "raid";

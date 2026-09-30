@@ -241,7 +241,7 @@ func GetEnvironmentsByID(ctx context.Context, db bun.IDB, ids []string) ([]domai
 		return nil, nil
 	}
 	var rows []environmentRow
-	if err := db.NewSelect().Model(&rows).Where("id IN (?)", bun.In(ids)).Order("id ASC").Scan(ctx); err != nil {
+	if err := db.NewSelect().Model(&rows).Where("id IN (?)", bun.List(ids)).Order("id ASC").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("store: get environments: %w", err)
 	}
 	out := make([]domain.Environment, 0, len(rows))
