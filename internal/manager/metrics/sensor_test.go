@@ -50,7 +50,7 @@ func TestSensorSeriesStoreTemperatures(t *testing.T) {
 		t.Fatalf("%+v %v", res, err)
 	}
 	// Raw samples: the missing minute is a gap, never zero; each series is
-	// labelled with its sensor, sorted by name.
+	// labeled with its sensor, sorted by name.
 	r, err := s.Query(ctx, domain.MetricQuery{EnvironmentID: env, Kind: domain.MetricHost, From: t0, To: t0.Add(2 * time.Minute),
 		Step: 10 * time.Second, Keys: []string{"temperature.celsius"}})
 	if err != nil || r.Resolution != LevelRaw || len(r.Series) != 3 || r.Series[0].Sensor != "acpitz" || r.Series[0].Mount != "" ||
