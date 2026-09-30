@@ -13,6 +13,7 @@ export function settingsTabs(access: Access): TabLink[] {
 	if (access.owner) t.push({ href: routes.signInPolicy(), label: 'Sign-in policy' });
 	if (can(access, 'settings.read'))
 		t.push({ href: routes.scheduleDefaults(), label: 'Schedule defaults' });
+	if (access.owner) t.push({ href: routes.notifications(), label: 'Notifications' });
 	if (can(access, 'audit.read')) t.push({ href: routes.audit(), label: 'Audit log' });
 	if (access.owner) t.push({ href: routes.diagnostics(), label: 'Diagnostics' });
 	if (access.owner) t.push({ href: routes.managerMove(), label: 'Move to a new server' });

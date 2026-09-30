@@ -69,6 +69,13 @@ var (
 		`\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})`, // GitHub tokens
 		`\bglpat-[A-Za-z0-9_-]{16,}`,                                  // GitLab tokens
 		`[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@`,               // URL with password
+		// Notification channel addresses (#142): Shoutrrr service URLs
+		// carry webhook tokens and passwords in any part.
+		`(?i)\b(bark|discord|generic|gotify|googlechat|hangouts|homeassistant|ifttt|join|lark|matrix|mattermost|mqtts?|notifiarr|ntfy|opsgenie|pagerduty|pushbullet|pushover|rocketchat|signal|signalgrid|slack|smtp|teams|telegram|twilio|wecom|xmpps?|zulip)(\+[a-z]+)?://\S`,
+		`(?i)\bdiscord(app)?\.com/api/webhooks/\S`, // Discord webhook URLs
+		`(?i)\bhooks\.slack\.com/services/\S`,      // Slack webhook URLs
+		`\b\d{6,12}:[A-Za-z0-9_-]{30,}`,            // Telegram bot tokens
+		`(?i)[?&]sig=[A-Za-z0-9%_-]{16,}`,          // signed webhook URLs (Teams workflows)
 		`(?i)(pass(word|wd|phrase)?|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)s?["']?\s*[=:]\s*\S`,
 	}, "|"))
 )

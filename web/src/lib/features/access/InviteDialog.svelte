@@ -88,7 +88,7 @@
 				issued.expiresAt
 			)}{issued.invitation.email
 				? `, only for ${issued.invitation.email}`
-				: ''}. Docker Manager sends no email and cannot show the link again."
+				: ''}. Docker Manager doesn't email the link and cannot show it again."
 			acknowledgeLabel="I copied or sent the invite link"
 			confirmLabel="Done"
 			onconfirm={() => {

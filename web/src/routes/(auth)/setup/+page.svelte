@@ -143,7 +143,7 @@
 				<TextField
 					label="Email"
 					type="email"
-					description="Optional. Docker Manager sends no email."
+					description="Optional. Docker Manager sends nothing to this address."
 					bind:value={email}
 					autocomplete="email"
 					error={field('email')}

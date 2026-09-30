@@ -1,0 +1,68 @@
+---
+title: Notifications
+description: Send Docker Manager's messages to chat, email, push apps or a webhook.
+---
+
+A **notification channel** is a destination for Docker Manager's messages:
+a Discord or Slack channel, Microsoft Teams, Telegram, email, ntfy, Gotify,
+Pushover, Matrix, a webhook of your own, or any other service Shoutrrr
+supports. Only the owner can see and change them.
+
+## Add a channel
+
+1. Open **Settings → Notifications** and press **Add channel**.
+2. Enter a **Name** and choose the **Service**.
+3. Fill in what the service asks for (see
+   [What each service needs](#what-each-service-needs)).
+4. Under **What to send**, tick the events the channel is for, and choose
+   **All environments** or **Some environments**. Untick **Also send when
+   resolved** if you only want the problem, not the all-clear.
+5. Press **Add channel**. Docker Manager may ask you to confirm your
+   identity first.
+
+A channel that is not **Enabled** gets nothing but test messages.
+
+## Send a test
+
+Press **Send test** in the message that confirms the new channel, or in
+the channel's menu. A message tells you that it was sent, or what failed
+and what to check.
+
+The **Status** column shows the last result: **Working**, **Failing**
+(point at it for the reason), **Not tested** or **Off**.
+
+## View or change a channel
+
+1. Open the channel's menu and press **Edit**.
+2. The address is stored encrypted. Press **Show address** to see and
+   change it; Docker Manager asks you to confirm your identity, and the
+   audit log records every time it is shown.
+3. Change what you need and press **Save changes**.
+
+Choosing another **Service** replaces the address. To remove a channel,
+press **Delete** in its menu.
+
+## What each service needs
+
+| Service | What to enter |
+| --- | --- |
+| Discord | The channel's **Webhook URL** (Edit channel → Integrations → Webhooks) |
+| Slack | An incoming webhook's **Webhook URL** |
+| Microsoft Teams | The **Workflow URL** of a Power Automate workflow started by "When a Teams webhook request is received" |
+| Telegram | The **Bot token** from @BotFather and the **Chats** (chat IDs or `@channel` names) |
+| Email (SMTP) | Your mail server's **SMTP server**, **Port** and **Encryption**, a **Username** and **Password** if it needs a login, and the **From** and **To** addresses |
+| ntfy | The **Server** (`ntfy.sh` or your own) and a **Topic**; a login for a server with access control |
+| Gotify | The **Server** and an **Application token** |
+| Pushover | Your **User key** and an application's **API token** |
+| Matrix | The **Homeserver**, a **Password or access token** and, if you like, the **Rooms** |
+| Webhook | The **Webhook URL**; Docker Manager sends JSON with title and message, or plain text |
+| Other (Shoutrrr URL) | The service's Shoutrrr URL, for example `bark://…` |
+
+## Good to know
+
+- Messages leave from the manager's server, so the service must be
+  reachable from there, not only from your browser.
+- On `ntfy.sh` anyone who knows a topic can read it: pick a hard-to-guess
+  one.
+- You can send one test message per channel every 5 seconds.
+- If a test fails, see [Troubleshooting](/troubleshooting#a-test-message-fails).

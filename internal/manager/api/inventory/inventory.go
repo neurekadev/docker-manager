@@ -160,8 +160,8 @@ func (inv *Inventory) Validate() []error {
 			r.Scope != string(api.ScopeEnvironment) && r.Scope != string(api.ScopeResource) {
 			fail("%s: environment-scoped path needs scope environment or resource, not %s", where, r.Scope)
 		}
-		if r.Owner < 1 || r.Owner > 35 {
-			fail("%s: owner must be a roadmap issue number (1-35)", where)
+		if r.Owner < 1 {
+			fail("%s: owner must be the GitHub issue number of the workstream (the roadmap's 1-35 or a later feature issue)", where)
 		}
 		if !slices.Contains([]string{KindJSON, KindStream, KindWebSocket}, r.Kind) {
 			fail("%s: kind %q must be json, stream or websocket", where, r.Kind)

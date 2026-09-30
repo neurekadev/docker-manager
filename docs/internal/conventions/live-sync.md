@@ -36,6 +36,12 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   overview queries (refreshed by `live_metrics` about every second), not
   from a chart's last point; queries the stream keeps current poll only
   through `pollWhileDown(ms)`.
+- **Notification channels** (#142) are announced as `resource.changed`
+  with resource type `notification_channel` on the topic `settings`
+  (owner only: `notification_channel.manage`); the web keys them with
+  `notificationKeys` (`liveKeys.list('settings', 'notification-channels')`).
+  A test's new last result arrives the same way (the test is an audited
+  POST).
 - **Manager move:** the move service publishes `manager_move.updated`
   (owner, the move's ID) on every change and `manager_move.lock_changed`
   (everyone, no ID) when the session's lock changes (`managermove/live.go`,

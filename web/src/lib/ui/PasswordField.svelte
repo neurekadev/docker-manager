@@ -15,6 +15,8 @@
 		error?: string | null;
 		autocomplete?: 'current-password' | 'new-password' | 'off';
 		ref?: HTMLInputElement | null;
+		/** Shown in plain text (the eye toggles it); e.g. right after "Show address". */
+		revealed?: boolean;
 	}
 
 	let {
@@ -26,9 +28,9 @@
 		required = false,
 		id,
 		ref = $bindable(null),
+		revealed = $bindable(false),
 		...rest
 	}: Props = $props();
-	let revealed = $state(false);
 </script>
 
 <Field {label} {description} {error} required={!!required} id={id ?? undefined}>

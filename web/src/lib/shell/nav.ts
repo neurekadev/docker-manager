@@ -206,7 +206,7 @@ export const NAV_ITEMS: NavItem[] = [
 		icon: Settings,
 		group: 'admin',
 		keywords:
-			'all api tokens sign-in policy schedule defaults audit log diagnostics move to a new server migrate manager move docker manager new server',
+			'all api tokens sign-in policy schedule defaults notifications notification channels discord slack email alerts audit log diagnostics move to a new server migrate manager move docker manager new server',
 		visible: () => true
 	}
 ];

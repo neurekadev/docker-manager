@@ -261,6 +261,7 @@ describe('Settings tabs', () => {
 			['API tokens', '/settings/tokens/all'],
 			['Sign-in policy', '/settings/sign-in'],
 			['Schedule defaults', '/settings/schedules'],
+			['Notifications', '/settings/notifications'],
 			['Audit log', '/settings/audit'],
 			['Diagnostics', '/settings/diagnostics'],
 			['Move to a new server', '/settings/move']

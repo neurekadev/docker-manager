@@ -24,27 +24,34 @@ golic=("$bindir/go-licenses")
 # Analyse the linux build graph (what the images ship), whatever the host OS.
 export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
-# Reviewed modules whose LICENSE file is only the short Apache-2.0 notice,
-# which go-licenses' classifier reports as "Unknown" (pulled in by the
-# Compose SDK / BuildKit graph, #21). Each entry is "module|phrase": the
-# check verifies the phrase is still in the module's LICENSE, so a version
-# bump that changes the license fails here and needs a new review.
+# Reviewed modules go-licenses' classifier cannot judge on its own. Each
+# entry is "module|phrase|license": the check verifies the phrase is still
+# in the module's LICENSE, so a version bump that changes the license fails
+# here and needs a new review.
+#   - LICENSE is only the short Apache-2.0 notice, reported as "Unknown"
+#     (pulled in by the Compose SDK / BuildKit graph, #21);
+#   - Eclipse Paho (MQTT, pulled in by Shoutrrr, #142, ADR 0004) is dual
+#     licensed EPL-2.0 / EDL-1.0; Docker Manager uses it under the Eclipse
+#     Distribution License 1.0, which is BSD-3-Clause.
 reviewed_notices=(
-	"gotest.tools/v3|Licensed under the Apache License, Version 2.0"
-	"github.com/in-toto/attestation|Licensed under the Apache License, Version 2.0"
-	"github.com/in-toto/in-toto-golang|Licensed under the Apache License, Version 2.0"
+	"gotest.tools/v3|Licensed under the Apache License, Version 2.0|Apache-2.0"
+	"github.com/in-toto/attestation|Licensed under the Apache License, Version 2.0|Apache-2.0"
+	"github.com/in-toto/in-toto-golang|Licensed under the Apache License, Version 2.0|Apache-2.0"
+	"github.com/eclipse/paho.golang|and Eclipse Distribution License v1.0|EDL-1.0 (BSD-3-Clause)"
 )
 ignore=(--ignore github.com/neurekadev/docker-manager)
 for entry in "${reviewed_notices[@]}"; do
 	mod="${entry%%|*}"
-	phrase="${entry#*|}"
+	rest="${entry#*|}"
+	phrase="${rest%%|*}"
+	license="${rest#*|}"
 	go mod download "$mod" >/dev/null 2>&1 || true
 	dir="$(go list -m -f '{{.Dir}}' "$mod" 2>/dev/null || true)"
 	if [ -z "$dir" ] || ! grep -qF "$phrase" "$dir/LICENSE"; then
 		echo "license-check: reviewed notice for ${mod} no longer matches (${dir:-module missing}/LICENSE); review again" >&2
 		exit 1
 	fi
-	echo "reviewed: ${mod} (Apache-2.0 notice)"
+	echo "reviewed: ${mod} (${license})"
 	ignore+=(--ignore "$mod")
 done
 
@@ -55,7 +62,7 @@ if [ -n "$report" ]; then
 		echo '```'
 		"${golic[@]}" report ./cmd/... "${ignore[@]}" 2>/dev/null
 		for entry in "${reviewed_notices[@]}"; do
-			echo "${entry%%|*},reviewed notice,Apache-2.0"
+			echo "${entry%%|*},reviewed,${entry##*|}"
 		done
 		echo '```'
 	} >>"$report"

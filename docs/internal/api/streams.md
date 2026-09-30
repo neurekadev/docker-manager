@@ -147,7 +147,8 @@ watcher recorded after an external edit) → `stacks`; jobs (#26: created,
 state, progress) → `job`; file-scope invalidations (#15/#23) →
 `files.changed`; every successful API mutation of other resources
 (policies, schedules, backups and repositories, registry and Git
-credentials, build definitions, settings, groups, users, invitations, API
+credentials, build definitions, settings, notification channels (kind
+`notification_channel`, owner only), groups, users, invitations, API
 tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
 `settings` or `permissions` with `kind` the resource type; the move of
 Docker Manager to a new server → `invalidate` topic `manager`: kind

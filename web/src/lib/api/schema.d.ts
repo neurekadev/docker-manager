@@ -3326,6 +3326,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notification-channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List notification channels
+         * @description Notification channels in creation order, with their subscription and last result. Addresses are never returned. Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["list-notification-channels"];
+        put?: never;
+        /**
+         * Add a notification channel
+         * @description Stores a destination by its Shoutrrr URL, sealed with the manager's secret-protection key. The address is checked without sending anything (422 body.address). Defaults: enabled, every event kind, every environment (without environmentIds), resolved problems sent too. 409 notification_channel_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-notification-channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-channels/{channelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a notification channel
+         * @description One channel with its ETag. Never contains the address. Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-notification-channel"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a notification channel
+         * @description Removes the channel and its address. Requires If-Match. Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-notification-channel"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a notification channel
+         * @description Edits the name, whether it is enabled, its subscription (event kinds, environments, resolved problems) or its address. A new address is checked like on creation, needs a recent step-up (403 step_up_required) and resets the last result. Requires If-Match. 409 notification_channel_name_taken. Instance owner only (never delegable, never with an API token).
+         */
+        patch: operations["update-notification-channel"];
+        trace?: never;
+    };
+    "/api/v1/notification-channels/{channelId}/address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reveal the address of a notification channel
+         * @description Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value). Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-notification-channel-address"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-channels/{channelId}/tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test message
+         * @description Sends a test message through the channel now (also while it is off) and records the result as its last result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-notification-channel-test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/overview": {
         parameters: {
             query?: never;
@@ -7185,6 +7277,25 @@ export interface components {
                 [key: string]: string;
             };
         };
+        CreateNotificationChannelInputBody: {
+            /**
+             * @description The Shoutrrr URL of the destination. A secret: never returned by list or get, never logged or audited.
+             * @example discord://token@webhookid
+             */
+            address: string;
+            /** @description For every environment, including future ones. Default: true without environmentIds, false with them; false needs at least one environment. */
+            allEnvironments?: boolean;
+            /** @default true */
+            enabled: boolean;
+            /** @description Active environments the channel is for (with allEnvironments false). */
+            environmentIds?: string[];
+            /** @description Default: every kind. */
+            eventKinds?: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
+            /** @example Ops on Discord */
+            name: string;
+            /** @default true */
+            sendResolved: boolean;
+        };
         CreateRegistryInputBody: {
             /**
              * @default token
@@ -9685,6 +9796,85 @@ export interface components {
             /** @enum {string} */
             view: "minimal" | "full";
         };
+        NotificationAddress: {
+            /**
+             * @description Keyed fingerprint of the address: changes when the address changes, never reveals it.
+             * @example fp_3f2a9c0d1e4b5a67
+             */
+            fingerprint: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * Format: int64
+             * @description Increases with every address change.
+             */
+            version: number;
+        };
+        NotificationChannel: {
+            address: components["schemas"]["NotificationAddress"];
+            /** @description Sends events of every environment, including future ones. Otherwise only those of environmentIds (none once they are all removed: a filter never widens). */
+            allEnvironments: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            enabled: boolean;
+            /** @description The environments of a channel that is not for every environment (empty when allEnvironments is true). */
+            environmentIds: string[];
+            /** @description The kinds of events the channel sends. */
+            eventKinds: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
+            id: string;
+            /** Format: date-time */
+            lastAttemptAt?: string;
+            /**
+             * @description Outcome of the last send or test: ok or an error class; absent before the first one (and after an address change).
+             * @enum {string}
+             */
+            lastResult?: "ok" | "dns" | "connect" | "tls" | "timeout" | "auth" | "http_4xx" | "http_5xx" | "redirect" | "rejected" | "invalid_url";
+            /** Format: date-time */
+            lastSuccessAt?: string;
+            /** @example Ops on Discord */
+            name: string;
+            /**
+             * Format: int64
+             * @description Edit revision (the ETag).
+             */
+            revision: number;
+            /** @description Also send a message when a problem is resolved. */
+            sendResolved: boolean;
+            /**
+             * @description The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...).
+             * @example discord
+             */
+            service: string;
+            /**
+             * @description Where messages go when that is not secret: the host of a mail, push or chat server or of a generic webhook. Absent for services whose address holds only tokens.
+             * @example mail.example.com
+             */
+            target?: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        NotificationChannelAddress: {
+            /**
+             * @description The channel's Shoutrrr URL.
+             * @example discord://token@webhookid
+             */
+            address: string;
+        };
+        NotificationChannelTest: {
+            /**
+             * @example auth
+             * @enum {string}
+             */
+            errorClass?: "dns" | "connect" | "tls" | "timeout" | "auth" | "http_4xx" | "http_5xx" | "redirect" | "rejected" | "invalid_url";
+            /**
+             * @description What went wrong and what to check, in words (never contains the address).
+             * @example The service refused the credentials. Check the token, password or webhook address.
+             */
+            message?: string;
+            ok: boolean;
+            /** Format: date-time */
+            sentAt: string;
+        };
         OperateStackInputBody: {
             /**
              * @description Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down.
@@ -9959,6 +10149,17 @@ export interface components {
         PageNetwork: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Network"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageNotificationChannel: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["NotificationChannel"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -12656,6 +12857,20 @@ export interface components {
             /** @description Each rule given replaces the rule of its category (send the whole rule). */
             rules?: components["schemas"]["MaintenanceRule"][];
             schedule?: components["schemas"]["MaintenanceScheduleInput"];
+        };
+        UpdateNotificationChannelInputBody: {
+            /** @description A new Shoutrrr URL (needs a recent step-up; resets the last result). */
+            address?: string;
+            /** @description true: every environment (clears environmentIds); false: only environmentIds (given, or the current ones). */
+            allEnvironments?: boolean;
+            enabled?: boolean;
+            /** @description Replaces the environment list (restricting the channel). An empty list is refused unless allEnvironments is true: it never means every environment. Environments archived since may stay; new ones must be active. */
+            environmentIds?: string[];
+            /** @description Replaces the kinds (at least one). */
+            eventKinds?: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
+            /** @example Ops on Discord */
+            name?: string;
+            sendResolved?: boolean;
         };
         UpdatePolicy: {
             actions: string[];
@@ -38704,6 +38919,683 @@ export interface operations {
             };
             /** @description Error */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-notification-channels": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "address": {
+                     *             "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *             "updatedAt": "2026-09-25T12:00:00Z",
+                     *             "version": 1
+                     *           },
+                     *           "allEnvironments": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "enabled": false,
+                     *           "environmentIds": [
+                     *             "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *           ],
+                     *           "eventKinds": [
+                     *             "disk_health"
+                     *           ],
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastAttemptAt": "2026-09-25T12:00:00Z",
+                     *           "lastResult": "ok",
+                     *           "lastSuccessAt": "2026-09-25T12:00:00Z",
+                     *           "name": "Ops on Discord",
+                     *           "revision": 1,
+                     *           "sendResolved": false,
+                     *           "service": "discord",
+                     *           "target": "mail.example.com",
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageNotificationChannel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-notification-channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "address": "discord://token@webhookid",
+                 *       "name": "Ops on Discord"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateNotificationChannelInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "address": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "allEnvironments": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "enabled": false,
+                     *       "environmentIds": [
+                     *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       ],
+                     *       "eventKinds": [
+                     *         "disk_health"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastAttemptAt": "2026-09-25T12:00:00Z",
+                     *       "lastResult": "ok",
+                     *       "lastSuccessAt": "2026-09-25T12:00:00Z",
+                     *       "name": "Ops on Discord",
+                     *       "revision": 1,
+                     *       "sendResolved": false,
+                     *       "service": "discord",
+                     *       "target": "mail.example.com",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-notification-channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification channel ID. */
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "address": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "allEnvironments": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "enabled": false,
+                     *       "environmentIds": [
+                     *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       ],
+                     *       "eventKinds": [
+                     *         "disk_health"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastAttemptAt": "2026-09-25T12:00:00Z",
+                     *       "lastResult": "ok",
+                     *       "lastSuccessAt": "2026-09-25T12:00:00Z",
+                     *       "name": "Ops on Discord",
+                     *       "revision": 1,
+                     *       "sendResolved": false,
+                     *       "service": "discord",
+                     *       "target": "mail.example.com",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-notification-channel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Notification channel ID. */
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-notification-channel": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Notification channel ID. */
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Ops on Discord"
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateNotificationChannelInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "address": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "allEnvironments": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "enabled": false,
+                     *       "environmentIds": [
+                     *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       ],
+                     *       "eventKinds": [
+                     *         "disk_health"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastAttemptAt": "2026-09-25T12:00:00Z",
+                     *       "lastResult": "ok",
+                     *       "lastSuccessAt": "2026-09-25T12:00:00Z",
+                     *       "name": "Ops on Discord",
+                     *       "revision": 1,
+                     *       "sendResolved": false,
+                     *       "service": "discord",
+                     *       "target": "mail.example.com",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["NotificationChannel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-notification-channel-address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification channel ID. */
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "address": "discord://token@webhookid"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["NotificationChannelAddress"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-notification-channel-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification channel ID. */
+                channelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "errorClass": "auth",
+                     *       "message": "The service refused the credentials. Check the token, password or webhook address.",
+                     *       "ok": false,
+                     *       "sentAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["NotificationChannelTest"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
