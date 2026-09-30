@@ -36,6 +36,31 @@ func TestInstallCommandsRemoteRunLabelsTheAgent(t *testing.T) {
 	}
 }
 
+// TestInstalledAgentsRunPrivileged (#143): every agent Docker Manager
+// installs runs privileged, so smartctl can read the host's disks: the
+// single command, the move's compose.yaml (and through it the Quickstart,
+// which the next test compares).
+func TestInstalledAgentsRunPrivileged(t *testing.T) {
+	var run string
+	for _, c := range InstallCommands("https://docker.example.com", DefaultAgentImage, "dye_token", "nas") {
+		if c.Variant == InstallRemote {
+			run = c.Command
+		}
+	}
+	if !strings.Contains(run, "\n  --privileged \\\n") || strings.Index(run, "--privileged") > strings.Index(run, DefaultAgentImage) {
+		t.Errorf("docker run command is not privileged:\n%s", run)
+	}
+	compose, _ := MoveFiles(MoveFilesInput{PublicURL: "https://docker.example.com", OldManagerURL: "http://a:8080", MoveCode: "c"})
+	agent := compose[strings.Index(compose, "  docker-agent:\n"):]
+	agent = agent[:strings.Index(agent, "\n\n")]
+	if !strings.Contains(agent, "\n    privileged: true\n") {
+		t.Errorf("the move's agent service is not privileged:\n%s", agent)
+	}
+	if strings.Count(compose, "privileged: true") != 1 {
+		t.Errorf("only the agent runs privileged:\n%s", compose)
+	}
+}
+
 // TestMoveFilesAreTheQuickstartsPlusTheMoveLines: the new server's
 // compose.yaml of a move is the Quickstart's with the move variables read
 // from .env (and defaults that leave the Quickstart's setup once the move

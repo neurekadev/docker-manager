@@ -127,6 +127,8 @@ Leave these as they are unless you know you need them.
 | `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to, separated by commas. |
 | `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/backups#back-up-folders-outside-a-stack)). |
 | `DOCKER_AGENT_WATCH_MAX` | half the server's limit | How many folders the agent watches for live file changes. Beyond it, folders are checked every 30 seconds. |
+| `DOCKER_AGENT_SMART_ENABLED` | `true` | Reads the health of the server's disks (see [Monitoring](/monitoring)). `false` turns it off; RAID arrays are still shown. |
+| `DOCKER_AGENT_SMART_INTERVAL` | `30m` | How often the agent reads every disk's health (`5m` to `24h`). A sleeping disk is not woken. |
 | `DOCKER_AGENT_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
 | `DOCKER_AGENT_LOG_FORMAT` | `json` | The log's format: `json` or `text`. |
 
@@ -141,6 +143,7 @@ Leave these as they are unless you know you need them.
 | `DOCKER_AGENT_STATE_DIR` | `/var/lib/docker-agent` | Where the agent keeps its identity inside its container. |
 | `DOCKER_AGENT_HOST_PROC` | `/proc` | Where the agent reads the server's CPU, memory and network use. |
 | `DOCKER_AGENT_RESTIC_BINARY` | `/usr/local/bin/restic` | The backup program inside the image. |
+| `DOCKER_AGENT_SMARTCTL_BINARY` | `/usr/local/bin/smartctl` | The disk health program inside the image. |
 
 ## Docker's data folder
 

@@ -67,7 +67,8 @@ const (
 	// it carries no values.
 	MetricsLive = "metrics.live"
 	// InventoryUpdated: an environment's Engine inventory (identity,
-	// capacity, Docker counts) was refreshed (#5).
+	// capacity, Docker counts) was refreshed (#5), or its disk health
+	// report changed (#143: Attributes["health"] is "true").
 	InventoryUpdated = "inventory.updated"
 
 	// Stack changes (#7): created/imported, updated (status, jobs, Engine

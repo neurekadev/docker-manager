@@ -87,6 +87,12 @@ are reconciled by its job journal (#26).
 Plain `docker run` agents: `docker pull` the image, then remove and
 recreate the container with the same volumes, mounts and environment.
 
+**Disk health (2026-09-29, #143):** agents installed before disk health
+run unprivileged and report `no_access` on the System tab. Add
+`privileged: true` to the agent service (in the imported stack's files,
+or `--privileged` for a `docker run` agent) and deploy it again; see
+`docs/internal/deployment.md` ("Disk health: the agent runs privileged").
+
 ## Label prefix `docker-manager.` (2026-09-28)
 
 Docker Manager's labels moved from the prefix `dev.neureka.docker-manager.`

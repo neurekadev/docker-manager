@@ -1,0 +1,59 @@
+{
+  "json_format_version": [
+    1,
+    0
+  ],
+  "smartctl": {
+    "version": [
+      7,
+      5
+    ],
+    "exit_status": 0
+  },
+  "device": {
+    "name": "/dev/sdb",
+    "info_name": "/dev/sdb",
+    "type": "scsi",
+    "protocol": "SCSI"
+  },
+  "scsi_vendor": "SEAGATE",
+  "scsi_product": "ST4000NM0023",
+  "scsi_model_name": "SEAGATE ST4000NM0023",
+  "scsi_revision": "GS0F",
+  "serial_number": "Z1Z2Z3Z4",
+  "user_capacity": {
+    "blocks": 7814037168,
+    "bytes": 4000787030016
+  },
+  "rotation_rate": 7200,
+  "smart_support": {
+    "available": true,
+    "enabled": true
+  },
+  "smart_status": {
+    "passed": true
+  },
+  "temperature": {
+    "current": 33,
+    "drive_trip": 60
+  },
+  "power_on_time": {
+    "hours": 51034,
+    "minutes": 12
+  },
+  "scsi_grown_defect_list": 12,
+  "scsi_error_counter_log": {
+    "read": {
+      "total_errors_corrected": 5,
+      "total_uncorrected_errors": 1
+    },
+    "write": {
+      "total_errors_corrected": 0,
+      "total_uncorrected_errors": 0
+    },
+    "verify": {
+      "total_errors_corrected": 2,
+      "total_uncorrected_errors": 2
+    }
+  }
+}

@@ -1,0 +1,78 @@
+---
+title: Monitoring
+description: The health of each server's disks and RAID arrays.
+---
+
+Docker Manager watches the disks of every server: their own health
+reports (SMART) and their RAID arrays, so you can replace a disk before it
+fails. For CPU, memory, network and disk use over time, see
+[Metrics](/metrics).
+
+## Check a server's disks
+
+1. Open **Environments**, pick an environment and open its **System** tab.
+2. The **Disk health** card lists each disk with its **Health**,
+   **Temperature**, how long it has been **Powered on** and its
+   **Issues** in words, for example "8 reallocated sectors" or "Worn 92%".
+   Serial numbers and firmware are under **Advanced**.
+3. Press **Check disks now** to read every disk again right away. The
+   agent also reads them every 30 minutes; **Last checked** says when it
+   last did.
+
+A disk's health is one of:
+
+- **Healthy**: nothing to do.
+- **Warning**: the disk reports damaged or pending sectors, errors, wear
+  of 90% or more, or little spare capacity. Keep your backups current and
+  plan a replacement.
+- **Failing**: the disk's own self-check failed or it reports a critical
+  problem. Back up and replace it soon.
+- **Sleeping**: the disk was in standby and was not woken; it shows the
+  values from its last check.
+- **Unreadable**: the disk could not be read; hover the badge to see why.
+
+## Check RAID arrays
+
+If the server has Linux software RAID or ZFS pools, the **RAID** card
+lists each array with its state (**Healthy**, **Degraded**,
+**Rebuilding**, **Checking**, **Failed** or **Inactive**), its disks (a
+failed one in red) and the progress of a rebuild or check with the time
+left. Press **Check RAID now** to read it again. A server without arrays
+shows **No RAID arrays found** in the **Disk health** card.
+
+## Give the agent access to the disks
+
+To read the disks, the agent runs with `privileged: true`. The
+[Quickstart](/quickstart) files and the install commands do this. If the
+**Disk health** card says **Docker Manager can’t read this server’s
+disks.**, add the line to that server's agent:
+
+1. Open **Stacks** and the server's `docker-manager` stack, then its
+   **Files** tab.
+2. In `compose.yaml`, add `privileged: true` to the `docker-agent`
+   service:
+
+   ```yaml title="compose.yaml"
+   services:
+     docker-agent:
+       # ...keep the existing lines...
+       privileged: true
+   ```
+
+3. Save the file and press **Deploy**.
+
+If you haven't [imported](/quickstart#upgrade) Docker Manager's project
+yet, edit the `compose.yaml` on the server and run `docker compose up -d`
+there. An agent started with the single command needs a new container with
+`--privileged`.
+
+Good to know:
+
+- Checks only read the disks: they never start a disk self-test or a RAID
+  scrub.
+- Disks you connect later appear after the agent restarts.
+- Virtual disks have no health data; the card says so. btrfs RAID and
+  hardware RAID controllers are not covered.
+- `DOCKER_AGENT_SMART_INTERVAL` changes how often the agent reads the
+  disks, and `DOCKER_AGENT_SMART_ENABLED` turns disk checks off (see
+  [Configuration](/configuration#agent-settings)).

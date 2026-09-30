@@ -64,8 +64,9 @@ linters:
           msg: use log/slog
         # No Docker/Compose/buildx CLI or credential helpers (#21): process
         # execution is limited to the paths excluded below (see
-        # docs/internal/architecture/engine-integration.md): tests and the pinned
-        # restic runner (internal/restic/runner.go, #10).
+        # docs/internal/architecture/engine-integration.md): tests, the pinned
+        # restic runner (internal/restic/runner.go, #10) and the pinned
+        # smartctl runner (internal/agent/smartctl/runner.go, #143).
         - pattern: ^exec\.(Command|CommandContext|LookPath)$
           pkg: ^os/exec$
           msg: the agent never executes Docker, Compose, buildx or credential-helper binaries; use the Engine/Compose SDK adapters (#21)
@@ -122,16 +123,24 @@ linters:
       - path: ^cmd/
         linters:
           - forbidigo
-      # Process execution is allowed only in tests (the restic runner's
-      # helper process re-executes the test binary as a fake restic).
+      # Process execution is allowed only in tests (the restic and smartctl
+      # runners' tests re-execute the test binary as a fake).
       - path: _test\.go$
         text: exec\.(Command|CommandContext|LookPath)
         linters:
           - forbidigo
-      # The restic runner (#10) is the only production process execution:
-      # the pinned, checksum-verified restic of both images, never a shell,
-      # secrets only through inherited pipes and the child environment.
+      # The restic runner (#10) and the smartctl runner (#143) are the only
+      # production process execution: the pinned, checksum-verified restic
+      # of both images, never a shell, secrets only through inherited pipes
+      # and the child environment.
       - path: ^internal/restic/runner\.go$
+        text: exec\.CommandContext
+        linters:
+          - forbidigo
+      # The agent image's pinned smartctl (built from the checksum-verified
+      # source release), never a shell, a minimal environment, read-only
+      # flags (no self-tests, never waking a disk in standby).
+      - path: ^internal/agent/smartctl/runner\.go$
         text: exec\.CommandContext
         linters:
           - forbidigo

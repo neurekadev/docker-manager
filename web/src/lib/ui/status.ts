@@ -44,7 +44,18 @@ const STATUS: Record<string, StatusInfo> = {
 	interrupted: { tone: 'danger', label: 'Interrupted', pulse: false },
 	skipped: { tone: 'neutral', label: 'Skipped', pulse: false },
 	// Updates (#20).
-	update_available: { tone: 'warn', label: 'Update available', pulse: false }
+	update_available: { tone: 'warn', label: 'Update available', pulse: false },
+	// Disk health (#143): disks (healthy, warning, failing, sleeping,
+	// unreadable) and RAID arrays (healthy, degraded, rebuilding, checking,
+	// failed, inactive).
+	warning: { tone: 'warn', label: 'Warning', pulse: false },
+	failing: { tone: 'danger', label: 'Failing', pulse: false },
+	sleeping: { tone: 'neutral', label: 'Sleeping', pulse: false },
+	unreadable: { tone: 'neutral', label: 'Unreadable', pulse: false },
+	degraded: { tone: 'warn', label: 'Degraded', pulse: false },
+	rebuilding: { tone: 'info', label: 'Rebuilding', pulse: true },
+	checking: { tone: 'info', label: 'Checking', pulse: true },
+	inactive: { tone: 'neutral', label: 'Inactive', pulse: false }
 };
 
 // Job "partial" differs from stack "partial": callers pass kind="job".

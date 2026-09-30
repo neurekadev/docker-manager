@@ -56,4 +56,5 @@ var sampleBodies = map[string]any{
 	"create-image-build": map[string]any{"gitUrl": "https://git.example.com/acme/app.git", "tags": []string{"acme/app:1"}},
 	"create-build-definition": map[string]any{"name": "app", "source": map[string]any{
 		"gitUrl": "https://git.example.com/acme/app.git", "tags": []string{"acme/app:1"}}},
+	"create-environment-disk-health-check": map[string]any{"scope": "raid"},
 }

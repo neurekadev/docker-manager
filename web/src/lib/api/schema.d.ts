@@ -1479,6 +1479,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/disk-health/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check an environment's disks or RAID now
+         * @description Asks the agent for a fresh read (#143): scope smart reads every disk's SMART data now (never a self-test; a disk in standby is not woken), scope raid the md arrays and ZFS pools. Answers the fresh disk health and RAID state; a SMART read that takes longer answers with diskHealth.checking and the result follows as an inventory event. Nothing changes on the host. At most one check per environment and scope every 30 s (smart) or 5 s (raid): 429 with Retry-After before. 503 environment_offline, 501 agent_unsupported for an agent that predates disk health.
+         */
+        post: operations["create-environment-disk-health-check"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/disk-usage/volumes": {
         parameters: {
             query?: never;
@@ -1964,7 +1984,7 @@ export interface paths {
         };
         /**
          * Get an environment's system information
-         * @description The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, capacity and Docker counts, refreshed on change (#5). Host metrics: GET …/metrics and …/capacity.
+         * @description The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, capacity and Docker counts, refreshed on change (#5), and the disk health: SMART state of the host's disks and its RAID arrays, refreshed about every minute (#143). Host metrics: GET …/metrics and …/capacity.
          */
         get: operations["get-environment-system"];
         put?: never;
@@ -7550,6 +7570,121 @@ export interface components {
             /** Format: int64 */
             running: number;
         };
+        DiskAttribute: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @enum {string} */
+            whenFailed: "now" | "past";
+        };
+        DiskDevice: {
+            /**
+             * Format: int64
+             * @description Percent.
+             */
+            availableSpare?: number;
+            /**
+             * Format: int64
+             * @description Percent.
+             */
+            availableSpareThreshold?: number;
+            /** Format: int64 */
+            capacityBytes?: number;
+            /** Format: int64 */
+            criticalWarning?: number;
+            /** @enum {string} */
+            errorCode?: "permission_denied" | "open_failed" | "unsupported";
+            /** @description ATA attributes at or below their threshold now or in the past. */
+            failingAttributes?: components["schemas"]["DiskAttribute"][];
+            firmware?: string;
+            /** Format: int64 */
+            grownDefects?: number;
+            /** Format: int64 */
+            mediaErrors?: number;
+            /** @example WDC WD40EFZX-68AWUN0 */
+            model?: string;
+            /** @example /dev/sda */
+            name: string;
+            /** Format: int64 */
+            offlineUncorrectable?: number;
+            /** @description The disk's overall self-assessment. */
+            passed?: boolean;
+            /** Format: int64 */
+            pendingSectors?: number;
+            /**
+             * Format: int64
+             * @description Wear estimate in percent (may exceed 100).
+             */
+            percentageUsed?: number;
+            /** Format: int64 */
+            powerOnHours?: number;
+            /** @enum {string} */
+            protocol?: "ata" | "nvme" | "scsi";
+            /**
+             * Format: date-time
+             * @description When the values were read.
+             */
+            readAt?: string;
+            /** Format: int64 */
+            reallocatedSectors?: number;
+            /** Format: int64 */
+            reportedUncorrectable?: number;
+            /**
+             * Format: int64
+             * @description Spindle speed; 0 for a solid-state disk.
+             */
+            rotationRpm?: number;
+            serial?: string;
+            smartSupported: boolean;
+            /**
+             * @description sleeping: in standby, not woken (the values are the previous read's); error: see errorCode.
+             * @enum {string}
+             */
+            state: "ok" | "warning" | "failing" | "sleeping" | "error";
+            /** Format: int64 */
+            temperatureC?: number;
+            /**
+             * @description smartctl device type.
+             * @example sat
+             */
+            type: string;
+            /** Format: int64 */
+            uncorrectedErrors?: number;
+        };
+        DiskHealth: {
+            /**
+             * Format: date-time
+             * @description When the agent last finished reading every disk.
+             */
+            checkedAt?: string;
+            /** @description A fresh read of every disk is running (Check disks now); the result follows as an inventory event. */
+            checking: boolean;
+            devices: components["schemas"]["DiskDevice"][];
+            /**
+             * Format: date-time
+             * @description When the manager received the report.
+             */
+            receivedAt?: string;
+            /**
+             * @description ok: devices were read (the list may be empty: no disk reports SMART data, e.g. virtual disks); disabled: turned off on the agent; no_access: the agent cannot open the host's disks (run it privileged); not_installed: the agent image has no smartctl; error: the disk scan failed; agent_outdated: the agent predates disk health; unknown: no report yet.
+             * @enum {string}
+             */
+            status: "ok" | "disabled" | "no_access" | "not_installed" | "error" | "agent_outdated" | "unknown";
+        };
+        DiskHealthCheck: {
+            diskHealth: components["schemas"]["DiskHealth"];
+            environmentId: string;
+            raid: components["schemas"]["RAIDHealth"];
+            /** @enum {string} */
+            scope: "smart" | "raid";
+        };
+        DiskHealthCheckInputBody: {
+            /**
+             * @description smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken); raid: read the RAID state now (never a scrub).
+             * @enum {string}
+             */
+            scope: "smart" | "raid";
+        };
         DockerCounts: {
             /** Format: int64 */
             containers: number;
@@ -7986,6 +8121,8 @@ export interface components {
             /** @description Job kinds this agent executes. */
             commands: string[];
             diagnostics: components["schemas"]["SystemDiagnostic"][];
+            /** @description SMART state of the host's disks. */
+            diskHealth?: components["schemas"]["DiskHealth"];
             /** @description Docker object counts (Engine inventory; -1 = unknown). */
             docker?: components["schemas"]["DockerCounts"];
             /** @description Absent before the agent's first session. */
@@ -8000,6 +8137,8 @@ export interface components {
              */
             inventoryAt?: string;
             online: boolean;
+            /** @description State of the host's software RAID arrays (md) and ZFS pools. */
+            raid?: components["schemas"]["RAIDHealth"];
             /**
              * Format: date-time
              * @description When the agent last reported its capabilities.
@@ -10377,6 +10516,68 @@ export interface components {
             reference: string;
             /** @description Registry connection to authenticate with (#19); default: the matching connection, else anonymous. */
             registryConnectionId?: string;
+        };
+        RAIDArray: {
+            /** @enum {string} */
+            action?: "recovery" | "resync" | "reshape" | "check" | "repair";
+            /** Format: int64 */
+            active?: number;
+            /** Format: int64 */
+            devices?: number;
+            /** Format: int64 */
+            finishSeconds?: number;
+            /**
+             * @description ZFS pool health.
+             * @enum {string}
+             */
+            health?: "ONLINE" | "DEGRADED" | "FAULTED" | "OFFLINE" | "UNAVAIL" | "REMOVED" | "SUSPENDED";
+            /** @enum {string} */
+            kind: "md" | "zfs";
+            /**
+             * @description md level (absent for inactive arrays and ZFS pools).
+             * @example raid1
+             */
+            level?: string;
+            members: components["schemas"]["RAIDMember"][];
+            /** @example md0 */
+            name: string;
+            /** @description The action waits (DELAYED or PENDING). */
+            pending?: boolean;
+            /**
+             * Format: double
+             * @description Percent done.
+             */
+            progress?: number;
+            readOnly?: boolean;
+            /** Format: int64 */
+            sizeBytes?: number;
+            /** Format: int64 */
+            speedBytesPerSecond?: number;
+            /** @enum {string} */
+            state: "healthy" | "degraded" | "rebuilding" | "checking" | "failed" | "inactive";
+        };
+        RAIDHealth: {
+            arrays: components["schemas"]["RAIDArray"][];
+            message?: string;
+            /**
+             * Format: date-time
+             * @description When the agent read the state.
+             */
+            readAt?: string;
+            /**
+             * @description error: the state could not be read (message).
+             * @enum {string}
+             */
+            status: "ok" | "error" | "agent_outdated" | "unknown";
+        };
+        RAIDMember: {
+            /** @example sda1 */
+            name: string;
+            /** Format: int64 */
+            slot: number;
+            /** @enum {string} */
+            state: "active" | "spare" | "failed" | "replacement" | "journal";
+            writeMostly?: boolean;
         };
         ReadinessBody: {
             checks: components["schemas"]["ReadinessCheck"][];
@@ -24366,6 +24567,208 @@ export interface operations {
             };
         };
     };
+    "create-environment-disk-health-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "scope": "smart"
+                 *     }
+                 */
+                "application/json": components["schemas"]["DiskHealthCheckInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "diskHealth": {
+                     *         "checkedAt": "2026-09-25T12:00:00Z",
+                     *         "checking": false,
+                     *         "devices": [
+                     *           {
+                     *             "availableSpare": 1,
+                     *             "availableSpareThreshold": 1,
+                     *             "capacityBytes": 1,
+                     *             "criticalWarning": 1,
+                     *             "errorCode": "permission_denied",
+                     *             "failingAttributes": [
+                     *               {
+                     *                 "id": 1,
+                     *                 "name": "web",
+                     *                 "whenFailed": "now"
+                     *               }
+                     *             ],
+                     *             "firmware": "example",
+                     *             "grownDefects": 1,
+                     *             "mediaErrors": 1,
+                     *             "model": "WDC WD40EFZX-68AWUN0",
+                     *             "name": "/dev/sda",
+                     *             "offlineUncorrectable": 1,
+                     *             "passed": false,
+                     *             "pendingSectors": 1,
+                     *             "percentageUsed": 1,
+                     *             "powerOnHours": 1,
+                     *             "protocol": "ata",
+                     *             "readAt": "2026-09-25T12:00:00Z",
+                     *             "reallocatedSectors": 1,
+                     *             "reportedUncorrectable": 1,
+                     *             "rotationRpm": 1,
+                     *             "serial": "example",
+                     *             "smartSupported": false,
+                     *             "state": "ok",
+                     *             "temperatureC": 1,
+                     *             "type": "sat",
+                     *             "uncorrectedErrors": 1
+                     *           }
+                     *         ],
+                     *         "receivedAt": "2026-09-25T12:00:00Z",
+                     *         "status": "ok"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "raid": {
+                     *         "arrays": [
+                     *           {
+                     *             "action": "recovery",
+                     *             "active": 1,
+                     *             "devices": 1,
+                     *             "finishSeconds": 1,
+                     *             "health": "ONLINE",
+                     *             "kind": "md",
+                     *             "level": "raid1",
+                     *             "members": [
+                     *               {
+                     *                 "name": "sda1",
+                     *                 "slot": 1,
+                     *                 "state": "active",
+                     *                 "writeMostly": false
+                     *               }
+                     *             ],
+                     *             "name": "md0",
+                     *             "pending": false,
+                     *             "progress": 1,
+                     *             "readOnly": false,
+                     *             "sizeBytes": 1,
+                     *             "speedBytesPerSecond": 1,
+                     *             "state": "healthy"
+                     *           }
+                     *         ],
+                     *         "message": "example",
+                     *         "readAt": "2026-09-25T12:00:00Z",
+                     *         "status": "ok"
+                     *       },
+                     *       "scope": "smart"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["DiskHealthCheck"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-volume-usage": {
         parameters: {
             query?: never;
@@ -28429,6 +28832,49 @@ export interface operations {
                      *           "message": "example"
                      *         }
                      *       ],
+                     *       "diskHealth": {
+                     *         "checkedAt": "2026-09-25T12:00:00Z",
+                     *         "checking": false,
+                     *         "devices": [
+                     *           {
+                     *             "availableSpare": 1,
+                     *             "availableSpareThreshold": 1,
+                     *             "capacityBytes": 1,
+                     *             "criticalWarning": 1,
+                     *             "errorCode": "permission_denied",
+                     *             "failingAttributes": [
+                     *               {
+                     *                 "id": 1,
+                     *                 "name": "web",
+                     *                 "whenFailed": "now"
+                     *               }
+                     *             ],
+                     *             "firmware": "example",
+                     *             "grownDefects": 1,
+                     *             "mediaErrors": 1,
+                     *             "model": "WDC WD40EFZX-68AWUN0",
+                     *             "name": "/dev/sda",
+                     *             "offlineUncorrectable": 1,
+                     *             "passed": false,
+                     *             "pendingSectors": 1,
+                     *             "percentageUsed": 1,
+                     *             "powerOnHours": 1,
+                     *             "protocol": "ata",
+                     *             "readAt": "2026-09-25T12:00:00Z",
+                     *             "reallocatedSectors": 1,
+                     *             "reportedUncorrectable": 1,
+                     *             "rotationRpm": 1,
+                     *             "serial": "example",
+                     *             "smartSupported": false,
+                     *             "state": "ok",
+                     *             "temperatureC": 1,
+                     *             "type": "sat",
+                     *             "uncorrectedErrors": 1
+                     *           }
+                     *         ],
+                     *         "receivedAt": "2026-09-25T12:00:00Z",
+                     *         "status": "ok"
+                     *       },
                      *       "docker": {
                      *         "containers": 1,
                      *         "containersPaused": 1,
@@ -28467,6 +28913,37 @@ export interface operations {
                      *       },
                      *       "inventoryAt": "2026-09-25T12:00:00Z",
                      *       "online": false,
+                     *       "raid": {
+                     *         "arrays": [
+                     *           {
+                     *             "action": "recovery",
+                     *             "active": 1,
+                     *             "devices": 1,
+                     *             "finishSeconds": 1,
+                     *             "health": "ONLINE",
+                     *             "kind": "md",
+                     *             "level": "raid1",
+                     *             "members": [
+                     *               {
+                     *                 "name": "sda1",
+                     *                 "slot": 1,
+                     *                 "state": "active",
+                     *                 "writeMostly": false
+                     *               }
+                     *             ],
+                     *             "name": "md0",
+                     *             "pending": false,
+                     *             "progress": 1,
+                     *             "readOnly": false,
+                     *             "sizeBytes": 1,
+                     *             "speedBytesPerSecond": 1,
+                     *             "state": "healthy"
+                     *           }
+                     *         ],
+                     *         "message": "example",
+                     *         "readAt": "2026-09-25T12:00:00Z",
+                     *         "status": "ok"
+                     *       },
                      *       "reportedAt": "2026-09-25T12:00:00Z",
                      *       "requests": [
                      *         "example"

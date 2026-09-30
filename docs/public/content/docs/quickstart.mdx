@@ -38,6 +38,7 @@ services:
   docker-agent:
     image: ghcr.io/neurekadev/docker-agent:edge
     restart: unless-stopped
+    privileged: true
     depends_on:
       - docker-manager
     environment:
@@ -82,8 +83,9 @@ Replace `docker.example.com` with your own domain name.
   The agent needs the Docker socket and Docker's volume folder
   (`/var/lib/docker/volumes`) at the same path inside its container. The
   line with `/import/docker-manager` lets it read this folder, so you can
-  [upgrade from the app](#upgrade). Keep the project name `docker-manager`
-  too. If your Docker keeps its data
+  [upgrade from the app](#upgrade). `privileged: true` lets it read your
+  disks' health (see [Monitoring](/monitoring)). Keep the project name
+  `docker-manager` too. If your Docker keeps its data
   somewhere else, see [Configuration](/configuration#dockers-data-folder).
 </Callout>
 
@@ -165,6 +167,7 @@ services:
   docker-agent:
     image: ghcr.io/neurekadev/docker-agent:edge
     restart: unless-stopped
+    privileged: true
     environment:
       DOCKER_AGENT_MANAGER_URL: ${DOCKER_AGENT_MANAGER_URL}
       DOCKER_AGENT_ENROLLMENT_TOKEN: ${DOCKER_AGENT_ENROLLMENT_TOKEN:-}
@@ -213,6 +216,11 @@ Docker Manager upgrades itself from the app, like any other stack.
    Deploy** in the menu next to **Deploy**.
 3. The app shows **A new version of Docker Manager is available**. Press
    **Reload to update**.
+
+If you installed Docker Manager before it showed disk health, add
+`privileged: true` to each server's `docker-agent` service so the agent can
+read the disks (see
+[Monitoring](/monitoring#give-the-agent-access-to-the-disks)).
 
 Good to know:
 

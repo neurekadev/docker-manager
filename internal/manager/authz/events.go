@@ -83,8 +83,9 @@ func ContainerMetricsVisible(c Checker, e events.Event) string {
 	return ""
 }
 
-// inventoryVisible: the Engine inventory is system information and host
-// capacity.
+// inventoryVisible: the Engine inventory and the disk health report
+// (inventory.updated with the attribute health, #143) are system
+// information and host capacity.
 func inventoryVisible(c Checker, e events.Event) bool {
 	env := EnvironmentResource(e.EnvironmentID)
 	return e.EnvironmentID != "" && (c.Can("environment.system.read", env).Allowed || c.Can("environment.metrics.read", env).Allowed)

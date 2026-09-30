@@ -209,12 +209,26 @@ root. The result feeds the capabilities (`roots`, the `stacks` feature,
 `diagnostics`) and `health.json` (`storage`). Operator guide:
 `docs/internal/deployment.md` ("Host storage layout").
 
+## Process execution
+
+Docker Manager executes no Docker, Compose, buildx or credential-helper
+binary. Exactly two runners start processes, each a pinned binary from the
+image, never through a shell, with an environment built from scratch and
+bounded output (the forbidigo exceptions in `.golangci.yml`):
+
+| runner | binary | used for |
+| --- | --- | --- |
+| `internal/restic/runner.go` | restic (both images, SHA-256 verified) | backups and restores (#10, [backups.md](backups.md)) |
+| `internal/agent/smartctl/runner.go` | smartctl (agent image, built from the SHA-256 verified smartmontools source) | disk health: `--scan-open` and `-a -n standby` only, never a self-test (#143, [ADR 0005](../adr/0005-disk-health.md)) |
+
+Their tests re-execute the test binary as a fake restic or smartctl.
+
 ## Repository checks
 
 | check | where | rule |
 | --- | --- | --- |
 | legacy module | `scripts/policy-check.sh`, depguard | no `github.com/docker/docker` import, in `go.mod`, or anywhere in `go list -deps ./cmd/...` |
-| CLI execution | `scripts/policy-check.sh`, forbidigo | no `exec.Command`/`LookPath` of docker, docker-compose, buildx or docker-credential-*; forbidigo forbids `os/exec` outright except in tests and the restic runner (`internal/restic/runner.go`, #10) |
+| CLI execution | `scripts/policy-check.sh`, forbidigo | no `exec.Command`/`LookPath` of docker, docker-compose, buildx or docker-credential-*; forbidigo forbids `os/exec` outright except in tests, the restic runner (`internal/restic/runner.go`, #10) and the smartctl runner (`internal/agent/smartctl/runner.go`, #143) |
 | direct Engine HTTP | `scripts/policy-check.sh` | no Docker socket literal or raw Engine API path (`/_ping`, `/containers/json`, `/v1.NN/...`, ...) outside the exceptions below |
 | SDK boundary | `scripts/policy-check.sh`, depguard `sdk-boundary` | Moby client/API, Compose SDK, docker/cli, BuildKit and compose-go only in `internal/agent/engine` and `internal/agent/compose` |
 | graph | `scripts/build-static.sh` | agent links the pinned SDK versions, manager links none |

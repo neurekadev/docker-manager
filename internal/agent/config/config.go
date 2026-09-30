@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/neurekadev/docker-manager/internal/envconfig"
@@ -41,6 +42,10 @@ const (
 	EnvResticBinary            = "DOCKER_AGENT_RESTIC_BINARY"
 	// EnvWatchMax is the file watcher's kernel watch budget (#23).
 	EnvWatchMax = "DOCKER_AGENT_WATCH_MAX"
+	// Disk health (#143).
+	EnvSMARTEnabled  = "DOCKER_AGENT_SMART_ENABLED"
+	EnvSMARTInterval = "DOCKER_AGENT_SMART_INTERVAL"
+	EnvSmartctl      = "DOCKER_AGENT_SMARTCTL_BINARY"
 )
 
 // Defaults.
@@ -59,6 +64,13 @@ const (
 	DefaultResticBinary = "/usr/local/bin/restic"
 	// MaxPathList bounds the backup path lists.
 	MaxPathList = 32
+	// DefaultSmartctlBinary is where the image installs smartctl (#143).
+	DefaultSmartctlBinary = "/usr/local/bin/smartctl"
+	// DefaultSMARTInterval is how often every disk's SMART data is read;
+	// MinSMARTInterval and MaxSMARTInterval bound it.
+	DefaultSMARTInterval = 30 * time.Minute
+	MinSMARTInterval     = 5 * time.Minute
+	MaxSMARTInterval     = 24 * time.Hour
 )
 
 // Config is the validated agent configuration.
@@ -97,6 +109,11 @@ type Config struct {
 	// WatchMax is the file watcher's kernel watch budget (0: half the
 	// kernel's fs.inotify.max_user_watches, #23).
 	WatchMax int
+	// SMARTEnabled reads the disks' SMART data (#143); SMARTInterval is
+	// how often; SmartctlBinary the pinned smartctl.
+	SMARTEnabled   bool
+	SMARTInterval  time.Duration
+	SmartctlBinary string
 }
 
 // Load reads and validates the configuration, reporting all problems at once.
@@ -165,6 +182,17 @@ func Load(src envconfig.Source) (Config, error) {
 
 	if cfg.WatchMax, err = src.Int(EnvWatchMax, 0, 0, 4_194_304); err != nil {
 		errs = append(errs, err)
+	}
+
+	if cfg.SMARTEnabled, err = src.Bool(EnvSMARTEnabled, true); err != nil {
+		errs = append(errs, err)
+	}
+	if cfg.SMARTInterval, err = src.Duration(EnvSMARTInterval, DefaultSMARTInterval, MinSMARTInterval, MaxSMARTInterval); err != nil {
+		errs = append(errs, err)
+	}
+	cfg.SmartctlBinary = src.String(EnvSmartctl, DefaultSmartctlBinary)
+	if !path.IsAbs(cfg.SmartctlBinary) {
+		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvSmartctl, cfg.SmartctlBinary))
 	}
 
 	if cfg.LogLevel, err = logging.ParseLevel(src.String(EnvLogLevel, "info")); err != nil {

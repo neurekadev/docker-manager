@@ -211,6 +211,22 @@ else (containers, images, logs, …) keeps working.
 (both sides of the directory mount and the stacks volume's mount path) with
 your data root.
 
+**Disk health: the agent runs privileged (#143).** The documented compose
+files, the install commands and the move files run the agent with
+`privileged: true` (`docker run --privileged`), so the image's smartctl
+can read the disks' SMART data: raw ATA/SCSI commands need
+`CAP_SYS_RAWIO`, NVMe admin commands `CAP_SYS_ADMIN`, and both need the
+host's device nodes, which a privileged container gets without a
+host-specific `devices:` list. This adds no authority beyond the Docker
+socket the agent already mounts (root-equivalent: whoever controls the
+agent can start a privileged container anyway); see
+[ADR 0005](adr/0005-disk-health.md). The container's `/dev` is populated
+when it starts: disks attached later appear after the agent restarts.
+Without `privileged: true` everything else works; the System tab says the
+agent can't read the disks (`no_access`). `DOCKER_AGENT_SMART_ENABLED=false`
+turns SMART off. RAID state (md, ZFS) comes from procfs and needs no
+privilege.
+
 **SELinux.** The agent needs the Docker socket and every volume's files,
 which the default container policy denies. On enforcing hosts run the agent
 with `security_opt: ["label=disable"]` instead of relabeling: do **not** add
@@ -218,12 +234,16 @@ with `security_opt: ["label=disable"]` instead of relabeling: do **not** add
 host) or to the socket. Stack roots from `DOCKER_AGENT_STACK_ROOTS` that stack
 containers also bind-mount can use the shared label (`/opt/stacks:/opt/stacks:z`)
 so both the agent and the stack containers may read them; never use the
-private `:Z` label there.
+private `:Z` label there. A privileged container already runs without the
+SELinux confinement label (`label=disable` is then implied), so the
+documented privileged agent needs no `security_opt`; it matters only for an
+agent run without `privileged: true`.
 
-**AppArmor.** The agent works with Docker's default `docker-default` profile
-and the default capability set; it needs neither `--privileged` nor
-`apparmor=unconfined`. A custom host profile must allow the socket and the
-mounts above.
+**AppArmor.** A privileged container runs unconfined by AppArmor. An agent
+run without `privileged: true` works with Docker's default `docker-default`
+profile and the default capability set (everything but disk health) and
+needs no `apparmor=unconfined`; a custom host profile must allow the socket
+and the mounts above.
 
 **Non-local volumes.** Volumes of other drivers (plugins) and local
 volumes backed by NFS/CIFS mount options are not under Docker's volume
@@ -396,7 +416,8 @@ Engine ID; the manager refuses them with `engine_identity_conflict` (see
 **Docker socket access is host-level authority.** The agent needs the
 Docker socket (and the volume directory, #28) to manage the host, and
 anyone who controls the agent — or its credential and the manager — can
-run anything on that host. Protect the manager like root on every enrolled
+run anything on that host (running it privileged for disk health, #143,
+adds nothing to that). Protect the manager like root on every enrolled
 host: restrict who can reach `/agent/v1` (optionally allowlist agent IPs at
 the proxy), keep `DOCKER_AGENT_MANAGER_ALLOW_HTTP` to the internal network,
 remove agents you no longer use (their credential stops working at once)

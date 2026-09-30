@@ -797,6 +797,14 @@ routes:
     owner: 5
     kind: json
     status: implemented
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/disk-health/checks"
+    operationId: create-environment-disk-health-check
+    capability: environment.system.read
+    scope: environment
+    owner: 5
+    kind: json
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/events/stream"
     operationId: stream-environment-events

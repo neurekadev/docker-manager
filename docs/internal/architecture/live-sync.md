@@ -26,7 +26,7 @@ watch.Watcher ──fs_invalidation (seq)► (dedupe, gaps)  ├─► events.Bu
 | source | bus events |
 | --- | --- |
 | agent sessions (#3, #5) | `docker.event`, `environment.*` (online after reconciliation, `resync` after reconnects and event gaps), `agent.*`, `enrollment.*`, `files.invalidated` (a whole-environment overflow after an fs `seq` gap) |
-| observation (#5) | `metrics.sampled` (stored samples, every 10 s), `metrics.live` (live CPU and memory in memory, about every second per environment while at least one live stream is open: the hub's subscriber count is the manager's demand signal, [metrics.md](metrics.md#live-metrics)), `inventory.updated` |
+| observation (#5) | `metrics.sampled` (stored samples, every 10 s), `metrics.live` (live CPU and memory in memory, about every second per environment while at least one live stream is open: the hub's subscriber count is the manager's demand signal, [metrics.md](metrics.md#live-metrics)), `inventory.updated` (also when a disk health report changes, attribute `health`, [metrics.md](metrics.md#host-health)) |
 | stacks (#7) | `stack.created/updated/removed/revision_recorded` |
 | jobs (#26) | `job.updated` from `live.JobSource` (engine change listener, batched per 250 ms, one database read per job) |
 | API mutations (#30 audit path) | `resource.changed` for every target of a successful non-GET operation (policies, schedules, backups, registries, Git credentials, build definitions, settings, groups, users, invitations, API tokens); file operations and job targets are left to their precise sources |

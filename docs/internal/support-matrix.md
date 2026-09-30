@@ -72,6 +72,7 @@ with fake agents) and the build of both executables for linux/amd64 and linux/ar
 | `docker-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `ghcr.io/neurekadev/docker-manager:edge` (linux/amd64 and linux/arm64; BuildKit provenance and SBOM attestations) |
 | `docker-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 and linux/arm64; BuildKit provenance and SBOM attestations) |
 | restic | 0.19.1, SHA-256 verified per architecture (`deploy/docker/*.Dockerfile`), in both images | inside the images only |
+| smartctl | smartmontools 7.5, a static binary built from the SHA-256 verified source release (`deploy/docker/agent.Dockerfile`, compiled natively per architecture); GPL-2.0, with `COPYING` and the source tarball in `/usr/share/doc/smartmontools/` ([ADR 0005](adr/0005-disk-health.md)) | inside the agent image only |
 
 Only the rolling `:edge` tag is published from `main`; there are no git
 tags, releases or semver images in this build (#25). The images on GHCR are
@@ -90,6 +91,7 @@ the Dockerfiles; no automated check inspects the built images any more.
 | compose-go (`github.com/compose-spec/compose-go/v2`) | v2.15.0 | project loading and validation |
 | BuildKit client (`github.com/moby/buildkit`) | v0.33.0 | image builds through the Engine's BuildKit |
 | restic | 0.19.1 | backup format and CLI behaviour; pinned with a per-architecture SHA-256 in `deploy/docker/*.Dockerfile` |
+| smartmontools (smartctl) | 7.5 | the JSON output disk health parses, the `-n standby` exit status and the exit-status bits; pinned with the source tarball's SHA-256 in `deploy/docker/agent.Dockerfile` (bump version and checksum together) |
 | Go toolchain | 1.27.1 | `go.mod`, `golang:1.27.1-alpine3.24` build image pinned by digest |
 
 The legacy `github.com/docker/docker` module, hand-written Engine HTTP
@@ -381,3 +383,20 @@ listings are always read live). A manager `rescan` (after a lost
 notification sequence) walks at most 200 000 entries. One agent watches at
 most 4 096 scopes; one invalidation names at most 256 paths (more become a
 whole-scope overflow).
+
+## Disk health (#143)
+
+| Source | Support |
+| --- | --- |
+| SATA/ATA disks, SAS/SCSI disks, NVMe drives | SMART through smartctl 7.5 (`--scan-open`, then `-a -n standby` per device); needs the agent to run privileged ([ADR 0005](adr/0005-disk-health.md)) |
+| USB enclosures | only bridges smartctl detects on its own; others report no SMART data (`unsupported`) |
+| Virtual disks (virtio, QEMU, VMware, Hyper-V) | no SMART data: reported as such, not as a problem |
+| Disks behind hardware RAID controllers | not covered (controller-specific device types and vendor tools) |
+| Linux software RAID (md) | `/proc/mdstat`: every level, members, sync progress |
+| ZFS | the pool state from `/proc/spl/kstat/zfs/<pool>/state` only (no vdev errors or scrub progress) |
+| btrfs RAID profiles | not covered |
+
+Verified by unit tests against smartctl JSON fixtures and `/proc/mdstat`
+samples; not verified against real disks by any automated test. A disk in
+standby is not woken (ATA and SCSI; NVMe drives have no such mode for
+smartctl). Disks attached while the agent runs appear after it restarts.

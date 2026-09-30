@@ -4,9 +4,10 @@
 // with clock-skew correction and idempotent cursors, the live CPU and
 // memory kept in memory about every second while a browser is watching
 // (metrics.live, live.go), the Engine inventory cache refreshed on change
-// (engine.info), and the per-environment event journal behind the
-// environment event stream (bounded replay of Docker events, status and
-// metric invalidations). docs/internal/architecture/metrics.md.
+// (engine.info), the disk health reports (host.health, health.go), and
+// the per-environment event journal behind the environment event stream
+// (bounded replay of Docker events, status and metric invalidations).
+// docs/internal/architecture/metrics.md.
 package observe
 
 import (
@@ -77,6 +78,9 @@ type Options struct {
 	LiveInterval time.Duration
 	LiveTimeout  time.Duration
 	LiveFresh    time.Duration
+	// HealthInterval is how often online environments' disk health is
+	// fetched (default DefaultHealthInterval, health.go).
+	HealthInterval time.Duration
 }
 
 // Service runs collection, live metrics, inventory refresh and the event
@@ -98,6 +102,8 @@ type Service struct {
 	live         map[string]*liveValues
 	liveInflight map[string]bool
 	liveSkip     map[string]time.Time
+	// Disk health reports (health.go).
+	health healthState
 }
 
 // HostExtra are values of an environment's last sample that are not
@@ -159,9 +165,12 @@ func New(opts Options) *Service {
 	if opts.LiveFresh <= 0 {
 		opts.LiveFresh = DefaultLiveFresh
 	}
+	if opts.HealthInterval <= 0 {
+		opts.HealthInterval = DefaultHealthInterval
+	}
 	s := &Service{opts: opts, log: opts.Logger.With("component", "observe"), cursors: map[string]*envCursor{}, inflight: map[string]bool{},
 		skipUntil: map[string]time.Time{}, known: map[string]bool{}, inv: map[string]Inventory{}, host: map[string]HostExtra{},
-		live: map[string]*liveValues{}, liveInflight: map[string]bool{}, liveSkip: map[string]time.Time{}}
+		live: map[string]*liveValues{}, liveInflight: map[string]bool{}, liveSkip: map[string]time.Time{}, health: newHealthState()}
 	s.journal = NewJournal(JournalOptions{Bus: opts.Bus, Clock: opts.Clock, Logger: s.log, Size: opts.JournalSize, MaxAge: opts.JournalAge})
 	return s
 }
@@ -172,15 +181,14 @@ func (s *Service) Journal() *Journal { return s.journal }
 // Store returns the metrics store.
 func (s *Service) Store() *metrics.Store { return s.opts.Store }
 
-// Load reads the stored inventories (the last known state is served while
-// an environment is offline).
+// Load reads the stored inventories and disk health reports (the last
+// known state is served while an environment is offline).
 func (s *Service) Load(ctx context.Context) error {
 	recs, err := s.opts.Store.Inventories(ctx)
 	if err != nil {
 		return err
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	for _, r := range recs {
 		var inv protocol.EngineInventory
 		if json.Unmarshal(r.Data, &inv) != nil {
@@ -189,18 +197,20 @@ func (s *Service) Load(ctx context.Context) error {
 		s.inv[r.EnvironmentID] = Inventory{EngineInventory: inv, ReceivedAt: r.ReceivedAt}
 		s.known[r.EnvironmentID] = true
 	}
-	return nil
+	s.mu.Unlock()
+	return s.loadHealth(ctx)
 }
 
 // Run collects metrics, asks for live metrics, refreshes inventories and
-// feeds the journal until ctx ends.
+// disk health and feeds the journal until ctx ends.
 func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 	go func() { defer wg.Done(); s.journal.Run(ctx) }()
 	go func() { defer wg.Done(); s.runInventory(ctx) }()
 	go func() { defer wg.Done(); s.runCollector(ctx) }()
 	go func() { defer wg.Done(); s.runLive(ctx) }()
+	go func() { defer wg.Done(); s.runHealth(ctx) }()
 	wg.Wait()
 }
 

@@ -15,29 +15,16 @@ until it reconnects.
 ## An environment's page
 
 - **Overview**: CPU, memory, disk, uptime, the number of containers,
-  images, volumes and networks, and charts from the last hour up to the
-  last 90 days: the server's first, then **Containers**.
-- **System**: details about the server and its Docker Engine.
+  images, volumes and networks, and the server's and its containers'
+  charts (see [Metrics](/metrics)).
+- **System**: details about the server and its Docker Engine, and the
+  health of its disks and RAID arrays (see [Monitoring](/monitoring)).
 - **Agents**: the agent, its version and when it was last seen.
 - **Jobs**: the latest jobs on this server.
-
-Under **Containers**, the **Docker CPU**, **Docker memory**,
-**Docker network** and **Docker disk I/O** charts show each container in
-its own colour, the largest on top. Hover a chart to see every
-container's value at that moment, largest first, and their total. Type
-part of a name (or several, separated by spaces) in **Filter by name** to
-highlight those containers: the others turn grey and leave the tooltip.
-Network and disk I/O add up both directions; the tooltip lists them apart.
-They include only the containers whose metrics you may see. There is no
-storage chart per container, since several containers can share a volume.
 
 **Edit** changes the environment's **Name** and its **Service address**:
 the host name or IP address you browse to. With an address, published ports
 become links.
-
-By default the server's network chart shows only the agent's own traffic.
-To see the whole server's traffic, add `pid: host` to the agent in its
-`compose.yaml`. This lets the agent see every process on the server.
 
 ## Archive an environment
 

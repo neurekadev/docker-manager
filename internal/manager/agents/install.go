@@ -24,12 +24,15 @@ const (
 // directory at its identical path (#28), as the agent's compose.yaml in the
 // user documentation (Quickstart, "Add more servers") does; the
 // socket path literal is the documented policy-check exception for this
-// file (docs/internal/architecture/engine-integration.md).
+// file (docs/internal/architecture/engine-integration.md). The agent runs
+// privileged so smartctl can read the disks' SMART data (#143, ADR 0005):
+// the Docker socket already gives it root-equivalent authority.
 func InstallCommands(managerURL, image, token, name string) []domain.InstallCommand {
 	colocated := "printf '%s\\n' " + shellQuote(token) + " | docker compose exec -T docker-agent docker-agent enroll"
 
 	var run strings.Builder
 	run.WriteString("docker run -d --name docker-agent --restart unless-stopped \\\n")
+	run.WriteString("  --privileged \\\n")
 	run.WriteString("  -e DOCKER_AGENT_MANAGER_URL=" + shellQuote(managerURL) + " \\\n")
 	if name != "" {
 		run.WriteString("  -e DOCKER_AGENT_ENVIRONMENT_NAME=" + shellQuote(name) + " \\\n")
@@ -63,7 +66,7 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 			Variant: InstallRemote, Title: "Agent on another Docker host",
 			Description: "Starts the agent with the manager's public HTTPS origin and hands it the token on stdin, " +
 				"so the token never appears in the container configuration. Only this host's Docker socket and its volume directory are mounted; " +
-				"Docker socket access confers host-level authority.",
+				"Docker socket access confers host-level authority. It runs privileged so it can read the disks' health.",
 			Command: run.String(),
 		},
 		{
@@ -118,7 +121,8 @@ type MoveFilesInput struct {
 // agent enrolled) the .env has neither the token nor the environment
 // name: the agent keeps its credential.
 // Like the install commands, the agent mounts the Docker socket and
-// Docker's volume directory at their identical paths.
+// Docker's volume directory at their identical paths and runs privileged
+// (disk health).
 func MoveFiles(in MoveFilesInput) (composeYAML, env string) {
 	if in.ManagerImage == "" {
 		in.ManagerImage = DefaultManagerImage
@@ -151,6 +155,7 @@ func MoveFiles(in MoveFilesInput) (composeYAML, env string) {
 	c.WriteString("  docker-agent:\n")
 	c.WriteString("    image: " + in.AgentImage + "\n")
 	c.WriteString("    restart: unless-stopped\n")
+	c.WriteString("    privileged: true\n")
 	c.WriteString("    depends_on:\n")
 	c.WriteString("      - docker-manager\n")
 	c.WriteString("    environment:\n")

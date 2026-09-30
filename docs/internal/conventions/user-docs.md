@@ -48,13 +48,14 @@ Nothing goes in unverified. Before you write or keep a sentence:
 
 ## Structure (fixed)
 
-The sidebar (`meta.json`) has four sections. Keep this set; add a page only
+The sidebar (`meta.json`) has five sections. Keep this set; add a page only
 for a new major feature, and never add pages for the sake of having them.
 
 | Section | Pages |
 | --- | --- |
 | Getting started | `overview`, `quickstart` (install, add more servers, upgrade) |
 | Features | `environments`, `stacks` (with import and rename), `containers`, `images`, `volumes`, `networks`, `builds`, `templates`, `registries` (with Git credentials), `backups` (with restore and recovery), `updates`, `maintenance` (prune and maintenance policies), `file-manager`, `terminal`, `logs`, `migrations` (with moving Docker Manager) |
+| Monitoring and notifications | `metrics` (server and container charts), `monitoring` (disk health and RAID, disk access), `notifications` |
 | Administration | `users-and-groups` (people, groups, your account, sign-in policy), `api-tokens`, `permissions`, `audit-log` |
 | Help | `configuration` (every variable), `troubleshooting` |
 
