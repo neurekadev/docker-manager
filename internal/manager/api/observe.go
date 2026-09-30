@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 	"time"
 
@@ -44,6 +43,7 @@ type ObserveService interface {
 	Host(environmentID string) (observe.HostExtra, bool)
 	Skew(environmentID string) time.Duration
 	Query(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error)
+	QueryContainers(ctx context.Context, q domain.MetricQuery, visible func(name string) bool) (domain.MetricResult, error)
 	Latest(ctx context.Context, environmentID string) (domain.LatestMetrics, bool, error)
 	LatestContainers(ctx context.Context, environmentID string, window time.Duration) ([]domain.LatestContainerMetrics, error)
 	Journal() *observe.Journal
@@ -207,17 +207,9 @@ func (h *observeAPI) metrics(ctx context.Context, in *environmentMetricsInput) (
 	if err != nil {
 		return nil, err
 	}
-	var keys []string
-	for _, s := range in.Series {
-		for _, k := range strings.Split(s, ",") {
-			if k = strings.TrimSpace(k); k == "" {
-				continue
-			}
-			if !slices.Contains(HostMetricKeys, k) {
-				return nil, Invalid("unknown metric", Field("query.series", "unknown metric key "+k))
-			}
-			keys = append(keys, k)
-		}
+	keys, err := metricKeys(in.Series, HostMetricKeys)
+	if err != nil {
+		return nil, err
 	}
 	r, err := svc.Query(ctx, domain.MetricQuery{EnvironmentID: env.ID, Kind: domain.MetricHost, From: in.From, To: in.To,
 		Step: time.Duration(in.StepSeconds) * time.Second, Keys: keys})

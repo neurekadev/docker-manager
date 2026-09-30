@@ -10,7 +10,10 @@ cache, event journal) and `internal/manager/metrics` (separate
 
 - **Read metrics:** `Store.Query(ctx, domain.MetricQuery{Kind:
   domain.MetricContainer, Name: containerName, ...})` (container charts,
-  #6/#7), `Store.Latest`; values are `nil` for gaps, never 0. Units: CPU %
+  #6/#7), `Store.QueryContainers` (every container of an environment with
+  values in the range, one query per 200 series and storage level; the
+  environment's per-container charts), `Store.Latest`; values are `nil`
+  for gaps, never 0. Units: CPU %
   of the environment's total cores, bytes, bytes/s.
 - **Inventory:** `observe.Service.Inventory(envID)` (last known, also
   offline). Refreshes are triggered by `docker.event`,

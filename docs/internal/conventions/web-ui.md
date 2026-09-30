@@ -26,7 +26,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `h3.subsection-title`. Colours belong to types, never to single items:
   every service uses `SERVICE_COLOR`/`SERVICE_HEX` (`$lib/design/hue`),
   also in merged logs, chart series and filter chips (they name the
-  service); no hashed or per-item colours.
+  service); no hashed or per-item colours, except a chart of every
+  container of an environment (`MultiSeriesChart`: one `seriesColor(i)`
+  per container by name order, the same on each of its charts).
   Heavy libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Resource icons:** one icon and tile colour per resource type in
   `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's
@@ -91,7 +93,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   (`requiredErrors`, `submitted` in `$lib/features/auth/validate.ts`).
   Anonymous visitors see the version, never the build commit.
 - **Charts:** `TimeSeriesChart` for metric responses (nulls are breaks,
-  gaps shaded and listed as text), `Sparkline` in KPI cards; metric queries
+  gaps shaded and listed as text), `MultiSeriesChart` for many items of one
+  type (stacked, a tooltip naming every item, a `shown` filter greying out
+  the rest: the environment's per-container charts, `ContainerCharts`
+  after the host charts), `Sparkline` in KPI cards; metric queries
   keyed with `liveKeys.metrics(envId, …)`. 204 responses: `unwrapEmpty`.
 - **Data:** typed client + Svelte Query; a `queryOptions` factory per
   resource in `src/lib/api/queries.ts` keyed with `liveKeys` ([live-sync.md](live-sync.md)) so live events refresh it; mutations invalidate by prefix, never

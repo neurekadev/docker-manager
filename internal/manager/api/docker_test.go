@@ -134,6 +134,16 @@ func TestContainerMetricsOnly(t *testing.T) {
 		latest.Items[0].Container != "web" || latest.Items[0].CPUPercent == nil || latest.Items[0].MemoryUsedBytes == nil {
 		t.Fatalf("latest metrics: %d %s", r.Status, r.Body)
 	}
+	// So does the history of every container.
+	var history ContainerMetricsHistory
+	if r := f.get("mia", "/api/v1/environments/env-1/metrics/containers/history?series=cpu.percent", &history); r.Status != http.StatusOK ||
+		len(history.Containers) != 1 || history.Containers[0].Container != "web" || len(history.Containers[0].Series) != 1 ||
+		history.Containers[0].Series[0].Key != "cpu.percent" || len(history.Timestamps) != 1 {
+		t.Fatalf("metrics history: %d %s", r.Status, r.Body)
+	}
+	if r := f.get("mia", "/api/v1/environments/env-1/metrics/containers/history?series=load.1", nil); r.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("unknown key: %d %s", r.Status, r.Body)
+	}
 	// Other resource types are invisible.
 	for _, p := range []string{"/api/v1/environments/env-1/images", "/api/v1/environments/env-1/volumes", "/api/v1/environments/env-1/networks"} {
 		var pg struct{ Items []json.RawMessage }

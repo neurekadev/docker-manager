@@ -930,6 +930,15 @@ routes:
     status: implemented
     notes: "The newest sample of every container (metrics.Store.LatestContainers) filtered per container; the live CPU and memory columns of the container and stack service tables."
   - method: GET
+    path: "/api/v1/environments/{environmentId}/metrics/containers/history"
+    operationId: get-container-metrics-history
+    capability: container.metrics.read
+    scope: environment
+    owner: 5
+    kind: json
+    status: implemented
+    notes: "The range series of every container with values in the range (metrics.Store.QueryContainers) filtered per container; the per-container charts of the environment page."
+  - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs"
     operationId: get-container-logs
     capability: container.logs.read

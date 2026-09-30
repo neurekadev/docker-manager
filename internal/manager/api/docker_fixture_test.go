@@ -205,6 +205,24 @@ func (f *fakeObserve) Query(_ context.Context, q domain.MetricQuery) (domain.Met
 	return r, nil
 }
 
+// QueryContainers returns a CPU series of those of db, shop-web-1 and web
+// visible accepts (sorted by name like the store), one value each.
+func (f *fakeObserve) QueryContainers(_ context.Context, q domain.MetricQuery, visible func(string) bool) (domain.MetricResult, error) {
+	f.mu.Lock()
+	f.queries = append(f.queries, q)
+	f.mu.Unlock()
+	cpu := 12.5
+	r := domain.MetricResult{From: testutil.Epoch, To: testutil.Epoch.Add(time.Hour), Step: time.Minute, Resolution: "raw",
+		Timestamps: []time.Time{testutil.Epoch}}
+	for _, name := range []string{"db", "shop-web-1", "web"} {
+		if !visible(name) {
+			continue
+		}
+		r.Series = append(r.Series, domain.MetricSeries{Key: "cpu.percent", Unit: "percent", Container: name, Values: []*float64{&cpu}})
+	}
+	return r, nil
+}
+
 type stackIDs map[string]map[string]string
 
 func (s stackIDs) StackIDs(_ context.Context, env string) (map[string]string, error) {

@@ -296,6 +296,8 @@ export interface TimeSeriesLine {
 	area?: boolean;
 	/** A dashed line (a reference next to a solid one; identity not by color alone). */
 	dashed?: boolean;
+	/** Greyed out behind the others (left out by a filter). */
+	muted?: boolean;
 }
 
 export interface TimeSeriesOptions {
@@ -311,6 +313,43 @@ export interface TimeSeriesOptions {
 	yMax?: number;
 	/** Ranges without samples, shaded (offline intervals). */
 	gaps?: { from: number; to: number }[];
+	/** Stack the lines as filled areas (parts of a whole, e.g. per container). */
+	stacked?: boolean;
+	/**
+	 * The tooltip of a bucket as HTML (the caller escapes names), replacing
+	 * ECharts' own list; it may be long and is placed beside the pointer,
+	 * inside the window.
+	 */
+	tooltip?: (index: number) => string;
+}
+
+/** A tooltip placement: the pointer and tooltip size in chart coordinates. */
+export type TooltipPlace = (point: number[], size: { contentSize: number[] }) => number[];
+
+/**
+ * Where a tooltip of `size` goes next to the pointer at `point` (chart
+ * coordinates) so it stays inside the window: right of the pointer, else
+ * left of it, vertically centred on it and moved up or down to fit (a
+ * tooltip taller than the window starts at its top). `chart` is the chart's
+ * position in the window.
+ */
+export function besidePointer(
+	point: readonly number[],
+	size: readonly number[],
+	chart: { left: number; top: number },
+	view: { width: number; height: number },
+	margin = 8,
+	gap = 16
+): [number, number] {
+	const [px, py] = point;
+	const [w, h] = size;
+	let x = px + gap;
+	if (chart.left + x + w > view.width - margin) x = px - gap - w;
+	x = Math.max(x, margin - chart.left);
+	let y = py - h / 2;
+	y = Math.min(y, view.height - margin - h - chart.top);
+	y = Math.max(y, margin - chart.top);
+	return [x, y];
 }
 
 export interface TimeSeriesChart extends Mounted {
@@ -318,7 +357,7 @@ export interface TimeSeriesChart extends Mounted {
 	resize(): void;
 }
 
-export function timeSeriesOption(o: TimeSeriesOptions) {
+export function timeSeriesOption(o: TimeSeriesOptions, place?: TooltipPlace) {
 	const gapArea = o.gaps?.length
 		? {
 				silent: true,
@@ -331,7 +370,8 @@ export function timeSeriesOption(o: TimeSeriesOptions) {
 		grid: { left: 4, right: 12, top: 12, bottom: 4, containLabel: true },
 		tooltip: {
 			trigger: 'axis',
-			valueFormatter: (v: unknown) => (typeof v === 'number' ? o.format(v) : 'No sample')
+			valueFormatter: (v: unknown) => (typeof v === 'number' ? o.format(v) : 'No sample'),
+			...(o.tooltip ? customTooltip(o.tooltip, place) : {})
 		},
 		xAxis: { type: 'time', min: o.from, max: o.to },
 		yAxis: {
@@ -342,21 +382,55 @@ export function timeSeriesOption(o: TimeSeriesOptions) {
 			interval: o.yMax ? o.yMax / 4 : undefined,
 			axisLabel: { formatter: (v: number) => o.format(v) }
 		},
-		series: o.lines.map((l, i) => ({
-			type: 'line',
-			name: l.name,
-			showSymbol: false,
-			connectNulls: false,
-			lineStyle: {
-				...(l.color ? { color: l.color } : {}),
-				width: 1.75,
-				...(l.dashed ? { type: 'dashed' } : {})
-			},
-			itemStyle: l.color ? { color: l.color } : undefined,
-			areaStyle: l.area ? { color: l.color, opacity: 0.08 } : undefined,
-			data: o.timestamps.map((t, j) => [t, l.values[j] ?? null]),
-			markArea: i === 0 ? gapArea : undefined
-		}))
+		series: o.lines.map((l, i) => {
+			const color = l.muted ? CHART_COLORS.text : l.color;
+			return {
+				type: 'line',
+				name: l.name,
+				showSymbol: false,
+				connectNulls: false,
+				...(o.stacked ? { stack: 'total' } : {}),
+				// Muted lines stay behind the others.
+				z: l.muted ? 1 : 2,
+				lineStyle: {
+					...(color ? { color } : {}),
+					width: o.stacked ? 1.25 : 1.75,
+					...(l.dashed ? { type: 'dashed' } : {}),
+					...(l.muted ? { opacity: 0.35 } : {})
+				},
+				itemStyle: color ? { color } : undefined,
+				areaStyle:
+					l.area || o.stacked
+						? { color, opacity: l.muted ? 0.04 : o.stacked ? 0.2 : 0.08 }
+						: undefined,
+				data: o.timestamps.map((t, j) => [t, l.values[j] ?? null]),
+				markArea: i === 0 ? gapArea : undefined
+			};
+		})
+	};
+}
+
+/** The tooltip options of TimeSeriesOptions.tooltip (one bucket's HTML). */
+function customTooltip(html: (index: number) => string, place?: TooltipPlace) {
+	return {
+		formatter: (params: unknown) => {
+			const first = (Array.isArray(params) ? params[0] : params) as
+				{ dataIndex?: number } | undefined;
+			return first?.dataIndex === undefined ? '' : html(first.dataIndex);
+		},
+		// Outside the card, so a long list is not clipped by the chart.
+		appendTo: 'body',
+		...(place
+			? {
+					position: (
+						point: number[],
+						_params: unknown,
+						_dom: unknown,
+						_rect: unknown,
+						size: { contentSize: number[] }
+					) => place(point, size)
+				}
+			: {})
 	};
 }
 
@@ -370,10 +444,15 @@ export async function mountTimeSeries(
 ): Promise<TimeSeriesChart> {
 	const { init, DOCKER_MANAGER_ECHARTS_THEME } = await import('./echarts');
 	const chart = init(el, DOCKER_MANAGER_ECHARTS_THEME, { renderer: 'canvas' });
-	chart.setOption(timeSeriesOption(opts));
+	const place: TooltipPlace = (point, size) =>
+		besidePointer(point, size.contentSize, el.getBoundingClientRect(), {
+			width: window.innerWidth,
+			height: window.innerHeight
+		});
+	chart.setOption(timeSeriesOption(opts, place));
 	return {
 		destroy: () => chart.dispose(),
-		update: (o) => chart.setOption(timeSeriesOption(o), { replaceMerge: ['series'] }),
+		update: (o) => chart.setOption(timeSeriesOption(o, place), { replaceMerge: ['series'] }),
 		resize: () => chart.resize()
 	};
 }

@@ -563,6 +563,7 @@ export type ContainerMetrics = Schema<'ContainerMetrics'>;
 export type RegistryMatch = Schema<'RegistryMatch'>;
 export type LatestContainerMetric = Schema<'LatestContainerMetric'>;
 export type VolumeUsageList = Schema<'VolumeUsageList'>;
+export type ContainerMetricsHistory = Schema<'ContainerMetricsHistory'>;
 
 const LIST_LIMIT = 200;
 const envIds = (targets: EnvTarget[]) => targets.map((t) => t.id);
@@ -629,6 +630,50 @@ export function containerMetricsQuery(
 				)
 			),
 		staleTime: 10_000,
+		retry: false
+	});
+}
+
+/**
+ * The series of every container of an environment the caller may chart
+ * (#5) over the last `seconds` (read at fetch time, so refreshes move the
+ * window), in buckets of about `stepSeconds`. `metrics` live events (new
+ * stored samples) refresh it, live values do not.
+ */
+export function containerMetricsHistoryQuery(
+	env: string,
+	seconds: number,
+	opts: { series: string[]; stepSeconds?: number },
+	client: ApiClient = api
+) {
+	return queryOptions({
+		queryKey: liveKeys.metrics(
+			env,
+			'containers-history',
+			seconds,
+			opts.series.join(','),
+			opts.stepSeconds ?? 0
+		),
+		queryFn: ({ signal }): Promise<ContainerMetricsHistory> => {
+			const to = new Date();
+			const from = new Date(to.getTime() - seconds * 1000);
+			return unwrap(
+				client.GET('/api/v1/environments/{environmentId}/metrics/containers/history', {
+					params: {
+						path: { environmentId: env },
+						query: {
+							from: from.toISOString(),
+							to: to.toISOString(),
+							stepSeconds: opts.stepSeconds,
+							series: [opts.series.join(',')]
+						}
+					},
+					signal
+				})
+			);
+		},
+		staleTime: 10_000,
+		placeholderData: (prev) => prev,
 		retry: false
 	});
 }

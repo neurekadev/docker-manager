@@ -278,6 +278,22 @@ range query per container; the web keys it with
 `liveKeys.metrics(envId, 'containers-latest')`, so live metrics refresh it
 about every second).
 
+`GET …/metrics/containers/history` (`get-container-metrics-history`,
+`observe.Service.QueryContainers`) is the range query of every container
+at once: the same buckets, levels and keys as
+`GET …/containers/{id}/metrics`, one entry per container with at least one
+value in the range (sorted by name, a stopped or removed container stays
+while its samples are in the range), filtered to the containers the caller
+holds `container.metrics.read` on (by name, like the current usage; the
+store reads no other container's series). It reads them in batches of 200
+per storage level
+(`series_id IN (…)`), not one query per container. It feeds the
+environment page's per-container charts (Docker CPU, memory, network and
+disk I/O: rx + tx and block read + write per container, about 120 buckets
+per range), refreshed by `metrics` invalidations like the host charts.
+There is no per-container storage chart: volumes can be shared by several
+containers, so a per-container figure would count them twice.
+
 `GET …/capacity` is the latest sample (cores, memory, load, network with its
 scope, uptime, filesystems with free space). `GET /api/v1/overview` lists
 every active environment the caller may see with its connection state, its
