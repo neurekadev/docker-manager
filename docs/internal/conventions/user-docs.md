@@ -115,11 +115,14 @@ the docs at `/docs/` and to the Screenshots page (`app/screenshots`).
 `code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
 `main` that change `docs/public/**`.
 
-Screenshots live in `docs/public/public/screenshots/<desktop|tablet|mobile>/<page>.png`,
-listed in `docs/public/lib/screenshots.ts`. Take them from a fresh instance
-that holds only the Docker Manager stack (never real data), at 1440×900
-(desktop), 820×1180 (tablet) and 390×844 (mobile). Retake the affected ones
-when a page's layout changes.
+Screenshots live in `docs/public/public/screenshots/<desktop|tablet|mobile>/<page>.webp`,
+listed in `docs/public/lib/screenshots.ts` in the order of the app's side menu
+(the Screenshots page shows one carousel each for desktop, tablet and mobile).
+Take them from a fresh, throwaway instance that holds only the Docker
+Manager stack and one small demo app with a shell (for the terminal and
+logs), never real data, at 1440×900 (desktop), 820×1180 (tablet) and
+390×844 (mobile), as WebP. Retake the affected ones when a page's layout
+changes.
 
 Build the site locally (`npm --prefix docs/public ci && npm --prefix
 docs/public run build`) only after changing its code or structure, not for
