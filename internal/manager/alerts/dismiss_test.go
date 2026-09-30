@@ -101,7 +101,10 @@ func TestDismissManySkipsResolvedAndUnknown(t *testing.T) {
 	f.failDisk("env-1", "/dev/sda")
 	f.failDisk("env-2", "/dev/sdb")
 	as := f.firing()
-	f.health.set("env-2", []protocol.SMARTDevice{disk(protocol.DiskOK)}, nil, nil)
+	// env-2's disk (/dev/sdb) is healthy again: its alert resolves.
+	ok := disk(protocol.DiskOK)
+	ok.Name = "/dev/sdb"
+	f.health.set("env-2", []protocol.SMARTDevice{ok}, nil, nil)
 	f.evaluate("env-2")
 	out, err := f.svc.DismissMany(f.ctx, []string{as[0].ID, as[1].ID, "nope"}, "u-x", false)
 	if err != nil || len(out) != 1 || out[0].ID != as[0].ID || !out[0].Dismissed() {

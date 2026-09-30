@@ -118,7 +118,7 @@ func Detail(a domain.Alert) string {
 		}
 		switch {
 		case f["devices"] != "":
-			b.WriteString(fmt.Sprintf("%s of %s disks working.", f["active"], f["devices"]))
+			fmt.Fprintf(&b, "%s of %s disks working.", f["active"], f["devices"])
 		case f["state"] != "":
 			b.WriteString("state " + f["state"] + ".")
 		}
