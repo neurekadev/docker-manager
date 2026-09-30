@@ -118,11 +118,11 @@ func TestAlertRetention(t *testing.T) {
 	}
 	sent := now
 	ds := []domain.AlertDelivery{
-		{ID: ids.New(), AlertID: firing.ID, ChannelID: "c1", Event: domain.AlertEventFiring, State: domain.DeliverySent, NextAttemptAt: now,
+		{ID: ids.New(), AlertID: firing.ID, ChannelID: "c1", Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertWarning, Title: "t", State: domain.DeliverySent, NextAttemptAt: now,
 			CreatedAt: now, UpdatedAt: now, SentAt: &sent},
-		{ID: ids.New(), AlertID: firing.ID, ChannelID: "c1", Event: domain.AlertEventWorse, State: domain.DeliveryPending, NextAttemptAt: now,
+		{ID: ids.New(), AlertID: firing.ID, ChannelID: "c1", Event: domain.AlertEventWorse, Kind: domain.NotifyDiskHealth, Severity: domain.AlertWarning, Title: "t", State: domain.DeliveryPending, NextAttemptAt: now,
 			CreatedAt: now, UpdatedAt: now},
-		{ID: ids.New(), AlertID: old.ID, ChannelID: "c1", Event: domain.AlertEventResolved, State: domain.DeliveryPending, NextAttemptAt: now,
+		{ID: ids.New(), AlertID: old.ID, ChannelID: "c1", Event: domain.AlertEventResolved, Kind: domain.NotifyDiskHealth, Severity: domain.AlertWarning, Title: "t", State: domain.DeliveryPending, NextAttemptAt: now,
 			CreatedAt: now, UpdatedAt: now},
 	}
 	if err := store.InsertAlertDeliveries(ctx, db, ds); err != nil {
@@ -152,5 +152,62 @@ func TestAlertRetention(t *testing.T) {
 	}
 	if _, err := store.GetAlert(ctx, db, old.ID); !errors.Is(err, domain.ErrAlertNotFound) {
 		t.Fatal(err)
+	}
+}
+
+// The dispatcher's reads: due channels by due time, a channel's oldest
+// messages (bounded), the next due time, and deferring a channel.
+func TestDueAlertDeliveries(t *testing.T) {
+	ctx := testutil.Context(t)
+	db := storetest.Migrated(t)
+	now := testutil.Epoch
+	a := newAlert("k", now)
+	if err := store.InsertAlert(ctx, db, &a); err != nil {
+		t.Fatal(err)
+	}
+	d := func(ch string, created, due time.Duration, title string) domain.AlertDelivery {
+		return domain.AlertDelivery{ID: ids.New(), AlertID: a.ID, ChannelID: ch, Event: domain.AlertEventFiring, Kind: a.Kind,
+			EnvironmentID: a.EnvironmentID, Severity: a.Severity, Title: title, Body: "b", Link: "/l", State: domain.DeliveryPending,
+			NextAttemptAt: now.Add(due), CreatedAt: now.Add(created), UpdatedAt: now.Add(created)}
+	}
+	ds := []domain.AlertDelivery{
+		d("c1", 0, time.Second, "first"), d("c1", time.Second, 2*time.Second, "second"), d("c1", 2*time.Second, 3*time.Second, "third"),
+		d("c2", 0, time.Minute, "later"),
+	}
+	if err := store.InsertAlertDeliveries(ctx, db, ds); err != nil {
+		t.Fatal(err)
+	}
+	if due, err := store.DueAlertChannels(ctx, db, now); err != nil || len(due) != 0 {
+		t.Fatalf("%v %v", due, err)
+	}
+	due, err := store.DueAlertChannels(ctx, db, now.Add(5*time.Second))
+	if err != nil || len(due) != 1 || due[0] != "c1" {
+		t.Fatalf("%v %v", due, err)
+	}
+	batch, err := store.ChannelAlertDeliveries(ctx, db, "c1", 2)
+	if err != nil || len(batch) != 2 || batch[0].Title != "first" || batch[1].Title != "second" || batch[0].Link != "/l" ||
+		batch[0].Severity != domain.AlertWarning || batch[0].Kind != domain.NotifyDiskHealth {
+		t.Fatalf("%+v %v", batch, err)
+	}
+	if next, found, err := store.NextAlertDelivery(ctx, db, now.Add(5*time.Second)); err != nil || !found || !next.Equal(now.Add(time.Minute)) {
+		t.Fatalf("%v %v %v", next, found, err)
+	}
+	if latest, found, err := store.LatestAlertAttempt(ctx, db, "c1"); err != nil || !found || !latest.Equal(now.Add(3*time.Second)) {
+		t.Fatalf("%v %v %v", latest, found, err)
+	}
+	// A failed send defers the whole channel, never moving a message earlier.
+	if err := store.DeferChannelAlertDeliveries(ctx, db, "c1", now.Add(2500*time.Millisecond), now); err != nil {
+		t.Fatal(err)
+	}
+	batch, _ = store.ChannelAlertDeliveries(ctx, db, "c1", 10)
+	if !batch[0].NextAttemptAt.Equal(now.Add(2500*time.Millisecond)) || !batch[1].NextAttemptAt.Equal(now.Add(2500*time.Millisecond)) ||
+		!batch[2].NextAttemptAt.Equal(now.Add(3*time.Second)) {
+		t.Fatalf("%+v", batch)
+	}
+	if due, _ := store.DueAlertChannels(ctx, db, now.Add(2*time.Second)); len(due) != 0 {
+		t.Fatalf("a deferred channel is due: %v", due)
+	}
+	if _, found, _ := store.NextAlertDelivery(ctx, db, now.Add(2*time.Hour)); found {
+		t.Fatal("nothing is due after the last message")
 	}
 }

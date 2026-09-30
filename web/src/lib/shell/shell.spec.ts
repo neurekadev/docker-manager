@@ -203,6 +203,7 @@ describe('notices', () => {
 		id: string,
 		o: Partial<{
 			severity: 'critical' | 'warning' | 'info';
+			escalation: number;
 			title: string;
 			actions: string[];
 			startedAt: string;
@@ -211,6 +212,7 @@ describe('notices', () => {
 	) => ({
 		id,
 		severity: o.severity ?? 'warning',
+		escalation: o.escalation ?? 0,
 		title: o.title ?? `Alert ${id}`,
 		link: o.link ?? `/environments/e1?tab=system`,
 		startedAt: o.startedAt ?? '2026-09-25T12:00:00Z',
@@ -269,18 +271,19 @@ describe('notices', () => {
 		expect(n.count).toBe(3);
 		n.dismiss('job:1', alertDismissKey(alert('a1')));
 		expect(n.list.map((x) => x.key)).toEqual(['alert:a2']);
-		expect(JSON.parse(store.m.get(DISMISSED_KEY) ?? '[]')).toEqual([
-			'job:1',
-			'alert:a1:warning'
-		]);
+		expect(JSON.parse(store.m.get(DISMISSED_KEY) ?? '[]')).toEqual(['job:1', 'alert:a1:0']);
 
 		// A new tab (or a reload) reads them back.
 		const again = new Notices(() => 1, store);
 		again.push({ key: 'job:1', kind: 'job', tone: 'ok', title: 'Deployed Silo' });
 		again.setAlerts([alert('a1'), alert('a2')]);
 		expect(again.list.map((x) => x.key)).toEqual(['alert:a2']);
-		// An alert that gets worse shows again.
-		again.setAlerts([alert('a1', { severity: 'critical' }), alert('a2')]);
+		// A quiet change (progress, counters) keeps it hidden.
+		again.setAlerts([alert('a1', { title: 'Alert a1, 47% rebuilt' }), alert('a2')]);
+		expect(again.list.map((x) => x.key)).toEqual(['alert:a2']);
+		// An alert that gets worse shows again, also at the same severity
+		// (a new problem: the manager's escalation counts up).
+		again.setAlerts([alert('a1', { escalation: 1 }), alert('a2')]);
 		expect(again.list.map((x) => x.key)).toEqual(['alert:a1', 'alert:a2']);
 		// Clearing (sign-out) forgets the items, not the dismissals.
 		again.clear();

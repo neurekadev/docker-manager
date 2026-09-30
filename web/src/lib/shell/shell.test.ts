@@ -76,6 +76,7 @@ describe('NoticesBell', () => {
 		id,
 		title,
 		severity,
+		escalation: 0,
 		link: `/environments/e1?tab=system`,
 		startedAt: new Date(Date.now() - 3_600_000).toISOString(),
 		actions: mine ? ['alert.dismiss'] : []
@@ -189,7 +190,7 @@ describe('NoticesBell', () => {
 			])
 		);
 		expect(notices.count).toBe(0);
-		expect(notices.isDismissed('alert:a2:warning')).toBe(true);
+		expect(notices.isDismissed('alert:a2:0')).toBe(true);
 		expect(notices.isDismissed('job:j1')).toBe(true);
 		expect(screen.getByText('Nothing needs your attention.')).toBeInTheDocument();
 	});

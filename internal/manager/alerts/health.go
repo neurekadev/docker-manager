@@ -217,7 +217,10 @@ func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string) O
 	var attrs []string
 	for _, a := range d.FailingAttributes {
 		attrs = append(attrs, fmt.Sprintf("%d %s (%s)", a.ID, a.Name, a.WhenFailed))
-		tokens = append(tokens, fmt.Sprintf("attribute_%d_%s", a.ID, a.WhenFailed))
+		// One token per attribute: failing now rather than in the past
+		// raises the severity; the reverse must not look like a new
+		// problem.
+		tokens = append(tokens, fmt.Sprintf("attribute_%d", a.ID))
 	}
 	if len(attrs) > 0 {
 		facts["failingAttributes"] = strings.Join(attrs, ", ")
@@ -283,8 +286,11 @@ func mdObservation(e domain.Environment, a protocol.MDArray, key string) (Observ
 	if len(failed) > 0 {
 		facts["failedMembers"] = strings.Join(failed, ", ")
 	}
-	if missing := a.Devices - a.Active; missing > 0 {
-		tokens = append(tokens, "missing_"+strconv.Itoa(missing))
+	// "At least k disks missing" for every k up to the count: another
+	// missing disk adds a token, a disk coming back removes one (never a
+	// new token for an improvement).
+	for k := 1; k <= a.Devices-a.Active; k++ {
+		tokens = append(tokens, "missing_at_least_"+strconv.Itoa(k))
 	}
 	var sev domain.AlertSeverity
 	var what string
@@ -300,7 +306,6 @@ func mdObservation(e domain.Environment, a protocol.MDArray, key string) (Observ
 	default:
 		return Observation{}, false
 	}
-	tokens = append(tokens, "state_"+string(sev))
 	return Observation{
 		Key: key, Kind: domain.NotifyRAID, Severity: sev, EnvironmentID: e.ID, ResourceType: domain.AlertResourceRAID, ResourceID: a.Name,
 		Title: fmt.Sprintf("RAID %s on %s %s", a.Name, e.Name, what), Facts: facts, Fingerprint: domain.Fingerprint(tokens...),
@@ -338,8 +343,10 @@ func zfsObservation(e domain.Environment, p protocol.ZFSPool, key string) (Obser
 	}
 	return Observation{
 		Key: key, Kind: domain.NotifyRAID, Severity: sev, EnvironmentID: e.ID, ResourceType: domain.AlertResourceZFS, ResourceID: p.Name,
-		Title:       fmt.Sprintf("ZFS pool %s on %s %s", p.Name, e.Name, what),
-		Facts:       map[string]string{"pool": p.Name, "arrayKind": "zfs", "health": p.Health, "state": p.State},
-		Fingerprint: domain.Fingerprint("health_" + strings.ToLower(p.Health)),
+		Title: fmt.Sprintf("ZFS pool %s on %s %s", p.Name, e.Name, what),
+		Facts: map[string]string{"pool": p.Name, "arrayKind": "zfs", "health": p.Health, "state": p.State},
+		// The pool's health replaces itself: the severity says whether it
+		// got worse.
+		Fingerprint: domain.Fingerprint("unhealthy"),
 	}, true
 }

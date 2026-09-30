@@ -136,7 +136,8 @@ func jobObservation(ctx context.Context, db bun.IDB, j domain.Job) Observation {
 	return Observation{
 		Key: jobKey(j), Kind: domain.NotifyJobFailed, Severity: sev, EnvironmentID: j.EnvironmentID,
 		ResourceType: domain.AlertResourceJob, ResourceID: j.ID, JobKind: j.Kind, Targets: j.Targets, Title: b.String(),
-		Facts: facts, Fingerprint: domain.Fingerprint(string(sev)),
+		// The state replaces itself: the severity says whether it got worse.
+		Facts: facts, Fingerprint: domain.Fingerprint("failed"),
 	}
 }
 

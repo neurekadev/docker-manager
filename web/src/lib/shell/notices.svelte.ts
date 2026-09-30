@@ -7,8 +7,9 @@
 // item not dismissed and stays until each is dismissed. A server alert the
 // user may dismiss is dismissed for everyone (through the API, by the
 // bell); the others and the job notices are dismissed for this browser:
-// their keys (`job:<id>`, `alert:<id>:<severity>`, so an alert that gets
-// worse shows again) are kept in localStorage, at most MAX_DISMISSED, UI
+// their keys (`job:<id>`, `alert:<id>:<escalation>`: the manager counts
+// up an alert's escalation whenever it gets worse, at a higher severity or
+// with a new problem, so it shows again) are kept in localStorage, at most MAX_DISMISSED, UI
 // state only (never API data). Keys deduplicate: pushing the same key
 // again updates the notice instead of adding one.
 
@@ -31,7 +32,7 @@ export interface AppNotice {
 /** A server alert as the bell needs it. */
 export type BellAlert = Pick<
 	Alert,
-	'id' | 'severity' | 'title' | 'detail' | 'link' | 'startedAt' | 'actions'
+	'id' | 'severity' | 'escalation' | 'title' | 'detail' | 'link' | 'startedAt' | 'actions'
 >;
 
 /** One line of the bell: a server alert or a job notice. */
@@ -51,9 +52,9 @@ export const MAX_DISMISSED = 200;
 
 const KEY_RE = /^(job|alert):[\w.:-]{1,160}$/;
 
-/** The key of an alert dismissed for this browser: it shows again at another severity. */
-export function alertDismissKey(a: Pick<Alert, 'id' | 'severity'>): string {
-	return `alert:${a.id}:${a.severity}`;
+/** The key of an alert dismissed for this browser: it shows again once the alert gets worse (a new escalation). */
+export function alertDismissKey(a: Pick<Alert, 'id' | 'escalation'>): string {
+	return `alert:${a.id}:${a.escalation}`;
 }
 
 /** Parses the stored dismissed keys; anything unexpected is dropped. */

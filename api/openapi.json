@@ -701,6 +701,14 @@
             "description": "The environment the problem is in (absent for manager jobs).",
             "type": "string"
           },
+          "escalation": {
+            "description": "How often the alert got worse (a higher severity or a new problem): it changes exactly when a dismissed alert opens again, so a dismissal kept by a client is keyed by it. Other changes (progress, counters) leave it.",
+            "examples": [
+              1
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
           "facts": {
             "additionalProperties": {
               "type": "string"
@@ -824,6 +832,7 @@
           "startedAt",
           "updatedAt",
           "dismissed",
+          "escalation",
           "revision",
           "actions"
         ],
@@ -22179,6 +22188,7 @@
                         "name": "Alex"
                       },
                       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "escalation": 1,
                       "facts": {},
                       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                       "kind": "disk_health",
@@ -22429,6 +22439,7 @@
                     "name": "Alex"
                   },
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "escalation": 1,
                   "facts": {},
                   "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                   "kind": "disk_health",
@@ -22576,6 +22587,7 @@
                     "name": "Alex"
                   },
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "escalation": 1,
                   "facts": {},
                   "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                   "kind": "disk_health",

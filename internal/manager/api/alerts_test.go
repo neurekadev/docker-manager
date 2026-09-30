@@ -211,9 +211,15 @@ func TestAlertsAreShownThroughTheirSource(t *testing.T) {
 	if r := authztest.Do(t, f.h, "sam", authztest.Call{Method: http.MethodGet, Path: "/api/v1/alerts/a-3"}); r.Status != http.StatusNotFound {
 		t.Fatalf("%d", r.Status)
 	}
+	f.svc.mu.Lock()
+	esc := f.svc.alerts["a-1"]
+	esc.Escalation = 2
+	f.svc.alerts["a-1"] = esc
+	f.svc.mu.Unlock()
 	r := authztest.Do(t, f.h, "sam", authztest.Call{Method: http.MethodGet, Path: "/api/v1/alerts/a-1"})
 	var a Alert
-	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &a) != nil || a.Link != "/environments/env-1?tab=system" || len(a.Actions) != 0 {
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &a) != nil || a.Link != "/environments/env-1?tab=system" || len(a.Actions) != 0 ||
+		a.Escalation != 2 {
 		t.Fatalf("%d %s", r.Status, r.Body)
 	}
 	if r := authztest.Do(t, f.h, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/alerts"}); r.Status != http.StatusUnauthorized {

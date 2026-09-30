@@ -67,6 +67,7 @@ type Alert struct {
 	Dismissed   bool       `json:"dismissed" doc:"Dismissed for everyone; it opens again when it gets worse."`
 	DismissedAt *time.Time `json:"dismissedAt,omitempty"`
 	DismissedBy *AlertUser `json:"dismissedBy,omitempty"`
+	Escalation  int        `json:"escalation" example:"1" doc:"How often the alert got worse (a higher severity or a new problem): it changes exactly when a dismissed alert opens again, so a dismissal kept by a client is keyed by it. Other changes (progress, counters) leave it."`
 	Revision    int64      `json:"revision"`
 	Actions     []string   `json:"actions" example:"alert.dismiss" doc:"What the caller may do: alert.dismiss while it fires and the caller may dismiss it."`
 }
@@ -80,7 +81,7 @@ func newAlert(c authz.Checker, a domain.Alert) Alert {
 		ID: a.ID, Kind: string(a.Kind), Severity: string(a.Severity), State: string(a.State), EnvironmentID: a.EnvironmentID,
 		ResourceType: a.ResourceType, ResourceID: a.ResourceID, Title: a.Title, Detail: alerts.Detail(a), Facts: facts,
 		Link: alerts.Link(a), StartedAt: a.StartedAt, UpdatedAt: a.UpdatedAt, ResolvedAt: a.ResolvedAt, Resolution: a.Resolution,
-		Dismissed: a.Dismissed(), DismissedAt: a.DismissedAt, Revision: a.Revision, Actions: []string{},
+		Dismissed: a.Dismissed(), DismissedAt: a.DismissedAt, Escalation: a.Escalation, Revision: a.Revision, Actions: []string{},
 	}
 	if a.DismissedBy != "" {
 		out.DismissedBy = &AlertUser{ID: a.DismissedBy, Name: a.DismissedByName}

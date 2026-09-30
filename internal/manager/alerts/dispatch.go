@@ -23,8 +23,12 @@ import (
 // succeeded but could not be recorded is sent again.
 
 // DispatchInterval is how often the dispatcher looks at the outbox without
-// being woken.
-const DispatchInterval = time.Minute
+// being woken; DispatchBatch bounds the messages of one channel sent at
+// once (a digest lists DigestMaxLines of them).
+const (
+	DispatchInterval = time.Minute
+	DispatchBatch    = 100
+)
 
 // errClassInternal records a send that failed before reaching the service.
 const errClassInternal = "internal"
@@ -38,6 +42,10 @@ func (s *Service) runDispatch(ctx context.Context) {
 			var err error
 			if next, err = s.Dispatch(ctx); err != nil && ctx.Err() == nil {
 				s.log.Warn("could not send alert messages", "error", err)
+				// Try again later, not at once.
+				if later := s.clk.Now().Add(RetryMin); next.Before(later) {
+					next = later
+				}
 			}
 		}
 		var timer clock.Timer
@@ -71,141 +79,128 @@ func backoff(attempts int) time.Duration {
 	return min(d, RetryMax)
 }
 
-// Dispatch sends every channel's due messages once and returns when the
-// next pending message is due (zero: none pending). It sends nothing
-// while the manager moves.
+// Dispatch sends every due channel's messages once and returns when the
+// next pending message is due (zero: none pending). It reads only the due
+// channels (by due time, indexed) and at most DispatchBatch messages of
+// each; it sends nothing while the manager moves.
 func (s *Service) Dispatch(ctx context.Context) (time.Time, error) {
 	if s.locked() {
 		return time.Time{}, nil
 	}
-	pending, err := store.PendingAlertDeliveries(ctx, s.db)
+	now := s.now()
+	channels, err := store.DueAlertChannels(ctx, s.db, now)
 	if err != nil {
 		return time.Time{}, err
 	}
-	now := s.now()
-	var next time.Time
-	var batches [][]domain.AlertDelivery
-	for i := 0; i < len(pending); {
-		j := i
-		for j < len(pending) && pending[j].ChannelID == pending[i].ChannelID {
-			j++
-		}
-		head := pending[i]
-		if head.NextAttemptAt.After(now) {
-			if next.IsZero() || head.NextAttemptAt.Before(next) {
-				next = head.NextAttemptAt
-			}
-		} else {
-			batches = append(batches, pending[i:j])
-		}
-		i = j
-	}
-	if len(batches) == 0 {
-		return next, nil
-	}
-	instance := ""
-	if set, err := store.GetInstanceSettings(ctx, s.db); err == nil {
-		instance = set.Name
-	}
-	sem := make(chan struct{}, DispatchParallel)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
 	var errs []error
-	for _, b := range batches {
-		sem <- struct{}{}
-		wg.Go(func() {
-			defer func() { <-sem }()
-			retry, err := s.sendBatch(ctx, instance, b, now)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				errs = append(errs, err)
-			}
-			if !retry.IsZero() && (next.IsZero() || retry.Before(next)) {
-				next = retry
-			}
-		})
+	if len(channels) > 0 {
+		instance := ""
+		if set, err := store.GetInstanceSettings(ctx, s.db); err == nil {
+			instance = set.Name
+		}
+		sem := make(chan struct{}, DispatchParallel)
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		for _, channelID := range channels {
+			sem <- struct{}{}
+			wg.Go(func() {
+				defer func() { <-sem }()
+				if err := s.sendChannel(ctx, instance, channelID, now); err != nil {
+					mu.Lock()
+					errs = append(errs, err)
+					mu.Unlock()
+				}
+			})
+		}
+		wg.Wait()
 	}
-	wg.Wait()
+	if ctx.Err() != nil {
+		return time.Time{}, ctx.Err()
+	}
+	// More than a batch was due, or new messages became due meanwhile: go
+	// on at once.
+	after := s.now()
+	if due, err := store.DueAlertChannels(ctx, s.db, after); err != nil {
+		errs = append(errs, err)
+	} else if len(due) > 0 {
+		return after, errors.Join(errs...)
+	}
+	next, _, err := store.NextAlertDelivery(ctx, s.db, after)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	return next, errors.Join(errs...)
 }
 
-// sendBatch sends one channel's pending messages (in order) and records
-// the outcome. It returns when the batch is due again after a failure.
-func (s *Service) sendBatch(ctx context.Context, instance string, batch []domain.AlertDelivery, now time.Time) (time.Time, error) {
-	channelID := batch[0].ChannelID
+// sendChannel sends a due channel's oldest pending messages (in order,
+// one message or a digest) from their snapshots and records the outcome.
+// A failure defers every pending message of the channel.
+func (s *Service) sendChannel(ctx context.Context, instance, channelID string, now time.Time) error {
+	batch, err := store.ChannelAlertDeliveries(ctx, s.db, channelID, DispatchBatch)
+	if err != nil || len(batch) == 0 || batch[0].NextAttemptAt.After(now) {
+		return err
+	}
 	ch, err := store.GetNotificationChannel(ctx, s.db, channelID)
 	gone := errors.Is(err, domain.ErrNotificationChannelNotFound)
 	if err != nil && !gone {
-		return time.Time{}, err
+		return err
 	}
-	var items []item
 	var send, done []domain.AlertDelivery
 	for _, d := range batch {
 		d.UpdatedAt = now
-		if gone || !ch.Enabled {
+		if gone || !ch.Enabled || !ch.Wants(d.Kind, d.EnvironmentID) || (d.Event == domain.AlertEventResolved && !ch.SendResolved) {
 			d.State = domain.DeliveryDropped
 			done = append(done, d)
 			continue
 		}
-		a, err := store.GetAlert(ctx, s.db, d.AlertID)
-		if errors.Is(err, domain.ErrAlertNotFound) {
-			d.State = domain.DeliveryDropped
-			done = append(done, d)
-			continue
-		}
-		if err != nil {
-			return time.Time{}, err
-		}
-		if !ch.Wants(a.Kind, a.EnvironmentID) || (d.Event == domain.AlertEventResolved && !ch.SendResolved) {
-			d.State = domain.DeliveryDropped
-			done = append(done, d)
-			continue
-		}
-		items = append(items, item{alert: a, event: d.Event})
 		send = append(send, d)
 	}
-	var retry time.Time
-	if len(send) > 0 {
-		msg := buildMessage(instance, s.opts.PublicURL, items)
-		ok, class := false, errClassInternal
-		if s.opts.Sender != nil {
-			res, err := s.opts.Sender.Send(ctx, channelID, msg)
-			switch {
-			case ctx.Err() != nil:
-				return time.Time{}, nil // shutting down: the messages stay pending
-			case errors.Is(err, domain.ErrNotificationChannelNotFound):
-				for i := range send {
-					send[i].State = domain.DeliveryDropped
-				}
-				return time.Time{}, store.SetAlertDeliveries(ctx, s.db, append(done, send...))
-			case err != nil:
-				s.log.Warn("could not send an alert message", "notification_channel_id", channelID, "error", err)
-			default:
-				ok, class = res.OK, res.ErrorClass
+	if len(send) == 0 {
+		return store.SetAlertDeliveries(ctx, s.db, done)
+	}
+	msg := buildMessage(instance, s.opts.PublicURL, send)
+	ok, class := false, errClassInternal
+	if s.opts.Sender != nil {
+		res, err := s.opts.Sender.Send(ctx, channelID, msg)
+		switch {
+		case ctx.Err() != nil:
+			return nil // shutting down: the messages stay pending
+		case errors.Is(err, domain.ErrNotificationChannelNotFound):
+			for i := range send {
+				send[i].State = domain.DeliveryDropped
 			}
-		}
-		attempts := send[0].Attempts + 1
-		for i := range send {
-			d := &send[i]
-			d.Attempts++
-			switch {
-			case ok:
-				d.State, d.SentAt, d.LastError = domain.DeliverySent, &now, ""
-			case now.Sub(d.CreatedAt) >= GiveUpAfter:
-				d.State, d.LastError = domain.DeliveryFailed, class
-			default:
-				d.LastError = class
-				// The whole batch waits for the oldest message's backoff:
-				// the channel's order is kept.
-				d.NextAttemptAt = now.Add(backoff(attempts))
-				retry = d.NextAttemptAt
-			}
-		}
-		if !ok {
-			s.log.Warn("an alert message could not be sent; it will be retried", "notification_channel_id", channelID,
-				"error_class", class, "messages", len(send))
+			return store.SetAlertDeliveries(ctx, s.db, append(done, send...))
+		case err != nil:
+			s.log.Warn("could not send an alert message", "notification_channel_id", channelID, "error", err)
+		default:
+			ok, class = res.OK, res.ErrorClass
 		}
 	}
-	return retry, store.SetAlertDeliveries(ctx, s.db, append(done, send...))
+	// The whole channel waits for the oldest message's backoff: its order
+	// is kept.
+	retry := now.Add(backoff(send[0].Attempts + 1))
+	waiting := false
+	for i := range send {
+		d := &send[i]
+		d.Attempts++
+		switch {
+		case ok:
+			d.State, d.SentAt, d.LastError = domain.DeliverySent, &now, ""
+		case now.Sub(d.CreatedAt) >= GiveUpAfter:
+			d.State, d.LastError = domain.DeliveryFailed, class
+		default:
+			d.LastError, d.NextAttemptAt, waiting = class, retry, true
+		}
+	}
+	if !ok {
+		s.log.Warn("an alert message could not be sent; it will be retried", "notification_channel_id", channelID,
+			"error_class", class, "messages", len(send))
+	}
+	if err := store.SetAlertDeliveries(ctx, s.db, append(done, send...)); err != nil {
+		return err
+	}
+	if waiting {
+		return store.DeferChannelAlertDeliveries(ctx, s.db, channelID, retry, now)
+	}
+	return nil
 }

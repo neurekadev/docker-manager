@@ -113,11 +113,21 @@ type Service struct {
 
 	wake     chan struct{}
 	dispatch chan struct{}
+	announce chan struct{}
 
 	mu sync.Mutex
-	// pending are alerts changed inside a job's finishing transaction,
-	// announced once the job's change is committed (OnChange).
-	pending map[string][]domain.Alert
+	// held are alerts changed inside a job's finishing transaction, by
+	// job; ready those whose job reported a committed change (OnChange).
+	// Both are announced only as the database has them (announceReady):
+	// a finishing transaction that rolled back announces nothing.
+	held  map[string][]heldAlert
+	ready []heldAlert
+}
+
+// heldAlert is an alert changed in a job's transaction, and when.
+type heldAlert struct {
+	alert domain.Alert
+	at    time.Time
 }
 
 // New creates the service.
@@ -135,7 +145,8 @@ func New(opts Options) (*Service, error) {
 		opts.OfflineGrace = DefaultOfflineGrace
 	}
 	return &Service{opts: opts, db: opts.DB, clk: opts.Clock, log: opts.Logger, startedAt: opts.Clock.Now().UTC(),
-		wake: make(chan struct{}, 1), dispatch: make(chan struct{}, 1), pending: map[string][]domain.Alert{}}, nil
+		wake: make(chan struct{}, 1), dispatch: make(chan struct{}, 1), announce: make(chan struct{}, 1),
+		held: map[string][]heldAlert{}}, nil
 }
 
 // RegisterJobHooks installs the job_failed hook on every kind, the
@@ -188,17 +199,24 @@ func (s *Service) publish(changed []domain.Alert) {
 	s.wakeDispatch()
 }
 
-// jobsChanged announces the alerts a finishing job changed, now that the
-// job's transaction committed.
+// jobsChanged marks the alerts a job changed ready to announce (its
+// change was committed) and wakes the announcer. It runs on the engine's
+// goroutines, so it never touches the database itself.
 func (s *Service) jobsChanged(jobIDs []string) {
-	var out []domain.Alert
 	s.mu.Lock()
+	n := 0
 	for _, id := range jobIDs {
-		out = append(out, s.pending[id]...)
-		delete(s.pending, id)
+		n += len(s.held[id])
+		s.ready = append(s.ready, s.held[id]...)
+		delete(s.held, id)
 	}
 	s.mu.Unlock()
-	s.publish(out)
+	if n > 0 {
+		select {
+		case s.announce <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // hold keeps alerts changed in a job's transaction until it commits.
@@ -206,22 +224,75 @@ func (s *Service) hold(jobID string, changed []domain.Alert) {
 	if len(changed) == 0 {
 		return
 	}
+	now := s.clk.Now()
 	s.mu.Lock()
-	s.pending[jobID] = append(s.pending[jobID], changed...)
+	for _, a := range changed {
+		s.held[jobID] = append(s.held[jobID], heldAlert{alert: a, at: now})
+	}
 	s.mu.Unlock()
 }
 
-// flushHeld announces alerts held longer than a reconcile round (a job
-// change that was never reported: the event only asks views to refetch).
-func (s *Service) flushHeld() {
+// flushHeld readies alerts held for a reconcile round without a change
+// report of their job (it may have rolled back) and announces them.
+func (s *Service) flushHeld(ctx context.Context) {
+	cutoff := s.clk.Now().Add(-ReconcileInterval)
 	s.mu.Lock()
-	var out []domain.Alert
-	for id, as := range s.pending {
-		out = append(out, as...)
-		delete(s.pending, id)
+	for id, hs := range s.held {
+		var keep []heldAlert
+		for _, h := range hs {
+			if h.at.After(cutoff) {
+				keep = append(keep, h)
+			} else {
+				s.ready = append(s.ready, h)
+			}
+		}
+		if len(keep) == 0 {
+			delete(s.held, id)
+		} else {
+			s.held[id] = keep
+		}
 	}
 	s.mu.Unlock()
+	s.announceReady(ctx)
+}
+
+// announceReady publishes the ready alerts as the database has them: an
+// alert missing, or at an older revision than held (its transaction
+// rolled back), is dropped, never announced.
+func (s *Service) announceReady(ctx context.Context) {
+	s.mu.Lock()
+	ready := s.ready
+	s.ready = nil
+	s.mu.Unlock()
+	var out []domain.Alert
+	seen := map[string]bool{}
+	for _, h := range ready {
+		if seen[h.alert.ID] {
+			continue
+		}
+		a, err := store.GetAlert(ctx, s.db, h.alert.ID)
+		if err != nil || a.Revision < h.alert.Revision {
+			if err != nil && !errors.Is(err, domain.ErrAlertNotFound) && ctx.Err() == nil {
+				s.log.Warn("could not read a changed alert", "alert_id", h.alert.ID, "error", err)
+			}
+			continue
+		}
+		seen[a.ID] = true
+		out = append(out, a)
+	}
 	s.publish(out)
+}
+
+// runAnnounce announces the alerts of committed job changes.
+func (s *Service) runAnnounce(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.announce:
+			s.announceReady(ctx)
+		}
+	}
 }
 
 // inTx runs fn in a transaction and announces the alerts it changed after
@@ -246,6 +317,7 @@ func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
 	wg.Go(func() { s.runReconcile(ctx) })
 	wg.Go(func() { s.runDispatch(ctx) })
+	wg.Go(func() { s.runAnnounce(ctx) })
 	wg.Wait()
 }
 
@@ -309,7 +381,7 @@ func (s *Service) reconcile(ctx context.Context) time.Time {
 	if s.locked() || ctx.Err() != nil {
 		return time.Time{}
 	}
-	s.flushHeld()
+	s.flushHeld(ctx)
 	next, err := s.EvaluateOffline(ctx)
 	if err != nil && ctx.Err() == nil {
 		s.log.Warn("could not evaluate offline alerts", "error", err)

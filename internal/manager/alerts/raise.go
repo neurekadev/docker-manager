@@ -65,6 +65,7 @@ func raise(ctx context.Context, db bun.IDB, o Observation, now time.Time) (*doma
 	next.ResourceType, next.ResourceID, next.JobKind, next.Targets = o.ResourceType, o.ResourceID, o.JobKind, o.Targets
 	next.LastSeenAt = now
 	if worse {
+		next.Escalation = cur.Escalation + 1
 		next.DismissedAt, next.DismissedBy, next.DismissedByName = nil, "", ""
 	}
 	if !worse && sameView(cur, next) {
@@ -141,9 +142,19 @@ func enqueue(ctx context.Context, db bun.IDB, a domain.Alert, event string, now 
 	return enqueueExcept(ctx, db, a, event, now, nil)
 }
 
+// newDelivery is a pending message of a to a channel with a snapshot of
+// what it says now (a message sent later, or again, still says this).
+func newDelivery(a domain.Alert, channelID, event string, now, due time.Time) domain.AlertDelivery {
+	return domain.AlertDelivery{ID: ids.New(), AlertID: a.ID, ChannelID: channelID, Event: event, Kind: a.Kind,
+		EnvironmentID: a.EnvironmentID, Severity: a.Severity, Title: a.Title, Body: Detail(a), Link: Link(a),
+		State: domain.DeliveryPending, NextAttemptAt: due, CreatedAt: now, UpdatedAt: now}
+}
+
 // enqueueExcept adds a message of a to every channel subscribed to its
 // kind and environment (resolutions: only those sending resolved
-// problems), except the channels in skip.
+// problems), except the channels in skip. A message is never due before
+// the channel's earlier ones (a channel waiting out a failed send keeps
+// its order), so the dispatcher finds due channels by due time alone.
 func enqueueExcept(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time, skip map[string]bool) error {
 	channels, err := store.ListNotificationChannels(ctx, db, "", 0)
 	if err != nil {
@@ -154,8 +165,15 @@ func enqueueExcept(ctx context.Context, db bun.IDB, a domain.Alert, event string
 		if skip[c.ID] || !c.Wants(a.Kind, a.EnvironmentID) || (event == domain.AlertEventResolved && !c.SendResolved) {
 			continue
 		}
-		ds = append(ds, domain.AlertDelivery{ID: ids.New(), AlertID: a.ID, ChannelID: c.ID, Event: event, State: domain.DeliveryPending,
-			NextAttemptAt: now.Add(DeliveryDelay), CreatedAt: now, UpdatedAt: now})
+		due := now.Add(DeliveryDelay)
+		latest, found, err := store.LatestAlertAttempt(ctx, db, c.ID)
+		if err != nil {
+			return err
+		}
+		if found && latest.After(due) {
+			due = latest
+		}
+		ds = append(ds, newDelivery(a, c.ID, event, now, due))
 	}
 	return store.InsertAlertDeliveries(ctx, db, ds)
 }

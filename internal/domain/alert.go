@@ -103,8 +103,14 @@ type Alert struct {
 	// never serial numbers, error texts or secrets.
 	Facts map[string]string
 	// Fingerprint is the set of problem tokens (sorted, comma separated):
-	// a token that was not there before makes the alert worse.
+	// a token that was not there before makes the alert worse. Tokens mark
+	// problems that can only be added (a failing attribute, a failed
+	// member, "at least 2 disks missing", an image digest), never states
+	// that replace each other: an improvement must not add a token.
 	Fingerprint string
+	// Escalation counts how often the alert got worse (a higher severity
+	// or a new token); it keys dismissals kept by a browser.
+	Escalation int
 	// StartedAt is when it started firing; UpdatedAt its last change;
 	// LastSeenAt when the problem was last observed (disks, arrays and
 	// environments: the last evaluation; jobs: the last failed run).
@@ -198,6 +204,15 @@ type AlertDelivery struct {
 	ChannelID string
 	// Event is AlertEventFiring, AlertEventWorse or AlertEventResolved.
 	Event string
+	// Kind, EnvironmentID, Severity, Title, Body and Link are the alert as
+	// it was when the message was written: a delayed or retried message
+	// says what happened then, not what the alert says later.
+	Kind          NotificationEventKind
+	EnvironmentID string
+	Severity      AlertSeverity
+	Title         string
+	Body          string
+	Link          string
 	// State is pending, sent, failed (gave up) or dropped (the channel was
 	// deleted, turned off or no longer subscribed).
 	State         string

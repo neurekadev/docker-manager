@@ -2,6 +2,7 @@ package alerts
 
 import (
 	"testing"
+	"time"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
 )
@@ -53,28 +54,33 @@ func TestDetailInWords(t *testing.T) {
 	}
 }
 
+// snap is the delivery of a with a snapshot taken now.
+func snap(a domain.Alert, event string) domain.AlertDelivery {
+	return newDelivery(a, "c", event, time.Time{}, time.Time{})
+}
+
 func TestMessagesAndDigests(t *testing.T) {
 	disk := domain.Alert{Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, EnvironmentID: "env-1",
 		Title: "Disk /dev/sda on homelab is failing", Facts: map[string]string{"state": "failing", "selfAssessment": "failed"}}
 	offline := domain.Alert{Kind: domain.NotifyEnvironmentOffline, Severity: domain.AlertCritical, EnvironmentID: "env-2",
 		Title: "office is offline"}
-	one := buildMessage("Home", "https://docker.example.com/", []item{{alert: disk, event: domain.AlertEventFiring}})
+	one := buildMessage("Home", "https://docker.example.com/", []domain.AlertDelivery{snap(disk, domain.AlertEventFiring)})
 	if one.Title != "[Home] Disk /dev/sda on homelab is failing" || one.Body != "SMART self-assessment failed." ||
 		one.URL != "https://docker.example.com/environments/env-1?tab=system" {
 		t.Fatalf("%+v", one)
 	}
-	res := buildMessage("Home", "https://docker.example.com", []item{{alert: offline, event: domain.AlertEventResolved}})
+	res := buildMessage("Home", "https://docker.example.com", []domain.AlertDelivery{snap(offline, domain.AlertEventResolved)})
 	if res.Title != "[Home] Resolved: office is offline" || res.Body != "The problem is gone." {
 		t.Fatalf("%+v", res)
 	}
-	digest := buildMessage("Home", "https://docker.example.com", []item{{alert: disk, event: domain.AlertEventFiring},
-		{alert: offline, event: domain.AlertEventResolved}})
+	digest := buildMessage("Home", "https://docker.example.com", []domain.AlertDelivery{snap(disk, domain.AlertEventFiring),
+		snap(offline, domain.AlertEventResolved)})
 	if digest.Title != "[Home] 1 alert, 1 resolved" || digest.Body != "• Critical: Disk /dev/sda on homelab is failing\n• Resolved: office is offline" ||
 		digest.URL != "https://docker.example.com/alerts" {
 		t.Fatalf("%+v", digest)
 	}
 	// Without a public URL, messages carry no link.
-	if m := buildMessage("", "", []item{{alert: disk, event: domain.AlertEventWorse}}); m.URL != "" || m.Title != disk.Title {
+	if m := buildMessage("", "", []domain.AlertDelivery{snap(disk, domain.AlertEventWorse)}); m.URL != "" || m.Title != disk.Title {
 		t.Fatalf("%+v", m)
 	}
 }

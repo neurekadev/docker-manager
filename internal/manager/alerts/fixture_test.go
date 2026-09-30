@@ -254,6 +254,8 @@ func (f *fixture) finish(j domain.Job) {
 	for _, fn := range f.hooks.change {
 		fn([]string{j.ID})
 	}
+	// The announcer's work (runAnnounce), done here at once.
+	f.svc.announceReady(f.ctx)
 }
 
 func i64(v int64) *int64 { return &v }

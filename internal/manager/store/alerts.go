@@ -33,6 +33,7 @@ type alertRow struct {
 	Title           string     `bun:"title,notnull"`
 	Facts           string     `bun:"facts,notnull"`
 	Fingerprint     string     `bun:"fingerprint,notnull"`
+	Escalation      int        `bun:"escalation,notnull"`
 	StartedAt       time.Time  `bun:"started_at,notnull"`
 	UpdatedAt       time.Time  `bun:"updated_at,notnull"`
 	LastSeenAt      time.Time  `bun:"last_seen_at,notnull"`
@@ -70,7 +71,7 @@ func fromAlert(a *domain.Alert) (alertRow, error) {
 	return alertRow{
 		ID: a.ID, DedupeKey: a.DedupeKey, Kind: string(a.Kind), Severity: string(a.Severity), State: string(a.State),
 		EnvironmentID: a.EnvironmentID, ResourceType: a.ResourceType, ResourceID: a.ResourceID, JobKind: string(a.JobKind),
-		Targets: string(tb), Title: a.Title, Facts: string(fb), Fingerprint: a.Fingerprint, StartedAt: a.StartedAt.UTC(),
+		Targets: string(tb), Title: a.Title, Facts: string(fb), Fingerprint: a.Fingerprint, Escalation: a.Escalation, StartedAt: a.StartedAt.UTC(),
 		UpdatedAt: a.UpdatedAt.UTC(), LastSeenAt: a.LastSeenAt.UTC(), ResolvedAt: utcPtr(a.ResolvedAt), Resolution: a.Resolution,
 		DismissedAt: utcPtr(a.DismissedAt), DismissedBy: a.DismissedBy, DismissedByName: a.DismissedByName, Revision: a.Revision,
 	}, nil
@@ -88,7 +89,8 @@ func (r alertRow) toDomain() (domain.Alert, error) {
 	a := domain.Alert{
 		ID: r.ID, DedupeKey: r.DedupeKey, Kind: domain.NotificationEventKind(r.Kind), Severity: domain.AlertSeverity(r.Severity),
 		State: domain.AlertState(r.State), EnvironmentID: r.EnvironmentID, ResourceType: r.ResourceType, ResourceID: r.ResourceID,
-		JobKind: domain.JobKind(r.JobKind), Title: r.Title, Facts: facts, Fingerprint: r.Fingerprint, StartedAt: r.StartedAt.UTC(),
+		JobKind: domain.JobKind(r.JobKind), Title: r.Title, Facts: facts, Fingerprint: r.Fingerprint, Escalation: r.Escalation,
+		StartedAt: r.StartedAt.UTC(),
 		UpdatedAt: r.UpdatedAt.UTC(), LastSeenAt: r.LastSeenAt.UTC(), ResolvedAt: utcPtr(r.ResolvedAt), Resolution: r.Resolution,
 		DismissedAt: utcPtr(r.DismissedAt), DismissedBy: r.DismissedBy, DismissedByName: r.DismissedByName, Revision: r.Revision,
 	}
@@ -262,6 +264,12 @@ type alertDeliveryRow struct {
 	AlertID       string     `bun:"alert_id,notnull"`
 	ChannelID     string     `bun:"channel_id,notnull"`
 	Event         string     `bun:"event,notnull"`
+	Kind          string     `bun:"kind,notnull"`
+	EnvironmentID string     `bun:"environment_id,notnull"`
+	Severity      string     `bun:"severity,notnull"`
+	Title         string     `bun:"title,notnull"`
+	Body          string     `bun:"body,notnull"`
+	Link          string     `bun:"link,notnull"`
 	State         string     `bun:"state,notnull"`
 	Attempts      int        `bun:"attempts,notnull"`
 	NextAttemptAt time.Time  `bun:"next_attempt_at,notnull"`
@@ -273,7 +281,8 @@ type alertDeliveryRow struct {
 
 func fromAlertDelivery(d *domain.AlertDelivery) alertDeliveryRow {
 	return alertDeliveryRow{
-		ID: d.ID, AlertID: d.AlertID, ChannelID: d.ChannelID, Event: d.Event, State: d.State, Attempts: d.Attempts,
+		ID: d.ID, AlertID: d.AlertID, ChannelID: d.ChannelID, Event: d.Event, Kind: string(d.Kind), EnvironmentID: d.EnvironmentID,
+		Severity: string(d.Severity), Title: d.Title, Body: d.Body, Link: d.Link, State: d.State, Attempts: d.Attempts,
 		NextAttemptAt: d.NextAttemptAt.UTC(), LastError: d.LastError, CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(),
 		SentAt: utcPtr(d.SentAt),
 	}
@@ -281,7 +290,9 @@ func fromAlertDelivery(d *domain.AlertDelivery) alertDeliveryRow {
 
 func (r alertDeliveryRow) toDomain() domain.AlertDelivery {
 	return domain.AlertDelivery{
-		ID: r.ID, AlertID: r.AlertID, ChannelID: r.ChannelID, Event: r.Event, State: r.State, Attempts: r.Attempts,
+		ID: r.ID, AlertID: r.AlertID, ChannelID: r.ChannelID, Event: r.Event, Kind: domain.NotificationEventKind(r.Kind),
+		EnvironmentID: r.EnvironmentID, Severity: domain.AlertSeverity(r.Severity), Title: r.Title, Body: r.Body, Link: r.Link,
+		State: r.State, Attempts: r.Attempts,
 		NextAttemptAt: r.NextAttemptAt.UTC(), LastError: r.LastError, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 		SentAt: utcPtr(r.SentAt),
 	}
@@ -316,6 +327,80 @@ func PendingAlertDeliveries(ctx context.Context, db bun.IDB) ([]domain.AlertDeli
 		out = append(out, r.toDomain())
 	}
 	return out, nil
+}
+
+func deliveriesOf(rows []alertDeliveryRow) []domain.AlertDelivery {
+	out := make([]domain.AlertDelivery, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.toDomain())
+	}
+	return out
+}
+
+// DueAlertChannels returns the channels with a pending delivery due at
+// now (the index alert_deliveries_due). A channel's pending deliveries are
+// never due before its oldest one, so its oldest is due too.
+func DueAlertChannels(ctx context.Context, db bun.IDB, now time.Time) ([]string, error) {
+	var ids []string
+	if err := db.NewSelect().Model((*alertDeliveryRow)(nil)).Distinct().Column("channel_id").
+		Where("state = ?", domain.DeliveryPending).Where("next_attempt_at <= ?", now.UTC()).Scan(ctx, &ids); err != nil {
+		return nil, fmt.Errorf("store: list due alert channels: %w", err)
+	}
+	return ids, nil
+}
+
+// NextAlertDelivery returns when the next pending delivery is due after
+// now (found false when none is waiting).
+func NextAlertDelivery(ctx context.Context, db bun.IDB, now time.Time) (time.Time, bool, error) {
+	var row alertDeliveryRow
+	err := db.NewSelect().Model(&row).Column("next_attempt_at").Where("state = ?", domain.DeliveryPending).
+		Where("next_attempt_at > ?", now.UTC()).Order("next_attempt_at ASC").Limit(1).Scan(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("store: next alert delivery: %w", err)
+	}
+	return row.NextAttemptAt.UTC(), true, nil
+}
+
+// ChannelAlertDeliveries returns a channel's oldest pending deliveries,
+// at most limit, in creation order.
+func ChannelAlertDeliveries(ctx context.Context, db bun.IDB, channelID string, limit int) ([]domain.AlertDelivery, error) {
+	var rows []alertDeliveryRow
+	if err := db.NewSelect().Model(&rows).Where("channel_id = ?", channelID).Where("state = ?", domain.DeliveryPending).
+		Order("created_at ASC", "id ASC").Limit(limit).Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: list a channel's pending alert deliveries: %w", err)
+	}
+	return deliveriesOf(rows), nil
+}
+
+// LatestAlertAttempt returns the latest next attempt of a channel's
+// pending deliveries (found false when none is pending): a new delivery is
+// not due before it, which keeps the channel's order.
+func LatestAlertAttempt(ctx context.Context, db bun.IDB, channelID string) (time.Time, bool, error) {
+	var row alertDeliveryRow
+	err := db.NewSelect().Model(&row).Column("next_attempt_at").Where("channel_id = ?", channelID).
+		Where("state = ?", domain.DeliveryPending).Order("next_attempt_at DESC").Limit(1).Scan(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("store: latest alert attempt: %w", err)
+	}
+	return row.NextAttemptAt.UTC(), true, nil
+}
+
+// DeferChannelAlertDeliveries moves every pending delivery of a channel
+// due before until to until (a failed send: the whole channel waits, in
+// order).
+func DeferChannelAlertDeliveries(ctx context.Context, db bun.IDB, channelID string, until, now time.Time) error {
+	if _, err := db.NewUpdate().Model((*alertDeliveryRow)(nil)).Set("next_attempt_at = ?", until.UTC()).Set("updated_at = ?", now.UTC()).
+		Where("channel_id = ?", channelID).Where("state = ?", domain.DeliveryPending).Where("next_attempt_at < ?", until.UTC()).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("store: defer alert deliveries: %w", err)
+	}
+	return nil
 }
 
 // AlertDeliveries returns the deliveries of an alert in creation order.

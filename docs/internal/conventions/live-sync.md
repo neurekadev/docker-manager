@@ -44,7 +44,7 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   POST).
 - **Alerts** (#159) are published as `alert.updated` (carrying the alert:
   `authz.AlertVisible` decides who receives it) after the change is
-  committed (job hooks through `OnChange`); topic `alerts`, kind `alert`.
+  committed (job hooks: read back after `OnChange`); topic `alerts`, kind `alert`.
   The audited dismissal's own `resource.changed` (type `alert`) reaches
   nobody. The web keys every alerts query with `liveKeys.alerts(...)`
   (`['alerts', 'list', …]`), so the bell, the Alerts page, the dashboard

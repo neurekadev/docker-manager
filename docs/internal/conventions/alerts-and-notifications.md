@@ -82,9 +82,14 @@ bell (`$lib/shell/notices.svelte.ts`).
   resolution `resolved` for channels with `sendResolved`; everything else
   (progress, counters, a new job of the same key) updates quietly. Put
   what gets worse in the fingerprint (tokens), what only describes it in
-  the facts.
+  the facts. Tokens mark problems that are only ever added (per member,
+  per attribute, `missing_at_least_<k>` ladders), never states that
+  replace each other: an improvement must never add a token. Getting
+  worse counts up the alert's `escalation`.
 - **The outbox is the only way out.** Raise/resolve and their
-  `alert_deliveries` rows share one transaction; only the dispatcher
+  `alert_deliveries` rows share one transaction; each row keeps a
+  snapshot of what its message says (`newDelivery`), and messages are
+  built only from snapshots, never from the alert's current row; only the dispatcher
   calls `notify.Service.Send`, in order per channel, with backoff (30 s
   to 1 h, given up after 24 h), coalescing bursts into one digest.
   Delivery is at least once. Channels are chosen with
@@ -97,8 +102,9 @@ bell (`$lib/shell/notices.svelte.ts`).
   and logs.
 - **Hooks never fail the job.** Job finish hooks (`job_failed` on every
   kind, `updates_available` on `update.check`) write in a savepoint of
-  the job's transaction, log their own failures and publish only after
-  the commit (`OnChange`).
+  the job's transaction, log their own failures and are announced only as
+  the database has them once committed (`OnChange`, read back by the
+  announcer; never a rolled back alert).
 - **Startup and moves.** Offline grace runs from
   `max(connection_changed_at, service start)` (no alert storm after a
   restart); the reconcile and dispatch loops do nothing while the move

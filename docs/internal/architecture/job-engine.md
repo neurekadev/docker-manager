@@ -448,7 +448,8 @@ Alerts (#159, [alerts](alerts.md)) register a hook on **every** kind
 (`jobspec.Kinds()`: failed scheduled and API token jobs raise, a
 succeeded job resolves its key) and one on `update.check`; they write in
 a savepoint of the job's transaction and never fail the job, and announce
-their changes from `OnChange` after the commit.
+their changes, read back from the database, once `OnChange` reports the
+commit.
 
 Manager-local kinds register the same structure with
 `engine.RegisterManagerExecutor` before `Recover`. Steps must honor `ctx`;

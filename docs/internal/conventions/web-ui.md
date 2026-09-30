@@ -234,7 +234,8 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   "Dismiss all" dismiss an alert for everyone when its `actions` hold
   `alert.dismiss`, else for this browser only; job notices are dismissed
   for this browser. Browser-local dismissals are keys only
-  (`job:<id>`, `alert:<id>:<severity>`, so a worse alert shows again) in
+  (`job:<id>`, `alert:<id>:<escalation>`, so an alert that gets worse, at
+  any severity, shows again) in
   `localStorage` `docker-manager:dismissed-notices` (at most 200; UI
   state, never API data). Offline environments and available updates are
   alerts now: never compute them in the browser again. Policies are named

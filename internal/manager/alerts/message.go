@@ -164,22 +164,18 @@ var severityWords = map[domain.AlertSeverity]string{
 	domain.AlertCritical: "Critical", domain.AlertWarning: "Warning", domain.AlertInfo: "Info",
 }
 
-// item is one alert of a message: the alert and what happened to it.
-type item struct {
-	alert domain.Alert
-	event string
-}
-
-func (it item) line() string {
-	if it.event == domain.AlertEventResolved {
-		return "Resolved: " + it.alert.Title
+// line is a delivery's line in a digest.
+func line(d domain.AlertDelivery) string {
+	if d.Event == domain.AlertEventResolved {
+		return "Resolved: " + d.Title
 	}
-	return severityWords[it.alert.Severity] + ": " + it.alert.Title
+	return severityWords[d.Severity] + ": " + d.Title
 }
 
-// buildMessage builds the message of one or more alerts of a channel (a
-// burst becomes one digest linking to the Alerts page).
-func buildMessage(instance, publicURL string, items []item) domain.NotificationMessage {
+// buildMessage builds the message of one or more deliveries of a channel
+// from their snapshots (a burst becomes one digest linking to the Alerts
+// page).
+func buildMessage(instance, publicURL string, items []domain.AlertDelivery) domain.NotificationMessage {
 	prefix := ""
 	if instance != "" {
 		prefix = "[" + instance + "] "
@@ -187,21 +183,20 @@ func buildMessage(instance, publicURL string, items []item) domain.NotificationM
 	base := strings.TrimRight(publicURL, "/")
 	if len(items) == 1 {
 		it := items[0]
-		title := it.alert.Title
-		body := Detail(it.alert)
-		if it.event == domain.AlertEventResolved {
+		title, body := it.Title, it.Body
+		if it.Event == domain.AlertEventResolved {
 			title = "Resolved: " + title
 			body = "The problem is gone."
 		}
 		msg := domain.NotificationMessage{Title: prefix + title, Body: body}
-		if base != "" {
-			msg.URL = base + Link(it.alert)
+		if base != "" && it.Link != "" {
+			msg.URL = base + it.Link
 		}
 		return msg
 	}
 	fired, resolved := 0, 0
 	for _, it := range items {
-		if it.event == domain.AlertEventResolved {
+		if it.Event == domain.AlertEventResolved {
 			resolved++
 		} else {
 			fired++
@@ -220,7 +215,7 @@ func buildMessage(instance, publicURL string, items []item) domain.NotificationM
 			lines = append(lines, fmt.Sprintf("…and %d more.", len(items)-i))
 			break
 		}
-		lines = append(lines, "• "+it.line())
+		lines = append(lines, "• "+line(it))
 	}
 	msg := domain.NotificationMessage{Title: prefix + strings.Join(what, ", "), Body: strings.Join(lines, "\n")}
 	if base != "" {

@@ -5813,6 +5813,12 @@ export interface components {
             dismissedBy?: components["schemas"]["AlertUser"];
             /** @description The environment the problem is in (absent for manager jobs). */
             environmentId?: string;
+            /**
+             * Format: int64
+             * @description How often the alert got worse (a higher severity or a new problem): it changes exactly when a dismissed alert opens again, so a dismissal kept by a client is keyed by it. Other changes (progress, counters) leave it.
+             * @example 1
+             */
+            escalation: number;
             /** @description Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target; updates: count, services, target; offline: since). */
             facts: {
                 [key: string]: string;
@@ -14234,6 +14240,7 @@ export interface operations {
                      *             "name": "Alex"
                      *           },
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "escalation": 1,
                      *           "facts": {},
                      *           "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *           "kind": "disk_health",
@@ -14401,6 +14408,7 @@ export interface operations {
                      *         "name": "Alex"
                      *       },
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "escalation": 1,
                      *       "facts": {},
                      *       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *       "kind": "disk_health",
@@ -14498,6 +14506,7 @@ export interface operations {
                      *         "name": "Alex"
                      *       },
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "escalation": 1,
                      *       "facts": {},
                      *       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *       "kind": "disk_health",

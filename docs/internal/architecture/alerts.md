@@ -25,15 +25,24 @@ Migration `20260930120000_create_alerts`:
   `state` (`firing`, `resolved`), `environment_id`, `resource_type` and
   `resource_id` (what it is about), `job_kind` and `targets` (JSON: who
   may see a job or update alert), `title`, `facts` (JSON object of small,
-  non-secret values), `fingerprint` (sorted problem tokens), `started_at`,
+  non-secret values), `fingerprint` (sorted problem tokens), `escalation`
+  (how often it got worse; the API returns it and a browser keys its local
+  dismissal by it), `started_at`,
   `updated_at`, `last_seen_at`, `resolved_at` and `resolution`
   (`resolved`, `removed`, `expired`, `archived`), `dismissed_at`,
   `dismissed_by`, `dismissed_by_name`, `revision`. Resolved rows are
   purged after 90 days.
 - `alert_deliveries` (the outbox): one message of an alert to one channel
-  (`event` `firing`, `worse` or `resolved`), `state` `pending`, `sent`,
-  `failed` (given up) or `dropped`, `attempts`, `next_attempt_at`,
-  `last_error` (a send error class). Finished rows are purged after 7 days.
+  (`event` `firing`, `worse` or `resolved`) with a **snapshot** of what it
+  says, taken when it is written (`kind`, `environment_id`, `severity`,
+  `title`, `body` = `Detail`, `link`): a delayed or retried message
+  describes the alert as it was then, never a later state or another job.
+  `state` `pending`, `sent`, `failed` (given up) or `dropped`, `attempts`,
+  `next_attempt_at`, `last_error` (a send error class). Finished rows are
+  purged after 7 days. Invariant: a channel's pending rows are never due
+  before its oldest one (a new row is due no earlier than the channel's
+  latest pending row, a failed send defers them all), so the partial index
+  `alert_deliveries_due` finds the due channels.
 
 Dedupe keys: `disk_health/<env>/<path>/<smartctl type>`,
 `raid/<env>/md|zfs/<name>`, `environment_offline/<env>`,
@@ -49,9 +58,14 @@ transaction:
 - no firing alert of the key: a new alert fires and a `firing` message is
   written to the outbox for every channel that `Wants(kind, environment)`;
 - a firing one got **worse**: a higher severity, or a fingerprint token it
-  did not have (a new failing attribute, a new failed md member, a new
-  image digest). It is updated, a dismissal is cleared (it opens again for
-  everyone) and a `worse` message is written;
+  did not have (a new failing attribute, a new failed md member, one more
+  missing disk, a new image digest). It is updated, its `escalation` counts
+  up, a dismissal is cleared (it opens again for everyone) and a `worse`
+  message is written. Tokens only ever mark problems that are added
+  (`missing_at_least_<k>` for every k up to the count, one token per
+  failing attribute), never states that replace each other: an improvement
+  (a disk back, an attribute failing only in the past, a pool less broken,
+  a partly failed job after a failed one) must not add a token;
 - anything else users see changed (title, facts such as rebuild progress
   or more sectors, a new failed job of the same key): updated quietly;
 - nothing changed: only `last_seen_at` is stamped (no revision).
@@ -76,14 +90,16 @@ reported. Every visible change bumps the revision and is published as
 
 - **Disks** are identified by path and smartctl type (disks behind one
   controller share a path). Tokens: `self_assessment_failed`,
-  `critical_warning`, `attribute_<id>_<now|past>`, `reallocated`,
+  `critical_warning`, `attribute_<id>`, `reallocated`,
   `pending`, `uncorrectable`, `media_errors`, `grown_defects`, `worn`,
   `spare_low`, `unreadable`: counts live in the facts, so more of the same
   is not sent again. Serial numbers never reach an alert. While SMART is
   not readable (turned off, no access) nothing is resolved as fixed; the
   24-hour removal applies.
-- **RAID** tokens are the failed members and the number of missing
-  disks; the rebuild's action and progress are facts (the title follows:
+- **RAID** tokens are the failed members and `missing_at_least_<k>` for
+  every k up to the number of missing disks (fewer missing disks never add
+  one); a ZFS pool's token is constant (the severity says whether it got
+  worse); the rebuild's action and progress are facts (the title follows:
   "is rebuilding"), so a rebuild never sends anything.
 - **Offline:** the grace (`DOCKER_MANAGER_ALERT_OFFLINE_GRACE`, 5m,
   1m–24h) runs from `max(connection_changed_at, service start)`: at start
@@ -97,17 +113,20 @@ reported. Every visible change bumps the revision and is published as
   or recovery text; facts carry the job ID, kind, state, origin, error
   class and policy. The hook writes in a savepoint of the job's
   transaction: a failure rolls back the alert only (logged), never the
-  job's outcome. Alerts changed there are published from `OnChange` once
-  the job's change is committed (held changes are flushed by the next
-  reconcile).
+  job's outcome. Alerts changed there are held by job and announced only
+  as the database has them: after `OnChange` reports the job's committed
+  change (a separate announcer goroutine reads them back; the engine's
+  goroutine never touches the database), or after a reconcile round for
+  ones never reported. An alert missing or at an older revision (its
+  transaction rolled back) is never announced.
 - **Updates:** the fingerprint is `service@digest` of every candidate with
   an update available (the UI's `summary.available`), so the alert is sent
   again only when a new digest appears.
 
 ## Loops
 
-`Service.Run` (started with the other background loops) runs two
-goroutines:
+`Service.Run` (started with the other background loops) runs three
+goroutines (the third announces alerts of committed job changes):
 
 - **Reconcile:** subscribes to connection changes, archives and health
   reports (a health report evaluates only its environment), ticks every
@@ -117,13 +136,15 @@ goroutines:
   alerts and purges history. A dropped bus event is repaired by the next
   tick.
 - **Dispatch:** sends the outbox through `notify.Service.Send`. A new
-  message waits `DeliveryDelay` (10 s) so bursts coalesce. A channel is due
-  when its oldest pending message is; then everything pending for it goes
-  out as one message (one alert) or one digest ("[Name] 3 alerts, 1
-  resolved", at most 20 lines, linking to the Alerts page). Channels are
-  sent to in parallel (4 at once), each in order. A failure retries the
-  channel's batch after 30 s, doubling up to 1 h, and gives a message up
-  24 h after it was written (`failed`). Messages of a deleted or disabled
+  message waits `DeliveryDelay` (10 s) so bursts coalesce. It reads only
+  the due channels (by due time, indexed) and at most `DispatchBatch`
+  (100) of each channel's oldest messages, which go out as one message
+  (one alert) or one digest ("[Name] 3 alerts, 1 resolved", at most 20
+  lines, linking to the Alerts page) built from their snapshots; what is
+  left is sent right after. Channels are sent to in parallel (4 at once),
+  each in order. A failure defers every pending message of the channel
+  by 30 s, doubling up to 1 h, and gives a message up 24 h after it was
+  written (`failed`). Messages of a deleted or disabled
   channel, or of a kind or environment the channel no longer wants, are
   `dropped`. Delivery is **at least once**: a send that succeeded but
   could not be recorded is sent again.
@@ -170,7 +191,9 @@ gets worse.
 | `create-alert-dismissal` | `POST /alerts/{alertId}/dismissals` | `alert.dismiss`; 409 `alert_not_firing` |
 | `create-alert-dismissals` | `POST /alerts/dismissals` | "Dismiss all": the listed (or every active) alerts the caller may dismiss, at most 500 |
 
-The DTO carries `detail` (the message body), `facts`, `link` and
+The DTO carries `detail` (the message body), `facts`, `link`,
+`escalation` (changes exactly when a dismissed alert would open again; the
+bell keys a browser-local dismissal by it, never by the fingerprint) and
 `actions` (`alert.dismiss` while it fires and the caller may dismiss it).
 Changes reach the live stream as `invalidate` topic `alerts`, kind `alert`.
 
@@ -182,6 +205,7 @@ Changes reach the live stream as `invalidate` topic `alerts`, kind `alert`.
 | offline grace, startup, move lock, archive, reconcile loop | `internal/manager/alerts/offline_test.go` |
 | failed jobs (origin, keys, resolution, expiry), updates (new digests) | `internal/manager/alerts/jobs_test.go` |
 | channel filters, backoff, give-up, order, move lock, dropped, digests, canaries | `internal/manager/alerts/dispatch_test.go` |
+| snapshots, bounded batches, improvements not worse, rolled back hooks never announced, escalation | `internal/manager/alerts/review_test.go` |
 | dismissal, re-open on worse | `internal/manager/alerts/dismiss_test.go` |
 | unique firing key, filters, retention | `internal/manager/store/alerts_test.go` |
 | visibility per kind, the event rule | `internal/manager/authz/alerts_test.go` |
