@@ -38,6 +38,9 @@ func TestDetailInWords(t *testing.T) {
 			"The disk can't be read: it could not be opened."},
 		{domain.Alert{Kind: domain.NotifyRAID, Facts: map[string]string{"arrayKind": "md", "level": "raid5", "devices": "3", "active": "2",
 			"failedMembers": "sdc1"}}, "raid5: 2 of 3 disks working. Failed: sdc1."},
+		// Unknown facts are left out, never shown empty.
+		{domain.Alert{Kind: domain.NotifyRAID, Facts: map[string]string{"arrayKind": "md", "level": "raid5", "progress": "37.52",
+			"action": "recovery"}}, "raid5: Rebuild: 37.52% done."},
 		{domain.Alert{Kind: domain.NotifyEnvironmentOffline, Facts: map[string]string{"since": "2026-09-30T08:05:00Z"}},
 			"Not connected since Sep 30, 2026, 08:05 UTC. Actions on it wait until it reconnects."},
 		{domain.Alert{Kind: domain.NotifyJobFailed, Facts: map[string]string{"origin": "scheduled"}},

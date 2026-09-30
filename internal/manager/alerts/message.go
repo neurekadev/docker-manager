@@ -116,9 +116,10 @@ func Detail(a domain.Alert) string {
 		if f["level"] != "" {
 			b.WriteString(f["level"] + ": ")
 		}
-		if f["devices"] != "" {
+		switch {
+		case f["devices"] != "":
 			b.WriteString(fmt.Sprintf("%s of %s disks working.", f["active"], f["devices"]))
-		} else {
+		case f["state"] != "":
 			b.WriteString("state " + f["state"] + ".")
 		}
 		if f["failedMembers"] != "" {
@@ -138,7 +139,7 @@ func Detail(a domain.Alert) string {
 			}
 			b.WriteString(" " + action + ": " + f["progress"] + "% done.")
 		}
-		return b.String()
+		return strings.Join(strings.Fields(b.String()), " ")
 	case domain.NotifyEnvironmentOffline:
 		if t, err := time.Parse(time.RFC3339, f["since"]); err == nil {
 			return "Not connected since " + t.UTC().Format("Jan 2, 2006, 15:04") + " UTC. Actions on it wait until it reconnects."

@@ -45,6 +45,7 @@
 		resolutionHint,
 		resolutionLabel,
 		severityRank,
+		sortAlerts,
 		type Alert
 	} from './model';
 	import { alertsQuery } from './queries';
@@ -76,12 +77,15 @@
 	const view = $derived(query.state ?? 'active');
 	const alerts = createQuery(() => alertsQuery(query));
 	const all = $derived(alerts.data ?? []);
+	// Worst first, then the newest (like the bell); a column header re-sorts.
 	const rows = $derived(
-		applyListFilters(
-			all,
-			defs,
-			filters.state,
-			alertSearch((id) => names.get(id))
+		sortAlerts(
+			applyListFilters(
+				all,
+				defs,
+				filters.state,
+				alertSearch((id) => names.get(id))
+			)
 		)
 	);
 	// Nothing matches the search, kind or environment (the state has its own
