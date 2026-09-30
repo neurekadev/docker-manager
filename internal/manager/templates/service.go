@@ -24,17 +24,17 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/fsroot"
-	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/fsroot"
+	"github.com/neurekadev/docker-manager/internal/ids"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/manager/secrets"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // Defaults.

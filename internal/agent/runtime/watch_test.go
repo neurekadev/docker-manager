@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/watch"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/storage"
+	"github.com/neurekadev/docker-manager/internal/agent/watch"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestFileWatcherWiring (#23): with Files the agent serves files.watch and

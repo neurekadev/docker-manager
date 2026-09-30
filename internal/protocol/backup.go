@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"github.com/neurekadev/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
 // Backups (#10): wire types of the backup.* job commands, the

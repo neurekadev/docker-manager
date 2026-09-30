@@ -6,9 +6,9 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
+	"github.com/neurekadev/docker-manager/internal/manager/movelock"
 )
 
 // TestMovedManagerRefusesAgents (manager move): the welcome carries the

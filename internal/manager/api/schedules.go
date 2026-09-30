@@ -8,11 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/cron"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"github.com/neurekadev/docker-manager/internal/cron"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
 )
 
 // The shared cron scheduler (#13): editable schedule defaults, previews

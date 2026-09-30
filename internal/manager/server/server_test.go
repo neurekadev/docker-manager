@@ -13,8 +13,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 const bootScript = `

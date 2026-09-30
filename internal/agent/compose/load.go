@@ -17,9 +17,9 @@ import (
 	"github.com/docker/compose/v5/pkg/api"
 	"go.yaml.in/yaml/v4"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // DefaultConfigFiles are the file names searched in the project directory,

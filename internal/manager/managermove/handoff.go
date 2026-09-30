@@ -14,13 +14,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
+	"github.com/neurekadev/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/manager/requestinfo"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/manager/templates"
 )
 
 // Package is a built handoff package: the parts in its directory, their

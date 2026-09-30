@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"github.com/neurekadev/docker-manager/internal/envconfig"
 )
 
 func TestLoadDefaults(t *testing.T) {

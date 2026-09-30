@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // Limiter caps a transfer's rate (DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT) with a

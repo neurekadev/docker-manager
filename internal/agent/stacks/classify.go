@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/regauth"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/agent/regauth"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
 )
 
 // stepError is a classified stack job failure (jobexec.ClassedError): the

@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // isolateHome points every Docker/BuildKit config location at empty

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
+	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
 
 // sessionStay is the part of GET /auth/session these tests read.

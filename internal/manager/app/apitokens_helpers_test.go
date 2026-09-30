@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
 
 // API token (#31) test helpers: tokens are created through the real API

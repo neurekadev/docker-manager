@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/cron"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/cron"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // A due schedule enqueues its job as the manager service identity with

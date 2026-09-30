@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/logging"
 )
 
 // Domain-neutral types of the adapter. They carry no SDK types, so code

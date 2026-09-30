@@ -6,7 +6,8 @@ merged). For each item: what was read, the tests that hold it in place,
 the finding, and what remains.
 
 > **Update 2026-09-25.** After this review the code moved to Forgejo
-> (`https://code.neureka.dev/docker-manager/docker-manager`) and the owner reduced the
+> (back on GitHub, `https://github.com/neurekadev/docker-manager`, since
+> 2026-09-30) and the owner reduced the
 > automated checks to format/lint, isolated unit tests and a test-free
 > build. The release verification map, the Playwright browser and proxy
 > specs, the deploy smoke test, the Docker-backed suites (Engine matrix,

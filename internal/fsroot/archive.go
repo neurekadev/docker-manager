@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Archive formats detected by content.

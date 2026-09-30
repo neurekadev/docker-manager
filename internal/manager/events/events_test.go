@@ -3,7 +3,7 @@ package events
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 func TestBusOrderSeqAndBoundedDelivery(t *testing.T) {

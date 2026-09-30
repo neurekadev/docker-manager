@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // Registry connection persistence (#19). The sealed secret never leaves

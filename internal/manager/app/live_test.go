@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // openLive opens GET /api/v1/live/stream as c and returns its lines.

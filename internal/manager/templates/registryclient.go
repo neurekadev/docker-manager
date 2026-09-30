@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // The client of other instances' public registries (template registry).

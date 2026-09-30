@@ -12,9 +12,9 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestEndSessionWithOutputAndTarget (#35, manager moves): a handler that

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/envconfig"
 )
 
 func load(t *testing.T, vars map[string]string) (Config, error) {

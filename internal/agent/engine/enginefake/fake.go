@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 // Engine is the fake. The zero value is not usable; call New.

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // deployExec sets output in its first step and fails in failStep.

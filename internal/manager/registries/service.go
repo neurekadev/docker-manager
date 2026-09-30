@@ -22,18 +22,18 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
-	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/ids"
+	"github.com/neurekadev/docker-manager/internal/imageref"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/regclient"
+	"github.com/neurekadev/docker-manager/internal/manager/secrets"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Audit actions recorded outside HTTP requests.

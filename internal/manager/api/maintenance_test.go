@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/authztest"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // fakeMaintenance holds two policies: pol-a in env-1 and pol-b in env-2

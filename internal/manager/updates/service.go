@@ -31,19 +31,19 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/ids"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/manager/permissions"
+	"github.com/neurekadev/docker-manager/internal/manager/registries"
+	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Jobs is the job engine as the update service uses it (*jobs.Engine).

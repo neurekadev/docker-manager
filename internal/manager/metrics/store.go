@@ -32,10 +32,10 @@ import (
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	"github.com/uptrace/bun/driver/sqliteshim"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/db/metricsmigrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/db/metricsmigrations"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // FileName is the metrics database file inside the data directory.

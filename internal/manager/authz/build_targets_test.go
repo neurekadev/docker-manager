@@ -3,7 +3,7 @@ package authz
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // TestBuildDefinitionCoversItsImages: a build definition run (#33) is

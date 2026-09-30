@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 )
 
 // Checker answers many capability checks for one principal, typically one

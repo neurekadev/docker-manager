@@ -17,8 +17,8 @@ import (
 	"strings"
 	"unicode"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/envconfig"
+	"github.com/neurekadev/docker-manager/internal/logging"
 )
 
 // Environment variable names.

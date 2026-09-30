@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/auth"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/manager/server/sse"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
 
 // streamServer serves a test SSE route behind the manager's identity

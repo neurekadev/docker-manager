@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // RedirectTimeout bounds one manager.redirect (best effort: the handoff

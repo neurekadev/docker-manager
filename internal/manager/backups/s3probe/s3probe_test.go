@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe/s3probetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
+	"github.com/neurekadev/docker-manager/internal/manager/backups/s3probe"
+	"github.com/neurekadev/docker-manager/internal/manager/backups/s3probe/s3probetest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
 
 func TestProbeCapabilitiesAndObjectLock(t *testing.T) {

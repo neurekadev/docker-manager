@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // sampleTargets returns one target for every target type the spec's lock
@@ -144,7 +144,7 @@ func TestEveryJobKindHasLockDefinition(t *testing.T) {
 
 func TestCompletenessCheckDetectsMissingKind(t *testing.T) {
 	src := []byte(`package feature
-import "code.neureka.dev/docker-manager/docker-manager/internal/domain"
+import "github.com/neurekadev/docker-manager/internal/domain"
 const NewThing domain.JobKind = "thing.frobnicate"
 const Deploy domain.JobKind = "stack.deploy"
 `)

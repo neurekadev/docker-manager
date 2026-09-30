@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Defaults.

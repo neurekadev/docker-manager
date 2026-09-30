@@ -16,13 +16,13 @@ import (
 
 	"github.com/descope/virtualwebauthn"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/manager/agents"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/password"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/totp"
+	"github.com/neurekadev/docker-manager/internal/manager/config"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
 
 // The identity tests run the real manager handler behind a simulated TLS

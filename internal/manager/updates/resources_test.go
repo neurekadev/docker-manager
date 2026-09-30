@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginefake"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // fakeResources is the manager's Docker resource service over the

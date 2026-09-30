@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-const module = "code.neureka.dev/docker-manager/docker-manager"
+const module = "github.com/neurekadev/docker-manager"
 
 // forbiddenCalls are package-level functions that open listening sockets.
 var forbiddenCalls = map[string]map[string]bool{

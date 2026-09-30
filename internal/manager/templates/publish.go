@@ -21,11 +21,11 @@ import (
 	"github.com/uptrace/bun"
 	"go.yaml.in/yaml/v4"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/fsroot"
-	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/fsroot"
+	"github.com/neurekadev/docker-manager/internal/ids"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // A published version is a canonical tar.gz of the draft: entries in

@@ -13,9 +13,9 @@ import (
 	"github.com/uptrace/bun/driver/sqliteshim"
 	"github.com/uptrace/bun/migrate"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/migrationtest"
+	"github.com/neurekadev/docker-manager/internal/db/migrations"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil/migrationtest"
 )
 
 func TestDriverIsPureGo(t *testing.T) {

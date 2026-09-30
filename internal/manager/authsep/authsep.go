@@ -29,7 +29,7 @@ import (
 	"net/http"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Credential prefixes. Never reuse them for other token types.

@@ -15,16 +15,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/agent/migration"
+	"github.com/neurekadev/docker-manager/internal/agent/storage"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Import by copy (#7): stack.import moves a discovered Compose project

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Finding codes (stable; the API returns them in blockers and warnings).

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // DefaultPort is the manager's port on a server when an address names

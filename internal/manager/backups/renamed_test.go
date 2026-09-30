@@ -3,8 +3,8 @@ package backups
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // TestCurrentVolumeFollowsARename (#7): a snapshot taken before the stack

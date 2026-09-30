@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // depends_on conditions.

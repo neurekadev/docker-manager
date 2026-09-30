@@ -12,9 +12,9 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/streammux"
 )
 
 // JobEngine is the job engine as seen by the session hub

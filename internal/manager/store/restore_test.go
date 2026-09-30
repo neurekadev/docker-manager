@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/db/migrations"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestRestoreSnapshotRefusals: unknown names, paths and corrupt snapshots

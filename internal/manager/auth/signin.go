@@ -9,14 +9,14 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/password"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/throttle"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/totp"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/requestinfo"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 func ipKey(ctx context.Context) string { return throttle.IPKey(requestinfo.ClientIP(ctx)) }

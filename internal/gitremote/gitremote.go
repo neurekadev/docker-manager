@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/logging"
 )
 
 // Error classes.

@@ -8,8 +8,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"github.com/neurekadev/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/manager/backups"
 )
 
 // Fresh-manager import (#24): public routes of the protected first-run

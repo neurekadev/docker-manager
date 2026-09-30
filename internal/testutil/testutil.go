@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // Epoch is the default start time for fake clocks in tests.

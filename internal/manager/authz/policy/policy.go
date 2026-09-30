@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 )
 
 // Effect is a rule's effect.

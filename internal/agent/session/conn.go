@@ -13,10 +13,10 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"github.com/neurekadev/docker-manager/internal/agent/state"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/streammux"
 )
 
 // maxConcurrentRequests bounds requests served at once per session.

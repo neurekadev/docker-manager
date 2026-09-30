@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // unsupportedBackoff is how long an agent that does not serve host.metrics

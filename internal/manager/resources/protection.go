@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Self-protection on the manager side (#32). The agent annotates its

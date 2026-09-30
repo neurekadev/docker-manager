@@ -114,7 +114,7 @@ proxy's host and port survive). The landing page (`app/page.tsx`) links to
 the docs at `/overview/` and to the Screenshots page (`app/screenshots`). Docs
 pages live at the site's root, `/<page>/` (route group `app/(docs)`).
 `.github/workflows/Docs.yaml` builds the image and publishes
-`code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
+`ghcr.io/neurekadev/docker-manager-docs:edge` on pushes to
 `main` that change `docs/public/**`.
 
 The published site lives under a path, `https://docs.neureka.dev/docker-manager`:

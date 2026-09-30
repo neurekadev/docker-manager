@@ -25,14 +25,14 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/csrf"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/passkey"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/sessions"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/csrf"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/passkey"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/password"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/sessions"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/throttle"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/totp"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // Throttling defaults for credential checks (failed attempts only).

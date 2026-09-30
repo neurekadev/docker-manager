@@ -3,8 +3,8 @@ package migrationtest
 import (
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // ShopCompose is the definition of the test stack "shop": db with a named

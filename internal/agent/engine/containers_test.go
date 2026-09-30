@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginetest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestInspectContainerRestartPolicy: the inspected restart policy carries

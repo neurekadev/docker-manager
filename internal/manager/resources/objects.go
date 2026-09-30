@@ -5,12 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Images.

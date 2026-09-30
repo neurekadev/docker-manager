@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // Scheduled checks and runs (#13): each policy has a check schedule

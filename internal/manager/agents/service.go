@@ -33,13 +33,13 @@ import (
 	"github.com/coder/websocket"
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/manager/secrets"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // Enrollment lifetimes.
@@ -53,7 +53,7 @@ const (
 )
 
 // DefaultAgentImage is the agent image used in generated install commands.
-const DefaultAgentImage = "code.neureka.dev/docker-manager/docker-agent:edge"
+const DefaultAgentImage = "ghcr.io/neurekadev/docker-agent:edge"
 
 // Options configures a Service.
 type Options struct {

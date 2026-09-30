@@ -2,9 +2,9 @@
 
 A self-hosted web UI and API for Docker hosts: the manager (`cmd/docker-manager`,
 `internal/manager`, `web/`) and the Docker Agent on each host
-(`cmd/docker-agent`, `internal/agent`). Code: https://code.neureka.dev/docker-manager/docker-manager.
-Specs are the GitHub issues of `neurekadev/dockyard`, kept as the written
-record (#1 roadmap, #25 decisions, #4 API catalog).
+(`cmd/docker-agent`, `internal/agent`). Code: https://github.com/neurekadev/docker-manager.
+Specs are its GitHub issues #1–#35, kept as the written record (#1
+roadmap, #25 decisions, #4 API catalog).
 
 ## Read only what you need
 
@@ -33,7 +33,7 @@ detail. User-facing documentation lives in `docs/public/`.
 
 ## Local checks (tests run in CI only)
 
-Forgejo CI is the gate: it runs the full `lint`, `unit-tests` and `build`
+GitHub Actions CI is the gate: it runs the full `lint`, `unit-tests` and `build`
 jobs on every push to `main` and publishes `:edge` only when they pass.
 **Never run tests locally**: no `go test`, vitest (`npm --prefix web run
 test`), `npm --prefix web run check`, `bash scripts/check.sh`,

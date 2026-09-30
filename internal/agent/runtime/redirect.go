@@ -10,10 +10,10 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/transport"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/state"
+	"github.com/neurekadev/docker-manager/internal/agent/transport"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Where the manager address the agent dials comes from (health file

@@ -14,7 +14,7 @@ DIST_DIR="${DIST_DIR:-dist}"
 VERSION="${VERSION:-0.0.0-edge}"
 COMMIT="${COMMIT:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"
 DATE="${DATE:-$(git log -1 --format=%cI 2>/dev/null || echo unknown)}"
-pkg="code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+pkg="github.com/neurekadev/docker-manager/internal/buildinfo"
 ldflags="-s -w -X ${pkg}.Version=${VERSION} -X ${pkg}.Commit=${COMMIT} -X ${pkg}.Date=${DATE}"
 
 if [ -f web/build/app/index.html ]; then

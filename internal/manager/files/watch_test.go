@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/files"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/agents"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/manager/files"
+	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // watchAgents records files.watch requests and answers rescans.

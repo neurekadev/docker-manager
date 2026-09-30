@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 )
 
 var root = filepath.Join("..", "..", "..", "..")

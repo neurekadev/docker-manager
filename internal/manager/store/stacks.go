@@ -11,7 +11,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // Stack and stack revision persistence (#7). internal/manager/stacks owns

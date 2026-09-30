@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration/migrationtest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
+	"github.com/neurekadev/docker-manager/internal/agent/migration"
+	"github.com/neurekadev/docker-manager/internal/agent/migration/migrationtest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/transfer"
 )
 
 var (

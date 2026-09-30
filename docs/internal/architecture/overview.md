@@ -2,7 +2,7 @@
 
 Docker Manager is a centralized manager with a web UI that controls Docker Engines
 on several machines through enrolled agents. The code lives at
-`https://code.neureka.dev/docker-manager/docker-manager`; the roadmap and decisions are
+`https://github.com/neurekadev/docker-manager`; the roadmap and decisions are
 recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
 #25 (decision register).
 
@@ -32,7 +32,7 @@ recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
   directory mounted at its identical host path (#28).
 - **Images** — separate manager and agent images from `deploy/docker/`, each
   with its static binary and a pinned, checksum-verified restic. Published as
-  rolling `code.neureka.dev/docker-manager/docker-{manager,agent}:edge` from `main`.
+  rolling `ghcr.io/neurekadev/docker-{manager,agent}:edge` from `main`.
 
 ## Package boundaries
 

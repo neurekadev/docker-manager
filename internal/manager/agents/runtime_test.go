@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/runtime"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
-	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/config"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginetest"
+	"github.com/neurekadev/docker-manager/internal/agent/runtime"
+	"github.com/neurekadev/docker-manager/internal/agent/state"
+	"github.com/neurekadev/docker-manager/internal/buildinfo"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // runAgentRuntime runs the agent binary's runtime (Engine adapter against a

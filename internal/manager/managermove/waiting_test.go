@@ -18,13 +18,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
-	envmigrations "code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
+	"github.com/neurekadev/docker-manager/internal/manager/backups"
+	envmigrations "github.com/neurekadev/docker-manager/internal/manager/migrations"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // startWaiting starts a new manager in waiting mode against the old

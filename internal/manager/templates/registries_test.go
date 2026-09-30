@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>`

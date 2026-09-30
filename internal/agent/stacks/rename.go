@@ -13,16 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/agent/protect"
+	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/storage"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Rename (#7): stack.rename moves a stack's Compose project to another

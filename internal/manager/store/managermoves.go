@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // Manager moves (docs/internal/architecture/manager-move.md). The move

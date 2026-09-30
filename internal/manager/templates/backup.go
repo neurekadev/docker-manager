@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Drafts in manager-state backups (template registry): published versions

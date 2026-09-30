@@ -3,9 +3,9 @@ package backup
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic/restictest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/restic"
+	"github.com/neurekadev/docker-manager/internal/restic/restictest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 func TestOpenLocationKeepsCompressionOnVersion2(t *testing.T) {

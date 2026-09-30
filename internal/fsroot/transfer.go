@@ -7,7 +7,7 @@ import (
 	"io"
 	"slices"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Download writes one regular file (format raw, optionally a byte range)

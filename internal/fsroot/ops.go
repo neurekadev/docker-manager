@@ -16,7 +16,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // List reads one page of a directory listing.

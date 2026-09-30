@@ -10,8 +10,8 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/manager/store/storetest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 func TestStoreRoundTripAndExpiry(t *testing.T) {

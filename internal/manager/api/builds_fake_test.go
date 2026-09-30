@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
 )
 
 // emptyBuilds is a BuildService without builds or definitions, for route

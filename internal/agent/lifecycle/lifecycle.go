@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // State is the observed state of a service's containers.

@@ -6,13 +6,13 @@ import (
 	"slices"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/selfupdate"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/agent/selfupdate"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // fakeSelf is the agent's own service in the project "docker-manager".
@@ -29,9 +29,9 @@ func (f *fakeSelf) Schedule(p selfupdate.Plan) { f.plans = append(f.plans, p) }
 
 const ownYAML = `services:
   docker-manager:
-    image: code.neureka.dev/docker-manager/docker-manager:edge
+    image: ghcr.io/neurekadev/docker-manager:edge
   docker-agent:
-    image: code.neureka.dev/docker-manager/docker-agent:edge
+    image: ghcr.io/neurekadev/docker-agent:edge
     depends_on: [docker-manager]
   caddy:
     image: caddy:2
@@ -100,7 +100,7 @@ func TestDeployReportsTheHandedOverAgentsNewImage(t *testing.T) {
 	lbl := func(svc string) map[string]string {
 		return map[string]string{lifecycle.ComposeProjectLabel: "docker-manager", lifecycle.ComposeServiceLabel: svc}
 	}
-	const agentRef = "code.neureka.dev/docker-manager/docker-agent:edge"
+	const agentRef = "ghcr.io/neurekadev/docker-agent:edge"
 	e.eng.containers = []engine.Container{
 		{ID: "mgr", Names: []string{"/docker-manager"}, ImageID: "sha256:mgr", State: "running", Labels: lbl("docker-manager")},
 		{ID: "agent", Names: []string{"/docker-agent"}, ImageID: "sha256:agent-old", State: "running", Labels: lbl("docker-agent")},
@@ -108,7 +108,7 @@ func TestDeployReportsTheHandedOverAgentsNewImage(t *testing.T) {
 	// The deploy pulled the new agent image: its tag names it now.
 	e.eng.images[agentRef] = engine.ImageDetails{ID: "sha256:agent-new"}
 	e.eng.images["sha256:agent-new"] = engine.ImageDetails{ID: "sha256:agent-new", OS: "linux", Architecture: "amd64",
-		RepoDigests: []string{"code.neureka.dev/docker-manager/docker-agent@sha256:9999"}}
+		RepoDigests: []string{"ghcr.io/neurekadev/docker-agent@sha256:9999"}}
 
 	res, out := run(t, e.svc, jobspec.StackDeploy, protocol.StackJobInput{Stack: ref("docker-manager")})
 	if res.Outcome != jobexec.OutcomeSucceeded {

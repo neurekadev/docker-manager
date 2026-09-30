@@ -3,8 +3,8 @@ package permissions
 import (
 	"context"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // ValidateTokenScope checks the scope of a new API token of userID (#31):

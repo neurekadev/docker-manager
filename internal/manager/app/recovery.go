@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"os"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/db/migrations"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/manager/auth"
+	"github.com/neurekadev/docker-manager/internal/manager/config"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // OwnerRecovery is the owner lockout break-glass (#16), run inside the

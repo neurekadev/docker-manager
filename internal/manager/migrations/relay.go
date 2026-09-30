@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"io"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
-	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/streammux"
+	"github.com/neurekadev/docker-manager/internal/transfer"
 )
 
 // DefaultRelayBuffer is the relay's copy buffer. With the stream windows

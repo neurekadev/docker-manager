@@ -6,18 +6,7 @@ description: Install Docker Manager, connect your first server and add more.
 This guide installs the manager and an agent on one server. It takes about
 ten minutes.
 
-## 1. Log in to the image registry
-
-The images are private for now. On `code.neureka.dev`, create an access
-token with the `read:package` permission, then log in on your server:
-
-```bash
-docker login code.neureka.dev
-```
-
-Enter your username, and paste the token as the password.
-
-## 2. Create the files
+## 1. Create the files
 
 Make a folder for Docker Manager and go into it:
 
@@ -32,7 +21,7 @@ name: docker-manager
 
 services:
   docker-manager:
-    image: code.neureka.dev/docker-manager/docker-manager:edge
+    image: ghcr.io/neurekadev/docker-manager:edge
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -47,7 +36,7 @@ services:
       - docker-manager
 
   docker-agent:
-    image: code.neureka.dev/docker-manager/docker-agent:edge
+    image: ghcr.io/neurekadev/docker-agent:edge
     restart: unless-stopped
     depends_on:
       - docker-manager
@@ -98,7 +87,7 @@ Replace `docker.example.com` with your own domain name.
   somewhere else, see [Configuration](/configuration#dockers-data-folder).
 </Callout>
 
-## 3. Start it
+## 2. Start it
 
 ```bash
 docker compose up -d
@@ -107,7 +96,7 @@ docker compose ps
 
 After a minute, both containers show as running and `healthy`.
 
-## 4. Put HTTPS in front of it
+## 3. Put HTTPS in front of it
 
 Docker Manager listens on port `8080` of your server, over plain HTTP. Point
 your reverse proxy at it, so that your domain name opens Docker Manager over
@@ -126,7 +115,7 @@ Your proxy must:
 - pass on the original host name and forwarded headers. Most proxies do
   this by default.
 
-## 5. Create your account
+## 4. Create your account
 
 Open your address, for example `https://docker.example.com`.
 
@@ -140,7 +129,7 @@ Choose a username and a password of at least 15 characters, then press
 **Create owner account**. Then add an authenticator app or a passkey under
 **Profile** (see [Users & Groups](/users-and-groups#your-account)).
 
-## 6. Connect this server
+## 5. Connect this server
 
 1. Open **Environments** and press **Add environment**.
 2. Give it a name if you like (without one, the server's name is used), and
@@ -158,12 +147,10 @@ with its containers, images, volumes and networks. Next,
 Every other server you want to manage needs its own agent. It connects to
 your Docker Manager address over HTTPS and needs no open ports.
 
-1. Log in to the image registry on the new server, as in
-   [step 1](#1-log-in-to-the-image-registry).
-2. In Docker Manager, open **Environments → Add environment**, give it a
+1. In Docker Manager, open **Environments → Add environment**, give it a
    name if you like and press **Create install command**. The command works
    once and expires after one hour (up to 24 hours under **More options**).
-3. Start the agent in one of two ways:
+2. Start the agent in one of two ways:
    - **Single command**: copy the command from the **On another Docker
      host** tab and run it on the new server.
    - **Compose**: make a folder such as `/opt/docker-manager` on the new
@@ -176,7 +163,7 @@ name: docker-manager
 
 services:
   docker-agent:
-    image: code.neureka.dev/docker-manager/docker-agent:edge
+    image: ghcr.io/neurekadev/docker-agent:edge
     restart: unless-stopped
     environment:
       DOCKER_AGENT_MANAGER_URL: ${DOCKER_AGENT_MANAGER_URL}

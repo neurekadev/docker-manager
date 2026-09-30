@@ -3,8 +3,8 @@ package agents
 import (
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Install command variants.
@@ -79,7 +79,7 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 // manager-move.md): the new server's compose.yaml and .env.
 const (
 	// DefaultManagerImage is the manager image of the generated compose.yaml.
-	DefaultManagerImage = "code.neureka.dev/docker-manager/docker-manager:edge"
+	DefaultManagerImage = "ghcr.io/neurekadev/docker-manager:edge"
 	// DefaultTrustedProxies is the Quickstart's DOCKER_MANAGER_TRUSTED_PROXIES
 	// (a proxy on the same server).
 	DefaultTrustedProxies = "172.16.0.0/12"

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginetest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // A dependency on a service disabled by its profile is fine with

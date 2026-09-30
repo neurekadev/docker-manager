@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient/regtest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
+	"github.com/neurekadev/docker-manager/internal/manager/regclient"
+	"github.com/neurekadev/docker-manager/internal/manager/regclient/regtest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
 
 // Registry connections (#19) through the real manager: owner-only

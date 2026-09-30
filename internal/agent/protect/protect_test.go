@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginefake"
+	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/state"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 func identify(t *testing.T, g *Guard, fe *enginefake.Engine) *Set {
@@ -95,7 +95,7 @@ func TestHostWithManagerAndAgent(t *testing.T) {
 		t.Errorf("manager identity %s %s", inst, id)
 	}
 	// A manager container without the label is found by its ID alone.
-	unlabeled := fe.AddContainer(engine.ContainerSpec{Name: "mgr", Image: "code.neureka.dev/docker-manager/docker-manager:edge"}, true)
+	unlabeled := fe.AddContainer(engine.ContainerSpec{Name: "mgr", Image: "ghcr.io/neurekadev/docker-manager:edge"}, true)
 	g.SetManager("inst-1", unlabeled)
 	role(t, "unlabeled manager", identify(t, g, fe).Container(unlabeled), protection.RoleManager, true)
 }

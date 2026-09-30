@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/selfupdate"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/selfupdate"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/protection"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // SelfUpdater hands the agent's own Compose service to a helper container

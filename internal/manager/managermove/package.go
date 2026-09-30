@@ -14,7 +14,7 @@ import (
 	"slices"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/backup"
 )
 
 // The handoff package is a tar of the parts below, in this order, then

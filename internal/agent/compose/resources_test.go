@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestResources summarizes what a project would create on an Engine

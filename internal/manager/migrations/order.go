@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"slices"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // stackLinks are the Docker networks and volumes a stack's project

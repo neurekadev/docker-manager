@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/password"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/totp"
+	"github.com/neurekadev/docker-manager/internal/manager/store/storetest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 var cheapParams = &password.Params{Memory: 64, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32}

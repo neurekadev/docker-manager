@@ -49,7 +49,7 @@ ARG GIT_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
-      -ldflags "-s -w -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Version=${GIT_TAG} -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Commit=${GIT_HASH} -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Date=${GIT_DATE}" \
+      -ldflags "-s -w -X github.com/neurekadev/docker-manager/internal/buildinfo.Version=${GIT_TAG} -X github.com/neurekadev/docker-manager/internal/buildinfo.Commit=${GIT_HASH} -X github.com/neurekadev/docker-manager/internal/buildinfo.Date=${GIT_DATE}" \
       -o /out/docker-agent ./cmd/docker-agent
 
 # ---------------------------------------------------------------- runtime
@@ -59,7 +59,7 @@ ARG GIT_HASH=unknown
 ARG GIT_DATE=unknown
 LABEL org.opencontainers.image.title="docker-agent" \
       org.opencontainers.image.description="Docker Agent: outbound-only connector for a Docker Engine" \
-      org.opencontainers.image.source="https://code.neureka.dev/docker-manager/docker-manager" \
+      org.opencontainers.image.source="https://github.com/neurekadev/docker-manager" \
       org.opencontainers.image.version="${GIT_TAG}" \
       org.opencontainers.image.revision="${GIT_HASH}" \
       org.opencontainers.image.created="${GIT_DATE}"

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // RFC 6238 appendix B, SHA-1 test vectors (8 digits there; the last six

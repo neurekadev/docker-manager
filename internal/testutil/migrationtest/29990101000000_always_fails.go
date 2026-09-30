@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"github.com/neurekadev/docker-manager/internal/db/migrations"
 )
 
 // registerFailing lives in a timestamp-named file because Bun derives the

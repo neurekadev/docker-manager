@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // Limit is a token bucket: Burst attempts, refilled at one per Every.

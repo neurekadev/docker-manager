@@ -3,7 +3,7 @@ package scheduler
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/manager/movelock"
 )
 
 // TestMoveLockFiresNothing (manager move): while the manager moves to a

@@ -1,6 +1,6 @@
 package auth
 
-import "code.neureka.dev/docker-manager/docker-manager/internal/domain"
+import "github.com/neurekadev/docker-manager/internal/domain"
 
 // factorSet is a set of sign-in factors.
 type factorSet uint8

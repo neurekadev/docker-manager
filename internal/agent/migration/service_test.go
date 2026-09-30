@@ -10,18 +10,18 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration/migrationtest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux/muxtest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
-	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/migration"
+	"github.com/neurekadev/docker-manager/internal/agent/migration/migrationtest"
+	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/streammux"
+	"github.com/neurekadev/docker-manager/internal/streammux/muxtest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/transfer"
 )
 
 const migID = "0199aaaa-bbbb-7ccc-8ddd-eeeeffff0001"
@@ -360,7 +360,7 @@ func TestCorruptedPartIsRejected(t *testing.T) {
 func TestSendRefusesDockerManagerVolumes(t *testing.T) {
 	src := env(t, "src")
 	src.AddVolume("docker-manager_data", nil)
-	src.Engine.AddContainer(engine.ContainerSpec{Name: "docker-manager-1", Image: "code.neureka.dev/docker-manager/docker-manager:edge",
+	src.Engine.AddContainer(engine.ContainerSpec{Name: "docker-manager-1", Image: "ghcr.io/neurekadev/docker-manager:edge",
 		Labels: map[string]string{protocol.LabelRole: "manager"}, Mounts: []engine.MountSpec{{Type: "volume", Source: "docker-manager_data", Target: "/var/lib/docker-manager"}}}, true)
 	p := pipe(t, src)
 	st, err := p.Open(testutil.Context(t), protocol.StreamMigrationSend, protocol.MigrationSendInput{MigrationID: migID, Part: protocol.PartVolume,

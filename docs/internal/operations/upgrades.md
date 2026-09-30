@@ -31,7 +31,7 @@ UI show which agents are outdated and how to upgrade them.
 1. Note the image digests you run, so you can go back:
    ```bash
    docker compose images --format json | jq -r '.[] | "\(.Repository):\(.Tag) \(.ID)"'
-   docker image inspect --format '{{index .RepoDigests 0}}' code.neureka.dev/docker-manager/docker-manager:edge
+   docker image inspect --format '{{index .RepoDigests 0}}' ghcr.io/neurekadev/docker-manager:edge
    ```
 2. Optional but recommended: run a manager-state backup (#10) or copy the
    `docker-manager_data` volume. The upgrade takes its own pre-migration snapshot
@@ -141,7 +141,7 @@ on; there is no in-place upgrade from `dockyard-*` images:
 
 | What | Before | Now |
 | --- | --- | --- |
-| Images | `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` | `code.neureka.dev/docker-manager/docker-{manager,agent}:edge` |
+| Images | `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` | `ghcr.io/neurekadev/docker-{manager,agent}:edge` |
 | Compose project and volumes | `dockyard`: `dockyard_data`, `dockyard_agent`, `dockyard_stacks`, `dockyard_agent_ca` | `docker-manager`: `docker-manager_data`, `docker-manager_agent`, `docker-manager_stacks`, `docker-manager_agent_ca` |
 | Manager database | `/var/lib/dockyard/dockyard.db` | `/var/lib/docker-manager/docker-manager.db` |
 | Agent state | `/var/lib/dockyard-agent` | `/var/lib/docker-agent` |
@@ -208,7 +208,7 @@ place. Then pin the manager image to the digest you noted and start it:
 ```yaml
 # compose.yaml
   docker-manager:
-    image: code.neureka.dev/docker-manager/docker-manager@sha256:<previous digest>
+    image: ghcr.io/neurekadev/docker-manager@sha256:<previous digest>
 ```
 
 ```bash

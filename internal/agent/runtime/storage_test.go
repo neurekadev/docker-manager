@@ -6,12 +6,12 @@ import (
 	"slices"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginetest"
+	"github.com/neurekadev/docker-manager/internal/agent/storage"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 const stacksDir = "/var/lib/docker/volumes/docker-manager_stacks/_data"

@@ -6,13 +6,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/managermove"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/buildinfo"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/agents"
+	"github.com/neurekadev/docker-manager/internal/manager/backups"
+	"github.com/neurekadev/docker-manager/internal/manager/managermove"
+	"github.com/neurekadev/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // decideWaiting starts waiting mode (docs/internal/architecture/

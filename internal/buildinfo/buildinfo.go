@@ -3,9 +3,9 @@
 //
 // Release builds set the variables with -ldflags, for example:
 //
-//	-X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Version=0.0.0-edge
-//	-X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Commit=<git sha>
-//	-X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Date=<RFC 3339 commit time>
+//	-X github.com/neurekadev/docker-manager/internal/buildinfo.Version=0.0.0-edge
+//	-X github.com/neurekadev/docker-manager/internal/buildinfo.Commit=<git sha>
+//	-X github.com/neurekadev/docker-manager/internal/buildinfo.Date=<RFC 3339 commit time>
 //
 // Local builds fall back to the VCS information recorded by the Go toolchain.
 package buildinfo

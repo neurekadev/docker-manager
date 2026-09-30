@@ -1,6 +1,6 @@
 package api
 
-import "code.neureka.dev/docker-manager/docker-manager/internal/domain"
+import "github.com/neurekadev/docker-manager/internal/domain"
 
 // WebLink is a web link of a stack or template (documentation, website,
 // repository). The services check links with domain.NormalizeLinks (422

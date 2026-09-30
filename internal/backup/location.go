@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
 // A Docker Manager backup repository is a destination: a local directory on one

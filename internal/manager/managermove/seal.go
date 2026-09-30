@@ -10,8 +10,8 @@ import (
 
 	"golang.org/x/crypto/chacha20poly1305"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
+	"github.com/neurekadev/docker-manager/internal/manager/secrets"
 )
 
 // The secret key leaves the old manager only sealed under the move code

@@ -44,7 +44,8 @@ be agreed with #17.
 
 There is no automated contract check any more: the former oasdiff-based
 `api-contract` workflow and its `api-breaking-change` label were removed on
-2026-09-25 with the move to Forgejo. Breaking changes are found by review:
+2026-09-25 with the move to Forgejo (and not restored with the move back
+to GitHub on 2026-09-30). Breaking changes are found by review:
 
 - `api/openapi.json` is committed and `TestOpenAPISnapshot` (part of
   `go test ./...`) fails when it is stale, so every contract change shows

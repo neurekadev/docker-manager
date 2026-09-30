@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // MigrationsTable is Bun's bookkeeping table (the migrate package default).

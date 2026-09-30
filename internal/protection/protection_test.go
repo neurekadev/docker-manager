@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 func code(err error) string {

@@ -9,8 +9,8 @@ import (
 
 	"github.com/docker/compose/v5/pkg/api"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginetest"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // miniDocker is a stateful scripted Engine for one Compose project: just

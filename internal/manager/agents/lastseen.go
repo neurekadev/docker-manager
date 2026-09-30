@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // LastSeenRefresh is how often a live session persists the last-seen time

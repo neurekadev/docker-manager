@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/authztest"
 )
 
 // TestAuthorizeExecNeedsExplicitTokenGrant: the shared exec check (#8,

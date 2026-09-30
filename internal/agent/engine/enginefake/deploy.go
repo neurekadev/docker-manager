@@ -1,6 +1,6 @@
 package enginefake
 
-import "code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+import "github.com/neurekadev/docker-manager/internal/agent/engine"
 
 // Deployment is Docker Manager deployed on a fake Engine like the documented
 // compose.yaml plus a reverse proxy: Compose project "docker-manager" with the manager,
@@ -19,7 +19,7 @@ type Deployment struct {
 func (e *Engine) Deploy(withManager bool) Deployment {
 	const project = "docker-manager"
 	d := Deployment{Stacks: project + "_stacks", AgentState: project + "_agent", Network: project}
-	d.AgentImage = e.AddImage("code.neureka.dev/docker-manager/docker-agent:edge")
+	d.AgentImage = e.AddImage("ghcr.io/neurekadev/docker-agent:edge")
 	e.AddNetwork(d.Network, map[string]string{"com.docker.compose.project": project})
 	labels := func(service, role string) map[string]string {
 		l := map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": service,
@@ -29,7 +29,7 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 		}
 		return l
 	}
-	d.AgentID = e.AddContainer(engine.ContainerSpec{Name: project + "-docker-agent-1", Image: "code.neureka.dev/docker-manager/docker-agent:edge",
+	d.AgentID = e.AddContainer(engine.ContainerSpec{Name: project + "-docker-agent-1", Image: "ghcr.io/neurekadev/docker-agent:edge",
 		NetworkMode: d.Network, Labels: labels("docker-agent", "agent"), Mounts: []engine.MountSpec{
 			{Type: "bind", Source: "/var/run/docker.sock", Target: "/var/run/docker.sock"},
 			{Type: "bind", Source: "/var/lib/docker/volumes", Target: "/var/lib/docker/volumes"},
@@ -40,9 +40,9 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 		return d
 	}
 	d.ManagerData, d.ProxyData = project+"_data", project+"_caddy_data"
-	d.ManagerImage = e.AddImage("code.neureka.dev/docker-manager/docker-manager:edge")
+	d.ManagerImage = e.AddImage("ghcr.io/neurekadev/docker-manager:edge")
 	d.ProxyImage = e.AddImage("caddy:2.11.4-alpine")
-	d.ManagerID = e.AddContainer(engine.ContainerSpec{Name: project + "-docker-manager-1", Image: "code.neureka.dev/docker-manager/docker-manager:edge",
+	d.ManagerID = e.AddContainer(engine.ContainerSpec{Name: project + "-docker-manager-1", Image: "ghcr.io/neurekadev/docker-manager:edge",
 		NetworkMode: d.Network, Labels: labels("docker-manager", "manager"),
 		Mounts: []engine.MountSpec{{Type: "volume", Source: d.ManagerData, Target: "/var/lib/docker-manager"}}}, true)
 	d.ProxyID = e.AddContainer(engine.ContainerSpec{Name: project + "-caddy-1", Image: "caddy:2.11.4-alpine", NetworkMode: d.Network,

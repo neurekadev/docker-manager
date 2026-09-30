@@ -11,7 +11,7 @@ import (
 	"io"
 	"os"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api/inventory"
+	"github.com/neurekadev/docker-manager/internal/manager/api/inventory"
 )
 
 func main() {

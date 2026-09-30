@@ -11,7 +11,7 @@ import (
 	"github.com/docker/compose/v5/pkg/api"
 	composesdk "github.com/docker/compose/v5/pkg/compose"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 // Resources summarizes what a loaded project creates on an Engine, for

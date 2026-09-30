@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 func TestSetHeaders(t *testing.T) {

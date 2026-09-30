@@ -10,7 +10,7 @@
 // Docker access is the escape hatch.
 package protection
 
-import "code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+import "github.com/neurekadev/docker-manager/internal/protocol"
 
 // Roles of protected objects (protocol.Protection.Role).
 const (

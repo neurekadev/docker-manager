@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
+	"github.com/neurekadev/docker-manager/internal/agent/migration"
 )
 
 // Host is an in-memory host filesystem addressed by absolute slash paths.

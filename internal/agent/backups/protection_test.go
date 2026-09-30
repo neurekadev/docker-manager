@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestShutdownPlanExcludesDockerManagerProject (#32 × #10): a backup with
@@ -23,8 +23,8 @@ import (
 // other stack of the same backup, then snapshots Docker Manager's project live.
 func TestShutdownPlanExcludesDockerManagerProject(t *testing.T) {
 	e := newEnv(t)
-	write(t, filepath.Join(e.stacks, "docker-manager", "compose.yaml"), "services:\n  docker-manager:\n    image: code.neureka.dev/docker-manager/docker-manager:edge\n"+
-		"  docker-agent:\n    image: code.neureka.dev/docker-manager/docker-agent:edge\n    depends_on: [docker-manager]\n"+
+	write(t, filepath.Join(e.stacks, "docker-manager", "compose.yaml"), "services:\n  docker-manager:\n    image: ghcr.io/neurekadev/docker-manager:edge\n"+
+		"  docker-agent:\n    image: ghcr.io/neurekadev/docker-agent:edge\n    depends_on: [docker-manager]\n"+
 		"  caddy:\n    image: caddy:2\n    depends_on: [docker-manager]\n")
 	lbl := func(svc, role, deps string) map[string]string {
 		l := map[string]string{lifecycle.ComposeProjectLabel: "docker-manager", lifecycle.ComposeServiceLabel: svc}
@@ -36,9 +36,9 @@ func TestShutdownPlanExcludesDockerManagerProject(t *testing.T) {
 		}
 		return l
 	}
-	e.eng.AddContainer(engine.ContainerSpec{Name: "docker-manager-docker-manager-1", Image: "code.neureka.dev/docker-manager/docker-manager:edge",
+	e.eng.AddContainer(engine.ContainerSpec{Name: "docker-manager-docker-manager-1", Image: "ghcr.io/neurekadev/docker-manager:edge",
 		Labels: lbl("docker-manager", "manager", "")}, true)
-	e.eng.AddContainer(engine.ContainerSpec{Name: "docker-manager-docker-agent-1", Image: "code.neureka.dev/docker-manager/docker-agent:edge",
+	e.eng.AddContainer(engine.ContainerSpec{Name: "docker-manager-docker-agent-1", Image: "ghcr.io/neurekadev/docker-agent:edge",
 		Labels: lbl("docker-agent", "agent", "docker-manager:service_started:false:true")}, true)
 	e.eng.AddContainer(engine.ContainerSpec{Name: "docker-manager-caddy-1", Image: "caddy:2",
 		Labels: lbl("caddy", "", "docker-manager:service_started:false:true")}, true)

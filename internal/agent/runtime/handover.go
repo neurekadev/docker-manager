@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/agent/state"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // HandoverResult is what `docker-agent enroll` reports.

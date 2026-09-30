@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // MoveCheck is one capability evaluated on a resource before and after it

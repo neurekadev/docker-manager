@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // The v1 job kind catalog. Naming: <resource>.<verb>, with the resource the

@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine/enginefake"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/regclient"
+	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
+	"github.com/neurekadev/docker-manager/internal/manager/updates"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // shop is the fixture stack: web (interpolated tag from .env, an env_file

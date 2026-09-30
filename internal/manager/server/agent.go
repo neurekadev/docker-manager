@@ -12,11 +12,11 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
+	"github.com/neurekadev/docker-manager/internal/manager/requestinfo"
 )
 
 // AgentLimits hardens /agent/v1, which is publicly reachable on the shared

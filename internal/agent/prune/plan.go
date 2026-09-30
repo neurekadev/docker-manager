@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
-	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/protect"
+	"github.com/neurekadev/docker-manager/internal/imageref"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // facts is what every decision needs besides the object itself: the

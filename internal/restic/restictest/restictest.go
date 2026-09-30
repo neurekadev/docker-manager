@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
 // Call records one operation.

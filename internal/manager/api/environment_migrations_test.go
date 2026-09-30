@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/authztest"
+	"github.com/neurekadev/docker-manager/internal/manager/migrations"
 )
 
 func environmentPlan() migrations.EnvironmentPlan {

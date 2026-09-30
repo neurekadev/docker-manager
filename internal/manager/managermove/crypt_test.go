@@ -7,7 +7,7 @@ import (
 	"io"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
 )
 
 func sealStream(t *testing.T, key, plain []byte) []byte {

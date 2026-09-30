@@ -25,7 +25,7 @@ import (
 	"github.com/moby/patternmatcher/ignorefile"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/logging"
 )
 
 // BuildSpec describes an image build. Exactly one of ContextDir and

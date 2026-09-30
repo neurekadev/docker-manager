@@ -3,7 +3,7 @@ package store
 import (
 	"encoding/json"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // linkJSON is the stored form of a stack's or template's link (a JSON

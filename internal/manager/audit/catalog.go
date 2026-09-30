@@ -3,7 +3,7 @@ package audit
 import (
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // Action keys. Authorized operations record their #17 capability key

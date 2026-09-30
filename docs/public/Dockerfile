@@ -37,7 +37,7 @@ ARG GIT_HASH=unknown
 ARG DOCS_BASE_PATH
 LABEL org.opencontainers.image.title="docker-manager-docs" \
       org.opencontainers.image.description="Docker Manager user documentation" \
-      org.opencontainers.image.source="https://code.neureka.dev/docker-manager/docker-manager" \
+      org.opencontainers.image.source="https://github.com/neurekadev/docker-manager" \
       org.opencontainers.image.version="${GIT_TAG}" \
       org.opencontainers.image.revision="${GIT_HASH}"
 RUN apt-get update \

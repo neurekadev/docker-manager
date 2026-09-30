@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // Identity routes (#16): first-run setup, sign-in, factors, invitations,

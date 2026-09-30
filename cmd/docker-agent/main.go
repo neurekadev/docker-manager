@@ -26,13 +26,13 @@ import (
 	"time"
 	_ "time/tzdata" // IANA zones without relying on the image
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/runtime"
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/selfupdate"
-	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/agent/config"
+	"github.com/neurekadev/docker-manager/internal/agent/runtime"
+	"github.com/neurekadev/docker-manager/internal/agent/selfupdate"
+	"github.com/neurekadev/docker-manager/internal/buildinfo"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/envconfig"
+	"github.com/neurekadev/docker-manager/internal/logging"
 )
 
 const (

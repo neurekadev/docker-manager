@@ -22,10 +22,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
+	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/manager/requestinfo"
+	"github.com/neurekadev/docker-manager/internal/manager/server/sse"
 )
 
 // AgentBasePath prefixes the private agent routes.

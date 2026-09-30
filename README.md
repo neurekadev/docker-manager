@@ -12,13 +12,12 @@ from one place.
 v1 is in release acceptance (#12; the roadmap in #1 tracks what is still
 open). There are no versioned releases yet: `main` publishes the rolling
 `edge` images
-`code.neureka.dev/docker-manager/docker-manager:edge` and
-`code.neureka.dev/docker-manager/docker-agent:edge` (linux/amd64 only; arm64
-images follow once a native arm64 build runner exists).
+`ghcr.io/neurekadev/docker-manager:edge` and
+`ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 only for now).
 
-The code lives at <https://code.neureka.dev/docker-manager/docker-manager> (Forgejo,
-private). The GitHub issues of `neurekadev/dockyard` (`#N` in these docs)
-remain the written record of the roadmap and decisions.
+The code lives at <https://github.com/neurekadev/docker-manager>. Its GitHub
+issues #1–#35 (`#N` in these docs) remain the written record of the roadmap
+and decisions.
 
 ## Quick start
 
@@ -27,13 +26,12 @@ behind your own HTTPS reverse proxy. The
 [Quickstart](docs/public/content/docs/quickstart.mdx) has the
 `compose.yaml` and `.env` to copy, and
 its "Add more servers" section the agent for
-other hosts. The registry is private: log in with your Forgejo username and
-a Forgejo access token with the `read:package` scope first.
+other hosts. The images are public; no registry login is needed.
 
 ## Documentation
 
 - **User documentation** ([`docs/public`](docs/public/content/docs/overview.mdx), published as the
-  `code.neureka.dev/docker-manager/docker-manager-docs:edge` site image): installation, every
+  `ghcr.io/neurekadev/docker-manager-docs:edge` site image): installation, every
   feature, configuration, upgrades and troubleshooting.
 
 For operators and contributors (`docs/internal`):
@@ -72,7 +70,7 @@ scripts/               local gate, code generation, static builds, policy and li
 ## Checks
 
 The local gate `bash scripts/check.sh` mirrors CI (`.github/workflows/CI.yaml`,
-Forgejo Actions, on pushes to `main`): `lint` (gofmt, Prettier,
+GitHub Actions, on pushes to `main`): `lint` (gofmt, Prettier,
 golangci-lint, repository policy, ESLint), `unit-tests` (`go test ./...`,
 Vitest) and `build` (web build, `go build`, static linux/amd64 and
 linux/arm64 binaries). The tests are isolated unit tests with in-memory

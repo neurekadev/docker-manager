@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // TestRetryableKinds pins the allowlist: every kind added here must be safe

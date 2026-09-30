@@ -4,7 +4,7 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 
 ## Local checks and CI
 
-Forgejo CI is the gate: it runs the full `lint`, `unit-tests` and `build`
+GitHub Actions CI is the gate: it runs the full `lint`, `unit-tests` and `build`
 jobs on every push to `main`, and publishes `:edge` only when they pass.
 Tests run in CI only: never run `go test`, vitest, `npm --prefix web run
 check`, `bash scripts/check.sh`, golangci-lint or `scripts/policy-check.sh`
@@ -24,10 +24,11 @@ run (`bash scripts/check.sh lint|unit-tests|build`):
 - **build:** web build + `web/scripts/verify-build.mjs`, `go build ./...`,
   `scripts/build-static.sh` (static linux/amd64 + linux/arm64 binaries).
 
-CI (Forgejo Actions on code.neureka.dev) runs on pushes to `main` and manual
+CI (GitHub Actions) runs on pushes to `main` and manual
 dispatch only (no pull-request trigger); it also builds the amd64 images and,
-from `main`, publishes `code.neureka.dev/docker-manager/docker-{manager,agent}:edge`.
-arm64 images are blocked until a native arm64 runner exists (never QEMU).
+from `main`, publishes `ghcr.io/neurekadev/docker-{manager,agent}:edge`.
+Images are amd64 only for now; arm64 would use the native `ubuntu-24.04-arm`
+runner (never QEMU).
 The only tests are isolated unit tests (see [tests.md](tests.md)); nothing starts
 Docker, containers, browsers, real registries or restic.
 

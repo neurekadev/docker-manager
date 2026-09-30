@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 // Prune support (#14): timestamps and sizes tests control, and an

@@ -4,10 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	envmigrations "code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	envmigrations "github.com/neurekadev/docker-manager/internal/manager/migrations"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // readyToRun creates a move whose new server enrolled and checked in.

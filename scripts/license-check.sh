@@ -34,7 +34,7 @@ reviewed_notices=(
 	"github.com/in-toto/attestation|Licensed under the Apache License, Version 2.0"
 	"github.com/in-toto/in-toto-golang|Licensed under the Apache License, Version 2.0"
 )
-ignore=(--ignore code.neureka.dev/docker-manager/docker-manager)
+ignore=(--ignore github.com/neurekadev/docker-manager)
 for entry in "${reviewed_notices[@]}"; do
 	mod="${entry%%|*}"
 	phrase="${entry#*|}"

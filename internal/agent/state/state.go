@@ -38,7 +38,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // File names inside the state directory.

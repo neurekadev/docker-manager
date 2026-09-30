@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates/eligible"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/updates/eligible"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Drift reasons (the live Engine state differs from Docker Manager's intent).

@@ -16,8 +16,8 @@ import (
 
 	"golang.org/x/crypto/chacha20poly1305"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/secrets"
 )
 
 // The Recovery Key (#10, #24; decision #25 Q7): one instance-wide,

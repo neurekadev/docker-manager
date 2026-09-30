@@ -3,7 +3,7 @@ package resources
 import (
 	"sync"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 // pullProgress aggregates the per-layer messages of a pull into one

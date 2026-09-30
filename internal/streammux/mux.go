@@ -36,8 +36,8 @@ import (
 	"io"
 	"sync"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // Sender is the session end the mux writes frames to.

@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
 )
 
 // ErrCrossOrigin is returned for rejected requests.

@@ -24,7 +24,7 @@ import (
 	"time"
 	"unicode"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // LockSource says which resources a lock rule covers.

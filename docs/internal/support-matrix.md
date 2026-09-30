@@ -7,9 +7,9 @@ topology, Q16 root containers).
 
 ## Verification status
 
-Since 2026-09-25 the code lives on Forgejo
-(`https://code.neureka.dev/docker-manager/docker-manager`) and CI
-(`.github/workflows/CI.yaml`, Forgejo Actions) runs only format/lint,
+Since 2026-09-25 (on Forgejo, and on GitHub again since 2026-09-30,
+`https://github.com/neurekadev/docker-manager`) CI
+(`.github/workflows/CI.yaml`, GitHub Actions) runs only format/lint,
 isolated deterministic unit tests (in-memory fakes) and a test-free build.
 The former GitHub CI's Docker-backed suites (Engine matrix, Compose
 fixtures, registry/BuildKit, restic/MinIO storage, filesystem security on
@@ -69,14 +69,13 @@ with fake agents) and the build of both executables for linux/amd64 and linux/ar
 
 | Artifact | Contents | Published as |
 | --- | --- | --- |
-| `docker-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `code.neureka.dev/docker-manager/docker-manager:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
-| `docker-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `code.neureka.dev/docker-manager/docker-agent:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
+| `docker-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `ghcr.io/neurekadev/docker-manager:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
+| `docker-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `ghcr.io/neurekadev/docker-agent:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
 | restic | 0.19.1, SHA-256 verified per architecture (`deploy/docker/*.Dockerfile`), in both images | inside the images only |
 
 Only the rolling `:edge` tag is published from `main`; there are no git
-tags, releases or semver images in this build (#25). The registry is
-private: `docker login code.neureka.dev` with a Forgejo access token
-(`read:package` scope) before pulling. Neither image contains a Docker,
+tags, releases or semver images in this build (#25). The images on GHCR are
+public and need no registry login. Neither image contains a Docker,
 Compose or buildx CLI, Node or a shell toolchain; both are based on
 `gcr.io/distroless/static-debian12` pinned by digest. This follows from
 the Dockerfiles; no automated check inspects the built images any more.

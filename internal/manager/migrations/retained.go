@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
 // RetainedSource is the stopped source of a stack migration that Docker Manager

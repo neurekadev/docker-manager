@@ -26,8 +26,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/agent/config"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // ErrRedirect is returned when the manager (or something in between)

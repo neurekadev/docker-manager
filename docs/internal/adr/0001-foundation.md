@@ -11,7 +11,7 @@ the layout, conventions and gates every later workstream builds on.
 
 ## Decisions
 
-1. **One Go module, two static executables.** `code.neureka.dev/docker-manager/docker-manager`
+1. **One Go module, two static executables.** `github.com/neurekadev/docker-manager`
    with `cmd/docker-manager` and `cmd/docker-agent`, built with
    `CGO_ENABLED=0 -trimpath` for linux/amd64 and linux/arm64. Go 1.27.1 is
    pinned via the `toolchain` directive; `go.mod` `ignore`s `web/node_modules`
@@ -107,13 +107,14 @@ a new ADR.
 
 - **2026-09-25, CI and tests (supersedes decision 11 and the
   `extended.yaml` part of the consequences).** The code moved from GitHub
-  to Forgejo (`https://code.neureka.dev/docker-manager/docker-manager`); the GitHub
-  issues stay the written record. The owner reduced the automated checks to
+  to Forgejo on code.neureka.dev (and back to GitHub,
+  `https://github.com/neurekadev/docker-manager`, on 2026-09-30); the
+  GitHub issues stay the written record. The owner reduced the automated checks to
   format/lint, isolated deterministic unit tests and a test-free build:
-  `.github/workflows/CI.yaml` (Forgejo Actions) runs on pushes to `main`
+  `.github/workflows/CI.yaml` (GitHub Actions) runs on pushes to `main`
   and manual dispatch only, mirrors `bash scripts/check.sh`
   (`lint`, `unit-tests`, `build`), builds linux/amd64 images and publishes
-  `code.neureka.dev/docker-manager/docker-{manager,agent}:edge` from `main` with
+  `ghcr.io/neurekadev/docker-{manager,agent}:edge` from `main` with
   BuildKit provenance and SBOM attestations. `ci.yaml`, `extended.yaml`,
   `api-contract.yaml`, the Docker-backed, browser, fuzz, race and crash
   suites and the test harness (#29) were removed; the license check,

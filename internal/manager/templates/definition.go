@@ -10,7 +10,7 @@ import (
 	"io"
 	"sort"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // maxDefinitionFile bounds one Compose source read from an archive (the

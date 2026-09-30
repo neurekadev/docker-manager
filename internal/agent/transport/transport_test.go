@@ -14,8 +14,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
-	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"github.com/neurekadev/docker-manager/internal/agent/config"
+	"github.com/neurekadev/docker-manager/internal/envconfig"
 )
 
 func ctx(t *testing.T) context.Context {

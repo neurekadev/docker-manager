@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // AssertClean fails t for every canary found in v (see ScanValue). where

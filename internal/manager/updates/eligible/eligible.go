@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/imageref"
 )
 
 // Subject is what the rules look at.

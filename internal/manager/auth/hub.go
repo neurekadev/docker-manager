@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/requestinfo"
 )
 
 // hub tracks the contexts of in-flight authenticated requests (including

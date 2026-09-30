@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // TestInstallCommandsRemoteRunLabelsTheAgent: the docker run variant marks

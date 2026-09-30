@@ -12,7 +12,7 @@ package metricsmigrations
 import (
 	"github.com/uptrace/bun/migrate"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"github.com/neurekadev/docker-manager/internal/db/migrations"
 )
 
 // Migrations is the registry of all metrics database migrations.

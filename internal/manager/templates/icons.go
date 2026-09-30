@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // Icon media types.

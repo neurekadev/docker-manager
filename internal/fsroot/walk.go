@@ -9,7 +9,7 @@ import (
 	"path"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 func unixNano(n int64) time.Time { return time.Unix(0, n).UTC() }

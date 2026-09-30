@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 )
 
 // Rule shorthand, used by the decision corpus, authztest and audit diffs:

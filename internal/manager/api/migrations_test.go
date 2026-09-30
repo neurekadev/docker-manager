@@ -8,14 +8,14 @@ import (
 	"sync"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/authztest"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/policy"
+	"github.com/neurekadev/docker-manager/internal/manager/migrations"
+	"github.com/neurekadev/docker-manager/internal/manager/permissions"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // fakeMigrations records calls (the real service is tested in

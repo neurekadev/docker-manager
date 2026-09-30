@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/audit"
 )
 
 // TrailAuditor sends identity events to the audit trail (#30).

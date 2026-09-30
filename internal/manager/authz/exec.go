@@ -1,6 +1,6 @@
 package authz
 
-import "code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+import "github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 
 // CapContainerExec is the capability of interactive exec sessions
 // (terminals) in a container (#8).

@@ -1,8 +1,8 @@
 package authz
 
 import (
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/events"
 )
 
 // Event filtering (#17, #23): which bus events a subscriber may receive.

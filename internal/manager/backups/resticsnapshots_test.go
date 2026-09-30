@@ -3,8 +3,8 @@ package backups
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"github.com/neurekadev/docker-manager/internal/backup"
+	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
 func TestClassifySnapshots(t *testing.T) {

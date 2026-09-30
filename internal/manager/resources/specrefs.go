@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // SpecRef is an object a saved recreate specification references (#6).

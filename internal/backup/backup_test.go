@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
 func sampleManifest() Manifest {

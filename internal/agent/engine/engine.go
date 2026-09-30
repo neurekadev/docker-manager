@@ -30,7 +30,7 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/versions"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"github.com/neurekadev/docker-manager/internal/buildinfo"
 )
 
 // MinSupportedAPIVersion is Docker Manager's minimum Engine API version: Docker

@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
-	envmigrations "code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/movelock"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/authsep"
+	envmigrations "github.com/neurekadev/docker-manager/internal/manager/migrations"
+	"github.com/neurekadev/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // openPackage decrypts a package's stream with code and stores it in a

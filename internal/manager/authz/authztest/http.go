@@ -18,7 +18,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
 )
 
 // Request headers read by Authenticate.

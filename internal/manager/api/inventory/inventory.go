@@ -17,7 +17,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/manager/api"
 )
 
 // Route kinds.

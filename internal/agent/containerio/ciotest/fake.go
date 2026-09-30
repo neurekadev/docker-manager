@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 // Process is an exec process: it reads stdin, writes output and returns

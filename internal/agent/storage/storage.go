@@ -34,7 +34,7 @@ import (
 	"slices"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 // Diagnostic codes (stable; shown by the manager and UI).

@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+	"github.com/neurekadev/docker-manager/internal/streammux"
 )
 
 // Handler serves an accepted stream; a returned error aborts it with the

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // RetryRefusal reports why j cannot be retried (a *domain.JobNotRetryableError),

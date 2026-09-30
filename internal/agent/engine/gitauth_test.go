@@ -7,8 +7,8 @@ import (
 	"github.com/moby/buildkit/session/secrets"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
-	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"github.com/neurekadev/docker-manager/internal/logging"
+	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
 // TestGitAuthServedAsSessionSecret: private Git contexts (#33) authenticate

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
 // TestNormalizeServerAddress: IP addresses and host names, with or

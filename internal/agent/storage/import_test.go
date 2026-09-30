@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
 )
 
 func TestImportMountsAndSources(t *testing.T) {

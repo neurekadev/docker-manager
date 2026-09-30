@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"github.com/neurekadev/docker-manager/internal/envconfig"
 )
 
 func runCmd(args []string, vars map[string]string, uid int) (int, string, string) {

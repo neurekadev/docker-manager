@@ -23,7 +23,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/uptrace/bun"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/clock"
 )
 
 // Compile-time checks: Store satisfies every SCS store contract.

@@ -13,13 +13,12 @@ Docker is **not** required locally, and no automated check needs it: the
 tests are isolated unit tests with in-memory fakes. Only the image builds
 need Docker; they run in CI.
 
-The code lives at `https://code.neureka.dev/docker-manager/docker-manager` (Forgejo);
-the GitHub issues of `neurekadev/dockyard` stay the written record of the
-roadmap and decisions.
+The code lives at `https://github.com/neurekadev/docker-manager`; its GitHub
+issues #1–#35 stay the written record of the roadmap and decisions.
 
 ## Local checks and CI
 
-Forgejo CI is the gate for `main`: its `Lint`, `Unit Tests` and `Build`
+GitHub Actions CI is the gate for `main`: its `Lint`, `Unit Tests` and `Build`
 jobs run on every push and images are published only when they pass. Tests
 run in CI, not locally: before pushing, run only the fast non-test checks
 for what you changed (gofmt, Prettier, `go build`/`go vet` of the changed
@@ -35,15 +34,15 @@ fails fast with a summary. Run one or more classes with
 | `unit-tests` | `go test ./...` (`CGO_ENABLED=0`); `npm --prefix web run test` (Vitest: `*.spec.ts` in Node, `*.test.ts` in jsdom) |
 | `build` | `npm --prefix web run build` + `node web/scripts/verify-build.mjs`; `go build ./...`; `bash scripts/build-static.sh` (static linux/amd64 and linux/arm64 binaries into `DIST_DIR`, default `dist/`) |
 
-CI (Forgejo Actions on code.neureka.dev) runs on pushes to `main` and on
+CI (GitHub Actions) runs on pushes to `main` and on
 manual dispatch only; there is no pull-request trigger. Besides the three
 classes above it builds the linux/amd64 manager and agent images with
 BuildKit and, on `main`, publishes them as `:edge` with BuildKit provenance
 and SBOM attestations (`deploy/docker/*.Dockerfile`); the
 `Build` job uploads the release
-binaries as the artifact `release-binaries-linux`. linux/arm64 images are
-blocked until a native arm64 runner exists; the arm64 binaries are built
-but not run.
+binaries as the artifact `release-binaries-linux`. Images are linux/amd64
+only for now (arm64 would use the native `ubuntu-24.04-arm` runner); the
+arm64 binaries are built but not run.
 
 Not part of the gate or CI any more (run them by hand when relevant):
 
@@ -57,7 +56,7 @@ govulncheck ./...              # when adding or bumping dependencies
 
 Race detection, fuzzing, coverage, the API breaking-change check and all
 Docker-, browser- or proxy-backed suites were removed on 2026-09-25 with
-the move to Forgejo.
+the move to Forgejo (and stay removed after the move back to GitHub).
 
 ## Running locally
 

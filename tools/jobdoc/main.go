@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
 )
 
 func main() {

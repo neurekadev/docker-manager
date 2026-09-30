@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
+	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/stacks"
+	"github.com/neurekadev/docker-manager/internal/manager/templates"
 )
 
 // templateSource serves template versions to the stack service (stacks
