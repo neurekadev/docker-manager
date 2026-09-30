@@ -8,13 +8,16 @@ import (
 // Metrics (#5): samples as ingested by the manager and query results.
 // Units: CPU in percent of the environment's total cores (0..100), memory
 // and disk in bytes, rates in bytes per second, load averages as reported
-// by the kernel. A nil value is unknown and is shown as a gap, never as 0.
+// by the kernel, temperatures in degrees Celsius. A nil value is unknown and is shown as a gap, never as 0.
 
 // Metric series kinds.
 const (
 	MetricHost      = "host"
 	MetricContainer = "container"
 	MetricDisk      = "disk"
+	// MetricSensor is a host temperature sensor (#146; the name is the
+	// sensor's, e.g. "coretemp: Package id 0").
+	MetricSensor = "sensor"
 )
 
 // Sample flags (stored per sample and ORed per query bucket).
@@ -64,14 +67,22 @@ type DiskValues struct {
 	TotalBytes int64
 }
 
+// TemperatureValues are one temperature sensor's reading (Sensor is the
+// hwmon chip and label, never a host path).
+type TemperatureValues struct {
+	Sensor  string
+	Celsius float64
+}
+
 // MetricSample is one sampling tick of an environment at a manager-side
 // timestamp (corrected for clock skew and aligned to the 10 s slot).
 type MetricSample struct {
-	At         time.Time
-	Flags      int
-	Host       *HostValues
-	Disks      []DiskValues
-	Containers []ContainerValues
+	At           time.Time
+	Flags        int
+	Host         *HostValues
+	Disks        []DiskValues
+	Containers   []ContainerValues
+	Temperatures []TemperatureValues
 }
 
 // MetricCursor is the collector's position in an agent's sample buffer.
@@ -87,7 +98,8 @@ type MetricCursor struct {
 // MetricQuery selects series of one environment.
 type MetricQuery struct {
 	EnvironmentID string
-	// Kind is host (host and disk series) or container (Name selects it).
+	// Kind is host (host, disk and sensor series) or container (Name
+	// selects it).
 	Kind string
 	Name string
 	From time.Time
@@ -104,6 +116,8 @@ type MetricSeries struct {
 	Unit string
 	// Mount labels disk series.
 	Mount string
+	// Sensor labels temperature sensor series.
+	Sensor string
 	// Container names the container of a series of an environment-wide
 	// container query (QueryContainers).
 	Container string

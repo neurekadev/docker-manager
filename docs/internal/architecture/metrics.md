@@ -6,7 +6,7 @@ the manager API that serves charts and live invalidations.
 
 | Piece | Package | Protocol / API |
 | --- | --- | --- |
-| Host sampler, container stats, sample ring, live reads, Engine inventory, Docker event relay | `internal/agent/observe` | `engine.info`, `host.metrics`, `metrics.live`, `event` frames ([agent-v1.md](../protocol/agent-v1.md)) |
+| Host sampler, temperature sensors (hwmon), container stats, sample ring, live reads, Engine inventory, Docker event relay | `internal/agent/observe` | `engine.info`, `host.metrics`, `metrics.live`, `event` frames ([agent-v1.md](../protocol/agent-v1.md)) |
 | Disk health monitor (SMART through smartctl, md and ZFS state from procfs) | `internal/agent/health`, `internal/agent/smartctl` | `host.health` |
 | Collector, live metrics, inventory cache, disk health, event journal | `internal/manager/observe` | — |
 | Metrics database | `internal/manager/metrics`, `internal/db/metricsmigrations` | — |
@@ -76,6 +76,34 @@ volumes' filesystem.
 A value that cannot be read (missing file, parse error, counter going
 backwards after a reboot or wrap) is absent from that sample: a gap, never
 zero. Each problem is logged once until it clears.
+
+**Temperatures** (#146, `observe/hwmon.go`). With every 10 s sample the
+agent reads the kernel's hwmon sensors from sysfs
+(`DOCKER_AGENT_HOST_SYS`, default `/sys`, through an `fs.FS`):
+`class/hwmon/hwmon<N>/name` (the chip) and each `temp<M>_input`
+(millidegrees Celsius) with its optional `temp<M>_label`. hwmon is not
+namespaced, so the agent container's own `/sys` shows the host's sensors
+(privileged or not). The batch carries them as `temperatures` `[{sensor,
+celsius}]`:
+
+- **Name:** `<chip>: <label>` (`coretemp: Package id 0`, `nvme:
+  Composite`, `k10temp: Tctl`); without a label `<chip>` for `temp1`
+  (`acpitz`) and `<chip>: temp<M>` for the others; a chip without a
+  readable name is `hwmon<N>`. Chips are read in hwmon order; a second
+  chip of the same name gets ` (2)` (two NVMe drives), and so on. Control
+  characters are replaced, names are cut to 64 bytes, a repeated name in
+  one sample is dropped. No host paths are sent.
+- **Values:** degrees Celsius with two decimals. An input that cannot be
+  read (EIO, ENODATA), does not parse, reports a fault (`temp<M>_fault`
+  = 1), is exactly 0 (an unconnected input) or lies outside −40 to 150 °C
+  is absent from that sample: a gap, never zero.
+- **Bounds:** at most 32 sensors per sample. A sysfs without
+  `class/hwmon` (a VM without sensors, no sysfs) has none and logs
+  nothing; a class directory that cannot be listed is logged once.
+
+Tests: `TestReadTemperaturesNamesEverySensor`,
+`TestReadTemperaturesIsBounded` (agent), `TestSensorSeriesStoreTemperatures`
+(storage, rollups), `TestEnvironmentMetricsLabelTemperatureSensors` (API).
 
 ## Container metrics
 
@@ -205,14 +233,16 @@ snapshot (its content is expendable); moving it away starts an empty one.
 
 | Level | Resolution | Default retention | Tables |
 | --- | --- | --- | --- |
-| raw | 10 s | 24 h (`DOCKER_MANAGER_METRICS_RETENTION_RAW`) | `host_raw`, `container_raw`, `disk_raw` |
-| 1 min | 60 s | 7 d (`DOCKER_MANAGER_METRICS_RETENTION_1M`) | `host_1m`, `container_1m`, `disk_1m` |
-| 15 min | 900 s | 90 d (`DOCKER_MANAGER_METRICS_RETENTION_15M`) | `host_15m`, `container_15m`, `disk_15m` |
+| raw | 10 s | 24 h (`DOCKER_MANAGER_METRICS_RETENTION_RAW`) | `host_raw`, `container_raw`, `disk_raw`, `sensor_raw` |
+| 1 min | 60 s | 7 d (`DOCKER_MANAGER_METRICS_RETENTION_1M`) | `host_1m`, `container_1m`, `disk_1m`, `sensor_1m` |
+| 15 min | 900 s | 90 d (`DOCKER_MANAGER_METRICS_RETENTION_15M`) | `host_15m`, `container_15m`, `disk_15m`, `sensor_15m` |
 
-- `series` maps (environment, kind, name) to an integer ID; sample tables
-  are `WITHOUT ROWID` with primary key `(series_id, ts)` and store integers
-  in fixed units (CPU and load in hundredths, bytes, bytes per second).
-  `NULL` means unknown.
+- `series` maps (environment, kind, name) to an integer ID: kind `host`
+  (one per environment), `container` (the container name), `disk` (the
+  filesystem role) or `sensor` (the temperature sensor's name, #146).
+  Sample tables are `WITHOUT ROWID` with primary key `(series_id, ts)` and
+  store integers in fixed units (CPU, load and temperatures in
+  hundredths, bytes, bytes per second). `NULL` means unknown.
 - Rollup rows hold the sample count `n`, the sample-weighted average and the
   maximum of each value, and the OR of the sample flags. 15 min rollups are
   built from 1 min rollups (weighted by `n`).
@@ -230,11 +260,12 @@ snapshot (its content is expendable); moving it away starts an empty one.
 
 | Limit | Default | Behaviour |
 | --- | --- | --- |
-| database size (`DOCKER_MANAGER_METRICS_MAX_SIZE_MB`) | 2 048 MiB | above it every level's retention is shortened by 20% per step (oldest data first) until the used pages fit; at 5% of the configured retention new container/disk series are refused (hosts are always kept) until space is free; retention recovers by 25% per pass once below 80% of the cap |
-| series (`DOCKER_MANAGER_METRICS_MAX_SERIES`) | 5 000 | samples of new containers/filesystems beyond it are dropped; host series are always accepted |
+| database size (`DOCKER_MANAGER_METRICS_MAX_SIZE_MB`) | 2 048 MiB | above it every level's retention is shortened by 20% per step (oldest data first) until the used pages fit; at 5% of the configured retention new container, disk and sensor series are refused (hosts are always kept) until space is free; retention recovers by 25% per pass once below 80% of the cap |
+| series (`DOCKER_MANAGER_METRICS_MAX_SERIES`) | 5 000 | samples of new containers, filesystems and temperature sensors beyond it are dropped; host series are always accepted |
 | agent ring | 180 batches | older batches are overwritten (gap if the manager was away longer) |
 | containers per batch | 1 000 | more are left out and the batch is flagged |
 | disks per batch | 16 | |
+| temperature sensors per batch | 32 | more are left out by the agent; a sensor name is at most 64 bytes |
 | query | 1 000 points | a longer range needs a larger step (422 otherwise) |
 | event journal | 1 000 events or 15 min per environment | older cursors get `reset` `cursor_expired` |
 | stream queue | 256 events per stream | overflow → `reset` `overflow` |
@@ -251,7 +282,15 @@ sequence gaps), `TestRingIsBoundedAndServedByCursor` and
 ## Queries and charts
 
 `GET /api/v1/environments/{id}/metrics?from&to&stepSeconds&series` returns
-host and per-filesystem series for a range: one value per step bucket.
+host, per-filesystem (`mount`) and per-temperature-sensor (`sensor`) series
+for a range: one value per step bucket. Temperature series
+(`temperature.celsius`, `temperature.celsius.max`, unit `celsius`) are
+listed only for the sensors with at least one reading in the range (a
+sensor that disappeared drops out), sorted by name; filesystems are always
+listed. The environment's Overview draws them as the **Temperature** chart
+after the host charts: one line per sensor (not stacked), ranked and
+coloured by its maximum over the range, headed by the hottest sensor's
+latest value, and absent when no sensor has a reading.
 
 - The storage level is the coarsest one whose resolution fits the step among
   the levels still holding data for `from`; the step is rounded up to a
@@ -259,7 +298,8 @@ host and per-filesystem series for a range: one value per step bucket.
   about 300 points. Recent buckets not yet rolled up are read from the finer
   level, so a chart never has a hole at its right edge.
 - Averages are sample-weighted; `.max` keys are the maximum within the
-  bucket (`cpu.percent.max`, `memory.used_bytes.max`, network maxima).
+  bucket (`cpu.percent.max`, `memory.used_bytes.max`, network maxima,
+  `temperature.celsius.max`).
 - **Gaps, not zeros:** a bucket without samples is `null` (the agent was
   offline, the manager did not collect, the value was unknown). An
   environment that was offline for 20 minutes shows 20 minutes of `null`s

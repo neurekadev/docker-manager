@@ -5,7 +5,10 @@
 	// Hovering lists every shown item with a value at that time, largest
 	// first, in its colour, under their total; items `shown` leaves out stay
 	// in their place greyed out and are absent from the tooltip and the
-	// headline total. On phones and touch screens a floating list of every
+	// headline total. Values that do not add up (temperatures, #146) set
+	// `stacked={false}`: plain lines side by side, the headline and the
+	// summary name the largest value instead of a total, and the tooltip
+	// has no total. On phones and touch screens a floating list of every
 	// item would not fit the screen: a tap moves the pointer and the details
 	// of that moment show under the chart instead. Nulls are gaps (a
 	// container that was not running), never zero. The canvas is decorative
@@ -18,6 +21,7 @@
 	import { formatValue, type ValueUnit } from './timeseries';
 	import {
 		lastIndex,
+		maxAt,
 		nearestIndex,
 		tipTimeText,
 		tooltipHtml,
@@ -42,6 +46,12 @@
 		height?: string;
 		/** Text after the title, e.g. "of all cores". */
 		detail?: string;
+		/**
+		 * Stacked areas whose total means something (default); false draws
+		 * plain lines for values that do not add up (temperatures) and
+		 * shows the largest value instead of a total.
+		 */
+		stacked?: boolean;
 	}
 
 	let {
@@ -53,7 +63,8 @@
 		from,
 		to,
 		height = '180px',
-		detail
+		detail,
+		stacked = true
 	}: Props = $props();
 
 	let el = $state<HTMLElement>();
@@ -73,15 +84,18 @@
 	// The newest bucket of the shown items: a hidden item's newer sample
 	// would leave their total empty.
 	const last = $derived(lastIndex(items.filter((i) => shown(i.name))));
-	const total = $derived(last < 0 ? null : totalAt(items, last, shown));
+	/** The headline: the total of a bucket, or its largest value when unstacked. */
+	const headlineAt = (index: number) =>
+		stacked ? totalAt(items, index, shown) : maxAt(items, index, shown);
+	const total = $derived(last < 0 ? null : headlineAt(last));
 	const summary = $derived.by(() => {
 		if (last < 0) return `${title}: no samples in this range.`;
 		const top = tooltipRows(items, last, shown)
 			.slice(0, 5)
 			.map((r) => `${r.name} ${formatValue(r.value, unit)}`);
 		return (
-			`${title}: latest total ${formatValue(total, unit)}.` +
-			(top.length ? ` Largest: ${top.join(', ')}.` : '')
+			`${title}: latest ${stacked ? 'total' : 'highest'} ${formatValue(total, unit)}.` +
+			(top.length ? ` ${stacked ? 'Largest' : 'Highest'}: ${top.join(', ')}.` : '')
 		);
 	});
 
@@ -90,8 +104,9 @@
 		const show = shown;
 		const times = ts;
 		const small = compact;
-		// ECharts stacks from the bottom: the last item first, the first on
-		// top.
+		const stack = stacked;
+		// ECharts stacks (and draws) from the bottom: the last item first,
+		// the first on top.
 		return {
 			timestamps: times,
 			lines: [...list].reverse().map((i) => ({
@@ -103,8 +118,8 @@
 			format: (v) => formatValue(v, unit),
 			from: start,
 			to: end,
-			yMin: 0,
-			stacked: true,
+			yMin: stack ? 0 : undefined,
+			stacked: stack,
 			hideTooltip: small,
 			tooltip: small
 				? undefined
@@ -113,7 +128,7 @@
 							times[index] ?? 0,
 							tooltipRows(list, index, show),
 							unit,
-							totalAt(list, index, show)
+							stack ? totalAt(list, index, show) : undefined
 						),
 			onPointer: (t) => {
 				if (small) picked = nearestIndex(times, t);
@@ -173,7 +188,7 @@
 		<div class="details" role="region" aria-label="{title} at {at}">
 			<div class="details-head">
 				<span class="muted">{at}</span>
-				{#if rows.length > 1}<span
+				{#if stacked && rows.length > 1}<span
 						>Total <b class="num">{formatValue(totalAt(items, picked, shown), unit)}</b
 						></span
 					>{/if}

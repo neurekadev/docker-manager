@@ -136,7 +136,7 @@ func newTestSampler(t *testing.T, fsys fstest.MapFS, eng *fakeEngine) *Sampler {
 	if eng != nil {
 		e = func() EngineAPI { return eng }
 	}
-	return New(Options{Clock: testutil.FakeClock(), Logger: testutil.Logger(t), Proc: fsys, Engine: e, Epoch: "epoch-1",
+	return New(Options{Clock: testutil.FakeClock(), Logger: testutil.Logger(t), Proc: fsys, Sys: fstest.MapFS{}, Engine: e, Epoch: "epoch-1",
 		NetNS: func(pid string) (string, error) { return "net:[4026531840]", nil },
 		Statfs: func(path string) (DiskStat, error) {
 			switch path {
@@ -432,7 +432,7 @@ func TestRunSamplesOnIntervalBoundaries(t *testing.T) {
 	clk := testutil.FakeClock()
 	clk.Set(testutil.Epoch.Add(3 * time.Second))
 	ticked := make(chan protocol.MetricBatch, 3)
-	s := New(Options{Clock: clk, Logger: testutil.Logger(t), Proc: procFS(statA, meminfoText, "0 0 0", "1", netA), Epoch: "e",
+	s := New(Options{Clock: clk, Logger: testutil.Logger(t), Proc: procFS(statA, meminfoText, "0 0 0", "1", netA), Sys: fstest.MapFS{}, Epoch: "e",
 		NetNS: func(string) (string, error) { return "", errors.New("no") }, Statfs: func(string) (DiskStat, error) { return DiskStat{}, nil },
 		onTick: func(b protocol.MetricBatch) { ticked <- b }})
 	ctx, cancel := context.WithCancel(testutil.Context(t))

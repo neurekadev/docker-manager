@@ -30,6 +30,7 @@
 	import {
 		ScriptedEventSource,
 		demoContainerMemory,
+		demoTemperatures,
 		demoCpuSeries,
 		demoJob,
 		demoJobClient,
@@ -39,6 +40,7 @@
 	} from '$lib/design/demo';
 	import { SERVICE_COLOR, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
 	import { byRank, nameFilter } from '$lib/features/environments/containers';
+	import { rankByPeak } from '$lib/features/environments/temperatures';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import LifecycleButton from '$lib/features/common/LifecycleButton.svelte';
@@ -259,6 +261,8 @@
 		new Date(Date.UTC(2026, 8, 25, 12, i)).toISOString()
 	);
 	const memoryItems = byRank(demoContainerMemory(60).map((c) => ({ ...c, color: '' })));
+	// Values that do not add up (host temperatures): side by side.
+	const temperatureItems = rankByPeak(demoTemperatures(60));
 	let memoryFilter = $state('');
 	const memoryShown = $derived(nameFilter(memoryFilter));
 
@@ -849,6 +853,16 @@
 				items={memoryItems}
 				shown={memoryShown}
 				height="240px"
+			/>
+		</Card>
+		<Card title="Values that do not add up">
+			<MultiSeriesChart
+				title="Temperature"
+				unit="celsius"
+				stacked={false}
+				timestamps={memoryTimes}
+				items={temperatureItems}
+				detail="hottest sensor"
 			/>
 		</Card>
 	</section>

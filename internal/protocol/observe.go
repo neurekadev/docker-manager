@@ -3,6 +3,7 @@ package protocol
 import (
 	"math"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -23,6 +24,10 @@ const (
 	MaxContainerSamples = 1000
 	// MaxDiskSamples bounds the filesystems of one batch.
 	MaxDiskSamples = 16
+	// MaxTemperatureSamples bounds the temperature sensors of one batch;
+	// MaxSensorNameLen bounds a sensor's name in bytes.
+	MaxTemperatureSamples = 32
+	MaxSensorNameLen      = 64
 	// MaxMetricsResponseBytes bounds the encoded batches of one host.metrics
 	// response (the frame limit is MaxFrameSize); More asks the manager to
 	// fetch again.
@@ -144,6 +149,9 @@ type MetricBatch struct {
 	Host       HostSample        `json:"host"`
 	Disks      []DiskSample      `json:"disks,omitempty"`
 	Containers []ContainerSample `json:"containers,omitempty"`
+	// Temperatures are the host's hwmon sensors (#146; absent from older
+	// agents and hosts without sensors).
+	Temperatures []TemperatureSample `json:"temperatures,omitempty"`
 }
 
 // HostSample holds host-wide values (docs/internal/architecture/metrics.md, "Units").
@@ -183,6 +191,22 @@ type DiskSample struct {
 	UsedBytes  int64  `json:"usedBytes"`
 	TotalBytes int64  `json:"totalBytes"`
 }
+
+// TemperatureSample is one host temperature sensor's reading. Sensor is
+// the hwmon chip name with the input's label ("coretemp: Package id 0",
+// "nvme: Composite", "acpitz"): never a host path. A sensor without a
+// reading is absent from the batch.
+type TemperatureSample struct {
+	Sensor  string  `json:"sensor"`
+	Celsius float64 `json:"celsius"`
+}
+
+// Temperature bounds of a valid sample (the agent leaves out implausible
+// readings well inside them).
+const (
+	minValidCelsius = -100
+	maxValidCelsius = 250
+)
 
 // ContainerSample is one running container's usage.
 type ContainerSample struct {
@@ -305,6 +329,16 @@ func (b MetricBatch) validate() error {
 			return invalid("disk sample out of range")
 		}
 	}
+	if len(b.Temperatures) > MaxTemperatureSamples {
+		return invalid("metric batch lists too many temperature sensors")
+	}
+	sensors := make(map[string]bool, len(b.Temperatures))
+	for _, t := range b.Temperatures {
+		if !validSensorName(t.Sensor) || sensors[t.Sensor] || !finite(&t.Celsius, minValidCelsius, maxValidCelsius) {
+			return invalid("temperature sample out of range")
+		}
+		sensors[t.Sensor] = true
+	}
 	for _, c := range b.Containers {
 		if c.Name == "" || len(c.Name) > 255 || len(c.ID) > 128 || !utf8.ValidString(c.Name) ||
 			!finite(c.CPUPercent, 0, 100) || !finite(c.NetworkRxBytesPerSecond, 0, maxRate) || !finite(c.NetworkTxBytesPerSecond, 0, maxRate) ||
@@ -314,4 +348,18 @@ func (b MetricBatch) validate() error {
 		}
 	}
 	return nil
+}
+
+// validSensorName reports a non-empty printable UTF-8 name of at most
+// MaxSensorNameLen bytes.
+func validSensorName(s string) bool {
+	if s == "" || len(s) > MaxSensorNameLen || !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }

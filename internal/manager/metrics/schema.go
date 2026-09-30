@@ -109,10 +109,20 @@ var kinds = map[string]kindSpec{
 			{key: "disk.total_bytes", unit: "bytes", raw: "total", roll: "total", max: true, scale: 1},
 		},
 	},
+	// Temperature sensors (#146): hundredths of a degree Celsius.
+	domain.MetricSensor: {
+		kind:    domain.MetricSensor,
+		rawCols: []string{"temp"},
+		rollup:  []rollupCol{flagsCol, avgCol("temp_avg", "temp"), maxCol("temp_max", "temp")},
+		metrics: []metricDef{
+			{key: "temperature.celsius", unit: "celsius", raw: "temp", roll: "temp_avg", scale: 0.01},
+			{key: "temperature.celsius.max", unit: "celsius", raw: "temp", roll: "temp_max", max: true, scale: 0.01},
+		},
+	},
 }
 
 // MetricKeys returns the queryable keys of a kind (host also covers the
-// disk keys).
+// disk and sensor keys).
 func MetricKeys(kind string) []string {
 	var out []string
 	add := func(k string) {
@@ -123,6 +133,7 @@ func MetricKeys(kind string) []string {
 	add(kind)
 	if kind == domain.MetricHost {
 		add(domain.MetricDisk)
+		add(domain.MetricSensor)
 	}
 	return out
 }

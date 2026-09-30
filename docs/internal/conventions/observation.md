@@ -12,11 +12,19 @@ inventory cache, disk health, event journal) and `internal/manager/metrics`
 
 - **Read metrics:** `Store.Query(ctx, domain.MetricQuery{Kind:
   domain.MetricContainer, Name: containerName, ...})` (container charts,
-  #6/#7), `Store.QueryContainers` (every container of an environment with
-  values in the range, one query per 200 series and storage level; the
-  environment's per-container charts), `Store.Latest`; values are `nil`
-  for gaps, never 0. Units: CPU %
-  of the environment's total cores, bytes, bytes/s.
+  #6/#7; kind `host` also returns the disk series labelled `Mount` and the
+  temperature sensor series labelled `Sensor`), `Store.QueryContainers`
+  (every container of an environment with values in the range, one query
+  per 200 series and storage level; the environment's per-container
+  charts), `Store.Latest`; values are `nil` for gaps, never 0. Units: CPU
+  % of the environment's total cores, bytes, bytes/s, degrees Celsius.
+- **Temperatures** (#146): the agent reads hwmon only through the
+  sampler's `fs.FS` (`Options.Sys`, `DOCKER_AGENT_HOST_SYS`); a sensor is
+  named `<chip>: <label>` and never by a host path, an unreadable or
+  implausible reading is left out (a gap), at most
+  `protocol.MaxTemperatureSamples` per batch. The manager stores one
+  `sensor` series per environment and sensor name, counted against the
+  series cap like disks.
 - **Inventory:** `observe.Service.Inventory(envID)` (last known, also
   offline). Refreshes are triggered by `docker.event`,
   `agent.capabilities_updated` and `environment.resync` on the bus.

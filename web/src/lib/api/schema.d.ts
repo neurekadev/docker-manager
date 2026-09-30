@@ -9577,8 +9577,13 @@ export interface components {
              * @example docker
              */
             mount?: string;
+            /**
+             * @description Temperature sensor of temperature series: the host's hardware monitoring chip and the input's label. Never a host path; only sensors with a reading in the range are listed.
+             * @example coretemp: Package id 0
+             */
+            sensor?: string;
             /** @enum {string} */
-            unit: "percent" | "bytes" | "bytes_per_second" | "load" | "count";
+            unit: "percent" | "bytes" | "bytes_per_second" | "load" | "count" | "celsius";
             /** @description One value per timestamp; null where no sample exists (agent offline, value unknown). */
             values: (number | null)[];
         };
@@ -23827,6 +23832,7 @@ export interface operations {
                      *         {
                      *           "key": "cpu.percent",
                      *           "mount": "docker",
+                     *           "sensor": "coretemp: Package id 0",
                      *           "unit": "percent",
                      *           "values": [
                      *             1
@@ -26446,6 +26452,7 @@ export interface operations {
                      *         {
                      *           "key": "cpu.percent",
                      *           "mount": "docker",
+                     *           "sensor": "coretemp: Package id 0",
                      *           "unit": "percent",
                      *           "values": [
                      *             1
@@ -26641,6 +26648,7 @@ export interface operations {
                      *             {
                      *               "key": "cpu.percent",
                      *               "mount": "docker",
+                     *               "sensor": "coretemp: Package id 0",
                      *               "unit": "percent",
                      *               "values": [
                      *                 1

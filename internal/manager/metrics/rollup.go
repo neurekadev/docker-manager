@@ -92,7 +92,7 @@ func (s *Store) Rollup(ctx context.Context) error {
 	return nil
 }
 
-var kindOrder = []string{"host", "disk", "container"}
+var kindOrder = []string{"host", "disk", "sensor", "container"}
 
 // RetainResult reports a retention pass.
 type RetainResult struct {

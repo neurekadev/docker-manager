@@ -287,7 +287,7 @@ func New(opts Options) (*Agent, error) {
 	}
 	if opts.Observe {
 		a.sampler = observe.New(observe.Options{Clock: opts.Clock, Logger: opts.Logger, ProcRoot: opts.Config.HostProc,
-			Engine: a.observedEngine, Roots: a.observedRoots})
+			SysRoot: opts.Config.HostSys, Engine: a.observedEngine, Roots: a.observedRoots})
 		a.health = newHealthMonitor(opts, a.sampler)
 		reqs := make(map[string]session.RequestHandler, len(opts.Requests)+4)
 		reqs[protocol.ReqEngineInfo] = a.sampler.EngineInfo

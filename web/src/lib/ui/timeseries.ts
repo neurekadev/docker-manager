@@ -1,13 +1,14 @@
 // Time-series helpers (#5 charts, TimeSeriesChart). Metric responses carry
 // one value per bucket with null where no sample exists (the agent was
 // offline or the value unknown); nulls are gaps, never zero. Pure functions.
-import { formatBytes, formatNumber, formatPercent } from './format';
+import { formatBytes, formatNumber, formatPercent, formatTemperature } from './format';
 
-export type ValueUnit = 'percent' | 'bytes' | 'bytes_per_second' | 'load' | 'count';
+export type ValueUnit = 'percent' | 'bytes' | 'bytes_per_second' | 'load' | 'count' | 'celsius';
 
 /**
  * Formats a value of a metric unit (#5 units) with up to two decimals,
- * trailing zeros dropped (#147): 12.34%, 1.5 GB, 2 KB/s, 0.5; counts whole.
+ * trailing zeros dropped (#147): 12.34%, 1.5 GB, 2 KB/s, 0.5, 48.5 °C;
+ * counts whole.
  */
 export function formatValue(v: number | null | undefined, unit: ValueUnit): string {
 	if (v === null || v === undefined || !Number.isFinite(v)) return '—';
@@ -20,6 +21,8 @@ export function formatValue(v: number | null | undefined, unit: ValueUnit): stri
 			return `${formatBytes(v)}/s`;
 		case 'load':
 			return formatNumber(v);
+		case 'celsius':
+			return formatTemperature(v);
 		default:
 			return String(Math.round(v));
 	}

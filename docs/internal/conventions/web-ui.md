@@ -29,7 +29,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   service); no hashed or per-item colours, except a chart of every
   container of an environment (`MultiSeriesChart`: Beszel's order, on each
   chart the containers ranked by their total over the range get
-  `rankColor(rank, n)`, the largest the first colour).
+  `rankColor(rank, n)`, the largest the first colour) and the host's
+  Temperature chart (the sensors ranked by their maximum over the range,
+  `rankByPeak` in `$lib/features/environments/temperatures.ts`).
   Heavy libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Resource icons:** one icon and tile colour per resource type in
   `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's
@@ -105,7 +107,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   gaps shaded and listed as text), `MultiSeriesChart` for many items of one
   type (stacked, a tooltip naming every item, a `shown` filter greying out
   the rest: the environment's per-container charts, `ContainerCharts`
-  after the host charts), `Sparkline` in KPI cards; metric queries
+  after the host charts; `stacked={false}` for values that do not add up,
+  plain lines headed by the largest value: the host's Temperature chart,
+  last of the host charts and shown only when a sensor has a reading),
+  `Sparkline` in KPI cards; metric queries
   keyed with `liveKeys.metrics(envId, …)`. 204 responses: `unwrapEmpty`.
 - **Data:** typed client + Svelte Query; a `queryOptions` factory per
   resource in `src/lib/api/queries.ts` keyed with `liveKeys` ([live-sync.md](live-sync.md)) so live events refresh it; mutations invalidate by prefix, never

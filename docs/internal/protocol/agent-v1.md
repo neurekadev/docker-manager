@@ -1110,11 +1110,17 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
 - `host.metrics {epoch?, afterSeq?, maxBatches?}` → `HostMetricsOutput {epoch,
   now, intervalSeconds, oldestSeq, lastSeq, more, batches}`. The agent samples
   every 10 s into a ring of 180 batches (30 min); each batch is `{seq, at,
-  flags, host, disks, containers}` with `seq` increasing per sampler epoch
+  flags, host, disks, containers, temperatures}` with `seq` increasing per sampler epoch
   (one per agent process). The manager passes its cursor (`epoch`,
   `afterSeq`); another epoch returns the whole ring. An answer holds at most
   60 batches or 768 KiB (`more: true` asks for the next page). `now` is the
   agent clock for skew estimation. Absent values are unknown (gaps).
+  `temperatures` (#146, optional: agents before it omit it, and as an
+  output field it needs no feature) lists at most 32 host sensors
+  `{sensor, celsius}`: `sensor` is the hwmon chip name and label
+  (`coretemp: Package id 0`, `nvme: Composite`, `acpitz`; 1–64 bytes of
+  UTF-8 without control characters, unique in the batch, never a host
+  path), `celsius` −100 to 250; a sensor without a reading is absent.
   The manager fetches 2 s after each 10 s slot.
 - `metrics.live {}` → `LiveMetricsOutput {at, flags, host {cpuPercent,
   cpus, memoryUsedBytes, memoryTotalBytes}, containers [{name, id,

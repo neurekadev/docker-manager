@@ -413,3 +413,47 @@ func TestHostMetricKeysMatchTheStore(t *testing.T) {
 		t.Fatalf("api %v\nstore %v", HostMetricKeys, metrics.MetricKeys(domain.MetricHost))
 	}
 }
+
+func TestEnvironmentMetricsLabelTemperatureSensors(t *testing.T) {
+	f := newObserveFixture(t, observePolicy())
+	t0 := f.clk.Now().Truncate(time.Minute)
+	var batch []domain.MetricSample
+	for k := range 6 {
+		smp := domain.MetricSample{At: t0.Add(time.Duration(k) * 10 * time.Second), Host: &domain.HostValues{CPUPercent: fp(5)},
+			Disks:        []domain.DiskValues{{Mount: "docker", UsedBytes: 10, TotalBytes: 100}},
+			Temperatures: []domain.TemperatureValues{{Sensor: "coretemp: Package id 0", Celsius: 48.5 + float64(k)}}}
+		if k != 3 { // no reading: a gap
+			smp.Temperatures = append(smp.Temperatures, domain.TemperatureValues{Sensor: "nvme: Composite", Celsius: 38})
+		}
+		batch = append(batch, smp)
+	}
+	f.clk.Set(t0.Add(time.Minute))
+	if _, err := f.st.Ingest(f.ctx, "env-1", batch, nil); err != nil {
+		t.Fatal(err)
+	}
+	var m EnvironmentMetrics
+	path := "/api/v1/environments/env-1/metrics?from=" + t0.Format(time.RFC3339) + "&to=" + t0.Add(time.Minute).Format(time.RFC3339) +
+		"&stepSeconds=10&series=disk.used_bytes,temperature.celsius,temperature.celsius.max"
+	if st := f.get(t, "mia", path, &m); st != http.StatusOK {
+		t.Fatalf("status %d", st)
+	}
+	// The disk keeps its mount; each sensor has its average and maximum,
+	// labelled with its name and in degrees Celsius.
+	var got []string
+	for _, s := range m.Series {
+		got = append(got, s.Key+"|"+s.Unit+"|"+s.Mount+"|"+s.Sensor)
+	}
+	want := []string{"disk.used_bytes|bytes|docker|", "temperature.celsius|celsius||coretemp: Package id 0",
+		"temperature.celsius.max|celsius||coretemp: Package id 0", "temperature.celsius|celsius||nvme: Composite",
+		"temperature.celsius.max|celsius||nvme: Composite"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("series\n got %v\nwant %v", got, want)
+	}
+	if v := m.Series[1].Values; *v[0] != 48.5 || *v[5] != 53.5 {
+		t.Fatalf("cpu %+v", m.Series[1])
+	}
+	r := authztest.Do(t, f.h, "mia", authztest.Call{Method: http.MethodGet, Path: path})
+	if !strings.Contains(string(r.Body), `"sensor":"nvme: Composite","values":[38,38,38,null,38,38]`) {
+		t.Fatalf("body %s", r.Body)
+	}
+}

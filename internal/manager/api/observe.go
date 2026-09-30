@@ -28,12 +28,14 @@ const (
 	CapContainerMetricsRead   Capability = "container.metrics.read"
 )
 
-// HostMetricKeys are the metric keys of GET …/metrics (host and disks).
+// HostMetricKeys are the metric keys of GET …/metrics (host, disks and
+// temperature sensors).
 var HostMetricKeys = []string{
 	"cpu.percent", "cpu.percent.max", "memory.used_bytes", "memory.used_bytes.max", "memory.total_bytes",
 	"load.1", "load.5", "load.15",
 	"network.rx_bytes_per_second", "network.rx_bytes_per_second.max", "network.tx_bytes_per_second", "network.tx_bytes_per_second.max",
 	"disk.used_bytes", "disk.total_bytes",
+	"temperature.celsius", "temperature.celsius.max",
 }
 
 // ObserveService is the observation service as seen by the API
@@ -55,8 +57,10 @@ type ObserveService interface {
 // MetricSeries is one series of a metrics response.
 type MetricSeries struct {
 	Key   string `json:"key" example:"cpu.percent" doc:"Metric key; .max variants are the maximum within each bucket, the others the sample-weighted average."`
-	Unit  string `json:"unit" enum:"percent,bytes,bytes_per_second,load,count"`
+	Unit  string `json:"unit" enum:"percent,bytes,bytes_per_second,load,count,celsius"`
 	Mount string `json:"mount,omitempty" example:"docker" doc:"Filesystem role of disk series: docker (Docker's data root), stacks, bind-N. Never a host path."`
+	// Sensor names the temperature sensor of temperature series.
+	Sensor string `json:"sensor,omitempty" example:"coretemp: Package id 0" doc:"Temperature sensor of temperature series: the host's hardware monitoring chip and the input's label. Never a host path; only sensors with a reading in the range are listed."`
 	// Values align with timestamps; null is a gap (no sample), never zero.
 	Values []*float64 `json:"values" doc:"One value per timestamp; null where no sample exists (agent offline, value unknown)."`
 }
@@ -235,7 +239,7 @@ func newEnvironmentMetrics(env domain.Environment, r domain.MetricResult) Enviro
 		out.Timestamps = []time.Time{}
 	}
 	for _, s := range r.Series {
-		out.Series = append(out.Series, MetricSeries{Key: s.Key, Unit: s.Unit, Mount: s.Mount, Values: s.Values})
+		out.Series = append(out.Series, MetricSeries{Key: s.Key, Unit: s.Unit, Mount: s.Mount, Sensor: s.Sensor, Values: s.Values})
 	}
 	return out
 }

@@ -1,8 +1,9 @@
 <script lang="ts">
-	// Host metrics of one environment (#5): CPU, memory, network, load and
-	// disks over a chosen range, explained in plain words (averages on long
-	// ranges, shaded gaps); charts with a legend leave out the headline
-	// value the legend already shows. The per-container charts follow over
+	// Host metrics of one environment (#5): CPU, memory, network, load,
+	// disks and the temperature sensors (#146, only when the host reports
+	// any in the range) over a chosen range, explained in plain words
+	// (averages on long ranges, shaded gaps); charts with a legend leave out
+	// the headline value the legend already shows. The per-container charts follow over
 	// the same range (ContainerCharts). Values come from GET …/metrics (downsampled
 	// by the manager; nulls are gaps: the agent was offline or a value was
 	// unknown) and refresh live through `metrics` events (liveKeys.metrics).
@@ -13,6 +14,7 @@
 	import {
 		Card,
 		ErrorState,
+		MultiSeriesChart,
 		Notice,
 		Select,
 		Skeleton,
@@ -21,6 +23,7 @@
 	} from '$lib/ui';
 	import ContainerCharts from './ContainerCharts.svelte';
 	import { METRIC_RANGES, diskMounts, mountLabel, rangeSeconds, seriesValues } from './model';
+	import { temperatureItems } from './temperatures';
 
 	interface Props {
 		environmentId: string;
@@ -34,6 +37,7 @@
 	const metrics = createQuery(() => environmentMetricsQuery(environmentId, rangeSeconds(range)));
 	const m = $derived(metrics.data);
 	const mounts = $derived(diskMounts(m));
+	const temperatures = $derived(temperatureItems(m));
 	const rangeOptions = METRIC_RANGES.map((r) => ({ value: r.id, label: `Last ${r.label}` }));
 </script>
 
@@ -159,6 +163,18 @@
 					]}
 				/>
 			{/each}
+			{#if temperatures.length}
+				<MultiSeriesChart
+					title="Temperature"
+					unit="celsius"
+					stacked={false}
+					timestamps={m.timestamps}
+					from={m.from}
+					to={m.to}
+					items={temperatures}
+					detail="hottest sensor"
+				/>
+			{/if}
 		</div>
 	{/if}
 	<ContainerCharts {environmentId} {name} seconds={rangeSeconds(range)} />
