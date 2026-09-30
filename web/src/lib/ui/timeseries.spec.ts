@@ -121,19 +121,24 @@ describe('timeSeriesOption for many items (MultiSeriesChart)', () => {
 		]
 	};
 
-	it('stacks filled areas and greys muted lines out behind the others', () => {
+	it('stacks smoothed filled areas like Beszel and greys muted lines out behind the others', () => {
 		const o = timeSeriesOption(base);
 		expect(o.series.every((s) => s.stack === 'total')).toBe(true);
 		expect(o.series[0]).toMatchObject({
 			z: 2,
-			lineStyle: { color: 'hsl(1, 80%, 66%)' },
-			areaStyle: { color: 'hsl(1, 80%, 66%)', opacity: 0.2 }
+			smooth: true,
+			smoothMonotone: 'x',
+			symbol: 'circle',
+			lineStyle: { color: 'hsl(1, 80%, 66%)', width: 1 },
+			areaStyle: { color: 'hsl(1, 80%, 66%)', opacity: 0.4 }
 		});
-		expect(o.series[1].z).toBe(1);
+		expect(o.series[1]).toMatchObject({ z: 1, symbol: 'none' });
 		expect(o.series[1].lineStyle.color).not.toBe('hsl(2, 80%, 56%)');
 		expect(o.series[1].lineStyle.opacity).toBeLessThan(1);
-		expect(o.series[1].areaStyle?.opacity).toBeLessThan(0.2);
-		expect(timeSeriesOption({ ...base, stacked: false }).series[0].stack).toBeUndefined();
+		expect(o.series[1].areaStyle?.opacity).toBeLessThan(0.4);
+		const flat = timeSeriesOption({ ...base, stacked: false }).series[0];
+		expect(flat.stack).toBeUndefined();
+		expect(flat.smooth).toBeUndefined();
 	});
 
 	it('renders the caller’s tooltip of the hovered bucket, outside the card, beside the pointer', () => {

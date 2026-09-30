@@ -61,37 +61,51 @@ export function escapeHtml(s: string): string {
 }
 
 /**
- * The tooltip HTML of one bucket: its time, then one row per item (colour,
- * name, value and its parts), in columns of ROWS_PER_COLUMN read top to
- * bottom. Names are escaped.
+ * The tooltip HTML of one bucket: its time and the shown items' total, then
+ * one row per item (colour, name, value right-aligned, its parts), in
+ * columns of ROWS_PER_COLUMN read top to bottom. Names are escaped.
  */
-export function tooltipHtml(time: number, rows: readonly TooltipRow[], unit: ValueUnit): string {
-	const head = `<div style="margin-bottom:6px;opacity:.75">${escapeHtml(tipTime.format(time))}</div>`;
+export function tooltipHtml(
+	time: number,
+	rows: readonly TooltipRow[],
+	unit: ValueUnit,
+	total?: number | null
+): string {
+	const when = escapeHtml(tipTime.format(time));
+	const sum =
+		total !== undefined && total !== null && rows.length > 1
+			? `<span>Total <b style="font-weight:600;font-variant-numeric:tabular-nums">${escapeHtml(
+					formatValue(total, unit)
+				)}</b></span>`
+			: '';
+	const head =
+		'<div style="display:flex;justify-content:space-between;gap:24px;margin-bottom:6px">' +
+		`<span style="opacity:.75">${when}</span>${sum}</div>`;
 	if (!rows.length) return `${head}<div style="opacity:.75">No samples</div>`;
 	const cols = Math.min(4, Math.ceil(rows.length / ROWS_PER_COLUMN));
 	const perCol = Math.ceil(rows.length / cols);
-	const cells = rows
-		.map((r) => {
-			const parts = r.parts.length
-				? `<span style="opacity:.65">${escapeHtml(
-						r.parts.map((p) => `${formatValue(p.value, unit)} ${p.label}`).join(', ')
-					)}</span>`
-				: '';
-			return (
-				'<div style="display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap">' +
-				`<span style="flex:none;width:8px;height:8px;border-radius:50%;background:${r.color}"></span>` +
-				`<span style="flex:1;min-width:0;max-width:240px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.name)}</span>` +
-				`<b style="font-weight:600;font-variant-numeric:tabular-nums">${escapeHtml(formatValue(r.value, unit))}</b>` +
-				parts +
-				'</div>'
-			);
-		})
-		.join('');
-	return (
-		head +
-		`<div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(${perCol},auto);` +
-		`column-gap:24px;row-gap:2px">${cells}</div>`
-	);
+	const withParts = rows.some((r) => r.parts.length);
+	const cell = (r: TooltipRow) =>
+		`<span style="width:8px;height:8px;border-radius:50%;background:${r.color}"></span>` +
+		`<span style="min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.name)}</span>` +
+		`<b style="font-weight:600;font-variant-numeric:tabular-nums;text-align:right">${escapeHtml(
+			formatValue(r.value, unit)
+		)}</b>` +
+		(withParts
+			? `<span style="opacity:.65;font-variant-numeric:tabular-nums">${escapeHtml(
+					r.parts.map((p) => `${formatValue(p.value, unit)} ${p.label}`).join(', ')
+				)}</span>`
+			: '');
+	// Each column is a grid of its own, so values line up at the right.
+	const columns: string[] = [];
+	for (let c = 0; c < cols; c++) {
+		const part = rows.slice(c * perCol, (c + 1) * perCol);
+		columns.push(
+			`<div style="display:grid;grid-template-columns:8px auto auto${withParts ? ' auto' : ''};` +
+				`align-items:center;column-gap:8px;row-gap:2px;white-space:nowrap">${part.map(cell).join('')}</div>`
+		);
+	}
+	return `${head}<div style="display:flex;align-items:flex-start;gap:24px">${columns.join('')}</div>`;
 }
 
 /** The index of the newest bucket where any item has a value (-1: none). */

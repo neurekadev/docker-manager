@@ -289,7 +289,7 @@ store reads no other container's series). It reads them in batches of 200
 per storage level
 (`series_id IN (…)`), not one query per container. It feeds the
 environment page's per-container charts (Docker CPU, memory, network and
-disk I/O: rx + tx and block read + write per container, about 120 buckets
+disk I/O: rx + tx and block read + write per container, about 60 buckets
 per range), refreshed by `metrics` invalidations like the host charts.
 There is no per-container storage chart: volumes can be shared by several
 containers, so a per-container figure would count them twice.

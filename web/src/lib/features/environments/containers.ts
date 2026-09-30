@@ -1,8 +1,9 @@
 // Per-container charts of an environment (#5): the series of every
 // container from GET …/metrics/containers/history as MultiSeriesChart
-// items (in name order) coloured in Beszel's order: on each chart the
-// containers are ranked by their total over the range and the largest gets
-// the first colour. And the name filter. Pure.
+// items, drawn like Beszel: on each chart the containers are ranked by
+// their total over the range; the ranking is the stacking order (the
+// largest on top) and picks the colours (the largest the first). And the
+// name filter. Pure.
 import type { ContainerMetricsHistory } from '$lib/api/queries';
 import { rankColor } from '$lib/design/hue';
 import type { SeriesItem } from '$lib/ui/multiseries';
@@ -17,8 +18,11 @@ export const CONTAINER_CHART_SERIES = [
 	'block.write_bytes_per_second'
 ];
 
-/** Buckets per chart: enough detail without a large answer per container. */
-export const CONTAINER_CHART_POINTS = 120;
+/**
+ * Buckets per chart, about Beszel's (1 min records over an hour): the
+ * trend without every 10 s spike, and a small answer per container.
+ */
+export const CONTAINER_CHART_POINTS = 60;
 
 /** The bucket width asked for a range (the manager rounds it up to its storage). */
 export function containerChartStep(seconds: number): number {
@@ -58,7 +62,7 @@ export function containerCharts(h: ContainerMetricsHistory | undefined): Contain
 	const sorted = [...h.items].sort((a, b) => a.container.localeCompare(b.container));
 	for (const c of sorted) {
 		const name = c.container;
-		// Coloured per chart once every container is in (colourByRank).
+		// Ranked and coloured per chart once every container is in (byRank).
 		const color = '';
 		const v = (key: string) => valuesOf(c, key, n);
 		const rx = v('network.rx_bytes_per_second');
@@ -86,8 +90,12 @@ export function containerCharts(h: ContainerMetricsHistory | undefined): Contain
 			]
 		});
 	}
-	for (const items of Object.values(out)) colourByRank(items);
-	return out;
+	return {
+		cpu: byRank(out.cpu),
+		memory: byRank(out.memory),
+		network: byRank(out.network),
+		disk: byRank(out.disk)
+	};
 }
 
 /** The sum of the values over the range (gaps count as nothing). */
@@ -98,22 +106,27 @@ export function totalOf(values: Values): number {
 }
 
 /**
- * Colours the items of one chart in Beszel's order: ranked by their total
- * over the range, largest first (ties by name), colour i of n from
- * rankColor. The items keep their order.
+ * The items of one chart in Beszel's order: ranked by their total over the
+ * range, largest first (ties by name), item i of n coloured rankColor(i,
+ * n). MultiSeriesChart stacks them in this order, the first on top.
  */
-export function colourByRank(items: SeriesItem[]): void {
+export function byRank(items: SeriesItem[]): SeriesItem[] {
 	const ranked = items
 		.map((it) => ({ it, total: totalOf(it.values) }))
 		.sort((a, b) => b.total - a.total || a.it.name.localeCompare(b.it.name));
-	ranked.forEach(({ it }, rank) => (it.color = rankColor(rank, ranked.length)));
+	return ranked.map(({ it }, rank) => ({ ...it, color: rankColor(rank, ranked.length) }));
 }
 
 /**
- * The containers a filter shows: names containing the text, ignoring case
- * (all of them for an empty filter).
+ * The containers a filter shows: names containing any of its words
+ * (separated by spaces, like Beszel's), ignoring case; all of them for an
+ * empty filter.
  */
 export function nameFilter(text: string): (name: string) => boolean {
-	const q = text.trim().toLowerCase();
-	return q ? (name) => name.toLowerCase().includes(q) : () => true;
+	const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+	if (!words.length) return () => true;
+	return (name) => {
+		const n = name.toLowerCase();
+		return words.some((w) => n.includes(w));
+	};
 }

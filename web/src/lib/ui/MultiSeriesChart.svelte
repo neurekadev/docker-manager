@@ -1,9 +1,11 @@
 <script lang="ts">
 	// Many items of one type on one chart (#5; every container of an
-	// environment): stacked areas, one colour per item, no legend. Hovering
-	// lists every shown item with a value at that time, largest first, in its
-	// colour; items `shown` leaves out are greyed out behind the others and
-	// absent from the tooltip and the headline total. Nulls are gaps (a
+	// environment), drawn like Beszel: smoothed stacked areas in the order
+	// of `items` (the first on top), one colour per item, no legend.
+	// Hovering lists every shown item with a value at that time, largest
+	// first, in its colour, under their total; items `shown` leaves out stay
+	// in their place greyed out and are absent from the tooltip and the
+	// headline total. Nulls are gaps (a
 	// container that was not running), never zero. The canvas is decorative
 	// for assistive technology: the summary names the total and the largest
 	// items as text.
@@ -17,6 +19,7 @@
 		title: string;
 		/** Bucket start times (ISO strings), ascending. */
 		timestamps: string[];
+		/** In stacking order, the first on top (e.g. the largest first). */
 		items: SeriesItem[];
 		unit: ValueUnit;
 		/** Which items are shown (a name filter); default all. */
@@ -68,11 +71,11 @@
 		const list = items;
 		const show = shown;
 		const times = ts;
-		// Shown items at the bottom of the stack, greyed ones above them.
-		const ordered = [...list.filter((i) => show(i.name)), ...list.filter((i) => !show(i.name))];
+		// ECharts stacks from the bottom: the last item first, the first on
+		// top.
 		return {
 			timestamps: times,
-			lines: ordered.map((i) => ({
+			lines: [...list].reverse().map((i) => ({
 				name: i.name,
 				values: i.values,
 				color: i.color,
@@ -83,7 +86,13 @@
 			to: end,
 			yMin: 0,
 			stacked: true,
-			tooltip: (index) => tooltipHtml(times[index] ?? 0, tooltipRows(list, index, show), unit)
+			tooltip: (index) =>
+				tooltipHtml(
+					times[index] ?? 0,
+					tooltipRows(list, index, show),
+					unit,
+					totalAt(list, index, show)
+				)
 		};
 	}
 

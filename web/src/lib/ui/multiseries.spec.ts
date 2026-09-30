@@ -90,12 +90,19 @@ describe('tooltipHtml', () => {
 			value: i,
 			parts: []
 		}));
-		expect(tooltipHtml(at, rows.slice(0, 3), 'count')).toContain(
-			'grid-template-rows:repeat(3,auto)'
-		);
-		expect(tooltipHtml(at, rows, 'count')).toContain(
-			`grid-template-rows:repeat(${Math.ceil(rows.length / 3)},auto)`
-		);
+		const columns = (html: string) => html.split('display:grid').length - 1;
+		expect(columns(tooltipHtml(at, rows.slice(0, 3), 'count'))).toBe(1);
+		expect(columns(tooltipHtml(at, rows, 'count'))).toBe(3);
+	});
+
+	it('heads the list with the total of several items', () => {
+		const rows = [
+			{ name: 'a', color: 'red', value: 2, parts: [] },
+			{ name: 'b', color: 'blue', value: 1, parts: [] }
+		];
+		expect(tooltipHtml(at, rows, 'count', 3)).toMatch(/Total <b[^>]*>3</);
+		expect(tooltipHtml(at, rows.slice(0, 1), 'count', 2)).not.toContain('Total');
+		expect(tooltipHtml(at, rows, 'count')).not.toContain('Total');
 	});
 
 	it('says so when no item has a value there', () => {

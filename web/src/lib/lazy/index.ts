@@ -313,7 +313,12 @@ export interface TimeSeriesOptions {
 	yMax?: number;
 	/** Ranges without samples, shaded (offline intervals). */
 	gaps?: { from: number; to: number }[];
-	/** Stack the lines as filled areas (parts of a whole, e.g. per container). */
+	/**
+	 * Stack the lines as filled areas (parts of a whole, e.g. per
+	 * container), drawn like Beszel: monotone curves, 40 % fills, 1 px
+	 * lines, a dot on each shown line where the pointer is. Lines stack in
+	 * the given order, the first at the bottom.
+	 */
 	stacked?: boolean;
 	/**
 	 * The tooltip of a bucket as HTML (the caller escapes names), replacing
@@ -389,19 +394,28 @@ export function timeSeriesOption(o: TimeSeriesOptions, place?: TooltipPlace) {
 				name: l.name,
 				showSymbol: false,
 				connectNulls: false,
-				...(o.stacked ? { stack: 'total' } : {}),
+				...(o.stacked
+					? {
+							stack: 'total',
+							smooth: true,
+							smoothMonotone: 'x',
+							// The hover dot of a shown line (muted lines have none).
+							symbol: l.muted ? 'none' : 'circle',
+							symbolSize: 6
+						}
+					: {}),
 				// Muted lines stay behind the others.
 				z: l.muted ? 1 : 2,
 				lineStyle: {
 					...(color ? { color } : {}),
-					width: o.stacked ? 1.25 : 1.75,
+					width: o.stacked ? 1 : 1.75,
 					...(l.dashed ? { type: 'dashed' } : {}),
 					...(l.muted ? { opacity: 0.35 } : {})
 				},
 				itemStyle: color ? { color } : undefined,
 				areaStyle:
 					l.area || o.stacked
-						? { color, opacity: l.muted ? 0.04 : o.stacked ? 0.2 : 0.08 }
+						? { color, opacity: l.muted ? 0.04 : o.stacked ? 0.4 : 0.08 }
 						: undefined,
 				data: o.timestamps.map((t, j) => [t, l.values[j] ?? null]),
 				markArea: i === 0 ? gapArea : undefined
