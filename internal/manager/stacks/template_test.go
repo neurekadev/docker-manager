@@ -91,13 +91,35 @@ func templateArchive(t *testing.T, files map[string]string) ([]byte, string) {
 	return buf.Bytes(), hex.EncodeToString(sum[:])
 }
 
+// unownedFS is a real directory whose chown is a no-op: the tests do not
+// run as root (the agent always does), and they check files, not owners.
+type unownedFS struct{ migration.FS }
+
+func (unownedFS) Lchown(string, int, int) error { return nil }
+
+func (f unownedFS) Sub(name string) (migration.FS, error) {
+	sub, err := f.FS.Sub(name)
+	if err != nil {
+		return nil, err
+	}
+	return unownedFS{sub}, nil
+}
+
+func unownedOpener(dir string) (migration.FS, error) {
+	fsys, err := migration.OSOpener(dir)
+	if err != nil {
+		return nil, err
+	}
+	return unownedFS{fsys}, nil
+}
+
 // templateService is a stack service whose agent also serves the
 // migration transfer, with a template source.
 func (h *harness) templateService(src stacks.TemplateSource, withMigration bool) *stacks.Service {
 	h.t.Helper()
 	res := &storage.Result{StacksDir: filepath.ToSlash(h.root), Roots: []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(h.root), OK: true}}}
 	mig := migration.New(migration.Options{Deps: agentDeps{c: h.comp, eng: h.engine, st: res}, Clock: h.clk, Logger: testutil.Logger(h.t),
-		FreeBytes: func(string) int64 { return 1 << 30 }})
+		FreeBytes: func(string) int64 { return 1 << 30 }, Open: unownedOpener})
 	if withMigration {
 		h.agents.mu.Lock()
 		for k, v := range mig.Requests() {

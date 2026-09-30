@@ -162,6 +162,9 @@ func newEnv(t *testing.T) *env {
 	e.res = &storage.Result{StacksDir: slash(e.stacks), VolumesDir: slash(e.volumes), DockerRootDir: slash(e.docker),
 		Roots: []storage.Root{{Kind: storage.KindStacks, Path: slash(e.stacks), OK: true}, {Kind: storage.KindVolumes, Path: slash(e.volumes), OK: true}}}
 	fake := enginefake.New("engine-1")
+	// Volumes the tests create (a restore recreating a missing volume) live
+	// in the temporary Docker root, never on the host.
+	fake.SetVolumeRoot(slash(e.volumes))
 	e.eng = &recEngine{Engine: fake}
 	labels := func(svc, deps string) map[string]string {
 		l := map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: svc}
