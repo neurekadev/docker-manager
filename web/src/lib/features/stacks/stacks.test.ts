@@ -1138,4 +1138,27 @@ describe('ValidationResult', () => {
 		expect(screen.getAllByText('/mnt')).toHaveLength(1);
 		expect(screen.getAllByText('/proc/stat')).toHaveLength(1);
 	});
+
+	it('keeps outside-the-project warnings no bind line covers (a definition file)', () => {
+		render(ValidationResult, {
+			props: {
+				validation: {
+					valid: true,
+					errors: [],
+					warnings: [
+						{
+							code: 'bind_outside_project',
+							message:
+								'definition file /srv/shared.env is outside the project directory and is not part of stack revisions or backups'
+						}
+					],
+					services: [{ name: 'web', image: 'nginx', build: false, dependsOn: [] }],
+					binds: []
+				}
+			}
+		});
+		const list = screen.getByRole('list', { name: 'Warnings' });
+		expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+		expect(list).toHaveTextContent('definition file /srv/shared.env');
+	});
 });

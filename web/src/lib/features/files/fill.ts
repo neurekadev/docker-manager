@@ -3,8 +3,8 @@
 // sit above it, standalone or inside the stack layout), never less than
 // `min` px, without a page scroll. It follows window resizes and content
 // above it that appears, disappears or changes size later (a job tray, a
-// notice): the earlier siblings of the element and of each ancestor up to
-// <main> are observed.
+// notice, the shell's banners): the earlier siblings of the element and of
+// each ancestor up to and including <main> are observed.
 import type { Action } from 'svelte/action';
 
 export interface FillOptions {
@@ -54,10 +54,12 @@ export const fillViewport: Action<HTMLElement, FillOptions | undefined> = (node,
 		resized?.disconnect();
 		changed?.disconnect();
 		const stop = node.closest('main');
-		for (let el: Element = node; el.parentElement && el !== stop; el = el.parentElement) {
+		for (let el: Element = node; el.parentElement; el = el.parentElement) {
 			changed?.observe(el.parentElement, { childList: true });
 			for (let s = el.previousElementSibling; s; s = s.previousElementSibling)
 				resized?.observe(s);
+			// <main> itself too: the shell's banners and notices sit above it.
+			if (el === stop) break;
 		}
 	}
 

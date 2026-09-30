@@ -723,7 +723,8 @@ only wire resources to it:
   their own top without a page scroll (`fillViewport` in `files/fill.ts`,
   keeping `<main>`'s bottom padding; the file manager card always takes
   that whole height). It re-measures on window resizes and when content
-  above it appears, disappears or changes size (a job tray, a notice).
+  above it appears, disappears or changes size (a job tray, a notice, the
+  shell's banners above `<main>`).
 - **Files:** `FilesApi` (`files/api.ts`) calls the typed client for either
   root; listings and contents are keyed `liveKeys.files(...)`; the
   `EditorSession` keeps buffers, ETags and conflicts (never replacing

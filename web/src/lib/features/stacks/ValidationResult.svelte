@@ -16,7 +16,18 @@
 	}
 
 	let { validation, fixBefore = 'creating the stack' }: Props = $props();
-	const warnings = $derived(validation.warnings.filter((w) => w.code !== 'bind_outside_project'));
+	// Per-bind warnings are the line below; other bind_outside_project
+	// warnings (a definition file outside the project) stay.
+	const warnings = $derived(
+		validation.warnings.filter(
+			(w) =>
+				w.code !== 'bind_outside_project' ||
+				!w.service ||
+				!validation.binds.some(
+					(b) => b.external && b.service === w.service && w.message.includes(b.source)
+				)
+		)
+	);
 	const external = $derived([
 		...new Set(validation.binds.filter((b) => b.external).map((b) => b.source))
 	]);
