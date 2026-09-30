@@ -43,7 +43,7 @@ type ObserveService interface {
 	Host(environmentID string) (observe.HostExtra, bool)
 	Skew(environmentID string) time.Duration
 	Query(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error)
-	QueryContainers(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error)
+	QueryContainers(ctx context.Context, q domain.MetricQuery, visible func(name string) bool) (domain.MetricResult, error)
 	Latest(ctx context.Context, environmentID string) (domain.LatestMetrics, bool, error)
 	LatestContainers(ctx context.Context, environmentID string, window time.Duration) ([]domain.LatestContainerMetrics, error)
 	Journal() *observe.Journal

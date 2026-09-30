@@ -49,7 +49,9 @@
 	const ts = $derived(timestamps.map((t) => Date.parse(t)));
 	const start = $derived(from ? Date.parse(from) : (ts[0] ?? 0));
 	const end = $derived(to ? Date.parse(to) : (ts[ts.length - 1] ?? 0));
-	const last = $derived(lastIndex(items));
+	// The newest bucket of the shown items: a hidden item's newer sample
+	// would leave their total empty.
+	const last = $derived(lastIndex(items.filter((i) => shown(i.name))));
 	const total = $derived(last < 0 ? null : totalAt(items, last, shown));
 	const summary = $derived.by(() => {
 		if (last < 0) return `${title}: no samples in this range.`;

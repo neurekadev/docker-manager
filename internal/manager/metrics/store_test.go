@@ -438,7 +438,7 @@ func TestQueryContainersReturnsEveryContainerWithValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: env, From: t0, To: t0.Add(time.Minute), Step: 30 * time.Second,
-		Keys: []string{"cpu.percent", "memory.used_bytes"}})
+		Keys: []string{"cpu.percent", "memory.used_bytes"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,10 +470,17 @@ func TestQueryContainersReturnsEveryContainerWithValues(t *testing.T) {
 	if got := values(byName[fmt.Sprintf("c%03d", seriesPerQuery+4)][0]); got != "4 -" {
 		t.Fatalf("last batch cpu %q", got)
 	}
-	if other, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: "other-env"}); err != nil || len(other.Series) != 0 {
+	// Only the containers visible accepts are read.
+	var asked []string
+	only, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: env, From: t0, To: t0.Add(time.Minute), Step: 30 * time.Second,
+		Keys: []string{"cpu.percent"}}, func(name string) bool { asked = append(asked, name); return name == "web" })
+	if err != nil || len(only.Series) != 1 || only.Series[0].Container != "web" || len(asked) != seriesPerQuery+8 {
+		t.Fatalf("visible: %+v %v (asked %d)", only.Series, err, len(asked))
+	}
+	if other, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: "other-env"}, nil); err != nil || len(other.Series) != 0 {
 		t.Fatalf("other environment: %+v %v", other.Series, err)
 	}
-	if _, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: env, Keys: []string{"load.1"}}); !errors.Is(err, domain.ErrMetricQuery) {
+	if _, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: env, Keys: []string{"load.1"}}, nil); !errors.Is(err, domain.ErrMetricQuery) {
 		t.Fatalf("host key: %v", err)
 	}
 }

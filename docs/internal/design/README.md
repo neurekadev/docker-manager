@@ -392,7 +392,8 @@ loading.
 `MultiSeriesChart` (`title`, `timestamps`, `items: SeriesItem[]` with
 `name`, `color`, `values` and optional `parts`, `unit`, `shown`,
 `from`/`to`, `detail`) draws many items of one type as stacked areas
-without a legend: the headline is the total of the newest bucket, and
+without a legend: the headline is the total of the shown items' newest
+bucket, and
 hovering lists every shown item with a value there, largest first, in its
 colour, with its parts ("12 KB/s in, 3 KB/s out"); lists longer than 20
 rows wrap into columns and the tooltip sits beside the pointer inside the

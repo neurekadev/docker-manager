@@ -155,6 +155,24 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 		expect(tip).toContain('db');
 		expect(tip).not.toContain('web');
 	});
+
+	it('totals the newest bucket of the shown items, not of a hidden newer one', () => {
+		render(MultiSeriesChart, {
+			props: {
+				title: 'Docker network',
+				unit: 'count',
+				timestamps: ts,
+				items: [
+					{ name: 'db', color: 'red', values: [2, 5, null, null] },
+					{ name: 'web', color: 'blue', values: [1, 1, 1, 9] }
+				],
+				shown: (n: string) => n === 'db'
+			}
+		});
+		expect(screen.getByRole('figure', { name: 'Docker network' })).toHaveTextContent(
+			'Docker network: latest total 5. Largest: db 5.'
+		);
+	});
 });
 
 describe('Sparkline', () => {

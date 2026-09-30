@@ -284,8 +284,9 @@ at once: the same buckets, levels and keys as
 `GET …/containers/{id}/metrics`, one entry per container with at least one
 value in the range (sorted by name, a stopped or removed container stays
 while its samples are in the range), filtered to the containers the caller
-holds `container.metrics.read` on (by name, like the current usage). The
-store reads the series in batches of 200 per storage level
+holds `container.metrics.read` on (by name, like the current usage; the
+store reads no other container's series). It reads them in batches of 200
+per storage level
 (`series_id IN (…)`), not one query per container. It feeds the
 environment page's per-container charts (Docker CPU, memory, network and
 disk I/O: rx + tx and block read + write per container, about 120 buckets

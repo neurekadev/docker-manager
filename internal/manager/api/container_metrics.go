@@ -233,8 +233,13 @@ func (h *dockerAPI) containerMetricsHistory(ctx context.Context, in *containerMe
 	if err != nil {
 		return nil, err
 	}
+	// Only the containers the caller may chart are read at all.
+	visible := func(name string) bool {
+		res := authz.Resource{Type: catalog.TypeContainer, ID: name, EnvironmentID: sc.env.ID}
+		return sc.c.Can(string(CapContainerMetricsRead), res).Allowed
+	}
 	r, err := h.observe.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: sc.env.ID, Kind: domain.MetricContainer, From: in.From,
-		To: in.To, Step: time.Duration(in.StepSeconds) * time.Second, Keys: keys})
+		To: in.To, Step: time.Duration(in.StepSeconds) * time.Second, Keys: keys}, visible)
 	if errors.Is(err, domain.ErrMetricQuery) {
 		msg := strings.TrimPrefix(err.Error(), domain.ErrMetricQuery.Error()+": ")
 		return nil, Invalid("invalid metrics query", Field("query", msg))
@@ -250,17 +255,7 @@ func (h *dockerAPI) containerMetricsHistory(ctx context.Context, in *containerMe
 	out := ContainerMetricsHistory{EnvironmentID: sc.env.ID, From: m.From, To: m.To, StepSeconds: m.StepSeconds, Resolution: m.Resolution,
 		Timestamps: m.Timestamps, Containers: []ContainerMetricSeries{}, SkewCorrected: m.SkewCorrected, Incomplete: m.Incomplete,
 		Online: m.Online}
-	allowed := map[string]bool{}
 	for _, s := range r.Series {
-		ok, seen := allowed[s.Container]
-		if !seen {
-			res := authz.Resource{Type: catalog.TypeContainer, ID: s.Container, EnvironmentID: sc.env.ID}
-			ok = sc.c.Can(string(CapContainerMetricsRead), res).Allowed
-			allowed[s.Container] = ok
-		}
-		if !ok {
-			continue
-		}
 		if n := len(out.Containers); n == 0 || out.Containers[n-1].Container != s.Container {
 			out.Containers = append(out.Containers, ContainerMetricSeries{Container: s.Container, Series: []MetricSeries{}})
 		}

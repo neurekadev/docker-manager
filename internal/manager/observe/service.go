@@ -240,9 +240,10 @@ func (s *Service) Query(ctx context.Context, q domain.MetricQuery) (domain.Metri
 }
 
 // QueryContainers returns stored series of every container of an
-// environment with values in the range (metrics.Store.QueryContainers).
-func (s *Service) QueryContainers(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error) {
-	return s.opts.Store.QueryContainers(ctx, q)
+// environment with values in the range that visible accepts
+// (metrics.Store.QueryContainers).
+func (s *Service) QueryContainers(ctx context.Context, q domain.MetricQuery, visible func(name string) bool) (domain.MetricResult, error) {
+	return s.opts.Store.QueryContainers(ctx, q, visible)
 }
 
 // Latest returns an environment's latest host sample: the stored one, with

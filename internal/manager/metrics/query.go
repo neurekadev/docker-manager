@@ -151,15 +151,19 @@ func (s *Store) Query(ctx context.Context, q domain.MetricQuery) (domain.MetricR
 
 // QueryContainers returns the requested series of every container of an
 // environment with at least one value in the range (Container names each
-// series; sorted by container name), bucketed like Query. q.Kind and
-// q.Name are ignored.
-func (s *Store) QueryContainers(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error) {
+// series; sorted by container name), bucketed like Query. Only the
+// containers visible accepts are read (nil: all). q.Kind and q.Name are
+// ignored.
+func (s *Store) QueryContainers(ctx context.Context, q domain.MetricQuery, visible func(name string) bool) (domain.MetricResult, error) {
 	q.Kind = domain.MetricContainer
 	out, keys, p, srcs, err := s.start(ctx, &q)
 	if err != nil {
 		return out, err
 	}
 	names := s.names(q.EnvironmentID, domain.MetricContainer)
+	if visible != nil {
+		names = slices.DeleteFunc(names, func(n string) bool { return !visible(n) })
+	}
 	sets, flags, err := s.collect(ctx, q.EnvironmentID, domain.MetricContainer, names, pick(domain.MetricContainer, keys), srcs, p)
 	if err != nil {
 		return domain.MetricResult{}, err
