@@ -53,6 +53,11 @@ const tipTime = new Intl.DateTimeFormat('en', {
 	hourCycle: 'h23'
 });
 
+/** A bucket's time as the tooltip and the phone details show it. */
+export function tipTimeText(time: number): string {
+	return tipTime.format(time);
+}
+
 export function escapeHtml(s: string): string {
 	return s.replace(
 		/[&<>"']/g,
@@ -106,6 +111,20 @@ export function tooltipHtml(
 		);
 	}
 	return `${head}<div style="display:flex;align-items:flex-start;gap:24px">${columns.join('')}</div>`;
+}
+
+/** The index of the bucket nearest to a time (-1 without buckets). */
+export function nearestIndex(times: readonly number[], t: number): number {
+	let best = -1;
+	let dist = Infinity;
+	times.forEach((x, i) => {
+		const d = Math.abs(x - t);
+		if (d < dist) {
+			dist = d;
+			best = i;
+		}
+	});
+	return best;
 }
 
 /** The index of the newest bucket where any item has a value (-1: none). */

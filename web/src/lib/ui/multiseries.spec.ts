@@ -3,6 +3,8 @@ import {
 	ROWS_PER_COLUMN,
 	escapeHtml,
 	lastIndex,
+	nearestIndex,
+	tipTimeText,
 	tooltipHtml,
 	tooltipRows,
 	totalAt,
@@ -121,5 +123,19 @@ describe('lastIndex and totalAt (the headline of MultiSeriesChart)', () => {
 		expect(totalAt(items, 1)).toBe(12);
 		expect(totalAt(items, 1, (n) => n === 'cache')).toBe(2);
 		expect(totalAt(items, 2)).toBeNull();
+	});
+});
+
+describe('nearestIndex and tipTimeText (the phone details under the chart)', () => {
+	it('maps a pointer time to the nearest bucket', () => {
+		const times = [0, 60_000, 120_000];
+		expect(nearestIndex(times, 70_000)).toBe(1);
+		expect(nearestIndex(times, 119_000)).toBe(2);
+		expect(nearestIndex(times, -5)).toBe(0);
+		expect(nearestIndex([], 1)).toBe(-1);
+	});
+
+	it('names the time like the tooltip', () => {
+		expect(tipTimeText(Date.parse('2026-09-25T12:05:00Z'))).toMatch(/Sep 25, \d\d:05/);
 	});
 });
