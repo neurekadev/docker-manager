@@ -24,3 +24,12 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   Registry credentials are per operation and in memory only (#19).
   Guide: `docs/internal/architecture/engine-integration.md`.
 - Prefer small focused packages over a shared `util` package.
+- Measured values and size limits in text people read (job progress and
+  result messages, refusals, preflight findings, errors, audit markers) go
+  through `internal/humanize`, never `%d bytes` or `%.1f`: `Bytes`
+  ("512 B", "1.5 KiB", "114.98 GiB"), `Decimal`, and `Sizes` for counts
+  one message compares ("needs 3 GiB, 1 GiB are free"; counts that would
+  round alike are written in whole bytes). This is the web UI's rule: up to
+  two decimal places, trailing zeros dropped (#147). JSON numbers stay raw;
+  text-length limits of fields and wire-protocol checks keep plain byte
+  counts.

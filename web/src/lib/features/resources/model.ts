@@ -164,6 +164,15 @@ export function shortDigest(id: string | undefined, n = 12): string {
 	return hex.slice(0, n);
 }
 
+/**
+ * Bytes → the memory text field (MB) at full precision, "" for none. Not a
+ * rounded display value: megabytes() turns it back into the same bytes, so
+ * saving without editing keeps the limit (and the swap limit with it).
+ */
+export function megabytesField(bytes: number | undefined): string {
+	return bytes ? String(bytes / 1024 / 1024) : '';
+}
+
 /** Memory text field (MB) → bytes; "" → undefined; invalid → NaN. */
 export function megabytes(text: string): number | undefined {
 	const t = text.trim();

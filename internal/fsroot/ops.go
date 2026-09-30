@@ -16,6 +16,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -397,7 +398,7 @@ func (s *Service) writeTemp(ctx context.Context, t *target, r io.Reader, limit i
 		return "", 0, nil, classify(err, t.rel)
 	}
 	if n > limit {
-		return "", 0, nil, fail(protocol.CodeTooLarge, "the content exceeds %d bytes", limit)
+		return "", 0, nil, fail(protocol.CodeTooLarge, "the content exceeds %s", humanize.Bytes(limit))
 	}
 	mode := os.FileMode(0o644)
 	if cur != nil && cur.info != nil {
@@ -429,7 +430,7 @@ func (s *Service) Write(ctx context.Context, in protocol.FilesWriteInput) (proto
 		return protocol.FileEntry{}, fail(protocol.CodeInvalidFrame, "exactly one of ifMatch, createOnly and overwrite is required")
 	}
 	if int64(len(in.Data)) > s.limits.MaxInline {
-		return protocol.FileEntry{}, fail(protocol.CodeTooLarge, "inline content exceeds %d bytes; upload instead", s.limits.MaxInline)
+		return protocol.FileEntry{}, fail(protocol.CodeTooLarge, "inline content exceeds %s; upload instead", humanize.Bytes(s.limits.MaxInline))
 	}
 	r, err := s.open(ctx, in.Scope)
 	if err != nil {

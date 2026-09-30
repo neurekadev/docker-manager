@@ -20,6 +20,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/stacks"
 	"github.com/neurekadev/docker-manager/internal/backup"
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/protocol"
@@ -495,7 +496,8 @@ func (s *Service) restorePreview(ctx context.Context, input json.RawMessage) (an
 			return nil, handlerError(err)
 		}
 		if t.FreeBytes >= 0 && t.Bytes > t.FreeBytes {
-			out.Blocked = append(out.Blocked, fmt.Sprintf("%s needs %d bytes but only %d are free", t.Path, t.Bytes, t.FreeBytes))
+			sz := humanize.Sizes(t.Bytes, t.FreeBytes)
+			out.Blocked = append(out.Blocked, fmt.Sprintf("%s needs %s but only %s are free", t.Path, sz[0], sz[1]))
 		}
 		out.Targets = append(out.Targets, t.RestoreTarget)
 	}
@@ -561,7 +563,8 @@ func (s *Service) stepRestorePrepare(ctx context.Context, sc *jobexec.StepContex
 			return err
 		}
 		if t.FreeBytes >= 0 && t.Bytes > t.FreeBytes {
-			return backup.Refuse("insufficient_space", fmt.Sprintf("%s needs %d bytes, %d are free", t.Path, t.Bytes, t.FreeBytes),
+			sz := humanize.Sizes(t.Bytes, t.FreeBytes)
+			return backup.Refuse("insufficient_space", fmt.Sprintf("%s needs %s, %s are free", t.Path, sz[0], sz[1]),
 				"Free space on the target's filesystem and restore again.")
 		}
 		if t.Create {

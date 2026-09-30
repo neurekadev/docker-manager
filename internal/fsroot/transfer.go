@@ -7,6 +7,7 @@ import (
 	"io"
 	"slices"
 
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -87,7 +88,7 @@ func (s *Service) Upload(ctx context.Context, in protocol.FilesUploadInput, body
 		return none, fail(protocol.CodeInvalidFrame, "exactly one of ifMatch, createOnly and a conflict policy is required")
 	}
 	if maxUpload := s.limitsFor(in.Limits).MaxUpload; in.Size < 0 || in.Size > maxUpload {
-		return none, fail(protocol.CodeTooLarge, "uploads are limited to %d bytes", maxUpload)
+		return none, fail(protocol.CodeTooLarge, "uploads are limited to %s", humanize.Bytes(maxUpload))
 	}
 	var want []byte
 	if in.SHA256 != "" {
@@ -141,7 +142,8 @@ func (s *Service) Upload(ctx context.Context, in protocol.FilesUploadInput, body
 		}
 	}()
 	if n != in.Size {
-		return none, fail(protocol.CodeInvalidFrame, "received %d bytes, expected %d", n, in.Size)
+		sz := humanize.Sizes(n, in.Size)
+		return none, fail(protocol.CodeInvalidFrame, "received %s, expected %s", sz[0], sz[1])
 	}
 	if want != nil && !slices.Equal(want, sum) {
 		return none, fail(protocol.CodeDigestMismatch, "the content does not match its SHA-256")

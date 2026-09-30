@@ -8,6 +8,7 @@ import (
 
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/protection"
@@ -162,8 +163,8 @@ func (s *Service) deleteCandidates(ctx context.Context, sc *jobexec.StepContext)
 		}
 		sc.Item(ctx, it.Category+" "+it.Name, itemStatus(status), itemMessage(*it))
 	}
-	sc.Progress(ctx, 100, fmt.Sprintf("removed %d, skipped %d, failed %d; about %d bytes reclaimed", out.Removed, out.Skipped, out.Failed,
-		out.BytesReclaimed))
+	sc.Progress(ctx, 100, fmt.Sprintf("removed %d, skipped %d, failed %d; about %s reclaimed", out.Removed, out.Skipped, out.Failed,
+		humanize.Bytes(out.BytesReclaimed)))
 	return nil
 }
 
@@ -187,7 +188,7 @@ func itemStatus(status string) string {
 func itemMessage(it protocol.PruneRunItem) string {
 	if it.Status == protocol.PruneItemRemoved {
 		if it.Bytes > 0 {
-			return fmt.Sprintf("removed (about %d bytes)", it.Bytes)
+			return fmt.Sprintf("removed (about %s)", humanize.Bytes(it.Bytes))
 		}
 		return "removed"
 	}
@@ -385,7 +386,7 @@ func (s *Service) removeBuildCache(ctx context.Context, eng engine.Engine, f *fa
 		return skipped(reason)
 	}
 	if limit := r.KeepStorageBytes; limit > 0 && cacheTotal(recs) <= limit {
-		return skipped(fmt.Sprintf("the build cache is within the keep-storage cap (%d bytes)", limit))
+		return skipped(fmt.Sprintf("the build cache is within the keep-storage cap (%s)", humanize.Bytes(limit)))
 	}
 	res, err := eng.RemoveBuildCache(ctx, rec.ID, r.BuildCacheAll)
 	if err != nil {

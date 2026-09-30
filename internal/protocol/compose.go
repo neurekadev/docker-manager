@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/neurekadev/docker-manager/internal/humanize"
 )
 
 // Compose stack payloads (#7): the inputs and outputs of the compose.*
@@ -179,12 +181,12 @@ func ValidateSources(files []SourceFile) error {
 		}
 		seen[f.Path] = true
 		if len(f.Content) > MaxSourceFile {
-			return fmt.Errorf("%s is larger than %d bytes", f.Path, MaxSourceFile)
+			return fmt.Errorf("%s is larger than %s", f.Path, humanize.Bytes(MaxSourceFile))
 		}
 		total += len(f.Content)
 	}
 	if total > MaxSourceTotal {
-		return fmt.Errorf("definition files are larger than %d bytes in total", MaxSourceTotal)
+		return fmt.Errorf("definition files are larger than %s in total", humanize.Bytes(MaxSourceTotal))
 	}
 	return nil
 }

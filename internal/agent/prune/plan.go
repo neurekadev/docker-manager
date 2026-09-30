@@ -12,6 +12,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/imageref"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -675,7 +676,7 @@ func (s *Service) planBuildCache(ctx context.Context, eng engine.Engine, f *fact
 				continue
 			}
 			if total <= limit {
-				out[i].Decision, out[i].Reason = protocol.PruneRetained, fmt.Sprintf("kept within the keep-storage cap (%d bytes)", limit)
+				out[i].Decision, out[i].Reason = protocol.PruneRetained, fmt.Sprintf("kept within the keep-storage cap (%s)", humanize.Bytes(limit))
 				continue
 			}
 			if !shared[out[i].ID] && out[i].Bytes > 0 {

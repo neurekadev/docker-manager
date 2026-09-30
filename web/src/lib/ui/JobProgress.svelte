@@ -13,6 +13,7 @@
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
 	import { notices as appNotices, type Notices } from '$lib/shell/notices.svelte';
+	import { formatPercent } from './format';
 	import StatusBadge from './StatusBadge.svelte';
 	import { statusInfo } from './status';
 	import { errorMessage } from './errors';
@@ -115,7 +116,7 @@
 			aria-valuemin={0}
 			aria-valuemax={100}
 			aria-valuenow={percent ?? undefined}
-			aria-valuetext={percent === undefined ? 'In progress' : `${percent}%`}
+			aria-valuetext={percent === undefined ? 'In progress' : formatPercent(percent)}
 		>
 			<span
 				class="fill"

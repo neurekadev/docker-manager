@@ -10,7 +10,15 @@
 	// by the list.
 	import X from '@lucide/svelte/icons/x';
 	import { api, unwrap, type Job } from '$lib/api/client';
-	import { Button, IconButton, JobProgress, formatBytes, toast, errorMessage } from '$lib/ui';
+	import {
+		Button,
+		IconButton,
+		JobProgress,
+		formatBytes,
+		formatPercent,
+		toast,
+		errorMessage
+	} from '$lib/ui';
 	import { streamedIds, type TrackedEntry } from '$lib/features/jobs/active';
 	import JobRow from '$lib/features/jobs/JobRow.svelte';
 	import type { TrackedJobs } from '$lib/features/jobs/tracked.svelte';
@@ -123,7 +131,7 @@
 							>
 							<span class="state">
 								{#if item.state === 'uploading'}
-									{Math.round((item.loaded / Math.max(1, item.size)) * 100)}%
+									{formatPercent((item.loaded / Math.max(1, item.size)) * 100)}
 								{:else if item.state === 'queued'}Waiting{:else if item.state === 'done'}Uploaded{#if item.storedAs && item.storedAs !== item.name}
 										as {item.storedAs}{/if}{:else if item.state === 'skipped'}Skipped{:else if item.state === 'cancelled'}Cancelled{:else}{item.error}{/if}
 							</span>

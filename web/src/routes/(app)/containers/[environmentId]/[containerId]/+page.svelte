@@ -37,6 +37,7 @@
 		TimeSeriesChart,
 		formatBytes,
 		formatDuration,
+		formatNumber,
 		formatPercent,
 		type Column
 	} from '$lib/ui';
@@ -181,7 +182,9 @@
 			: [
 					{
 						label: 'CPU limit',
-						value: d.resources.cpus ? `${d.resources.cpus} CPUs` : 'No limit'
+						value: d.resources.cpus
+							? `${formatNumber(d.resources.cpus)} CPUs`
+							: 'No limit'
 					},
 					{ label: 'CPU weight', value: d.resources.cpuShares || 'Default' },
 					{

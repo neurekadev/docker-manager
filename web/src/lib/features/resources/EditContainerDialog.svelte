@@ -9,7 +9,7 @@
 	import { routes } from '$lib/routes';
 	import { Button, Dialog, Notice, Select, TextField, fieldError } from '$lib/ui';
 	import { idempotencyKey, trackJob } from './jobs.svelte';
-	import { megabytes, RESTART_OPTIONS } from './model';
+	import { megabytes, megabytesField, RESTART_OPTIONS } from './model';
 	import { refusal, type Refusal } from './refusals';
 
 	interface Props {
@@ -35,9 +35,7 @@
 		const d = container.details;
 		restart = d?.restartPolicy || 'no';
 		cpus = d?.resources.cpus ? String(d.resources.cpus) : '';
-		memory = d?.resources.memoryBytes
-			? String(Math.round(d.resources.memoryBytes / 1024 / 1024))
-			: '';
+		memory = megabytesField(d?.resources.memoryBytes);
 		pids = d?.resources.pidsLimit !== undefined ? String(d.resources.pidsLimit) : '';
 		failure = null;
 	});

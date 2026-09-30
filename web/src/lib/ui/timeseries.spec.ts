@@ -36,11 +36,18 @@ describe('time-series gaps (#5: offline intervals are visible)', () => {
 		expect(valueExtent([null])).toBeNull();
 	});
 
-	it('formats values by metric unit', () => {
-		expect(formatValue(12.44, 'percent')).toBe('12.4%');
+	it('formats values by metric unit with up to two decimals', () => {
+		expect(formatValue(12.44, 'percent')).toBe('12.44%');
+		expect(formatValue(12.446, 'percent')).toBe('12.45%');
+		expect(formatValue(100, 'percent')).toBe('100%');
 		expect(formatValue(1932735283, 'bytes')).toBe('1.8 GB');
+		expect(formatValue(123.456 * 1024 ** 3, 'bytes')).toBe('123.46 GB');
 		expect(formatValue(2048, 'bytes_per_second')).toBe('2 KB/s');
-		expect(formatValue(0.5, 'load')).toBe('0.50');
+		expect(formatValue(1.25 * 1024 ** 2, 'bytes_per_second')).toBe('1.25 MB/s');
+		expect(formatValue(0.5, 'load')).toBe('0.5');
+		expect(formatValue(1.234, 'load')).toBe('1.23');
+		expect(formatValue(2, 'load')).toBe('2');
+		expect(formatValue(3.6, 'count')).toBe('4');
 		expect(formatValue(null, 'percent')).toBe('—');
 	});
 

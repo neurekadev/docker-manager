@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/neurekadev/docker-manager/internal/humanize"
 )
 
 // The portable manifest (#24) ties one logical backup set together so a
@@ -268,7 +270,7 @@ func EncodeManifest(m Manifest) ([]byte, error) {
 		return nil, err
 	}
 	if len(body) > MaxManifestSize {
-		return nil, fmt.Errorf("manifest too large (%d bytes)", len(body))
+		return nil, fmt.Errorf("manifest too large (%s)", humanize.Bytes(int64(len(body))))
 	}
 	sum := sha256.Sum256(body)
 	var buf bytes.Buffer

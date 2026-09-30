@@ -11,6 +11,7 @@ import {
 	isSystemLabel,
 	joinCommand,
 	megabytes,
+	megabytesField,
 	needsAddressLookup,
 	networkAliases,
 	networkEntries,
@@ -115,6 +116,11 @@ describe('form parsers', () => {
 		expect(megabytes('')).toBeUndefined();
 		expect(megabytes('512')).toBe(512 * 1024 * 1024);
 		expect(megabytes('x')).toBeNaN();
+		// The field keeps full precision, so an unedited limit saves unchanged.
+		for (const bytes of [512 * 1024 * 1024, 536_870_913, 1_234_567_891])
+			expect(megabytes(megabytesField(bytes))).toBe(bytes);
+		expect(megabytesField(536_870_913)).not.toBe('512');
+		expect(megabytesField(undefined)).toBe('');
 		expect(compactDuration(48_000)).toBe('48s');
 		expect(compactDuration(192_000)).toBe('3m 12s');
 		expect(compactDuration(3_900_000)).toBe('1h 5m');

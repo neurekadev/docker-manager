@@ -5,7 +5,7 @@
 	// Views show it for running jobs beyond MAX_JOB_STREAMS.
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
-	import { StatusBadge } from '$lib/ui';
+	import { StatusBadge, formatPercent } from '$lib/ui';
 
 	interface Props {
 		job: Pick<Job, 'id' | 'state' | 'progress'>;
@@ -29,7 +29,7 @@
 		aria-valuemin={0}
 		aria-valuemax={100}
 		aria-valuenow={percent ?? undefined}
-		aria-valuetext={percent === undefined ? 'In progress' : `${percent}%`}
+		aria-valuetext={percent === undefined ? 'In progress' : formatPercent(percent)}
 	>
 		<span
 			class="fill"

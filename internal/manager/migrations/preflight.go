@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -584,11 +585,11 @@ func sizeAndDowntime(p *Plan, in PreflightInput, services int) {
 	p.Data.TargetStacksFree, p.Data.TargetVolumesFree = dst.StacksFree, dst.VolumesFree
 	if dst.StacksFree >= 0 && p.Data.ProjectBytes > dst.StacksFree {
 		p.block(FindingInsufficientSpace, "the project directory needs %s but the destination's stacks volume has %s free",
-			human(p.Data.ProjectBytes), human(dst.StacksFree))
+			humanize.Bytes(p.Data.ProjectBytes), humanize.Bytes(dst.StacksFree))
 	}
 	if dst.VolumesFree >= 0 && p.Data.VolumeBytes+p.Data.ImageBytes > dst.VolumesFree {
 		p.block(FindingInsufficientSpace, "the volumes and images need %s but the destination's Docker data root has %s free",
-			human(p.Data.VolumeBytes+p.Data.ImageBytes), human(dst.VolumesFree))
+			humanize.Bytes(p.Data.VolumeBytes+p.Data.ImageBytes), humanize.Bytes(dst.VolumesFree))
 	}
 	if p.Data.Truncated {
 		p.warn(FindingSizeEstimated, "the data was too large to measure completely: sizes are lower bounds")
@@ -607,13 +608,13 @@ func sizeAndDowntime(p *Plan, in PreflightInput, services int) {
 	transferS := (p.Data.TotalBytes + rate - 1) / rate
 	if in.Kind == domain.MigrationKindVolume {
 		p.Downtime = Downtime{EstimatedSeconds: 0, Basis: fmt.Sprintf(
-			"The source volume stays in use; the copy takes about %ds at %s/s.", transferS, human(rate))}
+			"The source volume stays in use; the copy takes about %ds at %s/s.", transferS, humanize.Bytes(rate))}
 		return
 	}
 	stopS, startS := grace*int64(services), 15*int64(services)
 	p.Downtime = Downtime{EstimatedSeconds: stopS + transferS + startS, Basis: fmt.Sprintf(
 		"About %ds to stop %d services, %ds to copy %s at %s/s and %ds to start them on the destination; image pulls and builds add to this.",
-		stopS, services, transferS, human(p.Data.TotalBytes), human(rate), startS)}
+		stopS, services, transferS, humanize.Bytes(p.Data.TotalBytes), humanize.Bytes(rate), startS)}
 }
 
 func hasPublished(src *protocol.MigrationProjectFacts) bool {
@@ -639,18 +640,4 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
-}
-
-// human formats bytes (binary units).
-func human(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }

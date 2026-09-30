@@ -32,6 +32,7 @@ import (
 
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -264,7 +265,8 @@ func (sc *StepContext) SetOutput(ctx context.Context, v any) error {
 		return err
 	}
 	if len(b) > protocol.MaxResultOutput {
-		return fmt.Errorf("%w: %d bytes (max %d)", ErrOutputTooLarge, len(b), protocol.MaxResultOutput)
+		sz := humanize.Sizes(int64(len(b)), protocol.MaxResultOutput)
+		return fmt.Errorf("%w: %s (max %s)", ErrOutputTooLarge, sz[0], sz[1])
 	}
 	sc.st.Output = b
 	return sc.opts.Journal.Save(ctx, sc.st)

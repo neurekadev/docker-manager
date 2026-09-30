@@ -2,7 +2,7 @@
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
 import { describeCron } from '$lib/ui/cron';
-import { formatBytes, formatRelative } from '$lib/ui/format';
+import { formatBytes, formatNumber, formatRelative } from '$lib/ui/format';
 
 export type BackupRepository = Schema<'BackupRepository'>;
 export type RepositoryHealth = Schema<'BackupRepositoryHealth'>;
@@ -683,9 +683,9 @@ export function storageTotals(
 	return t;
 }
 
-/** A compression ratio: "2.01x" ("—" when unknown). */
+/** A compression ratio: "2.01x", "2x" ("—" when unknown). */
 export function ratioText(ratio: number): string {
-	return ratio > 0 && Number.isFinite(ratio) ? `${ratio.toFixed(2)}x` : '—';
+	return ratio > 0 && Number.isFinite(ratio) ? `${formatNumber(ratio)}x` : '—';
 }
 
 /** "Volume media", "Stack shop", "Manager state". */
@@ -700,11 +700,14 @@ export function isRetentionActivity(a: Pick<BackupActivity, 'kind'>): boolean {
 	return a.kind === 'backup.retention' || a.kind === 'manager.retention';
 }
 
-/** Overall percent of a running backup job (-1 unknown). */
+/**
+ * Overall percent of a running backup job (-1 unknown), unrounded: views
+ * show it with formatPercent.
+ */
 export function activityPercent(a: BackupActivity): number {
 	const c = a.current;
 	if (!c || a.itemCount < 1) return a.percent;
-	return Math.round(((c.index + c.percent / 100) / a.itemCount) * 100);
+	return ((c.index + c.percent / 100) / a.itemCount) * 100;
 }
 
 /**

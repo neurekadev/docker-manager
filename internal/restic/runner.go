@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/neurekadev/docker-manager/internal/humanize"
 )
 
 // Runner executes the restic binary. It is the only process execution in
@@ -191,7 +193,7 @@ func (p *repo) runOnce(ctx context.Context, c call) (result, error) {
 		} else {
 			_, stdoutErr = io.Copy(&collected, io.LimitReader(stdout, maxCollected+1))
 			if collected.Len() > maxCollected {
-				stdoutErr = fmt.Errorf("output larger than %d bytes", maxCollected)
+				stdoutErr = fmt.Errorf("output larger than %s", humanize.Bytes(maxCollected))
 			}
 			_, _ = io.Copy(io.Discard, stdout)
 		}
@@ -285,7 +287,7 @@ func readLines(r io.Reader, fn func([]byte)) error {
 		if len(chunk) > 0 {
 			if len(line)+len(chunk) > maxLine {
 				_, _ = io.Copy(io.Discard, br)
-				return fmt.Errorf("output line longer than %d bytes", maxLine)
+				return fmt.Errorf("output line longer than %s", humanize.Bytes(maxLine))
 			}
 			line = append(line, chunk...)
 		}

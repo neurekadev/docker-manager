@@ -9,6 +9,7 @@
 // TERMINAL_THEME in ./palette.ts.
 import type { StreamParser } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
+import { formatNumber } from '$lib/ui/format';
 import { CHART_COLORS, TERMINAL_THEME, EDITOR_COLORS } from './palette';
 
 export interface Mounted {
@@ -249,10 +250,14 @@ function lineOption(series: Series[], unit: string) {
 		animation: false,
 		tooltip: {
 			trigger: 'axis',
-			valueFormatter: (v: unknown) => (v === null || v === undefined ? '—' : `${v}${unit}`)
+			valueFormatter: (v: unknown) =>
+				typeof v === 'number' ? `${formatNumber(v)}${unit}` : '—'
 		},
 		xAxis: { type: 'time' },
-		yAxis: { type: 'value', axisLabel: { formatter: `{value}${unit}` } },
+		yAxis: {
+			type: 'value',
+			axisLabel: { formatter: (v: number) => `${formatNumber(v)}${unit}` }
+		},
 		series: series.map((s) => ({
 			type: 'line',
 			name: s.name,

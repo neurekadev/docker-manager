@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 	"github.com/neurekadev/docker-manager/internal/streammux"
 	"github.com/neurekadev/docker-manager/internal/transfer"
@@ -157,8 +158,9 @@ func Relay(ctx context.Context, src, dst *streammux.Stream, o RelayOptions) (Rel
 	}
 	s, r, d := res.Source, res.Relayed, res.Destination
 	if s.SHA256 != r.SHA256 || d.SHA256 != r.SHA256 || s.Bytes != r.Bytes || d.Bytes != r.Bytes || s.Chunks != r.Chunks || d.Chunks != r.Chunks {
-		return res, &PartError{Side: "relay", Code: protocol.CodeDigestMismatch, Err: fmt.Errorf("%w: source %s (%d bytes), manager %s (%d bytes), destination %s (%d bytes)",
-			ErrChecksumMismatch, short(s.SHA256), s.Bytes, short(r.SHA256), r.Bytes, short(d.SHA256), d.Bytes)}
+		sz := humanize.Sizes(s.Bytes, r.Bytes, d.Bytes)
+		return res, &PartError{Side: "relay", Code: protocol.CodeDigestMismatch, Err: fmt.Errorf("%w: source %s (%s), manager %s (%s), destination %s (%s)",
+			ErrChecksumMismatch, short(s.SHA256), sz[0], short(r.SHA256), sz[1], short(d.SHA256), sz[2])}
 	}
 	return res, nil
 }

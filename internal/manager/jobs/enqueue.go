@@ -14,6 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/ids"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/logging"
@@ -237,7 +238,7 @@ func canonicalInput(in any) ([]byte, error) {
 		raw = []byte("{}")
 	}
 	if len(raw) > MaxInputSize {
-		return nil, fmt.Errorf("%w: input larger than %d bytes", domain.ErrJobInvalid, MaxInputSize)
+		return nil, fmt.Errorf("%w: input larger than %s", domain.ErrJobInvalid, humanize.Bytes(MaxInputSize))
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()

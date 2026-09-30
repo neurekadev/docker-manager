@@ -106,6 +106,8 @@ describe('storage totals', () => {
 
 	it('writes ratios like 2.01x', () => {
 		expect(ratioText(160 / 79.6)).toBe('2.01x');
+		expect(ratioText(1.5)).toBe('1.5x');
+		expect(ratioText(2)).toBe('2x');
 		expect(ratioText(0)).toBe('—');
 		expect(ratioText(Infinity)).toBe('—');
 	});
@@ -138,7 +140,7 @@ describe('running backups', () => {
 		}) as BackupActivity;
 
 	it('spreads progress over the items', () => {
-		expect(activityPercent(job({ index: 1, percent: 50 }))).toBe(38);
+		expect(activityPercent(job({ index: 1, percent: 50 }))).toBe(37.5);
 		expect(activityPercent(job({ index: 3, percent: 100 }))).toBe(100);
 		// Before the first report: the job's own progress.
 		expect(activityPercent(job())).toBe(30);

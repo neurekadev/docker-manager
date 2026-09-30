@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+
+	"github.com/neurekadev/docker-manager/internal/humanize"
 )
 
 // Local tree copies (stack import by copy, #7): the same archive format
@@ -57,8 +59,9 @@ func CopyTree(ctx context.Context, src, dst FS, maxBytes int64) (CopyStats, erro
 	case xerr != nil:
 		return st, fmt.Errorf("write the copy: %w", xerr)
 	case ex.Entries != w.stats.Entries-w.stats.SkippedCount || ex.Bytes != w.stats.Bytes:
-		return st, fmt.Errorf("the copy is incomplete: %d of %d entries, %d of %d bytes",
-			ex.Entries, w.stats.Entries-w.stats.SkippedCount, ex.Bytes, w.stats.Bytes)
+		sz := humanize.Sizes(ex.Bytes, w.stats.Bytes)
+		return st, fmt.Errorf("the copy is incomplete: %d of %d entries, %s of %s",
+			ex.Entries, w.stats.Entries-w.stats.SkippedCount, sz[0], sz[1])
 	}
 	return st, nil
 }
