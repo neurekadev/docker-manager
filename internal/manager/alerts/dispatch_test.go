@@ -153,6 +153,33 @@ func TestAChannelKeepsItsOrderWhileRetrying(t *testing.T) {
 	}
 }
 
+func TestOnlyDueMessagesGoOut(t *testing.T) {
+	f := newFixture(t)
+	f.channel("ops", nil, true, nil, true)
+	f.failDisk("env-1", "/dev/sda")
+	f.clk.Advance(DeliveryDelay / 2)
+	f.failDisk("env-2", "/dev/sdb")
+	// The first message is due; the second one's delay has not passed.
+	f.clk.Advance(DeliveryDelay / 2)
+	if _, err := f.svc.Dispatch(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := f.sender.take()
+	if len(got) != 1 || got[0].msg.Title != "[Docker Manager] Disk /dev/sda on homelab is failing" {
+		t.Fatalf("%+v", got)
+	}
+	if len(f.pending()) != 1 {
+		t.Fatalf("pending %d, want the second message", len(f.pending()))
+	}
+	f.clk.Advance(DeliveryDelay / 2)
+	if _, err := f.svc.Dispatch(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.sender.take(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Disk /dev/sdb on office is failing" {
+		t.Fatalf("%+v", got)
+	}
+}
+
 func TestDeliveryPausesWhileTheManagerMoves(t *testing.T) {
 	f := newFixture(t)
 	f.channel("ops", nil, true, nil, true)

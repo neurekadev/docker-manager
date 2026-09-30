@@ -192,8 +192,9 @@ func TestDueAlertDeliveries(t *testing.T) {
 	if next, found, err := store.NextAlertDelivery(ctx, db, now.Add(5*time.Second)); err != nil || !found || !next.Equal(now.Add(time.Minute)) {
 		t.Fatalf("%v %v %v", next, found, err)
 	}
-	if latest, found, err := store.LatestAlertAttempt(ctx, db, "c1"); err != nil || !found || !latest.Equal(now.Add(3*time.Second)) {
-		t.Fatalf("%v %v %v", latest, found, err)
+	latest, err := store.LatestAlertAttempts(ctx, db, []string{"c1", "c2", "c3"})
+	if err != nil || len(latest) != 2 || !latest["c1"].Equal(now.Add(3*time.Second)) || !latest["c2"].Equal(now.Add(time.Minute)) {
+		t.Fatalf("%v %v", latest, err)
 	}
 	// A failed send defers the whole channel, never moving a message earlier.
 	if err := store.DeferChannelAlertDeliveries(ctx, db, "c1", now.Add(2500*time.Millisecond), now); err != nil {

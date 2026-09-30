@@ -42,7 +42,9 @@ Migration `20260930120000_create_alerts`:
   purged after 7 days. Invariant: a channel's pending rows are never due
   before its oldest one (a new row is due no earlier than the channel's
   latest pending row, a failed send defers them all), so the partial index
-  `alert_deliveries_due` finds the due channels.
+  `alert_deliveries_due` finds the due channels. A new alert reads the
+  latest due time of all its channels in one query
+  (`alert_deliveries_channel_due`).
 
 Dedupe keys: `disk_health/<env>/<path>/<smartctl type>`,
 `raid/<env>/md|zfs/<name>`, `environment_offline/<env>`,
@@ -118,7 +120,8 @@ reported. Every visible change bumps the revision and is published as
   change (a separate announcer goroutine reads them back; the engine's
   goroutine never touches the database), or after a reconcile round for
   ones never reported. An alert missing or at an older revision (its
-  transaction rolled back) is never announced.
+  transaction rolled back) is never announced; one that could not be
+  read (a busy database) stays ready and is tried again.
 - **Updates:** the fingerprint is `service@digest` of every candidate with
   an update available (the UI's `summary.available`), so the alert is sent
   again only when a new digest appears.
@@ -138,7 +141,8 @@ goroutines (the third announces alerts of committed job changes):
 - **Dispatch:** sends the outbox through `notify.Service.Send`. A new
   message waits `DeliveryDelay` (10 s) so bursts coalesce. It reads only
   the due channels (by due time, indexed) and at most `DispatchBatch`
-  (100) of each channel's oldest messages, which go out as one message
+  (100) of each channel's oldest messages that are due (later ones wait
+  for their own delay or backoff), which go out as one message
   (one alert) or one digest ("[Name] 3 alerts, 1 resolved", at most 20
   lines, linking to the Alerts page) built from their snapshots; what is
   left is sent right after. Channels are sent to in parallel (4 at once),

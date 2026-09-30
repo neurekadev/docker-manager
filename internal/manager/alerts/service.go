@@ -258,27 +258,41 @@ func (s *Service) flushHeld(ctx context.Context) {
 
 // announceReady publishes the ready alerts as the database has them: an
 // alert missing, or at an older revision than held (its transaction
-// rolled back), is dropped, never announced.
+// rolled back), is dropped, never announced. An alert that could not be
+// read (a busy database) stays ready and is tried again with the next
+// announcement or reconcile round (flushHeld).
 func (s *Service) announceReady(ctx context.Context) {
 	s.mu.Lock()
 	ready := s.ready
 	s.ready = nil
 	s.mu.Unlock()
 	var out []domain.Alert
+	var retry []heldAlert
 	seen := map[string]bool{}
 	for _, h := range ready {
 		if seen[h.alert.ID] {
 			continue
 		}
 		a, err := store.GetAlert(ctx, s.db, h.alert.ID)
-		if err != nil || a.Revision < h.alert.Revision {
-			if err != nil && !errors.Is(err, domain.ErrAlertNotFound) && ctx.Err() == nil {
-				s.log.Warn("could not read a changed alert", "alert_id", h.alert.ID, "error", err)
+		switch {
+		case errors.Is(err, domain.ErrAlertNotFound):
+			continue
+		case err != nil:
+			if ctx.Err() == nil {
+				s.log.Warn("could not read a changed alert, trying again later", "alert_id", h.alert.ID, "error", err)
 			}
+			retry = append(retry, h)
+			continue
+		case a.Revision < h.alert.Revision:
 			continue
 		}
 		seen[a.ID] = true
 		out = append(out, a)
+	}
+	if len(retry) > 0 {
+		s.mu.Lock()
+		s.ready = append(s.ready, retry...)
+		s.mu.Unlock()
 	}
 	s.publish(out)
 }

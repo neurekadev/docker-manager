@@ -73,6 +73,8 @@ func init() {
 			) STRICT`,
 			`CREATE INDEX alert_deliveries_pending ON alert_deliveries (channel_id, created_at) WHERE state = 'pending'`,
 			`CREATE INDEX alert_deliveries_due ON alert_deliveries (next_attempt_at) WHERE state = 'pending'`,
+			// A channel's latest pending due time (new messages keep its order).
+			`CREATE INDEX alert_deliveries_channel_due ON alert_deliveries (channel_id, next_attempt_at) WHERE state = 'pending'`,
 			`CREATE INDEX alert_deliveries_alert ON alert_deliveries (alert_id)`,
 			`CREATE INDEX alert_deliveries_updated ON alert_deliveries (updated_at) WHERE state <> 'pending'`,
 		)),

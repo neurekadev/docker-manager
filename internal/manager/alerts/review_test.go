@@ -199,6 +199,45 @@ func TestRolledBackJobAlertsAreNeverAnnounced(t *testing.T) {
 	}
 }
 
+// An alert whose read-back fails (a busy database; here a cancelled
+// context) stays ready and is announced on the next try, never lost.
+func TestAFailedReadIsAnnouncedLater(t *testing.T) {
+	f := newFixture(t)
+	sub := f.bus.Subscribe(8, func(e events.Event) bool { return e.Type == events.AlertUpdated })
+	defer sub.Close()
+	j := backupJob(domain.JobFailed, domain.OriginScheduled)
+	if err := f.db.RunInTx(f.ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		for _, h := range f.hooks.finish[j.Kind] {
+			if err := h(ctx, tx, j); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, fn := range f.hooks.change {
+		fn([]string{j.ID})
+	}
+	gone, cancel := context.WithCancel(f.ctx)
+	cancel()
+	f.svc.announceReady(gone)
+	select {
+	case e := <-sub.C():
+		t.Fatalf("announced without reading it: %+v", e)
+	default:
+	}
+	f.svc.announceReady(f.ctx)
+	select {
+	case e := <-sub.C():
+		if a := f.one(); e.ResourceID != a.ID {
+			t.Fatalf("%+v", e)
+		}
+	default:
+		t.Fatal("the alert was lost after a failed read")
+	}
+}
+
 // Every time an alert gets worse its escalation counts up (a browser keys
 // its local dismissal by it); quiet changes leave it.
 func TestEscalationCountsWhatGotWorse(t *testing.T) {

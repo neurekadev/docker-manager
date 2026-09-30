@@ -137,8 +137,18 @@ func (s *Service) Dispatch(ctx context.Context) (time.Time, error) {
 // A failure defers every pending message of the channel.
 func (s *Service) sendChannel(ctx context.Context, instance, channelID string, now time.Time) error {
 	batch, err := store.ChannelAlertDeliveries(ctx, s.db, channelID, DispatchBatch)
-	if err != nil || len(batch) == 0 || batch[0].NextAttemptAt.After(now) {
+	if err != nil {
 		return err
+	}
+	// Only the messages due now: a channel's messages fall due in their
+	// creation order, so they are the leading ones; later ones wait for
+	// their own delay or backoff.
+	due := 0
+	for due < len(batch) && !batch[due].NextAttemptAt.After(now) {
+		due++
+	}
+	if batch = batch[:due]; len(batch) == 0 {
+		return nil
 	}
 	ch, err := store.GetNotificationChannel(ctx, s.db, channelID)
 	gone := errors.Is(err, domain.ErrNotificationChannelNotFound)

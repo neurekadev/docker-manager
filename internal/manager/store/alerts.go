@@ -375,20 +375,28 @@ func ChannelAlertDeliveries(ctx context.Context, db bun.IDB, channelID string, l
 	return deliveriesOf(rows), nil
 }
 
-// LatestAlertAttempt returns the latest next attempt of a channel's
-// pending deliveries (found false when none is pending): a new delivery is
-// not due before it, which keeps the channel's order.
-func LatestAlertAttempt(ctx context.Context, db bun.IDB, channelID string) (time.Time, bool, error) {
-	var row alertDeliveryRow
-	err := db.NewSelect().Model(&row).Column("next_attempt_at").Where("channel_id = ?", channelID).
-		Where("state = ?", domain.DeliveryPending).Order("next_attempt_at DESC").Limit(1).Scan(ctx)
-	if errors.Is(err, sql.ErrNoRows) {
-		return time.Time{}, false, nil
+// LatestAlertAttempts returns the latest next attempt of the pending
+// deliveries of each of these channels (channels without any are absent)
+// in one query: a new delivery is not due before it, which keeps each
+// channel's order.
+func LatestAlertAttempts(ctx context.Context, db bun.IDB, channelIDs []string) (map[string]time.Time, error) {
+	out := map[string]time.Time{}
+	if len(channelIDs) == 0 {
+		return out, nil
 	}
-	if err != nil {
-		return time.Time{}, false, fmt.Errorf("store: latest alert attempt: %w", err)
+	var rows []struct {
+		ChannelID string    `bun:"channel_id"`
+		Latest    time.Time `bun:"latest"`
 	}
-	return row.NextAttemptAt.UTC(), true, nil
+	if err := db.NewSelect().Model((*alertDeliveryRow)(nil)).ColumnExpr("channel_id, MAX(next_attempt_at) AS latest").
+		Where("state = ?", domain.DeliveryPending).Where("channel_id IN (?)", bun.List(channelIDs)).
+		Group("channel_id").Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("store: latest alert attempts: %w", err)
+	}
+	for _, r := range rows {
+		out[r.ChannelID] = r.Latest.UTC()
+	}
+	return out, nil
 }
 
 // DeferChannelAlertDeliveries moves every pending delivery of a channel

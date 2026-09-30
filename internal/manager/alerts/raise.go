@@ -160,20 +160,28 @@ func enqueueExcept(ctx context.Context, db bun.IDB, a domain.Alert, event string
 	if err != nil {
 		return err
 	}
-	var ds []domain.AlertDelivery
+	var targets []string
 	for _, c := range channels {
 		if skip[c.ID] || !c.Wants(a.Kind, a.EnvironmentID) || (event == domain.AlertEventResolved && !c.SendResolved) {
 			continue
 		}
+		targets = append(targets, c.ID)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	// One query for every channel's latest pending due time.
+	latest, err := store.LatestAlertAttempts(ctx, db, targets)
+	if err != nil {
+		return err
+	}
+	ds := make([]domain.AlertDelivery, 0, len(targets))
+	for _, id := range targets {
 		due := now.Add(DeliveryDelay)
-		latest, found, err := store.LatestAlertAttempt(ctx, db, c.ID)
-		if err != nil {
-			return err
+		if l, ok := latest[id]; ok && l.After(due) {
+			due = l
 		}
-		if found && latest.After(due) {
-			due = latest
-		}
-		ds = append(ds, newDelivery(a, c.ID, event, now, due))
+		ds = append(ds, newDelivery(a, id, event, now, due))
 	}
 	return store.InsertAlertDeliveries(ctx, db, ds)
 }
