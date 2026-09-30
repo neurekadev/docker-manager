@@ -90,7 +90,8 @@ the layout, conventions and gates every later workstream builds on.
 12. **License policy:** shipped Go modules and production npm packages must
     use permissive licenses or MPL-2.0 (allowlist in
     `scripts/license-check.sh`); anything else, including unknown licenses,
-    fails CI until reviewed. The project itself has no license file (#25).
+    fails CI until reviewed. The project had no license file (#25) until 2026-09-30; it is licensed
+    under AGPL-3.0 (`LICENSE.md`) since the repository went public.
     (Since 2026-09-25 the license check is a manual review, not a CI job.)
 13. **Injectable time:** production code takes `clock.Clock`; tests use
     `clock.Fake` and never sleep to wait for behavior.

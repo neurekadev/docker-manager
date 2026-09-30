@@ -27,7 +27,7 @@ detail. User-facing documentation lives in `docs/public/`.
   (`internal/manager/store`) and domain types (`internal/domain`) separate.
 - Tests are isolated unit tests only; never add integration, end-to-end,
   fuzz, race, benchmark or other extended suites unless explicitly asked.
-- LF line endings, no LICENSE file, never commit the UI mockup;
+- LF line endings, AGPL-3.0 (`LICENSE.md`), never commit the UI mockup;
   conventional commits, branches `feat/<issue>-<slug>`, squash merges; no
   git tags or releases (`main` publishes `:edge`).
 

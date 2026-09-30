@@ -40,7 +40,8 @@ Docker, containers, browsers, real registries or restic.
 
 ## Repository rules
 
-- LF line endings only; no LICENSE file; never commit the UI mockup (#22).
+- LF line endings only; the project is licensed under AGPL-3.0
+  (`LICENSE.md`, since 2026-09-30); never commit the UI mockup (#22).
 - Branches `feat/<issue>-<slug>`, conventional commits, squash merges.
 - No git tags, GitHub Releases or semver images; `main` publishes `:edge`.
 

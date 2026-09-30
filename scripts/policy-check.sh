@@ -7,7 +7,6 @@
 #     and raw Engine API paths (#21)
 #   - Engine / Compose SDK imports outside the two agent adapters (#21)
 #   - files with CRLF line endings
-#   - a project LICENSE/COPYING file (no project license for now, #25)
 #   - the UI mockup image (lives only on issue #22)
 #   - user documentation out of step with the code: a configuration variable
 #     missing from the Configuration page, a variable that no longer exists,
@@ -129,16 +128,6 @@ check_crlf() {
 	return 0
 }
 
-check_license_file() {
-	local f base
-	for f in "${files[@]}"; do
-		base="$(basename "$f")"
-		if [[ "$base" =~ ^(LICEN[CS]E|COPYING|UNLICENSE)(\..*)?$ ]]; then
-			fail "project license file $f is not allowed (no project license for now, #25)"
-		fi
-	done
-}
-
 # SHA-256 of the mockup attached to issue #22.
 MOCKUP_SHA256="e2f73b82d45c7c3f05d72a8ce393b3b5ca94de886cd2a1a597015149a7784491"
 
@@ -226,7 +215,6 @@ check_docker_cli
 check_direct_engine_http
 check_sdk_boundary
 check_crlf
-check_license_file
 check_mockup
 check_user_docs
 
