@@ -86,6 +86,9 @@ const (
 	// (docs/internal/architecture/manager-move.md).
 	EnvMoveFrom = "DOCKER_MANAGER_MOVE_FROM"
 	EnvMoveCode = "DOCKER_MANAGER_MOVE_CODE" //nolint:gosec // G101: a variable name, not a credential
+	// EnvAlertOfflineGrace is how long an active environment may be
+	// offline before it raises an alert (#159).
+	EnvAlertOfflineGrace = "DOCKER_MANAGER_ALERT_OFFLINE_GRACE"
 )
 
 // Defaults.
@@ -112,6 +115,10 @@ const (
 
 	DefaultAuditRetentionDays = 365
 	DefaultAuditMaxSizeMB     = 1024
+
+	// DefaultAlertOfflineGrace: an environment offline this long raises
+	// an alert (#159).
+	DefaultAlertOfflineGrace = 5 * time.Minute
 
 	// Metrics (#5): a separate database file, excluded from manager-state
 	// backups by default (#10).
@@ -240,6 +247,9 @@ type Config struct {
 	MetricsEnabled bool
 	// Move are DOCKER_MANAGER_MOVE_FROM and DOCKER_MANAGER_MOVE_CODE.
 	Move MoveConfig
+	// AlertOfflineGrace is how long an active environment may be offline
+	// before it raises an alert (#159; 1m to 24h, default 5m).
+	AlertOfflineGrace time.Duration
 }
 
 // MoveConfig starts a new, empty manager in waiting mode: it asks the old
@@ -325,6 +335,7 @@ func (c Config) Settings() []Setting {
 		{EnvMetricsEnabled, strconv.FormatBool(c.MetricsEnabled)},
 		{EnvMoveFrom, moveFrom},
 		{EnvMoveCode, moveCode},
+		{EnvAlertOfflineGrace, d(c.AlertOfflineGrace)},
 		{"local_development", strconv.FormatBool(c.LocalDevelopment)},
 	}
 }
@@ -501,6 +512,9 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 	if cfg.Move, err = loadMove(src); err != nil {
+		errs = append(errs, err)
+	}
+	if cfg.AlertOfflineGrace, err = src.Duration(EnvAlertOfflineGrace, DefaultAlertOfflineGrace, time.Minute, 24*time.Hour); err != nil {
 		errs = append(errs, err)
 	}
 	cfg.ResticBinary = src.String(EnvResticBinary, DefaultResticBinary)

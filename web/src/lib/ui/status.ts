@@ -55,7 +55,10 @@ const STATUS: Record<string, StatusInfo> = {
 	degraded: { tone: 'warn', label: 'Degraded', pulse: false },
 	rebuilding: { tone: 'info', label: 'Rebuilding', pulse: true },
 	checking: { tone: 'info', label: 'Checking', pulse: true },
-	inactive: { tone: 'neutral', label: 'Inactive', pulse: false }
+	inactive: { tone: 'neutral', label: 'Inactive', pulse: false },
+	// Alert severities (#159; warning is above): critical, warning, info.
+	critical: { tone: 'danger', label: 'Critical', pulse: false },
+	info: { tone: 'info', label: 'Info', pulse: false }
 };
 
 // Job "partial" differs from stack "partial": callers pass kind="job".

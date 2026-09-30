@@ -467,7 +467,7 @@ availability. API tokens never reach them.
 | --- | --- |
 | Move rows, generation | `manager_moves`, `instance.generation` (`store/managermoves.go`, `store/instance.go`); `domain.ManagerMove` |
 | Configuration | `config.MoveConfig` (`DOCKER_MANAGER_MOVE_FROM`, `DOCKER_MANAGER_MOVE_CODE`); waiting mode decided in `app.decideWaiting` |
-| Lock | `internal/manager/movelock` (levels open, read-only, agents refused, waiting), set by `managermove` from the current move and at start (`managermove.LockLevel`) and by `app.decideWaiting`; consulted by `api.Register` (`moveGuard` with `allowedWhileMoved`, `waitingGuard` with `allowedWhileWaiting`), `jobs.Engine` (`Enqueue`, `DispatchPending`), `scheduler.Service` (`Tick`) and `agents` (handler 503, hub 1012) |
+| Lock | `internal/manager/movelock` (levels open, read-only, agents refused, waiting), set by `managermove` from the current move and at start (`managermove.LockLevel`) and by `app.decideWaiting`; consulted by `api.Register` (`moveGuard` with `allowedWhileMoved`, `waitingGuard` with `allowedWhileWaiting`), `jobs.Engine` (`Enqueue`, `DispatchPending`), `scheduler.Service` (`Tick`), `alerts.Service` (reconcile and dispatch pause) and `agents` (handler 503, hub 1012) |
 | Creation, files | `managermove/service.go` (`CreateMove`, `Defaults`, `Current`, `Cancel`, `endMove`), `setupfiles.go` (`NewSetupFiles`), `render.go` (addresses), `agents.MoveFiles` |
 | Live updates | `managermove/live.go` (`publish`, `published`, `followBus`, `announceStaleCheckIn`), `events.ManagerMoveUpdated`, `events.ManagerMoveLockChanged`, topic `manager` |
 | Move everything | `managermove/movejob.go` (`manager.move`, `jobspec.ManagerMove`) |

@@ -95,6 +95,7 @@ agent.
 | `DOCKER_MANAGER_METRICS_MAX_SIZE_MB` | `2048` | The most space chart data may take, in MB. |
 | `DOCKER_MANAGER_METRICS_MAX_SERIES` | `5000` | The most servers, disks and containers with charts. |
 | `DOCKER_MANAGER_METRICS_ENABLED` | `false` | Set to `true` for [Prometheus monitoring](#monitoring-with-prometheus). |
+| `DOCKER_MANAGER_ALERT_OFFLINE_GRACE` | `5m` | How long a server may be offline before it raises an [alert](/alerts) (`1m` to `24h`). |
 
 ### Moving Docker Manager
 

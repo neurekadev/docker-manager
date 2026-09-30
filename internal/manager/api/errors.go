@@ -171,6 +171,9 @@ const (
 	CodeNotificationChannelNameTaken = "notification_channel_name_taken"
 	CodeNotificationTestRateLimited  = "notification_test_rate_limited"
 
+	// Alerts (#159).
+	CodeAlertNotFiring = "alert_not_firing"
+
 	// Image builds (#33).
 	CodeGitCredentialNameTaken   = "git_credential_name_taken" //nolint:gosec // G101: an error code, not a credential
 	CodeAmbiguousGitCredential   = "ambiguous_git_credential"  //nolint:gosec // G101: an error code, not a credential

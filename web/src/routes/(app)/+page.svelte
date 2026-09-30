@@ -2,8 +2,9 @@
 	// Dashboard (#5, #22): every environment the user can reach, with status,
 	// Engine, CPU and memory (the last 30 minutes as sparklines), Docker
 	// counts, undeployed changes and available updates, plus failed jobs of
-	// the last 24 hours. "Needs attention" leads with what to look at; every
-	// item and KPI links to its list. Everything is live: overview and
+	// the last 24 hours and disks and RAID arrays with active alerts.
+	// "Needs attention" leads with what to look at; every item and KPI
+	// links to its list. Everything is live: overview and
 	// charts are keyed with liveKeys, so connection, inventory and metrics
 	// events refresh them. A Restricted user sees the calm denied state (#17).
 	// After Docker Manager moved to this server, the owner sees Move complete
@@ -23,6 +24,8 @@
 		stacksSummaryQuery,
 		updatePoliciesSummaryQuery
 	} from '$lib/api/queries';
+	import { healthTallies } from '$lib/features/alerts/model';
+	import { activeAlertsQuery } from '$lib/features/alerts/queries';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import AttentionStrip, { presetFilters } from '$lib/features/dashboard/AttentionStrip.svelte';
@@ -82,6 +85,8 @@
 		enabled: ready && hasAny(access, 'update_policy.')
 	}));
 
+	// Active disk health and RAID alerts (#159): refreshed by alert events.
+	const alerts = createQuery(() => ({ ...activeAlertsQuery(), enabled: ready }));
 	const rows = $derived(
 		(overview.data?.environments ?? []).filter(
 			(e) => !environmentSelection.id || e.id === environmentSelection.id
@@ -95,13 +100,21 @@
 		)
 	);
 	const totals = $derived(dashboardTotals(rows, recent, Date.now()));
+	const health = $derived(
+		healthTallies(
+			(alerts.data ?? []).filter(
+				(a) => !environmentSelection.id || a.environmentId === environmentSelection.id
+			)
+		)
+	);
 	const attention = $derived(
 		attentionItems(
 			totals,
 			pendingChanges(
 				counts,
 				rows.map((r) => r.id)
-			)
+			),
+			health
 		)
 	);
 	// Online environments first, then by name.

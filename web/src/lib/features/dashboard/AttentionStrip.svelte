@@ -13,8 +13,9 @@
 
 <script lang="ts">
 	// "Needs attention" on the dashboard (#22 polish): one line per problem
-	// (offline environments, failed jobs, containers not running, undeployed
-	// changes, available updates), each a link to the list that shows it,
+	// (offline environments, disks and RAID arrays with active alerts,
+	// failed jobs, containers not running, undeployed changes, available
+	// updates), each a link to the list that shows it,
 	// filtered where the list keeps filters. Nothing to report: one calm
 	// line instead of an empty card.
 	import CircleCheck from '@lucide/svelte/icons/circle-check';

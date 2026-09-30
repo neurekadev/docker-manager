@@ -8,12 +8,15 @@
 	// live stream brings the new report). Notices replace the list when the
 	// agent can't read the disks, is too old, has disk health turned off,
 	// or the disks report no SMART data. "No RAID arrays found" tells the
-	// host has none (the RAID card only shows with arrays).
+	// host has none (the RAID card only shows with arrays). A disk with a
+	// firing alert (#159) has a mark beside its path that opens Alerts.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { api, unwrap, type Environment } from '$lib/api/client';
 	import { queryKeys } from '$lib/api/queries';
+	import AlertMark from '$lib/features/alerts/AlertMark.svelte';
+	import { alertsByDisk, diskAlertKey, type Alert } from '$lib/features/alerts/model';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { actionError } from '$lib/features/common/errors';
 	import {
@@ -52,14 +55,19 @@
 		health,
 		raid,
 		online,
+		alerts = [],
 		now
 	}: {
 		env: Environment;
 		health: DiskHealth;
 		raid?: RaidHealth;
 		online: boolean;
+		/** The environment's firing alerts (disks are matched by path and type). */
+		alerts?: Alert[];
 		now?: Date;
 	} = $props();
+
+	const byDisk = $derived(alertsByDisk(alerts));
 
 	const qc = useQueryClient();
 	let busy = $state(false);
@@ -165,9 +173,10 @@
 	{deviceName(d, health.devices)}
 {/snippet}
 {#snippet deviceCell(d: DiskDevice)}
-	<span class="mono">{deviceName(d, health.devices)}</span>{#if d.model}<span class="muted model"
-			>{d.model}</span
-		>{/if}
+	{@const alert = byDisk.get(diskAlertKey(d.name, d.type))}
+	<span class="mono">{deviceName(d, health.devices)}</span>{#if alert}<AlertMark
+			{alert}
+		/>{/if}{#if d.model}<span class="muted model">{d.model}</span>{/if}
 {/snippet}
 {#snippet healthCell(d: DiskDevice)}
 	{@const b = diskBadge(d)}

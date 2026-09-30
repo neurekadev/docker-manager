@@ -8,7 +8,9 @@
 	// address), "Migrate environment" (its stacks to another environment;
 	// with a second environment and a stack the caller may migrate), a
 	// notice while stacks migrated away left their old copies here
-	// ("Review the migration") and archive with the removal preview. The
+	// ("Review the migration") and archive with the removal preview. Active
+	// disk health and RAID alerts (#159) show as one notice leading to the
+	// System tab, where each disk and array with an alert is marked. The
 	// tab lives in the URL (?tab=system|agents|jobs).
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -35,6 +37,8 @@
 		myPermissionsQuery,
 		stacksSummaryQuery
 	} from '$lib/api/queries';
+	import { healthAlerts, healthNotice, isActive } from '$lib/features/alerts/model';
+	import { alertsQuery } from '$lib/features/alerts/queries';
 	import Columns from '$lib/features/common/Columns.svelte';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
@@ -111,6 +115,19 @@
 		...environmentSystemQuery(id),
 		enabled: !!e && can('environment.system.read') && !archived
 	}));
+	// Firing disk health and RAID alerts (#159; live, topic alerts): the
+	// notice above the tabs (active ones) and the System tab's marks.
+	const alerts = createQuery(() => ({
+		...alertsQuery({ state: 'firing', environmentId: id }),
+		enabled: !!e && can('environment.system.read') && !archived
+	}));
+	const diskAlerts = $derived(healthAlerts(alerts.data ?? [], id));
+	const alertNotice = $derived(healthNotice(diskAlerts.filter(isActive)));
+	const alertNoticeAction = $derived(
+		diskAlerts.some((a) => isActive(a) && a.kind === 'disk_health')
+			? 'View disks'
+			: 'View RAID arrays'
+	);
 	const capacity = createQuery(() => ({
 		...environmentCapacityQuery(id),
 		enabled: !!e && can('environment.metrics.read') && !archived
@@ -310,6 +327,19 @@
 			</Notice>
 		{/if}
 
+		<!-- Disks and RAID arrays with active alerts; the System tab marks
+		     each of them itself. -->
+		{#if alertNotice && tab !== 'system' && !archived}
+			<Notice tone={alertNotice.tone} title={alertNotice.title} live="none">
+				{#if alertNotice.body}{alertNotice.body}{/if}
+				{#snippet actions()}
+					<Button size="sm" href={routes.environment(e.id, 'system')}
+						>{alertNoticeAction}</Button
+					>
+				{/snippet}
+			</Notice>
+		{/if}
+
 		<!-- Stacks migrated away whose old copies are still here (callers who
 		     may migrate stacks; the server lists only what they see). -->
 		{#if !archived}
@@ -506,7 +536,7 @@
 					{:else if !system.data}
 						<Skeleton height="320px" radius="lg" />
 					{:else}
-						<SystemPanel env={e} system={system.data} />
+						<SystemPanel env={e} system={system.data} alerts={diskAlerts} />
 					{/if}
 				{:else if t === 'agents'}
 					<AgentsPanel env={e} />

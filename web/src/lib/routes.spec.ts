@@ -155,6 +155,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	],
 	job: [routes.job('job-1')],
 	schedules: [routes.schedules()],
+	alerts: [routes.alerts()],
 	access: [routes.access()],
 	accessUser: [routes.accessUser('u-1')],
 	accessGroups: [routes.accessGroups()],

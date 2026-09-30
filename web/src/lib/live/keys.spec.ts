@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { flushSync } from 'svelte';
-import { keyInEnvironment, keysForFiles, keysForInvalidate, liveKeys } from './keys';
+import { TOPICS, keyInEnvironment, keysForFiles, keysForInvalidate, liveKeys } from './keys';
 import { CriticalWork } from './critical.svelte';
 
 describe('invalidation map', () => {
@@ -98,6 +98,20 @@ describe('invalidation map', () => {
 		expect(inv('manager', 'manager_move', 'mv-1')).toEqual([['manager', 'item', 'move']]);
 		expect(inv('manager', 'manager_move_lock', 'instance')).toEqual([['session']]);
 		expect(liveKeys.managerMove('defaults')).toEqual(['manager', 'item', 'move', 'defaults']);
+
+		// Alerts (#159): any change refreshes every alerts list (the page,
+		// the bell, the dashboard and the environment page), by prefix.
+		expect(inv('alerts', 'alert', 'a1', 'e1')).toEqual([
+			['alerts', 'list'],
+			['alerts', 'item', 'a1']
+		]);
+		expect(liveKeys.alerts()).toEqual(['alerts', 'list']);
+		expect(liveKeys.alerts({ state: 'active' })).toEqual([
+			'alerts',
+			'list',
+			{ state: 'active' }
+		]);
+		expect(TOPICS).toContain('alerts');
 	});
 
 	it('finds the keys of one environment', () => {

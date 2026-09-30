@@ -4,8 +4,8 @@ Owner-administered outgoing destinations for Docker Manager's messages:
 Discord, Slack, Microsoft Teams, Telegram, email (SMTP), ntfy, Gotify,
 Pushover, Matrix, a generic webhook, or any other Shoutrrr service
 ([ADR 0004](../adr/0004-notification-library.md)). This feature stores and
-tests channels and their subscriptions; alerts send through them with
-`notify.Service.Send`. Binding rules:
+tests channels and their subscriptions; alerts ([alerts.md](alerts.md))
+send through them with `notify.Service.Send`. Binding rules:
 [alerts-and-notifications.md](../conventions/alerts-and-notifications.md).
 
 | package | role |
@@ -63,7 +63,10 @@ subscribes to all of them and to resolved messages.
   `{ok, errorClass?, message?, sentAt}`. A failed delivery is `200` with
   `ok: false`.
 - **Send** (alerts): the same delivery without the owner check or the rate
-  limit; callers choose channels with `Wants(kind, environmentID)`.
+  limit, whether the channel is enabled or not; the alerts dispatcher
+  chooses channels with `Wants(kind, environmentID)` when it writes a
+  message and checks again before it sends (a deleted, disabled or
+  unsubscribed channel's messages are dropped).
 - **Delete** (owner, If-Match): removes the channel, its filter rows and
   its address.
 

@@ -65,6 +65,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeGroupNotEmpty, http.StatusConflict, false, "The group still has members; move them to another group first (users are never moved implicitly).", 17},
 		{CodeRegistryNameTaken, http.StatusConflict, false, "Another registry connection already uses this name.", 19},
 		{CodeNotificationChannelNameTaken, http.StatusConflict, false, "Another notification channel already uses this name.", 142},
+		{CodeAlertNotFiring, http.StatusConflict, false, "The alert is resolved; only firing alerts can be dismissed.", 159},
 		{CodeAmbiguousRegistryConnection, http.StatusConflict, false, "Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (registryId).", 19},
 		{CodeGitCredentialNameTaken, http.StatusConflict, false, "Another Git credential already uses this name.", 33},
 		{CodeAmbiguousGitCredential, http.StatusConflict, false, "Several Git credentials match the repository equally well (same host and path prefix length); name one explicitly (gitCredentialId).", 33},

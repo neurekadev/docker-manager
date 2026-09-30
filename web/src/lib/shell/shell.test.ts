@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
+import { QueryClient } from '@tanstack/svelte-query';
+import type { ComponentProps } from 'svelte';
 import type { Account, Environment } from '$lib/api/client';
 import { LiveStatus } from '$lib/live/status.svelte';
 import PaletteHarness from '../../test/PaletteHarness.svelte';
+import QueryHarness from '../../test/QueryHarness.svelte';
 import EnvironmentSwitcher from './EnvironmentSwitcher.svelte';
 import LiveIndicator from './LiveIndicator.svelte';
 import NoticesBell from './NoticesBell.svelte';
@@ -60,26 +63,136 @@ describe('EnvironmentSwitcher', () => {
 });
 
 describe('NoticesBell', () => {
-	it('announces the unread count and marks notices read when closed', async () => {
-		const user = setup();
-		const notices = new Notices(() => Date.now());
-		notices.push({
-			key: 'environment-offline:e2',
-			kind: 'environment',
-			tone: 'warn',
-			title: 'edge is offline',
-			href: '/environments/e2'
+	class Mem {
+		m = new Map<string, string>();
+		getItem(k: string) {
+			return this.m.get(k) ?? null;
+		}
+		setItem(k: string, v: string) {
+			this.m.set(k, v);
+		}
+	}
+	const alert = (id: string, title: string, severity: 'critical' | 'warning', mine = true) => ({
+		id,
+		title,
+		severity,
+		escalation: 0,
+		link: `/environments/e1?tab=system`,
+		startedAt: new Date(Date.now() - 3_600_000).toISOString(),
+		actions: mine ? ['alert.dismiss'] : []
+	});
+	let posts: { path: string; body: unknown }[] = [];
+
+	function mountBell(notices: Notices) {
+		posts = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (req: Request) => {
+				const path = new URL(req.url).pathname;
+				const text = req.method === 'POST' ? await req.text() : '';
+				posts.push({ path, body: text ? JSON.parse(text) : undefined });
+				const body =
+					path === '/api/v1/alerts/dismissals'
+						? { dismissed: 1, alertIds: ['a1'] }
+						: { id: 'a1', dismissed: true };
+				return new Response(JSON.stringify(body), {
+					headers: { 'Content-Type': 'application/json' }
+				});
+			})
+		);
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		type P = ComponentProps<typeof NoticesBell>;
+		return render(QueryHarness<P>, {
+			props: { client, component: NoticesBell, props: { notices, alertsHref: '/alerts' } }
 		});
-		render(NoticesBell, { props: { notices } });
-		const bell = screen.getByRole('button', { name: 'Notices, 1 unread' });
-		await user.click(bell);
-		expect(await screen.findByRole('link', { name: 'edge is offline' })).toHaveAttribute(
+	}
+
+	function seeded(storage = new Mem()) {
+		const notices = new Notices(() => Date.now(), storage);
+		notices.setAlerts([
+			alert('a1', 'Disk /dev/sda on homelab is failing', 'critical'),
+			alert('a2', 'edge is offline', 'warning', false)
+		]);
+		notices.push({
+			key: 'job:j1',
+			kind: 'job',
+			tone: 'ok',
+			title: 'Deployed Silo',
+			href: '/jobs/j1'
+		});
+		return notices;
+	}
+
+	it('keeps the count after the list closes, until the items are dismissed', async () => {
+		const user = setup();
+		const notices = seeded();
+		mountBell(notices);
+		await user.click(screen.getByRole('button', { name: 'Notices, 3 items' }));
+		const disk = await screen.findByRole('link', {
+			name: 'Disk /dev/sda on homelab is failing'
+		});
+		expect(disk).toHaveAttribute('href', '/environments/e1?tab=system');
+		expect(screen.getByText('Critical')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'View all alerts' })).toHaveAttribute(
 			'href',
-			'/environments/e2'
+			'/alerts'
 		);
 		await user.keyboard('{Escape}');
-		await waitFor(() => expect(notices.unread).toBe(0));
+		await waitFor(() =>
+			expect(screen.queryByRole('link', { name: 'Deployed Silo' })).not.toBeInTheDocument()
+		);
+		// Closing reads nothing away: the badge stays.
+		expect(screen.getByRole('button', { name: 'Notices, 3 items' })).toBeInTheDocument();
+		expect(notices.count).toBe(3);
+	});
+
+	it('dismisses one item: an alert for everyone when allowed, else for this browser', async () => {
+		const user = setup();
+		const storage = new Mem();
+		const notices = seeded(storage);
+		mountBell(notices);
+		await user.click(screen.getByRole('button', { name: 'Notices, 3 items' }));
+		await user.click(
+			await screen.findByRole('button', {
+				name: 'Dismiss Disk /dev/sda on homelab is failing'
+			})
+		);
+		await waitFor(() =>
+			expect(posts.map((p) => p.path)).toEqual(['/api/v1/alerts/a1/dismissals'])
+		);
+		expect(notices.count).toBe(2);
+		// Focus stays in the list.
+		expect(screen.getByRole('button', { name: 'Dismiss edge is offline' })).toHaveFocus();
+
+		// Not the user's to dismiss for everyone: hidden here, no request.
+		await user.click(screen.getByRole('button', { name: 'Dismiss edge is offline' }));
+		expect(posts).toHaveLength(1);
+		await user.click(screen.getByRole('button', { name: 'Dismiss Deployed Silo' }));
+		expect(notices.count).toBe(0);
+		expect(screen.getByText('Nothing needs your attention.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Notices' })).toBeInTheDocument();
+		// Kept for the next visit (a new store reads them back).
+		const next = new Notices(() => Date.now(), storage);
+		next.setAlerts([alert('a2', 'edge is offline', 'warning', false)]);
+		next.push({ key: 'job:j1', kind: 'job', tone: 'ok', title: 'Deployed Silo' });
+		expect(next.count).toBe(0);
+	});
+
+	it('dismisses everything at once with one request for the alerts it may dismiss', async () => {
+		const user = setup();
+		const notices = seeded();
+		mountBell(notices);
+		await user.click(screen.getByRole('button', { name: 'Notices, 3 items' }));
+		await user.click(await screen.findByRole('button', { name: 'Dismiss all' }));
+		await waitFor(() =>
+			expect(posts).toEqual([
+				{ path: '/api/v1/alerts/dismissals', body: { alertIds: ['a1'] } }
+			])
+		);
+		expect(notices.count).toBe(0);
+		expect(notices.isDismissed('alert:a2:0')).toBe(true);
+		expect(notices.isDismissed('job:j1')).toBe(true);
+		expect(screen.getByText('Nothing needs your attention.')).toBeInTheDocument();
 	});
 });
 

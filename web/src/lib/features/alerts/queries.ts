@@ -1,0 +1,90 @@
+// Alerts (#159) for Svelte Query: the list with its filters (the Alerts
+// page, the environment page), the active alerts (the bell, the
+// dashboard) and the dismissals. Keys are liveKeys.alerts(filter): the
+// manager publishes the topic `alerts` whenever an alert is raised,
+// changes, is dismissed or resolved, and the live client refreshes every
+// alerts list by prefix. Mutations invalidate alertKeys.all and never
+// retry.
+import { queryOptions } from '@tanstack/svelte-query';
+import { api, unwrap, type ApiClient, type Schema } from '$lib/api/client';
+import { allPages } from '$lib/api/multi-env';
+import { liveKeys } from '$lib/live/keys';
+import type { Alert, AlertKind } from './model';
+
+export type AlertDismissals = Schema<'AlertDismissals'>;
+
+/** The server-side filters of GET /alerts (absent: every alert). */
+export interface AlertFilter {
+	state?: 'active' | 'dismissed' | 'firing' | 'resolved';
+	kind?: AlertKind;
+	environmentId?: string;
+}
+
+/** The filter without empty values (one key per distinct filter). */
+export function normalizeFilter(f: AlertFilter): AlertFilter {
+	const out: AlertFilter = {};
+	if (f.state) out.state = f.state;
+	if (f.kind) out.kind = f.kind;
+	if (f.environmentId) out.environmentId = f.environmentId;
+	return out;
+}
+
+export const alertKeys = {
+	/** Every alerts query (the prefix mutations invalidate). */
+	all: ['alerts'] as const,
+	list: (f: AlertFilter = {}) => liveKeys.alerts(normalizeFilter(f))
+};
+
+/** Most alerts one "Dismiss all" request takes (the manager's limit). */
+export const MAX_DISMISSALS = 500;
+
+/** Every alert matching the filter, newest first (all pages). */
+export function alertsQuery(f: AlertFilter = {}, client: ApiClient = api) {
+	const filter = normalizeFilter(f);
+	return queryOptions({
+		queryKey: alertKeys.list(filter),
+		queryFn: ({ signal }): Promise<Alert[]> =>
+			allPages((cursor) =>
+				unwrap(
+					client.GET('/api/v1/alerts', {
+						params: { query: { ...filter, limit: 200, cursor } },
+						signal
+					})
+				)
+			),
+		staleTime: 15_000
+	});
+}
+
+/** Firing alerts nobody dismissed: the bell and "Needs attention". */
+export function activeAlertsQuery(client: ApiClient = api) {
+	return alertsQuery({ state: 'active' }, client);
+}
+
+/** Dismisses one firing alert for everyone. */
+export function dismissAlert(id: string, client: ApiClient = api): Promise<Alert> {
+	return unwrap(
+		client.POST('/api/v1/alerts/{alertId}/dismissals', { params: { path: { alertId: id } } })
+	);
+}
+
+/**
+ * Dismisses the listed alerts the caller may dismiss (the manager leaves
+ * the others alone), in requests of at most MAX_DISMISSALS. Returns how
+ * many are dismissed now.
+ */
+export async function dismissAlerts(
+	ids: readonly string[],
+	client: ApiClient = api
+): Promise<number> {
+	let dismissed = 0;
+	for (let i = 0; i < ids.length; i += MAX_DISMISSALS) {
+		const r = await unwrap(
+			client.POST('/api/v1/alerts/dismissals', {
+				body: { alertIds: ids.slice(i, i + MAX_DISMISSALS) }
+			})
+		);
+		dismissed += r.dismissed;
+	}
+	return dismissed;
+}

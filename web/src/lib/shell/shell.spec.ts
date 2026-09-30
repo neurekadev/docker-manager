@@ -11,14 +11,17 @@ import {
 	palettePages,
 	visibleNav
 } from './nav';
+import * as noticesModule from './notices.svelte';
 import {
-	environmentNotices,
+	alertDismissKey,
+	DISMISSED_KEY,
 	isGeneratedPolicyName,
 	jobNotices,
+	MAX_DISMISSED,
 	noticeHref,
 	Notices,
-	policyLabel,
-	updateNotices
+	parseDismissed,
+	policyLabel
 } from './notices.svelte';
 import {
 	actionResults,
@@ -73,6 +76,7 @@ describe('navigation filter (#17)', () => {
 		expect(visibleNav(a).map((i) => i.id)).toEqual([
 			'dashboard',
 			'environments',
+			'alerts',
 			'containers',
 			'backups',
 			'jobs',
@@ -86,7 +90,8 @@ describe('navigation filter (#17)', () => {
 		expect(ids).toContain('registries');
 		expect(ids).toContain('templates');
 		expect(ids).toContain('schedules');
-		expect(ids).toHaveLength(17);
+		expect(ids).toContain('alerts');
+		expect(ids).toHaveLength(18);
 	});
 
 	it('shows Schedules, after Jobs, to readers of scheduled policies only', () => {
@@ -127,6 +132,7 @@ describe('navigation filter (#17)', () => {
 		expect(activeNav('/volumes/e1/data/files')?.id).toBe('volumes');
 		expect(activeNav('/builds/e1/b1')?.id).toBe('builds');
 		expect(activeNav('/settings/tokens/all')?.id).toBe('settings');
+		expect(activeNav('/alerts')?.id).toBe('alerts');
 		expect(activeNav('/nowhere')).toBeUndefined();
 	});
 
@@ -193,9 +199,29 @@ describe('environment selection (remembered per user, ID only)', () => {
 });
 
 describe('notices', () => {
-	it('deduplicates by key, counts unread and marks read', () => {
+	const alert = (
+		id: string,
+		o: Partial<{
+			severity: 'critical' | 'warning' | 'info';
+			escalation: number;
+			title: string;
+			actions: string[];
+			startedAt: string;
+			link: string;
+		}> = {}
+	) => ({
+		id,
+		severity: o.severity ?? 'warning',
+		escalation: o.escalation ?? 0,
+		title: o.title ?? `Alert ${id}`,
+		link: o.link ?? `/environments/e1?tab=system`,
+		startedAt: o.startedAt ?? '2026-09-25T12:00:00Z',
+		actions: o.actions ?? []
+	});
+
+	it('deduplicates job notices by key and counts what is not dismissed', () => {
 		let t = 0;
-		const n = new Notices(() => ++t);
+		const n = new Notices(() => ++t, null);
 		n.push({ key: 'job:1', kind: 'job', tone: 'ok', title: 'Deployed Silo' });
 		n.push({ key: 'job:2', kind: 'job', tone: 'danger', title: 'Deploy of Media failed' });
 		n.push({ key: 'job:1', kind: 'job', tone: 'ok', title: 'Deployed Silo again' });
@@ -203,47 +229,115 @@ describe('notices', () => {
 			'Deployed Silo again',
 			'Deploy of Media failed'
 		]);
-		expect(n.unread).toBe(2);
-		n.markAllRead();
-		expect(n.unread).toBe(0);
+		expect(n.count).toBe(2);
 		n.resolve('job:2');
 		expect(n.items).toHaveLength(1);
+		expect(n.count).toBe(1);
 	});
 
-	it('turns environment transitions into offline notices and resolves them', () => {
-		const n = new Notices(() => 1);
-		const feed = environmentNotices(n);
-		feed([
-			{ id: 'e1', name: 'homelab', online: true },
-			{ id: 'e2', name: 'edge', online: false }
+	it('lists the active alerts first, critical first, instead of browser-made notices', () => {
+		const n = new Notices(() => 1, null);
+		n.push({ key: 'job:1', kind: 'job', tone: 'ok', title: 'Deployed Silo', href: '/jobs/1' });
+		n.setAlerts([
+			alert('a1', { title: 'edge is offline', link: '/environments/e2' }),
+			alert('a2', {
+				severity: 'critical',
+				title: 'Disk /dev/sda on homelab is failing',
+				actions: ['alert.dismiss'],
+				startedAt: '2026-09-20T12:00:00Z'
+			}),
+			alert('a3', { title: '2 updates available for Silo', link: '/updates/p1' })
 		]);
-		expect(n.items.map((x) => x.title)).toEqual(['edge is offline']);
-		feed([
-			{ id: 'e1', name: 'homelab', online: false },
-			{ id: 'e2', name: 'edge', online: false }
+		expect(n.list.map((x) => [x.key, x.kind, x.tone, x.title])).toEqual([
+			['alert:a2', 'alert', 'danger', 'Disk /dev/sda on homelab is failing'],
+			['alert:a1', 'alert', 'warn', 'edge is offline'],
+			['alert:a3', 'alert', 'warn', '2 updates available for Silo'],
+			['job:1', 'job', 'ok', 'Deployed Silo']
 		]);
-		expect(n.items.map((x) => x.title)).toEqual(['homelab is offline', 'edge is offline']);
-		feed([
-			{ id: 'e1', name: 'homelab', online: true },
-			{ id: 'e2', name: 'edge', online: false }
-		]);
-		expect(n.items.map((x) => x.title)).toEqual(['edge is offline']);
-		expect(n.items[0].href).toBe('/environments/e2');
+		expect(n.list[1].href).toBe('/environments/e2');
+		expect(n.list.map((x) => x.serverDismiss)).toEqual([true, false, false, false]);
+		expect(n.count).toBe(4);
+		// The manager's alerts replace the offline and update notices the
+		// browser used to compute.
+		expect(Object.keys(noticesModule)).not.toContain('environmentNotices');
+		expect(Object.keys(noticesModule)).not.toContain('updateNotices');
 	});
 
-	it('announces finished jobs: the user’s own always, anyone’s failures, never old ones', () => {
-		const n = new Notices(() => 1);
+	it('keeps the count until items are dismissed, and keeps dismissals across reloads', () => {
+		const store = new MemStorage();
+		const n = new Notices(() => 1, store);
+		n.push({ key: 'job:1', kind: 'job', tone: 'ok', title: 'Deployed Silo' });
+		n.setAlerts([alert('a1'), alert('a2')]);
+		expect(n.count).toBe(3);
+		n.dismiss('job:1', alertDismissKey(alert('a1')));
+		expect(n.list.map((x) => x.key)).toEqual(['alert:a2']);
+		expect(JSON.parse(store.m.get(DISMISSED_KEY) ?? '[]')).toEqual(['job:1', 'alert:a1:0']);
+
+		// A new tab (or a reload) reads them back.
+		const again = new Notices(() => 1, store);
+		again.push({ key: 'job:1', kind: 'job', tone: 'ok', title: 'Deployed Silo' });
+		again.setAlerts([alert('a1'), alert('a2')]);
+		expect(again.list.map((x) => x.key)).toEqual(['alert:a2']);
+		// A quiet change (progress, counters) keeps it hidden.
+		again.setAlerts([alert('a1', { title: 'Alert a1, 47% rebuilt' }), alert('a2')]);
+		expect(again.list.map((x) => x.key)).toEqual(['alert:a2']);
+		// An alert that gets worse shows again, also at the same severity
+		// (a new problem: the manager's escalation counts up).
+		again.setAlerts([alert('a1', { escalation: 1 }), alert('a2')]);
+		expect(again.list.map((x) => x.key)).toEqual(['alert:a1', 'alert:a2']);
+		// Clearing (sign-out) forgets the items, not the dismissals.
+		again.clear();
+		expect(again.count).toBe(0);
+		expect(again.isDismissed('job:1')).toBe(true);
+	});
+
+	it('forgets alerts dismissed for everyone until the next list', () => {
+		const n = new Notices(() => 1, null);
+		n.setAlerts([alert('a1'), alert('a2')]);
+		n.forgetAlerts(['a1']);
+		expect(n.list.map((x) => x.key)).toEqual(['alert:a2']);
+		// Not a local dismissal: the alert shows again if it comes back.
+		n.setAlerts([alert('a1'), alert('a2')]);
+		expect(n.count).toBe(2);
+	});
+
+	it('keeps at most the newest dismissed keys and drops anything unexpected', () => {
+		const store = new MemStorage();
+		const n = new Notices(() => 1, store);
+		for (let i = 0; i < MAX_DISMISSED + 5; i++) n.dismiss(`job:${i}`);
+		const kept = JSON.parse(store.m.get(DISMISSED_KEY) ?? '[]') as string[];
+		expect(kept).toHaveLength(MAX_DISMISSED);
+		expect(kept[0]).toBe('job:5');
+		n.dismiss('not a key', '<script>');
+		expect(JSON.parse(store.m.get(DISMISSED_KEY) ?? '[]')).toHaveLength(MAX_DISMISSED);
+		expect(parseDismissed('{broken')).toEqual([]);
+		expect(parseDismissed('{"a":1}')).toEqual([]);
+		expect(parseDismissed(JSON.stringify(['job:1', 7, 'x', 'alert:a:critical']))).toEqual([
+			'job:1',
+			'alert:a:critical'
+		]);
+	});
+
+	it('announces the user’s own manual jobs when they finish, never old ones', () => {
+		const n = new Notices(() => 1, null);
 		const feed = jobNotices(
 			() => 'me',
 			(k) => (k === 'stack.deploy' ? 'Deploy stack' : k),
 			n
 		);
-		const j = (id: string, state: string, by: string, at = '2026-09-25T12:00:00Z') => ({
+		const j = (
+			id: string,
+			state: string,
+			by: string,
+			at = '2026-09-25T12:00:00Z',
+			origin = 'manual'
+		) => ({
 			id,
 			kind: 'stack.deploy',
 			state,
 			createdAt: at,
 			initiatorUserId: by,
+			origin,
 			targets: [{ type: 'stack', id: 'silo' }],
 			error: { recovery: 'Fix the file and deploy again.' }
 		});
@@ -252,30 +346,31 @@ describe('notices', () => {
 			j('1', 'failed', 'me'),
 			j('2', 'running', 'me'),
 			j('3', 'running', 'other'),
-			j('4', 'running', 'other')
+			j('4', 'running', 'other'),
+			j('6', 'running', 'me', '2026-09-25T12:00:00Z', 'scheduled')
 		]);
 		expect(n.items).toHaveLength(0);
 		feed([
-			j('5', 'succeeded', 'me', '2026-09-25T12:01:00Z'), // new and already done (fast)
+			j('5', 'failed', 'me', '2026-09-25T12:01:00Z'), // new and already done (fast)
 			j('1', 'failed', 'me'),
 			j('2', 'succeeded', 'me'),
-			j('3', 'succeeded', 'other'), // someone else's success: not news
-			j('4', 'partial', 'other') // someone else's (or a schedule's) failure: news
+			j('3', 'succeeded', 'other'), // someone else's job: not the user's news
+			j('4', 'partial', 'other'), // someone else's failure: theirs (or an alert)
+			j('6', 'failed', 'me', '2026-09-25T12:00:00Z', 'scheduled') // an alert covers it
 		]);
 		expect(n.items.map((x) => [x.key, x.tone, x.title])).toEqual([
-			['job:4', 'warn', 'Deploy stack silo partly failed'],
 			['job:2', 'ok', 'Deploy stack silo succeeded'],
-			['job:5', 'ok', 'Deploy stack silo succeeded']
+			['job:5', 'danger', 'Deploy stack silo failed']
 		]);
-		expect(n.items[0].body).toBe('Fix the file and deploy again.');
-		expect(n.items[0].href).toBe('/jobs/4');
+		expect(n.items[1].body).toBe('Fix the file and deploy again.');
+		expect(n.items[1].href).toBe('/jobs/5');
 		// Refreshing the same list announces nothing new.
-		feed([j('4', 'partial', 'other')]);
-		expect(n.items).toHaveLength(3);
+		feed([j('5', 'failed', 'me', '2026-09-25T12:01:00Z')]);
+		expect(n.items).toHaveLength(2);
 	});
 
 	it('never shows an opaque target ID in a job notice', () => {
-		const n = new Notices(() => 1);
+		const n = new Notices(() => 1, null);
 		const feed = jobNotices(
 			() => 'me',
 			() => 'Deploy stack',
@@ -287,6 +382,7 @@ describe('notices', () => {
 			state,
 			createdAt: '2026-09-25T12:00:00Z',
 			initiatorUserId: 'me',
+			origin: 'manual',
 			targets: [{ type: 'stack', id: '0190a6e0-0000-7000-8000-000000000001' }]
 		});
 		feed([job('running')]);
@@ -297,29 +393,25 @@ describe('notices', () => {
 	it('links every notice somewhere', () => {
 		expect(noticeHref({ kind: 'job', href: '/jobs/j1' })).toBe('/jobs/j1');
 		expect(noticeHref({ kind: 'job' })).toBe('/jobs');
-		expect(noticeHref({ kind: 'environment' })).toBe('/environments');
-		expect(noticeHref({ kind: 'update' })).toBe('/updates');
+		expect(noticeHref({ kind: 'alert' })).toBe('/alerts');
 	});
 
-	it('names generated update policies by what they update and collapses several', () => {
+	it('names generated update policies by what they update', () => {
 		const id = '01a0e473-0000-7000-8000-000000000001';
-		const auto = (pid: string, target: { type: string; id: string }, available: number) => ({
+		const auto = (pid: string, target: { type: string; id: string }) => ({
 			id: pid,
 			name: `Automatic update ${pid}`,
 			environmentId: 'e1',
-			target,
-			summary: { available }
+			target
 		});
 		expect(isGeneratedPolicyName({ id, name: `Automatic update ${id}` })).toBe(true);
 		expect(isGeneratedPolicyName({ id, name: 'Silo images' })).toBe(false);
 		const names = (t: { type: string; id: string }) => (t.id === 's1' ? 'zerobyte' : undefined);
-		expect(policyLabel(auto(id, { type: 'stack', id: 's1' }, 1), names)).toBe('zerobyte');
-		expect(policyLabel(auto(id, { type: 'container', id: 'nginx' }, 1))).toBe(
-			'container nginx'
-		);
-		expect(policyLabel(auto(id, { type: 'stack', id: 's9' }, 1), names)).toBe('a stack');
+		expect(policyLabel(auto(id, { type: 'stack', id: 's1' }), names)).toBe('zerobyte');
+		expect(policyLabel(auto(id, { type: 'container', id: 'nginx' }))).toBe('container nginx');
+		expect(policyLabel(auto(id, { type: 'stack', id: 's9' }), names)).toBe('a stack');
 		// The manager names the target: its records read "Automatic updates
-		// for zerobyte", the notice names the stack itself.
+		// for zerobyte", the label names the stack itself.
 		expect(
 			policyLabel({
 				id,
@@ -331,59 +423,6 @@ describe('notices', () => {
 		expect(policyLabel({ id, name: 'Silo images', target: { type: 'stack', id: 's1' } })).toBe(
 			'Silo images'
 		);
-
-		const n = new Notices(() => 1);
-		const feed = updateNotices(n, names);
-		feed([auto(id, { type: 'stack', id: 's1' }, 2)]);
-		expect(n.items.map((x) => x.title)).toEqual(['2 updates available for zerobyte']);
-		expect(n.items[0].title).not.toContain(id);
-
-		const many = Array.from({ length: 6 }, (_, i) =>
-			auto(`p${i}`, { type: 'stack', id: `s${i + 1}` }, 1)
-		);
-		feed(many);
-		expect(n.items).toHaveLength(1);
-		expect(n.items[0]).toMatchObject({
-			key: 'update:summary',
-			title: '6 stacks have updates available',
-			body: 'zerobyte, a stack, a stack and 3 more.',
-			href: '/updates'
-		});
-		feed([...many.slice(0, 2), auto('c1', { type: 'container', id: 'nginx' }, 3)]);
-		expect(n.items.map((x) => x.title)).toEqual([
-			'2 stacks and 1 container have updates available'
-		]);
-		// The same target through two policies counts once.
-		feed([
-			auto('p0', { type: 'stack', id: 's1' }, 1),
-			auto('p9', { type: 'stack', id: 's1' }, 1)
-		]);
-		expect(n.items.map((x) => [x.key, x.title])).toEqual([
-			['update:p0', '1 update available for zerobyte']
-		]);
-		feed([]);
-		expect(n.items).toHaveLength(0);
-	});
-
-	it('shows available updates per policy and resolves them when applied', () => {
-		const n = new Notices(() => 1);
-		const feed = updateNotices(n);
-		feed([
-			{ id: 'p1', name: 'Silo images', summary: { available: 2 } },
-			{ id: 'p2', name: 'Media', summary: { available: 0 } }
-		]);
-		expect(n.items.map((x) => x.title)).toEqual(['2 updates available for Silo images']);
-		expect(n.items[0].href).toBe('/updates/p1');
-		n.markAllRead();
-		feed([{ id: 'p1', name: 'Silo images', summary: { available: 2 } }]);
-		expect(n.unread).toBe(0); // unchanged: not pushed again
-		feed([{ id: 'p1', name: 'Silo images', summary: { available: 1 } }]);
-		expect(n.items[0].title).toBe('1 update available for Silo images');
-		feed([{ id: 'p1', name: 'Silo images', summary: { available: 0 } }]);
-		expect(n.items).toHaveLength(0);
-		feed([{ id: 'p3', name: 'X', summary: { available: 1 } }]);
-		feed([]);
-		expect(n.items).toHaveLength(0);
 	});
 });
 

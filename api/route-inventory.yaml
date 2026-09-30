@@ -2885,6 +2885,42 @@ routes:
     status: implemented
     notes: "Sends a test message; one per channel every 5 s (429 notification_test_rate_limited)."
   - method: GET
+    path: /api/v1/alerts
+    operationId: list-alerts
+    capability: authenticated
+    scope: none
+    owner: 159
+    kind: json
+    status: implemented
+    notes: "Each alert filtered by its source's permission (environment.system.read, the environment, job.read, update_policy.read)."
+  - method: POST
+    path: /api/v1/alerts/dismissals
+    operationId: create-alert-dismissals
+    capability: alert.dismiss
+    scope: resource
+    owner: 159
+    kind: json
+    status: implemented
+    notes: "Dismiss all: the listed (or every active) alerts the caller may see and dismiss."
+  - method: GET
+    path: "/api/v1/alerts/{alertId}"
+    operationId: get-alert
+    capability: authenticated
+    scope: none
+    owner: 159
+    kind: json
+    status: implemented
+    notes: 404 unless the caller may see the alert's source.
+  - method: POST
+    path: "/api/v1/alerts/{alertId}/dismissals"
+    operationId: create-alert-dismissal
+    capability: alert.dismiss
+    scope: resource
+    owner: 159
+    kind: json
+    status: implemented
+    notes: "alert.dismiss on the alert's source; 409 alert_not_firing."
+  - method: GET
     path: /api/v1/git-credentials
     operationId: list-git-credentials
     capability: git_credential.read

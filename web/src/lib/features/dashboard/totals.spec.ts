@@ -144,6 +144,33 @@ describe('needs attention (#22 dashboard)', () => {
 		expect(items.find((i) => i.id === 'offline')?.filters).toBeUndefined();
 	});
 
+	it('lists disks and RAID arrays with active alerts after offline environments (#159)', () => {
+		const items = attentionItems(
+			{ ...calm, offline: 1 },
+			{},
+			{ disks: { count: 2, critical: true }, raid: { count: 1, critical: false } }
+		);
+		expect(items.map((i) => [i.id, i.label, i.href, i.tone])).toEqual([
+			['offline', '1 environment is offline', '/environments', 'offline'],
+			['disks', '2 disks need attention', '/alerts', 'danger'],
+			['raid', '1 RAID array needs attention', '/alerts', 'warn']
+		]);
+		// Alerts opens filtered to the kind (the state stays Active).
+		expect(items.find((i) => i.id === 'disks')?.filters).toEqual({
+			list: 'alerts',
+			values: { kind: 'disk_health' }
+		});
+		expect(items.find((i) => i.id === 'raid')?.filters).toEqual({
+			list: 'alerts',
+			values: { kind: 'raid' }
+		});
+		const one = attentionItems(calm, {}, { disks: { count: 1, critical: false } });
+		expect(one.map((i) => [i.label, i.tone])).toEqual([['1 disk needs attention', 'warn']]);
+		expect(
+			attentionItems(calm, {}, { disks: { count: 0, critical: false }, raid: undefined })
+		).toEqual([]);
+	});
+
 	it('opens the whole container list when some are paused', () => {
 		const [item] = attentionItems({ ...calm, running: 2, paused: 1 });
 		expect(item.label).toBe('2 containers are not running');

@@ -117,7 +117,7 @@ reconnects with its cursor; nothing is lost.
 
 Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 `networks`, `stacks`, `jobs`, `files`, `policies`, `backups`, `registries`,
-`settings`, `permissions`, `metrics`, `templates`, `manager`.
+`settings`, `permissions`, `metrics`, `templates`, `manager`, `alerts`.
 
 ### Events
 
@@ -155,7 +155,12 @@ Docker Manager to a new server → `invalidate` topic `manager`: kind
 `manager_move` (the move's ID; the owner only: its state, the new
 server's agent and check-in, Move everything's progress, the
 confirmation) and kind `manager_move_lock` (`resourceId` `instance`,
-every signed-in user: the move lock of `GET /auth/session` changed).
+every signed-in user: the move lock of `GET /auth/session` changed);
+alerts raised, changed, dismissed or resolved (#159) → `invalidate` topic
+`alerts` kind `alert` (the alert's ID; to whoever may see the alert's
+source: `environment.system.read` for disks and RAID, the environment for
+offline alerts, `job.read` on the job, `update_policy.read` on the
+policy).
 
 - **Snapshot + cursor:** `hello` is sent first and fixes the cursor before
   the client fetches; anything that changes after it arrives as an event, so

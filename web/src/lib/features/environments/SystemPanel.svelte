@@ -7,8 +7,10 @@
 	// a minute early); a connected one since when. Identifiers (environment, agent and Engine
 	// IDs), the protocol and the API details wait under "Advanced". The
 	// outdated-agent notice is the page's (shown once, above the tabs).
-	// Below the facts: the disks' health and the RAID arrays (#143).
+	// Below the facts: the disks' health and the RAID arrays (#143), each
+	// disk and array with a firing alert marked (#159).
 	import type { Environment, EnvironmentSystem } from '$lib/api/client';
+	import type { Alert } from '$lib/features/alerts/model';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import DiskHealthCard from './DiskHealthCard.svelte';
 	import RaidCard from './RaidCard.svelte';
@@ -27,8 +29,18 @@
 	} from '$lib/ui';
 	import { COMPATIBILITY } from './model';
 
-	let { env, system, now }: { env: Environment; system: EnvironmentSystem; now?: Date } =
-		$props();
+	let {
+		env,
+		system,
+		alerts = [],
+		now
+	}: {
+		env: Environment;
+		system: EnvironmentSystem;
+		/** The environment's firing disk and RAID alerts. */
+		alerts?: Alert[];
+		now?: Date;
+	} = $props();
 
 	const host = $derived(system.host);
 	const engine = $derived(system.engine);
@@ -261,11 +273,12 @@
 			health={system.diskHealth}
 			raid={system.raid}
 			online={system.online}
+			{alerts}
 			{now}
 		/>
 	{/if}
 	{#if system.raid && showRaidCard(system.raid)}
-		<RaidCard {env} raid={system.raid} online={system.online} {now} />
+		<RaidCard {env} raid={system.raid} online={system.online} {alerts} {now} />
 	{/if}
 </div>
 

@@ -21,10 +21,9 @@
 		environmentsQuery,
 		environmentSystemQuery,
 		myPermissionsQuery,
-		recentJobsQuery,
-		stacksSummaryQuery,
-		updatePoliciesSummaryQuery
+		recentJobsQuery
 	} from '$lib/api/queries';
+	import { activeAlertsQuery } from '$lib/features/alerts/queries';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import MoveBanner from '$lib/features/managermove/MoveBanner.svelte';
 	import { liveStatus } from '$lib/live/status.svelte';
@@ -45,12 +44,7 @@
 	import UserMenu from './UserMenu.svelte';
 	import { environmentSelection } from './environment.svelte';
 	import { accessOf, activeNav, hasAny, isRestricted, palettePages, visibleNav } from './nav';
-	import {
-		environmentNotices,
-		isGeneratedPolicyName,
-		jobNotices,
-		updateNotices
-	} from './notices.svelte';
+	import { jobNotices, notices } from './notices.svelte';
 	import { pageState } from './page.svelte';
 	import { recentPages } from './recent.svelte';
 
@@ -96,50 +90,20 @@
 		enabled: !!selected?.online && !!selected?.actions.includes('environment.system.read')
 	}));
 
-	// Offline notices from successive environment lists.
-	const feedNotices = environmentNotices();
+	// The bell (#25 Q6, #159): the manager's active alerts (disks and RAID,
+	// offline environments, failed scheduled jobs, available updates) and
+	// notices of the user's own jobs from the recent jobs, both refreshed
+	// by live events. Dismissals made in another tab apply here too.
+	const signedIn = $derived(!!perms.data && !isRestricted(access));
+	const activeAlerts = createQuery(() => ({ ...activeAlertsQuery(), enabled: signedIn }));
 	$effect(() => {
-		if (envs.data) feedNotices(envs.data);
+		notices.setAlerts(activeAlerts.data ?? []);
 	});
-
-	// Finished-job and update-available notices (#25 Q6): recent jobs and
-	// update summaries, both refreshed by live events.
-	const recentJobs = createQuery(() => ({
-		...recentJobsQuery(20),
-		enabled: !!perms.data && !isRestricted(access)
-	}));
-	const updatePolicies = createQuery(() => ({
-		...updatePoliciesSummaryQuery(),
-		enabled: hasAny(access, 'update_policy.')
-	}));
-	// Per-target update policies carry a generated name: their notices name
-	// the stack instead, so the stack list is read only while one of them
-	// has updates.
-	const stackNamesNeeded = $derived(
-		!!updatePolicies.data?.some(
-			(p) =>
-				p.target.type === 'stack' &&
-				(p.summary?.available ?? 0) > 0 &&
-				isGeneratedPolicyName(p)
-		)
-	);
-	const stacks = createQuery(() => ({
-		...stacksSummaryQuery(),
-		enabled: stackNamesNeeded && hasAny(access, 'stack.')
-	}));
+	$effect(() => notices.listen());
+	const recentJobs = createQuery(() => ({ ...recentJobsQuery(20), enabled: signedIn }));
 	const feedJobNotices = jobNotices(() => user.id, jobKindLabel);
-	const feedUpdateNotices = updateNotices(undefined, (t) => {
-		if (t.type !== 'stack') return undefined;
-		const s = stacks.data?.find((x) => x.id === t.id);
-		return s ? s.displayName || s.name : undefined;
-	});
 	$effect(() => {
 		if (recentJobs.data) feedJobNotices(recentJobs.data.items);
-	});
-	$effect(() => {
-		// Re-run when stack names arrive.
-		void stacks.data;
-		if (updatePolicies.data) feedUpdateNotices(updatePolicies.data);
 	});
 
 	// "Recent" in the palette: every visited path, named by the title its
@@ -272,7 +236,7 @@
 					<Kbd>{isMac ? '⌘' : 'Ctrl'} K</Kbd>
 				</button>
 			{/if}
-			<NoticesBell />
+			<NoticesBell alertsHref={signedIn ? routes.alerts() : undefined} />
 			<UserMenu {user} {onsignout} />
 		</header>
 
