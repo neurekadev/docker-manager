@@ -1,8 +1,12 @@
 <script lang="ts" module>
+	import type { IconComponent } from '$lib/design/icons';
+
 	export interface SelectOption {
 		value: string;
 		label: string;
 		disabled?: boolean;
+		/** A decorative icon before the label (in the list and the trigger). */
+		icon?: IconComponent;
 	}
 </script>
 
@@ -77,6 +81,12 @@
 				aria-invalid={c.invalid || undefined}
 				{title}
 			>
+				{#if selected?.icon}
+					{@const Icon = selected.icon}
+					<span class="dy-select-icon" aria-hidden="true"
+						><Icon size={16} strokeWidth={1.75} /></span
+					>
+				{/if}
 				<span class="dy-select-value" class:placeholder={!selected}
 					>{selected?.label ?? placeholder ?? ''}</span
 				>
@@ -93,6 +103,12 @@
 								class="dy-select-item"
 							>
 								{#snippet children({ selected: on })}
+									{#if o.icon}
+										{@const Icon = o.icon}
+										<span class="dy-select-icon" aria-hidden="true"
+											><Icon size={16} strokeWidth={1.75} /></span
+										>
+									{/if}
 									<span class="dy-select-label">{o.label}</span>
 									{#if on}<Check
 											size={16}
@@ -203,6 +219,12 @@
 	:global(.dy-select-item[data-disabled]) {
 		opacity: 0.45;
 		cursor: not-allowed;
+	}
+
+	.dy-select-icon {
+		display: inline-flex;
+		flex-shrink: 0;
+		color: var(--text-muted);
 	}
 
 	.dy-select-label {

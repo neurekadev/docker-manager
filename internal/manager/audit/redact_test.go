@@ -42,13 +42,22 @@ func TestLooksSecret(t *testing.T) {
 		"dya_credentialvalue", "dye_enrollmentvalue", "AKIAABCDEFGHIJKLMNOP", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig",
 		"ghp_abcdefghijklmnopqrstuvwxyz", "https://user:pa55word@registry.example.com/v2", "password=hunter2",
 		"DB_PASSWORD: x", "token: abc", "glpat-abcdefghijklmnopqrst",
+		// Notification channel addresses (#142).
+		"discord://W3dE2OZz4C13_4z_uHfDO@693853386302554172", "Slack://hook:T0/B0/X0@webhook", "ntfy://ntfy.sh/private-topic",
+		"generic+https://hooks.example.com/incoming/abc", "telegram://123456:abc@telegram?chats=@ops",
+		"smtp://mail.example.com:25/?fromaddress=a@example.com&toaddresses=b@example.com",
+		"https://discord.com/api/webhooks/693853386302554172/W3dE2OZz4C13", "https://hooks.slack.com/services/T0/B0/X0",
+		"1234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsawQ",
+		"https://prod-00.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?api-version=1&sig=abcdefghijklmnopqrst",
 	} {
 		if !audit.LooksSecret(s) {
 			t.Errorf("LooksSecret(%q) = false", s)
 		}
 	}
 	for _, s := range []string{"stack.deploy", "web-1", "/data/app/config.yml", "Mozilla/5.0 (X11; Linux x86_64)",
-		"0190a6e0-0000-7000-8000-000000000001", "https://registry.example.com/v2", "dynamic_frontend_app", "nginx:1.27"} {
+		"0190a6e0-0000-7000-8000-000000000001", "https://registry.example.com/v2", "dynamic_frontend_app", "nginx:1.27",
+		// Notification channel metadata stays readable.
+		"discord", "smtp", "notification_channel.test", "http_4xx", "mail.example.com", "fp_3f2a9c0d1e4b5a67"} {
 		if audit.LooksSecret(s) {
 			t.Errorf("LooksSecret(%q) = true", s)
 		}

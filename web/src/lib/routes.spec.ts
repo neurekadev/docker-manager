@@ -168,6 +168,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	allApiTokens: [routes.allApiTokens()],
 	signInPolicy: [routes.signInPolicy()],
 	scheduleDefaults: [routes.scheduleDefaults()],
+	notifications: [routes.notifications(), routes.notifications(true)],
 	audit: [routes.audit()],
 	diagnostics: [routes.diagnostics()],
 	managerMove: [routes.managerMove()],

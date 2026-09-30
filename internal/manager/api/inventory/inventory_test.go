@@ -164,7 +164,7 @@ func errorsText(rep Report) string {
 func TestValidateRejectsMalformedEntries(t *testing.T) {
 	inv, err := Parse([]byte(`version: 2
 routes:
-  - {method: FETCH, path: /v2/x, operationId: getX, capability: "Read All", scope: global, owner: 99, kind: grpc, status: done}
+  - {method: FETCH, path: /v2/x, operationId: getX, capability: "Read All", scope: global, owner: 0, kind: grpc, status: done}
   - {method: GET, path: "/api/v1/environments/{environment_id}/Things", operationId: list-env-things, capability: thing.read, scope: resource, owner: 5, kind: json, status: planned}
   - {method: GET, path: "/api/v1/environments/{environmentId}/things", operationId: list-env-things-2, capability: thing.read, scope: instance, owner: 5, kind: json, status: planned}
   - {method: GET, path: "/api/v1/a", operationId: dup, capability: public, scope: none, owner: 2, kind: json, status: planned}

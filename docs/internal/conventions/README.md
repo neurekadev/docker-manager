@@ -19,6 +19,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Authorization and permissions | `internal/manager/authz`, `permissions`, capabilities, shaping | [authorization.md](authorization.md) |
 | API tokens | `internal/manager/auth` tokens, session-only routes | [api-tokens.md](api-tokens.md) |
 | Registry connections and credentials | `internal/manager/registries`, `regclient`, `regauth` | [registries.md](registries.md) |
+| Notification channels, alerts, Shoutrrr | `internal/manager/notify`, `store/notification_channels.go`, `api/notifications.go`, `web/src/lib/features/notifications` | [alerts-and-notifications.md](alerts-and-notifications.md) |
 | Image builds | `internal/manager/builds`, `gitcreds`, `internal/agent/buildrun` | [builds.md](builds.md) |
 | Agent sessions, requests, events | `internal/manager/agents`, `internal/agent/session`, `runtime`, `internal/protocol` | [agent-transport.md](agent-transport.md) |
 | Metrics and inventory | `internal/agent/observe`, `internal/manager/observe`, `metrics` | [observation.md](observation.md) |

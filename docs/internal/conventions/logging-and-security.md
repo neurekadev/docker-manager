@@ -21,6 +21,13 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 - Secrets at rest: `secrets.Keyring.Seal(value, "<table>/<id>/<field>")`.
   Template versions are sealed; template drafts are plain files in the
   data directory (mode 0700), like stack directories on hosts.
+- Notification channel addresses (Shoutrrr URLs, #142) are secrets: sealed
+  (`notification_channels/<id>/url`), never logged, audited, returned by
+  list/get or kept in an error or `last_result`; send failures are error
+  classes. Unlike registry and Git credentials they are **revealable**:
+  the owner reads one again through the audited, step-up guarded
+  `GET /notification-channels/{channelId}/address`
+  ([alerts-and-notifications.md](alerts-and-notifications.md)).
 - Client IP / scheme / host: `requestinfo.From(ctx)` (trusted proxies are
   resolved once; never read `X-Forwarded-*` or `RemoteAddr`). SSE goes
   through `api.StartSSE` (Huma) or `server/sse` (plain handlers; the one

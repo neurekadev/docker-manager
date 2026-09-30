@@ -29,7 +29,7 @@ func TestErrorCatalogConsistent(t *testing.T) {
 		if http.StatusText(c.Status) == "" || c.Status < 400 {
 			t.Errorf("code %q has status %d", c.Code, c.Status)
 		}
-		if c.Meaning == "" || c.Owner < 1 || c.Owner > 35 {
+		if c.Meaning == "" || c.Owner < 1 {
 			t.Errorf("code %q lacks meaning or owner issue", c.Code)
 		}
 		if c.Retryable != defaultRetryable(c.Status) && c.Code != CodeIdempotencyKeyInFlight {

@@ -42,10 +42,15 @@ const (
 	EnvValue           Kind = "env-value"
 	TOTPSeed           Kind = "totp-seed"
 	RecoveryKey        Kind = "recovery-key"
+	// NotificationURL is the secret part of a notification channel address
+	// (#142): a webhook token tests put into the Shoutrrr URL they store
+	// (generic+http://127.0.0.1:port/hook/<canary>), so any leak of the
+	// URL (or of its token alone) is found.
+	NotificationURL Kind = "notification-url"
 )
 
 // Kinds lists every kind.
-var Kinds = []Kind{Password, APIToken, RegistryCredential, S3AccessKey, S3SecretKey, EnvValue, TOTPSeed, RecoveryKey}
+var Kinds = []Kind{Password, APIToken, RegistryCredential, S3AccessKey, S3SecretKey, EnvValue, TOTPSeed, RecoveryKey, NotificationURL}
 
 // MinLength is the shortest value Register accepts: shorter values produce
 // false positives and weak encoded fragments.
@@ -187,6 +192,9 @@ func Generate(kind Kind) string {
 	case RecoveryKey:
 		// Shaped like a Docker Manager Recovery Key (#10): grouped base32.
 		return "DYRK-CANARY-" + randBase32(4) + "-" + randBase32(4) + "-" + randBase32(4) + "-" + randBase32(4)
+	case NotificationURL:
+		// URL-safe (path, user info and query) like a webhook token.
+		return "canary-notify-" + randHex(12)
 	}
 	return "canary-" + string(kind) + "-" + randHex(12)
 }

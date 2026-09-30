@@ -2814,6 +2814,69 @@ routes:
     status: implemented
     notes: "Image reference -> selected connection; metadata only."
   - method: GET
+    path: /api/v1/notification-channels
+    operationId: list-notification-channels
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: Addresses are never returned.
+  - method: POST
+    path: /api/v1/notification-channels
+    operationId: create-notification-channel
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: "Step-up; the address (a Shoutrrr URL) is sealed at rest."
+  - method: GET
+    path: "/api/v1/notification-channels/{channelId}"
+    operationId: get-notification-channel
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: ETag; never the address.
+  - method: PATCH
+    path: "/api/v1/notification-channels/{channelId}"
+    operationId: update-notification-channel
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: "If-Match; a new address needs a step-up."
+  - method: DELETE
+    path: "/api/v1/notification-channels/{channelId}"
+    operationId: delete-notification-channel
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: If-Match.
+  - method: GET
+    path: "/api/v1/notification-channels/{channelId}/address"
+    operationId: get-notification-channel-address
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: "Reveals the address; step-up; every reveal is audited (never the value)."
+  - method: POST
+    path: "/api/v1/notification-channels/{channelId}/tests"
+    operationId: create-notification-channel-test
+    capability: owner
+    scope: instance
+    owner: 142
+    kind: json
+    status: implemented
+    notes: "Sends a test message; one per channel every 5 s (429 notification_test_rate_limited)."
+  - method: GET
     path: /api/v1/git-credentials
     operationId: list-git-credentials
     capability: git_credential.read

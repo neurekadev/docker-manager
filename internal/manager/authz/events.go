@@ -117,6 +117,9 @@ func changedVisible(c Checker, e events.Event) bool {
 	case "template_registry":
 		// Registries' cached templates are browsed with template.read.
 		return c.Can("template.read", Instance()).Allowed
+	case "notification_channel":
+		// Channels are the owner's (notification_channel.manage).
+		return c.Can("notification_channel.manage", Instance()).Allowed
 	}
 	if _, ok := catalog.Default().Type(e.ResourceType); !ok {
 		return c.Can("groups.manage", Instance()).Allowed

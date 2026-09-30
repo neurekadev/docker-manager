@@ -57,6 +57,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/metrics"
 	envmigrations "github.com/neurekadev/docker-manager/internal/manager/migrations"
 	"github.com/neurekadev/docker-manager/internal/manager/movelock"
+	"github.com/neurekadev/docker-manager/internal/manager/notify"
 	"github.com/neurekadev/docker-manager/internal/manager/observe"
 	"github.com/neurekadev/docker-manager/internal/manager/permissions"
 	"github.com/neurekadev/docker-manager/internal/manager/regclient"
@@ -160,6 +161,8 @@ type Manager struct {
 	metrics  *metrics.Store
 	observe  *observe.Service
 	regs     *registries.Service
+	// notify owns the notification channels (#142).
+	notify *notify.Service
 	// resources is the Docker resource service (#6).
 	resources *resources.Service
 	files     *files.Service
@@ -400,6 +403,16 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		}
 		return permissions.Location{Found: true, Parents: []authz.ResourceRef{}}, nil
 	}))
+	// Notification channels (#142): owner-administered destinations whose
+	// sealed addresses (Shoutrrr URLs) are opened only to send or for the
+	// owner's reveal.
+	m.notify, err = notify.New(notify.Options{
+		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: log.With("component", "notify"), Guard: m.identity,
+		PublicURL: originString(cfg.PublicURL),
+	})
+	if err != nil {
+		return nil, err
+	}
 	// Git credentials (#33), handled like registry connections.
 	m.git, err = gitcreds.New(gitcreds.Options{
 		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: log.With("component", "gitcreds"),
@@ -758,6 +771,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Agents:                   m.agents,
 			Permissions:              m.perms,
 			Registries:               m.regs,
+			Notifications:            m.notify,
 			APITokens:                m.identity,
 			Observe:                  m.observe,
 			Docker:                   m.resources,
@@ -923,6 +937,10 @@ func (m *Manager) Observe() *observe.Service { return m.observe }
 // the resolver pull/deploy/build/update handlers use, Check the
 // manager-side digest check (#20).
 func (m *Manager) Registries() *registries.Service { return m.regs }
+
+// Notifications returns the notification channel service (#142): Send
+// delivers a message through a channel (alerts).
+func (m *Manager) Notifications() *notify.Service { return m.notify }
 
 // Live returns the live stream hub (#23).
 func (m *Manager) Live() *live.Hub { return m.live }

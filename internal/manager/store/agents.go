@@ -234,6 +234,23 @@ func GetEnvironment(ctx context.Context, db bun.IDB, id string) (domain.Environm
 	return row.toDomain(), nil
 }
 
+// GetEnvironmentsByID returns the environments with these IDs in one query
+// (unknown IDs are left out), in ID order.
+func GetEnvironmentsByID(ctx context.Context, db bun.IDB, ids []string) ([]domain.Environment, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var rows []environmentRow
+	if err := db.NewSelect().Model(&rows).Where("id IN (?)", bun.In(ids)).Order("id ASC").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: get environments: %w", err)
+	}
+	out := make([]domain.Environment, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.toDomain())
+	}
+	return out, nil
+}
+
 // ListEnvironments returns environments matching f in ID order.
 func ListEnvironments(ctx context.Context, db bun.IDB, f domain.EnvironmentFilter) ([]domain.Environment, error) {
 	var rows []environmentRow

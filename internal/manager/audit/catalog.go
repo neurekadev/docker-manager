@@ -96,7 +96,7 @@ func CategoryFor(action, operationID string) domain.AuditCategory {
 	case hasAny("group", "groups", "permission", "permissions"):
 		return domain.AuditAuthorization
 	case hasAny("token", "tokens", "agent", "agents", "enrollment", "enrollments", "enroll", "registry", "registries",
-		"credential", "credentials", "rotation", "rotations", "confirmation", "confirmations"):
+		"credential", "credentials", "rotation", "rotations", "confirmation", "confirmations", "notification"):
 		return domain.AuditCredentials
 	case hasAny("exec", "backup", "backups", "stack", "stacks", "container", "containers", "volume", "volumes"):
 		return domain.AuditOperations
