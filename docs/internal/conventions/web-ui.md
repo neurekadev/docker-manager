@@ -27,8 +27,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   every service uses `SERVICE_COLOR`/`SERVICE_HEX` (`$lib/design/hue`),
   also in merged logs, chart series and filter chips (they name the
   service); no hashed or per-item colours, except a chart of every
-  container of an environment (`MultiSeriesChart`: one `seriesColor(i)`
-  per container by name order, the same on each of its charts).
+  container of an environment (`MultiSeriesChart`: Beszel's order, on each
+  chart the containers ranked by their total over the range get
+  `rankColor(rank, n)`, the largest the first colour).
   Heavy libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Resource icons:** one icon and tile colour per resource type in
   `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's

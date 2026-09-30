@@ -121,9 +121,10 @@ or colour of their own.
 The one exception is a chart of every container of an environment
 (`MultiSeriesChart`, the environment page's Docker CPU, memory, network and
 disk I/O): dozens of stacked lines can only be followed by colour, so each
-container gets its own (`seriesColor(i)` in `$lib/design/hue`, by name
-order, the same on the four charts) and the tooltip and name filter name
-them.
+container gets its own in Beszel's order: on each chart the containers are
+ranked by their total over the range and get `rankColor(rank, n)` from
+`$lib/design/hue` (hues spread evenly from red, the largest first; the
+stacking stays in name order). The tooltip and name filter name them.
 
 ```ts
 import { SERVICE_HEX } from '$lib/design/hue';

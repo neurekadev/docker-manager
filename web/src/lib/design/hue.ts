@@ -3,7 +3,7 @@
 // services' output is interleaved (a stack's merged logs, their chips and
 // chart series), which tell services apart by name, never by colour. The
 // one exception is a chart drawing every container of an environment
-// (seriesColor): there a colour per line is the only way to follow one.
+// (rankColor): there a colour per line is the only way to follow one.
 //
 // Pure functions; no Svelte. Components: IconTile, the log viewer, charts.
 
@@ -47,14 +47,13 @@ export const TILE_HEX: Record<TileColor, { bg: string; fg: string }> = {
 export const SERVICE_HEX = TILE_HEX[SERVICE_COLOR].fg;
 
 /**
- * The line colour of item i of a chart drawing many items of one type at
- * once (every container of an environment): hues spread by the golden
- * angle from the accent blue, in three lightness steps, so neighbours never
- * look alike. The same i always gets the same colour. HSL (ECharts and CSS
- * both read it).
+ * The line colour of the item ranked `rank` (0: the largest) of `count` on
+ * a chart drawing many items of one type at once (every container of an
+ * environment), in Beszel's order: hues spread evenly around the wheel from
+ * red, at Beszel's dark-theme saturation and lightness. HSL (ECharts and
+ * CSS both read it).
  */
-export function seriesColor(i: number): string {
-	const hue = Math.round((215 + i * 137.508) % 360);
-	const light = [66, 56, 76][i % 3];
-	return `hsl(${hue}, 80%, ${light}%)`;
+export function rankColor(rank: number, count: number): string {
+	const hue = Math.round(((rank * 360) / Math.max(count, 1)) % 360);
+	return `hsl(${hue}, 60%, 55%)`;
 }

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHART_COLORS, EDITOR_COLORS, TERMINAL_THEME } from '$lib/lazy/palette';
 import { dockerManagerEchartsTheme } from '$lib/lazy/echarts-theme';
-import { SERVICE_COLOR, SERVICE_HEX, TILE_COLORS, TILE_HEX, seriesColor, tileStyle } from './hue';
+import { SERVICE_COLOR, SERVICE_HEX, TILE_COLORS, TILE_HEX, rankColor, tileStyle } from './hue';
 
 const tokensCss = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8');
 
@@ -106,11 +106,17 @@ describe('service colour (logs, chips and chart series)', () => {
 	});
 });
 
-describe('series colours (a chart of every container)', () => {
-	it('gives each of many lines its own stable colour', () => {
-		const colors = Array.from({ length: 60 }, (_, i) => seriesColor(i));
+describe('rank colours (a chart of every container, Beszel order)', () => {
+	it('spreads the hues evenly from red, the largest item first', () => {
+		expect(rankColor(0, 4)).toBe('hsl(0, 60%, 55%)');
+		expect(rankColor(1, 4)).toBe('hsl(90, 60%, 55%)');
+		expect(rankColor(3, 4)).toBe('hsl(270, 60%, 55%)');
+		expect(rankColor(1, 3)).toBe('hsl(120, 60%, 55%)');
+		expect(rankColor(0, 0)).toBe('hsl(0, 60%, 55%)');
+	});
+
+	it('gives each of many lines its own colour', () => {
+		const colors = Array.from({ length: 60 }, (_, i) => rankColor(i, 60));
 		expect(new Set(colors).size).toBe(60);
-		expect(seriesColor(7)).toBe(colors[7]);
-		expect(colors[0]).toMatch(/^hsl\(\d+, 80%, \d+%\)$/);
 	});
 });
