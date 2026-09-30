@@ -19,6 +19,7 @@
 		Meter,
 		formatBytes,
 		formatDuration,
+		formatPercent,
 		toast
 	} from '$lib/ui';
 	import {
@@ -156,14 +157,14 @@
 						label="{retention ? 'Retention' : 'Backup'} progress of {policyName(
 							a.policyId
 						)}, {where(a)}"
-						valueText={pct >= 0 ? `${pct}%` : 'Starting'}
+						valueText={pct >= 0 ? formatPercent(pct) : 'Starting'}
 					/>
 				</span>
 				<span class="end muted small num">
 					{#if stopping(a)}<Badge tone="warn" dot>Stopping</Badge>
 					{:else if c?.secondsRemaining}<span
 							>About {formatDuration(c.secondsRemaining)} left</span
-						>{:else if pct >= 0}<span>{pct}%</span>{/if}
+						>{:else if pct >= 0}<span>{formatPercent(pct)}</span>{/if}
 					{#if cancellable}
 						<Button
 							variant="ghost"

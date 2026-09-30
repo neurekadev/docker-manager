@@ -119,7 +119,7 @@ describe('EnvironmentCard (#5 dashboard)', () => {
 			'/environments/e3'
 		);
 		expect(card).toHaveTextContent('1.4%');
-		expect(card).toHaveTextContent('319 MB / 4 GB');
+		expect(card).toHaveTextContent('318.53 MB / 4 GB');
 		expect(card).toHaveTextContent('Containers 1 / 3');
 		expect(card).toHaveTextContent('Volumes —'); // -1: unknown, never shown as a number
 		expect(within(card).getByRole('link', { name: '1 / 3' })).toHaveAttribute(

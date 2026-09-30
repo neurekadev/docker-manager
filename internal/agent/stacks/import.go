@@ -21,6 +21,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/migration"
 	"github.com/neurekadev/docker-manager/internal/agent/storage"
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/protection"
@@ -599,22 +600,9 @@ func checkSpace(ctx context.Context, src, stacksDir string) error {
 	defer func() { _ = fsys.Close() }()
 	_, bytes, _, truncated := migration.MeasureTree(ctx, fsys, migration.MaxEntries)
 	if !truncated && bytes+bytes/20 > free {
-		return importRefusal(classImportNoSpace, "the project directory holds %s but the stacks volume has %s free", humanBytes(bytes), humanBytes(free))
+		return importRefusal(classImportNoSpace, "the project directory holds %s but the stacks volume has %s free", humanize.Bytes(bytes), humanize.Bytes(free))
 	}
 	return nil
-}
-
-func humanBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 func (s *Service) importLifecycle(ctx context.Context, sc *jobexec.StepContext, in protocol.StackJobInput) lifecycle.Options {
@@ -794,7 +782,7 @@ func (s *Service) importCopy(ctx context.Context, sc *jobexec.StepContext) error
 	if err := migration.SyncDir(res.StacksDir); err != nil {
 		return importRefusal(classImportCopyFailed, "flush the stacks volume's directory to disk: %v", err)
 	}
-	sc.Progress(ctx, 75, fmt.Sprintf("copied %d entries (%s)", stats.Entries, humanBytes(stats.Bytes)))
+	sc.Progress(ctx, 75, fmt.Sprintf("copied %d entries (%s)", stats.Entries, humanize.Bytes(stats.Bytes)))
 	return updateImport(ctx, sc, func(o *protocol.StackJobOutput, r *protocol.StackImportReport) {
 		r.Copied, r.Entries, r.Bytes = true, stats.Entries, stats.Bytes
 		r.Skipped, r.SkippedCount = stats.Skipped, stats.SkippedCount
@@ -829,7 +817,7 @@ func (s *Service) copyProgress(ctx context.Context, sc *jobexec.StepContext, don
 				if total > 0 {
 					pct = 15 + int(55*min(n, total)/total)
 				}
-				sc.Progress(ctx, pct, fmt.Sprintf("copying: %s of %s", humanBytes(n), humanBytes(total)))
+				sc.Progress(ctx, pct, fmt.Sprintf("copying: %s of %s", humanize.Bytes(n), humanize.Bytes(total)))
 			}
 		}
 	}()

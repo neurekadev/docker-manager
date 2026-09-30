@@ -3,6 +3,9 @@
 	// also a share such as compressed / total, or the progress of a task).
 	// A native-like role="meter" with value text; colour turns amber from
 	// `warnAt` and red from `dangerAt` (the text still states the value).
+	// The percentage has up to two decimals (formatPercent, #147).
+	import { formatPercent } from './format';
+
 	interface Props {
 		value: number;
 		max: number;
@@ -32,6 +35,7 @@
 		size = 'sm'
 	}: Props = $props();
 	const ratio = $derived(max > 0 ? Math.min(1, Math.max(0, value / max)) : 0);
+	const percentText = $derived(formatPercent(ratio * 100));
 	const tone = $derived(
 		toneMode === 'neutral'
 			? 'ok'
@@ -51,11 +55,11 @@
 		aria-valuemin={0}
 		aria-valuemax={max}
 		aria-valuenow={value}
-		aria-valuetext={valueText ?? `${Math.round(ratio * 100)}%`}
+		aria-valuetext={valueText ?? percentText}
 	>
 		<span class="fill {tone}" style="width: {ratio * 100}%"></span>
 	</div>
-	{#if showPercent}<span class="pct num">{Math.round(ratio * 100)}%</span>{/if}
+	{#if showPercent}<span class="pct num">{percentText}</span>{/if}
 </div>
 
 <style>

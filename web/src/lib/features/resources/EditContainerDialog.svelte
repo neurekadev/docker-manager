@@ -7,7 +7,7 @@
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import { queryKeys, type Container } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
-	import { Button, Dialog, Notice, Select, TextField, fieldError } from '$lib/ui';
+	import { Button, Dialog, Notice, Select, TextField, fieldError, formatNumber } from '$lib/ui';
 	import { idempotencyKey, trackJob } from './jobs.svelte';
 	import { megabytes, RESTART_OPTIONS } from './model';
 	import { refusal, type Refusal } from './refusals';
@@ -36,7 +36,7 @@
 		restart = d?.restartPolicy || 'no';
 		cpus = d?.resources.cpus ? String(d.resources.cpus) : '';
 		memory = d?.resources.memoryBytes
-			? String(Math.round(d.resources.memoryBytes / 1024 / 1024))
+			? formatNumber(d.resources.memoryBytes / 1024 / 1024)
 			: '';
 		pids = d?.resources.pidsLimit !== undefined ? String(d.resources.pidsLimit) : '';
 		failure = null;

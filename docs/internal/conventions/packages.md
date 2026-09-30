@@ -24,3 +24,7 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   Registry credentials are per operation and in memory only (#19).
   Guide: `docs/internal/architecture/engine-integration.md`.
 - Prefer small focused packages over a shared `util` package.
+- Measured values in text people read (job progress and result messages,
+  refusals, preflight findings) go through `internal/humanize` (`Bytes`:
+  "1.5 KiB", "114.98 GiB"; `Decimal`), the web UI's rule: up to two
+  decimal places, trailing zeros dropped (#147). JSON numbers stay raw.

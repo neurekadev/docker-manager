@@ -114,10 +114,8 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 			props: { title: 'Docker CPU', unit: 'percent', timestamps: ts, items }
 		});
 		const fig = screen.getByRole('figure', { name: 'Docker CPU' });
-		expect(fig).toHaveTextContent('7.0%');
-		expect(fig).toHaveTextContent(
-			'Docker CPU: latest total 7.0%. Largest: web 6.0%, cache 1.0%.'
-		);
+		expect(fig).toHaveTextContent('7%');
+		expect(fig).toHaveTextContent('Docker CPU: latest total 7%. Largest: web 6%, cache 1%.');
 		await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
 		const o = lazy.mounted[before];
 		expect(o.stacked).toBe(true);

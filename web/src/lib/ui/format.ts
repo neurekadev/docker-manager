@@ -4,8 +4,37 @@
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
 
-/** Bytes in binary units with the mockup's short labels: 1.8 GB, 312 MB. */
-export function formatBytes(bytes: number | null | undefined, digits = 1): string {
+/** Decimal places every measured value keeps (#147). */
+const DECIMALS = 2;
+
+/** v rounded half away from zero to DECIMALS places. */
+function round(v: number): number {
+	const f = 10 ** DECIMALS;
+	// toPrecision cleans the float noise of the scaling (1.005 * 100 =
+	// 100.49999…), so a value on the half as written rounds up.
+	const r = Math.round(Number((Math.abs(v) * f).toPrecision(15))) / f;
+	return v < 0 ? -r : r;
+}
+
+/**
+ * A measured number with up to two decimal places, trailing zeros
+ * dropped: 2, 1.5, 1.25, 0.07, -12.35. The one rule for every measured
+ * value (sizes, rates, percentages, load, ratios, CPUs, seconds shown as
+ * a decimal); counts stay whole numbers. "—" when absent or not finite.
+ */
+export function formatNumber(v: number | null | undefined): string {
+	if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+	const r = round(v);
+	// No "-0" for a small negative value that rounds to zero.
+	return r === 0 ? '0' : String(r);
+}
+
+/**
+ * Bytes in binary units with the mockup's short labels and up to two
+ * decimals: 1.8 GB, 1.25 GB, 312.45 MB, 2 GB; whole bytes below 1 KB
+ * (512 B).
+ */
+export function formatBytes(bytes: number | null | undefined): string {
 	if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—';
 	let v = Math.abs(bytes);
 	let u = 0;
@@ -13,15 +42,19 @@ export function formatBytes(bytes: number | null | undefined, digits = 1): strin
 		v /= 1024;
 		u++;
 	}
-	const s =
-		u === 0 || v >= 100 ? Math.round(v).toString() : v.toFixed(digits).replace(/\.0$/, '');
-	return `${bytes < 0 ? '-' : ''}${s} ${UNITS[u]}`;
+	// 1023.999 KB rounds to 1024 KB: read it as 1 MB.
+	if (u > 0 && u < UNITS.length - 1 && round(v) >= 1024) {
+		v /= 1024;
+		u++;
+	}
+	const s = u === 0 ? String(Math.round(v)) : formatNumber(v);
+	return `${bytes < 0 && s !== '0' ? '-' : ''}${s} ${UNITS[u]}`;
 }
 
-/** A percentage with one decimal below 10 %: 12.4%, 0.7%, 45%. */
+/** A percentage with up to two decimals: 12.34%, 0.07%, 45.6%, 100%. */
 export function formatPercent(v: number | null | undefined): string {
 	if (v === null || v === undefined || !Number.isFinite(v)) return '—';
-	return `${v < 10 ? v.toFixed(1) : v < 100 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v)}%`;
+	return `${formatNumber(v)}%`;
 }
 
 /**

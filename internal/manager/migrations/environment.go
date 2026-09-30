@@ -13,6 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
@@ -312,11 +313,11 @@ func planEnvironment(source, target string, entries []envEntry, sourceNetworks [
 		// Each stack's plan checks its own data; together they may not fit.
 		if p.Data.TargetStacksFree >= 0 && p.Data.ProjectBytes > p.Data.TargetStacksFree {
 			p.block(FindingInsufficientSpace, "the project directories need %s together but the destination's stacks volume has %s free",
-				human(p.Data.ProjectBytes), human(p.Data.TargetStacksFree))
+				humanize.Bytes(p.Data.ProjectBytes), humanize.Bytes(p.Data.TargetStacksFree))
 		}
 		if p.Data.TargetVolumesFree >= 0 && p.Data.VolumeBytes+p.Data.ImageBytes > p.Data.TargetVolumesFree {
 			p.block(FindingInsufficientSpace, "the volumes and images need %s together but the destination's Docker data root has %s free",
-				human(p.Data.VolumeBytes+p.Data.ImageBytes), human(p.Data.TargetVolumesFree))
+				humanize.Bytes(p.Data.VolumeBytes+p.Data.ImageBytes), humanize.Bytes(p.Data.TargetVolumesFree))
 		}
 	}
 	p.Downtime = Downtime{EstimatedSeconds: longest, Basis: fmt.Sprintf(

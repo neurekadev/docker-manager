@@ -18,6 +18,7 @@
 		formatBytes,
 		formatDateTime,
 		formatDuration,
+		formatNumber,
 		formatRelative
 	} from '$lib/ui';
 	import { COMPATIBILITY } from './model';
@@ -166,7 +167,7 @@
 					{#if system.clockSkewSeconds !== undefined}
 						<dt>Clock difference</dt>
 						<dd class="num">
-							{system.clockSkewSeconds.toFixed(1)} s
+							{formatNumber(system.clockSkewSeconds)} s
 							<span class="muted">(corrected in the charts)</span>
 						</dd>
 					{/if}

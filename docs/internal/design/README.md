@@ -405,8 +405,20 @@ Pure helpers in `$lib/ui/multiseries.ts` (`tooltipRows`, `tooltipHtml`,
 
 ### Formatting
 
-`formatBytes` (312 MB, 1.8 GB), `formatPercent` (12.4%), `formatDuration`
-(two units, one style: "1 s", "3 min 20 s", "17 h 9 min", "3 d 4 h"),
+Every measured value (sizes, rates, percentages, load, CPUs, ratios,
+seconds shown as a decimal, in KPIs, tables, meters, chart axes and
+tooltips, progress text, backups, prune results) is shown with **up to two
+decimal places, trailing zeros dropped**, and only through these shared
+formatters, never with `toFixed`, `Math.round` or a hand-made unit
+(#147): `formatNumber` (2, 1.5, 1.25, 0.07; half rounds away from zero,
+1.005 → 1.01), `formatBytes` (binary units: 512 B, 1.5 KB, 312.46 MB,
+123.45 GB, 2 GB; whole bytes below 1 KB), `formatPercent` (0.07%, 12.34%,
+100%), `formatValue(v, unit)` for metric units (`bytes_per_second`
+"1.25 MB/s", `load` "0.5"; `count` stays whole), `Meter` (its percentage),
+`ratioText` in backups ("2.01x", "2x"). Counts stay whole numbers.
+
+Durations and times are unit pairs, not decimals: `formatDuration` (two
+units, one style: "1 s", "3 min 20 s", "17 h 9 min", "3 d 4 h"),
 `parseGoDuration` / `formatGoDuration` (a Go duration string such as
 `17h9m0s` from the API, read as seconds or as "17 h 9 min"), `formatUptime`
 (live uptimes), `secondsSince(iso, nowMs)`, `formatRelative(iso, now)`,

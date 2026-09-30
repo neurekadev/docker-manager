@@ -92,6 +92,13 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   submitted `FormData` and shows what is missing next to the field
   (`requiredErrors`, `submitted` in `$lib/features/auth/validate.ts`).
   Anonymous visitors see the version, never the build commit.
+- **Numbers:** every measured value (sizes, rates, percentages, load,
+  CPUs, ratios, decimal seconds) goes through the shared formatters
+  (`formatNumber`, `formatBytes`, `formatPercent`, `formatValue` in
+  `$lib/ui`): up to two decimal places, trailing zeros dropped ("1.5 GB",
+  "12.34%", "2 GB"), counts whole; never `toFixed`, `Math.round` or a
+  hand-made unit before display (#147; `docs/internal/design/README.md`,
+  "Formatting").
 - **Charts:** `TimeSeriesChart` for metric responses (nulls are breaks,
   gaps shaded and listed as text), `MultiSeriesChart` for many items of one
   type (stacked, a tooltip naming every item, a `shown` filter greying out

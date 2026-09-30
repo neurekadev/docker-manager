@@ -3,6 +3,7 @@ import { ApiRequestError } from '$lib/api/client';
 import { errorView, fieldError } from './errors';
 import {
 	formatBytes,
+	formatNumber,
 	formatDateTime,
 	formatDuration,
 	formatGoDuration,
@@ -101,6 +102,50 @@ describe('table helpers', () => {
 });
 
 describe('formatting', () => {
+	it('keeps up to two decimals of a measured number, trailing zeros dropped', () => {
+		expect(formatNumber(0)).toBe('0');
+		expect(formatNumber(2)).toBe('2');
+		expect(formatNumber(1.5)).toBe('1.5');
+		expect(formatNumber(1.25)).toBe('1.25');
+		expect(formatNumber(1.254)).toBe('1.25');
+		expect(formatNumber(1.005)).toBe('1.01');
+		expect(formatNumber(1.255)).toBe('1.26');
+		expect(formatNumber(0.004)).toBe('0');
+		expect(formatNumber(-0.004)).toBe('0');
+		expect(formatNumber(-12.345)).toBe('-12.35');
+		expect(formatNumber(1234567.891)).toBe('1234567.89');
+		expect(formatNumber(null)).toBe('—');
+		expect(formatNumber(Number.NaN)).toBe('—');
+	});
+
+	it('formats bytes in binary units with up to two decimals', () => {
+		expect(formatBytes(0)).toBe('0 B');
+		expect(formatBytes(512)).toBe('512 B');
+		expect(formatBytes(1023)).toBe('1023 B');
+		expect(formatBytes(1024)).toBe('1 KB');
+		expect(formatBytes(1.5 * 1024)).toBe('1.5 KB');
+		expect(formatBytes(1.25 * 2 ** 30)).toBe('1.25 GB');
+		expect(formatBytes(1.254 * 2 ** 30)).toBe('1.25 GB');
+		expect(formatBytes(123.45 * 2 ** 30)).toBe('123.45 GB');
+		expect(formatBytes(312.456 * 2 ** 20)).toBe('312.46 MB');
+		expect(formatBytes(2 ** 20 - 1)).toBe('1 MB');
+		expect(formatBytes(5 * 2 ** 50)).toBe('5 PB');
+		expect(formatBytes(3 * 2 ** 60)).toBe('3072 PB');
+		expect(formatBytes(-1.5 * 1024)).toBe('-1.5 KB');
+		expect(formatBytes(Infinity)).toBe('—');
+	});
+
+	it('formats percentages with up to two decimals', () => {
+		expect(formatPercent(0)).toBe('0%');
+		expect(formatPercent(0.07)).toBe('0.07%');
+		expect(formatPercent(12.34)).toBe('12.34%');
+		expect(formatPercent(45.678)).toBe('45.68%');
+		expect(formatPercent(99.999)).toBe('100%');
+		expect(formatPercent(100)).toBe('100%');
+		expect(formatPercent(250.5)).toBe('250.5%');
+		expect(formatPercent(-3.25)).toBe('-3.25%');
+	});
+
 	it('formats bytes, percentages and durations like the mockup', () => {
 		expect(formatBytes(312 * 2 ** 20)).toBe('312 MB');
 		expect(formatBytes(1.8 * 2 ** 30)).toBe('1.8 GB');

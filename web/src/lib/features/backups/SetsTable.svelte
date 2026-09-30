@@ -80,7 +80,7 @@
 		const jobs = jobsOf(s.id);
 		if (!jobs.length) return undefined;
 		const known = jobs.map(activityPercent).filter((p) => p >= 0);
-		return known.length ? Math.round(known.reduce((a, b) => a + b, 0) / jobs.length) : 0;
+		return known.length ? known.reduce((a, b) => a + b, 0) / jobs.length : 0;
 	}
 
 	const columns = $derived<Column<Row>[]>([
