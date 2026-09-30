@@ -123,8 +123,10 @@ only production process execution in Docker Manager.
   indexes them), the item being read and the ones after it stay pending and
   are recorded as failed with class `cancelled`, so the set is `partial`
   (or `failed`) and a retry re-runs them. No host manifest is written; the
-  `start_containers` compensation restarts what the run stopped. A
-  cancelled `manager.backup` removes its staging copy of the database.
+  `start_containers` compensation restarts what the run stopped. The
+  `manager.backup` finish hook removes the job's staging copy of the
+  database whatever the outcome (also when a cancel lands between restic's
+  end and `write_manifest`, or after a failure or restart).
 - The **snapshot index** (`backup_snapshots`, the API's "backups") is
   filled by the jobs' finish hooks and caught up by verification jobs,
   which list what a location holds; a restored manager also reconciles it

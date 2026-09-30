@@ -205,8 +205,8 @@ func (s *Service) stepManagerBackup(ctx context.Context, sc *jobexec.StepContext
 	if in.PolicyID != "" {
 		tags = append(tags, backup.PolicyTag(in.PolicyID))
 	}
-	// A cancellation stops restic (it writes no snapshot) and removes the
-	// staging copy of the database.
+	// A cancellation stops restic (it writes no snapshot); the finish hook
+	// removes the staging copy of the database.
 	rctx, stop := sc.WatchCancel(ctx, s.opts.Clock, jobexec.DefaultCancelPoll)
 	defer stop()
 	sum, err := o.Repo.Backup(rctx, restic.BackupRequest{Paths: []string{dir}, Tags: tags, Host: ManagerHost,
@@ -225,7 +225,6 @@ func (s *Service) stepManagerBackup(ctx context.Context, sc *jobexec.StepContext
 	if err != nil {
 		_ = sc.SetOutput(ctx, out)
 		if ctx.Err() == nil && rctx.Err() != nil {
-			_ = os.RemoveAll(s.staging(sc.JobID))
 			return fmt.Errorf("the manager backup was stopped: %w", jobexec.ErrStepCancelled)
 		}
 		return err
