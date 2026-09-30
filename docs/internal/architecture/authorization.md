@@ -167,6 +167,14 @@ resource and run it. For every resource route:
    (`authz.JobResource`), or granted by holding the job kind's own
    capabilities on every target — a restart-only user follows and can cancel
    restarts of that container. Never by initiator.
+8. Alerts (#159, [alerts.md](alerts.md)) have no read capability: an alert
+   is visible with its source's permission (`authz.AlertVisible`:
+   `environment.system.read` for disks and RAID, the environment for
+   offline, `job.read` on the failed job, `update_policy.read` on the
+   policy), in lists, gets and `alert.updated` events alike. Dismissing
+   needs `alert.dismiss` (normal risk, so the Operator preset has it)
+   scoped like the source: the environment, every target of the job, or the
+   policy (`authz.AlertDismissible`).
 
 7. Search (`GET /api/v1/search`, the UI's ⌘K palette, #22): each hit is
    filtered with the same `ViewOf` as its own list route (environments,

@@ -35,6 +35,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/logging"
 	"github.com/neurekadev/docker-manager/internal/manager/agents"
+	"github.com/neurekadev/docker-manager/internal/manager/alerts"
 	"github.com/neurekadev/docker-manager/internal/manager/api"
 	"github.com/neurekadev/docker-manager/internal/manager/audit"
 	"github.com/neurekadev/docker-manager/internal/manager/auth"
@@ -163,6 +164,8 @@ type Manager struct {
 	regs     *registries.Service
 	// notify owns the notification channels (#142).
 	notify *notify.Service
+	// alerts raises alerts and sends them through the channels (#159).
+	alerts *alerts.Service
 	// resources is the Docker resource service (#6).
 	resources *resources.Service
 	files     *files.Service
@@ -515,6 +518,14 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	// Alerts (#159): the failed-job and update-check finish hooks are
+	// installed before recovery; host health reports are wired below.
+	if m.alerts, err = alerts.New(alerts.Options{DB: db, Bus: m.events, Clock: opts.Clock, Logger: log.With("component", "alerts"),
+		Sender: m.notify, MoveLock: m.moveLock, PublicURL: originString(cfg.PublicURL), OfflineGrace: cfg.AlertOfflineGrace}); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	m.alerts.RegisterJobHooks(m.jobs, jobspec.Kinds(), jobspec.UpdateCheck)
 	m.perms.RegisterLocator(catalog.TypeUpdatePolicy, m.updates.Locator())
 	// Backups (#10, #24): manager-side job kinds and finish hooks are
 	// registered before recovery; the backup and verification schedules
@@ -650,6 +661,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
 		return m.observe.Reconcile(ctx, s.EnvironmentID())
 	})
+	m.alerts.SetHealth(m.observe)
 
 	// Docker resources (#6): containers, images, volumes and networks of
 	// every environment through its agent; mutations are jobs, pulls use
@@ -772,6 +784,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Permissions:              m.perms,
 			Registries:               m.regs,
 			Notifications:            m.notify,
+			Alerts:                   m.alerts,
 			APITokens:                m.identity,
 			Observe:                  m.observe,
 			Docker:                   m.resources,
@@ -942,6 +955,9 @@ func (m *Manager) Registries() *registries.Service { return m.regs }
 // delivers a message through a channel (alerts).
 func (m *Manager) Notifications() *notify.Service { return m.notify }
 
+// Alerts returns the alert service (#159).
+func (m *Manager) Alerts() *alerts.Service { return m.alerts }
+
 // Live returns the live stream hub (#23).
 func (m *Manager) Live() *live.Hub { return m.live }
 
@@ -1049,6 +1065,12 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(backupsDone)
 		m.backups.Run(engineCtx)
 	}()
+	// Alerts (#159): evaluation and delivery.
+	alertsDone := make(chan struct{})
+	go func() {
+		defer close(alertsDone)
+		m.alerts.Run(engineCtx)
+	}()
 	// Live synchronization (#23): the live stream hub, its job source and
 	// the agents' file watch sets.
 	liveDone := make(chan struct{})
@@ -1071,6 +1093,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		<-schedDone
 		<-backupsDone
 		<-movesDone
+		<-alertsDone
 		<-liveDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)

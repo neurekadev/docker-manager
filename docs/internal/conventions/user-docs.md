@@ -58,7 +58,7 @@ it.
 | --- | --- |
 | Getting started | `overview`, `quickstart` (install, add more servers, upgrade) |
 | Features | `environments`, `stacks` (with import and rename), `containers`, `images`, `volumes`, `networks`, `builds`, `templates`, `registries` (with Git credentials), `backups` (with restore and recovery), `updates`, `maintenance` (prune and maintenance policies), `file-manager`, `terminal`, `logs`, `migrations` (with moving Docker Manager) |
-| Monitoring and notifications | `metrics` (server and container charts), `monitoring` (disk health and RAID, disk access), `notifications` (notification channels: add, test, view or change the address, what to send) |
+| Monitoring and notifications | `metrics` (server and container charts), `monitoring` (disk health and RAID, disk access), `alerts` (what raises an alert, see and dismiss alerts, how they reach your channels), `notifications` (notification channels: add, test, view or change the address, what to send) |
 | Administration | `users-and-groups` (people, groups, your account, sign-in policy), `api-tokens`, `permissions`, `audit-log` |
 | Help | `configuration` (every variable), `troubleshooting` |
 

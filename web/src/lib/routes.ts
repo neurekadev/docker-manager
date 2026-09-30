@@ -15,6 +15,7 @@
 //   /templates/registries, /templates/remote/{instanceId}/{templateId}  registries, registry templates
 //   /registry                           this instance's public template registry (public)
 //   /jobs[/{jobId}][?kind=&policyId=&state=], /schedules
+//   /alerts                             alerts across every environment (#159)
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
 //   /updates[/{policyId}], /maintenance[/{policyId}]
@@ -171,6 +172,8 @@ export const routes = {
 	},
 	job: (id: string) => `/jobs/${e(id)}`,
 	schedules: () => '/schedules',
+	/** Alerts (#159): disks, RAID, offline environments, failed jobs, updates. */
+	alerts: () => '/alerts',
 	access: () => '/access',
 	accessUser: (id: string) => `/access/users/${e(id)}`,
 	accessGroups: () => '/access/groups',

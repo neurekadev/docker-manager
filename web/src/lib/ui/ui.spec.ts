@@ -235,6 +235,14 @@ describe('status vocabulary', () => {
 		expect(statusInfo('partial').label).toBe('Partially running');
 		expect(statusInfo('partial', 'job').label).toBe('Partly failed');
 		expect(statusInfo('running', 'job').pulse).toBe(true);
+		// Alert severities (#159).
+		expect(
+			['critical', 'warning', 'info'].map((s) => [statusInfo(s).tone, statusInfo(s).label])
+		).toEqual([
+			['danger', 'Critical'],
+			['warn', 'Warning'],
+			['info', 'Info']
+		]);
 		expect(statusInfo('some_new_state')).toEqual({
 			tone: 'neutral',
 			label: 'Some new state',

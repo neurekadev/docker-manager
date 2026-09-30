@@ -44,7 +44,8 @@ check's documented socket exception).
   non-GET operation except `allowedWhileMoved`: sign-in, sign-out, the
   move routes; a new operation a moved manager must still serve goes in
   that list), `jobs.Engine.Enqueue` (`jobs.ErrManagerMoved`) and
-  `DispatchPending`, `scheduler.Service.Tick`. Agents refused: the agent
+  `DispatchPending`, `scheduler.Service.Tick`, the alerts' reconcile and
+  dispatch loops (no alert is raised or sent). Agents refused: the agent
   handler (503 + `Retry-After: 60`, before any credential check) and the
   hub (1012, also for sessions racing the lock). Waiting (a new manager
   before the handoff): everything above, and `waitingGuard` closes every

@@ -4,12 +4,16 @@
 	// name and level, the state, the member disks (failed ones in red) and
 	// a running rebuild or check with its progress and the kernel's finish
 	// estimate. "Check RAID now" reads the state again (never a scrub).
+	// An array with a firing alert (#159) has a mark beside its name that
+	// opens Alerts.
 	// Shown only when the host has arrays (the Disk health card says "No
 	// RAID arrays found" otherwise) or the state could not be read.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { api, unwrap, type Environment } from '$lib/api/client';
 	import { queryKeys } from '$lib/api/queries';
+	import AlertMark from '$lib/features/alerts/AlertMark.svelte';
+	import { alertsByArray, arrayAlertKey, type Alert } from '$lib/features/alerts/model';
 	import { actionError } from '$lib/features/common/errors';
 	import {
 		Button,
@@ -40,8 +44,18 @@
 		env,
 		raid,
 		online,
+		alerts = [],
 		now
-	}: { env: Environment; raid: RaidHealth; online: boolean; now?: Date } = $props();
+	}: {
+		env: Environment;
+		raid: RaidHealth;
+		online: boolean;
+		/** The environment's firing alerts (arrays are matched by kind and name). */
+		alerts?: Alert[];
+		now?: Date;
+	} = $props();
+
+	const byArray = $derived(alertsByArray(alerts));
 
 	const qc = useQueryClient();
 	let busy = $state(false);
@@ -100,7 +114,10 @@
 </script>
 
 {#snippet arrayCell(a: RaidArray)}
-	<span class="mono">{a.name}</span><span class="muted level">{raidLevel(a)}</span>
+	{@const alert = byArray.get(arrayAlertKey(a.kind, a.name))}
+	<span class="mono">{a.name}</span>{#if alert}<AlertMark {alert} />{/if}<span class="muted level"
+		>{raidLevel(a)}</span
+	>
 {/snippet}
 {#snippet stateCell(a: RaidArray)}
 	{@const b = raidBadge(a)}

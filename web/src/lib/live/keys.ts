@@ -30,6 +30,10 @@
 //                                        (topic manager, kind manager_move)
 //   ['session']                          the session, with the move lock
 //                                        (kind manager_move_lock)
+//   ['alerts', 'list', filter]           alerts (#159; topic alerts, kind
+//                                        alert): every raise, change,
+//                                        dismissal or resolution refreshes
+//                                        every alerts list
 //
 // Build keys with liveKeys so they stay consistent.
 import type { components } from '$lib/api/schema';
@@ -56,7 +60,8 @@ export const TOPICS = [
 	'permissions',
 	'metrics',
 	'templates',
-	'manager'
+	'manager',
+	'alerts'
 ] as const;
 export type Topic = (typeof TOPICS)[number];
 
@@ -110,7 +115,9 @@ export const liveKeys = {
 	/** GET /auth/session (queryKeys.session): refreshed when the move lock changes. */
 	session: ['session'] as QueryKey,
 	/** GET /manager/move (the owner's move to a new server) and its sub-keys. */
-	managerMove: (...sub: string[]): QueryKey => ['manager', 'item', 'move', ...sub]
+	managerMove: (...sub: string[]): QueryKey => ['manager', 'item', 'move', ...sub],
+	/** GET /alerts with its filters (#159); no filter: every alerts list. */
+	alerts: (...filters: unknown[]): QueryKey => ['alerts', 'list', ...filters]
 };
 
 /** The file scope of a files.changed event, or null for a whole environment. */

@@ -46,7 +46,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   every service shows the `service` tile, stacks `StackIcon size="xs"`
   (the image of the template the stack was created from, else the stack
   tile); registry connections the key (`KeyRound`, slate); notification channels
-  the bell (`Bell`, cyan); schedules the
+  the bell (`Bell`, cyan); alerts the siren (`Siren`, rose); schedules the
   icon of the policy they run (`scheduleResource`). The icon is
   decorative (`aria-hidden`): the name stays the link and the row's
   accessible label, and the tile never replaces a status or mark.
@@ -225,11 +225,28 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   targets the policy pages count ("6 images in 5 stacks"). A newer image
   shows when it was published when the registry says so (`publishedText`:
   "published 3 days ago", the date as tooltip).
-- **Notices:** every notice links somewhere (`noticeHref`); update notices
-  name policies as users know them (`policyLabel`: the manager's
-  `targetName`, the stack or container; an old "Automatic update <id>"
-  record not yet renamed by the manager falls back to a stack lookup) and
-  several collapse into one ("6 stacks have updates available").
+- **Notices and the bell** (`$lib/shell/notices.svelte.ts`,
+  `NoticesBell.svelte`, #159): the bell lists the firing, undismissed
+  alerts the caller sees (the active alerts query) and this tab's notices
+  of the user's own manual jobs; every item links somewhere
+  (`noticeHref`). The badge counts the items not dismissed and stays until
+  each is dismissed (closing the popover changes nothing). Dismiss (×) and
+  "Dismiss all" dismiss an alert for everyone when its `actions` hold
+  `alert.dismiss`, else for this browser only; job notices are dismissed
+  for this browser. Browser-local dismissals are keys only
+  (`job:<id>`, `alert:<id>:<severity>`, so a worse alert shows again) in
+  `localStorage` `docker-manager:dismissed-notices` (at most 200; UI
+  state, never API data). Offline environments and available updates are
+  alerts now: never compute them in the browser again. Policies are named
+  as users know them with `policyLabel` (the manager's `targetName`, the
+  stack or container).
+- **Alerts** (`$lib/features/alerts`): the Alerts page is one `ListCard`
+  (state Active/Dismissed/Resolved, kind, environment; `alertFilters`,
+  presets through `alertsPreset` for links from "Needs attention" and the
+  System tab's `AlertMark`); severity is a `StatusBadge` ("Critical",
+  "Warning", "Info"); rows lead with the alert's title linking to its
+  `link`; Dismiss only with `alert.dismiss` in `actions`. Queries are keyed
+  `liveKeys.alerts(...)` (topic `alerts`).
 - **Files, logs, terminals** (`docs/internal/web.md`): reuse
   `$lib/features/files/FileManager.svelte` (stack, volume or template
   scope),

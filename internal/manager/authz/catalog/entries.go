@@ -41,6 +41,9 @@ func resourceTypes() []ResourceType {
 		{Key: TypeTemplate, Label: "Stack templates", Scopable: true, Read: "template.read",
 			Minimal: "id, name, visibility, icon"},
 		{Key: TypeJob, Label: "Jobs", Read: "job.read"},
+		// Alerts (#159) are read through their source (the environment's
+		// system information, the job, the update policy): no read key.
+		{Key: TypeAlert, Label: "Alerts"},
 		{Key: TypeSchedule, Label: "Schedules", Read: "schedule.read"},
 		{Key: TypeAPIToken, Label: "API tokens"},
 		{Key: TypeAudit, Label: "Audit log"},
@@ -279,6 +282,14 @@ func capabilities() []Capability {
 	add(
 		normal("job.read", TypeJob, "View jobs", "See jobs and their progress for the targeted resources, regardless of who started them.", jobScope),
 		adv(normal("job.cancel", TypeJob, "Cancel jobs", "Cancel jobs acting on the targeted resources, regardless of who started them.", jobScope)),
+	)
+
+	// Alerts (#159): shown to whoever sees their source; dismissing one
+	// (for everyone) is scoped like that source: the environment (disks,
+	// RAID, offline), the failed job's targets or the update policy.
+	add(
+		normal("alert.dismiss", TypeAlert, "Dismiss alerts", "Dismiss alerts for everyone (they stay in the Alerts list and open again when they get worse). Scoped like the alert's source: the environment, the failed job's targets or the update policy.",
+			res(TypeStack, TypeService, TypeContainer, TypeImage, TypeVolume, TypeNetwork, TypeBackupRepository, TypeTemplate, TypeUpdatePolicy)),
 	)
 
 	// Manager-wide.

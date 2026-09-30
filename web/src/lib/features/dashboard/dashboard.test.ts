@@ -206,4 +206,34 @@ describe('AttentionStrip (#22 dashboard)', () => {
 			values: { state: 'problems' }
 		});
 	});
+
+	it('opens Alerts filtered to disk health, replacing earlier filters (#159)', () => {
+		sessionStorage.clear();
+		sessionStorage.setItem(
+			LIST_FILTERS_PREFIX + 'alerts',
+			JSON.stringify({ q: 'edge', values: { state: 'resolved' } })
+		);
+		render(AttentionStrip, {
+			props: {
+				items: [
+					{
+						id: 'disks',
+						label: '2 disks need attention',
+						href: '/alerts',
+						tone: 'danger',
+						filters: { list: 'alerts', values: { kind: 'disk_health' } }
+					}
+				]
+			}
+		});
+		const disks = screen.getByRole('link', { name: '2 disks need attention' });
+		expect(disks).toHaveAttribute('href', '/alerts');
+		disks.addEventListener('click', (e) => e.preventDefault());
+		disks.click();
+		// Active is the state's default: no stored value.
+		expect(JSON.parse(sessionStorage.getItem(LIST_FILTERS_PREFIX + 'alerts') ?? '{}')).toEqual({
+			q: '',
+			values: { kind: 'disk_health' }
+		});
+	});
 });

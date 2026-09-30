@@ -113,6 +113,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List alerts
+         * @description Alerts newest first: firing ones (active, or dismissed for everyone) and resolved ones (kept 90 days). Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, the environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates.
+         */
+        get: operations["list-alerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/dismissals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss alerts
+         * @description Dismisses several firing alerts for everyone ("Dismiss all"): the listed ones, or every active alert, of those the caller may see and dismiss (others are left alone). At most 500 at once.
+         */
+        post: operations["create-alert-dismissals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{alertId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an alert
+         * @description One alert (404 when the caller may not see its source). Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, the environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates.
+         */
+        get: operations["get-alert"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{alertId}/dismissals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss an alert
+         * @description Dismisses a firing alert for everyone: it leaves the bell, the dashboard and the environment's notice but stays listed (dismissed) until it resolves, and opens again when it gets worse (a higher severity or a new problem). Needs alert.dismiss on the alert's source (the environment, every target of the failed job, or the update policy). Dismissing a dismissed alert changes nothing; 409 alert_not_firing for a resolved one.
+         */
+        post: operations["create-alert-dismissal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/api-tokens": {
         parameters: {
             query?: never;
@@ -5713,6 +5793,102 @@ export interface components {
             /** @description The agent uses a plain-HTTP internal URL (DOCKER_AGENT_MANAGER_ALLOW_HTTP); flagged on the host page. */
             plainHttp: boolean;
         };
+        Alert: {
+            /**
+             * @description What the caller may do: alert.dismiss while it fires and the caller may dismiss it.
+             * @example [
+             *       "alert.dismiss"
+             *     ]
+             */
+            actions: string[];
+            /**
+             * @description One or two sentences about the problem (never serial numbers or error texts).
+             * @example SMART self-assessment failed, 8 reallocated sectors. Model WDC WD40EFZX.
+             */
+            detail?: string;
+            /** @description Dismissed for everyone; it opens again when it gets worse. */
+            dismissed: boolean;
+            /** Format: date-time */
+            dismissedAt?: string;
+            dismissedBy?: components["schemas"]["AlertUser"];
+            /** @description The environment the problem is in (absent for manager jobs). */
+            environmentId?: string;
+            /** @description Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target; updates: count, services, target; offline: since). */
+            facts: {
+                [key: string]: string;
+            };
+            /** @example 0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f */
+            id: string;
+            /**
+             * @example disk_health
+             * @enum {string}
+             */
+            kind: "disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available";
+            /**
+             * @description Path of the page in Docker Manager the alert is about.
+             * @example /environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system
+             */
+            link: string;
+            /**
+             * @description Why it stopped firing: resolved (the problem is gone), removed (the disk, array or policy is gone), expired (a failed job without a new run for 7 days), archived (the environment was archived).
+             * @enum {string}
+             */
+            resolution?: "resolved" | "removed" | "expired" | "archived";
+            /** Format: date-time */
+            resolvedAt?: string;
+            /**
+             * @description The disk's path, the array's or pool's name, the environment's ID, the last failed job's ID or the update policy's ID.
+             * @example /dev/sda
+             */
+            resourceId: string;
+            /**
+             * @description What the alert is about.
+             * @example disk
+             * @enum {string}
+             */
+            resourceType: "disk" | "raid_array" | "zfs_pool" | "environment" | "job" | "update_policy";
+            /** Format: int64 */
+            revision: number;
+            /**
+             * @example critical
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "critical";
+            /**
+             * Format: date-time
+             * @description When it started firing.
+             */
+            startedAt: string;
+            /**
+             * @example firing
+             * @enum {string}
+             */
+            state: "firing" | "resolved";
+            /** @example Disk /dev/sda on homelab is failing */
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AlertDismissals: {
+            /**
+             * @example [
+             *       "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"
+             *     ]
+             */
+            alertIds: string[];
+            /**
+             * Format: int64
+             * @description How many alerts are dismissed now (already dismissed ones included).
+             * @example 3
+             */
+            dismissed: number;
+        };
+        AlertUser: {
+            /** @example 0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e */
+            id: string;
+            /** @example Alex */
+            name?: string;
+        };
         ArchiveStackInputBody: {
             /** @enum {string} */
             conflict?: "fail" | "overwrite" | "keep_both";
@@ -7799,6 +7975,15 @@ export interface components {
              * @enum {string}
              */
             scope: "smart" | "raid";
+        };
+        DismissAlertsInputBody: {
+            /**
+             * @description The alerts to dismiss (those shown to the caller). Default: every active alert the caller may dismiss.
+             * @example [
+             *       "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"
+             *     ]
+             */
+            alertIds?: string[];
         };
         DockerCounts: {
             /** Format: int64 */
@@ -9988,6 +10173,17 @@ export interface components {
         PageAgentEnrollment: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["AgentEnrollment"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageAlert: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Alert"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -13988,6 +14184,395 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-alerts": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert. */
+                state?: "active" | "dismissed" | "firing" | "resolved";
+                /** @description Only alerts of this kind. */
+                kind?: "disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available";
+                /** @description Only alerts of this environment. */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "alert.dismiss"
+                     *           ],
+                     *           "detail": "SMART self-assessment failed, 8 reallocated sectors. Model WDC WD40EFZX.",
+                     *           "dismissed": false,
+                     *           "dismissedAt": "2026-09-25T12:00:00Z",
+                     *           "dismissedBy": {
+                     *             "id": "0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e",
+                     *             "name": "Alex"
+                     *           },
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "facts": {},
+                     *           "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+                     *           "kind": "disk_health",
+                     *           "link": "/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system",
+                     *           "resolution": "resolved",
+                     *           "resolvedAt": "2026-09-25T12:00:00Z",
+                     *           "resourceId": "/dev/sda",
+                     *           "resourceType": "disk",
+                     *           "revision": 1,
+                     *           "severity": "critical",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "firing",
+                     *           "title": "Disk /dev/sda on homelab is failing",
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageAlert"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-alert-dismissals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "alertIds": [
+                 *         "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["DismissAlertsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "alertIds": [
+                     *         "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"
+                     *       ],
+                     *       "dismissed": 3
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AlertDismissals"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Alert ID. */
+                alertId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "alert.dismiss"
+                     *       ],
+                     *       "detail": "SMART self-assessment failed, 8 reallocated sectors. Model WDC WD40EFZX.",
+                     *       "dismissed": false,
+                     *       "dismissedAt": "2026-09-25T12:00:00Z",
+                     *       "dismissedBy": {
+                     *         "id": "0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e",
+                     *         "name": "Alex"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "facts": {},
+                     *       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+                     *       "kind": "disk_health",
+                     *       "link": "/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system",
+                     *       "resolution": "resolved",
+                     *       "resolvedAt": "2026-09-25T12:00:00Z",
+                     *       "resourceId": "/dev/sda",
+                     *       "resourceType": "disk",
+                     *       "revision": 1,
+                     *       "severity": "critical",
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "firing",
+                     *       "title": "Disk /dev/sda on homelab is failing",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-alert-dismissal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Alert ID. */
+                alertId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "alert.dismiss"
+                     *       ],
+                     *       "detail": "SMART self-assessment failed, 8 reallocated sectors. Model WDC WD40EFZX.",
+                     *       "dismissed": false,
+                     *       "dismissedAt": "2026-09-25T12:00:00Z",
+                     *       "dismissedBy": {
+                     *         "id": "0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e",
+                     *         "name": "Alex"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "facts": {},
+                     *       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+                     *       "kind": "disk_health",
+                     *       "link": "/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system",
+                     *       "resolution": "resolved",
+                     *       "resolvedAt": "2026-09-25T12:00:00Z",
+                     *       "resourceId": "/dev/sda",
+                     *       "resourceType": "disk",
+                     *       "revision": 1,
+                     *       "severity": "critical",
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "firing",
+                     *       "title": "Disk /dev/sda on homelab is failing",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Alert"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

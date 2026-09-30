@@ -25,6 +25,7 @@ import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
 import Network from '@lucide/svelte/icons/network';
 import PackageCheck from '@lucide/svelte/icons/package-check';
 import Server from '@lucide/svelte/icons/server';
+import Siren from '@lucide/svelte/icons/siren';
 import User from '@lucide/svelte/icons/user';
 import UsersRound from '@lucide/svelte/icons/users-round';
 import Workflow from '@lucide/svelte/icons/workflow';
@@ -65,7 +66,8 @@ export const RESOURCE_ICONS = {
 	apiToken: { icon: KeyRound, color: 'violet' },
 	passkey: { icon: Fingerprint, color: 'slate' },
 	session: { icon: MonitorSmartphone, color: 'slate' },
-	notificationChannel: { icon: Bell, color: 'cyan' }
+	notificationChannel: { icon: Bell, color: 'cyan' },
+	alert: { icon: Siren, color: 'rose' }
 } as const satisfies Record<string, ResourceIcon>;
 
 export type ResourceKind = keyof typeof RESOURCE_ICONS;

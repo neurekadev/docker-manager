@@ -12,6 +12,7 @@ import { toast } from '$lib/ui';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import DiskHealthCard from './DiskHealthCard.svelte';
 import RaidCard from './RaidCard.svelte';
+import { sampleAlert } from '$lib/features/alerts/test/samples';
 import type { DiskDevice, DiskHealth, RaidHealth } from './diskHealth';
 
 const json = (body: unknown, status = 200) =>
@@ -343,5 +344,71 @@ describe('RaidCard', () => {
 			expect(toast.items.map((t) => t.title)).toContain('Checked 3 arrays on homelab')
 		);
 		expect(requests[0]).toMatchObject({ method: 'POST', body: { scope: 'raid' } });
+	});
+});
+
+describe('alert marks (#159)', () => {
+	it('marks a disk with a firing alert, linking to Alerts', () => {
+		const diskAlert = sampleAlert({
+			id: 'a1',
+			title: 'Disk /dev/sdb on homelab needs attention',
+			facts: { device: '/dev/sdb', deviceType: 'sat', state: 'warning' }
+		});
+		const other = sampleAlert({
+			id: 'a9',
+			title: 'Disk /dev/sda (nvme) on homelab is failing',
+			facts: { device: '/dev/sda', deviceType: 'nvme' }
+		});
+		mount(DiskHealthCard, {
+			env,
+			health: report(),
+			raid: noArrays,
+			online: true,
+			alerts: [diskAlert, other],
+			now
+		});
+		const table = screen.getByRole('table', { name: 'Disks of homelab' });
+		const [sdbRow, sdaRow] = within(table).getAllByRole('row').slice(1);
+		const mark = within(sdbRow).getByRole('link', {
+			name: 'Alert: Disk /dev/sdb on homelab needs attention'
+		});
+		expect(mark).toHaveAttribute('href', '/alerts');
+		// An alert of another disk type on the same path does not mark this disk.
+		expect(within(sdaRow).queryByRole('link')).toBeNull();
+	});
+
+	it('marks a dismissed alert of a ZFS pool as dismissed, not an md array of that name', () => {
+		const raid: RaidHealth = {
+			status: 'ok',
+			readAt: '2026-09-29T11:59:00Z',
+			arrays: [
+				{ kind: 'zfs', name: 'tank', state: 'degraded', health: 'DEGRADED', members: [] },
+				{
+					kind: 'md',
+					name: 'tank',
+					level: 'raid1',
+					state: 'healthy',
+					devices: 2,
+					active: 2,
+					members: []
+				}
+			]
+		};
+		const poolAlert = sampleAlert({
+			id: 'z1',
+			kind: 'raid',
+			resourceType: 'zfs_pool',
+			resourceId: 'tank',
+			title: 'ZFS pool tank on homelab is degraded',
+			facts: { pool: 'tank', arrayKind: 'zfs', health: 'DEGRADED' },
+			dismissed: true
+		});
+		mount(RaidCard, { env, raid, online: true, alerts: [poolAlert], now });
+		const table = screen.getByRole('table', { name: 'RAID arrays of homelab' });
+		expect(
+			within(table).getAllByRole('link', {
+				name: 'Alert dismissed: ZFS pool tank on homelab is degraded'
+			})
+		).toHaveLength(1);
 	});
 });

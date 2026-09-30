@@ -38,6 +38,13 @@ specific user rule, then the most specific group rule, then deny.
   `v.Has(key)` (403 when visible but not granted). Events:
   `authz.EventVisible(c, e)`. Jobs: `c.Can("job.read",
   authz.JobResource(j))` (targets or the kind's own capability).
+- **Alerts (#159)** have no read key: `authz.AlertVisible` shows an alert
+  to whoever sees its source (`environment.system.read` for disks and
+  RAID, the environment for offline, `job.read` on the job,
+  `update_policy.read` on the policy) and `authz.AlertDismissible` needs
+  `alert.dismiss` scoped like that source (the environment, every target
+  of the failed job, the policy). A new alert kind gets its rule there
+  first.
 - **Jobs:** the engine authorizes `spec.Capabilities(targets, input)` on
   every target at request and again at dispatch; never authorize job work
   by initiator.

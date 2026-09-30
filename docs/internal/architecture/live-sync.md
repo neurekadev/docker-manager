@@ -31,6 +31,7 @@ watch.Watcher ──fs_invalidation (seq)► (dedupe, gaps)  ├─► events.Bu
 | jobs (#26) | `job.updated` from `live.JobSource` (engine change listener, batched per 250 ms, one database read per job) |
 | API mutations (#30 audit path) | `resource.changed` for every target of a successful non-GET operation (policies, schedules, backups, registries, Git credentials, build definitions, settings, groups, users, invitations, API tokens); file operations and job targets are left to their precise sources |
 | manager move ([manager-move.md](manager-move.md), "Live updates") | `manager_move.updated` (the move's ID: every change of the move here, the new server's agent enrolling or going on- or offline and Move everything's job heard on the bus, a check-in that starts or stops counting, the new manager's confirmation attempts) and `manager_move.lock_changed` (no ID: the session's move lock changed) |
+| alerts ([alerts.md](alerts.md)) | `alert.updated` (the alert's ID; raised, changed, dismissed or resolved, published after the commit) |
 
 Every event type has a visibility rule in `internal/manager/authz/events.go`
 (`TestEveryEventTypeHasAVisibilityRule`); `job.updated` carries the job for
@@ -38,7 +39,8 @@ Every event type has a visibility rule in `internal/manager/authz/events.go`
 (owner-only for users, groups, tokens and other non-catalog types),
 `manager_move.updated` needs `manager.move` (the owner) and
 `manager_move.lock_changed` reaches every signed-in stream (it names no
-move, like the lock in `GET /auth/session`).
+move, like the lock in `GET /auth/session`), and `alert.updated` carries
+the alert for `authz.AlertVisible` (whoever sees its source).
 
 ## The hub (`internal/manager/live`)
 

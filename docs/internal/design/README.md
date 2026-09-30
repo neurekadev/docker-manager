@@ -286,7 +286,7 @@ Every resource list (stacks, containers, images, volumes, networks,
 builds and saved builds, registries and Git credentials, template
 sources, backup policies, runs, repositories and snapshots, update and
 maintenance policies, jobs, schedules, environments, users, groups,
-invitations, API tokens, passkeys, notification channels) starts each row's name with the type's
+invitations, API tokens, passkeys, notification channels, alerts) starts each row's name with the type's
 icon, so a list is recognisable at a glance:
 
 ```svelte
@@ -505,7 +505,9 @@ Show schedules in words with the expression as tooltip
 - **Sessions:** any 401 while signed in drops every cached API response
   and goes to sign-in with the current path (`src/lib/auth/session.ts`);
   never persist API data in `localStorage` (the only stored values are the
-  selected environment ID per user and the sidebar rail preference). The
+  selected environment ID per user, the sidebar rail preference and the
+  keys of notices dismissed in this browser,
+  `docker-manager:dismissed-notices`, at most 200). The
   search and filters of each list are UI state kept in `sessionStorage`
   (`docker-manager:list-filters:<list>`, per list and browser tab), as are
   the paths of the recently visited pages for the palette's "Recent"

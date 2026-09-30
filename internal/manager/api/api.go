@@ -100,6 +100,8 @@ type Deps struct {
 	// Notifications serves the notification channels (#142); nil answers
 	// those routes with 503 (after the owner check).
 	Notifications NotificationService
+	// Alerts serves the alerts (#159); nil answers those routes with 503.
+	Alerts AlertService
 	// Docker serves the containers, images, volumes and networks of each
 	// environment (#6); nil answers those routes with 503.
 	Docker DockerService
@@ -235,6 +237,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerObserve(a, deps)
 	registerRegistries(a, deps)
 	registerNotifications(a, deps)
+	registerAlerts(a, deps)
 	registerContainers(a, deps)
 	registerContainerMetrics(a, deps)
 	registerImages(a, deps)

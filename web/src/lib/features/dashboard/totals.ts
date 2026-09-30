@@ -113,7 +113,14 @@ export function perEnvironment(
 
 /** One thing on the dashboard that needs a look, linking to the list that shows it. */
 export interface AttentionItem {
-	id: 'offline' | 'failed-jobs' | 'stopped-containers' | 'undeployed' | 'updates';
+	id:
+		| 'offline'
+		| 'disks'
+		| 'raid'
+		| 'failed-jobs'
+		| 'stopped-containers'
+		| 'undeployed'
+		| 'updates';
 	label: string;
 	href: string;
 	tone: 'danger' | 'warn' | 'offline';
@@ -127,17 +134,32 @@ export interface AttentionItem {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/** Active alerts of one kind: how many and whether any is critical (the tone). */
+export interface AlertTally {
+	count: number;
+	critical: boolean;
+}
+
+/** Active disk health and RAID alerts of the shown environments (#159). */
+export interface HealthAlerts {
+	disks?: AlertTally;
+	raid?: AlertTally;
+}
+
 /**
  * What needs attention across the shown environments, most urgent first:
- * offline environments, failed jobs of the last 24 hours, containers not
- * running, stacks with undeployed changes and available updates. Only
- * figures the caller can see count (`undefined` = not loaded or no access).
+ * offline environments, disks and RAID arrays with active alerts (opening
+ * Alerts filtered to their kind), failed jobs of the last 24 hours,
+ * containers not running, stacks with undeployed changes and available
+ * updates. Only figures the caller can see count (`undefined` = not
+ * loaded or no access).
  */
 export function attentionItems(
 	t: Pick<DashboardTotals, 'offline' | 'failures' | 'counted' | 'containers' | 'running'> & {
 		paused?: number;
 	},
-	pending: { undeployed?: number; updates?: number } = {}
+	pending: { undeployed?: number; updates?: number } = {},
+	health: HealthAlerts = {}
 ): AttentionItem[] {
 	const out: AttentionItem[] = [];
 	if (t.offline > 0)
@@ -146,6 +168,22 @@ export function attentionItems(
 			label: `${plural(t.offline, 'environment is', 'environments are')} offline`,
 			href: routes.environments(),
 			tone: 'offline'
+		});
+	if (health.disks?.count)
+		out.push({
+			id: 'disks',
+			label: `${plural(health.disks.count, 'disk needs', 'disks need')} attention`,
+			href: routes.alerts(),
+			tone: health.disks.critical ? 'danger' : 'warn',
+			filters: { list: 'alerts', values: { kind: 'disk_health' } }
+		});
+	if (health.raid?.count)
+		out.push({
+			id: 'raid',
+			label: `${plural(health.raid.count, 'RAID array needs', 'RAID arrays need')} attention`,
+			href: routes.alerts(),
+			tone: health.raid.critical ? 'danger' : 'warn',
+			filters: { list: 'alerts', values: { kind: 'raid' } }
 		});
 	if (t.failures > 0)
 		out.push({

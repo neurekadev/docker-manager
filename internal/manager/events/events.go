@@ -98,6 +98,11 @@ const (
 	// (GET /auth/session, managerMove: none, moving, moved) changed. It
 	// carries no move ID (ResourceID "instance").
 	ManagerMoveLockChanged = "manager_move.lock_changed"
+
+	// AlertUpdated: an alert was raised, changed, dismissed or resolved
+	// (#159). ResourceID is the alert's ID; Alert carries it so subscribers
+	// are filtered with the permission that shows its source.
+	AlertUpdated = "alert.updated"
 )
 
 // Resource types.
@@ -116,6 +121,8 @@ const (
 	// manager (owner) and its lock (everyone).
 	ResourceManagerMove     = "manager_move"
 	ResourceManagerMoveLock = "manager_move_lock"
+	// ResourceAlert: an alert (#159).
+	ResourceAlert = "alert"
 )
 
 // Event is one published change.
@@ -146,6 +153,9 @@ type Event struct {
 	// Job is the job of a job.updated event (internal: its input is never
 	// sent anywhere; it decides visibility).
 	Job *domain.Job
+	// Alert is the alert of an alert.updated event (internal: it decides
+	// visibility; the stream sends its ID only).
+	Alert *domain.Alert
 }
 
 // Bus distributes events to subscribers. The zero value is not usable; call

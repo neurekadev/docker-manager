@@ -1,12 +1,21 @@
-// In-app notices (#22 bell, #25 Q6: in-app only in v1): job finished or
-// failed, update available, environment offline. Sources push notices; the
-// bell shows the unread count and the list. Notices live in memory for the
-// tab only (no persistence of API data). Keys deduplicate: pushing the same
-// key again updates the notice instead of adding one.
+// In-app notices (#22 bell, #25 Q6, #159): what needs the user's eye until
+// they dismiss it. Two sources feed the bell: the manager's alerts that
+// fire and nobody dismissed (disks and RAID with problems, environments
+// offline, failed scheduled jobs, available updates; setAlerts, from the
+// active alerts query), and this tab's notices of the user's own jobs
+// (push: a job they started finished or failed). The badge counts every
+// item not dismissed and stays until each is dismissed. A server alert the
+// user may dismiss is dismissed for everyone (through the API, by the
+// bell); the others and the job notices are dismissed for this browser:
+// their keys (`job:<id>`, `alert:<id>:<severity>`, so an alert that gets
+// worse shows again) are kept in localStorage, at most MAX_DISMISSED, UI
+// state only (never API data). Keys deduplicate: pushing the same key
+// again updates the notice instead of adding one.
 
+import { severityTone, sortAlerts, type Alert } from '$lib/features/alerts/model';
 import { routes } from '$lib/routes';
 
-export type NoticeKind = 'job' | 'environment' | 'update';
+export type NoticeKind = 'job' | 'alert';
 export type NoticeTone = 'ok' | 'warn' | 'danger' | 'info';
 
 export interface AppNotice {
@@ -17,87 +26,205 @@ export interface AppNotice {
 	body?: string;
 	href?: string;
 	at: number;
-	read: boolean;
+}
+
+/** A server alert as the bell needs it. */
+export type BellAlert = Pick<
+	Alert,
+	'id' | 'severity' | 'title' | 'detail' | 'link' | 'startedAt' | 'actions'
+>;
+
+/** One line of the bell: a server alert or a job notice. */
+export interface BellItem extends AppNotice {
+	/** The key a dismissal for this browser keeps. */
+	dismissKey: string;
+	/** The server alert it shows. */
+	alert?: BellAlert;
+	/** The user may dismiss the alert for everyone (alert.dismiss). */
+	serverDismiss: boolean;
+}
+
+/** Where the dismissed keys are kept (localStorage, per browser). */
+export const DISMISSED_KEY = 'docker-manager:dismissed-notices';
+/** The newest dismissed keys kept. */
+export const MAX_DISMISSED = 200;
+
+const KEY_RE = /^(job|alert):[\w.:-]{1,160}$/;
+
+/** The key of an alert dismissed for this browser: it shows again at another severity. */
+export function alertDismissKey(a: Pick<Alert, 'id' | 'severity'>): string {
+	return `alert:${a.id}:${a.severity}`;
+}
+
+/** Parses the stored dismissed keys; anything unexpected is dropped. */
+export function parseDismissed(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	let data: unknown;
+	try {
+		data = JSON.parse(raw);
+	} catch {
+		return [];
+	}
+	if (!Array.isArray(data)) return [];
+	return data
+		.filter((k): k is string => typeof k === 'string' && KEY_RE.test(k))
+		.slice(-MAX_DISMISSED);
+}
+
+export interface StorageLike {
+	getItem(key: string): string | null;
+	setItem(key: string, value: string): void;
+}
+
+function browserStorage(): StorageLike | null {
+	try {
+		return typeof window === 'undefined' ? null : window.localStorage;
+	} catch {
+		return null; // storage disabled
+	}
+}
+
+/**
+ * The bell's items: the alerts (critical first, then the newest), then the
+ * job notices (newest first), without the dismissed ones.
+ */
+export function bellItems(
+	alerts: readonly BellAlert[],
+	notices: readonly AppNotice[],
+	dismissedKeys: readonly string[]
+): BellItem[] {
+	// A plain lookup, rebuilt with each list.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const dismissed = new Set(dismissedKeys);
+	const out: BellItem[] = [];
+	for (const a of sortAlerts(alerts)) {
+		const dismissKey = alertDismissKey(a);
+		if (dismissed.has(dismissKey)) continue;
+		out.push({
+			key: `alert:${a.id}`,
+			kind: 'alert',
+			tone: severityTone(a.severity),
+			title: a.title,
+			body: a.detail,
+			href: a.link,
+			at: Date.parse(a.startedAt),
+			dismissKey,
+			alert: a,
+			serverDismiss: a.actions.includes('alert.dismiss')
+		});
+	}
+	for (const n of notices) {
+		if (dismissed.has(n.key)) continue;
+		out.push({ ...n, dismissKey: n.key, serverDismiss: false });
+	}
+	return out;
 }
 
 export class Notices {
+	/** This tab's job notices, newest first. */
 	items = $state<AppNotice[]>([]);
-	readonly unread = $derived(this.items.filter((n) => !n.read).length);
-	/** Newest first, at most this many. */
+	/** The server's active alerts (setAlerts). */
+	alerts = $state<BellAlert[]>([]);
+	#dismissed = $state<string[]>([]);
+	/** What the bell lists: everything not dismissed. */
+	readonly list = $derived(bellItems(this.alerts, this.items, this.#dismissed));
+	/** The badge: items not dismissed. */
+	readonly count = $derived(this.list.length);
+	/** Newest first, at most this many job notices. */
 	readonly max = 50;
 	#now: () => number;
+	#storage: StorageLike | null;
 
-	constructor(now: () => number = () => Date.now()) {
+	constructor(
+		now: () => number = () => Date.now(),
+		storage: StorageLike | null = browserStorage()
+	) {
 		this.#now = now;
+		this.#storage = storage;
+		this.#dismissed = this.#read();
 	}
 
-	push(n: Omit<AppNotice, 'at' | 'read'> & { at?: number }) {
-		const notice: AppNotice = { ...n, at: n.at ?? this.#now(), read: false };
+	push(n: Omit<AppNotice, 'at'> & { at?: number }) {
+		const notice: AppNotice = { ...n, at: n.at ?? this.#now() };
 		this.items = [notice, ...this.items.filter((x) => x.key !== n.key)].slice(0, this.max);
 	}
 
-	/** Removes a notice whose condition ended (environment back online). */
+	/** Removes a notice whose condition ended. */
 	resolve(key: string) {
 		this.items = this.items.filter((n) => n.key !== key);
 	}
 
-	markAllRead() {
-		if (this.unread) this.items = this.items.map((n) => (n.read ? n : { ...n, read: true }));
+	/** The active alerts from the server (replaces the previous list). */
+	setAlerts(alerts: readonly BellAlert[]) {
+		this.alerts = [...alerts];
 	}
 
+	/** Drops alerts dismissed for everyone until the next list arrives. */
+	forgetAlerts(ids: readonly string[]) {
+		this.alerts = this.alerts.filter((a) => !ids.includes(a.id));
+	}
+
+	/** Dismisses items for this browser (kept across reloads). */
+	dismiss(...keys: string[]) {
+		const add = keys.filter((k) => KEY_RE.test(k));
+		if (!add.length) return;
+		this.#dismissed = [...this.#dismissed.filter((k) => !add.includes(k)), ...add].slice(
+			-MAX_DISMISSED
+		);
+		try {
+			this.#storage?.setItem(DISMISSED_KEY, JSON.stringify(this.#dismissed));
+		} catch {
+			// Quota or access errors: dismissed for this visit only.
+		}
+	}
+
+	/** Whether a key was dismissed in this browser. */
+	isDismissed(key: string): boolean {
+		return this.#dismissed.includes(key);
+	}
+
+	/** Reads the dismissed keys again (another tab dismissed something). */
+	reload() {
+		this.#dismissed = this.#read();
+	}
+
+	/**
+	 * Follows dismissals in other tabs (the storage event); returns the
+	 * function that stops.
+	 */
+	listen(): () => void {
+		if (typeof window === 'undefined') return () => {};
+		const on = (e: StorageEvent) => {
+			if (e.key === DISMISSED_KEY || e.key === null) this.reload();
+		};
+		window.addEventListener('storage', on);
+		return () => window.removeEventListener('storage', on);
+	}
+
+	/** Forgets this tab's notices and alerts (sign-out); dismissals stay. */
 	clear() {
 		this.items = [];
+		this.alerts = [];
+	}
+
+	#read(): string[] {
+		try {
+			return parseDismissed(this.#storage?.getItem(DISMISSED_KEY));
+		} catch {
+			return [];
+		}
 	}
 }
 
 /** Where a notice leads: its own link, else the page of its kind. */
 export function noticeHref(n: Pick<AppNotice, 'kind' | 'href'>): string {
 	if (n.href) return n.href;
-	switch (n.kind) {
-		case 'job':
-			return routes.jobs();
-		case 'environment':
-			return routes.environments();
-		default:
-			return routes.updates();
-	}
+	return n.kind === 'job' ? routes.jobs() : routes.alerts();
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const notices = new Notices();
-
-/**
- * Tracks environment online/offline transitions from successive
- * environment lists and pushes/resolves "offline" notices. Returns the
- * function to feed with each new list.
- */
-export function environmentNotices(target: Notices = notices) {
-	let seen: Map<string, boolean> | null = null;
-	return (envs: readonly { id: string; name: string; online: boolean }[]) => {
-		const first = seen === null;
-		// Plain bookkeeping between calls, not reactive state.
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const next = new Map(envs.map((e) => [e.id, e.online]));
-		for (const e of envs) {
-			const was = seen?.get(e.id);
-			const key = `environment-offline:${e.id}`;
-			if (!e.online && (first || was !== false)) {
-				target.push({
-					key,
-					kind: 'environment',
-					tone: 'warn',
-					title: `${e.name} is offline`,
-					body: 'Its agent is not connected. Docker Manager shows its last known state.',
-					href: routes.environment(e.id)
-				});
-			} else if (e.online && was === false) {
-				target.resolve(key);
-			}
-		}
-		seen = next;
-	};
-}
 
 /** The parts of a job the job notices need. */
 export interface NoticeJob {
@@ -106,6 +233,8 @@ export interface NoticeJob {
 	state: string;
 	createdAt: string;
 	initiatorUserId?: string;
+	/** manual, scheduled or api_token. */
+	origin?: string;
 	error?: { recovery: string };
 	targets?: { type: string; id: string }[];
 }
@@ -128,10 +257,12 @@ const JOB_OUTCOMES: Record<string, string> = {
 
 /**
  * Tracks job states from successive lists of recent jobs (refreshed by
- * live job events) and pushes a notice when a job finishes: the user's
- * own jobs whatever the outcome, anyone's (also scheduled) failures. Jobs
- * already finished when the tab first saw them are not announced. Keys
- * match JobProgress's (`job:<id>`), so a watched job is announced once.
+ * live job events) and pushes a notice when one of the user's own manual
+ * jobs finishes, whatever the outcome. Failed scheduled jobs and jobs of
+ * API tokens are the manager's alerts (#159); other people's jobs are
+ * theirs. Jobs already finished when the tab first saw them are not
+ * announced. Keys match JobProgress's (`job:<id>`), so a watched job is
+ * announced once.
  */
 export function jobNotices(
 	userId: () => string,
@@ -154,8 +285,8 @@ export function jobNotices(
 			if (!finishedNow) continue;
 			const me = userId();
 			const mine = !!me && j.initiatorUserId === me;
+			if (!mine || (j.origin !== undefined && j.origin !== 'manual')) continue;
 			const problem = j.state !== 'succeeded' && j.state !== 'cancelled';
-			if (!mine && !problem) continue;
 			// Opaque IDs (stacks, policies) are left out rather than shown raw.
 			const id = j.targets?.[0]?.id;
 			const what = id && !UUID.test(id) ? id : '';
@@ -172,7 +303,7 @@ export function jobNotices(
 	};
 }
 
-/** The parts of an update policy the update notices need. */
+/** The parts of an update policy its label needs. */
 export interface NoticePolicy {
 	id: string;
 	name: string;
@@ -212,95 +343,4 @@ export function policyLabel(
 	if (named) return named;
 	if (t?.type === 'container' && !UUID.test(t.id)) return `container ${t.id}`;
 	return t?.type === 'stack' ? 'a stack' : 'a container';
-}
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** "6 stacks have updates available", "2 stacks and 1 container have …". */
-function summaryTitle(policies: readonly NoticePolicy[]): string {
-	const stacks = policies.filter((p) => p.target?.type === 'stack').length;
-	const containers = policies.filter((p) => p.target?.type === 'container').length;
-	const other = policies.length - stacks - containers;
-	const parts = [
-		stacks ? plural(stacks, 'stack', 'stacks') : '',
-		containers ? plural(containers, 'container', 'containers') : '',
-		other ? plural(other, 'update policy', 'update policies') : ''
-	].filter(Boolean);
-	const what =
-		parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
-	return `${what} ${policies.length === 1 ? 'has' : 'have'} updates available`;
-}
-
-/** "Silo, Media and 4 more." */
-function namesBody(names: string[]): string {
-	const shown = names.slice(0, 3);
-	const rest = names.length - shown.length;
-	if (rest > 0) return `${shown.join(', ')} and ${rest} more.`;
-	return shown.length > 1
-		? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}.`
-		: `${shown[0] ?? ''}.`;
-}
-
-/**
- * "Updates available" notices from the update policies' summaries (#20).
- * One policy with updates gets its own notice ("2 updates available for
- * Silo images", linking to the policy); several collapse into one ("6
- * stacks have updates available", naming them, linking to Updates), so a
- * check of many targets does not flood the bell. Policies are named as the
- * user knows them (policyLabel: the target's name; `nameOf` resolves stack
- * IDs of old records). A notice is
- * pushed again only when its text changes, and resolved when no update is
- * left.
- */
-export function updateNotices(
-	target: Notices = notices,
-	nameOf?: (target: { type: string; id: string }) => string | undefined
-) {
-	const SUMMARY = 'update:summary';
-	let shownKey: string | null = null;
-	let shownText = '';
-	return (policies: readonly NoticePolicy[]) => {
-		// One entry per updated target (an environment policy and its
-		// per-target policy count once).
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const byTarget = new Map<string, NoticePolicy>();
-		for (const p of policies) {
-			if ((p.summary?.available ?? 0) <= 0) continue;
-			const k = p.target ? `${p.environmentId ?? ''}/${p.target.type}/${p.target.id}` : p.id;
-			if (!byTarget.has(k)) byTarget.set(k, p);
-		}
-		const pending = [...byTarget.values()];
-		let next: Omit<AppNotice, 'at' | 'read'> | null = null;
-		if (pending.length === 1) {
-			const p = pending[0];
-			const n = p.summary?.available ?? 0;
-			next = {
-				key: `update:${p.id}`,
-				kind: 'update',
-				tone: 'warn',
-				title: `${plural(n, 'update', 'updates')} available for ${policyLabel(p, nameOf)}`,
-				body: 'Review the update preview before applying it.',
-				href: routes.updatePolicy(p.id)
-			};
-		} else if (pending.length > 1) {
-			next = {
-				key: SUMMARY,
-				kind: 'update',
-				tone: 'warn',
-				title: summaryTitle(pending),
-				body: namesBody(pending.map((p) => policyLabel(p, nameOf))),
-				href: routes.updates()
-			};
-		}
-		if (shownKey && shownKey !== next?.key) target.resolve(shownKey);
-		if (!next) {
-			shownKey = null;
-			shownText = '';
-			return;
-		}
-		const text = `${next.title}|${next.body}`;
-		if (next.key !== shownKey || text !== shownText) target.push(next);
-		shownKey = next.key;
-		shownText = text;
-	};
 }
