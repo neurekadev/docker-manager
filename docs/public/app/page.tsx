@@ -12,12 +12,10 @@ export default function Home() {
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={withBase('/logo-512.png')} alt="" width={176} height={176} className="size-36 sm:size-44" />
-      <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">{appName}</h1>
-      <p className="mt-4 max-w-xl text-xl text-balance sm:text-2xl">
-        One pane of glass for your entire Docker infrastructure.
-      </p>
-      <p className="mt-3 max-w-lg text-balance text-fd-muted-foreground">
-        Deploy, edit, update and back up every server from your browser. No SSH, no text editor.
+      {/* Two lines only, each kept on one line on every screen size. */}
+      <h1 className="mt-6 whitespace-nowrap text-4xl font-semibold tracking-tight sm:text-5xl">{appName}</h1>
+      <p className="mt-4 whitespace-nowrap text-base text-fd-muted-foreground sm:text-xl">
+        One pane of glass for your infrastructure.
       </p>
       <nav className="mt-10 grid w-full max-w-md gap-3 sm:grid-cols-2">
         <Link
