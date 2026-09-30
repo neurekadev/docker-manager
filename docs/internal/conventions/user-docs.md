@@ -112,8 +112,7 @@ search, served by nginx on port 3000 (`docs/public/Dockerfile`,
 `nginx.conf`; `absolute_redirect off` keeps redirects relative so a reverse
 proxy's host and port survive). The landing page (`app/page.tsx`) links to
 the docs at `/overview/` and to the Screenshots page (`app/screenshots`). Docs
-pages live at the site's root, `/<page>/` (route group `app/(docs)`);
-nginx redirects the old `/docs/...` links.
+pages live at the site's root, `/<page>/` (route group `app/(docs)`).
 `.github/workflows/Docs.yaml` builds the image and publishes
 `code.neureka.dev/docker-manager/docker-manager-docs:edge` on pushes to
 `main` that change `docs/public/**`.
