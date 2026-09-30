@@ -4,9 +4,11 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 
 Guide: `docs/internal/architecture/metrics.md`. Agent: `internal/agent/observe`
 (procfs sampler, container stats, ring, `engine.info`/`host.metrics`, Docker
-event relay). Manager: `internal/manager/observe` (collector, inventory
-cache, event journal) and `internal/manager/metrics` (separate
-`<data>/metrics.db`, own migrations in `internal/db/metricsmigrations`).
+event relay), `internal/agent/health` and `internal/agent/smartctl` (disk
+health, `host.health`). Manager: `internal/manager/observe` (collector,
+inventory cache, disk health, event journal) and `internal/manager/metrics`
+(separate `<data>/metrics.db`, own migrations in
+`internal/db/metricsmigrations`).
 
 - **Read metrics:** `Store.Query(ctx, domain.MetricQuery{Kind:
   domain.MetricContainer, Name: containerName, ...})` (container charts,
@@ -20,7 +22,8 @@ cache, event journal) and `internal/manager/metrics` (separate
   `agent.capabilities_updated` and `environment.resync` on the bus.
 - **Live invalidations:** `metrics.sampled` (`Members` = container names,
   internal: filter per member with `authz.ContainerMetricsVisible`) and
-  `inventory.updated` on the bus; `stream-environment-events` relays them
+  `inventory.updated` (Engine inventory or disk health) on the bus;
+  `stream-environment-events` relays them
   through the per-environment `observe.Journal` (cursor replay, resets).
 - **Current CPU and memory** (`metrics.live`, `observe/live.go` on both
   sides): read the current values only through `Service.Latest` /
@@ -31,6 +34,17 @@ cache, event journal) and `internal/manager/metrics` (separate
   event carries IDs like `metrics.sampled`, never values. Container CPU is
   always a delta of the cumulative counters of two one-shot stats reads
   (`cpuShare`), never an Engine-side prior sample.
+- **Disk health** (#143, `host.health`; agent `internal/agent/health` and
+  `internal/agent/smartctl`, manager `observe/health.go`): read it through
+  `Service.HostHealth(envID)` (last known, also offline); checks go
+  through `Service.CheckHealth` (rate limited per environment and scope).
+  A report is stored (`metrics.db`, `host_health`) and announced as
+  `inventory.updated` with `Attributes["health"] = "true"` only when it
+  changed. smartctl runs only through `internal/agent/smartctl.Runner`
+  (the second lint-exempt process execution, ADR 0005): read-only flags,
+  `-n standby`, never a self-test. Serial numbers are data for
+  `environment.system.read` holders: never log them. The manager sends
+  `host.health` only to agents that serve it (`EnvironmentServes`).
 - Sample keys are `(series, 10 s slot)`: ingestion is idempotent; never add
   a path that writes samples without going through `Store.Ingest`.
 - `metrics.db` is expendable and excluded from manager-state backups (#10).

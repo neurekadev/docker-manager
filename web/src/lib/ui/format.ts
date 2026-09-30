@@ -74,6 +74,28 @@ export function formatDuration(seconds: number): string {
 	return pair(Math.floor(h / 24), 'd', h % 24, 'h');
 }
 
+/**
+ * A long span of hours (a disk's power-on time) in its two largest units,
+ * years and days included: "3 y 41 d", "41 d 5 h", "5 h". A year is 365
+ * days; a zero second unit is left out ("2 y"). Invalid or negative
+ * values read as "0 h".
+ */
+export function formatHours(hours: number): string {
+	const h = Math.max(0, Math.floor(Number.isFinite(hours) ? hours : 0));
+	const pair = (big: number, bigUnit: string, small: number, smallUnit: string) =>
+		small ? `${big} ${bigUnit} ${small} ${smallUnit}` : `${big} ${bigUnit}`;
+	if (h < 24) return `${h} h`;
+	const d = Math.floor(h / 24);
+	if (d < 365) return pair(d, 'd', h % 24, 'h');
+	return pair(Math.floor(d / 365), 'y', d % 365, 'd');
+}
+
+/** A temperature in degrees Celsius, up to two decimals: "38 °C", "41.5 °C". */
+export function formatTemperature(celsius: number | null | undefined): string {
+	if (celsius === null || celsius === undefined || !Number.isFinite(celsius)) return '—';
+	return `${formatNumber(celsius)} °C`;
+}
+
 const GO_UNITS: Record<string, number> = {
 	ns: 1e-9,
 	us: 1e-6,

@@ -7,9 +7,10 @@ the manager API that serves charts and live invalidations.
 | Piece | Package | Protocol / API |
 | --- | --- | --- |
 | Host sampler, container stats, sample ring, live reads, Engine inventory, Docker event relay | `internal/agent/observe` | `engine.info`, `host.metrics`, `metrics.live`, `event` frames ([agent-v1.md](../protocol/agent-v1.md)) |
-| Collector, live metrics, inventory cache, event journal | `internal/manager/observe` | — |
+| Disk health monitor (SMART through smartctl, md and ZFS state from procfs) | `internal/agent/health`, `internal/agent/smartctl` | `host.health` |
+| Collector, live metrics, inventory cache, disk health, event journal | `internal/manager/observe` | — |
 | Metrics database | `internal/manager/metrics`, `internal/db/metricsmigrations` | — |
-| Routes | `internal/manager/api/observe.go`, `environments.go` | `get-environment-system`, `get-environment-metrics`, `get-environment-capacity`, `get-overview`, `stream-environment-events` ([streams.md](../api/streams.md)) |
+| Routes | `internal/manager/api/observe.go`, `environments.go`, `disk_health.go` | `get-environment-system`, `create-environment-disk-health-check`, `get-environment-metrics`, `get-environment-capacity`, `get-overview`, `stream-environment-events` ([streams.md](../api/streams.md)) |
 
 ## Engine inventory
 
@@ -193,7 +194,8 @@ Tests: `TestLiveMetricsDeltasAndBaseline`, `TestCPUShare` (agent),
 
 ## Storage
 
-Metrics live in their own SQLite file, `<data dir>/metrics.db`, with their
+Metrics (and the last Engine inventory and disk health report per
+environment) live in their own SQLite file, `<data dir>/metrics.db`, with their
 own migrations (`internal/db/metricsmigrations`), a single writer
 connection and a separate 4-connection read-only pool (WAL). Sample writes,
 rollups and retention therefore never contend with jobs and authentication
@@ -334,6 +336,99 @@ The manager republishes each event as `docker.event` on the internal bus
 the reader's capabilities decide who sees it) and triggers a debounced
 inventory refresh. Docker events do not cover file content changes; stack
 and volume file watching is #15.
+
+## Host health
+
+Each environment reports the health of its disks (SMART) and of its RAID
+arrays (#143, [ADR 0005](../adr/0005-disk-health.md)); the System tab shows
+them with "Check disks now" and "Check RAID now".
+
+**Agent** (`internal/agent/health`, served as `host.health`):
+
+- **SMART** through the image's pinned `smartctl`
+  (`internal/agent/smartctl`, `DOCKER_AGENT_SMARTCTL_BINARY`): `smartctl
+  --scan-open --json` lists the devices at start, every 6 h and on "Check
+  disks now"; each device is read with `smartctl --json -a -n standby,3 -d
+  <type> <name>` (at most 4 at once, 30 s each) at start, every
+  `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
+  disks now". A disk in standby is not woken (exit status 3 plus the
+  standby message): it keeps its previous values with state `sleeping`.
+  A failed read keeps the last measurements (and their read time) for
+  reference but reports the failure: state `error`, `open_failed` (a disk
+  the agent cannot read never looks healthy). A device is identified by
+  its path **and** smartctl type: disks behind one RAID controller share
+  the controller's path (`/dev/bus/0` as `megaraid,0`, `megaraid,1`). The exit status is a bitmask
+  (bits 3–7 describe the disk and still come with complete JSON, so the
+  values decide).
+- **Values and state** per device: model, serial, firmware, capacity,
+  rotation rate, overall self-assessment (`passed`), temperature, power-on
+  hours; ATA raw values of attributes 5 (reallocated), 187 (reported
+  uncorrectable), 197 (pending), 198 (offline uncorrectable) and the
+  attributes at or below their threshold (`when_failed` now or past); NVMe
+  critical warning, available spare and its threshold, percentage used,
+  media errors; SCSI grown defects and uncorrected errors (read + write +
+  verify). `protocol.DeriveDiskState`: **failing** for a failed
+  self-assessment, an attribute failing now or an NVMe critical warning;
+  **warning** for any reallocated, pending or uncorrectable sector, media
+  error, grown defect or uncorrected error, wear of 90 % or more, spare
+  below its threshold or an attribute that failed in the past (a hot day
+  marks temperature attributes so: warning, not failing); else **ok**.
+  **error** with `permission_denied`, `open_failed` or `unsupported` (no
+  SMART data: virtual disks, unknown USB bridges).
+- **Report status**: `ok`, `disabled` (`DOCKER_AGENT_SMART_ENABLED=false`),
+  `not_installed` (no smartctl), `error` (the scan failed) or `no_access`:
+  `<proc>/partitions` lists whole disks (`sd*`, `hd*`, `vd*`, `xvd*`,
+  `nvme*n*`) but none of their nodes exists in the agent's `/dev` (the
+  container is not privileged), or every device refused to open with a
+  permission error. Visible disks without SMART data (a VM's virtio disks,
+  which smartctl does not list) are `ok` with no devices.
+- **RAID** is read on every request from the sampler's procfs
+  (`DOCKER_AGENT_HOST_PROC`): `/proc/mdstat` (name, level, active or
+  inactive, read-only, members with `(F)` failed / `(S)` spare / `(W)`
+  write-mostly / `(R)` / `(J)` flags, `[n/m]`, size, the recovery,
+  resync, reshape, check or repair line with percent, finish estimate and
+  speed, `=DELAYED` / `=PENDING`) and `/proc/spl/kstat/zfs/<pool>/state`
+  (`ONLINE` healthy, `DEGRADED` degraded, `FAULTED`/`UNAVAIL`/`SUSPENDED`/
+  `REMOVED` failed, `OFFLINE` inactive); a pool whose state file cannot be
+  read (other than missing: exported meanwhile) or holds an unknown value
+  is left out and reported in `raid.message` (the API's RAID status
+  `error`). An md array is **failed** when no member works (any level) or
+  it lost more members than its level tolerates (raid4/5: more than one,
+  raid6: more than two, raid0/linear: any; raid10: fewer working members
+  than devices ÷ copies, from "2 near-copies", 2 when not shown; losing
+  fewer is degraded, since /proc/mdstat does not show which copies are
+  gone), **rebuilding**
+  during (or waiting for) a recovery, resync or reshape, **degraded** with
+  missing or failed members, **checking** during a check or repair,
+  **inactive** when stopped, else **healthy**. btrfs and hardware RAID
+  controllers are not covered.
+- `host.health {refresh}`: `smart` starts a fresh scan and read of every
+  disk and waits up to 3 s; a longer read answers with `smart.checking`
+  and the result comes with the next request. `raid` answers at once.
+
+**Manager** (`internal/manager/observe/health.go`): asks every online
+environment whose agent serves `host.health` about once a minute, 5 s after
+it comes online (or its agent's capabilities change) and every 5 s while
+the agent reads its disks (at most 10 minutes). An agent answering
+`unsupported_request` is skipped for 5 minutes. A report is kept in memory,
+stored in `metrics.db` (`host_health`: the agent's JSON, `collected_at`,
+`received_at`) only when its content changed (ignoring the read times) and
+announced as `inventory.updated` with `Attributes["health"] = "true"` (the
+inventory event's visibility rule; the System tab refetches). The stored
+reports are restored at startup and served while the environment is
+offline. A restarted agent whose first read is still running keeps the last
+known devices (marked checking). `CheckHealth` serves the check route: at
+most one check per environment every 30 s (smart) or 5 s (raid), `429`
+with `Retry-After` before.
+
+**API**: `GET …/environments/{id}/system` carries `diskHealth` (status as
+above plus `agent_outdated` when the agent's capabilities lack
+`host.health` and `unknown` before the first report; `checking`,
+`checkedAt`, the devices) and `raid` (the md arrays and ZFS pools as
+`arrays` with `kind`). `POST …/environments/{id}/disk-health/checks
+{scope: smart|raid}` (`environment.system.read`: a read that changes
+nothing on the host, audited as `environment.disk_health.check`) answers
+the fresh state.
 
 ## Scale budget
 

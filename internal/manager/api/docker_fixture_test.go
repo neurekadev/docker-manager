@@ -183,6 +183,12 @@ func (f *fakeObserve) Latest(context.Context, string) (domain.LatestMetrics, boo
 	return domain.LatestMetrics{}, false, nil
 }
 func (f *fakeObserve) Journal() *observe.Journal { return nil }
+func (f *fakeObserve) HostHealth(string) (observe.HostHealth, bool) {
+	return observe.HostHealth{}, false
+}
+func (f *fakeObserve) CheckHealth(context.Context, string, string) (observe.HostHealth, error) {
+	return observe.HostHealth{}, observe.ErrHealthUnsupported
+}
 
 // LatestContainers reports a recent sample of web, db and shop-web-1 in
 // every environment (db without a memory value).

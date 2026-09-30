@@ -1,11 +1,16 @@
 # Docker Agent image: static Go binary plus a pinned, checksum-verified
-# restic. No web UI, no Docker/Compose CLI, no listening port.
+# restic and a static smartctl built from the pinned, checksum-verified
+# smartmontools source release. No web UI, no Docker/Compose CLI, no
+# listening port.
 #
-# Every builder stage runs on $BUILDPLATFORM and cross-compiles, and the
-# final stage has no RUN instructions, so multi-arch builds need no QEMU.
+# The restic and Go stages run on $BUILDPLATFORM and cross-compile. The
+# smartctl stage compiles C++ natively for the target platform: CI builds
+# each architecture on its own runner (.github/workflows/CI.yaml), so it
+# needs no QEMU there; a local build for another architecture does. The
+# final stage has no RUN instructions.
 #
 #   docker buildx build -f deploy/docker/agent.Dockerfile \
-#     --platform linux/amd64,linux/arm64 .
+#     --platform linux/amd64 .
 #
 # Base images are pinned by digest; update tag and digest together.
 
@@ -32,6 +37,37 @@ RUN set -eu; \
     echo "${sum}  /tmp/restic.bz2" | sha256sum -c -; \
     bunzip2 -c /tmp/restic.bz2 > /restic; \
     chmod 0755 /restic
+
+# ---------------------------------------------------------------- smartctl
+# smartmontools' smartctl for disk health (#143): a separate GPL-2.0
+# program next to the agent, never linked into it (ADR 0005). Built as a
+# static binary (musl, no optional libraries) for the target platform;
+# its license and the exact source tarball ship in the image.
+FROM ${FETCH_IMAGE} AS smartctl
+# smartmontools release and SHA-256 of its source tarball (the release's
+# .md5 and the distributions' checksums agree). Bump both together.
+ARG SMARTMONTOOLS_VERSION=7.5
+ARG SMARTMONTOOLS_SHA256=690b83ca331378da9ea0d9d61008c4b22dde391387b9bbad7f29387f2595f76e
+RUN apk add --no-cache build-base linux-headers
+WORKDIR /src
+RUN set -eu; \
+    tarball="smartmontools-${SMARTMONTOOLS_VERSION}.tar.gz"; \
+    tag="RELEASE_$(echo "${SMARTMONTOOLS_VERSION}" | tr . _)"; \
+    wget -q -O "/src/${tarball}" "https://github.com/smartmontools/smartmontools/releases/download/${tag}/${tarball}"; \
+    echo "${SMARTMONTOOLS_SHA256}  /src/${tarball}" | sha256sum -c -; \
+    tar -xzf "/src/${tarball}"; \
+    cd "smartmontools-${SMARTMONTOOLS_VERSION}"; \
+    ./configure --without-libcap-ng --without-libsystemd --without-selinux \
+        --with-systemdsystemunitdir=no --with-systemdenvfile=no --with-initscriptdir=no \
+        --with-update-smart-drivedb=no --with-gnupg=no --with-nvme-devicescan=yes \
+        LDFLAGS=-static; \
+    make -j"$(nproc)" smartctl; \
+    strip smartctl; \
+    if readelf -l smartctl | grep -q INTERP; then echo "smartctl is not a static binary" >&2; exit 1; fi; \
+    mkdir -p /out/doc; \
+    install -m 0755 smartctl /out/smartctl; \
+    cp COPYING "/src/${tarball}" /out/doc/; \
+    /out/smartctl --version | head -n 1
 
 # ---------------------------------------------------------------- Go
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS build
@@ -65,6 +101,9 @@ LABEL org.opencontainers.image.title="docker-agent" \
       org.opencontainers.image.created="${GIT_DATE}"
 COPY --from=build /out/docker-agent /usr/local/bin/docker-agent
 COPY --from=restic /restic /usr/local/bin/restic
+COPY --from=smartctl /out/smartctl /usr/local/bin/smartctl
+# smartmontools' license (GPL-2.0) and its corresponding source.
+COPY --from=smartctl /out/doc/ /usr/share/doc/smartmontools/
 ENV DOCKER_AGENT_STATE_DIR=/var/lib/docker-agent
 # Docker Manager containers run as root (UID 0); the agent refuses to start otherwise (#28).
 USER 0:0

@@ -1039,6 +1039,7 @@ on a new session with a new frame ID.
 | `engine.compatibility` | request | manager service (session setup) | no | #21 |
 | `host.metrics` | request | `environment.metrics.read` | no | #5 |
 | `metrics.live` | request | manager service: about once a second while a browser live stream is open, only to agents that advertise it; the answers are served with `environment.metrics.read` / `container.metrics.read` | no | #5 |
+| `host.health` | request | manager service: about once a minute, only to agents that advertise it; checks (`refresh`) with `environment.system.read`; the answers are served with `environment.system.read` | no | #143 |
 | `container.list` | request | any container capability (fields shaped per #17; entries carry their network addresses and, while running, `startedAt`) | no | #6 |
 | `container.inspect` | request | `container.details.read` (the on-failure restart policy carries `restartMaxRetries` when limited) | no | #6 |
 | `container.stats` | request | `container.metrics.read` | no | #5 |
@@ -1132,6 +1133,40 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   the next request; without an Engine `flags` is
   `BatchEngineUnavailable` (2) and only host values are present. Absent
   values are unknown.
+- `host.health {refresh?}` → `HostHealthOutput {sampledAt, smart {status,
+  message?, checking?, scannedAt?, checkedAt?, devices [{name, type,
+  protocol?, model?, serial?, firmware?, capacityBytes?, rotationRpm?,
+  smartSupported, passed?, temperatureC?, powerOnHours?,
+  reallocatedSectors?, reportedUncorrectable?, pendingSectors?,
+  offlineUncorrectable?, failingAttributes? [{id, name, whenFailed}],
+  criticalWarning?, availableSpare?, availableSpareThreshold?,
+  mediaErrors?, percentageUsed?, grownDefects?, uncorrectedErrors?, state,
+  errorCode?, readAt?}]}, raid {readAt, message?, md [{name, level?,
+  state, readOnly?, devices?, active?, sizeBytes?, members [{name, slot,
+  state, writeMostly?}], action?, pending?, progress?, finishSeconds?,
+  speedBytesPerSecond?}], zfs [{name, health, state}]}}` (#143, added
+  after `metrics.live`: the manager sends it only to agents whose
+  capabilities list it; Go types in `internal/protocol/health.go`). The
+  disk health of the host: SMART data read with the agent image's
+  smartctl (cached, refreshed every `DOCKER_AGENT_SMART_INTERVAL`; a disk
+  in standby is never woken and keeps its previous values with state
+  `sleeping`) and the md arrays and ZFS pools read from procfs on every
+  request. `refresh` is empty, `smart` (a fresh scan and read of every
+  disk, never a self-test: the agent waits up to 3 s, then answers with
+  `smart.checking` and the result comes with a later request) or `raid`
+  (never a scrub); anything else is `invalid_argument`. `smart.status` is
+  `ok`, `disabled`, `no_access`, `not_installed` or `error`; a device's
+  `state` is `ok`, `warning`, `failing`, `sleeping` or `error` (with
+  `errorCode` `permission_denied`, `open_failed` or `unsupported`); array
+  and pool states are `healthy`, `degraded`, `rebuilding`, `checking`,
+  `failed` or `inactive`; `whenFailed` is `now` or `past`. At most 256
+  devices, 64 md arrays, 64 pools, 128 members per array and 32 failing
+  attributes per device; the manager validates every bound
+  (`HostHealthOutput.Validate`). A device is identified by `name` and
+  `type` together (disks behind one RAID controller share its path). A
+  read that failed reports `state` `error` with the last measurements
+  kept. Serial numbers are data, never logged.
+  Rules and derivation: [metrics.md](../architecture/metrics.md#host-health).
 
 ## Allowed streams
 
@@ -1261,6 +1296,7 @@ The manager maps them to public errors: `not_found` → 404,
 | byte streams: open/accept, credit flow control, half close, results, aborts, limits | `internal/streammux` (both ends), `agents.Session.OpenStream` / `Hub.OpenStream`, `session.Options.Streams` | implemented (#15) |
 | scoped files: `files.*` requests, `files.download` / `files.upload` streams, `files.*` job executors | `internal/agent/files`, `internal/manager/files` | implemented (#15) |
 | `engine.info`, `host.metrics`, `metrics.live`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
+| `host.health` (SMART through smartctl, md and ZFS state) | `internal/agent/health`, `internal/agent/smartctl`, `internal/manager/observe` | implemented (#143) |
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect/usage`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
 | `files.watch` watch set, scoped filesystem watcher (inotify, debounce, rename handling, watch-limit accounting, bounded reconciliation), `rescan` | `internal/agent/watch`, `internal/manager/files` (`Watcher`), `agents.Session.Rescan` | implemented (#23) |
 | agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stub | not needed in v1 |

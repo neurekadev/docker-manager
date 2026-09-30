@@ -1,0 +1,25 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 5],
+    "exit_status": 8,
+    "messages": [{"string": "SMART overall-health self-assessment test result: FAILED!", "severity": "error"}]
+  },
+  "device": {"name": "/dev/nvme1", "info_name": "/dev/nvme1", "type": "nvme", "protocol": "NVMe"},
+  "model_name": "WDC WDS500G2B0C-00PXH0",
+  "serial_number": "21000A800000",
+  "firmware_version": "211070WD",
+  "nvme_total_capacity": 500107862016,
+  "smart_support": {"available": true, "enabled": true},
+  "smart_status": {"passed": false, "nvme": {"value": 4, "reliability_degraded": true}},
+  "nvme_smart_health_information_log": {
+    "critical_warning": 4,
+    "temperature": 51,
+    "available_spare": 3,
+    "available_spare_threshold": 10,
+    "percentage_used": 97,
+    "power_on_hours": 26280,
+    "media_errors": 340282366920938463463374607431768211455,
+    "num_err_log_entries": 12
+  }
+}

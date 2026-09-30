@@ -420,10 +420,13 @@ formatters, never with `toFixed`, `Math.round` or a hand-made unit
 123.45 GB, 2 GB; whole bytes below 1 KB), `formatPercent` (0.07%, 12.34%,
 100%), `formatValue(v, unit)` for metric units (`bytes_per_second`
 "1.25 MB/s", `load` "0.5"; `count` stays whole), `Meter` (its percentage),
-`ratioText` in backups ("2.01x", "2x"). Counts stay whole numbers.
+`ratioText` in backups ("2.01x", "2x"), `formatTemperature` ("38 °C",
+"41.5 °C"). Counts stay whole numbers.
 
 Durations and times are unit pairs, not decimals: `formatDuration` (two
 units, one style: "1 s", "3 min 20 s", "17 h 9 min", "3 d 4 h"),
+`formatHours` (long spans of hours with years: "3 y 41 d", a disk's
+power-on time),
 `parseGoDuration` / `formatGoDuration` (a Go duration string such as
 `17h9m0s` from the API, read as seconds or as "17 h 9 min"), `formatUptime`
 (live uptimes), `secondsSince(iso, nowMs)`, `formatRelative(iso, now)`,

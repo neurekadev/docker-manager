@@ -2,8 +2,10 @@
 
 Docker Manager backs up the manager's state and the stacks and volumes of every
 environment with **restic**: a pinned, checksum-verified restic 0.19.1 in
-both images (`deploy/docker/*.Dockerfile`), run by `internal/restic` — the
-only production process execution in Docker Manager.
+both images (`deploy/docker/*.Dockerfile`), run by `internal/restic` — one
+of the two production process executions in Docker Manager (the other is
+the agent's smartctl runner for disk health, see
+[engine-integration.md](engine-integration.md#process-execution)).
 
 | Package | Role |
 | --- | --- |

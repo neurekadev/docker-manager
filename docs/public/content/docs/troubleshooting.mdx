@@ -55,6 +55,15 @@ The agent's mount of Docker's volume folder is missing or wrong
 volume lines exactly as in the Quickstart, or see
 [Docker's data folder](/configuration#dockers-data-folder).
 
+## Docker Manager can't read a server's disks
+
+The **Disk health** card on the server's **System** tab says **Docker
+Manager can’t read this server’s disks.** The agent runs without
+`privileged: true`, so it can't open the disks. Add the line to the agent
+and deploy it again (see
+[Monitoring](/monitoring#give-the-agent-access-to-the-disks)). A disk you
+connected after the agent started appears once the agent restarts.
+
 ## Live views stop updating after about a minute
 
 Your proxy cuts idle connections too early or holds back responses. Allow

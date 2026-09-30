@@ -7,8 +7,12 @@
 	// a minute early); a connected one since when. Identifiers (environment, agent and Engine
 	// IDs), the protocol and the API details wait under "Advanced". The
 	// outdated-agent notice is the page's (shown once, above the tabs).
+	// Below the facts: the disks' health and the RAID arrays (#143).
 	import type { Environment, EnvironmentSystem } from '$lib/api/client';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import DiskHealthCard from './DiskHealthCard.svelte';
+	import RaidCard from './RaidCard.svelte';
+	import { showRaidCard } from './diskHealth';
 	import {
 		Badge,
 		Card,
@@ -250,6 +254,19 @@
 			</div>
 		</Card>
 	</div>
+
+	{#if system.diskHealth}
+		<DiskHealthCard
+			{env}
+			health={system.diskHealth}
+			raid={system.raid}
+			online={system.online}
+			{now}
+		/>
+	{/if}
+	{#if system.raid && showRaidCard(system.raid)}
+		<RaidCard {env} raid={system.raid} online={system.online} {now} />
+	{/if}
 </div>
 
 <style>

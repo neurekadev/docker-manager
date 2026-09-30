@@ -47,6 +47,9 @@ type ObserveService interface {
 	Latest(ctx context.Context, environmentID string) (domain.LatestMetrics, bool, error)
 	LatestContainers(ctx context.Context, environmentID string, window time.Duration) ([]domain.LatestContainerMetrics, error)
 	Journal() *observe.Journal
+	// Disk health (#143, disk_health.go).
+	HostHealth(environmentID string) (observe.HostHealth, bool)
+	CheckHealth(ctx context.Context, environmentID, scope string) (observe.HostHealth, error)
 }
 
 // MetricSeries is one series of a metrics response.

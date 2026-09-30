@@ -1,0 +1,75 @@
+{
+  "json_format_version": [
+    1,
+    0
+  ],
+  "smartctl": {
+    "version": [
+      7,
+      5
+    ],
+    "exit_status": 0,
+    "argv": [
+      "smartctl",
+      "--scan-open",
+      "--json"
+    ]
+  },
+  "devices": [
+    {
+      "name": "/dev/sda",
+      "info_name": "/dev/sda [SAT]",
+      "type": "sat",
+      "protocol": "ATA"
+    },
+    {
+      "name": "/dev/sdb",
+      "info_name": "/dev/sdb",
+      "type": "scsi",
+      "protocol": "SCSI"
+    },
+    {
+      "name": "/dev/sdc",
+      "info_name": "/dev/sdc",
+      "type": "scsi",
+      "protocol": "SCSI",
+      "open_error": "/dev/sdc: Unknown USB bridge [0x152d:0x0578 (0x508)]"
+    },
+    {
+      "name": "/dev/nvme0",
+      "info_name": "/dev/nvme0",
+      "type": "nvme",
+      "protocol": "NVMe"
+    },
+    {
+      "name": "/dev/sda",
+      "info_name": "/dev/sda [SAT]",
+      "type": "sat",
+      "protocol": "ATA"
+    },
+    {
+      "name": "/dev/bus/0",
+      "info_name": "/dev/bus/0 [megaraid_disk_00]",
+      "type": "megaraid,0",
+      "protocol": "SCSI"
+    },
+    {
+      "name": "/dev/bus/0",
+      "info_name": "/dev/bus/0 [megaraid_disk_01]",
+      "type": "megaraid,1",
+      "protocol": "SCSI"
+    },
+    {
+      "name": "-oops",
+      "info_name": "-oops",
+      "type": "sat",
+      "protocol": "ATA"
+    },
+    {
+      "name": "/dev/sdd",
+      "info_name": "/dev/sdd",
+      "type": "--evil",
+      "protocol": "ATA"
+    }
+  ]
+}

@@ -120,9 +120,9 @@ The standard suite is format/lint plus isolated unit tests (owner decision,
   in-process fakes (`enginefake`, `restictest`, `regclient/regtest`,
   `streammux/muxtest`, `migrationtest`, `containerio/ciotest`), `httptest`
   servers, temporary directories and SQLite files under `t.TempDir()`; they
-  never start containers, a Docker Engine, browsers, real registries or
-  restic (the restic runner's test re-executes the test binary as a fake
-  restic).
+  never start containers, a Docker Engine, browsers, real registries,
+  restic or smartctl (the restic and smartctl runners' tests re-execute
+  the test binary as a fake).
 - Use `internal/clock` (`clock.NewFake`, `testutil.FakeClock()`) instead of
   sleeping; `testutil.Logger(t)` and `testutil.CaptureLogger()` for logs.
 - Shared test infrastructure: `internal/testutil/canary` (secret canaries),

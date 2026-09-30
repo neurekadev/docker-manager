@@ -177,6 +177,10 @@ func New(opts Options) *Sampler {
 // Epoch returns the sampler epoch.
 func (s *Sampler) Epoch() string { return s.epoch }
 
+// Proc returns the procfs the sampler reads (DOCKER_AGENT_HOST_PROC); the
+// disk health monitor reads RAID state and the block devices from it.
+func (s *Sampler) Proc() fs.FS { return s.opts.Proc }
+
 // Run samples at every multiple of Interval until ctx ends.
 func (s *Sampler) Run(ctx context.Context) {
 	clk, iv := s.opts.Clock, s.opts.Interval

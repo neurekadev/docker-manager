@@ -135,7 +135,8 @@ Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 What the sources are: Docker events relayed by agents (#5) → `invalidate`
 on `containers`/`images`/`volumes`/`networks`; environment and agent state
 and enrollments → `environments`/`agents` (online/offline as `agent`);
-Engine inventory refreshes → `invalidate` kind `inventory`; new stored
+Engine inventory refreshes and disk health changes → `invalidate` kind
+`inventory`; new stored
 metric samples → `invalidate` topic `metrics` kind `metrics` (charts and
 current values, normally every 10 s per environment); new live CPU and
 memory values → `invalidate` topic `metrics` kind `live_metrics` (only the

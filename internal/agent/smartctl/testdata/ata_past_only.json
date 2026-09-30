@@ -1,0 +1,75 @@
+{
+  "json_format_version": [
+    1,
+    0
+  ],
+  "smartctl": {
+    "version": [
+      7,
+      5
+    ],
+    "exit_status": 32
+  },
+  "device": {
+    "name": "/dev/sde",
+    "info_name": "/dev/sde [SAT]",
+    "type": "sat",
+    "protocol": "ATA"
+  },
+  "model_name": "ST8000VN004-2M2101",
+  "serial_number": "WSD0AAAA",
+  "firmware_version": "SC60",
+  "user_capacity": {
+    "blocks": 15628053168,
+    "bytes": 8001563222016
+  },
+  "rotation_rate": 7200,
+  "smart_support": {
+    "available": true,
+    "enabled": true
+  },
+  "smart_status": {
+    "passed": true
+  },
+  "ata_smart_attributes": {
+    "revision": 10,
+    "table": [
+      {
+        "id": 5,
+        "name": "Reallocated_Sector_Ct",
+        "value": 100,
+        "worst": 100,
+        "thresh": 10,
+        "when_failed": "",
+        "flags": {
+          "prefailure": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 190,
+        "name": "Airflow_Temperature_Cel",
+        "value": 62,
+        "worst": 40,
+        "thresh": 40,
+        "when_failed": "past",
+        "flags": {
+          "prefailure": false
+        },
+        "raw": {
+          "value": 38,
+          "string": "38 (Min/Max 21/60)"
+        }
+      }
+    ]
+  },
+  "power_on_time": {
+    "hours": 17000
+  },
+  "temperature": {
+    "current": 38
+  }
+}

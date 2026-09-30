@@ -1,0 +1,46 @@
+---
+title: Metrics
+description: Charts of each server's and container's CPU, memory, network and disk use.
+---
+
+Docker Manager samples every server and its containers every 10 seconds
+and keeps the history for 90 days. The charts show how busy a server is
+and which containers use it.
+
+## Server charts
+
+1. Open **Environments** and pick an environment.
+2. On its **Overview** tab, the **Metrics** card shows **CPU**, **Memory**,
+   **Network** (received and sent), **Load** and one **Disk** chart per
+   storage area, for example **Disk: Docker data**.
+3. Pick the time span in the card's menu, from **Last 1 hour** to
+   **Last 90 days**.
+
+Longer ranges show averages. Shaded spans have no data: the server was
+offline or not reporting.
+
+## Container charts
+
+Below the server's charts, under **Containers**, the **Docker CPU**,
+**Docker memory**, **Docker network** and **Docker disk I/O** charts show
+each container in its own colour, the largest on top. Hover a chart to see
+every container's value at that moment, largest first, and their total.
+Type part of a name (or several, separated by spaces) in **Filter by name**
+to highlight those containers: the others turn grey and leave the tooltip.
+Network and disk I/O add up both directions; the tooltip lists them apart.
+
+A container's own page shows its **CPU** and **Memory** in the **Usage**
+card, for the **Last hour**, **Last 6 hours** or **Last 24 hours**.
+
+Good to know:
+
+- The charts include only the containers whose metrics you may see.
+- There is no storage chart per container, since several containers can
+  share a volume.
+- By default the server's network chart shows only the agent's own
+  traffic. To see the whole server's traffic, add `pid: host` to the agent
+  in its `compose.yaml`. This lets the agent see every process on the
+  server.
+- Docker Manager keeps 10-second samples for 24 hours, 1-minute averages
+  for 7 days and 15-minute averages for 90 days. You can change this in
+  the [Configuration](/configuration).

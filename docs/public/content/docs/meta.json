@@ -21,6 +21,8 @@
     "logs",
     "migrations",
     "---Monitoring and notifications---",
+    "metrics",
+    "monitoring",
     "notifications",
     "---Administration---",
     "users-and-groups",

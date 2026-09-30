@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/neurekadev/docker-manager/internal/envconfig"
 )
@@ -117,6 +118,44 @@ func TestParseRedirectURL(t *testing.T) {
 			t.Errorf("ParseRedirectURL(%q) accepted", bad)
 		} else if strings.Contains(err.Error(), "hunter2") {
 			t.Errorf("ParseRedirectURL(%q) echoes the password: %v", bad, err)
+		}
+	}
+}
+
+// TestSMARTSettings (#143): SMART is on by default, read every 30 minutes
+// (5 minutes to 24 hours) with the image's smartctl.
+func TestSMARTSettings(t *testing.T) {
+	base := map[string]string{EnvManagerURL: "https://docker.example.com"}
+	cfg, err := Load(envconfig.Map(base, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.SMARTEnabled || cfg.SMARTInterval != DefaultSMARTInterval || cfg.SmartctlBinary != DefaultSmartctlBinary {
+		t.Fatalf("defaults: %v %v %q", cfg.SMARTEnabled, cfg.SMARTInterval, cfg.SmartctlBinary)
+	}
+	with := func(kv ...string) map[string]string {
+		m := map[string]string{EnvManagerURL: "https://docker.example.com"}
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
+	cfg, err = Load(envconfig.Map(with(EnvSMARTEnabled, "false", EnvSMARTInterval, "2h", EnvSmartctl, "/opt/smartctl"), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SMARTEnabled || cfg.SMARTInterval != 2*time.Hour || cfg.SmartctlBinary != "/opt/smartctl" {
+		t.Fatalf("set: %v %v %q", cfg.SMARTEnabled, cfg.SMARTInterval, cfg.SmartctlBinary)
+	}
+	for _, bad := range []map[string]string{
+		with(EnvSMARTEnabled, "sometimes"),
+		with(EnvSMARTInterval, "1m"),
+		with(EnvSMARTInterval, "25h"),
+		with(EnvSMARTInterval, "often"),
+		with(EnvSmartctl, "smartctl"),
+	} {
+		if _, err := Load(envconfig.Map(bad, nil)); err == nil {
+			t.Errorf("accepted %v", bad)
 		}
 	}
 }

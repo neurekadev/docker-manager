@@ -1,0 +1,29 @@
+{
+  "json_format_version": [
+    1,
+    0
+  ],
+  "smartctl": {
+    "version": [
+      7,
+      5
+    ],
+    "exit_status": 3,
+    "messages": [
+      {
+        "string": "Device is in STANDBY mode, exit(3)",
+        "severity": "information"
+      }
+    ]
+  },
+  "device": {
+    "name": "/dev/sda",
+    "info_name": "/dev/sda [SAT]",
+    "type": "sat",
+    "protocol": "ATA"
+  },
+  "power_mode": {
+    "ata_value": 0,
+    "name": "STANDBY"
+  }
+}

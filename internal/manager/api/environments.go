@@ -149,6 +149,10 @@ type EnvironmentSystem struct {
 	Docker           *DockerCounts `json:"docker,omitempty" doc:"Docker object counts (Engine inventory; -1 = unknown)."`
 	InventoryAt      *time.Time    `json:"inventoryAt,omitempty" doc:"When the agent read the Engine inventory."`
 	ClockSkewSeconds *float64      `json:"clockSkewSeconds,omitempty" doc:"The agent clock's offset (manager minus agent) applied to its samples; absent within 2 s."`
+	// Disk health (#143): refreshed about every minute and on "Check
+	// disks now" / "Check RAID now"; the last known one while offline.
+	DiskHealth *DiskHealth `json:"diskHealth,omitempty" doc:"SMART state of the host's disks."`
+	RAID       *RAIDHealth `json:"raid,omitempty" doc:"State of the host's software RAID arrays (md) and ZFS pools."`
 }
 
 // capabilitiesOf decodes an agent's stored capabilities (nil when none).
@@ -464,6 +468,7 @@ func (h *agentsAPI) environmentSystem(ctx context.Context, in *environmentIDInpu
 	out := newSystem(sys, h.deps.Build.Version)
 	if obs := h.deps.Observe; obs != nil {
 		addInventory(&out, obs, env.ID)
+		addHealth(&out, obs, env.ID)
 	}
 	return &environmentSystemOutput{Body: out}, nil
 }
@@ -533,9 +538,12 @@ func registerEnvironments(a huma.API, deps Deps) {
 			Summary: "Get an environment's system information",
 			Description: "The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, " +
 				"transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, " +
-				"capacity and Docker counts, refreshed on change (#5). Host metrics: GET …/metrics and …/capacity.",
+				"capacity and Docker counts, refreshed on change (#5), and the disk health: SMART state of the host's disks and its RAID " +
+				"arrays, refreshed about every minute (#143). Host metrics: GET …/metrics and …/capacity.",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound},
 		},
 		Capability: CapEnvironmentSystemRead, Scope: ScopeEnvironment,
 	}, h.environmentSystem)
+
+	registerDiskHealth(a, h)
 }

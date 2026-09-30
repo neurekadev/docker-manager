@@ -38,6 +38,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/containerio"
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/files"
+	"github.com/neurekadev/docker-manager/internal/agent/health"
 	agentjobs "github.com/neurekadev/docker-manager/internal/agent/jobs"
 	"github.com/neurekadev/docker-manager/internal/agent/migration"
 	"github.com/neurekadev/docker-manager/internal/agent/observe"
@@ -46,6 +47,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/resources"
 	"github.com/neurekadev/docker-manager/internal/agent/selfupdate"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/smartctl"
 	"github.com/neurekadev/docker-manager/internal/agent/stacks"
 	"github.com/neurekadev/docker-manager/internal/agent/state"
 	"github.com/neurekadev/docker-manager/internal/agent/storage"
@@ -220,6 +222,8 @@ type Agent struct {
 	readyOnce   sync.Once
 
 	sampler *observe.Sampler
+	// health reads SMART and RAID state (#143); nil without Observe.
+	health *health.Monitor
 	// watcher watches the declared file scopes (#23); nil without Files.
 	watcher *watch.Watcher
 	// execShell: container.exec.create is served by containerio, which
@@ -284,10 +288,12 @@ func New(opts Options) (*Agent, error) {
 	if opts.Observe {
 		a.sampler = observe.New(observe.Options{Clock: opts.Clock, Logger: opts.Logger, ProcRoot: opts.Config.HostProc,
 			Engine: a.observedEngine, Roots: a.observedRoots})
-		reqs := make(map[string]session.RequestHandler, len(opts.Requests)+3)
+		a.health = newHealthMonitor(opts, a.sampler)
+		reqs := make(map[string]session.RequestHandler, len(opts.Requests)+4)
 		reqs[protocol.ReqEngineInfo] = a.sampler.EngineInfo
 		reqs[protocol.ReqHostMetrics] = a.sampler.HostMetrics
 		reqs[protocol.ReqMetricsLive] = a.sampler.LiveMetrics
+		reqs[protocol.ReqHostHealth] = a.health.HostHealth
 		for k, v := range opts.Requests {
 			reqs[k] = v
 		}
@@ -327,6 +333,23 @@ func New(opts Options) (*Agent, error) {
 		a.enableBackups()
 	}
 	return a, nil
+}
+
+// newHealthMonitor builds the disk health monitor (#143): SMART through
+// the pinned smartctl unless DOCKER_AGENT_SMART_ENABLED is false, RAID
+// from the sampler's procfs.
+func newHealthMonitor(opts Options, sampler *observe.Sampler) *health.Monitor {
+	cfg := opts.Config
+	var smart health.SMART
+	if cfg.SMARTEnabled {
+		bin := cfg.SmartctlBinary
+		if bin == "" {
+			bin = config.DefaultSmartctlBinary
+		}
+		smart = &smartctl.Runner{Binary: bin, Logger: opts.Logger.With("component", "smartctl")}
+	}
+	return health.New(health.Options{Clock: opts.Clock, Logger: opts.Logger, Proc: sampler.Proc(), SMART: smart,
+		Interval: cfg.SMARTInterval})
 }
 
 // enableBackups wires backups (#10): requests, the backup.file stream and
@@ -863,9 +886,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	if a.sampler != nil {
 		relay := observe.NewEventRelay(observe.EventOptions{Clock: clk, Logger: log, Engine: a.observedEngine, Publisher: a.client.Events()})
-		control.Add(2)
+		control.Add(3)
 		go func() { defer control.Done(); a.sampler.Run(ctx) }()
 		go func() { defer control.Done(); relay.Run(ctx) }()
+		go func() { defer control.Done(); a.health.Run(ctx) }()
 	}
 	defer func() {
 		control.Wait()

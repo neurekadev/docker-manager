@@ -1,7 +1,8 @@
 // Package metrics is the manager's metrics storage (#5): a separate
 // SQLite file (<data>/metrics.db) with its own migrations
 // (internal/db/metricsmigrations), holding 10 s samples, 1 min and 15 min
-// rollups, the collector cursors and the last Engine inventories.
+// rollups, the collector cursors, the last Engine inventories and the last
+// disk health reports (#143).
 //
 // Guarantees (docs/internal/architecture/metrics.md):
 //

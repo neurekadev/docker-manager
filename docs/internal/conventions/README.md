@@ -22,7 +22,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Notification channels, alerts, Shoutrrr | `internal/manager/notify`, `store/notification_channels.go`, `api/notifications.go`, `web/src/lib/features/notifications` | [alerts-and-notifications.md](alerts-and-notifications.md) |
 | Image builds | `internal/manager/builds`, `gitcreds`, `internal/agent/buildrun` | [builds.md](builds.md) |
 | Agent sessions, requests, events | `internal/manager/agents`, `internal/agent/session`, `runtime`, `internal/protocol` | [agent-transport.md](agent-transport.md) |
-| Metrics and inventory | `internal/agent/observe`, `internal/manager/observe`, `metrics` | [observation.md](observation.md) |
+| Metrics, inventory and disk health | `internal/agent/observe`, `internal/agent/health`, `internal/agent/smartctl`, `internal/manager/observe`, `metrics` | [observation.md](observation.md) |
 | Containers, images, volumes, networks | `internal/manager/resources`, `internal/agent/resources`, `internal/agent/volumelabels`, `protocol/docker.go` | [docker-resources.md](docker-resources.md) |
 | Byte streams and file manager | `internal/streammux`, `internal/fsroot`, `internal/agent/files`, `internal/manager/files` | [files-and-streams.md](files-and-streams.md) |
 | Compose stacks, import by copy | `internal/manager/stacks`, `internal/agent/stacks`, `lifecycle`, `compose` | [stacks.md](stacks.md) |

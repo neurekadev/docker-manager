@@ -3,7 +3,7 @@
 Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/backups.md`. restic runs only through
-`internal/restic` (`Runner`, the one lint-exempt process execution; tests
+`internal/restic` (`Runner`, lint-exempt like the smartctl runner; tests
 use `restic/restictest`). Shared helpers: `internal/backup` (destinations
 and scopes `docker-manager` / `docker-manager-env-<id>`, tags, the portable
 manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`

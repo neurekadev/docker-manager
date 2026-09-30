@@ -1,0 +1,37 @@
+{
+  "json_format_version": [
+    1,
+    0
+  ],
+  "smartctl": {
+    "version": [
+      7,
+      5
+    ],
+    "exit_status": 4,
+    "messages": [
+      {
+        "string": "SMART support is: Unavailable - device lacks SMART capability.",
+        "severity": "information"
+      }
+    ]
+  },
+  "device": {
+    "name": "/dev/sda",
+    "info_name": "/dev/sda",
+    "type": "scsi",
+    "protocol": "SCSI"
+  },
+  "scsi_vendor": "QEMU",
+  "scsi_product": "QEMU HARDDISK",
+  "scsi_model_name": "QEMU QEMU HARDDISK",
+  "scsi_revision": "2.5+",
+  "user_capacity": {
+    "blocks": 67108864,
+    "bytes": 34359738368
+  },
+  "rotation_rate": 0,
+  "smart_support": {
+    "available": false
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "json_format_version": [
+    1,
+    0
+  ],
+  "smartctl": {
+    "version": [
+      7,
+      5
+    ],
+    "exit_status": 24,
+    "messages": [
+      {
+        "string": "SMART overall-health self-assessment test result: FAILED!",
+        "severity": "error"
+      }
+    ]
+  },
+  "device": {
+    "name": "/dev/sda",
+    "info_name": "/dev/sda [SAT]",
+    "type": "sat",
+    "protocol": "ATA"
+  },
+  "model_name": "ST2000DM001-1CH164",
+  "serial_number": "Z1E0ABCD",
+  "firmware_version": "CC26",
+  "user_capacity": {
+    "blocks": 3907029168,
+    "bytes": 2000398934016
+  },
+  "rotation_rate": 7200,
+  "smart_support": {
+    "available": true,
+    "enabled": true
+  },
+  "smart_status": {
+    "passed": false
+  },
+  "ata_smart_attributes": {
+    "revision": 10,
+    "table": [
+      {
+        "id": 5,
+        "name": "Reallocated_Sector_Ct",
+        "value": 5,
+        "worst": 5,
+        "thresh": 36,
+        "when_failed": "now",
+        "flags": {
+          "prefailure": true
+        },
+        "raw": {
+          "value": 3920,
+          "string": "3920"
+        }
+      },
+      {
+        "id": 190,
+        "name": "Airflow_Temperature_Cel",
+        "value": 60,
+        "worst": 38,
+        "thresh": 45,
+        "when_failed": "past",
+        "flags": {
+          "prefailure": false
+        },
+        "raw": {
+          "value": 40,
+          "string": "40 (Min/Max 22/62)"
+        }
+      },
+      {
+        "id": 197,
+        "name": "Current_Pending_Sector",
+        "value": 100,
+        "worst": 100,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "prefailure": false
+        },
+        "raw": {
+          "value": 16,
+          "string": "16"
+        }
+      }
+    ]
+  },
+  "power_on_time": {
+    "hours": 43210
+  },
+  "temperature": {
+    "current": 40
+  }
+}

@@ -9,9 +9,9 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   `restictest`, `regclient/regtest`, `streammux/muxtest`, `migrationtest`,
   `containerio/ciotest`), `httptest` servers, temporary directories and
   SQLite files under `t.TempDir()`; they never start containers or a Docker
-  Engine, browsers, real registries, restic or other external programs
-  (the restic runner's test re-executes the test binary as a fake), and
-  never leave the loopback interface.
+  Engine, browsers, real registries, restic, smartctl or other external
+  programs (the restic and smartctl runners' tests re-execute the test
+  binary as a fake), and never leave the loopback interface.
 - Never add build-tagged (`integration`, `e2e`, ...), fuzz, race,
   benchmark, performance, smoke, end-to-end or other extended tests or their
   infrastructure without an explicit request; such a check stays outside
