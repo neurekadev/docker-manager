@@ -121,10 +121,11 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 		await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
 		const o = lazy.mounted[before];
 		expect(o.stacked).toBe(true);
+		// Stacked from the bottom: the last item first, the first on top.
 		expect(o.lines.map((l) => [l.name, !!l.muted])).toEqual([
-			['db', false],
+			['cache', false],
 			['web', false],
-			['cache', false]
+			['db', false]
 		]);
 		expect(o.tooltip?.(1)).toContain('web');
 	});
@@ -145,15 +146,17 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 		);
 		await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
 		const o = lazy.mounted[before];
-		// Shown items first (the bottom of the stack), the muted one last.
+		// Filtered out items stay in their place, greyed out.
 		expect(o.lines.map((l) => [l.name, !!l.muted])).toEqual([
-			['db', false],
 			['cache', false],
-			['web', true]
+			['web', true],
+			['db', false]
 		]);
 		const tip = o.tooltip?.(1) ?? '';
 		expect(tip).toContain('db');
 		expect(tip).not.toContain('web');
+		// db 3 + cache 1 at that bucket; web (4) is left out.
+		expect(tip).toMatch(/Total <b[^>]*>4</);
 	});
 
 	it('totals the newest bucket of the shown items, not of a hidden newer one', () => {

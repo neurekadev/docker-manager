@@ -29,6 +29,7 @@
 	import { JobWatcher } from '$lib/api/jobs.svelte';
 	import {
 		ScriptedEventSource,
+		demoContainerMemory,
 		demoCpuSeries,
 		demoJob,
 		demoJobClient,
@@ -37,6 +38,7 @@
 		type DemoService
 	} from '$lib/design/demo';
 	import { SERVICE_COLOR, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
+	import { byRank, nameFilter } from '$lib/features/environments/containers';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import LifecycleButton from '$lib/features/common/LifecycleButton.svelte';
@@ -62,6 +64,7 @@
 		KpiCard,
 		Menu,
 		Meter,
+		MultiSeriesChart,
 		Notice,
 		OfflineEnvironment,
 		PageHeader,
@@ -250,6 +253,14 @@
 	];
 	let selected = $state<string[]>([]);
 	const cpu = demoCpuSeries(40);
+
+	// Many items on one chart (the environment's per-container charts).
+	const memoryTimes = Array.from({ length: 60 }, (_, i) =>
+		new Date(Date.UTC(2026, 8, 25, 12, i)).toISOString()
+	);
+	const memoryItems = byRank(demoContainerMemory(60).map((c) => ({ ...c, color: '' })));
+	let memoryFilter = $state('');
+	const memoryShown = $derived(nameFilter(memoryFilter));
 
 	// Overlays and forms.
 	let chipAll = $state(true);
@@ -817,6 +828,31 @@
 		</Card>
 	</section>
 
+	<section aria-labelledby="charts-title" class="section">
+		<h2 id="charts-title">Charts</h2>
+		<Card title="Many items on one chart">
+			{#snippet actions()}
+				<div class="chart-filter">
+					<TextField
+						label="Filter containers"
+						hideLabel
+						placeholder="Filter by name"
+						type="search"
+						bind:value={memoryFilter}
+					/>
+				</div>
+			{/snippet}
+			<MultiSeriesChart
+				title="Docker memory"
+				unit="bytes"
+				timestamps={memoryTimes}
+				items={memoryItems}
+				shown={memoryShown}
+				height="240px"
+			/>
+		</Card>
+	</section>
+
 	<section aria-labelledby="lazy-title" class="section">
 		<h2 id="lazy-title">Lazy surfaces</h2>
 		<p data-testid="loaded">Loaded: {loaded.length ? loaded.join(', ') : 'none'}</p>
@@ -908,6 +944,10 @@
 </Dialog>
 
 <style>
+	.chart-filter {
+		width: min(100%, 240px);
+	}
+
 	.gallery {
 		display: flex;
 		flex-direction: column;

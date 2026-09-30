@@ -81,6 +81,46 @@ export const demoServices: DemoService[] = [
 	}
 ];
 
+/** Memory of the demo containers of MultiSeriesChart (MB at rest). */
+const demoContainerSizes: [string, number][] = [
+	['vrising', 3400],
+	['infinidysk', 1600],
+	['silo-postgres', 1000],
+	['pangolin', 760],
+	['kodus-api', 600],
+	['kodus-worker', 560],
+	['rclone-manager', 520],
+	['silo', 435],
+	['uptime-kuma', 375],
+	['universe-server', 330],
+	['meilisearch', 290],
+	['sonarr', 240],
+	['radarr', 220],
+	['kodus-webhooks', 180],
+	['mongodb', 160],
+	['prowlarr', 140],
+	['redis', 60],
+	['traefik', 45],
+	['docker-agent', 30],
+	['docker-manager', 90]
+];
+
+/**
+ * Deterministic memory series (bytes) of about twenty containers for the
+ * MultiSeriesChart gallery: steady use with small wobbles, one container
+ * started late (leading gaps).
+ */
+export function demoContainerMemory(n = 60): { name: string; values: (number | null)[] }[] {
+	return demoContainerSizes.map(([name, mb], k) => ({
+		name,
+		values: Array.from({ length: n }, (_, i) =>
+			name === 'redis' && i < 12
+				? null
+				: Math.round((mb + mb * 0.03 * Math.sin((i + k * 3) / 5)) * 1024 * 1024)
+		)
+	}));
+}
+
 /** A deterministic CPU series (percent) with one gap. */
 export function demoCpuSeries(n = 40): (number | null)[] {
 	return Array.from({ length: n }, (_, i) =>

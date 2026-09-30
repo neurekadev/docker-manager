@@ -393,13 +393,17 @@ loading.
 `MultiSeriesChart` (`title`, `timestamps`, `items: SeriesItem[]` with
 `name`, `color`, `values` and optional `parts`, `unit`, `shown`,
 `from`/`to`, `detail`) draws many items of one type as stacked areas
-without a legend: the headline is the total of the shown items' newest
-bucket, and
-hovering lists every shown item with a value there, largest first, in its
-colour, with its parts ("12 KB/s in, 3 KB/s out"); lists longer than 20
-rows wrap into columns and the tooltip sits beside the pointer inside the
-window (`besidePointer`). Items `shown` leaves out (a name filter) are
-greyed out above the shown ones and left out of the tooltip and the total.
+without a legend, like Beszel: `items` in stacking order, the first on top
+(the environment's charts pass them ranked by usage, largest first, so the
+bands form an ordered gradient), monotone curves, 40 % fills, 1 px lines
+and a dot per band at the pointer. The headline is the total of the shown
+items' newest bucket; hovering lists every shown item with a value there,
+largest first, in its colour, with its parts ("12 KB/s in, 3 KB/s out"),
+under their total; lists longer than 20 rows wrap into columns (values
+right-aligned per column) and the tooltip sits beside the pointer inside
+the window (`besidePointer`). Items `shown` leaves out (a name filter) stay
+in their place, greyed out, and are left out of the tooltip and the total.
+The `/design` gallery shows it with twenty demo containers.
 Pure helpers in `$lib/ui/multiseries.ts` (`tooltipRows`, `tooltipHtml`,
 `totalAt`); `timeSeriesOption` takes `stacked`, `muted` lines and a
 `tooltip` callback for it.

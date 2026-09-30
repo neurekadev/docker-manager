@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContainerMetricsHistory } from '$lib/api/queries';
 import { rankColor } from '$lib/design/hue';
 import {
-	colourByRank,
+	byRank,
 	containerChartStep,
 	containerCharts,
 	nameFilter,
@@ -47,20 +47,22 @@ const history: ContainerMetricsHistory = {
 };
 
 describe('containerCharts (the per-container charts of an environment)', () => {
-	it('keeps name order and colours each chart by its own usage ranking (Beszel)', () => {
+	it('orders and colours each chart by its own usage ranking, largest first (Beszel)', () => {
 		const c = containerCharts(history);
-		expect(c.cpu.map((i) => i.name)).toEqual(['db', 'web']);
+		const ranked = [rankColor(0, 2), rankColor(1, 2)];
 		// CPU: web 3, db 3 → tie by name: db first.
-		expect(c.cpu.map((i) => i.color)).toEqual([rankColor(0, 2), rankColor(1, 2)]);
-		// Network: web 15, db nothing → web gets the first colour.
-		expect(c.network.map((i) => i.color)).toEqual([rankColor(1, 2), rankColor(0, 2)]);
+		expect(c.cpu.map((i) => i.name)).toEqual(['db', 'web']);
+		expect(c.cpu.map((i) => i.color)).toEqual(ranked);
+		// Network: web 15, db nothing.
+		expect(c.network.map((i) => i.name)).toEqual(['web', 'db']);
+		expect(c.network.map((i) => i.color)).toEqual(ranked);
 		// Disk I/O: db 8, web nothing.
-		expect(c.disk.map((i) => i.color)).toEqual([rankColor(0, 2), rankColor(1, 2)]);
+		expect(c.disk.map((i) => i.name)).toEqual(['db', 'web']);
 	});
 
 	it('draws both directions of network and disk I/O as one sum and names them', () => {
 		const c = containerCharts(history);
-		const web = c.network[1];
+		const web = c.network[0];
 		expect(web.values).toEqual([15, null]);
 		expect(web.parts).toEqual([
 			{ label: 'in', values: [10, null] },
@@ -82,19 +84,20 @@ describe('containerCharts (the per-container charts of an environment)', () => {
 	});
 });
 
-describe('colourByRank', () => {
+describe('byRank', () => {
 	it('ranks by the total over the range, largest first, gaps counting as nothing', () => {
 		const items = [
 			{ name: 'a', color: '', values: [1, null, 1] },
 			{ name: 'b', color: '', values: [5, 5, null] },
 			{ name: 'c', color: '', values: [null, 3, null] }
 		];
-		colourByRank(items);
-		expect(items.map((i) => [i.name, i.color])).toEqual([
-			['a', rankColor(2, 3)],
+		expect(byRank(items).map((i) => [i.name, i.color])).toEqual([
 			['b', rankColor(0, 3)],
-			['c', rankColor(1, 3)]
+			['c', rankColor(1, 3)],
+			['a', rankColor(2, 3)]
 		]);
+		// The input is left as it was.
+		expect(items[0].color).toBe('');
 		expect(totalOf([null, 2, 0.5])).toBe(2.5);
 	});
 });
@@ -105,13 +108,21 @@ describe('nameFilter', () => {
 		expect(f('shop-web-1')).toBe(true);
 		expect(f('db')).toBe(false);
 		expect(nameFilter('')('db')).toBe(true);
+		expect(nameFilter('   ')('db')).toBe(true);
+	});
+
+	it('shows names matching any of several words', () => {
+		const f = nameFilter('kodus  POSTGRES');
+		expect(f('kodus-api')).toBe(true);
+		expect(f('silo-postgres')).toBe(true);
+		expect(f('sonarr')).toBe(false);
 	});
 });
 
 describe('containerChartStep', () => {
-	it('asks for about 120 buckets and never below the 10 s samples', () => {
-		expect(containerChartStep(3600)).toBe(30);
-		expect(containerChartStep(600)).toBe(10);
-		expect(containerChartStep(90 * 86400)).toBe(64800);
+	it('asks for about 60 buckets like Beszel and never below the 10 s samples', () => {
+		expect(containerChartStep(3600)).toBe(60);
+		expect(containerChartStep(300)).toBe(10);
+		expect(containerChartStep(90 * 86400)).toBe(129600);
 	});
 });
