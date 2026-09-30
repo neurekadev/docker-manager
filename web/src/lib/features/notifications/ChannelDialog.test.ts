@@ -96,7 +96,8 @@ describe('ChannelDialog (#142)', () => {
 			'Updates available',
 			'Also send when resolved'
 		])
-			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
+			// A checkbox's name includes its description: match the label.
+			expect(screen.getByRole('checkbox', { name: new RegExp(`^${label}`) })).toBeChecked();
 		expect(screen.getByRole('switch', { name: 'Enabled' })).toHaveAttribute(
 			'aria-checked',
 			'true'
@@ -174,7 +175,9 @@ describe('ChannelDialog (#142)', () => {
 		expect(screen.queryByLabelText(/^Webhook URL/)).toBeNull();
 		expect(screen.getByRole('checkbox', { name: 'Failed jobs' })).toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'RAID problems' })).not.toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Also send when resolved' })).not.toBeChecked();
+		expect(
+			screen.getByRole('checkbox', { name: /^Also send when resolved/ })
+		).not.toBeChecked();
 		expect(calls).toEqual([]);
 
 		await user.click(screen.getByRole('button', { name: 'Show address' }));
