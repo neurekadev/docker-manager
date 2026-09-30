@@ -4,16 +4,7 @@
 	// their own explicit opt-in before they can be turned on. The Engine's
 	// limitations of the category are listed, never silently widened.
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import {
-		Badge,
-		Checkbox,
-		Notice,
-		Select,
-		Switch,
-		TextArea,
-		TextField,
-		formatNumber
-	} from '$lib/ui';
+	import { Badge, Checkbox, Notice, Select, Switch, TextArea, TextField } from '$lib/ui';
 	import ChoiceGrid from '$lib/features/common/ChoiceGrid.svelte';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import {
@@ -166,7 +157,7 @@
 						min="0"
 						step="0.5"
 						value={rule.keepStorageBytes
-							? formatNumber(rule.keepStorageBytes / 1024 ** 3)
+							? String(rule.keepStorageBytes / 1024 ** 3)
 							: ''}
 						description="Optional. Empty: no cap."
 						{disabled}
