@@ -656,7 +656,12 @@ func (e *env) assertNoTokenValues() {
 // while it is open is closed by the stream sweeper, and a session
 // revocation leaves the user's token streams alone (separate credential).
 func TestExpiredTokenStreamSwept(t *testing.T) {
-	e := newEnv(t)
+	// A stream heartbeat longer than the clock jump below: a heartbeat
+	// during the jump would wake the job stream, whose own permission check
+	// then fails for the expired token and closes it as
+	// permissions_changed before the sweeper can close it as
+	// session_expired (#163).
+	e := newEnv(t, func(o *Options) { o.Config.StreamHeartbeat = 2 * time.Hour })
 	owner, _ := e.setupOwner()
 	ownerID := e.userID("owner")
 	e.seedEnvironment("e1", "NAS")
