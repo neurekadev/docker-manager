@@ -54,3 +54,25 @@ func Bytes(n int64) string {
 	}
 	return s + " " + byteUnits[u]
 }
+
+// Sizes formats byte counts one message compares (needed and free, done
+// and expected) with Bytes, unless two different counts would read the
+// same after rounding: then every count is written in whole bytes
+// ("1048575 B of 1048576 B"), so a difference never hides behind it.
+func Sizes(ns ...int64) []string {
+	out := make([]string, len(ns))
+	for i, n := range ns {
+		out[i] = Bytes(n)
+	}
+	for i := range ns {
+		for j := i + 1; j < len(ns); j++ {
+			if ns[i] != ns[j] && out[i] == out[j] {
+				for k, n := range ns {
+					out[k] = strconv.FormatInt(n, 10) + " B"
+				}
+				return out
+			}
+		}
+	}
+	return out
+}

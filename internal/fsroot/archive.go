@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -205,7 +206,7 @@ type budget struct {
 
 func (b *budget) Write(p []byte) (int, error) {
 	if int64(len(p)) > b.left {
-		return 0, fail(protocol.CodeTooLarge, "the archive expands beyond %d bytes (decompression bomb?); extraction stopped", b.max)
+		return 0, fail(protocol.CodeTooLarge, "the archive expands beyond %s (decompression bomb?); extraction stopped", humanize.Bytes(b.max))
 	}
 	b.left -= int64(len(p))
 	return len(p), nil
@@ -512,7 +513,7 @@ type countingWriter struct {
 
 func (c *countingWriter) Write(p []byte) (int, error) {
 	if c.n+int64(len(p)) > c.limit {
-		return 0, fail(protocol.CodeTooLarge, "the archive exceeds %d bytes", c.limit)
+		return 0, fail(protocol.CodeTooLarge, "the archive exceeds %s", humanize.Bytes(c.limit))
 	}
 	n, err := c.w.Write(p)
 	c.n += int64(n)

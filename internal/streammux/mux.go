@@ -36,6 +36,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/logging"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -647,7 +648,8 @@ func (s *Stream) ReadChannel(p []byte) (int, string, error) {
 
 func (s *Stream) verifyLocked(rc *protocol.StreamClosePayload) error {
 	if rc.Bytes != s.received {
-		return fmt.Errorf("%w: received %d bytes, sender reported %d", ErrVerification, s.received, rc.Bytes)
+		sz := humanize.Sizes(s.received, rc.Bytes)
+		return fmt.Errorf("%w: received %s, sender reported %s", ErrVerification, sz[0], sz[1])
 	}
 	if rc.SHA256 != "" && rc.SHA256 != hex.EncodeToString(s.recvHash.Sum(nil)) {
 		return fmt.Errorf("%w: SHA-256 mismatch", ErrVerification)

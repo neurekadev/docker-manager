@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/logging"
 )
 
@@ -240,7 +241,7 @@ func redactString(s string) string {
 		return Redacted
 	}
 	if len(s) > MaxDetailString {
-		return fmt.Sprintf("[OMITTED: %d bytes]", len(s))
+		return "[OMITTED: " + humanize.Bytes(int64(len(s))) + "]"
 	}
 	if LooksSecret(s) {
 		return Redacted
@@ -259,7 +260,7 @@ func CanonicalDetails(details map[string]any) ([]byte, error) {
 		return nil, fmt.Errorf("%w: details: %v", ErrInvalidEvent, err)
 	}
 	if len(b) > MaxDetailsBytes {
-		b, _ = json.Marshal(map[string]any{"_omitted": fmt.Sprintf("details exceeded %d bytes", MaxDetailsBytes)})
+		b, _ = json.Marshal(map[string]any{"_omitted": "details exceeded " + humanize.Bytes(MaxDetailsBytes)})
 	}
 	return b, nil
 }

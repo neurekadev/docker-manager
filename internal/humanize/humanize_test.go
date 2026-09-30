@@ -61,3 +61,29 @@ func TestBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestSizes(t *testing.T) {
+	cases := []struct {
+		in   []int64
+		want []string
+	}{
+		{nil, []string{}},
+		{[]int64{3 << 30, 1 << 30}, []string{"3 GiB", "1 GiB"}},
+		{[]int64{5 << 20, 5 << 20}, []string{"5 MiB", "5 MiB"}},
+		// Different counts that round alike are written exactly.
+		{[]int64{1<<20 - 1, 1 << 20}, []string{"1048575 B", "1048576 B"}},
+		{[]int64{2048, 1<<30 + 1, 1 << 30}, []string{"2048 B", "1073741825 B", "1073741824 B"}},
+	}
+	for _, c := range cases {
+		got := Sizes(c.in...)
+		if len(got) != len(c.want) {
+			t.Fatalf("Sizes(%v) = %q, want %q", c.in, got, c.want)
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("Sizes(%v) = %q, want %q", c.in, got, c.want)
+				break
+			}
+		}
+	}
+}

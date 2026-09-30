@@ -21,6 +21,7 @@ import (
 
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/fsroot"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/manager/audit"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
@@ -815,7 +816,7 @@ func isInternal(err error) bool {
 func decodeContent(text, b64 *string, field string, limit int64) ([]byte, error) {
 	tooLarge := func() error {
 		return NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge,
-			fmt.Sprintf("content exceeds %d bytes, the edit limit; upload the file instead", limit))
+			fmt.Sprintf("content exceeds %s, the edit limit; upload the file instead", humanize.Bytes(limit)))
 	}
 	switch {
 	case text != nil && b64 != nil:
@@ -1284,7 +1285,7 @@ func (h *filesAPI) upload(ctx context.Context, ref fileScopeRef, in *FilesUpload
 		return nil, NewError(http.StatusLengthRequired, CodeLengthRequired, "uploads need a Content-Length")
 	}
 	if maxUpload := h.svc.Limits(f.root).Upload; in.ContentLength > maxUpload {
-		return nil, NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, fmt.Sprintf("uploads are limited to %d bytes", maxUpload))
+		return nil, NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, fmt.Sprintf("uploads are limited to %s", humanize.Bytes(maxUpload)))
 	}
 	req := protocol.FilesUploadInput{Dir: dir, Name: in.Name, Size: in.ContentLength}
 	switch {

@@ -38,6 +38,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/storage"
 	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/clock"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -289,7 +290,7 @@ func readSources(dir string, files []string) (protocol.SourceSnapshot, error) {
 			return protocol.SourceSnapshot{}, err
 		}
 		if total += len(b); total > protocol.MaxSourceTotal || len(out) >= protocol.MaxSourceFiles {
-			return protocol.SourceSnapshot{}, fmt.Errorf("%w: more than %d bytes or %d files", errTooLarge, protocol.MaxSourceTotal, protocol.MaxSourceFiles)
+			return protocol.SourceSnapshot{}, fmt.Errorf("%w: more than %s or %d files", errTooLarge, humanize.Bytes(protocol.MaxSourceTotal), protocol.MaxSourceFiles)
 		}
 		rel, _ := filepath.Rel(dir, f)
 		out = append(out, protocol.SourceFile{Path: filepath.ToSlash(rel), Content: b})
@@ -308,7 +309,7 @@ func readBounded(path string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(b)) > limit {
-		return nil, fmt.Errorf("%w: %s is larger than %d bytes", errTooLarge, filepath.Base(path), limit)
+		return nil, fmt.Errorf("%w: %s is larger than %s", errTooLarge, filepath.Base(path), humanize.Bytes(limit))
 	}
 	return b, nil
 }

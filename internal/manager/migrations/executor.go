@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
@@ -379,7 +380,7 @@ func (s *Service) transferParts(ctx context.Context, sc *jobexec.StepContext, so
 		}); err != nil {
 			return err
 		}
-		msg := fmt.Sprintf("%d bytes, sha256 %s (verified by source, manager and destination)", mp.Bytes, mp.SHA256)
+		msg := fmt.Sprintf("%s, sha256 %s (verified by source, manager and destination)", humanize.Bytes(mp.Bytes), mp.SHA256)
 		if n := res.Source.SkippedCount; n > 0 {
 			msg += fmt.Sprintf("; %d entries skipped (sockets or device nodes)", n)
 		}

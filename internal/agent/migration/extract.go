@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/neurekadev/docker-manager/internal/humanize"
 )
 
 // ErrUnsafeArchive is returned for a member the destination refuses: a
@@ -81,7 +83,7 @@ func ExtractTree(ctx context.Context, fsys FS, r io.Reader, o ExtractOptions) (E
 			dirs = append(dirs, hdr)
 		case tar.TypeReg:
 			if o.MaxBytes > 0 && st.Bytes+hdr.Size > o.MaxBytes {
-				return st, fmt.Errorf("%w: the data exceeds %d bytes", ErrUnsafeArchive, o.MaxBytes)
+				return st, fmt.Errorf("%w: the data exceeds %s", ErrUnsafeArchive, humanize.Bytes(o.MaxBytes))
 			}
 			if err := writeFile(ctx, fsys, name, tr, hdr.Size); err != nil {
 				return st, err
@@ -136,7 +138,8 @@ func writeFile(ctx context.Context, fsys FS, name string, r io.Reader, size int6
 	n, err := io.Copy(f, ctxReader{ctx, io.LimitReader(r, size)})
 	cerr := f.Close()
 	if err == nil && n != size {
-		err = fmt.Errorf("%s: short content (%d of %d bytes)", name, n, size)
+		sz := humanize.Sizes(n, size)
+		err = fmt.Errorf("%s: short content (%s of %s)", name, sz[0], sz[1])
 	}
 	if err == nil {
 		err = cerr
