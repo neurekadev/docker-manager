@@ -278,7 +278,7 @@ range query per container; the web keys it with
 `liveKeys.metrics(envId, 'containers-latest')`, so live metrics refresh it
 about every second).
 
-`GET …/metrics/containers/history` (`get-container-metrics-history`,
+`GET …/metrics/containers/history` (`list-container-metrics-history`,
 `observe.Service.QueryContainers`) is the range query of every container
 at once: the same buckets, levels and keys as
 `GET …/containers/{id}/metrics`, one entry per container with at least one

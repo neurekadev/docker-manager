@@ -1714,7 +1714,7 @@ export interface paths {
          * Get the metrics of an environment's containers
          * @description Downsampled CPU, memory, network, block I/O and process counts (#5 storage) of every container of the environment with a value in the range, for the containers the caller holds container.metrics.read on (others are absent): the per-container charts of the environment page in one request instead of a range query per container. Buckets and units as in get-container-metrics; null is a gap. Readable while the environment is offline.
          */
-        get: operations["get-container-metrics-history"];
+        get: operations["list-container-metrics-history"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6828,12 +6828,12 @@ export interface components {
             to: string;
         };
         ContainerMetricsHistory: {
-            /** @description Sorted by name; only containers with a value in the range the caller may chart. */
-            containers: components["schemas"]["ContainerMetricSeries"][];
             environmentId: string;
             /** Format: date-time */
             from: string;
             incomplete: boolean;
+            /** @description One entry per container, sorted by name; only containers with a value in the range the caller may chart (empty without any). */
+            items: components["schemas"]["ContainerMetricSeries"][];
             online: boolean;
             /** @enum {string} */
             resolution: "raw" | "1m" | "15m";
@@ -25980,7 +25980,7 @@ export interface operations {
             };
         };
     };
-    "get-container-metrics-history": {
+    "list-container-metrics-history": {
         parameters: {
             query?: {
                 /** @description Range start (RFC 3339; default: one hour before to). */
@@ -26009,7 +26009,10 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "containers": [
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "from": "2026-09-25T12:00:00Z",
+                     *       "incomplete": false,
+                     *       "items": [
                      *         {
                      *           "container": "shop-web-1",
                      *           "series": [
@@ -26024,9 +26027,6 @@ export interface operations {
                      *           ]
                      *         }
                      *       ],
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "from": "2026-09-25T12:00:00Z",
-                     *       "incomplete": false,
                      *       "online": false,
                      *       "resolution": "raw",
                      *       "skewCorrected": false,
