@@ -289,6 +289,7 @@
 						<PasswordField
 							label={f.label}
 							required={f.required}
+							revealed={revealed !== null}
 							autocomplete="off"
 							placeholder={f.placeholder}
 							description={f.description}

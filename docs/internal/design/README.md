@@ -325,7 +325,7 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | component | notes |
 | --- | --- |
 | `TextField` | `mono` for identifiers and paths; `bind:value`. |
-| `PasswordField` | Reveal toggle ("Show password"/"Hide password", `aria-pressed`); `autocomplete: current-password \| new-password`. |
+| `PasswordField` | Reveal toggle ("Show password"/"Hide password", `aria-pressed`); `autocomplete: current-password \| new-password`; `revealed` (bindable) starts it in plain text, e.g. a stored secret the user just asked to see ("Show address"). |
 | `TextArea`, `Select` (Bits UI listbox in the input's look: chevron trigger, check on the chosen option, typeahead; `onchange(value)`; an option's optional `icon` shows before its label in the list and the trigger, e.g. the notification service picker), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | No native `<select>` anywhere. |
 | `SuggestField` | Free text with a themed suggestion listbox (`suggestions: string[]`, combobox pattern: arrows, Enter, Escape, pointer); for values that may be new (a volume name). No `<datalist>`. |
 | `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection. |

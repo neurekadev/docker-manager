@@ -131,8 +131,8 @@
 			id: 'sent',
 			header: 'Last sent',
 			cell: sentCell,
-			sortValue: (c) => c.lastAttemptAt ?? '',
-			width: '140px',
+			sortValue: (c) => c.lastSuccessAt ?? '',
+			width: '180px',
 			stack: 'hidden'
 		},
 		{
@@ -162,9 +162,14 @@
 	{#if c.sendResolved}<span class="sub">and when resolved</span>{/if}
 {/snippet}
 {#snippet sentCell(c: NotificationChannel)}
-	{#if c.lastAttemptAt}<span class="muted" title={formatDateTime(c.lastAttemptAt)}
-			>{formatRelative(c.lastAttemptAt)}</span
+	<!-- The last message that arrived; a failed attempt since is named below. -->
+	{#if c.lastSuccessAt}<span class="muted" title={formatDateTime(c.lastSuccessAt)}
+			>{formatRelative(c.lastSuccessAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
+	{#if c.lastResult && c.lastResult !== 'ok' && c.lastAttemptAt}<span
+			class="sub failed"
+			title={formatDateTime(c.lastAttemptAt)}>Failed {formatRelative(c.lastAttemptAt)}</span
+		>{/if}
 {/snippet}
 {#snippet actionsCell(c: NotificationChannel)}
 	<Menu items={menu(c)} label="Actions for {c.name}" align="end">
@@ -260,5 +265,9 @@
 	.sub {
 		display: block;
 		font-size: var(--text-caption);
+	}
+
+	.sub.failed {
+		color: var(--danger);
 	}
 </style>

@@ -179,6 +179,8 @@ describe('ChannelDialog (#142)', () => {
 		await user.click(screen.getByRole('button', { name: 'Show address' }));
 		const webhook = await screen.findByLabelText(/^Webhook URL/);
 		expect(webhook).toHaveValue('https://discord.com/api/webhooks/123456789012345678/tok-123');
+		// Asked for: shown in plain text, no second click on the eye.
+		expect(webhook).toHaveAttribute('type', 'text');
 		expect(calls).toEqual([
 			{ method: 'GET', path: '/api/v1/notification-channels/c-1/address', body: undefined }
 		]);
