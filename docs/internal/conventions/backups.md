@@ -84,6 +84,11 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   policy on the server or a detail request per policy in the UI. Set
   members name their backup (`backupId`, only backups the caller sees);
   the UI links by it and never matches members to backups itself.
+- Running backups and retentions show only through `RunningBackups` (GET
+  `/backup-activity`, one fixed-height line per job), never as generic job
+  cards on the Backups pages. A step that runs restic for long (a
+  snapshot, a prune) stops on cancellation through
+  `StepContext.WatchCancel`; forget is never interrupted.
 - UI (`$lib/features/backups`, `routes/(app)/backups`): users see names,
   not internals. Scopes (`env:<id>`, `docker-manager-env-<id>`), restic
   locations, snapshot IDs, host paths, key generations and fingerprints,

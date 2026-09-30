@@ -1,10 +1,15 @@
 <script lang="ts">
-	// Running backups (#10): one entry per backup job with its progress
-	// bar and, below it, the file restic reads right now (updated every
-	// second while the page polls GET /backup-activity). The server sends
-	// the file only to holders of the item's files-read capability; others
-	// see the bar and the counts. Holders of job.cancel (the server's
-	// cancellable) can cancel a backup after a confirmation.
+	// Running backups and retentions (#10), fed by GET /backup-activity
+	// (polled every second while one runs). One steady line per job: what
+	// it is (policy, where, how many stacks and volumes), the item it is
+	// on with its file and byte counts, the progress bar, the time left and
+	// Cancel; below it one line with the file restic reads right now, like
+	// restic's own output. Every line keeps its height whatever it shows,
+	// so nothing moves while jobs progress. A retention has no current
+	// item: its line shows the stage (removing backups, freeing space). The
+	// server sends the file only to holders of the item's files-read
+	// capability; others see the counts. Holders of job.cancel (the
+	// server's cancellable) can cancel after a confirmation.
 	import Square from '@lucide/svelte/icons/square';
 	import { api, unwrap } from '$lib/api/client';
 	import {
@@ -19,7 +24,9 @@
 	import {
 		activityItemName,
 		activityPercent,
+		isRetentionActivity,
 		middleTruncate,
+		sentenceCase,
 		type BackupActivity
 	} from './model';
 
@@ -27,20 +34,39 @@
 		jobs: BackupActivity[];
 		policyName: (id: string | undefined) => string;
 		environmentName: (id: string) => string;
-		/** Compact: one job inline (a table row or a drawer). */
+		/** Compact: inside a drawer (no policy name, a shorter file line). */
 		compact?: boolean;
 	}
 
 	let { jobs, policyName, environmentName, compact = false }: Props = $props();
 
 	const count = (n: number) => n.toLocaleString('en');
+	const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
 
 	function where(a: BackupActivity): string {
-		return a.kind === 'manager.backup'
+		return a.kind.startsWith('manager.')
 			? 'Manager state'
 			: a.environmentId
 				? environmentName(a.environmentId)
 				: 'Environment';
+	}
+
+	/** What the job is: "Nightly", "Retention of Nightly". */
+	function what(a: BackupActivity): string {
+		return isRetentionActivity(a)
+			? `Retention of ${policyName(a.policyId)}`
+			: policyName(a.policyId);
+	}
+
+	/** What a backup covers: "12 stacks, 3 volumes". */
+	function covers(a: BackupActivity): string {
+		if (a.kind !== 'backup.run') return '';
+		return [
+			a.stacks ? plural(a.stacks, 'stack', 'stacks') : '',
+			a.volumes ? plural(a.volumes, 'volume', 'volumes') : ''
+		]
+			.filter(Boolean)
+			.join(', ');
 	}
 
 	// Jobs cancelled here: stopping at once, before the next poll says so.
@@ -57,7 +83,12 @@
 
 	function consequences(a: BackupActivity): string[] {
 		if (a.state === 'queued' || a.state === 'blocked')
-			return ['It has not started yet: nothing is backed up in this run.'];
+			return ['It has not started yet: nothing changes.'];
+		if (isRetentionActivity(a))
+			return [
+				'Backups it already removed stay removed.',
+				'The space it has not freed yet is freed by the next retention; the repository stays usable.'
+			];
 		if (a.kind === 'manager.backup') return ['The manager state is not saved in this run.'];
 		return [
 			'What it backs up right now is not saved in this run.',
@@ -75,15 +106,16 @@
 			})
 		);
 		requested = [...requested, a.jobId];
-		toast.info(`Cancelling ${policyName(a.policyId)}`, { body: where(a) });
+		toast.info(`Cancelling ${what(a)}`, { body: where(a) });
 	}
 
-	function waiting(a: BackupActivity): string | undefined {
-		if (stopping(a)) return 'Stopping';
+	/** What a job without a current item is doing. */
+	function note(a: BackupActivity): string {
+		if (stopping(a)) return 'Finishing the current step';
 		if (a.state === 'queued') return 'Waiting to start';
 		if (a.state === 'blocked') return 'Waiting for another job on the same data';
-		if (!a.current) return a.message ? a.message : 'Preparing';
-		return undefined;
+		if (a.message) return sentenceCase(a.message);
+		return isRetentionActivity(a) ? 'Starting' : 'Preparing';
 	}
 </script>
 
@@ -91,81 +123,78 @@
 	{#each jobs as a (a.jobId)}
 		{@const pct = activityPercent(a)}
 		{@const c = a.current}
-		{@const note = waiting(a)}
 		{@const cancellable = a.cancellable && !stopping(a)}
+		{@const retention = isRetentionActivity(a)}
 		<li class="job">
-			{#if !compact}
-				<div class="head">
-					<span class="title">{policyName(a.policyId)}</span>
+			<div class="line">
+				<span class="who">
+					{#if !compact}<span class="title">{what(a)}</span>{/if}
 					<span class="muted">{where(a)}</span>
-					{#if stopping(a)}<Badge tone="warn" dot>Stopping</Badge>{/if}
-					<span class="end">
-						{#if c?.secondsRemaining}
-							<span class="muted num"
-								>About {formatDuration(c.secondsRemaining)} left</span
-							>
-						{/if}
-						{#if cancellable}{@render cancelButton(a)}{/if}
-					</span>
-				</div>
-			{/if}
-			<div class="facts muted num">
-				{#if c}
-					<span class="item">{activityItemName(c)}</span>
-					{#if a.itemCount > 1}<span>{c.index + 1} of {a.itemCount}</span>{/if}
-					{#if c.filesTotal > 0}<span
-							>{count(c.filesDone)} of {count(c.filesTotal)} files</span
-						>{/if}
-					{#if c.bytesTotal > 0}<span
-							>{formatBytes(c.bytesDone)} of {formatBytes(c.bytesTotal)}</span
-						>{/if}
-					{#if compact && c.secondsRemaining}<span
+					{#if covers(a)}<span class="muted small">{covers(a)}</span>{/if}
+				</span>
+				<span class="facts muted small num">
+					{#if c}
+						<span class="item">{activityItemName(c)}</span>
+						{#if a.itemCount > 1}<span>{c.index + 1} of {a.itemCount}</span>{/if}
+						{#if c.filesTotal > 0}<span
+								>{count(c.filesDone)} of {count(c.filesTotal)} files</span
+							>{/if}
+						{#if c.bytesTotal > 0}<span
+								>{formatBytes(c.bytesDone)} of {formatBytes(c.bytesTotal)}</span
+							>{/if}
+					{:else}
+						<span>{note(a)}</span>
+					{/if}
+				</span>
+				<span class="bar">
+					<Meter
+						value={Math.max(0, pct)}
+						max={100}
+						role="progressbar"
+						tone="neutral"
+						size="sm"
+						label="{retention ? 'Retention' : 'Backup'} progress of {policyName(
+							a.policyId
+						)}, {where(a)}"
+						valueText={pct >= 0 ? `${pct}%` : 'Starting'}
+					/>
+				</span>
+				<span class="end muted small num">
+					{#if stopping(a)}<Badge tone="warn" dot>Stopping</Badge>
+					{:else if c?.secondsRemaining}<span
 							>About {formatDuration(c.secondsRemaining)} left</span
-						>{/if}
-				{:else}
-					<span>{note}</span>
-				{/if}
-				{#if compact && cancellable}<span class="end">{@render cancelButton(a)}</span>{/if}
+						>{:else if pct >= 0}<span>{pct}%</span>{/if}
+					{#if cancellable}
+						<Button
+							variant="ghost"
+							size="sm"
+							icon={Square}
+							aria-label="Cancel {policyName(a.policyId)}, {where(a)}"
+							onclick={() => askCancel(a)}>Cancel</Button
+						>
+					{/if}
+				</span>
 			</div>
-			<Meter
-				value={Math.max(0, pct)}
-				max={100}
-				role="progressbar"
-				tone="neutral"
-				size={compact ? 'sm' : 'md'}
-				label="Backup progress of {policyName(a.policyId)}, {where(a)}"
-				valueText={pct >= 0 ? `${pct}%` : 'Starting'}
-			/>
 			<p class="file mono" title={c?.currentFile}>
-				{#if c?.currentFile}{middleTruncate(
+				{#if c?.currentFile && !stopping(a)}{middleTruncate(
 						c.currentFile,
-						compact ? 56 : 96
-					)}{:else if c}<span class="muted">Reading files</span>{:else}<span class="muted"
-						>{note}</span
-					>{/if}
+						compact ? 64 : 120
+					)}{:else if c && !stopping(a)}<span class="muted">Reading files</span
+					>{:else}&nbsp;{/if}
 			</p>
 		</li>
 	{/each}
 </ul>
 
-{#snippet cancelButton(a: BackupActivity)}
-	<Button
-		variant="ghost"
-		size="sm"
-		icon={Square}
-		aria-label="Cancel {policyName(a.policyId)}, {where(a)}"
-		onclick={() => askCancel(a)}>Cancel</Button
-	>
-{/snippet}
-
 {#if confirming}
+	{@const retention = isRetentionActivity(confirming)}
 	<ConfirmDialog
 		bind:open={confirmOpen}
-		title="Cancel this backup?"
-		message="{policyName(confirming.policyId)} · {where(confirming)}"
+		title="Cancel this {retention ? 'retention' : 'backup'}?"
+		message="{what(confirming)} · {where(confirming)}"
 		consequences={consequences(confirming)}
-		confirmLabel="Cancel backup"
-		cancelLabel="Keep backing up"
+		confirmLabel="Cancel {retention ? 'retention' : 'backup'}"
+		cancelLabel={retention ? 'Keep running' : 'Keep backing up'}
 		tone="danger"
 		onconfirm={cancel}
 	/>
@@ -175,28 +204,47 @@
 	.jobs {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: var(--space-2);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 
-	.jobs.compact {
-		gap: var(--space-2);
-	}
-
 	.job {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
+		display: grid;
+		gap: 2px;
 		min-width: 0;
 	}
 
-	.head {
+	.job + .job {
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	/* One row: who · what it is on · bar · time and Cancel, at a fixed
+	   height so changing text never moves what is below. */
+	.line {
+		display: grid;
+		grid-template-columns: minmax(140px, 1.2fr) minmax(0, 2fr) minmax(120px, 1fr) auto;
+		align-items: center;
+		gap: var(--space-3);
+		min-height: 30px;
+	}
+
+	.who,
+	.facts {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: baseline;
-		gap: var(--space-1) var(--space-3);
+		gap: var(--space-2);
+		min-width: 0;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+
+	.who > *,
+	.facts > * {
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.title {
@@ -204,22 +252,17 @@
 		font-weight: var(--weight-semibold);
 	}
 
+	.item {
+		color: var(--text-default);
+	}
+
 	.end {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-3);
-		margin-left: auto;
-	}
-
-	.facts {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1) var(--space-3);
-		font-size: var(--text-caption);
-	}
-
-	.item {
-		color: var(--text-default);
+		justify-content: flex-end;
+		gap: var(--space-2);
+		min-width: 88px;
+		white-space: nowrap;
 	}
 
 	.file {
@@ -229,6 +272,27 @@
 		text-overflow: ellipsis;
 		font-size: var(--text-caption);
 		color: var(--text-default);
+		line-height: 1.4;
 		min-height: 1.4em;
+	}
+
+	.small {
+		font-size: var(--text-caption);
+	}
+
+	.compact .line {
+		grid-template-columns: minmax(80px, 0.8fr) minmax(0, 2fr) minmax(100px, 1fr) auto;
+	}
+
+	@media (max-width: 767px) {
+		.line,
+		.compact .line {
+			grid-template-columns: minmax(0, 1fr) auto;
+		}
+
+		.facts,
+		.bar {
+			grid-column: 1 / -1;
+		}
 	}
 </style>

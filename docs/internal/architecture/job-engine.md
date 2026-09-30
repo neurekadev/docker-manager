@@ -242,7 +242,7 @@ executor checks the destination's capabilities).
   `StepContext.WatchCancel` (a context that ends within
   `jobexec.DefaultCancelPoll`, 1 s, of the request) and returns
   `jobexec.ErrStepCancelled`, which ends the attempt `cancelled` (image
-  builds, backup snapshots).
+  builds, backup snapshots, retention prunes).
 
 ## Authorization
 

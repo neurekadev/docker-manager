@@ -353,6 +353,67 @@ export function scopeItemTitle(
 	return item.volume || item.item.replace(/^volume\//, '');
 }
 
+type RetentionDecisionOf = RetentionPreview['locations'][number]['decisions'][number];
+
+/** One stack or volume of a retention preview: its backups, newest first. */
+export interface RetentionGroup {
+	item: string;
+	name: string;
+	forget: number;
+	keep: number;
+	decisions: RetentionDecisionOf[];
+}
+
+/**
+ * A location's retention decisions per stack or volume (named, never by
+ * ID), those losing backups first, then by name.
+ */
+export function retentionGroups(
+	decisions: RetentionDecisionOf[],
+	stackName?: (id: string) => string | undefined
+): RetentionGroup[] {
+	const by = new Map<string, RetentionGroup>();
+	for (const d of decisions) {
+		let g = by.get(d.item);
+		if (!g) {
+			const [kind, ...rest] = d.item.split('/');
+			const id = rest.join('/');
+			const name =
+				d.item === 'manager' || kind === 'manager'
+					? 'Manager state'
+					: kind === 'stack'
+						? `Stack ${stackName?.(id) ?? id}`
+						: kind === 'volume'
+							? `Volume ${id}`
+							: d.item;
+			g = { item: d.item, name, forget: 0, keep: 0, decisions: [] };
+			by.set(d.item, g);
+		}
+		g.decisions.push(d);
+		if (d.keep) g.keep++;
+		else g.forget++;
+	}
+	const out = [...by.values()];
+	for (const g of out) g.decisions.sort((a, b) => b.time.localeCompare(a.time));
+	return out.sort((a, b) => b.forget - a.forget || a.name.localeCompare(b.name));
+}
+
+const RETENTION_REASON: Record<string, string> = {
+	last: 'the latest backups',
+	hourly: 'the hourly rule',
+	daily: 'the daily rule',
+	weekly: 'the weekly rule',
+	monthly: 'the monthly rule',
+	yearly: 'the yearly rule',
+	within: 'the keep-within rule',
+	newest: 'being the newest'
+};
+
+/** A retention keep reason in words; unknown reasons stay as they are. */
+export function retentionReasonText(reason: string): string {
+	return RETENTION_REASON[reason] ?? reason;
+}
+
 /** Server phrases as sentences: first letter upper case. */
 export function sentenceCase(s: string): string {
 	return s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -632,6 +693,11 @@ export function activityItemName(it: ActivityItem): string {
 	if (it.kind === 'manager_state') return 'Manager state';
 	if (it.kind === 'stack') return `Stack ${it.stackName || it.stackId || it.item}`;
 	return `Volume ${it.volume || it.item}`;
+}
+
+/** A retention job (forget, then prune) in the running list. */
+export function isRetentionActivity(a: Pick<BackupActivity, 'kind'>): boolean {
+	return a.kind === 'backup.retention' || a.kind === 'manager.retention';
 }
 
 /** Overall percent of a running backup job (-1 unknown). */

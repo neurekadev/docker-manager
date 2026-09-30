@@ -70,11 +70,13 @@ type BackupActivity struct {
 	ReportedAt time.Time
 }
 
-// Activity lists the backup jobs that have not finished, newest first,
-// with their latest reports. Callers authorize each job (job.read) and
+// Activity lists the backup and retention jobs that have not finished,
+// newest first, with their latest reports (retention sends none: its
+// progress is the job's stages). Callers authorize each job (job.read) and
 // the current file (the scope's files-read capability).
 func (s *Service) Activity(ctx context.Context) ([]BackupActivity, error) {
-	js, err := s.opts.Jobs.List(ctx, domain.JobFilter{Kinds: []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup},
+	js, err := s.opts.Jobs.List(ctx, domain.JobFilter{Kinds: []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup,
+		jobspec.BackupRetention, jobspec.ManagerRetention},
 		States: []domain.JobState{domain.JobQueued, domain.JobBlocked, domain.JobDispatched, domain.JobRunning, domain.JobCancelling},
 		Limit:  200})
 	if err != nil {

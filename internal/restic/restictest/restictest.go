@@ -49,6 +49,9 @@ type Store struct {
 	// use it to observe container state while "restic" runs, or to wait for
 	// a cancellation); an error fails the backup.
 	OnBackup func(ctx context.Context, req restic.BackupRequest) error
+	// OnPrune runs at the start of every Prune with its context (tests use
+	// it to cancel a running prune); an error fails the prune.
+	OnPrune func(ctx context.Context) error
 }
 
 // unlock releases s.mu.
@@ -662,6 +665,11 @@ func (p *repo) Forget(ctx context.Context, ids []string) error {
 }
 
 func (p *repo) Prune(ctx context.Context) error {
+	if p.s.OnPrune != nil {
+		if err := p.s.OnPrune(ctx); err != nil {
+			return err
+		}
+	}
 	p.s.mu.Lock()
 	defer p.s.unlock()
 	_, err := p.begin(ctx, "prune", true)

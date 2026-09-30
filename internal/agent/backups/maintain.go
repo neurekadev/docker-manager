@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/neurekadev/docker-manager/internal/backup"
 	"github.com/neurekadev/docker-manager/internal/domain"
@@ -28,17 +29,27 @@ func (s *Service) stepForget(ctx context.Context, sc *jobexec.StepContext) error
 	if errs := in.Rules.Validate(); len(errs) > 0 {
 		return backup.Refuse(domain.ErrorRejected, "invalid retention rules", "Fix the policy's retention rules.")
 	}
+	sc.Progress(ctx, 5, "opening the backup repository")
 	o, err := s.openForJob(ctx, sc, in.Repository, false)
 	if err != nil {
 		return err
 	}
+	sc.Progress(ctx, 10, "removing the backups the rules no longer keep")
 	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, in.Expire, in.TimeZone)
 	out := protocol.RetentionOutput{ResticRepositoryID: o.ResticRepositoryID, KeyGeneration: in.Repository.KeyGeneration,
 		Forgotten: res.Forgotten, Kept: res.Kept}
 	if serr := sc.SetOutput(ctx, out); serr != nil {
 		return serr
 	}
+	if err == nil {
+		sc.Progress(ctx, 30, retentionForgotMessage(len(res.Forgotten), res.Kept))
+	}
 	return err
+}
+
+// retentionForgotMessage is the progress after forget (counts only).
+func retentionForgotMessage(forgotten, kept int) string {
+	return fmt.Sprintf("removed %d backups, kept %d", forgotten, kept)
 }
 
 func (s *Service) stepPrune(ctx context.Context, sc *jobexec.StepContext) error {
@@ -55,8 +66,16 @@ func (s *Service) stepPrune(ctx context.Context, sc *jobexec.StepContext) error 
 	if err != nil {
 		return err
 	}
+	sc.Progress(ctx, 40, "freeing the space of the removed backups")
+	// A cancellation stops restic's prune: restic keeps the repository
+	// usable wherever a prune stops, and the next prune finishes the job.
+	pctx, stop := sc.WatchCancel(ctx, s.opts.Clock, jobexec.DefaultCancelPoll)
+	defer stop()
 	var after *restic.Stats
-	out.ReclaimedBytes, after, err = backup.Prune(ctx, o.Repo)
+	out.ReclaimedBytes, after, err = backup.Prune(pctx, o.Repo)
+	if err != nil && ctx.Err() == nil && pctx.Err() != nil {
+		return pruneStopped(ctx, sc, o.Repo, out)
+	}
 	if err != nil {
 		out.PruneError = restic.CodeOf(err)
 		after = backup.MeasureStats(ctx, o.Repo) // forget still changed it
@@ -66,6 +85,18 @@ func (s *Service) stepPrune(ctx context.Context, sc *jobexec.StepContext) error 
 		return serr
 	}
 	return err
+}
+
+// pruneStopped ends a prune cancelled on request: the forgotten backups
+// stay forgotten (the output keeps them), the space is freed by the next
+// prune, and the job ends cancelled.
+func pruneStopped(ctx context.Context, sc *jobexec.StepContext, repo restic.Repo, out protocol.RetentionOutput) error {
+	out.PruneError = restic.CodeCancelled
+	out.Stats = protocol.StatsOf(backup.MeasureStats(ctx, repo))
+	if err := sc.SetOutput(ctx, out); err != nil {
+		return err
+	}
+	return fmt.Errorf("the prune was stopped: %w", jobexec.ErrStepCancelled)
 }
 
 func (s *Service) stepCheck(ctx context.Context, sc *jobexec.StepContext) error {

@@ -79,4 +79,25 @@ describe('RetentionPreviewPanel', () => {
 		expect(await screen.findByText('kept by last7', {}, { timeout: 2000 })).toBeInTheDocument();
 		expect(bodies).toEqual([{ last: 6 }, { last: 7 }]);
 	});
+
+	it('names repositories, environments and items and reports what it would remove', async () => {
+		stubPreview();
+		const states: { ready: boolean; forget: number }[] = [];
+		render(RetentionPreviewPanel, {
+			props: {
+				policyId: 'p1',
+				auto: true,
+				environmentName: (id: string) => (id === 'e1' ? 'Hyperion' : id),
+				repositoryName: (id: string) => (id === 'r1' ? 'Offsite' : undefined),
+				onstate: (s: { ready: boolean; forget: number }) => states.push(s)
+			}
+		});
+		expect(await screen.findByText('Offsite')).toBeInTheDocument();
+		expect(screen.getByText('Environment Hyperion')).toBeInTheDocument();
+		expect(screen.getByText('Volume media')).toBeInTheDocument();
+		expect(screen.getByText('Volume gone')).toBeInTheDocument();
+		expect(screen.getByText(/^Removes/)).toHaveTextContent('Removes 1 backup, keeps 1.');
+		expect(screen.queryByText('env:e1')).toBeNull();
+		expect(states.at(-1)).toEqual({ ready: true, forget: 1 });
+	});
 });

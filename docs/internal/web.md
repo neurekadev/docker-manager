@@ -552,7 +552,8 @@ What each view matches (the pure helpers are spec-tested next to them):
 | volume migrate page | `volume.migrate` from this environment: progress and result instead of the wizard |
 | images, containers lists, new container | `image.pull`, `container.create` of the selected environment |
 | prune buttons | `prune.run` without a policy in the button's environments ("Pruning…"; the dialog opens on it) |
-| maintenance, backup policy pages | every job of the policy (one bar per environment; the backup page passes its activity to the runs table) |
+| maintenance page | every job of the policy (one bar per environment) |
+| backup overview and policy pages | not generic job cards: the running backups and retentions of `GET /backup-activity` as one steady line each in "Running now" (`RunningBackups`); a job leaving that list reports its outcome once (`onJobsFinished`); the activity also feeds the runs table |
 | backup, repository pages | verifications of the repository (`features/backups/jobs.ts`) |
 | restore dialog and wizard | a restore of the backup's stack or volumes opens on its progress |
 | update policy page, Updates, preview dialog | the policy's `update.check`/`update.run`; the Updates list counts them per policy; the preview dialog opens on a running `update.run`; succeeded update jobs clear after 4 s |

@@ -24,7 +24,7 @@ import (
 // BackupActivity is an unfinished backup job.
 type BackupActivity struct {
 	JobID         string `json:"jobId"`
-	Kind          string `json:"kind" enum:"backup.run,manager.backup"`
+	Kind          string `json:"kind" enum:"backup.run,manager.backup,backup.retention,manager.retention" doc:"backup.retention/manager.retention: the policy's retention (forget, then prune); no current item, its progress is the job's."`
 	State         string `json:"state" enum:"queued,blocked,dispatched,running,cancelling"`
 	SetID         string `json:"setId"`
 	PolicyID      string `json:"policyId,omitempty"`
@@ -33,6 +33,9 @@ type BackupActivity struct {
 	Percent   int    `json:"percent" doc:"Job progress 0-100, -1 unknown."`
 	Message   string `json:"message,omitempty"`
 	ItemCount int    `json:"itemCount" doc:"Stacks, volumes or manager state this job backs up."`
+	// Stacks and Volumes split ItemCount of a backup.run.
+	Stacks  int `json:"stacks" doc:"Stacks this backup.run backs up."`
+	Volumes int `json:"volumes" doc:"Standalone volumes this backup.run backs up."`
 	// Cancellable: the caller may cancel the job (POST /jobs/{jobId}/cancellations).
 	Cancellable bool `json:"cancellable" doc:"The caller may cancel the job (job.cancel) and no cancellation was requested yet."`
 	// Current is the item being backed up (absent before the first report).
@@ -92,10 +95,19 @@ func shapeActivity(c authz.Checker, a backups.BackupActivity) (BackupActivity, b
 	}
 	items := len(a.Items)
 	if items == 0 {
-		items = 1 // the manager state
+		items = 1 // the manager state; a retention's repository
+	}
+	stacks, volumes := 0, 0
+	for _, it := range a.Items {
+		if it.Kind == backup.MemberStack {
+			stacks++
+		} else {
+			volumes++
+		}
 	}
 	ba := BackupActivity{JobID: j.ID, Kind: string(j.Kind), State: string(j.State), SetID: a.SetID, PolicyID: a.PolicyID,
 		EnvironmentID: j.EnvironmentID, Percent: j.Progress.Percent, Message: j.Progress.Message, ItemCount: items,
+		Stacks: stacks, Volumes: volumes,
 		Cancellable: !j.CancelRequested && c.Can(string(CapJobCancel), res).Allowed}
 	if r := a.Report; r != nil {
 		ba.Current = activityItem(c, a, *r)
@@ -147,7 +159,7 @@ func registerBackupActivity(a huma.API, h *backupsAPI) {
 		Operation: huma.Operation{
 			OperationID: "list-backup-activity", Method: http.MethodGet, Path: BasePath + "/backup-activity",
 			Summary: "List running backups",
-			Description: "Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its " +
+			Description: "Every unfinished backup or retention job the caller may read (job.read), with what a backup backs up now: the item, its " +
 				"progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it " +
 				"(job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up " +
 				"data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). " +

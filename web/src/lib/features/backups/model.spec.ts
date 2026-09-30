@@ -16,6 +16,8 @@ import {
 	isBuildxVolume,
 	isHelperContainer,
 	labelLockReason,
+	retentionGroups,
+	retentionReasonText,
 	scopeCounts,
 	scopeItemTitle,
 	scopeNeedsAttention,
@@ -479,5 +481,40 @@ describe('scope preview (#10)', () => {
 				volume: 'data'
 			})
 		).toBe('data');
+	});
+});
+
+describe('retention preview (#10)', () => {
+	const d = (item: string, keep: boolean, time: string, reasons?: string[]) => ({
+		snapshotId: `${item}@${time}`,
+		item,
+		keep,
+		time,
+		reasons
+	});
+
+	it('groups decisions per stack or volume by name, those losing backups first', () => {
+		const groups = retentionGroups(
+			[
+				d('volume/media', true, '2026-09-02T00:00:00Z', ['daily']),
+				d('stack/s1', true, '2026-09-01T00:00:00Z', ['last']),
+				d('stack/s1', false, '2026-08-01T00:00:00Z'),
+				d('stack/s1', true, '2026-09-03T00:00:00Z', ['last']),
+				d('manager', true, '2026-09-01T00:00:00Z', ['newest'])
+			],
+			(id) => (id === 's1' ? 'shop' : undefined)
+		);
+		expect(groups.map((g) => [g.name, g.forget, g.keep])).toEqual([
+			['Stack shop', 1, 2],
+			['Manager state', 0, 1],
+			['Volume media', 0, 1]
+		]);
+		expect(groups[0].decisions.map((x) => x.time)).toEqual([
+			'2026-09-03T00:00:00Z',
+			'2026-09-01T00:00:00Z',
+			'2026-08-01T00:00:00Z'
+		]);
+		expect(retentionReasonText('daily')).toBe('the daily rule');
+		expect(retentionReasonText('odd')).toBe('odd');
 	});
 });

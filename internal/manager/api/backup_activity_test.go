@@ -95,6 +95,24 @@ func TestActivityCancellable(t *testing.T) {
 	}
 }
 
+// TestActivityCountsAndRetention: a backup names how many stacks and
+// volumes it backs up; a retention job is listed too (one item, no counts).
+func TestActivityCountsAndRetention(t *testing.T) {
+	c := activityChecker(t, authztest.Only("u1", "allow job.read @env:e1"), "u1")
+	run := backups.BackupActivity{Job: domain.Job{ID: "j1", Kind: jobspec.BackupRun, EnvironmentID: "e1", State: domain.JobRunning},
+		Items: []protocol.BackupItem{{Kind: backup.MemberStack, StackID: "s1"}, {Kind: backup.MemberStack, StackID: "s2"},
+			{Kind: backup.MemberVolume, Volume: "media"}}}
+	if got, ok := shapeActivity(c, run); !ok || got.ItemCount != 3 || got.Stacks != 2 || got.Volumes != 1 {
+		t.Errorf("backup = %+v (%v)", got, ok)
+	}
+	ret := backups.BackupActivity{Job: domain.Job{ID: "j2", Kind: jobspec.BackupRetention, EnvironmentID: "e1", State: domain.JobRunning,
+		Progress: domain.JobProgress{Percent: 40, Message: "freeing the space of the removed backups"}}, PolicyID: "p1"}
+	if got, ok := shapeActivity(c, ret); !ok || got.Kind != string(jobspec.BackupRetention) || got.ItemCount != 1 ||
+		got.Stacks != 0 || got.Message == "" || got.PolicyID != "p1" {
+		t.Errorf("retention = %+v (%v)", got, ok)
+	}
+}
+
 // TestBackupStorageSums: locations add up; the ratio and the compressed
 // share are recomputed from the totals; unmeasured locations are left out.
 func TestBackupStorageSums(t *testing.T) {
