@@ -2,6 +2,8 @@
 	// Validation findings of a Compose definition (#7): errors that block
 	// the stack, warnings (obsolete top-level version:, bind sources outside
 	// the project directory, unsupported features) and what was understood.
+	// Bind sources outside the project directory are one line listing each
+	// source once, not also a warning per bind.
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -14,7 +16,10 @@
 	}
 
 	let { validation, fixBefore = 'creating the stack' }: Props = $props();
-	const external = $derived(validation.binds.filter((b) => b.external));
+	const warnings = $derived(validation.warnings.filter((w) => w.code !== 'bind_outside_project'));
+	const external = $derived([
+		...new Set(validation.binds.filter((b) => b.external).map((b) => b.source))
+	]);
 </script>
 
 <div class="result" role="status">
@@ -46,14 +51,14 @@
 			{/each}
 		</ul>
 	{/if}
-	{#if validation.warnings.length}
+	{#if warnings.length}
 		<p class="warn-head">
 			<TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" />
-			{validation.warnings.length}
-			{validation.warnings.length === 1 ? 'warning' : 'warnings'}
+			{warnings.length}
+			{warnings.length === 1 ? 'warning' : 'warnings'}
 		</p>
 		<ul class="issues warnings" aria-label="Warnings">
-			{#each validation.warnings as w, i (i)}
+			{#each warnings as w, i (i)}
 				<li>
 					<span class="code mono">{w.code}</span>
 					{#if w.service}<span class="svc mono">{w.service}</span>{/if}
@@ -66,8 +71,10 @@
 		<p class="note">
 			Bind sources outside the project directory are not included in stack backups unless a
 			backup policy opts them in:
-			{#each external as b, i (`${b.service}/${b.target}`)}<span class="mono">{b.source}</span
-				>{i < external.length - 1 ? ', ' : ''}{/each}.
+			{#each external as source, i (source)}<span class="mono">{source}</span>{i <
+				external.length - 1
+					? ', '
+					: ''}{/each}.
 		</p>
 	{/if}
 </div>

@@ -540,7 +540,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 
 | view | running jobs shown |
 | --- | --- |
-| stack page (tray, all tabs) | target `stack:<id>`, every kind but `update.check` (`stackTrayMatch`); on `/migrate` also not `stack.migrate` |
+| stack page (tray, all tabs) | target `stack:<id>`, every kind but the background ones, `update.check` and `backup.run` (`stackTrayMatch`; the top bar counts them); on `/migrate` also not `stack.migrate` |
 | migration wizard | a running `stack.migrate` of the stack reopens it at the move step (`migration-resume.ts`); the wizard shows it instead of the tray and hands it back when left while it runs |
 | environment migration wizard | a running `environment.migrate` from the environment reopens it at the move step (`environmentMigrationMatch` in `environment-migration.ts`); the stacks it moves say "Migrating" in the stacks list; an ended one reopens on its result from its record (`restoredMigration`); the removals of old copies on the environment (`oldCopyRemovalMatch`) show under the result |
 | manager move wizard | a running `manager.move` (`managerMoveJobMatch`) reads the move again; the Move step shows its progress from the move (`runView`), which also survives a reload |
@@ -719,6 +719,11 @@ only wire resources to it:
 | logs in their own window | `(popout)/popout/logs?stack=` / `?environment=&container=` | `LogPanel` without the app shell |
 | stack terminal (service picker; `?container=` preselects and connects), container terminal | `…/stacks/[stackId]/terminal[?container=]`, `(app)/containers/[environmentId]/[containerId]/terminal` | `TerminalPanel` (`autoConnect` only from such a link) |
 
+- **Height:** the file manager, logs and terminals fill the window below
+  their own top without a page scroll (`fillViewport` in `files/fill.ts`,
+  keeping `<main>`'s bottom padding; the file manager card always takes
+  that whole height). It re-measures on window resizes and when content
+  above it appears, disappears or changes size (a job tray, a notice).
 - **Files:** `FilesApi` (`files/api.ts`) calls the typed client for either
   root; listings and contents are keyed `liveKeys.files(...)`; the
   `EditorSession` keeps buffers, ETags and conflicts (never replacing
@@ -729,7 +734,9 @@ only wire resources to it:
   result replaces the text through the editor handle (one undo step,
   the tab turns unsaved), text that does not parse keeps the document
   and shows an error toast. A click that opens a file does not select it;
-  permissions and owners are a details view (off by default); below
+  permissions and owners are a details view (off by default); the
+  toolbar's Upload files, Upload folder, New file and New folder are small
+  icon buttons named by their tooltips; below
   1024 px list and editor are `Tabs`. In a stack, saving a Compose source
   validates the definition on disk in the stack's own project directory
   (`POST /stacks/{stackId}/validations`, only with

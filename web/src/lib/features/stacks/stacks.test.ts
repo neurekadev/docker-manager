@@ -1095,4 +1095,47 @@ describe('ValidationResult', () => {
 		).toBeInTheDocument();
 		expect(screen.getByText('/srv/media')).toBeInTheDocument();
 	});
+
+	it('lists each bind source outside the project once, not as a warning per bind', () => {
+		const bind = (service: string, source: string, target: string) => ({
+			service,
+			source,
+			target,
+			external: true,
+			readOnly: false
+		});
+		const outside = (service: string, source: string) => ({
+			code: 'bind_outside_project',
+			service,
+			message: `service ${service} binds ${source} from outside the project directory`
+		});
+		render(ValidationResult, {
+			props: {
+				validation: {
+					valid: true,
+					errors: [],
+					warnings: [
+						outside('radarr', '/mnt'),
+						outside('sonarr', '/mnt'),
+						outside('silo', '/proc/stat')
+					],
+					services: [
+						{ name: 'radarr', image: 'radarr', build: false, dependsOn: [] },
+						{ name: 'sonarr', image: 'sonarr', build: false, dependsOn: [] },
+						{ name: 'silo', image: 'silo', build: false, dependsOn: [] }
+					],
+					binds: [
+						bind('radarr', '/mnt', '/mnt'),
+						bind('sonarr', '/mnt', '/mnt'),
+						bind('silo', '/mnt', '/data'),
+						bind('silo', '/proc/stat', '/host/stat')
+					]
+				}
+			}
+		});
+		expect(screen.queryByRole('list', { name: 'Warnings' })).toBeNull();
+		expect(screen.queryByText(/warnings?$/)).toBeNull();
+		expect(screen.getAllByText('/mnt')).toHaveLength(1);
+		expect(screen.getAllByText('/proc/stat')).toHaveLength(1);
+	});
 });

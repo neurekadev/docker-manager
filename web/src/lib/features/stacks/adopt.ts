@@ -5,15 +5,18 @@
 import type { JobMatch } from '$lib/features/jobs/active';
 import { jobKindLabel } from '$lib/features/jobs/labels';
 
+/** Background jobs on a stack that never show in its tray (the top bar counts them). */
+const BACKGROUND_KINDS = ['update.check', 'backup.run'];
+
 /**
- * The stack's jobs the tray shows: every kind acting on it but update
- * checks, and but migrations while the migration wizard (which shows them
- * itself) is open.
+ * The stack's jobs the tray shows: every kind acting on it but background
+ * ones (update checks, backups), and but migrations while the migration
+ * wizard (which shows them itself) is open.
  */
 export function stackTrayMatch(stackId: string, o: { wizard?: boolean } = {}): JobMatch {
 	return {
 		targets: [{ type: 'stack', id: stackId }],
-		excludeKinds: o.wizard ? ['update.check', 'stack.migrate'] : ['update.check']
+		excludeKinds: o.wizard ? [...BACKGROUND_KINDS, 'stack.migrate'] : BACKGROUND_KINDS
 	};
 }
 
@@ -89,11 +92,6 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		title: `Restore ${t}`,
 		success: `Restored ${t}`,
 		failure: `${t} was not restored`
-	}),
-	'backup.run': (t) => ({
-		title: `Back up ${t}`,
-		success: `Backed up ${t}`,
-		failure: `${t} was not backed up`
 	})
 };
 

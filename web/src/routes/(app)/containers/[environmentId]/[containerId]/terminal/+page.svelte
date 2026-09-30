@@ -31,7 +31,7 @@
 	}));
 </script>
 
-<div class="page" use:fillViewport={{ bottom: 24, min: 420 }}>
+<div class="page" use:fillViewport={{ min: 420 }}>
 	{#if container.isPending}
 		<div aria-busy="true"><Skeleton lines={10} /></div>
 	{:else if container.error}

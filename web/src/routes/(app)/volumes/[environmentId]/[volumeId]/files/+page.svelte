@@ -39,7 +39,7 @@
 	);
 </script>
 
-<div class="page" use:fillViewport={{ bottom: 24, min: 520 }}>
+<div class="page" use:fillViewport={{ min: 520 }}>
 	{#if volume.isPending}
 		<div aria-busy="true"><Skeleton lines={10} /></div>
 	{:else if volume.error}
