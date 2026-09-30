@@ -206,6 +206,24 @@ relabel an existing object, so:
   Existing containers that carry such a user label (for example
   `docker-manager.role`) are now read as Docker Manager's.
 
+### Compose labels of volumes
+
+Docker keeps the labels a volume was created with, and a deploy never
+recreates a volume (the agent declines Compose's "recreate, data will be
+lost"), so a user-set exclusion added to a volume in a stack's Compose file
+later never reaches the volume. After every successful `stack.deploy`
+(`apply`) the agent records, per declared non-external volume that exists,
+the `protocol.UserLabels` the file declares with a value the volume lacks
+(`volumelabels.Missing`), keyed by the volume's name and creation time, in
+`<state dir>/volume-labels.json` (`volumelabels.Store`, replaced per
+project, written atomically; `stack.remove` forgets the project). A volume
+created again no longer matches its entry. Backups (`includeVolume`) and
+prune (`volumeItem`) decide by `volumelabels.Effective` (the Compose labels
+win, so a declared `"false"` reverses a `true` on the volume);
+`volume.list`/`volume.inspect` return them apart as `composeLabels`, the
+API's `Volume.composeLabels` (full view), which the Labels card shows as
+their own group with an (i) explaining why.
+
 ## Hooks for other workstreams
 
 - **#19 registry connections:** pulls select the connection with

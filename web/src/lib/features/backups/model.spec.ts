@@ -15,6 +15,7 @@ import {
 	incompleteMembers,
 	isBuildxVolume,
 	isHelperContainer,
+	labelLockReason,
 	memberReason,
 	memberState,
 	looksLikeRecoveryKey,
@@ -171,6 +172,35 @@ describe('backup sets', () => {
 			['media', false, false]
 		]);
 		expect(isBuildxVolume('buildx_buildkit__state')).toBe(false);
+	});
+
+	it('says where the backup exclude label is, honoring Compose labels over the volume', () => {
+		const exclude = { 'docker-manager.backup.exclude': 'true' };
+		const out = coveredVolumes(
+			[
+				{ name: 'a_compose', composeLabels: exclude },
+				{ name: 'b_volume', labels: exclude },
+				{
+					name: 'c_unset',
+					labels: exclude,
+					composeLabels: { 'docker-manager.backup.exclude': 'false' }
+				},
+				{ name: 'd_container', usedBy: [{ id: 'c1' }] }
+			],
+			[],
+			[{ id: 'c1', labels: exclude }]
+		);
+		expect(out.map((v) => [v.name, v.labelled, v.labelledBy])).toEqual([
+			['a_compose', true, 'compose'],
+			['b_volume', true, 'volume'],
+			['c_unset', false, undefined],
+			['d_container', true, 'container']
+		]);
+		expect(labelLockReason('compose')).toMatch(
+			/^Managed by a volume label in the stack's Compose file/
+		);
+		expect(labelLockReason('volume')).toMatch(/^Managed by a volume label:/);
+		expect(labelLockReason('container')).toMatch(/^Managed by a container label/);
 	});
 
 	it('recognizes temporary containers of Docker Manager and Compose like the manager', () => {

@@ -8,14 +8,14 @@ export function setExcluded(excluded: string[], keys: string[], exclude: boolean
 	return excluded.filter((k) => !drop.has(k));
 }
 
-/** How many of the items are covered (not excluded). */
+/** How many of the items are covered (not excluded, not locked out). */
 export function coverageCount(
-	items: { key: string }[],
+	items: { key: string; locked?: string }[],
 	excluded: string[]
 ): { included: number; total: number } {
 	const out = new Set(excluded);
 	return {
-		included: items.filter((i) => !out.has(i.key)).length,
+		included: items.filter((i) => !i.locked && !out.has(i.key)).length,
 		total: items.length
 	};
 }

@@ -15,6 +15,12 @@ managed volumes.
 - **Remove** deletes the volume **and its data**. Type its name to confirm.
   A volume in use, or one of a stack, can't be removed here.
 
+A volume's **Labels** card shows the labels on the volume. Docker keeps the
+labels a volume was created with, so a Docker Manager label you add to the
+volume in a stack's `compose.yaml` later is listed apart under **Compose
+labels**: after the next deploy, backups follow it anyway (see
+[Backups](/backups#what-is-not-backed-up)).
+
 Only `local` volumes on the server's own disk can be browsed and backed up.
 Others, including NFS or CIFS volumes, show as **Read-only**. Docker
 Manager's own volumes can't be browsed, backed up, migrated or removed.

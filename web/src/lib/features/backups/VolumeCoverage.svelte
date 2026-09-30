@@ -3,16 +3,18 @@
 	// volumes of the included stacks and the standalone ones, all included
 	// until unchecked (unchecking adds the volume to the policy's
 	// exclusions). Anonymous and buildx builder volumes appear only when the
-	// policy backs them up; volumes left out by the backup exclude label and
-	// standalone volumes only temporary containers of Docker Manager or
-	// Compose use are counted, never offered. Docker Manager's own volumes
+	// policy backs them up. Volumes left out by the backup exclude label (on
+	// the volume, in its Compose file or on a container using it) are listed
+	// unchecked and locked, with an (i) naming the label; standalone volumes
+	// only temporary containers of Docker Manager or Compose use are
+	// counted, never offered. Docker Manager's own volumes
 	// are never offered (#32). Volumes of unfinished environment migrations
 	// cannot be told apart here (the manager leaves them out at run time).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { Skeleton } from '$lib/ui';
 	import CoverageList from '$lib/features/common/CoverageList.svelte';
 	import { containersQuery, stacksQuery, volumesQuery } from '$lib/features/common/data';
-	import { coveredVolumes, volumeKey } from './model';
+	import { coveredVolumes, labelLockReason, volumeKey } from './model';
 
 	let {
 		environmentId,
@@ -44,13 +46,16 @@
 	const list = $derived(
 		coveredVolumes(volumes.data ?? [], stacks.data ?? [], containers.data ?? [])
 	);
-	const labelled = $derived(list.filter((v) => v.labelled).length);
 	const temporary = $derived(list.filter((v) => !v.labelled && v.temporary).length);
-	const unlabelled = $derived(list.filter((v) => !v.labelled && !v.temporary));
-	const hiddenAnonymous = $derived(anonymous ? 0 : unlabelled.filter((v) => v.anonymous).length);
-	const hiddenBuildx = $derived(buildx ? 0 : unlabelled.filter((v) => v.buildx).length);
+	const offered = $derived(list.filter((v) => v.labelled || !v.temporary));
+	const hiddenAnonymous = $derived(
+		anonymous ? 0 : offered.filter((v) => !v.labelled && v.anonymous).length
+	);
+	const hiddenBuildx = $derived(
+		buildx ? 0 : offered.filter((v) => !v.labelled && v.buildx).length
+	);
 	const shown = $derived(
-		unlabelled.filter((v) => (anonymous || !v.anonymous) && (buildx || !v.buildx))
+		offered.filter((v) => (anonymous || !v.anonymous) && (buildx || !v.buildx))
 	);
 	const stackVolumes = $derived(
 		shown.filter((v) => v.stackId && !excludedStacks.includes(v.stackId))
@@ -62,7 +67,8 @@
 		description:
 			[withStack && v.stackId ? stackTitle(v.stackId) : '', v.anonymous ? 'anonymous' : '']
 				.filter(Boolean)
-				.join(', ') || undefined
+				.join(', ') || undefined,
+		locked: v.labelledBy ? labelLockReason(v.labelledBy) : undefined
 	});
 </script>
 
@@ -123,13 +129,6 @@
 				{temporary}
 				{temporary === 1 ? 'volume is' : 'volumes are'} not backed up: only temporary containers
 				of Docker Manager or Compose use {temporary === 1 ? 'it' : 'them'}.
-			</p>
-		{/if}
-		{#if labelled}
-			<p class="muted small">
-				{labelled}
-				{labelled === 1 ? 'volume is' : 'volumes are'} left out by the label
-				<code>docker-manager.backup.exclude=true</code>.
 			</p>
 		{/if}
 	{/if}

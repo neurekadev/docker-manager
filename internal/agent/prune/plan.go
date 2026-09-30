@@ -11,6 +11,7 @@ import (
 
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/imageref"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -19,9 +20,11 @@ import (
 // moment, the containers (usage), Docker Manager's own objects and every
 // protection the manager sent or the agent recognizes.
 type facts struct {
-	now        time.Time
-	containers []engine.Container
-	set        *protect.Set
+	now time.Time
+	// volumeLabels are the Compose labels of stack volumes (volumelabels).
+	volumeLabels *volumelabels.Store
+	containers   []engine.Container
+	set          *protect.Set
 	// projects are Compose projects of Docker Manager stacks (manager-sent, or
 	// with a container whose working directory is in a stack root).
 	projects map[string]string
@@ -40,7 +43,7 @@ func (s *Service) gather(ctx context.Context, eng engine.Engine, in protocol.Pru
 	if err != nil {
 		return nil, err
 	}
-	f := &facts{now: s.clk.Now().UTC(), containers: cs, set: s.guard.Identify(ctx, eng, cs), projects: map[string]string{},
+	f := &facts{now: s.clk.Now().UTC(), volumeLabels: s.opts.VolumeLabels, containers: cs, set: s.guard.Identify(ctx, eng, cs), projects: map[string]string{},
 		images: map[string]string{}, volumes: map[string]string{}, networks: map[string]string{}}
 	for _, p := range in.Protect.Projects {
 		f.projects[p.Ref] = p.Reason
@@ -570,7 +573,8 @@ func (f *facts) volumeItem(r protocol.PruneRule, v engine.Volume, size int64) (p
 		it.Decision, it.Reason = protocol.PruneProtected, reason
 		return it, true
 	}
-	it.Decision, it.Reason = ruleDecision(r, v.Name, []string{v.Name}, v.Labels, it.Since, f.now)
+	labels := volumelabels.Effective(v.Labels, f.volumeLabels.Compose(v.Name, v.CreatedAt))
+	it.Decision, it.Reason = ruleDecision(r, v.Name, []string{v.Name}, labels, it.Since, f.now)
 	if it.Decision == protocol.PruneRemove {
 		it.Reason = "no container mounts it; its data is deleted"
 	}

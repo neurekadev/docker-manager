@@ -24,6 +24,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -38,8 +39,11 @@ type Options struct {
 	ManagedStackDir func(dir string) bool
 	// Guard identifies Docker Manager's own resources (#32); nil protects only
 	// what the labels show (no self container, no stacks volume).
-	Guard  *protect.Guard
-	Logger *slog.Logger
+	Guard *protect.Guard
+	// VolumeLabels are the Compose labels of stack volumes (volumelabels;
+	// nil: none).
+	VolumeLabels *volumelabels.Store
+	Logger       *slog.Logger
 }
 
 // Service implements the requests and executors.

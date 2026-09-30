@@ -298,9 +298,10 @@ func usersByVolume(cs []engine.Container) map[string][]protocol.ContainerRef {
 	return out
 }
 
-func volumeInfo(v engine.Volume, users []protocol.ContainerRef, managed map[string]bool, set *protect.Set) protocol.VolumeInfo {
+func (s *Service) volumeInfo(v engine.Volume, users []protocol.ContainerRef, managed map[string]bool, set *protect.Set) protocol.VolumeInfo {
 	return protocol.VolumeInfo{Name: v.Name, Driver: v.Driver, Scope: v.Scope, Created: v.CreatedAt.UTC(), Labels: maps.Clone(v.Labels),
-		Options: maps.Clone(v.Options), UsedBy: users, Stack: objectStack(v.Labels, managed), Protection: set.Volume(v.Name, v.Labels)}
+		ComposeLabels: s.opts.VolumeLabels.Compose(v.Name, v.CreatedAt), Options: maps.Clone(v.Options), UsedBy: users,
+		Stack: objectStack(v.Labels, managed), Protection: set.Volume(v.Name, v.Labels)}
 }
 
 func (s *Service) listVolumes(ctx context.Context, eng engine.Engine, _ protocol.VolumeListInput) (protocol.VolumeListOutput, error) {
@@ -315,7 +316,7 @@ func (s *Service) listVolumes(ctx context.Context, eng engine.Engine, _ protocol
 	users, managed, set := usersByVolume(cs), s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)
 	out := protocol.VolumeListOutput{Volumes: make([]protocol.VolumeInfo, 0, len(vs))}
 	for _, v := range vs {
-		out.Volumes = append(out.Volumes, volumeInfo(v, users[v.Name], managed, set))
+		out.Volumes = append(out.Volumes, s.volumeInfo(v, users[v.Name], managed, set))
 	}
 	return out, nil
 }
@@ -332,7 +333,7 @@ func (s *Service) inspectVolume(ctx context.Context, eng engine.Engine, in proto
 	if err != nil {
 		return protocol.VolumeInfo{}, err
 	}
-	return volumeInfo(v, usersByVolume(cs)[v.Name], s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)), nil
+	return s.volumeInfo(v, usersByVolume(cs)[v.Name], s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)), nil
 }
 
 // volumeUsage serves volume.usage: the Engine's per-volume disk usage

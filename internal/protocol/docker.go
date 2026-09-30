@@ -435,15 +435,20 @@ type ImageDetails struct {
 // VolumeInfo is a Docker volume with its users. The host mountpoint is
 // not included.
 type VolumeInfo struct {
-	Name       string            `json:"name"`
-	Driver     string            `json:"driver"`
-	Scope      string            `json:"scope,omitempty"`
-	Created    time.Time         `json:"created,omitzero"`
-	Labels     map[string]string `json:"labels,omitempty"`
-	Options    map[string]string `json:"options,omitempty"`
-	UsedBy     []ContainerRef    `json:"usedBy,omitempty"`
-	Stack      *StackRef         `json:"stack,omitempty"`
-	Protection *Protection       `json:"protection,omitempty"`
+	Name    string            `json:"name"`
+	Driver  string            `json:"driver"`
+	Scope   string            `json:"scope,omitempty"`
+	Created time.Time         `json:"created,omitzero"`
+	Labels  map[string]string `json:"labels,omitempty"`
+	// ComposeLabels are Docker Manager's labels (UserLabels) the stack's
+	// Compose file declared on the volume at its last deploy with a value
+	// the volume lacks: Docker never relabels an existing volume, so they
+	// are honored as if the volume carried them (they take precedence).
+	ComposeLabels map[string]string `json:"composeLabels,omitempty"`
+	Options       map[string]string `json:"options,omitempty"`
+	UsedBy        []ContainerRef    `json:"usedBy,omitempty"`
+	Stack         *StackRef         `json:"stack,omitempty"`
+	Protection    *Protection       `json:"protection,omitempty"`
 }
 
 // NetworkInfo is a Docker network with its attached containers.

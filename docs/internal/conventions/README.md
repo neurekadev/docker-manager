@@ -22,7 +22,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Image builds | `internal/manager/builds`, `gitcreds`, `internal/agent/buildrun` | [builds.md](builds.md) |
 | Agent sessions, requests, events | `internal/manager/agents`, `internal/agent/session`, `runtime`, `internal/protocol` | [agent-transport.md](agent-transport.md) |
 | Metrics and inventory | `internal/agent/observe`, `internal/manager/observe`, `metrics` | [observation.md](observation.md) |
-| Containers, images, volumes, networks | `internal/manager/resources`, `internal/agent/resources`, `protocol/docker.go` | [docker-resources.md](docker-resources.md) |
+| Containers, images, volumes, networks | `internal/manager/resources`, `internal/agent/resources`, `internal/agent/volumelabels`, `protocol/docker.go` | [docker-resources.md](docker-resources.md) |
 | Byte streams and file manager | `internal/streammux`, `internal/fsroot`, `internal/agent/files`, `internal/manager/files` | [files-and-streams.md](files-and-streams.md) |
 | Compose stacks, import by copy | `internal/manager/stacks`, `internal/agent/stacks`, `lifecycle`, `compose` | [stacks.md](stacks.md) |
 | Stack templates (template registry) | `internal/manager/templates`, `api/templates.go`, template file scope | [templates.md](templates.md) |

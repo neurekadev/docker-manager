@@ -19,10 +19,12 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   The rules and the deleted-item expiry are one decision (`backup.Plan`
   then `RetentionPlan.Expire`) shared by the preview and the executor.
 - Volumes are left out by the user-set label
-  `docker-manager.backup.exclude=true` (on the volume or a container using
-  it) and buildx builder volumes by default; change the rule in
-  `standaloneVolumes`, `planStackVolumes` and the UI's `coveredVolumes`
-  together.
+  `docker-manager.backup.exclude=true` (on the volume, as a Compose label
+  of the volume, or on a container using it) and buildx builder volumes
+  by default; change the rule in `standaloneVolumes`, `planStackVolumes`
+  (`includeVolume`) and the UI's `coveredVolumes` together. A policy lists
+  label-excluded volumes locked (unchecked, disabled, an (i) from
+  `labelLockReason`), never as a choice.
 - Docker Manager's temporary objects never get into backups: temporary
   containers are recognized only by `protocol.IsHelperContainer` (UI:
   `isHelperContainer`, same patterns) and never count as users of a

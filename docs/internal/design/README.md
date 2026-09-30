@@ -340,6 +340,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher. |
 | `Tooltip` | `text`, `trigger` snippet `(props)`. Supplements names; never the only name. |
+| `InfoTip` | `text`. An (i) beside a label or control that explains it: the text is its tooltip and its accessible name (focusable). Inside a `<summary>` use `Disclosure`'s `hint` instead (a `title`, never a control in a summary). |
 | `TooltipLayer` | Mounted once in the root layout: every `title` attribute shows as the same themed tooltip (`.dy-tooltip`, `global.css`) after 400 ms of hover or on keyboard focus, above the element (below when there is no room), multi-line titles keep their lines. Use plain `title` for hints; never a native tooltip. |
 
 ### Feedback and states

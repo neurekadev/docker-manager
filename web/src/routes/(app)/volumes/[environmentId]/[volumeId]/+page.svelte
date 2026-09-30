@@ -67,7 +67,7 @@
 			{/if}
 		</Card>
 	</Columns>
-	<LabelsCard labels={v.labels} label="Labels of {v.name}" />
+	<LabelsCard labels={v.labels} composeLabels={v.composeLabels} label="Labels of {v.name}" />
 {/if}
 
 <style>

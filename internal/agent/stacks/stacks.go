@@ -36,6 +36,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
 	"github.com/neurekadev/docker-manager/internal/agent/storage"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -78,6 +79,10 @@ type Options struct {
 	// deploy or update of Docker Manager's own project would recreate it
 	// (#32). nil: no handoff (tests, agents outside a container).
 	Self SelfUpdater
+	// VolumeLabels records, at every deploy, Docker Manager's labels the
+	// definition declares on its volumes that the volumes lack (Docker
+	// never relabels an existing volume). nil: nothing is recorded.
+	VolumeLabels *volumelabels.Store
 }
 
 // Service serves the compose.* requests and runs the stack.* jobs.

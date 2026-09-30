@@ -2,20 +2,28 @@
 	// The labels of a container, image, volume or network (#6, #22
 	// polish): labels someone chose first; those Docker, Compose, image
 	// builders and Docker Manager set themselves (com.docker.compose.*,
-	// org.opencontainers.*, …) folded behind a disclosure. Keys get a
-	// column wide enough to read them.
+	// org.opencontainers.*, …) folded behind a disclosure. A volume's
+	// Compose labels (declared in its stack's Compose file after the volume
+	// was created; Docker keeps a volume's labels, Docker Manager honors
+	// them) are their own group with an (i) saying so. Keys get a column
+	// wide enough to read them.
 	import { Card } from '$lib/ui';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
-	import { splitLabels } from './model';
+	import { COMPOSE_LABELS_INFO, splitLabels } from './model';
 
 	interface Props {
 		labels: Record<string, string> | undefined;
+		/** A volume's Compose labels (not on the volume, honored anyway). */
+		composeLabels?: Record<string, string>;
 		/** Accessible name of the lists, e.g. "Labels of pihole". */
 		label: string;
 	}
 
-	let { labels, label }: Props = $props();
+	let { labels, composeLabels, label }: Props = $props();
 	const groups = $derived(splitLabels(labels));
+	const compose = $derived(
+		Object.entries(composeLabels ?? {}).sort(([a], [b]) => a.localeCompare(b))
+	);
 </script>
 
 {#snippet list(entries: [string, string][], name: string)}
@@ -34,10 +42,23 @@
 <Card title="Labels">
 	{#if groups.user.length}
 		{@render list(groups.user, label)}
+	{:else if compose.length}
+		<p class="muted">None on the volume itself.</p>
 	{:else if groups.system.length}
 		<p class="muted">Only the labels Docker and Compose set themselves.</p>
 	{:else}
 		<p class="muted">No labels.</p>
+	{/if}
+	{#if compose.length}
+		<div class="system">
+			<Disclosure
+				open
+				summary="{compose.length} Compose {compose.length === 1 ? 'label' : 'labels'}"
+				hint={COMPOSE_LABELS_INFO}
+			>
+				{@render list(compose, `${label}: from the Compose file`)}
+			</Disclosure>
+		</div>
 	{/if}
 	{#if groups.system.length}
 		<div class="system">

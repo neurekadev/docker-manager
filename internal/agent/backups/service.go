@@ -33,6 +33,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
 	"github.com/neurekadev/docker-manager/internal/agent/storage"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/backup"
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
@@ -64,8 +65,11 @@ type Options struct {
 	// ExternalAllowlist lists host paths outside project directories that
 	// policies may opt into (DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST).
 	ExternalAllowlist []string
-	Clock             clock.Clock
-	Logger            *slog.Logger
+	// VolumeLabels are the Compose labels of stack volumes: a backup
+	// exclude label declared there counts like one on the volume (nil: none).
+	VolumeLabels *volumelabels.Store
+	Clock        clock.Clock
+	Logger       *slog.Logger
 	// WaitTimeout bounds each dependency wait when restarting containers.
 	WaitTimeout time.Duration
 	// EstimateBudget bounds the entries walked per item for size

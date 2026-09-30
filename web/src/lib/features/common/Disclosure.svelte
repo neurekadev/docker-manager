@@ -1,18 +1,30 @@
 <script lang="ts">
 	// Secondary detail behind a summary line (native <details>: keyboard
 	// and screen readers for free): explanations, less common options.
+	// `hint` adds an (i) to the summary that explains the group: a themed
+	// title tooltip (never a focusable control inside <summary>) that is
+	// also part of the summary's accessible name.
 	import type { Snippet } from 'svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import Info from '@lucide/svelte/icons/info';
 
 	let {
 		summary,
+		hint,
 		open = false,
 		children
-	}: { summary: string; open?: boolean; children: Snippet } = $props();
+	}: { summary: string; hint?: string; open?: boolean; children: Snippet } = $props();
 </script>
 
 <details class="disclosure" {open}>
-	<summary><ChevronRight size={14} aria-hidden="true" class="chev" />{summary}</summary>
+	<summary
+		><ChevronRight size={14} aria-hidden="true" class="chev" />{summary}{#if hint}<span
+				class="hint"
+				role="img"
+				aria-label={hint}
+				title={hint}><Info size={13} strokeWidth={1.75} aria-hidden="true" /></span
+			>{/if}</summary
+	>
 	<div class="body">{@render children()}</div>
 </details>
 
@@ -27,6 +39,13 @@
 		font-size: var(--text-caption);
 		cursor: pointer;
 		border-radius: var(--radius-sm);
+	}
+
+	.hint {
+		display: inline-flex;
+		margin-left: var(--space-1);
+		color: var(--text-muted);
+		cursor: help;
 	}
 
 	summary::-webkit-details-marker {

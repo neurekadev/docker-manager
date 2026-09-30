@@ -13,6 +13,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
 	"github.com/neurekadev/docker-manager/internal/agent/regauth"
+	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
@@ -354,10 +355,40 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 	if upErr != nil {
 		return upErr
 	}
+	s.recordVolumeLabels(ctx, eng, in.Stack.ProjectName, p)
 	if len(handoff) > 0 {
 		s.scheduleSelf(sc, in.Stack, dir, snap, handoff, in.ForceRecreate, in.TimeoutSeconds)
 	}
 	return aerr
+}
+
+// recordVolumeLabels records the Docker Manager labels the deployed
+// definition declares on its volumes with a value the volumes lack: Docker
+// keeps the labels a volume was created with, so backups and maintenance
+// honor these instead (volumelabels). Volumes not created (yet) have
+// nothing to honor. Best effort: a failure keeps the previous record.
+func (s *Service) recordVolumeLabels(ctx context.Context, eng engine.Engine, project string, p *compose.Project) {
+	if s.opts.VolumeLabels == nil {
+		return
+	}
+	var vols []volumelabels.Volume
+	for _, v := range p.Resources().Volumes {
+		if v.External || v.Name == "" {
+			continue
+		}
+		ev, err := eng.InspectVolume(ctx, v.Name)
+		if engine.IsCode(err, engine.CodeNotFound) {
+			continue
+		}
+		if err != nil {
+			s.log.Warn("could not record the volume labels of the definition", "project", project, "error", err)
+			return
+		}
+		vols = append(vols, volumelabels.Volume{Name: ev.Name, Created: ev.CreatedAt, Actual: ev.Labels, Declared: v.Labels})
+	}
+	if err := s.opts.VolumeLabels.Record(project, vols); err != nil {
+		s.log.Warn("could not record the volume labels of the definition", "project", project, "error", err)
+	}
 }
 
 // containerStarts maps each container of the project to when it last
@@ -641,6 +672,12 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	}
 	if err == nil && withVolumes {
 		err = s.removeVolumes(ctx, sc, in, eng)
+	}
+	if err == nil && sc.Kind == jobspec.StackRemove {
+		// No definition declares labels on its volumes any more.
+		if ferr := s.opts.VolumeLabels.Forget(in.Stack.ProjectName); ferr != nil {
+			s.log.Warn("could not forget the volume labels of the removed stack", "project", in.Stack.ProjectName, "error", ferr)
+		}
 	}
 	return err
 }

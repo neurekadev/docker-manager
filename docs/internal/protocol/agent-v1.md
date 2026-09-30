@@ -1050,8 +1050,8 @@ on a new session with a new frame ID.
 | `image.inspect` | request | `image.read` | no | #6 |
 | `image.tag` | request | `image.tag` | yes | #6 |
 | `image.local_digests` | request | `update.check` / manager service | no | #20 |
-| `volume.list` | request | `volume.read` | no | #6 |
-| `volume.inspect` | request | `volume.read` | no | #6 |
+| `volume.list` | request | `volume.read` (a volume's `composeLabels`: Docker Manager labels its stack's Compose file declared at the last deploy that the volume lacks) | no | #6 |
+| `volume.inspect` | request | `volume.read` (with `composeLabels`, as `volume.list`) | no | #6 |
 | `volume.usage` | request | `volume.read` (sizes of the volumes the caller sees; the manager caches the answer for 60 s per environment and sends it only to agents that advertise it) | no | #6 |
 | `network.list` | request | `network.read` | no | #6 |
 | `network.inspect` | request | `network.read` (attached `containers` carry their `ipAddress`/`ipv6Address` on the network) | no | #6 |
