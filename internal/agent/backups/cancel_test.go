@@ -49,11 +49,12 @@ func TestBackupRunCancelledDuringSnapshot(t *testing.T) {
 					return nil
 				}
 				cancel.Store(true)
-				clk.Advance(jobexec.DefaultCancelPoll)
-				<-ctx.Done()
 				if tc.finish {
+					// Requested as restic finished: the next item never starts.
 					return nil
 				}
+				clk.Advance(jobexec.DefaultCancelPoll)
+				<-ctx.Done()
 				return &restic.Error{Op: "backup", Code: restic.CodeCancelled, Message: "cancelled"}
 			}
 			res, _, err := e.run(testutil.Context(t), jobspec.BackupRun, e.runInput(true, stackItem(protocol.BackupRules{}),

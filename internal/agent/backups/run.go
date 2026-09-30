@@ -310,7 +310,9 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 	rctx, stop := sc.WatchCancel(ctx, s.opts.Clock, jobexec.DefaultCancelPoll)
 	defer stop()
 	for i, it := range in.Items {
-		if rctx.Err() != nil && ctx.Err() == nil {
+		// Between items the request counts at once, without waiting for
+		// the watch's next poll.
+		if ctx.Err() == nil && (rctx.Err() != nil || sc.CancelRequested()) {
 			return stopped(ctx, sc, out)
 		}
 		idx := slices.IndexFunc(out.Members, func(m backup.Member) bool { return m.Item == it.Key() })
