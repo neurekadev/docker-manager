@@ -1,9 +1,10 @@
 // Per-container charts of an environment (#5): the series of every
 // container from GET …/metrics/containers/history as MultiSeriesChart
-// items, one colour per container (by name order, the same on every chart),
-// and the name filter. Pure.
+// items (in name order) coloured in Beszel's order: on each chart the
+// containers are ranked by their total over the range and the largest gets
+// the first colour. And the name filter. Pure.
 import type { ContainerMetricsHistory } from '$lib/api/queries';
-import { seriesColor } from '$lib/design/hue';
+import { rankColor } from '$lib/design/hue';
 import type { SeriesItem } from '$lib/ui/multiseries';
 
 /** The metric keys the charts read. */
@@ -55,9 +56,10 @@ export function containerCharts(h: ContainerMetricsHistory | undefined): Contain
 	if (!h) return out;
 	const n = h.timestamps.length;
 	const sorted = [...h.items].sort((a, b) => a.container.localeCompare(b.container));
-	sorted.forEach((c, i) => {
+	for (const c of sorted) {
 		const name = c.container;
-		const color = seriesColor(i);
+		// Coloured per chart once every container is in (colourByRank).
+		const color = '';
 		const v = (key: string) => valuesOf(c, key, n);
 		const rx = v('network.rx_bytes_per_second');
 		const tx = v('network.tx_bytes_per_second');
@@ -83,8 +85,28 @@ export function containerCharts(h: ContainerMetricsHistory | undefined): Contain
 				{ label: 'write', values: write }
 			]
 		});
-	});
+	}
+	for (const items of Object.values(out)) colourByRank(items);
 	return out;
+}
+
+/** The sum of the values over the range (gaps count as nothing). */
+export function totalOf(values: Values): number {
+	let sum = 0;
+	for (const v of values) if (v !== null) sum += v;
+	return sum;
+}
+
+/**
+ * Colours the items of one chart in Beszel's order: ranked by their total
+ * over the range, largest first (ties by name), colour i of n from
+ * rankColor. The items keep their order.
+ */
+export function colourByRank(items: SeriesItem[]): void {
+	const ranked = items
+		.map((it) => ({ it, total: totalOf(it.values) }))
+		.sort((a, b) => b.total - a.total || a.it.name.localeCompare(b.it.name));
+	ranked.forEach(({ it }, rank) => (it.color = rankColor(rank, ranked.length)));
 }
 
 /**
