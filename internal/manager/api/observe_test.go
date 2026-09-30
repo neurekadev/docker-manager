@@ -438,7 +438,7 @@ func TestEnvironmentMetricsLabelTemperatureSensors(t *testing.T) {
 		t.Fatalf("status %d", st)
 	}
 	// The disk keeps its mount; each sensor has its average and maximum,
-	// labelled with its name and in degrees Celsius.
+	// labeled with its name and in degrees Celsius.
 	var got []string
 	for _, s := range m.Series {
 		got = append(got, s.Key+"|"+s.Unit+"|"+s.Mount+"|"+s.Sensor)
