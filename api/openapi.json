@@ -4033,13 +4033,6 @@
       "ContainerMetricsHistory": {
         "additionalProperties": false,
         "properties": {
-          "containers": {
-            "description": "Sorted by name; only containers with a value in the range the caller may chart.",
-            "items": {
-              "$ref": "#/components/schemas/ContainerMetricSeries"
-            },
-            "type": "array"
-          },
           "environmentId": {
             "type": "string"
           },
@@ -4049,6 +4042,13 @@
           },
           "incomplete": {
             "type": "boolean"
+          },
+          "items": {
+            "description": "One entry per container, sorted by name; only containers with a value in the range the caller may chart (empty without any).",
+            "items": {
+              "$ref": "#/components/schemas/ContainerMetricSeries"
+            },
+            "type": "array"
           },
           "online": {
             "type": "boolean"
@@ -4087,7 +4087,7 @@
           "stepSeconds",
           "resolution",
           "timestamps",
-          "containers",
+          "items",
           "skewCorrected",
           "incomplete",
           "online"
@@ -40281,7 +40281,7 @@
     "/api/v1/environments/{environmentId}/metrics/containers/history": {
       "get": {
         "description": "Downsampled CPU, memory, network, block I/O and process counts (#5 storage) of every container of the environment with a value in the range, for the containers the caller holds container.metrics.read on (others are absent): the per-container charts of the environment page in one request instead of a range query per container. Buckets and units as in get-container-metrics; null is a gap. Readable while the environment is offline.",
-        "operationId": "get-container-metrics-history",
+        "operationId": "list-container-metrics-history",
         "parameters": [
           {
             "description": "Environment ID.",
@@ -40348,7 +40348,10 @@
             "content": {
               "application/json": {
                 "example": {
-                  "containers": [
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "from": "2026-09-25T12:00:00Z",
+                  "incomplete": false,
+                  "items": [
                     {
                       "container": "shop-web-1",
                       "series": [
@@ -40363,9 +40366,6 @@
                       ]
                     }
                   ],
-                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                  "from": "2026-09-25T12:00:00Z",
-                  "incomplete": false,
                   "online": false,
                   "resolution": "raw",
                   "skewCorrected": false,

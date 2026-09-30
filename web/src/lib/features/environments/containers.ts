@@ -33,11 +33,7 @@ export interface ContainerCharts {
 
 type Values = (number | null)[];
 
-function valuesOf(
-	c: ContainerMetricsHistory['containers'][number],
-	key: string,
-	n: number
-): Values {
+function valuesOf(c: ContainerMetricsHistory['items'][number], key: string, n: number): Values {
 	const s = c.series.find((x) => x.key === key);
 	return s ? s.values.map((v) => v ?? null) : new Array<null>(n).fill(null);
 }
@@ -58,7 +54,7 @@ export function containerCharts(h: ContainerMetricsHistory | undefined): Contain
 	const out: ContainerCharts = { cpu: [], memory: [], network: [], disk: [] };
 	if (!h) return out;
 	const n = h.timestamps.length;
-	const sorted = [...h.containers].sort((a, b) => a.container.localeCompare(b.container));
+	const sorted = [...h.items].sort((a, b) => a.container.localeCompare(b.container));
 	sorted.forEach((c, i) => {
 		const name = c.container;
 		const color = seriesColor(i);

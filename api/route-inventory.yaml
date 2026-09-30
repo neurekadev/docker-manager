@@ -931,7 +931,7 @@ routes:
     notes: "The newest sample of every container (metrics.Store.LatestContainers) filtered per container; the live CPU and memory columns of the container and stack service tables."
   - method: GET
     path: "/api/v1/environments/{environmentId}/metrics/containers/history"
-    operationId: get-container-metrics-history
+    operationId: list-container-metrics-history
     capability: container.metrics.read
     scope: environment
     owner: 5

@@ -19,7 +19,7 @@ const history: ContainerMetricsHistory = {
 	skewCorrected: false,
 	incomplete: false,
 	online: true,
-	containers: [
+	items: [
 		{
 			container: 'web',
 			series: [

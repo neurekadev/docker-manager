@@ -177,7 +177,7 @@ type ContainerMetricsHistory struct {
 	StepSeconds   int                     `json:"stepSeconds"`
 	Resolution    string                  `json:"resolution" enum:"raw,1m,15m"`
 	Timestamps    []time.Time             `json:"timestamps"`
-	Containers    []ContainerMetricSeries `json:"containers" doc:"Sorted by name; only containers with a value in the range the caller may chart."`
+	Items         []ContainerMetricSeries `json:"items" doc:"One entry per container, sorted by name; only containers with a value in the range the caller may chart (empty without any)."`
 	SkewCorrected bool                    `json:"skewCorrected"`
 	Incomplete    bool                    `json:"incomplete"`
 	Online        bool                    `json:"online"`
@@ -253,13 +253,13 @@ func (h *dockerAPI) containerMetricsHistory(ctx context.Context, in *containerMe
 	head.Series = nil
 	m := newEnvironmentMetrics(sc.env, head)
 	out := ContainerMetricsHistory{EnvironmentID: sc.env.ID, From: m.From, To: m.To, StepSeconds: m.StepSeconds, Resolution: m.Resolution,
-		Timestamps: m.Timestamps, Containers: []ContainerMetricSeries{}, SkewCorrected: m.SkewCorrected, Incomplete: m.Incomplete,
+		Timestamps: m.Timestamps, Items: []ContainerMetricSeries{}, SkewCorrected: m.SkewCorrected, Incomplete: m.Incomplete,
 		Online: m.Online}
 	for _, s := range r.Series {
-		if n := len(out.Containers); n == 0 || out.Containers[n-1].Container != s.Container {
-			out.Containers = append(out.Containers, ContainerMetricSeries{Container: s.Container, Series: []MetricSeries{}})
+		if n := len(out.Items); n == 0 || out.Items[n-1].Container != s.Container {
+			out.Items = append(out.Items, ContainerMetricSeries{Container: s.Container, Series: []MetricSeries{}})
 		}
-		c := &out.Containers[len(out.Containers)-1]
+		c := &out.Items[len(out.Items)-1]
 		c.Series = append(c.Series, MetricSeries{Key: s.Key, Unit: s.Unit, Values: s.Values})
 	}
 	return &containerMetricsHistoryOutput{Body: out}, nil
@@ -297,7 +297,7 @@ func registerContainerMetrics(a huma.API, deps Deps) {
 	}, h.latestContainerMetrics)
 	Register(a, Operation{
 		Operation: huma.Operation{
-			OperationID: "get-container-metrics-history", Method: http.MethodGet,
+			OperationID: "list-container-metrics-history", Method: http.MethodGet,
 			Path:    BasePath + "/environments/{environmentId}/metrics/containers/history",
 			Summary: "Get the metrics of an environment's containers",
 			Description: "Downsampled CPU, memory, network, block I/O and process counts (#5 storage) of every container of the " +
