@@ -406,12 +406,14 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 		return
 	}
 	ss.Path = filepath.ToSlash(osPath(v.Mountpoint))
-	if protocol.BackupExcluded(v.Labels) {
+	// The Compose labels win over the volume's own (a declared "false"
+	// backs up a volume created with "true").
+	composeLabels := s.opts.VolumeLabels.Compose(v.Name, v.CreatedAt)
+	if protocol.BackupExcluded(volumelabels.Effective(v.Labels, composeLabels)) {
 		ss.State, ss.Reason = protocol.SourceExcluded, labeledVolumeReason
-		return
-	}
-	if protocol.BackupExcluded(volumelabels.Effective(v.Labels, s.opts.VolumeLabels.Compose(v.Name, v.CreatedAt))) {
-		ss.State, ss.Reason = protocol.SourceExcluded, composeLabeledReason
+		if protocol.BackupExcluded(composeLabels) {
+			ss.Reason = composeLabeledReason
+		}
 		return
 	}
 	if p.prot != nil {

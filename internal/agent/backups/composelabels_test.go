@@ -1,9 +1,11 @@
 package backups
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
+	"github.com/neurekadev/docker-manager/internal/backup"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
@@ -42,5 +44,35 @@ func TestBackupHonorsComposeLabels(t *testing.T) {
 	p = e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
 	if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceIncluded {
 		t.Errorf("a record of an older volume applied: %+v", s)
+	}
+}
+
+// TestBackupComposeFalseWinsOverVolumeLabel: a volume created with the
+// backup exclude label is backed up again once its stack's Compose file
+// declares "false" (recorded at the deploy), like the policy UI shows.
+func TestBackupComposeFalseWinsOverVolumeLabel(t *testing.T) {
+	e := newEnv(t)
+	ctx := testutil.Context(t)
+	repo := e.repoRef()
+	e.eng.AddVolume("cache", map[string]string{protocol.LabelBackupExclude: "true"})
+	mp := filepath.Join(e.volumes, "cache", "_data")
+	write(t, filepath.Join(mp, "x"), "x")
+	e.eng.SetVolumeMountpoint("cache", filepath.ToSlash(mp))
+	v, err := e.eng.InspectVolume(ctx, "cache")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := protocol.BackupItem{Kind: backup.MemberVolume, Volume: "cache"}
+	if s, _ := sourceState(e.svc.plan(ctx, item, &repo, false), protocol.SourceVolume, "cache"); s.Reason != labeledVolumeReason {
+		t.Fatalf("labeled volume: %+v", s)
+	}
+	store := volumelabels.New(t.TempDir())
+	e.svc.opts.VolumeLabels = store
+	if err := store.Record("app", []volumelabels.Volume{{Name: v.Name, Created: v.CreatedAt, Actual: v.Labels,
+		Declared: map[string]string{protocol.LabelBackupExclude: "false"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := sourceState(e.svc.plan(ctx, item, &repo, false), protocol.SourceVolume, "cache"); s.State != protocol.SourceIncluded {
+		t.Errorf("volume the Compose file sets to false: %+v", s)
 	}
 }
