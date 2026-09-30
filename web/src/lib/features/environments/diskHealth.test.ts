@@ -221,26 +221,33 @@ describe('DiskHealthCard', () => {
 			online: true,
 			now
 		});
+		// New props of the card inside QueryHarness: testing-library unwraps
+		// a top-level `props` key (its deprecated form), so the harness's own
+		// `props` is wrapped once more.
+		const update = (props: Record<string, unknown>) =>
+			view.rerender({ props: { props } } as unknown as Parameters<typeof view.rerender>[0]);
 		await user.click(screen.getByRole('button', { name: 'Check disks now' }));
 		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(toast.items).toHaveLength(0);
 		// The live stream refreshes the system information: still reading…
-		await view.rerender({
-			props: { env, health: report({ checking: true }), raid: noArrays, online: true, now }
+		await update({
+			env,
+			health: report({ checking: true }),
+			raid: noArrays,
+			online: true,
+			now
 		});
 		expect(screen.getByRole('button', { name: 'Check disks now' })).toHaveAttribute(
 			'aria-busy',
 			'true'
 		);
 		// …then done.
-		await view.rerender({
-			props: {
-				env,
-				health: report({ checkedAt: '2026-09-29T12:01:00Z' }),
-				raid: noArrays,
-				online: true,
-				now
-			}
+		await update({
+			env,
+			health: report({ checkedAt: '2026-09-29T12:01:00Z' }),
+			raid: noArrays,
+			online: true,
+			now
 		});
 		await waitFor(() =>
 			expect(toast.items.map((t) => t.title)).toContain('Checked 2 disks on homelab')
