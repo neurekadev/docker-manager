@@ -415,6 +415,10 @@
 										{
 											label: 'Buildx builder volumes',
 											value: p.buildxVolumes ? 'Backed up' : 'Not backed up'
+										},
+										{
+											label: 'Allowed folders outside stacks',
+											value: p.externalBinds ? 'Backed up' : 'Not backed up'
 										}
 									]),
 							{ label: 'Manager state', value: manager },

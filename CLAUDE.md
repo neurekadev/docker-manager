@@ -54,40 +54,25 @@ docs in the same commit: the conventions file of its area, the
 architecture guide, and the API or protocol contract. Deleting something
 deletes its docs. When you notice a doc that no longer matches the code,
 fix or remove it. A new area gets a conventions file and a row in the
-index; keep `CLAUDE.md` itself short and move detail into the conventions
-files.
+index; keep this file short and move detail into the conventions files.
 
-**User-facing docs** (`docs/public/`, the documentation site) must match the
-product at all times. In the same commit, update them whenever a change
-alters what users see or do: installation and the compose files,
-configuration variables and defaults, requirements and limits, UI flows,
-and messages users must act on. The site is the only install guide: the
-`compose.yaml` and `.env` in Quickstart and "Add more servers" are the
-deployment (no proxy examples, no `deploy/` examples); keep them in sync
-with the install command text (`internal/manager/agents/install.go`) and
-`docs/internal/deployment.md`. Maintain them with care:
+**User docs** (`docs/public/`, the documentation site) are part of the
+product. A change that alters what users see or do is **not done** until
+the user docs match it, in the same commit: UI labels and flows, defaults
+and limits, configuration variables (the Configuration page lists every
+one), requirements, install and upgrade steps, and messages users act on.
+Read `docs/internal/conventions/user-docs.md` before you touch them; its
+rules are binding:
 
-- **Verify every statement against the code** (UI labels in `web/src`,
-  defaults and limits in the Go code) before writing it. Never copy a claim
-  from older docs without checking it.
-- Write for people who run Docker but are not developers: friendly, plain
-  words, short sentences, active voice, "you". Explain a term once where
-  it first matters (an *environment* is one server with its agent).
-- Lead with what the feature does for the user, then numbered steps, then
-  a short "Good to know" list for limits and edge cases. Short and simple
-  beats complete; skip anything a user never needs to decide or do.
-- Name UI elements exactly as the app shows them, in bold, in the order
-  the user clicks them (**Stacks → Create stack**).
-- One clear example per task; copy-ready commands and complete YAML
-  snippets (mark kept lines with `# ...keep the existing lines...`).
-- No internals: no API paths, job kinds, package names, issue numbers or
-  architecture. Error codes appear only in Troubleshooting, next to the
-  words users see.
-- Use callouts sparingly: only for data loss, security or a step users
-  must not skip. Link between pages with absolute `/docs/<page>` links.
-- Add a page or section only for a real, recurring user need (a task users
-  must do or a problem they will hit). Prefer extending an existing page;
-  never add docs for the sake of having docs.
-- Remove or correct anything that is no longer true.
-- Build the site locally only when you change its code or structure
-  (`npm --prefix docs/public ci && npm --prefix docs/public run build`).
+- **Verify every statement against the code** before you write or keep it:
+  labels in `web/src`, numbers in the Go/TS code, behavior in the code
+  path. Unverifiable means it stays out. Never copy older docs unchecked.
+- **Lean and simple**: what it does for the user, numbered steps, a short
+  "Good to know". No internals (API paths, job kinds, packages, issue
+  numbers, architecture), no over-explaining, no bloat, no new pages
+  except for a new major feature. The sidebar structure is fixed there.
+- **Single pane of glass**: describe the app's way of doing things; show a
+  shell step only where the app has none.
+- `scripts/policy-check.sh` (CI) fails on a variable missing from or
+  stale in the docs, a broken `/docs` link or anchor, or `meta.json` out of
+  step with the pages. Labels and behavior are on you.

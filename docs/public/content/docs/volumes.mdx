@@ -1,0 +1,24 @@
+---
+title: Volumes
+description: Create volumes, browse their files, back them up and move them.
+---
+
+**Volumes** lists your volumes, with filters for driver, stack, unused and
+managed volumes.
+
+- **Create volume** makes a new volume.
+- **Files** opens the volume's data in the [File Manager](/docs/file-manager).
+- **Backups** lists its backups and restores them (see
+  [Backups](/docs/backups)).
+- **Migrate** copies it to another server (see
+  [Migrations](/docs/migrations#move-a-volume)).
+- **Remove** deletes the volume **and its data**. Type its name to confirm.
+  A volume in use, or one of a stack, can't be removed here.
+
+Only `local` volumes on the server's own disk can be browsed and backed up.
+Others, including NFS or CIFS volumes, show as **Read-only**. Docker
+Manager's own volumes can't be browsed, backed up, migrated or removed.
+
+To remove several volumes, tick their rows and press **Remove**. You see
+what will be removed and what is left out before you confirm. **Prune
+volumes** removes unused ones (see [Maintenance](/docs/maintenance)).

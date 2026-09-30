@@ -26,7 +26,7 @@ On a Linux amd64 host with Docker Engine 25.0+ and the Compose plugin,
 behind your own HTTPS reverse proxy. The
 [Quickstart](docs/public/content/docs/quickstart.mdx) has the
 `compose.yaml` and `.env` to copy, and
-[Add more servers](docs/public/content/docs/add-hosts.mdx) the agent for
+its "Add more servers" section the agent for
 other hosts. The registry is private: log in with your Forgejo username and
 a Forgejo access token with the `read:package` scope first.
 

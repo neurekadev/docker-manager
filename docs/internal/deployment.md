@@ -5,12 +5,12 @@ origin** (#27), how agents connect, and a complete two-environment example.
 Configuration reference: [configuration.md](configuration.md).
 
 The Compose setup users run is the one in the user documentation
-([Quickstart](../public/content/docs/quickstart.mdx) and
-[Add more servers](../public/content/docs/add-hosts.mdx)): the manager and a
-co-located agent in the Compose project `docker-manager`, with the manager's
-port 8080 published for the operator's own HTTPS reverse proxy, and an
-agent-only project for other hosts. The repository ships no proxy examples;
-keep those two pages and this guide in sync.
+([Quickstart](../public/content/docs/quickstart.mdx), with its "Add more
+servers" section): the manager and a co-located agent in the Compose
+project `docker-manager`, with the manager's port 8080 published for the
+operator's own HTTPS reverse proxy, and an agent-only project for other
+hosts. The repository ships no proxy examples; keep that page and this
+guide in sync.
 
 ## One origin
 
@@ -164,14 +164,19 @@ container, so it must see those files at the same paths:
   stack; `DOCKER_AGENT_STACKS_VOLUME` selects another local volume).
 - The agent mounts Docker's volume directory at its identical path:
   `/var/lib/docker/volumes:/var/lib/docker/volumes`, plus the stacks volume
-  at its own mountpoint (the documented compose files do this). No other
-  host paths are needed; Docker Manager's own state lives in named volumes.
+  at its own mountpoint (the documented compose files do this). The
+  documented compose files also mount their own folder read-only at
+  `/import/docker-manager` (`.:/import/docker-manager:ro`,
+  `agents.ImportOwnProject`), so **Import project** can copy Docker
+  Manager's own project and it is upgraded from the app afterwards. No
+  other host paths are needed; Docker Manager's own state lives in named
+  volumes.
 - Extra host directories with stacks (e.g. `/opt/stacks`) can be registered
   with `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` and must be bind-mounted at the
   identical path (`/opt/stacks:/opt/stacks`).
 - Optional, only to import existing Compose projects that live elsewhere
   (e.g. `/opt/stacks` of another tool): mount that directory into the agent
-  at or below `/import`, read-only is enough (`/opt/stacks:/import:ro`, or
+  below `/import`, read-only is enough (`/opt/stacks:/import/stacks:ro`, or
   several such as `/srv/apps:/import/apps:ro`). **Import project** then
   moves a project into the stacks volume: it stops the project, copies its
   whole directory (Compose files and the data folders next to them, with
@@ -244,7 +249,8 @@ started from the agent's image with the agent's mounts) right after the job;
 the environment reconnects within a minute. In the UI the stack's Restart,
 Stop, Migrate, Rename and Delete stay visible but disabled.
 
-To import the deployment **in place** (so a redeploy uses the same
+The documented compose files let the agent read their own folder (the
+`/import/docker-manager` line), so no mount has to be added first. To import the deployment **in place** (so a redeploy uses the same
 `compose.yaml`, `.env` and relative files), keep its directory inside a
 registered stack root: for example put it in `/opt/stacks/docker-manager`,
 set `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` on the agent and bind-mount

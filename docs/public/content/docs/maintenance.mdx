@@ -1,0 +1,51 @@
+---
+title: Maintenance
+description: Free disk space by removing unused containers, images, networks, volumes and build cache.
+---
+
+Docker keeps old images, stopped containers and build cache until you
+remove them. Docker Manager cleans them up once, or on a schedule.
+
+## Clean up once
+
+The **Containers**, **Images**, **Volumes**, **Networks** and **Builds**
+pages each have a prune button: **Prune containers**, **Prune images**,
+**Prune volumes**, **Prune networks** and **Prune build cache**.
+
+1. Press it and choose what to remove.
+2. Press **Preview** to see exactly what goes and how much space you get
+   back.
+3. Press **Remove … objects** to confirm.
+
+## Maintenance policies
+
+A **maintenance policy** cleans up on a schedule. Each server can have one.
+
+1. Open **Maintenance** and press **Create maintenance policy**.
+2. Enter a **Name** and choose the **Environments**.
+3. Turn on the rules you want: **Stopped containers**, **Dangling images**
+   or **All unused images**, **Unused networks**, **Build cache**, and
+   **Anonymous volumes** or **Named volumes**. Removing volumes deletes
+   their data, so you must confirm it.
+4. For each rule, you can keep objects younger than some days, or list
+   objects to **Never remove**.
+5. Turn on **Run automatically** and pick the schedule.
+
+On a policy's page, **Preview** shows what a run would remove right now and
+**Run now** runs it. **Maintenance → Default rules** sets the rules new
+policies start with.
+
+<Callout type="warn">
+  A removal can't be undone.
+</Callout>
+
+## What is always kept
+
+- Docker Manager's own containers, images, volumes and networks.
+- Stacks Docker Manager manages, with their images, volumes and networks.
+- Containers Docker Manager created, with their images.
+- Backup data.
+- Anything with the label `docker-manager.maintenance.exclude=true`.
+
+Every object is checked again right before it is removed, so something that
+came into use after the preview is kept.

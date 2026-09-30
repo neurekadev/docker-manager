@@ -350,6 +350,10 @@ func TestBackupRepositoryCompressionRoundTrip(t *testing.T) {
 // floor did what "last" does. A policy with rules and a floor above its
 // "last" keeps the same backups with last raised to the floor (and a new
 // revision); a policy without rules keeps everything and stays so.
+// backupPolicyColumnsAfterFold are the backup_policies columns migrations
+// after 20260928174844 added; the fold test inserts rows without them.
+var backupPolicyColumnsAfterFold = []string{"external_binds"}
+
 func TestMigrationFoldsRetentionFloorIntoLast(t *testing.T) {
 	const fold = "20260928174844"
 	ctx := testutil.Context(t)
@@ -375,7 +379,10 @@ func TestMigrationFoldsRetentionFloorIntoLast(t *testing.T) {
 	for id, retention := range stored {
 		p := domain.BackupPolicy{ID: id, Name: id, EnvironmentID: "env-" + id, RepositoryID: "r1", Cron: "0 3 * * *", TimeZone: "UTC",
 			Revision: 1, CreatedAt: testutil.Epoch, UpdatedAt: testutil.Epoch}
-		if err := InsertBackupPolicy(ctx, db, &p); err != nil {
+		// The table as it was before the fold: without the columns later
+		// migrations added.
+		row := fromBackupPolicy(&p)
+		if _, err := db.NewInsert().Model(&row).ExcludeColumn(backupPolicyColumnsAfterFold...).Exec(ctx); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := db.ExecContext(ctx, "UPDATE backup_policies SET retention = ? WHERE id = ?", retention, id); err != nil {

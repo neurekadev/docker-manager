@@ -6115,6 +6115,8 @@ export interface components {
             excludeStacks: string[];
             /** @description Volumes not backed up: standalone ones and those of the selected stacks. */
             excludeVolumes: string[];
+            /** @description Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST. */
+            externalBinds: boolean;
             id: string;
             includeManagerState: boolean;
             /** @description Include the metrics database (excluded by default). */
@@ -10099,6 +10101,8 @@ export interface components {
             excludeStacks?: string[];
             /** @description Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks. */
             excludeVolumes?: string[];
+            /** @description Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST. */
+            externalBinds?: boolean;
             /** @description Back up the manager's state (owner only: manager backups are owner-only). */
             includeManagerState?: boolean;
             includeMetrics?: boolean;
@@ -12242,6 +12246,7 @@ export interface components {
             };
             excludeStacks?: string[];
             excludeVolumes?: string[];
+            externalBinds?: boolean;
             includeManagerState?: boolean;
             includeMetrics?: boolean;
             name?: string;
@@ -15227,6 +15232,7 @@ export interface operations {
                      *           "excludeVolumes": [
                      *             "example"
                      *           ],
+                     *           "externalBinds": false,
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "includeManagerState": false,
                      *           "includeMetrics": false,
@@ -15397,6 +15403,7 @@ export interface operations {
                      *       "excludeVolumes": [
                      *         "example"
                      *       ],
+                     *       "externalBinds": false,
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "includeManagerState": false,
                      *       "includeMetrics": false,
@@ -15565,6 +15572,7 @@ export interface operations {
                      *       "excludeVolumes": [
                      *         "example"
                      *       ],
+                     *       "externalBinds": false,
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "includeManagerState": false,
                      *       "includeMetrics": false,
@@ -15839,6 +15847,7 @@ export interface operations {
                      *       "excludeVolumes": [
                      *         "example"
                      *       ],
+                     *       "externalBinds": false,
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "includeManagerState": false,
                      *       "includeMetrics": false,

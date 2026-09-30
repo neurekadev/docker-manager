@@ -1,0 +1,103 @@
+---
+title: Migrations
+description: Move a stack, a volume, a whole server or Docker Manager itself to another server.
+---
+
+Migrations move your apps and their data from one server to another. Every
+migration is checked first, every copy is verified, and nothing on the old
+server is deleted until you say so.
+
+| You move | What comes along |
+| --- | --- |
+| **A stack** | Its folder, its named volumes with their data, its history and policies, and the permissions set on the stack. |
+| **A volume** | A copy of its data, under the same or a new name. |
+| **A whole environment** | Every stack, group by group, and the networks they share. |
+| **Docker Manager itself** | Everything in Docker Manager, plus every stack on its server. |
+
+Images from a registry are downloaded again on the new server, images with
+a `build:` section are built there, and other images are copied.
+
+## Move a stack
+
+Open the stack and choose **More stack actions → Migrate**.
+
+1. **Destination**: pick the server and press **Check destination**.
+2. **Check**: see what must be fixed first and what will be copied. Untick
+   a volume that should start empty on the new server.
+3. **Confirm**: tick that the stack is unavailable during the migration and
+   press **Start migration**.
+
+The stack stops, is copied and starts on the new server. If anything fails,
+it starts again on the old server.
+
+## Move a volume
+
+Open a volume and its **Migrate** tab. Pick the **Destination environment**
+and, if you like, a **Name on the destination**, and press **Next**. Review
+the **Check** and press **Migrate volume**. The original is not changed.
+
+If containers use the volume, stop them first, or tick **Copy while the
+containers keep running**.
+
+## Move a whole environment
+
+Use this to move to a new server or to empty one before you retire it.
+Open the environment and choose **More actions → Migrate environment**.
+
+1. **Destination**: pick the new server and untick stacks that should
+   stay.
+2. **Check**: stacks that share a network or a volume, such as a reverse
+   proxy and the apps behind it, form a group that moves together.
+3. **Confirm** and press **Start migration**.
+
+The groups move one after the other; the others keep running until it is
+their turn. If a stack can't be moved, fix the problem and press **Migrate
+the rest**.
+
+## Move Docker Manager to a new server
+
+Use this when you replace the server Docker Manager runs on. Your apps on
+that server move along, and your other servers stay connected.
+
+1. Open **Settings → Move to a new server**. Enter **This server's
+   address** and **New server's address** (IP addresses or host names on
+   your network) and press **Create setup files**.
+2. On the new server, save the `compose.yaml` and `.env` it shows in an
+   empty folder and run `docker compose up -d`. Or paste the command under
+   **Or paste this on the new server**. Then press **Next**.
+3. On the **Check** step, read **Before you start** and press **Next**.
+   Then press **Move everything**.
+4. When the page says **Docker Manager moved.**, point your Docker Manager
+   address (and your apps' addresses) at the new server, and sign in.
+
+<Callout type="warn">
+  The setup files contain a pairing code and are shown once. Keep them
+  private. If you lose them, press **Create new setup files**.
+</Callout>
+
+Until Docker Manager has handed itself over, you can **Cancel the move**;
+apps that already moved stay on the new server. While your address still
+points at the old server, follow the move on the new server's status page
+at `http://<new server's address>:8080`.
+
+## After a move
+
+The old copy stays on the old server, stopped. Check that everything works
+first, then remove it:
+
+- For one stack, press **Remove from …** when the migration finishes, or
+  **Start again on …** to run it there once more.
+- After an environment migration, **Remove old copies from …** removes them
+  all at once.
+
+Docker Manager never deletes an old copy on its own. When a server is
+empty, you can [archive](/docs/environments#archive-an-environment) it.
+
+Good to know:
+
+- Folders a stack mounts from outside its own folder are not moved.
+- An environment migration leaves Docker Manager's own stack, containers
+  outside stacks and volumes no stack uses behind.
+- Volumes with a special driver, such as NFS, arrive empty.
+- Backups made before the move can be restored to the moved stack only if
+  they are in S3 storage.

@@ -80,6 +80,7 @@ type PolicyPatch struct {
 	ExcludeVolumes   *[]string
 	AnonymousVolumes *bool
 	BuildxVolumes    *bool
+	ExternalBinds    *bool
 	RepositoryID     *string
 	EnvironmentRepos *map[string]string
 	IncludeManager   *bool
@@ -126,6 +127,9 @@ func (s *Service) UpdatePolicy(ctx context.Context, id string, revision int64, p
 		}
 		if pp.BuildxVolumes != nil {
 			p.BuildxVolumes = *pp.BuildxVolumes
+		}
+		if pp.ExternalBinds != nil {
+			p.ExternalBinds = *pp.ExternalBinds
 		}
 		if pp.RepositoryID != nil {
 			p.RepositoryID = *pp.RepositoryID
@@ -188,7 +192,7 @@ func policyAuditView(p domain.BackupPolicy) map[string]any {
 		vols = append(vols, v.EnvironmentID+"/"+v.Volume)
 	}
 	return map[string]any{"name": p.Name, "environmentId": p.EnvironmentID, "excludeStacks": p.ExcludeStacks, "excludeVolumes": p.ExcludeVolumes,
-		"anonymousVolumes": p.AnonymousVolumes, "buildxVolumes": p.BuildxVolumes, "repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
+		"anonymousVolumes": p.AnonymousVolumes, "buildxVolumes": p.BuildxVolumes, "externalBinds": p.ExternalBinds, "repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
 		"includeManager": p.IncludeManager, "includeMetrics": p.IncludeMetrics, "stacks": stackIDs, "volumes": vols,
 		"shutdown": p.Shutdown, "cron": p.Cron, "timeZone": p.TimeZone, "enabled": p.Enabled, "retention": p.Retention}
 }
@@ -387,7 +391,11 @@ func (s *Service) scopeSelections(ctx context.Context, p domain.BackupPolicy) (d
 		excluded := excludedVolumes(p, env.ID)
 		for _, stack := range stacks {
 			if !slices.Contains(p.ExcludeStacks, stack.ID) {
-				p.Stacks = append(p.Stacks, domain.BackupStackSelection{StackID: stack.ID, VolumeExclude: excluded, AnonymousVolumes: p.AnonymousVolumes})
+				sel := domain.BackupStackSelection{StackID: stack.ID, VolumeExclude: excluded, AnonymousVolumes: p.AnonymousVolumes}
+				if p.ExternalBinds {
+					sel.ExternalPaths = externalBindSources(stack.Binds)
+				}
+				p.Stacks = append(p.Stacks, sel)
 			}
 		}
 		names, err := s.standaloneVolumes(ctx, p, env.ID, stacks)
@@ -399,6 +407,28 @@ func (s *Service) scopeSelections(ctx context.Context, p domain.BackupPolicy) (d
 		}
 	}
 	return p, nil
+}
+
+// maxExternalPaths is the agent's limit of external paths per stack
+// (protocol.BackupRules.Validate).
+const maxExternalPaths = 64
+
+// externalBindSources lists a stack's bind sources outside its project
+// directory, each once: a policy with ExternalBinds opts them in, and the
+// agent backs up only those below its external allowlist. Sources the
+// agent would refuse as rules (not a clean absolute path, "/") are left
+// out so they never fail the stack's backup.
+func externalBindSources(binds []domain.StackBind) []string {
+	var out []string
+	for _, b := range binds {
+		if len(out) == maxExternalPaths {
+			break
+		}
+		if b.External && backup.AbsPath(b.Source) && !slices.Contains(out, b.Source) {
+			out = append(out, b.Source)
+		}
+	}
+	return out
 }
 
 // excludedVolumes returns the policy's excluded volume names in one

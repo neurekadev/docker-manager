@@ -1,0 +1,36 @@
+---
+title: Registries
+description: Log in to private image registries and Git repositories.
+---
+
+## Registry connections
+
+A **registry connection** is a login Docker Manager uses for private
+images: for deploys, image pulls, update checks and the base images of
+builds. Only the owner can add and change them.
+
+1. Open **Registries** and press **Add connection**.
+2. Enter a **Name** and the **Registry host**: `docker.io` for Docker Hub,
+   `ghcr.io` for GitHub, or `host:port` for your own registry.
+3. Enter the **Username** and an **Access token** (recommended) or
+   password.
+4. Under **Use it for**, choose every environment and stack, one
+   environment or one stack. You can also limit it to some repositories.
+
+For your own registry without HTTPS on a trusted network, tick **Plain
+HTTP**.
+
+When several connections fit an image, the most specific one wins: a stack
+before an environment before everything, then an exact repository before a
+wider one, then the higher **Priority**. **Test an image** shows which
+connection an image would use.
+
+A connection's menu has **Test connection**, **Edit**, **Rotate
+credential**, **Revoke** and **Delete**.
+
+## Git credentials
+
+The **Git credentials** tab holds logins for private Git repositories, used
+by [builds](/docs/builds). Press **Add credential** and enter a **Name**,
+the **Host** (for example `github.com`), the repositories it is for, a
+**Username** and an **Access token**.

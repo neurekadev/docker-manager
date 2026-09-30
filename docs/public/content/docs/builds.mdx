@@ -1,0 +1,39 @@
+---
+title: Builds
+description: Build images from a Git repository on your servers.
+---
+
+Docker Manager builds images from a Git repository on one of your servers.
+The image stays on that server, where a stack can use it right away. It is
+not pushed to a registry.
+
+## Build an image
+
+1. Open **Builds** and press **Build image**.
+2. Pick the **Environment** to build on.
+3. Enter the **Repository URL** (HTTPS) and, if needed, the **Ref**: a
+   branch, tag or commit. Empty uses the default branch.
+4. Enter one or more **Image names**, for example `myapp:latest`.
+5. Under **Advanced** you can set the folder, the Dockerfile, the target
+   stage, the platform and build arguments, or build without the cache.
+6. Press **Build image** and follow the output.
+
+For a private repository, add a login under
+[Registries → Git credentials](/docs/registries#git-credentials) first.
+
+<Callout type="warn" title="Build arguments are not secret">
+  Anyone who can see the image can read its build argument values. Never
+  pass passwords or tokens as build arguments.
+</Callout>
+
+## Build again
+
+- **Build again** repeats a finished build. If it used build arguments, the
+  form opens filled in and you type their values again.
+- **Save as definition** keeps its settings on the **Definitions** tab, so
+  you can start it again any time. Type the build argument values once; the
+  definition keeps them.
+
+To build a stack's own images, use **Build & Deploy** on the
+[stack](/docs/stacks#deploy-start-and-stop). **Prune build cache** on the
+**Builds** page frees disk space (see [Maintenance](/docs/maintenance)).

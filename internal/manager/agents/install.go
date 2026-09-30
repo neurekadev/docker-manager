@@ -86,6 +86,11 @@ const (
 	// MoveAgentManagerURL is the new server's own manager for its agent
 	// (the service name in the generated compose.yaml).
 	MoveAgentManagerURL = "http://docker-manager:8080"
+	// ImportOwnProject is where the agent of the Quickstart's compose.yaml
+	// reads its own project's folder (read-only, below storage.ImportDir),
+	// so Docker Manager's own project can be imported as a stack and then
+	// upgraded from the app without editing files on the server.
+	ImportOwnProject = "/import/docker-manager"
 )
 
 // MoveFilesInput is what the new server's files of a move need.
@@ -158,6 +163,7 @@ func MoveFiles(in MoveFilesInput) (composeYAML, env string) {
 	c.WriteString("      - /var/lib/docker/volumes:/var/lib/docker/volumes\n")
 	c.WriteString("      - stacks:/var/lib/docker/volumes/docker-manager_stacks/_data\n")
 	c.WriteString("      - agent:/var/lib/docker-agent\n")
+	c.WriteString("      - .:" + ImportOwnProject + ":ro\n")
 	c.WriteString("    labels:\n")
 	c.WriteString("      " + protocol.LabelRole + ": agent\n")
 	c.WriteString("    networks:\n")

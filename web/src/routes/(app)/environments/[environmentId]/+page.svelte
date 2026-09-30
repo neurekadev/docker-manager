@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Environment detail (#3, #5, #34): identity and status (one sentence,
-	// or one notice when offline, archived or with an outdated agent), usage
+	// or one notice when offline, archived, detached or with an outdated agent), usage
 	// KPIs, Docker object counts linking to this environment's lists,
 	// filesystems and metrics charts (live, gaps visible), system
 	// information with identifiers under "Advanced", the agents with
@@ -99,6 +99,8 @@
 	const only = singleEnvironment();
 	const can = (key: string) => !!e?.actions.includes(key);
 	const archived = $derived(e?.status === 'archived');
+	// Detached: its agent was removed; a re-attach enrollment brings it back.
+	const detached = $derived(!!e && !archived && e.view === 'full' && !e.agentId);
 
 	const TABS = ['overview', 'system', 'agents', 'jobs'] as const;
 	const tab = $derived.by(() => {
@@ -244,6 +246,11 @@
 						>
 					{/if}
 				{:else}
+					{#if detached && canEnroll}
+						<Button variant="primary" icon={Undo2} href={routes.addEnvironment(e.id)}
+							>Re-attach</Button
+						>
+					{/if}
 					{#if hasAny(access, 'stack.')}
 						<Button icon={Layers} href={routes.stacks()} onclick={scope}>Stacks</Button>
 					{/if}
@@ -272,6 +279,11 @@
 			<Notice tone="info" title="{e.name} is archived" live="none">
 				Archived {e.archivedAt ? formatRelative(e.archivedAt) : ''}: hidden from operations;
 				its stacks, history and backups are kept. Re-attach it by running an agent on the
+				same host.
+			</Notice>
+		{:else if detached}
+			<Notice tone="offline" title="{e.name} has no agent" live="none">
+				Its agent was removed, so it stays offline. Re-attach it by running an agent on the
 				same host.
 			</Notice>
 		{:else if !e.online}

@@ -1,160 +1,151 @@
 ---
 title: Stacks
-description: Create, deploy, update and edit your Compose apps.
+description: Create, deploy, edit and import your Compose apps.
 ---
 
 A **stack** is a Compose app: a `compose.yaml`, an optional `.env` and any
-other files the app needs. Docker Manager keeps each stack in its own folder
-on its server and runs exactly what the files say.
+other files the app needs. Docker Manager keeps each stack in its own
+folder on its server and runs exactly what the files say.
 
 ## Create a stack
 
 1. Open **Stacks** and press **Create stack**.
 2. Pick the **Environment** (only when you have more than one).
-3. Enter a **Name**, for example `photos`. Use lowercase letters, digits,
-   `-` and `_`. You can add a **Display name** and a **Description** too.
+3. Enter a **Name**, for example `photos`: up to 63 lowercase letters,
+   digits, `-` and `_`, starting with a letter or digit.
 4. Write or paste your **Compose file**, and a **.env file** if you use one.
-5. Press **Validate** to check the files, then **Create and deploy**.
+5. Press **Validate**, then **Create and deploy**.
 
-To only save the stack and start it later, turn off **Deploy after
-creating** first. The button then reads **Create stack**.
+To only save the stack, turn off **Deploy after creating** first. To start
+from a saved app, use **Create stack ▾ → Create stack from template** (see
+[Templates](/docs/templates)).
 
 Docker Manager never overwrites anything: if a folder or Compose project
-with that name already exists, it tells you, and suggests importing it
-instead.
-
-Other ways to start:
-
-- **Create stack ▾ → Create stack from template** (see
-  [Templates](/docs/templates)).
-- **Import project** takes over a project you already run (see
-  [Import existing projects](/docs/import-projects)).
+with that name already exists, it tells you and suggests importing it.
 
 ## The stack page
 
-- **Overview**: status, CPU, memory, uptime and last deploy, and a table of
-  the stack's services with their containers, image, volumes, networks and
-  ports. Click an image, volume or network to open its page. A volume
-  Docker created without a name shows as "Anonymous" with the folder it is
-  mounted at.
-- **Files**: the stack's folder. Edit `compose.yaml`, `.env` and every
-  other file (see [Files](/docs/files)).
-- **Logs** and **Terminal**: the output of the services, and a shell in a
-  container (see [Logs and terminals](/docs/logs-and-terminals)).
-- **Revisions**: every version of the Compose files, and what changed.
-- **Backups**: the stack's backups (see [Backups](/docs/backups)).
-- **Policies**: which update and backup policies cover the stack.
-- **Activity**: the stack's jobs and, if you may read it, its audit log.
+- **Overview**: status, CPU, memory and the stack's services with their
+  containers, images, volumes, networks and ports. Each service row can
+  start, restart or stop that service, or open its logs or a terminal.
+- **Files**: the stack's folder (see [File Manager](/docs/file-manager)).
+- **Logs** and **Terminal**: see [Logs](/docs/logs) and
+  [Terminal](/docs/terminal).
+- **Revisions**: every version of the Compose files.
+- **Backups**, **Policies** and **Activity**: its backups, the policies
+  that cover it, and its jobs and audit records.
 
-## Deploy
+## Deploy, start and stop
 
 **Deploy** makes the server run what your files say. Only services whose
-settings changed are recreated. If everything already matches, you see
-"Nothing to deploy".
+settings changed are recreated. The menu next to it has:
 
-The menu next to **Deploy** has more options:
-
-- **Pull & Deploy**: downloads every image of the stack first, then
-  deploys, so services with a newer image get it. See
-  [Update to newer images](#update-to-newer-images).
+- **Pull & Deploy**: downloads every image of the stack first, so services
+  get newer images.
 - **Cleanup Orphans & Deploy**: also removes containers of services you
-  deleted from `compose.yaml`, after you confirm. Volumes and files are
-  kept.
-- **Build & Deploy** (only for stacks with a `build:` section): builds
-  those images first.
+  deleted from `compose.yaml`. Volumes and files are kept.
+- **Build & Deploy** (stacks with a `build:` section): builds those images
+  first.
 
-When you remove a service from `compose.yaml`, its container stays on the
-server after a normal deploy. The stack page tells you, and offers **Remove
-old containers**.
+A failed deploy is not rolled back. Fix the files, or restore the last good
+[revision](#revisions), and deploy again.
 
-## Update to newer images
+The next button shows **Stop** while the stack runs and **Start** when it's
+stopped. Its menu has **Start**, **Restart** and **Stop**. **Stop** asks
+first and keeps the containers.
 
-Open the menu next to **Deploy** and choose **Pull & Deploy**. It downloads
-every image of the stack and deploys it again, in one step. If nothing is
-newer, the stack keeps running as it is.
-
-To check for updates and apply them on a schedule, use an update policy
-(see [Image updates](/docs/updates)).
-
-## Start, stop and remove
-
-Next to **Deploy** is one button to start and stop the stack. It shows
-**Stop** while the stack runs, or **Start** when it's stopped. Its menu has
-**Start**, **Restart** and **Stop**.
-
-- **Start** and **Restart** run right away.
-- **Stop** asks first. It stops the containers and keeps them.
-- When only some services run, the button shows **Stop**. Choose **Start**
-  in its menu to start the rest.
-- **More stack actions → Delete** removes the stack from Docker Manager and
-  the server. You must type the stack's name. Its volumes are kept unless
-  you tick **Also remove the stack's volumes**. The stack's folder is
-  always kept.
-
-In a service's row on the **Overview**, you can start, restart or stop just
-that service, open its logs, or open a terminal in it.
-
-To give the stack a new name, press the pencil button next to its name (see
-[Rename a stack](/docs/rename-stacks)).
+**More stack actions → Delete** removes the stack from Docker Manager and
+the server. Type its name to confirm. Its volumes are kept unless you tick
+**Also remove the stack’s volumes**. Its folder is always kept.
 
 ## Edit the files
 
-Open the **Files** tab and open `compose.yaml`. Saving does **not** deploy:
-
-1. Change the file and press **Save** (or <kbd>Ctrl</kbd> <kbd>S</kbd>).
-2. Docker Manager checks the file and shows problems above it. A change
-   that would make the stack invalid is refused, and nothing is written.
-3. The stack now shows **Undeployed changes**. Press **Deploy** in the
-   message, or on the stack page, to run the change.
-
-Put the files your services need, such as a config file or an `./html`
-folder, into the **Files** tab before you deploy.
+Open **Files**, change `compose.yaml` or `.env` and press **Save**
+(<kbd>Ctrl</kbd> <kbd>S</kbd>). Docker Manager checks the file first and
+refuses a change that would break the stack. Saving does **not** deploy: the
+stack shows **Undeployed changes** until you press **Deploy**.
 
 ## Revisions
 
-Every saved change to the Compose files is kept as a **revision**. The
-**Revisions** tab shows them all, who made them and whether they were
-deployed. Pick two revisions and press **Show changes** to compare them.
-Deploying the same files again, or updating an image, keeps the revision
-number.
+Every saved change to the Compose files is a **revision**. The
+**Revisions** tab shows who made each one and whether it was deployed.
+Pick two and press **Show changes** to compare them.
 
-With undeployed changes, the tab opens on them and offers:
+- With undeployed changes, choose **Deploy these changes** or **Restore
+  deployed revision** to undo them.
+- To go back to an older version, open its menu and choose **Restore to
+  disk**, then **Deploy**.
 
-- **Deploy these changes**, or
-- **Restore deployed revision** to undo them.
+## Import a project
 
-To go back to an older version, open its menu and choose **Restore to
-disk**. Your current files are kept as a revision first, and nothing is
-deployed until you press **Deploy**.
+Docker Manager can take over Compose projects you already run, with their
+names, volumes and data.
 
-## Edit details and links
+1. Open **Stacks** and press **Import project**.
+2. Pick the **Environment** (only when you have more than one). The list
+   shows the projects Docker Manager doesn't manage yet.
+3. Press **Import** next to a project.
 
-**More stack actions → Edit details** changes the display name and the
-description of the stack and of each service. These are kept in Docker
-Manager. Your Compose files do not change.
+If the project's files are in a folder Docker Manager manages, it is taken
+over where it is and nothing restarts. Otherwise its folder is copied. If
+the project runs, Docker Manager asks you to **Stop and import**: it stops
+the project, copies and checks its folder, and starts it again from the
+copy. If the copy fails, the project starts again from its original folder.
+Your original folder is never changed.
 
-You can also add **Links** to pages that belong to the stack, such as its
-documentation, website or code repository. They show under the stack's
-name, and each one opens in a new tab.
+To copy a project, the agent must be able to read its folder. If a row
+says **Why and how to fix it**, mount the folder into the agent below
+`/import` (read-only is enough), then run `docker compose up -d`:
 
-1. Open **More stack actions → Edit details**.
-2. Under **Links**, press **Add link**.
-3. Enter the **URL**, for example `https://docs.example.com`, and an
-   optional **Label** such as `Documentation`.
-4. Press **Save details**.
+```yaml title="compose.yaml"
+services:
+  docker-agent:
+    volumes:
+      # ...keep the existing lines...
+      - /opt/stacks:/import/stacks:ro
+```
+
+To keep projects where they are instead of copying them, mount the folder
+at the **same path** and list it in `DOCKER_AGENT_STACK_ROOTS`:
+
+```yaml title="compose.yaml"
+services:
+  docker-agent:
+    environment:
+      # ...keep the existing lines...
+      DOCKER_AGENT_STACK_ROOTS: /opt/stacks
+    volumes:
+      # ...keep the existing lines...
+      - /opt/stacks:/opt/stacks
+```
 
 Good to know:
 
-- Addresses must start with `http://` or `https://` and must not contain a
-  user name or password.
-- A stack can have up to 10 links. Each address can be listed once, and a
-  label can be up to 60 characters long.
-- Without a label, the link shows the address's host, such as
-  `docs.example.com`.
-- To remove a link, press ✕ next to it and save.
+- Projects without containers (never started, or taken down) are found by
+  their Compose file in a folder Docker Manager manages or below `/import`,
+  and show **No containers**. Importing one adds it as **Not deployed**.
+- Copying a project is refused when its running containers don't match its
+  files. Redeploy the project in the old tool first.
+- After the import, stop the old tool from managing the project.
+
+## Rename a stack
+
+Press the pencil next to the stack's name, type the new name and press
+<kbd>Enter</kbd>. The stack stops, its folder and volumes move to the new
+name with their data, and what was running starts again. Its history and
+policies stay with it.
+
+<Callout type="warn">
+  The rename starts right away, and the stack is briefly down.
+</Callout>
+
+If `compose.yaml` sets `name:` at the top, change it there first, then
+rename the stack to exactly that name. To change only the name shown in
+lists, use **More stack actions → Edit details**. There you can also add a
+description and up to 10 **Links**, for example to the app's website.
 
 ## Docker Manager's own stack
 
-If you import Docker Manager's own project as a stack, **Deploy** and
-**Pull & Deploy** work, so you can upgrade Docker Manager from the app. Restart,
-Stop, Migrate, Rename and Delete are turned off for it.
+If you import Docker Manager's own project, **Deploy** and **Pull &
+Deploy** work, so you can upgrade Docker Manager from the app. Restart,
+Stop, Migrate, Rename and Delete are off for it.

@@ -5,35 +5,34 @@ description: First checks and fixes for common problems.
 
 ## First checks
 
-On the manager's server, in the folder with your `compose.yaml`:
+On the manager's server, in the folder with Docker Manager's
+`compose.yaml` (`/opt/docker-manager`, or
+`/var/lib/docker/volumes/docker-manager_stacks/_data/docker-manager` once
+Docker Manager [manages its own stack](/docs/quickstart#upgrade)):
 
 ```bash
 docker compose ps
 docker compose logs --tail 200 docker-manager docker-agent
 ```
 
-On another server, check its agent the same way:
-`docker compose logs --tail 200 docker-agent` (or `docker logs docker-agent`
-if you used the single command).
+On another server, check its agent the same way, or with
+`docker logs docker-agent` if you used the single command. For more
+detail, set the log level to `debug` (see
+[Configuration](/docs/configuration)).
 
-The logs never contain passwords, tokens or file contents. For more detail,
-set the log level to `debug` (see [Configuration](/docs/configuration)).
+When you ask for help, the owner can download a support bundle under
+**Settings → Diagnostics**. It never holds passwords, tokens or file
+contents, but it does hold server names and recent log lines.
 
-The owner can download a support bundle under **Settings → Diagnostics**
-(see [Audit log and diagnostics](/docs/audit-and-diagnostics)).
-
-## Common problems
-
-### Setup says the page was not opened over HTTPS
+## Setup says the page was not opened over HTTPS
 
 - Open your `https://` address, not `http://server:8080`.
 - The address must match `DOCKER_MANAGER_PUBLIC_URL` exactly.
 - Docker Manager can't see that your proxy used HTTPS. Add the proxy's IP
   address to `DOCKER_MANAGER_TRUSTED_PROXIES` in `.env` and run
-  `docker compose up -d`. The message on the page tells you which of these
-  it is.
+  `docker compose up -d`.
 
-### A server stays offline
+## A server stays offline
 
 Check the agent's log on that server. Usual causes:
 
@@ -42,84 +41,109 @@ Check the agent's log on that server. Usual causes:
   [Your own certificate authority](/docs/configuration#your-own-certificate-authority)).
 - The install command was used already or expired. Create a new one.
 
-### Moving Docker Manager: the new server waits for the old one
+## Docker is already connected through another agent
 
-The status page on the new server says **The old server does not answer**.
+The server already has an agent in Docker Manager. To replace it, choose
+**Remove agent** on the environment's **Agents** tab, then
+[re-attach](/docs/environments#re-attach-an-environment) it. Don't use **Add
+environment** for a server Docker Manager already knows.
 
-- Check that **This server's address** was right: from the new server,
-  `http://<old server's address>:8080` must open Docker Manager.
-- A firewall on the old server may block port 8080 from the new server.
+## Stack actions are refused because of the storage layout
 
-It keeps trying on its own. If it says **This Docker Manager is older than
-the old one**, use the same image version as the old server in the new
-server's `compose.yaml` and run `docker compose up -d`.
+The agent's mount of Docker's volume folder is missing or wrong
+(`storage_mount_missing` or `storage_path_mismatch`). Keep the agent's
+volume lines exactly as in the Quickstart, or see
+[Docker's data folder](/docs/configuration#dockers-data-folder).
 
-### Connecting a server says Docker is already connected through another agent
-
-The server already has an agent in Docker Manager. If that agent still
-works, there is nothing to do. To replace it, open the environment's
-**Agents** tab and choose **Remove agent**. Then press **Re-attach** there
-and run the new command. Don't use **Add environment** for a server Docker
-Manager already knows.
-
-### Stack actions are refused because of the storage layout
-
-The agent's mount of Docker's volume folder is missing or points somewhere
-else (`storage_mount_missing` or `storage_path_mismatch`). Keep the agent's
-volume lines exactly as in the Quickstart. If your Docker keeps its data
-elsewhere, see [Docker's data folder](/docs/configuration#dockers-data-folder).
-
-### Live views stop updating after about a minute
+## Live views stop updating after about a minute
 
 Your proxy cuts idle connections too early or holds back responses. Allow
-idle connections of at least 60 seconds and turn off response buffering
-for Docker Manager. In Traefik, set the entry point's `readTimeout` to `0s`.
+idle connections of at least 60 seconds and turn off response buffering.
+In Traefik, set the entry point's `readTimeout` to `0s`.
 
-### Uploads fail
+## Uploads fail
 
-Your proxy limits the size of uploads. Raise its limit (for example
-`client_max_body_size` in nginx).
+Your proxy limits the size of uploads. Raise its limit, for example
+`client_max_body_size` in nginx.
 
-### "Too many Docker Manager tabs are open"
+## "Too many Docker Manager tabs are open"
 
-Each open tab keeps a live connection, and one account can have 32 at a
-time. Close tabs you no longer need; the tab reconnects on its own.
+One account can have 32 live connections, one per open tab. Close tabs you
+no longer need.
 
-### An action on a Docker Manager container is refused
+## An action on a Docker Manager container is refused
 
 Docker Manager never stops or removes its own containers, data or images.
-Use Docker on the server if you really must.
 
-### A job ended as interrupted
+## A job ended as interrupted
 
-The manager or agent restarted during the job. Check the result, then
-start it again. Failed deploys, image pulls and update checks have **Try
-again** on their job page.
+The manager or agent restarted during the job. Check the result, then start
+it again. Failed deploys, image pulls and update checks have **Try again**
+on their job page.
 
-### An update is refused because of undeployed changes
+## An update is refused because of undeployed changes
 
 The stack's files changed but were not deployed (`update_source_drift`).
 Deploy or undo the changes first (see [Stacks](/docs/stacks#revisions)).
 
-### A backup fails because the repository is locked
+## A backup fails because the repository is locked
 
 Another backup, restore or cleanup is using the same repository
-(`repository_locked`). Docker Manager waits a while and removes locks left
-behind by a crash. If it still fails, run the backup again later, or give
-your backup policies different start times.
+(`repository_locked`). Run it again later, or give your backup policies
+different start times.
 
-### Importing a backup says the key is wrong
+## Importing a backup says the key is wrong
 
 The Recovery Key is wrong, or it was changed after that backup
-(`backup_import_key_rejected`). Enter the older key under **Previous
+(`backup_import_key_rejected` or `backup_import_key_rotated`). Enter the older key under **Previous
 Recovery Key** too.
 
-### Passkeys stopped working after changing the address
+## Passkeys stopped working after changing the address
 
 Passkeys belong to one address. Sign in with your password and
 authenticator code (or a recovery code) and add the passkey again under
 **Profile**.
 
-### Locked out of the owner account
+## Moving Docker Manager: the new server waits for the old one
 
-See [Sign-in and security](/docs/sign-in-and-security#locked-out-of-the-owner-account).
+The status page on the new server says **The old server does not answer**.
+From the new server, `http://<old server's address>:8080` must open Docker
+Manager; check the address and the old server's firewall. If it says **This
+Docker Manager is older than the old one**, use the old server's image
+version on the new server.
+
+## Locked out of the owner account
+
+On the manager's server, in the folder with Docker Manager's
+`compose.yaml` (see [First checks](#first-checks)), run:
+
+```bash
+docker compose exec docker-manager docker-manager owner-recovery
+```
+
+It prints a link that works once, for one hour. Open it and set a new
+password, then set up two-factor sign-in again.
+
+## An upgrade failed
+
+Before an upgrade changes its database, the manager saves a copy. If the
+manager doesn't start after an upgrade, go back. Run these in the folder
+with Docker Manager's `compose.yaml` (see [First checks](#first-checks)):
+
+1. Stop it and list the saved copies:
+
+   ```bash
+   docker compose stop docker-manager
+   docker compose run --rm --no-deps docker-manager snapshots list
+   ```
+
+2. Restore the newest one:
+
+   ```bash
+   docker compose run --rm --no-deps docker-manager snapshots restore <file name>
+   ```
+
+3. In `compose.yaml`, set `image:` of `docker-manager` to the version you
+   had before and run `docker compose up -d docker-manager`.
+
+Anything you did after the upgrade is lost.

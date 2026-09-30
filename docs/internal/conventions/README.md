@@ -9,6 +9,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Area | You touch | Read |
 | --- | --- | --- |
 | Local checks, CI, generated artifacts, commits, branches | any change | [checks-and-ci.md](checks-and-ci.md) |
+| User documentation | any change users see or do (UI labels, flows, defaults, limits, configuration variables, install), `docs/public` | [user-docs.md](user-docs.md) |
 | Package layout, DTO/store/domain split, Engine/Compose boundary | new packages, cross-package imports, `internal/agent/engine`, `internal/agent/compose` | [packages.md](packages.md) |
 | HTTP API operations, errors, paging, ETags, idempotency, jobs | `internal/manager/api`, `api/route-inventory.yaml` | [api.md](api.md) |
 | Database migrations | `internal/db/migrations`, `internal/db/metricsmigrations` | [database-migrations.md](database-migrations.md) |

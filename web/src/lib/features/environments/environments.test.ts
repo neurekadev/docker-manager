@@ -275,6 +275,29 @@ describe('AgentsPanel (#3)', () => {
 		await waitFor(() => expect(requests.some((r) => r.method === 'DELETE')).toBe(true));
 		expect(requests.find((r) => r.method === 'DELETE')!.headers.get('If-Match')).toBe('"4"');
 	});
+
+	it('offers Re-attach when only removed agents are left', async () => {
+		stubApi((req) => {
+			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
+				return json({
+					items: [
+						{
+							...agent,
+							status: 'revoked',
+							actions: [],
+							revokedAt: '2026-09-01T00:00:00Z'
+						}
+					]
+				});
+		});
+		mount(AgentsPanel, { env });
+		await screen.findByRole('table', { name: 'Agents of homelab' });
+		expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Re-attach' })).toHaveAttribute(
+			'href',
+			expect.stringContaining('reattach=e1')
+		);
+	});
 });
 
 describe('SystemPanel (#3)', () => {

@@ -1,65 +1,146 @@
 ---
 title: Configuration
-description: The settings you can change, and where they go.
+description: Every setting of Docker Manager and its agent, with its default.
 ---
 
-Docker Manager is set up with settings in your `compose.yaml`. Most people
-only need the two in `.env` from the [Quickstart](/docs/quickstart).
+Docker Manager is set up with settings in its `compose.yaml`. Most people
+only need the two in `.env` from the [Quickstart](/docs/quickstart). Every
+other setting is optional.
 
 ## Change a setting
 
-Add the setting under `environment:` of the right service: settings that
-start with `DOCKER_MANAGER_` go to `docker-manager`, those that start with
-`DOCKER_AGENT_` go to `docker-agent`. For example:
+Settings that start with `DOCKER_MANAGER_` go under `environment:` of the
+`docker-manager` service; those that start with `DOCKER_AGENT_` (and
+`DOCKER_HOST`) go under `docker-agent`. For example:
 
 ```yaml title="compose.yaml"
 services:
   docker-manager:
     environment:
-      DOCKER_MANAGER_PUBLIC_URL: ${DOCKER_MANAGER_PUBLIC_URL}
-      DOCKER_MANAGER_TRUSTED_PROXIES: ${DOCKER_MANAGER_TRUSTED_PROXIES}
+      # ...keep the existing lines...
       DOCKER_MANAGER_LOG_LEVEL: debug
 ```
 
-Then run `docker compose up -d` in the same folder. If a setting is wrong,
-the container doesn't start and keeps retrying. Its log says why:
-`docker compose logs docker-manager` (or `docker-agent`).
+- If Docker Manager manages its own stack (see
+  [Upgrade](/docs/quickstart#upgrade)), open that stack, edit
+  `compose.yaml` on its **Files** tab and press **Deploy**.
+- Otherwise, edit `compose.yaml` on the server and run
+  `docker compose up -d` in its folder.
+
+If a setting is wrong, the container doesn't start, and its log says why.
+Durations are written like `30m`, `8h` or `720h`; switches are `true` or
+`false`.
 
 ## Manager settings
 
+### Basics
+
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `DOCKER_MANAGER_PUBLIC_URL` | (required) | The address you open Docker Manager at. Must start with `https://`. |
-| `DOCKER_MANAGER_TRUSTED_PROXIES` | (none) | The IP addresses or networks of your reverse proxy, separated by commas. Only these may tell Docker Manager that a visitor used HTTPS, and who the visitor is. |
+| `DOCKER_MANAGER_PUBLIC_URL` | (required) | The address you open Docker Manager at, for example `https://docker.example.com`. Must start with `https://` and have no path. |
+| `DOCKER_MANAGER_TRUSTED_PROXIES` | (none) | IP addresses or networks of your reverse proxy, separated by commas. Only these may tell Docker Manager that a visitor used HTTPS, and who the visitor is. |
 | `DOCKER_MANAGER_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
-| `DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` | `8h` | Sign out after this long without activity, for example `30m` or `4h`. |
-| `DOCKER_MANAGER_SESSION_LIFETIME` | `24h` | Sign out this long after signing in, whatever you do. |
-| `DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT` | `720h` (30 days) | Like the idle timeout, for devices where you chose **Stay signed in**. |
-| `DOCKER_MANAGER_SESSION_STAY_LIFETIME` | `8760h` (1 year) | Like the lifetime, for devices where you chose **Stay signed in**. |
-| `DOCKER_MANAGER_FILES_MAX_EDIT_KB` | `512` | The largest file you can edit in the file manager, in KB (64 to 16384). Larger files open read-only. |
-| `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | The largest file you can upload, in MB. Your reverse proxy must allow uploads this large too. |
+| `DOCKER_MANAGER_LOG_FORMAT` | `json` | The log's format: `json` or `text`. |
+| `DOCKER_MANAGER_STREAM_HEARTBEAT` | `15s` | How often live views send a keep-alive (`1s` to `55s`). Must be shorter than your proxy's idle timeout. |
+
+### Sign-in
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` | `8h` | Sign out after this long without activity (`5m` to `168h`). |
+| `DOCKER_MANAGER_SESSION_LIFETIME` | `24h` | Sign out this long after signing in, whatever you do (`15m` to `720h`). |
+| `DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT` | `720h` (30 days) | The idle timeout for devices with **Stay signed in** (`1h` to `8760h`). |
+| `DOCKER_MANAGER_SESSION_STAY_LIFETIME` | `8760h` (1 year) | The lifetime for devices with **Stay signed in** (`24h` to `17520h`). |
+
+### File Manager
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_MANAGER_FILES_MAX_EDIT_KB` | `512` | The largest file you can edit, in KB (`64` to `16384`). Larger files open read-only. |
+| `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | The largest file you can upload, in MB. Your reverse proxy must allow it too. |
 | `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` | `10240` | The largest download, and the largest archive you can create, in MB. |
-| `DOCKER_MANAGER_FILES_MAX_EXTRACT_MB` | `10240` | The most one archive may unpack to when you extract it, in MB. |
-| `DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO` | `100` | An archive may unpack to at most this many times its own size. This stops "zip bombs" from filling your disk. |
-| `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES` | `100000` | The most files and folders in one archive you extract or create. |
-| `DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB` | `32` | The largest template, in MB. |
+| `DOCKER_MANAGER_FILES_MAX_EXTRACT_MB` | `10240` | The most one archive may unpack to, in MB. |
+| `DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO` | `100` | An archive may unpack to at most this many times its own size (`10` to `10000`). This stops "zip bombs" from filling your disk. |
+| `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES` | `100000` | The most files and folders in one archive (`100` to `1000000`). |
+
+Servers whose agent is older than the manager keep the default limits
+(except the edit limit), and uploads of at most 2 GB, until you upgrade the
+agent.
+
+### Templates, migrations and backups
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB` | `32` | The largest template, in MB (`1` to `1024`). |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED` | `true` | Set to `false` to stop sharing your public templates. |
-| `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of moving stacks between servers, for example `50MB`. |
-| `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | (none) | Folders the manager may write backups to (see [Backups](/docs/backups#allow-a-local-folder)). |
-| `DOCKER_MANAGER_METRICS_ENABLED` | `false` | Set to `true` for [Prometheus monitoring](/docs/audit-and-diagnostics#monitoring-with-prometheus). |
-| `DOCKER_MANAGER_MOVE_FROM` | (none) | Only in the setup files for [moving Docker Manager](/docs/migration#move-docker-manager-to-a-new-server): the old server's address. |
-| `DOCKER_MANAGER_MOVE_CODE` | (none) | Only in the same setup files: the pairing code. Keep it private; remove both after the move. |
+| `DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL` | `30m` | How often template sources are read again (at least `5m`; `0` turns it off). |
+| `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of migrations, for example `50MB` (per second, at least `1KiB`). |
+| `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | (none) | Folders the manager may write backups to, separated by commas (see [Backups](/docs/backups#allow-a-local-folder)). |
+
+### History and monitoring
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_MANAGER_JOB_HISTORY_RETENTION` | `720h` (30 days) | How long finished jobs are kept (`1h` to `87600h`). |
+| `DOCKER_MANAGER_JOB_HISTORY_MAX` | `10000` | The most finished jobs kept; the oldest go first. |
+| `DOCKER_MANAGER_JOB_EVENTS_MAX` | `500` | The most progress lines kept per job. |
+| `DOCKER_MANAGER_JOB_MAX_CONCURRENT_PULLS` | `2` | How many image downloads and updates run at once on each server (`1` to `64`). |
+| `DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS` | `1` | How many image builds run at once on each server (`1` to `64`). |
+| `DOCKER_MANAGER_AUDIT_RETENTION_DAYS` | `365` | How many days audit records are kept. |
+| `DOCKER_MANAGER_AUDIT_MAX_SIZE_MB` | `1024` | The most space audit records may take, in MB; the oldest go first. |
+| `DOCKER_MANAGER_AUDIT_LOG_MIRROR` | `false` | Set to `true` to also write every audit record to the log. |
+| `DOCKER_MANAGER_METRICS_RETENTION_RAW` | `24h` | How long the detailed CPU, memory and network charts are kept (`1h` to `168h`). |
+| `DOCKER_MANAGER_METRICS_RETENTION_1M` | `168h` (7 days) | How long per-minute chart data is kept (`24h` to `2160h`). |
+| `DOCKER_MANAGER_METRICS_RETENTION_15M` | `2160h` (90 days) | How long 15-minute chart data is kept (`168h` to `43800h`). |
+| `DOCKER_MANAGER_METRICS_MAX_SIZE_MB` | `2048` | The most space chart data may take, in MB. |
+| `DOCKER_MANAGER_METRICS_MAX_SERIES` | `5000` | The most servers, disks and containers with charts. |
+| `DOCKER_MANAGER_METRICS_ENABLED` | `false` | Set to `true` for [Prometheus monitoring](#monitoring-with-prometheus). |
+
+### Moving Docker Manager
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_MANAGER_MOVE_FROM` | (none) | Only in the setup files for [moving Docker Manager](/docs/migrations#move-docker-manager-to-a-new-server): the old server's address. |
+| `DOCKER_MANAGER_MOVE_CODE` | (none) | Only in the same setup files: the pairing code. Keep it private. You can remove both after the move. |
+
+### Advanced
+
+Leave these as they are unless you know you need them.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_MANAGER_LISTEN_ADDR` | `:8080` | The address and port the manager listens on inside its container. |
+| `DOCKER_MANAGER_DATA_DIR` | `/var/lib/docker-manager` | Where the manager keeps its data inside its container. |
+| `DOCKER_MANAGER_SECRET_KEY_FILE` | `<data folder>/secret.key` | The key file that encrypts saved passwords and access keys. Created on first start. |
+| `DOCKER_MANAGER_RESTIC_BINARY` | `/usr/local/bin/restic` | The backup program inside the image. |
 
 ## Agent settings
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `DOCKER_AGENT_MANAGER_URL` | (required) | Your Docker Manager address. On the manager's own server, keep `http://docker-manager:8080`. After Docker Manager moved to a new server, the agent uses the new address it was given until you change this setting. |
-| `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none. |
-| `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are (see [Import existing projects](/docs/import-projects#manage-projects-where-they-are)). |
-| `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to. |
-| `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your own certificate authority (see below). |
+| `DOCKER_AGENT_MANAGER_ALLOW_HTTP` | `false` | Must be `true` for an `http://` address. Only for the agent next to the manager. |
+| `DOCKER_AGENT_ENROLLMENT_TOKEN` | (none) | The one-time code from **Add environment**. Remove it once the server is connected. `DOCKER_AGENT_ENROLLMENT_TOKEN_FILE` reads it from a file instead. |
+| `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none (up to 63 characters). |
+| `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your [own certificate authority](#your-own-certificate-authority). |
+| `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are, separated by commas (see [Import a project](/docs/stacks#import-a-project)). |
+| `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to, separated by commas. |
+| `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/docs/backups#back-up-folders-outside-a-stack)). |
+| `DOCKER_AGENT_WATCH_MAX` | half the server's limit | How many folders the agent watches for live file changes. Beyond it, folders are checked every 30 seconds. |
 | `DOCKER_AGENT_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
+| `DOCKER_AGENT_LOG_FORMAT` | `json` | The log's format: `json` or `text`. |
+
+### Advanced
+
+Leave these as they are unless you know you need them.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `DOCKER_HOST` | `unix:///var/run/docker.sock` | How the agent reaches Docker: `unix://` or `tcp://`. |
+| `DOCKER_AGENT_STACKS_VOLUME` | `docker-manager_stacks` | The volume that holds your stacks' folders. |
+| `DOCKER_AGENT_STATE_DIR` | `/var/lib/docker-agent` | Where the agent keeps its identity inside its container. |
+| `DOCKER_AGENT_HOST_PROC` | `/proc` | Where the agent reads the server's CPU, memory and network use. |
+| `DOCKER_AGENT_RESTIC_BINARY` | `/usr/local/bin/restic` | The backup program inside the image. |
 
 ## Docker's data folder
 
@@ -81,10 +162,9 @@ with `/data/docker`:
 
 ## Your own certificate authority
 
-If your HTTPS certificate is not trusted by default (it comes from your own
-certificate authority), agents on other servers must trust it. Put the
-authority's certificate next to the agent's `compose.yaml` as `ca.pem`, and
-add:
+If your HTTPS certificate comes from your own certificate authority, agents
+on other servers must trust it. Put the authority's certificate next to the
+agent's `compose.yaml` as `ca.pem`, and add:
 
 ```yaml title="compose.yaml"
 services:
@@ -99,20 +179,29 @@ services:
 
 ## SELinux
 
-On servers with SELinux turned on, add this to the agent:
+On servers with SELinux turned on, add this to the agent. Don't add `:z` or
+`:Z` to the Docker socket or `/var/lib/docker/volumes`.
 
 ```yaml
     security_opt:
       - label=disable
 ```
 
-Don't add `:z` or `:Z` to the Docker socket or `/var/lib/docker/volumes`.
+## Monitoring with Prometheus
+
+Docker Manager can report its own health (jobs, agent connections, database
+size) to Prometheus.
+
+1. Set `DOCKER_MANAGER_METRICS_ENABLED: "true"` on the manager.
+2. Create an [API token](/docs/api-tokens) that may only **Scrape internal
+   metrics**.
+3. **Settings → Diagnostics** shows the address to scrape with that token.
 
 ## Your data
 
 Everything Docker Manager stores is in Docker volumes:
 
 - `docker-manager_data`: the manager's database and its key file. Never
-  delete it, and back it up (see [Backups](/docs/backups)).
+  delete it, and [back it up](/docs/backups).
 - `docker-manager_agent`: the agent's identity.
 - `docker-manager_stacks`: your stacks' folders.

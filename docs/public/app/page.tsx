@@ -13,8 +13,11 @@ export default function Home() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo-512.png" alt="" width={176} height={176} className="size-36 sm:size-44" />
       <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">{appName}</h1>
-      <p className="mt-4 max-w-lg text-lg text-fd-muted-foreground">
-        Run Docker on all your servers from one simple web app.
+      <p className="mt-4 max-w-xl text-xl text-balance sm:text-2xl">
+        One pane of glass for your entire Docker infrastructure.
+      </p>
+      <p className="mt-3 max-w-lg text-balance text-fd-muted-foreground">
+        Deploy, edit, update and back up every server from your browser. No SSH, no text editor.
       </p>
       <nav className="mt-10 grid w-full max-w-md gap-3 sm:grid-cols-2">
         <Link

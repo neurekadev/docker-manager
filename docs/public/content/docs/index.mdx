@@ -1,44 +1,41 @@
 ---
 title: Overview
-description: What Docker Manager does and how it works.
+description: One pane of glass for your entire Docker infrastructure.
 ---
 
-Docker Manager is a web app for the Docker servers you run yourself. You
-open it in your browser to run your apps, keep them up to date and back
-them up, whether you have one server or many.
+Docker Manager is a single pane of glass for all your Docker servers. From
+one web page you run your apps, edit their files, upload data, read logs,
+open terminals, update images and back everything up. You don't need to SSH
+into a server, open a text editor or copy files by hand. One browser tab is
+all you need to manage your whole setup, whether you have one server or
+many.
 
 ## What you can do
 
 <Cards>
   <Card title="Stacks" href="/docs/stacks">
-    Run your Compose apps. Edit their files, deploy, update and see what changed.
+    Create, deploy and edit your Compose apps, or take over the ones you already run.
   </Card>
-  <Card title="Import your projects" href="/docs/import-projects">
-    Take over the Compose projects you already run, without starting over.
+  <Card title="Containers, images, volumes, networks" href="/docs/containers">
+    See and control everything Docker runs on every server.
   </Card>
-  <Card title="Templates" href="/docs/templates">
-    Save an app once and create new stacks from it with a few clicks.
+  <Card title="File Manager" href="/docs/file-manager">
+    Edit, upload and download files of stacks and volumes in the browser.
   </Card>
-  <Card title="Containers" href="/docs/containers">
-    Start, stop and inspect containers, or create one without a Compose file.
+  <Card title="Logs and Terminal" href="/docs/logs">
+    Read live logs and open a shell in any container.
   </Card>
-  <Card title="Files, logs and terminals" href="/docs/files">
-    Edit files, read logs and open a shell in a container, all in the browser.
-  </Card>
-  <Card title="Image updates" href="/docs/updates">
+  <Card title="Updates" href="/docs/updates">
     Find newer images and update your apps, by hand or on a schedule.
   </Card>
-  <Card title="Cleanup" href="/docs/cleanup">
-    Remove unused images, containers and build cache to free disk space.
-  </Card>
   <Card title="Backups" href="/docs/backups">
-    Back up your apps, their data and Docker Manager itself.
+    Back up your apps, their data and Docker Manager itself, and restore them.
   </Card>
-  <Card title="Users and permissions" href="/docs/users-and-permissions">
+  <Card title="Migrations" href="/docs/migrations">
+    Move a stack, a volume or a whole server to another server.
+  </Card>
+  <Card title="Users and permissions" href="/docs/users-and-groups">
     Invite people and decide what each of them may see and do.
-  </Card>
-  <Card title="Many servers" href="/docs/environments">
-    Watch the health of all your servers and move stacks between them.
   </Card>
 </Cards>
 
@@ -47,16 +44,24 @@ them up, whether you have one server or many.
 Docker Manager has two parts:
 
 - The **manager** is the web app. You run it once.
-- The **agent** is a small container on every server you want to manage. It
-  connects to the manager and does the work on its server. It opens no
-  ports, so servers with only an agent need no firewall changes.
+- The **agent** is a small container on every server you manage. It
+  connects out to the manager and does the work on its server. It opens no
+  ports, so servers need no firewall changes.
 
-Each server with its agent is called an **environment**. You can manage
-many environments from one manager.
+Each server with its agent is an **environment**. The environment switcher
+at the top of the side menu picks which one the pages show, or **All
+environments**.
 
-Longer tasks, such as deploying a stack or taking a backup, run as
-**jobs**. You can follow their progress, and they keep running when you
-close the browser.
+Longer tasks, such as a deploy or a backup, run as **jobs**. They keep
+running when you close the browser. **Jobs** in the menu lists them all.
+
+Backups, update checks, updates and cleanups can run on a **schedule**:
+hourly, daily, weekly or with a cron expression, in the time zone you pick.
+Nothing runs on its own until you turn its schedule on. **Schedules** in
+the menu lists them all.
+
+Press <kbd>Ctrl</kbd> <kbd>K</kbd> (<kbd>⌘</kbd> <kbd>K</kbd> on a Mac) to
+jump to any page, stack or container.
 
 ## What you need
 
@@ -72,11 +77,9 @@ Docker Swarm are not supported.
 
 <Callout type="warn" title="Protect your sign-in">
   The agent has full control of Docker, and so of the whole server. Anyone
-  who can sign in to Docker Manager with enough permissions can do the same.
-  Use a strong password and turn on two-factor sign-in (see
-  [Sign-in and security](/docs/sign-in-and-security)).
+  who can sign in with enough permissions can do the same. Use a strong
+  password and two-factor sign-in (see
+  [Users & Groups](/docs/users-and-groups#your-account)).
 </Callout>
 
-## Next
-
-Follow the [Quickstart](/docs/quickstart) to install Docker Manager.
+Ready? Follow the [Quickstart](/docs/quickstart).

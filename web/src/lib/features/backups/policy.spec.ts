@@ -40,6 +40,7 @@ function policy(over: Partial<BackupPolicy> = {}): BackupPolicy {
 		excludeVolumes: [],
 		anonymousVolumes: false,
 		buildxVolumes: false,
+		externalBinds: false,
 		enabled: true,
 		view: 'full',
 		actions: [],

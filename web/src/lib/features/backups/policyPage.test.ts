@@ -54,6 +54,7 @@ const policy = {
 	actions: ['backup.run', 'backup.retention'],
 	anonymousVolumes: false,
 	buildxVolumes: false,
+	externalBinds: false,
 	excludeStacks: [],
 	excludeVolumes: [],
 	includeManagerState: false,

@@ -156,6 +156,7 @@ type BackupPolicy struct {
 	ExcludeStacks           []string                `json:"excludeStacks"`
 	ExcludeVolumes          []string                `json:"excludeVolumes" doc:"Volumes not backed up: standalone ones and those of the selected stacks."`
 	AnonymousVolumes        bool                    `json:"anonymousVolumes" doc:"Also back up anonymous volumes (default off)."`
+	ExternalBinds           bool                    `json:"externalBinds" doc:"Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST."`
 	BuildxVolumes           bool                    `json:"buildxVolumes" doc:"Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off)."`
 	Enabled                 bool                    `json:"enabled"`
 	View                    string                  `json:"view" enum:"minimal,full"`
@@ -187,7 +188,7 @@ func newBackupPolicy(p domain.BackupPolicy, v authz.View) BackupPolicy {
 	}
 	out.RepositoryID, out.EnvironmentRepositories = p.RepositoryID, p.EnvironmentRepos
 	out.ExcludeStacks, out.ExcludeVolumes, out.AnonymousVolumes = p.ExcludeStacks, p.ExcludeVolumes, p.AnonymousVolumes
-	out.BuildxVolumes = p.BuildxVolumes
+	out.BuildxVolumes, out.ExternalBinds = p.BuildxVolumes, p.ExternalBinds
 	if out.ExcludeStacks == nil {
 		out.ExcludeStacks = []string{}
 	}
@@ -250,6 +251,7 @@ type policyInputBody struct {
 	ExcludeStacks           []string                `json:"excludeStacks,omitempty" maxItems:"256"`
 	ExcludeVolumes          []string                `json:"excludeVolumes,omitempty" maxItems:"256" doc:"Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks."`
 	AnonymousVolumes        bool                    `json:"anonymousVolumes,omitempty" doc:"Also back up anonymous volumes (default off)."`
+	ExternalBinds           bool                    `json:"externalBinds,omitempty" doc:"Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST."`
 	BuildxVolumes           bool                    `json:"buildxVolumes,omitempty" doc:"Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off)."`
 	RepositoryID            string                  `json:"repositoryId" minLength:"1" maxLength:"64"`
 	EnvironmentRepositories map[string]string       `json:"environmentRepositories,omitempty"`
@@ -264,7 +266,7 @@ type policyInputBody struct {
 
 func (b policyInputBody) domain() domain.BackupPolicy {
 	p := domain.BackupPolicy{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
-		AnonymousVolumes: b.AnonymousVolumes, BuildxVolumes: b.BuildxVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+		AnonymousVolumes: b.AnonymousVolumes, BuildxVolumes: b.BuildxVolumes, ExternalBinds: b.ExternalBinds, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Stacks: toStackSelections(b.Stacks),
 		Volumes: toVolumeSelections(b.Volumes), Shutdown: b.Shutdown, Retention: toRetention(b.Retention)}
 	if b.Schedule != nil {
@@ -486,6 +488,7 @@ type updateBackupPolicyInput struct {
 		ExcludeVolumes          *[]string                `json:"excludeVolumes,omitempty" maxItems:"256"`
 		AnonymousVolumes        *bool                    `json:"anonymousVolumes,omitempty"`
 		BuildxVolumes           *bool                    `json:"buildxVolumes,omitempty"`
+		ExternalBinds           *bool                    `json:"externalBinds,omitempty"`
 		RepositoryID            *string                  `json:"repositoryId,omitempty" maxLength:"64"`
 		EnvironmentRepositories *map[string]string       `json:"environmentRepositories,omitempty"`
 		IncludeManagerState     *bool                    `json:"includeManagerState,omitempty"`
@@ -519,7 +522,7 @@ func (h *backupsAPI) updatePolicy(ctx context.Context, in *updateBackupPolicyInp
 		return nil, err
 	}
 	pp := backups.PolicyPatch{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
-		AnonymousVolumes: b.AnonymousVolumes, BuildxVolumes: b.BuildxVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+		AnonymousVolumes: b.AnonymousVolumes, BuildxVolumes: b.BuildxVolumes, ExternalBinds: b.ExternalBinds, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Shutdown: b.Shutdown}
 	if s := b.Schedule; s != nil {
 		if err := ValidateSchedule(s.Cron, s.TimeZone, "body.schedule"); err != nil {

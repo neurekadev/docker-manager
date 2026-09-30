@@ -1,0 +1,26 @@
+---
+title: Images
+description: Pull, tag and remove images on your servers.
+---
+
+**Images** lists the images on your servers, which containers use them,
+their size and when they were built. Tick **Unused** to see only images no
+container uses.
+
+- **Pull image** downloads an image. Enter a name such as `nginx:1.27`;
+  without a tag, `latest` is pulled. The dialog shows which
+  [registry login](/docs/registries) it will use.
+- **Tag** gives an image another name.
+- **Create container** opens the [container form](/docs/containers#create-a-container)
+  with this image filled in.
+- **Remove** asks you to type the image's name. An image that containers
+  still use can't be removed.
+
+Images without a tag are listed at the end. **Prune images** removes unused
+ones (see [Maintenance](/docs/maintenance)).
+
+To remove several images, tick their rows and press **Remove**. You see
+what will be removed and what is left out before you confirm.
+
+To build your own images, see [Builds](/docs/builds). To keep images up to
+date, see [Updates](/docs/updates).
