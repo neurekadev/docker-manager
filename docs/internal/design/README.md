@@ -403,6 +403,10 @@ under their total; lists longer than 20 rows wrap into columns (values
 right-aligned per column) and the tooltip sits beside the pointer inside
 the window (`besidePointer`). Items `shown` leaves out (a name filter) stay
 in their place, greyed out, and are left out of the tooltip and the total.
+On phones and touch screens (`(max-width: 640px), (pointer: coarse)`)
+there is no floating tooltip, which could not fit the screen: a tap moves
+the pointer (`onPointer`, `hideTooltip` of `timeSeriesOption`) and the same
+list shows under the chart, scrollable, with a close button.
 The `/design` gallery shows it with twenty demo containers.
 Pure helpers in `$lib/ui/multiseries.ts` (`tooltipRows`, `tooltipHtml`,
 `totalAt`); `timeSeriesOption` takes `stacked`, `muted` lines and a

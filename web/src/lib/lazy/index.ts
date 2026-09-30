@@ -331,6 +331,16 @@ export interface TimeSeriesOptions {
 	 * inside the window.
 	 */
 	tooltip?: (index: number) => string;
+	/**
+	 * No floating tooltip, only the pointer line (phones: the caller shows
+	 * the details in the page, see onPointer).
+	 */
+	hideTooltip?: boolean;
+	/**
+	 * Called with the time under the pointer (a hover, a tap) as the axis
+	 * pointer moves; the caller maps it to a bucket.
+	 */
+	onPointer?: (time: number) => void;
 }
 
 /** A tooltip placement: the pointer and tooltip size in chart coordinates. */
@@ -381,7 +391,11 @@ export function timeSeriesOption(o: TimeSeriesOptions, place?: TooltipPlace) {
 		tooltip: {
 			trigger: 'axis',
 			valueFormatter: (v: unknown) => (typeof v === 'number' ? o.format(v) : 'No sample'),
-			...(o.tooltip ? customTooltip(o.tooltip, place) : {})
+			...(o.hideTooltip
+				? { showContent: false, triggerOn: 'mousemove|click' }
+				: o.tooltip
+					? customTooltip(o.tooltip, place)
+					: {})
 		},
 		xAxis: { type: 'time', min: o.from, max: o.to },
 		yAxis: {
@@ -468,10 +482,19 @@ export async function mountTimeSeries(
 			width: window.innerWidth,
 			height: window.innerHeight
 		});
+	let current = opts;
 	chart.setOption(timeSeriesOption(opts, place));
+	// The axis pointer follows a hover or a tap, also without a tooltip.
+	chart.on('updateAxisPointer', (e: unknown) => {
+		const value = (e as { axesInfo?: { value?: unknown }[] }).axesInfo?.[0]?.value;
+		if (typeof value === 'number') current.onPointer?.(value);
+	});
 	return {
 		destroy: () => chart.dispose(),
-		update: (o) => chart.setOption(timeSeriesOption(o, place), { replaceMerge: ['series'] }),
+		update: (o) => {
+			current = o;
+			chart.setOption(timeSeriesOption(o, place), { replaceMerge: ['series'] });
+		},
 		resize: () => chart.resize()
 	};
 }

@@ -162,6 +162,12 @@ describe('timeSeriesOption for many items (MultiSeriesChart)', () => {
 		expect(tip.position([0, 0], [], null, null, { contentSize: [10, 10] })).toEqual([1, 2]);
 		expect('formatter' in timeSeriesOption(base).tooltip).toBe(false);
 	});
+
+	it('keeps only the pointer line when the caller shows the details itself (phones)', () => {
+		const o = timeSeriesOption({ ...base, tooltip: (i) => `bucket ${i}`, hideTooltip: true });
+		expect(o.tooltip).toMatchObject({ trigger: 'axis', showContent: false });
+		expect('formatter' in o.tooltip).toBe(false);
+	});
 });
 
 describe('besidePointer (placing a long tooltip)', () => {

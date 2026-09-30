@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
 import type { TimeSeriesOptions } from '$lib/lazy';
 import MultiSeriesChart from './MultiSeriesChart.svelte';
 import TimeSeriesChart from './TimeSeriesChart.svelte';
@@ -155,6 +156,34 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 		expect(tip).not.toContain('web');
 		// db 3 + cache 1 at that bucket; web (4) is left out.
 		expect(tip).toMatch(/Total <b[^>]*>4</);
+	});
+
+	it('shows the tapped moment under the chart on phones instead of a floating tooltip', async () => {
+		vi.stubGlobal(
+			'matchMedia',
+			vi.fn(() => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
+		);
+		try {
+			const user = userEvent.setup();
+			const before = lazy.mounted.length;
+			render(MultiSeriesChart, {
+				props: { title: 'Docker CPU', unit: 'percent', timestamps: ts, items }
+			});
+			await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
+			const o = lazy.updates.at(-1) ?? lazy.mounted[before];
+			expect(o.hideTooltip).toBe(true);
+			expect(o.tooltip).toBeUndefined();
+			// A tap near the second bucket.
+			o.onPointer?.(Date.parse(ts[1]) + 5_000);
+			const region = await screen.findByRole('region', { name: /^Docker CPU at / });
+			expect(within(region).getByText('web')).toBeInTheDocument();
+			expect(within(region).getByText('4%')).toBeInTheDocument();
+			expect(region).toHaveTextContent('Total 8%');
+			await user.click(within(region).getByRole('button', { name: 'Close' }));
+			expect(screen.queryByRole('region', { name: /^Docker CPU at / })).toBeNull();
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 
 	it('totals the newest bucket of the shown items, not of a hidden newer one', () => {

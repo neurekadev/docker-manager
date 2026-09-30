@@ -5,14 +5,26 @@
 	// Hovering lists every shown item with a value at that time, largest
 	// first, in its colour, under their total; items `shown` leaves out stay
 	// in their place greyed out and are absent from the tooltip and the
-	// headline total. Nulls are gaps (a
+	// headline total. On phones and touch screens a floating list of every
+	// item would not fit the screen: a tap moves the pointer and the details
+	// of that moment show under the chart instead. Nulls are gaps (a
 	// container that was not running), never zero. The canvas is decorative
 	// for assistive technology: the summary names the total and the largest
 	// items as text.
 	import { onDestroy, onMount } from 'svelte';
+	import X from '@lucide/svelte/icons/x';
 	import { mountTimeSeries, type TimeSeriesChart, type TimeSeriesOptions } from '$lib/lazy';
+	import IconButton from './IconButton.svelte';
 	import { formatValue, type ValueUnit } from './timeseries';
-	import { lastIndex, tooltipHtml, tooltipRows, totalAt, type SeriesItem } from './multiseries';
+	import {
+		lastIndex,
+		nearestIndex,
+		tipTimeText,
+		tooltipHtml,
+		tooltipRows,
+		totalAt,
+		type SeriesItem
+	} from './multiseries';
 
 	interface Props {
 		/** Accessible name and visible title, e.g. "Docker CPU". */
@@ -49,6 +61,12 @@
 	let observer: ResizeObserver | null = null;
 	let destroyed = false;
 
+	/** Phones and touch screens: details under the chart, no floating tooltip. */
+	const COMPACT = '(max-width: 640px), (pointer: coarse)';
+	let compact = $state(false);
+	/** The bucket tapped on a phone (its details show under the chart). */
+	let picked = $state<number | null>(null);
+
 	const ts = $derived(timestamps.map((t) => Date.parse(t)));
 	const start = $derived(from ? Date.parse(from) : (ts[0] ?? 0));
 	const end = $derived(to ? Date.parse(to) : (ts[ts.length - 1] ?? 0));
@@ -71,6 +89,7 @@
 		const list = items;
 		const show = shown;
 		const times = ts;
+		const small = compact;
 		// ECharts stacks from the bottom: the last item first, the first on
 		// top.
 		return {
@@ -86,15 +105,30 @@
 			to: end,
 			yMin: 0,
 			stacked: true,
-			tooltip: (index) =>
-				tooltipHtml(
-					times[index] ?? 0,
-					tooltipRows(list, index, show),
-					unit,
-					totalAt(list, index, show)
-				)
+			hideTooltip: small,
+			tooltip: small
+				? undefined
+				: (index) =>
+						tooltipHtml(
+							times[index] ?? 0,
+							tooltipRows(list, index, show),
+							unit,
+							totalAt(list, index, show)
+						),
+			onPointer: (t) => {
+				if (small) picked = nearestIndex(times, t);
+			}
 		};
 	}
+
+	onMount(() => {
+		if (typeof matchMedia !== 'function') return;
+		const mq = matchMedia(COMPACT);
+		const follow = () => (compact = mq.matches);
+		follow();
+		mq.addEventListener('change', follow);
+		return () => mq.removeEventListener('change', follow);
+	});
 
 	onMount(() => {
 		if (!el) return;
@@ -133,6 +167,38 @@
 		{#if detail}<span class="detail">{detail}</span>{/if}
 	</figcaption>
 	<div class="canvas" style:height bind:this={el} aria-hidden="true"></div>
+	{#if compact && picked !== null && picked >= 0 && picked < ts.length}
+		{@const at = tipTimeText(ts[picked])}
+		{@const rows = tooltipRows(items, picked, shown)}
+		<div class="details" role="region" aria-label="{title} at {at}">
+			<div class="details-head">
+				<span class="muted">{at}</span>
+				{#if rows.length > 1}<span
+						>Total <b class="num">{formatValue(totalAt(items, picked, shown), unit)}</b
+						></span
+					>{/if}
+				<IconButton icon={X} label="Close" size="sm" onclick={() => (picked = null)} />
+			</div>
+			{#if rows.length}
+				<ul class="rows" role="list">
+					{#each rows as r (r.name)}
+						<li>
+							<span class="dot" style:background={r.color} aria-hidden="true"></span>
+							<span class="name">{r.name}</span>
+							<span class="num val">{formatValue(r.value, unit)}</span>
+							{#if r.parts.length}<span class="parts num"
+									>{r.parts
+										.map((p) => `${formatValue(p.value, unit)} ${p.label}`)
+										.join(', ')}</span
+								>{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="muted none">No samples</p>
+			{/if}
+		</div>
+	{/if}
 	<p class="sr-only">{summary}</p>
 </figure>
 
@@ -169,5 +235,74 @@
 	.canvas {
 		width: 100%;
 		min-width: 0;
+	}
+
+	.details {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		background: var(--surface-raised);
+		font-size: var(--text-caption);
+	}
+
+	.details-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+
+	.details-head .muted {
+		flex: 1;
+	}
+
+	.muted {
+		color: var(--text-muted);
+	}
+
+	.rows {
+		display: grid;
+		grid-template-columns: 8px minmax(0, 1fr) auto;
+		align-items: center;
+		gap: var(--space-1) var(--space-2);
+		max-height: 280px;
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		list-style: none;
+	}
+
+	.rows li {
+		display: contents;
+	}
+
+	.dot {
+		width: 8px;
+		height: 8px;
+		border-radius: var(--radius-full);
+	}
+
+	.name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.val {
+		color: var(--text-strong);
+		font-weight: var(--weight-semibold);
+		text-align: right;
+	}
+
+	.parts {
+		grid-column: 2 / -1;
+		margin-top: calc(-1 * var(--space-1));
+		color: var(--text-muted);
+	}
+
+	.none {
+		margin: 0;
 	}
 </style>
