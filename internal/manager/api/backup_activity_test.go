@@ -69,6 +69,32 @@ func TestActivityFileNeedsFilesRead(t *testing.T) {
 	}
 }
 
+// TestActivityCancellable: a running backup is offered for cancelling only
+// to job.cancel holders and only until a cancellation was requested; jobs
+// the caller may not read are left out.
+func TestActivityCancellable(t *testing.T) {
+	run := backups.BackupActivity{Job: domain.Job{ID: "j1", Kind: jobspec.BackupRun, EnvironmentID: "e1", State: domain.JobRunning},
+		Items: []protocol.BackupItem{{Kind: backup.MemberVolume, Volume: "media"}}}
+	reader := activityChecker(t, authztest.Only("u1", "allow job.read @env:e1"), "u1")
+	canceller := activityChecker(t, authztest.Only("u2", "allow job.read @env:e1", "allow job.cancel @env:e1"), "u2")
+	elsewhere := activityChecker(t, authztest.Only("u3", "allow job.read @env:e2", "allow job.cancel @env:e2"), "u3")
+
+	if got, ok := shapeActivity(reader, run); !ok || got.Cancellable || got.JobID != "j1" || got.ItemCount != 1 {
+		t.Errorf("reader sees %+v (%v)", got, ok)
+	}
+	if got, ok := shapeActivity(canceller, run); !ok || !got.Cancellable {
+		t.Errorf("canceller sees %+v (%v)", got, ok)
+	}
+	if got, ok := shapeActivity(elsewhere, run); ok {
+		t.Errorf("another environment's user sees %+v", got)
+	}
+	requested := run
+	requested.Job.CancelRequested, requested.Job.State = true, domain.JobCancelling
+	if got, ok := shapeActivity(canceller, requested); !ok || got.Cancellable || got.State != string(domain.JobCancelling) {
+		t.Errorf("after the request: %+v (%v)", got, ok)
+	}
+}
+
 // TestBackupStorageSums: locations add up; the ratio and the compressed
 // share are recomputed from the totals; unmeasured locations are left out.
 func TestBackupStorageSums(t *testing.T) {

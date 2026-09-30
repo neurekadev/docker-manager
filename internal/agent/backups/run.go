@@ -37,7 +37,9 @@ import (
 //	                 reverse dependency order. A failed stop aborts the job
 //	                 and the compensation restarts what was running.
 //	snapshot         one restic snapshot per item (not idempotent); an item
-//	                 removed before its turn is skipped, not failed.
+//	                 removed before its turn is skipped, not failed. A
+//	                 cancellation stops restic mid-item; the items backed
+//	                 up so far keep their snapshots.
 //	start_containers restart only the previously running services, in
 //	                 dependency order; a dependency conflict is reported,
 //	                 never forced.
@@ -303,7 +305,14 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 	out := s.output(sc)
 	host := backup.ScopeDir(in.Repository.Scope)
 	n := len(in.Items)
+	// A cancellation stops restic mid-item (it writes no snapshot for it);
+	// the items backed up so far keep theirs.
+	rctx, stop := sc.WatchCancel(ctx, s.opts.Clock, jobexec.DefaultCancelPoll)
+	defer stop()
 	for i, it := range in.Items {
+		if rctx.Err() != nil && ctx.Err() == nil {
+			return stopped(ctx, sc, out)
+		}
 		idx := slices.IndexFunc(out.Members, func(m backup.Member) bool { return m.Item == it.Key() })
 		if idx < 0 {
 			out.Members = append(out.Members, memberOf(in, it))
@@ -331,7 +340,7 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 		}
 		base := 10 + 80*i/n
 		var saved time.Time
-		sum, err := o.Repo.Backup(ctx, restic.BackupRequest{Paths: p.paths, Excludes: p.excludes, Tags: tags, Host: host,
+		sum, err := o.Repo.Backup(rctx, restic.BackupRequest{Paths: p.paths, Excludes: p.excludes, Tags: tags, Host: host,
 			Progress: func(pr restic.Progress) {
 				// restic reports every second; the job record (visible to
 				// job.read holders, no paths) at most every 5 s.
@@ -346,6 +355,9 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 		if err != nil {
 			if ctx.Err() != nil {
 				return err
+			}
+			if rctx.Err() != nil {
+				return stopped(ctx, sc, out)
 			}
 			// Removed while restic read it: nothing was stored, and the
 			// item no longer exists (only a Not Found counts).
@@ -388,6 +400,16 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 		}
 	}
 	return nil
+}
+
+// stopped ends a snapshot step cancelled on request: the output keeps the
+// members backed up so far, the others stay pending (the manager records
+// them as cancelled) and the job ends cancelled.
+func stopped(ctx context.Context, sc *jobexec.StepContext, out protocol.BackupRunOutput) error {
+	if err := sc.SetOutput(ctx, out); err != nil {
+		return err
+	}
+	return fmt.Errorf("the backup was stopped: %w", jobexec.ErrStepCancelled)
 }
 
 // progressInterval spaces the persisted progress of a snapshot.

@@ -15,7 +15,8 @@ import (
 )
 
 // Live activity of running backups (#10): what each unfinished backup job
-// is doing now. Jobs are filtered by job.read; the file restic reads is a
+// is doing now. Jobs are filtered by job.read (cancellable: job.cancel and
+// no cancellation requested yet); the file restic reads is a
 // path of the backed-up data and needs the scope's files-read capability
 // (stack.files.read, volume.files.read; the manager state: the owner).
 // Clients poll it while a backup runs; nothing of it is stored.
@@ -32,6 +33,8 @@ type BackupActivity struct {
 	Percent   int    `json:"percent" doc:"Job progress 0-100, -1 unknown."`
 	Message   string `json:"message,omitempty"`
 	ItemCount int    `json:"itemCount" doc:"Stacks, volumes or manager state this job backs up."`
+	// Cancellable: the caller may cancel the job (POST /jobs/{jobId}/cancellations).
+	Cancellable bool `json:"cancellable" doc:"The caller may cancel the job (job.cancel) and no cancellation was requested yet."`
 	// Current is the item being backed up (absent before the first report).
 	Current *BackupActivityItem `json:"current,omitempty"`
 }
@@ -72,22 +75,32 @@ func (h *backupsAPI) listActivity(ctx context.Context, _ *struct{}) (*backupActi
 	}
 	out := BackupActivityList{Jobs: []BackupActivity{}}
 	for _, a := range acts {
-		j := a.Job
-		if !c.Can(string(CapJobRead), authz.JobResource(j)).Allowed {
-			continue
+		if ba, ok := shapeActivity(c, a); ok {
+			out.Jobs = append(out.Jobs, ba)
 		}
-		items := len(a.Items)
-		if items == 0 {
-			items = 1 // the manager state
-		}
-		ba := BackupActivity{JobID: j.ID, Kind: string(j.Kind), State: string(j.State), SetID: a.SetID, PolicyID: a.PolicyID,
-			EnvironmentID: j.EnvironmentID, Percent: j.Progress.Percent, Message: j.Progress.Message, ItemCount: items}
-		if r := a.Report; r != nil {
-			ba.Current = activityItem(c, a, *r)
-		}
-		out.Jobs = append(out.Jobs, ba)
 	}
 	return &backupActivityOutput{Body: out}, nil
+}
+
+// shapeActivity is a job as the caller sees it (false: the caller may not
+// read it).
+func shapeActivity(c authz.Checker, a backups.BackupActivity) (BackupActivity, bool) {
+	j := a.Job
+	res := authz.JobResource(j)
+	if !c.Can(string(CapJobRead), res).Allowed {
+		return BackupActivity{}, false
+	}
+	items := len(a.Items)
+	if items == 0 {
+		items = 1 // the manager state
+	}
+	ba := BackupActivity{JobID: j.ID, Kind: string(j.Kind), State: string(j.State), SetID: a.SetID, PolicyID: a.PolicyID,
+		EnvironmentID: j.EnvironmentID, Percent: j.Progress.Percent, Message: j.Progress.Message, ItemCount: items,
+		Cancellable: !j.CancelRequested && c.Can(string(CapJobCancel), res).Allowed}
+	if r := a.Report; r != nil {
+		ba.Current = activityItem(c, a, *r)
+	}
+	return ba, true
 }
 
 // activityItem shapes a report, keeping the file only for callers who may
@@ -135,7 +148,8 @@ func registerBackupActivity(a huma.API, h *backupsAPI) {
 			OperationID: "list-backup-activity", Method: http.MethodGet, Path: BasePath + "/backup-activity",
 			Summary: "List running backups",
 			Description: "Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its " +
-				"progress, file and byte counts, restic's estimate and the file being read. The file is a path of the backed-up " +
+				"progress, file and byte counts, restic's estimate, the file being read and whether the caller may cancel it " +
+				"(job.cancel; POST /jobs/{jobId}/cancellations). The file is a path of the backed-up " +
 				"data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). " +
 				"Live data kept in memory only; poll it while a backup runs.",
 			Tags: []string{tagBackups},

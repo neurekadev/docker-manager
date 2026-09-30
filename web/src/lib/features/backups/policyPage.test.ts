@@ -96,6 +96,7 @@ const activity = [
 		policyId: 'pol-1',
 		environmentId: 'env-1',
 		itemCount: 1,
+		cancellable: false,
 		percent: 40
 	},
 	{
@@ -106,6 +107,7 @@ const activity = [
 		policyId: 'pol-9',
 		environmentId: 'env-1',
 		itemCount: 1,
+		cancellable: false,
 		percent: 10
 	}
 ];
