@@ -103,8 +103,11 @@ type MetricSeries struct {
 	Key  string
 	Unit string
 	// Mount labels disk series.
-	Mount  string
-	Values []*float64
+	Mount string
+	// Container names the container of a series of an environment-wide
+	// container query (QueryContainers).
+	Container string
+	Values    []*float64
 }
 
 // MetricResult answers a MetricQuery.

@@ -2,7 +2,8 @@
 	// Host metrics of one environment (#5): CPU, memory, network, load and
 	// disks over a chosen range, explained in plain words (averages on long
 	// ranges, shaded gaps); charts with a legend leave out the headline
-	// value the legend already shows. Values come from GET …/metrics (downsampled
+	// value the legend already shows. The per-container charts follow over
+	// the same range (ContainerCharts). Values come from GET …/metrics (downsampled
 	// by the manager; nulls are gaps: the agent was offline or a value was
 	// unknown) and refresh live through `metrics` events (liveKeys.metrics).
 	import { createQuery } from '@tanstack/svelte-query';
@@ -18,6 +19,7 @@
 		TimeSeriesChart,
 		formatBytes
 	} from '$lib/ui';
+	import ContainerCharts from './ContainerCharts.svelte';
 	import { METRIC_RANGES, diskMounts, mountLabel, rangeSeconds, seriesValues } from './model';
 
 	interface Props {
@@ -159,6 +161,7 @@
 			{/each}
 		</div>
 	{/if}
+	<ContainerCharts {environmentId} {name} seconds={rangeSeconds(range)} />
 </Card>
 
 <style>

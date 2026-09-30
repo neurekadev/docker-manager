@@ -1,7 +1,9 @@
 // Tile colours (#22). Colours belong to types, never to single items:
 // every service has the same tile and the same colour, also where several
 // services' output is interleaved (a stack's merged logs, their chips and
-// chart series), which tell services apart by name, never by colour.
+// chart series), which tell services apart by name, never by colour. The
+// one exception is a chart drawing every container of an environment
+// (seriesColor): there a colour per line is the only way to follow one.
 //
 // Pure functions; no Svelte. Components: IconTile, the log viewer, charts.
 
@@ -43,3 +45,16 @@ export const TILE_HEX: Record<TileColor, { bg: string; fg: string }> = {
 
 /** The colour of service log prefixes, chips and chart series (canvases). */
 export const SERVICE_HEX = TILE_HEX[SERVICE_COLOR].fg;
+
+/**
+ * The line colour of item i of a chart drawing many items of one type at
+ * once (every container of an environment): hues spread by the golden
+ * angle from the accent blue, in three lightness steps, so neighbours never
+ * look alike. The same i always gets the same colour. HSL (ECharts and CSS
+ * both read it).
+ */
+export function seriesColor(i: number): string {
+	const hue = Math.round((215 + i * 137.508) % 360);
+	const light = [66, 56, 76][i % 3];
+	return `hsl(${hue}, 80%, ${light}%)`;
+}

@@ -239,6 +239,12 @@ func (s *Service) Query(ctx context.Context, q domain.MetricQuery) (domain.Metri
 	return s.opts.Store.Query(ctx, q)
 }
 
+// QueryContainers returns stored series of every container of an
+// environment with values in the range (metrics.Store.QueryContainers).
+func (s *Service) QueryContainers(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error) {
+	return s.opts.Store.QueryContainers(ctx, q)
+}
+
 // Latest returns an environment's latest host sample: the stored one, with
 // the live CPU and memory while they are fresh (live.go).
 func (s *Service) Latest(ctx context.Context, environmentID string) (domain.LatestMetrics, bool, error) {

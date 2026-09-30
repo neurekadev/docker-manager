@@ -1703,6 +1703,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/metrics/containers/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the metrics of an environment's containers
+         * @description Downsampled CPU, memory, network, block I/O and process counts (#5 storage) of every container of the environment with a value in the range, for the containers the caller holds container.metrics.read on (others are absent): the per-container charts of the environment page in one request instead of a range query per container. Buckets and units as in get-container-metrics; null is a gap. Readable while the environment is offline.
+         */
+        get: operations["get-container-metrics-history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/migration-previews": {
         parameters: {
             query?: never;
@@ -6779,6 +6799,15 @@ export interface components {
             /** @description Older lines were left out (at most 5000 lines / 600 KiB per request). */
             truncated: boolean;
         };
+        ContainerMetricSeries: {
+            /**
+             * @description Container name (metrics follow the name across recreations).
+             * @example shop-web-1
+             */
+            container: string;
+            /** @description One series per requested key, in the order requested. */
+            series: components["schemas"]["MetricSeries"][];
+        };
         ContainerMetrics: {
             /** @description Container name (metrics follow the name across recreations). */
             container: string;
@@ -6791,6 +6820,23 @@ export interface components {
             resolution: "raw" | "1m" | "15m";
             /** @description CPU as a percentage of the environment's cores; memory against the container limit when set. */
             series: components["schemas"]["MetricSeries"][];
+            skewCorrected: boolean;
+            /** Format: int64 */
+            stepSeconds: number;
+            timestamps: string[];
+            /** Format: date-time */
+            to: string;
+        };
+        ContainerMetricsHistory: {
+            /** @description Sorted by name; only containers with a value in the range the caller may chart. */
+            containers: components["schemas"]["ContainerMetricSeries"][];
+            environmentId: string;
+            /** Format: date-time */
+            from: string;
+            incomplete: boolean;
+            online: boolean;
+            /** @enum {string} */
+            resolution: "raw" | "1m" | "15m";
             skewCorrected: boolean;
             /** Format: int64 */
             stepSeconds: number;
@@ -25876,6 +25922,122 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["LatestContainerMetrics"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-container-metrics-history": {
+        parameters: {
+            query?: {
+                /** @description Range start (RFC 3339; default: one hour before to). */
+                from?: string;
+                /** @description Range end (RFC 3339; default: now). */
+                to?: string;
+                /** @description Bucket width in seconds (0: automatic). */
+                stepSeconds?: number;
+                /** @description Metric keys to return (default: all). */
+                series?: string[];
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "containers": [
+                     *         {
+                     *           "container": "shop-web-1",
+                     *           "series": [
+                     *             {
+                     *               "key": "cpu.percent",
+                     *               "mount": "docker",
+                     *               "unit": "percent",
+                     *               "values": [
+                     *                 1
+                     *               ]
+                     *             }
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "from": "2026-09-25T12:00:00Z",
+                     *       "incomplete": false,
+                     *       "online": false,
+                     *       "resolution": "raw",
+                     *       "skewCorrected": false,
+                     *       "stepSeconds": 1,
+                     *       "timestamps": [
+                     *         "2026-09-25T12:00:00Z"
+                     *       ],
+                     *       "to": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ContainerMetricsHistory"];
                 };
             };
             /** @description Unauthorized */

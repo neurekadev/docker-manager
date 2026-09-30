@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHART_COLORS, EDITOR_COLORS, TERMINAL_THEME } from '$lib/lazy/palette';
 import { dockerManagerEchartsTheme } from '$lib/lazy/echarts-theme';
-import { SERVICE_COLOR, SERVICE_HEX, TILE_COLORS, TILE_HEX, tileStyle } from './hue';
+import { SERVICE_COLOR, SERVICE_HEX, TILE_COLORS, TILE_HEX, seriesColor, tileStyle } from './hue';
 
 const tokensCss = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8');
 
@@ -103,5 +103,14 @@ describe('service colour (logs, chips and chart series)', () => {
 		expect(tileStyle('rose')).toBe(
 			'--tile-bg: var(--tile-rose-bg); --tile-fg: var(--tile-rose-fg);'
 		);
+	});
+});
+
+describe('series colours (a chart of every container)', () => {
+	it('gives each of many lines its own stable colour', () => {
+		const colors = Array.from({ length: 60 }, (_, i) => seriesColor(i));
+		expect(new Set(colors).size).toBe(60);
+		expect(seriesColor(7)).toBe(colors[7]);
+		expect(colors[0]).toMatch(/^hsl\(\d+, 80%, \d+%\)$/);
 	});
 });

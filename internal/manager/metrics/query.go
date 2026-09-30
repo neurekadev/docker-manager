@@ -118,9 +118,71 @@ func (s *Store) Query(ctx context.Context, q domain.MetricQuery) (domain.MetricR
 	if q.Kind == domain.MetricContainer && q.Name == "" {
 		return domain.MetricResult{}, queryErr("container name required")
 	}
-	now := s.clk.Now()
+	out, keys, p, srcs, err := s.start(ctx, &q)
+	if err != nil {
+		return out, err
+	}
+	add := func(kind string, names []string, mount bool) error {
+		sets, flags, err := s.collect(ctx, q.EnvironmentID, kind, names, pick(kind, keys), srcs, p)
+		if err != nil {
+			return err
+		}
+		out.Flags |= flags
+		for n, set := range sets {
+			for _, ser := range set {
+				if mount {
+					ser.Mount = names[n]
+				}
+				out.Series = append(out.Series, ser)
+			}
+		}
+		return nil
+	}
+	if q.Kind == domain.MetricContainer {
+		err = add(domain.MetricContainer, []string{q.Name}, false)
+	} else if err = add(domain.MetricHost, []string{""}, false); err == nil && len(pick(domain.MetricDisk, keys)) > 0 {
+		err = add(domain.MetricDisk, s.names(q.EnvironmentID, domain.MetricDisk), true)
+	}
+	if err != nil {
+		return domain.MetricResult{}, err
+	}
+	return out, nil
+}
+
+// QueryContainers returns the requested series of every container of an
+// environment with at least one value in the range (Container names each
+// series; sorted by container name), bucketed like Query. q.Kind and
+// q.Name are ignored.
+func (s *Store) QueryContainers(ctx context.Context, q domain.MetricQuery) (domain.MetricResult, error) {
+	q.Kind = domain.MetricContainer
+	out, keys, p, srcs, err := s.start(ctx, &q)
+	if err != nil {
+		return out, err
+	}
+	names := s.names(q.EnvironmentID, domain.MetricContainer)
+	sets, flags, err := s.collect(ctx, q.EnvironmentID, domain.MetricContainer, names, pick(domain.MetricContainer, keys), srcs, p)
+	if err != nil {
+		return domain.MetricResult{}, err
+	}
+	out.Flags = flags
+	for n, set := range sets {
+		if !hasValues(set) {
+			continue
+		}
+		for _, ser := range set {
+			ser.Container = names[n]
+			out.Series = append(out.Series, ser)
+		}
+	}
+	return out, nil
+}
+
+// start defaults the range of q, checks its keys (default: all of its
+// kind) and plans the buckets: the result without series, the keys, the
+// plan and the storage sources to read.
+func (s *Store) start(ctx context.Context, q *domain.MetricQuery) (domain.MetricResult, []string, plan, []source, error) {
 	if q.To.IsZero() {
-		q.To = now
+		q.To = s.clk.Now()
 	}
 	if q.From.IsZero() {
 		q.From = q.To.Add(-time.Hour)
@@ -132,74 +194,93 @@ func (s *Store) Query(ctx context.Context, q domain.MetricQuery) (domain.MetricR
 	known := MetricKeys(q.Kind)
 	for _, k := range keys {
 		if !slices.Contains(known, k) {
-			return domain.MetricResult{}, queryErr("unknown metric %q", k)
+			return domain.MetricResult{}, nil, plan{}, nil, queryErr("unknown metric %q", k)
 		}
 	}
 	p, err := s.plan(q.From, q.To, q.Step)
 	if err != nil {
-		return domain.MetricResult{}, err
+		return domain.MetricResult{}, nil, plan{}, nil, err
 	}
 	srcs, err := s.sources(ctx, p)
 	if err != nil {
-		return domain.MetricResult{}, err
+		return domain.MetricResult{}, nil, plan{}, nil, err
 	}
 	out := domain.MetricResult{From: q.From.UTC(), To: q.To.UTC(), Step: time.Duration(p.step) * time.Second, Resolution: p.lvl.name,
 		Timestamps: make([]time.Time, p.n), Series: []domain.MetricSeries{}}
 	for i := range out.Timestamps {
 		out.Timestamps[i] = time.Unix(p.b0+int64(i)*p.step, 0).UTC()
 	}
-	type target struct {
-		kind, name, mount string
-		defs              []metricDef
-	}
-	var targets []target
-	pick := func(kind string) []metricDef {
-		var defs []metricDef
-		for _, k := range keys {
-			for _, m := range kinds[kind].metrics {
-				if m.key == k {
-					defs = append(defs, m)
-				}
-			}
-		}
-		return defs
-	}
-	if q.Kind == domain.MetricContainer {
-		targets = append(targets, target{kind: domain.MetricContainer, name: q.Name, defs: pick(domain.MetricContainer)})
-	} else {
-		targets = append(targets, target{kind: domain.MetricHost, defs: pick(domain.MetricHost)})
-		if defs := pick(domain.MetricDisk); len(defs) > 0 {
-			for _, m := range s.names(q.EnvironmentID, domain.MetricDisk) {
-				targets = append(targets, target{kind: domain.MetricDisk, name: m, mount: m, defs: defs})
+	return out, keys, p, srcs, nil
+}
+
+// pick returns the metrics of a kind among keys, in the order of keys.
+func pick(kind string, keys []string) []metricDef {
+	var defs []metricDef
+	for _, k := range keys {
+		for _, m := range kinds[kind].metrics {
+			if m.key == k {
+				defs = append(defs, m)
 			}
 		}
 	}
-	for _, t := range targets {
-		if len(t.defs) == 0 {
-			continue
+	return defs
+}
+
+// hasValues reports whether any bucket of the series holds a value.
+func hasValues(set []domain.MetricSeries) bool {
+	for _, ser := range set {
+		if slices.ContainsFunc(ser.Values, func(v *float64) bool { return v != nil }) {
+			return true
 		}
-		aggs := make([][]bucketAgg, len(t.defs))
-		for i := range aggs {
-			aggs[i] = make([]bucketAgg, p.n)
+	}
+	return false
+}
+
+// seriesPerQuery bounds the series IDs bound into one aggregate query.
+const seriesPerQuery = 200
+
+// collect reads the metrics defs of the named series of one kind: one set
+// per name with one series per metric (a name without a stored series has
+// only gaps; without defs the sets are empty). The series are read in
+// batches of seriesPerQuery, one query per batch and storage source.
+func (s *Store) collect(ctx context.Context, env, kind string, names []string, defs []metricDef, srcs []source, p plan) ([][]domain.MetricSeries, int, error) {
+	out := make([][]domain.MetricSeries, len(names))
+	if len(defs) == 0 {
+		return out, 0, nil
+	}
+	aggs := make([][][]bucketAgg, len(names))
+	pos := map[int64]int{}
+	var ids []int64
+	s.mu.Lock()
+	for n, name := range names {
+		aggs[n] = make([][]bucketAgg, len(defs))
+		for i := range aggs[n] {
+			aggs[n][i] = make([]bucketAgg, p.n)
 		}
-		s.mu.Lock()
-		id, ok := s.series[seriesKey{q.EnvironmentID, t.kind, t.name}]
-		s.mu.Unlock()
-		if ok {
-			for _, src := range srcs {
-				if src.from >= src.to {
-					continue
-				}
-				flags, err := s.aggregate(ctx, t.kind, id, src, p, t.defs, aggs)
-				if err != nil {
-					return domain.MetricResult{}, err
-				}
-				out.Flags |= flags
+		if id, ok := s.series[seriesKey{env, kind, name}]; ok {
+			pos[id] = n
+			ids = append(ids, id)
+		}
+	}
+	s.mu.Unlock()
+	flags := 0
+	for batch := range slices.Chunk(ids, seriesPerQuery) {
+		for _, src := range srcs {
+			if src.from >= src.to {
+				continue
 			}
+			f, err := s.aggregate(ctx, kind, batch, pos, src, p, defs, aggs)
+			if err != nil {
+				return nil, 0, err
+			}
+			flags |= f
 		}
-		for i, d := range t.defs {
-			ser := domain.MetricSeries{Key: d.key, Unit: d.unit, Mount: t.mount, Values: make([]*float64, p.n)}
-			for b, a := range aggs[i] {
+	}
+	for n := range names {
+		out[n] = make([]domain.MetricSeries, len(defs))
+		for i, d := range defs {
+			ser := domain.MetricSeries{Key: d.key, Unit: d.unit, Values: make([]*float64, p.n)}
+			for b, a := range aggs[n][i] {
 				switch {
 				case d.max && a.max != nil:
 					v := *a.max * d.scale
@@ -209,16 +290,18 @@ func (s *Store) Query(ctx context.Context, q domain.MetricQuery) (domain.MetricR
 					ser.Values[b] = &v
 				}
 			}
-			out.Series = append(out.Series, ser)
+			out[n][i] = ser
 		}
 	}
-	return out, nil
+	return out, flags, nil
 }
 
-// aggregate adds one source's buckets of one series into aggs.
-func (s *Store) aggregate(ctx context.Context, kind string, id int64, src source, p plan, defs []metricDef, aggs [][]bucketAgg) (int, error) {
+// aggregate adds one source's buckets of the series ids (of one kind) into
+// aggs[pos[id]][metric][bucket].
+func (s *Store) aggregate(ctx context.Context, kind string, ids []int64, pos map[int64]int, src source, p plan, defs []metricDef,
+	aggs [][][]bucketAgg) (int, error) {
 	raw := src.lvl.name == LevelRaw
-	cols := []string{"ts / " + itoa(p.step), "(MAX(flags & 1) | MAX(flags & 2) | MAX(flags & 4) | MAX(flags & 8))"}
+	cols := []string{"series_id", "ts / " + itoa(p.step), "(MAX(flags & 1) | MAX(flags & 2) | MAX(flags & 4) | MAX(flags & 8))"}
 	for _, d := range defs {
 		switch {
 		case raw && d.max:
@@ -231,21 +314,27 @@ func (s *Store) aggregate(ctx context.Context, kind string, id int64, src source
 			cols = append(cols, "SUM("+d.roll+" * n)", "SUM(CASE WHEN "+d.roll+" IS NULL THEN 0 ELSE n END)")
 		}
 	}
-	// Only fixed column and table names of the schema are concatenated;
-	// values are bound parameters.
+	args := make([]any, 0, len(ids)+2)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	args = append(args, src.from, src.to)
+	// Only fixed column and table names of the schema and "?" placeholders
+	// are concatenated; values are bound parameters.
 	q := "SELECT " + strings.Join(cols, ", ") + " FROM " + table(kind, src.lvl.name) + //nolint:gosec // G202: identifiers from the schema tables above
-		" WHERE series_id = ? AND ts >= ? AND ts < ? GROUP BY ts / " + itoa(p.step)
-	rows, err := s.read.QueryContext(ctx, q, id, src.from, src.to)
+		" WHERE series_id IN (" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ") AND ts >= ? AND ts < ?" +
+		" GROUP BY series_id, ts / " + itoa(p.step)
+	rows, err := s.read.QueryContext(ctx, q, args...)
 	if err != nil {
 		return 0, fmt.Errorf("metrics: query: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	flags := 0
 	for rows.Next() {
-		var b int64
+		var sid, b int64
 		var f sql.NullInt64
 		vals := make([]sql.NullFloat64, 2*len(defs))
-		dst := []any{&b, &f}
+		dst := []any{&sid, &b, &f}
 		for i := range vals {
 			dst = append(dst, &vals[i])
 		}
@@ -253,13 +342,14 @@ func (s *Store) aggregate(ctx context.Context, kind string, id int64, src source
 			return 0, err
 		}
 		flags |= int(f.Int64)
+		n, ok := pos[sid]
 		i := int(b - p.b0/p.step)
-		if i < 0 || i >= p.n {
+		if !ok || i < 0 || i >= p.n {
 			continue
 		}
 		for j, d := range defs {
 			v1, v2 := vals[2*j], vals[2*j+1]
-			a := &aggs[j][i]
+			a := &aggs[n][j][i]
 			if d.max {
 				if v1.Valid && (a.max == nil || v1.Float64 > *a.max) {
 					x := v1.Float64

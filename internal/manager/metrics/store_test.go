@@ -416,6 +416,68 @@ func TestLatestContainersKeepsGapsAndDropsStaleOnes(t *testing.T) {
 	}
 }
 
+func TestQueryContainersReturnsEveryContainerWithValues(t *testing.T) {
+	clk := testutil.FakeClock()
+	s := openTest(t, clk)
+	ctx := testutil.Context(t)
+	t0 := clk.Now().Truncate(time.Minute)
+	// More containers than one aggregate query binds, so the batches are
+	// read and merged; "gone" has samples only after the range.
+	var many []domain.ContainerValues
+	for n := range seriesPerQuery + 5 {
+		many = append(many, domain.ContainerValues{Name: fmt.Sprintf("c%03d", n), CPUPercent: f(float64(n % 10))})
+	}
+	samples := []domain.MetricSample{
+		{At: t0, Containers: append([]domain.ContainerValues{{Name: "web", CPUPercent: f(4), MemoryBytes: i(100)},
+			{Name: "db", MemoryBytes: i(50)}}, many...)},
+		{At: t0.Add(30 * time.Second), Containers: []domain.ContainerValues{{Name: "web", CPUPercent: f(6), MemoryBytes: i(300)}}},
+		{At: t0.Add(90 * time.Second), Containers: []domain.ContainerValues{{Name: "gone", CPUPercent: f(1)}}},
+	}
+	clk.Advance(3 * time.Minute)
+	if _, err := s.Ingest(ctx, env, samples, nil); err != nil {
+		t.Fatal(err)
+	}
+	r, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: env, From: t0, To: t0.Add(time.Minute), Step: 30 * time.Second,
+		Keys: []string{"cpu.percent", "memory.used_bytes"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string][]domain.MetricSeries{}
+	var order []string
+	for _, ser := range r.Series {
+		if _, ok := byName[ser.Container]; !ok {
+			order = append(order, ser.Container)
+		}
+		byName[ser.Container] = append(byName[ser.Container], ser)
+	}
+	if len(order) != seriesPerQuery+7 || order[0] != "c000" || order[len(order)-2] != "db" || order[len(order)-1] != "web" {
+		t.Fatalf("containers %d: %v", len(order), order)
+	}
+	if _, ok := byName["gone"]; ok {
+		t.Fatal("a container without values in the range was returned")
+	}
+	web := byName["web"]
+	if len(web) != 2 || web[0].Key != "cpu.percent" || web[1].Key != "memory.used_bytes" {
+		t.Fatalf("web %+v", web)
+	}
+	if got := values(web[0]); got != "4 6" || len(r.Timestamps) != 2 {
+		t.Fatalf("web cpu %q", got)
+	}
+	// db has memory but no CPU: its CPU series is all gaps, not zeros.
+	if got := values(byName["db"][0]); got != "- -" {
+		t.Fatalf("db cpu %q", got)
+	}
+	if got := values(byName[fmt.Sprintf("c%03d", seriesPerQuery+4)][0]); got != "4 -" {
+		t.Fatalf("last batch cpu %q", got)
+	}
+	if other, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: "other-env"}); err != nil || len(other.Series) != 0 {
+		t.Fatalf("other environment: %+v %v", other.Series, err)
+	}
+	if _, err := s.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: env, Keys: []string{"load.1"}}); !errors.Is(err, domain.ErrMetricQuery) {
+		t.Fatalf("host key: %v", err)
+	}
+}
+
 func TestReopenKeepsSeriesAndWatermarks(t *testing.T) {
 	clk := testutil.FakeClock()
 	path := filepath.Join(t.TempDir(), FileName)

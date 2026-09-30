@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
 import type { TimeSeriesOptions } from '$lib/lazy';
+import MultiSeriesChart from './MultiSeriesChart.svelte';
 import TimeSeriesChart from './TimeSeriesChart.svelte';
 import Sparkline from './Sparkline.svelte';
 
@@ -97,6 +98,62 @@ describe('TimeSeriesChart (#5 charts)', () => {
 		expect(screen.getByRole('figure', { name: 'Load' })).toHaveTextContent(
 			'Load: no samples in this range.'
 		);
+	});
+});
+
+describe('MultiSeriesChart (every container of an environment)', () => {
+	const items = [
+		{ name: 'db', color: 'hsl(1, 80%, 66%)', values: [2, 3, null, null] },
+		{ name: 'web', color: 'hsl(2, 80%, 56%)', values: [1, 4, 6, null] },
+		{ name: 'cache', color: 'hsl(3, 80%, 76%)', values: [null, 1, 1, null] }
+	];
+
+	it('shows the total of the newest bucket and names the largest items as text', async () => {
+		const before = lazy.mounted.length;
+		render(MultiSeriesChart, {
+			props: { title: 'Docker CPU', unit: 'percent', timestamps: ts, items }
+		});
+		const fig = screen.getByRole('figure', { name: 'Docker CPU' });
+		expect(fig).toHaveTextContent('7.0%');
+		expect(fig).toHaveTextContent(
+			'Docker CPU: latest total 7.0%. Largest: web 6.0%, cache 1.0%.'
+		);
+		await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
+		const o = lazy.mounted[before];
+		expect(o.stacked).toBe(true);
+		expect(o.lines.map((l) => [l.name, !!l.muted])).toEqual([
+			['db', false],
+			['web', false],
+			['cache', false]
+		]);
+		expect(o.tooltip?.(1)).toContain('web');
+	});
+
+	it('greys out what the filter leaves out and drops it from the tooltip and total', async () => {
+		const before = lazy.mounted.length;
+		render(MultiSeriesChart, {
+			props: {
+				title: 'Docker memory',
+				unit: 'count',
+				timestamps: ts,
+				items,
+				shown: (n: string) => n !== 'web'
+			}
+		});
+		expect(screen.getByRole('figure', { name: 'Docker memory' })).toHaveTextContent(
+			'Docker memory: latest total 1. Largest: cache 1.'
+		);
+		await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
+		const o = lazy.mounted[before];
+		// Shown items first (the bottom of the stack), the muted one last.
+		expect(o.lines.map((l) => [l.name, !!l.muted])).toEqual([
+			['db', false],
+			['cache', false],
+			['web', true]
+		]);
+		const tip = o.tooltip?.(1) ?? '';
+		expect(tip).toContain('db');
+		expect(tip).not.toContain('web');
 	});
 });
 

@@ -4,7 +4,8 @@
 //
 // Usage rules, props and examples: docs/internal/design/README.md. Heavy
 // libraries stay lazy: CodeEditor, Sparkline and TerminalView load
-// CodeMirror, ECharts and xterm.js only when they mount.
+// CodeMirror, ECharts and xterm.js only when they mount (TimeSeriesChart and
+// MultiSeriesChart load ECharts too).
 
 // Actions
 export { default as Button } from './Button.svelte';
@@ -111,6 +112,15 @@ export {
 	type ValueUnit,
 	type TimeRange
 } from './timeseries';
+export { default as MultiSeriesChart } from './MultiSeriesChart.svelte';
+export {
+	tooltipRows,
+	tooltipHtml,
+	lastIndex,
+	totalAt,
+	type SeriesItem,
+	type TooltipRow
+} from './multiseries';
 export { default as TerminalView } from './TerminalView.svelte';
 
 // Formatting

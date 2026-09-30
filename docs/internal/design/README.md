@@ -118,6 +118,13 @@ the ⌘K hits, and also where the output of several services is interleaved
 name tells them apart, never a colour. Services (and stacks) have no icon
 or colour of their own.
 
+The one exception is a chart of every container of an environment
+(`MultiSeriesChart`, the environment page's Docker CPU, memory, network and
+disk I/O): dozens of stacked lines can only be followed by colour, so each
+container gets its own (`seriesColor(i)` in `$lib/design/hue`, by name
+order, the same on the four charts) and the tooltip and name filter name
+them.
+
 ```ts
 import { SERVICE_HEX } from '$lib/design/hue';
 
@@ -381,6 +388,19 @@ colour. Pure helpers in
 the ECharts option is `timeSeriesOption` in `$lib/lazy` (unit-tested).
 Charts and sparklines apply data that arrives while ECharts is still
 loading.
+
+`MultiSeriesChart` (`title`, `timestamps`, `items: SeriesItem[]` with
+`name`, `color`, `values` and optional `parts`, `unit`, `shown`,
+`from`/`to`, `detail`) draws many items of one type as stacked areas
+without a legend: the headline is the total of the newest bucket, and
+hovering lists every shown item with a value there, largest first, in its
+colour, with its parts ("12 KB/s in, 3 KB/s out"); lists longer than 20
+rows wrap into columns and the tooltip sits beside the pointer inside the
+window (`besidePointer`). Items `shown` leaves out (a name filter) are
+greyed out above the shown ones and left out of the tooltip and the total.
+Pure helpers in `$lib/ui/multiseries.ts` (`tooltipRows`, `tooltipHtml`,
+`totalAt`); `timeSeriesOption` takes `stacked`, `muted` lines and a
+`tooltip` callback for it.
 
 ### Formatting
 

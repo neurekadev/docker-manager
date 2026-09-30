@@ -91,17 +91,9 @@ func (h *dockerAPI) containerMetrics(ctx context.Context, in *containerMetricsIn
 	if err != nil {
 		return nil, err
 	}
-	var keys []string
-	for _, s := range in.Series {
-		for _, k := range strings.Split(s, ",") {
-			if k = strings.TrimSpace(k); k == "" {
-				continue
-			}
-			if !slices.Contains(ContainerMetricKeys, k) {
-				return nil, Invalid("unknown metric", Field("query.series", "unknown metric key "+k))
-			}
-			keys = append(keys, k)
-		}
+	keys, err := metricKeys(in.Series, ContainerMetricKeys)
+	if err != nil {
+		return nil, err
 	}
 	r, err := h.observe.Query(ctx, domain.MetricQuery{EnvironmentID: sc.env.ID, Kind: domain.MetricContainer, Name: name, From: in.From,
 		To: in.To, Step: time.Duration(in.StepSeconds) * time.Second, Keys: keys})
@@ -176,6 +168,108 @@ func (h *dockerAPI) latestContainerMetrics(ctx context.Context, in *latestContai
 	return &latestContainerMetricsOutput{Body: out}, nil
 }
 
+// ContainerMetricsHistory is a downsampled time range of the metrics of
+// every container of an environment.
+type ContainerMetricsHistory struct {
+	EnvironmentID string                  `json:"environmentId"`
+	From          time.Time               `json:"from"`
+	To            time.Time               `json:"to"`
+	StepSeconds   int                     `json:"stepSeconds"`
+	Resolution    string                  `json:"resolution" enum:"raw,1m,15m"`
+	Timestamps    []time.Time             `json:"timestamps"`
+	Containers    []ContainerMetricSeries `json:"containers" doc:"Sorted by name; only containers with a value in the range the caller may chart."`
+	SkewCorrected bool                    `json:"skewCorrected"`
+	Incomplete    bool                    `json:"incomplete"`
+	Online        bool                    `json:"online"`
+}
+
+// ContainerMetricSeries are the series of one container.
+type ContainerMetricSeries struct {
+	Container string         `json:"container" example:"shop-web-1" doc:"Container name (metrics follow the name across recreations)."`
+	Series    []MetricSeries `json:"series" doc:"One series per requested key, in the order requested."`
+}
+
+type containerMetricsHistoryInput struct {
+	EnvironmentID string    `path:"environmentId" maxLength:"64" doc:"Environment ID."`
+	From          time.Time `query:"from" doc:"Range start (RFC 3339; default: one hour before to)."`
+	To            time.Time `query:"to" doc:"Range end (RFC 3339; default: now)."`
+	StepSeconds   int       `query:"stepSeconds" minimum:"0" maximum:"7776000" doc:"Bucket width in seconds (0: automatic)."`
+	Series        []string  `query:"series" doc:"Metric keys to return (default: all)."`
+}
+
+type containerMetricsHistoryOutput struct{ Body ContainerMetricsHistory }
+
+// metricKeys splits the comma-separated series parameters and checks them
+// against known.
+func metricKeys(in, known []string) ([]string, error) {
+	var keys []string
+	for _, s := range in {
+		for _, k := range strings.Split(s, ",") {
+			if k = strings.TrimSpace(k); k == "" {
+				continue
+			}
+			if !slices.Contains(known, k) {
+				return nil, Invalid("unknown metric", Field("query.series", "unknown metric key "+k))
+			}
+			keys = append(keys, k)
+		}
+	}
+	return keys, nil
+}
+
+// containerMetricsHistory returns the stored series of every container of
+// an environment the caller may chart (container.metrics.read, by name
+// like latestContainerMetrics) in one request: the per-container charts of
+// the environment page. Readable while the environment is offline.
+func (h *dockerAPI) containerMetricsHistory(ctx context.Context, in *containerMetricsHistoryInput) (*containerMetricsHistoryOutput, error) {
+	sc, err := h.environment(ctx, in.EnvironmentID, false)
+	if err != nil {
+		return nil, err
+	}
+	if h.observe == nil {
+		return nil, Unavailable(CodeUnavailable, "the observation service is not available")
+	}
+	keys, err := metricKeys(in.Series, ContainerMetricKeys)
+	if err != nil {
+		return nil, err
+	}
+	r, err := h.observe.QueryContainers(ctx, domain.MetricQuery{EnvironmentID: sc.env.ID, Kind: domain.MetricContainer, From: in.From,
+		To: in.To, Step: time.Duration(in.StepSeconds) * time.Second, Keys: keys})
+	if errors.Is(err, domain.ErrMetricQuery) {
+		msg := strings.TrimPrefix(err.Error(), domain.ErrMetricQuery.Error()+": ")
+		return nil, Invalid("invalid metrics query", Field("query", msg))
+	}
+	if err != nil {
+		return nil, Internal(err)
+	}
+	// The range, buckets and flags as in the host metrics; the series follow
+	// per container.
+	head := r
+	head.Series = nil
+	m := newEnvironmentMetrics(sc.env, head)
+	out := ContainerMetricsHistory{EnvironmentID: sc.env.ID, From: m.From, To: m.To, StepSeconds: m.StepSeconds, Resolution: m.Resolution,
+		Timestamps: m.Timestamps, Containers: []ContainerMetricSeries{}, SkewCorrected: m.SkewCorrected, Incomplete: m.Incomplete,
+		Online: m.Online}
+	allowed := map[string]bool{}
+	for _, s := range r.Series {
+		ok, seen := allowed[s.Container]
+		if !seen {
+			res := authz.Resource{Type: catalog.TypeContainer, ID: s.Container, EnvironmentID: sc.env.ID}
+			ok = sc.c.Can(string(CapContainerMetricsRead), res).Allowed
+			allowed[s.Container] = ok
+		}
+		if !ok {
+			continue
+		}
+		if n := len(out.Containers); n == 0 || out.Containers[n-1].Container != s.Container {
+			out.Containers = append(out.Containers, ContainerMetricSeries{Container: s.Container, Series: []MetricSeries{}})
+		}
+		c := &out.Containers[len(out.Containers)-1]
+		c.Series = append(c.Series, MetricSeries{Key: s.Key, Unit: s.Unit, Values: s.Values})
+	}
+	return &containerMetricsHistoryOutput{Body: out}, nil
+}
+
 func registerContainerMetrics(a huma.API, deps Deps) {
 	h := newDockerAPI(deps)
 	Register(a, Operation{
@@ -206,4 +300,18 @@ func registerContainerMetrics(a huma.API, deps Deps) {
 		},
 		Capability: CapContainerMetricsRead, Scope: ScopeEnvironment,
 	}, h.latestContainerMetrics)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "get-container-metrics-history", Method: http.MethodGet,
+			Path:    BasePath + "/environments/{environmentId}/metrics/containers/history",
+			Summary: "Get the metrics of an environment's containers",
+			Description: "Downsampled CPU, memory, network, block I/O and process counts (#5 storage) of every container of the " +
+				"environment with a value in the range, for the containers the caller holds container.metrics.read on (others are " +
+				"absent): the per-container charts of the environment page in one request instead of a range query per container. " +
+				"Buckets and units as in get-container-metrics; null is a gap. Readable while the environment is offline.",
+			Tags: []string{tagContainers}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
+				http.StatusUnprocessableEntity, http.StatusServiceUnavailable},
+		},
+		Capability: CapContainerMetricsRead, Scope: ScopeEnvironment,
+	}, h.containerMetricsHistory)
 }

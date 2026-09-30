@@ -3937,6 +3937,30 @@
         ],
         "type": "object"
       },
+      "ContainerMetricSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "description": "Container name (metrics follow the name across recreations).",
+            "examples": [
+              "shop-web-1"
+            ],
+            "type": "string"
+          },
+          "series": {
+            "description": "One series per requested key, in the order requested.",
+            "items": {
+              "$ref": "#/components/schemas/MetricSeries"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "container",
+          "series"
+        ],
+        "type": "object"
+      },
       "ContainerMetrics": {
         "additionalProperties": false,
         "properties": {
@@ -4000,6 +4024,70 @@
           "resolution",
           "timestamps",
           "series",
+          "skewCorrected",
+          "incomplete",
+          "online"
+        ],
+        "type": "object"
+      },
+      "ContainerMetricsHistory": {
+        "additionalProperties": false,
+        "properties": {
+          "containers": {
+            "description": "Sorted by name; only containers with a value in the range the caller may chart.",
+            "items": {
+              "$ref": "#/components/schemas/ContainerMetricSeries"
+            },
+            "type": "array"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "incomplete": {
+            "type": "boolean"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "resolution": {
+            "enum": [
+              "raw",
+              "1m",
+              "15m"
+            ],
+            "type": "string"
+          },
+          "skewCorrected": {
+            "type": "boolean"
+          },
+          "stepSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timestamps": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environmentId",
+          "from",
+          "to",
+          "stepSeconds",
+          "resolution",
+          "timestamps",
+          "containers",
           "skewCorrected",
           "incomplete",
           "online"
@@ -40183,6 +40271,217 @@
           }
         ],
         "summary": "List the current usage of an environment's containers",
+        "tags": [
+          "Containers"
+        ],
+        "x-docker-manager-capability": "container.metrics.read",
+        "x-docker-manager-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/metrics/containers/history": {
+      "get": {
+        "description": "Downsampled CPU, memory, network, block I/O and process counts (#5 storage) of every container of the environment with a value in the range, for the containers the caller holds container.metrics.read on (others are absent): the per-container charts of the environment page in one request instead of a range query per container. Buckets and units as in get-container-metrics; null is a gap. Readable while the environment is offline.",
+        "operationId": "get-container-metrics-history",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Range start (RFC 3339; default: one hour before to).",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "description": "Range start (RFC 3339; default: one hour before to).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Range end (RFC 3339; default: now).",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "Range end (RFC 3339; default: now).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bucket width in seconds (0: automatic).",
+            "explode": false,
+            "in": "query",
+            "name": "stepSeconds",
+            "schema": {
+              "description": "Bucket width in seconds (0: automatic).",
+              "format": "int64",
+              "maximum": 7776000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Metric keys to return (default: all).",
+            "explode": false,
+            "in": "query",
+            "name": "series",
+            "schema": {
+              "description": "Metric keys to return (default: all).",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "containers": [
+                    {
+                      "container": "shop-web-1",
+                      "series": [
+                        {
+                          "key": "cpu.percent",
+                          "mount": "docker",
+                          "unit": "percent",
+                          "values": [
+                            1
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "from": "2026-09-25T12:00:00Z",
+                  "incomplete": false,
+                  "online": false,
+                  "resolution": "raw",
+                  "skewCorrected": false,
+                  "stepSeconds": 1,
+                  "timestamps": [
+                    "2026-09-25T12:00:00Z"
+                  ],
+                  "to": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ContainerMetricsHistory"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get the metrics of an environment's containers",
         "tags": [
           "Containers"
         ],

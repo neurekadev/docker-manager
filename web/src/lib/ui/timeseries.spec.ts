@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { timeSeriesOption } from '$lib/lazy';
+import { besidePointer, timeSeriesOption } from '$lib/lazy';
 import { formatTimeRange, formatValue, gapIntervals, latestValue, valueExtent } from './timeseries';
 
 const t = (m: number) => Date.UTC(2026, 8, 25, 12, m);
@@ -105,5 +105,74 @@ describe('timeSeriesOption (the ECharts option of TimeSeriesChart)', () => {
 		});
 		expect(o.series[0].lineStyle).toEqual({ color: '#2bb0f6', width: 1.75 });
 		expect(o.series[1].lineStyle).toEqual({ color: '#b4c4f2', width: 1.75, type: 'dashed' });
+	});
+});
+
+describe('timeSeriesOption for many items (MultiSeriesChart)', () => {
+	const base = {
+		timestamps: [t(0), t(1)],
+		format: (v: number) => `${v}%`,
+		from: t(0),
+		to: t(1),
+		stacked: true,
+		lines: [
+			{ name: 'web', values: [1, 2], color: 'hsl(1, 80%, 66%)' },
+			{ name: 'db', values: [3, null], color: 'hsl(2, 80%, 56%)', muted: true }
+		]
+	};
+
+	it('stacks filled areas and greys muted lines out behind the others', () => {
+		const o = timeSeriesOption(base);
+		expect(o.series.every((s) => s.stack === 'total')).toBe(true);
+		expect(o.series[0]).toMatchObject({
+			z: 2,
+			lineStyle: { color: 'hsl(1, 80%, 66%)' },
+			areaStyle: { color: 'hsl(1, 80%, 66%)', opacity: 0.2 }
+		});
+		expect(o.series[1].z).toBe(1);
+		expect(o.series[1].lineStyle.color).not.toBe('hsl(2, 80%, 56%)');
+		expect(o.series[1].lineStyle.opacity).toBeLessThan(1);
+		expect(o.series[1].areaStyle?.opacity).toBeLessThan(0.2);
+		expect(timeSeriesOption({ ...base, stacked: false }).series[0].stack).toBeUndefined();
+	});
+
+	it('renders the caller’s tooltip of the hovered bucket, outside the card, beside the pointer', () => {
+		const place = () => [1, 2];
+		const o = timeSeriesOption({ ...base, tooltip: (i) => `bucket ${i}` }, place);
+		const tip = o.tooltip as unknown as {
+			formatter: (p: unknown) => string;
+			appendTo: string;
+			position: (...a: unknown[]) => number[];
+		};
+		expect(tip.formatter([{ dataIndex: 1 }, { dataIndex: 1 }])).toBe('bucket 1');
+		expect(tip.formatter([])).toBe('');
+		expect(tip.appendTo).toBe('body');
+		expect(tip.position([0, 0], [], null, null, { contentSize: [10, 10] })).toEqual([1, 2]);
+		expect('formatter' in timeSeriesOption(base).tooltip).toBe(false);
+	});
+});
+
+describe('besidePointer (placing a long tooltip)', () => {
+	const view = { width: 1000, height: 800 };
+
+	it('goes right of the pointer, vertically centred on it', () => {
+		expect(besidePointer([100, 100], [200, 100], { left: 50, top: 300 }, view)).toEqual([
+			116, 50
+		]);
+	});
+
+	it('flips left of the pointer at the right edge of the window', () => {
+		expect(besidePointer([700, 100], [200, 100], { left: 200, top: 300 }, view)).toEqual([
+			484, 50
+		]);
+	});
+
+	it('stays inside the window vertically and starts at its top when taller', () => {
+		// Near the bottom: moved up to end 8 px above the window's edge.
+		expect(besidePointer([100, 150], [200, 300], { left: 0, top: 600 }, view)[1]).toBe(-108);
+		// Near the top: moved down to start 8 px below it.
+		expect(besidePointer([100, 10], [200, 300], { left: 0, top: 20 }, view)[1]).toBe(-12);
+		// Taller than the window: its top edge.
+		expect(besidePointer([100, 100], [200, 2000], { left: 0, top: 300 }, view)[1]).toBe(-292);
 	});
 });
