@@ -29,7 +29,7 @@ func TestQueuedMessagesSayWhatHappenedThen(t *testing.T) {
 	second := backupJob(domain.JobPartial, domain.OriginScheduled)
 	second.Targets = first.Targets
 	f.finish(second)
-	if a := f.one(); a.ResourceID != second.ID || a.Title != "Backup verification of silo_data partly failed on homelab" {
+	if a := f.one(); a.ResourceID != second.ID || a.Title != "Backup verification of silo_data partly failed" {
 		t.Fatalf("%+v", a)
 	}
 	f.sender.succeed()
@@ -39,7 +39,7 @@ func TestQueuedMessagesSayWhatHappenedThen(t *testing.T) {
 	}
 	got := f.sender.take()
 	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/jobs/"+first.ID ||
-		got[0].msg.Title != "[Docker Manager] Backup verification of silo_data failed on homelab" {
+		got[0].msg.Title != "Backup verification of silo_data failed" {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -63,7 +63,7 @@ func TestLargeBurstsGoOutInBatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.sender.take()
-	if len(got) != 1 || got[0].msg.Title != fmt.Sprintf("[Docker Manager] %d alerts", DispatchBatch) {
+	if len(got) != 1 || got[0].msg.Title != fmt.Sprintf("%d alerts", DispatchBatch) {
 		t.Fatalf("%+v", got)
 	}
 	if !next.Equal(f.svc.now()) {
@@ -72,7 +72,7 @@ func TestLargeBurstsGoOutInBatches(t *testing.T) {
 	if next, err = f.svc.Dispatch(f.ctx); err != nil || !next.IsZero() {
 		t.Fatalf("%v %v", next, err)
 	}
-	if got := f.sender.take(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] 50 alerts" {
+	if got := f.sender.take(); len(got) != 1 || got[0].msg.Title != "50 alerts" {
 		t.Fatalf("%+v", got)
 	}
 }

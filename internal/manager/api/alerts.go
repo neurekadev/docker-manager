@@ -53,7 +53,7 @@ type Alert struct {
 	EnvironmentID string `json:"environmentId,omitempty" doc:"The environment the problem is in (absent for manager jobs)."`
 	ResourceType  string `json:"resourceType" enum:"disk,raid_array,zfs_pool,environment,filesystem,job,update_policy" example:"disk" doc:"What the alert is about."`
 	ResourceID    string `json:"resourceId" example:"/dev/sda" doc:"The disk's path, the array's or pool's name, the environment's ID, the filesystem (docker, stacks, bind-1, ...), the last failed job's ID or the update policy's ID."`
-	Title         string `json:"title" example:"Disk /dev/sda on homelab is failing"`
+	Title         string `json:"title" example:"Disk /dev/sda is failing"`
 	Detail        string `json:"detail,omitempty" example:"SMART self-assessment failed, 8 reallocated sectors. Model WDC WD40EFZX." doc:"One or two sentences about the problem (never serial numbers or error texts)."`
 	// Facts are small values about the problem, by kind: disks device,
 	// deviceType, model, state and counters; arrays array or pool,

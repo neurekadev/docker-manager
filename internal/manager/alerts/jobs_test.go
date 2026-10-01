@@ -28,7 +28,7 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 	failed := backupJob(domain.JobFailed, domain.OriginScheduled)
 	f.finish(failed)
 	a := f.one()
-	if a.Kind != domain.NotifyJobFailed || a.Severity != domain.AlertCritical || a.Title != "Backup verification of silo_data failed on homelab" ||
+	if a.Kind != domain.NotifyJobFailed || a.Severity != domain.AlertCritical || a.Title != "Backup verification of silo_data failed" ||
 		a.ResourceID != failed.ID || a.JobKind != "backup.verify" || len(a.Targets) != 1 || a.Facts["errorClass"] != domain.ErrorStepFailed {
 		t.Fatalf("%+v", a)
 	}
@@ -60,7 +60,7 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 	if len(f.firing()) != 0 {
 		t.Fatal("still firing")
 	}
-	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "[Docker Manager] Resolved: Backup verification of silo_data failed") {
+	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "Resolved: Backup verification of silo_data failed") {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -166,7 +166,7 @@ func TestUpdatesAreSentAgainOnlyForNewDigests(t *testing.T) {
 	f.candidate(p.ID, "db", domain.CandidateUpToDate, "")
 	f.check(p.ID)
 	a := f.one()
-	if a.Kind != domain.NotifyUpdates || a.Severity != domain.AlertInfo || a.Title != "An update is available for web on homelab" ||
+	if a.Kind != domain.NotifyUpdates || a.Severity != domain.AlertInfo || a.Title != "web has an update available" ||
 		a.ResourceID != p.ID || a.Facts["services"] != "web" {
 		t.Fatalf("%+v", a)
 	}
@@ -187,7 +187,7 @@ func TestUpdatesAreSentAgainOnlyForNewDigests(t *testing.T) {
 	// A second service: sent again, two updates.
 	f.candidate(p.ID, "db", domain.CandidateAvailable, "sha256:ccc")
 	f.check(p.ID)
-	if b := f.one(); b.Title != "2 updates available for web on homelab" || b.Facts["count"] != "2" {
+	if b := f.one(); b.Title != "web has 2 updates available" || b.Facts["count"] != "2" {
 		t.Fatalf("%+v", b)
 	}
 	if got := f.dispatch(); len(got) != 1 {

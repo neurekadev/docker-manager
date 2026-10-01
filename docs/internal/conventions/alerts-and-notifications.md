@@ -18,18 +18,38 @@ web `web/src/lib/features/notifications`.
   no cross-scheme redirects, no destination restrictions by owner decision);
   never call `shoutrrr.Send` or the router, never set Shoutrrr's logger.
 - **Rich messages are rendered in `notify/render.go` only.** A
-  `domain.NotificationMessage` carries a title, a plain body, labeled
-  `Fields`, a `Tone` (critical, warning, success, info), a footer, a time
-  and a link; `render` turns it into the richest form of the address's
-  service (Discord an embed sent in its JSON mode with the tone's color,
-  Slack colored attachments, Teams an accented card, email an HTML card
-  with the plain part kept, Telegram HTML, ntfy and Gotify Markdown with
-  priority and click link, Pushover a priority, a generic webhook `tone`
-  and `url` keys, anything else plain text). Tone colors are the app's
-  `--danger`, `--warn`, `--ok` and `--accent` tokens. Only parameters the
-  service knows are set, and an option the owner put in the address
-  (`color`, `priority`, `parsemode`, `usehtml`, …) wins over ours. Callers
-  never format for a service.
+  `domain.NotificationMessage` carries a status line (`Label`), a title,
+  a plain body, labeled `Fields` (a field may link to a page, `Link`, or
+  be a list, `Items`, each entry linked, with an optional `From → To`
+  change shown as code), a `Tone` (critical, warning, success, info), a
+  footer, a time and a link; `render` turns it into the richest form of
+  the address's service (Discord an embed sent in its JSON mode: the
+  status line as author, the tone's color, linked values and bulleted
+  lists, the logo `notify.LogoURL` beside the footer; Slack colored
+  attachments, Teams an accented card, email an HTML card with the plain
+  part kept, Telegram HTML, ntfy and Gotify Markdown with priority and
+  click link, Pushover a priority, a generic webhook `tone` and `url`
+  keys, anything else plain text). Tone colors are the app's `--danger`,
+  `--warn`, `--ok` and `--accent` tokens. Only parameters the service
+  knows are set, and an option the owner put in the address (`color`,
+  `priority`, `parsemode`, `usehtml`, a Discord `username` or `avatar`,
+  …) wins over ours; Discord's name and avatar are never set otherwise
+  (the webhook's own stay). The logo is the documentation site's:
+  Discord fetches it itself, and the manager's own address may be
+  private. Callers never format for a service.
+- **One message convention** (`alerts/message.go`): the status line is
+  the kind and outcome as **What to send** names them (`alerts.Label`,
+  "Disk health · Critical"); the title puts the subject first, then what
+  happened ("Disk /dev/sda is failing", "Update of Paperless
+  succeeded"), names the environment only when it is the subject
+  ("homelab is offline") and never the instance (the footer does);
+  resolutions are "Resolved: <title>". Fields: the environment, the
+  target (a stack by its display name), the policy and the repository
+  link to their pages; short (inline) fields come before lists
+  (`fieldList.ordered`); services are a list, each linked to its logs (a
+  standalone container: its page), with its image digests. Snapshots keep
+  paths; `buildMessage` makes them URLs with the public URL (none
+  without one). A new kind or field follows the same convention.
 - **The address is a secret.** A channel's Shoutrrr URL is sealed
   (`notification_channels/<id>/url`) and read only with
   `store.NotificationChannelWithSecret` inside `notify` (a send, or

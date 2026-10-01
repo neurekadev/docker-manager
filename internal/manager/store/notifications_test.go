@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -87,14 +88,15 @@ func TestADeliveryKeepsItsFieldsAndOutcome(t *testing.T) {
 	}
 	d := domain.AlertDelivery{ID: ids.New(), AlertID: a.ID, ChannelID: "c-1", Event: domain.AlertEventFiring, Kind: a.Kind,
 		Severity: a.Severity, Outcome: domain.OutcomeWarning, Title: a.Title, Body: "body",
-		Fields: []domain.NotificationField{{Name: "Disk", Value: "/dev/sda", Inline: true}, {Name: "Model", Value: "WDC"}},
-		State:  domain.DeliveryPending, NextAttemptAt: now, CreatedAt: now, UpdatedAt: now}
+		Fields: []domain.NotificationField{{Name: "Disk", Value: "/dev/sda", Inline: true, Link: "/environments/env-1"},
+			{Name: "Services", Value: "web: 1a → 2b", Items: []domain.NotificationItem{{Text: "web", Link: "/stacks/s1", From: "1a", To: "2b"}}}},
+		State: domain.DeliveryPending, NextAttemptAt: now, CreatedAt: now, UpdatedAt: now}
 	if err := store.InsertAlertDeliveries(ctx, db, []domain.AlertDelivery{d}); err != nil {
 		t.Fatal(err)
 	}
 	ds, err := store.AlertDeliveries(ctx, db, a.ID)
 	if err != nil || len(ds) != 1 || ds[0].Outcome != domain.OutcomeWarning || ds[0].NotificationID != "" || len(ds[0].Fields) != 2 ||
-		ds[0].Fields[0] != d.Fields[0] || ds[0].Fields[1].Inline {
+		!reflect.DeepEqual(ds[0].Fields, d.Fields) {
 		t.Fatalf("%+v %v", ds, err)
 	}
 	// Finished messages of a firing alert are kept (they say which

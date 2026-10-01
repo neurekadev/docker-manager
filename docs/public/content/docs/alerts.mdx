@@ -91,8 +91,20 @@ under **What to send**. A channel gets:
 - a message when a backup, prune or update finishes, for the outcomes you
   ticked.
 
-Messages start with your Docker Manager's name, say what went wrong and
-what to do, list the numbers, and link to the page they are about.
+Every message looks the same way:
+
+- a top line with what it is about and how it went, named as under
+  **What to send** (for example **Disk health · Critical** or **Image
+  updates · Applied**),
+- a title that names the disk, server, stack or run first, then what
+  happened, for example "Disk /dev/sda is failing" or "Update of
+  Paperless succeeded",
+- what went wrong and what to do, and the numbers. The server, stack,
+  policy and services link to their pages; an update lists each service
+  with its old and new image digest,
+- your Docker Manager's **Name** (**Settings → About this Docker
+  Manager**) at the bottom.
+
 Several at once arrive as one message. If a channel can't be reached,
 Docker Manager tries again for a day.
 

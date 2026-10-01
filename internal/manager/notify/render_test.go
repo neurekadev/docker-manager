@@ -21,13 +21,17 @@ import (
 
 func sample() domain.NotificationMessage {
 	return domain.NotificationMessage{
-		Title: "[Home] Prune on homelab reclaimed 4.2 GiB", Body: "Removed 15 objects & reclaimed 4.2 GiB.",
-		URL: "https://docker.example.com/jobs/j1", Tone: domain.ToneSuccess, Footer: "Docker Manager",
+		Label: "Image updates · Applied", Title: "Update of Paperless succeeded",
+		Body: "Recreated silo_data & web with the new image.",
+		URL:  "https://docker.example.com/jobs/j1", Tone: domain.ToneSuccess, Footer: "Home",
 		Time: time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC),
 		Fields: []domain.NotificationField{
+			{Name: "Environment", Value: "homelab", Inline: true, Link: "https://docker.example.com/environments/e1"},
 			{Name: "Reclaimed", Value: "4.2 GiB", Inline: true},
-			{Name: "Images", Value: "10 images · 4 GiB", Inline: true},
-			{Name: "Updated", Value: "web <nginx:1.27>\nworker"},
+			{Name: "Updated", Value: "web <x>: 1a2b → 3c4d\nworker", Items: []domain.NotificationItem{
+				{Text: "web <x>", Link: "https://docker.example.com/stacks/s1/logs?service=web", From: "1a2b", To: "3c4d"},
+				{Text: "worker"},
+			}},
 		},
 	}
 }
@@ -43,42 +47,57 @@ func initialized(t *testing.T, address string) types.Service {
 	return svc
 }
 
+// discordJSON is the part of Discord's webhook JSON the tests read.
+type discordJSON struct {
+	Username        string              `json:"username"`
+	AvatarURL       string              `json:"avatar_url"`
+	AllowedMentions map[string][]string `json:"allowed_mentions"`
+	Embeds          []struct {
+		Author *struct {
+			Name string `json:"name"`
+		} `json:"author"`
+		Title, URL, Description, Timestamp string
+		Color                              uint
+		Fields                             []struct {
+			Name, Value string
+			Inline      bool
+		}
+		Footer struct {
+			Text    string `json:"text"`
+			IconURL string `json:"icon_url"`
+		}
+	}
+}
+
 func TestDiscordGetsAnEmbedInTheTonesColor(t *testing.T) {
-	address := "discord://token@123456789"
-	svc := initialized(t, address)
-	r := render("discord", svc, sample(), url.Values{}, "https://docker.example.com")
+	svc := initialized(t, "discord://token@123456789")
+	r := render("discord", svc, sample(), url.Values{})
 	if len(r.params) != 0 {
 		t.Fatalf("params %v", r.params)
 	}
-	var p struct {
-		Username        string              `json:"username"`
-		AvatarURL       string              `json:"avatar_url"`
-		AllowedMentions map[string][]string `json:"allowed_mentions"`
-		Embeds          []struct {
-			Title, URL, Description, Timestamp string
-			Color                              uint
-			Fields                             []struct {
-				Name, Value string
-				Inline      bool
-			}
-			Footer struct {
-				Text    string `json:"text"`
-				IconURL string `json:"icon_url"`
-			}
-		}
-	}
+	var p discordJSON
 	if err := json.Unmarshal([]byte(r.body), &p); err != nil {
 		t.Fatalf("%v: %s", err, r.body)
 	}
-	if len(p.Embeds) != 1 || p.Username != "Docker Manager" || p.AllowedMentions == nil ||
-		p.AvatarURL != "https://docker.example.com/icons/apple-touch-icon-180x180.png" {
+	// The webhook's own name and avatar stay.
+	if len(p.Embeds) != 1 || p.Username != "" || p.AvatarURL != "" || p.AllowedMentions == nil || strings.Contains(r.body, `"username"`) {
 		t.Fatalf("%+v", p)
 	}
 	e := p.Embeds[0]
-	if e.Color != 0x4cf683 || e.Title != "[Home] Prune on homelab reclaimed 4.2 GiB" || e.URL != "https://docker.example.com/jobs/j1" ||
-		!strings.HasSuffix(e.Description, "[Open in Docker Manager](https://docker.example.com/jobs/j1)") ||
-		e.Timestamp != "2026-10-01T09:30:00Z" || e.Footer.Text != "Docker Manager" || len(e.Fields) != 3 || !e.Fields[0].Inline || e.Fields[2].Inline {
+	if e.Color != 0x4cf683 || e.Author == nil || e.Author.Name != "Image updates · Applied" || e.Title != "Update of Paperless succeeded" ||
+		e.URL != "https://docker.example.com/jobs/j1" ||
+		e.Description != "Recreated silo\\_data & web with the new image.\n\n[Open in Docker Manager](https://docker.example.com/jobs/j1)" ||
+		e.Timestamp != "2026-10-01T09:30:00Z" || e.Footer.Text != "Home" || e.Footer.IconURL != LogoURL || len(e.Fields) != 3 {
 		t.Fatalf("%+v", e)
+	}
+	// The environment links to its page; the list is bulleted, each entry
+	// linked, its digests as code.
+	if f := e.Fields[0]; !f.Inline || f.Value != "[homelab](https://docker.example.com/environments/e1)" {
+		t.Fatalf("%+v", f)
+	}
+	if f := e.Fields[2]; f.Inline ||
+		f.Value != "- [web <x>](https://docker.example.com/stacks/s1/logs?service=web) `1a2b` → `3c4d`\n- worker" {
+		t.Fatalf("%q", f.Value)
 	}
 	// Failures are red, warnings amber, news blue.
 	for tone, want := range map[domain.NotificationTone]uint{domain.ToneCritical: 0xfd6b66, domain.ToneWarning: 0xf5b544, domain.ToneInfo: 0x2566fd} {
@@ -86,9 +105,16 @@ func TestDiscordGetsAnEmbedInTheTonesColor(t *testing.T) {
 			t.Errorf("%s: %x", tone, toneColor(tone))
 		}
 	}
-	// A plain http origin is no icon Discord could fetch.
-	if iconURL("http://10.0.0.2:8080") != "" {
-		t.Error("icon over http")
+}
+
+func TestDiscordKeepsTheAddressesNameAndAvatar(t *testing.T) {
+	svc := initialized(t, "discord://token@123456789?username=Ops&avatar=https%3A%2F%2Fimg.example.com%2Fa.png")
+	var p discordJSON
+	if err := json.Unmarshal([]byte(render("discord", svc, sample(), url.Values{}).body), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Username != "Ops" || p.AvatarURL != "https://img.example.com/a.png" {
+		t.Fatalf("%+v", p)
 	}
 }
 
@@ -98,13 +124,8 @@ func TestDiscordLimitsAreKept(t *testing.T) {
 	for range 30 {
 		msg.Fields = append(msg.Fields, domain.NotificationField{Name: "n", Value: strings.Repeat("v", 2000)})
 	}
-	var p struct {
-		Embeds []struct {
-			Title  string
-			Fields []struct{ Value string }
-		}
-	}
-	if err := json.Unmarshal([]byte(discordPayload(msg, "", "", "")), &p); err != nil {
+	var p discordJSON
+	if err := json.Unmarshal([]byte(discordPayload(msg, "", "")), &p); err != nil {
 		t.Fatal(err)
 	}
 	e := p.Embeds[0]
@@ -113,47 +134,80 @@ func TestDiscordLimitsAreKept(t *testing.T) {
 	}
 }
 
+func TestDiscordCutsALongListAfterAWholeEntry(t *testing.T) {
+	f := domain.NotificationField{Name: "Updated"}
+	for i := range 40 {
+		f.Items = append(f.Items, domain.NotificationItem{Text: fmt.Sprintf("service-%02d", i),
+			Link: fmt.Sprintf("https://docker.example.com/stacks/s1/logs?service=service-%02d", i), From: "0123456789ab", To: "ba9876543210"})
+	}
+	v := discordValue(f)
+	lines := strings.Split(v, "\n")
+	last := lines[len(lines)-1]
+	if len([]rune(v)) > discordFieldValueMax || last != fmt.Sprintf("- …and %d more", 40-(len(lines)-1)) {
+		t.Fatalf("%d runes, last %q", len([]rune(v)), last)
+	}
+	for _, l := range lines[:len(lines)-1] {
+		if !strings.HasSuffix(l, "`0123456789ab` → `ba9876543210`") {
+			t.Fatalf("cut entry %q", l)
+		}
+	}
+	// A linked value too long for its link is shown plain.
+	long := domain.NotificationField{Name: "Target", Value: strings.Repeat("a", 1000), Link: "https://docker.example.com/" + strings.Repeat("b", 100)}
+	if got := discordValue(long); got != long.Value {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestServicesGetTheirRichestForm(t *testing.T) {
 	msg := sample()
-	slack := render("slack", nil, msg, url.Values{}, "")
+	slack := render("slack", nil, msg, url.Values{})
 	if slack.params["color"] != "#4cf683" || slack.params["title"] != msg.Title ||
-		!strings.Contains(slack.body, "*Updated:* web &lt;nginx:1.27&gt;") || !strings.Contains(slack.body, "<https://docker.example.com/jobs/j1|Open in Docker Manager>") ||
-		strings.Contains(slack.body, "\n\n") {
+		!strings.HasPrefix(slack.body, "_Image updates · Applied_\n") ||
+		!strings.Contains(slack.body, "*Environment:* <https://docker.example.com/environments/e1|homelab>") ||
+		!strings.Contains(slack.body, "*Updated:*\n• <https://docker.example.com/stacks/s1/logs?service=web|web &lt;x&gt;> `1a2b` → `3c4d`\n• worker") ||
+		!strings.Contains(slack.body, "<https://docker.example.com/jobs/j1|Open in Docker Manager>") || strings.Contains(slack.body, "\n\n") {
 		t.Fatalf("%+v", slack)
 	}
-	tg := render("telegram", nil, msg, url.Values{}, "")
-	if tg.params["parsemode"] != "HTML" || !strings.Contains(tg.body, "<b>Reclaimed:</b> 4.2 GiB") ||
-		!strings.Contains(tg.body, "web &lt;nginx:1.27&gt;") || !strings.Contains(tg.body, "objects &amp; reclaimed") {
+	tg := render("telegram", nil, msg, url.Values{})
+	if tg.params["parsemode"] != "HTML" || !strings.HasPrefix(tg.body, "<i>Image updates · Applied</i>") ||
+		!strings.Contains(tg.body, "<b>Reclaimed:</b> 4.2 GiB") ||
+		!strings.Contains(tg.body, `<b>Environment:</b> <a href="https://docker.example.com/environments/e1">homelab</a>`) ||
+		!strings.Contains(tg.body, `• <a href="https://docker.example.com/stacks/s1/logs?service=web">web &lt;x&gt;</a> <code>1a2b</code> → <code>3c4d</code>`) ||
+		!strings.Contains(tg.body, "silo_data &amp; web") {
 		t.Fatalf("%+v", tg)
 	}
-	ntfy := render("ntfy", nil, msg, url.Values{}, "")
+	ntfy := render("ntfy", nil, msg, url.Values{})
 	if ntfy.params["priority"] != "2" || ntfy.params["tags"] != "white_check_mark" || ntfy.params["click"] != msg.URL ||
-		ntfy.params["markdown"] != "yes" || !strings.Contains(ntfy.body, "**Reclaimed:** 4.2 GiB") {
+		ntfy.params["markdown"] != "yes" || !strings.Contains(ntfy.body, "**Reclaimed:** 4.2 GiB") ||
+		!strings.Contains(ntfy.body, "**Environment:** [homelab](https://docker.example.com/environments/e1)") ||
+		!strings.Contains(ntfy.body, "**Updated:**\n- [web <x>](https://docker.example.com/stacks/s1/logs?service=web) `1a2b` → `3c4d`\n- worker") ||
+		!strings.Contains(ntfy.body, `silo\_data`) {
 		t.Fatalf("%+v", ntfy)
 	}
-	gotify := render("gotify", nil, msg, url.Values{}, "")
+	gotify := render("gotify", nil, msg, url.Values{})
 	if gotify.params["priority"] != "4" || !strings.Contains(gotify.params["extras"], `"contentType":"text/markdown"`) ||
 		!strings.Contains(gotify.params["extras"], msg.URL) {
 		t.Fatalf("%+v", gotify)
 	}
-	teams := render("teams", nil, msg, url.Values{}, "")
+	teams := render("teams", nil, msg, url.Values{})
 	if teams.params["color"] != "good" || !strings.Contains(teams.body, "[Open in Docker Manager](https://docker.example.com/jobs/j1)") {
 		t.Fatalf("%+v", teams)
 	}
 	critical := msg
 	critical.Tone = domain.ToneCritical
-	if po := render("pushover", nil, critical, url.Values{}, ""); po.params["priority"] != "1" {
+	if po := render("pushover", nil, critical, url.Values{}); po.params["priority"] != "1" {
 		t.Fatalf("%+v", po)
 	}
-	generic := render("generic", nil, msg, url.Values{}, "")
+	generic := render("generic", nil, msg, url.Values{})
 	if generic.params["tone"] != "success" || generic.params["url"] != msg.URL || generic.params["title"] != msg.Title ||
 		generic.body != plainText(msg) {
 		t.Fatalf("%+v", generic)
 	}
-	// Anything else: the title and plain text with a line per field.
-	other := render("bark", nil, msg, url.Values{}, "")
-	if len(other.params) != 1 || other.body != "Removed 15 objects & reclaimed 4.2 GiB.\n\nReclaimed: 4.2 GiB\nImages: 10 images · 4 GiB\n"+
-		"Updated: web <nginx:1.27>\nworker\n\nhttps://docker.example.com/jobs/j1" {
+	// Anything else: the title and plain text, the status line first, a
+	// line per field and a list's entries below its name.
+	other := render("bark", nil, msg, url.Values{})
+	if len(other.params) != 1 || other.body != "Image updates · Applied\n\nRecreated silo_data & web with the new image.\n\n"+
+		"Environment: homelab\nReclaimed: 4.2 GiB\nUpdated:\n- web <x>: 1a2b → 3c4d\n- worker\n\nhttps://docker.example.com/jobs/j1" {
 		t.Fatalf("%q", other.body)
 	}
 }
@@ -161,7 +215,7 @@ func TestServicesGetTheirRichestForm(t *testing.T) {
 func TestTheOwnersOptionsWin(t *testing.T) {
 	msg := sample()
 	q, _ := url.ParseQuery("Color=%23000000&title=Mine")
-	slack := render("slack", nil, msg, q, "")
+	slack := render("slack", nil, msg, q)
 	if _, ok := slack.params["color"]; ok {
 		t.Fatalf("%+v", slack.params)
 	}
@@ -169,7 +223,7 @@ func TestTheOwnersOptionsWin(t *testing.T) {
 		t.Fatalf("%+v", slack.params)
 	}
 	// A parse mode of the owner's: the body stays plain text.
-	tg := render("telegram", nil, msg, url.Values{"parsemode": {"Markdown"}}, "")
+	tg := render("telegram", nil, msg, url.Values{"parsemode": {"Markdown"}})
 	if _, ok := tg.params["parsemode"]; ok || tg.body != plainText(msg) {
 		t.Fatalf("%+v", tg)
 	}
@@ -179,7 +233,7 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	svc := initialized(t, "smtp://mail.example.com:587/?from=dm@example.com&to=ops@example.com")
 	msg := sample()
 	msg.Body = "Body with {{ braces }} & <tags>"
-	r := render("smtp", svc, msg, url.Values{}, "")
+	r := render("smtp", svc, msg, url.Values{})
 	if r.params["usehtml"] != "yes" || r.params["title"] != msg.Title || r.body != plainText(msg) {
 		t.Fatalf("%+v", r)
 	}
@@ -195,8 +249,15 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	}
 	html := b.String()
 	if html != emailHTML(msg) || !strings.Contains(html, "{{ braces }} &amp; &lt;tags&gt;") ||
-		!strings.Contains(html, "border-top:4px solid #4cf683") || !strings.Contains(html, `href="https://docker.example.com/jobs/j1"`) {
+		!strings.Contains(html, "border-top:4px solid #4cf683") || !strings.Contains(html, `href="https://docker.example.com/jobs/j1"`) ||
+		!strings.Contains(html, ">Image updates · Applied</td>") || !strings.Contains(html, `href="https://docker.example.com/environments/e1"`) ||
+		!strings.Contains(html, ">1a2b</code> → <code") {
 		t.Fatalf("%s", html)
+	}
+	// Without a status line the top bar names the tone.
+	msg.Label = ""
+	if !strings.Contains(emailHTML(msg), ">OK</td>") {
+		t.Fatal("no tone word")
 	}
 }
 
@@ -234,7 +295,7 @@ func TestNtfyAndGotifyAcceptTheRenderedParameters(t *testing.T) {
 	srv, got := pushServer(t)
 	host := strings.TrimPrefix(srv.URL, "http://")
 
-	if class := deliver(context.Background(), "ntfy://"+host+"/dm-topic?scheme=http", msg, 5*time.Second, ""); class != "" {
+	if class := deliver(context.Background(), "ntfy://"+host+"/dm-topic?scheme=http", msg, 5*time.Second); class != "" {
 		t.Fatalf("ntfy: %s", class)
 	}
 	reqs := got()
@@ -248,7 +309,7 @@ func TestNtfyAndGotifyAcceptTheRenderedParameters(t *testing.T) {
 		t.Fatalf("ntfy: %v %q", n.header, n.body)
 	}
 
-	if class := deliver(context.Background(), "gotify://"+host+"/Aaaaaaaaaaaaaaa?disabletls=yes", msg, 5*time.Second, ""); class != "" {
+	if class := deliver(context.Background(), "gotify://"+host+"/Aaaaaaaaaaaaaaa?disabletls=yes", msg, 5*time.Second); class != "" {
 		t.Fatalf("gotify: %s", class)
 	}
 	reqs = got()
@@ -265,7 +326,7 @@ func TestNtfyAndGotifyAcceptTheRenderedParameters(t *testing.T) {
 		t.Fatalf("gotify body %q: %v", reqs[1].body, err)
 	}
 	display, _ := g.Extras["client::display"].(map[string]any)
-	if g.Title != msg.Title || g.Priority != 4 || display["contentType"] != "text/markdown" || !strings.Contains(g.Message, "**Images:**") {
+	if g.Title != msg.Title || g.Priority != 4 || display["contentType"] != "text/markdown" || !strings.Contains(g.Message, "**Reclaimed:**") {
 		t.Fatalf("gotify: %+v", g)
 	}
 }

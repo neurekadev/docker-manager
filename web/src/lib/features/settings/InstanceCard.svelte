@@ -70,7 +70,7 @@
 		<form onsubmit={save} novalidate>
 			<TextField
 				label="Name"
-				description="Shown in the settings of this Docker Manager. 1 to {MAX_INSTANCE_NAME} characters."
+				description="Shown in the settings and at the bottom of notification messages. 1 to {MAX_INSTANCE_NAME} characters."
 				bind:value={name}
 				error={fieldError}
 				maxlength={MAX_INSTANCE_NAME}

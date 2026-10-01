@@ -394,17 +394,17 @@ func smartMonitoring(e domain.Environment, h *observe.HostHealth, stale bool) (O
 	s := h.SMART
 	switch {
 	case stale:
-		reason, title = reasonNoReport, "Disk health on "+e.Name+" is out of date"
+		reason, title = reasonNoReport, "Disk health is out of date"
 		facts["since"] = h.ReceivedAt.UTC().Format(time.RFC3339)
 	case s.Status == protocol.SMARTError:
-		reason, title = reasonScanFailed, "Disks on "+e.Name+" can't be scanned"
+		reason, title = reasonScanFailed, "Disks can't be scanned"
 	case s.Status == protocol.SMARTNoAccess:
-		reason, title = reasonNoAccess, "Docker Manager can't read the disks on "+e.Name
+		reason, title = reasonNoAccess, "Disks can't be opened"
 	case s.Status == protocol.SMARTNotInstalled:
-		reason, title = reasonNotInstalled, "The disk health tool is missing on "+e.Name
+		reason, title = reasonNotInstalled, "Disk health tool is missing"
 	case s.Status == protocol.SMARTOK && s.IntervalSeconds > 0 && s.IntervalSeconds <= maxIntervalSeconds && s.CheckedAt != nil &&
 		h.SampledAt.Sub(*s.CheckedAt) > 2*time.Duration(s.IntervalSeconds)*time.Second+SMARTStaleSlack:
-		reason, title = reasonStale, "Disk health on "+e.Name+" is out of date"
+		reason, title = reasonStale, "Disk health is out of date"
 		facts["since"] = s.CheckedAt.UTC().Format(time.RFC3339)
 	default:
 		return Observation{Key: key}, false
@@ -427,10 +427,10 @@ func raidMonitoring(e domain.Environment, h *observe.HostHealth, stale bool) (Ob
 	switch {
 	case stale:
 		facts["reason"], facts["since"] = reasonNoReport, h.ReceivedAt.UTC().Format(time.RFC3339)
-		title = "RAID state on " + e.Name + " is out of date"
+		title = "RAID state is out of date"
 	case h.RAID.Message != "":
 		facts["reason"] = reasonRAIDRead
-		title = "RAID state on " + e.Name + " can't be read"
+		title = "RAID state can't be read"
 	default:
 		return Observation{Key: key}, false
 	}
@@ -518,7 +518,7 @@ func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string) O
 	}
 	return Observation{
 		Key: key, Kind: domain.NotifyDiskHealth, Severity: sev, EnvironmentID: e.ID, ResourceType: domain.AlertResourceDisk,
-		ResourceID: d.Name, Title: fmt.Sprintf("Disk %s on %s %s", d.Name, e.Name, what), Facts: facts,
+		ResourceID: d.Name, Title: "Disk " + d.Name + " " + what, Facts: facts,
 		Fingerprint: domain.Fingerprint(tokens...),
 	}
 }
@@ -575,7 +575,7 @@ func mdObservation(e domain.Environment, a protocol.MDArray, key string) (Observ
 	}
 	return Observation{
 		Key: key, Kind: domain.NotifyRAID, Severity: sev, EnvironmentID: e.ID, ResourceType: domain.AlertResourceRAID, ResourceID: a.Name,
-		Title: fmt.Sprintf("RAID %s on %s %s", a.Name, e.Name, what), Facts: facts, Fingerprint: domain.Fingerprint(tokens...),
+		Title: "RAID " + a.Name + " " + what, Facts: facts, Fingerprint: domain.Fingerprint(tokens...),
 	}, true
 }
 
@@ -610,7 +610,7 @@ func zfsObservation(e domain.Environment, p protocol.ZFSPool, key string) (Obser
 	}
 	return Observation{
 		Key: key, Kind: domain.NotifyRAID, Severity: sev, EnvironmentID: e.ID, ResourceType: domain.AlertResourceZFS, ResourceID: p.Name,
-		Title: fmt.Sprintf("ZFS pool %s on %s %s", p.Name, e.Name, what),
+		Title: "ZFS pool " + p.Name + " " + what,
 		Facts: map[string]string{"pool": p.Name, "arrayKind": "zfs", "health": p.Health, "state": p.State},
 		// The pool's health replaces itself: the severity says whether it
 		// got worse.
