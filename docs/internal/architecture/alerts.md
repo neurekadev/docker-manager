@@ -240,7 +240,8 @@ changes):
   for their own delay or backoff), which go out as one message
   (one alert or notification) or one digest (status line "Summary",
   title "3 alerts, 1 resolved, 2 notifications", a "What happened" list
-  of at most 20 entries, each linked to its page, linking to the
+  of at most 20 entries, each linked to its page and naming its
+  environment unless the title does ("(homelab)"), linking to the
   Notifications page, its Alerts tab when it holds alerts only, in the
   tone of its worst entry) built from their snapshots; what is left is
   sent right after. Channels are sent to in parallel (4 at once), each in

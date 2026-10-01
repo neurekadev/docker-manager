@@ -118,19 +118,74 @@ func TestDiscordKeepsTheAddressesNameAndAvatar(t *testing.T) {
 	}
 }
 
+// embedSize counts what Discord's total limit counts.
+func embedSize(p discordJSON) int {
+	e := p.Embeds[0]
+	n := len([]rune(e.Title)) + len([]rune(e.Description)) + len([]rune(e.Footer.Text))
+	if e.Author != nil {
+		n += len([]rune(e.Author.Name))
+	}
+	for _, f := range e.Fields {
+		n += len([]rune(f.Name)) + len([]rune(f.Value))
+	}
+	return n
+}
+
 func TestDiscordLimitsAreKept(t *testing.T) {
 	msg := sample()
 	msg.Title = strings.Repeat("t", 300)
 	for range 30 {
-		msg.Fields = append(msg.Fields, domain.NotificationField{Name: "n", Value: strings.Repeat("v", 2000)})
+		msg.Fields = append(msg.Fields, domain.NotificationField{Name: "n", Value: "v"})
 	}
 	var p discordJSON
 	if err := json.Unmarshal([]byte(discordPayload(msg, "", "")), &p); err != nil {
 		t.Fatal(err)
 	}
-	e := p.Embeds[0]
-	if len([]rune(e.Title)) != discordTitleMax || len(e.Fields) != discordFieldsMax || len([]rune(e.Fields[5].Value)) != discordFieldValueMax {
+	if e := p.Embeds[0]; len([]rune(e.Title)) != discordTitleMax || len(e.Fields) != discordFieldsMax {
 		t.Fatalf("title %d, fields %d", len([]rune(e.Title)), len(e.Fields))
+	}
+	// Long fields: each within its limit, the embed within the total.
+	msg.Fields = msg.Fields[:3]
+	for range 10 {
+		msg.Fields = append(msg.Fields, domain.NotificationField{Name: "n", Value: strings.Repeat("v", 2000)})
+	}
+	msg.Body = strings.Repeat("b", 5000)
+	p = discordJSON{}
+	if err := json.Unmarshal([]byte(discordPayload(msg, "", "")), &p); err != nil {
+		t.Fatal(err)
+	}
+	e := p.Embeds[0]
+	if embedSize(p) > discordEmbedMax || len([]rune(e.Description)) > discordDescriptionMax || len(e.Fields) == 0 {
+		t.Fatalf("embed %d, description %d, fields %d", embedSize(p), len([]rune(e.Description)), len(e.Fields))
+	}
+	for _, f := range e.Fields {
+		if len([]rune(f.Value)) > discordFieldValueMax {
+			t.Fatalf("field %d", len([]rune(f.Value)))
+		}
+	}
+}
+
+func TestDiscordShowsAListPlainWhenItsLinksWouldPassTheTotal(t *testing.T) {
+	msg := sample()
+	msg.Body = strings.Repeat("b", 4000)
+	list := domain.NotificationField{Name: "Updated"}
+	var plain []string
+	for i := range 10 {
+		name := fmt.Sprintf("service-%02d", i)
+		list.Items = append(list.Items, domain.NotificationItem{Text: name,
+			Link: "https://docker.example.com/stacks/s1/logs?service=" + name, From: "0123456789ab", To: "ba9876543210"})
+		plain = append(plain, list.Items[i].Plain())
+	}
+	list.Value = strings.Join(plain, "\n")
+	msg.Fields = []domain.NotificationField{list, list}
+	var p discordJSON
+	if err := json.Unmarshal([]byte(discordPayload(msg, "", "")), &p); err != nil {
+		t.Fatal(err)
+	}
+	e := p.Embeds[0]
+	if embedSize(p) > discordEmbedMax || len(e.Fields) != 2 || !strings.Contains(e.Fields[0].Value, "](https://") ||
+		strings.Contains(e.Fields[1].Value, "](https://") || !strings.Contains(e.Fields[1].Value, "service-09: 0123456789ab → ba9876543210") {
+		t.Fatalf("embed %d: %+v", embedSize(p), e.Fields)
 	}
 }
 

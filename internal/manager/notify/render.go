@@ -66,6 +66,9 @@ const (
 	discordFieldValueMax  = 1024
 	discordFooterMax      = 2048
 	discordAuthorMax      = 256
+	// discordEmbedMax bounds title, description, author, footer and every
+	// field's name and value together.
+	discordEmbedMax = 6000
 )
 
 // clip shortens s to at most n runes, ending with "…" when cut.
@@ -367,13 +370,23 @@ func discordValue(f domain.NotificationField) string {
 
 // discordPayload is one embed: the status line as its author, the tone's
 // color, the title linking to the page, the description, the fields, the
-// footer beside the logo and the time.
+// footer beside the logo and the time. The whole embed stays within
+// Discord's total (discordEmbedMax): a field that would pass it is shown
+// plain (without links and code), and fields that still don't fit are
+// left out (Discord refuses the whole message otherwise, at every retry).
 func discordPayload(msg domain.NotificationMessage, username, avatar string) string {
+	runes := utf8.RuneCountInString
 	e := discordEmbed{
 		Title: clip(msg.Title, discordTitleMax), URL: msg.URL, Color: toneColor(msg.Tone),
 	}
+	total := runes(e.Title)
 	if msg.Label != "" {
 		e.Author = &discordEmbedAuthor{Name: clip(msg.Label, discordAuthorMax)}
+		total += runes(e.Author.Name)
+	}
+	if msg.Footer != "" {
+		e.Footer = &discordEmbedFooter{Text: clip(msg.Footer, discordFooterMax), IconURL: LogoURL}
+		total += runes(e.Footer.Text)
 	}
 	desc := markdownEscaper.Replace(strings.TrimSpace(msg.Body))
 	if msg.URL != "" {
@@ -382,15 +395,23 @@ func discordPayload(msg domain.NotificationMessage, username, avatar string) str
 		}
 		desc += "[" + openLabel + "](" + msg.URL + ")"
 	}
-	e.Description = clip(desc, discordDescriptionMax)
+	if desc != "" {
+		e.Description = clip(desc, max(min(discordDescriptionMax, discordEmbedMax-total), 1))
+		total += runes(e.Description)
+	}
 	for i, f := range msg.Fields {
 		if i == discordFieldsMax {
 			break
 		}
-		e.Fields = append(e.Fields, discordEmbedField{Name: clip(f.Name, discordFieldNameMax), Value: discordValue(f), Inline: f.Inline})
-	}
-	if msg.Footer != "" {
-		e.Footer = &discordEmbedFooter{Text: clip(msg.Footer, discordFooterMax), IconURL: LogoURL}
+		name, value := clip(f.Name, discordFieldNameMax), discordValue(f)
+		if total+runes(name)+runes(value) > discordEmbedMax {
+			value = clip(markdownEscaper.Replace(f.Value), discordFieldValueMax)
+		}
+		if total+runes(name)+runes(value) > discordEmbedMax {
+			break
+		}
+		total += runes(name) + runes(value)
+		e.Fields = append(e.Fields, discordEmbedField{Name: name, Value: value, Inline: f.Inline})
 	}
 	if !msg.Time.IsZero() {
 		e.Timestamp = msg.Time.UTC().Format(time.RFC3339)

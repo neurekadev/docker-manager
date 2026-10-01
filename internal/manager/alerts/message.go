@@ -705,6 +705,18 @@ func Label(kind domain.NotificationEventKind, o domain.NotificationOutcome) stri
 	return k + " · " + w
 }
 
+// environmentSuffix names a delivery's environment in a digest entry
+// (" (homelab)"): titles leave it to the Environment field, which a
+// digest does not show. "" without one, or when the title names it.
+func environmentSuffix(d domain.AlertDelivery) string {
+	for _, f := range d.Fields {
+		if f.Name == "Environment" && f.Value != "" && !strings.Contains(d.Title, f.Value) {
+			return " (" + f.Value + ")"
+		}
+	}
+	return ""
+}
+
 // withLinks returns fields with their pages as URLs (abs), or without
 // links when there is no public URL.
 func withLinks(fields []domain.NotificationField, abs func(string) string) []domain.NotificationField {
@@ -784,7 +796,7 @@ func buildMessage(instance, publicURL string, items []domain.AlertDelivery, now 
 			entries = append(entries, domain.NotificationItem{Text: fmt.Sprintf("…and %d more", len(items)-i)})
 			break
 		}
-		entries = append(entries, domain.NotificationItem{Text: line(it), Link: abs(it.Link)})
+		entries = append(entries, domain.NotificationItem{Text: line(it) + environmentSuffix(it), Link: abs(it.Link)})
 	}
 	var l fieldList
 	l.addItems(digestField, entries)

@@ -295,6 +295,31 @@ func TestMessagesAndDigests(t *testing.T) {
 	}
 }
 
+func TestDigestEntriesNameTheirEnvironment(t *testing.T) {
+	env := func(name string) []domain.NotificationField {
+		return []domain.NotificationField{{Name: "Environment", Value: name, Inline: true}}
+	}
+	items := []domain.AlertDelivery{
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, Outcome: domain.OutcomeCritical,
+			Title: "Disk /dev/sda is failing", Fields: env("homelab")},
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, Outcome: domain.OutcomeCritical,
+			Title: "Disk /dev/sda is failing", Fields: env("office")},
+		// The title names it already.
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyEnvironmentOffline, Severity: domain.AlertCritical,
+			Outcome: domain.OutcomeCritical, Title: "nas is offline", Fields: env("nas")},
+	}
+	got := buildMessage("Home", "", items, time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)).Fields[0].Items
+	want := []string{"Critical: Disk /dev/sda is failing (homelab)", "Critical: Disk /dev/sda is failing (office)", "Critical: nas is offline"}
+	if len(got) != len(want) {
+		t.Fatalf("%+v", got)
+	}
+	for i, it := range got {
+		if it.Text != want[i] {
+			t.Errorf("%d: %q, want %q", i, it.Text, want[i])
+		}
+	}
+}
+
 func TestMessagesLinkFieldsWithThePublicURL(t *testing.T) {
 	d := domain.AlertDelivery{Event: domain.DeliveryEventNotification, Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess,
 		Title: "Update of Paperless succeeded", Link: "/jobs/j1", Fields: []domain.NotificationField{
