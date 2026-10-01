@@ -459,43 +459,38 @@ func (s *Store) Latest(ctx context.Context, env string) (domain.LatestMetrics, b
 }
 
 // LatestTemperatures returns the latest reading of each temperature
-// sensor of an environment that reported with its newest one (sensors
-// gone for more than 5 minutes before it are left out), and the time of
-// the newest reading (ok false: none yet).
-func (s *Store) LatestTemperatures(ctx context.Context, env string) ([]domain.TemperatureValues, time.Time, bool, error) {
-	type reading struct {
-		sensor string
-		ts     int64
-		temp   int64
+// sensor of an environment that reported within window before now
+// (sensors gone longer are left out), sorted by name, and the time of the
+// newest reading (ok false: none in the window). One query: each
+// sensor's latest row within the window is found on the primary key
+// (series_id, ts), so a sensor gone long ago costs one empty range read.
+func (s *Store) LatestTemperatures(ctx context.Context, env string, window time.Duration) ([]domain.TemperatureValues, time.Time, bool, error) {
+	since := s.clk.Now().Add(-window).Unix()
+	rows, err := s.read.QueryContext(ctx, `SELECT s.name, r.ts, r.temp
+		FROM series s JOIN sensor_raw r ON r.series_id = s.id
+		WHERE s.environment_id = ? AND s.kind = ? AND r.temp IS NOT NULL
+			AND r.ts = (SELECT MAX(m.ts) FROM sensor_raw m WHERE m.series_id = s.id AND m.ts >= ?)
+		ORDER BY s.name`, env, domain.MetricSensor, since)
+	if err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperatures: %w", err)
 	}
-	var rs []reading
+	defer rows.Close()
+	var out []domain.TemperatureValues
 	var newest int64
-	for _, n := range s.names(env, domain.MetricSensor) {
-		s.mu.Lock()
-		id := s.series[seriesKey{env, domain.MetricSensor, n}]
-		s.mu.Unlock()
-		var ts int64
-		var temp sql.NullInt64
-		err := s.read.QueryRowContext(ctx, `SELECT ts, temp FROM sensor_raw WHERE series_id = ? ORDER BY ts DESC LIMIT 1`, id).
-			Scan(&ts, &temp)
-		if errors.Is(err, sql.ErrNoRows) || (err == nil && !temp.Valid) {
-			continue
+	for rows.Next() {
+		var name string
+		var ts, temp int64
+		if err := rows.Scan(&name, &ts, &temp); err != nil {
+			return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperatures: %w", err)
 		}
-		if err != nil {
-			return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperature: %w", err)
-		}
-		rs = append(rs, reading{n, ts, temp.Int64})
+		out = append(out, domain.TemperatureValues{Sensor: name, Celsius: float64(temp) / 100})
 		newest = max(newest, ts)
 	}
-	if len(rs) == 0 {
-		return nil, time.Time{}, false, nil
+	if err := rows.Err(); err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperatures: %w", err)
 	}
-	var out []domain.TemperatureValues
-	for _, r := range rs {
-		if r.ts < newest-int64(5*time.Minute/time.Second) {
-			continue
-		}
-		out = append(out, domain.TemperatureValues{Sensor: r.sensor, Celsius: float64(r.temp) / 100})
+	if len(out) == 0 {
+		return nil, time.Time{}, false, nil
 	}
 	return out, time.Unix(newest, 0).UTC(), true, nil
 }

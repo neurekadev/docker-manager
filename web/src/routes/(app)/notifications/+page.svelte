@@ -3,8 +3,8 @@
 	// first, Notifications, is the history of finished backups and
 	// restores, prunes and update runs (NotificationsView); the second,
 	// Alerts (#159), the problems it found (AlertsView), its count the
-	// active alerts. The tab lives in the URL (?tab=alerts; /alerts
-	// redirects there). Both are scoped by the environment switcher; a
+	// active alerts. The tab lives in the URL (?tab=alerts, which
+	// routes.alerts() builds). Both are scoped by the environment switcher; a
 	// Restricted user sees the denied state (#17).
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';

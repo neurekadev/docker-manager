@@ -217,4 +217,61 @@ describe('Alert thresholds card', () => {
 			expect(toast.items.map((t) => t.title)).toContain('Removed the override of homelab')
 		);
 	});
+
+	it('refetches after a failed removal, so a retry sends the current revision', async () => {
+		const user = setup();
+		stub();
+		// Someone else saved the thresholds meanwhile: the first PUT is
+		// refused (412) and the settings are at revision 6 now.
+		let revision = 4;
+		let gets = 0;
+		const base = globalThis.fetch as (req: Request) => Promise<Response>;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (req: Request) => {
+				const url = new URL(req.url);
+				if (url.pathname === '/api/v1/alert-settings') {
+					if (req.method === 'PUT') {
+						puts.push({ ifMatch: req.headers.get('If-Match'), body: await req.json() });
+						if (puts.length === 1) {
+							revision = 6;
+							return new Response(
+								JSON.stringify({
+									status: 412,
+									code: 'precondition_failed',
+									detail: 'the resource was changed since you loaded it'
+								}),
+								{
+									status: 412,
+									headers: { 'Content-Type': 'application/problem+json' }
+								}
+							);
+						}
+						return json({ ...settings, overrides: [], revision: revision + 1 });
+					}
+					gets++;
+					return json({ ...settings, revision });
+				}
+				return base(req);
+			})
+		);
+		show();
+		await screen.findByRole('table', { name: 'Environment overrides' });
+		await user.click(screen.getByRole('button', { name: 'Actions for homelab' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
+		const confirm = await screen.findByRole('alertdialog', {
+			name: 'Remove the override of homelab?'
+		});
+		await user.click(within(confirm).getByRole('button', { name: 'Remove override' }));
+		await waitFor(() => expect(puts).toHaveLength(1));
+		expect(puts[0].ifMatch).toBe('"4"');
+		// The failure refetched the settings: the retry from the same dialog
+		// carries the current revision.
+		await waitFor(() => expect(gets).toBe(2));
+		const retry = within(confirm).getByRole('button', { name: 'Remove override' });
+		await waitFor(() => expect(retry).toBeEnabled());
+		await user.click(retry);
+		await waitFor(() => expect(puts).toHaveLength(2));
+		expect(puts[1].ifMatch).toBe('"6"');
+	});
 });

@@ -1,9 +1,15 @@
 package notify
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"text/template"
 	"time"
@@ -191,5 +197,75 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	if html != emailHTML(msg) || !strings.Contains(html, "{{ braces }} &amp; &lt;tags&gt;") ||
 		!strings.Contains(html, "border-top:4px solid #4cf683") || !strings.Contains(html, `href="https://docker.example.com/jobs/j1"`) {
 		t.Fatalf("%s", html)
+	}
+}
+
+// received is one request a fake push server got.
+type received struct {
+	header http.Header
+	body   string
+}
+
+// pushServer answers every request with ok, a JSON object.
+func pushServer(t *testing.T) (*httptest.Server, func() []received) {
+	t.Helper()
+	var mu sync.Mutex
+	var got []received
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		got = append(got, received{header: r.Header.Clone(), body: string(b)})
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":1}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, func() []received {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]received(nil), got...)
+	}
+}
+
+// The parameters render sets are ones the services accept: real sends
+// through Shoutrrr succeed and carry them.
+func TestNtfyAndGotifyAcceptTheRenderedParameters(t *testing.T) {
+	msg := sample()
+	srv, got := pushServer(t)
+	host := strings.TrimPrefix(srv.URL, "http://")
+
+	if class := deliver(context.Background(), "ntfy://"+host+"/dm-topic?scheme=http", msg, 5*time.Second, ""); class != "" {
+		t.Fatalf("ntfy: %s", class)
+	}
+	reqs := got()
+	if len(reqs) != 1 {
+		t.Fatalf("ntfy requests %d", len(reqs))
+	}
+	n := reqs[0]
+	headers := fmt.Sprint(n.header)
+	if !strings.HasPrefix(n.header.Get("Content-Type"), "text/markdown") || !strings.Contains(n.body, "**Reclaimed:** 4.2 GiB") ||
+		!strings.Contains(headers, "white_check_mark") || !strings.Contains(headers, msg.URL) {
+		t.Fatalf("ntfy: %v %q", n.header, n.body)
+	}
+
+	if class := deliver(context.Background(), "gotify://"+host+"/Aaaaaaaaaaaaaaa?disabletls=yes", msg, 5*time.Second, ""); class != "" {
+		t.Fatalf("gotify: %s", class)
+	}
+	reqs = got()
+	if len(reqs) != 2 {
+		t.Fatalf("gotify requests %d", len(reqs))
+	}
+	var g struct {
+		Title    string         `json:"title"`
+		Message  string         `json:"message"`
+		Priority int            `json:"priority"`
+		Extras   map[string]any `json:"extras"`
+	}
+	if err := json.Unmarshal([]byte(reqs[1].body), &g); err != nil {
+		t.Fatalf("gotify body %q: %v", reqs[1].body, err)
+	}
+	display, _ := g.Extras["client::display"].(map[string]any)
+	if g.Title != msg.Title || g.Priority != 4 || display["contentType"] != "text/markdown" || !strings.Contains(g.Message, "**Images:**") {
+		t.Fatalf("gotify: %+v", g)
 	}
 }

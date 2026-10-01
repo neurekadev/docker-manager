@@ -113,13 +113,21 @@
 
 	async function remove(d: AlertSettings) {
 		const o = removing!;
-		const saved = await saveAlertSettings(
-			d,
-			settingsBody(
-				d.thresholds,
-				d.overrides.filter((x) => x.environmentId !== o.environmentId)
-			)
-		);
+		let saved: AlertSettings;
+		try {
+			saved = await saveAlertSettings(
+				d,
+				settingsBody(
+					d.thresholds,
+					d.overrides.filter((x) => x.environmentId !== o.environmentId)
+				)
+			);
+		} catch (e) {
+			// Changed meanwhile (412) or refused: refetch, so a retry sends the
+			// current revision; the confirm dialog still shows the error.
+			void queryClient.invalidateQueries({ queryKey: alertSettingsKey });
+			throw e;
+		}
 		queryClient.setQueryData(alertSettingsKey, saved);
 		toast.success(`Removed the override of ${nameOf(o.environmentId)}`);
 	}

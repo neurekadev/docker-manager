@@ -12,7 +12,7 @@ func TestLatestTemperaturesAreTheCurrentSensors(t *testing.T) {
 	clk := testutil.FakeClock()
 	s := openTest(t, clk)
 	ctx := testutil.Context(t)
-	if _, _, ok, err := s.LatestTemperatures(ctx, env); ok || err != nil {
+	if _, _, ok, err := s.LatestTemperatures(ctx, env, 5*time.Minute); ok || err != nil {
 		t.Fatalf("no samples yet: %v %v", ok, err)
 	}
 	t0 := clk.Now().Truncate(time.Hour)
@@ -30,13 +30,18 @@ func TestLatestTemperaturesAreTheCurrentSensors(t *testing.T) {
 	if _, err := s.Ingest(ctx, env, batch, nil); err != nil {
 		t.Fatal(err)
 	}
-	temps, at, ok, err := s.LatestTemperatures(ctx, env)
+	// The ACPI zone last reported more than 5 minutes ago: left out.
+	temps, at, ok, err := s.LatestTemperatures(ctx, env, 5*time.Minute)
 	if err != nil || !ok || !at.Equal(t0.Add(89*10*time.Second)) || len(temps) != 1 || temps[0].Sensor != "coretemp: Package id 0" ||
 		temps[0].Celsius != 48.9 {
 		t.Fatalf("%+v %v %v %v", temps, at, ok, err)
 	}
 	// Another environment has none.
-	if _, _, ok, _ := s.LatestTemperatures(ctx, "env-other"); ok {
+	if _, _, ok, _ := s.LatestTemperatures(ctx, "env-other", 5*time.Minute); ok {
 		t.Fatal("another environment's readings")
+	}
+	// Nothing within a short window: none.
+	if _, _, ok, _ := s.LatestTemperatures(ctx, env, time.Minute); ok {
+		t.Fatal("readings older than the window")
 	}
 }
