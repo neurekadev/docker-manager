@@ -157,7 +157,7 @@ func TestAChannelKeepsItsOrderWhileRetrying(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 	lines := digestLines(got[0].msg)
-	if len(lines) != 2 || lines[0] != "Critical: Disk /dev/sda is failing" || lines[1] != "Critical: Disk /dev/sdb is failing" {
+	if len(lines) != 2 || lines[0] != "Critical: Disk /dev/sda is failing (homelab)" || lines[1] != "Critical: Disk /dev/sdb is failing (office)" {
 		t.Fatalf("%q", lines)
 	}
 	if len(f.pending()) != 0 {
