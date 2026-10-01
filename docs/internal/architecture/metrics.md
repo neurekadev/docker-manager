@@ -393,7 +393,8 @@ them with "Check disks now" and "Check RAID now".
   `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
   disks now". A disk in standby is not woken (exit status 3 plus the
   standby message): it keeps its previous values with state `sleeping`,
-  except that `failing` and `warning` stay (standby clears no problem).
+  except that `failing` and `warning`, derived from the kept values, stay
+  (standby clears no problem, also after a failed read in between).
   A failed read, or a read that got nothing (`permission_denied`,
   `open_failed`), keeps the last measurements (and their read time) for
   reference but reports the failure: state `error` with its code (a disk
@@ -466,8 +467,9 @@ reports are restored at startup and served while the environment is
 offline. A restarted agent whose first read is still running keeps the last
 known devices (marked checking). `CheckHealth` serves the check route: at
 most one check per environment every 30 s (smart) or 5 s (raid), `429`
-with `Retry-After` before; a check that fails (timeout, offline) does not
-count.
+with `Retry-After` before; a check the agent did not answer (timeout,
+offline, unsupported) does not count, while one the caller gave up on or
+whose answer failed to store does.
 
 **API**: `GET …/environments/{id}/system` carries `diskHealth` (status as
 above plus `agent_outdated` when the agent's capabilities lack

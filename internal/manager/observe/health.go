@@ -174,12 +174,15 @@ func (s *Service) CheckHealth(ctx context.Context, env, scope string) (HostHealt
 	}
 	s.health.checks[key] = now
 	s.mu.Unlock()
-	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
+	rctx, cancel := context.WithTimeout(ctx, healthTimeout)
 	defer cancel()
-	h, err := s.RefreshHealth(ctx, env, refresh)
-	if err != nil {
-		// A failed check does not count: the user may retry at once (a
-		// SMART check the agent already runs queues at most one more round).
+	h, err := s.RefreshHealth(rctx, env, refresh)
+	if err != nil && ctx.Err() == nil &&
+		(errors.Is(err, ErrHealthTimeout) || errors.Is(err, ErrHealthOffline) || errors.Is(err, ErrHealthUnsupported)) {
+		// A check the agent did not answer does not count: the user may
+		// retry at once (a SMART check the agent already runs queues at
+		// most one more round). A caller that gave up, or an answer that
+		// failed to store, keeps the slot.
 		s.mu.Lock()
 		if s.health.checks[key].Equal(now) {
 			delete(s.health.checks, key)

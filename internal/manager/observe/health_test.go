@@ -307,6 +307,23 @@ func TestCheckHealthRateLimitsAndMapsErrors(t *testing.T) {
 	if _, err := f.svc.CheckHealth(ctx, env, HealthScopeSMART); err != nil {
 		t.Fatalf("retry after a failed check: %v", err)
 	}
+	// A caller that gave up keeps the slot: aborting and repeating never
+	// gets around the spacing.
+	f.clk.Advance(SMARTCheckSpacing)
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	f.agent.mu.Lock()
+	f.agent.fail = context.Canceled
+	f.agent.mu.Unlock()
+	if _, err := f.svc.CheckHealth(gone, env, HealthScopeSMART); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled check: %v", err)
+	}
+	f.agent.mu.Lock()
+	f.agent.fail = nil
+	f.agent.mu.Unlock()
+	if _, err := f.svc.CheckHealth(ctx, env, HealthScopeSMART); !errors.As(err, &rl) {
+		t.Fatalf("check after a cancelled one: %v", err)
+	}
 
 	if _, err := f.svc.CheckHealth(ctx, env, "selftest"); !errors.Is(err, ErrHealthScope) {
 		t.Errorf("unknown scope: %v", err)

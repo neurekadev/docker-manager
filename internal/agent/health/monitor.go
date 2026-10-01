@@ -310,12 +310,14 @@ func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev pro
 	m.clearLogged(logKey)
 	if r.Standby {
 		if prev.Name != "" && prev.ReadAt != nil {
-			// A problem the last read found stays until a read clears it:
-			// a failing disk that spins down never looks merely asleep.
-			if prev.State != protocol.DiskFailing && prev.State != protocol.DiskWarning {
+			// A problem the kept measurements show stays until a read
+			// clears it: a failing disk that spins down never looks merely
+			// asleep. Derived from the values, since prev.State may be the
+			// error of a failed read since.
+			prev.State, prev.ErrorCode = protocol.DeriveDiskState(prev), ""
+			if prev.State == protocol.DiskOK {
 				prev.State = protocol.DiskSleeping
 			}
-			prev.ErrorCode = ""
 			return prev
 		}
 		return r.Device

@@ -266,7 +266,7 @@ func registerDiskHealth(a huma.API, h *agentsAPI) {
 				"disk in standby is not woken), scope raid the md arrays and ZFS pools. Answers the fresh disk health and RAID state; a " +
 				"SMART read that takes longer answers with diskHealth.checking and the result follows as an inventory event. Nothing " +
 				"changes on the host. At most one check per environment and scope every 30 s (smart) or 5 s (raid): 429 with " +
-				"Retry-After before; a check that fails does not count. 503 environment_offline, 501 agent_unsupported for an agent that predates disk health.",
+				"Retry-After before; a check the agent did not answer (timeout, offline) does not count. 503 environment_offline, 501 agent_unsupported for an agent that predates disk health.",
 			Tags: []string{tagEnvironments},
 			Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity,
 				http.StatusTooManyRequests, http.StatusNotImplemented, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
