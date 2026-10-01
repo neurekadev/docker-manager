@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import HardDrive from '@lucide/svelte/icons/hard-drive';
 import KeyRound from '@lucide/svelte/icons/key-round';
 import Layers from '@lucide/svelte/icons/layers';
 import Workflow from '@lucide/svelte/icons/workflow';
@@ -42,6 +43,13 @@ describe('resource icons (#22 list rows)', () => {
 	it('gives stacks and services one icon each (they have none of their own)', () => {
 		expect(RESOURCE_ICONS.stack).toEqual({ icon: Layers, color: 'blue' });
 		expect(RESOURCE_ICONS.service).toEqual({ icon: Workflow, color: 'blue' });
+	});
+
+	it('shows a host’s disks with the hard drive, apart from volumes by colour, and RAID arrays apart from environments', () => {
+		expect(RESOURCE_ICONS.disk.icon).toBe(HardDrive);
+		expect(RESOURCE_ICONS.disk.color).not.toBe(RESOURCE_ICONS.volume.color);
+		expect(RESOURCE_ICONS.raidArray.icon).not.toBe(RESOURCE_ICONS.disk.icon);
+		expect(RESOURCE_ICONS.raidArray.color).not.toBe(RESOURCE_ICONS.environment.color);
 	});
 
 	it('shows an offline environment in slate', () => {

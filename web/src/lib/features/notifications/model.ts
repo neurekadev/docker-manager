@@ -2,10 +2,8 @@
 // outcomes a channel can send ("What to send"), what a channel sends, its
 // status and why it fails. Pure (services.spec.ts).
 import Archive from '@lucide/svelte/icons/archive';
+import ChartPie from '@lucide/svelte/icons/chart-pie';
 import CircleX from '@lucide/svelte/icons/circle-x';
-import Database from '@lucide/svelte/icons/database';
-import HardDrive from '@lucide/svelte/icons/hard-drive';
-import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 import MemoryStick from '@lucide/svelte/icons/memory-stick';
 import PackageCheck from '@lucide/svelte/icons/package-check';
 import ServerOff from '@lucide/svelte/icons/server-off';
@@ -13,6 +11,7 @@ import Thermometer from '@lucide/svelte/icons/thermometer';
 import Wrench from '@lucide/svelte/icons/wrench';
 import type { Schema } from '$lib/api/client';
 import type { IconComponent } from '$lib/design/icons';
+import { resourceIcon } from '$lib/features/common/resourceIcons';
 
 export type NotificationChannel = Schema<'NotificationChannel'>;
 export type NotificationTest = Schema<'NotificationChannelTest'>;
@@ -48,7 +47,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 		label: 'Disk health',
 		short: 'disk health',
 		group: 'hosts',
-		icon: HeartPulse,
+		icon: resourceIcon('disk').icon,
 		outcomes: PROBLEM
 	},
 	{
@@ -56,7 +55,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 		label: 'RAID',
 		short: 'RAID',
 		group: 'hosts',
-		icon: Database,
+		icon: resourceIcon('raidArray').icon,
 		outcomes: PROBLEM
 	},
 	{
@@ -72,7 +71,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 		label: 'Disk space',
 		short: 'disk space',
 		group: 'hosts',
-		icon: HardDrive,
+		icon: ChartPie,
 		outcomes: PROBLEM
 	},
 	{

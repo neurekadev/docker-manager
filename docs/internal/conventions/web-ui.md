@@ -48,7 +48,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   every service shows the `service` tile, stacks `StackIcon size="xs"`
   (the image of the template the stack was created from, else the stack
   tile); registry connections the key (`KeyRound`, slate); notification channels
-  the bell (`Bell`, cyan); alerts the siren (`Siren`, rose); the Notifications
+  the bell (`Bell`, cyan); alerts the siren (`Siren`, rose); a host's
+  disks the hard drive (`disk`: `HardDrive`, slate) and its RAID arrays
+  the stacked drives (`raidArray`: `Server`, indigo), on the System tab's
+  Disk health and RAID rows and as the icons of the disk health and RAID
+  alert kinds (card titles never carry a tile); the Notifications
   nav item the inbox (`notification`: `Inbox`, cyan), notification rows the
   icon of the policy kind that ran them; schedules the
   icon of the policy they run (`scheduleResource`). The icon is

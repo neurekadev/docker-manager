@@ -109,6 +109,16 @@ describe('ChannelDialog (#142)', () => {
 			'Other failed jobs: Resolved'
 		])
 			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
+		// Each kind leads with its icon (decorative); its outcomes have none.
+		expect(
+			screen.getByRole('checkbox', { name: 'RAID' }).closest('label')?.querySelector('svg')
+		).toHaveAttribute('aria-hidden', 'true');
+		expect(
+			screen
+				.getByRole('checkbox', { name: 'RAID: Warning' })
+				.closest('label')
+				?.querySelector('svg')
+		).toBeNull();
 		expect(screen.getByRole('group', { name: 'Hosts' })).toBeInTheDocument();
 		expect(screen.getByRole('group', { name: 'Jobs' })).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox', { name: /^Also send when resolved/ })).toBeNull();

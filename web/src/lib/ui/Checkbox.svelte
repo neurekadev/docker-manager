@@ -1,13 +1,17 @@
 <script lang="ts">
 	// Checkbox (#22): a native input (form semantics, keyboard, screen
 	// readers) with Docker Manager styling; `indeterminate` shows the mixed state
-	// (aria-checked="mixed" via the DOM property).
+	// (aria-checked="mixed" via the DOM property). `icon` puts a decorative
+	// glyph before the label ("What to send": the kind of event's icon).
 	import type { HTMLInputAttributes } from 'svelte/elements';
+	import type { IconComponent } from '$lib/design/icons';
 
 	interface Props extends Omit<HTMLInputAttributes, 'type' | 'checked'> {
 		checked?: boolean;
 		indeterminate?: boolean;
 		label: string;
+		/** A decorative glyph before the label. */
+		icon?: IconComponent;
 		/** Keep the label for screen readers only (table row selection). */
 		hideLabel?: boolean;
 		description?: string;
@@ -17,6 +21,7 @@
 		checked = $bindable(false),
 		indeterminate = false,
 		label,
+		icon: Icon,
 		hideLabel = false,
 		description,
 		id,
@@ -43,7 +48,14 @@
 		{...rest}
 	/>
 	<span class="text" class:sr-only={hideLabel}>
-		<span class="label">{label}</span>
+		<span class="label"
+			>{#if Icon}<Icon
+					class="label-icon"
+					size={14}
+					strokeWidth={1.75}
+					aria-hidden="true"
+				/>{/if}{label}</span
+		>
 		{#if description}<span class="desc" id="{inputId}-desc">{description}</span>{/if}
 	</span>
 </label>
@@ -105,6 +117,12 @@
 		color: var(--text-default);
 		font-size: var(--text-control);
 		line-height: var(--leading-control);
+	}
+
+	.label :global(.label-icon) {
+		margin-right: var(--space-2);
+		color: var(--text-muted);
+		vertical-align: -2px;
 	}
 
 	.desc {
