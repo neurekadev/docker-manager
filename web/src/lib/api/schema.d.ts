@@ -113,6 +113,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alert-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the alert thresholds
+         * @description The warning and critical levels of temperature, disk space and memory alerts, and every environment's override. Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-alert-settings"];
+        /**
+         * Change the alert thresholds
+         * @description Replaces the thresholds and every environment's override. A level of 0 is off; a warning level must be below the critical one. Requires If-Match. Instance owner only (never delegable, never with an API token).
+         */
+        put: operations["update-alert-settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/alerts": {
         parameters: {
             query?: never;
@@ -122,7 +146,7 @@ export interface paths {
         };
         /**
          * List alerts
-         * @description Alerts newest first: firing ones (active, or dismissed for everyone) and resolved ones (kept 90 days). Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, the environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates.
+         * @description Alerts newest first: firing ones (active, or dismissed for everyone) and resolved ones (kept 90 days). Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, environment.metrics.read for temperature, disk space and memory, the environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates.
          */
         get: operations["list-alerts"];
         put?: never;
@@ -162,7 +186,7 @@ export interface paths {
         };
         /**
          * Get an alert
-         * @description One alert (404 when the caller may not see its source). Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, the environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates.
+         * @description One alert (404 when the caller may not see its source). Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, environment.metrics.read for temperature, disk space and memory, the environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates.
          */
         get: operations["get-alert"];
         put?: never;
@@ -3421,7 +3445,7 @@ export interface paths {
         put?: never;
         /**
          * Add a notification channel
-         * @description Stores a destination by its Shoutrrr URL, sealed with the manager's secret-protection key. The address is checked without sending anything (422 body.address). Defaults: enabled, every event kind, every environment (without environmentIds), resolved problems sent too. 409 notification_channel_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Stores a destination by its Shoutrrr URL, sealed with the manager's secret-protection key. The address is checked without sending anything (422 body.address). Defaults: enabled, every outcome of every event kind, every environment (without environmentIds). 409 notification_channel_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-notification-channel"];
         delete?: never;
@@ -3492,6 +3516,26 @@ export interface paths {
          * @description Sends a test message through the channel now (also while it is off) and records the result as its last result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-notification-channel-test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List notifications
+         * @description Finished backups and restores, prunes and update runs, newest first (kept 90 days), with how they went and their numbers. Each is shown to whoever may read its job (job.read).
+         */
+        get: operations["list-notifications"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5819,17 +5863,19 @@ export interface components {
              * @example 1
              */
             escalation: number;
-            /** @description Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target; updates: count, services, target; offline: since). */
+            /** @description Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; temperature: sensor, celsius (the peak), warningAt, criticalAt; disk space: mount, usedPercent (the peak), freeBytes, totalBytes, warningAt, criticalAt; memory: usedPercent, usedBytes, totalBytes, warningAt, criticalAt; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target, and for update checks failedItems and itemErrorClass; updates: count, services, target; offline: since). */
             facts: {
                 [key: string]: string;
             };
+            /** @description Labelled values, as messages show them. */
+            fields: components["schemas"]["NotificationField"][];
             /** @example 0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f */
             id: string;
             /**
              * @example disk_health
              * @enum {string}
              */
-            kind: "disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available";
+            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "updates" | "job_failed";
             /**
              * @description Path of the page in Docker Manager the alert is about.
              * @example /environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system
@@ -5843,7 +5889,7 @@ export interface components {
             /** Format: date-time */
             resolvedAt?: string;
             /**
-             * @description The disk's path, the array's or pool's name, the environment's ID, the last failed job's ID or the update policy's ID.
+             * @description The disk's path, the array's or pool's name, the environment's ID, the filesystem (docker, stacks, bind-1, ...), the last failed job's ID or the update policy's ID.
              * @example /dev/sda
              */
             resourceId: string;
@@ -5852,7 +5898,7 @@ export interface components {
              * @example disk
              * @enum {string}
              */
-            resourceType: "disk" | "raid_array" | "zfs_pool" | "environment" | "job" | "update_policy";
+            resourceType: "disk" | "raid_array" | "zfs_pool" | "environment" | "filesystem" | "job" | "update_policy";
             /** Format: int64 */
             revision: number;
             /**
@@ -5888,6 +5934,70 @@ export interface components {
              * @example 3
              */
             dismissed: number;
+        };
+        AlertSettings: {
+            overrides: components["schemas"]["AlertThresholdOverride"][];
+            /**
+             * Format: int64
+             * @description Edit revision (the ETag).
+             */
+            revision: number;
+            thresholds: components["schemas"]["AlertThresholds"];
+            /** Format: date-time */
+            readonly updatedAt: string;
+        };
+        AlertThresholdOverride: {
+            /** Format: int64 */
+            diskSpaceCritical?: number;
+            /** Format: int64 */
+            diskSpaceWarning?: number;
+            environmentId: string;
+            /** Format: int64 */
+            memoryCritical?: number;
+            /** Format: int64 */
+            memoryWarning?: number;
+            /** Format: int64 */
+            temperatureCritical?: number;
+            /** Format: int64 */
+            temperatureWarning?: number;
+        };
+        AlertThresholds: {
+            /**
+             * Format: int64
+             * @description Percent of a filesystem used; 0 is off.
+             * @example 95
+             */
+            diskSpaceCritical: number;
+            /**
+             * Format: int64
+             * @description Percent of a filesystem used; 0 is off.
+             * @example 85
+             */
+            diskSpaceWarning: number;
+            /**
+             * Format: int64
+             * @description Percent of memory used; 0 is off.
+             * @example 95
+             */
+            memoryCritical: number;
+            /**
+             * Format: int64
+             * @description Percent of memory used; 0 is off.
+             * @example 90
+             */
+            memoryWarning: number;
+            /**
+             * Format: int64
+             * @description °C; 0 is off.
+             * @example 90
+             */
+            temperatureCritical: number;
+            /**
+             * Format: int64
+             * @description °C; 0 is off.
+             * @example 80
+             */
+            temperatureWarning: number;
         };
         AlertUser: {
             /** @example 0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e */
@@ -7471,12 +7581,10 @@ export interface components {
             enabled: boolean;
             /** @description Active environments the channel is for (with allEnvironments false). */
             environmentIds?: string[];
-            /** @description Default: every kind. */
-            eventKinds?: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
+            /** @description What to send per kind of event (at least one outcome). Default: every outcome of every kind. */
+            events?: components["schemas"]["NotificationSubscription"][];
             /** @example Ops on Discord */
             name: string;
-            /** @default true */
-            sendResolved: boolean;
         };
         CreateRegistryInputBody: {
             /**
@@ -9996,6 +10104,48 @@ export interface components {
             /** @enum {string} */
             view: "minimal" | "full";
         };
+        Notification: {
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description One or two sentences about it; a failure says what went wrong and what to do (never error texts).
+             * @example 5 of 5 items backed up (12.4 GiB read) in 3 min 12 s.
+             */
+            detail?: string;
+            /** @description The environment it ran on (absent for Docker Manager's own backup). */
+            environmentId?: string;
+            /** @description Small, non-secret values the fields are built from. */
+            facts: {
+                [key: string]: string;
+            };
+            /** @description Labelled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it). */
+            fields: components["schemas"]["NotificationField"][];
+            /** @example 0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f */
+            id: string;
+            /** @description The run's job. */
+            jobId: string;
+            /** @example backup.run */
+            jobKind: string;
+            /**
+             * @description backup (a backup or restore), prune or updates (an update run).
+             * @example backup
+             * @enum {string}
+             */
+            kind: "backup" | "prune" | "updates";
+            /**
+             * @description Path of the run's job in Docker Manager.
+             * @example /jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f
+             */
+            link: string;
+            /**
+             * @description How it went: success; warning (a backup that saved everything but needs a look); failure (failed, partly failed or interrupted).
+             * @example success
+             * @enum {string}
+             */
+            outcome: "success" | "warning" | "failure";
+            /** @example Backup Nightly on homelab succeeded */
+            title: string;
+        };
         NotificationAddress: {
             /**
              * @description Keyed fingerprint of the address: changes when the address changes, never reveals it.
@@ -10019,8 +10169,8 @@ export interface components {
             enabled: boolean;
             /** @description The environments of a channel that is not for every environment (empty when allEnvironments is true). */
             environmentIds: string[];
-            /** @description The kinds of events the channel sends. */
-            eventKinds: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
+            /** @description The outcomes the channel sends, per kind of event (kinds it sends nothing of are absent), in display order. */
+            events: components["schemas"]["NotificationSubscription"][];
             id: string;
             /** Format: date-time */
             lastAttemptAt?: string;
@@ -10038,8 +10188,6 @@ export interface components {
              * @description Edit revision (the ETag).
              */
             revision: number;
-            /** @description Also send a message when a problem is resolved. */
-            sendResolved: boolean;
             /**
              * @description The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...).
              * @example discord
@@ -10074,6 +10222,29 @@ export interface components {
             ok: boolean;
             /** Format: date-time */
             sentAt: string;
+        };
+        NotificationField: {
+            /** @description Short: shown beside others. */
+            inline?: boolean;
+            /** @example Reclaimed */
+            name: string;
+            /** @example 4.2 GiB */
+            value: string;
+        };
+        NotificationSubscription: {
+            /**
+             * @description The kind of event: disk_health, raid, temperature, disk_space, memory and environment_offline problems; backup (backups and restores), prune and updates runs; job_failed (other failed scheduled or API token jobs).
+             * @example backup
+             * @enum {string}
+             */
+            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "prune" | "updates" | "job_failed";
+            /**
+             * @description What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backups), success. updates: available, failure, success.
+             * @example [
+             *       "failure"
+             *     ]
+             */
+            outcomes: ("warning" | "critical" | "resolved" | "available" | "failure" | "success")[];
         };
         OperateStackInputBody: {
             /**
@@ -10360,6 +10531,17 @@ export interface components {
         PageNetwork: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Network"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageNotification: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Notification"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -10928,6 +11110,11 @@ export interface components {
             reference: string;
             /** @description Registry connection to authenticate with (#19); default: the matching connection, else anonymous. */
             registryConnectionId?: string;
+        };
+        PutAlertSettingsInputBody: {
+            /** @description Every environment's override (replaces them all; at most one per environment). */
+            overrides: components["schemas"]["AlertThresholdOverride"][];
+            thresholds: components["schemas"]["AlertThresholds"];
         };
         RAIDArray: {
             /** @enum {string} */
@@ -13077,11 +13264,10 @@ export interface components {
             enabled?: boolean;
             /** @description Replaces the environment list (restricting the channel). An empty list is refused unless allEnvironments is true: it never means every environment. Environments archived since may stay; new ones must be active. */
             environmentIds?: string[];
-            /** @description Replaces the kinds (at least one). */
-            eventKinds?: ("disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available")[];
+            /** @description Replaces what the channel sends (at least one outcome). */
+            events?: components["schemas"]["NotificationSubscription"][];
             /** @example Ops on Discord */
             name?: string;
-            sendResolved?: boolean;
         };
         UpdatePolicy: {
             actions: string[];
@@ -14204,6 +14390,221 @@ export interface operations {
             };
         };
     };
+    "get-alert-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "overrides": [
+                     *         {
+                     *           "diskSpaceCritical": 1,
+                     *           "diskSpaceWarning": 1,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "memoryCritical": 1,
+                     *           "memoryWarning": 1,
+                     *           "temperatureCritical": 1,
+                     *           "temperatureWarning": 1
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "thresholds": {
+                     *         "diskSpaceCritical": 95,
+                     *         "diskSpaceWarning": 85,
+                     *         "memoryCritical": 95,
+                     *         "memoryWarning": 90,
+                     *         "temperatureCritical": 90,
+                     *         "temperatureWarning": 80
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AlertSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-alert-settings": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "overrides": [
+                 *         {
+                 *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *         }
+                 *       ],
+                 *       "thresholds": {
+                 *         "diskSpaceCritical": 95,
+                 *         "diskSpaceWarning": 85,
+                 *         "memoryCritical": 95,
+                 *         "memoryWarning": 90,
+                 *         "temperatureCritical": 90,
+                 *         "temperatureWarning": 80
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["PutAlertSettingsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "overrides": [
+                     *         {
+                     *           "diskSpaceCritical": 1,
+                     *           "diskSpaceWarning": 1,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "memoryCritical": 1,
+                     *           "memoryWarning": 1,
+                     *           "temperatureCritical": 1,
+                     *           "temperatureWarning": 1
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "thresholds": {
+                     *         "diskSpaceCritical": 95,
+                     *         "diskSpaceWarning": 85,
+                     *         "memoryCritical": 95,
+                     *         "memoryWarning": 90,
+                     *         "temperatureCritical": 90,
+                     *         "temperatureWarning": 80
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AlertSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-alerts": {
         parameters: {
             query?: {
@@ -14214,7 +14615,7 @@ export interface operations {
                 /** @description active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert. */
                 state?: "active" | "dismissed" | "firing" | "resolved";
                 /** @description Only alerts of this kind. */
-                kind?: "disk_health" | "raid" | "environment_offline" | "job_failed" | "updates_available";
+                kind?: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "updates" | "job_failed";
                 /** @description Only alerts of this environment. */
                 environmentId?: string;
             };
@@ -14247,6 +14648,13 @@ export interface operations {
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "escalation": 1,
                      *           "facts": {},
+                     *           "fields": [
+                     *             {
+                     *               "inline": false,
+                     *               "name": "Reclaimed",
+                     *               "value": "4.2 GiB"
+                     *             }
+                     *           ],
                      *           "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *           "kind": "disk_health",
                      *           "link": "/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system",
@@ -14415,6 +14823,13 @@ export interface operations {
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "escalation": 1,
                      *       "facts": {},
+                     *       "fields": [
+                     *         {
+                     *           "inline": false,
+                     *           "name": "Reclaimed",
+                     *           "value": "4.2 GiB"
+                     *         }
+                     *       ],
                      *       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *       "kind": "disk_health",
                      *       "link": "/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system",
@@ -14513,6 +14928,13 @@ export interface operations {
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "escalation": 1,
                      *       "facts": {},
+                     *       "fields": [
+                     *         {
+                     *           "inline": false,
+                     *           "name": "Reclaimed",
+                     *           "value": "4.2 GiB"
+                     *         }
+                     *       ],
                      *       "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *       "kind": "disk_health",
                      *       "link": "/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system",
@@ -39569,8 +39991,13 @@ export interface operations {
                      *           "environmentIds": [
                      *             "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *           ],
-                     *           "eventKinds": [
-                     *             "disk_health"
+                     *           "events": [
+                     *             {
+                     *               "kind": "backup",
+                     *               "outcomes": [
+                     *                 "failure"
+                     *               ]
+                     *             }
                      *           ],
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "lastAttemptAt": "2026-09-25T12:00:00Z",
@@ -39578,7 +40005,6 @@ export interface operations {
                      *           "lastSuccessAt": "2026-09-25T12:00:00Z",
                      *           "name": "Ops on Discord",
                      *           "revision": 1,
-                     *           "sendResolved": false,
                      *           "service": "discord",
                      *           "target": "mail.example.com",
                      *           "updatedAt": "2026-09-25T12:00:00Z"
@@ -39641,6 +40067,14 @@ export interface operations {
                 /**
                  * @example {
                  *       "address": "discord://token@webhookid",
+                 *       "events": [
+                 *         {
+                 *           "kind": "backup",
+                 *           "outcomes": [
+                 *             "failure"
+                 *           ]
+                 *         }
+                 *       ],
                  *       "name": "Ops on Discord"
                  *     }
                  */
@@ -39668,8 +40102,13 @@ export interface operations {
                      *       "environmentIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
-                     *       "eventKinds": [
-                     *         "disk_health"
+                     *       "events": [
+                     *         {
+                     *           "kind": "backup",
+                     *           "outcomes": [
+                     *             "failure"
+                     *           ]
+                     *         }
                      *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "lastAttemptAt": "2026-09-25T12:00:00Z",
@@ -39677,7 +40116,6 @@ export interface operations {
                      *       "lastSuccessAt": "2026-09-25T12:00:00Z",
                      *       "name": "Ops on Discord",
                      *       "revision": 1,
-                     *       "sendResolved": false,
                      *       "service": "discord",
                      *       "target": "mail.example.com",
                      *       "updatedAt": "2026-09-25T12:00:00Z"
@@ -39765,8 +40203,13 @@ export interface operations {
                      *       "environmentIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
-                     *       "eventKinds": [
-                     *         "disk_health"
+                     *       "events": [
+                     *         {
+                     *           "kind": "backup",
+                     *           "outcomes": [
+                     *             "failure"
+                     *           ]
+                     *         }
                      *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "lastAttemptAt": "2026-09-25T12:00:00Z",
@@ -39774,7 +40217,6 @@ export interface operations {
                      *       "lastSuccessAt": "2026-09-25T12:00:00Z",
                      *       "name": "Ops on Discord",
                      *       "revision": 1,
-                     *       "sendResolved": false,
                      *       "service": "discord",
                      *       "target": "mail.example.com",
                      *       "updatedAt": "2026-09-25T12:00:00Z"
@@ -39934,6 +40376,14 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "events": [
+                 *         {
+                 *           "kind": "backup",
+                 *           "outcomes": [
+                 *             "failure"
+                 *           ]
+                 *         }
+                 *       ],
                  *       "name": "Ops on Discord"
                  *     }
                  */
@@ -39961,8 +40411,13 @@ export interface operations {
                      *       "environmentIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
-                     *       "eventKinds": [
-                     *         "disk_health"
+                     *       "events": [
+                     *         {
+                     *           "kind": "backup",
+                     *           "outcomes": [
+                     *             "failure"
+                     *           ]
+                     *         }
                      *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "lastAttemptAt": "2026-09-25T12:00:00Z",
@@ -39970,7 +40425,6 @@ export interface operations {
                      *       "lastSuccessAt": "2026-09-25T12:00:00Z",
                      *       "name": "Ops on Discord",
                      *       "revision": 1,
-                     *       "sendResolved": false,
                      *       "service": "discord",
                      *       "target": "mail.example.com",
                      *       "updatedAt": "2026-09-25T12:00:00Z"
@@ -40202,6 +40656,101 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-notifications": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only notifications of this kind. */
+                kind?: "backup" | "prune" | "updates";
+                /** @description Only notifications with this outcome. */
+                outcome?: "success" | "warning" | "failure";
+                /** @description Only notifications of this environment. */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "detail": "5 of 5 items backed up (12.4 GiB read) in 3 min 12 s.",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "facts": {},
+                     *           "fields": [
+                     *             {
+                     *               "inline": false,
+                     *               "name": "Reclaimed",
+                     *               "value": "4.2 GiB"
+                     *             }
+                     *           ],
+                     *           "id": "0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "jobKind": "backup.run",
+                     *           "kind": "backup",
+                     *           "link": "/jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+                     *           "outcome": "success",
+                     *           "title": "Backup Nightly on homelab succeeded"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageNotification"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

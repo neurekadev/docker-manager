@@ -104,8 +104,9 @@ func TestFailedSendsBackOffAndGiveUp(t *testing.T) {
 	f.sender.mu.Lock()
 	f.sender.err = errors.New("database is locked")
 	f.sender.mu.Unlock()
-	f.health.set("env-1", []protocol.SMARTDevice{disk(protocol.DiskOK)}, nil, nil)
-	f.evaluate("env-1")
+	// (The given up message's alert would get no resolution: its
+	// channel never heard of it. A new alert is sent instead.)
+	f.failDisk("env-2", "/dev/sdb")
 	f.clk.Advance(DeliveryDelay)
 	if next, err := f.svc.Dispatch(f.ctx); err != nil || next.IsZero() {
 		t.Fatalf("%v %v", next, err)
@@ -215,7 +216,7 @@ func TestMessagesOfGoneOrDisabledChannelsAreDropped(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := store.GetNotificationChannel(f.ctx, f.db, narrowed.ID)
-	n.EventKinds, n.Revision = []domain.NotificationEventKind{domain.NotifyRAID}, n.Revision+1
+	n.Subscriptions, n.Revision = subscribe([]domain.NotificationEventKind{domain.NotifyRAID}, true), n.Revision+1
 	if err := store.UpdateNotificationChannel(f.ctx, f.db, &n, "", n.Revision-1); err != nil {
 		t.Fatal(err)
 	}

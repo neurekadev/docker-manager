@@ -19,7 +19,7 @@ func TestAlertVisibilityFollowsTheSource(t *testing.T) {
 	offline := domain.Alert{ID: "a3", Kind: domain.NotifyEnvironmentOffline, EnvironmentID: "e1", ResourceType: domain.AlertResourceEnvironment, ResourceID: "e1"}
 	job := domain.Alert{ID: "a4", Kind: domain.NotifyJobFailed, EnvironmentID: "e1", ResourceType: domain.AlertResourceJob, ResourceID: "j1",
 		JobKind: "stack.deploy", Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}}
-	updates := domain.Alert{ID: "a5", Kind: domain.NotifyUpdatesAvailable, EnvironmentID: "e1", ResourceType: domain.AlertResourceUpdatePolicy,
+	updates := domain.Alert{ID: "a5", Kind: domain.NotifyUpdates, EnvironmentID: "e1", ResourceType: domain.AlertResourceUpdatePolicy,
 		ResourceID: "p1", Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}}
 	all := []domain.Alert{disk, raid, offline, job, updates}
 
@@ -92,5 +92,55 @@ func TestAlertVisibilityFollowsTheSource(t *testing.T) {
 	changed := events.Event{Type: events.ResourceChanged, ResourceType: "alert", ResourceID: "a1", EnvironmentID: "e1"}
 	if authz.EventVisible(authz.For(ctx, authztest.New().Owner("o"), principal("o")), changed) {
 		t.Fatal("resource.changed of an alert is relayed")
+	}
+}
+
+// Host usage alerts are shown with the environment's host stats.
+func TestHostUsageAlertsFollowTheHostStats(t *testing.T) {
+	ctx := context.Background()
+	for _, kind := range []domain.NotificationEventKind{domain.NotifyTemperature, domain.NotifyDiskSpace, domain.NotifyMemory} {
+		a := domain.Alert{ID: "a1", Kind: kind, EnvironmentID: "e1", ResourceType: domain.AlertResourceEnvironment, ResourceID: "e1"}
+		stats := authz.For(ctx, authztest.Only("u", "allow environment.metrics.read @env:e1", "allow alert.dismiss @env:e1"), principal("u"))
+		if !authz.AlertVisible(stats, a) || !authz.AlertDismissible(stats, a) {
+			t.Errorf("%s: not shown with the host stats", kind)
+		}
+		sys := authz.For(ctx, authztest.Only("u", "allow environment.system.read @env:e1"), principal("u"))
+		elsewhere := authz.For(ctx, authztest.Only("u", "allow environment.metrics.read @env:e2"), principal("u"))
+		if authz.AlertVisible(sys, a) || authz.AlertVisible(elsewhere, a) {
+			t.Errorf("%s: shown without the environment's host stats", kind)
+		}
+	}
+}
+
+// Notifications are shown with job.read on their job, in lists and
+// events alike.
+func TestNotificationsFollowTheirJob(t *testing.T) {
+	ctx := context.Background()
+	n := domain.Notification{ID: "n1", Kind: domain.NotifyUpdates, EnvironmentID: "e1", JobID: "j1", JobKind: "update.run",
+		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}}
+	e := events.Event{Type: events.NotificationCreated, ResourceType: events.ResourceNotification, ResourceID: n.ID,
+		EnvironmentID: n.EnvironmentID, Notification: &n}
+	for _, c := range []struct {
+		name string
+		pol  *authztest.Policy
+		want bool
+	}{
+		{"job read on the stack", authztest.Only("u", "allow job.read @stack:s1"), true},
+		{"another stack", authztest.Only("u", "allow job.read @stack:s2"), false},
+		{"nothing", authztest.Only("u"), false},
+		{"owner", authztest.New().Owner("u"), true},
+	} {
+		ch := authz.For(ctx, c.pol, principal("u"))
+		if got := authz.NotificationVisible(ch, n); got != c.want {
+			t.Errorf("%s: visible %v, want %v", c.name, got, c.want)
+		}
+		if got := authz.EventVisible(ch, e); got != c.want {
+			t.Errorf("%s: event visible %v, want %v", c.name, got, c.want)
+		}
+	}
+	// Without the notification, the event reaches the owner only.
+	bare := events.Event{Type: events.NotificationCreated, ResourceID: "n1", EnvironmentID: "e1"}
+	if authz.EventVisible(authz.For(ctx, authztest.Only("u", "allow job.read @all"), principal("u")), bare) {
+		t.Fatal("a bare notification event reached a non-owner")
 	}
 }

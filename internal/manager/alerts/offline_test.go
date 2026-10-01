@@ -105,7 +105,7 @@ func TestNoAlertStormAtStartup(t *testing.T) {
 		t.Fatalf("%+v", as)
 	}
 	// They go out as one digest.
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] 2 alerts" || got[0].msg.URL != "https://docker.example.com/alerts" {
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] 2 alerts" || got[0].msg.URL != "https://docker.example.com/notifications?tab=alerts" {
 		t.Fatalf("%+v", got)
 	}
 }

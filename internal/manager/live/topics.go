@@ -25,7 +25,7 @@ const (
 	// TopicManager: the move of this manager to a new server (the owner's
 	// move, everyone's move lock).
 	TopicManager = "manager"
-	// TopicAlerts: alerts (#159).
+	// TopicAlerts: alerts (#159) and notifications (finished runs).
 	TopicAlerts = "alerts"
 )
 
@@ -68,6 +68,7 @@ var topicOfType = map[string]string{
 	"template": TopicTemplates, "template_registry": TopicTemplates,
 	"manager_move": TopicManager,
 	"alert":        TopicAlerts,
+	"notification": TopicAlerts,
 }
 
 // Classify returns the topic and invalidation kind of a bus event ("" when
@@ -111,6 +112,8 @@ func Classify(e events.Event) (topic, kind string) {
 		return TopicManager, events.ResourceManagerMoveLock
 	case events.AlertUpdated:
 		return TopicAlerts, events.ResourceAlert
+	case events.NotificationCreated:
+		return TopicAlerts, events.ResourceNotification
 	case events.ResourceChanged:
 		if t, ok := topicOfType[e.ResourceType]; ok {
 			return t, e.ResourceType
@@ -126,7 +129,7 @@ var dockerDeleted = map[string]bool{"destroy": true, "remove": true, "delete": t
 // ActionOf returns the invalidation action of a bus event.
 func ActionOf(e events.Event) string {
 	switch e.Type {
-	case events.EnvironmentCreated, events.AgentEnrolled, events.EnrollmentCreated, events.StackCreated:
+	case events.EnvironmentCreated, events.AgentEnrolled, events.EnrollmentCreated, events.StackCreated, events.NotificationCreated:
 		return ActionCreated
 	case events.AgentRevoked, events.EnrollmentRevoked, events.StackRemoved:
 		return ActionDeleted

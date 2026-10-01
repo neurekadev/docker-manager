@@ -103,6 +103,10 @@ const (
 	// (#159). ResourceID is the alert's ID; Alert carries it so subscribers
 	// are filtered with the permission that shows its source.
 	AlertUpdated = "alert.updated"
+	// NotificationCreated: a notification (a finished run) was recorded.
+	// ResourceID is its ID; Notification carries it so subscribers are
+	// filtered with the permission that shows its job.
+	NotificationCreated = "notification.created"
 )
 
 // Resource types.
@@ -123,6 +127,8 @@ const (
 	ResourceManagerMoveLock = "manager_move_lock"
 	// ResourceAlert: an alert (#159).
 	ResourceAlert = "alert"
+	// ResourceNotification: a notification (a finished run).
+	ResourceNotification = "notification"
 )
 
 // Event is one published change.
@@ -156,6 +162,9 @@ type Event struct {
 	// Alert is the alert of an alert.updated event (internal: it decides
 	// visibility; the stream sends its ID only).
 	Alert *domain.Alert
+	// Notification is the notification of a notification.created event
+	// (internal: it decides visibility; the stream sends its ID only).
+	Notification *domain.Notification
 }
 
 // Bus distributes events to subscribers. The zero value is not usable; call

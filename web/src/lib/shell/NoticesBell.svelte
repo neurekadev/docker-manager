@@ -1,14 +1,15 @@
 <script lang="ts">
 	// Notices bell (#22, #25 Q6, #159): the count of items not dismissed and
-	// their list: the alerts that fire (disks and RAID, offline
-	// environments, failed scheduled jobs, available updates) and this tab's
+	// their list: the alerts that fire (disks and RAID, temperatures, disk
+	// space and memory, offline environments, failed scheduled jobs,
+	// available updates) and this tab's
 	// notices of the user's own jobs. The badge stays until every item is
 	// dismissed (closing the list changes nothing). Each item links to where
 	// to act (the whole row is the link's target, its title the link's
 	// name), says how bad it is and since when, and has a Dismiss button:
 	// an alert the user may dismiss is dismissed for everyone, anything else
 	// for this browser (notices.svelte.ts). "Dismiss all" does both at once;
-	// "View all alerts" opens the Alerts page. Focus stays in the list when
+	// "View all alerts" opens the Notifications page's Alerts tab. Focus stays in the list when
 	// an item leaves it.
 	import { tick } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
@@ -32,7 +33,7 @@
 		alertsHref
 	}: {
 		notices?: Notices;
-		/** The Alerts page, when the user may open it ("View all alerts"). */
+		/** The Notifications page's Alerts tab, when the user may open it ("View all alerts"). */
 		alertsHref?: string;
 	} = $props();
 

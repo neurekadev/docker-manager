@@ -662,6 +662,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return m.observe.Reconcile(ctx, s.EnvironmentID())
 	})
 	m.alerts.SetHealth(m.observe)
+	m.alerts.SetMetrics(m.observe)
 
 	// Docker resources (#6): containers, images, volumes and networks of
 	// every environment through its agent; mutations are jobs, pulls use
@@ -785,6 +786,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Registries:               m.regs,
 			Notifications:            m.notify,
 			Alerts:                   m.alerts,
+			NotificationEvents:       m.alerts,
 			APITokens:                m.identity,
 			Observe:                  m.observe,
 			Docker:                   m.resources,

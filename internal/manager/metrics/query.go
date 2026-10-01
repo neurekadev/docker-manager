@@ -458,6 +458,48 @@ func (s *Store) Latest(ctx context.Context, env string) (domain.LatestMetrics, b
 	return out, true, nil
 }
 
+// LatestTemperatures returns the latest reading of each temperature
+// sensor of an environment that reported with its newest one (sensors
+// gone for more than 5 minutes before it are left out), and the time of
+// the newest reading (ok false: none yet).
+func (s *Store) LatestTemperatures(ctx context.Context, env string) ([]domain.TemperatureValues, time.Time, bool, error) {
+	type reading struct {
+		sensor string
+		ts     int64
+		temp   int64
+	}
+	var rs []reading
+	var newest int64
+	for _, n := range s.names(env, domain.MetricSensor) {
+		s.mu.Lock()
+		id := s.series[seriesKey{env, domain.MetricSensor, n}]
+		s.mu.Unlock()
+		var ts int64
+		var temp sql.NullInt64
+		err := s.read.QueryRowContext(ctx, `SELECT ts, temp FROM sensor_raw WHERE series_id = ? ORDER BY ts DESC LIMIT 1`, id).
+			Scan(&ts, &temp)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && !temp.Valid) {
+			continue
+		}
+		if err != nil {
+			return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperature: %w", err)
+		}
+		rs = append(rs, reading{n, ts, temp.Int64})
+		newest = max(newest, ts)
+	}
+	if len(rs) == 0 {
+		return nil, time.Time{}, false, nil
+	}
+	var out []domain.TemperatureValues
+	for _, r := range rs {
+		if r.ts < newest-int64(5*time.Minute/time.Second) {
+			continue
+		}
+		out = append(out, domain.TemperatureValues{Sensor: r.sensor, Celsius: float64(r.temp) / 100})
+	}
+	return out, time.Unix(newest, 0).UTC(), true, nil
+}
+
 // LatestContainers returns the most recent sample of each container of an
 // environment, of the containers sampled within window before now (a
 // stopped or removed container drops out once its last sample is older).

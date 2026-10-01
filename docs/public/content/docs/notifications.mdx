@@ -4,7 +4,8 @@ description: Send Docker Manager's messages to chat, email, push apps or a webho
 ---
 
 A **notification channel** is a destination for Docker Manager's messages
-about [alerts](/alerts): a Discord or Slack channel, Microsoft Teams,
+about [alerts and finished backups, prunes and updates](/alerts): a
+Discord or Slack channel, Microsoft Teams,
 Telegram, email, ntfy, Gotify, Pushover, Matrix, a webhook of your own, or
 any other service Shoutrrr supports. Only the owner can see and change
 them.
@@ -15,13 +16,36 @@ them.
 2. Enter a **Name** and choose the **Service**.
 3. Fill in what the service asks for (see
    [What each service needs](#what-each-service-needs)).
-4. Under **What to send**, tick the events the channel is for, and choose
-   **All environments** or **Some environments**. Untick **Also send when
-   resolved** if you only want the problem, not the all-clear.
+4. Under **What to send**, tick what the channel is for (see
+   [What to send](#what-to-send)), and choose **All environments** or
+   **Some environments**.
 5. Press **Add channel**. Docker Manager may ask you to confirm your
    identity first.
 
 A channel that is not **Enabled** gets nothing but test messages.
+
+## What to send
+
+Each row is one kind of event. Tick the row to send all of it, or only
+the outcomes you want beside it. A new channel sends everything.
+
+| Row | Outcomes |
+| --- | --- |
+| **Disk health**, **RAID**, **Temperature**, **Disk space**, **Memory** | **Warning**, **Critical**, **Resolved** |
+| **Environment offline** | **Offline**, **Back online** |
+| **Backups and restores** | **Failure**, **Warning** (everything was saved, but some files could not be read or an item was skipped), **Success** |
+| **Prune** | **Failure**, **Success** |
+| **Image updates** | **Available** (a check found newer images), **Failure**, **Applied** |
+| **Other failed jobs** | **Failure**, **Warning** (partly failed or interrupted), **Resolved** |
+
+Backups, prunes and updates are reported however they were started;
+other jobs only when a schedule or an API token started them.
+
+Messages use what each service can show. In Discord and Slack the strip
+beside the message is red for failures and critical problems, amber for
+warnings, green when a problem is resolved or a run succeeded, and blue
+for news; Discord shows the numbers as fields. Email arrives as a
+formatted message, ntfy and Gotify with a priority and a link.
 
 ## Send a test
 

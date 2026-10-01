@@ -133,11 +133,41 @@ func jobObservation(ctx context.Context, db bun.IDB, j domain.Job) Observation {
 	if target != "" {
 		facts["target"] = target
 	}
+	if j.Kind == "update.check" {
+		checkFailures(ctx, db, j, facts)
+	}
 	return Observation{
 		Key: jobKey(j), Kind: domain.NotifyJobFailed, Severity: sev, EnvironmentID: j.EnvironmentID,
 		ResourceType: domain.AlertResourceJob, ResourceID: j.ID, JobKind: j.Kind, Targets: j.Targets, Title: b.String(),
 		// The state replaces itself: the severity says whether it got worse.
 		Facts: facts, Fingerprint: domain.Fingerprint("failed"),
+	}
+}
+
+// checkFailures adds the services an update check could not check and
+// the first one's error class (a registry's answer in words, never its
+// message) to a failed check's facts.
+func checkFailures(ctx context.Context, db bun.IDB, j domain.Job, facts map[string]string) {
+	var in checkInput
+	if err := json.Unmarshal(j.Input, &in); err != nil || in.PolicyID == "" {
+		return
+	}
+	cands, err := store.UpdateCandidates(ctx, db, in.PolicyID)
+	if err != nil {
+		return
+	}
+	var failed []string
+	for _, c := range cands {
+		if c.Status != domain.CandidateCheckFailed {
+			continue
+		}
+		failed = append(failed, c.Service)
+		if facts["itemErrorClass"] == "" && c.ErrorClass != "" {
+			facts["itemErrorClass"] = c.ErrorClass
+		}
+	}
+	if len(failed) > 0 {
+		facts["failedItems"] = listNames(failed)
 	}
 }
 
@@ -282,7 +312,7 @@ func evaluateUpdates(ctx context.Context, db bun.IDB, policyID string, now time.
 	}
 	facts := map[string]string{"count": fmt.Sprint(len(services)), "services": strings.Join(listed, ", "), "target": name}
 	return raise(ctx, db, Observation{
-		Key: key, Kind: domain.NotifyUpdatesAvailable, Severity: domain.AlertInfo, EnvironmentID: p.EnvironmentID,
+		Key: key, Kind: domain.NotifyUpdates, Severity: domain.AlertInfo, EnvironmentID: p.EnvironmentID,
 		ResourceType: domain.AlertResourceUpdatePolicy, ResourceID: p.ID, Targets: []domain.JobTarget{target}, Title: title,
 		Facts: facts, Fingerprint: domain.Fingerprint(tokens...),
 	}, now)
@@ -293,7 +323,7 @@ func evaluateUpdates(ctx context.Context, db bun.IDB, policyID string, now time.
 func (s *Service) ReconcileUpdates(ctx context.Context) error {
 	now := s.now()
 	return s.inTx(ctx, func(ctx context.Context, tx bun.Tx) ([]domain.Alert, error) {
-		as, err := store.FiringAlerts(ctx, tx, domain.NotifyUpdatesAvailable, "")
+		as, err := store.FiringAlerts(ctx, tx, domain.NotifyUpdates, "")
 		if err != nil {
 			return nil, err
 		}

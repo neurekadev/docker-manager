@@ -4,28 +4,30 @@ Owner-administered outgoing destinations for Docker Manager's messages:
 Discord, Slack, Microsoft Teams, Telegram, email (SMTP), ntfy, Gotify,
 Pushover, Matrix, a generic webhook, or any other Shoutrrr service
 ([ADR 0004](../adr/0004-notification-library.md)). This feature stores and
-tests channels and their subscriptions; alerts ([alerts.md](alerts.md))
-send through them with `notify.Service.Send`. Binding rules:
+tests channels and their subscriptions and renders each message for its
+service; alerts and notifications ([alerts.md](alerts.md)) send through
+them with `notify.Service.Send`. Binding rules:
 [alerts-and-notifications.md](../conventions/alerts-and-notifications.md).
 
 | package | role |
 | --- | --- |
-| `internal/domain/notification.go` | `NotificationChannel`, input and patch, event kinds, error classes, `Wants` |
+| `internal/domain/notification.go` | `NotificationChannel`, input and patch, event kinds and their outcomes, `NotificationSubscriptions`, error classes, `Wants`, `NotificationMessage` (tone, fields, footer, time) |
 | `internal/manager/store/notification_channels.go` | rows of `notification_channels` and `notification_channel_environments`; the sealed address only through `NotificationChannelWithSecret` (the channel and its address from one row read) |
-| `internal/manager/notify` | service (`List`, `Get`, `Create`, `Update`, `Delete`, `Reveal`, `Test`, `Send`), the Shoutrrr adapter (`shoutrrr.go`), error classes (`classify.go`), non-secret targets (`target.go`) |
+| `internal/manager/notify` | service (`List`, `Get`, `Create`, `Update`, `Delete`, `Reveal`, `Test`, `Send`), the Shoutrrr adapter (`shoutrrr.go`), rich rendering per service (`render.go`), error classes (`classify.go`), non-secret targets (`target.go`) |
 | `internal/manager/api/notifications.go` | `/api/v1/notification-channels...` routes |
 | `web/src/lib/features/notifications` | the Settings → Notifications page's model, the channel dialog, per-service URL building (`services.ts`) |
 
 ## Model
 
-Migration `20260930090000_create_notification_channels`:
+Migrations `20260930090000_create_notification_channels` and
+`20261001090000_notification_events` (subscriptions):
 
 - `notification_channels`: display name (unique, case-insensitive
   `name_key`), `service` (the URL's Shoutrrr service: `discord`, `smtp`,
   `generic`, …), `target` (the host of a mail, push or chat server or of a
-  generic webhook, else empty: never a token), `enabled`, `event_kinds`
-  (JSON array, at least one), `send_resolved`, `all_environments`, the
-  sealed address
+  generic webhook, else empty: never a token), `enabled`, `subscriptions`
+  (JSON object: event kind to outcomes, at least one), `all_environments`,
+  the sealed address
   (`secret_sealed`, context `notification_channels/<id>/url`), its keyed
   fingerprint, version and change time, `last_result` (`''`, `ok` or an
   error class), `last_attempt_at`, `last_success_at`, `revision`, times.
@@ -34,9 +36,22 @@ Migration `20260930090000_create_notification_channels`:
   cascade; a restricted channel that loses all its rows sends no
   environment's events (it never widens to every environment).
 
-Event kinds (`domain.NotificationEventKinds`): `disk_health`, `raid`,
-`environment_offline`, `job_failed`, `updates_available`. A new channel
-subscribes to all of them and to resolved messages.
+Event kinds (`domain.NotificationEventKinds`) and their outcomes
+(`Outcomes()`):
+
+| kind | outcomes |
+| --- | --- |
+| `disk_health`, `raid`, `temperature`, `disk_space`, `memory` | `warning`, `critical`, `resolved` |
+| `environment_offline` | `critical`, `resolved` |
+| `backup` (backups and restores) | `failure`, `warning`, `success` |
+| `prune` | `failure`, `success` |
+| `updates` | `available` (an update check found newer images), `failure`, `success` (an update run) |
+| `job_failed` (other failed jobs) | `failure`, `warning`, `resolved` |
+
+A new channel subscribes to every outcome of every kind. The migration
+turned an old channel's kinds into all their outcomes (without `resolved`
+when it did not send resolved problems); a channel that had every old
+kind also got the new ones.
 
 ## Flows
 
@@ -44,8 +59,9 @@ subscribes to all of them and to resolved messages.
   address is validated without sending (parse, known scheme, Shoutrrr's
   `Initialize` with a client and dialer that refuse every connection),
   sealed, fingerprinted; `service` and `target` are derived from it.
-- **Update** (owner, If-Match): name, enabled, event kinds, resolved
-  messages, environments (`allEnvironments` true clears the list; a
+- **Update** (owner, If-Match): name, enabled, the subscriptions (replaced
+  as a whole; outcomes in their kind's order, empty kinds dropped, at
+  least one outcome), environments (`allEnvironments` true clears the list; a
   non-empty `environmentIds` restricts the channel; an emptied list is
   refused; environments archived since may stay, new ones must be active,
   checked in one query). A new address additionally needs a recent
@@ -55,18 +71,20 @@ subscribes to all of them and to resolved messages.
   it; the API audits every call (`notification_channel.reveal`, category
   credentials, the service as detail).
 - **Test** (owner): reads the channel and its address in one row read,
-  sends "Docker Manager test message" (with the public URL) through it,
+  sends "Docker Manager test message" (info tone, the channel's name and
+  how many kinds it sends as fields, the public URL) through it,
   enabled or not, at most once per channel every 5 s (in memory, fake
   clock in tests; 429 `notification_test_rate_limited`), records the
   result for that address version only (a result of an address replaced
   meanwhile is dropped) and answers
   `{ok, errorClass?, message?, sentAt}`. A failed delivery is `200` with
   `ok: false`.
-- **Send** (alerts): the same delivery without the owner check or the rate
-  limit, whether the channel is enabled or not; the alerts dispatcher
-  chooses channels with `Wants(kind, environmentID)` when it writes a
-  message and checks again before it sends (a deleted, disabled or
-  unsubscribed channel's messages are dropped).
+- **Send** (alerts and notifications): the same delivery without the
+  owner check or the rate limit, whether the channel is enabled or not;
+  the alerts dispatcher chooses channels with
+  `Wants(kind, outcome, environmentID)` when it writes a message and
+  checks again before it sends (a deleted, disabled or unsubscribed
+  channel's messages are dropped).
 - **Delete** (owner, If-Match): removes the channel, its filter rows and
   its address.
 
@@ -76,7 +94,28 @@ subscribes to all of them and to resolved messages.
 the adapter's HTTP client and dialer are set before and after
 `Initialize`; one client per send: 15 s timeout, no keep-alive, the
 environment's proxy settings, at most 3 same-scheme redirects, none across
-schemes. Services with `SendContext` (SMTP, XMPP) get the send's context;
+schemes. `render` (`render.go`) turns the message into the service's
+richest form, from the address's service name and query options:
+
+| service | form |
+| --- | --- |
+| `discord` | one embed in the webhook's JSON mode (the service's `Config.JSON`): the title linking to the page, the body and "Open in Docker Manager", the fields (inline ones side by side; Discord's limits kept), the tone's color as the strip, footer "Docker Manager" with the icon, the time; username "Docker Manager" and the icon as avatar unless the address sets them (the icon only from an https public URL); mentions disabled |
+| `slack` | `color` (the tone's hex) and `title`; one line per attachment: the body, `*Name:* value` fields, `<url\|Open in Docker Manager>` |
+| `teams` | `title` and `color` (`attention`, `warning`, `good`, `accent`); Markdown body |
+| `smtp` | subject = title; an HTML card (a colored top bar with the tone's word, title, body, a table of fields, a button, footer and time; inline styles) as the HTML part (`usehtml`, the service's `html` template), the plain text as the plain part |
+| `telegram` | `parsemode=HTML`: the service bolds the title; fields in bold labels, an HTML link |
+| `ntfy` | `title`, `priority` (critical 4, warning and info 3, success 2), `tags` (an emoji per tone), `click` (the link), `markdown=yes` with a Markdown body |
+| `gotify` | `title`, `priority` (8, 5, 4, 4), `extras` (Markdown display, click URL) with a Markdown body |
+| `pushover` | `title`, priority 1 for critical |
+| `generic` | `title`, plus `tone` and `url` keys beside title and message (a JSON template gets them as data) |
+| others | `title` and plain text: the body, a line "Name: value" per field, the link |
+
+Only parameters the service has are set, and an option the address
+already sets (`color`, `priority`, `parsemode`, `markdown`, `extras`,
+`usehtml`, `title`, …; case-insensitive) is left to it: the body stays
+plain where the owner chose another format. Tone colors are the app's
+`--danger` `#fd6b66`, `--warn` `#f5b544`, `--ok` `#4cf683` and `--accent`
+`#2566fd`. Services with `SendContext` (SMTP, XMPP) get the send's context;
 the others stop at the client's timeout. A panic inside a service is
 recovered. `classify` turns the outcome into a class, preferring what the
 recording transport and dialer saw (DNS, TLS, dial errors, redirects, the
@@ -105,12 +144,16 @@ published as `resource.changed` (`notification_channel`, topic
 **Settings → Notifications** (owner only): a table (name with the channel
 tile and "service, target", status Working / Failing with the reason as
 tooltip / Not tested / Off, what it sends, last sent) with the row menu
-Send test, Edit, Delete. One dialog adds and edits: the service picker
-(icons from `serviceIcons.ts`), the service's friendly fields (secrets as
-`PasswordField`), the stored address masked until **Show address**, "What
-to send" (event kinds, environments when there is a choice: "All
-environments" is an explicit choice, the ticks list the active
-environments plus any archived or removed one the filter names, an emptied
-selection blocks Save; resolved messages) and **Enabled**. `services.ts` builds the Shoutrrr URL from the
+Send test, Edit, Delete, and the **Alert thresholds** card (the defaults
+and per-environment overrides, `PUT /alert-settings`,
+[alerts.md](alerts.md#evaluators)). One dialog adds and edits: the
+service picker (icons from `serviceIcons.ts`), the service's friendly
+fields (secrets as `PasswordField`), the stored address masked until
+**Show address**, "What to send" (a row per kind, grouped Hosts and Jobs:
+a master checkbox and the kind's outcomes beside it; nothing ticked
+blocks Save; environments when there is a choice: "All environments" is
+an explicit choice, the ticks list the active environments plus any
+archived or removed one the filter names, an emptied selection blocks
+Save) and **Enabled**. `services.ts` builds the Shoutrrr URL from the
 fields and parses it back (exact round trip, unknown query options kept,
 unreadable shapes edited as the raw URL).

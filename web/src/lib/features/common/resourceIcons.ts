@@ -17,6 +17,7 @@ import Fingerprint from '@lucide/svelte/icons/fingerprint';
 import GitBranch from '@lucide/svelte/icons/git-branch';
 import Hammer from '@lucide/svelte/icons/hammer';
 import HardDrive from '@lucide/svelte/icons/hard-drive';
+import Inbox from '@lucide/svelte/icons/inbox';
 import KeyRound from '@lucide/svelte/icons/key-round';
 import Layers from '@lucide/svelte/icons/layers';
 import LayoutTemplate from '@lucide/svelte/icons/layout-template';
@@ -67,6 +68,8 @@ export const RESOURCE_ICONS = {
 	passkey: { icon: Fingerprint, color: 'slate' },
 	session: { icon: MonitorSmartphone, color: 'slate' },
 	notificationChannel: { icon: Bell, color: 'cyan' },
+	/** A finished run's notification (the Notifications page). */
+	notification: { icon: Inbox, color: 'cyan' },
 	alert: { icon: Siren, color: 'rose' }
 } as const satisfies Record<string, ResourceIcon>;
 

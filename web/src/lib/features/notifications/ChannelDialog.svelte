@@ -4,7 +4,10 @@
 	// it is, an SMTP server and login, ...) and stored as one Shoutrrr URL,
 	// sealed on the manager. Editing shows it masked until "Show address"
 	// reads it back (owner, confirming their identity); choosing another
-	// service replaces it. "What to send" is the channel's subscription.
+	// service replaces it. "What to send" is the channel's subscription:
+	// per kind of event (hosts' problems, jobs' runs) a checkbox that ticks
+	// every outcome, mixed while only some are, and one per outcome beside
+	// it (below it in a narrow column).
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Eye from '@lucide/svelte/icons/eye';
@@ -25,7 +28,21 @@
 		toast
 	} from '$lib/ui';
 	import { runTest } from './actions';
-	import { ALL_KINDS, EVENT_KINDS, type EventKind, type NotificationChannel } from './model';
+	import {
+		EVENT_GROUPS,
+		EVENT_KINDS,
+		allEvents,
+		eventsOf,
+		kindState,
+		noEvents,
+		pickKind,
+		pickOutcome,
+		picksOf,
+		type EventKind,
+		type EventOutcome,
+		type EventPicks,
+		type NotificationChannel
+	} from './model';
 	import { createChannel, notificationKeys, revealAddress, updateChannel } from './queries';
 	import { SERVICE_ICONS } from './serviceIcons';
 	import {
@@ -54,8 +71,7 @@
 	let service = $state<ServiceId | ''>('');
 	let values = $state<Values>({});
 	let enabled = $state(true);
-	let kinds = $state<EventKind[]>([...ALL_KINDS]);
-	let sendResolved = $state(true);
+	let picks = $state<EventPicks>(picksOf(allEvents()));
 	/** "All environments" is an explicit choice, never an empty selection. */
 	let envMode = $state<'all' | 'some'>('all');
 	let envIds = $state<string[]>([]);
@@ -78,8 +94,7 @@
 			service = c ? serviceIdOf(c.service) : '';
 			values = {};
 			enabled = c?.enabled ?? true;
-			kinds = c ? [...c.eventKinds] : [...ALL_KINDS];
-			sendResolved = c?.sendResolved ?? true;
+			picks = picksOf(c ? c.events : allEvents());
 			envIds = c ? [...c.environmentIds] : [];
 			envMode = !c || c.allEnvironments ? 'all' : 'some';
 			revealed = null;
@@ -134,10 +149,10 @@
 			return 'Another channel already uses this name.';
 		return fieldError(failure, 'body.name') ?? null;
 	});
-	const kindsError = $derived(
-		submitted && kinds.length === 0
-			? 'Choose at least one kind of event.'
-			: (fieldError(failure, 'body.eventKinds') ?? null)
+	const eventsError = $derived(
+		submitted && noEvents(picks)
+			? 'Choose at least one event to send.'
+			: (fieldError(failure, 'body.events') ?? null)
 	);
 	const envError = $derived(
 		submitted && envMode === 'some' && envIds.length === 0
@@ -150,7 +165,7 @@
 	const ready = $derived(
 		!!name.trim() &&
 			!!service &&
-			kinds.length > 0 &&
+			!noEvents(picks) &&
 			(envMode === 'all' || envIds.length > 0) &&
 			(!fieldsShown || Object.keys(problems).length === 0)
 	);
@@ -187,9 +202,11 @@
 	}
 
 	function toggleKind(kind: EventKind, on: boolean) {
-		kinds = on
-			? ALL_KINDS.filter((k) => k === kind || kinds.includes(k))
-			: kinds.filter((k) => k !== kind);
+		picks = pickKind(picks, kind, on);
+	}
+
+	function toggleOutcome(kind: EventKind, outcome: EventOutcome, on: boolean) {
+		picks = pickOutcome(picks, kind, outcome, on);
 	}
 
 	function toggleEnv(id: string, on: boolean) {
@@ -205,6 +222,8 @@
 		// (archived ones included; the manager keeps them).
 		const allEnvironments = envMode === 'all';
 		const environmentIds = allEnvironments ? [] : envIds;
+		// Kinds in display order, each kind's outcomes in its order.
+		const events = eventsOf(picks);
 		try {
 			if (!channel) {
 				const created = await withStepUp(() =>
@@ -212,8 +231,7 @@
 						name: name.trim(),
 						address: url!,
 						enabled,
-						eventKinds: kinds,
-						sendResolved,
+						events,
 						allEnvironments,
 						environmentIds
 					})
@@ -229,8 +247,7 @@
 				const body = {
 					name: name.trim(),
 					enabled,
-					eventKinds: kinds,
-					sendResolved,
+					events,
 					allEnvironments,
 					environmentIds,
 					address: newAddress
@@ -249,7 +266,7 @@
 	}
 
 	const generalError = $derived.by(() => {
-		if (!failure || nameError || kindsError || envError || addressError) return null;
+		if (!failure || nameError || eventsError || envError || addressError) return null;
 		if (failure instanceof ApiRequestError && failure.status === 412)
 			return 'Someone changed this channel meanwhile. Close the dialog and open it again.';
 		return errorMessage(failure);
@@ -260,7 +277,7 @@
 	bind:open
 	title={channel ? `Edit ${channel.name}` : 'Add notification channel'}
 	description="Docker Manager sends messages about the events you choose to this destination."
-	size="lg"
+	size="xl"
 	dismissible={!busy}
 >
 	<form
@@ -352,19 +369,46 @@
 		<section class="col" aria-labelledby="channel-subscription">
 			<h3 id="channel-subscription" class="subsection-title">What to send</h3>
 			<fieldset
-				class="group"
-				aria-describedby={kindsError ? 'channel-kinds-error' : undefined}
+				class="group events"
+				aria-describedby={eventsError ? 'channel-events-error' : undefined}
 			>
 				<legend class="legend">Events</legend>
-				{#each EVENT_KINDS as k (k.kind)}
-					<Checkbox
-						label={k.label}
-						checked={kinds.includes(k.kind)}
-						onchange={(e) => toggleKind(k.kind, e.currentTarget.checked)}
-					/>
+				{#each EVENT_GROUPS as g (g.group)}
+					<fieldset class="event-group">
+						<legend class="group-title">{g.label}</legend>
+						{#each EVENT_KINDS.filter((k) => k.group === g.group) as k (k.kind)}
+							{@const mark = kindState(k, picks)}
+							<div class="event-row">
+								<div class="event-kind">
+									<Checkbox
+										label={k.label}
+										checked={mark === 'all'}
+										indeterminate={mark === 'some'}
+										onchange={(e) =>
+											toggleKind(k.kind, e.currentTarget.checked)}
+									/>
+								</div>
+								<div class="event-outcomes">
+									{#each k.outcomes as o (o.outcome)}
+										<Checkbox
+											label={o.label}
+											aria-label="{k.label}: {o.label}"
+											checked={(picks[k.kind] ?? []).includes(o.outcome)}
+											onchange={(e) =>
+												toggleOutcome(
+													k.kind,
+													o.outcome,
+													e.currentTarget.checked
+												)}
+										/>
+									{/each}
+								</div>
+							</div>
+						{/each}
+					</fieldset>
 				{/each}
-				{#if kindsError}<p id="channel-kinds-error" class="field-error">
-						{kindsError}
+				{#if eventsError}<p id="channel-events-error" class="field-error">
+						{eventsError}
 					</p>{/if}
 			</fieldset>
 			{#if showEnvs}
@@ -398,11 +442,6 @@
 					</fieldset>
 				{/if}
 			{/if}
-			<Checkbox
-				label="Also send when resolved"
-				description="A second message when the problem is gone."
-				bind:checked={sendResolved}
-			/>
 			<div class="enabled">
 				<Switch
 					label="Enabled"
@@ -455,6 +494,65 @@
 		color: var(--text-default);
 		font-size: var(--text-body);
 		font-weight: var(--weight-medium);
+	}
+
+	/* What to send: one row per kind, its outcomes in three aligned columns
+	   beside it, or below it (indented under the label) where the column
+	   is narrow. */
+	.events {
+		container: events / inline-size;
+		gap: var(--space-3);
+	}
+
+	.event-group {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+
+	.group-title {
+		margin-bottom: var(--space-1);
+		padding: 0;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		font-weight: var(--weight-medium);
+	}
+
+	.event-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		gap: var(--space-1) var(--space-4);
+		padding: var(--space-2) 0;
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.event-row:last-child {
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.event-kind :global(.label) {
+		color: var(--text-strong);
+	}
+
+	.event-outcomes {
+		display: grid;
+		grid-template-columns: repeat(3, 6.75rem);
+		gap: var(--space-2) var(--space-3);
+	}
+
+	@container events (max-width: 520px) {
+		.event-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.event-outcomes {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			padding-left: var(--space-6);
+		}
 	}
 
 	.stored {
@@ -521,6 +619,15 @@
 
 		.stored {
 			flex-wrap: wrap;
+		}
+
+		.event-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.event-outcomes {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			padding-left: var(--space-6);
 		}
 	}
 </style>

@@ -103,7 +103,11 @@ describe('NoticesBell', () => {
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		type P = ComponentProps<typeof NoticesBell>;
 		return render(QueryHarness<P>, {
-			props: { client, component: NoticesBell, props: { notices, alertsHref: '/alerts' } }
+			props: {
+				client,
+				component: NoticesBell,
+				props: { notices, alertsHref: '/notifications?tab=alerts' }
+			}
 		});
 	}
 
@@ -135,7 +139,7 @@ describe('NoticesBell', () => {
 		expect(screen.getByText('Critical')).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'View all alerts' })).toHaveAttribute(
 			'href',
-			'/alerts'
+			'/notifications?tab=alerts'
 		);
 		await user.keyboard('{Escape}');
 		await waitFor(() =>

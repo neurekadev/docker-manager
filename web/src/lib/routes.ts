@@ -15,7 +15,7 @@
 //   /templates/registries, /templates/remote/{instanceId}/{templateId}  registries, registry templates
 //   /registry                           this instance's public template registry (public)
 //   /jobs[/{jobId}][?kind=&policyId=&state=], /schedules
-//   /alerts                             alerts across every environment (#159)
+//   /notifications[?tab=alerts]         finished backups, prunes and update runs; alerts across every environment (#159)
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
 //   /updates[/{policyId}], /maintenance[/{policyId}]
@@ -172,8 +172,10 @@ export const routes = {
 	},
 	job: (id: string) => `/jobs/${e(id)}`,
 	schedules: () => '/schedules',
-	/** Alerts (#159): disks, RAID, offline environments, failed jobs, updates. */
-	alerts: () => '/alerts',
+	/** Notifications: finished backups and restores, prunes and update runs (the first tab). */
+	notificationHistory: () => '/notifications',
+	/** Alerts (#159), the Notifications page's second tab: hosts' problems, offline environments, failed jobs, updates. */
+	alerts: () => '/notifications?tab=alerts',
 	access: () => '/access',
 	accessUser: (id: string) => `/access/users/${e(id)}`,
 	accessGroups: () => '/access/groups',

@@ -14,8 +14,9 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
 )
 
-// Alerts (#159): problems the manager raises by itself (disks, RAID,
-// environments offline, failed scheduled jobs, available updates). An
+// Alerts (#159): problems the manager raises by itself (disks, RAID, host
+// temperature, disk space and memory, environments offline, failed
+// scheduled jobs, available updates). An
 // alert is shown to whoever may see its source (authz.AlertVisible: the
 // environment's system information, the environment, the job, the update
 // policy) and dismissed for everyone with alert.dismiss scoped like that
@@ -33,6 +34,8 @@ type AlertService interface {
 	Get(ctx context.Context, id string) (domain.Alert, error)
 	Dismiss(ctx context.Context, id, userID string) (domain.Alert, error)
 	DismissMany(ctx context.Context, ids []string, userID string, strict bool) ([]domain.Alert, error)
+	// EnvironmentName names an environment ("" when unknown).
+	EnvironmentName(ctx context.Context, id string) string
 }
 
 // AlertUser names who dismissed an alert.
@@ -44,12 +47,12 @@ type AlertUser struct {
 // Alert is one alert.
 type Alert struct {
 	ID            string `json:"id" example:"0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"`
-	Kind          string `json:"kind" enum:"disk_health,raid,environment_offline,job_failed,updates_available" example:"disk_health"`
+	Kind          string `json:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,updates,job_failed" example:"disk_health"`
 	Severity      string `json:"severity" enum:"info,warning,critical" example:"critical"`
 	State         string `json:"state" enum:"firing,resolved" example:"firing"`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"The environment the problem is in (absent for manager jobs)."`
-	ResourceType  string `json:"resourceType" enum:"disk,raid_array,zfs_pool,environment,job,update_policy" example:"disk" doc:"What the alert is about."`
-	ResourceID    string `json:"resourceId" example:"/dev/sda" doc:"The disk's path, the array's or pool's name, the environment's ID, the last failed job's ID or the update policy's ID."`
+	ResourceType  string `json:"resourceType" enum:"disk,raid_array,zfs_pool,environment,filesystem,job,update_policy" example:"disk" doc:"What the alert is about."`
+	ResourceID    string `json:"resourceId" example:"/dev/sda" doc:"The disk's path, the array's or pool's name, the environment's ID, the filesystem (docker, stacks, bind-1, ...), the last failed job's ID or the update policy's ID."`
 	Title         string `json:"title" example:"Disk /dev/sda on homelab is failing"`
 	Detail        string `json:"detail,omitempty" example:"SMART self-assessment failed, 8 reallocated sectors. Model WDC WD40EFZX." doc:"One or two sentences about the problem (never serial numbers or error texts)."`
 	// Facts are small values about the problem, by kind: disks device,
@@ -57,12 +60,13 @@ type Alert struct {
 	// arrayKind (md, zfs), level, state, health, progress; jobs jobId,
 	// jobKind, jobState, origin, errorClass, policyId, target; updates
 	// count, services, target; offline since.
-	Facts      map[string]string `json:"facts" doc:"Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target; updates: count, services, target; offline: since)."`
-	Link       string            `json:"link" example:"/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system" doc:"Path of the page in Docker Manager the alert is about."`
-	StartedAt  time.Time         `json:"startedAt" doc:"When it started firing."`
-	UpdatedAt  time.Time         `json:"updatedAt"`
-	ResolvedAt *time.Time        `json:"resolvedAt,omitempty"`
-	Resolution string            `json:"resolution,omitempty" enum:"resolved,removed,expired,archived" doc:"Why it stopped firing: resolved (the problem is gone), removed (the disk, array or policy is gone), expired (a failed job without a new run for 7 days), archived (the environment was archived)."`
+	Facts      map[string]string   `json:"facts" doc:"Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; temperature: sensor, celsius (the peak), warningAt, criticalAt; disk space: mount, usedPercent (the peak), freeBytes, totalBytes, warningAt, criticalAt; memory: usedPercent, usedBytes, totalBytes, warningAt, criticalAt; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target, and for update checks failedItems and itemErrorClass; updates: count, services, target; offline: since)."`
+	Fields     []NotificationField `json:"fields" doc:"Labelled values, as messages show them."`
+	Link       string              `json:"link" example:"/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system" doc:"Path of the page in Docker Manager the alert is about."`
+	StartedAt  time.Time           `json:"startedAt" doc:"When it started firing."`
+	UpdatedAt  time.Time           `json:"updatedAt"`
+	ResolvedAt *time.Time          `json:"resolvedAt,omitempty"`
+	Resolution string              `json:"resolution,omitempty" enum:"resolved,removed,expired,archived" doc:"Why it stopped firing: resolved (the problem is gone), removed (the disk, array or policy is gone), expired (a failed job without a new run for 7 days), archived (the environment was archived)."`
 	// Dismissed alerts left the bell and "Needs attention" for everyone.
 	Dismissed   bool       `json:"dismissed" doc:"Dismissed for everyone; it opens again when it gets worse."`
 	DismissedAt *time.Time `json:"dismissedAt,omitempty"`
@@ -72,7 +76,7 @@ type Alert struct {
 	Actions     []string   `json:"actions" example:"alert.dismiss" doc:"What the caller may do: alert.dismiss while it fires and the caller may dismiss it."`
 }
 
-func newAlert(c authz.Checker, a domain.Alert) Alert {
+func newAlert(c authz.Checker, a domain.Alert, envName string) Alert {
 	facts := a.Facts
 	if facts == nil {
 		facts = map[string]string{}
@@ -80,11 +84,15 @@ func newAlert(c authz.Checker, a domain.Alert) Alert {
 	out := Alert{
 		ID: a.ID, Kind: string(a.Kind), Severity: string(a.Severity), State: string(a.State), EnvironmentID: a.EnvironmentID,
 		ResourceType: a.ResourceType, ResourceID: a.ResourceID, Title: a.Title, Detail: alerts.Detail(a), Facts: facts,
-		Link: alerts.Link(a), StartedAt: a.StartedAt, UpdatedAt: a.UpdatedAt, ResolvedAt: a.ResolvedAt, Resolution: a.Resolution,
+		Fields: []NotificationField{},
+		Link:   alerts.Link(a), StartedAt: a.StartedAt, UpdatedAt: a.UpdatedAt, ResolvedAt: a.ResolvedAt, Resolution: a.Resolution,
 		Dismissed: a.Dismissed(), DismissedAt: a.DismissedAt, Escalation: a.Escalation, Revision: a.Revision, Actions: []string{},
 	}
 	if a.DismissedBy != "" {
 		out.DismissedBy = &AlertUser{ID: a.DismissedBy, Name: a.DismissedByName}
+	}
+	for _, f := range alerts.Fields(a, envName) {
+		out.Fields = append(out.Fields, NotificationField{Name: f.Name, Value: f.Value, Inline: f.Inline})
 	}
 	if a.State == domain.AlertFiring && authz.AlertDismissible(c, a) {
 		out.Actions = append(out.Actions, authz.CapAlertDismiss)
@@ -119,7 +127,7 @@ func alertError(err error) error {
 type listAlertsInput struct {
 	PageParams
 	State         string `query:"state" enum:"active,dismissed,firing,resolved" doc:"active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert."`
-	Kind          string `query:"kind" enum:"disk_health,raid,environment_offline,job_failed,updates_available" doc:"Only alerts of this kind."`
+	Kind          string `query:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,updates,job_failed" doc:"Only alerts of this kind."`
 	EnvironmentID string `query:"environmentId" maxLength:"128" doc:"Only alerts of this environment."`
 }
 
@@ -181,8 +189,14 @@ func (h *alertsAPI) list(ctx context.Context, in *listAlertsInput) (*alertListOu
 		return nil, Internal(err)
 	}
 	out := make([]Alert, 0, len(items))
+	names := map[string]string{}
 	for _, a := range items {
-		out = append(out, newAlert(c, a))
+		name, ok := names[a.EnvironmentID]
+		if !ok {
+			name = svc.EnvironmentName(ctx, a.EnvironmentID)
+			names[a.EnvironmentID] = name
+		}
+		out = append(out, newAlert(c, a, name))
 	}
 	cursor := ""
 	if next != "" {
@@ -214,11 +228,11 @@ func (h *alertsAPI) visible(ctx context.Context, id string) (AlertService, authz
 }
 
 func (h *alertsAPI) get(ctx context.Context, in *alertIDInput) (*alertOutput, error) {
-	_, c, _, a, err := h.visible(ctx, in.AlertID)
+	svc, c, _, a, err := h.visible(ctx, in.AlertID)
 	if err != nil {
 		return nil, err
 	}
-	return &alertOutput{Body: newAlert(c, a)}, nil
+	return &alertOutput{Body: newAlert(c, a, svc.EnvironmentName(ctx, a.EnvironmentID))}, nil
 }
 
 func (h *alertsAPI) dismiss(ctx context.Context, in *alertIDInput) (*alertOutput, error) {
@@ -238,7 +252,7 @@ func (h *alertsAPI) dismiss(ctx context.Context, in *alertIDInput) (*alertOutput
 	if err != nil {
 		return nil, alertError(err)
 	}
-	return &alertOutput{Body: newAlert(c, out)}, nil
+	return &alertOutput{Body: newAlert(c, out, svc.EnvironmentName(ctx, out.EnvironmentID))}, nil
 }
 
 func (h *alertsAPI) dismissAll(ctx context.Context, in *dismissAlertsInput) (*alertDismissalsOutput, error) {
@@ -302,8 +316,9 @@ func registerAlerts(a huma.API, deps Deps) {
 		h.svc = deps.Alerts
 	}
 	path := BasePath + "/alerts"
-	visibility := " Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, the " +
-		"environment for offline alerts, job.read on the job for failed jobs, update_policy.read for updates."
+	visibility := " Each alert is shown to whoever may see its source: environment.system.read for disks and RAID, " +
+		"environment.metrics.read for temperature, disk space and memory, the environment for offline alerts, job.read on the " +
+		"job for failed jobs, update_policy.read for updates."
 
 	Register(a, Operation{
 		Operation: huma.Operation{

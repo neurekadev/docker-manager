@@ -152,8 +152,8 @@ describe('needs attention (#22 dashboard)', () => {
 		);
 		expect(items.map((i) => [i.id, i.label, i.href, i.tone])).toEqual([
 			['offline', '1 environment is offline', '/environments', 'offline'],
-			['disks', '2 disks need attention', '/alerts', 'danger'],
-			['raid', '1 RAID array needs attention', '/alerts', 'warn']
+			['disks', '2 disks need attention', '/notifications?tab=alerts', 'danger'],
+			['raid', '1 RAID array needs attention', '/notifications?tab=alerts', 'warn']
 		]);
 		// Alerts opens filtered to the kind (the state stays Active).
 		expect(items.find((i) => i.id === 'disks')?.filters).toEqual({

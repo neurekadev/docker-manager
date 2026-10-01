@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import HardDrive from '@lucide/svelte/icons/hard-drive';
+import MemoryStick from '@lucide/svelte/icons/memory-stick';
+import Thermometer from '@lucide/svelte/icons/thermometer';
 import { EVENT_KINDS } from '$lib/features/notifications/model';
 import {
 	ALERT_KINDS,
+	alertFacts,
 	alertHref,
 	alertView,
 	alertsByArray,
@@ -14,6 +18,7 @@ import {
 	healthNotice,
 	healthTallies,
 	isActive,
+	kindIcon,
 	kindLabel,
 	resolutionLabel,
 	severityLabel,
@@ -25,16 +30,45 @@ import { degradedArray, failingDisk, offlineEdge, sampleAlert } from './test/sam
 
 describe('alerts in words (#159)', () => {
 	it('names the kinds in the notification channels’ order', () => {
-		expect(ALERT_KINDS.map((k) => k.kind)).toEqual(EVENT_KINDS.map((k) => k.kind));
+		// Backups, restores and prunes are notifications, never alerts.
+		expect(ALERT_KINDS.map((k) => k.kind)).toEqual(
+			EVENT_KINDS.map((k) => k.kind).filter((k) => !['backup', 'prune'].includes(k))
+		);
 		expect(ALERT_KINDS.map((k) => k.label)).toEqual([
 			'Disk health',
 			'RAID',
+			'Temperature',
+			'Disk space',
+			'Memory',
 			'Environment offline',
-			'Failed job',
-			'Updates available'
+			'Updates available',
+			'Failed job'
 		]);
 		expect(kindLabel('job_failed')).toBe('Failed job');
+		expect(kindLabel('updates')).toBe('Updates available');
 		expect(kindLabel('something_new')).toBe('something_new');
+		expect(kindIcon('temperature')).toBe(Thermometer);
+		expect(kindIcon('disk_space')).toBe(HardDrive);
+		expect(kindIcon('memory')).toBe(MemoryStick);
+		expect(kindIcon('something_new')).toBeUndefined();
+	});
+
+	it('shows the short fields an alert names, not its environment or severity again', () => {
+		expect(
+			alertFacts({
+				fields: [
+					{ name: 'Environment', value: 'homelab', inline: true },
+					{ name: 'Severity', value: 'Critical', inline: true },
+					{ name: 'Sensor', value: 'coretemp Package id 0', inline: true },
+					{ name: 'Highest', value: '92 °C', inline: true },
+					{ name: 'Thresholds', value: 'Warning at 80 °C, critical at 90 °C' }
+				]
+			})
+		).toEqual([
+			{ name: 'Sensor', value: 'coretemp Package id 0', inline: true },
+			{ name: 'Highest', value: '92 °C', inline: true }
+		]);
+		expect(alertFacts({ fields: [] })).toEqual([]);
 	});
 
 	it('reads severities as the badge vocabulary, critical first', () => {
@@ -75,9 +109,9 @@ describe('alerts in words (#159)', () => {
 	it('links to the page the alert is about, never elsewhere', () => {
 		expect(alertHref(failingDisk)).toBe('/environments/e1?tab=system');
 		expect(alertHref({ link: '/jobs/j1' })).toBe('/jobs/j1');
-		expect(alertHref({ link: 'https://evil.example/x' })).toBe('/alerts');
-		expect(alertHref({ link: '//evil.example/x' })).toBe('/alerts');
-		expect(alertHref({ link: '' })).toBe('/alerts');
+		expect(alertHref({ link: 'https://evil.example/x' })).toBe('/notifications?tab=alerts');
+		expect(alertHref({ link: '//evil.example/x' })).toBe('/notifications?tab=alerts');
+		expect(alertHref({ link: '' })).toBe('/notifications?tab=alerts');
 	});
 
 	it('says how an alert ended and who dismissed it', () => {

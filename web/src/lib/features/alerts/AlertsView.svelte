@@ -1,11 +1,14 @@
 <script lang="ts">
-	// The Alerts page (#159): every alert the user can see, newest first,
-	// in one ListCard: a search over title, detail, environment and kind;
+	// The Alerts tab of the Notifications page (#159): every alert the user
+	// can see, newest first, in one ListCard: a search over title, detail,
+	// environment and kind;
 	// filters for the state (Active, the default, Dismissed or Resolved),
 	// the kind and, while every environment is shown, the environment,
 	// applied by the server and kept per list and browser tab. A row leads
 	// with the alert's title (the link to the page it is about, stretched
-	// over the row) and its detail, then the severity, the environment and
+	// over the row), its detail and a line with its kind and short values
+	// (the sensor and its peak, the filesystem and how full), then the
+	// severity, the environment and
 	// since when; dismissed rows say who dismissed them and when, resolved
 	// ones how and when they ended. Active alerts the user may dismiss have
 	// a Dismiss button; "Dismiss all" (confirmed) dismisses every listed one
@@ -27,7 +30,6 @@
 		ConfirmDialog,
 		EmptyState,
 		ErrorState,
-		PageHeader,
 		Skeleton,
 		StatusBadge,
 		Table,
@@ -39,9 +41,12 @@
 	import { ALERTS_LIST, alertFilters, alertQuery, alertSearch, alertsSummary } from './filters';
 	import {
 		alertCount,
+		alertFacts,
 		alertHref,
 		canDismiss,
 		dismissedText,
+		kindIcon,
+		kindLabel,
 		resolutionHint,
 		resolutionLabel,
 		severityRank,
@@ -197,10 +202,23 @@
 		>{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet alertCell(a: Alert)}
+	{@const Icon = kindIcon(a.kind)}
+	{@const facts = alertFacts(a)}
 	<IconCell icon="alert">
 		<div class="alert">
 			<a href={alertHref(a)} class="title row-link">{a.title}</a>
 			{#if a.detail}<span class="detail muted">{a.detail}</span>{/if}
+			<span class="facts muted">
+				<span class="kind"
+					>{#if Icon}<Icon
+							size={12}
+							strokeWidth={1.75}
+							aria-hidden="true"
+						/>{/if}{kindLabel(a.kind)}</span
+				>{#each facts as f, i (i)}<span class="fact"
+						>{f.name} <span class="value">{f.value}</span></span
+					>{/each}
+			</span>
 		</div>
 	</IconCell>
 {/snippet}
@@ -237,16 +255,15 @@
 	{/if}
 {/snippet}
 
-<PageHeader
-	title="Alerts"
-	description="Problems Docker Manager found: disks and RAID arrays, offline environments, failed scheduled jobs and available updates."
->
-	{#snippet actions()}
-		{#if dismissible.length}
-			<Button icon={CheckCheck} onclick={() => (confirmOpen = true)}>Dismiss all</Button>
-		{/if}
-	{/snippet}
-</PageHeader>
+<div class="intro">
+	<p>
+		Problems Docker Manager found: disks and RAID arrays, hosts running hot or low on disk space
+		or memory, offline environments, failed scheduled jobs and available updates.
+	</p>
+	{#if dismissible.length}
+		<Button icon={CheckCheck} onclick={() => (confirmOpen = true)}>Dismiss all</Button>
+	{/if}
+</div>
 
 {#if alerts.isError}
 	<ErrorState
@@ -298,7 +315,7 @@
 							<EmptyState
 								{...resourceIcon('alert')}
 								title="No active alerts."
-								description="Disks and RAID arrays with problems, environments that go offline, failed scheduled jobs and available updates raise alerts here.{owner
+								description="Disks and RAID arrays with problems, hosts running hot or low on disk space or memory, environments that go offline, failed scheduled jobs and available updates raise alerts here.{owner
 									? ' Add a notification channel to have them sent to you.'
 									: ''}"
 								level={3}
@@ -345,6 +362,21 @@
 		padding: var(--space-5);
 	}
 
+	.intro {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-bottom: var(--space-4);
+	}
+
+	.intro p {
+		flex: 1 1 320px;
+		margin: 0;
+		color: var(--text-muted);
+	}
+
 	.alert {
 		display: flex;
 		flex-direction: column;
@@ -352,7 +384,8 @@
 	}
 
 	.title,
-	.detail {
+	.detail,
+	.facts {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -363,9 +396,26 @@
 		font-weight: var(--weight-medium);
 	}
 
-	.detail {
+	.detail,
+	.facts {
 		font-size: var(--text-caption);
 		line-height: var(--leading-caption);
+	}
+
+	/* The kind and the short values: "Temperature  Sensor coretemp  Highest 92 °C". */
+	.kind {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		vertical-align: bottom;
+	}
+
+	.fact {
+		margin-left: var(--space-3);
+	}
+
+	.value {
+		color: var(--text-default);
 	}
 
 	.resolution {

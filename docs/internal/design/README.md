@@ -288,7 +288,7 @@ Every resource list (stacks, containers, images, volumes, networks,
 builds and saved builds, registries and Git credentials, template
 sources, backup policies, runs, repositories and snapshots, update and
 maintenance policies, jobs, schedules, environments, users, groups,
-invitations, API tokens, passkeys, notification channels, alerts) starts each row's name with the type's
+invitations, API tokens, passkeys, notification channels, alerts, notifications) starts each row's name with the type's
 icon, so a list is recognisable at a glance:
 
 ```svelte

@@ -8,10 +8,13 @@ the stack image status); agent `update.run` executor in
 `internal/agent/stacks/update.go`; lifecycle `lifecycle.Update`/`Confirm`;
 payloads `internal/protocol/updates.go`.
 
-- Available updates raise the policy's `updates_available` alert from the
+- Available updates raise the policy's `updates` alert from the
   `update.check` finish hook (`internal/manager/alerts`, #159): keep
   `CandidateAvailable` the one "available" predicate (the UI's
-  `summary.available`) and the check input's `policyId`.
+  `summary.available`) and the check input's `policyId`. Every finished
+  `update.run` records an `updates` notification from its result output
+  (`UpdateRunOutput.Services`, never the input's container
+  specification): keep the outcome names stable.
 - One policy per target (stack or Docker Manager-managed standalone container);
   check and run schedules (#13 kinds `update_check`/`update_run`) start
   disabled. Never add an automatic path that pulls or recreates without an

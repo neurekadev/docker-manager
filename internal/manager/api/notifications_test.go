@@ -38,7 +38,7 @@ type fakeNotifications struct {
 func newFakeNotifications(address string) *fakeNotifications {
 	at := time.Date(2026, 9, 30, 9, 0, 0, 0, time.UTC)
 	c := domain.NotificationChannel{ID: "c-1", Name: "Ops", Service: "generic", Target: "hooks.example.com", Enabled: true,
-		EventKinds: domain.NotificationEventKinds(), SendResolved: true, AllEnvironments: true, AddressFingerprint: "fp_0000000000000001",
+		Subscriptions: domain.AllNotificationSubscriptions(), AllEnvironments: true, AddressFingerprint: "fp_0000000000000001",
 		AddressVersion:   1,
 		AddressUpdatedAt: at, Revision: 1, CreatedAt: at, UpdatedAt: at}
 	return &fakeNotifications{channels: map[string]domain.NotificationChannel{"c-1": c}, addresses: map[string]string{"c-1": address},
@@ -74,11 +74,11 @@ func (f *fakeNotifications) Create(ctx context.Context, in domain.NotificationCh
 			return domain.NotificationChannel{}, domain.ErrNotificationChannelNameTaken
 		}
 	}
-	c := domain.NotificationChannel{ID: "c-new", Name: in.Name, Service: "ntfy", Enabled: in.Enabled, EventKinds: in.EventKinds,
-		SendResolved: in.SendResolved, AllEnvironments: in.AllEnvironments, EnvironmentIDs: in.EnvironmentIDs, AddressFingerprint: "fp_2",
+	c := domain.NotificationChannel{ID: "c-new", Name: in.Name, Service: "ntfy", Enabled: in.Enabled, Subscriptions: in.Subscriptions,
+		AllEnvironments: in.AllEnvironments, EnvironmentIDs: in.EnvironmentIDs, AddressFingerprint: "fp_2",
 		AddressVersion: 1, Revision: 1}
-	if c.EventKinds == nil {
-		c.EventKinds = domain.NotificationEventKinds()
+	if c.Subscriptions == nil {
+		c.Subscriptions = domain.AllNotificationSubscriptions()
 	}
 	f.channels[c.ID], f.addresses[c.ID] = c, in.Address
 	audit.AddTarget(ctx, domain.AuditTarget{Type: "notification_channel", ID: c.ID})
@@ -103,8 +103,13 @@ func (f *fakeNotifications) Update(_ context.Context, id string, revision int64,
 	if p.Enabled != nil {
 		c.Enabled = *p.Enabled
 	}
-	if p.EventKinds != nil {
-		c.EventKinds = *p.EventKinds
+	if p.Subscriptions != nil {
+		for k, os := range *p.Subscriptions {
+			if !k.Valid() || len(os) == 0 {
+				return c, &domain.FieldError{Field: "events", Message: "unknown event kind " + string(k)}
+			}
+		}
+		c.Subscriptions = *p.Subscriptions
 	}
 	if p.EnvironmentIDs != nil {
 		c.EnvironmentIDs = *p.EnvironmentIDs
@@ -262,7 +267,7 @@ func TestNotificationChannelsNeverShowTheAddressButTheReveal(t *testing.T) {
 	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &page) != nil || len(page.Items) != 1 {
 		t.Fatalf("list: %d %s", r.Status, r.Body)
 	}
-	if c := page.Items[0]; c.Service != "generic" || c.Target != "hooks.example.com" || len(c.EventKinds) != 5 ||
+	if c := page.Items[0]; c.Service != "generic" || c.Target != "hooks.example.com" || len(c.Events) != len(domain.NotificationEventKinds()) ||
 		c.EnvironmentIDs == nil || c.Address.Fingerprint != "fp_0000000000000001" || c.Address.Version != 1 {
 		t.Fatalf("%+v", c)
 	}
@@ -284,10 +289,12 @@ func TestNotificationChannelsNeverShowTheAddressButTheReveal(t *testing.T) {
 	// record never carry it.
 	created := "ntfy://ntfy.sh/" + f.secrets.New(canary.NotificationURL, "created address")
 	r = do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/notification-channels",
-		Body: map[string]any{"name": "Pager", "address": created, "eventKinds": []string{"job_failed"}, "environmentIds": []string{}}})
+		Body: map[string]any{"name": "Pager", "address": created, "environmentIds": []string{},
+			"events": []map[string]any{{"kind": "job_failed", "outcomes": []string{"failure", "resolved"}}}}})
 	var c NotificationChannel
-	if r.Status != http.StatusCreated || json.Unmarshal(r.Body, &c) != nil || c.ID != "c-new" || !c.Enabled || !c.SendResolved ||
-		!c.AllEnvironments || len(c.EventKinds) != 1 || r.Header.Get("ETag") != `"1"` {
+	if r.Status != http.StatusCreated || json.Unmarshal(r.Body, &c) != nil || c.ID != "c-new" || !c.Enabled ||
+		!c.AllEnvironments || len(c.Events) != 1 || c.Events[0].Kind != "job_failed" ||
+		strings.Join(c.Events[0].Outcomes, ",") != "failure,resolved" || r.Header.Get("ETag") != `"1"` {
 		t.Fatalf("create: %d %s", r.Status, r.Body)
 	}
 	f.secrets.AssertClean(t, "create response", r.Body)
@@ -339,9 +346,11 @@ func TestNotificationEditsAndErrors(t *testing.T) {
 		t.Fatalf("no If-Match: %d", r.Status)
 	}
 	r := do(authztest.Call{Method: http.MethodPatch, Path: path, Headers: map[string]string{"If-Match": `"1"`},
-		Body: map[string]any{"enabled": false, "eventKinds": []string{"raid"}, "allEnvironments": false, "environmentIds": []string{"env-1"}}})
+		Body: map[string]any{"enabled": false, "events": []map[string]any{{"kind": "raid", "outcomes": []string{"critical"}}},
+			"allEnvironments": false, "environmentIds": []string{"env-1"}}})
 	var c NotificationChannel
-	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &c) != nil || c.Enabled || c.Revision != 2 || len(c.EventKinds) != 1 ||
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &c) != nil || c.Enabled || c.Revision != 2 || len(c.Events) != 1 ||
+		c.Events[0].Kind != "raid" || strings.Join(c.Events[0].Outcomes, ",") != "critical" ||
 		c.AllEnvironments || len(c.EnvironmentIDs) != 1 || r.Header.Get("ETag") != `"2"` {
 		t.Fatalf("patch: %d %s", r.Status, r.Body)
 	}
@@ -362,7 +371,7 @@ func TestNotificationEditsAndErrors(t *testing.T) {
 		t.Fatalf("stale: %d %v", r.Status, r.Header)
 	}
 	if r := do(authztest.Call{Method: http.MethodPatch, Path: path, Headers: map[string]string{"If-Match": `"2"`},
-		Body: map[string]any{"eventKinds": []string{"weather"}}}); r.Status != http.StatusUnprocessableEntity {
+		Body: map[string]any{"events": []map[string]any{{"kind": "weather", "outcomes": []string{"critical"}}}}}); r.Status != http.StatusUnprocessableEntity {
 		t.Fatalf("unknown kind: %d", r.Status)
 	}
 	if r := do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/notification-channels",

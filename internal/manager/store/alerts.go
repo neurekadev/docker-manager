@@ -260,38 +260,53 @@ func PurgeResolvedAlerts(ctx context.Context, db bun.IDB, cutoff time.Time) (int
 type alertDeliveryRow struct {
 	bun.BaseModel `bun:"table:alert_deliveries"`
 
-	ID            string     `bun:"id,pk"`
-	AlertID       string     `bun:"alert_id,notnull"`
-	ChannelID     string     `bun:"channel_id,notnull"`
-	Event         string     `bun:"event,notnull"`
-	Kind          string     `bun:"kind,notnull"`
-	EnvironmentID string     `bun:"environment_id,notnull"`
-	Severity      string     `bun:"severity,notnull"`
-	Title         string     `bun:"title,notnull"`
-	Body          string     `bun:"body,notnull"`
-	Link          string     `bun:"link,notnull"`
-	State         string     `bun:"state,notnull"`
-	Attempts      int        `bun:"attempts,notnull"`
-	NextAttemptAt time.Time  `bun:"next_attempt_at,notnull"`
-	LastError     string     `bun:"last_error,notnull"`
-	CreatedAt     time.Time  `bun:"created_at,notnull"`
-	UpdatedAt     time.Time  `bun:"updated_at,notnull"`
-	SentAt        *time.Time `bun:"sent_at"`
+	ID             string     `bun:"id,pk"`
+	AlertID        string     `bun:"alert_id,nullzero"`
+	NotificationID string     `bun:"notification_id,nullzero"`
+	ChannelID      string     `bun:"channel_id,notnull"`
+	Event          string     `bun:"event,notnull"`
+	Kind           string     `bun:"kind,notnull"`
+	EnvironmentID  string     `bun:"environment_id,notnull"`
+	Severity       string     `bun:"severity,notnull"`
+	Outcome        string     `bun:"outcome,notnull"`
+	Title          string     `bun:"title,notnull"`
+	Body           string     `bun:"body,notnull"`
+	Fields         string     `bun:"fields,notnull"`
+	Link           string     `bun:"link,notnull"`
+	State          string     `bun:"state,notnull"`
+	Attempts       int        `bun:"attempts,notnull"`
+	NextAttemptAt  time.Time  `bun:"next_attempt_at,notnull"`
+	LastError      string     `bun:"last_error,notnull"`
+	CreatedAt      time.Time  `bun:"created_at,notnull"`
+	UpdatedAt      time.Time  `bun:"updated_at,notnull"`
+	SentAt         *time.Time `bun:"sent_at"`
 }
 
 func fromAlertDelivery(d *domain.AlertDelivery) alertDeliveryRow {
+	fields := d.Fields
+	if fields == nil {
+		fields = []domain.NotificationField{}
+	}
+	// Fields are plain strings: encoding them cannot fail.
+	fb, _ := json.Marshal(fields)
 	return alertDeliveryRow{
-		ID: d.ID, AlertID: d.AlertID, ChannelID: d.ChannelID, Event: d.Event, Kind: string(d.Kind), EnvironmentID: d.EnvironmentID,
-		Severity: string(d.Severity), Title: d.Title, Body: d.Body, Link: d.Link, State: d.State, Attempts: d.Attempts,
+		ID: d.ID, AlertID: d.AlertID, NotificationID: d.NotificationID, ChannelID: d.ChannelID, Event: d.Event, Kind: string(d.Kind),
+		EnvironmentID: d.EnvironmentID, Severity: string(d.Severity), Outcome: string(d.Outcome), Title: d.Title, Body: d.Body,
+		Fields: string(fb), Link: d.Link, State: d.State, Attempts: d.Attempts,
 		NextAttemptAt: d.NextAttemptAt.UTC(), LastError: d.LastError, CreatedAt: d.CreatedAt.UTC(), UpdatedAt: d.UpdatedAt.UTC(),
 		SentAt: utcPtr(d.SentAt),
 	}
 }
 
 func (r alertDeliveryRow) toDomain() domain.AlertDelivery {
+	var fields []domain.NotificationField
+	// A row the database accepted holds a JSON array (CHECK); a field
+	// that cannot be read is left out rather than failing the send.
+	_ = json.Unmarshal([]byte(r.Fields), &fields)
 	return domain.AlertDelivery{
-		ID: r.ID, AlertID: r.AlertID, ChannelID: r.ChannelID, Event: r.Event, Kind: domain.NotificationEventKind(r.Kind),
-		EnvironmentID: r.EnvironmentID, Severity: domain.AlertSeverity(r.Severity), Title: r.Title, Body: r.Body, Link: r.Link,
+		ID: r.ID, AlertID: r.AlertID, NotificationID: r.NotificationID, ChannelID: r.ChannelID, Event: r.Event,
+		Kind: domain.NotificationEventKind(r.Kind), EnvironmentID: r.EnvironmentID, Severity: domain.AlertSeverity(r.Severity),
+		Outcome: domain.NotificationOutcome(r.Outcome), Title: r.Title, Body: r.Body, Fields: fields, Link: r.Link,
 		State: r.State, Attempts: r.Attempts,
 		NextAttemptAt: r.NextAttemptAt.UTC(), LastError: r.LastError, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
 		SentAt: utcPtr(r.SentAt),
@@ -439,10 +454,13 @@ func SetAlertDeliveries(ctx context.Context, db bun.IDB, ds []domain.AlertDelive
 }
 
 // PurgeAlertDeliveries deletes finished deliveries (sent, failed,
-// dropped) last changed before cutoff and returns how many.
+// dropped) last changed before cutoff and returns how many. Those of a
+// firing alert stay: they record which channels were told about it (they
+// get its resolution).
 func PurgeAlertDeliveries(ctx context.Context, db bun.IDB, cutoff time.Time) (int64, error) {
 	res, err := db.NewDelete().Model((*alertDeliveryRow)(nil)).Where("state <> ?", domain.DeliveryPending).
-		Where("updated_at < ?", cutoff.UTC()).Exec(ctx)
+		Where("updated_at < ?", cutoff.UTC()).
+		Where("alert_id IS NULL OR alert_id NOT IN (SELECT id FROM alerts WHERE state = ?)", string(domain.AlertFiring)).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: purge alert deliveries: %w", err)
 	}

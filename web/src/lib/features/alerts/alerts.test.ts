@@ -113,6 +113,35 @@ describe('Alerts page (#159)', () => {
 		expect((await screen.findAllByText('Dismissed 2 alerts')).length).toBeGreaterThan(0);
 	});
 
+	it('names the kind and the short values of a host alert under its detail', async () => {
+		stub(() => [
+			sampleAlert({
+				id: 'a4',
+				kind: 'temperature',
+				resourceType: 'environment',
+				resourceId: 'e1',
+				title: 'homelab runs hot',
+				detail: 'A sensor stayed above 90 °C for 5 minutes.',
+				fields: [
+					{ name: 'Environment', value: 'homelab', inline: true },
+					{ name: 'Severity', value: 'Critical', inline: true },
+					{ name: 'Sensor', value: 'coretemp Package id 0', inline: true },
+					{ name: 'Highest', value: '92 °C', inline: true },
+					{ name: 'Thresholds', value: 'Warning at 80 °C, critical at 90 °C' }
+				]
+			})
+		]);
+		mount(AlertsView, { environmentId: null });
+		const table = await screen.findByRole('table', { name: 'Alerts' });
+		const row = within(table).getByRole('link', { name: 'homelab runs hot' }).closest('tr')!;
+		expect(within(row).getByText('Temperature')).toBeInTheDocument();
+		expect(within(row).getByText('coretemp Package id 0')).toBeInTheDocument();
+		expect(within(row).getByText('92 °C')).toBeInTheDocument();
+		// Long values and what the row shows anyway stay out of the line.
+		expect(row).not.toHaveTextContent('Thresholds');
+		expect(row).not.toHaveTextContent('Severity');
+	});
+
 	it('hides the environment column and filter for one environment', async () => {
 		stub(() => [failingDisk]);
 		mount(AlertsView, { environmentId: 'e1' });
@@ -188,7 +217,7 @@ describe('AlertMark (#159 System tab)', () => {
 		const link = screen.getByRole('link', {
 			name: 'Alert dismissed: RAID md0 on homelab is degraded'
 		});
-		expect(link).toHaveAttribute('href', '/alerts');
+		expect(link).toHaveAttribute('href', '/notifications?tab=alerts');
 		expect(link).toHaveAttribute('title', 'RAID md0 on homelab is degraded');
 		link.addEventListener('click', (e) => e.preventDefault());
 		link.click();

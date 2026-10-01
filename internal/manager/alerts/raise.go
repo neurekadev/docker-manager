@@ -90,9 +90,10 @@ func sameView(a, b domain.Alert) bool {
 		slices.Equal(a.Targets, b.Targets) && (a.DismissedAt == nil) == (b.DismissedAt == nil)
 }
 
-// resolve ends a firing alert. Only AlertResolvedFixed is announced to
-// channels (those sending resolved problems); a message of the alert not
-// sent yet is dropped instead, with its resolution (nothing to report).
+// resolve ends a firing alert. Only AlertResolvedFixed is announced, to
+// the channels that were told about the alert (a message of it was sent)
+// and send resolved problems; a message of the alert not sent yet is
+// dropped instead, with its resolution (nothing to report).
 func resolve(ctx context.Context, db bun.IDB, a domain.Alert, resolution string, now time.Time) (*domain.Alert, error) {
 	if a.State != domain.AlertFiring {
 		return nil, nil
@@ -109,11 +110,14 @@ func resolve(ctx context.Context, db bun.IDB, a domain.Alert, resolution string,
 	if err != nil {
 		return nil, err
 	}
-	unsent := map[string]bool{}
+	told := map[string]bool{}
 	var drop []domain.AlertDelivery
 	for _, d := range ds {
-		if d.State == domain.DeliveryPending && d.Event != domain.AlertEventResolved {
-			unsent[d.ChannelID] = true
+		switch {
+		case d.Event == domain.AlertEventResolved:
+		case d.State == domain.DeliverySent:
+			told[d.ChannelID] = true
+		case d.State == domain.DeliveryPending:
 			d.State, d.UpdatedAt = domain.DeliveryDropped, now
 			drop = append(drop, d)
 		}
@@ -121,8 +125,8 @@ func resolve(ctx context.Context, db bun.IDB, a domain.Alert, resolution string,
 	if err := store.SetAlertDeliveries(ctx, db, drop); err != nil {
 		return nil, err
 	}
-	if resolution == domain.AlertResolvedFixed {
-		if err := enqueueExcept(ctx, db, next, domain.AlertEventResolved, now, unsent); err != nil {
+	if resolution == domain.AlertResolvedFixed && len(told) > 0 {
+		if err := enqueueTo(ctx, db, next, domain.AlertEventResolved, now, told); err != nil {
 			return nil, err
 		}
 	}
@@ -139,30 +143,68 @@ func resolveKey(ctx context.Context, db bun.IDB, key, resolution string, now tim
 }
 
 func enqueue(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time) error {
-	return enqueueExcept(ctx, db, a, event, now, nil)
+	return enqueueTo(ctx, db, a, event, now, nil)
 }
 
-// newDelivery is a pending message of a to a channel with a snapshot of
-// what it says now (a message sent later, or again, still says this).
-func newDelivery(a domain.Alert, channelID, event string, now, due time.Time) domain.AlertDelivery {
-	return domain.AlertDelivery{ID: ids.New(), AlertID: a.ID, ChannelID: channelID, Event: event, Kind: a.Kind,
-		EnvironmentID: a.EnvironmentID, Severity: a.Severity, Title: a.Title, Body: Detail(a), Link: Link(a),
-		State: domain.DeliveryPending, NextAttemptAt: due, CreatedAt: now, UpdatedAt: now}
+// newDelivery is a pending message to a channel with a snapshot of what
+// it says now (a message sent later, or again, still says this).
+func newDelivery(m snapshot, channelID string, now, due time.Time) domain.AlertDelivery {
+	return domain.AlertDelivery{ID: ids.New(), AlertID: m.alertID, NotificationID: m.notificationID, ChannelID: channelID,
+		Event: m.event, Kind: m.kind, EnvironmentID: m.environmentID, Severity: m.severity, Outcome: m.outcome, Title: m.title,
+		Body: m.body, Fields: m.fields, Link: m.link, State: domain.DeliveryPending, NextAttemptAt: due, CreatedAt: now,
+		UpdatedAt: now}
 }
 
-// enqueueExcept adds a message of a to every channel subscribed to its
-// kind and environment (resolutions: only those sending resolved
-// problems), except the channels in skip. A message is never due before
-// the channel's earlier ones (a channel waiting out a failed send keeps
-// its order), so the dispatcher finds due channels by due time alone.
-func enqueueExcept(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time, skip map[string]bool) error {
+// snapshot is what a message says, taken when it is written.
+type snapshot struct {
+	alertID, notificationID string
+	event                   string
+	kind                    domain.NotificationEventKind
+	environmentID           string
+	severity                domain.AlertSeverity
+	outcome                 domain.NotificationOutcome
+	title, body, link       string
+	fields                  []domain.NotificationField
+}
+
+// enqueueTo adds a message of a to every channel that wants its outcome
+// for its kind and environment; only (when only is not nil) to those
+// channels. A failed backup, prune or update run is not sent as a failed
+// job: its notification says it (with its own subscription).
+func enqueueTo(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time, only map[string]bool) error {
+	if a.Kind == domain.NotifyJobFailed && domain.NotificationKindOfJob(a.JobKind) != "" {
+		return nil
+	}
+	return write(ctx, db, alertSnapshot(a, event), now, only, func() []domain.NotificationField {
+		return alertFields(a, environmentName(ctx, db, a.EnvironmentID), event)
+	})
+}
+
+// alertSnapshot is what a message of a says about event (without its
+// fields, which need the environment's name).
+func alertSnapshot(a domain.Alert, event string) snapshot {
+	m := snapshot{alertID: a.ID, event: event, kind: a.Kind, environmentID: a.EnvironmentID, severity: a.Severity,
+		outcome: a.Outcome(event), title: a.Title, body: Detail(a), link: Link(a)}
+	if event == domain.AlertEventResolved {
+		m.body = resolvedDetail(a)
+	}
+	return m
+}
+
+// write adds the message m to every channel that wants it (only: to
+// those channels only). A message is never due before the channel's
+// earlier ones (a channel waiting out a failed send keeps its order), so
+// the dispatcher finds due channels by due time alone. fields is called
+// only when some channel wants the message.
+func write(ctx context.Context, db bun.IDB, m snapshot, now time.Time, only map[string]bool,
+	fields func() []domain.NotificationField) error {
 	channels, err := store.ListNotificationChannels(ctx, db, "", 0)
 	if err != nil {
 		return err
 	}
 	var targets []string
 	for _, c := range channels {
-		if skip[c.ID] || !c.Wants(a.Kind, a.EnvironmentID) || (event == domain.AlertEventResolved && !c.SendResolved) {
+		if (only != nil && !only[c.ID]) || !c.Wants(m.kind, m.outcome, m.environmentID) {
 			continue
 		}
 		targets = append(targets, c.ID)
@@ -170,6 +212,7 @@ func enqueueExcept(ctx context.Context, db bun.IDB, a domain.Alert, event string
 	if len(targets) == 0 {
 		return nil
 	}
+	m.fields = fields()
 	// One query for every channel's latest pending due time.
 	latest, err := store.LatestAlertAttempts(ctx, db, targets)
 	if err != nil {
@@ -181,7 +224,7 @@ func enqueueExcept(ctx context.Context, db bun.IDB, a domain.Alert, event string
 		if l, ok := latest[id]; ok && l.After(due) {
 			due = l
 		}
-		ds = append(ds, newDelivery(a, id, event, now, due))
+		ds = append(ds, newDelivery(m, id, now, due))
 	}
 	return store.InsertAlertDeliveries(ctx, db, ds)
 }

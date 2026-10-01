@@ -6,7 +6,8 @@
 // permissions; this module only reads them. Pure (model.spec.ts).
 import type { Schema } from '$lib/api/client';
 import type { AlertTally } from '$lib/features/dashboard/totals';
-import { EVENT_KINDS } from '$lib/features/notifications/model';
+import type { IconComponent } from '$lib/design/icons';
+import { EVENT_KINDS, eventKind } from '$lib/features/notifications/model';
 import { routes } from '$lib/routes';
 import { formatRelative } from '$lib/ui/format';
 
@@ -22,19 +23,44 @@ export const DISMISS = 'alert.dismiss';
 const KIND_LABELS: Record<AlertKind, string> = {
 	disk_health: 'Disk health',
 	raid: 'RAID',
+	temperature: 'Temperature',
+	disk_space: 'Disk space',
+	memory: 'Memory',
 	environment_offline: 'Environment offline',
-	job_failed: 'Failed job',
-	updates_available: 'Updates available'
+	updates: 'Updates available',
+	job_failed: 'Failed job'
 };
 
-/** The kinds in the notification channels' order, with their labels. */
-export const ALERT_KINDS: { kind: AlertKind; label: string }[] = EVENT_KINDS.map((k) => ({
-	kind: k.kind,
-	label: KIND_LABELS[k.kind]
-}));
+/**
+ * The kinds alerts are raised with, in the notification channels' order
+ * (backups, restores and prunes are notifications, never alerts), with
+ * their labels.
+ */
+export const ALERT_KINDS: { kind: AlertKind; label: string }[] = EVENT_KINDS.flatMap((k) =>
+	k.kind in KIND_LABELS
+		? [{ kind: k.kind as AlertKind, label: KIND_LABELS[k.kind as AlertKind] }]
+		: []
+);
 
 export function kindLabel(kind: string): string {
 	return KIND_LABELS[kind as AlertKind] ?? kind;
+}
+
+/** The icon of an alert's kind (a thermometer for temperatures; undefined for an unknown kind). */
+export function kindIcon(kind: string): IconComponent | undefined {
+	return eventKind(kind)?.icon;
+}
+
+/** Field names a row already shows elsewhere (its environment and severity columns). */
+const SHOWN_ELSEWHERE = new Set(['Environment', 'Severity']);
+
+/**
+ * The short labelled values of an alert for its row ("Sensor coretemp",
+ * "Highest 92 °C"): the inline fields, without the environment and the
+ * severity the row shows itself.
+ */
+export function alertFacts(a: Pick<Alert, 'fields'>): Alert['fields'] {
+	return (a.fields ?? []).filter((f) => f.inline && !SHOWN_ELSEWHERE.has(f.name));
 }
 
 const SEVERITY: Record<AlertSeverity, { label: string; tone: 'danger' | 'warn' | 'info' }> = {

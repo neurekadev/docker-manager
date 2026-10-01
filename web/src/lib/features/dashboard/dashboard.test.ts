@@ -219,7 +219,7 @@ describe('AttentionStrip (#22 dashboard)', () => {
 					{
 						id: 'disks',
 						label: '2 disks need attention',
-						href: '/alerts',
+						href: '/notifications?tab=alerts',
 						tone: 'danger',
 						filters: { list: 'alerts', values: { kind: 'disk_health' } }
 					}
@@ -227,7 +227,7 @@ describe('AttentionStrip (#22 dashboard)', () => {
 			}
 		});
 		const disks = screen.getByRole('link', { name: '2 disks need attention' });
-		expect(disks).toHaveAttribute('href', '/alerts');
+		expect(disks).toHaveAttribute('href', '/notifications?tab=alerts');
 		disks.addEventListener('click', (e) => e.preventDefault());
 		disks.click();
 		// Active is the state's default: no stored value.

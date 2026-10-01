@@ -5,7 +5,19 @@ import {
 	ERROR_TEXT,
 	kindsSummary,
 	sendsSummary,
-	testOutcome
+	EVENT_GROUPS,
+	EVENT_KINDS,
+	allEvents,
+	eventKind,
+	eventsDetail,
+	eventsOf,
+	kindState,
+	noEvents,
+	pickKind,
+	pickOutcome,
+	picksOf,
+	testOutcome,
+	type EventSubscription
 } from './model';
 import {
 	SERVICES,
@@ -254,25 +266,109 @@ describe('notification services (#142): friendly fields to Shoutrrr URLs', () =>
 
 describe('notification channels in words (#142)', () => {
 	it('summarizes what a channel sends', () => {
-		const all = [
-			'disk_health',
-			'raid',
-			'environment_offline',
-			'job_failed',
-			'updates_available'
-		];
+		const all = allEvents();
+		const only = (...kinds: string[]) => all.filter((e) => kinds.includes(e.kind));
 		expect(kindsSummary(all)).toBe('All events');
-		expect(kindsSummary(['job_failed'])).toBe('Failed jobs');
-		expect(kindsSummary(['updates_available', 'job_failed'])).toBe('Failed jobs and updates');
-		expect(kindsSummary(['raid', 'disk_health', 'job_failed'])).toBe('3 kinds of events');
+		expect(kindsSummary(only('backup'))).toBe('Backups and restores');
+		expect(kindsSummary(only('prune', 'backup'))).toBe('Backups and restores and prune');
+		expect(kindsSummary(only('raid', 'disk_health'))).toBe('Disk health and RAID');
+		expect(kindsSummary(only('raid', 'disk_health', 'memory', 'job_failed'))).toBe(
+			'4 kinds of events'
+		);
+		// Not every outcome of a chosen kind.
+		expect(kindsSummary([{ kind: 'backup', outcomes: ['failure'] }])).toBe(
+			'Backups and restores (some outcomes)'
+		);
+		expect(
+			kindsSummary(
+				all.map((e): EventSubscription =>
+					e.kind === 'prune' ? { kind: 'prune', outcomes: ['failure'] } : e
+				)
+			)
+		).toBe('Every kind of event (some outcomes)');
+		expect(kindsSummary([])).toBe('Nothing');
+		expect(kindsSummary([{ kind: 'raid', outcomes: [] }])).toBe('Nothing');
 		const name = (id: string) => (id === 'e1' ? 'prod' : undefined);
-		const sends = (allEnvironments: boolean, environmentIds: string[], kinds = ['raid']) =>
-			sendsSummary({ eventKinds: kinds as never, allEnvironments, environmentIds }, name);
+		const sends = (allEnvironments: boolean, environmentIds: string[], events = only('raid')) =>
+			sendsSummary({ events, allEnvironments, environmentIds }, name);
 		expect(sends(true, [], all)).toBe('All events, every environment');
 		expect(sends(false, ['e1'])).toBe('RAID, prod');
 		expect(sends(false, ['e1', 'e2'])).toBe('RAID, 2 environments');
 		// A filter whose environments are all gone never reads as every environment.
 		expect(sends(false, [])).toBe('RAID, no environment');
+	});
+
+	it('lists every sent kind with its outcomes for the tooltip', () => {
+		expect(
+			eventsDetail([
+				{ kind: 'job_failed', outcomes: ['resolved', 'failure'] },
+				{ kind: 'environment_offline', outcomes: ['critical', 'resolved'] },
+				{ kind: 'updates', outcomes: ['success'] }
+			])
+		).toBe(
+			[
+				'Environment offline: Offline, Back online',
+				'Image updates: Applied',
+				'Other failed jobs: Failure, Resolved'
+			].join('\n')
+		);
+	});
+
+	it('defines the kinds and outcomes of "What to send" in the manager’s order', () => {
+		expect(EVENT_KINDS.map((k) => k.kind)).toEqual([
+			'disk_health',
+			'raid',
+			'temperature',
+			'disk_space',
+			'memory',
+			'environment_offline',
+			'backup',
+			'prune',
+			'updates',
+			'job_failed'
+		]);
+		expect(EVENT_GROUPS.map((g) => g.label)).toEqual(['Hosts', 'Jobs']);
+		const labels = (kind: string) => eventKind(kind)?.outcomes.map((o) => o.label);
+		expect(labels('temperature')).toEqual(['Warning', 'Critical', 'Resolved']);
+		expect(labels('environment_offline')).toEqual(['Offline', 'Back online']);
+		expect(labels('backup')).toEqual(['Failure', 'Warning', 'Success']);
+		expect(labels('prune')).toEqual(['Failure', 'Success']);
+		expect(labels('updates')).toEqual(['Available', 'Failure', 'Applied']);
+		expect(labels('job_failed')).toEqual(['Failure', 'Warning', 'Resolved']);
+		expect(EVENT_KINDS.filter((k) => k.group === 'hosts').map((k) => k.label)).toEqual([
+			'Disk health',
+			'RAID',
+			'Temperature',
+			'Disk space',
+			'Memory',
+			'Environment offline'
+		]);
+	});
+
+	it('picks outcomes per kind and sends them in display order', () => {
+		const backup = eventKind('backup')!;
+		let picks = picksOf([
+			{ kind: 'prune', outcomes: ['success'] },
+			{ kind: 'backup', outcomes: ['success', 'failure'] }
+		]);
+		expect(kindState(backup, picks)).toBe('some');
+		expect(eventsOf(picks)).toEqual([
+			{ kind: 'backup', outcomes: ['failure', 'success'] },
+			{ kind: 'prune', outcomes: ['success'] }
+		]);
+		picks = pickOutcome(picks, 'backup', 'warning', true);
+		expect(kindState(backup, picks)).toBe('all');
+		picks = pickKind(picks, 'backup', false);
+		expect(kindState(backup, picks)).toBe('none');
+		expect(eventsOf(picks)).toEqual([{ kind: 'prune', outcomes: ['success'] }]);
+		picks = pickOutcome(picks, 'prune', 'success', false);
+		expect(noEvents(picks)).toBe(true);
+		expect(eventsOf(pickKind(picks, 'raid', true))).toEqual([
+			{ kind: 'raid', outcomes: ['warning', 'critical', 'resolved'] }
+		]);
+		// Unknown kinds and outcomes are dropped.
+		expect(eventsOf(picksOf([{ kind: 'nope' as never, outcomes: ['failure'] }]))).toEqual([]);
+		expect(allEvents()).toHaveLength(EVENT_KINDS.length);
 	});
 
 	it('shows Off, Not tested, Working and Failing with the reason', () => {

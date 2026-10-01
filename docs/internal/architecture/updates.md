@@ -99,9 +99,10 @@ reference resolved at deployment (the stack's applied images); a changed
 Compose/env source is a separate stack revision whose deploy refreshes the
 baseline (the deploy's finish hook marks the candidates `unchecked`).
 After every succeeded (or partial) `update.check` the alerts service's
-finish hook raises, updates or resolves the policy's `updates_available`
-alert from these candidates (sent again only for a new digest; resolved
-when none is left) ([alerts](alerts.md)).
+finish hook raises, updates or resolves the policy's `updates` alert
+from these candidates (sent again only for a new digest; resolved when
+none is left), and every finished `update.run` records an `updates`
+notification with what it updated ([alerts](alerts.md)).
 
 ## Digest model (`update_candidates`)
 

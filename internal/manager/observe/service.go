@@ -267,6 +267,12 @@ func (s *Service) Latest(ctx context.Context, environmentID string) (domain.Late
 	return l, ok, nil
 }
 
+// LatestTemperatures returns an environment's latest temperature of each
+// sensor and when it was read (ok false: none yet).
+func (s *Service) LatestTemperatures(ctx context.Context, environmentID string) ([]domain.TemperatureValues, time.Time, bool, error) {
+	return s.opts.Store.LatestTemperatures(ctx, environmentID)
+}
+
 // LatestContainers returns the latest sample of each container of an
 // environment sampled within window, with the live CPU and memory while
 // they are fresh (live.go).

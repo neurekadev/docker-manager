@@ -30,7 +30,7 @@ describe('resource icons (#22 list rows)', () => {
 		expect(icon('jobs')).toBe(RESOURCE_ICONS.job.icon);
 		expect(icon('updates')).toBe(RESOURCE_ICONS.updatePolicy.icon);
 		expect(icon('registries')).toBe(RESOURCE_ICONS.registry.icon);
-		expect(icon('alerts')).toBe(RESOURCE_ICONS.alert.icon);
+		expect(icon('notifications')).toBe(RESOURCE_ICONS.notification.icon);
 	});
 
 	it('shows registry connections with the key icon, apart from API tokens by colour', () => {

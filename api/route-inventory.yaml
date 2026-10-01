@@ -2892,7 +2892,7 @@ routes:
     owner: 159
     kind: json
     status: implemented
-    notes: "Each alert filtered by its source's permission (environment.system.read, the environment, job.read, update_policy.read)."
+    notes: "Each alert filtered by its source's permission (environment.system.read, environment.metrics.read, the environment, job.read, update_policy.read)."
   - method: POST
     path: /api/v1/alerts/dismissals
     operationId: create-alert-dismissals
@@ -2920,6 +2920,33 @@ routes:
     kind: json
     status: implemented
     notes: "alert.dismiss on the alert's source; 409 alert_not_firing."
+  - method: GET
+    path: /api/v1/notifications
+    operationId: list-notifications
+    capability: authenticated
+    scope: none
+    owner: 168
+    kind: json
+    status: implemented
+    notes: "Finished backups, restores, prunes and update runs; each filtered by job.read on its job."
+  - method: GET
+    path: /api/v1/alert-settings
+    operationId: get-alert-settings
+    capability: owner
+    scope: instance
+    owner: 168
+    kind: json
+    status: implemented
+    notes: Temperature, disk space and memory thresholds and per-environment overrides.
+  - method: PUT
+    path: /api/v1/alert-settings
+    operationId: update-alert-settings
+    capability: owner
+    scope: instance
+    owner: 168
+    kind: json
+    status: implemented
+    notes: "If-Match; replaces the thresholds and every override."
   - method: GET
     path: /api/v1/git-credentials
     operationId: list-git-credentials

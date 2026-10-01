@@ -140,9 +140,23 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc.RegisterJobHooks(f.hooks, []domain.JobKind{"backup.run", "stack.deploy", "update.check"}, "update.check")
+	svc.RegisterJobHooks(f.hooks, []domain.JobKind{"backup.run", "backup.verify", "prune.run", "update.run", "restore.run", "stack.deploy", "update.check"}, "update.check")
 	f.svc = svc
 	return f
+}
+
+// subscribe subscribes to every outcome of kinds (resolutions only with
+// resolved).
+func subscribe(kinds []domain.NotificationEventKind, resolved bool) domain.NotificationSubscriptions {
+	subs := domain.NotificationSubscriptions{}
+	for _, k := range kinds {
+		for _, o := range k.Outcomes() {
+			if o != domain.OutcomeResolved || resolved {
+				subs[k] = append(subs[k], o)
+			}
+		}
+	}
+	return subs
 }
 
 // channel stores a notification channel (its address is never opened:
@@ -153,7 +167,7 @@ func (f *fixture) channel(name string, kinds []domain.NotificationEventKind, all
 	if kinds == nil {
 		kinds = domain.NotificationEventKinds()
 	}
-	c := domain.NotificationChannel{ID: ids.New(), Name: name, Service: "generic", Enabled: true, EventKinds: kinds, SendResolved: resolved,
+	c := domain.NotificationChannel{ID: ids.New(), Name: name, Service: "generic", Enabled: true, Subscriptions: subscribe(kinds, resolved),
 		AllEnvironments: all, EnvironmentIDs: envs, AddressFingerprint: "fp_test", AddressVersion: 1, AddressUpdatedAt: now, Revision: 1,
 		CreatedAt: now, UpdatedAt: now}
 	if err := store.InsertNotificationChannel(f.ctx, f.db, &c, "sealed-"+name); err != nil {

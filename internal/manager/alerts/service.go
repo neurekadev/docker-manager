@@ -1,16 +1,19 @@
 // Package alerts raises, keeps and delivers the manager's alerts (#159):
 // a failing or unreadable disk, a degraded or failed RAID array or ZFS
-// pool, an environment offline past its grace period, a failed scheduled
-// (or API token) job and available image updates.
+// pool, a host above its temperature, disk space or memory thresholds, an
+// environment offline past its grace period, a failed scheduled (or API
+// token) job and available image updates; and its notifications: every
+// finished backup, restore, prune and update run.
 //
 // Every alert is a row of the alerts table, unique per dedupe key while it
 // fires. Raising or resolving one and the outbox rows of its messages
 // (alert_deliveries) are written in one transaction; the dispatcher sends
 // the outbox through notify.Service.Send (at least once: a message whose
 // send succeeded but was not recorded is sent again). Alerts are evaluated
-// from the bus (host health reports, connection changes), from job finish
-// hooks (failed jobs, update checks) and by a reconcile loop that repairs
-// what a dropped bus event missed. docs/internal/architecture/alerts.md.
+// from the bus (host health reports, metric samples, connection changes),
+// from job finish hooks (failed jobs, update checks) and by a reconcile
+// loop that repairs what a dropped bus event missed; notifications are
+// recorded by job finish hooks. docs/internal/architecture/alerts.md.
 package alerts
 
 import (
@@ -46,8 +49,9 @@ const (
 	// JobExpiry resolves a failed job's alert without a new run
 	// (silently).
 	JobExpiry = 7 * 24 * time.Hour
-	// AlertRetention keeps resolved alerts; DeliveryRetention finished
-	// deliveries.
+	// AlertRetention keeps resolved alerts and notifications;
+	// DeliveryRetention finished deliveries (except those of firing
+	// alerts).
 	AlertRetention    = 90 * 24 * time.Hour
 	DeliveryRetention = 7 * 24 * time.Hour
 	// DeliveryDelay is how long a new message waits before it is sent, so
@@ -75,6 +79,13 @@ type HealthSource interface {
 	HostHealth(environmentID string) (observe.HostHealth, bool)
 }
 
+// MetricsSource returns an environment's latest host usage and sensor
+// temperatures (observe.Service).
+type MetricsSource interface {
+	Latest(ctx context.Context, environmentID string) (domain.LatestMetrics, bool, error)
+	LatestTemperatures(ctx context.Context, environmentID string) ([]domain.TemperatureValues, time.Time, bool, error)
+}
+
 // JobHooks installs the finish hooks and the change listener (jobs.Engine).
 type JobHooks interface {
 	OnFinish(kind domain.JobKind, h jobs.FinishHook)
@@ -92,6 +103,9 @@ type Options struct {
 	// Health reads the disk health reports; nil raises no disk or RAID
 	// alerts.
 	Health HealthSource
+	// Metrics reads the latest host usage; nil raises no temperature,
+	// disk space or memory alerts.
+	Metrics MetricsSource
 	// MoveLock pauses evaluation and delivery while the manager moves.
 	MoveLock *movelock.Lock
 	// PublicURL is the manager's origin; messages link to its pages.
@@ -122,12 +136,18 @@ type Service struct {
 	// a finishing transaction that rolled back announces nothing.
 	held  map[string][]heldAlert
 	ready []heldAlert
+
+	// over is when each host usage alert's level was first seen above
+	// its threshold, by dedupe key (thresholds.go).
+	over map[string]overSince
 }
 
-// heldAlert is an alert changed in a job's transaction, and when.
+// heldAlert is an alert changed, or a notification recorded, in a job's
+// transaction, and when.
 type heldAlert struct {
-	alert domain.Alert
-	at    time.Time
+	alert        domain.Alert
+	notification *domain.Notification
+	at           time.Time
 }
 
 // New creates the service.
@@ -146,15 +166,19 @@ func New(opts Options) (*Service, error) {
 	}
 	return &Service{opts: opts, db: opts.DB, clk: opts.Clock, log: opts.Logger, startedAt: opts.Clock.Now().UTC(),
 		wake: make(chan struct{}, 1), dispatch: make(chan struct{}, 1), announce: make(chan struct{}, 1),
-		held: map[string][]heldAlert{}}, nil
+		held: map[string][]heldAlert{}, over: map[string]overSince{}}, nil
 }
 
 // RegisterJobHooks installs the job_failed hook on every kind, the
+// notification hook on backups, restores, prunes and update runs, the
 // updates hook on update checks and the change listener that announces
-// alerts changed by them. Call before the engine runs.
+// alerts and notifications recorded by them. Call before the engine runs.
 func (s *Service) RegisterJobHooks(h JobHooks, kinds []domain.JobKind, updateCheck domain.JobKind) {
 	for _, k := range kinds {
 		h.OnFinish(k, s.onJobFinished)
+		if domain.NotificationKindOfJob(k) != "" {
+			h.OnFinish(k, s.onRunFinished)
+		}
 	}
 	h.OnFinish(updateCheck, s.onUpdateCheckFinished)
 	h.OnChange(s.jobsChanged)
@@ -163,6 +187,9 @@ func (s *Service) RegisterJobHooks(h JobHooks, kinds []domain.JobKind, updateChe
 // SetHealth installs the host health reports (the observation service is
 // built after the job engine recovered; call before Run).
 func (s *Service) SetHealth(h HealthSource) { s.opts.Health = h }
+
+// SetMetrics installs the latest host usage (like SetHealth).
+func (s *Service) SetMetrics(m MetricsSource) { s.opts.Metrics = m }
 
 func (s *Service) now() time.Time { return s.clk.Now().UTC().Truncate(time.Microsecond) }
 
@@ -199,6 +226,21 @@ func (s *Service) publish(changed []domain.Alert) {
 	s.wakeDispatch()
 }
 
+// publishNotifications announces recorded notifications (after their
+// transaction committed) and wakes the dispatcher.
+func (s *Service) publishNotifications(ns []domain.Notification) {
+	if len(ns) == 0 {
+		return
+	}
+	for i := range ns {
+		n := ns[i]
+		s.opts.Bus.Publish(events.Event{Type: events.NotificationCreated, ResourceType: events.ResourceNotification,
+			ResourceID: n.ID, EnvironmentID: n.EnvironmentID, Notification: &n,
+			Attributes: map[string]string{"kind": string(n.Kind), "outcome": string(n.Outcome)}})
+	}
+	s.wakeDispatch()
+}
+
 // jobsChanged marks the alerts a job changed ready to announce (its
 // change was committed) and wakes the announcer. It runs on the engine's
 // goroutines, so it never touches the database itself.
@@ -217,6 +259,15 @@ func (s *Service) jobsChanged(jobIDs []string) {
 		default:
 		}
 	}
+}
+
+// holdNotification keeps a notification recorded in a job's transaction
+// until it commits.
+func (s *Service) holdNotification(jobID string, n domain.Notification) {
+	now := s.clk.Now()
+	s.mu.Lock()
+	s.held[jobID] = append(s.held[jobID], heldAlert{notification: &n, at: now})
+	s.mu.Unlock()
 }
 
 // hold keeps alerts changed in a job's transaction until it commits.
@@ -267,9 +318,27 @@ func (s *Service) announceReady(ctx context.Context) {
 	s.ready = nil
 	s.mu.Unlock()
 	var out []domain.Alert
+	var notes []domain.Notification
 	var retry []heldAlert
 	seen := map[string]bool{}
 	for _, h := range ready {
+		if h.notification != nil {
+			// A notification is announced once it is in the database (its
+			// job's transaction committed); a rolled back one never is.
+			n, err := store.GetNotification(ctx, s.db, h.notification.ID)
+			switch {
+			case errors.Is(err, domain.ErrNotificationNotFound):
+			case err != nil:
+				if ctx.Err() == nil {
+					s.log.Warn("could not read a recorded notification, trying again later",
+						"notification_id", h.notification.ID, "error", err)
+				}
+				retry = append(retry, h)
+			default:
+				notes = append(notes, n)
+			}
+			continue
+		}
 		if seen[h.alert.ID] {
 			continue
 		}
@@ -295,6 +364,7 @@ func (s *Service) announceReady(ctx context.Context) {
 		s.mu.Unlock()
 	}
 	s.publish(out)
+	s.publishNotifications(notes)
 }
 
 // runAnnounce announces the alerts of committed job changes.
@@ -336,7 +406,7 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 // trigger selects the bus events that change alerts: connection changes,
-// archives and new host health reports.
+// archives, new host health reports and new host samples.
 func trigger(e events.Event) bool {
 	switch e.Type {
 	case events.EnvironmentOnline, events.EnvironmentOffline, events.EnvironmentArchived, events.EnvironmentReattached,
@@ -344,6 +414,8 @@ func trigger(e events.Event) bool {
 		return true
 	case events.InventoryUpdated:
 		return e.Attributes["health"] == "true"
+	case events.MetricsSampled:
+		return e.Attributes["host"] == "true" && e.EnvironmentID != ""
 	}
 	return false
 }
@@ -376,6 +448,13 @@ func (s *Service) runReconcile(ctx context.Context) {
 				}
 				full = false
 			}
+			if e.Type == events.MetricsSampled && !s.locked() {
+				// New host samples: that environment's usage only.
+				if err := s.EvaluateThresholds(ctx, e.EnvironmentID); err != nil && ctx.Err() == nil {
+					s.log.Warn("could not evaluate host usage alerts", "environment_id", e.EnvironmentID, "error", err)
+				}
+				full = false
+			}
 		case <-ticker.C():
 		case <-s.wake:
 		case <-due:
@@ -403,6 +482,9 @@ func (s *Service) reconcile(ctx context.Context) time.Time {
 	if err := s.evaluateAllHealth(ctx); err != nil && ctx.Err() == nil {
 		s.log.Warn("could not evaluate disk alerts", "error", err)
 	}
+	if err := s.evaluateAllThresholds(ctx); err != nil && ctx.Err() == nil {
+		s.log.Warn("could not evaluate host usage alerts", "error", err)
+	}
 	if err := s.ReconcileUpdates(ctx); err != nil && ctx.Err() == nil {
 		s.log.Warn("could not evaluate update alerts", "error", err)
 	}
@@ -415,11 +497,14 @@ func (s *Service) reconcile(ctx context.Context) time.Time {
 	return next
 }
 
-// Purge deletes resolved alerts after AlertRetention and finished
-// deliveries after DeliveryRetention.
+// Purge deletes resolved alerts and notifications after AlertRetention
+// and finished deliveries after DeliveryRetention.
 func (s *Service) Purge(ctx context.Context) error {
 	now := s.now()
 	if _, err := store.PurgeResolvedAlerts(ctx, s.db, now.Add(-AlertRetention)); err != nil {
+		return err
+	}
+	if _, err := store.PurgeNotifications(ctx, s.db, now.Add(-AlertRetention)); err != nil {
 		return err
 	}
 	_, err := store.PurgeAlertDeliveries(ctx, s.db, now.Add(-DeliveryRetention))
