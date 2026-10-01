@@ -22,6 +22,17 @@ func (f *fixture) failDisk(env, name string) {
 	f.evaluate(env)
 }
 
+// digestLines are the entries a digest lists.
+func digestLines(m domain.NotificationMessage) []string {
+	var out []string
+	for _, f := range m.Fields {
+		for _, it := range f.Items {
+			out = append(out, it.Text)
+		}
+	}
+	return out
+}
+
 func channelsOf(msgs []sent) map[string]int {
 	out := map[string]int{}
 	for _, m := range msgs {
@@ -142,12 +153,12 @@ func TestAChannelKeepsItsOrderWhileRetrying(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.sender.take()
-	if len(got) != 1 || got[0].msg.Title != "[Docker Manager] 2 alerts" {
+	if len(got) != 1 || got[0].msg.Title != "2 alerts" {
 		t.Fatalf("%+v", got)
 	}
-	lines := strings.Split(got[0].msg.Body, "\n")
-	if len(lines) != 2 || lines[0] != "• Critical: Disk /dev/sda on homelab is failing" || lines[1] != "• Critical: Disk /dev/sdb on office is failing" {
-		t.Fatalf("%q", got[0].msg.Body)
+	lines := digestLines(got[0].msg)
+	if len(lines) != 2 || lines[0] != "Critical: Disk /dev/sda is failing" || lines[1] != "Critical: Disk /dev/sdb is failing" {
+		t.Fatalf("%q", lines)
 	}
 	if len(f.pending()) != 0 {
 		t.Fatal("still pending")
@@ -166,7 +177,7 @@ func TestOnlyDueMessagesGoOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.sender.take()
-	if len(got) != 1 || got[0].msg.Title != "[Docker Manager] Disk /dev/sda on homelab is failing" {
+	if len(got) != 1 || got[0].msg.Title != "Disk /dev/sda is failing" || got[0].msg.Fields[0].Value != "homelab" {
 		t.Fatalf("%+v", got)
 	}
 	if len(f.pending()) != 1 {
@@ -176,7 +187,7 @@ func TestOnlyDueMessagesGoOut(t *testing.T) {
 	if _, err := f.svc.Dispatch(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.sender.take(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Disk /dev/sdb on office is failing" {
+	if got := f.sender.take(); len(got) != 1 || got[0].msg.Title != "Disk /dev/sdb is failing" || got[0].msg.Fields[0].Value != "office" {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -258,11 +269,11 @@ func TestDigestIsBoundedAndPurgeKeepsRecentHistory(t *testing.T) {
 	f.health.set("env-1", devs, nil, nil)
 	f.evaluate("env-1")
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.Title != "[Docker Manager] 25 alerts" {
+	if len(got) != 1 || got[0].msg.Title != "25 alerts" {
 		t.Fatalf("%+v", got)
 	}
-	lines := strings.Split(got[0].msg.Body, "\n")
-	if len(lines) != DigestMaxLines+1 || lines[DigestMaxLines] != "…and 5 more." {
+	lines := digestLines(got[0].msg)
+	if len(lines) != DigestMaxLines+1 || lines[DigestMaxLines] != "…and 5 more" {
 		t.Fatalf("%d lines, last %q", len(lines), lines[len(lines)-1])
 	}
 	// Resolve them, then let time pass: finished deliveries go after 7

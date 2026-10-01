@@ -69,7 +69,9 @@ func TestDetailInWords(t *testing.T) {
 		{domain.Alert{Kind: domain.NotifyJobFailed, Facts: map[string]string{"origin": "api_token", "jobState": "partial",
 			"errorClass": "step_failed"}},
 			"A job started by an API token did not finish successfully. Some of its items failed. Open the job to see which ones."},
-		{domain.Alert{Kind: domain.NotifyUpdates, Facts: map[string]string{"services": "web, db"}}, "Newer images: web, db."},
+		// The services are a field of their own.
+		{domain.Alert{Kind: domain.NotifyUpdates, Facts: map[string]string{"services": "web, db"}},
+			"A check found newer images. To install them, open the update policy and press Preview updates, then Apply updates."},
 	} {
 		if got := Detail(c.a); got != c.want {
 			t.Errorf("%s: %q, want %q", c.a.Kind, got, c.want)
@@ -109,14 +111,22 @@ func field(fs []domain.NotificationField, name string) (string, bool) {
 }
 
 func TestAlertFieldsLabelTheNumbers(t *testing.T) {
-	a := domain.Alert{Kind: domain.NotifyDiskSpace, Severity: domain.AlertCritical, Facts: map[string]string{"mount": "stacks",
-		"usedPercent": "97", "freeBytes": "1073741824", "totalBytes": "107374182400", "warningAt": "85", "criticalAt": "95"}}
+	a := domain.Alert{Kind: domain.NotifyDiskSpace, Severity: domain.AlertCritical, EnvironmentID: "env-1", Facts: map[string]string{
+		"mount": "stacks", "usedPercent": "97", "freeBytes": "1073741824", "totalBytes": "107374182400", "warningAt": "85", "criticalAt": "95"}}
 	fs := Fields(a, "homelab")
-	for name, want := range map[string]string{"Environment": "homelab", "Severity": "Critical", "Filesystem": "Stacks", "Used": "97%",
+	for name, want := range map[string]string{"Environment": "homelab", "Filesystem": "Stacks", "Used": "97%",
 		"Free": "1 GiB", "Size": "100 GiB", "Thresholds": "warning at 85%, critical at 95%"} {
 		if got, _ := field(fs, name); got != want {
 			t.Errorf("%s: %q, want %q", name, got, want)
 		}
+	}
+	// The status line says the severity; the environment links to its
+	// page; the short fields come first.
+	if _, ok := field(fs, "Severity"); ok {
+		t.Error("a severity field")
+	}
+	if fs[0].Name != "Environment" || fs[0].Link != "/environments/env-1" || fs[len(fs)-1].Name != "Thresholds" {
+		t.Errorf("%+v", fs)
 	}
 	// A failed job's fields say what went wrong and what to do; its
 	// resolution does not.
@@ -135,6 +145,93 @@ func TestAlertFieldsLabelTheNumbers(t *testing.T) {
 	if _, ok := field(alertFields(j, "homelab", domain.AlertEventResolved), "What to do"); ok {
 		t.Error("a resolution says what to do")
 	}
+	// A failed job's target links to its page.
+	j.EnvironmentID, j.Targets = "env-1", []domain.JobTarget{{Type: domain.TargetVolume, ID: "silo_data"}}
+	for _, f := range alertFields(j, "homelab", domain.AlertEventFiring) {
+		if f.Name == "Target" && f.Link != "/volumes/env-1/silo_data" {
+			t.Errorf("%+v", f)
+		}
+	}
+}
+
+func TestUpdateAlertsListTheServicesWithTheirDigests(t *testing.T) {
+	a := domain.Alert{Kind: domain.NotifyUpdates, Severity: domain.AlertInfo, EnvironmentID: "env-1",
+		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}},
+		Facts: map[string]string{"count": "12", "services": "web, db", "target": "Paperless",
+			"changes": encodeChanges([]serviceChange{{"web", "1a2b", "3c4d"}, {"db", "", "5e6f"}})}}
+	fs := Fields(a, "homelab")
+	var services domain.NotificationField
+	for _, f := range fs {
+		if f.Name == "Target" && (f.Value != "Paperless" || f.Link != "/stacks/s1") {
+			t.Errorf("%+v", f)
+		}
+		if f.Name == "Services" {
+			services = f
+		}
+	}
+	want := []domain.NotificationItem{
+		{Text: "web", Link: "/stacks/s1/logs?service=web", From: "1a2b", To: "3c4d"},
+		{Text: "db", Link: "/stacks/s1/logs?service=db", To: "5e6f"},
+		{Text: "…and 10 more"},
+	}
+	if services.Inline || len(services.Items) != len(want) || services.Value != "web: 1a2b → 3c4d\ndb: 5e6f\n…and 10 more" {
+		t.Fatalf("%+v", services)
+	}
+	for i, it := range services.Items {
+		if it != want[i] {
+			t.Errorf("%d: %+v, want %+v", i, it, want[i])
+		}
+	}
+	// A standalone container's service is the container.
+	a.Targets = []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}}
+	a.Facts["count"] = "1"
+	a.Facts["changes"] = encodeChanges([]serviceChange{{"web", "1a2b", "3c4d"}})
+	for _, f := range Fields(a, "homelab") {
+		if (f.Name == "Target" || f.Name == "Services") && f.Link+firstLink(f) != "/containers/env-1/web" {
+			t.Errorf("%+v", f)
+		}
+	}
+	// An alert recorded before the digests: the names as they were.
+	delete(a.Facts, "changes")
+	if v, _ := field(Fields(a, "homelab"), "Services"); v != "web, db" {
+		t.Errorf("%q", v)
+	}
+}
+
+// firstLink is the link of a field's first entry ("" without entries).
+func firstLink(f domain.NotificationField) string {
+	if len(f.Items) == 0 {
+		return ""
+	}
+	return f.Items[0].Link
+}
+
+func TestLabelsNameTheKindAndOutcomeLikeWhatToSend(t *testing.T) {
+	for _, c := range []struct {
+		kind    domain.NotificationEventKind
+		outcome domain.NotificationOutcome
+		want    string
+	}{
+		{domain.NotifyDiskHealth, domain.OutcomeCritical, "Disk health · Critical"},
+		{domain.NotifyEnvironmentOffline, domain.OutcomeCritical, "Environment offline · Offline"},
+		{domain.NotifyEnvironmentOffline, domain.OutcomeResolved, "Environment offline · Back online"},
+		{domain.NotifyBackup, domain.OutcomeWarning, "Backups and restores · Warning"},
+		{domain.NotifyUpdates, domain.OutcomeAvailable, "Image updates · Available"},
+		{domain.NotifyUpdates, domain.OutcomeSuccess, "Image updates · Applied"},
+		{domain.NotifyJobFailed, domain.OutcomeFailure, "Other failed jobs · Failure"},
+	} {
+		if got := Label(c.kind, c.outcome); got != c.want {
+			t.Errorf("%s %s: %q, want %q", c.kind, c.outcome, got, c.want)
+		}
+	}
+	// Every kind and outcome has its words.
+	for _, k := range domain.NotificationEventKinds() {
+		for _, o := range k.Outcomes() {
+			if l := Label(k, o); !strings.Contains(l, " · ") {
+				t.Errorf("%s %s: %q", k, o, l)
+			}
+		}
+	}
 }
 
 // snap is the delivery of a with a snapshot taken now.
@@ -144,28 +241,45 @@ func snap(a domain.Alert, event string) domain.AlertDelivery {
 
 func TestMessagesAndDigests(t *testing.T) {
 	disk := domain.Alert{Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, EnvironmentID: "env-1",
-		Title: "Disk /dev/sda on homelab is failing", Facts: map[string]string{"state": "failing", "selfAssessment": "failed"}}
+		Title: "Disk /dev/sda is failing", Facts: map[string]string{"state": "failing", "selfAssessment": "failed"}}
 	offline := domain.Alert{Kind: domain.NotifyEnvironmentOffline, Severity: domain.AlertCritical, EnvironmentID: "env-2",
 		Title: "office is offline"}
 	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	// The title is the alert's own (no instance name: the footer says it),
+	// under the status line.
 	one := buildMessage("Home", "https://docker.example.com/", []domain.AlertDelivery{snap(disk, domain.AlertEventFiring)}, now)
-	if one.Title != "[Home] Disk /dev/sda on homelab is failing" ||
+	if one.Title != "Disk /dev/sda is failing" || one.Label != "Disk health · Critical" ||
 		one.Body != "SMART self-assessment failed. Back up its data and replace the disk." ||
-		one.URL != "https://docker.example.com/environments/env-1?tab=system" || one.Tone != domain.ToneCritical || one.Footer != "Docker Manager" {
+		one.URL != "https://docker.example.com/environments/env-1?tab=system" || one.Tone != domain.ToneCritical || one.Footer != "Home" {
 		t.Fatalf("%+v", one)
 	}
 	res := buildMessage("Home", "https://docker.example.com", []domain.AlertDelivery{snap(offline, domain.AlertEventResolved)}, now)
-	if res.Title != "[Home] Resolved: office is offline" || res.Body != "The environment is connected again." || res.Tone != domain.ToneSuccess {
+	if res.Title != "Resolved: office is offline" || res.Label != "Environment offline · Back online" ||
+		res.Body != "The environment is connected again." || res.Tone != domain.ToneSuccess {
 		t.Fatalf("%+v", res)
 	}
 	note := domain.AlertDelivery{Event: domain.DeliveryEventNotification, Kind: domain.NotifyPrune, Outcome: domain.OutcomeSuccess,
-		Severity: domain.AlertInfo, Title: "Prune on homelab reclaimed 4.2 GiB"}
+		Severity: domain.AlertInfo, Title: "Prune reclaimed 4.2 GiB"}
 	digest := buildMessage("Home", "https://docker.example.com", []domain.AlertDelivery{snap(disk, domain.AlertEventFiring),
 		snap(offline, domain.AlertEventResolved), note}, now)
-	if digest.Title != "[Home] 1 alert, 1 resolved, 1 notification" ||
-		digest.Body != "• Critical: Disk /dev/sda on homelab is failing\n• Resolved: office is offline\n• Done: Prune on homelab reclaimed 4.2 GiB" ||
+	if digest.Title != "1 alert, 1 resolved, 1 notification" || digest.Label != "Summary" || digest.Body != "" || len(digest.Fields) != 1 ||
 		digest.URL != "https://docker.example.com/notifications" || digest.Tone != domain.ToneCritical || !digest.Time.Equal(now) {
 		t.Fatalf("%+v", digest)
+	}
+	// The digest lists its entries, each linked to its page.
+	list := digest.Fields[0]
+	want := []domain.NotificationItem{
+		{Text: "Critical: Disk /dev/sda is failing", Link: "https://docker.example.com/environments/env-1?tab=system"},
+		{Text: "Resolved: office is offline", Link: "https://docker.example.com/environments/env-2"},
+		{Text: "Done: Prune reclaimed 4.2 GiB"},
+	}
+	if list.Name != "What happened" || len(list.Items) != len(want) {
+		t.Fatalf("%+v", list)
+	}
+	for i, it := range list.Items {
+		if it != want[i] {
+			t.Errorf("%d: %+v, want %+v", i, it, want[i])
+		}
 	}
 	// Alerts only: the digest links to the Alerts tab.
 	alertsOnly := buildMessage("Home", "https://docker.example.com", []domain.AlertDelivery{snap(disk, domain.AlertEventFiring),
@@ -173,9 +287,62 @@ func TestMessagesAndDigests(t *testing.T) {
 	if alertsOnly.URL != "https://docker.example.com/notifications?tab=alerts" {
 		t.Fatalf("%+v", alertsOnly)
 	}
-	// Without a public URL, messages carry no link.
-	if m := buildMessage("", "", []domain.AlertDelivery{snap(disk, domain.AlertEventWorse)}, now); m.URL != "" || m.Title != disk.Title {
+	// Without a public URL, messages carry no link; without a name, the
+	// footer is Docker Manager.
+	if m := buildMessage("", "", []domain.AlertDelivery{snap(disk, domain.AlertEventWorse)}, now); m.URL != "" || m.Title != disk.Title ||
+		m.Footer != "Docker Manager" {
 		t.Fatalf("%+v", m)
+	}
+}
+
+func TestDigestEntriesNameTheirEnvironment(t *testing.T) {
+	env := func(name string) []domain.NotificationField {
+		return []domain.NotificationField{{Name: "Environment", Value: name, Inline: true}}
+	}
+	items := []domain.AlertDelivery{
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, Outcome: domain.OutcomeCritical,
+			Title: "Disk /dev/sda is failing", Fields: env("homelab")},
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, Outcome: domain.OutcomeCritical,
+			Title: "Disk /dev/sda is failing", Fields: env("office")},
+		// The title names it already.
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyEnvironmentOffline, Severity: domain.AlertCritical,
+			Outcome: domain.OutcomeCritical, Title: "nas is offline", Fields: env("nas")},
+		// A name that is only part of a word in the title is named.
+		{Event: domain.DeliveryEventNotification, Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess,
+			Title: "Update of prod-api succeeded", Fields: env("prod")},
+	}
+	got := buildMessage("Home", "", items, time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)).Fields[0].Items
+	want := []string{"Critical: Disk /dev/sda is failing (homelab)", "Critical: Disk /dev/sda is failing (office)", "Critical: nas is offline",
+		"Done: Update of prod-api succeeded (prod)"}
+	if len(got) != len(want) {
+		t.Fatalf("%+v", got)
+	}
+	for i, it := range got {
+		if it.Text != want[i] {
+			t.Errorf("%d: %q, want %q", i, it.Text, want[i])
+		}
+	}
+}
+
+func TestMessagesLinkFieldsWithThePublicURL(t *testing.T) {
+	d := domain.AlertDelivery{Event: domain.DeliveryEventNotification, Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess,
+		Title: "Update of Paperless succeeded", Link: "/jobs/j1", Fields: []domain.NotificationField{
+			{Name: "Environment", Value: "homelab", Inline: true, Link: "/environments/env-1"},
+			{Name: "Updated", Value: "web: 1a → 2b", Items: []domain.NotificationItem{{Text: "web", Link: "/stacks/s1/logs?service=web", From: "1a", To: "2b"}}},
+		}}
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	m := buildMessage("Home", "https://docker.example.com/", []domain.AlertDelivery{d}, now)
+	if m.Label != "Image updates · Applied" || m.Fields[0].Link != "https://docker.example.com/environments/env-1" ||
+		m.Fields[1].Items[0].Link != "https://docker.example.com/stacks/s1/logs?service=web" || m.Fields[1].Items[0].From != "1a" {
+		t.Fatalf("%+v", m)
+	}
+	// The snapshot keeps its paths.
+	if d.Fields[0].Link != "/environments/env-1" || d.Fields[1].Items[0].Link != "/stacks/s1/logs?service=web" {
+		t.Fatalf("%+v", d.Fields)
+	}
+	m = buildMessage("Home", "", []domain.AlertDelivery{d}, now)
+	if m.Fields[0].Link != "" || m.Fields[1].Items[0].Link != "" {
+		t.Fatalf("%+v", m.Fields)
 	}
 }
 

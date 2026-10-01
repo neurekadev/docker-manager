@@ -821,7 +821,7 @@
           },
           "title": {
             "examples": [
-              "Disk /dev/sda on homelab is failing"
+              "Disk /dev/sda is failing"
             ],
             "type": "string"
           },
@@ -11962,7 +11962,7 @@
           },
           "title": {
             "examples": [
-              "Backup Nightly on homelab succeeded"
+              "Backup Nightly succeeded"
             ],
             "type": "string"
           }
@@ -22907,7 +22907,7 @@
                       "severity": "critical",
                       "startedAt": "2026-09-25T12:00:00Z",
                       "state": "firing",
-                      "title": "Disk /dev/sda on homelab is failing",
+                      "title": "Disk /dev/sda is failing",
                       "updatedAt": "2026-09-25T12:00:00Z"
                     }
                   ],
@@ -23165,7 +23165,7 @@
                   "severity": "critical",
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "firing",
-                  "title": "Disk /dev/sda on homelab is failing",
+                  "title": "Disk /dev/sda is failing",
                   "updatedAt": "2026-09-25T12:00:00Z"
                 },
                 "schema": {
@@ -23320,7 +23320,7 @@
                   "severity": "critical",
                   "startedAt": "2026-09-25T12:00:00Z",
                   "state": "firing",
-                  "title": "Disk /dev/sda on homelab is failing",
+                  "title": "Disk /dev/sda is failing",
                   "updatedAt": "2026-09-25T12:00:00Z"
                 },
                 "schema": {
@@ -63148,7 +63148,7 @@
                       "kind": "backup",
                       "link": "/jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                       "outcome": "success",
-                      "title": "Backup Nightly on homelab succeeded"
+                      "title": "Backup Nightly succeeded"
                     }
                   ],
                   "nextCursor": "example",

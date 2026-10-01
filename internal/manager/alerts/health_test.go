@@ -26,32 +26,32 @@ func TestDiskSeverityFollowsTheDiskState(t *testing.T) {
 			d := disk(protocol.DiskFailing)
 			d.Passed = boolp(false)
 			return d
-		}, domain.AlertCritical, "Disk /dev/sda on homelab is failing"},
+		}, domain.AlertCritical, "Disk /dev/sda is failing"},
 		{"attribute failing now", func() protocol.SMARTDevice {
 			d := disk(protocol.DiskFailing)
 			d.FailingAttributes = []protocol.SMARTAttribute{{ID: 5, Name: "Reallocated_Sector_Ct", WhenFailed: "now"}}
 			return d
-		}, domain.AlertCritical, "Disk /dev/sda on homelab is failing"},
+		}, domain.AlertCritical, "Disk /dev/sda is failing"},
 		{"NVMe critical warning", func() protocol.SMARTDevice {
 			d := disk(protocol.DiskFailing)
 			d.Name, d.Type, d.CriticalWarning = "/dev/nvme0", "nvme", intp(4)
 			return d
-		}, domain.AlertCritical, "Disk /dev/nvme0 on homelab is failing"},
+		}, domain.AlertCritical, "Disk /dev/nvme0 is failing"},
 		{"bad sectors", func() protocol.SMARTDevice {
 			d := disk(protocol.DiskWarning)
 			d.Reallocated, d.Pending = i64(8), i64(2)
 			return d
-		}, domain.AlertWarning, "Disk /dev/sda on homelab needs attention"},
+		}, domain.AlertWarning, "Disk /dev/sda needs attention"},
 		{"worn out", func() protocol.SMARTDevice {
 			d := disk(protocol.DiskWarning)
 			d.PercentageUsed = intp(93)
 			return d
-		}, domain.AlertWarning, "Disk /dev/sda on homelab needs attention"},
+		}, domain.AlertWarning, "Disk /dev/sda needs attention"},
 		{"can't be read", func() protocol.SMARTDevice {
 			d := disk(protocol.DiskError)
 			d.ErrorCode = protocol.DiskErrOpenFailed
 			return d
-		}, domain.AlertWarning, "Disk /dev/sda on homelab can't be read"},
+		}, domain.AlertWarning, "Disk /dev/sda can't be read"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestDiskAlertResolvesAndIsSentOnlyWhenWorse(t *testing.T) {
 	f.health.set("env-1", []protocol.SMARTDevice{warn}, nil, nil)
 	f.evaluate("env-1")
 	a := f.one()
-	if got := f.dispatch(); len(got) != 1 || got[0].channel != ch.ID || got[0].msg.Title != "[Docker Manager] Disk /dev/sda on homelab needs attention" {
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != ch.ID || got[0].msg.Title != "Disk /dev/sda needs attention" {
 		t.Fatalf("first message %+v", got)
 	}
 	// Same problem, more sectors: facts change, no message.
@@ -134,7 +134,7 @@ func TestDiskAlertResolvesAndIsSentOnlyWhenWorse(t *testing.T) {
 	if as := f.firing(); len(as) != 0 {
 		t.Fatalf("%+v", as)
 	}
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Resolved: Disk /dev/sda on homelab is failing" {
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "Resolved: Disk /dev/sda is failing" {
 		t.Fatalf("resolution %+v", got)
 	}
 }
@@ -197,7 +197,7 @@ func TestRAIDStatesAndProgress(t *testing.T) {
 	f.health.set("env-1", nil, []protocol.MDArray{arr}, nil)
 	f.evaluate("env-1")
 	a := f.one()
-	if a.Kind != domain.NotifyRAID || a.Severity != domain.AlertWarning || a.Title != "RAID md0 on homelab is degraded" || a.Facts["failedMembers"] != "sdb1" {
+	if a.Kind != domain.NotifyRAID || a.Severity != domain.AlertWarning || a.Title != "RAID md0 is degraded" || a.Facts["failedMembers"] != "sdb1" {
 		t.Fatalf("%+v", a)
 	}
 	if got := f.dispatch(); len(got) != 1 {
@@ -212,7 +212,7 @@ func TestRAIDStatesAndProgress(t *testing.T) {
 		f.evaluate("env-1")
 	}
 	b := f.one()
-	if b.ID != a.ID || b.Title != "RAID md0 on homelab is rebuilding" || b.Facts["progress"] != "47.25" || !strings.Contains(Detail(b), "Rebuild: 47.25% done") {
+	if b.ID != a.ID || b.Title != "RAID md0 is rebuilding" || b.Facts["progress"] != "47.25" || !strings.Contains(Detail(b), "Rebuild: 47.25% done") {
 		t.Fatalf("%+v / %s", b, Detail(b))
 	}
 	if got := f.dispatch(); len(got) != 0 {
@@ -222,7 +222,7 @@ func TestRAIDStatesAndProgress(t *testing.T) {
 	arr.State, arr.Progress, arr.Action = protocol.RAIDFailed, nil, ""
 	f.health.set("env-1", nil, []protocol.MDArray{arr}, nil)
 	f.evaluate("env-1")
-	if b := f.one(); b.Severity != domain.AlertCritical || b.Title != "RAID md0 on homelab has failed" {
+	if b := f.one(); b.Severity != domain.AlertCritical || b.Title != "RAID md0 has failed" {
 		t.Fatalf("%+v", b)
 	}
 	if got := f.dispatch(); len(got) != 1 {
@@ -236,7 +236,7 @@ func TestRAIDStatesAndProgress(t *testing.T) {
 	if len(f.firing()) != 0 {
 		t.Fatal("still firing")
 	}
-	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "[Docker Manager] Resolved: ") {
+	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "Resolved: ") {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -274,7 +274,7 @@ func TestZFSSeverityMapping(t *testing.T) {
 	f := newFixture(t)
 	f.health.set("env-1", nil, nil, []protocol.ZFSPool{{Name: "tank", Health: "DEGRADED", State: protocol.RAIDDegraded}})
 	f.evaluate("env-1")
-	if a := f.one(); a.Title != "ZFS pool tank on homelab is degraded" || Detail(a) != "Pool health: DEGRADED." {
+	if a := f.one(); a.Title != "ZFS pool tank is degraded" || Detail(a) != "Pool health: DEGRADED." {
 		t.Fatalf("%+v", a)
 	}
 	f.health.set("env-1", nil, nil, []protocol.ZFSPool{{Name: "tank", Health: "ONLINE", State: protocol.RAIDHealthy}})
@@ -342,7 +342,7 @@ func TestScanFailureStillEvaluatesDisksAndWarns(t *testing.T) {
 		t.Fatalf("the read disk was not evaluated: %+v", as)
 	}
 	m := as[monitorKey("env-1", domain.NotifyDiskHealth)]
-	if m.Severity != domain.AlertWarning || m.Title != "Disks on homelab can't be scanned" || m.ResourceType != domain.AlertResourceEnvironment ||
+	if m.Severity != domain.AlertWarning || m.Title != "Disks can't be scanned" || m.ResourceType != domain.AlertResourceEnvironment ||
 		!strings.Contains(Detail(m), "could not scan") {
 		t.Fatalf("monitoring alert %+v / %s", m, Detail(m))
 	}
@@ -357,7 +357,7 @@ func TestScanFailureStillEvaluatesDisksAndWarns(t *testing.T) {
 		t.Fatalf("%+v", as)
 	}
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.Title != "[Docker Manager] Resolved: Disks on homelab can't be scanned" ||
+	if len(got) != 1 || got[0].msg.Title != "Resolved: Disks can't be scanned" ||
 		got[0].msg.Body != "Disk health is watched again." {
 		t.Fatalf("resolution %+v", got)
 	}
@@ -388,10 +388,10 @@ func TestBlindMonitoringKeepsAlerts(t *testing.T) {
 			t.Errorf("%s is not firing: %+v", key, as)
 		}
 	}
-	if a := as[monitorKey("env-1", domain.NotifyDiskHealth)]; a.Title != "Docker Manager can't read the disks on homelab" {
+	if a := as[monitorKey("env-1", domain.NotifyDiskHealth)]; a.Title != "Disks can't be opened" {
 		t.Errorf("%+v", a)
 	}
-	if a := as[monitorKey("env-1", domain.NotifyRAID)]; a.Title != "RAID state on homelab can't be read" {
+	if a := as[monitorKey("env-1", domain.NotifyRAID)]; a.Title != "RAID state can't be read" {
 		t.Errorf("%+v", a)
 	}
 	// Monitoring works again and nothing is reported: removed a day later.
@@ -452,14 +452,14 @@ func TestMissingDiskAlert(t *testing.T) {
 	d.ErrorCode = protocol.DiskErrTimeout
 	f.health.set("env-1", []protocol.SMARTDevice{d}, nil, nil)
 	f.evaluate("env-1")
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Disk /dev/sda on homelab can't be read" {
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "Disk /dev/sda can't be read" {
 		t.Fatalf("%+v", got)
 	}
 	d.ErrorCode = protocol.DiskErrMissing
 	f.health.set("env-1", []protocol.SMARTDevice{d}, nil, nil)
 	f.evaluate("env-1")
 	a := f.one()
-	if a.Title != "Disk /dev/sda on homelab is missing" || a.Severity != domain.AlertWarning ||
+	if a.Title != "Disk /dev/sda is missing" || a.Severity != domain.AlertWarning ||
 		!strings.Contains(Detail(a), "the agent no longer finds it") {
 		t.Fatalf("%+v / %s", a, Detail(a))
 	}
@@ -491,7 +491,7 @@ func TestDiskAlertFollowsItsDisk(t *testing.T) {
 	f.health.set("env-1", []protocol.SMARTDevice{y, x}, nil, nil)
 	f.evaluate("env-1")
 	after := f.byKey()
-	if a := after[diskKey("env-1", "/dev/sdb", "sat")]; a.ID != ax.ID || a.Title != "Disk /dev/sdb on homelab needs attention" ||
+	if a := after[diskKey("env-1", "/dev/sdb", "sat")]; a.ID != ax.ID || a.Title != "Disk /dev/sdb needs attention" ||
 		a.Facts["pendingSectors"] != "4" {
 		t.Fatalf("x's alert %+v", a)
 	}
@@ -548,7 +548,7 @@ func TestStaleHealthWarns(t *testing.T) {
 	checked = r.SampledAt.Add(-2*time.Hour - time.Minute)
 	f.health.put("env-1", r)
 	f.evaluate("env-1")
-	if a := f.one(); a.Title != "Disk health on homelab is out of date" || a.Facts["reason"] != reasonStale {
+	if a := f.one(); a.Title != "Disk health is out of date" || a.Facts["reason"] != reasonStale {
 		t.Fatalf("%+v", a)
 	}
 	// The report itself stops coming while the environment is online.
@@ -558,7 +558,7 @@ func TestStaleHealthWarns(t *testing.T) {
 	if a := as[monitorKey("env-1", domain.NotifyDiskHealth)]; a.Facts["reason"] != reasonNoReport {
 		t.Errorf("%+v", a)
 	}
-	if a := as[monitorKey("env-1", domain.NotifyRAID)]; a.Title != "RAID state on homelab is out of date" {
+	if a := as[monitorKey("env-1", domain.NotifyRAID)]; a.Title != "RAID state is out of date" {
 		t.Errorf("%+v", as)
 	}
 	// Offline: the offline alert says it; nothing stale here.

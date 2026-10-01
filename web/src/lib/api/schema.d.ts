@@ -5916,7 +5916,7 @@ export interface components {
              * @enum {string}
              */
             state: "firing" | "resolved";
-            /** @example Disk /dev/sda on homelab is failing */
+            /** @example Disk /dev/sda is failing */
             title: string;
             /** Format: date-time */
             updatedAt: string;
@@ -10148,7 +10148,7 @@ export interface components {
              * @enum {string}
              */
             outcome: "success" | "warning" | "failure";
-            /** @example Backup Nightly on homelab succeeded */
+            /** @example Backup Nightly succeeded */
             title: string;
         };
         NotificationAddress: {
@@ -14671,7 +14671,7 @@ export interface operations {
                      *           "severity": "critical",
                      *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "firing",
-                     *           "title": "Disk /dev/sda on homelab is failing",
+                     *           "title": "Disk /dev/sda is failing",
                      *           "updatedAt": "2026-09-25T12:00:00Z"
                      *         }
                      *       ],
@@ -14846,7 +14846,7 @@ export interface operations {
                      *       "severity": "critical",
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "firing",
-                     *       "title": "Disk /dev/sda on homelab is failing",
+                     *       "title": "Disk /dev/sda is failing",
                      *       "updatedAt": "2026-09-25T12:00:00Z"
                      *     }
                      */
@@ -14951,7 +14951,7 @@ export interface operations {
                      *       "severity": "critical",
                      *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "firing",
-                     *       "title": "Disk /dev/sda on homelab is failing",
+                     *       "title": "Disk /dev/sda is failing",
                      *       "updatedAt": "2026-09-25T12:00:00Z"
                      *     }
                      */
@@ -40719,7 +40719,7 @@ export interface operations {
                      *           "kind": "backup",
                      *           "link": "/jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *           "outcome": "success",
-                     *           "title": "Backup Nightly on homelab succeeded"
+                     *           "title": "Backup Nightly succeeded"
                      *         }
                      *       ],
                      *       "nextCursor": "example",

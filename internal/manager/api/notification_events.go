@@ -37,7 +37,7 @@ type Notification struct {
 	EnvironmentID string `json:"environmentId,omitempty" doc:"The environment it ran on (absent for Docker Manager's own backup)."`
 	JobID         string `json:"jobId" doc:"The run's job."`
 	JobKind       string `json:"jobKind" example:"backup.run"`
-	Title         string `json:"title" example:"Backup Nightly on homelab succeeded"`
+	Title         string `json:"title" example:"Backup Nightly succeeded"`
 	Detail        string `json:"detail,omitempty" example:"5 of 5 items backed up (12.4 GiB read) in 3 min 12 s." doc:"One or two sentences about it; a failure says what went wrong and what to do (never error texts)."`
 	// Fields are the message's labeled values.
 	Fields    []NotificationField `json:"fields" doc:"Labeled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it)."`

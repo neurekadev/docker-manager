@@ -283,16 +283,48 @@ const (
 // a line "Name: value" where a service has no fields). Inline fields sit
 // side by side where the service can.
 type NotificationField struct {
-	Name   string `json:"name"`
+	Name string `json:"name"`
+	// Value is the field as plain text (with Items: one entry per line).
 	Value  string `json:"value"`
 	Inline bool   `json:"inline,omitempty"`
+	// Link is the page Value names: a path in Docker Manager in a
+	// snapshot, an absolute URL in a message (none without a public URL).
+	Link string `json:"link,omitempty"`
+	// Items make the field a list (each entry linked and with its change
+	// where the service can show it).
+	Items []NotificationItem `json:"items,omitempty"`
+}
+
+// NotificationItem is one entry of a field's list: a name, the page it
+// links to (like NotificationField.Link) and an optional change shown as
+// code, "From → To" (image digests).
+type NotificationItem struct {
+	Text string `json:"text"`
+	Link string `json:"link,omitempty"`
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+}
+
+// Plain is the entry as plain text ("web: 1a2b → 3c4d").
+func (it NotificationItem) Plain() string {
+	switch {
+	case it.From != "" && it.To != "":
+		return it.Text + ": " + it.From + " → " + it.To
+	case it.To != "":
+		return it.Text + ": " + it.To
+	}
+	return it.Text
 }
 
 // NotificationMessage is one message sent through a channel. Services
-// render what they can: Discord an embed (tone color, fields, link,
-// footer, time), Slack colored attachments, email HTML, push services a
-// title, priority and link, the rest plain text.
+// render what they can: Discord an embed (tone color, status line,
+// fields, links, footer, time), Slack colored attachments, email HTML,
+// push services a title, priority and link, the rest plain text.
 type NotificationMessage struct {
+	// Label is the short status line above the title: the event's kind
+	// and outcome as "What to send" names them ("Disk health ·
+	// Critical").
+	Label string
 	Title string
 	Body  string
 	// URL links to the page in Docker Manager the message is about
@@ -300,7 +332,8 @@ type NotificationMessage struct {
 	URL    string
 	Tone   NotificationTone
 	Fields []NotificationField
-	// Footer is a short line under the message (the instance name).
+	// Footer is a short line under the message (the instance name, beside
+	// Docker Manager's logo where the service shows one).
 	Footer string
 	// Time is when the event happened (zero: not shown).
 	Time time.Time

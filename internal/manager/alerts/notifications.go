@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -78,12 +79,48 @@ func runFacts(ctx context.Context, db bun.IDB, j domain.Job) map[string]string {
 	return f
 }
 
-// on returns " on <environment>" ("" without one).
-func on(env string) string {
-	if env == "" {
+// factTarget is the target a notification's facts name (targetType,
+// targetId).
+func factTarget(f map[string]string) domain.JobTarget {
+	return domain.JobTarget{Type: domain.TargetType(f["targetType"]), ID: f["targetId"]}
+}
+
+// putTarget records target t in the facts (its page in messages).
+func putTarget(f map[string]string, t domain.JobTarget) {
+	if t.ID != "" && t.Type != "" {
+		f["targetType"], f["targetId"] = string(t.Type), t.ID
+	}
+}
+
+// policyPath is the page of a notification's policy ("" without one).
+func policyPath(n domain.Notification) string {
+	id := n.Facts["policyId"]
+	if id == "" {
 		return ""
 	}
-	return " on " + env
+	switch {
+	case n.Kind == domain.NotifyBackup && n.Facts["jobKind"] == "backup.run":
+		return "/backups/policies/" + url.PathEscape(id)
+	case n.Kind == domain.NotifyPrune:
+		return "/maintenance/" + url.PathEscape(id)
+	case n.Kind == domain.NotifyUpdates:
+		return "/updates/" + url.PathEscape(id)
+	}
+	return ""
+}
+
+// putServices records a group of an update run's services: how many
+// (<key>Count) and the first maxListed with their image changes
+// (<key>Changes, encodeChanges).
+func putServices(f map[string]string, key string, cs []serviceChange) {
+	if len(cs) == 0 {
+		return
+	}
+	f[key+"Count"] = strconv.Itoa(len(cs))
+	if len(cs) > maxListed {
+		cs = cs[:maxListed]
+	}
+	f[key+"Changes"] = encodeChanges(cs)
 }
 
 // verbOf is the title's ending for a finished run.
@@ -129,7 +166,7 @@ func memberName(m backup.Member) string {
 }
 
 // backupNotification describes a finished backup.run or manager.backup.
-func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, env string, f map[string]string) (domain.NotificationOutcome, string) {
+func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[string]string) (domain.NotificationOutcome, string) {
 	var in backupInput
 	_ = json.Unmarshal(j.Input, &in)
 	if in.PolicyName != "" {
@@ -138,6 +175,9 @@ func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, env strin
 		if p, err := store.GetBackupPolicy(ctx, db, j.PolicyID); err == nil {
 			f["policy"] = p.Name
 		}
+	}
+	if j.PolicyID != "" && f["policy"] != "" {
+		f["policyId"] = j.PolicyID
 	}
 	repoID := in.Repository.RepositoryID
 	var members []backup.Member
@@ -169,7 +209,7 @@ func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, env strin
 	}
 	if repoID != "" {
 		if r, err := store.GetBackupRepository(ctx, db, repoID); err == nil {
-			f["repository"] = r.Name
+			f["repository"], f["repositoryId"] = r.Name, repoID
 		}
 	}
 	var done, failed, skipped, unreadable []string
@@ -229,7 +269,7 @@ func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, env strin
 	case f["policy"] != "":
 		what = "Backup " + f["policy"]
 	}
-	return outcome, what + on(env) + " " + verbOf(j, warning)
+	return outcome, what + " " + verbOf(j, warning)
 }
 
 // restoreInput is what a restore notification reads of restore.run's
@@ -239,6 +279,7 @@ type restoreInput struct {
 		RepositoryID string `json:"repositoryId"`
 	} `json:"repository"`
 	Scope     string `json:"scope"`
+	StackID   string `json:"stackId"`
 	StackName string `json:"stackName"`
 	Volumes   []struct {
 		Name string `json:"name"`
@@ -246,23 +287,32 @@ type restoreInput struct {
 }
 
 // restoreNotification describes a finished restore.run.
-func restoreNotification(ctx context.Context, db bun.IDB, j domain.Job, env string, f map[string]string) (domain.NotificationOutcome, string) {
+func restoreNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[string]string) (domain.NotificationOutcome, string) {
 	var in restoreInput
 	_ = json.Unmarshal(j.Input, &in)
 	target := in.StackName
-	if target == "" && len(in.Volumes) > 0 {
+	switch {
+	case in.StackID != "":
+		if st, err := store.GetStack(ctx, db, in.StackID); err == nil {
+			target = stackLabel(st)
+		}
+		putTarget(f, domain.JobTarget{Type: domain.TargetStack, ID: in.StackID})
+	case target == "" && len(in.Volumes) > 0:
 		names := make([]string, 0, len(in.Volumes))
 		for _, v := range in.Volumes {
 			names = append(names, v.Name)
 		}
 		target = listNames(names)
+		if len(names) == 1 {
+			putTarget(f, domain.JobTarget{Type: domain.TargetVolume, ID: names[0]})
+		}
 	}
 	if target != "" {
 		f["target"] = target
 	}
 	if in.Repository.RepositoryID != "" {
 		if r, err := store.GetBackupRepository(ctx, db, in.Repository.RepositoryID); err == nil {
-			f["repository"] = r.Name
+			f["repository"], f["repositoryId"] = r.Name, in.Repository.RepositoryID
 		}
 	}
 	var out protocol.RestoreRunOutput
@@ -273,7 +323,7 @@ func restoreNotification(ctx context.Context, db bun.IDB, j domain.Job, env stri
 	if target != "" {
 		what += " of " + target
 	}
-	return runOutcome(j), what + on(env) + " " + verbOf(j, false)
+	return runOutcome(j), what + " " + verbOf(j, false)
 }
 
 // pruneGroups sum prune categories the way users count them.
@@ -290,10 +340,10 @@ var pruneGroups = []struct {
 
 // pruneNotification describes a finished prune.run: the space reclaimed
 // in total and per kind of object.
-func pruneNotification(ctx context.Context, db bun.IDB, j domain.Job, env string, f map[string]string) (domain.NotificationOutcome, string) {
+func pruneNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[string]string) (domain.NotificationOutcome, string) {
 	if j.PolicyID != "" {
 		if p, err := store.GetMaintenancePolicy(ctx, db, j.PolicyID); err == nil {
-			f["policy"] = p.Name
+			f["policy"], f["policyId"] = p.Name, j.PolicyID
 		}
 	}
 	var out protocol.PruneRunOutput
@@ -325,12 +375,12 @@ func pruneNotification(ctx context.Context, db bun.IDB, j domain.Job, env string
 		}
 	}
 	outcome := runOutcome(j)
-	title := "Prune" + on(env) + " " + verbOf(j, false)
+	title := "Prune " + verbOf(j, false)
 	if outcome == domain.OutcomeSuccess && known {
 		if out.Removed == 0 {
-			title = "Prune" + on(env) + " found nothing to remove"
+			title = "Prune found nothing to remove"
 		} else {
-			title = "Prune" + on(env) + " reclaimed " + humanize.Bytes(max(out.BytesReclaimed, 0))
+			title = "Prune reclaimed " + humanize.Bytes(max(out.BytesReclaimed, 0))
 		}
 	}
 	return outcome, title
@@ -359,81 +409,84 @@ func shortDigest(d string) string {
 }
 
 // updateNotification describes a finished update.run.
-func updateNotification(ctx context.Context, db bun.IDB, j domain.Job, env string, f map[string]string) (domain.NotificationOutcome, string) {
+func updateNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[string]string) (domain.NotificationOutcome, string) {
 	var in updateInput
 	_ = json.Unmarshal(j.Input, &in)
 	target := ""
+	var t domain.JobTarget
 	switch {
 	case in.StackID != "":
+		t = domain.JobTarget{Type: domain.TargetStack, ID: in.StackID}
 		if st, err := store.GetStack(ctx, db, in.StackID); err == nil {
-			target = st.Name
+			target = stackLabel(st)
 		}
 	case in.Container != nil:
+		t = domain.JobTarget{Type: domain.TargetContainer, ID: in.Container.Name}
 		target = in.Container.Name
 	}
 	if target == "" {
-		target = targetName(ctx, db, j)
+		target, t = targetName(ctx, db, j), firstTarget(j.Targets)
 	}
 	if target != "" {
 		f["target"] = target
+		putTarget(f, t)
+	}
+	if in.PolicyID != "" {
+		if p, err := store.GetUpdatePolicy(ctx, db, in.PolicyID); err == nil {
+			f["policy"], f["policyId"] = p.Name, in.PolicyID
+		}
 	}
 	var out protocol.UpdateRunOutput
 	updated := 0
 	if json.Unmarshal(j.ResultOutput, &out) == nil {
-		var lines, unchanged, failed, stopped []string
+		var changed, unchanged, stopped, failed []serviceChange
+		var unchangedNames, stoppedNames, failedNames []string
 		for _, sv := range out.Services {
 			switch sv.Outcome {
 			case protocol.UpdateUpdated:
-				updated++
-				l := sv.Service
-				if sv.Reference != "" {
-					l += " (" + sv.Reference + ")"
-				}
-				if from, to := shortDigest(sv.FromDigest), shortDigest(sv.ToDigest); from != "" && to != "" && from != to {
-					l += ": " + from + " → " + to
-				}
-				lines = append(lines, l)
+				changed = append(changed, serviceChange{sv.Service, shortDigest(sv.FromDigest), shortDigest(sv.ToDigest)})
 			case protocol.UpdateUnchanged:
-				unchanged = append(unchanged, sv.Service)
+				unchanged = append(unchanged, serviceChange{service: sv.Service})
+				unchangedNames = append(unchangedNames, sv.Service)
 			case protocol.UpdateKeptStopped:
-				stopped = append(stopped, sv.Service)
+				stopped = append(stopped, serviceChange{sv.Service, shortDigest(sv.FromDigest), shortDigest(sv.ToDigest)})
+				stoppedNames = append(stoppedNames, sv.Service)
 			case protocol.UpdateFailed:
-				failed = append(failed, sv.Service)
+				failed = append(failed, serviceChange{service: sv.Service})
+				failedNames = append(failedNames, sv.Service)
 			}
 		}
-		if len(lines) > maxListed {
-			lines = append(lines[:maxListed], fmt.Sprintf("and %d more", len(lines)-maxListed))
-		}
-		if len(lines) > 0 {
+		updated = len(changed)
+		if updated > 0 {
 			f["updated"] = strconv.Itoa(updated)
-			f["updatedServices"] = strings.Join(lines, "\n")
 		}
-		if len(unchanged) > 0 {
-			f["unchangedServices"] = listNames(unchanged)
+		putServices(f, "updated", changed)
+		putServices(f, "unchanged", unchanged)
+		putServices(f, "keptStopped", stopped)
+		putServices(f, "failed", failed)
+		// In words for the body.
+		if len(unchangedNames) > 0 {
+			f["unchangedServices"] = listNames(unchangedNames)
 		}
-		if len(stopped) > 0 {
-			f["keptStoppedServices"] = listNames(stopped)
+		if len(stoppedNames) > 0 {
+			f["keptStoppedServices"] = listNames(stoppedNames)
 		}
-		if len(failed) > 0 {
-			f["failedServices"] = listNames(failed)
+		if len(failedNames) > 0 {
+			f["failedServices"] = listNames(failedNames)
 		}
 	}
 	outcome := runOutcome(j)
-	name := target
-	if name == "" {
-		name = "an update"
-	}
 	switch {
+	case outcome != domain.OutcomeSuccess && target == "":
+		return outcome, "Update " + verbOf(j, false)
 	case outcome != domain.OutcomeSuccess:
-		return outcome, "Update of " + name + on(env) + " " + verbOf(j, false)
-	case updated == 0 && f["updatedServices"] == "" && out.Services != nil:
-		return outcome, name + on(env) + " was already up to date"
-	case updated == 1:
-		return outcome, "Updated " + name + on(env) + ": 1 service"
-	case updated > 1:
-		return outcome, fmt.Sprintf("Updated %s%s: %d services", name, on(env), updated)
+		return outcome, "Update of " + target + " " + verbOf(j, false)
+	case target == "":
+		return outcome, "Update succeeded"
+	case updated == 0 && out.Services != nil:
+		return outcome, target + " is already up to date"
 	}
-	return outcome, "Updated " + name + on(env)
+	return outcome, "Update of " + target + " succeeded"
 }
 
 // notificationOf describes a finished job of a notification kind (ok
@@ -443,19 +496,18 @@ func notificationOf(ctx context.Context, db bun.IDB, j domain.Job, now time.Time
 	if kind == "" || runOutcome(j) == "" {
 		return domain.Notification{}, false
 	}
-	env := environmentName(ctx, db, j.EnvironmentID)
 	f := runFacts(ctx, db, j)
 	var outcome domain.NotificationOutcome
 	var title string
 	switch j.Kind {
 	case "backup.run", "manager.backup":
-		outcome, title = backupNotification(ctx, db, j, env, f)
+		outcome, title = backupNotification(ctx, db, j, f)
 	case "restore.run":
-		outcome, title = restoreNotification(ctx, db, j, env, f)
+		outcome, title = restoreNotification(ctx, db, j, f)
 	case "prune.run":
-		outcome, title = pruneNotification(ctx, db, j, env, f)
+		outcome, title = pruneNotification(ctx, db, j, f)
 	case "update.run":
-		outcome, title = updateNotification(ctx, db, j, env, f)
+		outcome, title = updateNotification(ctx, db, j, f)
 	}
 	return domain.Notification{
 		ID: ids.New(), Kind: kind, Outcome: outcome, EnvironmentID: j.EnvironmentID, JobID: j.ID, JobKind: j.Kind,
@@ -569,16 +621,32 @@ func NotificationDetail(n domain.Notification) string {
 	return ""
 }
 
-// NotificationFields are a notification's labeled values.
+// updateGroups are an update run's lists of services: the field, the
+// fact key (putServices) and the fact of notifications recorded before
+// the lists (their plain text).
+var updateGroups = []struct{ name, key, plain string }{
+	{"Updated", "updated", "updatedServices"},
+	{"Already up to date", "unchanged", "unchangedServices"},
+	{"Kept stopped", "keptStopped", "keptStoppedServices"},
+	{"Failed", "failed", "failedServices"},
+}
+
+// NotificationFields are a notification's labeled values (the short ones
+// first).
 func NotificationFields(n domain.Notification, env string) []domain.NotificationField {
 	f := n.Facts
 	var l fieldList
-	l.add("Environment", env, true)
+	l.addLink("Environment", env, environmentPath(n.EnvironmentID), true)
+	target := factTarget(f)
 	switch n.Kind {
 	case domain.NotifyBackup:
-		l.add("Policy", f["policy"], true)
-		l.add("Target", f["target"], true)
-		l.add("Repository", f["repository"], true)
+		l.addLink("Policy", f["policy"], policyPath(n), true)
+		l.addLink("Target", f["target"], targetPath(n.EnvironmentID, target), true)
+		repo := ""
+		if f["repositoryId"] != "" {
+			repo = targetPath("", domain.JobTarget{Type: domain.TargetRepository, ID: f["repositoryId"]})
+		}
+		l.addLink("Repository", f["repository"], repo, true)
 		if f["items"] != "" {
 			v := f["backedUp"] + " of " + f["items"] + " backed up"
 			if f["failed"] != "" {
@@ -597,7 +665,7 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 		l.add("Not backed up", f["failedItems"], false)
 		l.add("Files unreadable in", f["unreadableItems"], false)
 	case domain.NotifyPrune:
-		l.add("Policy", f["policy"], true)
+		l.addLink("Policy", f["policy"], policyPath(n), true)
 		l.add("Reclaimed", bytesFact(f["reclaimedBytes"]), true)
 		for _, g := range []struct{ key, name, one, many string }{
 			{"containers", "Containers", "container", "containers"},
@@ -619,11 +687,16 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 		l.add("Failed", f["failed"], true)
 		l.add("Left for the next run", f["deferred"], true)
 	case domain.NotifyUpdates:
-		l.add("Target", f["target"], true)
-		l.add("Updated", f["updatedServices"], false)
-		l.add("Already up to date", f["unchangedServices"], false)
-		l.add("Kept stopped", f["keptStoppedServices"], false)
-		l.add("Failed", f["failedServices"], false)
+		l.addLink("Target", f["target"], targetPath(n.EnvironmentID, target), true)
+		l.addLink("Policy", f["policy"], policyPath(n), true)
+		for _, g := range updateGroups {
+			total, _ := strconv.Atoi(f[g.key+"Count"])
+			if items := serviceItems(f[g.key+"Changes"], n.EnvironmentID, target, total); len(items) > 0 {
+				l.addItems(g.name, items)
+			} else {
+				l.add(g.name, f[g.plain], false)
+			}
+		}
 	}
 	l.add("Duration", durationWords(f["durationSeconds"]), true)
 	l.add("Started by", originWords(f), true)
@@ -634,7 +707,7 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 		}
 		l.add("What to do", errorFix(class), false)
 	}
-	return l
+	return l.ordered()
 }
 
 // recordNotification stores a notification and writes its messages.

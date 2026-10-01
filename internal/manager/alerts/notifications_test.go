@@ -77,7 +77,7 @@ func TestAPruneReportsWhatItReclaimedPerKindOfObject(t *testing.T) {
 		t.Fatalf("%+v", ns)
 	}
 	n := ns[0]
-	if n.Kind != domain.NotifyPrune || n.Outcome != domain.OutcomeSuccess || n.Title != "Prune on homelab reclaimed 3 GiB" ||
+	if n.Kind != domain.NotifyPrune || n.Outcome != domain.OutcomeSuccess || n.Title != "Prune reclaimed 3 GiB" ||
 		n.JobID != j.ID || n.Facts["containersRemoved"] != "2" || n.Facts["containersBytes"] != "134217728" ||
 		n.Facts["imagesRemoved"] != "1" || n.Facts["networksRemoved"] != "1" || n.Facts["buildCacheBytes"] != "939524096" {
 		t.Fatalf("%+v", n)
@@ -98,7 +98,7 @@ func TestAPruneReportsWhatItReclaimedPerKindOfObject(t *testing.T) {
 		t.Fatalf("%+v (failures channel %s)", got, failures.ID)
 	}
 	m := got[0].msg
-	if m.Title != "[Docker Manager] Prune on homelab reclaimed 3 GiB" || m.Tone != domain.ToneSuccess ||
+	if m.Title != "Prune reclaimed 3 GiB" || m.Tone != domain.ToneSuccess ||
 		m.Body != "Removed 5 objects and reclaimed 3 GiB." || m.URL != "https://docker.example.com/jobs/"+j.ID {
 		t.Fatalf("%+v", m)
 	}
@@ -116,7 +116,7 @@ func TestAPruneReportsWhatItReclaimedPerKindOfObject(t *testing.T) {
 	empty := f.run("prune.run", domain.JobSucceeded, domain.OriginScheduled)
 	empty.ResultOutput = output(t, protocol.PruneRunOutput{})
 	f.finish(empty)
-	if n := f.notifications()[0]; n.Title != "Prune on homelab found nothing to remove" || NotificationDetail(n) != "Nothing was unused." {
+	if n := f.notifications()[0]; n.Title != "Prune found nothing to remove" || NotificationDetail(n) != "Nothing was unused." {
 		t.Fatalf("%+v", n)
 	}
 }
@@ -148,7 +148,7 @@ func TestAFailedBackupIsExplainedAndSentOnce(t *testing.T) {
 	}
 	for _, s := range got {
 		m := s.msg
-		if m.Title != "[Docker Manager] Backup Nightly on homelab failed" || m.Tone != domain.ToneCritical ||
+		if m.Title != "Backup Nightly failed" || m.Tone != domain.ToneCritical ||
 			m.Body != "The backup storage could not be reached (DNS, network or TLS). Check that the host can reach the storage "+
 				"endpoint. Not backed up: app, db." {
 			t.Fatalf("%s: %+v", s.channel, m)
@@ -187,7 +187,7 @@ func TestAFailedBackupIsExplainedAndSentOnce(t *testing.T) {
 	}
 	got = f.dispatch()
 	if len(got) != 1 || got[0].channel != all.ID || got[0].msg.Tone != domain.ToneWarning ||
-		got[0].msg.Title != "[Docker Manager] Backup on homelab finished with warnings" ||
+		got[0].msg.Title != "Backup finished with warnings" ||
 		!strings.Contains(got[0].msg.Body, "2 of 2 items backed up (4 GiB read) in 3 min 12 s. Some files could not be read in db") {
 		t.Fatalf("%+v (failures %s)", got, failures.ID)
 	}
@@ -211,16 +211,63 @@ func TestAnUpdateRunListsWhatItUpdated(t *testing.T) {
 	}})
 	f.finish(j)
 	n := f.notifications()[0]
-	if n.Kind != domain.NotifyUpdates || n.Title != "Updated web on homelab: 1 service" ||
-		n.Facts["updatedServices"] != "web (nginx:1.27): aaaaaaaaaaaa → bbbbbbbbbbbb" || n.Facts["unchangedServices"] != "cache" {
+	if n.Kind != domain.NotifyUpdates || n.Title != "Update of web succeeded" || n.Facts["updated"] != "1" ||
+		n.Facts["updatedChanges"] != "web\taaaaaaaaaaaa\tbbbbbbbbbbbb" || n.Facts["unchangedServices"] != "cache" ||
+		n.Facts["targetType"] != "container" || n.Facts["targetId"] != "web" {
 		t.Fatalf("%+v", n)
 	}
 	if strings.Contains(string(output(t, n)), "ENV-CANARY") {
 		t.Fatal("the container's environment was stored")
 	}
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.Body != "Recreated with the new image: 1 service." {
+	if len(got) != 1 || got[0].msg.Body != "Recreated with the new image: 1 service." || got[0].msg.Label != "Image updates · Applied" {
 		t.Fatalf("%+v", got)
+	}
+	// The target and every service link to their pages; the updated one
+	// shows its digests.
+	m := got[0].msg
+	if tf := fieldNamed(m.Fields, "Target"); tf.Value != "web" || tf.Link != "https://docker.example.com/containers/"+j.EnvironmentID+"/web" {
+		t.Fatalf("%+v", tf)
+	}
+	updated := fieldNamed(m.Fields, "Updated")
+	if len(updated.Items) != 1 || updated.Items[0] != (domain.NotificationItem{Text: "web",
+		Link: "https://docker.example.com/containers/" + j.EnvironmentID + "/web", From: "aaaaaaaaaaaa", To: "bbbbbbbbbbbb"}) {
+		t.Fatalf("%+v", updated)
+	}
+	if same := fieldNamed(m.Fields, "Already up to date"); len(same.Items) != 1 || same.Items[0].Text != "cache" || same.Items[0].From != "" {
+		t.Fatalf("%+v", same)
+	}
+	// Short fields first, the lists after them.
+	if !m.Fields[0].Inline || m.Fields[len(m.Fields)-1].Inline {
+		t.Fatalf("%+v", m.Fields)
+	}
+}
+
+// fieldNamed returns the field called name (zero when absent).
+func fieldNamed(fs []domain.NotificationField, name string) domain.NotificationField {
+	for _, f := range fs {
+		if f.Name == name {
+			return f
+		}
+	}
+	return domain.NotificationField{}
+}
+
+func TestNotificationsOfEarlierVersionsKeepTheirLists(t *testing.T) {
+	n := domain.Notification{Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess, Facts: map[string]string{
+		"updated": "1", "updatedServices": "web (nginx:1.27): aaaaaaaaaaaa → bbbbbbbbbbbb", "unchangedServices": "cache"}}
+	fs := NotificationFields(n, "homelab")
+	if v, _ := field(fs, "Updated"); v != "web (nginx:1.27): aaaaaaaaaaaa → bbbbbbbbbbbb" {
+		t.Errorf("%q", v)
+	}
+	if v, _ := field(fs, "Already up to date"); v != "cache" {
+		t.Errorf("%q", v)
+	}
+}
+
+func TestStacksAreNamedByTheirDisplayName(t *testing.T) {
+	if stackLabel(domain.Stack{Name: "paperless", DisplayName: "Paperless"}) != "Paperless" || stackLabel(domain.Stack{Name: "paperless"}) != "paperless" {
+		t.Fatal("stackLabel")
 	}
 }
 

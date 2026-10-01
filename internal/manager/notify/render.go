@@ -16,13 +16,15 @@ import (
 )
 
 // Rendering: each service gets the richest form it can show of a
-// message. Discord an embed (the tone's color as its strip, fields side by
-// side, the link on the title, footer and time), Slack colored
-// attachments, Microsoft Teams an accented card, email HTML (with a plain
-// part), Telegram HTML, ntfy and Gotify Markdown with a priority and a
-// click link, Pushover a priority; a generic webhook gets the tone and
-// link as extra JSON keys; everything else plain text. Options the owner
-// put in the address (a color, a priority, a parse mode) win over ours.
+// message. Discord an embed (the status line as its author, the tone's
+// color as its strip, the title linking to the page, fields side by side,
+// linked values and bulleted lists, the logo beside the footer and the
+// time), Slack colored attachments, Microsoft Teams an accented card,
+// email HTML (with a plain part), Telegram HTML, ntfy and Gotify Markdown
+// with a priority and a click link, Pushover a priority; a generic webhook
+// gets the tone and link as extra JSON keys; everything else plain text.
+// Options the owner put in the address (a color, a priority, a parse
+// mode, a Discord username or avatar) win over ours.
 
 // Tone colors: the app's danger, warn and ok tokens, and its accent blue
 // for information.
@@ -42,12 +44,18 @@ func toneColor(t domain.NotificationTone) uint {
 
 func toneHex(t domain.NotificationTone) string { return fmt.Sprintf("#%06x", toneColor(t)) }
 
-// toneWords name the tone in plain text (email header, digest lines).
+// toneWords name the tone in plain text (the email's top line of a
+// message without a status line).
 var toneWords = map[domain.NotificationTone]string{
 	domain.ToneCritical: "Critical", domain.ToneWarning: "Warning", domain.ToneSuccess: "OK", domain.ToneInfo: "Info",
 }
 
 const openLabel = "Open in Docker Manager"
+
+// LogoURL is Docker Manager's logo where services can always fetch it
+// (the documentation site): the manager's own address may be private or
+// behind a sign-in.
+const LogoURL = "https://docs.neureka.dev/docker-manager/logo-512.png"
 
 // Discord's limits (characters).
 const (
@@ -57,6 +65,10 @@ const (
 	discordFieldNameMax   = 256
 	discordFieldValueMax  = 1024
 	discordFooterMax      = 2048
+	discordAuthorMax      = 256
+	// discordEmbedMax bounds title, description, author, footer and every
+	// field's name and value together.
+	discordEmbedMax = 6000
 )
 
 // clip shortens s to at most n runes, ending with "…" when cut.
@@ -86,9 +98,8 @@ func userSet(q url.Values, key string) bool {
 }
 
 // render builds the body and parameters of msg for service (svc is the
-// initialized Shoutrrr service, q the address's query options, publicURL
-// the manager's origin for the icon).
-func render(service string, svc types.Service, msg domain.NotificationMessage, q url.Values, publicURL string) rendered {
+// initialized Shoutrrr service, q the address's query options).
+func render(service string, svc types.Service, msg domain.NotificationMessage, q url.Values) rendered {
 	r := rendered{body: plainText(msg), params: types.Params{}}
 	set := func(key, value string) {
 		if !userSet(q, key) && value != "" {
@@ -102,7 +113,7 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 	case "discord":
 		if d, ok := svc.(*discord.Service); ok && d.Config != nil {
 			d.Config.JSON = true
-			r.body = discordPayload(msg, d.Config.Username, d.Config.Avatar, publicURL)
+			r.body = discordPayload(msg, d.Config.Username, d.Config.Avatar)
 			r.params = types.Params{}
 		}
 	case "slack":
@@ -160,45 +171,109 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 // templateLiteral makes s a Go template that prints s as it is.
 func templateLiteral(s string) string { return strings.ReplaceAll(s, "{{", `{{"{{"}}`) }
 
-// plainText is the body as text: the description, a line per field and
-// the link.
-func plainText(msg domain.NotificationMessage) string {
-	var b strings.Builder
-	b.WriteString(strings.TrimRight(msg.Body, "\n"))
-	if len(msg.Fields) > 0 {
-		if b.Len() > 0 {
-			b.WriteString("\n\n")
-		}
-		for i, f := range msg.Fields {
-			if i > 0 {
-				b.WriteString("\n")
-			}
-			b.WriteString(f.Name + ": " + f.Value)
-		}
-	}
-	if msg.URL != "" {
-		if b.Len() > 0 {
-			b.WriteString("\n\n")
-		}
-		b.WriteString(msg.URL)
-	}
-	return b.String()
+// markup is how a service writes text, links, code and list entries.
+type markup struct {
+	esc    func(string) string
+	link   func(text, url string) string // text already escaped
+	code   func(string) string
+	bullet string
 }
 
-// markdownEscaper escapes what Markdown would format in a value.
-var markdownEscaper = strings.NewReplacer(`\`, `\\`, "*", `\*`, "_", `\_`, "`", "\\`", "[", `\[`, "]", `\]`)
+// value is a field's value: its entries one per line, or the value,
+// linked when it names a page.
+func (m markup) value(f domain.NotificationField) string {
+	if len(f.Items) > 0 {
+		lines := make([]string, len(f.Items))
+		for i, it := range f.Items {
+			lines[i] = m.bullet + m.item(it)
+		}
+		return strings.Join(lines, "\n")
+	}
+	v := m.esc(f.Value)
+	if f.Link != "" {
+		return m.link(v, f.Link)
+	}
+	return v
+}
 
-// markdownText is the body as Markdown: fields as bold labels, the link
-// as "Open in Docker Manager". sep separates the lines of fields.
+// item is a list entry: its name (linked when it names a page) and its
+// change as code ("web `1a2b` → `3c4d`").
+func (m markup) item(it domain.NotificationItem) string {
+	s := m.esc(it.Text)
+	if it.Link != "" {
+		s = m.link(s, it.Link)
+	}
+	switch {
+	case it.From != "" && it.To != "":
+		s += " " + m.code(it.From) + " → " + m.code(it.To)
+	case it.To != "":
+		s += " " + m.code(it.To)
+	}
+	return s
+}
+
+// markdownEscaper escapes what Markdown (and Discord) would format in a
+// value.
+var markdownEscaper = strings.NewReplacer(`\`, `\\`, "*", `\*`, "_", `\_`, "`", "\\`", "[", `\[`, "]", `\]`, "~", `\~`,
+	"|", `\|`)
+
+var mdMarkup = markup{
+	esc:    markdownEscaper.Replace,
+	link:   func(text, u string) string { return "[" + text + "](" + u + ")" },
+	code:   func(s string) string { return "`" + s + "`" },
+	bullet: "- ",
+}
+
+// plainText is the body as text: the status line, the description, a
+// line per field (a list's entries below its name) and the link.
+func plainText(msg domain.NotificationMessage) string {
+	var parts []string
+	if msg.Label != "" {
+		parts = append(parts, msg.Label)
+	}
+	if body := strings.TrimSpace(msg.Body); body != "" {
+		parts = append(parts, body)
+	}
+	if len(msg.Fields) > 0 {
+		lines := make([]string, 0, len(msg.Fields))
+		for _, f := range msg.Fields {
+			if len(f.Items) == 0 {
+				lines = append(lines, f.Name+": "+f.Value)
+				continue
+			}
+			lines = append(lines, f.Name+":")
+			for _, it := range f.Items {
+				lines = append(lines, "- "+it.Plain())
+			}
+		}
+		parts = append(parts, strings.Join(lines, "\n"))
+	}
+	if msg.URL != "" {
+		parts = append(parts, msg.URL)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// markdownText is the body as Markdown: the status line in italics,
+// fields as bold labels (a list below its label), the link as "Open in
+// Docker Manager". sep separates the fields.
 func markdownText(msg domain.NotificationMessage, sep string) string {
 	var parts []string
+	if msg.Label != "" {
+		parts = append(parts, "_"+markdownEscaper.Replace(msg.Label)+"_")
+	}
 	if body := strings.TrimSpace(msg.Body); body != "" {
 		parts = append(parts, markdownEscaper.Replace(body))
 	}
 	if len(msg.Fields) > 0 {
 		lines := make([]string, 0, len(msg.Fields))
 		for _, f := range msg.Fields {
-			lines = append(lines, "**"+markdownEscaper.Replace(f.Name)+":** "+markdownEscaper.Replace(f.Value))
+			name := "**" + markdownEscaper.Replace(f.Name) + ":**"
+			if len(f.Items) > 0 {
+				lines = append(lines, name+"\n"+mdMarkup.value(f))
+			} else {
+				lines = append(lines, name+" "+mdMarkup.value(f))
+			}
 		}
 		parts = append(parts, strings.Join(lines, sep))
 	}
@@ -227,12 +302,12 @@ var gotifyPriorities = map[domain.NotificationTone]string{
 
 // discordEmbed and its parts are Discord's webhook JSON.
 type discordEmbed struct {
+	Author      *discordEmbedAuthor `json:"author,omitempty"`
 	Title       string              `json:"title,omitempty"`
 	URL         string              `json:"url,omitempty"`
 	Description string              `json:"description,omitempty"`
 	Color       uint                `json:"color"`
 	Fields      []discordEmbedField `json:"fields,omitempty"`
-	Author      *discordEmbedAuthor `json:"author,omitempty"`
 	Footer      *discordEmbedFooter `json:"footer,omitempty"`
 	Timestamp   string              `json:"timestamp,omitempty"`
 }
@@ -244,8 +319,7 @@ type discordEmbedField struct {
 }
 
 type discordEmbedAuthor struct {
-	Name    string `json:"name"`
-	IconURL string `json:"icon_url,omitempty"`
+	Name string `json:"name"`
 }
 
 type discordEmbedFooter struct {
@@ -254,6 +328,8 @@ type discordEmbedFooter struct {
 }
 
 type discordPayloadJSON struct {
+	// Username and AvatarURL come from the address only: otherwise the
+	// webhook's own name and avatar stay.
 	Username  string         `json:"username,omitempty"`
 	AvatarURL string         `json:"avatar_url,omitempty"`
 	Embeds    []discordEmbed `json:"embeds"`
@@ -261,47 +337,97 @@ type discordPayloadJSON struct {
 	AllowedMentions map[string][]string `json:"allowed_mentions"`
 }
 
-// iconURL is Docker Manager's icon at the public URL (Discord fetches it
-// itself, so only an https origin is used).
-func iconURL(publicURL string) string {
-	if !strings.HasPrefix(publicURL, "https://") {
-		return ""
-	}
-	return strings.TrimRight(publicURL, "/") + "/icons/apple-touch-icon-180x180.png"
+// discordPlainMarkup is Discord's text without links and code, for a
+// field the embed's total has no room for with them.
+var discordPlainMarkup = markup{
+	esc:    markdownEscaper.Replace,
+	link:   func(text, _ string) string { return text },
+	code:   func(s string) string { return s },
+	bullet: "- ",
 }
 
-// discordPayload is one embed: the tone's color, the title linking to the
-// page, the description, inline fields, the footer and the time.
-func discordPayload(msg domain.NotificationMessage, username, avatar, publicURL string) string {
+// discordValue is a field's value in markup m within limit characters: a
+// list is cut after a whole entry ("…and 3 more"), and a linked value
+// too long to keep its link is shown plain.
+func discordValue(f domain.NotificationField, m markup, limit int) string {
+	if len(f.Items) == 0 {
+		v := m.value(f)
+		if utf8.RuneCountInString(v) > limit {
+			v = m.esc(f.Value)
+		}
+		return clip(v, limit)
+	}
+	more := func(n int) string { return fmt.Sprintf("%s…and %d more", m.bullet, n) }
+	var lines []string
+	used := 0
+	for i, it := range f.Items {
+		l := m.bullet + m.item(it)
+		size := used + utf8.RuneCountInString(l)
+		room := limit
+		if rest := len(f.Items) - i - 1; rest > 0 {
+			room -= utf8.RuneCountInString(more(rest)) + 1
+		}
+		if size > room {
+			lines = append(lines, more(len(f.Items)-i))
+			break
+		}
+		lines = append(lines, l)
+		used = size + 1
+	}
+	return clip(strings.Join(lines, "\n"), limit)
+}
+
+// discordPayload is one embed: the status line as its author, the tone's
+// color, the title linking to the page, the description, the fields, the
+// footer beside the logo and the time. The whole embed stays within
+// Discord's total (discordEmbedMax): a field that would pass it is shown
+// plain (without links and code) within the room left, a list cut after
+// a whole entry; a field without any room is left out, later ones may
+// still fit (Discord refuses the whole message otherwise, at every
+// retry).
+func discordPayload(msg domain.NotificationMessage, username, avatar string) string {
+	runes := utf8.RuneCountInString
 	e := discordEmbed{
 		Title: clip(msg.Title, discordTitleMax), URL: msg.URL, Color: toneColor(msg.Tone),
 	}
-	desc := strings.TrimSpace(msg.Body)
+	total := runes(e.Title)
+	if msg.Label != "" {
+		e.Author = &discordEmbedAuthor{Name: clip(msg.Label, discordAuthorMax)}
+		total += runes(e.Author.Name)
+	}
+	if msg.Footer != "" {
+		e.Footer = &discordEmbedFooter{Text: clip(msg.Footer, discordFooterMax), IconURL: LogoURL}
+		total += runes(e.Footer.Text)
+	}
+	desc := markdownEscaper.Replace(strings.TrimSpace(msg.Body))
 	if msg.URL != "" {
 		if desc != "" {
 			desc += "\n\n"
 		}
 		desc += "[" + openLabel + "](" + msg.URL + ")"
 	}
-	e.Description = clip(desc, discordDescriptionMax)
+	if desc != "" {
+		e.Description = clip(desc, max(min(discordDescriptionMax, discordEmbedMax-total), 1))
+		total += runes(e.Description)
+	}
 	for i, f := range msg.Fields {
 		if i == discordFieldsMax {
 			break
 		}
-		e.Fields = append(e.Fields, discordEmbedField{Name: clip(f.Name, discordFieldNameMax),
-			Value: clip(f.Value, discordFieldValueMax), Inline: f.Inline})
-	}
-	if msg.Footer != "" {
-		e.Footer = &discordEmbedFooter{Text: clip(msg.Footer, discordFooterMax), IconURL: iconURL(publicURL)}
+		name := clip(f.Name, discordFieldNameMax)
+		room := min(discordFieldValueMax, discordEmbedMax-total-runes(name))
+		if room < 1 {
+			continue // a shorter field after it may still fit
+		}
+		value := discordValue(f, mdMarkup, discordFieldValueMax)
+		if runes(value) > room {
+			value = discordValue(f, discordPlainMarkup, room)
+		}
+		total += runes(name) + runes(value)
+		e.Fields = append(e.Fields, discordEmbedField{Name: name, Value: value, Inline: f.Inline})
 	}
 	if !msg.Time.IsZero() {
 		e.Timestamp = msg.Time.UTC().Format(time.RFC3339)
-	}
-	if avatar == "" {
-		avatar = iconURL(publicURL)
-	}
-	if username == "" {
-		username = "Docker Manager"
 	}
 	b, _ := json.Marshal(discordPayloadJSON{Username: username, AvatarURL: avatar, Embeds: []discordEmbed{e},
 		AllowedMentions: map[string][]string{"parse": {}}})
@@ -311,18 +437,34 @@ func discordPayload(msg domain.NotificationMessage, username, avatar, publicURL 
 // slackEscaper escapes Slack's control characters.
 var slackEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
+var slackMarkup = markup{
+	esc:    slackEscaper.Replace,
+	link:   func(text, u string) string { return "<" + u + "|" + text + ">" },
+	code:   func(s string) string { return "`" + s + "`" },
+	bullet: "• ",
+}
+
 // slackText is one line per attachment (Slack's service sends each line
-// as an attachment in the tone's color): the description, bold labeled
-// fields and the link. Empty lines are left out.
+// as an attachment in the tone's color): the status line, the
+// description, bold labeled fields (a list's entries on lines of their
+// own) and the link. Empty lines are left out.
 func slackText(msg domain.NotificationMessage) string {
 	var lines []string
+	if msg.Label != "" {
+		lines = append(lines, "_"+slackEscaper.Replace(msg.Label)+"_")
+	}
 	for l := range strings.SplitSeq(strings.TrimSpace(msg.Body), "\n") {
 		if l = strings.TrimSpace(l); l != "" {
 			lines = append(lines, slackEscaper.Replace(l))
 		}
 	}
 	for _, f := range msg.Fields {
-		lines = append(lines, "*"+slackEscaper.Replace(f.Name)+":* "+slackEscaper.Replace(f.Value))
+		name := "*" + slackEscaper.Replace(f.Name) + ":*"
+		if len(f.Items) > 0 {
+			lines = append(lines, name, slackMarkup.value(f))
+		} else {
+			lines = append(lines, name+" "+slackMarkup.value(f))
+		}
 	}
 	if msg.URL != "" {
 		lines = append(lines, "<"+msg.URL+"|"+openLabel+">")
@@ -330,17 +472,32 @@ func slackText(msg domain.NotificationMessage) string {
 	return strings.Join(lines, "\n")
 }
 
+var telegramMarkup = markup{
+	esc:    html.EscapeString,
+	link:   func(text, u string) string { return `<a href="` + html.EscapeString(u) + `">` + text + `</a>` },
+	code:   func(s string) string { return "<code>" + html.EscapeString(s) + "</code>" },
+	bullet: "• ",
+}
+
 // telegramHTML is the body in Telegram's HTML (the service adds the
 // title in bold).
 func telegramHTML(msg domain.NotificationMessage) string {
 	var parts []string
+	if msg.Label != "" {
+		parts = append(parts, "<i>"+html.EscapeString(msg.Label)+"</i>")
+	}
 	if body := strings.TrimSpace(msg.Body); body != "" {
 		parts = append(parts, html.EscapeString(body))
 	}
 	if len(msg.Fields) > 0 {
 		lines := make([]string, 0, len(msg.Fields))
 		for _, f := range msg.Fields {
-			lines = append(lines, "<b>"+html.EscapeString(f.Name)+":</b> "+html.EscapeString(f.Value))
+			name := "<b>" + html.EscapeString(f.Name) + ":</b>"
+			if len(f.Items) > 0 {
+				lines = append(lines, name+"\n"+telegramMarkup.value(f))
+			} else {
+				lines = append(lines, name+" "+telegramMarkup.value(f))
+			}
 		}
 		parts = append(parts, strings.Join(lines, "\n"))
 	}
@@ -350,16 +507,33 @@ func telegramHTML(msg domain.NotificationMessage) string {
 	return strings.Join(parts, "\n\n")
 }
 
-// emailHTML is a small card: a colored top bar with the tone's word, the
-// title, the description, a table of fields, a button to the page and
-// the footer. Inline styles only (mail programs drop style sheets).
+var emailMarkup = markup{
+	esc: html.EscapeString,
+	link: func(text, u string) string {
+		return `<a href="` + html.EscapeString(u) + `" style="color:#58a6ff;text-decoration:none;">` + text + `</a>`
+	},
+	code: func(s string) string {
+		return `<code style="font-family:SFMono-Regular,Consolas,Menlo,monospace;font-size:12px;background:#0d1117;` +
+			`border:1px solid #262f3d;border-radius:4px;padding:1px 4px;">` + html.EscapeString(s) + `</code>`
+	},
+	bullet: "• ",
+}
+
+// emailHTML is a small card: a colored top bar with the status line (the
+// tone's word without one), the title, the description, a table of
+// fields, a button to the page and the footer. Inline styles only (mail
+// programs drop style sheets).
 func emailHTML(msg domain.NotificationMessage) string {
 	color := toneHex(msg.Tone)
 	esc := html.EscapeString
+	label := msg.Label
+	if label == "" {
+		label = toneWords[msg.Tone]
+	}
 	var b strings.Builder
 	b.WriteString(`<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#0d1117;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">`)
 	b.WriteString(`<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background:#161b22;border:1px solid #262f3d;border-radius:12px;border-top:4px solid ` + color + `;">`)
-	b.WriteString(`<tr><td style="padding:20px 24px 4px;color:` + color + `;font-size:12px;font-weight:600;">` + esc(toneWords[msg.Tone]) + `</td></tr>`)
+	b.WriteString(`<tr><td style="padding:20px 24px 4px;color:` + color + `;font-size:12px;font-weight:600;">` + esc(label) + `</td></tr>`)
 	b.WriteString(`<tr><td style="padding:0 24px 8px;color:#e6edf3;font-size:18px;font-weight:600;">` + esc(msg.Title) + `</td></tr>`)
 	if body := strings.TrimSpace(msg.Body); body != "" {
 		b.WriteString(`<tr><td style="padding:0 24px 16px;color:#c3cdd9;font-size:14px;line-height:20px;">` +
@@ -370,7 +544,7 @@ func emailHTML(msg domain.NotificationMessage) string {
 		for _, f := range msg.Fields {
 			b.WriteString(`<tr><td style="padding:6px 16px 6px 0;color:#8b98a9;white-space:nowrap;vertical-align:top;border-top:1px solid #262f3d;">` +
 				esc(f.Name) + `</td><td style="padding:6px 0;color:#e6edf3;border-top:1px solid #262f3d;">` +
-				strings.ReplaceAll(esc(f.Value), "\n", "<br>") + `</td></tr>`)
+				strings.ReplaceAll(emailMarkup.value(f), "\n", "<br>") + `</td></tr>`)
 		}
 		b.WriteString(`</table></td></tr>`)
 	}

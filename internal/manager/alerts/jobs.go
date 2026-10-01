@@ -57,9 +57,9 @@ func kindNoun(k domain.JobKind) string {
 	return "A job"
 }
 
-// targetName names a job's first target as users know it (a stack's or
-// repository's name; Docker object names as they are); "" when it has
-// none worth naming.
+// targetName names a job's first target as users know it (a stack's
+// display name, a repository's name; Docker object names as they are);
+// "" when it has none worth naming.
 func targetName(ctx context.Context, db bun.IDB, j domain.Job) string {
 	if len(j.Targets) == 0 {
 		return ""
@@ -69,7 +69,7 @@ func targetName(ctx context.Context, db bun.IDB, j domain.Job) string {
 	switch t.Type {
 	case domain.TargetStack:
 		if st, err := store.GetStack(ctx, db, t.ID); err == nil {
-			name = st.Name
+			name = stackLabel(st)
 		}
 	case domain.TargetRepository:
 		if r, err := store.GetBackupRepository(ctx, db, t.ID); err == nil {
@@ -103,7 +103,8 @@ func environmentName(ctx context.Context, db bun.IDB, id string) string {
 	return ""
 }
 
-// jobObservation describes a failed job (never its error message).
+// jobObservation describes a failed job (never its error message): "<what
+// it does> of <target> failed".
 func jobObservation(ctx context.Context, db bun.IDB, j domain.Job) Observation {
 	sev, verb := domain.AlertCritical, "failed"
 	switch j.State {
@@ -119,10 +120,6 @@ func jobObservation(ctx context.Context, db bun.IDB, j domain.Job) Observation {
 		b.WriteString(" of " + target)
 	}
 	b.WriteString(" " + verb)
-	env := environmentName(ctx, db, j.EnvironmentID)
-	if env != "" {
-		b.WriteString(" on " + env)
-	}
 	facts := map[string]string{"jobId": j.ID, "jobKind": string(j.Kind), "jobState": string(j.State), "origin": string(j.Origin)}
 	if j.ErrorClass != "" {
 		facts["errorClass"] = j.ErrorClass
@@ -280,11 +277,13 @@ func evaluateUpdates(ctx context.Context, db bun.IDB, policyID string, now time.
 		return nil, err
 	}
 	var services, tokens []string
+	var changes []serviceChange
 	for _, c := range cands {
 		if c.Status != domain.CandidateAvailable {
 			continue
 		}
 		services = append(services, c.Service)
+		changes = append(changes, serviceChange{c.Service, shortDigest(c.AppliedDigest), shortDigest(c.CandidateDigest)})
 		tokens = append(tokens, c.Service+"@"+c.CandidateDigest)
 	}
 	if len(services) == 0 {
@@ -295,22 +294,20 @@ func evaluateUpdates(ctx context.Context, db bun.IDB, policyID string, now time.
 	if p.TargetType == domain.UpdateTargetContainer {
 		target.Type = domain.TargetContainer
 	} else if st, err := store.GetStack(ctx, db, p.TargetID); err == nil {
-		name = st.Name
+		name = stackLabel(st)
 	} else {
 		name = p.Name
 	}
-	title := fmt.Sprintf("%d updates available for %s", len(services), name)
+	title := fmt.Sprintf("%s has %d updates available", name, len(services))
 	if len(services) == 1 {
-		title = "An update is available for " + name
-	}
-	if env := environmentName(ctx, db, p.EnvironmentID); env != "" {
-		title += " on " + env
+		title = name + " has an update available"
 	}
 	listed := services
-	if len(listed) > 10 {
-		listed = listed[:10]
+	if len(listed) > maxListed {
+		listed, changes = listed[:maxListed], changes[:maxListed]
 	}
-	facts := map[string]string{"count": fmt.Sprint(len(services)), "services": strings.Join(listed, ", "), "target": name}
+	facts := map[string]string{"count": fmt.Sprint(len(services)), "services": strings.Join(listed, ", "), "target": name,
+		"changes": encodeChanges(changes)}
 	return raise(ctx, db, Observation{
 		Key: key, Kind: domain.NotifyUpdates, Severity: domain.AlertInfo, EnvironmentID: p.EnvironmentID,
 		ResourceType: domain.AlertResourceUpdatePolicy, ResourceID: p.ID, Targets: []domain.JobTarget{target}, Title: title,

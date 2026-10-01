@@ -118,7 +118,7 @@ func TestMemoryAboveItsThresholdsRaisesAndResolvesWithAMargin(t *testing.T) {
 	if len(f.firing()) != 0 {
 		t.Fatal("still firing")
 	}
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Resolved: homelab is running out of memory" ||
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "Resolved: homelab is running out of memory" ||
 		got[0].msg.Tone != domain.ToneSuccess {
 		t.Fatalf("%+v", got)
 	}
@@ -153,7 +153,7 @@ func TestDiskSpaceAndTemperatureUseTheEnvironmentsThresholds(t *testing.T) {
 	f.sample(m, 99, 98, 91)
 	disk, found, err := store.FiringAlert(f.ctx, f.db, diskSpaceKey("env-1", "docker"))
 	if err != nil || !found || disk.Severity != domain.AlertWarning || disk.Facts["mount"] != "docker" || disk.Facts["warningAt"] != "97" ||
-		disk.Facts["criticalAt"] != "99" || disk.Title != "Docker data disk on homelab is almost full" || disk.ResourceID != "docker" {
+		disk.Facts["criticalAt"] != "99" || disk.Title != "Docker data disk is almost full" || disk.ResourceID != "docker" {
 		t.Fatalf("%v %v %+v", err, found, disk)
 	}
 	// The filesystem is no longer reported: it ends silently.

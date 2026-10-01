@@ -191,7 +191,10 @@ after the commit.
   read (a busy database) stays ready and is tried again.
 - **Updates:** the fingerprint is `service@digest` of every candidate with
   an update available (the UI's `summary.available`), so the alert is sent
-  again only when a new digest appears.
+  again only when a new digest appears. Its facts are the target (a stack
+  by its display name), the count, the first 10 services in words
+  (`services`) and with their digests (`changes`: what runs → the newer
+  image, `encodeChanges`).
 
 ## Notifications
 
@@ -208,10 +211,10 @@ warnings or input secrets:
 
 | run | facts | outcome |
 | --- | --- | --- |
-| backup | policy, repository (names), items backed up / failed / skipped, the names that failed, were skipped or had unreadable files, bytes read, repository size and snapshots | failure: failed, partly failed or interrupted; warning: succeeded with unreadable files or skipped items; success |
-| restore | the stack or volumes, the repository, whether to deploy the restored Compose file | failure or success |
-| prune | policy, reclaimed bytes, removed / skipped / failed / deferred, and per kind of object (containers, images, volumes, networks, build cache: removed items and their bytes) | failure or success |
-| update | the target, every updated service with its image and digests (`from → to`, 12 digits), unchanged, kept stopped and failed services | failure (failed, partly failed, interrupted) or success |
+| backup | policy, repository (names and IDs, for their pages), items backed up / failed / skipped, the names that failed, were skipped or had unreadable files, bytes read, repository size and snapshots | failure: failed, partly failed or interrupted; warning: succeeded with unreadable files or skipped items; success |
+| restore | the stack (by its display name) or volumes, the target (`targetType`, `targetId`), the repository (name and ID), whether to deploy the restored Compose file | failure or success |
+| prune | policy (name and ID), reclaimed bytes, removed / skipped / failed / deferred, and per kind of object (containers, images, volumes, networks, build cache: removed items and their bytes) | failure or success |
+| update | the target (a stack by its display name; `targetType`, `targetId`), the policy (name and ID), per group (updated, unchanged, kept stopped, failed) its count (`<group>Count`) and up to 10 services with their digests (`<group>Changes`: "service TAB from TAB to", 12 digits); the unchanged, kept stopped and failed names in words for the body | failure (failed, partly failed, interrupted) or success |
 
 Every notification also has the job, its kind, state, origin, who started
 it (a manual job's user) and its duration.
@@ -235,10 +238,12 @@ changes):
   the due channels (by due time, indexed) and at most `DispatchBatch`
   (100) of each channel's oldest messages that are due (later ones wait
   for their own delay or backoff), which go out as one message
-  (one alert or notification) or one digest ("[Name] 3 alerts, 1
-  resolved, 2 notifications", at most 20 lines, linking to the
+  (one alert or notification) or one digest (status line "Summary",
+  title "3 alerts, 1 resolved, 2 notifications", a "What happened" list
+  of at most 20 entries, each linked to its page and naming its
+  environment unless the title starts with it ("(homelab)"), linking to the
   Notifications page, its Alerts tab when it holds alerts only, in the
-  tone of its worst line) built from their snapshots; what is left is
+  tone of its worst entry) built from their snapshots; what is left is
   sent right after. Channels are sent to in parallel (4 at once), each in
   order. A failure defers every pending message of the channel by 30 s,
   doubling up to 1 h, and gives a message up 24 h after it was written
@@ -255,8 +260,19 @@ transaction.
 
 ## Messages
 
-Title `[<instance name>] <title>`, resolutions `[<instance name>]
-Resolved: <title>`; the body is `Detail(alert)` (resolutions:
+Every message follows one convention (#174). The **status line**
+(`Label`) is the kind and outcome as **What to send** names them ("Disk
+health · Critical", "Environment offline · Back online", "Image updates ·
+Applied"). The **title** is the alert's or notification's: the subject
+first, then what happened ("Disk /dev/sda is failing", "RAID md0 is
+degraded", "Docker data disk is almost full", "homelab is offline",
+"Paperless has 2 updates available", "Deploy of Paperless failed",
+"Backup Nightly succeeded", "Restore of Paperless succeeded", "Prune
+reclaimed 3 GiB", "Update of Paperless succeeded"; a stack by its
+display name). It names the environment only when the environment is the
+subject (it has a field of its own) and never the instance's name (the
+footer does); resolutions are `Resolved: <title>`. The body is
+`Detail(alert)` (resolutions:
 `resolvedDetail`, "The disk is healthy again.") or
 `NotificationDetail(notification)`: one or two sentences built from the
 facts only (counters, levels, progress, the offline time, the peak and
@@ -265,13 +281,21 @@ to do. A failure is explained from its error class (`errors.go`,
 `describeError`: about 90 classes of the job engine, restic, backups,
 restores, updates, update checks and prune, each "what went wrong" and
 "what to do"; an unknown class is named as it is). The **fields**
-(`alertFields`, `NotificationFields`) label the numbers: the environment,
-the severity, what it is about, sizes and counts per kind (a prune's
+(`alertFields`, `NotificationFields`) label the numbers, the short
+(inline) ones before the lists: the environment, what it is about (the
+target, policy and repository), sizes and counts per kind (a prune's
 Containers / Images / Volumes / Networks / Build cache), duration, who
-started it, "What went wrong" and "What to do". The **tone** follows the
+started it, "What went wrong" and "What to do". The environment, target,
+policy and repository link to their pages; services are lists, each
+entry linked to the stack's logs of that service (a standalone
+container: its page) with its image digests (`from → to`; an update
+alert: what runs and the newer image). The severity is the status
+line's, not a field. Snapshots keep the links as paths; `buildMessage`
+prefixes the public URL (no links without one). The **tone** follows the
 outcome: critical and failure red, warning amber, resolved and success
-green, available blue. The footer is "Docker Manager", the time the
-message's. The link is the public URL plus the page it is about (the
+green, available blue. The footer is the instance's name ("Docker
+Manager" without one), the time the message's. The link is the public
+URL plus the page it is about (the
 environment's System tab for disks and RAID, the environment for offline
 and host usage, the job for failed jobs and notifications, the update
 policy; digests link to `/notifications`). Never serial numbers, job

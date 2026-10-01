@@ -41,6 +41,7 @@ const (
 	MaxEnvironments    = 100
 	TestInterval       = 5 * time.Second
 	auditTargetType    = "notification_channel"
+	testMessageLabel   = "Test message"
 	testMessageTitle   = "Docker Manager test message"
 	testMessageBodyFmt = "This is a test message from Docker Manager. If you can read it, the channel %q works."
 )
@@ -438,7 +439,7 @@ func (s *Service) Test(ctx context.Context, id string) (Result, error) {
 	}
 	s.lastTests[id] = now
 	s.mu.Unlock()
-	msg := domain.NotificationMessage{Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name), URL: s.opts.PublicURL,
+	msg := domain.NotificationMessage{Label: testMessageLabel, Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name), URL: s.opts.PublicURL,
 		Tone: domain.ToneInfo, Fields: []domain.NotificationField{
 			{Name: "Channel", Value: c.Name, Inline: true},
 			{Name: "Sends", Value: kindCount(len(c.Subscriptions.Kinds())), Inline: true},
@@ -471,7 +472,7 @@ func (s *Service) Send(ctx context.Context, channelID string, msg domain.Notific
 // send delivers msg to addr, the address of c (both from withAddress), and
 // records the result for that address version only.
 func (s *Service) send(ctx context.Context, c domain.NotificationChannel, addr logging.Secret, msg domain.NotificationMessage) (Result, error) {
-	class := deliver(ctx, string(addr), msg, s.opts.Timeout, s.opts.PublicURL)
+	class := deliver(ctx, string(addr), msg, s.opts.Timeout)
 	if ctx.Err() != nil {
 		return Result{}, ctx.Err()
 	}

@@ -160,7 +160,7 @@ func (s *Service) EvaluateThresholds(ctx context.Context, environmentID string) 
 				seen[key] = true
 				ms = append(ms, measure{key: key, kind: domain.NotifyDiskSpace, resourceType: domain.AlertResourceFilesystem,
 					resourceID: d.Mount, value: p, warning: t.DiskSpaceWarning, critical: t.DiskSpaceCritical,
-					title: MountLabel(d.Mount) + " disk on " + e.Name + " is almost full",
+					title: MountLabel(d.Mount) + " disk is almost full",
 					facts: map[string]string{"mount": d.Mount, "usedPercent": round(p),
 						"freeBytes": strconv.FormatInt(max(d.TotalBytes-d.UsedBytes, 0), 10), "totalBytes": strconv.FormatInt(d.TotalBytes, 10)}})
 			}

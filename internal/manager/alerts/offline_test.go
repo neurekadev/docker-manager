@@ -41,7 +41,7 @@ func TestOfflineAlertAfterTheGracePeriod(t *testing.T) {
 		a.Facts["since"] != went.Format(time.RFC3339) {
 		t.Fatalf("%+v", a)
 	}
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] homelab is offline" ||
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "homelab is offline" ||
 		got[0].msg.URL != "https://docker.example.com/environments/env-1" {
 		t.Fatalf("%+v", got)
 	}
@@ -56,7 +56,7 @@ func TestOfflineAlertAfterTheGracePeriod(t *testing.T) {
 	if len(f.firing()) != 0 {
 		t.Fatal("still firing")
 	}
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Resolved: homelab is offline" {
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "Resolved: homelab is offline" {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -105,7 +105,7 @@ func TestNoAlertStormAtStartup(t *testing.T) {
 		t.Fatalf("%+v", as)
 	}
 	// They go out as one digest.
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] 2 alerts" || got[0].msg.URL != "https://docker.example.com/notifications?tab=alerts" {
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "2 alerts" || got[0].msg.URL != "https://docker.example.com/notifications?tab=alerts" {
 		t.Fatalf("%+v", got)
 	}
 }

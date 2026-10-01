@@ -11,7 +11,7 @@ them with `notify.Service.Send`. Binding rules:
 
 | package | role |
 | --- | --- |
-| `internal/domain/notification.go` | `NotificationChannel`, input and patch, event kinds and their outcomes, `NotificationSubscriptions`, error classes, `Wants`, `NotificationMessage` (tone, fields, footer, time) |
+| `internal/domain/notification.go` | `NotificationChannel`, input and patch, event kinds and their outcomes, `NotificationSubscriptions`, error classes, `Wants`, `NotificationMessage` (status line, tone, fields with links and lists, footer, time) |
 | `internal/manager/store/notification_channels.go` | rows of `notification_channels` and `notification_channel_environments`; the sealed address only through `NotificationChannelWithSecret` (the channel and its address from one row read) |
 | `internal/manager/notify` | service (`List`, `Get`, `Create`, `Update`, `Delete`, `Reveal`, `Test`, `Send`), the Shoutrrr adapter (`shoutrrr.go`), rich rendering per service (`render.go`), error classes (`classify.go`), non-secret targets (`target.go`) |
 | `internal/manager/api/notifications.go` | `/api/v1/notification-channels...` routes |
@@ -71,8 +71,9 @@ kind also got the new ones.
   it; the API audits every call (`notification_channel.reveal`, category
   credentials, the service as detail).
 - **Test** (owner): reads the channel and its address in one row read,
-  sends "Docker Manager test message" (info tone, the channel's name and
-  how many kinds it sends as fields, the public URL) through it,
+  sends "Docker Manager test message" (status line "Test message", info
+  tone, the channel's name and how many kinds it sends as fields, the
+  public URL) through it,
   enabled or not, at most once per channel every 5 s (in memory, fake
   clock in tests; 429 `notification_test_rate_limited`), records the
   result for that address version only (a result of an address replaced
@@ -99,16 +100,16 @@ richest form, from the address's service name and query options:
 
 | service | form |
 | --- | --- |
-| `discord` | one embed in the webhook's JSON mode (the service's `Config.JSON`): the title linking to the page, the body and "Open in Docker Manager", the fields (inline ones side by side; Discord's limits kept), the tone's color as the strip, footer "Docker Manager" with the icon, the time; username "Docker Manager" and the icon as avatar unless the address sets them (the icon only from an https public URL); mentions disabled |
-| `slack` | `color` (the tone's hex) and `title`; one line per attachment: the body, `*Name:* value` fields, `<url\|Open in Docker Manager>` |
+| `discord` | one embed in the webhook's JSON mode (the service's `Config.JSON`): the status line as the author, the title linking to the page, the body (Markdown escaped) and "Open in Docker Manager", the fields (inline ones side by side; linked values `[value](url)`; lists as `- ` entries, each linked, with its change as `` `from` → `to` ``, cut after a whole entry with "…and n more"; Discord's limits kept, the 6000 characters of the whole embed too: a field that would pass them is shown plain within the room left, a list cut after a whole entry, and a field without room is skipped while later ones may still fit), the tone's color as the strip, the footer (the instance's name) beside the logo `LogoURL` (the documentation site's, which Discord can always fetch), the time; the username and avatar only when the address sets them (the webhook's own stay otherwise); mentions disabled |
+| `slack` | `color` (the tone's hex) and `title`; one line per attachment: the status line in italics, the body, `*Name:* value` fields (linked values `<url\|value>`, a list's `• ` entries on lines of their own, changes as code), `<url\|Open in Docker Manager>` |
 | `teams` | `title` and `color` (`attention`, `warning`, `good`, `accent`); Markdown body |
-| `smtp` | subject = title; an HTML card (a colored top bar with the tone's word, title, body, a table of fields, a button, footer and time; inline styles) as the HTML part (`usehtml`, the service's `html` template), the plain text as the plain part |
-| `telegram` | `parsemode=HTML`: the service bolds the title; fields in bold labels, an HTML link |
+| `smtp` | subject = title; an HTML card (a colored top bar with the status line, or the tone's word without one; title, body, a table of fields with linked values and lists, changes as `<code>`, a button, footer and time; inline styles) as the HTML part (`usehtml`, the service's `html` template), the plain text as the plain part |
+| `telegram` | `parsemode=HTML`: the service bolds the title; the status line in italics, fields in bold labels (linked values, `• ` list entries, changes as `<code>`), an HTML link |
 | `ntfy` | `title`, `priority` (critical 4, warning and info 3, success 2), `tags` (an emoji per tone), `click` (the link), `markdown=yes` with a Markdown body |
 | `gotify` | `title`, `priority` (8, 5, 4, 4), `extras` (Markdown display, click URL) with a Markdown body |
 | `pushover` | `title`, priority 1 for critical |
 | `generic` | `title`, plus `tone` and `url` keys beside title and message (a JSON template gets them as data) |
-| others | `title` and plain text: the body, a line "Name: value" per field, the link |
+| others | `title` and plain text: the status line, the body, a line "Name: value" per field (a list's entries as "- name: from → to" lines below its name), the link |
 
 Only parameters the service has are set, and an option the address
 already sets (`color`, `priority`, `parsemode`, `markdown`, `extras`,
