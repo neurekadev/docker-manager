@@ -7,7 +7,11 @@
 // restic; it runs one fixed binary, never a shell, with a minimal
 // environment (LANG=C), bounded output and a per-call timeout. It only
 // reads: it never starts a self-test, changes a setting or wakes a disk in
-// standby (-n standby). Serial numbers are data, never logged.
+// standby (-n standby) unless the caller asks for it (a disk asleep for
+// longer than DOCKER_AGENT_SMART_WAKE_AFTER). A smartctl that does not exit
+// after it was stopped (a process stuck in uninterruptible I/O on a dying
+// disk) is given up on, and its device is not read again until it exits.
+// Serial numbers are data, never logged.
 package smartctl
 
 import (
@@ -22,6 +26,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,6 +42,9 @@ const (
 	// DefaultKillGrace is how long a cancelled smartctl may take to exit
 	// after the interrupt before it is killed.
 	DefaultKillGrace = 5 * time.Second
+	// DefaultAbandonAfter is how long a call waits, after the kill, for
+	// smartctl to exit before it gives up on it.
+	DefaultAbandonAfter = 10 * time.Second
 	// MaxOutput bounds smartctl's standard output.
 	MaxOutput = 4 << 20
 	// maxStderrTail bounds the kept end of standard error.
@@ -77,6 +85,9 @@ const (
 	CodeTimeout      = "timeout"
 	CodeCancelled    = "cancelled"
 	CodeFailed       = "failed"
+	// CodeStuck: an earlier call for the same device (or scan) was given
+	// up on and its smartctl has not exited yet; no second one is started.
+	CodeStuck = "stuck"
 )
 
 // Error is a failed call (the process could not run, timed out or its
@@ -112,6 +123,12 @@ type Runner struct {
 	Timeout time.Duration
 	// KillGrace (default DefaultKillGrace).
 	KillGrace time.Duration
+	// AbandonAfter (default DefaultAbandonAfter).
+	AbandonAfter time.Duration
+
+	mu sync.Mutex
+	// stuck holds the calls given up on whose smartctl has not exited.
+	stuck map[string]bool
 }
 
 // result is one finished call.
@@ -121,10 +138,13 @@ type result struct {
 	stderr string
 }
 
-// run executes smartctl with args. A non-zero exit is not an error (the
-// caller decodes the bits); starting, timing out, cancellation and an
-// oversized output are.
-func (r *Runner) run(ctx context.Context, op, device string, args ...string) (result, error) {
+// run executes smartctl with args (key names the device, or the scan, for
+// CodeStuck). A non-zero exit is not an error (the caller decodes the
+// bits); starting, timing out, cancellation, an oversized output and a
+// call already stuck are. A smartctl that does not exit AbandonAfter after
+// it was killed is given up on: the call answers at once and key stays
+// stuck until the process exits.
+func (r *Runner) run(ctx context.Context, op, key, device string, args ...string) (result, error) {
 	bin := r.Binary
 	if bin == "" {
 		bin = DefaultBinary
@@ -137,8 +157,14 @@ func (r *Runner) run(ctx context.Context, op, device string, args ...string) (re
 	if grace <= 0 {
 		grace = DefaultKillGrace
 	}
+	abandon := r.AbandonAfter
+	if abandon <= 0 {
+		abandon = DefaultAbandonAfter
+	}
+	if !r.claim(key) {
+		return result{}, &Error{Op: op, Code: CodeStuck, Message: "an earlier smartctl call has not exited"}
+	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // fixed binary; arguments are flags, a device type and a /dev path; no shell
 	cmd.Env = env()
 	cmd.Cancel = func() error {
@@ -152,21 +178,60 @@ func (r *Runner) run(ctx context.Context, op, device string, args ...string) (re
 	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		cancel()
+		r.release(key)
 		return result{}, &Error{Op: op, Code: CodeFailed, Message: err.Error()}
 	}
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
+		cancel()
+		r.release(key)
 		code := CodeFailed
 		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) {
 			code = CodeNotInstalled
 		}
 		return result{}, &Error{Op: op, Code: code, Message: err.Error()}
 	}
-	var out bytes.Buffer
-	_, readErr := io.Copy(&out, io.LimitReader(stdout, MaxOutput+1))
-	tooLarge := out.Len() > MaxOutput
-	_, _ = io.Copy(io.Discard, stdout)
-	_ = cmd.Wait()
+	// The output is read until smartctl closes it, which a process stuck
+	// in the kernel never does, not even killed: the reading goroutine
+	// outlives an abandoned call and releases key when it ends.
+	type output struct {
+		out      bytes.Buffer
+		tooLarge bool
+		readErr  error
+	}
+	done := make(chan *output, 1)
+	go func() {
+		o := &output{}
+		_, o.readErr = io.Copy(&o.out, io.LimitReader(stdout, MaxOutput+1))
+		o.tooLarge = o.out.Len() > MaxOutput
+		_, _ = io.Copy(io.Discard, stdout)
+		_ = cmd.Wait()
+		cancel()
+		// Released before the answer: the next call may follow at once.
+		r.release(key)
+		done <- o
+	}()
+	var o *output
+	select {
+	case o = <-done:
+	case <-runCtx.Done():
+		t := time.NewTimer(grace + abandon)
+		select {
+		case o = <-done:
+			t.Stop()
+		case <-t.C:
+			if r.Logger != nil {
+				r.Logger.Debug("smartctl did not exit; given up", "op", op, "device", device,
+					"duration", time.Since(start).Round(time.Millisecond).String())
+			}
+			code := CodeTimeout
+			if ctx.Err() != nil {
+				code = CodeCancelled
+			}
+			return result{}, &Error{Op: op, Code: code, ExitCode: -1, Message: "smartctl did not exit after it was stopped"}
+		}
+	}
 	exit := 0
 	if cmd.ProcessState != nil {
 		exit = cmd.ProcessState.ExitCode()
@@ -175,21 +240,41 @@ func (r *Runner) run(ctx context.Context, op, device string, args ...string) (re
 		r.Logger.Debug("smartctl", "op", op, "device", device, "exit_code", exit,
 			"duration", time.Since(start).Round(time.Millisecond).String())
 	}
-	res := result{stdout: out.Bytes(), exit: ExitBits(max(exit, 0)), stderr: stderr.String()}
+	res := result{stdout: o.out.Bytes(), exit: ExitBits(max(exit, 0)), stderr: stderr.String()}
 	switch {
 	case ctx.Err() != nil:
 		return res, &Error{Op: op, Code: CodeCancelled, ExitCode: exit, Message: "cancelled"}
-	case runCtx.Err() != nil:
+	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
 		return res, &Error{Op: op, Code: CodeTimeout, ExitCode: exit, Message: fmt.Sprintf("no answer within %s", timeout)}
-	case tooLarge:
+	case o.tooLarge:
 		return res, &Error{Op: op, Code: CodeFailed, ExitCode: exit, Message: fmt.Sprintf("output larger than %d bytes", MaxOutput)}
-	case readErr != nil:
-		return res, &Error{Op: op, Code: CodeFailed, ExitCode: exit, Message: "read output: " + readErr.Error()}
+	case o.readErr != nil:
+		return res, &Error{Op: op, Code: CodeFailed, ExitCode: exit, Message: "read output: " + o.readErr.Error()}
 	case exit < 0:
 		// Killed by a signal.
 		return res, &Error{Op: op, Code: CodeFailed, ExitCode: exit, Message: "terminated"}
 	}
 	return res, nil
+}
+
+// claim marks key busy; false while an abandoned call of key runs.
+func (r *Runner) claim(key string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stuck[key] {
+		return false
+	}
+	if r.stuck == nil {
+		r.stuck = map[string]bool{}
+	}
+	r.stuck[key] = true
+	return true
+}
+
+func (r *Runner) release(key string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.stuck, key)
 }
 
 // env is the child's whole environment: C messages (parsed as text in
@@ -208,7 +293,7 @@ func env() []string {
 
 // Scan lists the devices smartctl finds and opens (--scan-open).
 func (r *Runner) Scan(ctx context.Context) ([]ScanDevice, error) {
-	res, err := r.run(ctx, "scan", "", "--scan-open", "--json")
+	res, err := r.run(ctx, "scan", "scan", "", "--scan-open", "--json")
 	if err != nil {
 		return nil, err
 	}
@@ -224,12 +309,17 @@ func (r *Runner) Scan(ctx context.Context) ([]ScanDevice, error) {
 }
 
 // Read reads one device's SMART data without waking it from standby
-// (smartctl --json -a -n standby,3 -d <type> <name>).
-func (r *Runner) Read(ctx context.Context, dev ScanDevice) (Reading, error) {
+// (smartctl --json -a -n standby,3 -d <type> <name>); with wake it reads
+// a device in standby too (-n never: the read spins it up).
+func (r *Runner) Read(ctx context.Context, dev ScanDevice, wake bool) (Reading, error) {
 	if !validName(dev.Name) || !validType(dev.Type) {
 		return Reading{}, &Error{Op: "read", Code: CodeFailed, Message: "invalid device name or type"}
 	}
-	res, err := r.run(ctx, "read", dev.Name, "--json", "-a", "-n", fmt.Sprintf("standby,%d", StandbyExit), "-d", dev.Type, dev.Name)
+	power := fmt.Sprintf("standby,%d", StandbyExit)
+	if wake {
+		power = "never"
+	}
+	res, err := r.run(ctx, "read", "read "+dev.Name+" "+dev.Type, dev.Name, "--json", "-a", "-n", power, "-d", dev.Type, dev.Name)
 	if err != nil {
 		return Reading{}, err
 	}

@@ -1,10 +1,12 @@
 // Package health is the agent's disk health monitor (#143): SMART data of
 // every disk read with the pinned smartctl (internal/agent/smartctl),
 // cached and refreshed every DOCKER_AGENT_SMART_INTERVAL (a disk in
-// standby is never woken: it keeps its previous values, marked sleeping
-// unless they showed a problem),
-// and the Linux software RAID and ZFS pool state read from procfs on
-// every request (cheap). It serves the host.health request.
+// standby is not woken: it keeps its previous values, marked sleeping
+// unless they showed a problem, until it was not read for
+// DOCKER_AGENT_SMART_WAKE_AFTER), a disk that a later scan no longer finds
+// listed as missing until the agent restarts, and the Linux software RAID
+// and ZFS pool state read from procfs on every request (cheap). It serves
+// the host.health request.
 // docs/internal/architecture/metrics.md, "Host health".
 package health
 
@@ -24,10 +26,11 @@ import (
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
-// SMART reads SMART data (smartctl.Runner implements it).
+// SMART reads SMART data (smartctl.Runner implements it). Read with
+// wake reads a device in standby too.
 type SMART interface {
 	Scan(ctx context.Context) ([]smartctl.ScanDevice, error)
-	Read(ctx context.Context, dev smartctl.ScanDevice) (smartctl.Reading, error)
+	Read(ctx context.Context, dev smartctl.ScanDevice, wake bool) (smartctl.Reading, error)
 }
 
 // Defaults.
@@ -43,6 +46,9 @@ const (
 	DefaultWait = 3 * time.Second
 	// DefaultConcurrency bounds the devices read at once.
 	DefaultConcurrency = 4
+	// DefaultWakeAfter is how long a disk may stay unread because it is
+	// in standby before a read wakes it (DOCKER_AGENT_SMART_WAKE_AFTER).
+	DefaultWakeAfter = 24 * time.Hour
 )
 
 // Options configures a Monitor.
@@ -64,6 +70,9 @@ type Options struct {
 	ScanInterval time.Duration
 	Wait         time.Duration
 	Concurrency  int
+	// WakeAfter defaults to DefaultWakeAfter; negative: a disk in standby
+	// is never woken.
+	WakeAfter time.Duration
 }
 
 // Monitor keeps the SMART state and answers host.health.
@@ -80,6 +89,13 @@ type Monitor struct {
 	checkedAt time.Time
 	scan      []smartctl.ScanDevice
 	devices   []protocol.SMARTDevice
+	// missing are devices an earlier scan found and the last one did not
+	// (kept until the agent restarts or a scan finds them again).
+	missing []smartctl.ScanDevice
+	// wakeClock is when a device's wake-up clock last started: when a scan
+	// first found it, or the last read that woke it (a read that got no
+	// data sets no read time, and must not wake the disk every round).
+	wakeClock map[string]time.Time
 	// requested counts check requests; completed is the last request a
 	// finished round covered; done is closed (and replaced) when a round
 	// ends.
@@ -119,8 +135,11 @@ func New(opts Options) *Monitor {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = DefaultConcurrency
 	}
+	if opts.WakeAfter == 0 {
+		opts.WakeAfter = DefaultWakeAfter
+	}
 	m := &Monitor{opts: opts, log: opts.Logger.With("component", "health"), trigger: make(chan struct{}, 1),
-		status: protocol.SMARTOK, done: make(chan struct{}), logged: map[string]bool{}}
+		status: protocol.SMARTOK, done: make(chan struct{}), logged: map[string]bool{}, wakeClock: map[string]time.Time{}}
 	if opts.SMART == nil {
 		m.status = protocol.SMARTDisabled
 	} else {
@@ -200,6 +219,7 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 	m.mu.Lock()
 	covers := m.requested
 	scan := m.scan
+	missing := m.missing
 	scanned := m.scannedAt
 	prev := make(map[string]protocol.SMARTDevice, len(m.devices))
 	for _, d := range m.devices {
@@ -216,8 +236,11 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 			return
 		case err != nil:
 			status, message = protocol.SMARTError, "the disk scan failed"
-			if smartctl.IsCode(err, smartctl.CodeNotInstalled) {
+			switch {
+			case smartctl.IsCode(err, smartctl.CodeNotInstalled):
 				status, message = protocol.SMARTNotInstalled, "smartctl is not installed in the agent image"
+			case smartctl.IsCode(err, smartctl.CodeTimeout), smartctl.IsCode(err, smartctl.CodeStuck):
+				message = "the disk scan did not finish"
 			}
 			m.logOnce("scan", "SMART disk scan failed", "error", err)
 		default:
@@ -225,19 +248,39 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 			if len(devs) > protocol.MaxHealthDevices {
 				devs = devs[:protocol.MaxHealthDevices]
 			}
+			missing = stillMissing(scan, missing, devs, prev)
+			// Values carry over only for a device the previous scan found
+			// too: a path that appeared (again) may be another disk.
+			had := make(map[string]bool, len(scan))
+			for _, d := range scan {
+				had[deviceKey(d.Name, d.Type)] = true
+			}
+			for _, d := range devs {
+				if k := deviceKey(d.Name, d.Type); !had[k] {
+					delete(prev, k)
+				}
+			}
 			scan, scanned = devs, m.opts.Clock.Now()
 		}
 	}
 	if status == protocol.SMARTNotInstalled {
 		m.finish(covers, func() {
-			m.status, m.message, m.scan, m.devices = status, message, nil, nil
+			m.status, m.message, m.scan, m.devices, m.missing = status, message, nil, nil, nil
 		})
 		return
 	}
-	devices := m.readAll(ctx, scan, prev)
+	wake := m.wakeDue(scan, prev, now)
+	devices := m.readAll(ctx, scan, prev, wake)
 	if ctx.Err() != nil {
 		m.finish(covers, nil)
 		return
+	}
+	missing = withoutFound(missing, prev, devices)
+	if room := protocol.MaxHealthDevices - len(devices); len(missing) > room {
+		missing = missing[:max(room, 0)]
+	}
+	for _, dev := range missing {
+		devices = append(devices, missingDevice(dev, prev[deviceKey(dev.Name, dev.Type)]))
 	}
 	if status == protocol.SMARTOK && m.noAccess(devices) {
 		status = protocol.SMARTNoAccess
@@ -245,9 +288,96 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 	checked := m.opts.Clock.Now().UTC()
 	m.finish(covers, func() {
 		m.status, m.message = status, message
-		m.scan, m.scannedAt, m.devices = scan, scanned, devices
+		m.scan, m.scannedAt, m.devices, m.missing = scan, scanned, devices, missing
 		m.checkedAt = checked
 	})
+}
+
+// stillMissing returns the devices missing after a scan found devs: those
+// missing before that it did not find again, then those the previous scan
+// (old) found that it no longer does, except a device without SMART data
+// (prev: unsupported, such as a USB stick): nothing was watched there.
+func stillMissing(old, missing, devs []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice) []smartctl.ScanDevice {
+	found := make(map[string]bool, len(devs))
+	for _, d := range devs {
+		found[deviceKey(d.Name, d.Type)] = true
+	}
+	var out []smartctl.ScanDevice
+	listed := map[string]bool{}
+	for _, list := range [][]smartctl.ScanDevice{missing, old} {
+		for _, d := range list {
+			k := deviceKey(d.Name, d.Type)
+			if p := prev[k]; p.State == protocol.DiskError && p.ErrorCode == protocol.DiskErrUnsupported {
+				continue
+			}
+			if !found[k] && !listed[k] {
+				listed[k] = true
+				out = append(out, d)
+			}
+		}
+	}
+	return out
+}
+
+// withoutFound drops a missing device whose last values (prev) name the
+// serial number of a device read now (the same disk, found under another
+// name after it dropped off the bus and came back).
+func withoutFound(missing []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice, devices []protocol.SMARTDevice) []smartctl.ScanDevice {
+	serials := map[string]bool{}
+	for _, d := range devices {
+		if d.Serial != "" {
+			serials[d.Serial] = true
+		}
+	}
+	var out []smartctl.ScanDevice
+	for _, d := range missing {
+		if s := prev[deviceKey(d.Name, d.Type)].Serial; s != "" && serials[s] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// missingDevice is a device no scan finds any more: its last values (and
+// their read time) stay for reference, its state says it is missing.
+func missingDevice(dev smartctl.ScanDevice, prev protocol.SMARTDevice) protocol.SMARTDevice {
+	if prev.Name == "" {
+		prev = protocol.SMARTDevice{Name: dev.Name, Type: dev.Type, Protocol: dev.Protocol}
+	}
+	prev.State, prev.ErrorCode = protocol.DiskError, protocol.DiskErrMissing
+	return prev
+}
+
+// wakeDue returns the devices to read even in standby: those not read
+// for WakeAfter since their last read, the last read that woke them or
+// the scan that first found them, whichever is latest; at most one wake
+// per WakeAfter, also when the waking read gets no data. It keeps the
+// wake clocks of scan.
+func (m *Monitor) wakeDue(scan []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice, now time.Time) map[string]bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	seen := make(map[string]time.Time, len(scan))
+	wake := map[string]bool{}
+	for _, d := range scan {
+		k := deviceKey(d.Name, d.Type)
+		since, ok := m.wakeClock[k]
+		if _, carried := prev[k]; !ok || !carried {
+			// New, or its values were dropped (another disk may hold the
+			// path): its clock starts now.
+			since = now
+		}
+		if p := prev[k]; p.ReadAt != nil && p.ReadAt.After(since) {
+			since = *p.ReadAt
+		}
+		if m.opts.WakeAfter >= 0 && now.Sub(since) >= m.opts.WakeAfter {
+			wake[k] = true
+			since = now
+		}
+		seen[k] = since
+	}
+	m.wakeClock = seen
+	return wake
 }
 
 // finish applies a round's result (nil: none, the round was cancelled)
@@ -274,16 +404,28 @@ func (m *Monitor) finish(covers uint64, apply func()) {
 func deviceKey(name, typ string) string { return name + "\x00" + typ }
 
 // readAll reads every scanned device (Concurrency at a time) in scan
-// order. A device in standby keeps its previous values, marked sleeping
-// (failing and warning stay: standby clears no problem).
-func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice) []protocol.SMARTDevice {
+// order; those in wake even in standby. A device in standby keeps its
+// previous values, marked sleeping (failing and warning stay: standby
+// clears no problem).
+func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice,
+	wake map[string]bool) []protocol.SMARTDevice {
 	out := make([]protocol.SMARTDevice, len(scan))
 	sem := make(chan struct{}, m.opts.Concurrency)
 	var wg sync.WaitGroup
 	for i, dev := range scan {
 		if dev.OpenError != "" {
+			code := smartctl.ScanOpenError(dev)
+			if p := prev[deviceKey(dev.Name, dev.Type)]; watched(p) {
+				// A disk read before that the scan can't open: a failed
+				// read (never "no SMART data", which ends its alerts).
+				if code == protocol.DiskErrUnsupported {
+					code = protocol.DiskErrOpenFailed
+				}
+				out[i] = readFailed(dev, p, code)
+				continue
+			}
 			out[i] = protocol.SMARTDevice{Name: dev.Name, Type: dev.Type, Protocol: dev.Protocol, State: protocol.DiskError,
-				ErrorCode: smartctl.ScanOpenError(dev)}
+				ErrorCode: code}
 			continue
 		}
 		wg.Add(1)
@@ -291,23 +433,40 @@ func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev 
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			out[i] = m.readOne(ctx, dev, prev[deviceKey(dev.Name, dev.Type)])
+			k := deviceKey(dev.Name, dev.Type)
+			out[i] = m.readOne(ctx, dev, prev[k], wake[k])
 		}()
 	}
 	wg.Wait()
 	return out
 }
 
-func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev protocol.SMARTDevice) protocol.SMARTDevice {
+func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev protocol.SMARTDevice, wake bool) protocol.SMARTDevice {
 	logKey := "read " + deviceKey(dev.Name, dev.Type)
-	r, err := m.opts.SMART.Read(ctx, dev)
+	r, err := m.opts.SMART.Read(ctx, dev, wake)
 	if err != nil {
 		if ctx.Err() == nil {
 			m.logOnce(logKey, "SMART read failed", "device", dev.Name, "type", dev.Type, "error", err)
 		}
-		return readFailed(dev, prev, protocol.DiskErrOpenFailed)
+		code := protocol.DiskErrOpenFailed
+		if smartctl.IsCode(err, smartctl.CodeTimeout) || smartctl.IsCode(err, smartctl.CodeStuck) {
+			code = protocol.DiskErrTimeout
+		}
+		return readFailed(dev, prev, code)
 	}
 	m.clearLogged(logKey)
+	if r.Device.Serial != "" && prev.Serial != "" && r.Device.Serial != prev.Serial {
+		// Another disk now holds the path: nothing of the previous one
+		// carries over.
+		prev = protocol.SMARTDevice{}
+	}
+	if r.Device.State == protocol.DiskError && r.Device.ErrorCode == protocol.DiskErrUnsupported && watched(prev) {
+		// A disk read before that now answers without SMART data (a
+		// dying disk, a confused bridge): a failed read with its last
+		// values, never a disk without SMART (that ends its alerts and
+		// would not be missed when it disappears).
+		return readFailed(dev, prev, protocol.DiskErrNoData)
+	}
 	if r.Standby {
 		if prev.Name != "" && prev.ReadAt != nil {
 			// A problem the kept measurements show stays until a read
@@ -324,13 +483,26 @@ func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev pro
 	}
 	d := r.Device
 	if d.State == protocol.DiskError && d.ErrorCode != protocol.DiskErrUnsupported {
-		// Nothing was read (permission denied, open failed): like a
-		// failed read, and never with a read time.
+		// Nothing about its health was read (permission denied, open
+		// failed, SMART turned off, no data): like a failed read, and
+		// never with a read time. Never read before: what identifies the
+		// disk stands in.
+		if prev.Name == "" || prev.ReadAt == nil {
+			return protocol.SMARTDevice{Name: d.Name, Type: d.Type, Protocol: d.Protocol, Model: d.Model, Serial: d.Serial,
+				Firmware: d.Firmware, CapacityBytes: d.CapacityBytes, RotationRPM: d.RotationRPM, SMARTSupported: d.SMARTSupported,
+				State: d.State, ErrorCode: d.ErrorCode}
+		}
 		return readFailed(dev, prev, d.ErrorCode)
 	}
 	at := m.opts.Clock.Now().UTC()
 	d.ReadAt = &at
 	return d
+}
+
+// watched reports a device with SMART data read before (a read time):
+// it never turns into a device without SMART data.
+func watched(prev protocol.SMARTDevice) bool {
+	return prev.Name != "" && prev.ReadAt != nil && prev.SMARTSupported
 }
 
 // readFailed is a device whose read failed with code: the last
@@ -383,6 +555,9 @@ func (m *Monitor) Report() protocol.HostHealthOutput {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := protocol.SMARTReport{Status: m.status, Message: m.message, Checking: m.checking, Devices: make([]protocol.SMARTDevice, len(m.devices))}
+	if m.opts.SMART != nil {
+		s.IntervalSeconds = int64(m.opts.Interval / time.Second)
+	}
 	copy(s.Devices, m.devices)
 	if !m.scannedAt.IsZero() {
 		t := m.scannedAt.UTC()

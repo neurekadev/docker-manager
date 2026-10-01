@@ -14,8 +14,8 @@ the app and go to your [notification channels](/notifications).
 
 | Alert | When | Ends when |
 | --- | --- | --- |
-| **Disk health** | A disk is failing (**Critical**), needs attention because of damaged sectors, wear or low spare (**Warning**), or can't be read (**Warning**). A sleeping disk never raises one. | The disk is healthy again. |
-| **RAID** | An array has failed or is inactive (**Critical**), or is degraded or rebuilding (**Warning**). A degraded ZFS pool is a **Warning**; a faulted, unavailable, suspended or removed one is **Critical**. | The array or pool is healthy again. |
+| **Disk health** | A disk is failing (**Critical**), needs attention because of damaged sectors, wear, low spare or heat (**Warning**), can't be read or is missing (**Warning**). A server whose disks can't be scanned or read, or whose disk health is out of date, raises one too (**Warning**). A sleeping disk, or one without health data such as a virtual disk, never raises one. | The disk is healthy again, or the server's disks are checked again. |
+| **RAID** | An array has failed or is inactive (**Critical**), or is degraded or rebuilding (**Warning**). A degraded ZFS pool is a **Warning**; a faulted, unavailable, suspended or removed one is **Critical**. A server whose RAID state can't be read, or is out of date, raises one too (**Warning**). | The array or pool is healthy again, or its state can be read again. |
 | **Temperature** | The hottest sensor of a server stays at or above the warning level (**Warning**) or the critical level (**Critical**) for 5 minutes. | It is 3 °C below the warning level. |
 | **Disk space** | A server's Docker data, stacks or bind mount disk stays at or above the warning or critical level for 5 minutes. | It is 3 points below the warning level. |
 | **Memory** | A server's memory use stays at or above the warning or critical level for 5 minutes. | It is 3 points below the warning level. |
@@ -25,7 +25,9 @@ the app and go to your [notification channels](/notifications).
 
 A disk or array that is no longer reported for a day, a failed job that
 doesn't run again for 7 days, and the alerts of an archived environment
-end without a message.
+end without a message. While a server's disks or RAID state can't be
+read, their alerts stay. When a disk shows up under another name, for
+example after a restart, its alert moves with it.
 
 ## Change the thresholds
 

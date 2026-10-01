@@ -210,8 +210,12 @@ type scsiCounter struct {
 
 // parseRead turns one read's output into a Reading. Bits 2 to 7 of the
 // exit status (a failing disk, error logs) still come with complete JSON:
-// the state is derived from the values. Without device data the device
-// is in state error with a code from smartctl's messages.
+// the state is derived from the values; smartctl's own DISK FAILING bit
+// stands in for a self-assessment the JSON lacks. Without device data the
+// device is in state error with a code from smartctl's messages; a device
+// with SMART turned off, or one that answered without any health value,
+// is in state error too (smart_disabled, no_data): it is never called
+// healthy without data.
 func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading {
 	base := protocol.SMARTDevice{Name: scan.Name, Type: scan.Type, Protocol: scan.Protocol}
 	var out readOutput
@@ -246,6 +250,11 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 	if out.SmartStatus != nil && out.SmartStatus.Passed != nil {
 		passed := *out.SmartStatus.Passed
 		d.Passed = &passed
+	} else if exit.Has(BitDiskFailing) {
+		// The SMART RETURN STATUS said DISK FAILING, but the JSON carries
+		// no verdict: smartctl's exit status is the verdict.
+		failed := false
+		d.Passed = &failed
 	}
 	d.SMARTSupported = (out.SmartSupport != nil && out.SmartSupport.Available != nil && *out.SmartSupport.Available) ||
 		d.Passed != nil || out.NVMeLog != nil
@@ -256,6 +265,8 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 			switch attr.ID {
 			case 5:
 				d.Reallocated = attr.Raw.Value.nonNegative()
+			case 184:
+				d.EndToEndErrors = attr.Raw.Value.nonNegative()
 			case 187:
 				d.ReportedUncorrectable = attr.Raw.Value.nonNegative()
 			case 197:
@@ -310,6 +321,20 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 	if !d.SMARTSupported {
 		d.State, d.ErrorCode = protocol.DiskError, protocol.DiskErrUnsupported
 		return Reading{Device: d}
+	}
+	if d.Passed == nil && out.NVMeLog == nil {
+		ataValues := out.ATASmartAttributes != nil && len(out.ATASmartAttributes.Table) > 0
+		switch {
+		case out.SmartSupport != nil && out.SmartSupport.Enabled != nil && !*out.SmartSupport.Enabled:
+			// Turned off on the device: smartctl reads nothing more (the
+			// agent never turns it on).
+			d.State, d.ErrorCode = protocol.DiskError, protocol.DiskErrSMARTDisabled
+			return Reading{Device: d}
+		case !ataValues && d.GrownDefects == nil && d.UncorrectedErrors == nil:
+			// No verdict and no value to judge by (a failed SMART command).
+			d.State, d.ErrorCode = protocol.DiskError, protocol.DiskErrNoData
+			return Reading{Device: d}
+		}
 	}
 	d.State = protocol.DeriveDiskState(d)
 	return Reading{Device: d}

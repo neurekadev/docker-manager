@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/manager/observe"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -299,5 +300,271 @@ func TestSMARTUnavailableKeepsAlertsUntilRemoved(t *testing.T) {
 	f.evaluate("env-1")
 	if len(f.firing()) != 1 {
 		t.Fatal("resolved without a reading")
+	}
+}
+
+// put replaces an environment's whole report.
+func (h *fakeHealth) put(env string, r observe.HostHealth) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.reports[env] = r
+}
+
+// report is a report with SMART status and devices, md arrays and the
+// RAID message, sampled and received now.
+func (f *fixture) report(status string, devs []protocol.SMARTDevice, md []protocol.MDArray, raidMessage string) observe.HostHealth {
+	now := f.clk.Now().UTC()
+	return observe.HostHealth{HostHealthOutput: protocol.HostHealthOutput{SampledAt: now,
+		SMART: protocol.SMARTReport{Status: status, Devices: devs},
+		RAID:  protocol.RAIDReport{ReadAt: now, MD: md, Message: raidMessage}}, ReceivedAt: now}
+}
+
+// byKey returns the firing alerts by dedupe key.
+func (f *fixture) byKey() map[string]domain.Alert {
+	f.t.Helper()
+	out := map[string]domain.Alert{}
+	for _, a := range f.firing() {
+		out[a.DedupeKey] = a
+	}
+	return out
+}
+
+func TestScanFailureStillEvaluatesDisksAndWarns(t *testing.T) {
+	f := newFixture(t)
+	f.channel("ops", nil, true, nil, true)
+	failing := disk(protocol.DiskFailing)
+	failing.Passed = boolp(false)
+	// The scan failed; the agent read the disks it knew.
+	f.health.put("env-1", f.report(protocol.SMARTError, []protocol.SMARTDevice{failing}, nil, ""))
+	f.evaluate("env-1")
+	as := f.byKey()
+	if d := as[diskKey("env-1", "/dev/sda", "sat")]; d.Severity != domain.AlertCritical {
+		t.Fatalf("the read disk was not evaluated: %+v", as)
+	}
+	m := as[monitorKey("env-1", domain.NotifyDiskHealth)]
+	if m.Severity != domain.AlertWarning || m.Title != "Disks on homelab can't be scanned" || m.ResourceType != domain.AlertResourceEnvironment ||
+		!strings.Contains(Detail(m), "could not scan") {
+		t.Fatalf("monitoring alert %+v / %s", m, Detail(m))
+	}
+	// One digest of both alerts.
+	if got := f.dispatch(); len(got) != 1 || !strings.Contains(got[0].msg.Body, "can't be scanned") {
+		t.Fatalf("messages %+v", got)
+	}
+	// The scan works again: the monitoring alert resolves, the disk's stays.
+	f.health.put("env-1", f.report(protocol.SMARTOK, []protocol.SMARTDevice{failing}, nil, ""))
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 1 || as[0].DedupeKey != diskKey("env-1", "/dev/sda", "sat") {
+		t.Fatalf("%+v", as)
+	}
+	got := f.dispatch()
+	if len(got) != 1 || got[0].msg.Title != "[Docker Manager] Resolved: Disks on homelab can't be scanned" ||
+		got[0].msg.Body != "Disk health is watched again." {
+		t.Fatalf("resolution %+v", got)
+	}
+}
+
+// TestBlindMonitoringKeepsAlerts: while SMART or RAID can't be read, the
+// alerts of disks and arrays no longer reported are kept past a day (what
+// can't be seen is not gone), next to a monitoring alert.
+func TestBlindMonitoringKeepsAlerts(t *testing.T) {
+	f := newFixture(t)
+	warn := disk(protocol.DiskWarning)
+	warn.Pending = i64(3)
+	md := protocol.MDArray{Name: "md0", Level: "raid1", State: protocol.RAIDDegraded, Devices: 2, Active: 1}
+	f.health.put("env-1", f.report(protocol.SMARTOK, []protocol.SMARTDevice{warn}, []protocol.MDArray{md}, ""))
+	f.evaluate("env-1")
+	if len(f.firing()) != 2 {
+		t.Fatalf("%+v", f.firing())
+	}
+	for i := 0; i < 3; i++ {
+		f.clk.Advance(DiskRemovedAfter / 2)
+		f.health.put("env-1", f.report(protocol.SMARTNoAccess, nil, nil, "the software RAID state could not be read"))
+		f.evaluate("env-1")
+	}
+	as := f.byKey()
+	for _, key := range []string{diskKey("env-1", "/dev/sda", "sat"), raidKey("env-1", "md", "md0"),
+		monitorKey("env-1", domain.NotifyDiskHealth), monitorKey("env-1", domain.NotifyRAID)} {
+		if _, ok := as[key]; !ok {
+			t.Errorf("%s is not firing: %+v", key, as)
+		}
+	}
+	if a := as[monitorKey("env-1", domain.NotifyDiskHealth)]; a.Title != "Docker Manager can't read the disks on homelab" {
+		t.Errorf("%+v", a)
+	}
+	if a := as[monitorKey("env-1", domain.NotifyRAID)]; a.Title != "RAID state on homelab can't be read" {
+		t.Errorf("%+v", a)
+	}
+	// Monitoring works again and nothing is reported: removed a day later.
+	f.health.put("env-1", f.report(protocol.SMARTOK, nil, nil, ""))
+	f.evaluate("env-1")
+	if len(f.firing()) != 0 {
+		t.Fatalf("still firing %+v", f.firing())
+	}
+}
+
+// TestNoAccessRaisesOneAlert: disks that refuse to open because the agent
+// is not privileged raise the monitoring alert, not one per disk.
+func TestNoAccessRaisesOneAlert(t *testing.T) {
+	f := newFixture(t)
+	denied := disk(protocol.DiskError)
+	denied.ErrorCode, denied.Passed = protocol.DiskErrPermissionDenied, nil
+	f.health.put("env-1", f.report(protocol.SMARTNoAccess, []protocol.SMARTDevice{denied}, nil, ""))
+	f.evaluate("env-1")
+	if a := f.one(); a.DedupeKey != monitorKey("env-1", domain.NotifyDiskHealth) || !strings.Contains(Detail(a), "privileged: true") {
+		t.Fatalf("%+v", a)
+	}
+}
+
+// TestUnsupportedDisksRaiseNothing: a disk without SMART data (a virtual
+// disk) never alerts; an alert it had ends as removed.
+func TestUnsupportedDisksRaiseNothing(t *testing.T) {
+	f := newFixture(t)
+	f.channel("ops", nil, true, nil, true)
+	unsupported := disk(protocol.DiskError)
+	unsupported.ErrorCode, unsupported.SMARTSupported, unsupported.Passed = protocol.DiskErrUnsupported, false, nil
+	f.health.set("env-1", []protocol.SMARTDevice{unsupported}, nil, nil)
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 0 {
+		t.Fatalf("%+v", as)
+	}
+	unreadable := disk(protocol.DiskError)
+	unreadable.ErrorCode = protocol.DiskErrOpenFailed
+	f.health.set("env-1", []protocol.SMARTDevice{unreadable}, nil, nil)
+	f.evaluate("env-1")
+	f.dispatch()
+	f.health.set("env-1", []protocol.SMARTDevice{unsupported}, nil, nil)
+	f.evaluate("env-1")
+	res, err := f.svc.List(f.ctx, domain.AlertFilter{State: domain.AlertListResolved}, "", 0)
+	if err != nil || len(res) != 1 || res[0].Resolution != domain.AlertResolvedRemoved {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if got := f.dispatch(); len(got) != 0 {
+		t.Fatalf("announced as fixed: %+v", got)
+	}
+}
+
+// TestMissingDiskAlert: a disk no scan finds any more is missing; that is
+// worse than unreadable (sent again).
+func TestMissingDiskAlert(t *testing.T) {
+	f := newFixture(t)
+	f.channel("ops", nil, true, nil, true)
+	d := disk(protocol.DiskError)
+	d.ErrorCode = protocol.DiskErrTimeout
+	f.health.set("env-1", []protocol.SMARTDevice{d}, nil, nil)
+	f.evaluate("env-1")
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.Title != "[Docker Manager] Disk /dev/sda on homelab can't be read" {
+		t.Fatalf("%+v", got)
+	}
+	d.ErrorCode = protocol.DiskErrMissing
+	f.health.set("env-1", []protocol.SMARTDevice{d}, nil, nil)
+	f.evaluate("env-1")
+	a := f.one()
+	if a.Title != "Disk /dev/sda on homelab is missing" || a.Severity != domain.AlertWarning ||
+		!strings.Contains(Detail(a), "the agent no longer finds it") {
+		t.Fatalf("%+v / %s", a, Detail(a))
+	}
+	if got := f.dispatch(); len(got) != 1 {
+		t.Fatalf("missing was not sent: %+v", got)
+	}
+}
+
+// TestDiskAlertFollowsItsDisk: when disk names move (a reboot, a
+// hot-swap), an alert stays with its disk (its serial number) instead of
+// resolving for one path and firing for another.
+func TestDiskAlertFollowsItsDisk(t *testing.T) {
+	f := newFixture(t)
+	f.channel("ops", nil, true, nil, true)
+	x := disk(protocol.DiskWarning)
+	x.Serial, x.Pending = "X-SERIAL", i64(4)
+	y := disk(protocol.DiskWarning)
+	y.Name, y.Serial, y.Reallocated = "/dev/sdb", "Y-SERIAL", i64(9)
+	f.health.set("env-1", []protocol.SMARTDevice{x, y}, nil, nil)
+	f.evaluate("env-1")
+	before := f.byKey()
+	ax, ay := before[diskKey("env-1", "/dev/sda", "sat")], before[diskKey("env-1", "/dev/sdb", "sat")]
+	if ax.ID == "" || ay.ID == "" || ax.Facts["diskId"] == "" || ax.Facts["diskId"] == ay.Facts["diskId"] {
+		t.Fatalf("%+v", before)
+	}
+	f.dispatch()
+	// The names swap.
+	x.Name, y.Name = "/dev/sdb", "/dev/sda"
+	f.health.set("env-1", []protocol.SMARTDevice{y, x}, nil, nil)
+	f.evaluate("env-1")
+	after := f.byKey()
+	if a := after[diskKey("env-1", "/dev/sdb", "sat")]; a.ID != ax.ID || a.Title != "Disk /dev/sdb on homelab needs attention" ||
+		a.Facts["pendingSectors"] != "4" {
+		t.Fatalf("x's alert %+v", a)
+	}
+	if a := after[diskKey("env-1", "/dev/sda", "sat")]; a.ID != ay.ID || a.Facts["reallocatedSectors"] != "9" {
+		t.Fatalf("y's alert %+v", a)
+	}
+	if got := f.dispatch(); len(got) != 0 {
+		t.Fatalf("a move was announced: %+v", got)
+	}
+	// x is replaced: another, healthy disk at its path; x is gone.
+	z := disk(protocol.DiskOK)
+	z.Name, z.Serial = "/dev/sdb", "Z-SERIAL"
+	f.health.set("env-1", []protocol.SMARTDevice{y, z}, nil, nil)
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 1 || as[0].ID != ay.ID {
+		t.Fatalf("%+v", as)
+	}
+	res, err := f.svc.List(f.ctx, domain.AlertFilter{State: domain.AlertListResolved}, "", 0)
+	if err != nil || len(res) != 1 || res[0].ID != ax.ID || res[0].Resolution != domain.AlertResolvedRemoved {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if got := f.dispatch(); len(got) != 0 {
+		t.Fatalf("a replaced disk was announced as healthy: %+v", got)
+	}
+}
+
+// TestNVMeTooHotIsAWarning: an NVMe drive whose only critical warning is
+// its temperature is a warning, said in words.
+func TestNVMeTooHotIsAWarning(t *testing.T) {
+	f := newFixture(t)
+	d := disk(protocol.DiskWarning)
+	d.Name, d.Type, d.Protocol, d.Passed, d.CriticalWarning = "/dev/nvme0", "nvme", protocol.DiskNVMe, boolp(false), intp(protocol.NVMeWarnTemperature)
+	f.health.set("env-1", []protocol.SMARTDevice{d}, nil, nil)
+	f.evaluate("env-1")
+	a := f.one()
+	if a.Severity != domain.AlertWarning || !strings.Contains(Detail(a), "Too hot") || strings.Contains(Detail(a), "self-assessment") {
+		t.Fatalf("%+v / %s", a, Detail(a))
+	}
+}
+
+// TestStaleHealthWarns: disks the agent stopped reading, and an online
+// environment that stopped reporting, raise the monitoring alerts.
+func TestStaleHealthWarns(t *testing.T) {
+	f := newFixture(t)
+	r := f.report(protocol.SMARTOK, []protocol.SMARTDevice{disk(protocol.DiskOK)}, nil, "")
+	r.SMART.IntervalSeconds = 1800
+	checked := r.SampledAt.Add(-time.Hour)
+	r.SMART.CheckedAt = &checked
+	f.health.put("env-1", r)
+	f.evaluate("env-1")
+	if len(f.firing()) != 0 {
+		t.Fatalf("within twice the interval and the slack: %+v", f.firing())
+	}
+	checked = r.SampledAt.Add(-2*time.Hour - time.Minute)
+	f.health.put("env-1", r)
+	f.evaluate("env-1")
+	if a := f.one(); a.Title != "Disk health on homelab is out of date" || a.Facts["reason"] != reasonStale {
+		t.Fatalf("%+v", a)
+	}
+	// The report itself stops coming while the environment is online.
+	f.clk.Advance(HealthReportStale)
+	f.evaluate("env-1")
+	as := f.byKey()
+	if a := as[monitorKey("env-1", domain.NotifyDiskHealth)]; a.Facts["reason"] != reasonNoReport {
+		t.Errorf("%+v", a)
+	}
+	if a := as[monitorKey("env-1", domain.NotifyRAID)]; a.Title != "RAID state on homelab is out of date" {
+		t.Errorf("%+v", as)
+	}
+	// Offline: the offline alert says it; nothing stale here.
+	f.setEnvironment("env-1", false, f.clk.Now(), domain.EnvironmentActive)
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 1 || as[0].Facts["reason"] != reasonStale {
+		t.Fatalf("%+v", as)
 	}
 }

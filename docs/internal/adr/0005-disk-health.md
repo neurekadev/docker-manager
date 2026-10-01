@@ -46,6 +46,19 @@ execution Docker Manager allows (forbidigo exception for that one file):
   self-test, never changes a drive setting, and passes `-n standby` so a
   disk in standby is not spun up (it keeps its previous values, marked
   sleeping). "Check disks now" means a fresh read, not a self-test.
+- a smartctl that does not exit after it was killed (a process in
+  uninterruptible I/O on a dying disk, which no signal ends) is given up
+  on 10 s after the kill: the read reports a timeout, and that device is
+  not read again until the stuck process exits (#172).
+
+**Amendment (#172): a disk asleep at every check.** `-n standby` alone
+never reads a disk that is always asleep when the agent looks (a NAS
+whose disks spin down sooner than the read interval), so it would never
+be checked again after an agent restart. Like smartd's standby skip
+limit, a disk not read for `DOCKER_AGENT_SMART_WAKE_AFTER` (default 24 h,
+1 h to 30 days) is read with `-n never`, which wakes it: at most one
+spin-up per day by default. `0` keeps the never-wake behavior for
+operators who prefer it.
 
 **Licensing.** smartmontools is GPL-2.0-or-later; Docker Manager is
 AGPL-3.0. The agent does not link it: it executes an independent program

@@ -152,6 +152,25 @@ func UpdateAlert(ctx context.Context, db bun.IDB, a *domain.Alert, expectRevisio
 	return nil
 }
 
+// RekeyAlert gives a firing alert another dedupe key (a disk's alert
+// follows its disk to another path). No revision change: the key is not
+// shown; the caller updates what users see. ErrAlertFiring when another
+// firing alert holds key.
+func RekeyAlert(ctx context.Context, db bun.IDB, id, key string) error {
+	res, err := db.NewUpdate().Model((*alertRow)(nil)).Set("dedupe_key = ?", key).Where("id = ?", id).
+		Where("state = ?", string(domain.AlertFiring)).Exec(ctx)
+	if err != nil {
+		if uniqueViolation(err, "alerts.dedupe_key") {
+			return ErrAlertFiring
+		}
+		return fmt.Errorf("store: rekey alert: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return domain.ErrAlertNotFound
+	}
+	return nil
+}
+
 // TouchAlerts sets last_seen_at of firing alerts (no revision change: the
 // problem was observed again, nothing users see changed).
 func TouchAlerts(ctx context.Context, db bun.IDB, ids []string, at time.Time) error {

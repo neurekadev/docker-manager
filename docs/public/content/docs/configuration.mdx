@@ -129,7 +129,8 @@ Leave these as they are unless you know you need them.
 | `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/backups#back-up-folders-outside-a-stack)). |
 | `DOCKER_AGENT_WATCH_MAX` | half the server's limit | How many folders the agent watches for live file changes. Beyond it, folders are checked every 30 seconds. |
 | `DOCKER_AGENT_SMART_ENABLED` | `true` | Reads the health of the server's disks (see [Monitoring](/monitoring)). `false` turns it off; RAID arrays are still shown. |
-| `DOCKER_AGENT_SMART_INTERVAL` | `30m` | How often the agent reads every disk's health (`5m` to `24h`). A sleeping disk is not woken. |
+| `DOCKER_AGENT_SMART_INTERVAL` | `30m` | How often the agent reads every disk's health (`5m` to `24h`). A sleeping disk is skipped (see `DOCKER_AGENT_SMART_WAKE_AFTER`). |
+| `DOCKER_AGENT_SMART_WAKE_AFTER` | `24h` | How long a sleeping disk may go without a check before the agent wakes it for one (`1h` to `720h`). `0` never wakes a disk. |
 | `DOCKER_AGENT_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
 | `DOCKER_AGENT_LOG_FORMAT` | `json` | The log's format: `json` or `text`. |
 

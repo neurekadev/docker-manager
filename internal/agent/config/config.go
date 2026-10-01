@@ -44,9 +44,10 @@ const (
 	// EnvWatchMax is the file watcher's kernel watch budget (#23).
 	EnvWatchMax = "DOCKER_AGENT_WATCH_MAX"
 	// Disk health (#143).
-	EnvSMARTEnabled  = "DOCKER_AGENT_SMART_ENABLED"
-	EnvSMARTInterval = "DOCKER_AGENT_SMART_INTERVAL"
-	EnvSmartctl      = "DOCKER_AGENT_SMARTCTL_BINARY"
+	EnvSMARTEnabled   = "DOCKER_AGENT_SMART_ENABLED"
+	EnvSMARTInterval  = "DOCKER_AGENT_SMART_INTERVAL"
+	EnvSMARTWakeAfter = "DOCKER_AGENT_SMART_WAKE_AFTER"
+	EnvSmartctl       = "DOCKER_AGENT_SMARTCTL_BINARY"
 )
 
 // Defaults.
@@ -75,6 +76,12 @@ const (
 	DefaultSMARTInterval = 30 * time.Minute
 	MinSMARTInterval     = 5 * time.Minute
 	MaxSMARTInterval     = 24 * time.Hour
+	// DefaultSMARTWakeAfter is how long a disk in standby stays unread
+	// before a read wakes it; MinSMARTWakeAfter and MaxSMARTWakeAfter
+	// bound it (0 never wakes a disk).
+	DefaultSMARTWakeAfter = 24 * time.Hour
+	MinSMARTWakeAfter     = time.Hour
+	MaxSMARTWakeAfter     = 30 * 24 * time.Hour
 )
 
 // Config is the validated agent configuration.
@@ -117,9 +124,12 @@ type Config struct {
 	// kernel's fs.inotify.max_user_watches, #23).
 	WatchMax int
 	// SMARTEnabled reads the disks' SMART data (#143); SMARTInterval is
-	// how often; SmartctlBinary the pinned smartctl.
+	// how often; SMARTWakeAfter how long a disk in standby stays unread
+	// before a read wakes it (negative: never); SmartctlBinary the pinned
+	// smartctl.
 	SMARTEnabled   bool
 	SMARTInterval  time.Duration
+	SMARTWakeAfter time.Duration
 	SmartctlBinary string
 }
 
@@ -200,6 +210,11 @@ func Load(src envconfig.Source) (Config, error) {
 	}
 	if cfg.SMARTInterval, err = src.Duration(EnvSMARTInterval, DefaultSMARTInterval, MinSMARTInterval, MaxSMARTInterval); err != nil {
 		errs = append(errs, err)
+	}
+	if d, perr := time.ParseDuration(src.String(EnvSMARTWakeAfter, "")); perr == nil && d == 0 {
+		cfg.SMARTWakeAfter = -1
+	} else if cfg.SMARTWakeAfter, err = src.Duration(EnvSMARTWakeAfter, DefaultSMARTWakeAfter, MinSMARTWakeAfter, MaxSMARTWakeAfter); err != nil {
+		errs = append(errs, fmt.Errorf("%w (or 0 to never wake a disk)", err))
 	}
 	cfg.SmartctlBinary = src.String(EnvSmartctl, DefaultSmartctlBinary)
 	if !path.IsAbs(cfg.SmartctlBinary) {

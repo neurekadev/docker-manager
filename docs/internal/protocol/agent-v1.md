@@ -1140,10 +1140,10 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   `BatchEngineUnavailable` (2) and only host values are present. Absent
   values are unknown.
 - `host.health {refresh?}` → `HostHealthOutput {sampledAt, smart {status,
-  message?, checking?, scannedAt?, checkedAt?, devices [{name, type,
-  protocol?, model?, serial?, firmware?, capacityBytes?, rotationRpm?,
-  smartSupported, passed?, temperatureC?, powerOnHours?,
-  reallocatedSectors?, reportedUncorrectable?, pendingSectors?,
+  message?, checking?, scannedAt?, checkedAt?, intervalSeconds?, devices
+  [{name, type, protocol?, model?, serial?, firmware?, capacityBytes?,
+  rotationRpm?, smartSupported, passed?, temperatureC?, powerOnHours?,
+  reallocatedSectors?, endToEndErrors?, reportedUncorrectable?, pendingSectors?,
   offlineUncorrectable?, failingAttributes? [{id, name, whenFailed}],
   criticalWarning?, availableSpare?, availableSpareThreshold?,
   mediaErrors?, percentageUsed?, grownDefects?, uncorrectedErrors?, state,
@@ -1155,23 +1155,30 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   capabilities list it; Go types in `internal/protocol/health.go`). The
   disk health of the host: SMART data read with the agent image's
   smartctl (cached, refreshed every `DOCKER_AGENT_SMART_INTERVAL`; a disk
-  in standby is never woken and keeps its previous values with state
-  `sleeping`, or `failing` / `warning` when the last read found that) and the md arrays and ZFS pools read from procfs on every
-  request. `refresh` is empty, `smart` (a fresh scan and read of every
+  in standby is not woken and keeps its previous values with state
+  `sleeping`, or `failing` / `warning` when the last read found that,
+  until it went unread for `DOCKER_AGENT_SMART_WAKE_AFTER`; a disk a later
+  scan no longer finds stays listed as `error` `missing` until the agent
+  restarts) and the md arrays and ZFS pools read from procfs on every
+  request. `intervalSeconds` (added later; older agents omit it) is the
+  agent's read interval. `refresh` is empty, `smart` (a fresh scan and read of every
   disk, never a self-test: the agent waits up to 3 s, then answers with
   `smart.checking` and the result comes with a later request) or `raid`
   (never a scrub); anything else is `invalid_argument`. `smart.status` is
   `ok`, `disabled`, `no_access`, `not_installed` or `error`; a device's
   `state` is `ok`, `warning`, `failing`, `sleeping` or `error` (with
-  `errorCode` `permission_denied`, `open_failed` or `unsupported`); array
+  `errorCode` `permission_denied`, `open_failed`, `unsupported`, or, from
+  newer agents (the manager is upgraded first), `timeout`, `missing`,
+  `smart_disabled` or `no_data`); array
   and pool states are `healthy`, `degraded`, `rebuilding`, `checking`,
   `failed` or `inactive`; `whenFailed` is `now` or `past`. At most 256
   devices, 64 md arrays, 64 pools, 128 members per array and 32 failing
   attributes per device; the manager validates every bound
   (`HostHealthOutput.Validate`). A device is identified by `name` and
   `type` together (disks behind one RAID controller share its path). A
-  read that failed, or read nothing (`permission_denied`,
-  `open_failed`), reports `state` `error` with the last measurements and
+  read that failed, or read nothing about the disk's health
+  (`permission_denied`, `open_failed`, `timeout`, `smart_disabled`,
+  `no_data`), reports `state` `error` with the last measurements and
   their `readAt` kept; `readAt` is absent when nothing was ever read. Serial numbers are data, never logged.
   Rules and derivation: [metrics.md](../architecture/metrics.md#host-health).
 

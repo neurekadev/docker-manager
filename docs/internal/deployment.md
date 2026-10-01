@@ -223,7 +223,8 @@ agent can start a privileged container anyway); see
 [ADR 0005](adr/0005-disk-health.md). The container's `/dev` is populated
 when it starts: disks attached later appear after the agent restarts.
 Without `privileged: true` everything else works; the System tab says the
-agent can't read the disks (`no_access`). `DOCKER_AGENT_SMART_ENABLED=false`
+agent can't read the disks (`no_access`) and a disk health warning alert
+fires until the agent runs privileged or `DOCKER_AGENT_SMART_ENABLED=false`
 turns SMART off. RAID state (md, ZFS) comes from procfs and needs no
 privilege.
 

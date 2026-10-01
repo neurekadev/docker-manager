@@ -67,8 +67,9 @@ Migrations `20260930120000_create_alerts` and
   environment (cascades with it), each level `NULL` (the default) or a
   value.
 
-Dedupe keys: `disk_health/<env>/<path>/<smartctl type>`,
-`raid/<env>/md|zfs/<name>`, `temperature/<env>`,
+Dedupe keys: `disk_health/<env>/<path>/<smartctl type>` (a disk alert
+moves to its disk's new path, below), `disk_health/<env>/monitoring`,
+`raid/<env>/md|zfs/<name>`, `raid/<env>/monitoring`, `temperature/<env>`,
 `disk_space/<env>/<mount>`, `memory/<env>`, `environment_offline/<env>`,
 `job_failed/policy/<policy>/<kind>/<first target>` (without a policy
 `job_failed/job/<kind>/<env>/<first target>`), `updates_available/<policy>`
@@ -115,8 +116,8 @@ after the commit.
 
 | kind | source | severity | resolves |
 | --- | --- | --- | --- |
-| `disk_health` | the environment's `host.health` report (`observe.Service.HostHealth`), on `inventory.updated` with `health=true` and every reconcile | `failing` critical; `warning` warning; `error` warning ("can't be read"; keeps a stronger alert it has); `sleeping` never (keeps its alert) | the disk is `ok` again; not reported for 24 h: `removed` |
-| `raid` | the same report's md arrays and ZFS pools | md `failed`/`inactive` critical, `degraded`/`rebuilding` warning; ZFS `DEGRADED` warning, `FAULTED`/`UNAVAIL`/`SUSPENDED`/`REMOVED` critical | `healthy` (or `checking`) / `ONLINE`; not reported for 24 h: `removed` |
+| `disk_health` | the environment's `host.health` report (`observe.Service.HostHealth`), on `inventory.updated` with `health=true` and every reconcile; every listed device whatever the SMART status | `failing` critical; `warning` warning; `error` warning ("can't be read", `missing`: "is missing"; keeps a stronger alert it has); `unsupported` never (an alert it had ends `removed`); `permission_denied` under status `no_access` never (the monitoring alert says it); `sleeping` never (keeps its alert). Monitoring (`disk_health/<env>/monitoring`, warning): status `error`, `no_access` or `not_installed`, `checkedAt` older than twice `intervalSeconds` plus 30 min, or an environment online for 15 min whose report is 15 min old | the disk is `ok` again; not reported for 24 h while its monitoring works: `removed`; monitoring: it works again |
+| `raid` | the same report's md arrays and ZFS pools | md `failed`/`inactive` critical, `degraded`/`rebuilding` warning; ZFS `DEGRADED` warning, `FAULTED`/`UNAVAIL`/`SUSPENDED`/`REMOVED` critical. Monitoring (`raid/<env>/monitoring`, warning): `raid.message` set, or the report 15 min old as above | `healthy` (or `checking`) / `ONLINE`; not reported for 24 h while its monitoring works: `removed`; monitoring: it works again |
 | `temperature` | the hottest sensor of the latest readings (`observe.Service.LatestTemperatures`: sensors that reported in the last 5 minutes, one query), on `metrics.sampled` with `host=true` and every reconcile | at or above the warning / critical level for 5 minutes | below the warning level by 3 °C; thresholds off or no sensor reported: `removed` |
 | `disk_space` | each filesystem of the latest host sample (`observe.Service.Latest`: Docker data, stacks, bind mounts) | the same, in percent used | below the warning level by 3 points; off or no longer reported: `removed` |
 | `memory` | the latest host sample's used memory (page cache not counted) | the same, in percent used | the same |
@@ -124,14 +125,28 @@ after the commit.
 | `job_failed` | `jobs.Engine.OnFinish` of every kind (`jobspec.Kinds()`), in the job's finishing transaction | `failed` critical, `partial`/`interrupted` warning | the key's next succeeded job (any origin); no new run for 7 days: `expired` |
 | `updates` | `OnFinish` of `update.check` (succeeded or partial), and every reconcile for firing ones | info | no candidate `update_available` left; the policy deleted or inactive: `removed` |
 
-- **Disks** are identified by path and smartctl type (disks behind one
-  controller share a path). Tokens: `self_assessment_failed`,
-  `critical_warning`, `attribute_<id>`, `reallocated`,
-  `pending`, `uncorrectable`, `media_errors`, `grown_defects`, `worn`,
-  `spare_low`, `unreadable`: counts live in the facts, so more of the same
-  is not sent again. Serial numbers never reach an alert. While SMART is
-  not readable (turned off, no access) nothing is resolved as fixed; the
-  24-hour removal applies.
+- **Disks** are keyed by path and smartctl type (disks behind one
+  controller share a path) and follow their disk: the fact `diskId` is a
+  hash of the environment and the serial number (never the number). When
+  the disk is reported under another path (sdX names move after a reboot
+  or a hot-swap), its alert is re-keyed there (`store.RekeyAlert`, two
+  steps so paths may swap), keeping its ID, start, escalation and
+  dismissal; nothing is sent for the move. When another disk holds its
+  path and its own disk is not reported (replaced), it ends `removed`,
+  never as fixed. Tokens: `self_assessment_failed`, `critical_warning`,
+  `over_temperature`, `attribute_<id>`, `reallocated`, `pending`,
+  `uncorrectable`, `end_to_end`, `media_errors`, `grown_defects`, `worn`,
+  `spare_low`, `unreadable`, `missing`: counts live in the facts, so more
+  of the same is not sent again. Serial numbers never reach an alert.
+- **What can't be seen is not gone.** Without a report, while the SMART
+  status is anything but `ok` or `disabled`, while the RAID state can't be
+  read or while the report is stale, alerts of disks and arrays the report
+  does not list are kept past the 24-hour removal, and the monitoring
+  alert (facts `monitoring` `smart` or `raid`, `reason` `scan_failed`,
+  `no_access`, `not_installed`, `stale`, `no_report` or `raid_read`;
+  resource the environment; a constant token, the reasons replace each
+  other) says why. SMART turned off on purpose (`disabled`) raises
+  nothing; the 24-hour removal applies.
 - **RAID** tokens are the failed members and `missing_at_least_<k>` for
   every k up to the number of missing disks (fewer missing disks never add
   one); a ZFS pool's token is constant (the severity says whether it got
