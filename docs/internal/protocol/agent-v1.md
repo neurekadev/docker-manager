@@ -1156,7 +1156,7 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   disk health of the host: SMART data read with the agent image's
   smartctl (cached, refreshed every `DOCKER_AGENT_SMART_INTERVAL`; a disk
   in standby is never woken and keeps its previous values with state
-  `sleeping`) and the md arrays and ZFS pools read from procfs on every
+  `sleeping`, or `failing` / `warning` when the last read found that) and the md arrays and ZFS pools read from procfs on every
   request. `refresh` is empty, `smart` (a fresh scan and read of every
   disk, never a self-test: the agent waits up to 3 s, then answers with
   `smart.checking` and the result comes with a later request) or `raid`
@@ -1170,8 +1170,9 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   attributes per device; the manager validates every bound
   (`HostHealthOutput.Validate`). A device is identified by `name` and
   `type` together (disks behind one RAID controller share its path). A
-  read that failed reports `state` `error` with the last measurements
-  kept. Serial numbers are data, never logged.
+  read that failed, or read nothing (`permission_denied`,
+  `open_failed`), reports `state` `error` with the last measurements and
+  their `readAt` kept; `readAt` is absent when nothing was ever read. Serial numbers are data, never logged.
   Rules and derivation: [metrics.md](../architecture/metrics.md#host-health).
 
 ## Allowed streams

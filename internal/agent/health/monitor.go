@@ -1,7 +1,8 @@
 // Package health is the agent's disk health monitor (#143): SMART data of
 // every disk read with the pinned smartctl (internal/agent/smartctl),
 // cached and refreshed every DOCKER_AGENT_SMART_INTERVAL (a disk in
-// standby is never woken: it keeps its previous values, marked sleeping),
+// standby is never woken: it keeps its previous values, marked sleeping
+// unless they showed a problem),
 // and the Linux software RAID and ZFS pool state read from procfs on
 // every request (cheap). It serves the host.health request.
 // docs/internal/architecture/metrics.md, "Host health".
@@ -273,7 +274,8 @@ func (m *Monitor) finish(covers uint64, apply func()) {
 func deviceKey(name, typ string) string { return name + "\x00" + typ }
 
 // readAll reads every scanned device (Concurrency at a time) in scan
-// order. A device in standby keeps its previous values, marked sleeping.
+// order. A device in standby keeps its previous values, marked sleeping
+// (failing and warning stay: standby clears no problem).
 func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice) []protocol.SMARTDevice {
 	out := make([]protocol.SMARTDevice, len(scan))
 	sem := make(chan struct{}, m.opts.Concurrency)
@@ -297,34 +299,48 @@ func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev 
 }
 
 func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev protocol.SMARTDevice) protocol.SMARTDevice {
+	logKey := "read " + deviceKey(dev.Name, dev.Type)
 	r, err := m.opts.SMART.Read(ctx, dev)
 	if err != nil {
 		if ctx.Err() == nil {
-			m.logOnce("read "+dev.Name, "SMART read failed", "device", dev.Name, "error", err)
+			m.logOnce(logKey, "SMART read failed", "device", dev.Name, "type", dev.Type, "error", err)
 		}
-		if prev.Name != "" {
-			// Keep the last measurements (and their read time) for
-			// reference, but report that this read failed: a disk the
-			// agent cannot read never looks healthy. The next round tries
-			// again.
-			prev.State, prev.ErrorCode = protocol.DiskError, protocol.DiskErrOpenFailed
-			return prev
-		}
-		return protocol.SMARTDevice{Name: dev.Name, Type: dev.Type, Protocol: dev.Protocol, State: protocol.DiskError,
-			ErrorCode: protocol.DiskErrOpenFailed}
+		return readFailed(dev, prev, protocol.DiskErrOpenFailed)
 	}
-	m.clearLogged("read " + dev.Name)
+	m.clearLogged(logKey)
 	if r.Standby {
 		if prev.Name != "" && prev.ReadAt != nil {
-			prev.State, prev.ErrorCode = protocol.DiskSleeping, ""
+			// A problem the last read found stays until a read clears it:
+			// a failing disk that spins down never looks merely asleep.
+			if prev.State != protocol.DiskFailing && prev.State != protocol.DiskWarning {
+				prev.State = protocol.DiskSleeping
+			}
+			prev.ErrorCode = ""
 			return prev
 		}
 		return r.Device
 	}
 	d := r.Device
+	if d.State == protocol.DiskError && d.ErrorCode != protocol.DiskErrUnsupported {
+		// Nothing was read (permission denied, open failed): like a
+		// failed read, and never with a read time.
+		return readFailed(dev, prev, d.ErrorCode)
+	}
 	at := m.opts.Clock.Now().UTC()
 	d.ReadAt = &at
 	return d
+}
+
+// readFailed is a device whose read failed with code: the last
+// measurements (and their read time) stay for reference, but the state
+// reports the failure (a disk the agent cannot read never looks healthy).
+// The next round tries again.
+func readFailed(dev smartctl.ScanDevice, prev protocol.SMARTDevice, code string) protocol.SMARTDevice {
+	if prev.Name != "" && prev.ReadAt != nil {
+		prev.State, prev.ErrorCode = protocol.DiskError, code
+		return prev
+	}
+	return protocol.SMARTDevice{Name: dev.Name, Type: dev.Type, Protocol: dev.Protocol, State: protocol.DiskError, ErrorCode: code}
 }
 
 // noAccess reports that the host has disks the agent cannot read: the

@@ -176,14 +176,33 @@ func (s *Service) CheckHealth(ctx context.Context, env, scope string) (HostHealt
 	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
 	defer cancel()
-	return s.RefreshHealth(ctx, env, refresh)
+	h, err := s.RefreshHealth(ctx, env, refresh)
+	if err != nil {
+		// A failed check does not count: the user may retry at once (a
+		// SMART check the agent already runs queues at most one more round).
+		s.mu.Lock()
+		if s.health.checks[key].Equal(now) {
+			delete(s.health.checks, key)
+		}
+		s.mu.Unlock()
+	}
+	return h, err
 }
 
 // RefreshHealth asks an environment's agent for its disk health (refresh
 // "", smart or raid), keeps the report, stores and announces it when it
-// changed, and follows a running SMART read.
+// changed, and follows a running SMART read. An answer the agent gave
+// before the kept report (a minute poll that arrives after a "Check disks
+// now" answer) is dropped: the kept report is returned.
 func (s *Service) RefreshHealth(ctx context.Context, env, refresh string) (HostHealth, error) {
 	s.noteEnvironment(env)
+	if refresh == protocol.HealthRefreshSMART {
+		// A fresh read: follow it for up to healthFollowUpMax again, even
+		// after an earlier read stopped being followed.
+		s.mu.Lock()
+		delete(s.health.following, env)
+		s.mu.Unlock()
+	}
 	raw, err := s.opts.Agents.RequestEnvironment(ctx, env, protocol.ReqHostHealth, protocol.HostHealthInput{Refresh: refresh}, healthTimeout)
 	if err != nil {
 		return HostHealth{}, s.healthErr(env, err)
@@ -201,6 +220,12 @@ func (s *Service) RefreshHealth(ctx context.Context, env, refresh string) (HostH
 	s.mu.Lock()
 	prev, had := s.health.reports[env]
 	s.mu.Unlock()
+	if had && out.SampledAt.Before(prev.SampledAt) && now.Sub(prev.ReceivedAt) < healthTimeout {
+		// Overtaken by a newer answer. Only within healthTimeout of it: a
+		// later answer with an older agent clock (the host's clock was
+		// set back) is kept.
+		return prev, nil
+	}
 	if had && out.SMART.Checking && out.SMART.CheckedAt == nil && prev.SMART.CheckedAt != nil {
 		// A restarted agent reads its disks for the first time: keep the
 		// last known devices until it is done.
