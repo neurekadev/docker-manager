@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import HardDrive from '@lucide/svelte/icons/hard-drive';
+import ChartPie from '@lucide/svelte/icons/chart-pie';
 import MemoryStick from '@lucide/svelte/icons/memory-stick';
 import Thermometer from '@lucide/svelte/icons/thermometer';
+import { RESOURCE_ICONS } from '$lib/features/common/resourceIcons';
 import { EVENT_KINDS } from '$lib/features/notifications/model';
 import {
 	ALERT_KINDS,
@@ -49,7 +50,10 @@ describe('alerts in words (#159)', () => {
 		expect(kindLabel('updates')).toBe('Updates available');
 		expect(kindLabel('something_new')).toBe('something_new');
 		expect(kindIcon('temperature')).toBe(Thermometer);
-		expect(kindIcon('disk_space')).toBe(HardDrive);
+		// Disks and RAID arrays show the tiles of their tables on the System tab.
+		expect(kindIcon('disk_health')).toBe(RESOURCE_ICONS.disk.icon);
+		expect(kindIcon('raid')).toBe(RESOURCE_ICONS.raidArray.icon);
+		expect(kindIcon('disk_space')).toBe(ChartPie);
 		expect(kindIcon('memory')).toBe(MemoryStick);
 		expect(kindIcon('something_new')).toBeUndefined();
 	});

@@ -70,7 +70,11 @@ export const RESOURCE_ICONS = {
 	notificationChannel: { icon: Bell, color: 'cyan' },
 	/** A finished run's notification (the Notifications page). */
 	notification: { icon: Inbox, color: 'cyan' },
-	alert: { icon: Siren, color: 'rose' }
+	alert: { icon: Siren, color: 'rose' },
+	/** A physical disk of a host (Disk health on the System tab). */
+	disk: { icon: HardDrive, color: 'slate' },
+	/** A RAID array or ZFS pool of a host (RAID on the System tab). */
+	raidArray: { icon: Server, color: 'indigo' }
 } as const satisfies Record<string, ResourceIcon>;
 
 export type ResourceKind = keyof typeof RESOURCE_ICONS;

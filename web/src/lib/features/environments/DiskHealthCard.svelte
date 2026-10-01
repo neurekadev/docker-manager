@@ -9,7 +9,8 @@
 	// agent can't read the disks, is too old, has disk health turned off,
 	// or the disks report no SMART data. "No RAID arrays found" tells the
 	// host has none (the RAID card only shows with arrays). A disk with a
-	// firing alert (#159) has a mark beside its path that opens Alerts.
+	// firing alert (#159) has a mark beside its path that opens Alerts. Every
+	// disk shows the disk tile (RESOURCE_ICONS).
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -18,6 +19,7 @@
 	import AlertMark from '$lib/features/alerts/AlertMark.svelte';
 	import { alertsByDisk, diskAlertKey, type Alert } from '$lib/features/alerts/model';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import IconCell from '$lib/features/common/IconCell.svelte';
 	import { actionError } from '$lib/features/common/errors';
 	import {
 		Button,
@@ -174,9 +176,13 @@
 {/snippet}
 {#snippet deviceCell(d: DiskDevice)}
 	{@const alert = byDisk.get(diskAlertKey(d.name, d.type))}
-	<span class="mono">{deviceName(d, health.devices)}</span>{#if alert}<AlertMark
-			{alert}
-		/>{/if}{#if d.model}<span class="muted model">{d.model}</span>{/if}
+	<IconCell icon="disk"
+		><span class="line"
+			><span class="mono">{deviceName(d, health.devices)}</span>{#if alert}<AlertMark
+					{alert}
+				/>{/if}{#if d.model}<span class="muted model">{d.model}</span>{/if}</span
+		></IconCell
+	>
 {/snippet}
 {#snippet healthCell(d: DiskDevice)}
 	{@const b = diskBadge(d)}
@@ -268,6 +274,14 @@
 </Card>
 
 <style>
+	/* The name line keeps the column's ellipsis beside the tile. */
+	.line {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	.head-actions {
 		display: flex;
 		align-items: center;

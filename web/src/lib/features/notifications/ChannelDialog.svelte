@@ -382,6 +382,7 @@
 								<div class="event-kind">
 									<Checkbox
 										label={k.label}
+										icon={k.icon}
 										checked={mark === 'all'}
 										indeterminate={mark === 'some'}
 										onchange={(e) =>

@@ -99,6 +99,12 @@ describe('DiskHealthCard', () => {
 		const rows = within(table).getAllByRole('row').slice(1);
 		expect(rows).toHaveLength(2);
 		expect(within(rows[0]).getByText('/dev/sdb')).toBeInTheDocument();
+		// Every disk shows the disk tile, decorative.
+		for (const row of rows)
+			expect(row.querySelector('[data-color="slate"]')).toHaveAttribute(
+				'aria-hidden',
+				'true'
+			);
 		expect(within(rows[0]).getByText('Warning')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('8 reallocated sectors')).toBeInTheDocument();
 		expect(within(rows[1]).getByText('Healthy')).toBeInTheDocument();
@@ -319,6 +325,12 @@ describe('RaidCard', () => {
 		const table = screen.getByRole('table', { name: 'RAID arrays of homelab' });
 		const rows = within(table).getAllByRole('row').slice(1);
 		expect(within(rows[0]).getByText('md1')).toBeInTheDocument();
+		// Every array shows the RAID tile, decorative.
+		for (const row of rows)
+			expect(row.querySelector('[data-color="indigo"]')).toHaveAttribute(
+				'aria-hidden',
+				'true'
+			);
 		expect(within(rows[0]).getByText('Rebuilding')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('RAID 5')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('sdd1 failed')).toHaveClass('failed');

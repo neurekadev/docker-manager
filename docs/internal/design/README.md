@@ -288,7 +288,7 @@ Every resource list (stacks, containers, images, volumes, networks,
 builds and saved builds, registries and Git credentials, template
 sources, backup policies, runs, repositories and snapshots, update and
 maintenance policies, jobs, schedules, environments, users, groups,
-invitations, API tokens, passkeys, notification channels, alerts, notifications) starts each row's name with the type's
+invitations, API tokens, passkeys, notification channels, alerts, notifications, a host's disks and RAID arrays) starts each row's name with the type's
 icon, so a list is recognisable at a glance:
 
 ```svelte
@@ -331,7 +331,7 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | `PasswordField` | Reveal toggle ("Show password"/"Hide password", `aria-pressed`); `autocomplete: current-password \| new-password`; `revealed` (bindable) starts it in plain text, e.g. a stored secret the user just asked to see ("Show address"). |
 | `TextArea`, `Select` (Bits UI listbox in the input's look: chevron trigger, check on the chosen option, typeahead; `onchange(value)`; an option's optional `icon` shows before its label in the list and the trigger, e.g. the notification service picker), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | No native `<select>` anywhere. |
 | `SuggestField` | Free text with a themed suggestion listbox (`suggestions: string[]`, combobox pattern: arrows, Enter, Escape, pointer); for values that may be new (a volume name). No `<datalist>`. |
-| `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection. |
+| `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection; `icon`: a decorative glyph before the label (the kinds of events in a notification channel's "What to send"). |
 | `Switch` | `role="switch"`; for settings that apply immediately. |
 | `RadioGroup` | Native radios in a fieldset. |
 | `TriState` | Inherit / Allow / Deny (#17 user overrides; `variant="rule"`: No rule / Allow / Deny) with the effective decision and its source explained. The chosen segment is filled and outlined in its colour (ok for Allow, danger for Deny, neutral otherwise); segments share one width so controls line up. `highRisk` marks Allow (the permission editor marks risk next to the action instead). |

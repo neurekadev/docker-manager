@@ -5,7 +5,8 @@
 	// a running rebuild or check with its progress and the kernel's finish
 	// estimate. "Check RAID now" reads the state again (never a scrub).
 	// An array with a firing alert (#159) has a mark beside its name that
-	// opens Alerts.
+	// opens Alerts. Every array shows the RAID tile
+	// (RESOURCE_ICONS).
 	// Shown only when the host has arrays (the Disk health card says "No
 	// RAID arrays found" otherwise) or the state could not be read.
 	import { useQueryClient } from '@tanstack/svelte-query';
@@ -14,6 +15,7 @@
 	import { queryKeys } from '$lib/api/queries';
 	import AlertMark from '$lib/features/alerts/AlertMark.svelte';
 	import { alertsByArray, arrayAlertKey, type Alert } from '$lib/features/alerts/model';
+	import IconCell from '$lib/features/common/IconCell.svelte';
 	import { actionError } from '$lib/features/common/errors';
 	import {
 		Button,
@@ -115,8 +117,12 @@
 
 {#snippet arrayCell(a: RaidArray)}
 	{@const alert = byArray.get(arrayAlertKey(a.kind, a.name))}
-	<span class="mono">{a.name}</span>{#if alert}<AlertMark {alert} />{/if}<span class="muted level"
-		>{raidLevel(a)}</span
+	<IconCell icon="raidArray"
+		><span class="line"
+			><span class="mono">{a.name}</span>{#if alert}<AlertMark {alert} />{/if}<span
+				class="muted level">{raidLevel(a)}</span
+			></span
+		></IconCell
 	>
 {/snippet}
 {#snippet stateCell(a: RaidArray)}
@@ -187,6 +193,14 @@
 </Card>
 
 <style>
+	/* The name line keeps the column's ellipsis beside the tile. */
+	.line {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	.head-actions {
 		display: flex;
 		align-items: center;
