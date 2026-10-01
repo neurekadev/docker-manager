@@ -392,10 +392,14 @@ them with "Check disks now" and "Check RAID now".
   <type> <name>` (at most 4 at once, 30 s each) at start, every
   `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
   disks now". A disk in standby is not woken (exit status 3 plus the
-  standby message): it keeps its previous values with state `sleeping`.
-  A failed read keeps the last measurements (and their read time) for
-  reference but reports the failure: state `error`, `open_failed` (a disk
-  the agent cannot read never looks healthy). A device is identified by
+  standby message): it keeps its previous values with state `sleeping`,
+  except that `failing` and `warning`, derived from the kept values, stay
+  (standby clears no problem, also after a failed read in between).
+  A failed read, or a read that got nothing (`permission_denied`,
+  `open_failed`), keeps the last measurements (and their read time) for
+  reference but reports the failure: state `error` with its code (a disk
+  the agent cannot read never looks healthy); such a read never sets a
+  read time. A device is identified by
   its path **and** smartctl type: disks behind one RAID controller share
   the controller's path (`/dev/bus/0` as `megaraid,0`, `megaraid,1`). The exit status is a bitmask
   (bits 3–7 describe the disk and still come with complete JSON, so the
@@ -435,7 +439,8 @@ them with "Check disks now" and "Check RAID now".
   `error`). An md array is **failed** when no member works (any level) or
   it lost more members than its level tolerates (raid4/5: more than one,
   raid6: more than two, raid0/linear: any; raid10: fewer working members
-  than devices ÷ copies, from "2 near-copies", 2 when not shown; losing
+  than devices ÷ copies, from "2 near-copies" times "2 far-copies" /
+  "2 offset-copies" when both are shown (n2f2: 4), 2 when not shown; losing
   fewer is degraded, since /proc/mdstat does not show which copies are
   gone), **rebuilding**
   during (or waiting for) a recovery, resync or reshape, **degraded** with
@@ -449,7 +454,10 @@ them with "Check disks now" and "Check RAID now".
 **Manager** (`internal/manager/observe/health.go`): asks every online
 environment whose agent serves `host.health` about once a minute, 5 s after
 it comes online (or its agent's capabilities change) and every 5 s while
-the agent reads its disks (at most 10 minutes). An agent answering
+the agent reads its disks (at most 10 minutes from the last "Check disks
+now" or the start of the read). An answer sampled before the kept report
+(a poll that arrives after a check's answer) is dropped, unless the kept
+report arrived more than 20 s (the request timeout) earlier. An agent answering
 `unsupported_request` is skipped for 5 minutes. A report is kept in memory,
 stored in `metrics.db` (`host_health`: the agent's JSON, `collected_at`,
 `received_at`) only when its content changed (ignoring the read times) and
@@ -459,7 +467,9 @@ reports are restored at startup and served while the environment is
 offline. A restarted agent whose first read is still running keeps the last
 known devices (marked checking). `CheckHealth` serves the check route: at
 most one check per environment every 30 s (smart) or 5 s (raid), `429`
-with `Retry-After` before.
+with `Retry-After` before; a check the agent did not answer (timeout,
+offline, unsupported) does not count, while one the caller gave up on or
+whose answer failed to store does.
 
 **API**: `GET …/environments/{id}/system` carries `diskHealth` (status as
 above plus `agent_outdated` when the agent's capabilities lack

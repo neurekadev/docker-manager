@@ -51,7 +51,8 @@ var (
 func ParseMDStat(b []byte) []protocol.MDArray {
 	var out []protocol.MDArray
 	var cur *protocol.MDArray
-	// copies is the current raid10 array's data copies ("2 near-copies").
+	// copies is the current raid10 array's data copies ("2 near-copies",
+	// "2 near-copies 2 far-copies").
 	copies := 0
 	flush := func() {
 		if cur != nil {
@@ -83,15 +84,29 @@ func ParseMDStat(b []byte) []protocol.MDArray {
 			continue
 		}
 		detail := strings.TrimSpace(line)
-		if m := mdCopiesRE.FindStringSubmatch(detail); m != nil {
-			if n, err := strconv.Atoi(m[1]); err == nil && n > 0 {
-				copies = n
-			}
+		if n := mdCopies(detail); n > 0 {
+			copies = n
 		}
 		parseMDDetail(cur, detail)
 	}
 	flush()
 	return out
+}
+
+// mdCopies is a raid10 detail line's number of data copies: the product
+// of its "<n> near-copies" and "<n> far-copies" / "<n> offset-copies"
+// (md prints both for a combined layout such as n2f2: 4 copies); 0 when
+// the line shows none.
+func mdCopies(detail string) int {
+	copies := 0
+	for _, m := range mdCopiesRE.FindAllStringSubmatch(detail, -1) {
+		n, err := strconv.Atoi(m[1])
+		if err != nil || n <= 0 || n > protocol.MaxHealthMembers {
+			continue
+		}
+		copies = max(copies, 1) * n
+	}
+	return copies
 }
 
 // parseMDHead parses "active (auto-read-only) raid1 sdb1[1] sda1[0]".

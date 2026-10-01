@@ -28,7 +28,8 @@ A disk's health is one of:
 - **Failing**: the disk's own self-check failed or it reports a critical
   problem. Back up and replace it soon.
 - **Sleeping**: the disk was in standby and was not woken; it shows the
-  values from its last check.
+  values from its last check. A disk whose last check found a problem
+  keeps its **Warning** or **Failing** badge while it sleeps.
 - **Unreadable**: the disk could not be read; hover the badge to see why.
 
 ## Check RAID arrays

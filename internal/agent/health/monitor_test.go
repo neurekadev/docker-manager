@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strconv"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -211,6 +212,87 @@ func TestMonitorKeepsLastValuesWhenAReadFails(t *testing.T) {
 	m2.round(ctx, true)
 	if d := m2.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed {
 		t.Fatalf("%+v", d)
+	}
+}
+
+// TestMonitorErrorReadingIsAFailedRead: a reading where nothing was read
+// (permission denied) has no read time; after a good read it keeps the
+// last measurements like a failed read.
+func TestMonitorErrorReadingIsAFailedRead(t *testing.T) {
+	denied := smartctl.Reading{Device: protocol.SMARTDevice{Name: "/dev/sda", Type: "sat", State: protocol.DiskError,
+		ErrorCode: protocol.DiskErrPermissionDenied}}
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{{Name: "/dev/sda", Type: "sat"}},
+		readings: map[string]smartctl.Reading{"/dev/sda": denied}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	ctx := testutil.Context(t)
+	m.round(ctx, true)
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrPermissionDenied || d.ReadAt != nil {
+		t.Fatalf("never read: %+v", d)
+	}
+	// Asleep before any good read: still nothing to show.
+	smart.set("/dev/sda", standby("/dev/sda"))
+	m.round(ctx, false)
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskSleeping || d.ReadAt != nil {
+		t.Fatalf("asleep, never read: %+v", d)
+	}
+	smart.set("/dev/sda", healthy("/dev/sda", "S1"))
+	m.round(ctx, false)
+	before := *m.Report().SMART.Devices[0].ReadAt
+	smart.set("/dev/sda", denied)
+	m.round(ctx, false)
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrPermissionDenied ||
+		d.Serial != "S1" || d.TemperatureC == nil || !d.ReadAt.Equal(before) {
+		t.Fatalf("after a good read: %+v", d)
+	}
+	if err := m.Report().Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMonitorSleepingDiskKeepsItsProblem: standby clears no problem, also
+// after a failed read in between; a healthy disk is marked sleeping.
+func TestMonitorSleepingDiskKeepsItsProblem(t *testing.T) {
+	for _, state := range []string{protocol.DiskFailing, protocol.DiskWarning, protocol.DiskOK} {
+		for _, failedRead := range []bool{false, true} {
+			t.Run(state+"/failed read "+strconv.FormatBool(failedRead), func(t *testing.T) {
+				r := healthy("/dev/sda", "S1")
+				switch state {
+				case protocol.DiskFailing:
+					passed := false
+					r.Device.Passed = &passed
+				case protocol.DiskWarning:
+					pending := int64(8)
+					r.Device.Pending = &pending
+				}
+				r.Device.State = protocol.DeriveDiskState(r.Device)
+				if r.Device.State != state {
+					t.Fatalf("fixture state %s, want %s", r.Device.State, state)
+				}
+				smart := &fakeSMART{scan: []smartctl.ScanDevice{{Name: "/dev/sda", Type: "sat"}},
+					readings: map[string]smartctl.Reading{"/dev/sda": r}}
+				m, _ := newMonitor(t, smart, hostProc(), true)
+				ctx := testutil.Context(t)
+				m.round(ctx, true)
+				if failedRead {
+					smart.mu.Lock()
+					smart.readErr = map[string]error{"/dev/sda": &smartctl.Error{Op: "read", Code: smartctl.CodeTimeout}}
+					smart.mu.Unlock()
+					m.round(ctx, false)
+					smart.mu.Lock()
+					smart.readErr = nil
+					smart.mu.Unlock()
+				}
+				smart.set("/dev/sda", standby("/dev/sda"))
+				m.round(ctx, false)
+				want := state
+				if state == protocol.DiskOK {
+					want = protocol.DiskSleeping
+				}
+				if d := m.Report().SMART.Devices[0]; d.State != want || d.ErrorCode != "" || d.Serial != "S1" || d.ReadAt == nil {
+					t.Fatalf("got %+v, want state %s", d, want)
+				}
+			})
+		}
 	}
 }
 

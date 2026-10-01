@@ -97,6 +97,14 @@ md2 : active raid5 sde1[4](S) sdd1[3](F) sdc1[2] sdb1[1] sda1[0](W)
       1000 blocks super 1.2 512K chunks 3 near-copies [3/1] [U__]
 `, []protocol.MDArray{{Name: "md9", Level: "raid10", State: protocol.RAIDDegraded, Devices: 3, Active: 1, SizeBytes: 1000 * 1024,
 			Members: []protocol.MDMember{active("sda", 0)}}}},
+		{"raid10 with near and far copies", `md11 : active raid10 sdc[2]
+      2000 blocks super 1.2 512K chunks 2 near-copies 2 far-copies [4/1] [__U_]
+`, []protocol.MDArray{{Name: "md11", Level: "raid10", State: protocol.RAIDDegraded, Devices: 4, Active: 1, SizeBytes: 2000 * 1024,
+			Members: []protocol.MDMember{active("sdc", 2)}}}},
+		{"raid10 with offset copies", `md12 : active raid10 sdb[1]
+      2000 blocks super 1.2 512K chunks 2 offset-copies [4/1] [_U__]
+`, []protocol.MDArray{{Name: "md12", Level: "raid10", State: protocol.RAIDFailed, Devices: 4, Active: 1, SizeBytes: 2000 * 1024,
+			Members: []protocol.MDMember{active("sdb", 1)}}}},
 		{"multipath without a working path", `md10 : active multipath sdb[1](F) sda[0](F)
       1000 blocks [2/0] [__]
 `, []protocol.MDArray{{Name: "md10", Level: "multipath", State: protocol.RAIDFailed, Devices: 2, SizeBytes: 1000 * 1024,

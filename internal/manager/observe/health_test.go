@@ -18,11 +18,14 @@ import (
 )
 
 // healthAgent answers host.health for env-1 from its report (the agent's
-// clock is the manager's).
+// clock is the manager's unless sampledAt is set; fail answers with an
+// error).
 type healthAgent struct {
 	mu          sync.Mutex
 	clk         clock.Clock
 	report      protocol.HostHealthOutput
+	sampledAt   time.Time
+	fail        error
 	offline     bool
 	serves      bool
 	unsupported bool
@@ -54,8 +57,15 @@ func (a *healthAgent) RequestEnvironment(_ context.Context, envID, name string, 
 	}
 	in := input.(protocol.HostHealthInput)
 	a.refreshes = append(a.refreshes, in.Refresh)
+	if a.fail != nil {
+		a.mu.Unlock()
+		return nil, a.fail
+	}
 	out := a.report
 	now := a.clk.Now().UTC()
+	if !a.sampledAt.IsZero() {
+		now = a.sampledAt
+	}
 	out.SampledAt, out.RAID.ReadAt = now, now
 	calls := a.calls
 	a.mu.Unlock()
@@ -212,6 +222,39 @@ func TestRefreshHealthKeepsDevicesWhileARestartedAgentReads(t *testing.T) {
 	}
 }
 
+// TestRefreshHealthDropsAnOvertakenAnswer: an answer sampled before the
+// kept report (a poll that arrives after a check's answer) does not
+// replace it, unless the kept report is older than healthTimeout.
+func TestRefreshHealthDropsAnOvertakenAnswer(t *testing.T) {
+	f := newHealthFixture(t)
+	ctx := testutil.Context(t)
+	sub := f.bus.Subscribe(16, func(e events.Event) bool { return e.Type == events.InventoryUpdated })
+	defer sub.Close()
+	if _, err := f.svc.RefreshHealth(ctx, env, protocol.HealthRefreshSMART); err != nil {
+		t.Fatal(err)
+	}
+	drain(sub)
+	f.agent.set(func(r *protocol.HostHealthOutput) { r.SMART.Checking = true })
+	f.agent.mu.Lock()
+	f.agent.sampledAt = f.clk.Now().Add(-2 * time.Second).UTC()
+	f.agent.mu.Unlock()
+	h, err := f.svc.RefreshHealth(ctx, env, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := f.svc.HostHealth(env); h.SMART.Checking || got.SMART.Checking {
+		t.Fatalf("an overtaken answer replaced the report: %+v", got.SMART)
+	}
+	if evs := drain(sub); len(evs) != 0 {
+		t.Fatalf("an overtaken answer was announced: %+v", evs)
+	}
+	// Long after the kept report, an older agent clock is not a race.
+	f.clk.Advance(healthTimeout)
+	if h, err := f.svc.RefreshHealth(ctx, env, ""); err != nil || !h.SMART.Checking {
+		t.Fatalf("%+v, %v", h.SMART, err)
+	}
+}
+
 func TestCheckHealthRateLimitsAndMapsErrors(t *testing.T) {
 	f := newHealthFixture(t)
 	ctx := testutil.Context(t)
@@ -248,6 +291,38 @@ func TestCheckHealthRateLimitsAndMapsErrors(t *testing.T) {
 				t.Fatalf("refreshes %q, want %q", refreshes, want)
 			}
 		}
+	}
+
+	// A failed check does not use up the slot.
+	f.clk.Advance(SMARTCheckSpacing)
+	f.agent.mu.Lock()
+	f.agent.fail = protocol.ErrRequestTimeout
+	f.agent.mu.Unlock()
+	if _, err := f.svc.CheckHealth(ctx, env, HealthScopeSMART); !errors.Is(err, ErrHealthTimeout) {
+		t.Fatalf("timed out check: %v", err)
+	}
+	f.agent.mu.Lock()
+	f.agent.fail = nil
+	f.agent.mu.Unlock()
+	if _, err := f.svc.CheckHealth(ctx, env, HealthScopeSMART); err != nil {
+		t.Fatalf("retry after a failed check: %v", err)
+	}
+	// A caller that gave up keeps the slot: aborting and repeating never
+	// gets around the spacing.
+	f.clk.Advance(SMARTCheckSpacing)
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	f.agent.mu.Lock()
+	f.agent.fail = context.Canceled
+	f.agent.mu.Unlock()
+	if _, err := f.svc.CheckHealth(gone, env, HealthScopeSMART); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled check: %v", err)
+	}
+	f.agent.mu.Lock()
+	f.agent.fail = nil
+	f.agent.mu.Unlock()
+	if _, err := f.svc.CheckHealth(ctx, env, HealthScopeSMART); !errors.As(err, &rl) {
+		t.Fatalf("check after a cancelled one: %v", err)
 	}
 
 	if _, err := f.svc.CheckHealth(ctx, env, "selftest"); !errors.Is(err, ErrHealthScope) {
@@ -299,6 +374,13 @@ func TestFollowHealthWhileTheAgentChecks(t *testing.T) {
 	case got := <-f.svc.health.follow:
 		t.Fatalf("followed a stuck read: %q", got)
 	default:
+	}
+	// "Check disks now" starts a new read: followed again.
+	if _, err := f.svc.RefreshHealth(ctx, env, protocol.HealthRefreshSMART); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-f.svc.health.follow; got != env {
+		t.Fatalf("follow after a new check %q", got)
 	}
 	// Done: the next check follows again.
 	f.agent.set(func(r *protocol.HostHealthOutput) { r.SMART.Checking = false })
