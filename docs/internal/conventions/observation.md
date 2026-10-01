@@ -50,9 +50,16 @@ inventory cache, disk health, event journal) and `internal/manager/metrics`
   `inventory.updated` with `Attributes["health"] = "true"` only when it
   changed. smartctl runs only through `internal/agent/smartctl.Runner`
   (the second lint-exempt process execution, ADR 0005): read-only flags,
-  `-n standby`, never a self-test. Serial numbers are data for
-  `environment.system.read` holders: never log them. The manager sends
-  `host.health` only to agents that serve it (`EnvironmentServes`).
+  `-n standby` (`-n never` only for a disk unread for
+  `DOCKER_AGENT_SMART_WAKE_AFTER`), never a self-test; a call never waits
+  on a smartctl stuck after the kill (it is given up on, and its device is
+  not called again until it exits). A disk is never shown healthy without
+  a verdict or values, and never with another disk's kept values. Serial
+  numbers are data for `environment.system.read` holders: never log them
+  (alerts carry only a hash, `diskId`). The manager sends `host.health`
+  only to agents that serve it (`EnvironmentServes`). Disk and RAID alerts
+  are never removed for not being reported while that monitoring does not
+  work: the monitoring alert says so instead.
 - Sample keys are `(series, 10 s slot)`: ingestion is idempotent; never add
   a path that writes samples without going through `Store.Ingest`.
 - `metrics.db` is expendable and excluded from manager-state backups (#10).

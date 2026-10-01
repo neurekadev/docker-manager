@@ -192,3 +192,68 @@ func TestBoundKeepsValidUTF8(t *testing.T) {
 		t.Errorf("bound = %q", got)
 	}
 }
+
+// TestParseReadNeverHealthyWithoutData: a disk is only healthy on a
+// verdict or values. SMART turned off on the drive, or a read that got
+// neither, is state error; smartctl's DISK FAILING exit bit stands in
+// for a verdict the JSON lacks.
+func TestParseReadNeverHealthyWithoutData(t *testing.T) {
+	sda := ScanDevice{Name: "/dev/sda", Type: "sat", Protocol: protocol.DiskATA}
+	device := `"device":{"name":"/dev/sda","type":"sat","protocol":"ATA"},"model_name":"WDC WD40EFZX","serial_number":"WD-1"`
+	for _, c := range []struct {
+		name  string
+		json  string
+		exit  ExitBits
+		state string
+		code  string
+	}{
+		{"SMART turned off", `{` + device + `,"smart_support":{"available":true,"enabled":false}}`, BitCommandFailed,
+			protocol.DiskError, protocol.DiskErrSMARTDisabled},
+		{"no verdict, no values", `{` + device + `,"smart_support":{"available":true,"enabled":true}}`, BitCommandFailed,
+			protocol.DiskError, protocol.DiskErrNoData},
+		{"DISK FAILING exit bit only", `{` + device + `,"smart_support":{"available":true,"enabled":true}}`, BitDiskFailing,
+			protocol.DiskFailing, ""},
+		{"attributes without a verdict", `{` + device + `,"smart_support":{"available":true,"enabled":true},` +
+			`"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","when_failed":"","raw":{"value":0}}]}}`,
+			BitCommandFailed, protocol.DiskOK, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := parseRead(sda, []byte(c.json), c.exit, "")
+			if r.Device.State != c.state || r.Device.ErrorCode != c.code {
+				t.Fatalf("state %q code %q, want %q %q: %+v", r.Device.State, r.Device.ErrorCode, c.state, c.code, r.Device)
+			}
+			if r.Device.Model != "WDC WD40EFZX" {
+				t.Errorf("the identity is kept: %+v", r.Device)
+			}
+			out := protocol.HostHealthOutput{SampledAt: testEpoch, SMART: protocol.SMARTReport{Status: protocol.SMARTOK,
+				Devices: []protocol.SMARTDevice{r.Device}}, RAID: protocol.RAIDReport{ReadAt: testEpoch}}
+			if err := out.Validate(); err != nil {
+				t.Errorf("does not validate: %v", err)
+			}
+		})
+	}
+}
+
+// TestParseReadEndToEndErrors: attribute 184 counts end-to-end errors (a
+// warning).
+func TestParseReadEndToEndErrors(t *testing.T) {
+	sda := ScanDevice{Name: "/dev/sda", Type: "sat", Protocol: protocol.DiskATA}
+	r := parseRead(sda, []byte(`{"device":{"name":"/dev/sda","type":"sat","protocol":"ATA"},"smart_status":{"passed":true},`+
+		`"ata_smart_attributes":{"table":[{"id":184,"name":"End-to-End_Error","when_failed":"","raw":{"value":2}}]}}`), 0, "")
+	if r.Device.EndToEndErrors == nil || *r.Device.EndToEndErrors != 2 || r.Device.State != protocol.DiskWarning {
+		t.Fatalf("%+v", r.Device)
+	}
+}
+
+// TestParseReadNVMeTemperatureOnly: an NVMe critical warning that is only
+// the temperature bit is a warning; smartctl's failed verdict for it does
+// not make the drive failing.
+func TestParseReadNVMeTemperatureOnly(t *testing.T) {
+	nvme := ScanDevice{Name: "/dev/nvme0", Type: "nvme", Protocol: protocol.DiskNVMe}
+	r := parseRead(nvme, []byte(`{"device":{"name":"/dev/nvme0","type":"nvme","protocol":"NVMe"},"smart_status":{"passed":false},`+
+		`"nvme_smart_health_information_log":{"critical_warning":2,"temperature":78,"available_spare":100,"available_spare_threshold":10}}`),
+		BitDiskFailing, "")
+	if r.Device.State != protocol.DiskWarning || *r.Device.CriticalWarning != protocol.NVMeWarnTemperature {
+		t.Fatalf("%+v", r.Device)
+	}
+}

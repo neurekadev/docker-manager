@@ -40,6 +40,14 @@ export function unreadableReason(code: DiskDevice['errorCode']): string {
 			return 'The agent may not open this disk';
 		case 'unsupported':
 			return "Doesn't report SMART data";
+		case 'timeout':
+			return "Didn't answer in time";
+		case 'missing':
+			return 'No longer found: it may have failed or been removed';
+		case 'smart_disabled':
+			return 'SMART is turned off on the disk';
+		case 'no_data':
+			return 'Reported no health data';
 		default:
 			return "Couldn't open the disk";
 	}
@@ -47,6 +55,8 @@ export function unreadableReason(code: DiskDevice['errorCode']): string {
 
 export function diskBadge(d: DiskDevice): Badge {
 	const b = DISK_BADGE[d.state] ?? { status: 'unknown', label: 'Unknown' };
+	if (d.state === 'error' && d.errorCode === 'missing')
+		return { status: 'warning', label: 'Missing', title: unreadableReason(d.errorCode) };
 	if (d.state === 'error') return { ...b, title: unreadableReason(d.errorCode) };
 	if (d.state === 'sleeping')
 		return {
@@ -67,8 +77,11 @@ const count = (n: number, one: string, many = `${one}s`) =>
 export function diskIssues(d: DiskDevice): string[] {
 	if (d.state === 'error') return [unreadableReason(d.errorCode)];
 	const out: string[] = [];
-	if (d.passed === false) out.push('Self-assessment failed');
-	if (d.criticalWarning) out.push('Critical warning');
+	if (d.criticalWarning === NVME_WARN_TEMPERATURE) out.push('Too hot');
+	else {
+		if (d.passed === false) out.push('Self-assessment failed');
+		if (d.criticalWarning) out.push('Critical warning');
+	}
 	const failing = (d.failingAttributes ?? []).filter((a) => a.whenFailed === 'now');
 	for (const a of failing) out.push(`${attributeName(a.name)} failing`);
 	const n = (v: number | undefined) => v ?? 0;
@@ -78,6 +91,7 @@ export function diskIssues(d: DiskDevice): string[] {
 		out.push(count(n(d.offlineUncorrectable), 'uncorrectable sector'));
 	if (n(d.reportedUncorrectable) > 0)
 		out.push(count(n(d.reportedUncorrectable), 'uncorrectable error'));
+	if (n(d.endToEndErrors) > 0) out.push(count(n(d.endToEndErrors), 'end-to-end error'));
 	if (n(d.mediaErrors) > 0) out.push(count(n(d.mediaErrors), 'media error'));
 	if (n(d.grownDefects) > 0) out.push(count(n(d.grownDefects), 'grown defect'));
 	if (n(d.uncorrectedErrors) > 0) out.push(count(n(d.uncorrectedErrors), 'uncorrected error'));
@@ -98,6 +112,12 @@ export function diskIssues(d: DiskDevice): string[] {
 
 /** The wear from which a disk counts as worn out (the agent's rule). */
 export const WORN = 90;
+
+/**
+ * The NVMe critical warning that is only "too hot" (bit 1): a warning
+ * that clears when the drive cools, not a failing drive (the agent's rule).
+ */
+export const NVME_WARN_TEMPERATURE = 2;
 
 /** An ATA attribute name in words: "Reallocated_Sector_Ct" → "Reallocated sector ct". */
 export function attributeName(name: string): string {
@@ -139,11 +159,15 @@ const SEVERITY: Record<DiskDevice['state'], number> = {
 	ok: 4
 };
 
+/** A missing disk ranks with the warnings (it raises one). */
+const severity = (d: DiskDevice) =>
+	d.state === 'error' && d.errorCode === 'missing' ? SEVERITY.warning : (SEVERITY[d.state] ?? 9);
+
 /** Disks that need attention first, then by name and controller slot. */
 export function sortDisks(ds: DiskDevice[]): DiskDevice[] {
 	return [...ds].sort(
 		(a, b) =>
-			(SEVERITY[a.state] ?? 9) - (SEVERITY[b.state] ?? 9) ||
+			severity(a) - severity(b) ||
 			a.name.localeCompare(b.name, 'en', { numeric: true }) ||
 			a.type.localeCompare(b.type, 'en', { numeric: true })
 	);
@@ -289,7 +313,10 @@ export function diskSummary(h: DiskHealth): string {
 	const n = h.devices.length;
 	if (!n) return '';
 	const attention = h.devices.filter(
-		(d) => d.state === 'failing' || d.state === 'warning'
+		(d) =>
+			d.state === 'failing' ||
+			d.state === 'warning' ||
+			(d.state === 'error' && d.errorCode === 'missing')
 	).length;
 	if (!attention) return count(n, 'disk');
 	return `${count(n, 'disk')}, ${attention} ${attention === 1 ? 'needs' : 'need'} attention`;

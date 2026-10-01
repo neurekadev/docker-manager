@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -30,6 +31,8 @@ type fakeSMART struct {
 	scans    int
 	gate     chan struct{}
 	entered  chan string
+	// woken lists the devices read with wake set.
+	woken []string
 }
 
 func (f *fakeSMART) Scan(context.Context) ([]smartctl.ScanDevice, error) {
@@ -45,8 +48,11 @@ func (f *fakeSMART) scanCount() int {
 	return f.scans
 }
 
-func (f *fakeSMART) Read(ctx context.Context, dev smartctl.ScanDevice) (smartctl.Reading, error) {
+func (f *fakeSMART) Read(ctx context.Context, dev smartctl.ScanDevice, wake bool) (smartctl.Reading, error) {
 	f.mu.Lock()
+	if wake {
+		f.woken = append(f.woken, dev.Name)
+	}
 	gate, entered := f.gate, f.entered
 	// "name|type" answers one of several disks behind a controller path.
 	r, ok := f.readings[dev.Name+"|"+dev.Type]
@@ -191,7 +197,7 @@ func TestMonitorKeepsLastValuesWhenAReadFails(t *testing.T) {
 	m.round(ctx, false)
 	// The failure shows (never "healthy"); the last measurements and
 	// their read time stay for reference.
-	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed ||
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrTimeout ||
 		d.Serial != "S1" || d.TemperatureC == nil || !d.ReadAt.Equal(before) {
 		t.Fatalf("%+v", d)
 	}
@@ -210,7 +216,14 @@ func TestMonitorKeepsLastValuesWhenAReadFails(t *testing.T) {
 	m2, _ := newMonitor(t, &fakeSMART{scan: smart.scan, readErr: map[string]error{"/dev/sda": &smartctl.Error{Op: "read", Code: smartctl.CodeTimeout}}},
 		hostProc(), true)
 	m2.round(ctx, true)
-	if d := m2.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed {
+	if d := m2.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrTimeout {
+		t.Fatalf("%+v", d)
+	}
+	// Any other failure is open_failed.
+	m3, _ := newMonitor(t, &fakeSMART{scan: smart.scan, readErr: map[string]error{"/dev/sda": &smartctl.Error{Op: "read", Code: smartctl.CodeFailed}}},
+		hostProc(), true)
+	m3.round(ctx, true)
+	if d := m3.Report().SMART.Devices[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed {
 		t.Fatalf("%+v", d)
 	}
 }
@@ -361,6 +374,162 @@ func TestMonitorScanFailures(t *testing.T) {
 	m.round(ctx, true)
 	if r := m.Report(); r.SMART.Status != protocol.SMARTError || r.SMART.Message != "the disk scan failed" {
 		t.Fatalf("%+v", r.SMART)
+	}
+	m, _ = newMonitor(t, &fakeSMART{scanErr: &smartctl.Error{Op: "scan", Code: smartctl.CodeStuck}}, hostProc(), true)
+	m.round(ctx, true)
+	if r := m.Report(); r.SMART.Status != protocol.SMARTError || r.SMART.Message != "the disk scan did not finish" {
+		t.Fatalf("%+v", r.SMART)
+	}
+}
+
+// TestMonitorScanFailureStillReadsKnownDisks: a failed rescan keeps the
+// previous device list and reads it (status error).
+func TestMonitorScanFailureStillReadsKnownDisks(t *testing.T) {
+	ctx := testutil.Context(t)
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{{Name: "/dev/sda", Type: "sat"}},
+		readings: map[string]smartctl.Reading{"/dev/sda": healthy("/dev/sda", "S1")}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	m.round(ctx, true)
+	failing := healthy("/dev/sda", "S1")
+	passed := false
+	failing.Device.Passed, failing.Device.State = &passed, protocol.DiskFailing
+	smart.mu.Lock()
+	smart.scanErr = &smartctl.Error{Op: "scan", Code: smartctl.CodeFailed}
+	smart.readings["/dev/sda"] = failing
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	r := m.Report()
+	if r.SMART.Status != protocol.SMARTError || len(r.SMART.Devices) != 1 || r.SMART.Devices[0].State != protocol.DiskFailing {
+		t.Fatalf("%+v", r.SMART)
+	}
+}
+
+// TestMonitorKeepsMissingDisks: a disk a later scan no longer finds stays
+// listed as missing with its last values (until the agent restarts), also
+// across further scans, until a scan finds it again; found under another
+// path (its serial number), the missing entry goes.
+func TestMonitorKeepsMissingDisks(t *testing.T) {
+	ctx := testutil.Context(t)
+	sda, sdb := smartctl.ScanDevice{Name: "/dev/sda", Type: "sat"}, smartctl.ScanDevice{Name: "/dev/sdb", Type: "sat"}
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{sda, sdb},
+		readings: map[string]smartctl.Reading{"/dev/sda": healthy("/dev/sda", "S1"), "/dev/sdb": healthy("/dev/sdb", "S2")}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	m.round(ctx, true)
+	readAt := *m.Report().SMART.Devices[1].ReadAt
+	for range 2 {
+		smart.mu.Lock()
+		smart.scan = []smartctl.ScanDevice{sda}
+		smart.mu.Unlock()
+		m.round(ctx, true)
+		r := m.Report()
+		if len(r.SMART.Devices) != 2 {
+			t.Fatalf("%+v", r.SMART.Devices)
+		}
+		d := r.SMART.Devices[1]
+		if d.Name != "/dev/sdb" || d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrMissing || d.Serial != "S2" ||
+			!d.ReadAt.Equal(readAt) {
+			t.Fatalf("missing disk %+v", d)
+		}
+		if err := r.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Back under its own path: read like any disk.
+	smart.mu.Lock()
+	smart.scan = []smartctl.ScanDevice{sda, sdb}
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	if d := m.Report().SMART.Devices[1]; d.State != protocol.DiskOK || d.ErrorCode != "" {
+		t.Fatalf("found again %+v", d)
+	}
+	// Gone, then found under another path: one entry, the new one.
+	smart.mu.Lock()
+	smart.scan = []smartctl.ScanDevice{sda}
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	smart.mu.Lock()
+	smart.scan = []smartctl.ScanDevice{sda, {Name: "/dev/sdc", Type: "sat"}}
+	smart.readings["/dev/sdc"] = healthy("/dev/sdc", "S2")
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	if devs := m.Report().SMART.Devices; len(devs) != 2 || devs[1].Name != "/dev/sdc" || devs[1].State != protocol.DiskOK {
+		t.Fatalf("moved disk %+v", devs)
+	}
+}
+
+// TestMonitorNeverCarriesValuesToAnotherDisk: a path a scan finds anew,
+// or a read naming another serial number, starts without the values of
+// the disk that held the path before.
+func TestMonitorNeverCarriesValuesToAnotherDisk(t *testing.T) {
+	ctx := testutil.Context(t)
+	sda := smartctl.ScanDevice{Name: "/dev/sda", Type: "sat"}
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{sda}, readings: map[string]smartctl.Reading{"/dev/sda": healthy("/dev/sda", "S1")}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	m.round(ctx, true)
+	// Gone, then a disk asleep at the same path: not the old one's values.
+	smart.mu.Lock()
+	smart.scan = nil
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	smart.mu.Lock()
+	smart.scan = []smartctl.ScanDevice{sda}
+	smart.readings["/dev/sda"] = standby("/dev/sda")
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	if d := m.Report().SMART.Devices[0]; d.State != protocol.DiskSleeping || d.Serial != "" || d.ReadAt != nil {
+		t.Fatalf("new disk at the path %+v", d)
+	}
+	// Read, then a read that got no health data from another disk: its
+	// identity, not the previous values.
+	smart.set("/dev/sda", healthy("/dev/sda", "S1"))
+	m.round(ctx, false)
+	smart.set("/dev/sda", smartctl.Reading{Device: protocol.SMARTDevice{Name: "/dev/sda", Type: "sat", Model: "Other", Serial: "S9",
+		SMARTSupported: true, State: protocol.DiskError, ErrorCode: protocol.DiskErrSMARTDisabled}})
+	m.round(ctx, false)
+	if d := m.Report().SMART.Devices[0]; d.Serial != "S9" || d.TemperatureC != nil || d.ReadAt != nil ||
+		d.ErrorCode != protocol.DiskErrSMARTDisabled {
+		t.Fatalf("another disk without data %+v", d)
+	}
+}
+
+// TestMonitorWakesALongSleepingDisk: a disk not read for WakeAfter (since
+// its last read, or since a scan found it) is read even in standby; never
+// with a negative WakeAfter. The report carries the read interval.
+func TestMonitorWakesALongSleepingDisk(t *testing.T) {
+	for _, never := range []bool{false, true} {
+		t.Run("never "+strconv.FormatBool(never), func(t *testing.T) {
+			ctx := testutil.Context(t)
+			clk := testutil.FakeClock()
+			smart := &fakeSMART{scan: []smartctl.ScanDevice{{Name: "/dev/sda", Type: "sat"}, {Name: "/dev/sdb", Type: "sat"}},
+				readings: map[string]smartctl.Reading{"/dev/sda": standby("/dev/sda"), "/dev/sdb": healthy("/dev/sdb", "S2")}}
+			opts := Options{Clock: clk, Logger: testutil.Logger(t), Proc: hostProc(), SMART: smart, DevExists: func(string) bool { return true }}
+			if never {
+				opts.WakeAfter = -1
+			}
+			m := New(opts)
+			m.round(ctx, true)
+			smart.set("/dev/sdb", standby("/dev/sdb"))
+			clk.Advance(DefaultWakeAfter - time.Minute)
+			m.round(ctx, false)
+			if len(smart.woken) != 0 {
+				t.Fatalf("woken before a day: %q", smart.woken)
+			}
+			clk.Advance(time.Minute)
+			m.round(ctx, false)
+			want := []string{"/dev/sda", "/dev/sdb"}
+			if never {
+				want = nil
+			}
+			smart.mu.Lock()
+			woken := slices.Sorted(slices.Values(smart.woken)) // read concurrently: any order
+			smart.mu.Unlock()
+			if !reflect.DeepEqual(woken, want) {
+				t.Fatalf("woken %q, want %q", woken, want)
+			}
+			if r := m.Report(); r.SMART.IntervalSeconds != int64(DefaultInterval/time.Second) {
+				t.Errorf("interval %d", r.SMART.IntervalSeconds)
+			}
+		})
 	}
 }
 

@@ -56,12 +56,22 @@ func TestHostHealthValidate(t *testing.T) {
 		"zfs health":          func(o *HostHealthOutput) { o.RAID.ZFS[0].Health = "SLEEPY" },
 		"zfs without name":    func(o *HostHealthOutput) { o.RAID.ZFS[0].Name = "" },
 		"long message":        func(o *HostHealthOutput) { o.RAID.Message = strings.Repeat("m", 600) },
+		"negative interval":   func(o *HostHealthOutput) { o.SMART.IntervalSeconds = -1 },
+		"unknown error code":  func(o *HostHealthOutput) { o.SMART.Devices[1].ErrorCode = "on_fire" },
+		"negative e2e errors": func(o *HostHealthOutput) { o.SMART.Devices[0].EndToEndErrors = &neg },
 	}
 	for name, mut := range bad {
 		o := validHealth()
 		mut(&o)
 		if err := o.Validate(); !errors.Is(err, ErrInvalidFrame) {
 			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for _, code := range []string{DiskErrTimeout, DiskErrMissing, DiskErrSMARTDisabled, DiskErrNoData} {
+		o := validHealth()
+		o.SMART.Devices[1].ErrorCode, o.SMART.IntervalSeconds = code, 1800
+		if err := o.Validate(); err != nil {
+			t.Errorf("%s: %v", code, err)
 		}
 	}
 }
@@ -91,6 +101,11 @@ func TestDeriveDiskState(t *testing.T) {
 		{"attribute failing now", SMARTDevice{Passed: &tr, FailingAttributes: []SMARTAttribute{{ID: 5, WhenFailed: "now"}}}, DiskFailing},
 		{"attribute failed in the past", SMARTDevice{Passed: &tr, FailingAttributes: []SMARTAttribute{{ID: 190, WhenFailed: "past"}}}, DiskWarning},
 		{"nvme critical warning", SMARTDevice{CriticalWarning: i(1)}, DiskFailing},
+		// smartctl fails the self-assessment for any critical warning; a
+		// drive that is only too hot is a warning.
+		{"nvme too hot", SMARTDevice{Passed: &f, CriticalWarning: i(NVMeWarnTemperature)}, DiskWarning},
+		{"nvme too hot and degraded", SMARTDevice{Passed: &f, CriticalWarning: i(NVMeWarnTemperature | 4)}, DiskFailing},
+		{"end-to-end errors", SMARTDevice{Passed: &tr, EndToEndErrors: &one}, DiskWarning},
 		{"pending sector", SMARTDevice{Pending: &one}, DiskWarning},
 		{"reallocated sector", SMARTDevice{Reallocated: &one}, DiskWarning},
 		{"reported uncorrectable", SMARTDevice{ReportedUncorrectable: &one}, DiskWarning},

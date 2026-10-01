@@ -65,6 +65,47 @@ var diskErrorWords = map[string]string{
 	"permission_denied": "the agent may not open it",
 	"open_failed":       "it could not be opened",
 	"unsupported":       "it reports no SMART data",
+	"timeout":           "it did not answer in time",
+	"missing":           "the agent no longer finds it",
+	"smart_disabled":    "SMART is turned off on the disk",
+	"no_data":           "it reported no health data",
+}
+
+// monitoringDetail explains a monitoring alert (the facts monitoring and
+// reason).
+func monitoringDetail(f map[string]string) string {
+	since := ""
+	if t, err := time.Parse(time.RFC3339, f["since"]); err == nil {
+		since = t.UTC().Format("Jan 2, 2006, 15:04") + " UTC"
+	}
+	switch f["reason"] {
+	case reasonScanFailed:
+		return "The agent could not scan the disks, so disk problems may go unnoticed. It tries again with the next check."
+	case reasonNoAccess:
+		return "The agent can't open the disks, so their health is not watched. Run the agent with privileged: true, or turn disk checks off with DOCKER_AGENT_SMART_ENABLED=false."
+	case reasonNotInstalled:
+		return "The agent image has no smartctl, so the disks' health is not watched. Update the agent to the current image."
+	case reasonStale:
+		s := "The agent has not finished reading the disks"
+		if since != "" {
+			s += " since " + since
+		}
+		return s + ", so new disk problems go unnoticed. Check that the agent is running and restart it if needed."
+	case reasonNoReport:
+		s := "The agent is connected but has not reported"
+		if f["monitoring"] == "raid" {
+			s += " its RAID state"
+		} else {
+			s += " disk health"
+		}
+		if since != "" {
+			s += " since " + since
+		}
+		return s + ", so new problems go unnoticed. Update the agent, or restart it if it is current."
+	case reasonRAIDRead:
+		return "The software RAID or ZFS pool state could not be read, so a degraded array may go unnoticed. Docker Manager tries again with the next check."
+	}
+	return ""
 }
 
 // MountLabel names a filesystem an agent reports usage of, like the app
@@ -132,11 +173,17 @@ func Detail(a domain.Alert) string {
 	f := a.Facts
 	switch a.Kind {
 	case domain.NotifyDiskHealth:
+		if f["monitoring"] != "" {
+			return monitoringDetail(f)
+		}
 		var parts []string
 		if f["selfAssessment"] == "failed" {
 			parts = append(parts, "SMART self-assessment failed")
 		}
-		if f["criticalWarning"] != "" {
+		switch {
+		case f["overTemperature"] == "true":
+			parts = append(parts, "too hot (NVMe temperature warning)")
+		case f["criticalWarning"] != "":
 			parts = append(parts, "critical warning "+f["criticalWarning"])
 		}
 		if f["failingAttributes"] != "" {
@@ -147,6 +194,7 @@ func Detail(a domain.Alert) string {
 			{"pendingSectors", "pending sector", "pending sectors"},
 			{"reportedUncorrectable", "uncorrectable error", "uncorrectable errors"},
 			{"offlineUncorrectable", "offline uncorrectable sector", "offline uncorrectable sectors"},
+			{"endToEndErrors", "end-to-end error", "end-to-end errors"},
 			{"mediaErrors", "media error", "media errors"},
 			{"grownDefects", "grown defect", "grown defects"},
 			{"uncorrectedErrors", "uncorrected error", "uncorrected errors"},
@@ -187,6 +235,9 @@ func Detail(a domain.Alert) string {
 		}
 		return strings.TrimSpace(b.String())
 	case domain.NotifyRAID:
+		if f["monitoring"] != "" {
+			return monitoringDetail(f)
+		}
 		if f["arrayKind"] == "zfs" {
 			return "Pool health: " + f["health"] + "."
 		}
@@ -294,8 +345,14 @@ func jobErrorClass(f map[string]string) string {
 func resolvedDetail(a domain.Alert) string {
 	switch a.Kind {
 	case domain.NotifyDiskHealth:
+		if a.Facts["monitoring"] != "" {
+			return "Disk health is watched again."
+		}
 		return "The disk is healthy again."
 	case domain.NotifyRAID:
+		if a.Facts["monitoring"] != "" {
+			return "The RAID state is read again."
+		}
 		return "The array is healthy again."
 	case domain.NotifyTemperature:
 		return "The temperature is back below the warning level."

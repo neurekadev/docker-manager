@@ -349,7 +349,7 @@ func newHealthMonitor(opts Options, sampler *observe.Sampler) *health.Monitor {
 		smart = &smartctl.Runner{Binary: bin, Logger: opts.Logger.With("component", "smartctl")}
 	}
 	return health.New(health.Options{Clock: opts.Clock, Logger: opts.Logger, Proc: sampler.Proc(), SMART: smart,
-		Interval: cfg.SMARTInterval})
+		Interval: cfg.SMARTInterval, WakeAfter: cfg.SMARTWakeAfter})
 }
 
 // enableBackups wires backups (#10): requests, the backup.file stream and

@@ -6346,11 +6346,20 @@
             "format": "int64",
             "type": "integer"
           },
+          "endToEndErrors": {
+            "format": "int64",
+            "type": "integer"
+          },
           "errorCode": {
+            "description": "timeout: the read did not finish in time; missing: an earlier scan found the disk, the last one does not; smart_disabled: SMART is turned off on the disk; no_data: the disk answered without any health data.",
             "enum": [
               "permission_denied",
               "open_failed",
-              "unsupported"
+              "unsupported",
+              "timeout",
+              "missing",
+              "smart_disabled",
+              "no_data"
             ],
             "type": "string"
           },
@@ -6551,7 +6560,7 @@
         "additionalProperties": false,
         "properties": {
           "scope": {
-            "description": "smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken); raid: read the RAID state now (never a scrub).",
+            "description": "smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken unless it went unread for DOCKER_AGENT_SMART_WAKE_AFTER); raid: read the RAID state now (never a scrub).",
             "enum": [
               "smart",
               "raid"
@@ -40086,7 +40095,7 @@
     },
     "/api/v1/environments/{environmentId}/disk-health/checks": {
       "post": {
-        "description": "Asks the agent for a fresh read (#143): scope smart reads every disk's SMART data now (never a self-test; a disk in standby is not woken), scope raid the md arrays and ZFS pools. Answers the fresh disk health and RAID state; a SMART read that takes longer answers with diskHealth.checking and the result follows as an inventory event. Nothing changes on the host. At most one check per environment and scope every 30 s (smart) or 5 s (raid): 429 with Retry-After before; a check the agent did not answer (timeout, offline) does not count. 503 environment_offline, 501 agent_unsupported for an agent that predates disk health.",
+        "description": "Asks the agent for a fresh read (#143): scope smart reads every disk's SMART data now (never a self-test; a disk in standby is not woken unless it went unread for DOCKER_AGENT_SMART_WAKE_AFTER), scope raid the md arrays and ZFS pools. Answers the fresh disk health and RAID state; a SMART read that takes longer answers with diskHealth.checking and the result follows as an inventory event. Nothing changes on the host. At most one check per environment and scope every 30 s (smart) or 5 s (raid): 429 with Retry-After before; a check the agent did not answer (timeout, offline) does not count. 503 environment_offline, 501 agent_unsupported for an agent that predates disk health.",
         "operationId": "create-environment-disk-health-check",
         "parameters": [
           {
@@ -40128,6 +40137,7 @@
                         "availableSpareThreshold": 1,
                         "capacityBytes": 1,
                         "criticalWarning": 1,
+                        "endToEndErrors": 1,
                         "errorCode": "permission_denied",
                         "failingAttributes": [
                           {
@@ -46666,6 +46676,7 @@
                         "availableSpareThreshold": 1,
                         "capacityBytes": 1,
                         "criticalWarning": 1,
+                        "endToEndErrors": 1,
                         "errorCode": "permission_denied",
                         "failingAttributes": [
                           {

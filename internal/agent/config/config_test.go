@@ -138,15 +138,17 @@ func TestParseRedirectURL(t *testing.T) {
 }
 
 // TestSMARTSettings (#143): SMART is on by default, read every 30 minutes
-// (5 minutes to 24 hours) with the image's smartctl.
+// (5 minutes to 24 hours) with the image's smartctl; a disk in standby is
+// woken after 24 hours (1 hour to 30 days, 0 never).
 func TestSMARTSettings(t *testing.T) {
 	base := map[string]string{EnvManagerURL: "https://docker.example.com"}
 	cfg, err := Load(envconfig.Map(base, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.SMARTEnabled || cfg.SMARTInterval != DefaultSMARTInterval || cfg.SmartctlBinary != DefaultSmartctlBinary {
-		t.Fatalf("defaults: %v %v %q", cfg.SMARTEnabled, cfg.SMARTInterval, cfg.SmartctlBinary)
+	if !cfg.SMARTEnabled || cfg.SMARTInterval != DefaultSMARTInterval || cfg.SmartctlBinary != DefaultSmartctlBinary ||
+		cfg.SMARTWakeAfter != DefaultSMARTWakeAfter {
+		t.Fatalf("defaults: %v %v %q %v", cfg.SMARTEnabled, cfg.SMARTInterval, cfg.SmartctlBinary, cfg.SMARTWakeAfter)
 	}
 	with := func(kv ...string) map[string]string {
 		m := map[string]string{EnvManagerURL: "https://docker.example.com"}
@@ -155,18 +157,27 @@ func TestSMARTSettings(t *testing.T) {
 		}
 		return m
 	}
-	cfg, err = Load(envconfig.Map(with(EnvSMARTEnabled, "false", EnvSMARTInterval, "2h", EnvSmartctl, "/opt/smartctl"), nil))
+	cfg, err = Load(envconfig.Map(with(EnvSMARTEnabled, "false", EnvSMARTInterval, "2h", EnvSmartctl, "/opt/smartctl",
+		EnvSMARTWakeAfter, "72h"), nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.SMARTEnabled || cfg.SMARTInterval != 2*time.Hour || cfg.SmartctlBinary != "/opt/smartctl" {
-		t.Fatalf("set: %v %v %q", cfg.SMARTEnabled, cfg.SMARTInterval, cfg.SmartctlBinary)
+	if cfg.SMARTEnabled || cfg.SMARTInterval != 2*time.Hour || cfg.SmartctlBinary != "/opt/smartctl" || cfg.SMARTWakeAfter != 72*time.Hour {
+		t.Fatalf("set: %v %v %q %v", cfg.SMARTEnabled, cfg.SMARTInterval, cfg.SmartctlBinary, cfg.SMARTWakeAfter)
+	}
+	for _, never := range []string{"0", "0s"} {
+		if cfg, err = Load(envconfig.Map(with(EnvSMARTWakeAfter, never), nil)); err != nil || cfg.SMARTWakeAfter >= 0 {
+			t.Errorf("%s: %v %v", never, cfg.SMARTWakeAfter, err)
+		}
 	}
 	for _, bad := range []map[string]string{
 		with(EnvSMARTEnabled, "sometimes"),
 		with(EnvSMARTInterval, "1m"),
 		with(EnvSMARTInterval, "25h"),
 		with(EnvSMARTInterval, "often"),
+		with(EnvSMARTWakeAfter, "30m"),
+		with(EnvSMARTWakeAfter, "721h"),
+		with(EnvSMARTWakeAfter, "-1h"),
 		with(EnvSmartctl, "smartctl"),
 	} {
 		if _, err := Load(envconfig.Map(bad, nil)); err == nil {

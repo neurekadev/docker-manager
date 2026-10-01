@@ -59,6 +59,7 @@ type DiskDevice struct {
 	PowerOnHours   *int64 `json:"powerOnHours,omitempty"`
 	// ATA.
 	ReallocatedSectors    *int64          `json:"reallocatedSectors,omitempty"`
+	EndToEndErrors        *int64          `json:"endToEndErrors,omitempty"`
 	ReportedUncorrectable *int64          `json:"reportedUncorrectable,omitempty"`
 	PendingSectors        *int64          `json:"pendingSectors,omitempty"`
 	OfflineUncorrectable  *int64          `json:"offlineUncorrectable,omitempty"`
@@ -73,7 +74,7 @@ type DiskDevice struct {
 	GrownDefects      *int64     `json:"grownDefects,omitempty"`
 	UncorrectedErrors *int64     `json:"uncorrectedErrors,omitempty"`
 	State             string     `json:"state" enum:"ok,warning,failing,sleeping,error" doc:"sleeping: in standby, not woken (the values are the previous read's); error: see errorCode."`
-	ErrorCode         string     `json:"errorCode,omitempty" enum:"permission_denied,open_failed,unsupported"`
+	ErrorCode         string     `json:"errorCode,omitempty" enum:"permission_denied,open_failed,unsupported,timeout,missing,smart_disabled,no_data" doc:"timeout: the read did not finish in time; missing: an earlier scan found the disk, the last one does not; smart_disabled: SMART is turned off on the disk; no_data: the disk answered without any health data."`
 	ReadAt            *time.Time `json:"readAt,omitempty" doc:"When the values were read."`
 }
 
@@ -185,7 +186,7 @@ func healthDTOs(h *observe.HostHealth, served, known bool) (DiskHealth, RAIDHeal
 func diskDevice(d protocol.SMARTDevice) DiskDevice {
 	out := DiskDevice{Name: d.Name, Type: d.Type, Protocol: d.Protocol, Model: d.Model, Serial: d.Serial, Firmware: d.Firmware,
 		CapacityBytes: d.CapacityBytes, RotationRPM: d.RotationRPM, SMARTSupported: d.SMARTSupported, Passed: d.Passed,
-		TemperatureC: d.TemperatureC, PowerOnHours: d.PowerOnHours, ReallocatedSectors: d.Reallocated,
+		TemperatureC: d.TemperatureC, PowerOnHours: d.PowerOnHours, ReallocatedSectors: d.Reallocated, EndToEndErrors: d.EndToEndErrors,
 		ReportedUncorrectable: d.ReportedUncorrectable, PendingSectors: d.Pending, OfflineUncorrectable: d.OfflineUncorrectable,
 		CriticalWarning: d.CriticalWarning, AvailableSpare: d.AvailableSpare, AvailableSpareThreshold: d.AvailableSpareThreshold,
 		MediaErrors: d.MediaErrors, PercentageUsed: d.PercentageUsed, GrownDefects: d.GrownDefects, UncorrectedErrors: d.UncorrectedErrors,
@@ -207,7 +208,7 @@ type DiskHealthCheck struct {
 type diskHealthCheckInput struct {
 	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
 	Body          struct {
-		Scope string `json:"scope" enum:"smart,raid" example:"smart" doc:"smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken); raid: read the RAID state now (never a scrub)."`
+		Scope string `json:"scope" enum:"smart,raid" example:"smart" doc:"smart: read every disk's SMART data now (never a self-test; a disk in standby is not woken unless it went unread for DOCKER_AGENT_SMART_WAKE_AFTER); raid: read the RAID state now (never a scrub)."`
 	}
 }
 
@@ -263,7 +264,7 @@ func registerDiskHealth(a huma.API, h *agentsAPI) {
 			Path:    BasePath + "/environments/{environmentId}/disk-health/checks",
 			Summary: "Check an environment's disks or RAID now",
 			Description: "Asks the agent for a fresh read (#143): scope smart reads every disk's SMART data now (never a self-test; a " +
-				"disk in standby is not woken), scope raid the md arrays and ZFS pools. Answers the fresh disk health and RAID state; a " +
+				"disk in standby is not woken unless it went unread for DOCKER_AGENT_SMART_WAKE_AFTER), scope raid the md arrays and ZFS pools. Answers the fresh disk health and RAID state; a " +
 				"SMART read that takes longer answers with diskHealth.checking and the result follows as an inventory event. Nothing " +
 				"changes on the host. At most one check per environment and scope every 30 s (smart) or 5 s (raid): 429 with " +
 				"Retry-After before; a check the agent did not answer (timeout, offline) does not count. 503 environment_offline, 501 agent_unsupported for an agent that predates disk health.",

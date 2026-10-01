@@ -16,6 +16,7 @@ import {
 	dismissedText,
 	healthAlerts,
 	healthNotice,
+	healthSubject,
 	healthTallies,
 	isActive,
 	kindIcon,
@@ -163,6 +164,30 @@ describe('disks and RAID arrays with alerts (#159 System tab)', () => {
 		// Two alerts of one disk: the worse one marks it.
 		const warn = { ...failingDisk, id: 'w', severity: 'warning' as const };
 		expect(alertsByDisk([warn, failingDisk]).get('/dev/sda|sat')?.id).toBe('a1');
+	});
+
+	it('keeps monitoring alerts off the disk and array rows and names them', () => {
+		const smart = sampleAlert({
+			id: 'm1',
+			resourceType: 'environment',
+			resourceId: 'e1',
+			severity: 'warning',
+			title: 'Disks on homelab can’t be scanned',
+			facts: { monitoring: 'smart', reason: 'scan_failed' }
+		});
+		const raid = sampleAlert({
+			id: 'm2',
+			kind: 'raid',
+			resourceType: 'environment',
+			resourceId: 'e1',
+			severity: 'warning',
+			facts: { monitoring: 'raid', reason: 'raid_read' }
+		});
+		expect(alertsByDisk([smart]).size).toBe(0);
+		expect(alertsByArray([raid]).size).toBe(0);
+		expect(healthSubject(smart)).toBe('disk health');
+		expect(healthSubject(raid)).toBe('RAID state');
+		expect(healthNotice([smart, failingDisk])?.body).toBe('/dev/sda and disk health.');
 	});
 
 	it('states one alert by its title and several by count and names', () => {

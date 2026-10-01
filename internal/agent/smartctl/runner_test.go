@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -52,11 +53,26 @@ type fakeAnswer struct {
 	Hang bool `json:"hang"`
 	// Flood prints more than MaxOutput bytes.
 	Flood bool `json:"flood"`
+	// Stuck hangs and leaves a child holding standard output for a few
+	// seconds: like a smartctl stuck in the kernel, killing it does not
+	// end the output.
+	Stuck bool `json:"stuck"`
 }
+
+// holdArg makes the fake a child that keeps the inherited standard output
+// open for holdFor.
+const (
+	holdArg = "--hold-stdout"
+	holdFor = 3 * time.Second
+)
 
 func fakeSmartctl() int {
 	dir := filepath.Dir(os.Args[0])
 	args := os.Args[1:]
+	if len(args) == 1 && args[0] == holdArg {
+		time.Sleep(holdFor)
+		return 0
+	}
 	b, _ := json.Marshal(fakeCall{Args: args, Env: os.Environ()})
 	if f, err := os.OpenFile(filepath.Join(dir, "calls.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
 		_, _ = f.Write(append(b, '\n'))
@@ -92,7 +108,14 @@ func fakeSmartctl() int {
 			}
 		}
 	}
-	if a.Hang {
+	if a.Stuck {
+		child := exec.Command(os.Args[0], holdArg) //nolint:gosec // the test binary itself
+		child.Stdout = os.Stdout
+		if err := child.Start(); err != nil {
+			return 1
+		}
+	}
+	if a.Hang || a.Stuck {
 		time.Sleep(time.Minute)
 	}
 	return a.Exit
@@ -185,16 +208,23 @@ func TestRunnerScanAndReadArgumentsAndEnvironment(t *testing.T) {
 	if len(devs) != 6 {
 		t.Fatalf("devices %+v", devs)
 	}
-	r, err := f.r.Read(ctx, devs[0])
+	r, err := f.r.Read(ctx, devs[0], false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if r.Device.State != protocol.DiskOK || r.Device.Serial != "WD-WX12D3456789" {
 		t.Fatalf("%+v", r.Device)
 	}
+	// A read that may wake the disk does not pass -n standby.
+	if _, err := f.r.Read(ctx, devs[0], true); err != nil {
+		t.Fatal(err)
+	}
 	calls := f.calls()
-	if len(calls) != 2 {
+	if len(calls) != 3 {
 		t.Fatalf("calls %+v", calls)
+	}
+	if want := []string{"--json", "-a", "-n", "never", "-d", "sat", "/dev/sda"}; !reflect.DeepEqual(calls[2].Args, want) {
+		t.Errorf("waking read args %q", calls[2].Args)
 	}
 	if want := []string{"--scan-open", "--json"}; !reflect.DeepEqual(calls[0].Args, want) {
 		t.Errorf("scan args %q", calls[0].Args)
@@ -220,15 +250,15 @@ func TestRunnerReadsDeviceProblemsFromExitBits(t *testing.T) {
 		"/dev/sdc": {Fixture: "permission_denied.json", Exit: BitOpenFailed},
 	})
 	ctx := testutil.Context(t)
-	r, err := f.r.Read(ctx, ScanDevice{Name: "/dev/sda", Type: "sat"})
+	r, err := f.r.Read(ctx, ScanDevice{Name: "/dev/sda", Type: "sat"}, false)
 	if err != nil || r.Device.State != protocol.DiskFailing || r.Device.Model == "" {
 		t.Fatalf("failing disk: %+v, %v", r.Device, err)
 	}
-	r, err = f.r.Read(ctx, ScanDevice{Name: "/dev/sdb", Type: "sat"})
+	r, err = f.r.Read(ctx, ScanDevice{Name: "/dev/sdb", Type: "sat"}, false)
 	if err != nil || !r.Standby || r.Device.State != protocol.DiskSleeping {
 		t.Fatalf("sleeping disk: %+v, %v", r, err)
 	}
-	r, err = f.r.Read(ctx, ScanDevice{Name: "/dev/sdc", Type: "sat"})
+	r, err = f.r.Read(ctx, ScanDevice{Name: "/dev/sdc", Type: "sat"}, false)
 	if err != nil || r.Device.ErrorCode != protocol.DiskErrPermissionDenied {
 		t.Fatalf("denied: %+v, %v", r.Device, err)
 	}
@@ -237,7 +267,7 @@ func TestRunnerReadsDeviceProblemsFromExitBits(t *testing.T) {
 func TestRunnerRefusesOptionLikeDevices(t *testing.T) {
 	f := newFake(t, map[string]fakeAnswer{})
 	for _, d := range []ScanDevice{{Name: "-a", Type: "sat"}, {Name: "/dev/sda", Type: "-d"}, {Name: "/dev/sda", Type: ""}} {
-		if _, err := f.r.Read(testutil.Context(t), d); !IsCode(err, CodeFailed) {
+		if _, err := f.r.Read(testutil.Context(t), d, false); !IsCode(err, CodeFailed) {
 			t.Errorf("%+v: %v", d, err)
 		}
 	}
@@ -254,16 +284,16 @@ func TestRunnerTimeoutCancellationAndOutputCap(t *testing.T) {
 	f.r.Timeout = 300 * time.Millisecond
 	f.r.KillGrace = time.Second
 	sda := ScanDevice{Name: "/dev/sda", Type: "sat"}
-	if _, err := f.r.Read(testutil.Context(t), sda); !IsCode(err, CodeTimeout) {
+	if _, err := f.r.Read(testutil.Context(t), sda, false); !IsCode(err, CodeTimeout) {
 		t.Errorf("hanging smartctl: %v", err)
 	}
 	f.r.Timeout = 20 * time.Second
 	ctx, cancel := context.WithTimeout(testutil.Context(t), 300*time.Millisecond)
 	defer cancel()
-	if _, err := f.r.Read(ctx, sda); !IsCode(err, CodeCancelled) {
+	if _, err := f.r.Read(ctx, sda, false); !IsCode(err, CodeCancelled) {
 		t.Errorf("cancelled read: %v", err)
 	}
-	if _, err := f.r.Read(testutil.Context(t), ScanDevice{Name: "/dev/sdb", Type: "sat"}); !IsCode(err, CodeFailed) ||
+	if _, err := f.r.Read(testutil.Context(t), ScanDevice{Name: "/dev/sdb", Type: "sat"}, false); !IsCode(err, CodeFailed) ||
 		!strings.Contains(err.Error(), "output larger") {
 		t.Errorf("flooding smartctl: %v", err)
 	}
@@ -288,10 +318,41 @@ func TestRunnerLogsNoSerials(t *testing.T) {
 	f := newFake(t, map[string]fakeAnswer{"/dev/sda": {Fixture: "ata_healthy.json"}})
 	logger, buf := testutil.CaptureLogger()
 	f.r.Logger = logger
-	if _, err := f.r.Read(testutil.Context(t), ScanDevice{Name: "/dev/sda", Type: "sat"}); err != nil {
+	if _, err := f.r.Read(testutil.Context(t), ScanDevice{Name: "/dev/sda", Type: "sat"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if s := buf.String(); strings.Contains(s, "WD-WX12D3456789") || !strings.Contains(s, "/dev/sda") {
 		t.Fatalf("log: %s", s)
+	}
+}
+
+// TestRunnerGivesUpOnAStuckSmartctl: a smartctl whose output stays open
+// after the kill (stuck in the kernel on a dying disk) is given up on
+// AbandonAfter later, and its device is not read again until it exits;
+// other devices are.
+func TestRunnerGivesUpOnAStuckSmartctl(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the held output outlives the test's temporary directory on Windows")
+	}
+	f := newFake(t, map[string]fakeAnswer{
+		"/dev/sda": {Stuck: true},
+		"/dev/sdb": {Fixture: "ata_healthy.json"},
+	})
+	f.r.Timeout, f.r.KillGrace, f.r.AbandonAfter = 200*time.Millisecond, 100*time.Millisecond, 200*time.Millisecond
+	sda := ScanDevice{Name: "/dev/sda", Type: "sat"}
+	start := time.Now()
+	_, err := f.r.Read(testutil.Context(t), sda, false)
+	if !IsCode(err, CodeTimeout) || !strings.Contains(err.Error(), "did not exit") {
+		t.Fatalf("stuck smartctl: %v", err)
+	}
+	if took := time.Since(start); took >= holdFor {
+		t.Fatalf("the call waited for the held output (%s)", took)
+	}
+	if _, err := f.r.Read(testutil.Context(t), sda, false); !IsCode(err, CodeStuck) {
+		t.Fatalf("a second read of the stuck device: %v", err)
+	}
+	if r, err := f.r.Read(testutil.Context(t), ScanDevice{Name: "/dev/sdb", Type: "sat"}, false); err != nil ||
+		r.Device.State != protocol.DiskOK {
+		t.Fatalf("another device: %+v, %v", r.Device, err)
 	}
 }

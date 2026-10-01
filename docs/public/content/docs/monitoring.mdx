@@ -29,8 +29,13 @@ A disk's health is one of:
   problem. Back up and replace it soon.
 - **Sleeping**: the disk was in standby and was not woken; it shows the
   values from its last check. A disk whose last check found a problem
-  keeps its **Warning** or **Failing** badge while it sleeps.
-- **Unreadable**: the disk could not be read; hover the badge to see why.
+  keeps its **Warning** or **Failing** badge while it sleeps. A disk that
+  sleeps through every check is woken for one once a day.
+- **Unreadable**: the disk could not be read, didn't answer in time or
+  reported no health data; hover the badge to see why.
+- **Missing**: the agent found the disk before but no longer does. It may
+  have failed or been removed. It stays in the list until the agent
+  restarts.
 
 ## Check RAID arrays
 
@@ -72,8 +77,11 @@ Good to know:
 - Checks only read the disks: they never start a disk self-test or a RAID
   scrub.
 - Disks you connect later appear after the agent restarts.
+- If the agent can't scan or read the disks or the RAID state, or stops
+  reporting them, an [alert](/alerts) says so.
 - Virtual disks have no health data; the card says so. btrfs RAID and
   hardware RAID controllers are not covered.
 - `DOCKER_AGENT_SMART_INTERVAL` changes how often the agent reads the
-  disks, and `DOCKER_AGENT_SMART_ENABLED` turns disk checks off (see
+  disks, `DOCKER_AGENT_SMART_WAKE_AFTER` how long a sleeping disk may go
+  unchecked, and `DOCKER_AGENT_SMART_ENABLED` turns disk checks off (see
   [Configuration](/configuration#agent-settings)).

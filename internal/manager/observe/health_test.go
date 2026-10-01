@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -451,5 +452,47 @@ func TestRunHealthPollsOnlineEnvironments(t *testing.T) {
 	waitIdle(ctx, t, f.svc)
 	if n := f.agent.refreshCount(); n != 2 {
 		t.Fatalf("%d requests, want 2", n)
+	}
+}
+
+// TestRefreshHealthLogsARefusedAnswerOnce: an answer out of range is
+// refused (the kept report stays) and logged once until an answer is kept
+// again; never with a serial number.
+func TestRefreshHealthLogsARefusedAnswerOnce(t *testing.T) {
+	f := newHealthFixture(t)
+	logger, logs := testutil.CaptureLogger()
+	f.svc = New(Options{Store: f.store, Agents: f.agent, Bus: f.bus, Clock: f.clk, Logger: logger,
+		Environments: func() []string { return []string{env} }})
+	ctx := testutil.Context(t)
+	if _, err := f.svc.RefreshHealth(ctx, env, ""); err != nil {
+		t.Fatal(err)
+	}
+	refused := func() int { return strings.Count(logs.String(), "host health answer refused") }
+	f.agent.set(func(r *protocol.HostHealthOutput) { r.SMART.Devices[0].State = "grumpy" })
+	for range 2 {
+		if _, err := f.svc.RefreshHealth(ctx, env, ""); err == nil {
+			t.Fatal("an invalid answer was kept")
+		}
+	}
+	if n := refused(); n != 1 {
+		t.Fatalf("logged %d times: %s", n, logs.String())
+	}
+	if h, _ := f.svc.HostHealth(env); h.SMART.Devices[0].State != protocol.DiskOK {
+		t.Fatalf("the kept report changed: %+v", h.SMART)
+	}
+	if strings.Contains(logs.String(), "WD-1") {
+		t.Fatalf("a serial number was logged: %s", logs.String())
+	}
+	// Kept again, then refused again: logged again.
+	f.agent.set(func(r *protocol.HostHealthOutput) { r.SMART.Devices[0].State = protocol.DiskOK })
+	if _, err := f.svc.RefreshHealth(ctx, env, ""); err != nil {
+		t.Fatal(err)
+	}
+	f.agent.set(func(r *protocol.HostHealthOutput) { r.SMART.Devices[0].State = "grumpy" })
+	if _, err := f.svc.RefreshHealth(ctx, env, ""); err == nil {
+		t.Fatal("an invalid answer was kept")
+	}
+	if n := refused(); n != 2 {
+		t.Fatalf("logged %d times", n)
 	}
 }

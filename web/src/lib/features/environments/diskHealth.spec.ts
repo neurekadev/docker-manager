@@ -97,6 +97,14 @@ describe('disks', () => {
 			status: 'unreadable',
 			label: 'Unreadable'
 		});
+		// A disk no scan finds any more raises a warning: it looks like one.
+		expect(diskBadge(disk({ state: 'error', errorCode: 'missing' }))).toMatchObject({
+			status: 'warning',
+			label: 'Missing'
+		});
+		expect(diskBadge(disk({ state: 'error', errorCode: 'timeout' })).title).toBe(
+			"Didn't answer in time"
+		);
 	});
 
 	it('names the issues in words, most serious first', () => {
@@ -156,6 +164,25 @@ describe('disks', () => {
 		expect(issuesText(disk({ state: 'error', errorCode: 'open_failed' }))).toBe(
 			"Couldn't open the disk"
 		);
+		expect(issuesText(disk({ state: 'error', errorCode: 'smart_disabled' }))).toBe(
+			'SMART is turned off on the disk'
+		);
+		expect(issuesText(disk({ state: 'error', errorCode: 'no_data' }))).toBe(
+			'Reported no health data'
+		);
+		expect(issuesText(disk({ state: 'error', errorCode: 'missing' }))).toContain(
+			'No longer found'
+		);
+		// An NVMe drive that is only too hot: smartctl fails its
+		// self-assessment, the words say why.
+		expect(
+			diskIssues(
+				disk({ protocol: 'nvme', state: 'warning', passed: false, criticalWarning: 2 })
+			)
+		).toEqual(['Too hot']);
+		expect(
+			diskIssues(disk({ state: 'warning', endToEndErrors: 1, reallocatedSectors: 2 }))
+		).toEqual(['2 reallocated sectors', '1 end-to-end error']);
 		// A disk asleep since the agent started was never read.
 		expect(issuesText(disk({ state: 'sleeping' }))).toBe('—');
 		expect(issuesText(disk({ state: 'sleeping', readAt: '2026-09-29T10:00:00Z' }))).toBe(
@@ -179,9 +206,19 @@ describe('disks', () => {
 			disk({ name: '/dev/sdc', state: 'sleeping' }),
 			disk({ name: '/dev/sdd', state: 'warning' }),
 			disk({ name: '/dev/sda' }),
-			disk({ name: '/dev/sde', state: 'failing' })
+			disk({ name: '/dev/sde', state: 'failing' }),
+			disk({ name: '/dev/sdf', state: 'error', errorCode: 'open_failed' }),
+			disk({ name: '/dev/sdg', state: 'error', errorCode: 'missing' })
 		]).map((d) => d.name);
-		expect(sorted).toEqual(['/dev/sde', '/dev/sdd', '/dev/sdc', '/dev/sda', '/dev/sdb']);
+		expect(sorted).toEqual([
+			'/dev/sde',
+			'/dev/sdd',
+			'/dev/sdg',
+			'/dev/sdf',
+			'/dev/sdc',
+			'/dev/sda',
+			'/dev/sdb'
+		]);
 	});
 
 	it('tells disks behind one controller path apart by their type', () => {
@@ -203,6 +240,16 @@ describe('disks', () => {
 			]
 		});
 		expect(diskSummary(h)).toBe('3 disks, 1 needs attention');
+		expect(
+			diskSummary(
+				health({
+					devices: [
+						disk(),
+						disk({ name: '/dev/sdb', state: 'error', errorCode: 'missing' })
+					]
+				})
+			)
+		).toBe('2 disks, 1 needs attention');
 		expect(diskSummary(health())).toBe('1 disk');
 		expect(diskSummary(health({ devices: [] }))).toBe('');
 		expect(checkedToast(h, 'homelab')).toBe('Checked 2 disks on homelab');

@@ -394,38 +394,72 @@ them with "Check disks now" and "Check RAID now".
   disks now". A disk in standby is not woken (exit status 3 plus the
   standby message): it keeps its previous values with state `sleeping`,
   except that `failing` and `warning`, derived from the kept values, stay
-  (standby clears no problem, also after a failed read in between).
-  A failed read, or a read that got nothing (`permission_denied`,
-  `open_failed`), keeps the last measurements (and their read time) for
+  (standby clears no problem, also after a failed read in between). A
+  disk not read for `DOCKER_AGENT_SMART_WAKE_AFTER` (default 24 h, 1 h–30
+  d; `0` never) since its last read, or since a scan first found it, is
+  read with `-n never`, which wakes it: a disk asleep at every check is
+  still checked once a day.
+  A failed read, or a read that got nothing about the disk's health
+  (`permission_denied`, `open_failed`, `timeout`, `smart_disabled`,
+  `no_data`), keeps the last measurements (and their read time) for
   reference but reports the failure: state `error` with its code (a disk
   the agent cannot read never looks healthy); such a read never sets a
-  read time. A device is identified by
+  read time (without earlier values the identity it read stands in). A
+  read that names another serial number than the kept values, and a path
+  the previous scan did not list, start without the kept values (another
+  disk may hold the path). A device is identified by
   its path **and** smartctl type: disks behind one RAID controller share
   the controller's path (`/dev/bus/0` as `megaraid,0`, `megaraid,1`). The exit status is a bitmask
   (bits 3–7 describe the disk and still come with complete JSON, so the
-  values decide).
+  values decide; bit 3, DISK FAILING, stands in for a self-assessment the
+  JSON lacks).
+- **Stuck smartctl**: a call is interrupted after 30 s and killed 5 s
+  later; a smartctl that still has not closed its output 10 s after the
+  kill (stuck in uninterruptible I/O on a dying disk, which no signal
+  ends) is given up on: the read reports `timeout` and the round goes on.
+  That device (or the scan) is not called again until the stuck process
+  exits (`stuck`, reported as `timeout`), so stuck processes never pile up.
+- **Missing disks**: a device the previous scan listed and a later scan
+  does not is kept in the list with state `error`, code `missing` and its
+  last values until the agent restarts or a scan finds it again; found
+  under another path with the same serial number (it dropped off the bus
+  and came back), the missing entry goes.
 - **Values and state** per device: model, serial, firmware, capacity,
   rotation rate, overall self-assessment (`passed`), temperature, power-on
-  hours; ATA raw values of attributes 5 (reallocated), 187 (reported
-  uncorrectable), 197 (pending), 198 (offline uncorrectable) and the
-  attributes at or below their threshold (`when_failed` now or past); NVMe
-  critical warning, available spare and its threshold, percentage used,
-  media errors; SCSI grown defects and uncorrected errors (read + write +
-  verify). `protocol.DeriveDiskState`: **failing** for a failed
-  self-assessment, an attribute failing now or an NVMe critical warning;
-  **warning** for any reallocated, pending or uncorrectable sector, media
+  hours; ATA raw values of attributes 5 (reallocated), 184 (end-to-end
+  errors), 187 (reported uncorrectable), 197 (pending), 198 (offline
+  uncorrectable) and the attributes at or below their threshold
+  (`when_failed` now or past); NVMe critical warning, available spare and
+  its threshold, percentage used, media errors; SCSI grown defects and
+  uncorrected errors (read + write + verify). Attribute 188 (command
+  timeout) is left out: several vendors pack three counters into its raw
+  value, so any healthy drive with a past power loss would warn.
+  `protocol.DeriveDiskState`: **failing** for a failed self-assessment, an
+  attribute failing now or an NVMe critical warning about the drive
+  (spare, reliability, read-only, backup memory); **warning** for an NVMe
+  critical warning that is only the temperature bit (smartctl fails the
+  self-assessment for it too; it clears when the drive cools), any
+  reallocated, pending or uncorrectable sector, end-to-end error, media
   error, grown defect or uncorrected error, wear of 90 % or more, spare
   below its threshold or an attribute that failed in the past (a hot day
-  marks temperature attributes so: warning, not failing); else **ok**.
-  **error** with `permission_denied`, `open_failed` or `unsupported` (no
-  SMART data: virtual disks, unknown USB bridges).
+  marks temperature attributes so: warning, not failing); else **ok**,
+  but only with a verdict or values to judge by: without a
+  self-assessment, an NVMe health log, ATA attributes or SCSI counters
+  the device is **error** `no_data`, with SMART turned off on the drive
+  `smart_disabled` (the agent never turns it on). **error** also with
+  `permission_denied`, `open_failed`, `timeout`, `missing` or
+  `unsupported` (no SMART data: virtual disks, unknown USB bridges).
 - **Report status**: `ok`, `disabled` (`DOCKER_AGENT_SMART_ENABLED=false`),
   `not_installed` (no smartctl), `error` (the scan failed) or `no_access`:
   `<proc>/partitions` lists whole disks (`sd*`, `hd*`, `vd*`, `xvd*`,
   `nvme*n*`) but none of their nodes exists in the agent's `/dev` (the
   container is not privileged), or every device refused to open with a
   permission error. Visible disks without SMART data (a VM's virtio disks,
-  which smartctl does not list) are `ok` with no devices.
+  which smartctl does not list) are `ok` with no devices. A failed rescan
+  keeps the previous device list and reads it (status `error`, "the disk
+  scan failed" or "did not finish"). `smart.intervalSeconds` is the
+  agent's read interval: with `checkedAt` it lets the manager tell data
+  that stopped being refreshed.
 - **RAID** is read on every request from the sampler's procfs
   (`DOCKER_AGENT_HOST_PROC`): `/proc/mdstat` (name, level, active or
   inactive, read-only, members with `(F)` failed / `(S)` spare / `(W)`
@@ -458,7 +492,10 @@ the agent reads its disks (at most 10 minutes from the last "Check disks
 now" or the start of the read). An answer sampled before the kept report
 (a poll that arrives after a check's answer) is dropped, unless the kept
 report arrived more than 20 s (the request timeout) earlier. An agent answering
-`unsupported_request` is skipped for 5 minutes. A report is kept in memory,
+`unsupported_request` is skipped for 5 minutes. An answer that does not
+decode or validate is refused (the kept report stays) and logged once per
+environment until an answer is kept again; the alerts call a report that
+stops coming out of date. A report is kept in memory,
 stored in `metrics.db` (`host_health`: the agent's JSON, `collected_at`,
 `received_at`) only when its content changed (ignoring the read times) and
 announced as `inventory.updated` with `Attributes["health"] = "true"` (the

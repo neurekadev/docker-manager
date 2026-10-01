@@ -90,12 +90,16 @@ type healthState struct {
 	checks    map[string]time.Time
 	following map[string]time.Time
 	follow    chan string
-	save      sync.Mutex
+	// refused: the environment's last answer was refused (logged once
+	// until an answer is kept again).
+	refused map[string]bool
+	save    sync.Mutex
 }
 
 func newHealthState() healthState {
 	return healthState{reports: map[string]HostHealth{}, sigs: map[string]string{}, inflight: map[string]bool{},
-		skip: map[string]time.Time{}, checks: map[string]time.Time{}, following: map[string]time.Time{}, follow: make(chan string, 64)}
+		skip: map[string]time.Time{}, checks: map[string]time.Time{}, following: map[string]time.Time{}, follow: make(chan string, 64),
+		refused: map[string]bool{}}
 }
 
 // HostHealth returns an environment's last disk health report (also while
@@ -212,11 +216,16 @@ func (s *Service) RefreshHealth(ctx context.Context, env, refresh string) (HostH
 	}
 	var out protocol.HostHealthOutput
 	if err := json.Unmarshal(raw, &out); err != nil {
+		s.refuseHealth(env, err)
 		return HostHealth{}, err
 	}
 	if err := out.Validate(); err != nil {
+		s.refuseHealth(env, err)
 		return HostHealth{}, err
 	}
+	s.mu.Lock()
+	delete(s.health.refused, env)
+	s.mu.Unlock()
 	now := s.opts.Clock.Now().UTC()
 	s.health.save.Lock()
 	defer s.health.save.Unlock()
@@ -259,6 +268,20 @@ func (s *Service) RefreshHealth(ctx context.Context, env, refresh string) (HostH
 	}
 	s.followHealth(env, out.SMART.Checking, now)
 	return h, nil
+}
+
+// refuseHealth logs a refused answer once until one is kept again: the
+// environment's disk health stays as it was (the alerts report it out of
+// date after a while). The error says what is out of range, never a
+// serial number or model.
+func (s *Service) refuseHealth(env string, err error) {
+	s.mu.Lock()
+	logged := s.health.refused[env]
+	s.health.refused[env] = true
+	s.mu.Unlock()
+	if !logged {
+		s.log.Warn("host health answer refused; the environment's disk health is not updated", "environment_id", env, "error", err)
+	}
 }
 
 // followHealth schedules the next request while the agent reads its

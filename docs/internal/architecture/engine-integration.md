@@ -219,7 +219,7 @@ bounded output (the forbidigo exceptions in `.golangci.yml`):
 | runner | binary | used for |
 | --- | --- | --- |
 | `internal/restic/runner.go` | restic (both images, SHA-256 verified) | backups and restores (#10, [backups.md](backups.md)) |
-| `internal/agent/smartctl/runner.go` | smartctl (agent image, built from the SHA-256 verified smartmontools source) | disk health: `--scan-open` and `-a -n standby` only, never a self-test (#143, [ADR 0005](../adr/0005-disk-health.md)) |
+| `internal/agent/smartctl/runner.go` | smartctl (agent image, built from the SHA-256 verified smartmontools source) | disk health: `--scan-open` and `-a -n standby` only (`-n never` for a disk unread for `DOCKER_AGENT_SMART_WAKE_AFTER`), never a self-test; a smartctl stuck after the kill is given up on and its device not called again until it exits (#143, #172, [ADR 0005](../adr/0005-disk-health.md)) |
 
 Their tests re-execute the test binary as a fake restic or smartctl.
 

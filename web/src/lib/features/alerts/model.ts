@@ -212,7 +212,7 @@ function keepWorse<T extends Pick<Alert, 'severity' | 'startedAt'>>(
 export function alertsByDisk<T extends Alert>(alerts: readonly T[]): Map<string, T> {
 	const out = new Map<string, T>();
 	for (const a of alerts) {
-		if (a.kind !== 'disk_health' || a.state !== 'firing') continue;
+		if (a.kind !== 'disk_health' || a.state !== 'firing' || a.facts.monitoring) continue;
 		const device = a.facts.device ?? a.resourceId;
 		keepWorse(out, diskAlertKey(device, a.facts.deviceType ?? ''), a);
 	}
@@ -223,7 +223,7 @@ export function alertsByDisk<T extends Alert>(alerts: readonly T[]): Map<string,
 export function alertsByArray<T extends Alert>(alerts: readonly T[]): Map<string, T> {
 	const out = new Map<string, T>();
 	for (const a of alerts) {
-		if (a.kind !== 'raid' || a.state !== 'firing') continue;
+		if (a.kind !== 'raid' || a.state !== 'firing' || a.facts.monitoring) continue;
 		const kind = a.facts.arrayKind ?? (a.resourceType === 'zfs_pool' ? 'zfs' : 'md');
 		const name = a.facts.array ?? a.facts.pool ?? a.resourceId;
 		keepWorse(out, arrayAlertKey(kind, name), a);
@@ -231,8 +231,12 @@ export function alertsByArray<T extends Alert>(alerts: readonly T[]): Map<string
 	return out;
 }
 
-/** The disk's or array's name an alert is about ("/dev/sda", "md0", "tank"). */
+/**
+ * The disk's or array's name an alert is about ("/dev/sda", "md0", "tank");
+ * "disk health" or "RAID state" when their monitoring does not work.
+ */
 export function healthSubject(a: Pick<Alert, 'facts' | 'resourceId'>): string {
+	if (a.facts.monitoring) return a.facts.monitoring === 'raid' ? 'RAID state' : 'disk health';
 	return a.facts.device ?? a.facts.array ?? a.facts.pool ?? a.resourceId;
 }
 

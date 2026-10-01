@@ -8,7 +8,8 @@ import (
 
 // Disk health (#143): the input and output of host.health. The agent reads
 // SMART data with its pinned smartctl (cached, refreshed every
-// DOCKER_AGENT_SMART_INTERVAL; a disk in standby is never woken) and the
+// DOCKER_AGENT_SMART_INTERVAL; a disk in standby is not woken until it
+// went unread for DOCKER_AGENT_SMART_WAKE_AFTER) and the
 // Linux software RAID and ZFS pool state from procfs on every request.
 // docs/internal/architecture/metrics.md, "Host health".
 
@@ -71,6 +72,19 @@ const (
 	// DiskErrUnsupported: the device answers but reports no SMART data
 	// (virtual disks, unknown USB bridges).
 	DiskErrUnsupported = "unsupported"
+	// DiskErrTimeout: smartctl did not finish the read in time (a disk
+	// that hangs is often a dying one).
+	DiskErrTimeout = "timeout"
+	// DiskErrMissing: an earlier scan found the device, the last one no
+	// longer does (it dropped off the bus or was removed); it stays listed
+	// until the agent restarts or the device is found again.
+	DiskErrMissing = "missing"
+	// DiskErrSMARTDisabled: the device supports SMART, but it is turned
+	// off on the device (the agent only reads; it never turns it on).
+	DiskErrSMARTDisabled = "smart_disabled"
+	// DiskErrNoData: the device answered without a health verdict or any
+	// health value (a failed SMART command): it can't be called healthy.
+	DiskErrNoData = "no_data"
 )
 
 // SMART device protocols.
@@ -148,9 +162,13 @@ type SMARTReport struct {
 	Checking bool `json:"checking,omitempty"`
 	// ScannedAt is when the device list was last scanned; CheckedAt when
 	// the last read of every device ended.
-	ScannedAt *time.Time    `json:"scannedAt,omitempty"`
-	CheckedAt *time.Time    `json:"checkedAt,omitempty"`
-	Devices   []SMARTDevice `json:"devices"`
+	ScannedAt *time.Time `json:"scannedAt,omitempty"`
+	CheckedAt *time.Time `json:"checkedAt,omitempty"`
+	// IntervalSeconds is how often the agent reads every device
+	// (DOCKER_AGENT_SMART_INTERVAL): with CheckedAt it tells data that
+	// stopped being refreshed (absent from agents that predate it).
+	IntervalSeconds int64         `json:"intervalSeconds,omitempty"`
+	Devices         []SMARTDevice `json:"devices"`
 }
 
 // SMARTDevice is one disk's SMART data. Absent values are unknown (the
@@ -175,11 +193,12 @@ type SMARTDevice struct {
 	Passed       *bool  `json:"passed,omitempty"`
 	TemperatureC *int   `json:"temperatureC,omitempty"`
 	PowerOnHours *int64 `json:"powerOnHours,omitempty"`
-	// ATA attributes (raw values): 5 reallocated sectors, 187 reported
-	// uncorrectable errors, 197 pending sectors, 198 offline
-	// uncorrectable sectors, and the attributes at or below their
+	// ATA attributes (raw values): 5 reallocated sectors, 184 end-to-end
+	// errors, 187 reported uncorrectable errors, 197 pending sectors, 198
+	// offline uncorrectable sectors, and the attributes at or below their
 	// threshold now or in the past.
 	Reallocated           *int64           `json:"reallocatedSectors,omitempty"`
+	EndToEndErrors        *int64           `json:"endToEndErrors,omitempty"`
 	ReportedUncorrectable *int64           `json:"reportedUncorrectable,omitempty"`
 	Pending               *int64           `json:"pendingSectors,omitempty"`
 	OfflineUncorrectable  *int64           `json:"offlineUncorrectable,omitempty"`
@@ -283,7 +302,7 @@ func (r SMARTReport) validate() error {
 	default:
 		return invalid("host.health smart status %q unknown", r.Status)
 	}
-	if !healthText(r.Message, maxHealthMessage) || len(r.Devices) > MaxHealthDevices {
+	if !healthText(r.Message, maxHealthMessage) || len(r.Devices) > MaxHealthDevices || r.IntervalSeconds < 0 {
 		return invalid("host.health smart report out of range")
 	}
 	for _, d := range r.Devices {
@@ -311,7 +330,8 @@ func (d SMARTDevice) validate() error {
 		}
 	case DiskError:
 		switch d.ErrorCode {
-		case DiskErrPermissionDenied, DiskErrOpenFailed, DiskErrUnsupported:
+		case DiskErrPermissionDenied, DiskErrOpenFailed, DiskErrUnsupported, DiskErrTimeout, DiskErrMissing, DiskErrSMARTDisabled,
+			DiskErrNoData:
 		default:
 			return invalid("smart device error code %q unknown", d.ErrorCode)
 		}
@@ -320,7 +340,7 @@ func (d SMARTDevice) validate() error {
 	}
 	if d.CapacityBytes < 0 || !intIn(d.RotationRPM, 0, 1_000_000) || !intIn(d.TemperatureC, -273, 1000) ||
 		!intIn(d.CriticalWarning, 0, 255) || !intIn(d.AvailableSpare, 0, 255) || !intIn(d.AvailableSpareThreshold, 0, 255) ||
-		!intIn(d.PercentageUsed, 0, 255) || !nonNegative(d.PowerOnHours, d.Reallocated, d.ReportedUncorrectable, d.Pending,
+		!intIn(d.PercentageUsed, 0, 255) || !nonNegative(d.PowerOnHours, d.Reallocated, d.EndToEndErrors, d.ReportedUncorrectable, d.Pending,
 		d.OfflineUncorrectable, d.MediaErrors, d.GrownDefects, d.UncorrectedErrors) {
 		return invalid("smart device value out of range")
 	}
@@ -385,18 +405,32 @@ func intIn(p *int, lo, hi int) bool { return p == nil || (*p >= lo && *p <= hi) 
 // out (state warning).
 const Worn = 90
 
+// NVMeWarnTemperature is the NVMe critical warning bit for a temperature
+// outside the drive's limits (bit 1). It clears when the drive cools down;
+// the other bits (spare below its threshold, reliability degraded,
+// read-only, volatile memory backup failed) describe the drive itself.
+const NVMeWarnTemperature = 1 << 1
+
+// OverTemperatureOnly reports an NVMe critical warning that is only the
+// temperature bit (smartctl then reports a failed self-assessment too).
+func OverTemperatureOnly(d SMARTDevice) bool {
+	return d.CriticalWarning != nil && *d.CriticalWarning == NVMeWarnTemperature
+}
+
 // DeriveDiskState derives a read device's state from its values:
 // failing when the drive reports a failed self-assessment, an attribute
-// at or below its threshold now, or an NVMe critical warning; warning
-// for reallocated, pending or uncorrectable sectors, NVMe media errors,
-// SCSI grown defects or uncorrected errors, wear of Worn percent or
-// more, spare below its threshold or an attribute that failed in the
-// past; else ok.
+// at or below its threshold now, or an NVMe critical warning about the
+// drive itself; warning for an NVMe temperature warning alone,
+// reallocated, pending or uncorrectable sectors, end-to-end errors, NVMe
+// media errors, SCSI grown defects or uncorrected errors, wear of Worn
+// percent or more, spare below its threshold or an attribute that failed
+// in the past; else ok.
 func DeriveDiskState(d SMARTDevice) string {
-	if d.Passed != nil && !*d.Passed {
+	hot := OverTemperatureOnly(d)
+	if d.Passed != nil && !*d.Passed && !hot {
 		return DiskFailing
 	}
-	if d.CriticalWarning != nil && *d.CriticalWarning != 0 {
+	if d.CriticalWarning != nil && *d.CriticalWarning&^NVMeWarnTemperature != 0 {
 		return DiskFailing
 	}
 	past := false
@@ -415,8 +449,9 @@ func DeriveDiskState(d SMARTDevice) string {
 		return false
 	}
 	switch {
-	case past,
-		positive(d.Reallocated, d.ReportedUncorrectable, d.Pending, d.OfflineUncorrectable, d.MediaErrors, d.GrownDefects, d.UncorrectedErrors),
+	case past, hot,
+		positive(d.Reallocated, d.EndToEndErrors, d.ReportedUncorrectable, d.Pending, d.OfflineUncorrectable, d.MediaErrors,
+			d.GrownDefects, d.UncorrectedErrors),
 		d.PercentageUsed != nil && *d.PercentageUsed >= Worn,
 		d.AvailableSpare != nil && d.AvailableSpareThreshold != nil && *d.AvailableSpare < *d.AvailableSpareThreshold:
 		return DiskWarning
