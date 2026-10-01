@@ -1,6 +1,7 @@
 package alerts
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -347,7 +348,7 @@ func TestScanFailureStillEvaluatesDisksAndWarns(t *testing.T) {
 		t.Fatalf("monitoring alert %+v / %s", m, Detail(m))
 	}
 	// One digest of both alerts.
-	if got := f.dispatch(); len(got) != 1 || !strings.Contains(got[0].msg.Body, "can't be scanned") {
+	if got := f.dispatch(); len(got) != 1 || !slices.Contains(digestLines(got[0].msg), "Warning: Disks can't be scanned (homelab)") {
 		t.Fatalf("messages %+v", got)
 	}
 	// The scan works again: the monitoring alert resolves, the disk's stays.
