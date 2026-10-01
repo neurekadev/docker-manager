@@ -47,8 +47,13 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   committed (job hooks: read back after `OnChange`); topic `alerts`, kind `alert`.
   The audited dismissal's own `resource.changed` (type `alert`) reaches
   nobody. The web keys every alerts query with `liveKeys.alerts(...)`
-  (`['alerts', 'list', …]`), so the bell, the Alerts page, the dashboard
-  and the environment page refresh together.
+  (`['alerts', 'list', …]`), so the bell, the Notifications page's Alerts
+  tab, the dashboard and the environment page refresh together.
+  Notifications (finished runs) are published as `notification.created`
+  (carrying the notification: `authz.NotificationVisible`), topic
+  `alerts`, kind `notification`, once their job's change is committed;
+  the web keys notification lists `['notifications', 'list', …]` and
+  refreshes only those on it.
 - **Manager move:** the move service publishes `manager_move.updated`
   (owner, the move's ID) on every change and `manager_move.lock_changed`
   (everyone, no ID) when the session's lock changes (`managermove/live.go`,

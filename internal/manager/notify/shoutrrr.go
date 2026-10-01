@@ -260,8 +260,10 @@ func validate(address string, timeout time.Duration) (service string, err error)
 
 var errUnknownService = errors.New("notify: unknown service")
 
-// deliver sends one message to address and returns "" or an error class.
-func deliver(ctx context.Context, address string, msg domain.NotificationMessage, timeout time.Duration) string {
+// deliver sends one message to address, rendered for its service (render),
+// and returns "" or an error class. publicURL is the manager's origin
+// (Docker Manager's icon in Discord embeds).
+func deliver(ctx context.Context, address string, msg domain.NotificationMessage, timeout time.Duration, publicURL string) string {
 	w := newWire(timeout, false)
 	svc, err := locate(address, w)
 	if err != nil {
@@ -274,14 +276,9 @@ func deliver(ctx context.Context, address string, msg domain.NotificationMessage
 		}
 		return domain.NotifyErrInvalidURL
 	}
-	params := types.Params{}
-	if msg.Title != "" {
-		params.SetTitle(msg.Title)
-	}
-	body := msg.Body
-	if msg.URL != "" {
-		body = strings.TrimRight(body, "\n") + "\n\n" + msg.URL
-	}
+	u, service, _ := parseAddress(address)
+	r := render(service, svc, msg, u.Query(), publicURL)
+	params, body := r.params, r.body
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	done := make(chan error, 1)

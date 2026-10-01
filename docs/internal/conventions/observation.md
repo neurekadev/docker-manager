@@ -12,8 +12,8 @@ inventory cache, disk health, event journal) and `internal/manager/metrics`
 
 - **Read metrics:** `Store.Query(ctx, domain.MetricQuery{Kind:
   domain.MetricContainer, Name: containerName, ...})` (container charts,
-  #6/#7; kind `host` also returns the disk series labelled `Mount` and the
-  temperature sensor series labelled `Sensor`), `Store.QueryContainers`
+  #6/#7; kind `host` also returns the disk series labeled `Mount` and the
+  temperature sensor series labeled `Sensor`), `Store.QueryContainers`
   (every container of an environment with values in the range, one query
   per 200 series and storage level; the environment's per-container
   charts), `Store.Latest`; values are `nil` for gaps, never 0. Units: CPU

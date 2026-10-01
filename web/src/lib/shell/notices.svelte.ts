@@ -1,7 +1,8 @@
 // In-app notices (#22 bell, #25 Q6, #159): what needs the user's eye until
 // they dismiss it. Two sources feed the bell: the manager's alerts that
-// fire and nobody dismissed (disks and RAID with problems, environments
-// offline, failed scheduled jobs, available updates; setAlerts, from the
+// fire and nobody dismissed (disks and RAID with problems, hosts running
+// hot or low on disk space or memory, environments offline, failed
+// scheduled jobs, available updates; setAlerts, from the
 // active alerts query), and this tab's notices of the user's own jobs
 // (push: a job they started finished or failed). The badge counts every
 // item not dismissed and stays until each is dismissed. A server alert the

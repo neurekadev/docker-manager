@@ -39,7 +39,7 @@ func newFakeAlerts() *fakeAlerts {
 	}
 	job := mk("a-4", domain.NotifyJobFailed, "env-1", domain.AlertResourceJob, "job-1")
 	job.JobKind, job.Targets = "stack.deploy", []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}
-	upd := mk("a-5", domain.NotifyUpdatesAvailable, "env-1", domain.AlertResourceUpdatePolicy, "pol-1")
+	upd := mk("a-5", domain.NotifyUpdates, "env-1", domain.AlertResourceUpdatePolicy, "pol-1")
 	upd.Targets = []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}
 	resolved := mk("a-6", domain.NotifyDiskHealth, "env-1", domain.AlertResourceDisk, "/dev/sdb")
 	resolved.State, resolved.ResolvedAt, resolved.Resolution = domain.AlertResolved, &alertsAt, domain.AlertResolvedFixed

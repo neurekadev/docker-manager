@@ -79,15 +79,15 @@ export const NAV_ITEMS: NavItem[] = [
 		visible: (a) => a.environments > 0 || hasAny(a, 'environment.', 'agent.')
 	},
 	{
-		id: 'alerts',
-		label: 'Alerts',
-		href: routes.alerts(),
-		icon: RESOURCE_ICONS.alert.icon,
+		id: 'notifications',
+		label: 'Notifications',
+		href: routes.notificationHistory(),
+		icon: RESOURCE_ICONS.notification.icon,
 		group: 'overview',
 		keywords:
-			'disk health raid smart zfs offline failed jobs updates available notifications bell dismiss problems warnings',
-		// Alerts are shown through their sources (environments, jobs,
-		// update policies): anyone with a grant, like Jobs.
+			'alerts history backups restores prune updates finished runs disk health raid smart zfs temperature disk space memory offline failed jobs updates available bell dismiss problems warnings',
+		// Notifications and alerts are shown through their sources
+		// (environments, jobs, policies): anyone with a grant, like Jobs.
 		visible: (a) => !isRestricted(a)
 	},
 	{

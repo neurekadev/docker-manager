@@ -48,7 +48,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   every service shows the `service` tile, stacks `StackIcon size="xs"`
   (the image of the template the stack was created from, else the stack
   tile); registry connections the key (`KeyRound`, slate); notification channels
-  the bell (`Bell`, cyan); alerts the siren (`Siren`, rose); schedules the
+  the bell (`Bell`, cyan); alerts the siren (`Siren`, rose); the Notifications
+  nav item the inbox (`notification`: `Inbox`, cyan), notification rows the
+  icon of the policy kind that ran them; schedules the
   icon of the policy they run (`scheduleResource`). The icon is
   decorative (`aria-hidden`): the name stays the link and the row's
   accessible label, and the tile never replaces a status or mark.
@@ -246,13 +248,34 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   alerts now: never compute them in the browser again. Policies are named
   as users know them with `policyLabel` (the manager's `targetName`, the
   stack or container).
-- **Alerts** (`$lib/features/alerts`): the Alerts page is one `ListCard`
-  (state Active/Dismissed/Resolved, kind, environment; `alertFilters`,
-  presets through `alertsPreset` for links from "Needs attention" and the
-  System tab's `AlertMark`); severity is a `StatusBadge` ("Critical",
-  "Warning", "Info"); rows lead with the alert's title linking to its
-  `link`; Dismiss only with `alert.dismiss` in `actions`. Queries are keyed
+- **Notifications page** (`routes/(app)/notifications`, nav
+  "Notifications"): `Tabs` in the URL (`?tab=alerts`), **Notifications**
+  first (default), then **Alerts** (there is no `/alerts` page:
+  `routes.alerts()` returns `/notifications?tab=alerts`);
+  `routes.notificationHistory()` is the first tab (`routes.notifications()`
+  stays Settings → Notifications).
+- **Notifications tab** (`$lib/features/notification-history`): one
+  `ListCard` of finished runs grouped by day ("Today", "Yesterday", then
+  the date; `groupByDay` in the viewer's time zone), filters kind,
+  outcome, environment; the outcome is a badge ("Done", "Warning",
+  "Failed"); the title links to the job, the detail and the fields
+  follow (inline ones in one line, the others, such as a prune's
+  breakdown, on their own). Queries are keyed
+  `['notifications', 'list', …]`, refreshed by topic `alerts` kind
+  `notification` only.
+- **Alerts tab** (`$lib/features/alerts`): one `ListCard` (state
+  Active/Dismissed/Resolved, kind, environment; `alertFilters`, presets
+  through `alertsPreset` for links from "Needs attention" and the System
+  tab's `AlertMark`); severity is a `StatusBadge` ("Critical", "Warning",
+  "Info"); rows lead with the alert's title linking to its `link`, then
+  the detail and a line with the kind's icon and its inline fields;
+  Dismiss only with `alert.dismiss` in `actions`. Queries are keyed
   `liveKeys.alerts(...)` (topic `alerts`).
+- **Alert thresholds** (`ThresholdsCard`, Settings → Notifications, owner
+  only): the defaults in one grid (`ThresholdGrid`, validated by
+  `thresholds.ts` like the server: whole numbers, 0 off, warning below
+  critical), overrides in a table with `OverrideDialog`; every save PUTs
+  the whole settings with If-Match.
 - **Files, logs, terminals** (`docs/internal/web.md`): reuse
   `$lib/features/files/FileManager.svelte` (stack, volume or template
   scope),

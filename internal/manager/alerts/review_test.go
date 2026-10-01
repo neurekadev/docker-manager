@@ -29,7 +29,7 @@ func TestQueuedMessagesSayWhatHappenedThen(t *testing.T) {
 	second := backupJob(domain.JobPartial, domain.OriginScheduled)
 	second.Targets = first.Targets
 	f.finish(second)
-	if a := f.one(); a.ResourceID != second.ID || a.Title != "Backup of silo_data partly failed on homelab" {
+	if a := f.one(); a.ResourceID != second.ID || a.Title != "Backup verification of silo_data partly failed on homelab" {
 		t.Fatalf("%+v", a)
 	}
 	f.sender.succeed()
@@ -39,7 +39,7 @@ func TestQueuedMessagesSayWhatHappenedThen(t *testing.T) {
 	}
 	got := f.sender.take()
 	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/jobs/"+first.ID ||
-		got[0].msg.Title != "[Docker Manager] Backup of silo_data failed on homelab" {
+		got[0].msg.Title != "[Docker Manager] Backup verification of silo_data failed on homelab" {
 		t.Fatalf("%+v", got)
 	}
 }

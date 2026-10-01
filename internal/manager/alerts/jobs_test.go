@@ -12,8 +12,10 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
+// backupJob is a verification job of a backup policy (a failed job alert; backups
+// themselves are notifications).
 func backupJob(state domain.JobState, origin domain.JobOrigin) domain.Job {
-	return domain.Job{ID: ids.New(), Kind: "backup.run", Origin: origin, PolicyID: "pol-1", EnvironmentID: "env-1", State: state,
+	return domain.Job{ID: ids.New(), Kind: "backup.verify", Origin: origin, PolicyID: "pol-1", EnvironmentID: "env-1", State: state,
 		Targets:    []domain.JobTarget{{Type: domain.TargetVolume, ID: "silo_data"}},
 		ErrorClass: domain.ErrorStepFailed, ErrorMessage: "restic: wrong password JOB-ERROR-CANARY"}
 }
@@ -26,8 +28,8 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 	failed := backupJob(domain.JobFailed, domain.OriginScheduled)
 	f.finish(failed)
 	a := f.one()
-	if a.Kind != domain.NotifyJobFailed || a.Severity != domain.AlertCritical || a.Title != "Backup of silo_data failed on homelab" ||
-		a.ResourceID != failed.ID || a.JobKind != "backup.run" || len(a.Targets) != 1 || a.Facts["errorClass"] != domain.ErrorStepFailed {
+	if a.Kind != domain.NotifyJobFailed || a.Severity != domain.AlertCritical || a.Title != "Backup verification of silo_data failed on homelab" ||
+		a.ResourceID != failed.ID || a.JobKind != "backup.verify" || len(a.Targets) != 1 || a.Facts["errorClass"] != domain.ErrorStepFailed {
 		t.Fatalf("%+v", a)
 	}
 	// Announced once the job's transaction committed (OnChange).
@@ -58,7 +60,7 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 	if len(f.firing()) != 0 {
 		t.Fatal("still firing")
 	}
-	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "[Docker Manager] Resolved: Backup of silo_data failed") {
+	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "[Docker Manager] Resolved: Backup verification of silo_data failed") {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -90,7 +92,7 @@ func TestJobAlertsAreKeyedPerPolicyKindAndTarget(t *testing.T) {
 	retention := backupJob(domain.JobFailed, domain.OriginScheduled)
 	retention.Kind = "backup.retention"
 	for _, j := range []domain.Job{one, other, retention} {
-		f.hooks.finish[j.Kind] = f.hooks.finish["backup.run"]
+		f.hooks.finish[j.Kind] = f.hooks.finish["backup.verify"]
 		f.finish(j)
 	}
 	if as := f.firing(); len(as) != 3 {
@@ -164,7 +166,7 @@ func TestUpdatesAreSentAgainOnlyForNewDigests(t *testing.T) {
 	f.candidate(p.ID, "db", domain.CandidateUpToDate, "")
 	f.check(p.ID)
 	a := f.one()
-	if a.Kind != domain.NotifyUpdatesAvailable || a.Severity != domain.AlertInfo || a.Title != "An update is available for web on homelab" ||
+	if a.Kind != domain.NotifyUpdates || a.Severity != domain.AlertInfo || a.Title != "An update is available for web on homelab" ||
 		a.ResourceID != p.ID || a.Facts["services"] != "web" {
 		t.Fatalf("%+v", a)
 	}
@@ -226,5 +228,42 @@ func TestDeletedPolicyEndsItsUpdateAlertSilently(t *testing.T) {
 	}
 	if got := f.dispatch(); len(got) != 0 {
 		t.Fatalf("%+v", got)
+	}
+}
+
+// A failed update check names the services it could not check and why,
+// from their error classes (never the registry's message).
+func TestAFailedUpdateCheckSaysWhichServicesAndWhy(t *testing.T) {
+	f := newFixture(t)
+	p := f.updatePolicy("pol-u")
+	f.candidate(p.ID, "web", domain.CandidateCheckFailed, "")
+	c, err := store.UpdateCandidates(f.ctx, f.db, p.ID)
+	if err != nil || len(c) != 1 {
+		t.Fatalf("%+v %v", c, err)
+	}
+	c[0].ErrorClass, c[0].ErrorMessage = "unauthorized", "401 from registry REGISTRY-CANARY"
+	if err := store.UpsertUpdateCandidate(f.ctx, f.db, &c[0]); err != nil {
+		t.Fatal(err)
+	}
+	in, _ := json.Marshal(checkInput{PolicyID: p.ID})
+	f.finish(domain.Job{ID: ids.New(), Kind: "update.check", Origin: domain.OriginScheduled, PolicyID: p.ID, EnvironmentID: "env-1",
+		State: domain.JobPartial, ErrorClass: domain.ErrorStepFailed, Input: in,
+		Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}}})
+	var a domain.Alert
+	for _, x := range f.firing() {
+		if x.Kind == domain.NotifyJobFailed {
+			a = x
+		}
+	}
+	want := "A scheduled job did not finish successfully. Some of its items failed. Failed: web. " +
+		"The registry refused the credentials. Check the registry connection's username and token."
+	if got := Detail(a); got != want {
+		t.Fatalf("%q", got)
+	}
+	if v, _ := field(Fields(a, "homelab"), "What to do"); v != "Check the registry connection's username and token." {
+		t.Fatalf("%q", v)
+	}
+	if strings.Contains(string(output(t, a)), "REGISTRY-CANARY") {
+		t.Fatal("the registry's message reached the alert")
 	}
 }

@@ -1,15 +1,19 @@
 // Alerts (#159) for Svelte Query: the list with its filters (the Alerts
 // page, the environment page), the active alerts (the bell, the
-// dashboard) and the dismissals. Keys are liveKeys.alerts(filter): the
+// dashboard), the dismissals and the alert thresholds (Settings →
+// Notifications, owner only). Keys are liveKeys.alerts(filter): the
 // manager publishes the topic `alerts` whenever an alert is raised,
 // changes, is dismissed or resolved, and the live client refreshes every
 // alerts list by prefix. Mutations invalidate alertKeys.all and never
-// retry.
+// retry. The thresholds have no live event: saving them sets the query's
+// data from the response.
 import { queryOptions } from '@tanstack/svelte-query';
 import { api, unwrap, type ApiClient, type Schema } from '$lib/api/client';
 import { allPages } from '$lib/api/multi-env';
+import { ifMatch } from '$lib/features/common/data';
 import { liveKeys } from '$lib/live/keys';
 import type { Alert, AlertKind } from './model';
+import type { AlertSettings, AlertSettingsBody } from './thresholds';
 
 export type AlertDismissals = Schema<'AlertDismissals'>;
 
@@ -87,4 +91,31 @@ export async function dismissAlerts(
 		dismissed += r.dismissed;
 	}
 	return dismissed;
+}
+
+/** The key of the alert thresholds (no live event refreshes it). */
+export const alertSettingsKey = liveKeys.item('settings', 'alert-settings');
+
+/** The alert thresholds and every environment's override (owner only). */
+export function alertSettingsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: alertSettingsKey,
+		queryFn: ({ signal }): Promise<AlertSettings> =>
+			unwrap(client.GET('/api/v1/alert-settings', { signal })),
+		staleTime: 30_000
+	});
+}
+
+/** Replaces the thresholds and every override (If-Match: the revision it was edited from). */
+export function saveAlertSettings(
+	current: Pick<AlertSettings, 'revision'>,
+	body: AlertSettingsBody,
+	client: ApiClient = api
+): Promise<AlertSettings> {
+	return unwrap(
+		client.PUT('/api/v1/alert-settings', {
+			params: { header: { 'If-Match': ifMatch(current.revision) } },
+			body
+		})
+	);
 }

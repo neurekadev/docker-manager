@@ -288,7 +288,7 @@ Every resource list (stacks, containers, images, volumes, networks,
 builds and saved builds, registries and Git credentials, template
 sources, backup policies, runs, repositories and snapshots, update and
 maintenance policies, jobs, schedules, environments, users, groups,
-invitations, API tokens, passkeys, notification channels, alerts) starts each row's name with the type's
+invitations, API tokens, passkeys, notification channels, alerts, notifications) starts each row's name with the type's
 icon, so a list is recognisable at a glance:
 
 ```svelte
@@ -380,7 +380,7 @@ for charts; series colours come from `TILE_HEX` or `SERVICE_HEX`.
 `detail`, `headline`) draws metric responses as they come from the API: nulls stay
 breaks, runs of missing samples are shaded **and** listed as text under
 the chart ("No samples since 12:40": offline intervals, #5), several
-lines get a text legend with their latest values, the figure is labelled
+lines get a text legend with their latest values, the figure is labeled
 with the latest value for assistive technology. `headline={false}` leaves out the
 value after the title when the legend already shows every line's value
 (network received and sent). A line with `dashed` is drawn and keyed
@@ -539,7 +539,7 @@ Show schedules in words with the expression as tooltip
 
 WCAG AA contrast (checked in `src/lib/design/design.spec.ts`); status never by colour
 alone; every control keyboard-operable with a visible focus ring; icon-only
-buttons always labelled (`IconButton.label`); dialogs trap focus and return
+buttons always labeled (`IconButton.label`); dialogs trap focus and return
 it; live regions announce job completion, copies and connection changes;
 `prefers-reduced-motion` respected; a skip link to `#main`.
 

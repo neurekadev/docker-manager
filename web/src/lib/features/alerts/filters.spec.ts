@@ -41,9 +41,12 @@ describe('alerts list filters (#159)', () => {
 			'All kinds',
 			'Disk health',
 			'RAID',
+			'Temperature',
+			'Disk space',
+			'Memory',
 			'Environment offline',
-			'Failed job',
-			'Updates available'
+			'Updates available',
+			'Failed job'
 		]);
 		expect(selectOptions(all[2], undefined).map((o) => o.label)).toEqual([
 			'All environments',

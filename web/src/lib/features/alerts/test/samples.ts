@@ -11,6 +11,7 @@ export function sampleAlert(o: Partial<Alert> & Pick<Alert, 'id'>): Alert {
 		resourceId: '/dev/sda',
 		title: `Alert ${o.id}`,
 		facts: {},
+		fields: [],
 		link: '/environments/e1?tab=system',
 		startedAt: '2026-09-25T12:00:00Z',
 		updatedAt: '2026-09-25T12:00:00Z',

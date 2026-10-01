@@ -121,7 +121,7 @@ func changedVisible(c Checker, e events.Event) bool {
 	case "notification_channel":
 		// Channels are the owner's (notification_channel.manage).
 		return c.Can("notification_channel.manage", Instance()).Allowed
-	case "alert":
+	case "alert", "notification":
 		// A dismissal's own alert.updated event carries the alert and
 		// its visibility; the audited mutation adds nothing to it.
 		return false
@@ -145,6 +145,15 @@ func alertVisible(c Checker, e events.Event) bool {
 		return c.Can("groups.manage", Instance()).Allowed
 	}
 	return AlertVisible(c, *e.Alert)
+}
+
+// notificationVisible: a notification reaches whoever may read its job
+// (NotificationVisible); an event without it reaches the owner only.
+func notificationVisible(c Checker, e events.Event) bool {
+	if e.Notification == nil {
+		return c.Can("groups.manage", Instance()).Allowed
+	}
+	return NotificationVisible(c, *e.Notification)
 }
 
 // moveLockVisible: the move lock (read-only while the manager moves) is
@@ -183,6 +192,7 @@ var eventRules = map[string]eventRule{
 	events.ManagerMoveUpdated:      managerMoveVisible,
 	events.ManagerMoveLockChanged:  moveLockVisible,
 	events.AlertUpdated:            alertVisible,
+	events.NotificationCreated:     notificationVisible,
 }
 
 // HasEventRule reports whether an event type has a visibility rule.

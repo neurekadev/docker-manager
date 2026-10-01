@@ -11,10 +11,14 @@ import (
 //
 //   - disk_health, raid: environment.system.read on the environment (the
 //     System tab's disk and RAID sections);
+//   - temperature, disk_space, memory: environment.metrics.read on the
+//     environment (its host stats);
 //   - environment_offline: the environment visible at all;
 //   - job_failed: job.read on the failed job (its targets, or the kind's
 //     own capabilities on every target);
-//   - updates_available: update_policy.read on the update policy.
+//   - updates: update_policy.read on the update policy.
+//
+// Notifications (finished runs) are shown to whoever may read their job.
 
 // CapAlertDismiss dismisses an alert for everyone.
 const CapAlertDismiss = "alert.dismiss"
@@ -45,11 +49,13 @@ func AlertVisible(c Checker, a domain.Alert) bool {
 	switch a.Kind {
 	case domain.NotifyDiskHealth, domain.NotifyRAID:
 		return a.EnvironmentID != "" && c.Can("environment.system.read", EnvironmentResource(a.EnvironmentID)).Allowed
+	case domain.NotifyTemperature, domain.NotifyDiskSpace, domain.NotifyMemory:
+		return a.EnvironmentID != "" && c.Can("environment.metrics.read", EnvironmentResource(a.EnvironmentID)).Allowed
 	case domain.NotifyEnvironmentOffline:
 		return a.EnvironmentID != "" && ViewOf(c, EnvironmentResource(a.EnvironmentID)).Visible()
 	case domain.NotifyJobFailed:
 		return c.Can(CapJobRead, alertJob(a)).Allowed
-	case domain.NotifyUpdatesAvailable:
+	case domain.NotifyUpdates:
 		return c.Can("update_policy.read", alertPolicy(a)).Allowed
 	}
 	return c.Can("groups.manage", Instance()).Allowed
@@ -60,14 +66,15 @@ func AlertVisible(c Checker, a domain.Alert) bool {
 // of the failed job, or the update policy.
 func AlertDismissResources(a domain.Alert) []Resource {
 	switch a.Kind {
-	case domain.NotifyDiskHealth, domain.NotifyRAID, domain.NotifyEnvironmentOffline:
+	case domain.NotifyDiskHealth, domain.NotifyRAID, domain.NotifyTemperature, domain.NotifyDiskSpace, domain.NotifyMemory,
+		domain.NotifyEnvironmentOffline:
 		if a.EnvironmentID == "" {
 			return []Resource{Instance()}
 		}
 		return []Resource{EnvironmentResource(a.EnvironmentID)}
 	case domain.NotifyJobFailed:
 		return alertJob(a).Targets
-	case domain.NotifyUpdatesAvailable:
+	case domain.NotifyUpdates:
 		return []Resource{alertPolicy(a)}
 	}
 	return []Resource{Instance()}
@@ -84,4 +91,12 @@ func AlertDismissible(c Checker, a domain.Alert) bool {
 		}
 	}
 	return true
+}
+
+// NotificationVisible reports whether c may see notification n: job.read
+// on its run's job. The manager's own backup (no environment, no
+// targets) is the owner's.
+func NotificationVisible(c Checker, n domain.Notification) bool {
+	return c.Can(CapJobRead, JobResource(domain.Job{ID: n.JobID, Kind: n.JobKind, EnvironmentID: n.EnvironmentID,
+		Targets: n.Targets})).Allowed
 }

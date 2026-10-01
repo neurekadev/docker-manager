@@ -40,11 +40,14 @@ specific user rule, then the most specific group rule, then deny.
   authz.JobResource(j))` (targets or the kind's own capability).
 - **Alerts (#159)** have no read key: `authz.AlertVisible` shows an alert
   to whoever sees its source (`environment.system.read` for disks and
-  RAID, the environment for offline, `job.read` on the job,
+  RAID, `environment.metrics.read` for temperature, disk space and
+  memory, the environment for offline, `job.read` on the job,
   `update_policy.read` on the policy) and `authz.AlertDismissible` needs
   `alert.dismiss` scoped like that source (the environment, every target
   of the failed job, the policy). A new alert kind gets its rule there
-  first.
+  first. Notifications (finished runs) are shown with `job.read` on their
+  job (`authz.NotificationVisible`); the alert thresholds are the owner's
+  (`notification_channel.manage`).
 - **Jobs:** the engine authorizes `spec.Capabilities(targets, input)` on
   every target at request and again at dispatch; never authorize job work
   by initiator.

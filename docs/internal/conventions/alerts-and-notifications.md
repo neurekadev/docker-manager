@@ -3,7 +3,8 @@
 Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guides: `docs/internal/architecture/notifications.md` (channels) and
-`docs/internal/architecture/alerts.md` (alerts); library decision:
+`docs/internal/architecture/alerts.md` (alerts, notifications,
+thresholds); library decision:
 [ADR 0004](../adr/0004-notification-library.md). Package
 `internal/manager/notify` (`app.Manager.Notifications()`), store
 `internal/manager/store/notification_channels.go`, domain
@@ -16,6 +17,19 @@ web `web/src/lib/features/notifications`.
   through the adapter's HTTP client and dialer (`shoutrrr.go`: 15 s timeout,
   no cross-scheme redirects, no destination restrictions by owner decision);
   never call `shoutrrr.Send` or the router, never set Shoutrrr's logger.
+- **Rich messages are rendered in `notify/render.go` only.** A
+  `domain.NotificationMessage` carries a title, a plain body, labeled
+  `Fields`, a `Tone` (critical, warning, success, info), a footer, a time
+  and a link; `render` turns it into the richest form of the address's
+  service (Discord an embed sent in its JSON mode with the tone's color,
+  Slack colored attachments, Teams an accented card, email an HTML card
+  with the plain part kept, Telegram HTML, ntfy and Gotify Markdown with
+  priority and click link, Pushover a priority, a generic webhook `tone`
+  and `url` keys, anything else plain text). Tone colors are the app's
+  `--danger`, `--warn`, `--ok` and `--accent` tokens. Only parameters the
+  service knows are set, and an option the owner put in the address
+  (`color`, `priority`, `parsemode`, `usehtml`, …) wins over ours. Callers
+  never format for a service.
 - **The address is a secret.** A channel's Shoutrrr URL is sealed
   (`notification_channels/<id>/url`) and read only with
   `store.NotificationChannelWithSecret` inside `notify` (a send, or
@@ -36,86 +50,130 @@ web `web/src/lib/features/notifications`.
   `secret_version`): a replaced address is never marked Working or Failing
   by its predecessor's send. Log failures with the channel ID, service and
   class only.
-- **Owner only.** Every route is `capability: owner` (never with an API
-  token); handlers check the owner-only catalog key
-  `notification_channel.manage` before any lookup. Creating a channel,
-  changing its address and revealing it need a recent step-up
-  (`RequireOwner(ctx, true)`); renaming, the subscription, enabling, tests
-  and deletion need the owner. The reveal is `Audit: api.AuditAlways`.
-- **Subscriptions** are stored per channel: `event_kinds` (the
-  `domain.NotificationEventKinds`; never empty; a new channel gets all),
-  `send_resolved`, and the environment choice: `all_environments` (every
-  environment, future ones included) **or** the rows of
-  `notification_channel_environments`. It is always explicit: an empty list
-  is refused unless `allEnvironments` is set, and a restricted channel whose
-  environments are all gone sends none (never widens to all). Environments
-  archived since stay in a filter; only active ones are added (validated in
-  one query, `store.GetEnvironmentsByID`). Alerts pick channels with
-  `domain.NotificationChannel.Wants(kind, environmentID)` and send with
-  `notify.Service.Send`. Adding an event kind extends the domain list, the
-  API enum, the web's `EVENT_KINDS` and the user docs.
+- **Owner only.** Every channel route and the alert thresholds are
+  `capability: owner` (never with an API token); handlers check the
+  owner-only catalog key `notification_channel.manage` before any lookup.
+  Creating a channel, changing its address and revealing it need a recent
+  step-up (`RequireOwner(ctx, true)`); renaming, the subscription,
+  enabling, tests and deletion need the owner. The reveal is
+  `Audit: api.AuditAlways`.
+- **Subscriptions are outcomes per kind** (`subscriptions` JSON object:
+  event kind to outcomes, `domain.NotificationSubscriptions`, never
+  empty; a new channel gets every outcome of every kind): each kind lists
+  its outcomes in `NotificationEventKind.Outcomes()` (problems warning,
+  critical, resolved; offline critical, resolved; backups failure,
+  warning, success; prune failure, success; updates available, failure,
+  success; other failed jobs failure, warning, resolved). The environment
+  choice is `all_environments` (every environment, future ones included)
+  **or** the rows of `notification_channel_environments`. It is always
+  explicit: an empty list is refused unless `allEnvironments` is set, and
+  a restricted channel whose environments are all gone sends none (never
+  widens to all). Environments archived since stay in a filter; only
+  active ones are added (validated in one query,
+  `store.GetEnvironmentsByID`). Messages pick channels with
+  `domain.NotificationChannel.Wants(kind, outcome, environmentID)` and
+  send with `notify.Service.Send`. Adding an event kind or outcome extends
+  the domain lists, the API enums, the web's `EVENT_KINDS` and the user
+  docs.
 - **Tests** of a send use a generic webhook
   (`generic+http://127.0.0.1:<port>/…`) on an `httptest` server; test
   messages are rate limited in memory (one per channel every
   `notify.TestInterval`, 429 `notification_test_rate_limited`), driven by
-  the fake clock.
+  the fake clock. Rendering is tested per service in `render_test.go`
+  (services located offline, like address validation).
 - **Web:** the dialog builds the URL from friendly fields
   (`services.ts`: `buildUrl`/`parseUrl`, round trip exact, unknown shapes
   edited as the raw URL under "Other"); extra query options of a stored URL
   are kept. Secrets are `PasswordField`s; the stored address stays masked
-  until "Show address" (`withStepUp`). Channel changes arrive on the live
-  topic `settings` (`notificationKeys`).
+  until "Show address" (`withStepUp`). "What to send" is one row per kind
+  (a master checkbox, the kind's outcomes beside it). Channel changes
+  arrive on the live topic `settings` (`notificationKeys`).
 
-## Alerts (#159)
+## Alerts (#159) and notifications
 
 Package `internal/manager/alerts` (`app.Manager.Alerts()`), store
-`internal/manager/store/alerts.go`, domain `internal/domain/alert.go`,
-visibility `internal/manager/authz/alerts.go`, API
-`internal/manager/api/alerts.go`, web `web/src/lib/features/alerts` and the
-bell (`$lib/shell/notices.svelte.ts`).
+`internal/manager/store/alerts.go`, `notifications.go` and
+`alert_settings.go`, domain `internal/domain/alert.go`,
+`notification_record.go` and `alert_thresholds.go`, visibility
+`internal/manager/authz/alerts.go`, API `internal/manager/api/alerts.go`
+and `notification_events.go`, web `web/src/lib/features/alerts` (the
+Notifications page: tabs Notifications and Alerts) and the bell
+(`$lib/shell/notices.svelte.ts`).
 
 - **One alert per problem.** Evaluators describe what they see as an
   `alerts.Observation` and call `raise`/`resolve`; never write the
   `alerts` table another way. The dedupe key is unique while firing
   (`alerts_firing_key`). A message is written only on fire, a higher
   severity or a new fingerprint token (`domain.NewTokens`), and on
-  resolution `resolved` for channels with `sendResolved`; everything else
-  (progress, counters, a new job of the same key) updates quietly. Put
-  what gets worse in the fingerprint (tokens), what only describes it in
-  the facts. Tokens mark problems that are only ever added (per member,
-  per attribute, `missing_at_least_<k>` ladders), never states that
-  replace each other: an improvement must never add a token. Getting
-  worse counts up the alert's `escalation`.
-- **The outbox is the only way out.** Raise/resolve and their
-  `alert_deliveries` rows share one transaction; each row keeps a
-  snapshot of what its message says (`newDelivery`), and messages are
-  built only from snapshots, never from the alert's current row; only the dispatcher
-  calls `notify.Service.Send`, in order per channel, with backoff (30 s
-  to 1 h, given up after 24 h), coalescing bursts into one digest.
-  Delivery is at least once. Channels are chosen with
-  `NotificationChannel.Wants` when the message is written and checked
-  again before sending (deleted, disabled or unsubscribed: dropped).
-- **Nothing secret, nothing raw.** Titles, facts, `Detail` and messages
-  never hold serial numbers, job error messages or recovery texts,
-  addresses or other secrets; job alerts keep the error class only. Tests
-  seed canaries (a disk serial, a job error) and scan messages, alerts
-  and logs.
+  resolution `resolved` only to the channels that were sent a message of
+  the alert and want resolutions; everything else (progress, counters, a
+  peak, a new job of the same key) updates quietly. Put what gets worse in
+  the fingerprint (tokens), what only describes it in the facts. Tokens
+  mark problems that are only ever added (per member, per attribute,
+  `missing_at_least_<k>` ladders), never states that replace each other:
+  an improvement must never add a token. Getting worse counts up the
+  alert's `escalation`.
+- **A notification is a finished run.** Every finished backup and
+  restore, prune and update run (any origin; cancelled ones are not)
+  records one `notifications` row (kind, outcome, facts, job) and its
+  messages in a savepoint of the job's finishing transaction
+  (`onRunFinished`), announced as `notification.created` once committed.
+  Outcomes: failure (failed, partly failed, interrupted), warning (a
+  backup that saved everything but had unreadable files or skipped
+  items), success. A failed backup, prune or update run of a schedule or
+  API token still raises its `job_failed` alert (the Alerts tab), but
+  that alert writes no messages: the notification is the message
+  (`enqueueTo`, `domain.NotificationKindOfJob`).
+- **Host usage thresholds** (`thresholds.go`): temperature, disk space
+  per filesystem and memory against `alert_settings` (defaults 80/90 °C,
+  85/95 %, 90/95 %) and an environment's override (`NULL` keeps the
+  default, 0 is off). A level counts after `ThresholdSustain` (5 min) at
+  or above it, resolves below the warning level by `ThresholdHysteresis`
+  (3 °C or points), and samples older than `ThresholdStale` (2 min)
+  change nothing. The facts keep the peak, so the alert changes only when
+  it gets higher. Evaluated on `metrics.sampled` (host) and every
+  reconcile.
+- **The outbox is the only way out.** Raise/resolve, notifications and
+  their `alert_deliveries` rows share one transaction; each row keeps a
+  snapshot of what its message says (`snapshot`: title, body, fields,
+  outcome, link), and messages are built only from snapshots, never from
+  the alert's current row; only the dispatcher calls
+  `notify.Service.Send`, in order per channel, with backoff (30 s to 1 h,
+  given up after 24 h), coalescing bursts into one digest. Delivery is
+  at least once. Channels are chosen with `NotificationChannel.Wants`
+  when the message is written and checked again before sending (deleted,
+  disabled or unsubscribed: dropped).
+- **Nothing secret, nothing raw.** Titles, facts, `Detail`, fields and
+  messages never hold serial numbers, job error messages or recovery
+  texts, input secrets (an update's container specification, a
+  repository's location), host paths, addresses or other secrets; a
+  failure is explained from its error class only (`errors.go`: what went
+  wrong and what to do, per class; an unknown class is named as it is).
+  Tests seed canaries (a disk serial, a job error, a recovery text, a
+  destination, an environment value) and scan messages, alerts,
+  notifications and logs.
 - **Hooks never fail the job.** Job finish hooks (`job_failed` on every
-  kind, `updates_available` on `update.check`) write in a savepoint of
-  the job's transaction, log their own failures and are announced only as
-  the database has them once committed (`OnChange`, read back by the
-  announcer; never a rolled back alert).
+  kind, notifications on backups, restores, prunes and update runs,
+  `updates` on `update.check`) write in a savepoint of the job's
+  transaction, log their own failures and are announced only as the
+  database has them once committed (`OnChange`, read back by the
+  announcer; never a rolled back alert or notification).
 - **Startup and moves.** Offline grace runs from
   `max(connection_changed_at, service start)` (no alert storm after a
   restart); the reconcile and dispatch loops do nothing while the move
   lock is read-only or stronger.
 - **Reading and dismissing.** No read key: `authz.AlertVisible` (the
   source's permission) filters lists, gets and the `alert.updated` event;
-  `alert.dismiss` is checked with `authz.AlertDismissible` (scoped like
-  the source). A dismissal is instance-wide, recorded on the alert and
-  audited; getting worse clears it. A new kind needs its rule in
-  `authz/alerts.go`, an evaluator with a dedupe key, `Link` and `Detail`
-  in `alerts/message.go`, the event kind (above) and the user docs.
-- **Retention:** resolved alerts 90 days, finished deliveries 7 days
-  (`Service.Purge`, every reconcile).
-- **Configuration:** `DOCKER_MANAGER_ALERT_OFFLINE_GRACE` (5m, 1m–24h).
+  `authz.NotificationVisible` (`job.read` on the job) filters the
+  notifications and `notification.created`. `alert.dismiss` is checked
+  with `authz.AlertDismissible` (scoped like the source); notifications
+  are not dismissed. A dismissal is instance-wide, recorded on the alert
+  and audited; getting worse clears it. A new kind needs its rule in
+  `authz/alerts.go`, an evaluator with a dedupe key, `Link`, `Detail` and
+  fields in `alerts/message.go`, its outcomes and the event kind (above)
+  and the user docs.
+- **Retention:** resolved alerts and notifications 90 days, finished
+  deliveries 7 days except those of firing alerts (they say which
+  channels were told) (`Service.Purge`, every reconcile).
+- **Configuration:** `DOCKER_MANAGER_ALERT_OFFLINE_GRACE` (5m, 1m–24h);
+  thresholds are settings (Settings → Notifications), not variables.

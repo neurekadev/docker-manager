@@ -18,7 +18,7 @@ import (
 // goes out together (one message, or a digest for a burst). A failed send
 // is retried with backoff (RetryMin doubling up to RetryMax) and given up
 // after GiveUpAfter; messages of a deleted or disabled channel, or of an
-// alert the channel is no longer subscribed to, are dropped. Nothing is
+// outcome the channel is no longer subscribed to, are dropped. Nothing is
 // sent while the manager moves. Delivery is at least once: a send that
 // succeeded but could not be recorded is sent again.
 
@@ -158,7 +158,7 @@ func (s *Service) sendChannel(ctx context.Context, instance, channelID string, n
 	var send, done []domain.AlertDelivery
 	for _, d := range batch {
 		d.UpdatedAt = now
-		if gone || !ch.Enabled || !ch.Wants(d.Kind, d.EnvironmentID) || (d.Event == domain.AlertEventResolved && !ch.SendResolved) {
+		if gone || !ch.Wants(d.Kind, d.Outcome, d.EnvironmentID) {
 			d.State = domain.DeliveryDropped
 			done = append(done, d)
 			continue
@@ -168,7 +168,7 @@ func (s *Service) sendChannel(ctx context.Context, instance, channelID string, n
 	if len(send) == 0 {
 		return store.SetAlertDeliveries(ctx, s.db, done)
 	}
-	msg := buildMessage(instance, s.opts.PublicURL, send)
+	msg := buildMessage(instance, s.opts.PublicURL, send, now)
 	ok, class := false, errClassInternal
 	if s.opts.Sender != nil {
 		res, err := s.opts.Sender.Send(ctx, channelID, msg)

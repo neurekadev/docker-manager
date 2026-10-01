@@ -169,9 +169,13 @@ resource and run it. For every resource route:
    restarts of that container. Never by initiator.
 8. Alerts (#159, [alerts.md](alerts.md)) have no read capability: an alert
    is visible with its source's permission (`authz.AlertVisible`:
-   `environment.system.read` for disks and RAID, the environment for
-   offline, `job.read` on the failed job, `update_policy.read` on the
-   policy), in lists, gets and `alert.updated` events alike. Dismissing
+   `environment.system.read` for disks and RAID, `environment.metrics.read`
+   for temperature, disk space and memory, the environment for offline,
+   `job.read` on the failed job, `update_policy.read` on the policy), in
+   lists, gets and `alert.updated` events alike. Notifications (finished
+   runs) are visible with `job.read` on their job
+   (`authz.NotificationVisible`), in the list and `notification.created`
+   events alike. Dismissing
    needs `alert.dismiss` (normal risk, so the Operator preset has it)
    scoped like the source: the environment, every target of the job, or the
    policy (`authz.AlertDismissible`).

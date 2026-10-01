@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -205,20 +206,20 @@ func (f *fixture) create(in domain.NotificationChannelInput) domain.Notification
 }
 
 func (f *fixture) channel(name string) domain.NotificationChannel {
-	return f.create(domain.NotificationChannelInput{Name: name, Address: f.address(name + " webhook"), Enabled: true, SendResolved: true,
+	return f.create(domain.NotificationChannelInput{Name: name, Address: f.address(name + " webhook"), Enabled: true,
 		AllEnvironments: true})
 }
 
 func TestCreateSealsTheAddressAndReturnsMetadataOnly(t *testing.T) {
 	f := newFixture(t, 0)
 	c := f.channel("Ops webhook")
-	if c.Service != "generic" || c.Target != "127.0.0.1" || !c.Enabled || !c.SendResolved || c.AddressVersion != 1 ||
+	if c.Service != "generic" || c.Target != "127.0.0.1" || !c.Enabled || c.AddressVersion != 1 ||
 		!strings.HasPrefix(c.AddressFingerprint, "fp_") || c.Revision != 1 || c.LastResult != "" || !c.AllEnvironments || len(c.EnvironmentIDs) != 0 {
 		t.Fatalf("%+v", c)
 	}
-	// No event kinds given: every kind.
-	if len(c.EventKinds) != len(domain.NotificationEventKinds()) {
-		t.Fatalf("kinds %v", c.EventKinds)
+	// No subscriptions given: every outcome of every kind.
+	if !c.Subscriptions.Equal(domain.AllNotificationSubscriptions()) {
+		t.Fatalf("subscriptions %v", c.Subscriptions)
 	}
 	var sealed string
 	if err := f.db.NewSelect().Table("notification_channels").Column("secret_sealed").Where("id = ?", c.ID).Scan(f.ctx, &sealed); err != nil {
@@ -318,9 +319,13 @@ func TestValidation(t *testing.T) {
 		"not a URL":         {domain.NotificationChannelInput{Name: "x", Address: "hooks example com"}, "address"},
 		"unknown service":   {domain.NotificationChannelInput{Name: "x", Address: "carrierpigeon://coop/42"}, "address"},
 		"broken address":    {domain.NotificationChannelInput{Name: "x", Address: "slack://not-a-token@webhook"}, "address"},
-		"unknown kind":      {domain.NotificationChannelInput{Name: "x", Address: ok, EventKinds: []domain.NotificationEventKind{"weather"}}, "eventKinds"},
-		"no kinds":          {domain.NotificationChannelInput{Name: "x", Address: ok, EventKinds: []domain.NotificationEventKind{}}, "eventKinds"},
-		"unknown env":       {domain.NotificationChannelInput{Name: "x", Address: ok, EnvironmentIDs: []string{"env-9"}}, "environmentIds"},
+		"unknown kind": {domain.NotificationChannelInput{Name: "x", Address: ok,
+			Subscriptions: domain.NotificationSubscriptions{"weather": {domain.OutcomeWarning}}}, "events"},
+		"foreign outcome": {domain.NotificationChannelInput{Name: "x", Address: ok,
+			Subscriptions: domain.NotificationSubscriptions{domain.NotifyPrune: {domain.OutcomeWarning}}}, "events"},
+		"nothing": {domain.NotificationChannelInput{Name: "x", Address: ok,
+			Subscriptions: domain.NotificationSubscriptions{domain.NotifyRAID: {}}}, "events"},
+		"unknown env": {domain.NotificationChannelInput{Name: "x", Address: ok, EnvironmentIDs: []string{"env-9"}}, "environmentIds"},
 		// Every environment is a choice, never an empty list.
 		"no environments": {domain.NotificationChannelInput{Name: "x", Address: ok}, "environmentIds"},
 		"all and a list":  {domain.NotificationChannelInput{Name: "x", Address: ok, AllEnvironments: true, EnvironmentIDs: []string{"env-1"}}, "environmentIds"},
@@ -345,16 +350,32 @@ func TestValidation(t *testing.T) {
 func TestCreateStoresTheSubscription(t *testing.T) {
 	f := newFixture(t, 0)
 	c := f.create(domain.NotificationChannelInput{Name: "Disks", Address: f.address("disks webhook"), Enabled: false,
-		EventKinds:     []domain.NotificationEventKind{domain.NotifyRAID, domain.NotifyDiskHealth, domain.NotifyRAID},
+		Subscriptions: domain.NotificationSubscriptions{
+			domain.NotifyRAID:       {domain.OutcomeResolved, domain.OutcomeCritical, domain.OutcomeCritical},
+			domain.NotifyDiskHealth: {domain.OutcomeCritical},
+			domain.NotifyBackup:     {},
+		},
 		EnvironmentIDs: []string{"env-2", "env-1", "env-2"}})
 	got, err := f.svc.Get(f.ctx, c.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Enabled || got.SendResolved || len(got.EventKinds) != 2 || got.EventKinds[0] != domain.NotifyDiskHealth ||
-		got.EventKinds[1] != domain.NotifyRAID || got.AllEnvironments || strings.Join(got.EnvironmentIDs, ",") != "env-1,env-2" {
+	// Outcomes in their kind's order, without duplicates or empty kinds.
+	want := domain.NotificationSubscriptions{
+		domain.NotifyDiskHealth: {domain.OutcomeCritical},
+		domain.NotifyRAID:       {domain.OutcomeCritical, domain.OutcomeResolved},
+	}
+	if got.Enabled || len(got.Subscriptions) != 2 || !slices.Equal(got.Subscriptions[domain.NotifyRAID], want[domain.NotifyRAID]) ||
+		!got.Subscriptions.Equal(want) || got.AllEnvironments || strings.Join(got.EnvironmentIDs, ",") != "env-1,env-2" {
 		t.Fatalf("%+v", got)
 	}
+	// The subscription is replaced as a whole.
+	only := domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}}
+	upd, err := f.svc.Update(f.ctx, c.ID, c.Revision, domain.NotificationChannelPatch{Subscriptions: &only})
+	if err != nil || !upd.Subscriptions.Equal(only) {
+		t.Fatalf("%+v %v", upd, err)
+	}
+	c = upd
 	// An emptied list is refused: it never means every environment.
 	var fe *domain.FieldError
 	none, no, yes := []string{}, false, true
@@ -401,7 +422,7 @@ func TestArchivedEnvironmentsStayInAFilterButAreNeverAdded(t *testing.T) {
 	if err != nil || next.AllEnvironments || strings.Join(next.EnvironmentIDs, ",") != "env-2" {
 		t.Fatalf("%+v %v", next, err)
 	}
-	if next.Wants(domain.NotifyJobFailed, "env-1") {
+	if next.Wants(domain.NotifyJobFailed, domain.OutcomeFailure, "env-1") {
 		t.Fatal("a channel for an archived environment receives other environments' events")
 	}
 	// An archived environment is never added to another filter.
@@ -602,21 +623,45 @@ func TestTestsAreRateLimitedPerChannel(t *testing.T) {
 }
 
 func TestWants(t *testing.T) {
-	c := domain.NotificationChannel{Enabled: true, AllEnvironments: true, EventKinds: []domain.NotificationEventKind{domain.NotifyJobFailed}}
-	if !c.Wants(domain.NotifyJobFailed, "env-1") || c.Wants(domain.NotifyRAID, "env-1") {
+	failed := domain.OutcomeFailure
+	c := domain.NotificationChannel{Enabled: true, AllEnvironments: true,
+		Subscriptions: domain.NotificationSubscriptions{domain.NotifyJobFailed: {failed}, domain.NotifyBackup: {domain.OutcomeSuccess}}}
+	if !c.Wants(domain.NotifyJobFailed, failed, "env-1") || c.Wants(domain.NotifyRAID, domain.OutcomeCritical, "env-1") {
 		t.Fatal("kinds")
 	}
+	// Outcomes are chosen per kind.
+	if c.Wants(domain.NotifyJobFailed, domain.OutcomeResolved, "env-1") || c.Wants(domain.NotifyBackup, failed, "env-1") ||
+		!c.Wants(domain.NotifyBackup, domain.OutcomeSuccess, "env-1") {
+		t.Fatal("outcomes")
+	}
 	c.AllEnvironments, c.EnvironmentIDs = false, []string{"env-2"}
-	if c.Wants(domain.NotifyJobFailed, "env-1") || !c.Wants(domain.NotifyJobFailed, "env-2") || !c.Wants(domain.NotifyJobFailed, "") {
+	if c.Wants(domain.NotifyJobFailed, failed, "env-1") || !c.Wants(domain.NotifyJobFailed, failed, "env-2") ||
+		!c.Wants(domain.NotifyJobFailed, failed, "") {
 		t.Fatal("environments")
 	}
 	// A filter whose environments are all gone sends no environment's events.
 	c.EnvironmentIDs = nil
-	if c.Wants(domain.NotifyJobFailed, "env-2") {
+	if c.Wants(domain.NotifyJobFailed, failed, "env-2") {
 		t.Fatal("an emptied filter widened to every environment")
 	}
 	c.Enabled = false
-	if c.Wants(domain.NotifyJobFailed, "env-2") {
+	if c.Wants(domain.NotifyJobFailed, failed, "env-2") {
 		t.Fatal("disabled")
+	}
+}
+
+func TestEveryKindHasOutcomes(t *testing.T) {
+	for _, k := range domain.NotificationEventKinds() {
+		if len(k.Outcomes()) == 0 {
+			t.Errorf("%s has no outcomes", k)
+		}
+	}
+	for _, k := range append(domain.AlertKinds(), domain.NotificationKinds()...) {
+		if !k.Valid() {
+			t.Errorf("%s is not an event kind", k)
+		}
+	}
+	if domain.NotificationEventKind("weather").Valid() || len(domain.NotificationEventKind("weather").Outcomes()) != 0 {
+		t.Error("unknown kind")
 	}
 }

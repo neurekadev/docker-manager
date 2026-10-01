@@ -29,8 +29,7 @@ type notificationChannelRow struct {
 	Service           string     `bun:"service,notnull"`
 	Target            string     `bun:"target,notnull"`
 	Enabled           int        `bun:"enabled,notnull"`
-	EventKinds        string     `bun:"event_kinds,notnull"`
-	SendResolved      int        `bun:"send_resolved,notnull"`
+	Subscriptions     string     `bun:"subscriptions,notnull"`
 	AllEnvironments   int        `bun:"all_environments,notnull"`
 	SecretSealed      string     `bun:"secret_sealed,notnull"`
 	SecretFingerprint string     `bun:"secret_fingerprint,notnull"`
@@ -52,13 +51,14 @@ type notificationChannelEnvironmentRow struct {
 }
 
 func fromNotificationChannel(c *domain.NotificationChannel, sealed string) (notificationChannelRow, error) {
-	kinds, err := json.Marshal(c.EventKinds)
+	subs := c.Subscriptions.Normalize()
+	kinds, err := json.Marshal(subs)
 	if err != nil {
-		return notificationChannelRow{}, fmt.Errorf("store: encode event kinds: %w", err)
+		return notificationChannelRow{}, fmt.Errorf("store: encode subscriptions: %w", err)
 	}
 	return notificationChannelRow{
 		ID: c.ID, Name: c.Name, NameKey: NameKey(c.Name), Service: c.Service, Target: c.Target, Enabled: b2i(c.Enabled),
-		EventKinds: string(kinds), SendResolved: b2i(c.SendResolved), AllEnvironments: b2i(c.AllEnvironments), SecretSealed: sealed, SecretFingerprint: c.AddressFingerprint,
+		Subscriptions: string(kinds), AllEnvironments: b2i(c.AllEnvironments), SecretSealed: sealed, SecretFingerprint: c.AddressFingerprint,
 		SecretVersion: c.AddressVersion, SecretUpdatedAt: c.AddressUpdatedAt.UTC(), LastResult: c.LastResult,
 		LastAttemptAt: utcPtr(c.LastAttemptAt), LastSuccessAt: utcPtr(c.LastSuccessAt), Revision: c.Revision,
 		CreatedAt: c.CreatedAt.UTC(), UpdatedAt: c.UpdatedAt.UTC(),
@@ -66,13 +66,13 @@ func fromNotificationChannel(c *domain.NotificationChannel, sealed string) (noti
 }
 
 func (r notificationChannelRow) toDomain(envs []string) (domain.NotificationChannel, error) {
-	var kinds []domain.NotificationEventKind
-	if err := json.Unmarshal([]byte(r.EventKinds), &kinds); err != nil {
-		return domain.NotificationChannel{}, fmt.Errorf("store: decode event kinds of notification channel %s: %w", r.ID, err)
+	var subs domain.NotificationSubscriptions
+	if err := json.Unmarshal([]byte(r.Subscriptions), &subs); err != nil {
+		return domain.NotificationChannel{}, fmt.Errorf("store: decode subscriptions of notification channel %s: %w", r.ID, err)
 	}
 	return domain.NotificationChannel{
-		ID: r.ID, Name: r.Name, Service: r.Service, Target: r.Target, Enabled: r.Enabled == 1, EventKinds: kinds,
-		SendResolved: r.SendResolved == 1, AllEnvironments: r.AllEnvironments == 1, EnvironmentIDs: envs,
+		ID: r.ID, Name: r.Name, Service: r.Service, Target: r.Target, Enabled: r.Enabled == 1, Subscriptions: subs.Normalize(),
+		AllEnvironments: r.AllEnvironments == 1, EnvironmentIDs: envs,
 		AddressFingerprint: r.SecretFingerprint,
 		AddressVersion:     r.SecretVersion, AddressUpdatedAt: r.SecretUpdatedAt.UTC(), LastResult: r.LastResult,
 		LastAttemptAt: utcPtr(r.LastAttemptAt), LastSuccessAt: utcPtr(r.LastSuccessAt), Revision: r.Revision,
@@ -105,7 +105,7 @@ func UpdateNotificationChannel(ctx context.Context, db bun.IDB, c *domain.Notifi
 	if err != nil {
 		return err
 	}
-	cols := []string{"name", "name_key", "service", "target", "enabled", "event_kinds", "send_resolved", "all_environments", "revision",
+	cols := []string{"name", "name_key", "service", "target", "enabled", "subscriptions", "all_environments", "revision",
 		"updated_at"}
 	if sealed != "" {
 		cols = append(cols, "secret_sealed", "secret_fingerprint", "secret_version", "secret_updated_at", "last_result",

@@ -143,26 +143,26 @@ func (s *Service) validAddress(address string) (string, error) {
 	return service, nil
 }
 
-// validKinds returns the event kinds in their canonical order (nil: all).
-func validKinds(kinds []domain.NotificationEventKind) ([]domain.NotificationEventKind, error) {
-	if kinds == nil {
-		return domain.NotificationEventKinds(), nil
+// validSubscriptions returns the subscriptions in their canonical order
+// (nil: every outcome of every kind). Every outcome must be one of its
+// kind's; at least one is needed.
+func validSubscriptions(subs domain.NotificationSubscriptions) (domain.NotificationSubscriptions, error) {
+	if subs == nil {
+		return domain.AllNotificationSubscriptions(), nil
 	}
-	want := map[domain.NotificationEventKind]bool{}
-	for _, k := range kinds {
+	for k, os := range subs {
 		if !k.Valid() {
-			return nil, fieldErr("eventKinds", "unknown event kind "+string(k))
+			return nil, fieldErr("events", "unknown event kind "+string(k))
 		}
-		want[k] = true
-	}
-	if len(want) == 0 {
-		return nil, fieldErr("eventKinds", "choose at least one kind of event")
-	}
-	out := make([]domain.NotificationEventKind, 0, len(want))
-	for _, k := range domain.NotificationEventKinds() {
-		if want[k] {
-			out = append(out, k)
+		for _, o := range os {
+			if !slices.Contains(k.Outcomes(), o) {
+				return nil, fieldErr("events", fmt.Sprintf("%s has no outcome %s", k, o))
+			}
 		}
+	}
+	out := subs.Normalize()
+	if len(out) == 0 {
+		return nil, fieldErr("events", "choose at least one event to send")
 	}
 	return out, nil
 }
@@ -233,7 +233,7 @@ func (s *Service) Create(ctx context.Context, in domain.NotificationChannelInput
 	if err != nil {
 		return domain.NotificationChannel{}, err
 	}
-	kinds, err := validKinds(in.EventKinds)
+	subs, err := validSubscriptions(in.Subscriptions)
 	if err != nil {
 		return domain.NotificationChannel{}, err
 	}
@@ -243,8 +243,8 @@ func (s *Service) Create(ctx context.Context, in domain.NotificationChannelInput
 	}
 	now := s.opts.Clock.Now().UTC()
 	c := domain.NotificationChannel{
-		ID: ids.New(), Name: name, Service: service, Target: targetOf(in.Address), Enabled: in.Enabled, EventKinds: kinds,
-		SendResolved: in.SendResolved, AllEnvironments: in.AllEnvironments, EnvironmentIDs: envs, AddressVersion: 1, AddressUpdatedAt: now, Revision: 1,
+		ID: ids.New(), Name: name, Service: service, Target: targetOf(in.Address), Enabled: in.Enabled, Subscriptions: subs,
+		AllEnvironments: in.AllEnvironments, EnvironmentIDs: envs, AddressVersion: 1, AddressUpdatedAt: now, Revision: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	sealed, err := s.opts.Keyring.Seal([]byte(in.Address), sealContext(c.ID))
@@ -284,17 +284,14 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, p domai
 	if p.Enabled != nil {
 		next.Enabled = *p.Enabled
 	}
-	if p.EventKinds != nil {
-		kinds := *p.EventKinds
-		if kinds == nil {
-			kinds = []domain.NotificationEventKind{}
+	if p.Subscriptions != nil {
+		subs := *p.Subscriptions
+		if subs == nil {
+			subs = domain.NotificationSubscriptions{}
 		}
-		if next.EventKinds, err = validKinds(kinds); err != nil {
+		if next.Subscriptions, err = validSubscriptions(subs); err != nil {
 			return domain.NotificationChannel{}, err
 		}
-	}
-	if p.SendResolved != nil {
-		next.SendResolved = *p.SendResolved
 	}
 	if p.AllEnvironments != nil || p.EnvironmentIDs != nil {
 		// Listing environments restricts the channel; switching to every
@@ -351,12 +348,14 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, p domai
 // auditView is the audited settings of a channel (never the address or
 // anything derived from it but the service and its version).
 func auditView(c domain.NotificationChannel) map[string]any {
-	kinds := make([]string, 0, len(c.EventKinds))
-	for _, k := range c.EventKinds {
-		kinds = append(kinds, string(k))
+	events := map[string][]string{}
+	for k, os := range c.Subscriptions.Normalize() {
+		for _, o := range os {
+			events[string(k)] = append(events[string(k)], string(o))
+		}
 	}
 	return map[string]any{
-		"name": c.Name, "service": c.Service, "enabled": c.Enabled, "eventKinds": kinds, "sendResolved": c.SendResolved,
+		"name": c.Name, "service": c.Service, "enabled": c.Enabled, "events": events,
 		"allEnvironments": c.AllEnvironments, "environmentIds": append([]string{}, c.EnvironmentIDs...),
 		"addressVersion": c.AddressVersion,
 	}
@@ -439,7 +438,11 @@ func (s *Service) Test(ctx context.Context, id string) (Result, error) {
 	}
 	s.lastTests[id] = now
 	s.mu.Unlock()
-	msg := domain.NotificationMessage{Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name), URL: s.opts.PublicURL}
+	msg := domain.NotificationMessage{Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name), URL: s.opts.PublicURL,
+		Tone: domain.ToneInfo, Fields: []domain.NotificationField{
+			{Name: "Channel", Value: c.Name, Inline: true},
+			{Name: "Sends", Value: kindCount(len(c.Subscriptions.Kinds())), Inline: true},
+		}, Footer: "Docker Manager", Time: now.UTC()}
 	res, err := s.send(ctx, c, addr, msg)
 	if err != nil {
 		return Result{}, err
@@ -468,7 +471,7 @@ func (s *Service) Send(ctx context.Context, channelID string, msg domain.Notific
 // send delivers msg to addr, the address of c (both from withAddress), and
 // records the result for that address version only.
 func (s *Service) send(ctx context.Context, c domain.NotificationChannel, addr logging.Secret, msg domain.NotificationMessage) (Result, error) {
-	class := deliver(ctx, string(addr), msg, s.opts.Timeout)
+	class := deliver(ctx, string(addr), msg, s.opts.Timeout, s.opts.PublicURL)
 	if ctx.Err() != nil {
 		return Result{}, ctx.Err()
 	}
@@ -486,4 +489,12 @@ func (s *Service) send(ctx context.Context, c domain.NotificationChannel, addr l
 		s.opts.Logger.Warn("could not record a notification result", "notification_channel_id", c.ID, "error", err)
 	}
 	return res, nil
+}
+
+// kindCount says how many kinds of events a channel sends.
+func kindCount(n int) string {
+	if n == 1 {
+		return "1 kind of event"
+	}
+	return fmt.Sprintf("%d kinds of events", n)
 }

@@ -124,10 +124,14 @@ func TestAlertRetention(t *testing.T) {
 			CreatedAt: now, UpdatedAt: now},
 		{ID: ids.New(), AlertID: old.ID, ChannelID: "c1", Event: domain.AlertEventResolved, Kind: domain.NotifyDiskHealth, Severity: domain.AlertWarning, Title: "t", State: domain.DeliveryPending, NextAttemptAt: now,
 			CreatedAt: now, UpdatedAt: now},
+		{ID: ids.New(), AlertID: old.ID, ChannelID: "c1", Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertWarning, Title: "t", State: domain.DeliverySent, NextAttemptAt: now,
+			CreatedAt: now, UpdatedAt: now, SentAt: &sent},
 	}
 	if err := store.InsertAlertDeliveries(ctx, db, ds); err != nil {
 		t.Fatal(err)
 	}
+	// The resolved alert's sent message goes; the firing one's stays (it
+	// says which channels get the resolution).
 	later := now.Add(8 * 24 * time.Hour)
 	if n, err := store.PurgeAlertDeliveries(ctx, db, later.Add(-7*24*time.Hour)); err != nil || n != 1 {
 		t.Fatalf("%d %v", n, err)

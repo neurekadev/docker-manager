@@ -458,6 +458,43 @@ func (s *Store) Latest(ctx context.Context, env string) (domain.LatestMetrics, b
 	return out, true, nil
 }
 
+// LatestTemperatures returns the latest reading of each temperature
+// sensor of an environment that reported within window before now
+// (sensors gone longer are left out), sorted by name, and the time of the
+// newest reading (ok false: none in the window). One query: each
+// sensor's latest row within the window is found on the primary key
+// (series_id, ts), so a sensor gone long ago costs one empty range read.
+func (s *Store) LatestTemperatures(ctx context.Context, env string, window time.Duration) ([]domain.TemperatureValues, time.Time, bool, error) {
+	since := s.clk.Now().Add(-window).Unix()
+	rows, err := s.read.QueryContext(ctx, `SELECT s.name, r.ts, r.temp
+		FROM series s JOIN sensor_raw r ON r.series_id = s.id
+		WHERE s.environment_id = ? AND s.kind = ? AND r.temp IS NOT NULL
+			AND r.ts = (SELECT MAX(m.ts) FROM sensor_raw m WHERE m.series_id = s.id AND m.ts >= ?)
+		ORDER BY s.name`, env, domain.MetricSensor, since)
+	if err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperatures: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.TemperatureValues
+	var newest int64
+	for rows.Next() {
+		var name string
+		var ts, temp int64
+		if err := rows.Scan(&name, &ts, &temp); err != nil {
+			return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperatures: %w", err)
+		}
+		out = append(out, domain.TemperatureValues{Sensor: name, Celsius: float64(temp) / 100})
+		newest = max(newest, ts)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("metrics: latest temperatures: %w", err)
+	}
+	if len(out) == 0 {
+		return nil, time.Time{}, false, nil
+	}
+	return out, time.Unix(newest, 0).UTC(), true, nil
+}
+
 // LatestContainers returns the most recent sample of each container of an
 // environment, of the containers sampled within window before now (a
 // stopped or removed container drops out once its last sample is older).

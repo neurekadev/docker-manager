@@ -8,8 +8,9 @@ import (
 )
 
 // Alerts (#159): problems Docker Manager raises by itself (a failing
-// disk, a degraded RAID array, an environment offline past its grace
-// period, a failed scheduled job, available image updates), kept until
+// disk, a degraded RAID array, a host running hot, out of disk space or
+// memory, an environment offline past its grace period, a failed
+// scheduled job, available image updates), kept until
 // they are resolved, shown in the app and sent through the notification
 // channels subscribed to their kind (NotificationEventKind). One alert per
 // problem: a dedupe key identifies it while it fires.
@@ -74,7 +75,28 @@ const (
 	AlertResourceEnvironment  = "environment"
 	AlertResourceJob          = "job"
 	AlertResourceUpdatePolicy = "update_policy"
+	// AlertResourceFilesystem is a filesystem an agent reports usage of
+	// (its ID: "docker", "stacks", "bind-1", ...).
+	AlertResourceFilesystem = "filesystem"
 )
+
+// Outcome is the outcome a message about the alert has: a resolution, or
+// the severity in the words of its kind (a failed job's critical is a
+// failure; available updates are info).
+func (a Alert) Outcome(event string) NotificationOutcome {
+	if event == AlertEventResolved {
+		return OutcomeResolved
+	}
+	switch {
+	case a.Kind == NotifyUpdates:
+		return OutcomeAvailable
+	case a.Kind == NotifyJobFailed && a.Severity == AlertCritical:
+		return OutcomeFailure
+	case a.Severity == AlertCritical:
+		return OutcomeCritical
+	}
+	return OutcomeWarning
+}
 
 // Alert is one problem (firing) or a past one (resolved).
 type Alert struct {
@@ -197,21 +219,29 @@ var (
 	ErrAlertNotFiring = errors.New("the alert is no longer firing")
 )
 
-// AlertDelivery is one message of an alert to one channel (the outbox).
+// AlertDelivery is one message of an alert or a notification to one
+// channel (the outbox).
 type AlertDelivery struct {
-	ID        string
-	AlertID   string
-	ChannelID string
-	// Event is AlertEventFiring, AlertEventWorse or AlertEventResolved.
+	ID string
+	// AlertID or NotificationID is what the message is about (the other
+	// is empty).
+	AlertID        string
+	NotificationID string
+	ChannelID      string
+	// Event is AlertEventFiring, AlertEventWorse, AlertEventResolved or
+	// DeliveryEventNotification.
 	Event string
-	// Kind, EnvironmentID, Severity, Title, Body and Link are the alert as
-	// it was when the message was written: a delayed or retried message
-	// says what happened then, not what the alert says later.
+	// Kind, EnvironmentID, Severity, Outcome, Title, Body, Fields and Link
+	// are the alert or notification as it was when the message was
+	// written: a delayed or retried message says what happened then, not
+	// what the alert says later.
 	Kind          NotificationEventKind
 	EnvironmentID string
 	Severity      AlertSeverity
+	Outcome       NotificationOutcome
 	Title         string
 	Body          string
+	Fields        []NotificationField
 	Link          string
 	// State is pending, sent, failed (gave up) or dropped (the channel was
 	// deleted, turned off or no longer subscribed).
@@ -230,7 +260,32 @@ const (
 	AlertEventFiring   = "firing"
 	AlertEventWorse    = "worse"
 	AlertEventResolved = "resolved"
+	// DeliveryEventNotification is the message of a notification.
+	DeliveryEventNotification = "notification"
 )
+
+// Tone is how the message looks: red for critical problems and failures,
+// amber for warnings, green for resolved problems and successes, blue
+// for news (updates available).
+func (d AlertDelivery) Tone() NotificationTone {
+	switch d.Outcome {
+	case OutcomeResolved, OutcomeSuccess:
+		return ToneSuccess
+	case OutcomeCritical, OutcomeFailure:
+		return ToneCritical
+	case OutcomeWarning:
+		return ToneWarning
+	case OutcomeAvailable:
+		return ToneInfo
+	}
+	switch d.Severity {
+	case AlertCritical:
+		return ToneCritical
+	case AlertWarning:
+		return ToneWarning
+	}
+	return ToneInfo
+}
 
 // Delivery states.
 const (

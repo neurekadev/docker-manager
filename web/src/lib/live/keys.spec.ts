@@ -112,6 +112,15 @@ describe('invalidation map', () => {
 			{ state: 'active' }
 		]);
 		expect(TOPICS).toContain('alerts');
+
+		// A new notification (topic alerts, kind notification) refreshes
+		// every notifications list, and no alerts list.
+		expect(inv('alerts', 'notification', 'n1', 'e1')).toEqual([['notifications', 'list']]);
+		expect(liveKeys.notifications({ kind: 'prune' })).toEqual([
+			'notifications',
+			'list',
+			{ kind: 'prune' }
+		]);
 	});
 
 	it('finds the keys of one environment', () => {

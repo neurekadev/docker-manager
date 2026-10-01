@@ -158,9 +158,12 @@ confirmation) and kind `manager_move_lock` (`resourceId` `instance`,
 every signed-in user: the move lock of `GET /auth/session` changed);
 alerts raised, changed, dismissed or resolved (#159) → `invalidate` topic
 `alerts` kind `alert` (the alert's ID; to whoever may see the alert's
-source: `environment.system.read` for disks and RAID, the environment for
-offline alerts, `job.read` on the job, `update_policy.read` on the
-policy).
+source: `environment.system.read` for disks and RAID,
+`environment.metrics.read` for temperature, disk space and memory, the
+environment for offline alerts, `job.read` on the job,
+`update_policy.read` on the policy); a finished run's notification
+recorded → `invalidate` topic `alerts` kind `notification`, action
+`created` (its ID; to whoever has `job.read` on its job).
 
 - **Snapshot + cursor:** `hello` is sent first and fixes the cursor before
   the client fetches; anything that changes after it arrives as an event, so

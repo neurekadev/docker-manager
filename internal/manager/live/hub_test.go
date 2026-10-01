@@ -391,6 +391,7 @@ func TestClassify(t *testing.T) {
 		{events.Event{Type: events.ManagerMoveLockChanged, ResourceType: events.ResourceManagerMoveLock}, TopicManager, ActionUpdated},
 		{events.Event{Type: events.ResourceChanged, ResourceType: "manager_move"}, TopicManager, ActionUpdated},
 		{events.Event{Type: events.AlertUpdated, ResourceType: events.ResourceAlert}, TopicAlerts, ActionUpdated},
+		{events.Event{Type: events.NotificationCreated, ResourceType: events.ResourceNotification}, TopicAlerts, ActionCreated},
 		{events.Event{Type: events.ResourceChanged, ResourceType: "alert"}, TopicAlerts, ActionUpdated},
 	} {
 		topic, _ := Classify(tc.e)

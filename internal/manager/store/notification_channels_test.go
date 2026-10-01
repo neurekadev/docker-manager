@@ -18,7 +18,8 @@ import (
 func notificationChannel(id, name string, envs ...string) domain.NotificationChannel {
 	now := testutil.Epoch
 	return domain.NotificationChannel{ID: id, Name: name, Service: "ntfy", Target: "ntfy.example.com", Enabled: true,
-		EventKinds: []domain.NotificationEventKind{domain.NotifyJobFailed, domain.NotifyRAID}, SendResolved: true,
+		Subscriptions: domain.NotificationSubscriptions{domain.NotifyJobFailed: {domain.OutcomeResolved, domain.OutcomeFailure},
+			domain.NotifyRAID: {domain.OutcomeCritical}, domain.NotifyPrune: {}},
 		AllEnvironments: len(envs) == 0, EnvironmentIDs: envs,
 		AddressFingerprint: "fp_0000000000000001", AddressVersion: 1, AddressUpdatedAt: now, Revision: 1, CreatedAt: now, UpdatedAt: now}
 }
@@ -57,8 +58,10 @@ func TestNotificationChannelsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "Ops" || got.Service != "ntfy" || got.Target != "ntfy.example.com" || !got.Enabled || !got.SendResolved ||
-		len(got.EventKinds) != 2 || got.EventKinds[0] != domain.NotifyJobFailed || len(got.EnvironmentIDs) != 2 ||
+	// Stored in their canonical order, without empty kinds.
+	if got.Name != "Ops" || got.Service != "ntfy" || got.Target != "ntfy.example.com" || !got.Enabled || len(got.Subscriptions) != 2 ||
+		strings.Join([]string{string(got.Subscriptions[domain.NotifyJobFailed][0]), string(got.Subscriptions[domain.NotifyJobFailed][1])}, ",") != "failure,resolved" ||
+		len(got.EnvironmentIDs) != 2 ||
 		got.EnvironmentIDs[0] != "env-1" || got.AllEnvironments || got.AddressFingerprint != "fp_0000000000000001" || got.Revision != 1 {
 		t.Fatalf("%+v", got)
 	}

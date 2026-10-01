@@ -34,6 +34,10 @@
 //                                        alert): every raise, change,
 //                                        dismissal or resolution refreshes
 //                                        every alerts list
+//   ['notifications', 'list', filter]    finished runs (topic alerts, kind
+//                                        notification): a new one refreshes
+//                                        every notifications list, and only
+//                                        those
 //
 // Build keys with liveKeys so they stay consistent.
 import type { components } from '$lib/api/schema';
@@ -74,6 +78,12 @@ export const LIVE_METRICS_KIND = 'live_metrics';
  * the owner's move.
  */
 export const MOVE_LOCK_KIND = 'manager_move_lock';
+
+/**
+ * The `invalidate` kind of a new notification (a finished backup, restore,
+ * prune or update run; topic alerts): the notifications lists refetch.
+ */
+export const NOTIFICATION_KIND = 'notification';
 
 /** Topics whose resource names are only unique within an environment. */
 const ENV_SCOPED = new Set<string>(['containers', 'images', 'volumes', 'networks', 'metrics']);
@@ -117,7 +127,9 @@ export const liveKeys = {
 	/** GET /manager/move (the owner's move to a new server) and its sub-keys. */
 	managerMove: (...sub: string[]): QueryKey => ['manager', 'item', 'move', ...sub],
 	/** GET /alerts with its filters (#159); no filter: every alerts list. */
-	alerts: (...filters: unknown[]): QueryKey => ['alerts', 'list', ...filters]
+	alerts: (...filters: unknown[]): QueryKey => ['alerts', 'list', ...filters],
+	/** GET /notifications with its filters; no filter: every notifications list. */
+	notifications: (...filters: unknown[]): QueryKey => ['notifications', 'list', ...filters]
 };
 
 /** The file scope of a files.changed event, or null for a whole environment. */
@@ -166,6 +178,9 @@ export function keysForInvalidate(e: LiveInvalidate): Invalidation[] {
 				? { key: liveKeys.session, class: 'detail' }
 				: { key: liveKeys.managerMove(), class: 'detail' }
 		];
+	// A new notification refreshes the notifications lists, not the alerts.
+	if (topic === 'alerts' && e.kind === NOTIFICATION_KIND)
+		return [{ key: liveKeys.notifications(), class: 'list' }];
 	if (e.kind === 'inventory') {
 		return [
 			{ key: liveKeys.item('environments', e.resourceId), class: 'detail' },

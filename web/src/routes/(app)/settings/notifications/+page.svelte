@@ -3,13 +3,16 @@
 	// Docker Manager sends messages, what each channel sends and whether
 	// its last message arrived. The owner adds ("Add channel",
 	// ?create=1), edits, tests and deletes them; addresses stay sealed on
-	// the manager and are only shown in the edit dialog on request.
+	// the manager and are only shown in the edit dialog on request. Below
+	// them the alert thresholds: when a host's temperature, disk space or
+	// memory raises an alert, with overrides per environment.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
+	import ThresholdsCard from '$lib/features/alerts/ThresholdsCard.svelte';
 	import {
 		Button,
 		Card,
@@ -35,6 +38,7 @@
 	import ChannelDialog from '$lib/features/notifications/ChannelDialog.svelte';
 	import {
 		channelStatus,
+		eventsDetail,
 		sendsSummary,
 		type NotificationChannel
 	} from '$lib/features/notifications/model';
@@ -158,8 +162,7 @@
 	<StatusBadge status={s.status} label={s.label} title={s.reason} />
 {/snippet}
 {#snippet sendsCell(c: NotificationChannel)}
-	<span class="sends">{sendsSummary(c, envName)}</span>
-	{#if c.sendResolved}<span class="sub">and when resolved</span>{/if}
+	<span class="sends" title={eventsDetail(c.events)}>{sendsSummary(c, envName)}</span>
 {/snippet}
 {#snippet sentCell(c: NotificationChannel)}
 	<!-- The last message that arrived; a failed attempt since is named below. -->
@@ -228,6 +231,7 @@
 				{/snippet}
 			</QueryView>
 		</Card>
+		{#if owner}<ThresholdsCard />{/if}
 	{/if}
 </Page>
 

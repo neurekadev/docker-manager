@@ -2,6 +2,8 @@
 // in password fields) become one Shoutrrr URL; switching the service
 // swaps the fields; editing keeps the stored address masked until "Show
 // address" reads it back, and saves without it when it is unchanged.
+// "What to send" is a grid: a checkbox per kind of event (mixed while some
+// of its outcomes are ticked) and one per outcome.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -11,7 +13,7 @@ import { toast } from '$lib/ui';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import { choose } from '../../../test/select';
 import ChannelDialog from './ChannelDialog.svelte';
-import type { NotificationChannel } from './model';
+import { allEvents, type NotificationChannel } from './model';
 
 function json(body: unknown, status = 200) {
 	return new Response(JSON.stringify(body), {
@@ -25,8 +27,10 @@ const channel: NotificationChannel = {
 	name: 'Ops',
 	service: 'discord',
 	enabled: true,
-	eventKinds: ['job_failed', 'updates_available'],
-	sendResolved: false,
+	events: [
+		{ kind: 'updates', outcomes: ['available', 'failure', 'success'] },
+		{ kind: 'job_failed', outcomes: ['failure'] }
+	],
 	allEnvironments: true,
 	environmentIds: [],
 	address: { fingerprint: 'fp_1', version: 1, updatedAt: '2026-09-30T09:00:00Z' },
@@ -89,15 +93,25 @@ describe('ChannelDialog (#142)', () => {
 		expect(await screen.findByRole('heading', { name: 'Destination' })).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'What to send' })).toBeInTheDocument();
 		for (const label of [
-			'Disk health problems',
-			'RAID problems',
+			'Disk health',
+			'RAID',
+			'Temperature',
+			'Disk space',
+			'Memory',
 			'Environment offline',
-			'Failed jobs',
-			'Updates available',
-			'Also send when resolved'
+			'Backups and restores',
+			'Prune',
+			'Image updates',
+			'Other failed jobs',
+			'Disk health: Warning',
+			'Environment offline: Back online',
+			'Image updates: Applied',
+			'Other failed jobs: Resolved'
 		])
-			// A checkbox's name includes its description: match the label.
-			expect(screen.getByRole('checkbox', { name: new RegExp(`^${label}`) })).toBeChecked();
+			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
+		expect(screen.getByRole('group', { name: 'Hosts' })).toBeInTheDocument();
+		expect(screen.getByRole('group', { name: 'Jobs' })).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox', { name: /^Also send when resolved/ })).toBeNull();
 		expect(screen.getByRole('switch', { name: 'Enabled' })).toHaveAttribute(
 			'aria-checked',
 			'true'
@@ -119,14 +133,7 @@ describe('ChannelDialog (#142)', () => {
 			name: 'Ops',
 			address: STORED,
 			enabled: true,
-			eventKinds: [
-				'disk_health',
-				'raid',
-				'environment_offline',
-				'job_failed',
-				'updates_available'
-			],
-			sendResolved: true,
+			events: allEvents(),
 			allEnvironments: true,
 			environmentIds: []
 		});
@@ -173,11 +180,15 @@ describe('ChannelDialog (#142)', () => {
 		show({ open: true, channel });
 		expect(await screen.findByText('The address is stored encrypted')).toBeInTheDocument();
 		expect(screen.queryByLabelText(/^Webhook URL/)).toBeNull();
-		expect(screen.getByRole('checkbox', { name: 'Failed jobs' })).toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'RAID problems' })).not.toBeChecked();
+		// The channel's events: every update outcome, only failed jobs' failures.
+		expect(screen.getByRole('checkbox', { name: 'Image updates' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other failed jobs' })).toBePartiallyChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other failed jobs: Failure' })).toBeChecked();
 		expect(
-			screen.getByRole('checkbox', { name: /^Also send when resolved/ })
+			screen.getByRole('checkbox', { name: 'Other failed jobs: Resolved' })
 		).not.toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBePartiallyChecked();
 		expect(calls).toEqual([]);
 
 		await user.click(screen.getByRole('button', { name: 'Show address' }));
@@ -189,7 +200,7 @@ describe('ChannelDialog (#142)', () => {
 			{ method: 'GET', path: '/api/v1/notification-channels/c-1/address', body: undefined }
 		]);
 
-		await user.click(screen.getByRole('checkbox', { name: 'RAID problems' }));
+		await user.click(screen.getByRole('checkbox', { name: 'RAID' }));
 		await user.click(screen.getByRole('button', { name: 'Save changes' }));
 		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
 		const patch = calls.find((c) => c.method === 'PATCH')!;
@@ -197,8 +208,11 @@ describe('ChannelDialog (#142)', () => {
 		expect(patch.body).toEqual({
 			name: 'Ops',
 			enabled: true,
-			eventKinds: ['raid', 'job_failed', 'updates_available'],
-			sendResolved: false,
+			events: [
+				{ kind: 'raid', outcomes: ['warning', 'critical', 'resolved'] },
+				{ kind: 'updates', outcomes: ['available', 'failure', 'success'] },
+				{ kind: 'job_failed', outcomes: ['failure'] }
+			],
 			allEnvironments: true,
 			environmentIds: []
 		});
@@ -258,5 +272,65 @@ describe('ChannelDialog (#142)', () => {
 			allEnvironments: false,
 			environmentIds: ['e2']
 		});
+	});
+
+	it('ticks every outcome of a kind with its checkbox, mixed while only some are', async () => {
+		const user = setup();
+		const calls = stubApi();
+		show({ open: true });
+		const backups = await screen.findByRole('checkbox', { name: 'Backups and restores' });
+		const success = screen.getByRole('checkbox', { name: 'Backups and restores: Success' });
+
+		// One outcome off: the kind's checkbox is mixed.
+		await user.click(success);
+		expect(success).not.toBeChecked();
+		expect(backups).toBePartiallyChecked();
+
+		// The kind's checkbox ticks every outcome again, then none.
+		await user.click(backups);
+		expect(backups).toBeChecked();
+		expect(success).toBeChecked();
+		await user.click(backups);
+		expect(backups).not.toBeChecked();
+		for (const o of ['Failure', 'Warning', 'Success'])
+			expect(
+				screen.getByRole('checkbox', { name: `Backups and restores: ${o}` })
+			).not.toBeChecked();
+
+		// Ticking one outcome of an unticked kind makes it mixed.
+		await user.click(screen.getByRole('checkbox', { name: 'Prune: Failure' }));
+		expect(screen.getByRole('checkbox', { name: 'Prune' })).toBePartiallyChecked();
+
+		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Ops');
+		await choose(user, screen.getByRole('combobox', { name: /^Service/ }), 'Discord');
+		await user.type(
+			screen.getByLabelText(/^Webhook URL/),
+			'https://discord.com/api/webhooks/123456789012345678/tok-123'
+		);
+		await user.click(screen.getByRole('checkbox', { name: 'Prune' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Prune: Success' }));
+		await user.click(screen.getByRole('button', { name: 'Add channel' }));
+		await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+		const events = (calls.find((c) => c.method === 'POST')!.body as { events: unknown[] })
+			.events;
+		// Display order; backups left out; prune with its one outcome.
+		expect(events).toEqual(
+			allEvents()
+				.filter((e) => e.kind !== 'backup')
+				.map((e) => (e.kind === 'prune' ? { kind: 'prune', outcomes: ['failure'] } : e))
+		);
+	});
+
+	it('refuses to save with nothing to send', async () => {
+		const user = setup();
+		const calls = stubApi();
+		show({ open: true, channel });
+		await user.click(await screen.findByRole('checkbox', { name: 'Image updates' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Other failed jobs' }));
+		// Mixed: the click ticks every outcome; a second one clears them.
+		await user.click(screen.getByRole('checkbox', { name: 'Other failed jobs' }));
+		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		expect(await screen.findByText('Choose at least one event to send.')).toBeInTheDocument();
+		expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
 	});
 });

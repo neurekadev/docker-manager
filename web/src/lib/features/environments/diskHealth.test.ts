@@ -372,7 +372,7 @@ describe('alert marks (#159)', () => {
 		const mark = within(sdbRow).getByRole('link', {
 			name: 'Alert: Disk /dev/sdb on homelab needs attention'
 		});
-		expect(mark).toHaveAttribute('href', '/alerts');
+		expect(mark).toHaveAttribute('href', '/notifications?tab=alerts');
 		// An alert of another disk type on the same path does not mark this disk.
 		expect(within(sdaRow).queryByRole('link')).toBeNull();
 	});

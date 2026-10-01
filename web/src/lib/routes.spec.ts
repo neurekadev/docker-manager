@@ -155,6 +155,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	],
 	job: [routes.job('job-1')],
 	schedules: [routes.schedules()],
+	notificationHistory: [routes.notificationHistory()],
 	alerts: [routes.alerts()],
 	access: [routes.access()],
 	accessUser: [routes.accessUser('u-1')],
@@ -243,6 +244,13 @@ describe('routes', () => {
 		// The old addresses keep a route of their own, so deep links reach the redirect.
 		for (const old of ['/settings/security', '/settings/tokens', '/settings/tokens/new'])
 			expect(resolves(old), old).toBe(true);
+	});
+
+	it('shows alerts on the Notifications page’s Alerts tab', () => {
+		expect(routes.notificationHistory()).toBe('/notifications');
+		expect(routes.alerts()).toBe('/notifications?tab=alerts');
+		expect(resolves('/notifications')).toBe(true);
+		expect(resolves('/alerts')).toBe(false);
 	});
 
 	it('keeps all API tokens in Settings and my own in Profile', () => {

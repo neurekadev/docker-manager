@@ -76,7 +76,7 @@ describe('navigation filter (#17)', () => {
 		expect(visibleNav(a).map((i) => i.id)).toEqual([
 			'dashboard',
 			'environments',
-			'alerts',
+			'notifications',
 			'containers',
 			'backups',
 			'jobs',
@@ -90,7 +90,7 @@ describe('navigation filter (#17)', () => {
 		expect(ids).toContain('registries');
 		expect(ids).toContain('templates');
 		expect(ids).toContain('schedules');
-		expect(ids).toContain('alerts');
+		expect(ids).toContain('notifications');
 		expect(ids).toHaveLength(18);
 	});
 
@@ -132,7 +132,9 @@ describe('navigation filter (#17)', () => {
 		expect(activeNav('/volumes/e1/data/files')?.id).toBe('volumes');
 		expect(activeNav('/builds/e1/b1')?.id).toBe('builds');
 		expect(activeNav('/settings/tokens/all')?.id).toBe('settings');
-		expect(activeNav('/alerts')?.id).toBe('alerts');
+		expect(activeNav('/notifications')?.id).toBe('notifications');
+		// The channels stay in Settings.
+		expect(activeNav('/settings/notifications')?.id).toBe('settings');
 		expect(activeNav('/nowhere')).toBeUndefined();
 	});
 
@@ -393,7 +395,7 @@ describe('notices', () => {
 	it('links every notice somewhere', () => {
 		expect(noticeHref({ kind: 'job', href: '/jobs/j1' })).toBe('/jobs/j1');
 		expect(noticeHref({ kind: 'job' })).toBe('/jobs');
-		expect(noticeHref({ kind: 'alert' })).toBe('/alerts');
+		expect(noticeHref({ kind: 'alert' })).toBe('/notifications?tab=alerts');
 	});
 
 	it('names generated update policies by what they update', () => {
