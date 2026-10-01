@@ -337,24 +337,33 @@ type discordPayloadJSON struct {
 	AllowedMentions map[string][]string `json:"allowed_mentions"`
 }
 
-// discordValue is a field's value within Discord's limit: a list is cut
-// after a whole entry ("…and 3 more"), and a linked value too long to
-// keep its link is shown plain.
-func discordValue(f domain.NotificationField) string {
+// discordPlainMarkup is Discord's text without links and code, for a
+// field the embed's total has no room for with them.
+var discordPlainMarkup = markup{
+	esc:    markdownEscaper.Replace,
+	link:   func(text, _ string) string { return text },
+	code:   func(s string) string { return s },
+	bullet: "- ",
+}
+
+// discordValue is a field's value in markup m within limit characters: a
+// list is cut after a whole entry ("…and 3 more"), and a linked value
+// too long to keep its link is shown plain.
+func discordValue(f domain.NotificationField, m markup, limit int) string {
 	if len(f.Items) == 0 {
-		v := mdMarkup.value(f)
-		if utf8.RuneCountInString(v) > discordFieldValueMax {
-			v = markdownEscaper.Replace(f.Value)
+		v := m.value(f)
+		if utf8.RuneCountInString(v) > limit {
+			v = m.esc(f.Value)
 		}
-		return clip(v, discordFieldValueMax)
+		return clip(v, limit)
 	}
-	more := func(n int) string { return fmt.Sprintf("%s…and %d more", mdMarkup.bullet, n) }
+	more := func(n int) string { return fmt.Sprintf("%s…and %d more", m.bullet, n) }
 	var lines []string
 	used := 0
 	for i, it := range f.Items {
-		l := mdMarkup.bullet + mdMarkup.item(it)
+		l := m.bullet + m.item(it)
 		size := used + utf8.RuneCountInString(l)
-		room := discordFieldValueMax
+		room := limit
 		if rest := len(f.Items) - i - 1; rest > 0 {
 			room -= utf8.RuneCountInString(more(rest)) + 1
 		}
@@ -365,15 +374,17 @@ func discordValue(f domain.NotificationField) string {
 		lines = append(lines, l)
 		used = size + 1
 	}
-	return clip(strings.Join(lines, "\n"), discordFieldValueMax)
+	return clip(strings.Join(lines, "\n"), limit)
 }
 
 // discordPayload is one embed: the status line as its author, the tone's
 // color, the title linking to the page, the description, the fields, the
 // footer beside the logo and the time. The whole embed stays within
 // Discord's total (discordEmbedMax): a field that would pass it is shown
-// plain (without links and code), and fields that still don't fit are
-// left out (Discord refuses the whole message otherwise, at every retry).
+// plain (without links and code) within the room left, a list cut after
+// a whole entry; a field without any room is left out, later ones may
+// still fit (Discord refuses the whole message otherwise, at every
+// retry).
 func discordPayload(msg domain.NotificationMessage, username, avatar string) string {
 	runes := utf8.RuneCountInString
 	e := discordEmbed{
@@ -403,12 +414,14 @@ func discordPayload(msg domain.NotificationMessage, username, avatar string) str
 		if i == discordFieldsMax {
 			break
 		}
-		name, value := clip(f.Name, discordFieldNameMax), discordValue(f)
-		if total+runes(name)+runes(value) > discordEmbedMax {
-			value = clip(markdownEscaper.Replace(f.Value), discordFieldValueMax)
+		name := clip(f.Name, discordFieldNameMax)
+		room := min(discordFieldValueMax, discordEmbedMax-total-runes(name))
+		if room < 1 {
+			continue // a shorter field after it may still fit
 		}
-		if total+runes(name)+runes(value) > discordEmbedMax {
-			break
+		value := discordValue(f, mdMarkup, discordFieldValueMax)
+		if runes(value) > room {
+			value = discordValue(f, discordPlainMarkup, room)
 		}
 		total += runes(name) + runes(value)
 		e.Fields = append(e.Fields, discordEmbedField{Name: name, Value: value, Inline: f.Inline})

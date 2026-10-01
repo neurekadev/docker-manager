@@ -707,10 +707,11 @@ func Label(kind domain.NotificationEventKind, o domain.NotificationOutcome) stri
 
 // environmentSuffix names a delivery's environment in a digest entry
 // (" (homelab)"): titles leave it to the Environment field, which a
-// digest does not show. "" without one, or when the title names it.
+// digest does not show. "" without one, or when the title names it (as
+// its subject, first: "homelab is offline").
 func environmentSuffix(d domain.AlertDelivery) string {
 	for _, f := range d.Fields {
-		if f.Name == "Environment" && f.Value != "" && !strings.Contains(d.Title, f.Value) {
+		if f.Name == "Environment" && f.Value != "" && !strings.HasPrefix(d.Title, f.Value+" ") {
 			return " (" + f.Value + ")"
 		}
 	}

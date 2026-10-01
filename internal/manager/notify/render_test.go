@@ -177,15 +177,32 @@ func TestDiscordShowsAListPlainWhenItsLinksWouldPassTheTotal(t *testing.T) {
 		plain = append(plain, list.Items[i].Plain())
 	}
 	list.Value = strings.Join(plain, "\n")
-	msg.Fields = []domain.NotificationField{list, list}
+	// Four lists, then a short field.
+	msg.Fields = []domain.NotificationField{list, list, list, list, {Name: "Do", Value: "x"}}
 	var p discordJSON
 	if err := json.Unmarshal([]byte(discordPayload(msg, "", "")), &p); err != nil {
 		t.Fatal(err)
 	}
 	e := p.Embeds[0]
-	if embedSize(p) > discordEmbedMax || len(e.Fields) != 2 || !strings.Contains(e.Fields[0].Value, "](https://") ||
-		strings.Contains(e.Fields[1].Value, "](https://") || !strings.Contains(e.Fields[1].Value, "service-09: 0123456789ab → ba9876543210") {
+	if embedSize(p) > discordEmbedMax || len(e.Fields) != 5 || !strings.Contains(e.Fields[0].Value, "](https://") ||
+		strings.Contains(e.Fields[1].Value, "](https://") || !strings.Contains(e.Fields[1].Value, "- service-09 0123456789ab → ba9876543210") {
 		t.Fatalf("embed %d: %+v", embedSize(p), e.Fields)
+	}
+	// A list with little room left is cut after a whole entry and says
+	// how many are left; the short field after it still fits.
+	cut := false
+	for _, f := range e.Fields[:4] {
+		for l := range strings.SplitSeq(f.Value, "\n") {
+			switch {
+			case strings.HasPrefix(l, "- …and "):
+				cut = true
+			case !strings.HasSuffix(l, "ba9876543210") && !strings.HasSuffix(l, "ba9876543210`"):
+				t.Fatalf("cut entry %q", l)
+			}
+		}
+	}
+	if !cut || e.Fields[4].Name != "Do" || e.Fields[4].Value != "x" {
+		t.Fatalf("%+v", e.Fields)
 	}
 }
 
@@ -195,7 +212,7 @@ func TestDiscordCutsALongListAfterAWholeEntry(t *testing.T) {
 		f.Items = append(f.Items, domain.NotificationItem{Text: fmt.Sprintf("service-%02d", i),
 			Link: fmt.Sprintf("https://docker.example.com/stacks/s1/logs?service=service-%02d", i), From: "0123456789ab", To: "ba9876543210"})
 	}
-	v := discordValue(f)
+	v := discordValue(f, mdMarkup, discordFieldValueMax)
 	lines := strings.Split(v, "\n")
 	last := lines[len(lines)-1]
 	if len([]rune(v)) > discordFieldValueMax || last != fmt.Sprintf("- …and %d more", 40-(len(lines)-1)) {
@@ -208,7 +225,7 @@ func TestDiscordCutsALongListAfterAWholeEntry(t *testing.T) {
 	}
 	// A linked value too long for its link is shown plain.
 	long := domain.NotificationField{Name: "Target", Value: strings.Repeat("a", 1000), Link: "https://docker.example.com/" + strings.Repeat("b", 100)}
-	if got := discordValue(long); got != long.Value {
+	if got := discordValue(long, mdMarkup, discordFieldValueMax); got != long.Value {
 		t.Fatalf("%q", got)
 	}
 }

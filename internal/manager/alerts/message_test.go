@@ -307,9 +307,13 @@ func TestDigestEntriesNameTheirEnvironment(t *testing.T) {
 		// The title names it already.
 		{Event: domain.AlertEventFiring, Kind: domain.NotifyEnvironmentOffline, Severity: domain.AlertCritical,
 			Outcome: domain.OutcomeCritical, Title: "nas is offline", Fields: env("nas")},
+		// A name that is only part of a word in the title is named.
+		{Event: domain.DeliveryEventNotification, Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess,
+			Title: "Update of prod-api succeeded", Fields: env("prod")},
 	}
 	got := buildMessage("Home", "", items, time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)).Fields[0].Items
-	want := []string{"Critical: Disk /dev/sda is failing (homelab)", "Critical: Disk /dev/sda is failing (office)", "Critical: nas is offline"}
+	want := []string{"Critical: Disk /dev/sda is failing (homelab)", "Critical: Disk /dev/sda is failing (office)", "Critical: nas is offline",
+		"Done: Update of prod-api succeeded (prod)"}
 	if len(got) != len(want) {
 		t.Fatalf("%+v", got)
 	}
