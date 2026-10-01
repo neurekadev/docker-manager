@@ -414,8 +414,18 @@ func (m *Monitor) readAll(ctx context.Context, scan []smartctl.ScanDevice, prev 
 	var wg sync.WaitGroup
 	for i, dev := range scan {
 		if dev.OpenError != "" {
+			code := smartctl.ScanOpenError(dev)
+			if p := prev[deviceKey(dev.Name, dev.Type)]; watched(p) {
+				// A disk read before that the scan can't open: a failed
+				// read (never "no SMART data", which ends its alerts).
+				if code == protocol.DiskErrUnsupported {
+					code = protocol.DiskErrOpenFailed
+				}
+				out[i] = readFailed(dev, p, code)
+				continue
+			}
 			out[i] = protocol.SMARTDevice{Name: dev.Name, Type: dev.Type, Protocol: dev.Protocol, State: protocol.DiskError,
-				ErrorCode: smartctl.ScanOpenError(dev)}
+				ErrorCode: code}
 			continue
 		}
 		wg.Add(1)
@@ -450,6 +460,13 @@ func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev pro
 		// carries over.
 		prev = protocol.SMARTDevice{}
 	}
+	if r.Device.State == protocol.DiskError && r.Device.ErrorCode == protocol.DiskErrUnsupported && watched(prev) {
+		// A disk read before that now answers without SMART data (a
+		// dying disk, a confused bridge): a failed read with its last
+		// values, never a disk without SMART (that ends its alerts and
+		// would not be missed when it disappears).
+		return readFailed(dev, prev, protocol.DiskErrNoData)
+	}
 	if r.Standby {
 		if prev.Name != "" && prev.ReadAt != nil {
 			// A problem the kept measurements show stays until a read
@@ -480,6 +497,12 @@ func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev pro
 	at := m.opts.Clock.Now().UTC()
 	d.ReadAt = &at
 	return d
+}
+
+// watched reports a device with SMART data read before (a read time):
+// it never turns into a device without SMART data.
+func watched(prev protocol.SMARTDevice) bool {
+	return prev.Name != "" && prev.ReadAt != nil && prev.SMARTSupported
 }
 
 // readFailed is a device whose read failed with code: the last

@@ -565,6 +565,40 @@ func TestMonitorWakesAtMostOncePerWakeAfter(t *testing.T) {
 	}
 }
 
+// TestMonitorNeverDowngradesAWatchedDisk: a disk read before that answers
+// without SMART data, or that the scan can't open as an unknown bridge,
+// is a failed read with its last values (never unsupported), and is kept
+// as missing when it then disappears.
+func TestMonitorNeverDowngradesAWatchedDisk(t *testing.T) {
+	ctx := testutil.Context(t)
+	sda, sdb := smartctl.ScanDevice{Name: "/dev/sda", Type: "sat"}, smartctl.ScanDevice{Name: "/dev/sdb", Type: "sat"}
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{sda, sdb},
+		readings: map[string]smartctl.Reading{"/dev/sda": healthy("/dev/sda", "S1"), "/dev/sdb": healthy("/dev/sdb", "S2")}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	m.round(ctx, true)
+	smart.mu.Lock()
+	smart.readings["/dev/sda"] = smartctl.Reading{Device: protocol.SMARTDevice{Name: "/dev/sda", Type: "sat", State: protocol.DiskError,
+		ErrorCode: protocol.DiskErrUnsupported}}
+	smart.scan = []smartctl.ScanDevice{sda, {Name: "/dev/sdb", Type: "sat", OpenError: "/dev/sdb: Unknown USB bridge [0x152d:0x0578]"}}
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	devs := m.Report().SMART.Devices
+	if d := devs[0]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrNoData || d.Serial != "S1" || d.ReadAt == nil {
+		t.Fatalf("answered without SMART %+v", d)
+	}
+	if d := devs[1]; d.State != protocol.DiskError || d.ErrorCode != protocol.DiskErrOpenFailed || d.Serial != "S2" || d.ReadAt == nil {
+		t.Fatalf("can't be opened %+v", d)
+	}
+	smart.mu.Lock()
+	smart.scan = nil
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	devs = m.Report().SMART.Devices
+	if len(devs) != 2 || devs[0].ErrorCode != protocol.DiskErrMissing || devs[1].ErrorCode != protocol.DiskErrMissing {
+		t.Fatalf("not missed %+v", devs)
+	}
+}
+
 // TestMonitorDoesNotMissDevicesWithoutSMART: a device without SMART data
 // (a USB stick) that goes away is not kept as missing.
 func TestMonitorDoesNotMissDevicesWithoutSMART(t *testing.T) {

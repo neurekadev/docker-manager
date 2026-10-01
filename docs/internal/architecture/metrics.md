@@ -407,6 +407,9 @@ them with "Check disks now" and "Check RAID now".
   reference but reports the failure: state `error` with its code (a disk
   the agent cannot read never looks healthy); such a read never sets a
   read time (without earlier values the identity it read stands in). A
+  disk with SMART data read before never turns `unsupported`: a read that
+  says so is a failed read (`no_data`), a scan that can't open it as an
+  unknown bridge `open_failed`, both with its last values. A
   read that names another serial number than the kept values, and a path
   the previous scan did not list, start without the kept values (another
   disk may hold the path). A device is identified by
