@@ -717,7 +717,7 @@
             "type": "object"
           },
           "fields": {
-            "description": "Labelled values, as messages show them.",
+            "description": "Labeled values, as messages show them.",
             "items": {
               "$ref": "#/components/schemas/NotificationField"
             },
@@ -11898,7 +11898,7 @@
             "type": "object"
           },
           "fields": {
-            "description": "Labelled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it).",
+            "description": "Labeled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it).",
             "items": {
               "$ref": "#/components/schemas/NotificationField"
             },

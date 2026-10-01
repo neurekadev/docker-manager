@@ -68,5 +68,5 @@ type NotificationFilter struct {
 	EnvironmentID string
 }
 
-// ErrNotificationNotFound: no notification of that ID.
+// ErrNotificationNotFound is returned when no notification has the ID.
 var ErrNotificationNotFound = errors.New("notification not found")

@@ -165,7 +165,7 @@ func TestNotificationsAreShownThroughTheirJob(t *testing.T) {
 			t.Errorf("%s %s: %s, want %s", c.user, c.query, got, c.want)
 		}
 	}
-	// The prune's numbers come as labelled fields, with its environment.
+	// The prune's numbers come as labeled fields, with its environment.
 	n := list("olga", "?kind=prune")[0]
 	if n.Link != "/jobs/job-n-1" || n.Detail != "Removed 3 objects and reclaimed 4 GiB." || len(n.Fields) < 3 ||
 		n.Fields[0] != (NotificationField{Name: "Environment", Value: "name of env-1", Inline: true}) {
@@ -181,7 +181,7 @@ func TestNotificationsAreShownThroughTheirJob(t *testing.T) {
 }
 
 func TestAlertThresholdsAreTheOwners(t *testing.T) {
-	pol := authztest.New().Owner("olga").Member("adam", "admins").Group("admins", "allow * @all")
+	pol := authztest.New().Owner("olga").Member("adam", "admins").Group("admins", "allow settings.read @all", "allow settings.manage @all")
 	h, svc, log := newNotificationEventsFixture(t, pol)
 	path := "/api/v1/alert-settings"
 	if r := authztest.Do(t, h, "adam", authztest.Call{Method: http.MethodGet, Path: path}); r.Status != http.StatusForbidden {

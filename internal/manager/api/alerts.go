@@ -61,7 +61,7 @@ type Alert struct {
 	// jobKind, jobState, origin, errorClass, policyId, target; updates
 	// count, services, target; offline since.
 	Facts      map[string]string   `json:"facts" doc:"Small, non-secret values about the problem (disks: device, deviceType, model, state and counters; arrays: array or pool, arrayKind md or zfs, level, state, health, progress; temperature: sensor, celsius (the peak), warningAt, criticalAt; disk space: mount, usedPercent (the peak), freeBytes, totalBytes, warningAt, criticalAt; memory: usedPercent, usedBytes, totalBytes, warningAt, criticalAt; jobs: jobId, jobKind, jobState, origin, errorClass, policyId, target, and for update checks failedItems and itemErrorClass; updates: count, services, target; offline: since)."`
-	Fields     []NotificationField `json:"fields" doc:"Labelled values, as messages show them."`
+	Fields     []NotificationField `json:"fields" doc:"Labeled values, as messages show them."`
 	Link       string              `json:"link" example:"/environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system" doc:"Path of the page in Docker Manager the alert is about."`
 	StartedAt  time.Time           `json:"startedAt" doc:"When it started firing."`
 	UpdatedAt  time.Time           `json:"updatedAt"`

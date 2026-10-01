@@ -47,7 +47,7 @@ The agent reads procfs (`DOCKER_AGENT_HOST_PROC`, default `/proc`) every 10 s:
 | load 1/5/15 | `loadavg` | as reported by the kernel |
 | uptime | `uptime` | seconds |
 | network rx/tx | `1/net/dev` | bytes per second summed over non-virtual interfaces (loopback, veth, bridges and overlay/CNI devices are excluded) |
-| disks | `statfs(2)` of the verified storage roots (#28) | one entry per distinct filesystem, labelled by role: `docker` (Docker's volume directory, i.e. the Docker root filesystem), `stacks`, `bind-N`; never a host path |
+| disks | `statfs(2)` of the verified storage roots (#28) | one entry per distinct filesystem, labeled by role: `docker` (Docker's volume directory, i.e. the Docker root filesystem), `stacks`, `bind-N`; never a host path |
 
 **Mount and namespace caveats.** `/proc/stat`, `/proc/meminfo`,
 `/proc/loadavg` and `/proc/uptime` are not namespaced: inside the agent

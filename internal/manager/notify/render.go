@@ -312,7 +312,7 @@ func discordPayload(msg domain.NotificationMessage, username, avatar, publicURL 
 var slackEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
 // slackText is one line per attachment (Slack's service sends each line
-// as an attachment in the tone's color): the description, bold labelled
+// as an attachment in the tone's color): the description, bold labeled
 // fields and the link. Empty lines are left out.
 func slackText(msg domain.NotificationMessage) string {
 	var lines []string

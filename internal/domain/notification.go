@@ -279,7 +279,7 @@ const (
 	ToneInfo     NotificationTone = "info"
 )
 
-// NotificationField is one labelled value of a message (an embed field;
+// NotificationField is one labeled value of a message (an embed field;
 // a line "Name: value" where a service has no fields). Inline fields sit
 // side by side where the service can.
 type NotificationField struct {

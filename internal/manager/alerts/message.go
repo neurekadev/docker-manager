@@ -12,7 +12,7 @@ import (
 )
 
 // Messages (#159): the title "[<instance name>] <title>" ("Resolved: …"
-// for resolutions), a short plain body (Detail), labelled fields (the
+// for resolutions), a short plain body (Detail), labeled fields (the
 // environment, what it is about, the numbers) and a link to the page it
 // is about; each service renders them as richly as it can (notify).
 // Never serial numbers, job error texts or anything secret: bodies and
@@ -349,13 +349,13 @@ func (l *fieldList) add(name, value string, inline bool) {
 	}
 }
 
-// Fields are an alert's labelled values as it fires (env names its
+// Fields are an alert's labeled values as it fires (env names its
 // environment).
 func Fields(a domain.Alert, env string) []domain.NotificationField {
 	return alertFields(a, env, domain.AlertEventFiring)
 }
 
-// alertFields are an alert's labelled values in a message of event.
+// alertFields are an alert's labeled values in a message of event.
 func alertFields(a domain.Alert, env, event string) []domain.NotificationField {
 	f := a.Facts
 	var l fieldList
@@ -422,10 +422,10 @@ func alertFields(a domain.Alert, env, event string) []domain.NotificationField {
 
 // line is a delivery's line in a digest.
 func line(d domain.AlertDelivery) string {
-	switch {
-	case d.Event == domain.AlertEventResolved:
+	switch d.Event {
+	case domain.AlertEventResolved:
 		return "Resolved: " + d.Title
-	case d.Event == domain.DeliveryEventNotification:
+	case domain.DeliveryEventNotification:
 		return outcomeWords[d.Outcome] + ": " + d.Title
 	}
 	return severityWords[d.Severity] + ": " + d.Title

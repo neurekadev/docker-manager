@@ -63,7 +63,7 @@ the agent's smartctl runner for disk health, see
   (reason "the stack's Compose file gives the volume the label …"; a
   declared `"false"` wins over the volume's `true`). The policy wizard
   (`VolumeCoverage`) lists label-excluded volumes unchecked and locked with
-  an (i) naming where the label is (`labelledBy`: volume, compose,
+  an (i) naming where the label is (`labeledBy`: volume, compose,
   container).
   Docker Manager's temporary objects never get into a backup:
   **temporary containers** (`protocol.IsHelperContainer`: a container set

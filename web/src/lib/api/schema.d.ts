@@ -5867,7 +5867,7 @@ export interface components {
             facts: {
                 [key: string]: string;
             };
-            /** @description Labelled values, as messages show them. */
+            /** @description Labeled values, as messages show them. */
             fields: components["schemas"]["NotificationField"][];
             /** @example 0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f */
             id: string;
@@ -10118,7 +10118,7 @@ export interface components {
             facts: {
                 [key: string]: string;
             };
-            /** @description Labelled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it). */
+            /** @description Labeled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it). */
             fields: components["schemas"]["NotificationField"][];
             /** @example 0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f */
             id: string;

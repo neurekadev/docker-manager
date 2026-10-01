@@ -569,7 +569,7 @@ func NotificationDetail(n domain.Notification) string {
 	return ""
 }
 
-// NotificationFields are a notification's labelled values.
+// NotificationFields are a notification's labeled values.
 func NotificationFields(n domain.Notification, env string) []domain.NotificationField {
 	f := n.Facts
 	var l fieldList

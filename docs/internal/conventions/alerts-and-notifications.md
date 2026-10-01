@@ -18,7 +18,7 @@ web `web/src/lib/features/notifications`.
   no cross-scheme redirects, no destination restrictions by owner decision);
   never call `shoutrrr.Send` or the router, never set Shoutrrr's logger.
 - **Rich messages are rendered in `notify/render.go` only.** A
-  `domain.NotificationMessage` carries a title, a plain body, labelled
+  `domain.NotificationMessage` carries a title, a plain body, labeled
   `Fields`, a `Tone` (critical, warning, success, info), a footer, a time
   and a link; `render` turns it into the richest form of the address's
   service (Discord an embed sent in its JSON mode with the tone's color,

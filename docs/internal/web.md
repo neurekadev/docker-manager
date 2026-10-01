@@ -313,7 +313,7 @@ Rename (`stack.rename`) is the pencil right of the stack's name
 revision; off while offline, for Docker Manager's own stack and while a
 rename runs, the reason as its tooltip). It turns the name into a field
 in place (`RenameStackInline` through `PageHeader`'s `titleEditor`; the h1
-stays for screen readers) labelled "Stack name" that edits the Compose
+stays for screen readers) labeled "Stack name" that edits the Compose
 project name, also when the heading shows a display name. Enter or the
 check button renames at once, without a confirmation; Escape or the cancel
 button keeps the name. The name is checked first (`renameNameError`), then

@@ -39,14 +39,14 @@ type Notification struct {
 	JobKind       string `json:"jobKind" example:"backup.run"`
 	Title         string `json:"title" example:"Backup Nightly on homelab succeeded"`
 	Detail        string `json:"detail,omitempty" example:"5 of 5 items backed up (12.4 GiB read) in 3 min 12 s." doc:"One or two sentences about it; a failure says what went wrong and what to do (never error texts)."`
-	// Fields are the message's labelled values.
-	Fields    []NotificationField `json:"fields" doc:"Labelled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it)."`
+	// Fields are the message's labeled values.
+	Fields    []NotificationField `json:"fields" doc:"Labeled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it)."`
 	Facts     map[string]string   `json:"facts" doc:"Small, non-secret values the fields are built from."`
 	Link      string              `json:"link" example:"/jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f" doc:"Path of the run's job in Docker Manager."`
 	CreatedAt time.Time           `json:"createdAt"`
 }
 
-// NotificationField is one labelled value.
+// NotificationField is one labeled value.
 type NotificationField struct {
 	Name   string `json:"name" example:"Reclaimed"`
 	Value  string `json:"value" example:"4.2 GiB"`
