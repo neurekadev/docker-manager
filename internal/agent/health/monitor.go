@@ -92,9 +92,10 @@ type Monitor struct {
 	// missing are devices an earlier scan found and the last one did not
 	// (kept until the agent restarts or a scan finds them again).
 	missing []smartctl.ScanDevice
-	// firstSeen is when a scan first found a device (the wake-up clock of
-	// a disk never read).
-	firstSeen map[string]time.Time
+	// wakeClock is when a device's wake-up clock last started: when a scan
+	// first found it, or the last read that woke it (a read that got no
+	// data sets no read time, and must not wake the disk every round).
+	wakeClock map[string]time.Time
 	// requested counts check requests; completed is the last request a
 	// finished round covered; done is closed (and replaced) when a round
 	// ends.
@@ -138,7 +139,7 @@ func New(opts Options) *Monitor {
 		opts.WakeAfter = DefaultWakeAfter
 	}
 	m := &Monitor{opts: opts, log: opts.Logger.With("component", "health"), trigger: make(chan struct{}, 1),
-		status: protocol.SMARTOK, done: make(chan struct{}), logged: map[string]bool{}, firstSeen: map[string]time.Time{}}
+		status: protocol.SMARTOK, done: make(chan struct{}), logged: map[string]bool{}, wakeClock: map[string]time.Time{}}
 	if opts.SMART == nil {
 		m.status = protocol.SMARTDisabled
 	} else {
@@ -247,7 +248,7 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 			if len(devs) > protocol.MaxHealthDevices {
 				devs = devs[:protocol.MaxHealthDevices]
 			}
-			missing = stillMissing(scan, missing, devs)
+			missing = stillMissing(scan, missing, devs, prev)
 			// Values carry over only for a device the previous scan found
 			// too: a path that appeared (again) may be another disk.
 			had := make(map[string]bool, len(scan))
@@ -294,8 +295,9 @@ func (m *Monitor) round(ctx context.Context, rescan bool) {
 
 // stillMissing returns the devices missing after a scan found devs: those
 // missing before that it did not find again, then those the previous scan
-// (old) found that it no longer does.
-func stillMissing(old, missing, devs []smartctl.ScanDevice) []smartctl.ScanDevice {
+// (old) found that it no longer does, except a device without SMART data
+// (prev: unsupported, such as a USB stick): nothing was watched there.
+func stillMissing(old, missing, devs []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice) []smartctl.ScanDevice {
 	found := make(map[string]bool, len(devs))
 	for _, d := range devs {
 		found[deviceKey(d.Name, d.Type)] = true
@@ -305,6 +307,9 @@ func stillMissing(old, missing, devs []smartctl.ScanDevice) []smartctl.ScanDevic
 	for _, list := range [][]smartctl.ScanDevice{missing, old} {
 		for _, d := range list {
 			k := deviceKey(d.Name, d.Type)
+			if p := prev[k]; p.State == protocol.DiskError && p.ErrorCode == protocol.DiskErrUnsupported {
+				continue
+			}
 			if !found[k] && !listed[k] {
 				listed[k] = true
 				out = append(out, d)
@@ -345,8 +350,10 @@ func missingDevice(dev smartctl.ScanDevice, prev protocol.SMARTDevice) protocol.
 }
 
 // wakeDue returns the devices to read even in standby: those not read
-// for WakeAfter (since their last read, or since a scan first found them
-// when they were never read). It keeps the first-seen times of scan.
+// for WakeAfter since their last read, the last read that woke them or
+// the scan that first found them, whichever is latest; at most one wake
+// per WakeAfter, also when the waking read gets no data. It keeps the
+// wake clocks of scan.
 func (m *Monitor) wakeDue(scan []smartctl.ScanDevice, prev map[string]protocol.SMARTDevice, now time.Time) map[string]bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -354,25 +361,22 @@ func (m *Monitor) wakeDue(scan []smartctl.ScanDevice, prev map[string]protocol.S
 	wake := map[string]bool{}
 	for _, d := range scan {
 		k := deviceKey(d.Name, d.Type)
-		first, ok := m.firstSeen[k]
+		since, ok := m.wakeClock[k]
 		if _, carried := prev[k]; !ok || !carried {
 			// New, or its values were dropped (another disk may hold the
 			// path): its clock starts now.
-			first = now
+			since = now
 		}
-		seen[k] = first
-		if m.opts.WakeAfter < 0 {
-			continue
-		}
-		since := first
-		if p := prev[k]; p.ReadAt != nil {
+		if p := prev[k]; p.ReadAt != nil && p.ReadAt.After(since) {
 			since = *p.ReadAt
 		}
-		if now.Sub(since) >= m.opts.WakeAfter {
+		if m.opts.WakeAfter >= 0 && now.Sub(since) >= m.opts.WakeAfter {
 			wake[k] = true
+			since = now
 		}
+		seen[k] = since
 	}
-	m.firstSeen = seen
+	m.wakeClock = seen
 	return wake
 }
 

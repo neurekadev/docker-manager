@@ -396,9 +396,11 @@ them with "Check disks now" and "Check RAID now".
   except that `failing` and `warning`, derived from the kept values, stay
   (standby clears no problem, also after a failed read in between). A
   disk not read for `DOCKER_AGENT_SMART_WAKE_AFTER` (default 24 h, 1 h–30
-  d; `0` never) since its last read, or since a scan first found it, is
-  read with `-n never`, which wakes it: a disk asleep at every check is
-  still checked once a day.
+  d; `0` never) since its last read, the last read that woke it or the
+  scan that first found it (whichever is latest) is read with `-n never`,
+  which wakes it: a disk asleep at every check is still checked once a
+  day, and a waking read that gets no data does not wake it again before
+  the next day.
   A failed read, or a read that got nothing about the disk's health
   (`permission_denied`, `open_failed`, `timeout`, `smart_disabled`,
   `no_data`), keeps the last measurements (and their read time) for
@@ -423,7 +425,8 @@ them with "Check disks now" and "Check RAID now".
   does not is kept in the list with state `error`, code `missing` and its
   last values until the agent restarts or a scan finds it again; found
   under another path with the same serial number (it dropped off the bus
-  and came back), the missing entry goes.
+  and came back), the missing entry goes. A device without SMART data
+  (`unsupported`: a USB stick, a virtual disk) that goes away is dropped.
 - **Values and state** per device: model, serial, firmware, capacity,
   rotation rate, overall self-assessment (`passed`), temperature, power-on
   hours; ATA raw values of attributes 5 (reallocated), 184 (end-to-end

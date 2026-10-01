@@ -533,6 +533,58 @@ func TestMonitorWakesALongSleepingDisk(t *testing.T) {
 	}
 }
 
+// TestMonitorWakesAtMostOncePerWakeAfter: a waking read that gets no
+// health data (no read time) does not wake the disk again every round.
+func TestMonitorWakesAtMostOncePerWakeAfter(t *testing.T) {
+	ctx := testutil.Context(t)
+	clk := testutil.FakeClock()
+	noData := smartctl.Reading{Device: protocol.SMARTDevice{Name: "/dev/sda", Type: "sat", SMARTSupported: true,
+		State: protocol.DiskError, ErrorCode: protocol.DiskErrNoData}}
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{{Name: "/dev/sda", Type: "sat"}},
+		readings: map[string]smartctl.Reading{"/dev/sda": standby("/dev/sda")}}
+	m := New(Options{Clock: clk, Logger: testutil.Logger(t), Proc: hostProc(), SMART: smart, DevExists: func(string) bool { return true },
+		ScanInterval: 100 * DefaultWakeAfter})
+	m.round(ctx, true)
+	clk.Advance(DefaultWakeAfter)
+	smart.set("/dev/sda", noData)
+	m.round(ctx, false)
+	if len(smart.woken) != 1 {
+		t.Fatalf("woken %q, want once", smart.woken)
+	}
+	for range 3 {
+		clk.Advance(DefaultInterval)
+		m.round(ctx, false)
+	}
+	if len(smart.woken) != 1 {
+		t.Fatalf("woken %d times within a day", len(smart.woken))
+	}
+	clk.Advance(DefaultWakeAfter)
+	m.round(ctx, false)
+	if len(smart.woken) != 2 {
+		t.Fatalf("woken %d times, want again a day later", len(smart.woken))
+	}
+}
+
+// TestMonitorDoesNotMissDevicesWithoutSMART: a device without SMART data
+// (a USB stick) that goes away is not kept as missing.
+func TestMonitorDoesNotMissDevicesWithoutSMART(t *testing.T) {
+	ctx := testutil.Context(t)
+	sda, stick := smartctl.ScanDevice{Name: "/dev/sda", Type: "sat"}, smartctl.ScanDevice{Name: "/dev/sdc", Type: "sat"}
+	unsupported := smartctl.Reading{Device: protocol.SMARTDevice{Name: "/dev/sdc", Type: "sat", State: protocol.DiskError,
+		ErrorCode: protocol.DiskErrUnsupported}}
+	smart := &fakeSMART{scan: []smartctl.ScanDevice{sda, stick},
+		readings: map[string]smartctl.Reading{"/dev/sda": healthy("/dev/sda", "S1"), "/dev/sdc": unsupported}}
+	m, _ := newMonitor(t, smart, hostProc(), true)
+	m.round(ctx, true)
+	smart.mu.Lock()
+	smart.scan = []smartctl.ScanDevice{sda}
+	smart.mu.Unlock()
+	m.round(ctx, true)
+	if devs := m.Report().SMART.Devices; len(devs) != 1 || devs[0].Name != "/dev/sda" {
+		t.Fatalf("%+v", devs)
+	}
+}
+
 func TestMonitorWithoutSMARTStillReportsRAID(t *testing.T) {
 	m, _ := newMonitor(t, nil, hostProc(), true)
 	m.Run(testutil.Context(t)) // returns at once
