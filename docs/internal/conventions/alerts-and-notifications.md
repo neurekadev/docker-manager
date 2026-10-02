@@ -27,8 +27,8 @@ web `web/src/lib/features/notifications`.
   status line as author, the tone's color, linked values and bulleted
   lists, the logo `notify.LogoURL` beside the footer; Slack colored
   attachments, Teams an accented card, email an HTML card with the plain
-  part kept, the subject prefixed with the message's `Environment` in
-  brackets and the sender named `EmailFromName` ("Docker Manager", the
+  part kept, the subject prefixed with the message's `Tag` in
+  brackets (its environment, `Test` for a test message) and the sender named `EmailFromName` ("Docker Manager", the
   web's `EMAIL_FROM_NAME`) unless the address names one, Telegram HTML, ntfy and Gotify Markdown with priority and
   click link, Pushover a priority, a generic webhook `tone` and `url`
   keys, anything else plain text). Tone colors are the app's `--danger`,

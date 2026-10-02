@@ -151,8 +151,8 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 			set("priority", "1")
 		}
 	case "smtp":
-		// The subject is the title after the environment's name in
-		// brackets, the sender's name ours unless the address names one
+		// The subject is the title after the message's tag in brackets
+		// (its environment, or Test), the sender's name ours unless the address names one
 		// (a subject in the address wins as well); the HTML part replaces
 		// the plain one where the mail program can show it.
 		delete(r.params, "title")
@@ -179,13 +179,13 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 // none (the web's EMAIL_FROM_NAME).
 const EmailFromName = "Docker Manager"
 
-// emailSubject is the title, after the environment's name in brackets
-// when the message is about one ("[homelab] Disk /dev/sda is failing").
+// emailSubject is the title, after the message's tag in brackets when
+// it has one ("[homelab] Disk /dev/sda is failing").
 func emailSubject(msg domain.NotificationMessage) string {
-	if msg.Environment == "" {
+	if msg.Tag == "" {
 		return msg.Title
 	}
-	return "[" + msg.Environment + "] " + msg.Title
+	return "[" + msg.Tag + "] " + msg.Title
 }
 
 // templateLiteral makes s a Go template that prints s as it is.

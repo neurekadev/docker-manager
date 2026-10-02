@@ -44,7 +44,18 @@ const (
 	testMessageLabel   = "Test message"
 	testMessageTitle   = "Docker Manager test message"
 	testMessageBodyFmt = "This is a test message from Docker Manager. If you can read it, the channel %q works."
+	// testMessageTag marks a test email's subject ("[Test] ...").
+	testMessageTag = "Test"
 )
+
+// testMessage is the message Test sends to channel c.
+func (s *Service) testMessage(c domain.NotificationChannel, now time.Time) domain.NotificationMessage {
+	return domain.NotificationMessage{Label: testMessageLabel, Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name),
+		Tag: testMessageTag, URL: s.opts.PublicURL, Tone: domain.ToneInfo, Fields: []domain.NotificationField{
+			{Name: "Channel", Value: c.Name, Inline: true},
+			{Name: "Sends", Value: kindCount(len(c.Subscriptions.Kinds())), Inline: true},
+		}, Footer: "Docker Manager", Time: now.UTC()}
+}
 
 // OwnerGuard enforces owner-only administration (auth.Service).
 type OwnerGuard interface {
@@ -439,12 +450,7 @@ func (s *Service) Test(ctx context.Context, id string) (Result, error) {
 	}
 	s.lastTests[id] = now
 	s.mu.Unlock()
-	msg := domain.NotificationMessage{Label: testMessageLabel, Title: testMessageTitle, Body: fmt.Sprintf(testMessageBodyFmt, c.Name), URL: s.opts.PublicURL,
-		Tone: domain.ToneInfo, Fields: []domain.NotificationField{
-			{Name: "Channel", Value: c.Name, Inline: true},
-			{Name: "Sends", Value: kindCount(len(c.Subscriptions.Kinds())), Inline: true},
-		}, Footer: "Docker Manager", Time: now.UTC()}
-	res, err := s.send(ctx, c, addr, msg)
+	res, err := s.send(ctx, c, addr, s.testMessage(c, now))
 	if err != nil {
 		return Result{}, err
 	}

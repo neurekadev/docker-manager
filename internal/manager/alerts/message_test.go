@@ -345,7 +345,7 @@ func TestMessagesNameTheirEnvironment(t *testing.T) {
 		{"digest of several", []domain.AlertDelivery{d("Hyperion"), d("office")}, ""},
 		{"digest with one without", []domain.AlertDelivery{d("Hyperion"), d("")}, ""},
 	} {
-		if got := buildMessage("Home", "", c.items, now).Environment; got != c.want {
+		if got := buildMessage("Home", "", c.items, now).Tag; got != c.want {
 			t.Errorf("%s: %q, want %q", c.name, got, c.want)
 		}
 	}
