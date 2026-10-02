@@ -14583,7 +14583,7 @@
             "type": "array"
           },
           "metadata": {
-            "description": "md superblock version (absent for 0.90).",
+            "description": "md superblock version (1.2, 0.90, external:…).",
             "examples": [
               "1.2"
             ],

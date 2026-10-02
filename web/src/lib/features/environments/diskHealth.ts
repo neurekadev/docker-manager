@@ -274,12 +274,6 @@ const VALUES: Record<string, { label: string; format?: (v: number) => string }> 
 	critical_comp_time: { label: 'Time above the critical temperature', format: minutes }
 };
 
-/** A smartctl key in words: "accumulated_start_stop_cycles" → "Accumulated start stop cycles". */
-function keyWords(key: string): string {
-	const s = key.replaceAll('_', ' ').trim();
-	return s ? s[0].toUpperCase() + s.slice(1) : key;
-}
-
 /**
  * A health value as shown: its label and value in words. Nested SCSI
  * counters name their operation first ("Read: total errors corrected").
@@ -290,8 +284,8 @@ export function healthValue(v: DiskValue): { label: string; text: string } {
 	const dot = v.key.indexOf('.');
 	const label =
 		dot > 0
-			? `${keyWords(v.key.slice(0, dot))}: ${keyWords(v.key.slice(dot + 1)).toLowerCase()}`
-			: keyWords(v.key);
+			? `${attributeName(v.key.slice(0, dot))}: ${attributeName(v.key.slice(dot + 1)).toLowerCase()}`
+			: attributeName(v.key);
 	return { label, text: wholeNumber(v.value) };
 }
 
@@ -422,9 +416,12 @@ export function raidBadge(a: RaidArray): Badge {
 	return RAID_BADGE[a.state] ?? { status: 'unknown', label: 'Unknown' };
 }
 
-/** A kernel device name as its path: "sda1" → "/dev/sda1". */
+/**
+ * A kernel device name as its path: "sda1" → "/dev/sda1"; the kernel
+ * writes a "/" in a name as "!" ("cciss!c0d0p1" → "/dev/cciss/c0d0p1").
+ */
 export function devPath(name: string): string {
-	return name.startsWith('/') ? name : `/dev/${name}`;
+	return name.startsWith('/') ? name : `/dev/${name.replaceAll('!', '/')}`;
 }
 
 /** An array's name as shown: md arrays by their device path ("/dev/md0"), ZFS pools by name. */

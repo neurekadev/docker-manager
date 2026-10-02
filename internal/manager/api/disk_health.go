@@ -130,7 +130,7 @@ type RAIDArray struct {
 	SizeBytes int64        `json:"sizeBytes,omitempty"`
 	Members   []RAIDMember `json:"members"`
 	// md superblock and layout.
-	Metadata         string `json:"metadata,omitempty" example:"1.2" doc:"md superblock version (absent for 0.90)."`
+	Metadata         string `json:"metadata,omitempty" example:"1.2" doc:"md superblock version (1.2, 0.90, external:…)."`
 	ChunkBytes       int64  `json:"chunkBytes,omitempty"`
 	Layout           string `json:"layout,omitempty" example:"algorithm 2" doc:"raid5/6 parity algorithm or raid10 copies (\"2 near-copies\")."`
 	Bitmap           bool   `json:"bitmap,omitempty" doc:"The array has a write-intent bitmap."`

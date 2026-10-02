@@ -495,7 +495,8 @@ them with "Check disks now" and "Check RAID now".
   (`DOCKER_AGENT_HOST_PROC`): `/proc/mdstat` (name, level, active or
   inactive, read-only, members with `(F)` failed / `(S)` spare / `(W)`
   write-mostly / `(R)` / `(J)` flags, `[n/m]`, size, superblock version
-  (`super 1.2`; md prints none for 0.90), chunk size, layout (`algorithm
+  (`super 1.2`; md prints none for 0.90, so a size line without one is
+  0.90), chunk size, layout (`algorithm
   N` or the raid10 copies), the bitmap line and its chunk size, the recovery,
   resync, reshape, check or repair line with percent, finish estimate and
   speed, `=DELAYED` / `=PENDING`) and `/proc/spl/kstat/zfs/<pool>/state`

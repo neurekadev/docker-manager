@@ -298,7 +298,8 @@ type MDArray struct {
 	Active    int        `json:"active,omitempty"`
 	SizeBytes int64      `json:"sizeBytes,omitempty"`
 	Members   []MDMember `json:"members"`
-	// Metadata is the superblock version (1.2, 0.90, external:...);
+	// Metadata is the superblock version (1.2, 0.90, external:...,
+	// non-persistent);
 	// ChunkBytes the chunk size; Layout the raid5/6 algorithm ("algorithm
 	// 2") or the raid10 copies ("2 near-copies"); Bitmap a write-intent
 	// bitmap with BitmapChunkBytes its chunk size. Absent from agents

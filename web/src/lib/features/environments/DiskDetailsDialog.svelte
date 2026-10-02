@@ -140,7 +140,7 @@
 						label="SMART attributes of {name}"
 						rows={attributes}
 						columns={attributeColumns}
-						rowKey={(a) => String(a.id)}
+						rowKey={(a) => String(attributes.indexOf(a))}
 					/>
 				</div>
 			</section>
@@ -160,9 +160,9 @@
 		{/if}
 		{#if !attributes.length && !values.length}
 			<p class="muted empty">
-				{disk.readAt
-					? 'The agent sent no detailed SMART values for this disk. Update the agent to see them.'
-					: 'No SMART values were read from this disk.'}
+				{disk.state === 'error' || !disk.readAt
+					? 'No SMART values were read from this disk.'
+					: 'The disk reported no detailed SMART values. Agents older than this view don’t send them; update the agent if it is older.'}
 			</p>
 		{/if}
 	</div>

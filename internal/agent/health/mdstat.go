@@ -168,25 +168,25 @@ func parseMDHead(name, rest string) protocol.MDArray {
 	return a
 }
 
-// parseMDDetail reads the indented lines: size, superblock version (absent
-// for 0.90, which md does not print), chunk size, layout and [n/m]
-// [UU_], the bitmap line, the progress line and resync=DELAYED/PENDING.
+// parseMDDetail reads the indented lines: size, superblock version (md
+// prints none for 0.90, so a size line without one means 0.90), chunk
+// size, layout and [n/m] [UU_], the bitmap line, the progress line and
+// resync=DELAYED/PENDING.
 func parseMDDetail(a *protocol.MDArray, line string) {
 	if m := mdBlocksRE.FindStringSubmatch(line); m != nil {
-		if n, err := strconv.ParseInt(m[1], 10, 64); err == nil && n >= 0 && n <= math.MaxInt64/1024 {
-			a.SizeBytes = n * 1024
+		a.SizeBytes = kib(m[1])
+		a.Metadata = "0.90"
+		if s := mdSuperRE.FindStringSubmatch(line); s != nil {
+			a.Metadata = truncate(strings.TrimSuffix(s[1], ","), 64)
 		}
-	}
-	if m := mdSuperRE.FindStringSubmatch(line); m != nil && mdBlocksRE.MatchString(line) {
-		a.Metadata = truncate(strings.TrimSuffix(m[1], ","), 64)
-	}
-	if m := mdChunkRE.FindStringSubmatch(line); m != nil && mdBlocksRE.MatchString(line) {
-		a.ChunkBytes = kib(m[1])
-	}
-	if m := mdAlgoRE.FindString(line); m != "" {
-		a.Layout = m
-	} else if cs := mdCopiesRE.FindAllString(line, -1); len(cs) > 0 {
-		a.Layout = truncate(strings.Join(cs, " "), 64)
+		if c := mdChunkRE.FindStringSubmatch(line); c != nil {
+			a.ChunkBytes = kib(c[1])
+		}
+		if l := mdAlgoRE.FindString(line); l != "" {
+			a.Layout = l
+		} else if cs := mdCopiesRE.FindAllString(line, -1); len(cs) > 0 {
+			a.Layout = truncate(strings.Join(cs, " "), 64)
+		}
 	}
 	if strings.HasPrefix(line, "bitmap:") {
 		a.Bitmap = true
@@ -213,8 +213,7 @@ func parseMDDetail(a *protocol.MDArray, line string) {
 			}
 		}
 		if s := mdSpeedRE.FindStringSubmatch(line); s != nil {
-			if k, err := strconv.ParseInt(s[1], 10, 64); err == nil && k >= 0 && k <= math.MaxInt64/1024 {
-				bps := k * 1024
+			if bps := kib(s[1]); bps > 0 || s[1] == "0" {
 				a.SpeedBytesPerSecond = &bps
 			}
 		}

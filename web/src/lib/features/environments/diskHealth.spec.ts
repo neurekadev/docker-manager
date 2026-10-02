@@ -402,6 +402,9 @@ describe('details (#206)', () => {
 	it('names md arrays by their device path, ZFS pools by name', () => {
 		expect(arrayName(md())).toBe('/dev/md0');
 		expect(arrayName(md({ name: '/dev/md/data' }))).toBe('/dev/md/data');
+		expect(memberLabel({ name: 'cciss!c0d0p1', slot: 0, state: 'active' }).text).toBe(
+			'/dev/cciss/c0d0p1'
+		);
 		expect(arrayName({ kind: 'zfs', name: 'tank', state: 'healthy', members: [] })).toBe(
 			'tank'
 		);

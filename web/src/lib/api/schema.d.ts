@@ -11203,7 +11203,7 @@ export interface components {
             level?: string;
             members: components["schemas"]["RAIDMember"][];
             /**
-             * @description md superblock version (absent for 0.90).
+             * @description md superblock version (1.2, 0.90, external:…).
              * @example 1.2
              */
             metadata?: string;

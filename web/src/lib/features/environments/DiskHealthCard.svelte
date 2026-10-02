@@ -90,6 +90,11 @@
 	let detailsOpen = $state(false);
 	let selectedKey = $state('');
 	const selected = $derived(rows.find((d) => diskKey(d) === selectedKey));
+	// A row that leaves (a notice replaced the list) closes its details, so
+	// they never reopen by themselves when it comes back.
+	$effect(() => {
+		if (!selected) detailsOpen = false;
+	});
 	function showDetails(d: DiskDevice) {
 		selectedKey = diskKey(d);
 		detailsOpen = true;

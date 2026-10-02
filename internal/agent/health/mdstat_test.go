@@ -122,7 +122,7 @@ md2 : active raid5 sde1[4](S) sdd1[3](F) sdc1[2] sdb1[1] sda1[0](W)
 			Members: []protocol.MDMember{active("sdb", 1)}}}},
 		{"multipath without a working path", `md10 : active multipath sdb[1](F) sda[0](F)
       1000 blocks [2/0] [__]
-`, []protocol.MDArray{{Name: "md10", Level: "multipath", State: protocol.RAIDFailed, Devices: 2, SizeBytes: 1000 * 1024,
+`, []protocol.MDArray{{Name: "md10", Level: "multipath", State: protocol.RAIDFailed, Devices: 2, SizeBytes: 1000 * 1024, Metadata: "0.90",
 			Members: []protocol.MDMember{{Name: "sdb", Slot: 1, State: protocol.MemberFailed}, {Name: "sda", Slot: 0, State: protocol.MemberFailed}}}}},
 		{"raid0 without status", `Personalities : [raid0]
 md4 : active raid0 sdg1[1] sdf1[0]
@@ -153,11 +153,11 @@ unused devices: <none>
 				Members: []protocol.MDMember{active("sdf", 3), active("sde", 2), active("sdd", 1), active("sdc", 0)}, Action: protocol.MDReshape,
 				Progress: f64(52.1), FinishSeconds: i64(6), SpeedBytesPerSecond: i64(1000 * 1024)},
 		}},
-		{"metadata 0.90 with a bitmap file", `md13 : active raid1 sdb1[1] sda1[0]
+		{"metadata 0.90 (no super) with a bitmap file", `md13 : active raid1 sdb1[1] sda1[0]
       1000 blocks [2/2] [UU]
       bitmap: 1/1 pages [4KB], 65536KB chunk, file: /bitmaps/md13
 `, []protocol.MDArray{{Name: "md13", Level: "raid1", State: protocol.RAIDHealthy, Devices: 2, Active: 2, SizeBytes: 1000 * 1024,
-			Bitmap: true, BitmapChunkBytes: 65536 * 1024, Members: []protocol.MDMember{active("sdb1", 1), active("sda1", 0)}}}},
+			Metadata: "0.90", Bitmap: true, BitmapChunkBytes: 65536 * 1024, Members: []protocol.MDMember{active("sdb1", 1), active("sda1", 0)}}}},
 		{"raid6", `md14 : active raid6 sdd[3] sdc[2] sdb[1] sda[0]
       2000 blocks super external:/md127/0 level 6, 64k chunk, algorithm 18 [4/4] [UUUU]
 `, []protocol.MDArray{{Name: "md14", Level: "raid6", State: protocol.RAIDHealthy, Devices: 4, Active: 4, SizeBytes: 2000 * 1024,

@@ -79,6 +79,11 @@
 	let detailsOpen = $state(false);
 	let selectedKey = $state('');
 	const selected = $derived(rows.find((a) => arrayKey(a) === selectedKey));
+	// A row that leaves (a notice replaced the list) closes its details, so
+	// they never reopen by themselves when it comes back.
+	$effect(() => {
+		if (!selected) detailsOpen = false;
+	});
 	function showDetails(a: RaidArray) {
 		selectedKey = arrayKey(a);
 		detailsOpen = true;

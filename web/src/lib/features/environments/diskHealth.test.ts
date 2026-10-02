@@ -181,7 +181,7 @@ describe('DiskHealthCard', () => {
 		const dialog = await screen.findByRole('dialog', { name: '/dev/sdb' });
 		expect(
 			within(dialog).getByText(
-				'The agent sent no detailed SMART values for this disk. Update the agent to see them.'
+				'The disk reported no detailed SMART values. Agents older than this view don’t send them; update the agent if it is older.'
 			)
 		).toBeInTheDocument();
 	});
