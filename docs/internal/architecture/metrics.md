@@ -463,8 +463,10 @@ them with "Check disks now" and "Check RAID now".
   health log, the SCSI error counter log (`read.total_errors_corrected`,
   one nesting level) and start-stop counter, in smartctl's order, plus
   `power_cycle_count` when there is no NVMe log (strings, arrays and
-  deeper objects are left out; at most 64 each). They are shown only; the
-  state derives from the fields above.
+  deeper objects are left out; at most 64 each; beyond 512 KiB of them in
+  one answer, `protocol.MaxHealthDetailBytes`, the last devices go
+  without, so a host with many disks stays within a frame). They are
+  shown only; the state derives from the fields above.
   `protocol.DeriveDiskState`: **failing** for a failed self-assessment, an
   attribute failing now or an NVMe critical warning about the drive
   (spare, reliability, read-only, backup memory); **warning** for an NVMe

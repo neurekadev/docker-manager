@@ -1213,7 +1213,9 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   `failed` or `inactive`; `whenFailed` is `now` or `past`. At most 256
   devices, 64 md arrays, 64 pools, 128 members per array, 32 failing
   attributes, 64 attribute rows and 64 values per device (keys and raw
-  texts at most 64 bytes); the manager validates every bound
+  texts at most 64 bytes; beyond 512 KiB of attribute rows and values in
+  one answer the agent leaves them out, last devices first, so the answer
+  stays within a frame); the manager validates every bound
   (`HostHealthOutput.Validate`). A device is identified by `name` and
   `type` together (disks behind one RAID controller share its path). A
   read that failed, or read nothing about the disk's health

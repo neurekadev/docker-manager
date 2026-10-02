@@ -559,6 +559,7 @@ func (m *Monitor) Report() protocol.HostHealthOutput {
 		s.IntervalSeconds = int64(m.opts.Interval / time.Second)
 	}
 	copy(s.Devices, m.devices)
+	fitDetails(s.Devices, protocol.MaxHealthDetailBytes)
 	if !m.scannedAt.IsZero() {
 		t := m.scannedAt.UTC()
 		s.ScannedAt = &t
@@ -569,6 +570,29 @@ func (m *Monitor) Report() protocol.HostHealthOutput {
 	}
 	out.SMART = s
 	return out
+}
+
+// fitDetails leaves out the attribute tables and values of the last
+// devices (shallow copies: the cached devices keep theirs) until those of
+// all devices encode to at most budget bytes.
+func fitDetails(devs []protocol.SMARTDevice, budget int) {
+	sizes := make([]int, len(devs))
+	total := 0
+	for i, d := range devs {
+		if len(d.Attributes) == 0 && len(d.Values) == 0 {
+			continue
+		}
+		a, _ := json.Marshal(d.Attributes)
+		v, _ := json.Marshal(d.Values)
+		sizes[i] = len(a) + len(v)
+		total += sizes[i]
+	}
+	for i := len(devs) - 1; i >= 0 && total > budget; i-- {
+		if sizes[i] > 0 {
+			devs[i].Attributes, devs[i].Values = nil, nil
+			total -= sizes[i]
+		}
+	}
 }
 
 // HostHealth serves host.health: refresh "smart" starts a fresh read of

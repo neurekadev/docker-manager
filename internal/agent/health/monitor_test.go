@@ -759,3 +759,42 @@ func TestReadRAIDReportsUnreadablePools(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+// TestFitDetailsKeepsTheAnswerSmall: beyond the budget the last devices'
+// attribute tables and values are left out; the cached devices keep
+// theirs, and a device without details is left alone.
+func TestFitDetailsKeepsTheAnswerSmall(t *testing.T) {
+	raw := int64(1)
+	withDetails := func(name string) protocol.SMARTDevice {
+		return protocol.SMARTDevice{Name: name, Type: "sat", State: protocol.DiskOK,
+			Attributes: []protocol.SMARTAttributeRow{{ID: 5, Name: "Reallocated_Sector_Ct", Raw: &raw}},
+			Values:     []protocol.SMARTValue{{Key: "power_cycle_count", Value: 41}}}
+	}
+	cached := []protocol.SMARTDevice{withDetails("/dev/sda"), {Name: "/dev/sdb", Type: "sat", State: protocol.DiskOK},
+		withDetails("/dev/sdc"), withDetails("/dev/sdd")}
+	a, _ := json.Marshal(cached[0].Attributes)
+	v, _ := json.Marshal(cached[0].Values)
+	one := len(a) + len(v)
+
+	devs := slices.Clone(cached)
+	fitDetails(devs, 3*one)
+	for _, d := range devs {
+		if d.Name != "/dev/sdb" && (d.Attributes == nil || d.Values == nil) {
+			t.Fatalf("within the budget nothing is left out: %+v", d)
+		}
+	}
+	devs = slices.Clone(cached)
+	fitDetails(devs, 2*one)
+	if devs[0].Attributes == nil || devs[2].Attributes == nil || devs[3].Attributes != nil || devs[3].Values != nil {
+		t.Fatalf("the last device's details go first: %+v", devs)
+	}
+	fitDetails(devs, 0)
+	for _, d := range devs {
+		if d.Attributes != nil || d.Values != nil {
+			t.Fatalf("budget 0 leaves no details: %+v", d)
+		}
+	}
+	if cached[3].Attributes == nil {
+		t.Error("the cached devices keep their details")
+	}
+}

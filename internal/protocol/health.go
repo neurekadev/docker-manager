@@ -29,6 +29,11 @@ const (
 	MaxSMARTAttributes = 64
 	// MaxSMARTValues bounds the other health values of one device.
 	MaxSMARTValues = 64
+	// MaxHealthDetailBytes bounds the encoded attribute tables and values
+	// of all devices of one answer together: beyond it the agent leaves
+	// them out, last devices first, so a host with many disks stays well
+	// within MaxFrameSize.
+	MaxHealthDetailBytes = 512 << 10
 	// maxHealthText bounds the free-text fields (model, serial, names).
 	maxHealthText = 255
 	// maxHealthMessage bounds an error message.
