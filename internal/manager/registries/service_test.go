@@ -418,6 +418,214 @@ func TestCheckIsCachedAndAudited(t *testing.T) {
 	}
 }
 
+// TestPullLimitsPerHostAndCredential: the limits a registry reports to
+// checks are kept per host and credential (anonymous access apart from a
+// connection), written when they change or once a minute, kept when a
+// later answer reports none, marked limited by a 429 and removed with
+// their connection.
+func TestPullLimitsPerHostAndCredential(t *testing.T) {
+	f := newFixture(t)
+	f.reg.Private["team/app"] = true
+	f.reg.Put("team/app", "1", regclient.MediaOCIManifest, []byte(regtest.ManifestBody))
+	f.reg.Put("team/pub", "1", regclient.MediaOCIManifest, []byte(regtest.ManifestBody))
+	f.reg.Headers = map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "187;w=21600"}
+	c := f.robot("fake", "team/app")
+	host := f.reg.Host()
+	limits := func() map[string]domain.RegistryPullLimit {
+		t.Helper()
+		all, err := f.svc.PullLimits(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]domain.RegistryPullLimit{}
+		for _, p := range all {
+			if p.Host != host {
+				t.Fatalf("host %q", p.Host)
+			}
+			out[p.ConnectionID] = p
+		}
+		return out
+	}
+	setHeaders := func(h map[string]string) {
+		f.reg.Lock()
+		f.reg.Headers = h
+		f.reg.Unlock()
+	}
+	test := func() {
+		t.Helper()
+		if _, err := f.svc.ConnectionTest(f.ctx, c.ID, host+"/team/app:1", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(ref string) {
+		t.Helper()
+		if _, err := f.svc.Check(f.ctx, registries.CheckRequest{RegistrySelectRequest: domain.RegistrySelectRequest{Reference: host + ref}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	check("/team/app:1")
+	check("/team/pub:1")
+	got := limits()
+	start := f.clk.Now().UTC()
+	for id, p := range map[string]domain.RegistryPullLimit{"": got[""], c.ID: got[c.ID]} {
+		if p.Limit == nil || *p.Limit != 200 || p.Remaining == nil || *p.Remaining != 187 || p.Window != 6*time.Hour ||
+			p.ObservedAt == nil || !p.ObservedAt.Equal(start) || !p.CheckedAt.Equal(start) || p.Limited(start) {
+			t.Fatalf("%q: %+v", id, p)
+		}
+	}
+
+	// A change is written at once; the same values again only after a minute.
+	setHeaders(map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "186;w=21600"})
+	f.clk.Advance(10 * time.Second)
+	test()
+	if p := limits()[c.ID]; *p.Remaining != 186 || !p.CheckedAt.Equal(f.clk.Now().UTC()) {
+		t.Fatalf("changed: %+v", p)
+	}
+	written := f.clk.Now().UTC()
+	f.clk.Advance(10 * time.Second)
+	test()
+	if p := limits()[c.ID]; !p.CheckedAt.Equal(written) {
+		t.Fatalf("unchanged values written again within a minute: %+v", p)
+	}
+	f.clk.Advance(time.Minute)
+	test()
+	observed := f.clk.Now().UTC()
+	if p := limits()[c.ID]; !p.CheckedAt.Equal(observed) || !p.ObservedAt.Equal(observed) {
+		t.Fatalf("not written after a minute: %+v", p)
+	}
+
+	// An answer without limit headers keeps the last reported limit.
+	setHeaders(nil)
+	f.clk.Advance(time.Minute)
+	test()
+	if p := limits()[c.ID]; p.Limit == nil || *p.Limit != 200 || *p.Remaining != 186 || !p.ObservedAt.Equal(observed) ||
+		!p.CheckedAt.Equal(f.clk.Now().UTC()) {
+		t.Fatalf("without headers: %+v", p)
+	}
+
+	// A 429 marks the connection limited until its Retry-After; anonymous
+	// access is counted apart.
+	f.clk.Advance(time.Minute)
+	f.reg.FailNext(http.StatusTooManyRequests, map[string]string{"Retry-After": "600"}, 1)
+	test()
+	now := f.clk.Now().UTC()
+	p := limits()[c.ID]
+	if !p.Limited(now) || p.LimitedUntil == nil || !p.LimitedUntil.Equal(now.Add(10*time.Minute)) || !p.LastLimitedAt.Equal(now) {
+		t.Fatalf("limited: %+v", p)
+	}
+	if p.Limited(now.Add(10 * time.Minute)) {
+		t.Fatalf("still limited after the reset: %+v", p)
+	}
+	if a := limits()[""]; a.Limited(now) || *a.Remaining != 187 {
+		t.Fatalf("anonymous: %+v", a)
+	}
+
+	// Deleting the connection removes its limits, not the anonymous ones.
+	cur, err := f.svc.Get(f.ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.Delete(f.ctx, c.ID, cur.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if got := limits(); len(got) != 1 || got[""].Limit == nil {
+		t.Fatalf("after delete: %+v", got)
+	}
+}
+
+// TestPullLimitWritesThatLoseOrComeLate: an answer older than the stored
+// one is not stored and does not hold back the next write; an answer to a
+// credential replaced while the check was in flight is not stored.
+func TestPullLimitWritesThatLoseOrComeLate(t *testing.T) {
+	f := newFixture(t)
+	f.reg.Private["team/app"] = true
+	f.reg.Put("team/app", "1", regclient.MediaOCIManifest, []byte(regtest.ManifestBody))
+	f.reg.Headers = map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "187;w=21600"}
+	c := f.robot("fake", "team/app")
+	host := f.reg.Host()
+	test := func() {
+		t.Helper()
+		if _, err := f.svc.ConnectionTest(f.ctx, c.ID, host+"/team/app:1", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row := func() (domain.RegistryPullLimit, bool) {
+		t.Helper()
+		all, err := f.svc.PullLimits(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range all {
+			if p.ConnectionID == c.ID {
+				return p, true
+			}
+		}
+		return domain.RegistryPullLimit{}, false
+	}
+	test()
+	if _, ok := row(); !ok {
+		t.Fatal("no pull limit after a test")
+	}
+
+	// A newer answer is stored already (its check finished first): this
+	// one loses.
+	newer := f.clk.Now().UTC().Add(time.Hour)
+	limit, five := int64(200), int64(5)
+	if _, err := store.RecordRegistryPullLimit(f.ctx, f.db, domain.RegistryPullLimit{Host: host, ConnectionID: c.ID, Limit: &limit,
+		Remaining: &five, ObservedAt: &newer, CheckedAt: newer}); err != nil {
+		t.Fatal(err)
+	}
+	f.reg.Lock()
+	f.reg.Headers = map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "186;w=21600"}
+	f.reg.Unlock()
+	f.clk.Advance(10 * time.Second)
+	test()
+	if p, _ := row(); *p.Remaining != 5 || !p.CheckedAt.Equal(newer) {
+		t.Fatalf("an older answer overwrote a newer one: %+v", p)
+	}
+	// The lost write is not remembered: the same values again, within the
+	// minute, are written.
+	if err := store.DeleteRegistryPullLimits(f.ctx, f.db, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.clk.Advance(10 * time.Second)
+	test()
+	if p, ok := row(); !ok || *p.Remaining != 186 {
+		t.Fatalf("the write after a lost one was held back: %+v %v", p, ok)
+	}
+
+	// A check in flight while the credential is rotated: its answer does
+	// not bring the deleted row back.
+	f.reg.Lock()
+	f.reg.Block, f.reg.Entered = make(chan struct{}), make(chan struct{}, 1)
+	f.reg.Unlock()
+	done := make(chan error, 1)
+	go func() {
+		_, err := f.svc.ConnectionTest(f.ctx, c.ID, host+"/team/app:1", "")
+		done <- err
+	}()
+	<-f.reg.Entered
+	cur, err := f.svc.Get(f.ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Rotate(f.ctx, c.ID, cur.Revision, domain.RegistryCredentialRotation{
+		Secret: f.secrets.New(canary.RegistryCredential, "rotated registry password")}); err != nil {
+		t.Fatal(err)
+	}
+	f.reg.Lock()
+	close(f.reg.Block)
+	f.reg.Block = nil
+	f.reg.Unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := row(); ok {
+		t.Fatalf("an answer to the replaced credential was stored: %+v", p)
+	}
+}
+
 // TestJobsGetTheCurrentCredentialAtDispatch runs the job engine with the
 // service as its CommandSecrets source: commands carry the credential of
 // the connection named in the job input, a rotation applies to later jobs

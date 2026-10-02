@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/manager/regclient"
 	"github.com/neurekadev/docker-manager/internal/manager/regclient/regtest"
+	"github.com/neurekadev/docker-manager/internal/manager/store"
 	"github.com/neurekadev/docker-manager/internal/testutil"
 	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
@@ -201,6 +204,77 @@ func TestRegistryConnectionsThroughTheAPI(t *testing.T) {
 		if !containsString(actions, w) {
 			t.Fatalf("audit actions %v lack %s", actions, w)
 		}
+	}
+}
+
+// TestRegistryPullLimitsThroughTheAPI: a connection test records the limit
+// the registry reports; the list shows a connection's limit to its
+// readers and anonymous access to instance-wide readers only.
+func TestRegistryPullLimitsThroughTheAPI(t *testing.T) {
+	e, reg := registryEnv(t)
+	owner, _ := e.setupOwner()
+	reg.Private["team/app"] = true
+	reg.Put("team/app", "1.0", regclient.MediaOCIManifest, []byte(regtest.ManifestBody))
+	reg.Headers = map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "187;w=21600"}
+	var a registryBody
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/registries", map[string]any{"name": "A", "host": reg.Host(),
+		"username": "robot", "secret": reg.Password}).json(t, &a)
+
+	type limitBody struct {
+		Host          string `json:"host"`
+		RegistryID    string `json:"registryId"`
+		Limit         *int64 `json:"limit"`
+		Remaining     *int64 `json:"remaining"`
+		WindowSeconds int64  `json:"windowSeconds"`
+		Limited       bool   `json:"limited"`
+	}
+	var page struct {
+		Items []limitBody `json:"items"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/registries/pull-limits", nil).json(t, &page)
+	if len(page.Items) != 0 {
+		t.Fatalf("before any check: %+v", page.Items)
+	}
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/registries/"+a.ID+"/connection-tests",
+		map[string]any{"imageReference": reg.Host() + "/team/app:1.0"})
+	// Anonymous checks of the same host are counted apart.
+	ctx := testutil.Context(t)
+	limit, remaining := int64(100), int64(42)
+	if _, err := store.RecordRegistryPullLimit(ctx, e.m.DB(), domain.RegistryPullLimit{Host: reg.Host(), Limit: &limit,
+		Remaining: &remaining, CheckedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	byID := func(items []limitBody) map[string]limitBody {
+		out := map[string]limitBody{}
+		for _, it := range items {
+			out[it.RegistryID] = it
+		}
+		return out
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/registries/pull-limits", nil).json(t, &page)
+	got := byID(page.Items)
+	if c := got[a.ID]; len(page.Items) != 2 || c.Host != reg.Host() || c.Limit == nil || *c.Limit != 200 || c.Remaining == nil ||
+		*c.Remaining != 187 || c.WindowSeconds != 21600 || c.Limited {
+		t.Fatalf("owner sees %+v", page.Items)
+	}
+	if anon := got[""]; anon.Limit == nil || *anon.Limit != 100 || *anon.Remaining != 42 {
+		t.Fatalf("anonymous %+v", anon)
+	}
+
+	rita, ritaID := e.opsUser(owner, "allow api_tokens.create @all")
+	rita.must(http.StatusOK, http.MethodGet, "/api/v1/registries/pull-limits", nil).json(t, &page)
+	if len(page.Items) != 0 {
+		t.Fatalf("rita without registry.read sees %+v", page.Items)
+	}
+	owner.putRules("/api/v1/users/"+ritaID+"/permissions", "allow registry.read @registry:"+a.ID)
+	rita.must(http.StatusOK, http.MethodGet, "/api/v1/registries/pull-limits", nil).json(t, &page)
+	if len(page.Items) != 1 || page.Items[0].RegistryID != a.ID {
+		t.Fatalf("rita with registry.read on the connection sees %+v", page.Items)
+	}
+	owner.putRules("/api/v1/users/"+ritaID+"/permissions", "allow registry.read @all")
+	rita.must(http.StatusOK, http.MethodGet, "/api/v1/registries/pull-limits", nil).json(t, &page)
+	if len(page.Items) != 2 {
+		t.Fatalf("rita with registry.read everywhere sees %+v", page.Items)
 	}
 }
 

@@ -1,6 +1,7 @@
 package regclient
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -276,6 +277,60 @@ func TestPlatformSelection(t *testing.T) {
 	}
 }
 
+// TestKnownIndexNeedsNoGET: the platform manifest an index digest selects
+// is remembered, so a check of an unchanged multi-platform tag is a HEAD
+// only (Docker Hub counts manifest GETs as pulls); a new index is read
+// again.
+func TestKnownIndexNeedsNoGET(t *testing.T) {
+	f := regtest.New(t, regtest.AuthNone, "", "")
+	amd := f.Put("app", "amd", MediaOCIManifest, []byte(manifestBody+" "))
+	arm := f.Put("app", "arm", MediaOCIManifest, []byte(manifestBody+"  "))
+	index := func(digest string) string {
+		return `{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[` +
+			`{"digest":"` + digest + `","platform":{"os":"linux","architecture":"amd64"}},` +
+			`{"digest":"` + arm + `","platform":{"os":"linux","architecture":"arm64"}}]}`
+	}
+	idx := f.Put("app", "multi", MediaOCIIndex, []byte(index(amd)))
+	clk := testutil.FakeClock()
+	c := newClient(t, f, clk)
+	ctx := testutil.Context(t)
+	req := Request{Ref: ref(t, f, "app:multi"), Platform: "linux/amd64"}
+	gets := func() int {
+		f.Lock()
+		defer f.Unlock()
+		return f.GetHits
+	}
+
+	for i := range 2 {
+		res, err := c.Resolve(ctx, req)
+		if err != nil || res.Cached || res.Digest != idx || res.PlatformDigest != amd || res.MediaType != MediaOCIIndex {
+			t.Fatalf("check %d: %+v, %v", i, res, err)
+		}
+		if g := gets(); g != 1 {
+			t.Fatalf("check %d: manifest GETs = %d, want 1", i, g)
+		}
+		clk.Advance(DefaultCacheTTL)
+	}
+	// Another platform of the same index is read once.
+	if res, err := c.Resolve(ctx, Request{Ref: ref(t, f, "app:multi"), Platform: "linux/arm64"}); err != nil || res.PlatformDigest != arm {
+		t.Fatalf("arm64: %+v, %v", res, err)
+	}
+	if g := gets(); g != 2 {
+		t.Fatalf("manifest GETs = %d, want 2", g)
+	}
+
+	// The tag moves to a new index: read again.
+	amd2 := f.Put("app", "amd2", MediaOCIManifest, []byte(manifestBody+"   "))
+	idx2 := f.Put("app", "multi", MediaOCIIndex, []byte(index(amd2)))
+	res, err := c.Resolve(ctx, req)
+	if err != nil || res.Digest != idx2 || res.PlatformDigest != amd2 {
+		t.Fatalf("new index: %+v, %v", res, err)
+	}
+	if g := gets(); g != 3 {
+		t.Fatalf("manifest GETs = %d, want 3", g)
+	}
+}
+
 func TestMissingDigestHeaderFallsBackToGET(t *testing.T) {
 	f := regtest.New(t, regtest.AuthNone, "robot", "correct-horse-battery-canary")
 	f.NoDigest = true
@@ -495,5 +550,146 @@ func TestCreatedUnavailable(t *testing.T) {
 	clk.Advance(time.Minute)
 	if got, _, err := c.Created(ctx, req, d); err != nil || got.Year() != 2026 {
 		t.Fatalf("after the cooldown: %v %v", got, err)
+	}
+}
+
+// observer collects rate-limit reports.
+type observer struct {
+	mu  sync.Mutex
+	got []RateLimit
+}
+
+func (o *observer) observe(_ context.Context, rl RateLimit) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.got = append(o.got, rl)
+}
+
+func (o *observer) all() []RateLimit {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]RateLimit{}, o.got...)
+}
+
+func TestRateLimitsAreReportedPerResponse(t *testing.T) {
+	f := regtest.New(t, regtest.AuthBearer, "robot", "correct-horse-battery-canary")
+	f.Put("team/app", "1", MediaOCIManifest, []byte(manifestBody))
+	f.Headers = map[string]string{"RateLimit-Limit": "100;w=21600", "RateLimit-Remaining": "76;w=21600",
+		"Docker-RateLimit-Source": "192.0.2.10"}
+	clk := testutil.FakeClock()
+	c := newClient(t, f, clk)
+	var o observer
+	c.SetRateLimitObserver(o.observe)
+	ctx := testutil.Context(t)
+
+	// The challenge (401) is not reported; the answer to the authorized
+	// request is, with the request's host and credential.
+	if _, err := c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:1"), Credential: cred(f), CredentialKey: "conn-1/2"}); err != nil {
+		t.Fatal(err)
+	}
+	got := o.all()
+	if len(got) != 1 {
+		t.Fatalf("reports %+v", got)
+	}
+	rl := got[0]
+	if rl.Host != f.Host() || rl.CredentialKey != "conn-1/2" || !rl.Reported() || rl.Limit != 100 || rl.Remaining != 76 ||
+		rl.Window != 6*time.Hour || rl.Limited || !rl.At.Equal(clk.Now().UTC()) {
+		t.Fatalf("report %+v", rl)
+	}
+	// A cached result makes no request and reports nothing.
+	if res, err := c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:1"), Credential: cred(f), CredentialKey: "conn-1/2"}); err != nil || !res.Cached {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if n := len(o.all()); n != 1 {
+		t.Fatalf("reports after a cached check: %d", n)
+	}
+
+	// A registry without limit headers is reported too (it answered).
+	f.Lock()
+	f.Headers = nil
+	f.Unlock()
+	if _, err := c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:1"), Fresh: true}); err != nil {
+		t.Fatal(err)
+	}
+	if rl := o.all()[1]; rl.Reported() || rl.Remaining != -1 || rl.CredentialKey != "" || rl.Limited {
+		t.Fatalf("report without headers %+v", rl)
+	}
+
+	// A 429 is reported as limited, with its retry guidance.
+	f.FailNext(http.StatusTooManyRequests, map[string]string{"Retry-After": "3600", "X-RateLimit-Limit": "100"}, 1)
+	_, err := c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:2"), Fresh: true})
+	wantClass(t, err, ClassRateLimited)
+	if rl := o.all()[2]; !rl.Limited || rl.RetryAfter != time.Hour || rl.Limit != 100 || rl.Remaining != 0 {
+		t.Fatalf("429 report %+v", rl)
+	}
+}
+
+func TestRateLimitHeaders(t *testing.T) {
+	now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	req := Request{Ref: imageref.Ref{Host: "docker.io", Repository: "library/nginx", Tag: "1"}, CredentialKey: "c/1"}
+	cases := []struct {
+		name      string
+		status    int
+		h         http.Header
+		limit     int64
+		remaining int64
+		window    time.Duration
+		resetIn   time.Duration
+		limited   bool
+	}{
+		{"docker hub", 200, http.Header{"Ratelimit-Limit": {"100;w=21600"}, "Ratelimit-Remaining": {"99;w=21600"}}, 100, 99, 6 * time.Hour, 0, false},
+		{"plain integers", 200, http.Header{"Ratelimit-Limit": {"200"}, "Ratelimit-Remaining": {"187"}}, 200, 187, 0, 0, false},
+		{"x- forms", 200, http.Header{"X-Ratelimit-Limit": {"5000"}, "X-Ratelimit-Remaining": {"4999"}, "X-Ratelimit-Reset": {"120"}},
+			5000, 4999, 0, 2 * time.Minute, false},
+		{"window on remaining only", 200, http.Header{"Ratelimit-Limit": {"100"}, "Ratelimit-Remaining": {"5;w=3600"}}, 100, 5, time.Hour, 0, false},
+		{"list takes the first", 200, http.Header{"Ratelimit-Limit": {"100, 5000;w=3600"}}, 100, -1, 0, 0, false},
+		{"remaining over limit", 200, http.Header{"Ratelimit-Limit": {"10"}, "Ratelimit-Remaining": {"50"}}, 10, 10, 0, 0, false},
+		{"bad window", 200, http.Header{"Ratelimit-Limit": {"100;w=soon"}}, 100, -1, 0, 0, false},
+		{"garbage", 200, http.Header{"Ratelimit-Limit": {"lots"}, "Ratelimit-Remaining": {"7"}}, 0, -1, 0, 0, false},
+		{"negative", 200, http.Header{"Ratelimit-Limit": {"-1"}}, 0, -1, 0, 0, false},
+		{"none", 200, http.Header{}, 0, -1, 0, 0, false},
+		{"429 without headers", 429, http.Header{"Retry-After": {"30"}}, 0, -1, 0, 0, true},
+	}
+	for _, c := range cases {
+		rl := rateLimitOf(req, c.status, c.h, now)
+		if rl.Limit != c.limit || rl.Remaining != c.remaining || rl.Window != c.window || rl.Limited != c.limited ||
+			rl.Host != "docker.io" || rl.CredentialKey != "c/1" || !rl.At.Equal(now) {
+			t.Errorf("%s: %+v", c.name, rl)
+		}
+		if (c.resetIn == 0) != rl.ResetAt.IsZero() || (c.resetIn > 0 && !rl.ResetAt.Equal(now.Add(c.resetIn))) {
+			t.Errorf("%s: reset at %v", c.name, rl.ResetAt)
+		}
+	}
+	if rl := rateLimitOf(req, 429, http.Header{"Retry-After": {"30"}}, now); rl.RetryAfter != 30*time.Second {
+		t.Errorf("retry after %v", rl.RetryAfter)
+	}
+}
+
+// TestCooldownIsPerCredential: anonymous limits (per IP address) and a
+// connection's (per account) are counted apart, so an anonymous 429 does
+// not hold back the connection's checks of the same host.
+func TestCooldownIsPerCredential(t *testing.T) {
+	f := regtest.New(t, regtest.AuthBearer, "robot", "correct-horse-battery-canary")
+	d := f.Put("team/app", "1", MediaOCIManifest, []byte(manifestBody))
+	c := newClient(t, f, testutil.FakeClock())
+	ctx := testutil.Context(t)
+	f.FailNext(http.StatusTooManyRequests, map[string]string{"Retry-After": "3600"}, 1)
+
+	_, err := c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:1")})
+	wantClass(t, err, ClassRateLimited)
+	before, _, _ := f.Counts()
+	res, err := c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:1"), Credential: cred(f), CredentialKey: "conn-1/1"})
+	if err != nil || res.Digest != d {
+		t.Fatalf("with the connection during the anonymous cooldown: %+v, %v", res, err)
+	}
+	after, _, _ := f.Counts()
+	if after == before {
+		t.Fatal("the connection's check did not reach the registry")
+	}
+	// The anonymous cooldown holds: no request.
+	_, err = c.Resolve(ctx, Request{Ref: ref(t, f, "team/app:1"), Fresh: true})
+	wantClass(t, err, ClassRateLimited)
+	if n, _, _ := f.Counts(); n != after {
+		t.Fatalf("anonymous check contacted the registry during its cooldown")
 	}
 }

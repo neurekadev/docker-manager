@@ -2,8 +2,9 @@
 // owner-administered, write-only credentials sealed with the
 // secret-protection key, deterministic matching of image references to
 // connections, connection tests and digest checks through the manager's
-// registry client (internal/manager/regclient), and the per-dispatch
-// resolution of a job's registry credentials for the agent.
+// registry client (internal/manager/regclient), the pull limits registries
+// report to those checks, and the per-dispatch resolution of a job's
+// registry credentials for the agent.
 //
 // Secrets leave this package only as protocol.RegistryCredential values
 // inside one job command (CommandSecrets) or as the in-memory credential of
@@ -17,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -80,6 +82,12 @@ type Service struct {
 	opts   Options
 	db     *bun.DB
 	client *regclient.Client
+
+	// limits remembers the last pull limit written per host and
+	// connection, so a busy check run writes each at most once a minute
+	// unless it changes.
+	limitsMu sync.Mutex
+	limits   map[string]limitWrite
 }
 
 // New creates the service.
@@ -97,7 +105,9 @@ func New(opts Options) (*Service, error) {
 	if client == nil {
 		client = regclient.New(regclient.Options{Clock: opts.Clock, Logger: opts.Logger})
 	}
-	return &Service{opts: opts, db: opts.DB, client: client}, nil
+	s := &Service{opts: opts, db: opts.DB, client: client, limits: map[string]limitWrite{}}
+	client.SetRateLimitObserver(s.observeRateLimit)
+	return s, nil
 }
 
 func fieldErr(field, message string) error { return &domain.FieldError{Field: field, Message: message} }
@@ -355,6 +365,8 @@ func (s *Service) Rotate(ctx context.Context, id string, revision int64, r domai
 		return domain.RegistryConnection{}, err
 	}
 	s.client.Forget(cur.ID + "/")
+	// Another credential may be another account with its own limit.
+	s.forgetPullLimits(ctx, cur.ID)
 	audit.SetDiff(ctx, auditView(cur), auditView(next))
 	return next, nil
 }
@@ -373,6 +385,7 @@ func (s *Service) Delete(ctx context.Context, id string, revision int64) error {
 		return err
 	}
 	s.client.Forget(id + "/")
+	s.forgetPullLimits(ctx, id)
 	audit.SetDetail(ctx, "host", cur.Host)
 	if s.opts.ForgetResource != nil {
 		if _, err := s.opts.ForgetResource(ctx, authz.ResourceRef{Type: "registry", ID: id}); err != nil {
