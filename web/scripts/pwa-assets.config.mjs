@@ -8,13 +8,16 @@
 //   mv scripts/pwa-*.png scripts/maskable-icon-512x512.png scripts/apple-touch-icon-180x180.png static/icons/
 //
 // This run: the "any" icons (the Docker Manager logo on a transparent
-// square) and the favicon, from scripts/logo.png.
+// square), the favicon and the Apple touch icon, from scripts/logo.png.
+// The Apple touch icon keeps a transparent background so iOS supplies the
+// tile behind it (#214); its padding puts the logo at the size it has in
+// the maskable icon.
 export default {
 	headLinkOptions: { preset: '2023' },
 	preset: {
 		transparent: { sizes: [64, 192, 512], favicons: [[48, 'favicon.ico']] },
 		maskable: { sizes: [] },
-		apple: { sizes: [] }
+		apple: { sizes: [180], padding: 0.355, resizeOptions: { background: 'transparent' } }
 	},
 	images: ['scripts/logo.png']
 };
