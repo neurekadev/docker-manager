@@ -105,7 +105,9 @@ web `web/src/lib/features/notifications`.
   messages are rate limited in memory (one per channel every
   `notify.TestInterval`, 429 `notification_test_rate_limited`), driven by
   the fake clock. Rendering is tested per service in `render_test.go`
-  (services located offline, like address validation).
+  (services located offline, like address validation); email is also
+  sent through Shoutrrr to a loopback SMTP server, because only a real
+  send shows which template Shoutrrr writes into the HTML part.
 - **Web:** the dialog builds the URL from friendly fields
   (`services.ts`: `buildUrl`/`parseUrl`, round trip exact, unknown shapes
   edited as the raw URL under "Other"); extra query options of a stored URL

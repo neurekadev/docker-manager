@@ -162,7 +162,7 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 		set("fromname", EmailFromName)
 		if !userSet(q, "usehtml") {
 			if t, ok := svc.(interface{ SetTemplateString(id, body string) error }); ok &&
-				t.SetTemplateString("html", templateLiteral(emailHTML(msg))) == nil {
+				t.SetTemplateString(emailHTMLTemplate, templateLiteral(emailHTML(msg))) == nil {
 				r.params["usehtml"] = "yes"
 			}
 		}
@@ -187,6 +187,11 @@ func emailSubject(msg domain.NotificationMessage) string {
 	}
 	return "[" + msg.Tag + "] " + msg.Title
 }
+
+// emailHTMLTemplate is the template ID Shoutrrr's SMTP service writes
+// the HTML part with (its templateHTML, matched case-sensitively; without
+// it the plain message goes in the HTML part).
+const emailHTMLTemplate = "HTML"
 
 // templateLiteral makes s a Go template that prints s as it is.
 func templateLiteral(s string) string { return strings.ReplaceAll(s, "{{", `{{"{{"}}`) }
@@ -594,7 +599,7 @@ func emailPreheader(msg domain.NotificationMessage, label string) string {
 	if text == "" {
 		text = label
 	}
-	return html.EscapeString(clip(text, 140)) + strings.Repeat("&#847;&zwnj;&nbsp;", 40)
+	return html.EscapeString(clip(text, 140)) + strings.Repeat("&#847;&zwnj;&nbsp; ", 40)
 }
 
 // emailTable opens a layout table (attrs extra attributes).
@@ -686,5 +691,92 @@ func emailHTML(msg domain.NotificationMessage) string {
 			strings.Join(foot, " · ") + `</td></tr>`)
 	}
 	b.WriteString(`</table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>`)
+	return emailLines(b.String())
+}
+
+// Email line lengths: SMTP allows 998 octets a line and Shoutrrr sends the
+// HTML part as it is (8 bit), so emailLines breaks a line before a tag once
+// it passes emailLineSoft or when the tag would not fit within
+// emailLineMax (it starts a line then); past emailLineHard at a space, in a text or
+// between a tag's attributes (never inside a quoted value); and past
+// emailLineMax anywhere in a text but inside a character or an entity.
+const (
+	emailLineSoft = 500
+	emailLineHard = 900
+	emailLineMax  = 990
+)
+
+func emailLines(s string) string {
+	var b strings.Builder
+	n := 0
+	inTag, inEntity := false, false
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		brk := false
+		switch {
+		case inTag:
+			switch {
+			case quote != 0:
+				if c == quote {
+					quote = 0
+				}
+			case c == '"' || c == '\'':
+				quote = c
+			case c == '>':
+				inTag = false
+			case c == ' ' && n >= emailLineHard:
+				brk = true
+			}
+		case c == '<':
+			inTag, inEntity = true, false
+			if n > 0 && (n >= emailLineSoft || n+tagLen(s, i) > emailLineMax) {
+				b.WriteByte('\n')
+				n = 0
+			}
+		case c == ' ' && n >= emailLineHard:
+			brk, inEntity = true, false
+		default:
+			// A character starts at an ASCII or a lead byte; an entity runs
+			// from & to ;.
+			if n >= emailLineMax && !inEntity && (c < 0x80 || c >= 0xc0) {
+				b.WriteByte('\n')
+				n = 0
+			}
+			switch {
+			case c == '&':
+				inEntity = true
+			case inEntity && (c == ';' || !(c == '#' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')):
+				inEntity = false
+			}
+		}
+		if brk {
+			// The space becomes the line break.
+			b.WriteByte('\n')
+			n = 0
+			continue
+		}
+		b.WriteByte(c)
+		n++
+	}
 	return b.String()
+}
+
+// tagLen is the length of the tag starting at s[i], to its '>' outside
+// quoted values.
+func tagLen(s string, i int) int {
+	var quote byte
+	for j := i + 1; j < len(s); j++ {
+		switch c := s[j]; {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '>':
+			return j - i + 1
+		}
+	}
+	return len(s) - i
 }

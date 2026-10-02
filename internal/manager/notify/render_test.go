@@ -1,10 +1,12 @@
 package notify
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +18,7 @@ import (
 	"testing"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
@@ -314,7 +317,7 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	}
 	tpl, ok := svc.(interface {
 		GetTemplate(id string) (*template.Template, bool)
-	}).GetTemplate("html")
+	}).GetTemplate("HTML") // the ID Shoutrrr's SMTP service writes the HTML part with
 	if !ok {
 		t.Fatal("no HTML template")
 	}
@@ -323,7 +326,13 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := b.String()
-	if html != emailHTML(msg) || !strings.Contains(html, "{{ braces }} &amp; &lt;tags&gt;") ||
+	if html != emailHTML(msg) {
+		t.Fatalf("%s", html)
+	}
+	// Checked without the line breaks emailLines adds.
+	flat := func(m domain.NotificationMessage) string { return strings.ReplaceAll(emailHTML(m), "\n", "") }
+	html = strings.ReplaceAll(html, "\n", "")
+	if !strings.Contains(html, "{{ braces }} &amp; &lt;tags&gt;") ||
 		!strings.Contains(html, "border-top:4px solid #4cf683") || !strings.Contains(html, `href="https://docker.example.com/jobs/j1"`) ||
 		!strings.Contains(html, `href="https://docker.example.com/environments/e1"`) ||
 		!strings.Contains(html, ">1a2b</code> → <code") {
@@ -359,16 +368,16 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	}
 	noFooter := msg
 	noFooter.Footer = ""
-	if h := emailHTML(noFooter); !strings.Contains(h, `line-height:16px;">Oct 1, 2026, 09:30 UTC</td>`) {
+	if h := flat(noFooter); !strings.Contains(h, `line-height:16px;">Oct 1, 2026, 09:30 UTC</td>`) {
 		t.Fatalf("%s", h)
 	}
 	noFooter.Time = time.Time{}
-	if h := emailHTML(noFooter); strings.Contains(h, "UTC</td>") || strings.Contains(h, "padding:16px 4px 0;") {
+	if h := flat(noFooter); strings.Contains(h, "UTC</td>") || strings.Contains(h, "padding:16px 4px 0;") {
 		t.Fatalf("%s", h)
 	}
 	// Without a status line the badge names the tone.
 	msg.Label = ""
-	if !strings.Contains(emailHTML(msg), "&nbsp; OK</td>") {
+	if !strings.Contains(flat(msg), "&nbsp; OK</td>") {
 		t.Fatal("no tone word")
 	}
 	// Each tone's badge is the app's: the tone's text, soft background and
@@ -384,8 +393,159 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 		"other":             badge("#112745", "#19408f", "#52a3f7"),
 	} {
 		msg.Tone = tone
-		if h := emailHTML(msg); !strings.Contains(h, want) {
+		if h := flat(msg); !strings.Contains(h, want) {
 			t.Fatalf("%s: missing %q in %s", tone, want, h)
+		}
+	}
+}
+
+// smtpServer is an SMTP server on loopback that keeps the data of each
+// message it receives (no TLS, no sign-in).
+func smtpServer(t *testing.T) (addr string, messages <-chan string) {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	got := make(chan string, 4)
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		r := bufio.NewReader(c)
+		reply := func(s string) { _, _ = fmt.Fprintf(c, "%s\r\n", s) }
+		reply("220 localhost ESMTP")
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			switch cmd := strings.ToUpper(strings.TrimSpace(line)); {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				reply("250 localhost")
+			case strings.HasPrefix(cmd, "MAIL"), strings.HasPrefix(cmd, "RCPT"), cmd == "RSET", cmd == "NOOP":
+				reply("250 OK")
+			case cmd == "DATA":
+				reply("354 Go ahead")
+				var b strings.Builder
+				for {
+					l, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					if l == ".\r\n" {
+						break
+					}
+					b.WriteString(strings.TrimPrefix(l, ".")) // dot stuffing
+				}
+				got <- b.String()
+				reply("250 Queued")
+			case cmd == "QUIT":
+				reply("221 Bye")
+				return
+			default:
+				reply("502 Not implemented")
+			}
+		}
+	}()
+	return l.Addr().String(), got
+}
+
+// A real send through Shoutrrr's SMTP service carries the branded card as
+// the HTML part (the template ID is Shoutrrr's) beside the plain part, in
+// lines a mail server accepts.
+func TestEmailArrivesWithTheBrandedCard(t *testing.T) {
+	addr, messages := smtpServer(t)
+	msg := (&Service{opts: Options{PublicURL: "https://docker.example.com"}}).testMessage(
+		domain.NotificationChannel{Name: "Ops"}, time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC))
+	msg.Body = strings.Repeat("A long description of what happened. ", 60)
+	address := "smtp://" + addr + "/?from=dm@example.com&to=ops@example.com&encryption=None&usestarttls=No"
+	if class := deliver(context.Background(), address, msg, 5*time.Second); class != "" {
+		t.Fatalf("send: %s", class)
+	}
+	var data string
+	select {
+	case data = <-messages:
+	default:
+		t.Fatal("no message")
+	}
+	data = strings.ReplaceAll(data, "\r\n", "\n")
+	_, html, ok := strings.Cut(data, "Content-Type: text/html; charset=\"UTF-8\"\nContent-Transfer-Encoding: 8bit\n\n")
+	if !ok || !strings.Contains(data, "Content-Type: text/plain") || !strings.Contains(data, "Subject: [Test] Docker Manager test message") {
+		t.Fatalf("%s", data)
+	}
+	want := emailHTML(msg)
+	if !strings.HasPrefix(html, want) {
+		t.Fatalf("the HTML part is not the card:\n%s", html)
+	}
+	for _, s := range []string{`<img src="` + EmailLogoURL + `"`, "&nbsp; Test message</td>", `href="https://docker.example.com"`} {
+		if !strings.Contains(html, s) {
+			t.Fatalf("missing %q in %s", s, html)
+		}
+	}
+	for l := range strings.SplitSeq(html, "\n") {
+		if len(l) > 998 {
+			t.Fatalf("a line of %d characters", len(l))
+		}
+	}
+}
+
+// emailLines breaks before a tag past the soft length, at a space in a
+// long text past the hard one, and changes nothing else.
+func TestEmailLinesStayShort(t *testing.T) {
+	s := emailHTML(sample())
+	for l := range strings.SplitSeq(s, "\n") {
+		if len(l) > emailLineHard+200 {
+			t.Fatalf("a line of %d characters", len(l))
+		}
+	}
+	if !strings.Contains(s, "\n") {
+		t.Fatal("not broken")
+	}
+	if got := emailLines("<p>short</p>"); got != "<p>short</p>" {
+		t.Fatalf("%q", got)
+	}
+	text := strings.Repeat("word ", 400)
+	for l := range strings.SplitSeq(emailLines(text), "\n") {
+		if len(l) > emailLineHard+5 {
+			t.Fatalf("a line of %d characters", len(l))
+		}
+	}
+	if strings.ReplaceAll(emailLines(text), "\n", " ") != text {
+		t.Fatal("text changed")
+	}
+	// A tag starting just under the soft length: it starts a line when it
+	// would not fit, and is broken only between attributes, never inside
+	// a quoted value.
+	tag := strings.Repeat("x", emailLineSoft-1) + `<td style="font-family:Inter,'Segoe UI';` + strings.Repeat("padding:0 4px; ", 60) + `" ` +
+		strings.Repeat(`data-a="b" `, 100) + `>t`
+	got := emailLines(tag)
+	_, rest, _ := strings.Cut(got, `style="`)
+	if value, _, _ := strings.Cut(rest, `"`); strings.Contains(value, "\n") {
+		t.Fatalf("broken inside a value: %q", value)
+	}
+	if !strings.Contains(got, "\n<td") || strings.ReplaceAll(strings.ReplaceAll(got, "\n<", "<"), "\n", " ") != tag {
+		t.Fatalf("%q", got)
+	}
+	for l := range strings.SplitSeq(got, "\n") {
+		if len(l) > 998 {
+			t.Fatalf("a line of %d octets", len(l))
+		}
+	}
+	// A long text without spaces is cut anyway, never inside a character
+	// or an entity.
+	for _, text := range []string{strings.Repeat("字", 700), strings.Repeat("&nbsp;", 400), strings.Repeat("a", 2500)} {
+		got := emailLines(text)
+		if strings.ReplaceAll(got, "\n", "") != text {
+			t.Fatalf("changed: %q", got)
+		}
+		for l := range strings.SplitSeq(got, "\n") {
+			if len(l) > 998 || !utf8.ValidString(l) || strings.HasPrefix(text, "&") && (!strings.HasPrefix(l, "&") || !strings.HasSuffix(l, ";")) {
+				t.Fatalf("line %q", l)
+			}
 		}
 	}
 }
