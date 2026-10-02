@@ -105,7 +105,7 @@ func (c *Checker) Can(capability string, r authz.Resource) authz.Decision {
 		return authz.EvaluateJob(c.Can, capability, r)
 	}
 	d := c.Decide(capability, r)
-	return authz.Decision{Allowed: d.Allowed, Reason: d.Reason}
+	return authz.Decision{Allowed: d.Allowed, Reason: d.Reason, Ended: d.Source == SourceInactive || d.Source == SourceEnded}
 }
 
 // Reaches implements authz.Reacher: whether any granted capability applies
@@ -113,7 +113,7 @@ func (c *Checker) Can(capability string, r authz.Resource) authz.Decision {
 // makes the environment or stack visible (minimal view) so the container
 // can be found.
 func (c *Checker) Reaches(r authz.Resource) bool {
-	if c.subj.Inactive {
+	if c.subj.Inactive || c.subj.Ended {
 		return false
 	}
 	if c.subj.Owner && c.subj.Token == nil {

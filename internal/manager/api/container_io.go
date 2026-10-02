@@ -315,8 +315,12 @@ func (h *ioAPI) runLogs(hctx huma.Context, p authz.Principal, res authz.Resource
 			_ = stream.Event("close", "", CloseEvent{Reason: "max_age"})
 			return
 		case <-hb.C():
-			if !authz.For(ctx, h.authz, p).Can(string(CapContainerLogsRead), res).Allowed {
-				_ = stream.Event("end", "", LogsEnd{Reason: "permissions_changed"})
+			if d := authz.For(ctx, h.authz, p).Can(string(CapContainerLogsRead), res); !d.Allowed {
+				if d.Ended {
+					_ = stream.Event("close", "", CloseEvent{Reason: "session_expired"})
+				} else {
+					_ = stream.Event("end", "", LogsEnd{Reason: "permissions_changed"})
+				}
 				return
 			}
 			if stream.Heartbeat() != nil {

@@ -38,7 +38,11 @@ Paths are relative to `/api/v1`.
   same origin) or `Authorization: Bearer <API token>` (other clients). Tokens
   never go into URLs. A revoked, expired or disabled token ends its open
   streams like an ended session (SSE `event: close`, reason
-  `session_expired`), within the sweep interval for expiry.
+  `session_expired`), within the sweep interval for expiry. A stream whose
+  own re-check (a job stream's wake-up, a log stream's heartbeat) sees the
+  ended token or account before the identity layer ends it closes with
+  `session_expired` too (`authz.Decision.Ended`, `DeniedCloseReason`),
+  never `permissions_changed`.
 - **Authorization** is checked when the stream opens and again whenever the
   caller's permissions, session or token change. A revoked permission ends
   the stream (SSE: `event: close` with reason `permissions_changed`;

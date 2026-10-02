@@ -567,8 +567,8 @@ func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, 
 		if err != nil {
 			return // deleted by retention
 		}
-		if !h.can(ctx, p, CapJobRead, cur) {
-			_ = stream.Event("close", "", CloseEvent{Reason: "permissions_changed"})
+		if d := h.authz.Can(ctx, p, string(CapJobRead), authz.JobResource(cur)); !d.Allowed {
+			_ = stream.Event("close", "", CloseEvent{Reason: authz.DeniedCloseReason(d)})
 			return
 		}
 		if cur.State.Terminal() && after >= cur.LastEventSeq {

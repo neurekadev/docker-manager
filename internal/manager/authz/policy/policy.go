@@ -132,7 +132,10 @@ type Subject struct {
 	Owner bool
 	// Inactive: the account is disabled or deleted: everything is denied
 	// (a queued job of a disabled user is rejected at dispatch).
-	Inactive   bool
+	Inactive bool
+	// Ended: the API token no longer works (revoked, expired or deleted):
+	// everything is denied, like Inactive.
+	Ended      bool
 	UserRules  []Rule
 	GroupRules []Rule
 	// Token is the scope of an API token (#31): allow-only grants. nil for
@@ -153,6 +156,7 @@ const (
 	SourceUnknown   Source = "unknown_capability"
 	SourceOwnerOnly Source = "owner_only"
 	SourceInactive  Source = "inactive_account"
+	SourceEnded     Source = "ended_token"
 )
 
 // Decision is an evaluation result with the rule that decided it.
@@ -233,6 +237,9 @@ func best(cat *catalog.Catalog, rules []Rule, capability string, t Target, c []c
 func Evaluate(cat *catalog.Catalog, s Subject, capability string, t Target) Decision {
 	if s.Inactive {
 		return Decision{Source: SourceInactive, Reason: "the account is disabled or deleted"}
+	}
+	if s.Ended {
+		return Decision{Source: SourceEnded, Reason: "the API token is revoked or expired"}
 	}
 	c := chain(t)
 	if s.Token != nil {
