@@ -144,7 +144,7 @@ describe('multi select', () => {
 		await user.click(trigger);
 		const warning = await screen.findByRole('switch', { name: /Warning/ });
 		expect(warning).toHaveAttribute('aria-checked', 'true');
-		expect(screen.getByRole('switch', { name: /Error/ })).toHaveTextContent('3');
+		expect(screen.getByRole('switch', { name: /^Error/ })).toHaveTextContent('3');
 		await user.click(warning);
 		expect(change).toHaveBeenLastCalledWith(['error', 'stdout', 'stderr']);
 		expect(warning).toHaveAttribute('aria-checked', 'false');
