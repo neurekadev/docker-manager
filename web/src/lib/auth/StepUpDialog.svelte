@@ -1,8 +1,12 @@
 <script lang="ts">
 	// Identity check for sensitive changes (#16 step-up). Opened by
-	// withStepUp() when the manager answers step_up_required: the password
-	// (plus a TOTP code when the account uses TOTP) or a passkey. Success
+	// withStepUp() when the manager answers step_up_required. It asks for
+	// exactly one factor (verify.ts, #186): a passkey when the account has
+	// one (the browser's prompt opens at once), else the authenticator code,
+	// else the password. With both a passkey and an authenticator app the
+	// user can switch to the code, and the browser remembers it. Success
 	// renews the session; the waiting change is retried by its caller.
+	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import Fingerprint from '@lucide/svelte/icons/fingerprint';
 	import { api, unwrap, type Account } from '$lib/api/client';
@@ -14,6 +18,7 @@
 	import TextField from '$lib/ui/TextField.svelte';
 	import { errorView } from '$lib/ui/errors';
 	import { stepUp as defaultPrompt, type StepUpPrompt } from './stepup.svelte';
+	import { initialMethod, rememberMethod, stepUpMethods, type VerifyMethod } from './verify';
 	import { credentialToJSON, isCancelled, passkeysSupported, requestOptions } from './webauthn';
 
 	let { user, prompt = defaultPrompt }: { user: Account; prompt?: StepUpPrompt } = $props();
@@ -21,30 +26,49 @@
 	const qc = useQueryClient();
 	let password = $state('');
 	let totpCode = $state('');
-	let busy = $state<'password' | 'passkey' | null>(null);
+	let busy = $state(false);
 	let message = $state<string | null>(null);
+	let method = $state<VerifyMethod | null>(null);
+	let ceremony: AbortController | null = null;
 
-	const usesPassword = $derived(user.factors.password);
-	const usesTotp = $derived(user.factors.totp);
-	const usesPasskey = $derived(user.factors.passkeys > 0 && passkeysSupported());
+	const methods = $derived(stepUpMethods(user.factors, passkeysSupported()));
 
 	let open = $state(false);
 	$effect(() => {
 		open = prompt.open;
 		if (prompt.open) {
-			password = '';
-			totpCode = '';
-			message = null;
+			untrack(() => {
+				password = '';
+				totpCode = '';
+				message = null;
+				method = initialMethod(methods);
+				if (method === 'passkey') void withPasskey();
+			});
+		} else {
+			ceremony?.abort();
 		}
 	});
 
-	function explain(e: unknown): string {
+	function explain(e: unknown, used: VerifyMethod): string {
 		const v = errorView(e);
 		if (v.code === 'invalid_credentials')
-			return usesTotp
-				? 'The password or the code is not right. Check both and try again.'
-				: 'The password is not right. Try again.';
+			return used === 'passkey'
+				? 'That passkey did not work for this Docker Manager.'
+				: used === 'totp'
+					? 'That code did not work. Codes change every 30 seconds; enter the current one.'
+					: 'The password is not right. Try again.';
+		if (v.code === 'rate_limited') return 'Too many attempts. Wait a minute, then try again.';
 		return v.message;
+	}
+
+	function switchTo(m: VerifyMethod) {
+		ceremony?.abort();
+		ceremony = null;
+		busy = false;
+		method = m;
+		message = null;
+		rememberMethod(m);
+		if (m === 'passkey') void withPasskey();
 	}
 
 	async function done() {
@@ -54,24 +78,29 @@
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
-		busy = 'password';
+		const used = method;
+		if (used !== 'password' && used !== 'totp') return;
+		busy = true;
 		message = null;
 		try {
 			await unwrap(
 				api.POST('/api/v1/auth/step-ups', {
-					body: { password, totpCode: usesTotp ? totpCode.replace(/\s/g, '') : undefined }
+					body: used === 'totp' ? { totpCode: totpCode.replace(/\s/g, '') } : { password }
 				})
 			);
 			await done();
 		} catch (err) {
-			message = explain(err);
+			message = explain(err, used);
 		} finally {
-			busy = null;
+			busy = false;
 		}
 	}
 
 	async function withPasskey() {
-		busy = 'passkey';
+		ceremony?.abort();
+		const abort = new AbortController();
+		ceremony = abort;
+		busy = true;
 		message = null;
 		try {
 			const options = await unwrap(
@@ -80,17 +109,21 @@
 				})
 			);
 			const cred = (await navigator.credentials.get({
-				publicKey: requestOptions(options)
+				publicKey: requestOptions(options),
+				signal: abort.signal
 			})) as PublicKeyCredential | null;
-			if (!cred) return;
+			if (!cred || abort.signal.aborted) return;
 			await unwrap(
 				api.POST('/api/v1/auth/step-ups', { body: { credential: credentialToJSON(cred) } })
 			);
 			await done();
 		} catch (err) {
-			if (!isCancelled(err)) message = explain(err);
+			if (!isCancelled(err) && !abort.signal.aborted) message = explain(err, 'passkey');
 		} finally {
-			busy = null;
+			if (ceremony === abort) {
+				ceremony = null;
+				busy = false;
+			}
 		}
 	}
 </script>
@@ -107,7 +140,37 @@
 	{#if message}
 		<Notice tone="danger" title="Not confirmed" live="alert">{message}</Notice>
 	{/if}
-	{#if usesPassword}
+	{#if method === 'passkey'}
+		<div class="form">
+			<p class="lead">Use your passkey to continue.</p>
+			<Button
+				variant="primary"
+				icon={Fingerprint}
+				loading={busy}
+				disabled={busy}
+				onclick={withPasskey}
+				block>Confirm with a passkey</Button
+			>
+		</div>
+	{:else if method === 'totp'}
+		<form class="form" onsubmit={submit} novalidate>
+			<TextField
+				label="Authenticator code"
+				description="The current 6-digit code from your authenticator app."
+				bind:value={totpCode}
+				inputmode="numeric"
+				autocomplete="one-time-code"
+				required
+			/>
+			<Button
+				type="submit"
+				variant="primary"
+				loading={busy}
+				disabled={!totpCode.trim() || busy}
+				block>Confirm</Button
+			>
+		</form>
+	{:else if method === 'password'}
 		<form class="form" onsubmit={submit} novalidate>
 			<input type="text" autocomplete="username" value={user.username} hidden readonly />
 			<PasswordField
@@ -116,33 +179,27 @@
 				bind:value={password}
 				required
 			/>
-			{#if usesTotp}
-				<TextField
-					label="Authenticator code"
-					description="The current 6-digit code from your authenticator app."
-					bind:value={totpCode}
-					inputmode="numeric"
-					autocomplete="one-time-code"
-					required
-				/>
-			{/if}
 			<Button
 				type="submit"
 				variant="primary"
-				loading={busy === 'password'}
-				disabled={!password || (usesTotp && !totpCode.trim()) || busy !== null}
-				block>Confirm with password</Button
+				loading={busy}
+				disabled={!password || busy}
+				block>Confirm</Button
 			>
 		</form>
+	{:else}
+		<Notice tone="warn" title="Passkeys don't work in this browser"
+			>Your account confirms changes with a passkey. Open Docker Manager in a browser that
+			supports passkeys to continue.</Notice
+		>
 	{/if}
-	{#if usesPasskey}
-		<Button
-			variant={usesPassword ? 'secondary' : 'primary'}
-			icon={Fingerprint}
-			loading={busy === 'passkey'}
-			disabled={busy !== null}
-			onclick={withPasskey}
-			block>Confirm with a passkey</Button
+	{#if method === 'passkey' && methods.includes('totp')}
+		<Button variant="ghost" onclick={() => switchTo('totp')} block
+			>Use authenticator code instead</Button
+		>
+	{:else if method === 'totp' && methods.includes('passkey')}
+		<Button variant="ghost" disabled={busy} onclick={() => switchTo('passkey')} block
+			>Use a passkey instead</Button
 		>
 	{/if}
 </Dialog>
@@ -152,5 +209,9 @@
 		display: grid;
 		gap: var(--space-4);
 		margin-bottom: var(--space-3);
+	}
+	.lead {
+		margin: 0;
+		color: var(--text-muted);
 	}
 </style>

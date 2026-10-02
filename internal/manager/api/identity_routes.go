@@ -169,9 +169,10 @@ func registerSignIn(a huma.API, h *identityAPI) {
 			OperationID: "create-auth-step-up", Method: http.MethodPost, Path: BasePath + "/auth/step-ups",
 			Summary: "Re-authenticate (step-up)",
 			Description: "Proves the caller's identity again before sensitive changes (security settings, invitations, password, factor removal and resets, " +
-				"which answer 403 step_up_required otherwise): the password plus a TOTP code when TOTP is enabled, or a passkey assertion from " +
-				"authentication options requested with purpose step_up. Valid for 10 minutes; renews the session token.",
-			Tags: []string{tagAuth}, Security: cookieOnly, Errors: []int{http.StatusForbidden, http.StatusConflict, http.StatusTooManyRequests},
+				"which answer 403 step_up_required otherwise) with exactly one factor: a passkey assertion from authentication options requested " +
+				"with purpose step_up, else the TOTP code alone when TOTP is enabled, else the password (accounts without TOTP or passkeys). " +
+				"An account with passkeys and no TOTP must use a passkey (422 on credential). Valid for 10 minutes; renews the session token.",
+			Tags: []string{tagAuth}, Security: cookieOnly, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests},
 		},
 		Capability: CapabilityAuthenticated, Scope: ScopeNone,
 	}, func(ctx context.Context, in *stepUpInput) (*sessionOutput, error) {

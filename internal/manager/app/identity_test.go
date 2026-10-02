@@ -788,3 +788,47 @@ func TestBothFactorsPolicy(t *testing.T) {
 		t.Fatalf("passkey alone under both: %d %s", r.status, r.body)
 	}
 }
+
+// TestStepUpUsesOneFactor: a step-up takes exactly one factor, chosen by
+// what the account enrolled: the password without a second factor, the
+// TOTP code alone with TOTP, a passkey (or the TOTP code) with passkeys;
+// a password never confirms an account with a second factor.
+func TestStepUpUsesOneFactor(t *testing.T) {
+	e := newEnv(t)
+	owner, _ := e.setupOwner()
+	stepUp := "/api/v1/auth/step-ups"
+
+	alice, alicePW, _ := e.newUser(owner, "alice")
+	alice.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"password": alicePW})
+	secret, _ := alice.enrollTOTP()
+	alice.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, stepUp, map[string]string{"password": alicePW})
+	e.clk.Advance(30 * time.Second)
+	alice.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, stepUp, map[string]string{"totpCode": "000000x"})
+	var st struct {
+		RecentAuthUntil *time.Time `json:"recentAuthUntil"`
+	}
+	e.clk.Advance(auth.StepUpWindow + time.Second)
+	alice.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"totpCode": e.totpCode(secret)}).json(t, &st)
+	if st.RecentAuthUntil == nil || !st.RecentAuthUntil.After(e.clk.Now()) {
+		t.Fatalf("TOTP step-up not recorded: %+v", st)
+	}
+
+	bob, bobPW, _ := e.newUser(owner, "bob")
+	dev := newDevice(publicOrigin, publicHost)
+	if reg := bob.registerPasskey(dev, "laptop"); reg.status != http.StatusCreated {
+		t.Fatalf("passkey %d %s", reg.status, reg.body)
+	}
+	bob.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, stepUp, map[string]string{"password": bobPW})
+	bob.assertPasskey(dev, "step_up", stepUp).json(t, &st)
+	if st.RecentAuthUntil == nil {
+		t.Fatal("passkey step-up not recorded")
+	}
+
+	// Passkey and TOTP: either one on its own.
+	bobSecret, _ := bob.enrollTOTP()
+	e.clk.Advance(30 * time.Second)
+	bob.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"totpCode": e.totpCode(bobSecret)})
+	if r := bob.assertPasskey(dev, "step_up", stepUp); r.status != http.StatusOK {
+		t.Fatalf("passkey step-up with TOTP enrolled: %d %s", r.status, r.body)
+	}
+}

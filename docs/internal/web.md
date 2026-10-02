@@ -130,7 +130,9 @@ Rules: the browser talks only to same-origin `/api/v1` (never an agent or
 Docker socket); tokens and secrets never go to `localStorage`,
 `sessionStorage` or Cache Storage. The sign-in page remembers the **Stay signed in** choice
 in `localStorage` (`docker-manager:stay-signed-in`, `"1"`/`"0"`, a
-preference only; `src/lib/features/auth/stay.ts`). Signed-in devices are
+preference only; `src/lib/features/auth/stay.ts`), and the last switch
+between passkey and authenticator code under `docker-manager:verify-with`
+(`"passkey"`/`"totp"`; `src/lib/auth/verify.ts`). Signed-in devices are
 listed by `SessionsTable` (`src/lib/features/access`) under **Profile →
 Sessions** and on a user's page (owner).
 
@@ -493,8 +495,13 @@ the apps moving (`open`, `moving`, `ready`) lock nothing.
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
 `$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for
-the password (plus TOTP) or a passkey once and the call is retried;
-dismissing it throws `StepUpCancelledError`.
+one factor once and the call is retried; dismissing it throws
+`StepUpCancelledError`. The factor follows `$lib/auth/verify.ts` (#186),
+shared with the sign-in page's second step: a passkey first (its browser
+prompt starts as the dialog opens), else the authenticator code alone,
+else the password (accounts without a second factor only). With both a
+passkey and TOTP, "Use authenticator code instead" / "Use a passkey
+instead" switch, and the browser remembers the choice.
 
 ## Job progress after reload
 

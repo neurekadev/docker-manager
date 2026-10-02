@@ -407,80 +407,118 @@ describe('ScopePreviewView (#10)', () => {
 	});
 });
 
-describe('StepUpDialog (#16)', () => {
-	it('asks for the password (and TOTP) and settles the prompt after the step-up', async () => {
-		const user = setup();
+describe('StepUpDialog (#16, #186)', () => {
+	const account = (factors: Account['factors']): Account => ({
+		id: 'u1',
+		username: 'admin',
+		displayName: 'Admin',
+		owner: true,
+		status: 'active',
+		groupId: 'g',
+		revision: 1,
+		createdAt: '',
+		updatedAt: '',
+		factors
+	});
+	const session = () =>
+		json({ state: 'authenticated', factors: [], missingFactors: [], requiredFactors: 'none' });
+
+	/** Records the step-up bodies; passkey options answer a fixed challenge. */
+	function stubApi() {
 		const bodies: unknown[] = [];
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async (req: Request) => {
-				expect(new URL(req.url).pathname).toBe('/api/v1/auth/step-ups');
+				const path = new URL(req.url).pathname;
+				if (path === '/api/v1/auth/passkeys/authentication-options')
+					return json({ publicKey: { challenge: 'AAAA', allowCredentials: [] } });
+				expect(path).toBe('/api/v1/auth/step-ups');
 				bodies.push(await req.json());
-				return json({
-					state: 'authenticated',
-					factors: [],
-					missingFactors: [],
-					requiredFactors: 'none'
-				});
+				return session();
 			})
 		);
+		return bodies;
+	}
+
+	function open(user: Account) {
 		const prompt = new StepUpPrompt();
-		const user0: Account = {
-			id: 'u1',
-			username: 'admin',
-			displayName: 'Admin',
-			owner: true,
-			status: 'active',
-			groupId: 'g',
-			revision: 1,
-			createdAt: '',
-			updatedAt: '',
-			factors: { password: true, totp: true, passkeys: 0, recoveryCodesRemaining: 10 }
-		};
 		render(QueryHarness<ComponentProps<typeof StepUpDialog>>, {
-			props: { client: newClient(), component: StepUpDialog, props: { user: user0, prompt } }
+			props: { client: newClient(), component: StepUpDialog, props: { user, prompt } }
 		});
-		const done = prompt.request();
+		return prompt.request();
+	}
+
+	it('asks an account with an authenticator app for the code alone', async () => {
+		const user = setup();
+		const bodies = stubApi();
+		const done = open(
+			account({ password: true, totp: true, passkeys: 0, recoveryCodesRemaining: 10 })
+		);
 		const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
-		const confirm = within(dialog).getByRole('button', { name: 'Confirm with password' });
+		expect(within(dialog).queryByLabelText('Password')).toBeNull();
+		const confirm = within(dialog).getByRole('button', { name: 'Confirm' });
 		expect(confirm).toBeDisabled();
-		await user.type(within(dialog).getByLabelText('Password'), 'correct horse');
 		await user.type(within(dialog).getByLabelText('Authenticator code'), '123 456');
 		await user.click(confirm);
 		expect(await done).toBe(true);
-		expect(bodies).toEqual([{ password: 'correct horse', totpCode: '123456' }]);
+		expect(bodies).toEqual([{ totpCode: '123456' }]);
+	});
+
+	it('asks an account without a second factor for the password', async () => {
+		const user = setup();
+		const bodies = stubApi();
+		const done = open(
+			account({ password: true, totp: false, passkeys: 0, recoveryCodesRemaining: 0 })
+		);
+		const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
+		expect(within(dialog).queryByLabelText('Authenticator code')).toBeNull();
+		await user.type(within(dialog).getByLabelText('Password'), 'correct horse');
+		await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+		expect(await done).toBe(true);
+		expect(bodies).toEqual([{ password: 'correct horse' }]);
+	});
+
+	it('starts the passkey at once and can switch to the code, remembering it', async () => {
+		const user = setup();
+		const bodies = stubApi();
+		vi.stubGlobal('isSecureContext', true);
+		vi.stubGlobal('PublicKeyCredential', class {});
+		// The browser's prompt stays open until the switch aborts it.
+		const get = vi.fn(
+			(o: CredentialRequestOptions) =>
+				new Promise((_, reject) =>
+					o.signal?.addEventListener('abort', () =>
+						reject(new DOMException('aborted', 'AbortError'))
+					)
+				)
+		);
+		Object.defineProperty(navigator, 'credentials', { configurable: true, value: { get } });
+		try {
+			const done = open(
+				account({ password: true, totp: true, passkeys: 1, recoveryCodesRemaining: 10 })
+			);
+			const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
+			await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+			expect(within(dialog).queryByLabelText('Password')).toBeNull();
+			await user.click(
+				within(dialog).getByRole('button', { name: 'Use authenticator code instead' })
+			);
+			expect(localStorage.getItem('docker-manager:verify-with')).toBe('totp');
+			await user.type(within(dialog).getByLabelText('Authenticator code'), '654321');
+			await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+			expect(await done).toBe(true);
+			expect(bodies).toEqual([{ totpCode: '654321' }]);
+		} finally {
+			Reflect.deleteProperty(navigator, 'credentials');
+			localStorage.removeItem('docker-manager:verify-with');
+		}
 	});
 
 	it('closing the dialog settles the prompt as cancelled', async () => {
 		const user = setup();
-		const prompt = new StepUpPrompt();
-		render(QueryHarness<ComponentProps<typeof StepUpDialog>>, {
-			props: {
-				client: newClient(),
-				component: StepUpDialog,
-				props: {
-					prompt,
-					user: {
-						id: 'u1',
-						username: 'a',
-						displayName: '',
-						owner: false,
-						status: 'active',
-						groupId: 'g',
-						revision: 1,
-						createdAt: '',
-						updatedAt: '',
-						factors: {
-							password: true,
-							totp: false,
-							passkeys: 0,
-							recoveryCodesRemaining: 0
-						}
-					}
-				}
-			}
-		});
-		const done = prompt.request();
+		const done = open(
+			account({ password: true, totp: false, passkeys: 0, recoveryCodesRemaining: 0 })
+		);
 		await screen.findByRole('dialog', { name: "Confirm it's you" });
 		await user.keyboard('{Escape}');
 		expect(await done).toBe(false);

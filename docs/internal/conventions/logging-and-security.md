@@ -26,6 +26,10 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   limiter and count the failure afterwards: concurrent requests would all
   pass the check (#180). Limiter tables (`auth/throttle`) never refuse new
   clients when full: they forget the bucket that is full again soonest.
+- A step-up (`auth.Service.StepUp`) proves exactly one factor (#186): a
+  passkey assertion, else the TOTP code alone when TOTP is enabled, else
+  the password, which never confirms an account with TOTP or passkeys.
+  Never ask for two factors in one step-up.
 - All `/api/v1` and `/agent/v1` responses are `no-store` (the one exception:
   template icons requested with their current `?v=<sha256>`, which are
   immutable); never cache API data in the service worker.
