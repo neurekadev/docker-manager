@@ -818,7 +818,9 @@ func TestStepUpUsesOneFactor(t *testing.T) {
 		t.Fatalf("password fallback not recorded: %+v", st)
 	}
 
-	// Passkey and TOTP: any one of them, or the password.
+	// Passkey and TOTP: any one of them, or the password. The owner's
+	// sign-in is no longer recent: inviting bob needs a step-up first.
+	owner.stepUp()
 	bob, bobPW, _ := e.newUser(owner, "bob")
 	dev := newDevice(publicOrigin, publicHost)
 	if reg := bob.registerPasskey(dev, "laptop"); reg.status != http.StatusCreated {
