@@ -405,10 +405,13 @@ them with "Check disks now" and "Check RAID now".
   (`internal/agent/smartctl`, `DOCKER_AGENT_SMARTCTL_BINARY`): `smartctl
   --scan-open --json` lists the devices at start, every 6 h and on "Check
   disks now"; each device is read with `smartctl --json -a -n standby,3 -d
-  <type> <name>` (at most 4 at once, 30 s each) at start, every
+  <type> <name>` (ATA devices with `-l devstat,5 -l devstat,7` too: the
+  device statistics pages with the temperature limit and SSD wear, #212;
+  at most 4 at once, 30 s each) at start, every
   `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
   disks now". A disk in standby is not woken (exit status 3 plus the
-  standby message): it keeps its previous values with state `sleeping`,
+  standby message): it keeps its previous values (not its temperature,
+  which changes while it sleeps, #212) with state `sleeping`,
   except that `failing` and `warning`, derived from the kept values, stay
   (standby clears no problem, also after a failed read in between). A
   disk not read for `DOCKER_AGENT_SMART_WAKE_AFTER` (default 24 h, 1 h–30
@@ -453,7 +456,16 @@ them with "Check disks now" and "Check RAID now".
   uncorrectable) and the attributes at or below their threshold
   (`when_failed` now or past); NVMe critical warning, available spare and
   its threshold, percentage used, media errors; SCSI grown defects and
-  uncorrected errors (read + write + verify). Attribute 188 (command
+  uncorrected errors (read + write + verify). Wear (`percentageUsed`)
+  falls back to smartctl's `endurance_used.current_percent` (SATA device
+  statistics page 7, or smartctl's estimate from the SSD_Life_Left /
+  Wear_Leveling attributes). The drive's own temperature limits (#212):
+  `temperatureLimitC` from `temperature.op_limit_max` (NVMe warning
+  composite temperature, SATA maximum operating temperature) or
+  `drive_trip` (SAS), `temperatureCriticalC` from `critical_limit_max`
+  (NVMe), a limit of 0 °C or below being none; the minutes above them in
+  the drive's lifetime from NVMe `warning_temp_time` /
+  `critical_comp_time` and SATA `lifetime_over_limit_minutes`. Attribute 188 (command
   timeout) is left out: several vendors pack three counters into its raw
   value, so any healthy drive with a past power loss would warn.
   For the System tab's disk details (#206) the device also carries the
@@ -474,8 +486,11 @@ them with "Check disks now" and "Check RAID now".
   self-assessment for it too; it clears when the drive cools), any
   reallocated, pending or uncorrectable sector, end-to-end error, media
   error, grown defect or uncorrected error, wear of 90 % or more, spare
-  below its threshold or an attribute that failed in the past (a hot day
-  marks temperature attributes so: warning, not failing); else **ok**,
+  below its threshold, a temperature at or above the drive's own limit
+  (`protocol.OverTemperatureLimit`), any minute spent above it (a lifetime
+  count: the warning stays, like an attribute that failed in the past) or
+  an attribute that failed in the past (a hot day marks temperature
+  attributes so: warning, not failing); else **ok**,
   but only with a verdict or values to judge by: without a
   self-assessment, an NVMe health log, ATA attributes or SCSI counters
   the device is **error** `no_data`, with SMART turned off on the drive

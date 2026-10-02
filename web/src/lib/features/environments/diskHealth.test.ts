@@ -128,6 +128,8 @@ describe('DiskHealthCard', () => {
 		const full: DiskDevice = {
 			...sda,
 			passed: true,
+			temperatureLimitC: 70,
+			percentageUsed: 93,
 			attributes: [
 				{
 					id: 5,
@@ -180,6 +182,14 @@ describe('DiskHealthCard', () => {
 		expect(within(dialog).getByText('Passed').closest('[data-tone]')).toHaveAttribute(
 			'data-tone',
 			'ok'
+		);
+		// The temperature against the disk's own limit, and its wear (#212).
+		expect(
+			within(dialog).getByText('36 °C (limit 70 °C)').closest('[data-tone]')
+		).toHaveAttribute('data-tone', 'ok');
+		expect(within(dialog).getByText('93% used').closest('[data-tone]')).toHaveAttribute(
+			'data-tone',
+			'warn'
 		);
 		const values = within(dialog).getByRole('table', { name: 'Health values of /dev/sda' });
 		expect(within(values).getByText('Power cycles')).toBeInTheDocument();

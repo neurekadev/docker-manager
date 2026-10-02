@@ -134,10 +134,17 @@ after the commit.
   dismissal; nothing is sent for the move. When another disk holds its
   path and its own disk is not reported (replaced), it ends `removed`,
   never as fixed. Tokens: `self_assessment_failed`, `critical_warning`,
-  `over_temperature`, `attribute_<id>`, `reallocated`, `pending`,
-  `uncorrectable`, `end_to_end`, `media_errors`, `grown_defects`, `worn`,
-  `spare_low`, `unreadable`, `missing`: counts live in the facts, so more
-  of the same is not sent again. Serial numbers never reach an alert.
+  `over_temperature`, `ran_hot`, `ran_critically_hot`, `attribute_<id>`,
+  `reallocated`, `pending`, `uncorrectable`, `end_to_end`,
+  `media_errors`, `grown_defects`, `worn`, `spare_low`, `unreadable`,
+  `missing`: counts live in the facts, so more of the same is not sent
+  again. `over_temperature` (the NVMe temperature warning, or a
+  temperature at or above the disk's own limit, #212) has the host
+  temperature alert's hysteresis: once raised it holds, with the reading
+  that raised it, until the disk is `ThresholdHysteresis` (3 °C) below
+  its limit, so a disk hovering around its limit sends nothing again;
+  `ran_hot` / `ran_critically_hot` (lifetime minutes above the limits)
+  stay, so a new overheat after cooling down is still news. Serial numbers never reach an alert.
 - **What can't be seen is not gone.** Without a report, while the SMART
   status is anything but `ok` or `disabled`, while the RAID state can't be
   read or while the report is stale, alerts of disks and arrays the report

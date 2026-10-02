@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -217,9 +218,15 @@ func evaluateDisks(ctx context.Context, db bun.IDB, e domain.Environment, device
 		key := diskKey(e.ID, d.Name, d.Type)
 		seen[key] = true
 		cur, isFiring := firing[key]
+		held := heldHeat(cur, isFiring, d)
 		switch d.State {
 		case protocol.DiskOK:
-			if isFiring {
+			switch {
+			case isFiring && held != nil:
+				// Cooler than its limit, but not by ThresholdHysteresis yet:
+				// the alert stays as it is (no flapping around the limit).
+				touch = append(touch, cur.ID)
+			case isFiring:
 				out, err = collect(out)(resolve(ctx, db, cur, domain.AlertResolvedFixed, now))
 			}
 		case protocol.DiskSleeping:
@@ -247,9 +254,9 @@ func evaluateDisks(ctx context.Context, db bun.IDB, e domain.Environment, device
 			if noAccess && d.ErrorCode == protocol.DiskErrPermissionDenied {
 				break
 			}
-			out, err = collect(out)(raise(ctx, db, diskObservation(e, d, key), now))
+			out, err = collect(out)(raise(ctx, db, diskObservation(e, d, key, held), now))
 		case protocol.DiskWarning, protocol.DiskFailing:
-			out, err = collect(out)(raise(ctx, db, diskObservation(e, d, key), now))
+			out, err = collect(out)(raise(ctx, db, diskObservation(e, d, key, held), now))
 		}
 		if err != nil {
 			return nil, nil, err
@@ -441,9 +448,33 @@ func raidMonitoring(e domain.Environment, h *observe.HostHealth, stale bool) (Ob
 	}, true
 }
 
-// diskObservation describes a disk in state warning, failing or error.
-// Never its serial number (diskId is a hash of it).
-func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string) Observation {
+// heldHeat returns the facts of a firing disk alert whose temperature
+// problem (over_temperature) still holds although the disk is no longer
+// over its limit: it is not yet ThresholdHysteresis °C below it, like the
+// host temperature alert (#212). nil when it does not hold.
+func heldHeat(cur domain.Alert, firing bool, d protocol.SMARTDevice) map[string]string {
+	if !firing || !slices.Contains(domain.FingerprintTokens(cur.Fingerprint), "over_temperature") || d.TemperatureC == nil ||
+		protocol.OverTemperatureLimit(d) {
+		return nil
+	}
+	limit := d.TemperatureLimitC
+	if limit == nil {
+		limit = d.TemperatureCriticalC
+	}
+	if limit == nil || *d.TemperatureC <= *limit-ThresholdHysteresis {
+		return nil
+	}
+	if cur.Facts == nil {
+		return map[string]string{}
+	}
+	return cur.Facts
+}
+
+// diskObservation describes a disk in state warning, failing or error;
+// held is the facts of its alert while a temperature problem is held by
+// the hysteresis (heldHeat), else nil. Never its serial number (diskId is
+// a hash of it).
+func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string, held map[string]string) Observation {
 	facts := map[string]string{"device": d.Name, "deviceType": d.Type, "state": d.State}
 	if id := diskID(e.ID, d); id != "" {
 		facts["diskId"] = id
@@ -475,6 +506,31 @@ func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string) O
 			tokens = append(tokens, "critical_warning")
 		}
 	}
+	switch {
+	case protocol.OverTemperatureLimit(d):
+		// At or above the disk's own limit now (#212); the same problem as
+		// the NVMe temperature warning.
+		facts["temperatureC"] = strconv.Itoa(*d.TemperatureC)
+		limit := d.TemperatureLimitC
+		if limit == nil || *d.TemperatureC < *limit {
+			limit = d.TemperatureCriticalC
+		}
+		facts["temperatureLimitC"] = strconv.Itoa(*limit)
+		tokens = append(tokens, "over_temperature")
+	case held != nil:
+		// Not yet cool enough to end it: the reading that raised it stays.
+		for _, k := range []string{"temperatureC", "temperatureLimitC"} {
+			if held[k] != "" {
+				facts[k] = held[k]
+			}
+		}
+		tokens = append(tokens, "over_temperature")
+	}
+	// Time spent above the limits is a problem of its own: a lifetime
+	// count, it stays once the disk ran hot, so a new overheat later
+	// (over_temperature again) is still news.
+	count("overTemperatureMinutes", "ran_hot", d.OverTemperatureMinutes)
+	count("criticalTemperatureMinutes", "ran_critically_hot", d.CriticalTemperatureMinutes)
 	var attrs []string
 	for _, a := range d.FailingAttributes {
 		attrs = append(attrs, fmt.Sprintf("%d %s (%s)", a.ID, a.Name, a.WhenFailed))

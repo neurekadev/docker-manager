@@ -30,11 +30,14 @@ A disk's health is one of:
 - **Healthy**: nothing to do.
 - **Warning**: the disk reports damaged or pending sectors, errors, wear
   of 90% or more, or little spare capacity. Keep your backups current and
-  plan a replacement.
+  plan a replacement. A disk that is hotter than the limit it reports, or
+  that has run hotter than it before, shows **Warning** too: check the
+  server's cooling. The disk counts that time for good, so this warning
+  stays after it cools down.
 - **Failing**: the disk's own self-check failed or it reports a critical
   problem. Back up and replace it soon.
 - **Sleeping**: the disk was in standby and was not woken; it shows the
-  values from its last check. A disk whose last check found a problem
+  values from its last check, except its temperature. A disk whose last check found a problem
   keeps its **Warning** or **Failing** badge while it sleeps. A disk that
   sleeps through every check is woken for one once a day.
 - **Unreadable**: the disk could not be read, didn't answer in time or

@@ -307,10 +307,19 @@ func Detail(a domain.Alert) string {
 			parts = append(parts, "SMART self-assessment failed")
 		}
 		switch {
+		case f["temperatureLimitC"] != "":
+			parts = append(parts, "too hot: "+f["temperatureC"]+" °C, its limit is "+f["temperatureLimitC"]+" °C")
 		case f["overTemperature"] == "true":
 			parts = append(parts, "too hot (NVMe temperature warning)")
-		case f["criticalWarning"] != "":
+		}
+		if f["criticalWarning"] != "" && f["overTemperature"] != "true" {
 			parts = append(parts, "critical warning "+f["criticalWarning"])
+		}
+		if f["overTemperatureMinutes"] != "" {
+			parts = append(parts, plural(f["overTemperatureMinutes"], "minute", "minutes")+" above its temperature limit so far")
+		}
+		if f["criticalTemperatureMinutes"] != "" {
+			parts = append(parts, plural(f["criticalTemperatureMinutes"], "minute", "minutes")+" above its critical temperature so far")
 		}
 		if f["failingAttributes"] != "" {
 			parts = append(parts, "attributes at or below their threshold: "+f["failingAttributes"])

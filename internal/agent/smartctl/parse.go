@@ -172,7 +172,21 @@ type readOutput struct {
 	} `json:"smart_status"`
 	Temperature struct {
 		Current num `json:"current"`
+		// The drive's limits: NVMe warning (op_limit_max) and critical
+		// composite temperature, SATA maximum operating temperature (device
+		// statistics page 5, or SCT), SAS drive trip; SATA minutes over the
+		// limit (device statistics).
+		OpLimitMax       num `json:"op_limit_max"`
+		CriticalLimitMax num `json:"critical_limit_max"`
+		DriveTrip        num `json:"drive_trip"`
+		OverLimitMinutes num `json:"lifetime_over_limit_minutes"`
 	} `json:"temperature"`
+	// EnduranceUsed is smartctl's wear for every protocol: NVMe percentage
+	// used, SATA device statistics page 7 or its estimate from the
+	// SSD_Life_Left / Wear_Leveling attributes.
+	EnduranceUsed struct {
+		CurrentPercent num `json:"current_percent"`
+	} `json:"endurance_used"`
 	PowerOnTime struct {
 		Hours num `json:"hours"`
 	} `json:"power_on_time"`
@@ -203,6 +217,8 @@ type readOutput struct {
 		PercentageUsed          num `json:"percentage_used"`
 		MediaErrors             num `json:"media_errors"`
 		PowerOnHours            num `json:"power_on_hours"`
+		WarningTempTime         num `json:"warning_temp_time"`
+		CriticalCompTime        num `json:"critical_comp_time"`
 	} `json:"nvme_smart_health_information_log"`
 	SCSIGrownDefects    num `json:"scsi_grown_defect_list"`
 	SCSIErrorCounterLog *struct {
@@ -268,6 +284,10 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 	d.SMARTSupported = (out.SmartSupport != nil && out.SmartSupport.Available != nil && *out.SmartSupport.Available) ||
 		d.Passed != nil || out.NVMeLog != nil
 	d.TemperatureC = out.Temperature.Current.intPtr(-273, 1000)
+	// A limit of 0 °C or below is no limit (an unset field).
+	d.TemperatureLimitC = firstInt(out.Temperature.OpLimitMax.intPtr(1, 1000), out.Temperature.DriveTrip.intPtr(1, 1000))
+	d.TemperatureCriticalC = out.Temperature.CriticalLimitMax.intPtr(1, 1000)
+	d.OverTemperatureMinutes = out.Temperature.OverLimitMinutes.nonNegative()
 	d.PowerOnHours = out.PowerOnTime.Hours.nonNegative()
 	if a := out.ATASmartAttributes; a != nil {
 		for _, attr := range a.Table {
@@ -316,6 +336,10 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 		if d.PowerOnHours == nil {
 			d.PowerOnHours = n.PowerOnHours.nonNegative()
 		}
+		if v := n.WarningTempTime.nonNegative(); v != nil {
+			d.OverTemperatureMinutes = v
+		}
+		d.CriticalTemperatureMinutes = n.CriticalCompTime.nonNegative()
 	}
 	d.GrownDefects = out.SCSIGrownDefects.nonNegative()
 	if l := out.SCSIErrorCounterLog; l != nil {
@@ -340,6 +364,9 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 	}
 	if d.PercentageUsed == nil {
 		d.PercentageUsed = out.SCSIPercentageUsed.intPtr(0, 255)
+	}
+	if d.PercentageUsed == nil {
+		d.PercentageUsed = out.EnduranceUsed.CurrentPercent.intPtr(0, 255)
 	}
 	if !d.SMARTSupported {
 		d.State, d.ErrorCode = protocol.DiskError, protocol.DiskErrUnsupported
@@ -455,6 +482,16 @@ func messagesText(ms []message) string {
 		parts = append(parts, m.String)
 	}
 	return strings.Join(parts, "\n")
+}
+
+// firstInt returns the first value that is set.
+func firstInt(vs ...*int) *int {
+	for _, v := range vs {
+		if v != nil {
+			return v
+		}
+	}
+	return nil
 }
 
 func firstNonEmpty(vs ...string) string {

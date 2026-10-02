@@ -1173,6 +1173,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   message?, checking?, scannedAt?, checkedAt?, intervalSeconds?, devices
   [{name, type, protocol?, model?, serial?, firmware?, capacityBytes?,
   rotationRpm?, smartSupported, passed?, temperatureC?, powerOnHours?,
+  temperatureLimitC?, temperatureCriticalC?, overTemperatureMinutes?,
+  criticalTemperatureMinutes?,
   reallocatedSectors?, endToEndErrors?, reportedUncorrectable?, pendingSectors?,
   offlineUncorrectable?, failingAttributes? [{id, name, whenFailed}],
   criticalWarning?, availableSpare?, availableSpareThreshold?,
@@ -1188,7 +1190,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   capabilities list it; Go types in `internal/protocol/health.go`). The
   disk health of the host: SMART data read with the agent image's
   smartctl (cached, refreshed every `DOCKER_AGENT_SMART_INTERVAL`; a disk
-  in standby is not woken and keeps its previous values with state
+  in standby is not woken and keeps its previous values (not its
+  temperature, #212) with state
   `sleeping`, or `failing` / `warning` when the last read found that,
   until it went unread for `DOCKER_AGENT_SMART_WAKE_AFTER`; a disk a later
   scan no longer finds stays listed as `error` `missing` until the agent
@@ -1200,6 +1203,10 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   start-stop counter, the power cycle count) and the md `metadata`,
   `chunkBytes`, `layout`, `bitmap` and `bitmapChunkBytes` were added later
   (#206; older agents omit them, the details dialogs show what is there).
+  `temperatureLimitC`, `temperatureCriticalC` (the drive's own limits,
+  -273..1000), `overTemperatureMinutes` and `criticalTemperatureMinutes`
+  (lifetime minutes above them) were added with #212; older agents omit
+  them.
   `refresh` is empty, `smart` (a fresh scan and read of every
   disk, never a self-test: the agent waits up to 3 s, then answers with
   `smart.checking` and the result comes with a later request) or `raid`

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -219,18 +220,26 @@ func TestRunnerScanAndReadArgumentsAndEnvironment(t *testing.T) {
 	if _, err := f.r.Read(ctx, devs[0], true); err != nil {
 		t.Fatal(err)
 	}
+	// Only ATA devices are asked for device statistics.
+	if _, err := f.r.Read(ctx, devs[3], false); err != nil {
+		t.Fatal(err)
+	}
 	calls := f.calls()
-	if len(calls) != 3 {
+	if len(calls) != 4 {
 		t.Fatalf("calls %+v", calls)
 	}
-	if want := []string{"--json", "-a", "-n", "never", "-d", "sat", "/dev/sda"}; !reflect.DeepEqual(calls[2].Args, want) {
+	devstat := []string{"-l", "devstat,5", "-l", "devstat,7"}
+	if want := slices.Concat([]string{"--json", "-a"}, devstat, []string{"-n", "never", "-d", "sat", "/dev/sda"}); !reflect.DeepEqual(calls[2].Args, want) {
 		t.Errorf("waking read args %q", calls[2].Args)
 	}
 	if want := []string{"--scan-open", "--json"}; !reflect.DeepEqual(calls[0].Args, want) {
 		t.Errorf("scan args %q", calls[0].Args)
 	}
-	if want := []string{"--json", "-a", "-n", "standby,3", "-d", "sat", "/dev/sda"}; !reflect.DeepEqual(calls[1].Args, want) {
+	if want := slices.Concat([]string{"--json", "-a"}, devstat, []string{"-n", "standby,3", "-d", "sat", "/dev/sda"}); !reflect.DeepEqual(calls[1].Args, want) {
 		t.Errorf("read args %q", calls[1].Args)
+	}
+	if want := []string{"--json", "-a", "-n", "standby,3", "-d", "nvme", "/dev/nvme0"}; !reflect.DeepEqual(calls[3].Args, want) {
+		t.Errorf("nvme read args %q", calls[3].Args)
 	}
 	for _, c := range calls {
 		for _, e := range c.Env {

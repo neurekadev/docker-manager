@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
 // DefaultBinary is where the agent image installs smartctl
@@ -310,7 +312,10 @@ func (r *Runner) Scan(ctx context.Context) ([]ScanDevice, error) {
 
 // Read reads one device's SMART data without waking it from standby
 // (smartctl --json -a -n standby,3 -d <type> <name>); with wake it reads
-// a device in standby too (-n never: the read spins it up).
+// a device in standby too (-n never: the read spins it up). An ATA device
+// is also asked for its device statistics pages 5 (temperature, its
+// limit) and 7 (SSD wear), which -a leaves out (read-only log reads; a
+// drive without them reports less).
 func (r *Runner) Read(ctx context.Context, dev ScanDevice, wake bool) (Reading, error) {
 	if !validName(dev.Name) || !validType(dev.Type) {
 		return Reading{}, &Error{Op: "read", Code: CodeFailed, Message: "invalid device name or type"}
@@ -319,7 +324,12 @@ func (r *Runner) Read(ctx context.Context, dev ScanDevice, wake bool) (Reading, 
 	if wake {
 		power = "never"
 	}
-	res, err := r.run(ctx, "read", "read "+dev.Name+" "+dev.Type, dev.Name, "--json", "-a", "-n", power, "-d", dev.Type, dev.Name)
+	args := []string{"--json", "-a"}
+	if dev.Protocol == protocol.DiskATA {
+		args = append(args, "-l", "devstat,5", "-l", "devstat,7")
+	}
+	args = append(args, "-n", power, "-d", dev.Type, dev.Name)
+	res, err := r.run(ctx, "read", "read "+dev.Name+" "+dev.Type, dev.Name, args...)
 	if err != nil {
 		return Reading{}, err
 	}

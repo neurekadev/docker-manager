@@ -569,3 +569,115 @@ func TestStaleHealthWarns(t *testing.T) {
 		t.Fatalf("%+v", as)
 	}
 }
+
+// TestDiskOverItsTemperatureLimit (#212): a disk at or above its own
+// temperature limit, or with time spent above it, raises a warning whose
+// facts name the reading, the limit and the minutes; a changing reading
+// keeps the fingerprint, the NVMe temperature warning is the same problem
+// as the limit, and a new overheat after the disk cooled is news even
+// when it ran hot before.
+func TestDiskOverItsTemperatureLimit(t *testing.T) {
+	env := domain.Environment{ID: "env-1"}
+	hot := disk(protocol.DiskWarning)
+	hot.TemperatureC, hot.TemperatureLimitC, hot.OverTemperatureMinutes = intp(72), intp(70), i64(34)
+	o := diskObservation(env, hot, "k", nil)
+	if o.Severity != domain.AlertWarning || o.Facts["temperatureC"] != "72" || o.Facts["temperatureLimitC"] != "70" ||
+		o.Facts["overTemperatureMinutes"] != "34" || o.Facts["criticalTemperatureMinutes"] != "" {
+		t.Fatalf("%+v", o)
+	}
+	hotter := hot
+	hotter.TemperatureC = intp(75)
+	if diskObservation(env, hotter, "k", nil).Fingerprint != o.Fingerprint {
+		t.Error("a new reading must not look like a new problem")
+	}
+	// Above the critical limit only: that limit is named.
+	crit := disk(protocol.DiskWarning)
+	crit.TemperatureC, crit.TemperatureCriticalC = intp(86), intp(85)
+	if f := diskObservation(env, crit, "k", nil).Facts; f["temperatureLimitC"] != "85" {
+		t.Errorf("critical limit %+v", f)
+	}
+	// The NVMe temperature warning and the limit: one problem.
+	nvme := disk(protocol.DiskWarning)
+	nvme.Passed, nvme.CriticalWarning = boolp(false), intp(protocol.NVMeWarnTemperature)
+	both := nvme
+	both.TemperatureC, both.TemperatureLimitC = intp(83), intp(82)
+	if diskObservation(env, nvme, "k", nil).Fingerprint != diskObservation(env, both, "k", nil).Fingerprint {
+		t.Error("the limit repeats the NVMe temperature warning")
+	}
+	// Ran hot, cooled down well below its limit: the past stays, the
+	// live problem goes; heating up again is a new problem.
+	cooled := disk(protocol.DiskWarning)
+	cooled.TemperatureC, cooled.TemperatureLimitC, cooled.OverTemperatureMinutes = intp(60), intp(70), i64(34)
+	past := diskObservation(env, cooled, "k", nil)
+	if past.Facts["temperatureC"] != "" || past.Facts["overTemperatureMinutes"] != "34" {
+		t.Fatalf("cooled %+v", past.Facts)
+	}
+	if !domain.NewTokens(past.Fingerprint, o.Fingerprint) {
+		t.Error("overheating again after cooling down must be news")
+	}
+	// Below the limit and never above it: no temperature facts.
+	cool := disk(protocol.DiskOK)
+	cool.TemperatureC, cool.TemperatureLimitC, cool.OverTemperatureMinutes = intp(40), intp(70), i64(0)
+	if f := diskObservation(env, cool, "k", nil).Facts; f["temperatureC"] != "" || f["overTemperatureMinutes"] != "" {
+		t.Errorf("cool disk %+v", f)
+	}
+}
+
+// TestDiskTemperatureHysteresis (#212): an alert raised for a disk over
+// its own limit holds until the disk is ThresholdHysteresis °C below it,
+// also for a disk without a lifetime counter (it would resolve and fire
+// again on every crossing otherwise), and a disk that ran hot keeps its
+// dismissal while it hovers around the limit.
+func TestDiskTemperatureHysteresis(t *testing.T) {
+	sas := func(state string, temp int) protocol.SMARTDevice {
+		d := disk(state)
+		d.Type, d.Protocol, d.TemperatureC, d.TemperatureLimitC = "scsi", protocol.DiskSCSI, intp(temp), intp(60)
+		return d
+	}
+	f := newFixture(t)
+	f.health.set("env-1", []protocol.SMARTDevice{sas(protocol.DiskWarning, 61)}, nil, nil)
+	f.evaluate("env-1")
+	a := f.one()
+	if a.Facts["temperatureC"] != "61" {
+		t.Fatalf("%+v", a)
+	}
+	// 59 °C: cooler than its limit (the disk reports ok), within the margin.
+	f.health.set("env-1", []protocol.SMARTDevice{sas(protocol.DiskOK, 59)}, nil, nil)
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 1 || as[0].ID != a.ID || as[0].Facts["temperatureC"] != "61" {
+		t.Fatalf("within the margin the alert stays as it is: %+v", as)
+	}
+	// Over again: the same alert, nothing new.
+	f.health.set("env-1", []protocol.SMARTDevice{sas(protocol.DiskWarning, 60)}, nil, nil)
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 1 || as[0].ID != a.ID || as[0].Escalation != a.Escalation {
+		t.Fatalf("crossing again is no news: %+v", as)
+	}
+	// 57 °C: ThresholdHysteresis below its limit, resolved.
+	f.health.set("env-1", []protocol.SMARTDevice{sas(protocol.DiskOK, 60-ThresholdHysteresis)}, nil, nil)
+	f.evaluate("env-1")
+	if as := f.firing(); len(as) != 0 {
+		t.Fatalf("cool enough: %+v", as)
+	}
+
+	// A disk that ran hot: hovering around its limit keeps the token, so
+	// nothing is sent again; only cooling past the margin drops it.
+	held := heldHeat(domain.Alert{Fingerprint: domain.Fingerprint("over_temperature", "ran_hot"),
+		Facts: map[string]string{"temperatureC": "72", "temperatureLimitC": "70"}}, true, func() protocol.SMARTDevice {
+		d := disk(protocol.DiskWarning)
+		d.TemperatureC, d.TemperatureLimitC = intp(69), intp(70)
+		return d
+	}())
+	if held["temperatureC"] != "72" {
+		t.Fatalf("held %+v", held)
+	}
+	d := disk(protocol.DiskWarning)
+	d.TemperatureC, d.TemperatureLimitC, d.OverTemperatureMinutes = intp(69), intp(70), i64(40)
+	if o := diskObservation(domain.Environment{ID: "env-1"}, d, "k", held); !strings.Contains(o.Fingerprint, "over_temperature") ||
+		o.Facts["temperatureC"] != "72" {
+		t.Fatalf("held observation %+v", o)
+	}
+	if heldHeat(domain.Alert{Fingerprint: "ran_hot"}, true, d) != nil {
+		t.Error("only a held temperature problem is held")
+	}
+}

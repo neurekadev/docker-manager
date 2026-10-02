@@ -203,6 +203,17 @@ type SMARTDevice struct {
 	Passed       *bool  `json:"passed,omitempty"`
 	TemperatureC *int   `json:"temperatureC,omitempty"`
 	PowerOnHours *int64 `json:"powerOnHours,omitempty"`
+	// The drive's own temperature limits: TemperatureLimitC the highest
+	// it should run at (NVMe warning composite temperature, SATA maximum
+	// operating temperature, SAS drive trip), TemperatureCriticalC the
+	// NVMe critical composite temperature. OverTemperatureMinutes and
+	// CriticalTemperatureMinutes are the minutes it spent above them in
+	// its lifetime (NVMe warning_temp_time and critical_comp_time, SATA
+	// device statistics). Absent from agents that predate them (#212).
+	TemperatureLimitC          *int   `json:"temperatureLimitC,omitempty"`
+	TemperatureCriticalC       *int   `json:"temperatureCriticalC,omitempty"`
+	OverTemperatureMinutes     *int64 `json:"overTemperatureMinutes,omitempty"`
+	CriticalTemperatureMinutes *int64 `json:"criticalTemperatureMinutes,omitempty"`
 	// ATA attributes (raw values): 5 reallocated sectors, 184 end-to-end
 	// errors, 187 reported uncorrectable errors, 197 pending sectors, 198
 	// offline uncorrectable sectors, and the attributes at or below their
@@ -219,7 +230,8 @@ type SMARTDevice struct {
 	AvailableSpareThreshold *int   `json:"availableSpareThreshold,omitempty"`
 	MediaErrors             *int64 `json:"mediaErrors,omitempty"`
 	// PercentageUsed is the wear estimate (NVMe percentage used, SCSI
-	// endurance indicator); it may exceed 100.
+	// endurance indicator, SATA device statistics or smartctl's estimate
+	// from the SSD life attributes); it may exceed 100.
 	PercentageUsed *int `json:"percentageUsed,omitempty"`
 	// SCSI.
 	GrownDefects      *int64 `json:"grownDefects,omitempty"`
@@ -396,6 +408,8 @@ func (d SMARTDevice) validate() error {
 		return invalid("smart device state %q unknown", d.State)
 	}
 	if d.CapacityBytes < 0 || !intIn(d.RotationRPM, 0, 1_000_000) || !intIn(d.TemperatureC, -273, 1000) ||
+		!intIn(d.TemperatureLimitC, -273, 1000) || !intIn(d.TemperatureCriticalC, -273, 1000) ||
+		!nonNegative(d.OverTemperatureMinutes, d.CriticalTemperatureMinutes) ||
 		!intIn(d.CriticalWarning, 0, 255) || !intIn(d.AvailableSpare, 0, 255) || !intIn(d.AvailableSpareThreshold, 0, 255) ||
 		!intIn(d.PercentageUsed, 0, 255) || !nonNegative(d.PowerOnHours, d.Reallocated, d.EndToEndErrors, d.ReportedUncorrectable, d.Pending,
 		d.OfflineUncorrectable, d.MediaErrors, d.GrownDefects, d.UncorrectedErrors) {
@@ -487,10 +501,26 @@ func OverTemperatureOnly(d SMARTDevice) bool {
 	return d.CriticalWarning != nil && *d.CriticalWarning == NVMeWarnTemperature
 }
 
+// OverTemperatureLimit reports a temperature at or above the drive's own
+// limit (TemperatureLimitC, or TemperatureCriticalC when only that is
+// known).
+func OverTemperatureLimit(d SMARTDevice) bool {
+	if d.TemperatureC == nil {
+		return false
+	}
+	for _, l := range []*int{d.TemperatureLimitC, d.TemperatureCriticalC} {
+		if l != nil && *d.TemperatureC >= *l {
+			return true
+		}
+	}
+	return false
+}
+
 // DeriveDiskState derives a read device's state from its values:
 // failing when the drive reports a failed self-assessment, an attribute
 // at or below its threshold now, or an NVMe critical warning about the
-// drive itself; warning for an NVMe temperature warning alone,
+// drive itself; warning for an NVMe temperature warning alone, a
+// temperature at or above the drive's own limit, time spent above it,
 // reallocated, pending or uncorrectable sectors, end-to-end errors, NVMe
 // media errors, SCSI grown defects or uncorrected errors, wear of Worn
 // percent or more, spare below its threshold or an attribute that failed
@@ -519,7 +549,7 @@ func DeriveDiskState(d SMARTDevice) string {
 		return false
 	}
 	switch {
-	case past, hot,
+	case past, hot, OverTemperatureLimit(d), positive(d.OverTemperatureMinutes, d.CriticalTemperatureMinutes),
 		positive(d.Reallocated, d.EndToEndErrors, d.ReportedUncorrectable, d.Pending, d.OfflineUncorrectable, d.MediaErrors,
 			d.GrownDefects, d.UncorrectedErrors),
 		d.PercentageUsed != nil && *d.PercentageUsed >= Worn,

@@ -148,13 +148,14 @@ func TestMonitorKeepsSleepingDisksValues(t *testing.T) {
 	readAt := *first.SMART.Devices[1].ReadAt
 
 	// sdb spins down; sda is read again. The sleeping disk keeps its
-	// values and read time, and the scan is not repeated.
+	// values and read time but not its temperature (it cools), and the
+	// scan is not repeated.
 	clk.Advance(30 * time.Minute)
 	smart.set("/dev/sdb", standby("/dev/sdb"))
 	m.round(ctx, false)
 	r := m.Report()
 	sdb := r.SMART.Devices[1]
-	if sdb.State != protocol.DiskSleeping || sdb.Serial != "S2" || sdb.TemperatureC == nil || !sdb.ReadAt.Equal(readAt) {
+	if sdb.State != protocol.DiskSleeping || sdb.Serial != "S2" || sdb.TemperatureC != nil || !sdb.ReadAt.Equal(readAt) {
 		t.Fatalf("sleeping disk %+v", sdb)
 	}
 	if sda := r.SMART.Devices[0]; !sda.ReadAt.After(readAt) || sda.State != protocol.DiskOK {

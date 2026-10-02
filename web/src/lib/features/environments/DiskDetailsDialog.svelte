@@ -28,9 +28,13 @@
 		diskKind,
 		healthValue,
 		issuesText,
+		hotTimeCheck,
 		poweredOn,
 		selfAssessmentCheck,
+		temperatureCheck,
 		valueCheck,
+		wearCheck,
+		type SmartCheck,
 		type DiskAttributeRow,
 		type DiskDevice,
 		type DiskValue
@@ -62,10 +66,15 @@
 		{ label: 'Kind', value: diskKind(disk) },
 		{ label: 'Device type', value: disk.type, mono: true },
 		{ label: 'Self-assessment', render: selfAssessmentFact },
-		{
-			label: 'Temperature',
-			value: disk.temperatureC === undefined ? '' : formatTemperature(disk.temperatureC)
-		},
+		temperatureCheck(disk)
+			? { label: 'Temperature', render: temperatureFact }
+			: {
+					label: 'Temperature',
+					value:
+						disk.temperatureC === undefined ? '' : formatTemperature(disk.temperatureC)
+				},
+		...(hotTimeCheck(disk) ? [{ label: 'Time above its limit', render: hotTimeFact }] : []),
+		...(wearCheck(disk) ? [{ label: 'Wear', render: wearFact }] : []),
 		{ label: 'Powered on', value: poweredOn(disk) === '—' ? '' : poweredOn(disk) },
 		{ label: 'Last read', render: readFact }
 	]);
@@ -113,6 +122,12 @@
 	{@const c = selfAssessmentCheck(disk)}
 	{#if c}<SmartCheckMark check={c} />{:else}{@render dash()}{/if}
 {/snippet}
+{#snippet checkMark(c: SmartCheck | null)}
+	{#if c}<SmartCheckMark check={c} />{:else}{@render dash()}{/if}
+{/snippet}
+{#snippet temperatureFact()}{@render checkMark(temperatureCheck(disk))}{/snippet}
+{#snippet hotTimeFact()}{@render checkMark(hotTimeCheck(disk))}{/snippet}
+{#snippet wearFact()}{@render checkMark(wearCheck(disk))}{/snippet}
 {#snippet readFact()}
 	{#if disk.readAt}<time datetime={disk.readAt} title={formatDateTime(disk.readAt)}
 			>{formatRelative(disk.readAt, now)}</time
