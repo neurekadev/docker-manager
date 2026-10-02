@@ -59,6 +59,11 @@ type Session struct {
 	// ends while it is being reported online.
 	onlineMu sync.Mutex
 
+	// slots bounds the request and rescan frames in flight to the
+	// agent's limit (protocol.MaxConcurrentRequests): a request waits for
+	// a slot instead of being refused as busy.
+	slots chan struct{}
+
 	mu      sync.Mutex
 	pending map[string]chan requestResult
 	// requests are the request names of the last capabilities frame.
@@ -228,10 +233,10 @@ func (s *Session) Request(ctx context.Context, name string, input any, timeout t
 	if err != nil {
 		return nil, err
 	}
-	deadline := s.hub.svc.clk.Now().Add(timeout).UTC()
-	f := &protocol.Frame{Type: protocol.TypeRequest, ID: s.frameID("q"), Deadline: &deadline, Payload: b,
-		RequestID: protocol.RequestIDOrEmpty(logging.RequestID(ctx))}
-	return s.roundTrip(ctx, f, timeout)
+	return s.call(ctx, timeout, func(deadline time.Time) *protocol.Frame {
+		return &protocol.Frame{Type: protocol.TypeRequest, ID: s.frameID("q"), Deadline: &deadline, Payload: b,
+			RequestID: protocol.RequestIDOrEmpty(logging.RequestID(ctx))}
+	})
 }
 
 // Rescan asks the agent for a bounded reconciliation of one watched file
@@ -246,9 +251,9 @@ func (s *Session) Rescan(ctx context.Context, p protocol.RescanPayload, timeout 
 	if err != nil {
 		return protocol.RescanResult{}, err
 	}
-	deadline := s.hub.svc.clk.Now().Add(timeout).UTC()
-	f := &protocol.Frame{Type: protocol.TypeRescan, ID: s.frameID("rs"), Deadline: &deadline, Payload: b}
-	out, err := s.roundTrip(ctx, f, timeout)
+	out, err := s.call(ctx, timeout, func(deadline time.Time) *protocol.Frame {
+		return &protocol.Frame{Type: protocol.TypeRescan, ID: s.frameID("rs"), Deadline: &deadline, Payload: b}
+	})
 	if err != nil {
 		return protocol.RescanResult{}, err
 	}
@@ -257,6 +262,86 @@ func (s *Session) Rescan(ctx context.Context, p protocol.RescanPayload, timeout 
 		return protocol.RescanResult{}, fmt.Errorf("agents: decode rescan result: %w", err)
 	}
 	return res, nil
+}
+
+// busyRetries and busyBackoff bound the re-sends of a request the agent
+// refused as busy (at its request limit; the first wait doubles each
+// time), always within the request's timeout.
+const (
+	busyRetries = 4
+	busyBackoff = 250 * time.Millisecond
+)
+
+// call sends the request-like frame build makes (with the request's
+// deadline) within timeout: it waits for one of the agent's request slots
+// first, and re-sends a frame the agent refused as busy. Re-sending is
+// safe for every request, mutating ones included: the agent refuses a
+// busy frame before running its handler.
+func (s *Session) call(ctx context.Context, timeout time.Duration, build func(deadline time.Time) *protocol.Frame) (json.RawMessage, error) {
+	clk := s.hub.svc.clk
+	end := clk.Now().Add(timeout)
+	for attempt := 0; ; attempt++ {
+		if err := s.acquire(ctx, end); err != nil {
+			return nil, err
+		}
+		left := end.Sub(clk.Now())
+		if left <= 0 {
+			<-s.slots
+			return nil, ErrRequestTimeout
+		}
+		out, err := s.roundTrip(ctx, build(end.UTC()), left)
+		<-s.slots
+		var re *RequestError
+		if !errors.As(err, &re) || re.Code != protocol.CodeBusy || !re.Retryable || attempt == busyRetries {
+			return out, err
+		}
+		wait := busyBackoff << attempt
+		if !clk.Now().Add(wait).Before(end) {
+			return out, err
+		}
+		if werr := s.sleep(ctx, wait); werr != nil {
+			return nil, werr
+		}
+	}
+}
+
+// acquire takes a request slot, waiting until end at most.
+func (s *Session) acquire(ctx context.Context, end time.Time) error {
+	select {
+	case s.slots <- struct{}{}:
+		return nil
+	default:
+	}
+	left := end.Sub(s.hub.svc.clk.Now())
+	if left <= 0 {
+		return ErrRequestTimeout
+	}
+	t := s.hub.svc.clk.NewTimer(left)
+	defer t.Stop()
+	select {
+	case s.slots <- struct{}{}:
+		return nil
+	case <-t.C():
+		return ErrRequestTimeout
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.ctx.Done():
+		return errSessionClosed
+	}
+}
+
+// sleep waits d, or until ctx or the session ends.
+func (s *Session) sleep(ctx context.Context, d time.Duration) error {
+	t := s.hub.svc.clk.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.ctx.Done():
+		return errSessionClosed
+	}
 }
 
 // roundTrip sends a request-like frame and waits for its response or error.
@@ -306,7 +391,7 @@ func (h *Hub) serve(ctx context.Context, conn *websocket.Conn, p AgentPrincipal,
 	s := &Session{
 		hub: h, id: ids.New(), p: p, conn: conn, started: h.svc.clk.Now().UTC(), ctx: ctx, cancel: cancel, reqCtx: ctx,
 		out: make(chan outFrame, h.opts.SendQueue), streamOut: make(chan outFrame, streamQueue), activity: make(chan struct{}, 1),
-		pending: map[string]chan requestResult{},
+		pending: map[string]chan requestResult{}, slots: make(chan struct{}, protocol.MaxConcurrentRequests),
 	}
 	s.mux = streammux.New(s, protocol.MaxStreams)
 	s.log = h.log.With("agent_id", p.AgentID, "environment_id", p.EnvironmentID, "session_id", s.id, "client_ip", clientIP)

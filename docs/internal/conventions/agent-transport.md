@@ -15,14 +15,19 @@ its TLS trust), `internal/agent/runtime` (control loop). Protocol:
   Errors: `jobs.ErrAgentOffline` (map to 503 `unavailable`),
   `*agents.RequestError{Code}` (agent `error` frame; map per the protocol
   doc), `agents.ErrRequestTimeout` (504 `timeout`). Never retry mutating
-  requests automatically. The request name must be in
+  requests automatically. The session itself keeps at most
+  `protocol.MaxConcurrentRequests` requests in flight (more wait for a
+  slot within their timeout) and re-sends a request the agent refused
+  with a retryable `busy` (refused before its handler ran), so callers
+  never see that busy and never add their own retry for it. The request name must be in
   `protocol.RequestNames()` and advertised in the agent's capabilities.
 - **Serve a request on the agent:** add a `session.RequestHandler` to
   `runtime.Options.Requests` (keyed by request name); return output (JSON
   encoded) or `&session.HandlerError{Code: protocol.CodeNotFound, ...}` (an alias of
   `protocol.Error`, which shared packages such as `internal/fsroot` return).
-  The handler's ctx ends at the request deadline; at most 16 run at once per
-  session. The session advertises every registered name in the
+  The handler's ctx ends at the request deadline; at most
+  `protocol.MaxConcurrentRequests` (16) run at once per session, more are
+  refused with a retryable `busy` before running. The session advertises every registered name in the
   capabilities' `requests`. A handler after which the session must end
   returns `&session.EndSessionError{Err, Output, Code, Reason}`: the error
   frame (`Err`, refusing this manager) or, with `Err` nil, the response

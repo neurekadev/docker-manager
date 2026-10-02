@@ -177,7 +177,10 @@ func (e *RequestError) ProtocolMessage() string { return e.Message }
 // Request sends a named request to the agent's live session and waits for
 // its response (timeout 0: SessionOptions.RequestTimeout). Errors:
 // jobs.ErrAgentOffline (no session, or the session ended), *RequestError,
-// ErrRequestTimeout, or ctx's error. Mutating requests are never re-sent.
+// ErrRequestTimeout, or ctx's error. At most protocol.MaxConcurrentRequests
+// requests are in flight per session (more wait for a slot within the
+// timeout). Mutating requests are never re-sent, except one the agent
+// refused as busy before running it (Session.call).
 func (h *Hub) Request(ctx context.Context, agentID, name string, input any, timeout time.Duration) (json.RawMessage, error) {
 	s := h.Session(agentID)
 	if s == nil {

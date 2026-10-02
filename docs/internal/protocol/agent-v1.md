@@ -622,7 +622,13 @@ existing one: `conflict`) or replaces definition files when the current
 definition still has the expected hash (`conflict` otherwise).
 
 Failures answer with `error` (correlationId = request). Requests the agent
-does not serve fail with `unsupported_request`. The Docker resource
+does not serve fail with `unsupported_request`. The agent serves at most
+`protocol.MaxConcurrentRequests` (16) request and rescan frames at once per
+session and refuses more with a retryable `busy` before running them; the
+manager keeps at most that many in flight (a request waits for a free slot
+within its deadline) and sends a frame refused that way again with a new
+frame ID after a short backoff (250 ms, doubling, at most 4 times, within
+the deadline). The Docker resource
 requests and job inputs of #6 are defined in `internal/protocol/docker.go`
 (strict decoding: unknown input fields are refused); their semantics are in
 [docker-resources.md](../architecture/docker-resources.md). The request's `input` and
@@ -1053,7 +1059,9 @@ the agent (#19).
 Bounded, non-durable operations. Mutating requests are marked; they are
 never re-sent automatically after a disconnect (the caller gets `503
 unavailable` and decides). Read-only requests may be retried by the manager
-on a new session with a new frame ID.
+on a new session with a new frame ID. Any request, mutating ones included,
+is sent again after a retryable `busy` (the agent refused it before running
+it; see "request / response").
 
 | name | frame | capability checked by the manager | mutating | owner |
 | --- | --- | --- | --- | --- |
@@ -1263,7 +1271,7 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `not_found` | the Engine object or file does not exist |
 | `conflict` | the object changed (for example an expected file revision); `manager.identity` from a manager with a lower generation (before close 4421); `manager.redirect` whose generation is lower than the agent's, or equal with another plain-`http` address |
 | `deadline_exceeded` | the deadline passed before or during the work |
-| `busy` | a conflicting operation is running on the agent |
+| `busy` | the agent is at a limit (retryable: its request limit, re-sent by the manager) or a conflicting operation is running |
 | `stream_limit` | too many open streams |
 | `too_large` | an input or output exceeds its bound |
 | `engine_unavailable` | the Docker Engine is unreachable |
