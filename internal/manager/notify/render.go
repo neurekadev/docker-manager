@@ -746,7 +746,7 @@ func emailLines(s string) string {
 			switch {
 			case c == '&':
 				inEntity = true
-			case inEntity && (c == ';' || !(c == '#' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')):
+			case inEntity && (c == ';' || !entityByte(c)):
 				inEntity = false
 			}
 		}
@@ -760,6 +760,12 @@ func emailLines(s string) string {
 		n++
 	}
 	return b.String()
+}
+
+// entityByte reports whether c can be inside an entity's name or number
+// ("nbsp", "#9679").
+func entityByte(c byte) bool {
+	return c == '#' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
 // tagLen is the length of the tag starting at s[i], to its '>' outside
