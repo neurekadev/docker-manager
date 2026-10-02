@@ -441,7 +441,7 @@
 			<div class="empty">
 				{#if waiting || (regex && matcher && regexSearch.busy && searched.length === 0)}
 					<div aria-busy="true"><Skeleton lines={5} /></div>
-				{:else if feed.lines.length > 0 && !shownServices.length}
+				{:else if feed.lines.length > 0 && !allShown && !shownServices.length}
 					<EmptyState
 						compact
 						icon={ScrollText}
