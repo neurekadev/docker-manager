@@ -109,6 +109,7 @@ type Sampler struct {
 	// Sampling state, touched only by the sampling goroutine.
 	prevCPU     *cpuTimes
 	prevNet     *netCounters
+	prevDisk    *netCounters // bytes read (rx) and written (tx) by the disks
 	prevCtr     map[string]ctrCounters
 	loggedErrs  map[string]bool
 	lastCPUs    int
@@ -272,10 +273,13 @@ func (s *Sampler) sampleHost(at time.Time) protocol.HostSample {
 	} else {
 		s.prevCPU = nil
 	}
-	if m, err := readMem(fsys); err == nil {
-		h.MemoryTotalBytes, h.MemoryAvailableBytes, h.MemoryUsedBytes = i64(m.total), i64(m.available), i64(m.total-m.available)
+	if m, err := readHostMemory(fsys); err == nil {
+		h.MemoryTotalBytes, h.MemoryAvailableBytes, h.MemoryUsedBytes = i64(m.total), i64(m.available), i64(m.used)
+		h.MemoryCacheBytes, h.MemoryZFSARCBytes = i64(m.cache), m.arc
+		h.SwapTotalBytes, h.SwapUsedBytes = i64(m.swapTotal), i64(m.swapUsed)
 		s.lastMemSize = m.total
 		s.logOnce("memory", nil)
+		s.logOnce("zfs arc", m.arcErr)
 	} else {
 		s.logOnce("memory", err)
 	}
@@ -304,6 +308,19 @@ func (s *Sampler) sampleHost(at time.Time) protocol.HostSample {
 		s.prevNet = &netCounters{rx: rx, tx: tx, at: at}
 	} else {
 		s.prevNet = nil
+	}
+	r, w, err := readDiskIO(fsys)
+	s.logOnce("disk io", err)
+	if err == nil {
+		if p := s.prevDisk; p != nil {
+			if dt := at.Sub(p.at).Seconds(); dt > 0 {
+				h.DiskReadBytesPerSecond = rate(p.rx, r, dt)
+				h.DiskWriteBytesPerSecond = rate(p.tx, w, dt)
+			}
+		}
+		s.prevDisk = &netCounters{rx: r, tx: w, at: at}
+	} else {
+		s.prevDisk = nil
 	}
 	return h
 }

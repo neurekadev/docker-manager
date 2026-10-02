@@ -31,7 +31,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   chart the containers ranked by their total over the range get
   `rankColor(rank, n)`, the largest the first colour) and the host's
   Temperature chart (the sensors ranked by their maximum over the range,
-  `rankByPeak` in `$lib/features/environments/temperatures.ts`).
+  `rankByPeak` in `$lib/features/environments/temperatures.ts`); host
+  metrics have one colour per metric, Beszel's (`METRIC_COLORS` in
+  `$lib/design/hue`, also on sparklines of the same metric).
   Heavy libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Resource icons:** one icon and tile colour per resource type in
   `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's
@@ -109,9 +111,12 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   "12.34%", "2 GB"), counts whole; never `toFixed`, `Math.round` or a
   hand-made unit before display (#147; `docs/internal/design/README.md`,
   "Formatting").
-- **Charts:** `TimeSeriesChart` for metric responses (nulls are breaks,
-  gaps shaded and listed as text), `MultiSeriesChart` for many items of one
-  type (stacked, a tooltip naming every item, a `shown` filter greying out
+- **Charts:** every chart is drawn like Beszel's (`timeSeriesOption` in
+  `$lib/lazy`: monotone curves, areas as 1 px lines over `AREA_FILL` or the
+  line's `fill`, plain lines 1.5 px); never style a series by hand.
+  `TimeSeriesChart` for metric responses (nulls are breaks, gaps shaded
+  and listed as text, `stacked` for parts of a whole: Memory),
+  `MultiSeriesChart` for many items of one type (stacked, a tooltip naming every item, a `shown` filter greying out
   the rest: the environment's per-container charts, `ContainerCharts`
   after the host charts; `stacked={false}` for values that do not add up,
   plain lines headed by the largest value: the host's Temperature chart,

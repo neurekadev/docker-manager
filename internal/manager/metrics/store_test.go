@@ -510,3 +510,58 @@ func TestReopenKeepsSeriesAndWatermarks(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 }
+
+func TestHostMemorySwapAndDiskThroughputAreStored(t *testing.T) {
+	clk := testutil.FakeClock()
+	s := openTest(t, clk)
+	ctx := testutil.Context(t)
+	t0 := clk.Now().Truncate(time.Hour)
+	// Ten minutes of samples alternating between two readings; the second
+	// half of the samples come from a host without ZFS (no ARC: a gap).
+	var batch []domain.MetricSample
+	for k := range 60 {
+		v := int64(100 + 200*(k%2)) // average 200, max 300
+		h := &domain.HostValues{MemoryUsedBytes: i(1000), MemoryTotalBytes: i(4000), MemoryCacheBytes: i(v), SwapUsedBytes: i(v),
+			SwapTotalBytes: i(2000), DiskReadBPS: f(float64(v)), DiskWriteBPS: f(float64(v * 2))}
+		if k < 30 {
+			h.MemoryZFSARCBytes = i(500)
+		}
+		batch = append(batch, domain.MetricSample{At: t0.Add(time.Duration(k) * 10 * time.Second), Host: h})
+	}
+	clk.Set(t0.Add(11 * time.Minute))
+	if _, err := s.Ingest(ctx, env, batch, nil); err != nil {
+		t.Fatal(err)
+	}
+	keys := []string{"memory.cache_bytes", "memory.zfs_arc_bytes", "swap.used_bytes", "swap.total_bytes", "block.read_bytes_per_second",
+		"block.read_bytes_per_second.max", "block.write_bytes_per_second", "block.write_bytes_per_second.max"}
+	want := map[string]string{"memory.cache_bytes": "200 200 200 200 200 200 200 200 200 200",
+		"memory.zfs_arc_bytes": "500 500 500 500 500 - - - - -", "swap.used_bytes": "200 200 200 200 200 200 200 200 200 200",
+		"swap.total_bytes": "2000 2000 2000 2000 2000 2000 2000 2000 2000 2000", "block.read_bytes_per_second": "200 200 200 200 200 200 200 200 200 200",
+		"block.read_bytes_per_second.max":  "300 300 300 300 300 300 300 300 300 300",
+		"block.write_bytes_per_second":     "400 400 400 400 400 400 400 400 400 400",
+		"block.write_bytes_per_second.max": "600 600 600 600 600 600 600 600 600 600"}
+	// Before and after the rollup (sample-weighted averages and maxima).
+	check := func(when string) {
+		t.Helper()
+		r, err := s.Query(ctx, domain.MetricQuery{EnvironmentID: env, Kind: domain.MetricHost, From: t0, To: t0.Add(10 * time.Minute),
+			Step: time.Minute, Keys: keys})
+		if err != nil {
+			t.Fatalf("%s: %v", when, err)
+		}
+		for _, k := range keys {
+			if got := values(series(t, r, k, "")); got != want[k] {
+				t.Errorf("%s %s: %s, want %s", when, k, got, want[k])
+			}
+		}
+	}
+	check("raw")
+	if err := s.Rollup(ctx); err != nil {
+		t.Fatal(err)
+	}
+	check("rolled up")
+	l, ok, err := s.Latest(ctx, env)
+	if err != nil || !ok || *l.Host.MemoryCacheBytes != 300 || l.Host.MemoryZFSARCBytes != nil || *l.Host.SwapTotalBytes != 2000 ||
+		*l.Host.DiskWriteBPS != 600 {
+		t.Fatalf("latest %+v %v %v", l.Host, ok, err)
+	}
+}

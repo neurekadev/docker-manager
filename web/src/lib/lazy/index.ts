@@ -263,7 +263,9 @@ function lineOption(series: Series[], unit: string) {
 			name: s.name,
 			showSymbol: false,
 			connectNulls: false,
-			lineStyle: s.color ? { color: s.color, width: 1.75 } : { width: 1.75 },
+			smooth: true,
+			smoothMonotone: 'x',
+			lineStyle: s.color ? { color: s.color, width: 1.5 } : { width: 1.5 },
 			itemStyle: s.color ? { color: s.color } : undefined,
 			data: s.points.map((p) => [p.at.getTime(), p.value])
 		}))
@@ -297,13 +299,18 @@ export interface TimeSeriesLine {
 	/** null is a gap (no sample): a break in the line, never zero (#5). */
 	values: (number | null)[];
 	color?: string;
-	/** A faint fill under the line. */
+	/** A filled area under the line (a 1 px line over the fill). */
 	area?: boolean;
+	/** Opacity of the area's fill (default AREA_FILL; Beszel's network 0.2). */
+	fill?: number;
 	/** A dashed line (a reference next to a solid one; identity not by color alone). */
 	dashed?: boolean;
 	/** Greyed out behind the others (left out by a filter). */
 	muted?: boolean;
 }
+
+/** Beszel's fill opacity of an area. */
+export const AREA_FILL = 0.4;
 
 export interface TimeSeriesOptions {
 	/** Bucket times, ms since the epoch, ascending. */
@@ -319,10 +326,11 @@ export interface TimeSeriesOptions {
 	/** Ranges without samples, shaded (offline intervals). */
 	gaps?: { from: number; to: number }[];
 	/**
-	 * Stack the lines as filled areas (parts of a whole, e.g. per
-	 * container), drawn like Beszel: monotone curves, 40 % fills, 1 px
-	 * lines, a dot on each shown line where the pointer is. Lines stack in
-	 * the given order, the first at the bottom.
+	 * Stack the lines as filled areas (parts of a whole: memory, every
+	 * container). Lines stack in the given order, the first at the bottom.
+	 * Every chart is drawn like Beszel's: monotone curves, areas as 1 px
+	 * lines over 40 % fills, plain lines 1.5 px, a dot on each shown line
+	 * where the pointer is.
 	 */
 	stacked?: boolean;
 	/**
@@ -408,34 +416,30 @@ export function timeSeriesOption(o: TimeSeriesOptions, place?: TooltipPlace) {
 		},
 		series: o.lines.map((l, i) => {
 			const color = l.muted ? CHART_COLORS.text : l.color;
+			const area = l.area || o.stacked;
 			return {
 				type: 'line',
 				name: l.name,
 				showSymbol: false,
 				connectNulls: false,
-				...(o.stacked
-					? {
-							stack: 'total',
-							smooth: true,
-							smoothMonotone: 'x',
-							// The hover dot of a shown line (muted lines have none).
-							symbol: l.muted ? 'none' : 'circle',
-							symbolSize: 6
-						}
-					: {}),
+				...(o.stacked ? { stack: 'total' } : {}),
+				smooth: true,
+				smoothMonotone: 'x',
+				// The hover dot of a shown line (muted lines have none).
+				symbol: l.muted ? 'none' : 'circle',
+				symbolSize: 6,
 				// Muted lines stay behind the others.
 				z: l.muted ? 1 : 2,
 				lineStyle: {
 					...(color ? { color } : {}),
-					width: o.stacked ? 1 : 1.75,
+					width: area ? 1 : 1.5,
 					...(l.dashed ? { type: 'dashed' } : {}),
 					...(l.muted ? { opacity: 0.35 } : {})
 				},
 				itemStyle: color ? { color } : undefined,
-				areaStyle:
-					l.area || o.stacked
-						? { color, opacity: l.muted ? 0.04 : o.stacked ? 0.4 : 0.08 }
-						: undefined,
+				areaStyle: area
+					? { color, opacity: l.muted ? 0.04 : (l.fill ?? AREA_FILL) }
+					: undefined,
 				data: o.timestamps.map((t, j) => [t, l.values[j] ?? null]),
 				markArea: i === 0 ? gapArea : undefined
 			};
@@ -503,7 +507,7 @@ export interface Sparkline extends Mounted {
 	update(values: (number | null)[]): void;
 }
 
-/** A tiny axis-less line (KPI cards, #22), gaps as breaks. */
+/** A tiny axis-less area (KPI cards, #22) drawn like the charts, gaps as breaks. */
 export async function mountSparkline(
 	el: HTMLElement,
 	values: (number | null)[],
@@ -523,8 +527,10 @@ export async function mountSparkline(
 				data: vs,
 				showSymbol: false,
 				connectNulls: false,
-				lineStyle: { color, width: 1.75 },
-				areaStyle: { color, opacity: 0.08 }
+				smooth: true,
+				smoothMonotone: 'x',
+				lineStyle: { color, width: 1 },
+				areaStyle: { color, opacity: AREA_FILL }
 			}
 		]
 	});

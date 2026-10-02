@@ -126,7 +126,12 @@ ranked by their total over the range and get `rankColor(rank, n)` from
 `$lib/design/hue` (hues spread evenly from red, the largest first; the
 stacking stays in name order). The tooltip and name filter name them. The
 host's Temperature chart colours its sensors the same way, ranked by their
-maximum over the range (`rankByPeak`), the hottest first.
+maximum over the range (`rankByPeak`), the hottest first. The other host
+charts (and the CPU and memory sparklines) colour each metric with
+Beszel's colour for it, `METRIC_COLORS` in `$lib/design/hue`: CPU blue,
+memory and swap green (ZFS ARC teal, cache a lighter green), disk usage
+purple, disk reads blue and writes orange, network received green and
+sent pink, load purple, blue and orange.
 
 ```ts
 import { SERVICE_HEX } from '$lib/design/hue';
@@ -373,11 +378,15 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 nulls as gaps), `TerminalView` (xterm.js + `TERMINAL_THEME`). They mount the
 libraries through `$lib/lazy` only (checked by `verify-build.mjs`).
 `mountLineChart(el, name, points, unit)` returns `{ update(series), resize() }`
-for charts; series colours come from `TILE_HEX` or `SERVICE_HEX`.
+for charts; series colours come from `METRIC_COLORS`, `TILE_HEX` or
+`SERVICE_HEX`. Every chart is drawn like Beszel's: monotone curves, areas
+as 1 px lines over 40 % fills (`AREA_FILL`; a line's `fill` overrides it,
+Beszel's network 0.2 and disk I/O 0.3), plain lines 1.5 px, a dot on each
+line at the pointer; sparklines are small areas in the same style.
 
 `TimeSeriesChart` (`title`, `timestamps`, `lines: ChartLine[]`, `unit`:
 `percent | bytes | bytes_per_second | load | count | celsius`, `from`/`to`, `yMax`,
-`detail`, `headline`) draws metric responses as they come from the API: nulls stay
+`detail`, `headline`, `stacked`) draws metric responses as they come from the API: nulls stay
 breaks, runs of missing samples are shaded **and** listed as text under
 the chart ("No samples since 12:40": offline intervals, #5), several
 lines get a text legend with their latest values, the figure is labeled
@@ -386,7 +395,9 @@ value after the title when the legend already shows every line's value
 (network received and sent). A line with `dashed` is drawn and keyed
 dashed: a reference next to a solid line (backup storage before
 compression next to what is stored), so the two differ by more than
-colour. Pure helpers in
+colour. `stacked` stacks the lines as areas, the first at the bottom
+(parts of a whole: Memory's used, ZFS ARC and cache / buffers); the
+headline stays the first line's value. Pure helpers in
 `$lib/ui/timeseries.ts` (`gapIntervals`, `latestValue`, `formatValue`);
 the ECharts option is `timeSeriesOption` in `$lib/lazy` (unit-tested).
 Charts and sparklines apply data that arrives while ECharts is still
@@ -410,7 +421,7 @@ there is no floating tooltip, which could not fit the screen: a tap moves
 the pointer (`onPointer`, `hideTooltip` of `timeSeriesOption`) and the same
 list shows under the chart, scrollable, with a close button.
 Values that do not add up (temperatures) pass `stacked={false}`: plain
-1.75 px lines side by side without fills; the headline and the text
+1.5 px lines side by side without fills; the headline and the text
 summary name the largest shown value of the newest bucket (`maxAt`)
 instead of a total, and neither the tooltip nor the phone list has a
 total (the largest still first).

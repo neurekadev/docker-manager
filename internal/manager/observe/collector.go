@@ -229,8 +229,10 @@ func sampleFrom(b protocol.MetricBatch, skew time.Duration, recv time.Time) doma
 	}
 	h := b.Host
 	out := domain.MetricSample{At: at.UTC(), Flags: flags, Host: &domain.HostValues{CPUPercent: h.CPUPercent, MemoryUsedBytes: h.MemoryUsedBytes,
-		MemoryTotalBytes: h.MemoryTotalBytes, Load1: h.Load1, Load5: h.Load5, Load15: h.Load15, NetworkRxBPS: h.NetworkRxBytesPerSecond,
-		NetworkTxBPS: h.NetworkTxBytesPerSecond}}
+		MemoryTotalBytes: h.MemoryTotalBytes, MemoryCacheBytes: h.MemoryCacheBytes, MemoryZFSARCBytes: h.MemoryZFSARCBytes,
+		SwapUsedBytes: h.SwapUsedBytes, SwapTotalBytes: h.SwapTotalBytes, Load1: h.Load1, Load5: h.Load5, Load15: h.Load15,
+		NetworkRxBPS: h.NetworkRxBytesPerSecond, NetworkTxBPS: h.NetworkTxBytesPerSecond, DiskReadBPS: h.DiskReadBytesPerSecond,
+		DiskWriteBPS: h.DiskWriteBytesPerSecond}}
 	for _, d := range b.Disks {
 		out.Disks = append(out.Disks, domain.DiskValues{Mount: d.Mount, UsedBytes: d.UsedBytes, TotalBytes: d.TotalBytes})
 	}

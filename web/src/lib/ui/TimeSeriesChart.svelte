@@ -36,6 +36,12 @@
 		 * sent network traffic), so the value does not show twice.
 		 */
 		headline?: boolean;
+		/**
+		 * Stack the lines as filled areas, the first at the bottom (parts of
+		 * a whole: used memory, ZFS ARC, cache); the headline stays the
+		 * first line's value.
+		 */
+		stacked?: boolean;
 		now?: number;
 	}
 
@@ -50,6 +56,7 @@
 		height = '180px',
 		detail,
 		headline = true,
+		stacked = false,
 		now
 	}: Props = $props();
 
@@ -83,7 +90,8 @@
 			to: end,
 			yMin: 0,
 			yMax,
-			gaps
+			gaps,
+			stacked
 		};
 	}
 

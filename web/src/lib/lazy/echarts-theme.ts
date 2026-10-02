@@ -28,10 +28,12 @@ export const dockerManagerEchartsTheme = {
 		axisLabel: { color: c.text },
 		splitLine: { show: true, lineStyle: { color: c.grid } }
 	},
+	// Beszel's lines: monotone curves, 1.5 px.
 	line: {
 		symbol: 'none',
-		smooth: false,
-		lineStyle: { width: 1.75 },
+		smooth: true,
+		smoothMonotone: 'x',
+		lineStyle: { width: 1.5 },
 		// Null values are gaps: never connect across them (#5).
 		connectNulls: false
 	},

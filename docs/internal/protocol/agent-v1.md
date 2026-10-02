@@ -1144,10 +1144,17 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   (`coretemp: Package id 0`, `nvme: Composite`, `acpitz`; 1–64 bytes of
   UTF-8 without control characters, unique in the batch, never a host
   path), `celsius` −100 to 250; a sensor without a reading is absent.
-  The manager fetches 2 s after each 10 s slot.
+  The host part's `memoryUsedBytes` is total − available without the ZFS
+  ARC; `memoryCacheBytes` (buffers and page cache without shared memory),
+  `memoryZfsArcBytes` (absent without ZFS), `swapUsedBytes`,
+  `swapTotalBytes` (0 without swap) and `diskReadBytesPerSecond` /
+  `diskWriteBytesPerSecond` (the host's whole disks, at most 1 TB/s) are
+  optional: older agents omit them and as output fields they need no
+  feature. The manager fetches 2 s after each 10 s slot.
 - `metrics.live {}` → `LiveMetricsOutput {at, flags, host {cpuPercent,
   cpus, memoryUsedBytes, memoryTotalBytes}, containers [{name, id,
-  cpuPercent, memoryBytes, memoryLimitBytes}]}`: the current CPU and memory
+  cpuPercent, memoryBytes, memoryLimitBytes}]}` (`memoryUsedBytes` as in
+  `host.metrics`, without the ZFS ARC): the current CPU and memory
   of the host (procfs) and of every running container (one-shot stats),
   read when asked and never buffered or stored (added after the 10 s
   sampler: the manager sends it only to agents whose capabilities list

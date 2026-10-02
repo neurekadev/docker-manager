@@ -1,16 +1,19 @@
 <script lang="ts">
-	// Host metrics of one environment (#5): CPU, memory, network, load,
-	// disks and the temperature sensors (#146, only when the host reports
+	// Host metrics of one environment (#5) in Beszel's order, colours and
+	// style (METRIC_COLORS): CPU, memory (used, ZFS ARC and cache stacked),
+	// disk usage, disk I/O, network, swap (only when the host has swap),
+	// load and the temperature sensors (#146, only when the host reports
 	// any in the range) over a chosen range, explained in plain words
-	// (averages on long ranges, shaded gaps); charts with a legend leave out
-	// the headline value the legend already shows. The per-container charts follow over
+	// (averages on long ranges, shaded gaps); charts of rates with a legend
+	// leave out the headline value the legend already shows. Charts of
+	// values older agents do not send (disk I/O) are left out while the
+	// range has none. The per-container charts follow over
 	// the same range (ContainerCharts). Values come from GET …/metrics (downsampled
 	// by the manager; nulls are gaps: the agent was offline or a value was
 	// unknown) and refresh live through `metrics` events (liveKeys.metrics).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { environmentMetricsQuery } from '$lib/api/queries';
-	import { CHART_COLORS } from '$lib/lazy/palette';
-	import { TILE_HEX } from '$lib/design/hue';
+	import { METRIC_COLORS } from '$lib/design/hue';
 	import {
 		Card,
 		ErrorState,
@@ -22,7 +25,16 @@
 		formatBytes
 	} from '$lib/ui';
 	import ContainerCharts from './ContainerCharts.svelte';
-	import { METRIC_RANGES, diskMounts, mountLabel, rangeSeconds, seriesValues } from './model';
+	import {
+		METRIC_RANGES,
+		diskMounts,
+		hasValues,
+		memoryLines,
+		mountLabel,
+		rangeSeconds,
+		seriesValues,
+		swapTotal
+	} from './model';
 	import { temperatureItems } from './temperatures';
 
 	interface Props {
@@ -38,6 +50,10 @@
 	const m = $derived(metrics.data);
 	const mounts = $derived(diskMounts(m));
 	const temperatures = $derived(temperatureItems(m));
+	const diskIO = $derived(
+		hasValues(m, 'block.read_bytes_per_second') || hasValues(m, 'block.write_bytes_per_second')
+	);
+	const swap = $derived(swapTotal(m));
 	const rangeOptions = METRIC_RANGES.map((r) => ({ value: r.id, label: `Last ${r.label}` }));
 </script>
 
@@ -82,7 +98,7 @@
 					{
 						name: 'CPU',
 						values: seriesValues(m, 'cpu.percent'),
-						color: TILE_HEX.cyan.fg,
+						color: METRIC_COLORS.cpu,
 						area: true
 					}
 				]}
@@ -90,56 +106,13 @@
 			<TimeSeriesChart
 				title="Memory"
 				unit="bytes"
+				stacked
 				timestamps={m.timestamps}
 				from={m.from}
 				to={m.to}
 				yMax={memoryTotal}
 				detail={memoryTotal ? `of ${formatBytes(memoryTotal)}` : undefined}
-				lines={[
-					{
-						name: 'Memory used',
-						values: seriesValues(m, 'memory.used_bytes'),
-						color: TILE_HEX.indigo.fg,
-						area: true
-					}
-				]}
-			/>
-			<TimeSeriesChart
-				title="Network"
-				unit="bytes_per_second"
-				headline={false}
-				timestamps={m.timestamps}
-				from={m.from}
-				to={m.to}
-				lines={[
-					{
-						name: 'Received',
-						values: seriesValues(m, 'network.rx_bytes_per_second'),
-						color: TILE_HEX.green.fg
-					},
-					{
-						name: 'Sent',
-						values: seriesValues(m, 'network.tx_bytes_per_second'),
-						color: TILE_HEX.violet.fg
-					}
-				]}
-			/>
-			<TimeSeriesChart
-				title="Load"
-				unit="load"
-				headline={false}
-				timestamps={m.timestamps}
-				from={m.from}
-				to={m.to}
-				lines={[
-					{
-						name: '1 min',
-						values: seriesValues(m, 'load.1'),
-						color: CHART_COLORS.series[0]
-					},
-					{ name: '5 min', values: seriesValues(m, 'load.5'), color: TILE_HEX.slate.fg },
-					{ name: '15 min', values: seriesValues(m, 'load.15'), color: TILE_HEX.blue.fg }
-				]}
+				lines={memoryLines(m)}
 			/>
 			{#each mounts as mount (mount)}
 				{@const total =
@@ -157,12 +130,106 @@
 						{
 							name: 'Used',
 							values: seriesValues(m, 'disk.used_bytes', mount),
-							color: TILE_HEX.teal.fg,
+							color: METRIC_COLORS.disk,
 							area: true
 						}
 					]}
 				/>
 			{/each}
+			{#if diskIO}
+				<TimeSeriesChart
+					title="Disk I/O"
+					unit="bytes_per_second"
+					headline={false}
+					timestamps={m.timestamps}
+					from={m.from}
+					to={m.to}
+					lines={[
+						{
+							name: 'Read',
+							values: seriesValues(m, 'block.read_bytes_per_second'),
+							color: METRIC_COLORS.diskRead,
+							area: true,
+							fill: 0.3
+						},
+						{
+							name: 'Write',
+							values: seriesValues(m, 'block.write_bytes_per_second'),
+							color: METRIC_COLORS.diskWrite,
+							area: true,
+							fill: 0.3
+						}
+					]}
+				/>
+			{/if}
+			<TimeSeriesChart
+				title="Network"
+				unit="bytes_per_second"
+				headline={false}
+				timestamps={m.timestamps}
+				from={m.from}
+				to={m.to}
+				lines={[
+					{
+						name: 'Received',
+						values: seriesValues(m, 'network.rx_bytes_per_second'),
+						color: METRIC_COLORS.networkReceived,
+						area: true,
+						fill: 0.2
+					},
+					{
+						name: 'Sent',
+						values: seriesValues(m, 'network.tx_bytes_per_second'),
+						color: METRIC_COLORS.networkSent,
+						area: true,
+						fill: 0.2
+					}
+				]}
+			/>
+			{#if swap}
+				<TimeSeriesChart
+					title="Swap"
+					unit="bytes"
+					timestamps={m.timestamps}
+					from={m.from}
+					to={m.to}
+					yMax={swap}
+					detail="of {formatBytes(swap)}"
+					lines={[
+						{
+							name: 'Used',
+							values: seriesValues(m, 'swap.used_bytes'),
+							color: METRIC_COLORS.swap,
+							area: true
+						}
+					]}
+				/>
+			{/if}
+			<TimeSeriesChart
+				title="Load"
+				unit="load"
+				headline={false}
+				timestamps={m.timestamps}
+				from={m.from}
+				to={m.to}
+				lines={[
+					{
+						name: '1 min',
+						values: seriesValues(m, 'load.1'),
+						color: METRIC_COLORS.load1
+					},
+					{
+						name: '5 min',
+						values: seriesValues(m, 'load.5'),
+						color: METRIC_COLORS.load5
+					},
+					{
+						name: '15 min',
+						values: seriesValues(m, 'load.15'),
+						color: METRIC_COLORS.load15
+					}
+				]}
+			/>
 			{#if temperatures.length}
 				<MultiSeriesChart
 					title="Temperature"

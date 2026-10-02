@@ -1,6 +1,6 @@
 ---
 title: Metrics
-description: Charts of each server's and container's CPU, memory, network and disk use, and of each server's temperatures.
+description: Charts of each server's and container's CPU, memory, network and disk use, and of each server's swap, load and temperatures.
 ---
 
 Docker Manager samples every server and its containers every 10 seconds
@@ -12,13 +12,19 @@ or memory raises an [alert](/alerts#change-the-thresholds).
 
 1. Open **Environments** and pick an environment.
 2. On its **Overview** tab, the **Metrics** card shows **CPU**, **Memory**,
-   **Network** (received and sent), **Load**, one **Disk** chart per
-   storage area, for example **Disk: Docker data**, and **Temperature**.
+   one **Disk** chart per storage area, for example **Disk: Docker data**,
+   **Disk I/O** (read and written), **Network** (received and sent),
+   **Swap**, **Load** and **Temperature**.
 3. Pick the time span in the card's menu, from **Last 1 hour** to
    **Last 90 days**.
 
 Longer ranges show averages. Shaded spans have no data: the server was
 offline or not reporting.
+
+The **Memory** chart stacks **Used**, **ZFS ARC** (on servers with ZFS) and
+**Cache / buffers**. **Used** leaves out the cache and the ZFS ARC, since the
+server frees them when it needs the memory; the memory figure and its
+alert count only **Used**. **Disk I/O** adds up all of the server's disks.
 
 The **Temperature** chart draws one line per sensor of the server (for
 example `coretemp: Package id 0` for the CPU or `nvme: Composite` for an
@@ -42,9 +48,10 @@ card, for the **Last hour**, **Last 6 hours** or **Last 24 hours**.
 
 Good to know:
 
-- The **Temperature** chart appears only when the agent can read
-  temperature sensors on the server during the chosen time span. A server
-  without readable sensors has no Temperature chart.
+- The **Swap** chart appears only when the server has swap, and the
+  **Temperature** chart only when the agent can read temperature sensors
+  during the chosen time span. **Disk I/O**, **Swap** and the memory parts
+  need an up-to-date agent.
 - The charts include only the containers whose metrics you may see.
 - There is no storage chart per container, since several containers can
   share a volume.

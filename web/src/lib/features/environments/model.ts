@@ -1,7 +1,9 @@
 // Environment view model (#3, #5, #34): status words, metric ranges and
 // series extraction, compatibility and removal-preview wording. Pure.
 import type { Environment, EnvironmentMetrics, Schema } from '$lib/api/client';
+import { METRIC_COLORS } from '$lib/design/hue';
 import { formatDateTime, formatDuration, formatRelative, secondsSince } from '$lib/ui/format';
+import { latestValue, type ChartLine } from '$lib/ui/timeseries';
 
 export type EnvironmentStatus = 'online' | 'offline' | 'archived';
 
@@ -34,6 +36,45 @@ export function seriesValues(
 ): (number | null)[] {
 	const s = m?.series.find((x) => x.key === key && (mount === undefined || x.mount === mount));
 	return s ? s.values.map((v) => (v === undefined ? null : v)) : [];
+}
+
+/** Whether a series has a value in the range (older agents send none of the newer keys). */
+export function hasValues(m: EnvironmentMetrics | undefined, key: string): boolean {
+	return seriesValues(m, key).some((v) => v !== null);
+}
+
+/**
+ * The parts of the Memory chart, stacked from the bottom like Beszel's:
+ * used, the ZFS ARC (hosts with ZFS) and the buffers and page cache (left
+ * out while the range has none: older agents).
+ */
+export function memoryLines(m: EnvironmentMetrics | undefined): ChartLine[] {
+	const parts: ChartLine[] = [
+		{
+			name: 'Used',
+			values: seriesValues(m, 'memory.used_bytes'),
+			color: METRIC_COLORS.memoryUsed
+		}
+	];
+	if (hasValues(m, 'memory.zfs_arc_bytes'))
+		parts.push({
+			name: 'ZFS ARC',
+			values: seriesValues(m, 'memory.zfs_arc_bytes'),
+			color: METRIC_COLORS.memoryZfsArc,
+			fill: 0.5
+		});
+	if (hasValues(m, 'memory.cache_bytes'))
+		parts.push({
+			name: 'Cache / buffers',
+			values: seriesValues(m, 'memory.cache_bytes'),
+			color: METRIC_COLORS.memoryCache
+		});
+	return parts;
+}
+
+/** The configured swap at the end of the range (0 or null: no Swap chart). */
+export function swapTotal(m: EnvironmentMetrics | undefined): number | null {
+	return latestValue(seriesValues(m, 'swap.total_bytes'));
 }
 
 /** Disk mounts present in a metrics response (docker, stacks, bind-N). */

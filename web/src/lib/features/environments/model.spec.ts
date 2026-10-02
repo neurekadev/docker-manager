@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EnvironmentMetrics, Schema } from '$lib/api/client';
+import { METRIC_COLORS } from '$lib/design/hue';
 import { enrollmentIntent, enrollmentStateStatus } from './enrollment';
 import {
 	agentContact,
@@ -8,10 +9,13 @@ import {
 	dependentNoun,
 	diskMounts,
 	environmentStatus,
+	hasValues,
+	memoryLines,
 	mountLabel,
 	rangeSeconds,
 	removalConsequences,
-	seriesValues
+	seriesValues,
+	swapTotal
 } from './model';
 
 describe('environment model', () => {
@@ -40,6 +44,30 @@ describe('environment model', () => {
 		expect(mountLabel('bind-2')).toBe('Bind mount 2');
 		expect(rangeSeconds('24h')).toBe(86400);
 		expect(rangeSeconds('bogus')).toBe(3600);
+	});
+
+	it('stacks memory like Beszel: used, then the ZFS ARC and the cache when the range has them', () => {
+		const metrics = (series: { key: string; values: (number | null)[] }[]) =>
+			({ timestamps: ['a', 'b'], series }) as unknown as EnvironmentMetrics;
+		const used = { key: 'memory.used_bytes', values: [1, 2] };
+		// An older agent: no ARC, no cache, no swap.
+		const old = metrics([used, { key: 'memory.cache_bytes', values: [null, null] }]);
+		expect(memoryLines(old).map((l) => l.name)).toEqual(['Used']);
+		expect(hasValues(old, 'memory.cache_bytes')).toBe(false);
+		expect(swapTotal(old)).toBeNull();
+		const zfs = metrics([
+			used,
+			{ key: 'memory.zfs_arc_bytes', values: [null, 5] },
+			{ key: 'memory.cache_bytes', values: [3, 4] },
+			{ key: 'swap.total_bytes', values: [8, 0] }
+		]);
+		expect(memoryLines(zfs)).toEqual([
+			{ name: 'Used', values: [1, 2], color: METRIC_COLORS.memoryUsed },
+			{ name: 'ZFS ARC', values: [null, 5], color: METRIC_COLORS.memoryZfsArc, fill: 0.5 },
+			{ name: 'Cache / buffers', values: [3, 4], color: METRIC_COLORS.memoryCache }
+		]);
+		// Swap that was turned off: no Swap chart.
+		expect(swapTotal(zfs)).toBe(0);
 	});
 
 	it('lists what archiving does to every dependent kind with records (#34)', () => {

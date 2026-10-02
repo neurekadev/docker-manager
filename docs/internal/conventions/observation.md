@@ -18,6 +18,13 @@ inventory cache, disk health, event journal) and `internal/manager/metrics`
   per 200 series and storage level; the environment's per-container
   charts), `Store.Latest`; values are `nil` for gaps, never 0. Units: CPU
   % of the environment's total cores, bytes, bytes/s, degrees Celsius.
+- **Host memory** follows Beszel: `memory.used_bytes` (and the live
+  value, alerts and KPIs that read it) is total − available without the
+  ZFS ARC; the buffers and page cache and the ARC are their own series
+  (`memory.cache_bytes`, `memory.zfs_arc_bytes`), and swap and the host's
+  disk throughput (`block.*` host keys from `/proc/diskstats`) are stored
+  with the host sample. Read them all through `readHostMemory`/`readDiskIO`
+  in the agent, never a second meminfo parser.
 - **Temperatures** (#146): the agent reads hwmon only through the
   sampler's `fs.FS` (`Options.Sys`, `DOCKER_AGENT_HOST_SYS`); a sensor is
   named `<chip>: <label>` and never by a host path, an unreadable or
