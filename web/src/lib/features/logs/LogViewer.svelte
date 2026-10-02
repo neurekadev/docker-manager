@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Log viewer (#8, #22 the mockup's log panel): container or stack
 	// service logs merged by time, each service in its hue (the service hue
-	// identity), service filter chips, Follow (live stream with cursor
+	// identity), the Services filter, Follow (live stream with cursor
 	// resume), timestamps, line wrap, a search that shows only the matching
 	// lines as you type (highlighted; Match case, regular expressions), the
 	// Levels filter (each line's level and output stream, with counts),
@@ -11,6 +11,7 @@
 	// stored beyond the page.
 	import { onDestroy, untrack } from 'svelte';
 	import ArrowDownToLine from '@lucide/svelte/icons/arrow-down-to-line';
+	import Box from '@lucide/svelte/icons/box';
 	import CaseSensitive from '@lucide/svelte/icons/case-sensitive';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Download from '@lucide/svelte/icons/download';
@@ -25,7 +26,6 @@
 	import { SERVICE_HEX, TILE_HEX } from '$lib/design/hue';
 	import {
 		Button,
-		Chip,
 		EmptyState,
 		IconButton,
 		MultiSelect,
@@ -41,14 +41,16 @@
 	import {
 		filterLines,
 		formatLogTime,
+		hiddenServices,
 		highlight,
 		levelSummary,
 		logText,
 		plainSearch,
 		regexPattern,
 		serviceShown,
-		tally,
-		toggleHidden
+		serviceSummary,
+		serviceTally,
+		tally
 	} from './format';
 	import { LOG_LEVELS, LOG_STREAMS } from './level';
 	import { RegexSearch } from './regex-search.svelte';
@@ -57,7 +59,7 @@
 		feed: LogFeed;
 		/** Accessible name of the log region, e.g. "Logs of Silo". */
 		label: string;
-		/** Stack logs: service hues and filter chips. */
+		/** Stack logs: service hues and the Services filter. */
 		stackId?: string;
 		/** File name stem of downloads. */
 		downloadName: string;
@@ -115,17 +117,17 @@
 		Object.fromEntries(feed.sources.map((s) => [s.key, s.service ?? s.label]))
 	);
 	const names = $derived(services.map((s) => s.service));
-	const chipState = $derived({ only, hidden, services: names });
-	const isShown = (svc: string) => serviceShown(svc, chipState);
-	const allShown = $derived(names.every(isShown));
-	// Service chips, then the search, then the levels. Each Levels count
-	// tells how many of the searched lines that choice shows with the other
-	// group's choices (levels under the chosen output and the other way).
-	const bySource = $derived(
-		filterLines(feed.lines, {
-			source: allShown ? undefined : (key) => isShown(serviceOf[key] ?? '')
-		})
-	);
+	const serviceState = $derived({ only, hidden, services: names });
+	const isShown = (svc: string) => serviceShown(svc, serviceState);
+	const shownServices = $derived(names.filter(isShown));
+	const allShown = $derived(shownServices.length === names.length);
+	// The search, then the services, then the levels. Each count tells how
+	// many of the searched lines that choice shows with the other filters'
+	// choices: a service's under the chosen levels (hidden ones too), the
+	// levels under the chosen services and output, the output under the
+	// chosen services and levels.
+	const source = $derived(allShown ? undefined : (key: string) => isShown(serviceOf[key] ?? ''));
+	const bySource = $derived(filterLines(feed.lines, { source }));
 	// Plain text matches here; a regular expression runs in the search
 	// worker, which stops it when it runs too long.
 	const regexSearch = new RegexSearch(
@@ -135,7 +137,7 @@
 	const pattern = $derived(regex ? regexPattern(query, caseSensitive) : null);
 	$effect(() => {
 		const p = pattern;
-		const lines = bySource;
+		const lines = feed.lines;
 		if (p && p !== 'invalid') untrack(() => regexSearch.run(p, lines));
 	});
 	// An invalid or too slow expression filters nothing until it is fixed;
@@ -157,7 +159,21 @@
 		void regexSearch.version;
 		return regexSearch.matcher();
 	});
-	const searched = $derived(filterLines(bySource, { match: matcher }));
+	const searchedAll = $derived(filterLines(feed.lines, { match: matcher }));
+	const searched = $derived(filterLines(searchedAll, { source }));
+	const serviceCounts = $derived(
+		serviceTally(filterLines(searchedAll, { levels, streams }), serviceOf)
+	);
+	const serviceGroups = $derived<MultiSelectGroup[]>([
+		{
+			options: services.map((s) => ({
+				value: s.service,
+				label: s.service,
+				hue: hueOf(s.service),
+				count: serviceCounts[s.service] ?? 0
+			}))
+		}
+	]);
 	const shown = $derived(filterLines(searched, { levels, streams }));
 	const levelCounts = $derived(tally(filterLines(searched, { streams })));
 	const streamCounts = $derived(tally(filterLines(searched, { levels })));
@@ -191,13 +207,8 @@
 		return color ? TILE_HEX[color].fg : SERVICE_HEX;
 	}
 
-	function toggleService(svc: string) {
-		hidden = toggleHidden(svc, chipState);
-		only = null;
-	}
-
-	function showAll() {
-		hidden = [];
+	function pickServices(shown: string[]) {
+		hidden = hiddenServices(names, shown);
 		only = null;
 	}
 
@@ -280,18 +291,16 @@
 <section class="viewer" class:dense aria-label={label}>
 	<div class="toolbar" role="toolbar" aria-label="Log controls">
 		{#if stackId && services.length > 1}
-			<div class="chips" role="group" aria-label="Services">
-				<Chip size="sm" label="All services" selected={allShown} onclick={showAll} />
-				{#each services as s (s.service)}
-					<Chip
-						size="sm"
-						label={s.service}
-						hue={hueOf(s.service)}
-						selected={isShown(s.service)}
-						onclick={() => toggleService(s.service)}
-					/>
-				{/each}
-			</div>
+			<MultiSelect
+				label="Services"
+				hideLabel
+				title="Services"
+				icon={Box}
+				groups={serviceGroups}
+				summary={serviceSummary(names, shownServices)}
+				value={shownServices}
+				onchange={pickServices}
+			/>
 		{/if}
 		<div class="search" role="search" aria-label="Search logs">
 			<TextField
@@ -432,13 +441,19 @@
 			<div class="empty">
 				{#if waiting || (regex && matcher && regexSearch.busy && searched.length === 0)}
 					<div aria-busy="true"><Skeleton lines={5} /></div>
-				{:else if feed.lines.length > 0 && !allShown && !names.some(isShown)}
+				{:else if feed.lines.length > 0 && !allShown && !shownServices.length}
 					<EmptyState
 						compact
 						icon={ScrollText}
 						title="Every service is hidden"
-						description="Choose a service above to show its lines."
-					/>
+						description="Choose a service in Services to show its lines."
+					>
+						{#snippet actions()}
+							<Button size="sm" onclick={() => pickServices(names)}
+								>Show all services</Button
+							>
+						{/snippet}
+					</EmptyState>
 				{:else if matcher && bySource.length > 0 && searched.length === 0}
 					<EmptyState
 						compact
@@ -468,8 +483,14 @@
 						compact
 						icon={ScrollText}
 						title="No lines from the selected services"
-						description="Choose another service above, or All services."
-					/>
+						description="Choose more in Services to see more lines."
+					>
+						{#snippet actions()}
+							<Button size="sm" onclick={() => pickServices(names)}
+								>Show all services</Button
+							>
+						{/snippet}
+					</EmptyState>
 				{:else}
 					<EmptyState
 						compact
@@ -545,12 +566,6 @@
 		gap: var(--space-2) var(--space-3);
 		padding: var(--space-2) var(--space-3);
 		border-bottom: 1px solid var(--border-subtle);
-	}
-
-	.chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
 	}
 
 	.search {

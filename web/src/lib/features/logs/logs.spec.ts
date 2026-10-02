@@ -6,6 +6,7 @@ import { LogFeed, type EventSourceLike, type LogLine, type RawLine } from './fee
 import {
 	filterLines,
 	formatLogTime,
+	hiddenServices,
 	highlight,
 	levelSummary,
 	logText,
@@ -13,8 +14,9 @@ import {
 	regexMatches,
 	regexPattern,
 	serviceShown,
+	serviceSummary,
+	serviceTally,
 	tally,
-	toggleHidden,
 	type Matcher
 } from './format';
 import { continues, detectLevel, stripAnsi, type LogLevel } from './level';
@@ -287,24 +289,34 @@ describe('line filters', () => {
 		expect(levelSummary(['error'], [])).toBe('Nothing selected');
 	});
 
-	it('starts with one service from ?service= and toggles from there', () => {
+	it('starts with one service from ?service= and ignores an unknown one', () => {
 		const services = ['silo-web', 'silo-db', 'silo-cache'];
 		const focused = { only: 'silo-db', hidden: [], services };
 		expect(services.map((s) => serviceShown(s, focused))).toEqual([false, true, false]);
-		// Turning another service on keeps the focused one and adds it.
-		expect(toggleHidden('silo-web', focused)).toEqual(['silo-cache']);
-		// Turning the focused one off hides everything.
-		expect(toggleHidden('silo-db', focused)).toEqual(['silo-web', 'silo-cache', 'silo-db']);
+		const unknown = { only: 'gone', hidden: [], services };
+		expect(services.map((s) => serviceShown(s, unknown))).toEqual([true, true, true]);
+		const some = { only: null, hidden: ['silo-web'], services };
+		expect(services.map((s) => serviceShown(s, some))).toEqual([false, true, true]);
 	});
 
-	it('ignores an unknown ?service= and toggles hidden services', () => {
-		const services = ['silo-web', 'silo-db'];
-		const unknown = { only: 'gone', hidden: [], services };
-		expect(services.map((s) => serviceShown(s, unknown))).toEqual([true, true]);
-		expect(toggleHidden('silo-web', unknown)).toEqual(['silo-web']);
-		const some = { only: null, hidden: ['silo-web'], services };
-		expect(serviceShown('silo-web', some)).toBe(false);
-		expect(toggleHidden('silo-web', some)).toEqual([]);
+	it('hides the services the Services filter leaves out and names the choice', () => {
+		const services = ['silo-web', 'silo-db', 'silo-cache'];
+		expect(hiddenServices(services, ['silo-db'])).toEqual(['silo-web', 'silo-cache']);
+		expect(hiddenServices(services, services)).toEqual([]);
+		expect(serviceSummary(services, services)).toBe('All services');
+		expect(serviceSummary(services, ['silo-cache', 'silo-web'])).toBe('silo-web, silo-cache');
+		expect(serviceSummary([...services, 'silo-worker'], services)).toBe('3 services');
+		expect(serviceSummary(services, [])).toBe('Nothing selected');
+	});
+
+	it('counts the lines of each service', () => {
+		const serviceOf = { web: 'silo-web', db: 'silo-db' };
+		expect(serviceTally(lines, serviceOf)).toEqual({ 'silo-web': 2, 'silo-db': 2 });
+		expect(serviceTally(filterLines(lines, { levels: ['error'] }), serviceOf)).toEqual({
+			'silo-db': 1
+		});
+		// A line whose source left the stack counts for no service.
+		expect(serviceTally(lines, { web: 'silo-web' })).toEqual({ 'silo-web': 2 });
 	});
 });
 

@@ -775,12 +775,18 @@ only wire resources to it:
   tabs, so a viewer streams one container and polls the others
   (`GET …/logs?since=`, every 3 s); over HTTP/2 or HTTP/3 it streams up to
   twelve. Every service has the same colour (`SERVICE_COLOR`); the prefix
-  and the chips name the service. The feed strips terminal escape codes
+  names the service. The feed strips terminal escape codes
   from each line and gives it a level read from its text (`detectLevel` in
   `logs/level.ts`: `level=`/`"level":` keys and pino's numbers, `[error]`,
   upper-case words such as `WARN`/`ERR`/`LOG:`, glog's `E0925`, `panic:`,
   `ValueError:`; else "Other"); an indented line (`continues`) takes the
-  previous level of its container. The service chips, the search (shows
+  previous level of its container. The search, Services (a `MultiSelect`
+  of the stack's services, shown with more than one; `?service=` starts
+  with that one, a service that starts later shows unless hidden) and
+  Levels filter the buffered lines in that order (`filterLines` in
+  `logs/format.ts`); each count applies the other filters' choices, a
+  service's also while it is hidden, so the search runs over every
+  service's lines. The search (shows
   only matching lines as you type; Match case; plain text with
   `plainSearch`, regular expressions in a worker, `RegexSearch` in
   `logs/regex-search.svelte.ts` with `regex.worker.ts`: each line is
@@ -789,11 +795,9 @@ only wire resources to it:
   such as a pattern that backtracks for minutes, terminates the worker and
   shows "Too slow to search" instead of freezing the page; a pattern that
   throws in the worker, or a worker error, shows "Search unavailable"; both
-  states last until the pattern changes) and Levels (a `MultiSelect` of the levels and the
-  output streams; each count applies the other group's choice) filter the
-  buffered lines in that order (`filterLines` in `logs/format.ts`); the
-  line's left edge marks errors (red), warnings (amber) and standard error
-  without a level (grey). Wrapped lines are rendered without the
+  states last until the pattern changes); Levels is a `MultiSelect` of the
+  levels and the output streams. The line's left edge marks errors (red),
+  warnings (amber) and standard error without a level (grey). Wrapped lines are rendered without the
   fixed-height window.
 - **Terminals:** `ExecTerminal` creates the exec session for the chosen
   shell (Detect automatically, Bash, sh, Zsh; the agent finds its path in the

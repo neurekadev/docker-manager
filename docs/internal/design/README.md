@@ -118,7 +118,7 @@ marker and zeroes all durations.
 Every service has the **same tile and the same colour**
 (`RESOURCE_ICONS.service`, `SERVICE_COLOR`, blue): in the services table,
 the ⌘K hits, and also where the output of several services is interleaved
-(the stack's merged logs, chart series, filter chips). There the service's
+(the stack's merged logs, chart series, filters). There the service's
 name tells them apart, never a colour. Services (and stacks) have no icon
 or colour of their own.
 
