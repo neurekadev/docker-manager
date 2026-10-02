@@ -9,16 +9,19 @@ import (
 
 func validHealth() HostHealthOutput {
 	at := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
-	passed, temp, pct := true, 36, 50.5
+	passed, temp, pct, raw := true, 36, 50.5, int64(36)
 	return HostHealthOutput{
 		SampledAt: at,
 		SMART: SMARTReport{Status: SMARTOK, ScannedAt: &at, CheckedAt: &at, Devices: []SMARTDevice{
 			{Name: "/dev/sda", Type: "sat", Protocol: DiskATA, Model: "WDC", Serial: "WD-1", SMARTSupported: true, Passed: &passed,
-				TemperatureC: &temp, State: DiskOK, ReadAt: &at},
+				TemperatureC: &temp, State: DiskOK, ReadAt: &at,
+				Attributes: []SMARTAttributeRow{{ID: 194, Name: "Temperature_Celsius", Value: &temp, Raw: &raw, RawText: "36 (Min/Max 20/49)"}},
+				Values:     []SMARTValue{{Key: "power_cycle_count", Value: 41}}},
 			{Name: "/dev/sdb", Type: "sat", State: DiskError, ErrorCode: DiskErrPermissionDenied},
 		}},
 		RAID: RAIDReport{ReadAt: at,
 			MD: []MDArray{{Name: "md0", Level: "raid1", State: RAIDRebuilding, Devices: 2, Active: 1, Action: MDRecovery, Progress: &pct,
+				Metadata: "1.2", Bitmap: true, BitmapChunkBytes: 64 << 20,
 				Members: []MDMember{{Name: "sda1", Slot: 0, State: MemberActive}, {Name: "sdb1", Slot: 1, State: MemberFailed}}}},
 			ZFS: []ZFSPool{{Name: "tank", Health: "DEGRADED", State: RAIDDegraded}}},
 	}
@@ -59,6 +62,21 @@ func TestHostHealthValidate(t *testing.T) {
 		"negative interval":   func(o *HostHealthOutput) { o.SMART.IntervalSeconds = -1 },
 		"unknown error code":  func(o *HostHealthOutput) { o.SMART.Devices[1].ErrorCode = "on_fire" },
 		"negative e2e errors": func(o *HostHealthOutput) { o.SMART.Devices[0].EndToEndErrors = &neg },
+		"attribute row id":    func(o *HostHealthOutput) { o.SMART.Devices[0].Attributes[0].ID = 256 },
+		"attribute row value": func(o *HostHealthOutput) { o.SMART.Devices[0].Attributes[0].Worst = &big },
+		"attribute row raw":   func(o *HostHealthOutput) { o.SMART.Devices[0].Attributes[0].Raw = &neg },
+		"attribute row when":  func(o *HostHealthOutput) { o.SMART.Devices[0].Attributes[0].WhenFailed = "soon" },
+		"long raw text": func(o *HostHealthOutput) {
+			o.SMART.Devices[0].Attributes[0].RawText = strings.Repeat("r", 65)
+		},
+		"too many attribute rows": func(o *HostHealthOutput) {
+			o.SMART.Devices[0].Attributes = make([]SMARTAttributeRow, MaxSMARTAttributes+1)
+		},
+		"value without key":  func(o *HostHealthOutput) { o.SMART.Devices[0].Values[0].Key = "" },
+		"too many values":    func(o *HostHealthOutput) { o.SMART.Devices[0].Values = make([]SMARTValue, MaxSMARTValues+1) },
+		"negative chunk":     func(o *HostHealthOutput) { o.RAID.MD[0].ChunkBytes = -1 },
+		"long array layout":  func(o *HostHealthOutput) { o.RAID.MD[0].Layout = strings.Repeat("l", 65) },
+		"bad array metadata": func(o *HostHealthOutput) { o.RAID.MD[0].Metadata = "\xff" },
 	}
 	for name, mut := range bad {
 		o := validHealth()

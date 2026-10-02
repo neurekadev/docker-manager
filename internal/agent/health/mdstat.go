@@ -43,6 +43,10 @@ var (
 	mdFinishRE   = regexp.MustCompile(`finish\s*=\s*([\d.]+)min`)
 	mdSpeedRE    = regexp.MustCompile(`speed\s*=\s*(\d+)K/sec`)
 	mdCopiesRE   = regexp.MustCompile(`\b(\d+) (?:near|far|offset)-copies\b`)
+	mdSuperRE    = regexp.MustCompile(`\bsuper (\S+)`)
+	mdChunkRE    = regexp.MustCompile(`\b(\d+)[kK] chunks?\b`)
+	mdAlgoRE     = regexp.MustCompile(`\balgorithm \d+\b`)
+	mdBitmapRE   = regexp.MustCompile(`^bitmap:.*?\b(\d+)KB chunk\b`)
 )
 
 // ParseMDStat parses /proc/mdstat into arrays (at most
@@ -164,12 +168,30 @@ func parseMDHead(name, rest string) protocol.MDArray {
 	return a
 }
 
-// parseMDDetail reads the indented lines: size and [n/m] [UU_], the
-// progress line and resync=DELAYED/PENDING.
+// parseMDDetail reads the indented lines: size, superblock version (absent
+// for 0.90, which md does not print), chunk size, layout and [n/m]
+// [UU_], the bitmap line, the progress line and resync=DELAYED/PENDING.
 func parseMDDetail(a *protocol.MDArray, line string) {
 	if m := mdBlocksRE.FindStringSubmatch(line); m != nil {
 		if n, err := strconv.ParseInt(m[1], 10, 64); err == nil && n >= 0 && n <= math.MaxInt64/1024 {
 			a.SizeBytes = n * 1024
+		}
+	}
+	if m := mdSuperRE.FindStringSubmatch(line); m != nil && mdBlocksRE.MatchString(line) {
+		a.Metadata = truncate(strings.TrimSuffix(m[1], ","), 64)
+	}
+	if m := mdChunkRE.FindStringSubmatch(line); m != nil && mdBlocksRE.MatchString(line) {
+		a.ChunkBytes = kib(m[1])
+	}
+	if m := mdAlgoRE.FindString(line); m != "" {
+		a.Layout = m
+	} else if cs := mdCopiesRE.FindAllString(line, -1); len(cs) > 0 {
+		a.Layout = truncate(strings.Join(cs, " "), 64)
+	}
+	if strings.HasPrefix(line, "bitmap:") {
+		a.Bitmap = true
+		if m := mdBitmapRE.FindStringSubmatch(line); m != nil {
+			a.BitmapChunkBytes = kib(m[1])
 		}
 	}
 	if m := mdStatusRE.FindStringSubmatch(line); m != nil {
@@ -201,6 +223,15 @@ func parseMDDetail(a *protocol.MDArray, line string) {
 	if m := mdPendingRE.FindStringSubmatch(line); m != nil && a.Action == "" {
 		a.Action, a.Pending = m[1], true
 	}
+}
+
+// kib converts a KiB count to bytes (0 when out of range).
+func kib(s string) int64 {
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 || n > math.MaxInt64/1024 {
+		return 0
+	}
+	return n * 1024
 }
 
 // redundancy is how many members a level may lose (-1: unknown).

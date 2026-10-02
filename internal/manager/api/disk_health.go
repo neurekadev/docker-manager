@@ -71,11 +71,13 @@ type DiskDevice struct {
 	MediaErrors             *int64 `json:"mediaErrors,omitempty"`
 	PercentageUsed          *int   `json:"percentageUsed,omitempty" doc:"Wear estimate in percent (may exceed 100)."`
 	// SCSI.
-	GrownDefects      *int64     `json:"grownDefects,omitempty"`
-	UncorrectedErrors *int64     `json:"uncorrectedErrors,omitempty"`
-	State             string     `json:"state" enum:"ok,warning,failing,sleeping,error" doc:"sleeping: in standby, not woken (the values are the previous read's); error: see errorCode."`
-	ErrorCode         string     `json:"errorCode,omitempty" enum:"permission_denied,open_failed,unsupported,timeout,missing,smart_disabled,no_data" doc:"timeout: the read did not finish in time; missing: an earlier scan found the disk, the last one does not; smart_disabled: SMART is turned off on the disk; no_data: the disk answered without any health data."`
-	ReadAt            *time.Time `json:"readAt,omitempty" doc:"When the values were read."`
+	GrownDefects      *int64             `json:"grownDefects,omitempty"`
+	UncorrectedErrors *int64             `json:"uncorrectedErrors,omitempty"`
+	Attributes        []DiskAttributeRow `json:"attributes,omitempty" doc:"The ATA attribute table as read (absent from older agents)."`
+	Values            []DiskValue        `json:"values,omitempty" doc:"The other numeric health values the disk reports, by smartctl's JSON key: the NVMe health log, the SCSI error counters, the power cycle count (absent from older agents)."`
+	State             string             `json:"state" enum:"ok,warning,failing,sleeping,error" doc:"sleeping: in standby, not woken (the values are the previous read's); error: see errorCode."`
+	ErrorCode         string             `json:"errorCode,omitempty" enum:"permission_denied,open_failed,unsupported,timeout,missing,smart_disabled,no_data" doc:"timeout: the read did not finish in time; missing: an earlier scan found the disk, the last one does not; smart_disabled: SMART is turned off on the disk; no_data: the disk answered without any health data."`
+	ReadAt            *time.Time         `json:"readAt,omitempty" doc:"When the values were read."`
 }
 
 // DiskAttribute is an ATA attribute at or below its threshold.
@@ -83,6 +85,25 @@ type DiskAttribute struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
 	WhenFailed string `json:"whenFailed" enum:"now,past"`
+}
+
+// DiskAttributeRow is one row of a disk's ATA attribute table.
+type DiskAttributeRow struct {
+	ID         int    `json:"id" example:"5"`
+	Name       string `json:"name" example:"Reallocated_Sector_Ct"`
+	Value      *int   `json:"value,omitempty" doc:"Normalized value (0..255)."`
+	Worst      *int   `json:"worst,omitempty" doc:"Lowest normalized value seen."`
+	Threshold  *int   `json:"threshold,omitempty" doc:"The attribute fails at or below this normalized value."`
+	Raw        *int64 `json:"raw,omitempty"`
+	RawText    string `json:"rawText,omitempty" example:"35 (Min/Max 20/45)" doc:"smartctl's rendering of the raw value when it says more than the number."`
+	Prefailure bool   `json:"prefailure,omitempty" doc:"The attribute predicts a failure (else it counts age or usage)."`
+	WhenFailed string `json:"whenFailed,omitempty" enum:"now,past"`
+}
+
+// DiskValue is one other numeric health value of a disk.
+type DiskValue struct {
+	Key   string `json:"key" example:"data_units_written" doc:"smartctl's JSON key; nested keys joined by dots."`
+	Value int64  `json:"value"`
 }
 
 // RAIDHealth is the state of an environment's RAID arrays: Linux software
@@ -108,6 +129,12 @@ type RAIDArray struct {
 	Active    int          `json:"active,omitempty"`
 	SizeBytes int64        `json:"sizeBytes,omitempty"`
 	Members   []RAIDMember `json:"members"`
+	// md superblock and layout.
+	Metadata         string `json:"metadata,omitempty" example:"1.2" doc:"md superblock version (absent for 0.90)."`
+	ChunkBytes       int64  `json:"chunkBytes,omitempty"`
+	Layout           string `json:"layout,omitempty" example:"algorithm 2" doc:"raid5/6 parity algorithm or raid10 copies (\"2 near-copies\")."`
+	Bitmap           bool   `json:"bitmap,omitempty" doc:"The array has a write-intent bitmap."`
+	BitmapChunkBytes int64  `json:"bitmapChunkBytes,omitempty"`
 	// A running or pending sync.
 	Action              string   `json:"action,omitempty" enum:"recovery,resync,reshape,check,repair"`
 	Pending             bool     `json:"pending,omitempty" doc:"The action waits (DELAYED or PENDING)."`
@@ -171,7 +198,8 @@ func healthDTOs(h *observe.HostHealth, served, known bool) (DiskHealth, RAIDHeal
 	for _, a := range h.RAID.MD {
 		arr := RAIDArray{Kind: "md", Name: a.Name, Level: a.Level, State: a.State, ReadOnly: a.ReadOnly, Devices: a.Devices, Active: a.Active,
 			SizeBytes: a.SizeBytes, Members: []RAIDMember{}, Action: a.Action, Pending: a.Pending, Progress: a.Progress,
-			FinishSeconds: a.FinishSeconds, SpeedBytesPerSecond: a.SpeedBytesPerSecond}
+			FinishSeconds: a.FinishSeconds, SpeedBytesPerSecond: a.SpeedBytesPerSecond, Metadata: a.Metadata, ChunkBytes: a.ChunkBytes,
+			Layout: a.Layout, Bitmap: a.Bitmap, BitmapChunkBytes: a.BitmapChunkBytes}
 		for _, m := range a.Members {
 			arr.Members = append(arr.Members, RAIDMember{Name: m.Name, Slot: m.Slot, State: m.State, WriteMostly: m.WriteMostly})
 		}
@@ -193,6 +221,13 @@ func diskDevice(d protocol.SMARTDevice) DiskDevice {
 		State: d.State, ErrorCode: d.ErrorCode, ReadAt: d.ReadAt}
 	for _, a := range d.FailingAttributes {
 		out.FailingAttributes = append(out.FailingAttributes, DiskAttribute{ID: a.ID, Name: a.Name, WhenFailed: a.WhenFailed})
+	}
+	for _, a := range d.Attributes {
+		out.Attributes = append(out.Attributes, DiskAttributeRow{ID: a.ID, Name: a.Name, Value: a.Value, Worst: a.Worst,
+			Threshold: a.Threshold, Raw: a.Raw, RawText: a.RawText, Prefailure: a.Prefailure, WhenFailed: a.WhenFailed})
+	}
+	for _, v := range d.Values {
+		out.Values = append(out.Values, DiskValue{Key: v.Key, Value: v.Value})
 	}
 	return out
 }

@@ -123,6 +123,69 @@ describe('DiskHealthCard', () => {
 		expect(within(details).getByText('WD-WX12D3456789')).toBeInTheDocument();
 	});
 
+	it('opens a disk’s full SMART data', async () => {
+		const user = setup();
+		const full: DiskDevice = {
+			...sda,
+			passed: true,
+			attributes: [
+				{
+					id: 5,
+					name: 'Reallocated_Sector_Ct',
+					value: 100,
+					worst: 100,
+					threshold: 10,
+					raw: 0,
+					prefailure: true
+				},
+				{
+					id: 194,
+					name: 'Temperature_Celsius',
+					value: 114,
+					worst: 101,
+					threshold: 0,
+					raw: 36,
+					rawText: '36 (Min/Max 20/49)',
+					whenFailed: 'past'
+				}
+			],
+			values: [{ key: 'power_cycle_count', value: 41 }]
+		};
+		mount(DiskHealthCard, {
+			env,
+			health: report({ devices: [full] }),
+			raid: noArrays,
+			online: true,
+			now
+		});
+		await user.click(screen.getByRole('button', { name: 'Details of /dev/sda' }));
+		const dialog = await screen.findByRole('dialog', { name: '/dev/sda' });
+		expect(within(dialog).getByText('WD-WX12D3456789')).toBeInTheDocument();
+		expect(within(dialog).getByText('Passed')).toBeInTheDocument();
+		const attrs = within(dialog).getByRole('table', { name: 'SMART attributes of /dev/sda' });
+		const rows = within(attrs).getAllByRole('row').slice(1);
+		expect(rows).toHaveLength(2);
+		expect(within(rows[0]).getByText('Reallocated_Sector_Ct')).toBeInTheDocument();
+		expect(within(rows[0]).getByText('Pre-fail')).toBeInTheDocument();
+		expect(within(rows[1]).getByText('36 (Min/Max 20/49)')).toBeInTheDocument();
+		expect(within(rows[1]).getByText('Failed in the past')).toBeInTheDocument();
+		const values = within(dialog).getByRole('table', { name: 'Health values of /dev/sda' });
+		expect(within(values).getByText('Power cycles')).toBeInTheDocument();
+		expect(within(values).getByText('41')).toBeInTheDocument();
+	});
+
+	it('says when an older agent sent no detailed SMART values', async () => {
+		const user = setup();
+		mount(DiskHealthCard, { env, health: report(), raid: noArrays, online: true, now });
+		await user.click(screen.getByRole('button', { name: 'Details of /dev/sdb' }));
+		const dialog = await screen.findByRole('dialog', { name: '/dev/sdb' });
+		expect(
+			within(dialog).getByText(
+				'The agent sent no detailed SMART values for this disk. Update the agent to see them.'
+			)
+		).toBeInTheDocument();
+	});
+
 	it.each([
 		['no_access', 'Docker Manager can’t read this server’s disks.'],
 		['disabled', 'Disk health is turned off for this agent.'],
@@ -324,7 +387,7 @@ describe('RaidCard', () => {
 		mount(RaidCard, { env, raid, online: true, now });
 		const table = screen.getByRole('table', { name: 'RAID arrays of homelab' });
 		const rows = within(table).getAllByRole('row').slice(1);
-		expect(within(rows[0]).getByText('md1')).toBeInTheDocument();
+		expect(within(rows[0]).getByText('/dev/md1')).toBeInTheDocument();
 		// Every array shows the RAID tile, decorative.
 		for (const row of rows)
 			expect(row.querySelector('[data-color="indigo"]')).toHaveAttribute(
@@ -333,18 +396,52 @@ describe('RaidCard', () => {
 			);
 		expect(within(rows[0]).getByText('Rebuilding')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('RAID 5')).toBeInTheDocument();
-		expect(within(rows[0]).getByText('sdd1 failed')).toHaveClass('failed');
+		expect(within(rows[0]).getByText('/dev/sdd1 failed')).toHaveClass('failed');
 		// Active members are only in the tooltip; the cell names what is wrong.
-		expect(within(rows[0]).queryByText('sdc1')).toBeNull();
+		expect(within(rows[0]).queryByText('/dev/sdc1')).toBeNull();
 		expect(within(rows[0]).getByText('2 of 3 disks working')).toBeInTheDocument();
 		expect(
 			within(rows[0]).getByText('Rebuilding 17.3%, about 1 h 18 min left')
 		).toBeInTheDocument();
-		expect(within(rows[0]).getByRole('progressbar', { name: 'md1 progress' })).toHaveAttribute(
-			'aria-valuenow',
-			'17.3'
-		);
+		expect(
+			within(rows[0]).getByRole('progressbar', { name: '/dev/md1 progress' })
+		).toHaveAttribute('aria-valuenow', '17.3');
 		expect(within(rows[2]).getByText('ZFS pool')).toBeInTheDocument();
+	});
+
+	it('opens an array’s details with its members and their disks', async () => {
+		const user = setup();
+		const sdc: DiskDevice = { ...sda, name: '/dev/sdc', state: 'warning' };
+		const details: RaidHealth = {
+			...raid,
+			arrays: [
+				{
+					...raid.arrays[1],
+					metadata: '1.2',
+					chunkBytes: 512 * 1024,
+					layout: 'algorithm 2',
+					bitmap: true,
+					bitmapChunkBytes: 64 * 1024 * 1024,
+					sizeBytes: 2 * 1024 ** 4
+				}
+			]
+		};
+		mount(RaidCard, { env, raid: details, devices: [sdc], online: true, now });
+		await user.click(screen.getByRole('button', { name: 'Details of /dev/md1' }));
+		const dialog = await screen.findByRole('dialog', { name: '/dev/md1' });
+		expect(within(dialog).getByText('1.2')).toBeInTheDocument();
+		expect(within(dialog).getByText('512 KB')).toBeInTheDocument();
+		expect(within(dialog).getByText('Left-symmetric (algorithm 2)')).toBeInTheDocument();
+		expect(within(dialog).getByText('Yes, 64 MB chunks')).toBeInTheDocument();
+		expect(within(dialog).getByText('2 TB')).toBeInTheDocument();
+		const members = within(dialog).getByRole('table', { name: 'Members of /dev/md1' });
+		const rows = within(members).getAllByRole('row').slice(1);
+		// Failed members first; each with the health of the disk it lives on.
+		expect(within(rows[0]).getByText('/dev/sdd1')).toBeInTheDocument();
+		expect(within(rows[0]).getByText('Failed')).toBeInTheDocument();
+		expect(within(rows[1]).getByText('/dev/sdc1')).toBeInTheDocument();
+		expect(within(rows[1]).getByText('Warning')).toBeInTheDocument();
+		expect(within(rows[1]).getByText('/dev/sdc')).toBeInTheDocument();
 	});
 
 	it('checks RAID and toasts the result', async () => {
