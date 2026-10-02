@@ -162,7 +162,7 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 		set("fromname", EmailFromName)
 		if !userSet(q, "usehtml") {
 			if t, ok := svc.(interface{ SetTemplateString(id, body string) error }); ok &&
-				t.SetTemplateString("html", templateLiteral(emailHTML(msg))) == nil {
+				t.SetTemplateString(emailHTMLTemplate, templateLiteral(emailHTML(msg))) == nil {
 				r.params["usehtml"] = "yes"
 			}
 		}
@@ -187,6 +187,11 @@ func emailSubject(msg domain.NotificationMessage) string {
 	}
 	return "[" + msg.Tag + "] " + msg.Title
 }
+
+// emailHTMLTemplate is the template ID Shoutrrr's SMTP service writes
+// the HTML part with (its templateHTML, matched case-sensitively; without
+// it the plain message goes in the HTML part).
+const emailHTMLTemplate = "HTML"
 
 // templateLiteral makes s a Go template that prints s as it is.
 func templateLiteral(s string) string { return strings.ReplaceAll(s, "{{", `{{"{{"}}`) }
@@ -594,7 +599,7 @@ func emailPreheader(msg domain.NotificationMessage, label string) string {
 	if text == "" {
 		text = label
 	}
-	return html.EscapeString(clip(text, 140)) + strings.Repeat("&#847;&zwnj;&nbsp;", 40)
+	return html.EscapeString(clip(text, 140)) + strings.Repeat("&#847;&zwnj;&nbsp; ", 40)
 }
 
 // emailTable opens a layout table (attrs extra attributes).
@@ -686,5 +691,34 @@ func emailHTML(msg domain.NotificationMessage) string {
 			strings.Join(foot, " · ") + `</td></tr>`)
 	}
 	b.WriteString(`</table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>`)
+	return emailLines(b.String())
+}
+
+// Email line lengths: SMTP allows 998 characters a line and Shoutrrr sends
+// the HTML part as it is (8 bit), so emailLines breaks a line before a tag
+// once it passes emailLineSoft and, in a long text without tags, at a
+// space once it passes emailLineHard.
+const (
+	emailLineSoft = 500
+	emailLineHard = 900
+)
+
+func emailLines(s string) string {
+	var b strings.Builder
+	n := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '<' && n >= emailLineSoft:
+			b.WriteByte('\n')
+			n = 0
+		case c == ' ' && n >= emailLineHard:
+			b.WriteByte('\n')
+			n = 0
+			continue
+		}
+		b.WriteByte(c)
+		n++
+	}
 	return b.String()
 }
