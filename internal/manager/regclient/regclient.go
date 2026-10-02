@@ -20,10 +20,20 @@
 //   - Rate limits and outages: 429/5xx/network errors are retried a few
 //     times with exponential backoff and full jitter, honoring Retry-After
 //     up to a bound; a longer Retry-After (or the retry budget running out)
-//     fails fast and puts the host in a cooldown during which checks fail
-//     with rate_limited without contacting it (no retry storm).
+//     fails fast and puts the host and credential in a cooldown during
+//     which their checks fail with rate_limited without contacting it (no
+//     retry storm). Anonymous and authenticated limits differ, so an
+//     anonymous 429 never holds back a connection's checks, nor the
+//     reverse.
+//   - Pull limits: every manifest and blob response is reported to the
+//     rate-limit observer (SetRateLimitObserver) with the limit the
+//     registry sent (RateLimit-Limit / RateLimit-Remaining with ";w="
+//     windows, their X-RateLimit-* forms, RateLimit-Reset) and whether it
+//     was a 429.
 //   - Results are cached for a short TTL and concurrent identical checks
 //     (registry, repository, tag, platform, credential) share one request.
+//     The platform manifest an index digest selects is remembered (it never
+//     changes), so a check of an unchanged multi-platform tag is one HEAD.
 //   - Created reads a platform manifest's image config for its creation
 //     time (display only; one manifest and one blob GET per digest, cached).
 //
@@ -78,6 +88,7 @@ const (
 	maxManifestBytes   = 4 << 20
 	maxConfigBytes     = 4 << 20
 	maxCreatedEntries  = 4096
+	maxPlatformEntries = 4096
 	acceptImage        = MediaOCIManifest + ", " + MediaDockerV2
 	maxErrorBodyBytes  = 16 << 10
 	maxTokenBodyBytes  = 64 << 10
@@ -182,6 +193,11 @@ type Client struct {
 	// created caches image creation times per manifest digest (immutable;
 	// the zero time: the image records none).
 	created map[string]time.Time
+	// platforms maps an index (API host, repository, index digest,
+	// platform) to the platform manifest digest it selects (immutable).
+	platforms map[string]string
+	// observer receives the rate-limit report of every registry response.
+	observer func(context.Context, RateLimit)
 
 	// onJoin, when set (tests), runs when a check joins an in-flight one.
 	onJoin func()
@@ -250,7 +266,16 @@ func New(opts Options) *Client {
 		opts.Jitter = rand.Float64 //nolint:gosec // backoff jitter, not security
 	}
 	return &Client{opts: opts, cache: map[string]cached{}, inflight: map[string]*call{}, tokens: map[string]cachedToken{},
-		cooldown: map[string]time.Time{}, created: map[string]time.Time{}}
+		cooldown: map[string]time.Time{}, created: map[string]time.Time{}, platforms: map[string]string{}}
+}
+
+// SetRateLimitObserver sets the function every manifest and blob response
+// is reported to (nil: none). It runs synchronously in the check, so it
+// must be quick and must not call the client.
+func (c *Client) SetRateLimitObserver(fn func(context.Context, RateLimit)) {
+	c.mu.Lock()
+	c.observer = fn
+	c.mu.Unlock()
 }
 
 func (r Request) key() string {
@@ -352,18 +377,18 @@ func (c *Client) Created(ctx context.Context, req Request, digest string) (creat
 		return t, true, nil
 	}
 	c.mu.Unlock()
-	apiHost := imageref.APIHost(req.Ref.Host)
-	if until, ok := c.cooling(apiHost); ok {
+	cool := cooldownKey(req)
+	if until, ok := c.cooling(cool); ok {
 		return time.Time{}, false, &Error{Class: ClassRateLimited, RetryAfter: until, Message: "the registry asked Docker Manager to slow down"}
 	}
 	created, err = c.fetchCreated(ctx, req, digest)
 	var re *Error
 	if errors.As(err, &re) && re.Class == ClassRateLimited {
-		cool := re.RetryAfter
-		if cool <= 0 {
-			cool = c.opts.MaxBackoff
+		d := re.RetryAfter
+		if d <= 0 {
+			d = c.opts.MaxBackoff
 		}
-		c.setCooldown(apiHost, cool)
+		c.setCooldown(cool, d)
 	}
 	if err != nil && !errors.Is(err, ErrNoCreated) {
 		return time.Time{}, false, err
@@ -458,8 +483,9 @@ func (c *Client) pruneLocked() {
 // resolve runs attempts with backoff.
 func (c *Client) resolve(ctx context.Context, req Request) (Result, error) {
 	apiHost := imageref.APIHost(req.Ref.Host)
+	coolKey := cooldownKey(req)
 	for attempt := 1; ; attempt++ {
-		if until, ok := c.cooling(apiHost); ok {
+		if until, ok := c.cooling(coolKey); ok {
 			return Result{}, &Error{Class: ClassRateLimited, RetryAfter: until,
 				Message: "the registry asked Docker Manager to slow down; checks resume after " + until.Round(time.Second).String()}
 		}
@@ -482,7 +508,7 @@ func (c *Client) resolve(ctx context.Context, req Request) (Result, error) {
 				if cool <= 0 {
 					cool = c.opts.MaxBackoff
 				}
-				c.setCooldown(apiHost, cool)
+				c.setCooldown(coolKey, cool)
 			}
 			return Result{}, err
 		}
@@ -504,27 +530,34 @@ func (c *Client) backoff(attempt int) time.Duration {
 	return d/10 + time.Duration(c.opts.Jitter()*float64(d-d/10))
 }
 
-func (c *Client) cooling(host string) (time.Duration, bool) {
+// cooldownKey is the rate-limit cooldown's key: the registry's API host and
+// the credential, because anonymous limits (per IP address) and an
+// account's limits are counted apart.
+func cooldownKey(req Request) string {
+	return imageref.APIHost(req.Ref.Host) + "\x00" + req.CredentialKey
+}
+
+func (c *Client) cooling(key string) (time.Duration, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	until, ok := c.cooldown[host]
+	until, ok := c.cooldown[key]
 	if !ok {
 		return 0, false
 	}
 	left := until.Sub(c.opts.Clock.Now())
 	if left <= 0 {
-		delete(c.cooldown, host)
+		delete(c.cooldown, key)
 		return 0, false
 	}
 	return left, true
 }
 
-func (c *Client) setCooldown(host string, d time.Duration) {
+func (c *Client) setCooldown(key string, d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	until := c.opts.Clock.Now().Add(d)
-	if cur, ok := c.cooldown[host]; !ok || until.After(cur) {
-		c.cooldown[host] = until
+	if cur, ok := c.cooldown[key]; !ok || until.After(cur) {
+		c.cooldown[key] = until
 	}
 }
 
@@ -538,6 +571,16 @@ func (c *Client) attempt(ctx context.Context, req Request) (Result, error) {
 	}
 	_ = resp.Body.Close()
 	res := Result{Digest: resp.Header.Get("Docker-Content-Digest"), MediaType: mediaType(resp.Header.Get("Content-Type"))}
+	// An index is content-addressed: the platform manifest it selects never
+	// changes, so a known index needs no GET (Docker Hub counts every
+	// manifest GET as a pull, HEAD is free).
+	if req.Platform != "" && isIndex(res.MediaType) && validDigest(res.Digest) &&
+		(req.Ref.Digest == "" || req.Ref.Digest == res.Digest) {
+		if d, ok := c.knownPlatform(req, res.Digest); ok {
+			res.PlatformDigest = d
+			return res, nil
+		}
+	}
 	var body []byte
 	if res.Digest == "" || res.MediaType == "" || (req.Platform != "" && isIndex(res.MediaType)) {
 		resp, err := c.authorized(ctx, req, http.MethodGet, manifestURL, acceptManifests)
@@ -572,8 +615,31 @@ func (c *Client) attempt(ctx context.Context, req Request) (Result, error) {
 			return Result{}, err
 		}
 		res.PlatformDigest = d
+		c.rememberPlatform(req, res.Digest, d)
 	}
 	return res, nil
+}
+
+// platformKey keys the platform manifest an index selects: API host,
+// repository, index digest (verified content) and platform.
+func platformKey(req Request, index string) string {
+	return strings.Join([]string{imageref.APIHost(req.Ref.Host), req.Ref.Repository, index, req.Platform}, "\x00")
+}
+
+func (c *Client) knownPlatform(req Request, index string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	d, ok := c.platforms[platformKey(req, index)]
+	return d, ok
+}
+
+func (c *Client) rememberPlatform(req Request, index, digest string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.platforms) >= maxPlatformEntries {
+		clear(c.platforms)
+	}
+	c.platforms[platformKey(req, index)] = digest
 }
 
 func (c *Client) baseURL(req Request) string {
@@ -599,6 +665,7 @@ func (c *Client) authorized(ctx context.Context, req Request, method, u, accept 
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusUnauthorized {
+		c.observe(ctx, req, resp)
 		return c.check(resp)
 	}
 	challenge := resp.Header.Get("WWW-Authenticate")
@@ -644,6 +711,7 @@ func (c *Client) authorized(ctx context.Context, req Request, method, u, accept 
 		}
 		return nil, &Error{Class: ClassUnauthorized, Status: http.StatusUnauthorized, Message: msg}
 	}
+	c.observe(ctx, req, resp)
 	return c.check(resp)
 }
 
@@ -739,6 +807,9 @@ func (c *Client) fetchToken(ctx context.Context, req Request, params map[string]
 		}
 		return "", 0, &Error{Class: ClassUnauthorized, Status: resp.StatusCode, Message: msg}
 	case resp.StatusCode < 200 || resp.StatusCode >= 300:
+		if resp.StatusCode == http.StatusTooManyRequests {
+			c.observe(ctx, req, resp)
+		}
 		return "", 0, c.statusError(resp)
 	}
 	b, err := readLimited(resp.Body, maxTokenBodyBytes)
@@ -821,6 +892,12 @@ func retryAfter(h http.Header, now time.Time) time.Duration {
 			}
 		}
 	}
+	return resetAfter(h, now)
+}
+
+// resetAfter parses RateLimit-Reset / X-RateLimit-Reset: seconds until the
+// window resets, or an absolute Unix time (0: none or already past).
+func resetAfter(h http.Header, now time.Time) time.Duration {
 	for _, k := range []string{"RateLimit-Reset", "X-RateLimit-Reset"} {
 		if v := strings.TrimSpace(h.Get(k)); v != "" {
 			if s, err := strconv.ParseInt(v, 10, 64); err == nil && s > 0 {
@@ -836,6 +913,104 @@ func retryAfter(h http.Header, now time.Time) time.Duration {
 		}
 	}
 	return 0
+}
+
+// RateLimit is what one registry response said about the pull limit of the
+// credential it was sent with. Every manifest and blob response is
+// reported, also one without limit headers (Limit 0): it still tells when
+// the registry last answered.
+type RateLimit struct {
+	// Host is the reference's registry host (docker.io for Docker Hub).
+	Host string
+	// CredentialKey is the request's ("" for anonymous access).
+	CredentialKey string
+	// Limit is the number of pulls per Window (0: the registry sent none);
+	// Remaining is what is left of it (-1: not sent).
+	Limit     int64
+	Remaining int64
+	// Window is the limit's window (";w=<seconds>"; 0: not sent).
+	Window time.Duration
+	// ResetAt is when the window resets (zero: not sent).
+	ResetAt time.Time
+	// Limited reports a 429 answer; RetryAfter is its guidance (0: none).
+	Limited    bool
+	RetryAfter time.Duration
+	At         time.Time
+}
+
+// Reported tells whether the registry sent a limit.
+func (r RateLimit) Reported() bool { return r.Limit > 0 }
+
+// observe reports a registry response to the rate-limit observer.
+func (c *Client) observe(ctx context.Context, req Request, resp *http.Response) {
+	c.mu.Lock()
+	fn := c.observer
+	c.mu.Unlock()
+	if fn == nil {
+		return
+	}
+	fn(ctx, rateLimitOf(req, resp.StatusCode, resp.Header, c.opts.Clock.Now().UTC()))
+}
+
+// rateLimitOf reads the rate-limit headers of a response: RateLimit-Limit
+// and RateLimit-Remaining ("100" or "100;w=21600"), their X-RateLimit-*
+// forms, RateLimit-Reset, and Retry-After on 429. Values that do not parse
+// are ignored.
+func rateLimitOf(req Request, status int, h http.Header, now time.Time) RateLimit {
+	rl := RateLimit{Host: req.Ref.Host, CredentialKey: req.CredentialKey, Remaining: -1, At: now}
+	if n, w, ok := limitHeader(h, "RateLimit-Limit", "X-RateLimit-Limit"); ok && n > 0 {
+		rl.Limit, rl.Window = n, w
+		if n, w, ok := limitHeader(h, "RateLimit-Remaining", "X-RateLimit-Remaining"); ok {
+			rl.Remaining = min(n, rl.Limit)
+			if rl.Window == 0 {
+				rl.Window = w
+			}
+		}
+	}
+	if d := resetAfter(h, now); d > 0 {
+		rl.ResetAt = now.Add(d)
+	}
+	if status == http.StatusTooManyRequests {
+		rl.Limited, rl.RetryAfter = true, retryAfter(h, now)
+		if rl.Reported() {
+			rl.Remaining = 0
+		}
+	}
+	return rl
+}
+
+// maxLimitWindow bounds a reported window (a year).
+const maxLimitWindow = 366 * 24 * time.Hour
+
+// limitHeader parses the first of keys that is set: a count, optionally
+// with a window (";w=<seconds>"). A list ("100, 5000;w=3600") counts its
+// first entry.
+func limitHeader(h http.Header, keys ...string) (int64, time.Duration, bool) {
+	for _, k := range keys {
+		v := strings.TrimSpace(h.Get(k))
+		if v == "" {
+			continue
+		}
+		v, _, _ = strings.Cut(v, ",")
+		count, params, _ := strings.Cut(v, ";")
+		n, err := strconv.ParseInt(strings.TrimSpace(count), 10, 64)
+		if err != nil || n < 0 {
+			return 0, 0, false
+		}
+		var window time.Duration
+		for p := range strings.SplitSeq(params, ";") {
+			key, val, ok := strings.Cut(strings.TrimSpace(p), "=")
+			if !ok || !strings.EqualFold(strings.TrimSpace(key), "w") {
+				continue
+			}
+			if s, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64); err == nil && s > 0 &&
+				time.Duration(s)*time.Second <= maxLimitWindow {
+				window = time.Duration(s) * time.Second
+			}
+		}
+		return n, window, true
+	}
+	return 0, 0, false
 }
 
 func registryMessage(resp *http.Response) string {

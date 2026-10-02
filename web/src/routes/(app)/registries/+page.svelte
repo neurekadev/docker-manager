@@ -1,13 +1,20 @@
 <script lang="ts">
 	// Registry connections (#19): name and login, status and last check,
-	// which images they match and what they are bound to, and last use. The
+	// which images they match and what they are bound to, the pull limit the
+	// registry last reported for the connection (#217), and last use. The
 	// priority column shows only when priorities differ; the credential's
 	// fingerprint is in the edit dialog. The owner adds (the header's "Add
 	// connection", ?create=1), edits, rotates, revokes, deletes and tests
-	// them.
+	// them. Below, the pull limits of anonymous access per registry, when
+	// images were checked without a connection.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import { registriesQuery, type RegistryConnection } from '$lib/api/queries';
+	import {
+		registriesQuery,
+		registryPullLimitsQuery,
+		type RegistryConnection,
+		type RegistryPullLimit
+	} from '$lib/api/queries';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -31,6 +38,7 @@
 	import CredentialActionHost from '$lib/features/registries/CredentialActionHost.svelte';
 	import RegistryDialog from '$lib/features/registries/RegistryDialog.svelte';
 	import { checkLabel, stackNamesQuery } from '$lib/features/registries/model';
+	import { pullLimitView } from '$lib/features/registries/pullLimits';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({ title: 'Registries', crumbs: [{ label: 'Registries' }] });
@@ -42,6 +50,15 @@
 	const rows = $derived(list.data ?? []);
 	const owner = $derived(!!scope.perms.data?.owner);
 	const samePriority = $derived(new Set(rows.map((c) => c.priority ?? 0)).size <= 1);
+	const pullLimits = createQuery(() => registryPullLimitsQuery());
+	const limitOf = $derived(
+		new Map(
+			(pullLimits.data ?? [])
+				.filter((p) => p.registryId)
+				.map((p) => [p.registryId ?? '', p] as const)
+		)
+	);
+	const anonymous = $derived((pullLimits.data ?? []).filter((p) => !p.registryId));
 
 	const createDialog = urlDialog('create');
 	let editOpen = $state(false);
@@ -121,6 +138,14 @@
 					} satisfies Column<RegistryConnection>
 				]),
 		{
+			id: 'limit',
+			header: 'Pull Limit',
+			cell: limitCell,
+			sortValue: (c) => limitOf.get(c.id)?.remaining ?? -1,
+			width: '200px',
+			stack: 'meta'
+		},
+		{
 			id: 'used',
 			header: 'Last used',
 			cell: usedCell,
@@ -139,6 +164,24 @@
 			stack: 'head'
 		}
 	]);
+
+	const anonymousColumns: Column<RegistryPullLimit>[] = [
+		{
+			id: 'host',
+			header: 'Registry',
+			cell: hostCell,
+			sortValue: (p) => p.host,
+			maxWidth: '320px',
+			stack: 'title'
+		},
+		{
+			id: 'limit',
+			header: 'Pull Limit',
+			cell: anonymousLimitCell,
+			sortValue: (p) => p.remaining ?? -1,
+			stack: 'status'
+		}
+	];
 </script>
 
 {#snippet nameCell(c: RegistryConnection)}<NameCell
@@ -170,6 +213,18 @@
 	{:else}<span class="muted">Every environment</span>{/if}
 {/snippet}
 {#snippet priorityCell(c: RegistryConnection)}<span class="num">{c.priority ?? 0}</span>{/snippet}
+{#snippet pullLimit(p: RegistryPullLimit | undefined)}
+	{@const v = pullLimitView(p)}
+	{#if v}
+		<div class="status" title={v.title}>
+			<span class:warn={v.tone === 'warn'} class:muted={v.tone === 'muted'}>{v.text}</span>
+			<span class="sub">{v.sub}</span>
+		</div>
+	{:else}<span class="muted">—</span>{/if}
+{/snippet}
+{#snippet limitCell(c: RegistryConnection)}{@render pullLimit(limitOf.get(c.id))}{/snippet}
+{#snippet hostCell(p: RegistryPullLimit)}<span class="mono">{p.host}</span>{/snippet}
+{#snippet anonymousLimitCell(p: RegistryPullLimit)}{@render pullLimit(p)}{/snippet}
 {#snippet usedCell(c: RegistryConnection)}
 	{#if c.lastUsedAt}<span class="muted" title={formatDateTime(c.lastUsedAt)}
 			>{formatRelative(c.lastUsedAt)}</span
@@ -232,6 +287,21 @@
 			</Table>
 		{/if}
 	</Card>
+	{#if anonymous.length}
+		<Card
+			title="Anonymous Access"
+			subtitle="Images checked without a connection. The registry counts these pulls per IP address."
+			padding="none"
+		>
+			<Table
+				label="Anonymous access per registry"
+				rows={anonymous}
+				columns={anonymousColumns}
+				rowKey={(p) => p.host}
+				sort={{ column: 'host', direction: 'asc' }}
+			/>
+		</Card>
+	{/if}
 {/if}
 
 <style>
@@ -245,6 +315,10 @@
 		align-items: flex-start;
 		gap: 2px;
 		min-width: 0;
+	}
+
+	.warn {
+		color: var(--warn);
 	}
 
 	.sub {

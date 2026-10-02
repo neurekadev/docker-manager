@@ -27,6 +27,11 @@ const (
 	HeartbeatTimeout = 45 * time.Second
 	// MaxStreams is the number of concurrently open streams per session.
 	MaxStreams = 32
+	// MaxConcurrentRequests is the number of request and rescan frames an
+	// agent serves at once per session; it refuses more with a retryable
+	// busy error before running them. The manager keeps at most this many
+	// in flight.
+	MaxConcurrentRequests = 16
 	// StreamWindow is the initial per-stream credit in bytes.
 	StreamWindow = 1 << 20
 	// MaxChunk bounds the decoded bytes of one stream_data frame, keeping

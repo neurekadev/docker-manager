@@ -102,6 +102,7 @@ export const queryKeys = {
 		all: ['registries'] as const,
 		list: () => liveKeys.list('registries'),
 		gitList: () => liveKeys.list('registries', 'git'),
+		pullLimits: () => liveKeys.list('registries', 'pull-limits'),
 		match: (ref: string, env: string, stack: string, registryId: string) =>
 			['registries', 'match', ref, env, stack, registryId] as const
 	},
@@ -561,6 +562,7 @@ export type RegistryConnection = Schema<'RegistryConnection'>;
 export type GitCredential = Schema<'GitCredential'>;
 export type ContainerMetrics = Schema<'ContainerMetrics'>;
 export type RegistryMatch = Schema<'RegistryMatch'>;
+export type RegistryPullLimit = Schema<'RegistryPullLimit'>;
 export type LatestContainerMetric = Schema<'LatestContainerMetric'>;
 export type VolumeUsageList = Schema<'VolumeUsageList'>;
 export type ContainerMetricsHistory = Schema<'ContainerMetricsHistory'>;
@@ -930,6 +932,21 @@ export function registriesQuery(client: ApiClient = api) {
 				)
 			),
 		staleTime: 15_000
+	});
+}
+
+/**
+ * The pull limits registries reported to Docker Manager's checks (#217),
+ * per host and credential. Background checks record them without a live
+ * event, so the list also refreshes every minute.
+ */
+export function registryPullLimitsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.registries.pullLimits(),
+		queryFn: async ({ signal }): Promise<RegistryPullLimit[]> =>
+			(await unwrap(client.GET('/api/v1/registries/pull-limits', { signal }))).items,
+		staleTime: 15_000,
+		refetchInterval: 60_000
 	});
 }
 

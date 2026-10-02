@@ -8,8 +8,8 @@ without ever seeing a secret.
 | package | role |
 | --- | --- |
 | `internal/imageref` | reference and host normalization (Docker Hub aliases), repository matchers; shared by manager and agent |
-| `internal/manager/registries` | service: CRUD, rotation, revocation, matching (`Match`, `Select`, `Preview`), connection tests, digest checks (`Check`), per-dispatch credential resolution (`CommandSecrets`) |
-| `internal/manager/regclient` | minimal OCI Distribution client (manifest HEAD/GET, token/basic auth, platform selection, 401/403/429 classification, backoff, cooldown, cache, request sharing); `regtest` is its fake registry |
+| `internal/manager/registries` | service: CRUD, rotation, revocation, matching (`Match`, `Select`, `Preview`), connection tests, digest checks (`Check`), pull limits (`PullLimits`, `pulllimits.go`), per-dispatch credential resolution (`CommandSecrets`) |
+| `internal/manager/regclient` | minimal OCI Distribution client (manifest HEAD/GET, token/basic auth, platform selection, 401/403/429 classification, backoff, cooldown per host and credential, rate-limit headers, cache, request sharing); `regtest` is its fake registry |
 | `internal/manager/api/registries.go` | `/api/v1/registries...` routes |
 | `internal/agent/regauth` | turns a command's credentials into `engine.RegistryAuth` for the Engine adapter |
 
@@ -109,8 +109,14 @@ records the result and the use. `regclient`:
 
 - HEAD first (Docker Hub counts GETs, not HEADs, against the pull
   allowance), GET only when the registry sends no digest or a platform must
-  be selected from an index; the manifest bytes are verified against the
-  digest;
+  be selected from an index whose selection is not known yet; the manifest
+  bytes are verified against the digest. An index digest is
+  content-addressed, so the platform manifest it selects never changes: it
+  is remembered per (API host, repository, index digest, platform) after a
+  verified GET (in memory, at most 4096 entries, cleared when full), and a
+  HEAD that returns a known index digest needs no GET. A check of an
+  unchanged image is therefore a HEAD only (after the first check since the
+  manager started);
 - answers one Bearer (token service, `repository:<repo>:pull`) or Basic
   challenge; credentials go only over HTTPS unless the connection allows
   plain HTTP, and never to a plain-HTTP token realm; tokens are cached per
@@ -124,8 +130,22 @@ records the result and the use. `regclient`:
   backoff and full jitter (1 s base, 30 s cap), honoring `Retry-After`
   (seconds or date) and `RateLimit-Reset`/`X-RateLimit-Reset` up to one
   minute; a longer wait fails at once with the guidance and puts the host
-  into a cooldown in which checks fail with `rate_limited` without a
-  request (no retry storm);
+  and credential into a cooldown in which their checks fail with
+  `rate_limited` without a request (no retry storm). The cooldown is keyed
+  by API host and credential key, because anonymous limits (per IP
+  address) and an account's limits are counted apart: an anonymous 429
+  never holds back a connection's checks of the same host, nor the
+  reverse;
+- reports every manifest and blob response (after the authentication
+  challenge; a cached or shared result makes none) to the rate-limit
+  observer (`Client.SetRateLimitObserver`, `regclient.RateLimit`): host,
+  credential key, `RateLimit-Limit`/`RateLimit-Remaining` or their
+  `X-RateLimit-*` forms (`100` or `100;w=21600`, the first entry of a
+  list; unparsable values are ignored), `RateLimit-Reset`, and for a 429
+  (also from the token service) `Retry-After`. Docker Hub sends the
+  headers on manifest HEADs, which do not count as pulls; GHCR sends none.
+  Other headers (Docker Hub's `docker-ratelimit-source`, the client IP)
+  are never read;
 - caches successful results for one minute and shares concurrent identical
   checks, keyed by registry, repository, tag/digest, platform and
   credential (connection ID + secret version), so a rotation never reuses
@@ -146,20 +166,64 @@ Authentication raises Docker Hub's pull allowance depending on the account
 tier; it does not remove rate or abuse limits, and the API says so in 429
 messages.
 
+### Pull limits (#217)
+
+`registries.New` sets the service as the client's rate-limit observer.
+Each report becomes a row of `registry_pull_limits` (migration
+`20261002090000_create_registry_pull_limits`), keyed by the reference's
+normalized host and the connection ID of the credential key (`''` for
+anonymous access): the last reported limit, remaining pulls, window and
+reset (`observed_at`, kept when a later answer reports none), the last
+answer (`checked_at`), the last 429 (`last_limited_at`) and when its limit
+resets (`limited_until`: `Retry-After`, else the reported reset; cleared by
+a later answer that is not a 429). `RegistryPullLimit.Limited(now)`: the
+last answer was a 429 and `limited_until` has not passed.
+
+- A key is written when the limit, remaining count, window or 429 state
+  changes, else at most once a minute (memory per host and connection,
+  bounded); a failed write is logged at warn and never fails the check.
+- Writes are monotonic: the upsert updates only when the answer is not
+  older than the stored one (`DO UPDATE ... WHERE EXCLUDED.checked_at >=
+  checked_at`; UTC timestamp text orders correctly), so a slow check never
+  overwrites a newer answer. A write that failed or lost is forgotten in
+  memory, so it never holds back the next one.
+- An answer to a connection's credential is stored only while the
+  connection exists, is active and its secret version equals the version
+  in the credential key, checked in the same transaction as the write
+  (serialized with Rotate and Delete): a check in flight across a rotation
+  or deletion never brings the connection's rows back.
+- Deleting a connection or rotating its credential (maybe another account)
+  deletes its rows; anonymous rows stay.
+- The numbers are what the registry reported to the manager's checks:
+  pulls on the hosts go through the Docker Engine, which the registry
+  counts but the manager does not see. An account's limit covers every
+  pull with that account; anonymous access is counted per IP address.
+- `GET /api/v1/registries/pull-limits` lists them (no paging): a
+  connection's row with the full view of it (`registry.read` on it),
+  anonymous rows with `registry.read` on the instance. Rows are written
+  outside requests and publish no event: the Registries page refetches
+  the list every minute and after its own changes (a connection test is an
+  audited POST, so the `registries` topic refreshes it).
+
 ## Tests
 
 Docker-free: `internal/imageref` (normalization, matchers),
 `internal/manager/regclient` (fake registry: bearer/basic auth, no
 anonymous fallback, 403/404, 429 with Retry-After, long Retry-After
-cooldown, 5xx backoff, jitter bounds, platform selection, cache and
-deduplication, plain-HTTP realm refusal, image creation times), `internal/manager/registries`
+cooldown, cooldown per credential, 5xx backoff, jitter bounds, platform
+selection, cache and deduplication, plain-HTTP realm refusal, image
+creation times, rate-limit headers and reports, a known index needing no
+GET), `internal/manager/registries`
 (matching corpus, sealing, owner-only, validation, connection tests with
 401/403/429, rotation/revocation, `Select` errors, cached/audited checks,
+pull limits per host and credential, lost and late writes, monotonic
+upserts in `internal/manager/store`,
 the job engine resolving credentials at dispatch across a rotation with a
 whole-database canary scan), `internal/agent/jobs` (secrets never reach the
 journal, logs, results or reports), `internal/agent/regauth`,
 `internal/manager/app/registries_test.go` (HTTP: lifecycle, shaping,
-owner-only, API tokens refused, audit, whole-database canary scan).
+owner-only, API tokens refused, audit, pull limits and their shaping,
+whole-database canary scan).
 
 Connections against a real registry and pulls through real Engines are
 **not verified by automated tests**: the former integration tests (registry

@@ -19,9 +19,6 @@ import (
 	"github.com/neurekadev/docker-manager/internal/streammux"
 )
 
-// maxConcurrentRequests bounds requests served at once per session.
-const maxConcurrentRequests = 16
-
 // writeTimeout bounds one frame write.
 const writeTimeout = 10 * time.Second
 
@@ -143,7 +140,7 @@ func (k *conn) serve(cred *state.Credential, installID string, caps protocol.Cap
 		_ = k.ws.CloseNow()
 	}()
 	k.idBase = newFrameID()
-	k.requestSlots = make(chan struct{}, maxConcurrentRequests)
+	k.requestSlots = make(chan struct{}, protocol.MaxConcurrentRequests)
 	k.hbStart = make(chan time.Duration, 1)
 	k.wg.Add(1)
 	go func() { defer k.wg.Done(); k.writeLoop() }()
@@ -495,8 +492,9 @@ func (k *conn) serveRescan(f *protocol.Frame) {
 	k.run(f, "rescan", func(ctx context.Context) (any, error) { return h(ctx, p) })
 }
 
-// run serves a request-like frame on its own goroutine (at most 16 at once
-// per session) and answers response or error.
+// run serves a request-like frame on its own goroutine (at most
+// protocol.MaxConcurrentRequests at once per session) and answers response
+// or error.
 func (k *conn) run(f *protocol.Frame, name string, h func(ctx context.Context) (any, error)) {
 	c := k.c
 	if f.Deadline != nil && !c.opts.Clock.Now().Before(*f.Deadline) {

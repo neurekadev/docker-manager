@@ -162,6 +162,38 @@ type RegistrySelection struct {
 // Anonymous reports whether no connection applies.
 func (s RegistrySelection) Anonymous() bool { return s.Selected == nil }
 
+// RegistryPullLimit is the last pull limit a registry reported to the
+// manager's checks for one credential (#217): a connection's (its
+// account's limit, shared by every pull with that account) or anonymous
+// access (ConnectionID "": the limit of the IP address the check came
+// from).
+type RegistryPullLimit struct {
+	// Host is the normalized registry host (docker.io for Docker Hub).
+	Host         string
+	ConnectionID string
+	// Limit, Remaining, Window and ResetAt are what the last response with
+	// limit headers said (ObservedAt); nil or zero while the registry
+	// reported none.
+	Limit      *int64
+	Remaining  *int64
+	Window     time.Duration
+	ResetAt    *time.Time
+	ObservedAt *time.Time
+	// CheckedAt is the registry's last answer to a check.
+	CheckedAt time.Time
+	// LastLimitedAt is the last 429 answer; LimitedUntil when its limit
+	// resets (nil when unknown).
+	LimitedUntil  *time.Time
+	LastLimitedAt *time.Time
+}
+
+// Limited reports whether the registry's last answer was 429 Too Many
+// Requests and its limit has not reset yet at now.
+func (p RegistryPullLimit) Limited(now time.Time) bool {
+	return p.LastLimitedAt != nil && p.LastLimitedAt.Equal(p.CheckedAt) &&
+		(p.LimitedUntil == nil || now.Before(*p.LimitedUntil))
+}
+
 // Registry connection errors.
 var (
 	ErrRegistryConnectionNotFound  = errors.New("registry connection not found")

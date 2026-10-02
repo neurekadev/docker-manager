@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
@@ -35,6 +36,7 @@ type RegistryService interface {
 	Delete(ctx context.Context, id string, revision int64) error
 	ConnectionTest(ctx context.Context, id, reference, platform string) (registries.Test, error)
 	Preview(ctx context.Context, req domain.RegistrySelectRequest) (domain.RegistrySelection, []string, error)
+	PullLimits(ctx context.Context) ([]domain.RegistryPullLimit, error)
 }
 
 // RegistrySecret describes the stored credential without revealing it.
@@ -102,7 +104,10 @@ func newRegistryConnection(c domain.RegistryConnection, v authz.View) RegistryCo
 type registriesAPI struct {
 	svc   RegistryService
 	authz authz.Authorizer
+	clock clock.Clock
 }
+
+func (h *registriesAPI) now() time.Time { return h.clock.Now() }
 
 func (h *registriesAPI) service() (RegistryService, error) {
 	if h.svc == nil {
@@ -262,6 +267,31 @@ type RegistryMatch struct {
 }
 
 type registryMatchOutput struct{ Body RegistryMatch }
+
+// RegistryPullLimit is the last pull limit a registry reported to Docker
+// Manager's checks for one credential (#217). Pulls on the hosts go through
+// the Docker Engine, so they are counted by the registry but not seen here.
+type RegistryPullLimit struct {
+	Host          string     `json:"host" example:"docker.io" doc:"Normalized registry host."`
+	RegistryID    string     `json:"registryId,omitempty" doc:"The connection whose credential the checks used (its account's limit covers every pull with that account); absent for anonymous access, whose limit is per IP address."`
+	Limit         *int64     `json:"limit,omitempty" example:"200" doc:"Pulls allowed per window, as last reported; absent while the registry reports no limit (GHCR, for example)."`
+	Remaining     *int64     `json:"remaining,omitempty" example:"187" doc:"Pulls left in the window, as last reported."`
+	WindowSeconds int64      `json:"windowSeconds,omitempty" example:"21600" doc:"The limit's window in seconds, when reported."`
+	ResetAt       *time.Time `json:"resetAt,omitempty" doc:"When the window resets, when reported."`
+	ObservedAt    *time.Time `json:"observedAt,omitempty" doc:"When the registry last reported the limit."`
+	CheckedAt     time.Time  `json:"checkedAt" doc:"The registry's last answer to a check with this credential."`
+	Limited       bool       `json:"limited" doc:"The last answer was 429 Too Many Requests and the limit has not reset yet."`
+	LimitedUntil  *time.Time `json:"limitedUntil,omitempty" doc:"When the limit of the last 429 resets, when the registry said so."`
+	LastLimitedAt *time.Time `json:"lastLimitedAt,omitempty" doc:"The last 429 answer."`
+}
+
+type registryPullLimitsOutput struct{ Body Page[RegistryPullLimit] }
+
+func newRegistryPullLimit(p domain.RegistryPullLimit, now time.Time) RegistryPullLimit {
+	return RegistryPullLimit{Host: p.Host, RegistryID: p.ConnectionID, Limit: p.Limit, Remaining: p.Remaining,
+		WindowSeconds: int64(p.Window / time.Second), ResetAt: p.ResetAt, ObservedAt: p.ObservedAt, CheckedAt: p.CheckedAt,
+		Limited: p.Limited(now), LimitedUntil: p.LimitedUntil, LastLimitedAt: p.LastLimitedAt}
+}
 
 func bindingName(b int) string {
 	switch b {
@@ -501,8 +531,40 @@ func (h *registriesAPI) match(ctx context.Context, in *registryMatchInput) (*reg
 	return &registryMatchOutput{Body: out}, nil
 }
 
+// pullLimits lists the pull limits the caller may read: a connection's
+// with registry.read on it (full view), anonymous access with registry.read
+// on the instance.
+func (h *registriesAPI) pullLimits(ctx context.Context, _ *struct{}) (*registryPullLimitsOutput, error) {
+	svc, err := h.service()
+	if err != nil {
+		return nil, err
+	}
+	c, _, err := CheckerFor(ctx, h.authz)
+	if err != nil {
+		return nil, err
+	}
+	all, err := svc.PullLimits(ctx)
+	if err != nil {
+		return nil, Internal(err)
+	}
+	anonymous := c.Can(string(CapRegistryRead), authz.Instance()).Allowed
+	now := h.now()
+	out := make([]RegistryPullLimit, 0, len(all))
+	for _, p := range all {
+		visible := anonymous
+		if p.ConnectionID != "" {
+			visible = authz.ViewOf(c, registryResource(p.ConnectionID)).Full()
+		}
+		if !visible {
+			continue
+		}
+		out = append(out, newRegistryPullLimit(p, now))
+	}
+	return &registryPullLimitsOutput{Body: NewPage(out, "", nil)}, nil
+}
+
 func registerRegistries(a huma.API, deps Deps) {
-	h := &registriesAPI{svc: deps.Registries, authz: authz.OrDenyAll(deps.Authorizer)}
+	h := &registriesAPI{svc: deps.Registries, authz: authz.OrDenyAll(deps.Authorizer), clock: deps.clock()}
 	stepUp := " Requires a recent step-up (403 step_up_required)."
 	editErrs := []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed,
 		http.StatusPreconditionRequired, http.StatusUnprocessableEntity}
@@ -605,4 +667,17 @@ func registerRegistries(a huma.API, deps Deps) {
 		},
 		Capability: CapRegistryRead, Scope: ScopeInstance, AuditAction: "registry.match",
 	}, h.match)
+
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "list-registry-pull-limits", Method: http.MethodGet, Path: BasePath + "/registries/pull-limits",
+			Summary: "List registry pull limits",
+			Description: "The last pull limit each registry reported to Docker Manager's checks (RateLimit-* or X-RateLimit-* " +
+				"headers, 429 answers), per registry host and credential: a connection's (shown with registry.read on it) and " +
+				"anonymous access (shown with registry.read on the instance). A registry that reports no limit has a row without " +
+				"limit once it was checked. Pulls on the hosts are counted by the registry but not seen here.",
+			Tags: []string{tagRegistries},
+		},
+		Capability: CapRegistryRead, Scope: ScopeResource,
+	}, h.pullLimits)
 }

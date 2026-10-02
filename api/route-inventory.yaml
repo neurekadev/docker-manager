@@ -2822,6 +2822,15 @@ routes:
     status: implemented
     notes: "Image reference -> selected connection; metadata only."
   - method: GET
+    path: /api/v1/registries/pull-limits
+    operationId: list-registry-pull-limits
+    capability: registry.read
+    scope: resource
+    owner: 217
+    kind: json
+    status: implemented
+    notes: "Last pull limit per registry host and credential (#217): connections with registry.read on them, anonymous access with registry.read on the instance."
+  - method: GET
     path: /api/v1/notification-channels
     operationId: list-notification-channels
     capability: owner
