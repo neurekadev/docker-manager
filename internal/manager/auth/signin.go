@@ -323,16 +323,12 @@ func (s *Service) SignOut(ctx context.Context) error {
 }
 
 // StepUp re-authenticates the caller for sensitive changes with exactly
-// one factor: a passkey assertion (options with purpose step_up), else
-// the TOTP code when TOTP is enabled, else the password. An account with
-// a second factor never steps up with its password alone, and no step-up
-// asks for two factors (the session already proved the sign-in).
+// one factor, whichever the request carries: a passkey assertion (options
+// with purpose step_up), else a TOTP code, else the password. No step-up
+// asks for two factors (the session already proved the sign-in); the
+// password is a fallback every account with one may use.
 func (s *Service) StepUp(ctx context.Context, req domain.StepUp) (domain.SessionState, error) {
 	cur, err := s.session(ctx, true)
-	if err != nil {
-		return domain.SessionState{}, err
-	}
-	enrolled, err := s.enrolled(ctx, cur.user)
 	if err != nil {
 		return domain.SessionState{}, err
 	}
@@ -340,12 +336,12 @@ func (s *Service) StepUp(ctx context.Context, req domain.StepUp) (domain.Session
 	switch {
 	case len(req.PasskeyResponse) > 0:
 		proven, err = fPasskey, s.stepUpWithPasskey(ctx, cur, req.PasskeyResponse)
-	case enrolled.has(fTOTP):
+	case strings.TrimSpace(req.TOTPCode) != "":
 		proven, err = fTOTP, s.stepUpWithTOTP(ctx, cur, req.TOTPCode)
-	case enrolled.has(fPasskey):
-		err = &domain.FieldError{Field: "credential", Message: "this account confirms its identity with a passkey"}
-	default:
+	case req.Password != "":
 		proven, err = fPassword, s.stepUpWithPassword(ctx, cur, req.Password)
+	default:
+		err = &domain.FieldError{Field: "password", Message: "a password, an authenticator code or a passkey assertion is required"}
 	}
 	if err != nil {
 		return domain.SessionState{}, err
@@ -375,11 +371,8 @@ func (s *Service) stepUpWithPasskey(ctx context.Context, cur *current, response 
 }
 
 // stepUpWithTOTP verifies a step-up TOTP code (verifyTOTP counts the
-// failures).
+// failures; an account without TOTP always fails).
 func (s *Service) stepUpWithTOTP(ctx context.Context, cur *current, code string) error {
-	if strings.TrimSpace(code) == "" {
-		return &domain.FieldError{Field: "totpCode", Message: "the authenticator code is required"}
-	}
 	_, creds, err := store.GetUserWithCredentials(ctx, s.db, cur.user.ID)
 	if err != nil {
 		return err
@@ -393,8 +386,8 @@ func (s *Service) stepUpWithTOTP(ctx context.Context, cur *current, code string)
 	return nil
 }
 
-// stepUpWithPassword verifies the password of an account without a
-// second factor; a wrong one counts against the account's limit.
+// stepUpWithPassword verifies the account's password; a wrong one (or an
+// account without a password) counts against the account's limit.
 func (s *Service) stepUpWithPassword(ctx context.Context, cur *current, pw string) error {
 	att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
 	if err != nil {

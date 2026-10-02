@@ -456,7 +456,7 @@ export interface paths {
         put?: never;
         /**
          * Re-authenticate (step-up)
-         * @description Proves the caller's identity again before sensitive changes (security settings, invitations, password, factor removal and resets, which answer 403 step_up_required otherwise) with exactly one factor: a passkey assertion from authentication options requested with purpose step_up, else the TOTP code alone when TOTP is enabled, else the password (accounts without TOTP or passkeys). An account with passkeys and no TOTP must use a passkey (422 on credential). Valid for 10 minutes; renews the session token.
+         * @description Proves the caller's identity again before sensitive changes (security settings, invitations, password, factor removal and resets, which answer 403 step_up_required otherwise) with exactly one factor, the first one sent: a passkey assertion from authentication options requested with purpose step_up, else a TOTP code (TOTP enabled), else the password. 422 when none is sent. Valid for 10 minutes; renews the session token.
          */
         post: operations["create-auth-step-up"];
         delete?: never;
@@ -12674,11 +12674,11 @@ export interface components {
             /** @description A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up. */
             credential?: unknown;
             /**
-             * @description Confirms an account without TOTP or passkeys.
+             * @description Confirms on its own; used when neither credential nor totpCode is sent.
              * @example correct-horse-battery-staple
              */
             password?: string;
-            /** @description The authenticator code: confirms an account with TOTP enabled on its own (the password is not checked). */
+            /** @description The authenticator code: confirms on its own when TOTP is enabled (the password is then not checked). */
             totpCode?: string;
         };
         SystemAgent: {

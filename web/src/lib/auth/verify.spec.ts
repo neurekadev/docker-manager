@@ -19,21 +19,21 @@ function memory(init: Record<string, string> = {}): StorageLike & { data: Record
 }
 
 describe('verification method (#186)', () => {
-	it('confirms a step-up with exactly one factor, a passkey first', () => {
+	it('orders the step-up factors passkey, code, password', () => {
 		const f = (password: boolean, totp: boolean, passkeys: number) => ({
 			password,
 			totp,
 			passkeys
 		});
 		expect(stepUpMethods(f(true, false, 0), true)).toEqual(['password']);
-		expect(stepUpMethods(f(true, true, 0), true)).toEqual(['totp']);
-		expect(stepUpMethods(f(true, false, 2), true)).toEqual(['passkey']);
+		expect(stepUpMethods(f(true, true, 0), true)).toEqual(['totp', 'password']);
+		expect(stepUpMethods(f(true, false, 2), true)).toEqual(['passkey', 'password']);
 		expect(stepUpMethods(f(false, false, 1), true)).toEqual(['passkey']);
-		expect(stepUpMethods(f(true, true, 1), true)).toEqual(['passkey', 'totp']);
-		// Never the password once a second factor exists, even when this
-		// browser can't use passkeys.
-		expect(stepUpMethods(f(true, false, 1), false)).toEqual([]);
-		expect(stepUpMethods(f(true, true, 1), false)).toEqual(['totp']);
+		expect(stepUpMethods(f(true, true, 1), true)).toEqual(['passkey', 'totp', 'password']);
+		// A browser without passkeys falls back to the next factor.
+		expect(stepUpMethods(f(true, false, 1), false)).toEqual(['password']);
+		expect(stepUpMethods(f(true, true, 1), false)).toEqual(['totp', 'password']);
+		expect(stepUpMethods(f(false, false, 1), false)).toEqual([]);
 	});
 
 	it('orders the factors of a pending sign-in the same way', () => {
@@ -52,6 +52,10 @@ describe('verification method (#186)', () => {
 		);
 		expect(initialMethod(['passkey'], memory({ [VERIFY_WITH_KEY]: 'totp' }))).toBe('passkey');
 		expect(initialMethod([], memory())).toBeNull();
+		// The password is a fallback, never the remembered default.
+		expect(
+			initialMethod(['passkey', 'password'], memory({ [VERIFY_WITH_KEY]: 'password' }))
+		).toBe('passkey');
 		expect(initialMethod(['totp'], null)).toBe('totp');
 	});
 

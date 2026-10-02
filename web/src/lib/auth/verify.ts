@@ -1,19 +1,19 @@
 // Which factor confirms it's you (#186), in the step-up dialog and at the
-// second step of a sign-in alike: exactly one at a time, never two. A
-// passkey comes first (its browser prompt opens at once), then the
-// authenticator code, then the password for an account without a second
-// factor (the manager accepts nothing else). With both a passkey and an
-// authenticator app the user can switch to the code; the browser
-// remembers that choice in localStorage under docker-manager:verify-with
-// ("totp" or "passkey"; a preference, not a secret, no API data). Pure
-// (verify.spec.ts).
+// second step of a sign-in alike: exactly one at a time, never two, in
+// the order passkey (its browser prompt opens at once), authenticator
+// code, password. The user can switch to any other factor the account
+// has; the password is a fallback for every account with one. A switch
+// between passkey and code is remembered in localStorage under
+// docker-manager:verify-with ("totp" or "passkey"; a preference, not a
+// secret, no API data); the password is never the remembered default.
+// Pure (verify.spec.ts).
 import type { StorageLike } from '$lib/shell/environment.svelte';
 
 export type VerifyMethod = 'passkey' | 'totp' | 'password';
 
 export const VERIFY_WITH_KEY = 'docker-manager:verify-with';
 
-/** What the account can confirm a step-up with, the default first. */
+/** What the account can confirm a step-up with, in priority order. */
 export function stepUpMethods(
 	factors: { password: boolean; totp: boolean; passkeys: number },
 	passkeysSupported: boolean
@@ -21,11 +21,11 @@ export function stepUpMethods(
 	const out: VerifyMethod[] = [];
 	if (factors.passkeys > 0 && passkeysSupported) out.push('passkey');
 	if (factors.totp) out.push('totp');
-	if (!factors.totp && factors.passkeys === 0 && factors.password) out.push('password');
+	if (factors.password) out.push('password');
 	return out;
 }
 
-/** What completes a pending sign-in (its factors), the default first. */
+/** What completes a pending sign-in (its factors), in priority order. */
 export function secondFactorMethods(factors: string[], passkeysSupported: boolean): VerifyMethod[] {
 	const out: VerifyMethod[] = [];
 	if (factors.includes('passkey') && passkeysSupported) out.push('passkey');
@@ -42,8 +42,8 @@ function browserStorage(): StorageLike | null {
 }
 
 /**
- * The method to start with: the remembered choice when the account has
- * it, otherwise the default (the first), or null when there is none.
+ * The method to start with: the remembered choice (passkey or code) when
+ * the account has it, otherwise the first by priority, or null.
  */
 export function initialMethod(
 	methods: VerifyMethod[],
@@ -55,7 +55,7 @@ export function initialMethod(
 	} catch {
 		// Refused: the default applies.
 	}
-	const pick = methods.find((m) => m === remembered);
+	const pick = methods.find((m) => m !== 'password' && m === remembered);
 	return pick ?? methods[0] ?? null;
 }
 

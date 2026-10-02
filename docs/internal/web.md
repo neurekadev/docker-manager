@@ -499,9 +499,10 @@ one factor once and the call is retried; dismissing it throws
 `StepUpCancelledError`. The factor follows `$lib/auth/verify.ts` (#186),
 shared with the sign-in page's second step: a passkey first (its browser
 prompt starts as the dialog opens), else the authenticator code alone,
-else the password (accounts without a second factor only). With both a
-passkey and TOTP, "Use authenticator code instead" / "Use a passkey
-instead" switch, and the browser remembers the choice.
+else the password. "Use a passkey instead", "Use authenticator code
+instead" and "Use your password instead" switch to any other factor the
+account has (the password is a fallback for every account with one); the
+browser remembers a switch between passkey and code, never the password.
 
 ## Job progress after reload
 

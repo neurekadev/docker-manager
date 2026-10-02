@@ -149,8 +149,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   (docs/internal/web.md, "Feature modules"); step-up-guarded calls go through
   `withStepUp` (`$lib/auth/stepup.svelte`). Confirming identity (the
   step-up dialog, the sign-in second step) asks for one factor chosen by
-  `$lib/auth/verify.ts`: a passkey first, its prompt started at once, with
-  a remembered switch to the authenticator code; never two at once.
+  `$lib/auth/verify.ts`: passkey (its prompt started at once), then
+  authenticator code, then password, with a switch to any other factor
+  the account has; never two at once.
   Never store API data in `localStorage`/Cache Storage.
 - **Permissions:** show actions from DTO `actions`/`view`; navigation from
   `/me/permissions` (`$lib/shell/nav.ts`); hide, don't disable; Restricted

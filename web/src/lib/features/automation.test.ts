@@ -464,6 +464,23 @@ describe('StepUpDialog (#16, #186)', () => {
 		expect(bodies).toEqual([{ totpCode: '123456' }]);
 	});
 
+	it('falls back to the password on request', async () => {
+		const user = setup();
+		const bodies = stubApi();
+		const done = open(
+			account({ password: true, totp: true, passkeys: 0, recoveryCodesRemaining: 10 })
+		);
+		const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
+		await user.click(within(dialog).getByRole('button', { name: 'Use your password instead' }));
+		expect(within(dialog).queryByLabelText('Authenticator code')).toBeNull();
+		await user.type(within(dialog).getByLabelText('Password'), 'correct horse');
+		await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+		expect(await done).toBe(true);
+		expect(bodies).toEqual([{ password: 'correct horse' }]);
+		// The fallback is not remembered: the code stays the default.
+		expect(localStorage.getItem('docker-manager:verify-with')).toBeNull();
+	});
+
 	it('asks an account without a second factor for the password', async () => {
 		const user = setup();
 		const bodies = stubApi();
@@ -500,6 +517,9 @@ describe('StepUpDialog (#16, #186)', () => {
 			const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
 			await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
 			expect(within(dialog).queryByLabelText('Password')).toBeNull();
+			expect(
+				within(dialog).getByRole('button', { name: 'Use your password instead' })
+			).toBeInTheDocument();
 			await user.click(
 				within(dialog).getByRole('button', { name: 'Use authenticator code instead' })
 			);

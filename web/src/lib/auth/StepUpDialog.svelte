@@ -3,9 +3,10 @@
 	// withStepUp() when the manager answers step_up_required. It asks for
 	// exactly one factor (verify.ts, #186): a passkey when the account has
 	// one (the browser's prompt opens at once), else the authenticator code,
-	// else the password. With both a passkey and an authenticator app the
-	// user can switch to the code, and the browser remembers it. Success
-	// renews the session; the waiting change is retried by its caller.
+	// else the password. The user can switch to any other factor the
+	// account has (the password is always a fallback); a switch between
+	// passkey and code is remembered. Success renews the session; the
+	// waiting change is retried by its caller.
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import Fingerprint from '@lucide/svelte/icons/fingerprint';
@@ -32,6 +33,11 @@
 	let ceremony: AbortController | null = null;
 
 	const methods = $derived(stepUpMethods(user.factors, passkeysSupported()));
+	const SWITCH: Record<VerifyMethod, string> = {
+		passkey: 'Use a passkey instead',
+		totp: 'Use authenticator code instead',
+		password: 'Use your password instead'
+	};
 
 	let open = $state(false);
 	$effect(() => {
@@ -193,15 +199,9 @@
 			supports passkeys to continue.</Notice
 		>
 	{/if}
-	{#if method === 'passkey' && methods.includes('totp')}
-		<Button variant="ghost" onclick={() => switchTo('totp')} block
-			>Use authenticator code instead</Button
-		>
-	{:else if method === 'totp' && methods.includes('passkey')}
-		<Button variant="ghost" disabled={busy} onclick={() => switchTo('passkey')} block
-			>Use a passkey instead</Button
-		>
-	{/if}
+	{#each methods.filter((m) => m !== method) as other (other)}
+		<Button variant="ghost" onclick={() => switchTo(other)} block>{SWITCH[other]}</Button>
+	{/each}
 </Dialog>
 
 <style>

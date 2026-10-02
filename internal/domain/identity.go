@@ -314,8 +314,8 @@ type InvitationRedemption struct {
 }
 
 // StepUp re-proves the caller's identity with one factor: a passkey
-// assertion prepared with the step_up purpose, the TOTP code when TOTP is
-// enabled, or the password of an account without a second factor.
+// assertion prepared with the step_up purpose, else a TOTP code, else the
+// password.
 type StepUp struct {
 	Password        string
 	TOTPCode        string
