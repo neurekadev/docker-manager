@@ -29,7 +29,7 @@ export interface EventKindInfo {
 	label: string;
 	/** In a sentence ("backups"). */
 	short: string;
-	/** What else it covers, when the label does not say it (the row's tooltip). */
+	/** What else it covers, when the label does not say it (the row's (i)). */
 	hint?: string;
 	group: EventGroup;
 	icon: IconComponent;
@@ -148,7 +148,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 		kind: 'job_failed',
 		label: 'Other jobs',
 		short: 'other jobs',
-		hint: 'Failed jobs started by a schedule or an API token that no row above covers, such as deploys.',
+		hint: 'Failed jobs that an API token started and no row above covers: deploys, starts and stops, image pulls and builds, container, volume and file actions, and migrations.',
 		group: 'jobs',
 		icon: CircleX,
 		outcomes: [

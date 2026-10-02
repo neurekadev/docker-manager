@@ -356,7 +356,7 @@ describe('notification channels in words (#142)', () => {
 			'Other jobs'
 		]);
 		// The rows whose label does not say all they cover explain it.
-		expect(eventKind('job_failed')?.hint).toMatch(/schedule or an API token/);
+		expect(eventKind('job_failed')?.hint).toMatch(/an API token started/);
 		expect(labels('updates')).toEqual(['Available', 'Failure', 'Applied']);
 		expect(labels('job_failed')).toEqual(['Failure', 'Warning', 'Resolved']);
 		expect(EVENT_KINDS.filter((k) => k.group === 'hosts').map((k) => k.label)).toEqual([

@@ -133,8 +133,8 @@ web `web/src/lib/features/notifications`.
   is not the default. Secrets are `PasswordField`s; the stored address stays masked
   until "Show address" (`withStepUp`). "What to send" is one row per kind
   (a master checkbox, the kind's outcomes beside it; a kind whose label
-  does not say all it covers explains it as the row's tooltip,
-  `EventKindInfo.hint`: Backups, Image updates, Other jobs). Channel changes
+  does not say all it covers explains it in an (i) beside it (`InfoTip`,
+  `EventKindInfo.hint`: Backups, Image updates, Other jobs)). Channel changes
   arrive on the live topic `settings` (`notificationKeys`).
 
 ## Alerts (#159) and notifications
