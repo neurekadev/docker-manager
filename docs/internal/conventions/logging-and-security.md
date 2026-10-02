@@ -25,8 +25,7 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   keeps them spent, the deferred `release` refunds them. Never check a
   limiter and count the failure afterwards: concurrent requests would all
   pass the check (#180). Limiter tables (`auth/throttle`) never refuse new
-  clients when full: they forget a refilled bucket first and keep drained
-  ones up to four times the bound before the least recently used goes.
+  clients when full: they forget the bucket that is full again soonest.
 - All `/api/v1` and `/agent/v1` responses are `no-store` (the one exception:
   template icons requested with their current `?v=<sha256>`, which are
   immutable); never cache API data in the service worker.

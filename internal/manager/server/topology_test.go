@@ -268,8 +268,8 @@ func TestAgentRateLimitPerClientIP(t *testing.T) {
 		t.Fatalf("same /64: %d", c)
 	}
 	// Table full: a new client still gets a bucket (a flood of new
-	// addresses never locks clients out); no bucket has refilled, so the
-	// table grows instead of forgetting one...
+	// addresses never locks clients out); the bucket that is full again
+	// soonest (198.51.100.1's, one token used) is forgotten...
 	if c := get("192.0.2.200:1"); c != http.StatusNoContent {
 		t.Fatalf("full table: %d", c)
 	}

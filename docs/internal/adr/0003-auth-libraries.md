@@ -196,10 +196,9 @@ per account name *and client* refilled every minute (so nobody can lock an
 account out by guessing wrong; a successful sign-in resets it) plus 100
 per account name from all clients refilled every 6 s; for second
 factors, step-up and recovery codes, 10 per user refilled every minute. A
-full table never refuses a new key: it forgets a bucket that has refilled
-(among the 64 least recently used), keeps buckets still holding failures
-up to four times its bound (so made-up keys cannot reset a drained one),
-and only past that forgets the least recently used bucket.
+full table never refuses a new key: it forgets the bucket that is full
+again soonest (ordered in a heap), so made-up keys with a failure each are
+forgotten before a key under attack, whose limit they cannot reset.
 
 ### Authorization evaluator: small deterministic evaluator, not Casbin
 

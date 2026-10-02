@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"container/heap"
 	"context"
 	"net/netip"
 	"slices"
@@ -54,46 +55,59 @@ type anonKey struct {
 	errorClass          string
 }
 
-// anonSummary counts the records of one key left out. clients counts them
-// per client for at most maxAnonSummaryClients clients; past that a new
-// client replaces the one with the lowest count and takes over its count
-// (Space-Saving), so the clients sending the most stay in it however many
-// others there are.
+// anonSummary counts the records of one key left out. It counts them per
+// client for at most maxAnonSummaryClients clients; past that a new client
+// replaces the one with the lowest count and takes over its count
+// (Space-Saving, the lowest found in O(log n) through a min-heap), so the
+// clients sending the most stay in it however many others there are.
 type anonSummary struct {
 	count   int
-	clients map[string]int
+	clients map[string]*clientCount
+	low     countHeap // lowest count first
 }
 
-func newAnonSummary() *anonSummary { return &anonSummary{clients: map[string]int{}} }
+type clientCount struct {
+	client string
+	n      int
+	index  int // in low
+}
+
+func newAnonSummary() *anonSummary { return &anonSummary{clients: map[string]*clientCount{}} }
 
 // add counts n records of client.
 func (s *anonSummary) add(client string, n int) {
 	s.count += n
-	if _, ok := s.clients[client]; !ok && len(s.clients) >= maxAnonSummaryClients {
-		low, lowN := "", 0
-		for c, cn := range s.clients {
-			if low == "" || cn < lowN || cn == lowN && c < low {
-				low, lowN = c, cn
-			}
-		}
-		delete(s.clients, low)
-		s.clients[client] = lowN
+	if c, ok := s.clients[client]; ok {
+		c.n += n
+		heap.Fix(&s.low, c.index)
+		return
 	}
-	s.clients[client] += n
+	if len(s.clients) >= maxAnonSummaryClients {
+		c := s.low[0]
+		delete(s.clients, c.client)
+		c.client, c.n = client, c.n+n
+		s.clients[client] = c
+		heap.Fix(&s.low, 0)
+		return
+	}
+	c := &clientCount{client: client, n: n}
+	s.clients[client] = c
+	heap.Push(&s.low, c)
 }
 
 // merge adds the counts of o.
 func (s *anonSummary) merge(o *anonSummary) {
-	for c, n := range o.clients {
-		s.add(c, n)
+	for _, c := range o.clients {
+		s.add(c.client, c.n)
 	}
-	s.count += o.count - sumCounts(o.clients)
+	s.count += o.count - o.counted()
 }
 
-func sumCounts(m map[string]int) int {
+// counted is the sum of the per-client counts.
+func (s *anonSummary) counted() int {
 	n := 0
-	for _, v := range m {
-		n += v
+	for _, c := range s.clients {
+		n += c.n
 	}
 	return n
 }
@@ -101,25 +115,43 @@ func sumCounts(m map[string]int) int {
 // topClients are the anonTopClients clients with the most records, most
 // first: the summary keeps who sent the flood.
 func (s *anonSummary) topClients() []map[string]any {
-	type entry struct {
-		client string
-		n      int
+	all := make([]clientCount, 0, len(s.clients))
+	for _, c := range s.clients {
+		all = append(all, *c)
 	}
-	all := make([]entry, 0, len(s.clients))
-	for c, n := range s.clients {
-		all = append(all, entry{c, n})
-	}
-	slices.SortFunc(all, func(a, b entry) int {
+	slices.SortFunc(all, func(a, b clientCount) int {
 		if a.n != b.n {
 			return b.n - a.n
 		}
 		return strings.Compare(a.client, b.client)
 	})
 	out := []map[string]any{}
-	for _, e := range all[:min(len(all), anonTopClients)] {
-		out = append(out, map[string]any{"client": e.client, "count": e.n})
+	for _, c := range all[:min(len(all), anonTopClients)] {
+		out = append(out, map[string]any{"client": c.client, "count": c.n})
 	}
 	return out
+}
+
+// countHeap orders client counts lowest first (container/heap).
+type countHeap []*clientCount
+
+func (h countHeap) Len() int           { return len(h) }
+func (h countHeap) Less(i, j int) bool { return h[i].n < h[j].n }
+func (h countHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].index, h[j].index = i, j
+}
+func (h *countHeap) Push(x any) {
+	c := x.(*clientCount)
+	c.index = len(*h)
+	*h = append(*h, c)
+}
+func (h *countHeap) Pop() any {
+	old := *h
+	c := old[len(old)-1]
+	old[len(old)-1] = nil
+	*h = old[:len(old)-1]
+	return c
 }
 
 // anonGate is the budget of anonymous failures for the current window and

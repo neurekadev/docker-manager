@@ -46,7 +46,7 @@ behind a reverse proxy, #180), all fixed in one change:
 | F8 | Rate limiting | The per-account sign-in bucket was keyed on the name only and checked before the password, so anyone could block password sign-in of a known account. | medium | per account and client, under an account-wide ceiling; reset on success; `TestSignInThrottling`, `TestSignInAccountCeiling` |
 | F9 | Capability boundaries | The file manager required `stack.definition.*` only for root-level `compose*.yml` and `.env`: a stack's other Compose and env files, and any path through an in-root symlink (an extracted `d -> .`), were reachable with `stack.files.*` alone. | high | the stack's declared definition files are authorized for every path an operation reads or changes; stack scopes follow no symlink (`files.stack_no_follow`; older agents need `stack.definition.*` for every content operation); extraction judges link targets from where they land |
 | F10 | TLS enforcement | After a manager move, the old server's agent kept the plain-HTTP address the move gave it, and two agent credentials had crossed the network in clear. | low | the new manager sends that agent its HTTPS public URL and rotates both credentials (`managermove/secure.go`) |
-| F11 | Rate limiting | Limiter tables (sign-in, `/agent/v1`) refused new clients when full. | low | they never refuse a new key: a refilled bucket goes first, drained ones are kept up to four times the bound (made-up keys cannot reset them), then the least recently used goes |
+| F11 | Rate limiting | Limiter tables (sign-in, `/agent/v1`) refused new clients when full. | low | they never refuse a new key and forget the bucket that is full again soonest, so made-up keys cannot reset a key under attack |
 | F12 | Outbound requests | The S3 connection test reached loopback, link-local and metadata addresses (a reachability oracle, also before an owner exists). | low | the probe's dialer refuses them at connect time and follows no redirect; restic itself is not covered (documented in the backups guide) |
 | F13 | TLS enforcement | No `Strict-Transport-Security` from the app. | info | sent on HTTPS requests when the public URL is https |
 
@@ -245,8 +245,8 @@ checked.
   the credential is checked and refunded on success, so parallel guesses
   cannot outrun the limit; the password bucket is per account name and
   client (no lockout by others) under an account-wide ceiling; bounded
-  tables never refuse a new key and keep drained buckets up to four times
-  their bound (#180). A constant
+  tables never refuse a new key and forget the bucket that is full again
+  soonest (#180). A constant
   Argon2id cost for unknown accounts; `/agent/v1` per client IP (IPv6 per
   /64, same bounded table), bounded bodies and pre-auth deadlines.
 - Anonymous failed requests (public routes, `/agent/v1` refusals) are
@@ -255,7 +255,7 @@ checked.
   through the size cap (#180).
 - `TestSignInThrottling`, `TestSignInAccountCeiling`,
   `TestConcurrentSignInsStayWithinTheLimit`, `TestSignInEnumerationResistance`,
-  `TestFullTableEvictsRefilledBucketsFirst`, `TestUnknownAccountCostsOneComputation`,
+  `TestFullTableForgetsTheBucketClosestToFull`, `TestUnknownAccountCostsOneComputation`,
   `TestAgentRateLimitPerClientIP`, `TestAgentBodyBound`,
   `TestAgentPreAuthTimeout`.
 - Limitation: the limiters live in the manager's memory; a restart resets

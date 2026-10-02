@@ -14,7 +14,7 @@
 package throttle
 
 import (
-	"container/list"
+	"container/heap"
 	"net/netip"
 	"strings"
 	"sync"
@@ -35,31 +35,28 @@ type Limiter struct {
 	limit      Limit
 	clk        clock.Clock
 	maxEntries int
-	hardMax    int
 
 	mu      sync.Mutex
-	buckets map[string]*list.Element // of *bucket
-	lru     *list.List               // least recently used first
+	buckets map[string]*bucket
+	byFull  fullHeap // the bucket that is full again soonest first
 }
 
 type bucket struct {
 	key    string
 	tokens float64
 	at     time.Time
+	// fullAt is when the bucket is full again without further use; index
+	// is its place in byFull.
+	fullAt time.Time
+	index  int
 }
 
-// evictScan bounds how many of the least recently used buckets a full
-// table looks at for one that has refilled.
-const evictScan = 64
-
 // New returns a limiter. maxEntries bounds memory: when the table is full,
-// a new key forgets a bucket that has refilled (forgetting it changes
-// nothing), looking at the evictScan least recently used ones. Buckets
-// that still hold failures are kept up to four times maxEntries, so
-// flooding the table with made-up keys does not reset the limit of a key
-// under attack; only past that is the least recently used one forgotten
-// (its key gets a full burst again). New keys are never refused, so a
-// flood never locks out other clients.
+// a new key forgets the bucket that is full again soonest: one that has
+// refilled already (forgetting it changes nothing), else the one closest
+// to it. A key under attack holds more failures than made-up keys used to
+// fill the table, so they are forgotten first and cannot reset its limit.
+// New keys are never refused, so a flood never locks out other clients.
 func New(limit Limit, clk clock.Clock, maxEntries int) *Limiter {
 	if clk == nil {
 		clk = clock.Real()
@@ -73,15 +70,14 @@ func New(limit Limit, clk clock.Clock, maxEntries int) *Limiter {
 	if limit.Every <= 0 {
 		limit.Every = time.Second
 	}
-	return &Limiter{limit: limit, clk: clk, maxEntries: maxEntries, hardMax: 4 * maxEntries, buckets: map[string]*list.Element{}, lru: list.New()}
+	return &Limiter{limit: limit, clk: clk, maxEntries: maxEntries, buckets: map[string]*bucket{}}
 }
 
 // bucket returns key's bucket refilled to now, creating (and evicting for)
-// it when needed. The caller holds l.mu.
+// it when needed. The caller holds l.mu and calls l.update after changing
+// the tokens.
 func (l *Limiter) bucket(key string, now time.Time) *bucket {
-	if e, ok := l.buckets[key]; ok {
-		l.lru.MoveToBack(e)
-		b := e.Value.(*bucket)
+	if b, ok := l.buckets[key]; ok {
 		if d := now.Sub(b.at); d > 0 {
 			b.tokens = min(float64(l.limit.Burst), b.tokens+float64(d)/float64(l.limit.Every))
 			b.at = now
@@ -89,37 +85,24 @@ func (l *Limiter) bucket(key string, now time.Time) *bucket {
 		return b
 	}
 	for len(l.buckets) >= l.maxEntries {
-		if e := l.refilled(now); e != nil {
-			l.drop(e)
-			continue
-		}
-		if len(l.buckets) < l.hardMax {
-			break
-		}
-		l.drop(l.lru.Front())
+		l.drop(l.byFull[0])
 	}
-	b := &bucket{key: key, tokens: float64(l.limit.Burst), at: now}
-	l.buckets[key] = l.lru.PushBack(b)
+	b := &bucket{key: key, tokens: float64(l.limit.Burst), at: now, fullAt: now}
+	l.buckets[key] = b
+	heap.Push(&l.byFull, b)
 	return b
 }
 
-// refilled returns one of the evictScan least recently used buckets that
-// is full again, or nil. The caller holds l.mu.
-func (l *Limiter) refilled(now time.Time) *list.Element {
-	e := l.lru.Front()
-	for i := 0; e != nil && i < evictScan; i, e = i+1, e.Next() {
-		b := e.Value.(*bucket)
-		if b.tokens+float64(now.Sub(b.at))/float64(l.limit.Every) >= float64(l.limit.Burst) {
-			return e
-		}
-	}
-	return nil
+// update reorders b after its tokens changed. The caller holds l.mu.
+func (l *Limiter) update(b *bucket) {
+	b.fullAt = b.at.Add(time.Duration((float64(l.limit.Burst) - b.tokens) * float64(l.limit.Every)))
+	heap.Fix(&l.byFull, b.index)
 }
 
-// drop forgets e's bucket. The caller holds l.mu.
-func (l *Limiter) drop(e *list.Element) {
-	l.lru.Remove(e)
-	delete(l.buckets, e.Value.(*bucket).key)
+// drop forgets b. The caller holds l.mu.
+func (l *Limiter) drop(b *bucket) {
+	heap.Remove(&l.byFull, b.index)
+	delete(l.buckets, b.key)
 }
 
 // Take consumes one token for key if one is available, reporting whether
@@ -132,6 +115,7 @@ func (l *Limiter) Take(key string) bool {
 		return false
 	}
 	b.tokens--
+	l.update(b)
 	return true
 }
 
@@ -146,17 +130,17 @@ func (l *Limiter) Refund(key string) {
 	}
 	b := l.bucket(key, l.clk.Now())
 	b.tokens = min(float64(l.limit.Burst), b.tokens+1)
+	l.update(b)
 }
 
 // RetryAfter is how long until key has a token again (0 if it has one).
 func (l *Limiter) RetryAfter(key string) time.Duration {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	e, ok := l.buckets[key]
+	b, ok := l.buckets[key]
 	if !ok {
 		return 0
 	}
-	b := e.Value.(*bucket)
 	tokens := min(float64(l.limit.Burst), b.tokens+float64(l.clk.Now().Sub(b.at))/float64(l.limit.Every))
 	if missing := 1 - tokens; missing > 0 {
 		return time.Duration(missing * float64(l.limit.Every))
@@ -169,9 +153,31 @@ func (l *Limiter) RetryAfter(key string) time.Duration {
 func (l *Limiter) Reset(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if e, ok := l.buckets[key]; ok {
-		l.drop(e)
+	if b, ok := l.buckets[key]; ok {
+		l.drop(b)
 	}
+}
+
+// fullHeap orders buckets by fullAt (container/heap).
+type fullHeap []*bucket
+
+func (h fullHeap) Len() int           { return len(h) }
+func (h fullHeap) Less(i, j int) bool { return h[i].fullAt.Before(h[j].fullAt) }
+func (h fullHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].index, h[j].index = i, j
+}
+func (h *fullHeap) Push(x any) {
+	b := x.(*bucket)
+	b.index = len(*h)
+	*h = append(*h, b)
+}
+func (h *fullHeap) Pop() any {
+	old := *h
+	b := old[len(old)-1]
+	old[len(old)-1] = nil
+	*h = old[:len(old)-1]
+	return b
 }
 
 // IPKey groups a client address: IPv4 by address, IPv6 by /64 (one

@@ -96,40 +96,35 @@ func TestConcurrentTakesStayWithinTheBurst(t *testing.T) {
 	}
 }
 
-// TestFullTableEvictsRefilledBucketsFirst: when the table is full a new
-// key still gets a bucket (never fail closed). A bucket that has refilled
-// goes first; buckets still holding failures are kept up to four times
-// the bound, so made-up keys cannot reset a drained one; only then does
-// the least recently used one go.
-func TestFullTableEvictsRefilledBucketsFirst(t *testing.T) {
+// TestFullTableForgetsTheBucketClosestToFull: when the table is full a
+// new key still gets a bucket (never fail closed), and the bucket that is
+// full again soonest is forgotten, so a flood of made-up keys with one
+// failure each never resets a key that holds more failures.
+func TestFullTableForgetsTheBucketClosestToFull(t *testing.T) {
 	clk := testutil.FakeClock()
-	l := New(Limit{Every: time.Hour, Burst: 1}, clk, 2)
+	l := New(Limit{Every: time.Minute, Burst: 3}, clk, 3)
+	for range 3 {
+		l.Take("target") // drained: full again in 3 minutes
+	}
 	l.Take("idle")
-	clk.Advance(time.Hour) // idle is full again
-	l.Take("target")       // drained
-	if !l.Take("c") {
+	clk.Advance(time.Minute) // idle is full again
+	l.Take("other")          // full again in 1 minute
+	if !l.Take("new") {
 		t.Fatal("full table refused a new key")
 	}
-	if l.Take("target") {
-		t.Fatal("the drained bucket was evicted while a refilled one could go")
+	if l.RetryAfter("idle") != 0 || !l.Take("other") {
+		t.Fatal("a bucket other than the refilled one was forgotten")
 	}
-	// Flooding with made-up keys keeps the drained bucket up to the hard bound.
-	for i := range 4*2 - 3 {
+	for i := range 1000 { // made-up keys, one failure each
 		if !l.Take(fmt.Sprintf("junk-%d", i)) {
 			t.Fatalf("junk key %d refused", i)
 		}
 	}
 	if l.Take("target") {
-		t.Fatal("made-up keys below the hard bound reset the drained bucket")
+		t.Fatal("made-up keys reset the drained bucket")
 	}
-	// Past the hard bound the least recently used bucket goes.
-	for i := range 20 {
-		if !l.Take(fmt.Sprintf("more-%d", i)) {
-			t.Fatalf("key %d refused past the hard bound", i)
-		}
-	}
-	if !l.Take("c") {
-		t.Fatal("the least recently used bucket was kept past the hard bound")
+	if len(l.buckets) != 3 || len(l.byFull) != 3 {
+		t.Fatalf("table holds %d buckets (%d in the heap), want the bound 3", len(l.buckets), len(l.byFull))
 	}
 }
 
