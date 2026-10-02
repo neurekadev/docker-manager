@@ -41,8 +41,10 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 	default:
 		t.Fatal("the alert was not announced")
 	}
+	// A failed backup verification is sent as Backups (its area), the
+	// alert itself stays a failed job.
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/jobs/"+failed.ID {
+	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/jobs/"+failed.ID || got[0].msg.Label != "Backups · Failure" {
 		t.Fatalf("%+v", got)
 	}
 	// It fails again: the same alert, now pointing at the new job, not
@@ -60,8 +62,93 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 	if len(f.firing()) != 0 {
 		t.Fatal("still firing")
 	}
-	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "Resolved: Backup verification of silo_data failed") {
+	if got := f.dispatch(); len(got) != 1 || !strings.HasPrefix(got[0].msg.Title, "Resolved: Backup verification of silo_data failed") ||
+		got[0].msg.Label != "Backups · Resolved" || got[0].msg.Tone != domain.ToneSuccess {
 		t.Fatalf("%+v", got)
+	}
+}
+
+// A failed job of an area reaches the channels by that area's
+// subscription: failures, and warnings where the area has them; its
+// resolution goes with the outcome its failure was sent with, to the
+// channels that were told. Other jobs stay "Other jobs".
+func TestFailedJobsAreSentByTheirArea(t *testing.T) {
+	f := newFixture(t)
+	failures := f.channelWith("backup failures", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}})
+	successes := f.channelWith("backup successes", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeSuccess}})
+	others := f.channelWith("other jobs", domain.NotificationSubscriptions{domain.NotifyJobFailed: domain.NotifyJobFailed.Outcomes()})
+	f.finish(backupJob(domain.JobFailed, domain.OriginScheduled))
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID || got[0].msg.Label != "Backups · Failure" {
+		t.Fatalf("%+v (successes %s, other jobs %s)", got, successes.ID, others.ID)
+	}
+	// Resolved: the channel told about the failure hears it is resolved
+	// (green, without sending backup successes); the others never heard
+	// of it.
+	f.finish(backupJob(domain.JobSucceeded, domain.OriginScheduled))
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID || got[0].msg.Label != "Backups · Resolved" ||
+		got[0].msg.Tone != domain.ToneSuccess || !strings.HasPrefix(got[0].msg.Title, "Resolved: ") {
+		t.Fatalf("%+v", got)
+	}
+	// A failed deploy an API token started is one of the other jobs.
+	deploy := domain.Job{ID: ids.New(), Kind: "stack.deploy", Origin: domain.OriginAPIToken, EnvironmentID: "env-1",
+		State: domain.JobFailed, Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}}
+	f.finish(deploy)
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != others.ID || got[0].msg.Label != "Other jobs · Failure" {
+		t.Fatalf("%+v", got)
+	}
+
+	for _, c := range []struct {
+		kind               domain.JobKind
+		severity           domain.AlertSeverity
+		area               domain.NotificationEventKind
+		firing, resolution domain.NotificationOutcome
+	}{
+		// A resolution has its failure's outcome, never the area's success.
+		{"backup.retention", domain.AlertWarning, domain.NotifyBackup, domain.OutcomeWarning, domain.OutcomeWarning},
+		{"manager.verify", domain.AlertCritical, domain.NotifyBackup, domain.OutcomeFailure, domain.OutcomeFailure},
+		{"update.check", domain.AlertCritical, domain.NotifyUpdates, domain.OutcomeFailure, domain.OutcomeFailure},
+		// Image updates have no warning: a partial check is a failure.
+		{"update.check", domain.AlertWarning, domain.NotifyUpdates, domain.OutcomeFailure, domain.OutcomeFailure},
+		{"stack.deploy", domain.AlertWarning, domain.NotifyJobFailed, domain.OutcomeWarning, domain.OutcomeResolved},
+		{"stack.deploy", domain.AlertCritical, domain.NotifyJobFailed, domain.OutcomeFailure, domain.OutcomeResolved},
+	} {
+		a := domain.Alert{Kind: domain.NotifyJobFailed, JobKind: c.kind, Severity: c.severity}
+		if k, o := a.SentAs(domain.AlertEventFiring); k != c.area || o != c.firing {
+			t.Errorf("%s %s: %s %s, want %s %s", c.kind, c.severity, k, o, c.area, c.firing)
+		}
+		if k, o := a.SentAs(domain.AlertEventResolved); k != c.area || o != c.resolution {
+			t.Errorf("%s resolved: %s %s, want %s %s", c.kind, k, o, c.area, c.resolution)
+		}
+	}
+	// Other alerts keep their kind and outcome.
+	if k, o := (domain.Alert{Kind: domain.NotifyMemory, Severity: domain.AlertWarning}).SentAs(domain.AlertEventFiring); k != domain.NotifyMemory ||
+		o != domain.OutcomeWarning {
+		t.Errorf("%s %s", k, o)
+	}
+}
+
+// TestAreaResolutionReachesEveryToldChannel: a failure lowered to a
+// warning by a later run that only partly failed still resolves to the
+// channel that was told about the failure and sends no warnings (the
+// resolution goes out with the outcome it was told).
+func TestAreaResolutionReachesEveryToldChannel(t *testing.T) {
+	f := newFixture(t)
+	failures := f.channelWith("backup failures", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}})
+	f.finish(backupJob(domain.JobFailed, domain.OriginScheduled))
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID {
+		t.Fatalf("failure: %+v", got)
+	}
+	f.finish(backupJob(domain.JobPartial, domain.OriginScheduled))
+	if a := f.one(); a.Severity != domain.AlertWarning {
+		t.Fatalf("a partly failed run lowers the alert: %+v", a)
+	}
+	if got := f.dispatch(); len(got) != 0 {
+		t.Fatalf("a lowered alert is not sent again: %+v", got)
+	}
+	f.finish(backupJob(domain.JobSucceeded, domain.OriginScheduled))
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID || got[0].msg.Label != "Backups · Resolved" ||
+		got[0].msg.Tone != domain.ToneSuccess {
+		t.Fatalf("resolution: %+v", got)
 	}
 }
 
@@ -142,6 +229,63 @@ func (f *fixture) updatePolicy(id string) domain.UpdatePolicy {
 	return p
 }
 
+// environmentPolicy stores env-1's environment update policy and a
+// target's record below it (named after its target, like the
+// reconciliation does).
+func (f *fixture) environmentPolicy(id, name, recordID string) domain.UpdatePolicy {
+	f.t.Helper()
+	now := f.clk.Now().UTC()
+	sched := domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC"}
+	if err := store.InsertEnvironmentUpdatePolicy(f.ctx, f.db, domain.EnvironmentUpdatePolicy{ID: id, EnvironmentID: "env-1", Name: name,
+		Check: sched, Run: sched, Revision: 1, CreatedAt: now, UpdatedAt: now}); err != nil {
+		f.t.Fatal(err)
+	}
+	p := domain.UpdatePolicy{ID: recordID, ParentID: id, EnvironmentID: "env-1", Name: "Automatic updates for web",
+		TargetType: domain.UpdateTargetContainer, TargetID: "web", Check: sched, Run: sched, Revision: 1, CreatedAt: now, UpdatedAt: now}
+	if err := store.InsertUpdatePolicy(f.ctx, f.db, &p); err != nil {
+		f.t.Fatal(err)
+	}
+	return p
+}
+
+// Update alerts and update run notifications link to the environment
+// policy that manages the target, never to the target's record (it has
+// no page).
+func TestUpdatesLinkTheEnvironmentPolicy(t *testing.T) {
+	f := newFixture(t)
+	f.channel("ops", nil, true, nil, true)
+	p := f.environmentPolicy("env-pol", "Nightly updates", "rec-web")
+	f.candidate(p.ID, "web", domain.CandidateAvailable, "sha256:aaa")
+	f.check(p.ID)
+	a := f.one()
+	if a.ResourceID != p.ID || a.Facts["policyId"] != "env-pol" || a.Facts["policy"] != "Nightly updates" || Link(a) != "/updates/env-pol" {
+		t.Fatalf("%+v", a)
+	}
+	got := f.dispatch()
+	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/updates/env-pol" {
+		t.Fatalf("%+v", got)
+	}
+	if pf := fieldNamed(got[0].msg.Fields, "Policy"); pf.Value != "Nightly updates" || pf.Link != "https://docker.example.com/updates/env-pol" {
+		t.Fatalf("%+v", pf)
+	}
+	j := f.run("update.run", domain.JobSucceeded, domain.OriginScheduled)
+	j.Input = output(t, map[string]any{"policyId": p.ID, "container": map[string]any{"name": "web"}})
+	f.finish(j)
+	n := f.notifications()[0]
+	if n.Facts["policyId"] != "env-pol" || n.Facts["policy"] != "Nightly updates" {
+		t.Fatalf("%+v", n.Facts)
+	}
+	if pf := fieldNamed(NotificationFields(n, "homelab"), "Policy"); pf.Value != "Nightly updates" || pf.Link != "/updates/env-pol" {
+		t.Fatalf("%+v", pf)
+	}
+	// A record from before environment policies: its own name, linked to
+	// Updates.
+	legacy := domain.Notification{Kind: domain.NotifyUpdates, Facts: map[string]string{"policy": "web updates"}}
+	if pf := fieldNamed(NotificationFields(legacy, ""), "Policy"); pf.Value != "web updates" || pf.Link != "/updates" {
+		t.Fatalf("%+v", pf)
+	}
+}
+
 func (f *fixture) candidate(policyID, service string, status domain.UpdateCandidateStatus, digest string) {
 	f.t.Helper()
 	c := domain.UpdateCandidate{ID: ids.New(), PolicyID: policyID, Service: service, Reference: "nginx:1", Eligible: true, Status: status,
@@ -170,7 +314,9 @@ func TestUpdatesAreSentAgainOnlyForNewDigests(t *testing.T) {
 		a.ResourceID != p.ID || a.Facts["services"] != "web" {
 		t.Fatalf("%+v", a)
 	}
-	if got := f.dispatch(); len(got) != 1 || got[0].msg.URL != "https://docker.example.com/updates/"+p.ID {
+	// A target's record without an environment policy (from before them)
+	// has no page of its own: the message opens Updates.
+	if got := f.dispatch(); len(got) != 1 || got[0].msg.URL != "https://docker.example.com/updates" {
 		t.Fatalf("%+v", got)
 	}
 	// Checked again, same digest: nothing new.

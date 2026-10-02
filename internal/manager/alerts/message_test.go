@@ -20,7 +20,10 @@ func TestLinksPointAtTheSource(t *testing.T) {
 		{domain.Alert{Kind: domain.NotifyDiskSpace, EnvironmentID: "env-1"}, "/environments/env-1"},
 		{domain.Alert{Kind: domain.NotifyMemory, EnvironmentID: "env-1"}, "/environments/env-1"},
 		{domain.Alert{Kind: domain.NotifyJobFailed, ResourceID: "job-1"}, "/jobs/job-1"},
-		{domain.Alert{Kind: domain.NotifyUpdates, ResourceID: "pol-1"}, "/updates/pol-1"},
+		// The environment policy above the target's record, which has no
+		// page; Updates without one.
+		{domain.Alert{Kind: domain.NotifyUpdates, ResourceID: "rec-1", Facts: map[string]string{"policyId": "pol-1"}}, "/updates/pol-1"},
+		{domain.Alert{Kind: domain.NotifyUpdates, ResourceID: "rec-1"}, "/updates"},
 		{domain.Alert{Kind: domain.NotifyDiskHealth}, "/notifications?tab=alerts"},
 	} {
 		if got := Link(c.a); got != c.want {
@@ -219,10 +222,11 @@ func TestLabelsNameTheKindAndOutcomeLikeWhatToSend(t *testing.T) {
 		{domain.NotifyDiskHealth, domain.OutcomeCritical, "Disk health · Critical"},
 		{domain.NotifyEnvironmentOffline, domain.OutcomeCritical, "Environment offline · Offline"},
 		{domain.NotifyEnvironmentOffline, domain.OutcomeResolved, "Environment offline · Back online"},
-		{domain.NotifyBackup, domain.OutcomeWarning, "Backups and restores · Warning"},
+		{domain.NotifyBackup, domain.OutcomeWarning, "Backups · Warning"},
+		{domain.NotifyRestore, domain.OutcomeFailure, "Restores · Failure"},
 		{domain.NotifyUpdates, domain.OutcomeAvailable, "Image updates · Available"},
 		{domain.NotifyUpdates, domain.OutcomeSuccess, "Image updates · Applied"},
-		{domain.NotifyJobFailed, domain.OutcomeFailure, "Other failed jobs · Failure"},
+		{domain.NotifyJobFailed, domain.OutcomeFailure, "Other jobs · Failure"},
 	} {
 		if got := Label(c.kind, c.outcome); got != c.want {
 			t.Errorf("%s %s: %q, want %q", c.kind, c.outcome, got, c.want)
@@ -270,12 +274,13 @@ func TestMessagesAndDigests(t *testing.T) {
 		digest.URL != "https://docker.example.com/notifications" || digest.Tone != domain.ToneCritical || !digest.Time.Equal(now) {
 		t.Fatalf("%+v", digest)
 	}
-	// The digest lists its entries, each linked to its page.
+	// The digest lists its entries, each linked to its page; a finished
+	// run's title says how it went by itself.
 	list := digest.Fields[0]
 	want := []domain.NotificationItem{
 		{Text: "Critical: Disk /dev/sda is failing", Link: "https://docker.example.com/environments/env-1?tab=system"},
 		{Text: "Resolved: office is offline", Link: "https://docker.example.com/environments/env-2"},
-		{Text: "Done: Prune reclaimed 4.2 GiB"},
+		{Text: "Prune reclaimed 4.2 GiB"},
 	}
 	if list.Name != "What happened" || len(list.Items) != len(want) {
 		t.Fatalf("%+v", list)
@@ -314,10 +319,13 @@ func TestDigestEntriesNameTheirEnvironment(t *testing.T) {
 		// A name that is only part of a word in the title is named.
 		{Event: domain.DeliveryEventNotification, Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess,
 			Title: "Update of prod-api succeeded", Fields: env("prod")},
+		// News needs no severity word.
+		{Event: domain.AlertEventFiring, Kind: domain.NotifyUpdates, Severity: domain.AlertInfo, Outcome: domain.OutcomeAvailable,
+			Title: "web has an update available", Fields: env("prod")},
 	}
 	got := buildMessage("Home", "", items, time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)).Fields[0].Items
 	want := []string{"Critical: Disk /dev/sda is failing (homelab)", "Critical: Disk /dev/sda is failing (office)", "Critical: nas is offline",
-		"Done: Update of prod-api succeeded (prod)"}
+		"Update of prod-api succeeded (prod)", "web has an update available (prod)"}
 	if len(got) != len(want) {
 		t.Fatalf("%+v", got)
 	}
@@ -388,6 +396,8 @@ func TestTonesFollowTheOutcome(t *testing.T) {
 		{domain.AlertDelivery{Outcome: domain.OutcomeResolved}, domain.ToneSuccess},
 		{domain.AlertDelivery{Outcome: domain.OutcomeSuccess}, domain.ToneSuccess},
 		{domain.AlertDelivery{Outcome: domain.OutcomeAvailable}, domain.ToneInfo},
+		// A failed job's resolution keeps its failure's outcome, but is green.
+		{domain.AlertDelivery{Event: domain.AlertEventResolved, Outcome: domain.OutcomeFailure}, domain.ToneSuccess},
 	} {
 		if got := c.d.Tone(); got != c.want {
 			t.Errorf("%s: %s, want %s", c.d.Outcome, got, c.want)

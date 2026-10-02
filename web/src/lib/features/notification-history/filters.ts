@@ -1,5 +1,5 @@
 // Search and filters of the Notifications tab (ListCard, like the other
-// lists): the kind (backups and restores, prune, image updates), the
+// lists): the kind (backups, restores, prune, image updates), the
 // outcome (Done, Warning, Failed) and, while every environment is shown,
 // the environment. The server applies them (GET /notifications) and the
 // same filters check the loaded rows; the search runs over the title, the

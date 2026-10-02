@@ -1,13 +1,13 @@
 ---
 title: Alerts
-description: Problems Docker Manager spots by itself, finished backups, prunes and updates, and how you see and receive them.
+description: Problems Docker Manager spots by itself, finished backups, restores, prunes and updates, and how you see and receive them.
 ---
 
 Docker Manager watches your servers and raises an **alert** when something
 needs you: a failing disk, a degraded RAID array, a server that runs hot,
 is almost out of disk space or memory or went offline, a scheduled job
 that failed or new image updates. It also records a **notification**
-whenever a backup or restore, a prune or an update finishes. Both show in
+whenever a backup, a restore, a prune or an update finishes. Both show in
 the app and go to your [notification channels](/notifications).
 
 ## What raises an alert
@@ -86,33 +86,37 @@ under **What to send**. A channel gets:
 
 - a message when an alert starts, and again when it gets worse, for the
   levels you ticked (**Warning**, **Critical**),
-- a **Resolved:** message when the problem is gone, if you ticked
-  **Resolved** and the channel got the alert,
-- a message when a backup, prune or update finishes, for the outcomes you
-  ticked.
+- a **Resolved:** message when the problem is gone, if the channel got
+  the alert and you ticked **Resolved** (a failed job sent under
+  **Backups** or **Image updates** needs no extra tick),
+- a message when a backup, restore, prune or update finishes, for the
+  outcomes you ticked.
 
 Every message looks the same way:
 
 - a top line with what it is about and how it went, named as under
-  **What to send** (for example **Disk health · Critical** or **Image
-  updates · Applied**),
-- a title that names the disk, server, stack or run first, then what
-  happened, for example "Disk /dev/sda is failing" or "Update of
-  Paperless succeeded",
+  **What to send** (for example **Disk health · Critical**, **Backups ·
+  Success** or **Image updates · Applied**),
+- a title that names the disk, server, stack or backup policy first, then
+  what happened, for example "Disk /dev/sda is failing", "Daily Backups
+  succeeded" or "Update of Paperless succeeded",
 - what went wrong and what to do, and the numbers. The server, stack,
   policy and services link to their pages; an update lists each service
   with its old and new image digest,
-- your Docker Manager's **Name** (**Settings → About this Docker
-  Manager**) at the bottom.
+- **Open in Docker Manager** at the end in chat apps (a button in
+  email), and your Docker Manager's **Name** (**Settings → About this
+  Docker Manager**) at the bottom.
 
 Several at once arrive as one message. If a channel can't be reached,
 Docker Manager tries again for a day.
 
 ## Good to know
 
-- A failed scheduled backup, prune or update shows as an alert, but its
-  message comes from the **Backups and restores**, **Prune** or **Image
-  updates** row of **What to send**, not from **Other failed jobs**.
+- A failed scheduled job shows as a **Failed job** alert, but its message
+  comes from the row of its area under **What to send**: a backup,
+  verification, retention or import from **Backups**, a restore from
+  **Restores**, a prune from **Prune**, an update check or update from
+  **Image updates**. **Other jobs** gets the rest.
 - Dismissing for everyone needs the **Dismiss alerts** permission (the
   **Operator** and **Admin** presets have it). Without it, dismissing in
   the bell hides the alert only in your browser.

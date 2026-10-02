@@ -1,5 +1,5 @@
 <script lang="ts">
-	// The Notifications tab: finished backups and restores, prunes and
+	// The Notifications tab: finished backups, restores, prunes and
 	// update runs the user can see, newest first, grouped by day ("Today",
 	// "Yesterday", "Sun, Sep 27") in one ListCard: a search over the loaded
 	// ones and filters for the kind, the outcome and, while every
@@ -140,7 +140,7 @@
 {/snippet}
 
 <p class="intro">
-	Finished backups and restores, prunes and image updates of the last 90 days. Open one to see its
+	Finished backups, restores, prunes and image updates of the last 90 days. Open one to see its
 	job.
 </p>
 

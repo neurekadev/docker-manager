@@ -14,7 +14,11 @@ payloads `internal/protocol/updates.go`.
   `summary.available`) and the check input's `policyId`. Every finished
   `update.run` records an `updates` notification from its result output
   (`UpdateRunOutput.Services`, never the input's container
-  specification): keep the outcome names stable.
+  specification): keep the outcome names stable. Both link the
+  environment policy above the target's record (its `ParentID`), never
+  the record (it has no page); keep `ParentID` on records and
+  `parentId` in the `UpdatePolicy` DTO, which the web uses to follow an
+  older link to a record.
 - One policy per target (stack or Docker Manager-managed standalone container);
   check and run schedules (#13 kinds `update_check`/`update_run`) start
   disabled. Never add an automatic path that pulls or recreates without an

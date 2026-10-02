@@ -282,15 +282,15 @@ describe('notification channels in words (#142)', () => {
 		const all = allEvents();
 		const only = (...kinds: string[]) => all.filter((e) => kinds.includes(e.kind));
 		expect(kindsSummary(all)).toBe('All events');
-		expect(kindsSummary(only('backup'))).toBe('Backups and restores');
-		expect(kindsSummary(only('prune', 'backup'))).toBe('Backups and restores and prune');
+		expect(kindsSummary(only('backup'))).toBe('Backups');
+		expect(kindsSummary(only('restore', 'backup'))).toBe('Backups and restores');
 		expect(kindsSummary(only('raid', 'disk_health'))).toBe('Disk health and RAID');
 		expect(kindsSummary(only('raid', 'disk_health', 'memory', 'job_failed'))).toBe(
 			'4 kinds of events'
 		);
 		// Not every outcome of a chosen kind.
 		expect(kindsSummary([{ kind: 'backup', outcomes: ['failure'] }])).toBe(
-			'Backups and restores (some outcomes)'
+			'Backups (some outcomes)'
 		);
 		expect(
 			kindsSummary(
@@ -322,7 +322,7 @@ describe('notification channels in words (#142)', () => {
 			[
 				'Environment offline: Offline, Back online',
 				'Image updates: Applied',
-				'Other failed jobs: Failure, Resolved'
+				'Other jobs: Failure, Resolved'
 			].join('\n')
 		);
 	});
@@ -336,6 +336,7 @@ describe('notification channels in words (#142)', () => {
 			'memory',
 			'environment_offline',
 			'backup',
+			'restore',
 			'prune',
 			'updates',
 			'job_failed'
@@ -345,7 +346,17 @@ describe('notification channels in words (#142)', () => {
 		expect(labels('temperature')).toEqual(['Warning', 'Critical', 'Resolved']);
 		expect(labels('environment_offline')).toEqual(['Offline', 'Back online']);
 		expect(labels('backup')).toEqual(['Failure', 'Warning', 'Success']);
+		expect(labels('restore')).toEqual(['Failure', 'Success']);
 		expect(labels('prune')).toEqual(['Failure', 'Success']);
+		expect(EVENT_KINDS.filter((k) => k.group === 'jobs').map((k) => k.label)).toEqual([
+			'Backups',
+			'Restores',
+			'Prune',
+			'Image updates',
+			'Other jobs'
+		]);
+		// The rows whose label does not say all they cover explain it.
+		expect(eventKind('job_failed')?.hint).toMatch(/an API token started/);
 		expect(labels('updates')).toEqual(['Available', 'Failure', 'Applied']);
 		expect(labels('job_failed')).toEqual(['Failure', 'Warning', 'Resolved']);
 		expect(EVENT_KINDS.filter((k) => k.group === 'hosts').map((k) => k.label)).toEqual([

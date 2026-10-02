@@ -1,4 +1,4 @@
-// Notifications (finished backups and restores, prunes and update runs)
+// Notifications (finished backups, restores, prunes and update runs)
 // for Svelte Query: GET /notifications page by page (the Notifications
 // tab's "Load more"). Keys are liveKeys.notifications(...): the manager
 // publishes the topic `alerts` with the kind `notification` whenever it

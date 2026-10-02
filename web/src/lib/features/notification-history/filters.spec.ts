@@ -26,7 +26,8 @@ describe('notifications list filters', () => {
 		]);
 		expect(selectOptions(all[0], undefined).map((o) => o.label)).toEqual([
 			'All kinds',
-			'Backups and restores',
+			'Backups',
+			'Restores',
 			'Prune',
 			'Image updates'
 		]);

@@ -4,7 +4,7 @@ description: Send Docker Manager's messages to chat, email, push apps or a webho
 ---
 
 A **notification channel** is a destination for Docker Manager's messages
-about [alerts and finished backups, prunes and updates](/alerts): a
+about [alerts and finished backups, restores, prunes and updates](/alerts): a
 Discord or Slack channel, Microsoft Teams,
 Telegram, email, ntfy, Gotify, Pushover, Matrix, a webhook of your own, or
 any other service Shoutrrr supports. Only the owner can see and change
@@ -33,18 +33,26 @@ the outcomes you want beside it. A new channel sends everything.
 | --- | --- |
 | **Disk health**, **RAID**, **Temperature**, **Disk space**, **Memory** | **Warning**, **Critical**, **Resolved** |
 | **Environment offline** | **Offline**, **Back online** |
-| **Backups and restores** | **Failure**, **Warning** (everything was saved, but some files could not be read or an item was skipped), **Success** |
+| **Backups** | **Failure**, **Warning** (everything was saved, but some files could not be read or an item was skipped; or a verification, retention or import partly failed or was interrupted), **Success** |
+| **Restores** | **Failure**, **Success** |
 | **Prune** | **Failure**, **Success** |
 | **Image updates** | **Available** (a check found newer images), **Failure**, **Applied** |
-| **Other failed jobs** | **Failure**, **Warning** (partly failed or interrupted), **Resolved** |
+| **Other jobs** | **Failure**, **Warning** (partly failed or interrupted), **Resolved** |
 
-Backups, prunes and updates are reported however they were started;
-other jobs only when a schedule or an API token started them.
+Backups, restores, prunes and updates are reported however they were
+started. Other jobs are reported only when they fail and a schedule or
+an API token started them, under the row of their area: a backup
+verification, retention or import under **Backups**, an update check
+under **Image updates**. When such a job's next run succeeds, a channel
+that got the failure gets a **Resolved** message. **Other jobs** holds
+the rest, such as a deploy started with an API token. The (i) beside
+**Backups**, **Image updates** and **Other jobs** says what each covers.
 
 Messages use what each service can show. In Discord and Slack the strip
 beside the message is red for failures and critical problems, amber for
 warnings, green when a problem is resolved or a run succeeded, and blue
-for news; Discord shows the numbers as fields. Email arrives in
+for news; Discord shows the numbers as fields. In chat apps the title is
+plain text and **Open in Docker Manager** is the last line. Email arrives in
 Docker Manager's dark colors with its logo (some mail programs change
 the colors or ask before they show the logo), and its subject starts
 with the environment's name in brackets, for example

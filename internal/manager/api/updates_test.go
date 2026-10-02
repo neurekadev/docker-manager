@@ -144,7 +144,7 @@ func updatesAPIFor(t *testing.T, pol *authztest.Policy) (http.Handler, *fakeUpda
 	t.Helper()
 	stacks := newFakeStacks()
 	svc := &fakeUpdates{policies: map[string]domain.UpdatePolicy{
-		"pol-1": {ID: "pol-1", EnvironmentID: "env-1", Name: "Shop updates", TargetType: domain.UpdateTargetStack, TargetID: "st-1",
+		"pol-1": {ID: "pol-1", ParentID: "env-pol", EnvironmentID: "env-1", Name: "Shop updates", TargetType: domain.UpdateTargetStack, TargetID: "st-1",
 			Check: domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC"}, Run: domain.UpdateSchedule{Cron: "0 4 * * *", TimeZone: "UTC"}, Revision: 3},
 	}}
 	pol.Locate(func(ref authz.ResourceRef) policy.Location {
@@ -175,9 +175,10 @@ func TestUpdatePolicyRoutes(t *testing.T) {
 		p.RunSchedule == nil || p.RunSchedule.Enabled || p.Summary == nil || p.Summary.Quarantined != 1 {
 		t.Fatalf("get: %d %s", r.Status, r.Body)
 	}
-	// The target by the name users know (the stack's display name).
-	if p.TargetName != "Shop" {
-		t.Fatalf("target name: %q", p.TargetName)
+	// The target by the name users know (the stack's display name), and
+	// the environment policy that manages it (its page).
+	if p.TargetName != "Shop" || p.ParentID != "env-pol" {
+		t.Fatalf("target name %q, parent %q", p.TargetName, p.ParentID)
 	}
 	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
 		path := "/api/v1/update-policies/pol-1"

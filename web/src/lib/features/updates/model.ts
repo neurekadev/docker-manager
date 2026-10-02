@@ -4,12 +4,22 @@ import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
 import { describeCron } from '$lib/ui/cron';
 import { formatRelative } from '$lib/ui/format';
+import { routes } from '$lib/routes';
 
 export type UpdatePolicy = Schema<'UpdatePolicy'>;
 export type UpdateCandidate = Schema<'UpdateCandidate'>;
 export type UpdatePreview = Schema<'UpdatePreview'>;
 export type UpdateWindow = Schema<'UpdateWindow'>;
 export type CandidateStatus = UpdateCandidate['status'];
+
+/**
+ * Where a link to a target's record leads (notifications and alerts sent
+ * before they linked the environment policy named the record, which has
+ * no page): the environment policy that manages it, else Updates.
+ */
+export function recordPolicyHref(p: Pick<UpdatePolicy, 'id' | 'parentId'>): string {
+	return p.parentId && p.parentId !== p.id ? routes.updatePolicy(p.parentId) : routes.updates();
+}
 
 export interface Presentation {
 	tone: BadgeTone;

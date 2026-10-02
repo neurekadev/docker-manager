@@ -64,11 +64,16 @@ const policy = {
 let running: Job[] = [];
 let details: Record<string, Job> = {};
 let started: Job[] = [];
+// Target records (GET /update-policies/{id}) by ID.
+let records: Record<string, unknown> = {};
 
 beforeEach(() => {
 	running = [];
 	details = {};
 	started = [];
+	records = {};
+	nav.page.params.policyId = 'pol-1';
+	nav.goto.mockClear();
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -90,6 +95,8 @@ beforeEach(() => {
 		}
 		const id = url.pathname.match(/^\/api\/v1\/jobs\/([^/]+)$/)?.[1];
 		if (id && details[id]) return json(200, details[id]);
+		const rec = url.pathname.match(/^\/api\/v1\/update-policies\/([^/]+)$/)?.[1];
+		if (rec && records[rec]) return json(200, records[rec]);
 		return json(404, {
 			code: 'not_found',
 			message: 'no',
@@ -111,6 +118,47 @@ function openPage() {
 		}
 	});
 }
+
+// A target's record as GET /update-policies/{id} returns it.
+function record(id: string, parentId?: string) {
+	return {
+		id,
+		parentId,
+		environmentId: 'env-1',
+		name: 'Automatic updates for web',
+		target: { type: 'container', id: 'web' },
+		view: 'full',
+		actions: []
+	};
+}
+
+describe('update policy page: links to a target record (#218)', () => {
+	it('opens the environment policy that manages the record', async () => {
+		nav.page.params.policyId = 'rec-1';
+		records['rec-1'] = record('rec-1', 'pol-1');
+		openPage();
+		await waitFor(() =>
+			expect(nav.goto).toHaveBeenCalledWith('/updates/pol-1', { replaceState: true })
+		);
+		expect(screen.queryByText('This update policy does not exist.')).toBeNull();
+	});
+
+	it('opens Updates for a record without an environment policy', async () => {
+		nav.page.params.policyId = 'rec-2';
+		records['rec-2'] = record('rec-2');
+		openPage();
+		await waitFor(() =>
+			expect(nav.goto).toHaveBeenCalledWith('/updates', { replaceState: true })
+		);
+	});
+
+	it('says the policy does not exist when nothing has the ID', async () => {
+		nav.page.params.policyId = 'gone';
+		openPage();
+		expect(await screen.findByText('This update policy does not exist.')).toBeInTheDocument();
+		expect(nav.goto).not.toHaveBeenCalled();
+	});
+});
 
 describe('update policy page: running checks and updates', () => {
 	it("shows the policy's running checks and updates after a reload", async () => {

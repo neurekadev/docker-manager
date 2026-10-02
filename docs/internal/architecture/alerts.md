@@ -5,15 +5,15 @@ are resolved, shows in the app (the bell, the Notifications page's Alerts
 tab, the dashboard's "Needs attention", the environment's notice) and
 sends through the notification channels subscribed to their kind and
 outcome ([notifications.md](notifications.md)). **Notifications** are
-runs that finished (a backup or restore, a prune, an update run): recorded
+runs that finished (a backup, a restore, a prune, an update run): recorded
 once with how they went, listed on the Notifications tab and sent the same
 way. Binding rules:
 [alerts-and-notifications.md](../conventions/alerts-and-notifications.md).
 
 | package | role |
 | --- | --- |
-| `internal/domain/alert.go` | `Alert`, severities, states, resolutions, fingerprints (`Fingerprint`, `NewTokens`), `Outcome`, `AlertFilter`, `AlertDelivery` (and its `Tone`) |
-| `internal/domain/notification_record.go` | `Notification` (a finished run), `NotificationKindOfJob`, `NotificationFilter` |
+| `internal/domain/alert.go` | `Alert`, severities, states, resolutions, fingerprints (`Fingerprint`, `NewTokens`), `Outcome`, `SentAs`, `AlertFilter`, `AlertDelivery` (and its `Tone`) |
+| `internal/domain/notification_record.go` | `Notification` (a finished run), `NotificationKindOfJob`, `JobEventKind`, `NotificationFilter` |
 | `internal/domain/alert_thresholds.go` | `AlertThresholds`, `AlertThresholdOverride`, `AlertSettings`, the defaults |
 | `internal/manager/store/alerts.go`, `notifications.go`, `alert_settings.go` | rows of `alerts`, `alert_deliveries`, `notifications`, `alert_settings`, `alert_threshold_overrides` |
 | `internal/manager/alerts` | evaluators (`health.go`, `thresholds.go`, `offline.go`, `jobs.go`), notifications (`notifications.go`), raise/resolve and the outbox (`raise.go`), the dispatcher (`dispatch.go`), messages (`message.go`), error classes in words (`errors.go`), dismissals (`dismiss.go`), thresholds and lists for the API (`settings.go`), the loops (`service.go`) |
@@ -23,8 +23,12 @@ way. Binding rules:
 
 ## Model
 
-Migrations `20260930120000_create_alerts` and
-`20261001090000_notification_events`:
+Migrations `20260930120000_create_alerts`,
+`20261001090000_notification_events` and
+`20261002120000_restore_notifications` (kind `restore`; recorded
+restores and their messages moved to it; `notifications` and
+`alert_deliveries` rebuilt together, as deliveries reference
+notifications):
 
 - `alerts`: one row per problem. `dedupe_key` identifies it and is unique
   among firing rows (partial index `alerts_firing_key`); `kind`
@@ -39,8 +43,8 @@ Migrations `20260930120000_create_alerts` and
   `last_seen_at`, `resolved_at` and `resolution` (`resolved`, `removed`,
   `expired`, `archived`), `dismissed_at`, `dismissed_by`,
   `dismissed_by_name`, `revision`. Resolved rows are purged after 90 days.
-- `notifications`: one row per finished run: `kind` (`backup`, `prune`,
-  `updates`), `outcome` (`success`, `warning`, `failure`),
+- `notifications`: one row per finished run: `kind` (`backup`,
+  `restore`, `prune`, `updates`), `outcome` (`success`, `warning`, `failure`),
   `environment_id`, `job_id`, `job_kind`, `targets` and `origin` (who may
   see it, who started it), `title`, `facts`, `created_at`. Purged after
   90 days (their deliveries cascade).
@@ -98,10 +102,12 @@ transaction:
   quietly;
 - nothing changed: only `last_seen_at` is stamped (no revision).
 
-A message's **outcome** is what channels subscribe to (`Alert.Outcome`):
-the severity in the words of its kind (`warning`, `critical`; a failed
-job's critical is `failure`, available updates `available`) or
-`resolved`.
+A message's **kind and outcome** are what channels subscribe to
+(`Alert.SentAs`): the alert's kind and the severity in the words of its
+kind (`Alert.Outcome`: `warning`, `critical`; a failed job's critical is
+`failure`, available updates `available`) or `resolved`. A failed job's
+alert is sent as the kind of its job's area instead (below, "Failed jobs
+by area").
 
 `resolve` ends an alert with a resolution. Only `resolved` (the problem
 is gone) writes `resolved` messages, to the channels that were **sent** a
@@ -187,7 +193,9 @@ after the commit.
   message), which explains it when the job's own class is only
   `step_failed`. A failed backup, restore, prune or update run raises
   its alert like any job, but the alert writes **no messages**: the run's
-  notification is its message. The hook writes in a savepoint of the
+  notification is its message. Every alert of a failed job keeps the
+  kind `job_failed` (the Alerts tab's "Failed job", its dedupe key and
+  expiry). The hook writes in a savepoint of the
   job's transaction: a failure rolls back the alert only (logged), never
   the job's outcome. Alerts changed there are held by job and announced
   only as the database has them: after `OnChange` reports the job's
@@ -196,18 +204,46 @@ after the commit.
   round for ones never reported. An alert missing or at an older revision
   (its transaction rolled back) is never announced; one that could not be
   read (a busy database) stays ready and is tried again.
+- **Failed jobs by area:** the messages of a failed job's alert go out
+  as the kind of its job's area (`domain.JobEventKind`, used by
+  `alertSnapshot` through `Alert.SentAs`), so channels choose them with
+  that area's row of **What to send**: `backup.retention`,
+  `backup.verify`, `backup.import`, `manager.retention` and
+  `manager.verify` as `backup`, `update.check` as `updates` (the runs
+  with notifications as theirs: `backup.run` and `manager.backup`
+  `backup`, `restore.run` `restore`, `prune.run` `prune`, `update.run`
+  `updates`, which write no alert messages); every other kind stays
+  `job_failed` (in practice jobs API tokens start, such as deploys).
+  Firing: failed is `failure`; partly failed or interrupted is `warning`
+  where the area has warnings (`backup`), else `failure`. The area has
+  no `resolved`: the resolution goes to each told channel (`resolve`,
+  raise.go) with the outcome the alert has when it resolves, or, when
+  the channel does not send that one, with an outcome it was told before
+  (a failure lowered to a warning by a later partly failed run still
+  resolves to a channel that sends failures only; `write`), checked again
+  by the dispatcher (`Wants`); never the area's `success`,
+  which would need run successes switched on. Its status line says
+  "Resolved" (`deliveryLabel`) and its tone is green (`Tone` of a
+  `resolved` event). `job_failed` keeps its own outcomes. The migration
+  carried every channel's `job_failed` failure and warning over to
+  `backup` (failure, warning) and `updates` (failure), so no channel
+  loses the failed jobs it was sent before.
 - **Updates:** the fingerprint is `service@digest` of every candidate with
   an update available (the UI's `summary.available`), so the alert is sent
   again only when a new digest appears. Its facts are the target (a stack
   by its display name), the count, the first 10 services in words
   (`services`) and with their digests (`changes`: what runs → the newer
-  image, `encodeChanges`).
+  image, `encodeChanges`), and the environment policy that manages the
+  target (`policy`, `policyId`: the record's parent, `putUpdatePolicy`;
+  the record itself has no page). Its link and Policy field open that
+  policy; a record without one (from before environment policies) links
+  to Updates.
 
 ## Notifications
 
-`onRunFinished` is the finish hook of `backup.run`, `manager.backup`,
-`restore.run` (kind `backup`), `prune.run` (`prune`) and `update.run`
-(`updates`), whoever started the job; a cancelled one records nothing. In
+`onRunFinished` is the finish hook of `backup.run`, `manager.backup`
+(kind `backup`), `restore.run` (`restore`), `prune.run` (`prune`) and
+`update.run` (`updates`), whoever started the job; a cancelled one records nothing. In
 a savepoint of the job's transaction it records the notification and its
 messages (to every channel that `Wants(kind, outcome, environment)`), and
 the announcer publishes `notification.created` once the job's change is
@@ -221,7 +257,7 @@ warnings or input secrets:
 | backup | policy, repository (names and IDs, for their pages), items backed up / failed / skipped, the names that failed, were skipped or had unreadable files, bytes read, repository size and snapshots | failure: failed, partly failed or interrupted; warning: succeeded with unreadable files or skipped items; success |
 | restore | the stack (by its display name) or volumes, the target (`targetType`, `targetId`), the repository (name and ID), whether to deploy the restored Compose file | failure or success |
 | prune | policy (name and ID), reclaimed bytes, removed / skipped / failed / deferred, and per kind of object (containers, images, volumes, networks, build cache: removed items and their bytes) | failure or success |
-| update | the target (a stack by its display name; `targetType`, `targetId`), the policy (name and ID), per group (updated, unchanged, kept stopped, failed) its count (`<group>Count`) and up to 10 services with their digests (`<group>Changes`: "service TAB from TAB to", 12 digits); the unchanged, kept stopped and failed names in words for the body | failure (failed, partly failed, interrupted) or success |
+| update | the target (a stack by its display name; `targetType`, `targetId`), the environment policy that manages it (name and ID; the input's `policyId` is the target's record, which has no page; a record from before environment policies: its own name, linked to Updates), per group (updated, unchanged, kept stopped, failed) its count (`<group>Count`) and up to 10 services with their digests (`<group>Changes`: "service TAB from TAB to", 12 digits); the unchanged, kept stopped and failed names in words for the body | failure (failed, partly failed, interrupted) or success |
 
 Every notification also has the job, its kind, state, origin, who started
 it (a manual job's user) and its duration.
@@ -247,7 +283,10 @@ changes):
   for their own delay or backoff), which go out as one message
   (one alert or notification) or one digest (status line "Summary",
   title "3 alerts, 1 resolved, 2 notifications", a "What happened" list
-  of at most 20 entries, each linked to its page and naming its
+  of at most 20 entries: a problem's severity before its title
+  ("Critical: Disk /dev/sda is failing"), "Resolved: <title>", a finished
+  run's or available updates' title alone (it says what happened), each
+  linked to its page and naming its
   environment unless the title starts with it ("(homelab)"), linking to the
   Notifications page, its Alerts tab when it holds alerts only, in the
   tone of its worst entry) built from their snapshots; what is left is
@@ -270,13 +309,16 @@ transaction.
 Every message follows one convention (#174). The **status line**
 (`Label`) is the kind and outcome as **What to send** names them ("Disk
 health · Critical", "Environment offline · Back online", "Image updates ·
-Applied"). The **title** is the alert's or notification's: the subject
+Applied", "Backups · Success", "Restores · Failure"; a resolution says
+"Resolved", also a failed job's sent with its failure's outcome:
+"Backups · Resolved"). The **title** is the alert's or notification's: the subject
 first, then what happened ("Disk /dev/sda is failing", "RAID md0 is
 degraded", "Docker data disk is almost full", "homelab is offline",
 "Paperless has 2 updates available", "Deploy of Paperless failed",
-"Backup Nightly succeeded", "Restore of Paperless succeeded", "Prune
-reclaimed 3 GiB", "Update of Paperless succeeded"; a stack by its
-display name). It names the environment only when the environment is the
+"Daily Backups succeeded" (a backup policy's run: its name; "Backup
+succeeded" without a policy, "Docker Manager backup succeeded" for the
+manager's own), "Restore of Paperless succeeded", "Prune reclaimed 3
+GiB", "Update of Paperless succeeded"; a stack by its display name). It names the environment only when the environment is the
 subject (it has a field of its own) and never the instance's name (the
 footer does); resolutions are `Resolved: <title>`. The body is
 `Detail(alert)` (resolutions:
@@ -299,7 +341,7 @@ container: its page) with its image digests (`from → to`; an update
 alert: what runs and the newer image). The severity is the status
 line's, not a field. Snapshots keep the links as paths; `buildMessage`
 prefixes the public URL (no links without one). The **tone** follows the
-outcome: critical and failure red, warning amber, resolved and success
+outcome: critical and failure red, warning amber, every resolution and success
 green, available blue. The footer is the instance's name ("Docker
 Manager" without one), the time the message's. `Tag` is the
 name of the one environment the message is about (the delivery's
@@ -307,8 +349,11 @@ Environment field; a digest's only when every entry names the same one):
 emails prefix their subject with it. The link is the public
 URL plus the page it is about (the
 environment's System tab for disks and RAID, the environment for offline
-and host usage, the job for failed jobs and notifications, the update
-policy; digests link to `/notifications`). Never serial numbers, job
+and host usage, the job for failed jobs and notifications, the
+environment update policy that manages the target, or `/updates` without
+one; digests link to `/notifications`). The web's `/updates/<id>` page
+follows an older message's link to a target's record to its environment
+policy (`recordPolicyHref`, the record's `parentId`). Never serial numbers, job
 error texts or secrets. `notify` renders the message for each service
 ([notifications.md](notifications.md#delivery)).
 
@@ -359,13 +404,13 @@ Changes reach the live stream as `invalidate` topic `alerts`, kind
 | disk and RAID severity, fingerprints, progress, sleeping, removal | `internal/manager/alerts/health_test.go` |
 | host usage: sustain, margin, peak, overrides, stale samples, validation | `internal/manager/alerts/thresholds_test.go` |
 | offline grace, startup, move lock, archive, reconcile loop | `internal/manager/alerts/offline_test.go` |
-| failed jobs (origin, keys, resolution, expiry), updates (new digests) | `internal/manager/alerts/jobs_test.go` |
-| notifications (prune breakdown, backup failure words and warnings, updates, canaries), outcome filters, resolutions only to told channels | `internal/manager/alerts/notifications_test.go` |
+| failed jobs (origin, keys, resolution, expiry, sent by area), updates (new digests, the environment policy's link) | `internal/manager/alerts/jobs_test.go` |
+| notifications (prune breakdown, backup failure words and warnings, restores, updates, canaries), outcome filters, resolutions only to told channels | `internal/manager/alerts/notifications_test.go` |
 | channel filters, backoff, give-up, order, move lock, dropped, digests, canaries | `internal/manager/alerts/dispatch_test.go` |
 | details, fields, error classes in words, tones, digests | `internal/manager/alerts/message_test.go` |
 | snapshots, bounded batches, improvements not worse, rolled back hooks never announced, escalation | `internal/manager/alerts/review_test.go` |
 | dismissal, re-open on worse | `internal/manager/alerts/dismiss_test.go` |
 | unique firing key, filters, retention, notifications, delivery fields, thresholds and overrides | `internal/manager/store/alerts_test.go`, `notifications_test.go` |
-| old subscriptions converted to outcomes | `internal/db/migrations/notification_events_test.go` |
+| old subscriptions converted to outcomes; restores split from backups (rows, deliveries, subscriptions, down) | `internal/db/migrations/notification_events_test.go`, `restore_notifications_test.go` |
 | visibility per kind, the event rules | `internal/manager/authz/alerts_test.go` |
 | routes: shaping, dismissal authorization, audit, notifications per job, thresholds owner-only | `internal/manager/api/alerts_test.go`, `notification_events_test.go` |

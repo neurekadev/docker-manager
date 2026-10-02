@@ -19,6 +19,7 @@
 		Button,
 		Checkbox,
 		Dialog,
+		InfoTip,
 		PasswordField,
 		Select,
 		Switch,
@@ -388,6 +389,7 @@
 										onchange={(e) =>
 											toggleKind(k.kind, e.currentTarget.checked)}
 									/>
+									{#if k.hint}<InfoTip text={k.hint} />{/if}
 								</div>
 								<div class="event-outcomes">
 									{#each k.outcomes as o (o.outcome)}
@@ -533,6 +535,13 @@
 
 	.event-row:last-child {
 		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.event-kind {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
 	}
 
 	.event-kind :global(.label) {

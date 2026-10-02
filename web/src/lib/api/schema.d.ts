@@ -3531,7 +3531,7 @@ export interface paths {
         };
         /**
          * List notifications
-         * @description Finished backups and restores, prunes and update runs, newest first (kept 90 days), with how they went and their numbers. Each is shown to whoever may read its job (job.read).
+         * @description Finished backups, restores, prunes and update runs, newest first (kept 90 days), with how they went and their numbers. Each is shown to whoever may read its job (job.read).
          */
         get: operations["list-notifications"];
         put?: never;
@@ -10220,11 +10220,11 @@ export interface components {
             /** @example backup.run */
             jobKind: string;
             /**
-             * @description backup (a backup or restore), prune or updates (an update run).
+             * @description backup, restore, prune or updates (an update run).
              * @example backup
              * @enum {string}
              */
-            kind: "backup" | "prune" | "updates";
+            kind: "backup" | "restore" | "prune" | "updates";
             /**
              * @description Path of the run's job in Docker Manager.
              * @example /jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f
@@ -10236,7 +10236,7 @@ export interface components {
              * @enum {string}
              */
             outcome: "success" | "warning" | "failure";
-            /** @example Backup Nightly succeeded */
+            /** @example Daily Backups succeeded */
             title: string;
         };
         NotificationAddress: {
@@ -10326,13 +10326,13 @@ export interface components {
         };
         NotificationSubscription: {
             /**
-             * @description The kind of event: disk_health, raid, temperature, disk_space, memory and environment_offline problems; backup (backups and restores), prune and updates runs; job_failed (other failed scheduled or API token jobs).
+             * @description The kind of event: disk_health, raid, temperature, disk_space, memory and environment_offline problems; backup, restore, prune and updates runs (a failed scheduled or API token job of their area too: a backup verification, retention or import is a backup, an update check updates); job_failed (other failed scheduled or API token jobs).
              * @example backup
              * @enum {string}
              */
-            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "prune" | "updates" | "job_failed";
+            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "restore" | "prune" | "updates" | "job_failed";
             /**
-             * @description What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backups), success. updates: available, failure, success.
+             * @description What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backup only), success (a failed job of the area that the next run resolved is sent with the outcome of its failure). updates: available, failure, success.
              * @example [
              *       "failure"
              *     ]
@@ -13456,6 +13456,8 @@ export interface components {
             excludeServices?: string[];
             id: string;
             name: string;
+            /** @description The environment update policy that manages this target (its page); absent for a policy created before environment policies. */
+            parentId?: string;
             /** @description Quarantined candidate digests (never applied automatically). Full view. */
             quarantine?: components["schemas"]["UpdateQuarantined"][];
             /** @description Newest first (at most 20). Full view. */
@@ -40908,7 +40910,7 @@ export interface operations {
                 /** @description Maximum number of items to return. */
                 limit?: number;
                 /** @description Only notifications of this kind. */
-                kind?: "backup" | "prune" | "updates";
+                kind?: "backup" | "restore" | "prune" | "updates";
                 /** @description Only notifications with this outcome. */
                 outcome?: "success" | "warning" | "failure";
                 /** @description Only notifications of this environment. */
@@ -40947,7 +40949,7 @@ export interface operations {
                      *           "kind": "backup",
                      *           "link": "/jobs/0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
                      *           "outcome": "success",
-                     *           "title": "Backup Nightly succeeded"
+                     *           "title": "Daily Backups succeeded"
                      *         }
                      *       ],
                      *       "nextCursor": "example",
@@ -55222,6 +55224,7 @@ export interface operations {
                      *           ],
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "name": "web",
+                     *           "parentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "quarantine": [
                      *             {
                      *               "createdAt": "2026-09-25T12:00:00Z",
@@ -55429,6 +55432,7 @@ export interface operations {
                      *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "name": "web",
+                     *       "parentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "quarantine": [
                      *         {
                      *           "createdAt": "2026-09-25T12:00:00Z",

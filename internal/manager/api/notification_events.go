@@ -14,7 +14,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
 )
 
-// Notifications (finished backups and restores, prunes and update runs)
+// Notifications (finished backups, restores, prunes and update runs)
 // and the alert thresholds of host usage. A notification is shown to
 // whoever may read its job; the thresholds are the owner's (Settings →
 // Notifications). The flows live in internal/manager/alerts.
@@ -32,12 +32,12 @@ type NotificationEventService interface {
 // Notification is one finished run.
 type Notification struct {
 	ID            string `json:"id" example:"0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"`
-	Kind          string `json:"kind" enum:"backup,prune,updates" example:"backup" doc:"backup (a backup or restore), prune or updates (an update run)."`
+	Kind          string `json:"kind" enum:"backup,restore,prune,updates" example:"backup" doc:"backup, restore, prune or updates (an update run)."`
 	Outcome       string `json:"outcome" enum:"success,warning,failure" example:"success" doc:"How it went: success; warning (a backup that saved everything but needs a look); failure (failed, partly failed or interrupted)."`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"The environment it ran on (absent for Docker Manager's own backup)."`
 	JobID         string `json:"jobId" doc:"The run's job."`
 	JobKind       string `json:"jobKind" example:"backup.run"`
-	Title         string `json:"title" example:"Backup Nightly succeeded"`
+	Title         string `json:"title" example:"Daily Backups succeeded"`
 	Detail        string `json:"detail,omitempty" example:"5 of 5 items backed up (12.4 GiB read) in 3 min 12 s." doc:"One or two sentences about it; a failure says what went wrong and what to do (never error texts)."`
 	// Fields are the message's labeled values.
 	Fields    []NotificationField `json:"fields" doc:"Labeled values, as messages show them (the environment, sizes per kind of object, items, duration, who started it)."`
@@ -142,7 +142,7 @@ func (h *notificationEventsAPI) owner(ctx context.Context) (NotificationEventSer
 
 type listNotificationsInput struct {
 	PageParams
-	Kind          string `query:"kind" enum:"backup,prune,updates" doc:"Only notifications of this kind."`
+	Kind          string `query:"kind" enum:"backup,restore,prune,updates" doc:"Only notifications of this kind."`
 	Outcome       string `query:"outcome" enum:"success,warning,failure" doc:"Only notifications with this outcome."`
 	EnvironmentID string `query:"environmentId" maxLength:"128" doc:"Only notifications of this environment."`
 }
@@ -272,7 +272,7 @@ func registerNotificationEvents(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "list-notifications", Method: http.MethodGet, Path: BasePath + "/notifications",
 			Summary: "List notifications",
-			Description: "Finished backups and restores, prunes and update runs, newest first (kept 90 days), with how they went and " +
+			Description: "Finished backups, restores, prunes and update runs, newest first (kept 90 days), with how they went and " +
 				"their numbers. Each is shown to whoever may read its job (job.read).",
 			Tags:   []string{tagAlerts},
 			Errors: []int{http.StatusUnprocessableEntity, http.StatusServiceUnavailable},

@@ -329,7 +329,6 @@ var gotifyPriorities = map[domain.NotificationTone]string{
 type discordEmbed struct {
 	Author      *discordEmbedAuthor `json:"author,omitempty"`
 	Title       string              `json:"title,omitempty"`
-	URL         string              `json:"url,omitempty"`
 	Description string              `json:"description,omitempty"`
 	Color       uint                `json:"color"`
 	Fields      []discordEmbedField `json:"fields,omitempty"`
@@ -361,6 +360,10 @@ type discordPayloadJSON struct {
 	// AllowedMentions stops names in a message from pinging anyone.
 	AllowedMentions map[string][]string `json:"allowed_mentions"`
 }
+
+// discordBlankName is the name of a field that shows none (Discord needs
+// one): a zero-width space.
+const discordBlankName = "\u200b"
 
 // discordPlainMarkup is Discord's text without links and code, for a
 // field the embed's total has no room for with them.
@@ -403,18 +406,17 @@ func discordValue(f domain.NotificationField, m markup, limit int) string {
 }
 
 // discordPayload is one embed: the status line as its author, the tone's
-// color, the title linking to the page, the description, the fields, the
-// footer beside the logo and the time. The whole embed stays within
-// Discord's total (discordEmbedMax): a field that would pass it is shown
-// plain (without links and code) within the room left, a list cut after
-// a whole entry; a field without any room is left out, later ones may
-// still fit (Discord refuses the whole message otherwise, at every
-// retry).
+// color, the title (not a link), the description, the fields, then "Open
+// in Docker Manager" as the last field (without a name), the footer
+// beside the logo and the time. The whole embed stays within Discord's
+// total (discordEmbedMax), the link's room taken first so it is never
+// left out: a field that would pass it is shown plain (without links and
+// code) within the room left, a list cut after a whole entry; a field
+// without any room is left out, later ones may still fit (Discord refuses
+// the whole message otherwise, at every retry).
 func discordPayload(msg domain.NotificationMessage, username, avatar string) string {
 	runes := utf8.RuneCountInString
-	e := discordEmbed{
-		Title: clip(msg.Title, discordTitleMax), URL: msg.URL, Color: toneColor(msg.Tone),
-	}
+	e := discordEmbed{Title: clip(msg.Title, discordTitleMax), Color: toneColor(msg.Tone)}
 	total := runes(e.Title)
 	if msg.Label != "" {
 		e.Author = &discordEmbedAuthor{Name: clip(msg.Label, discordAuthorMax)}
@@ -424,19 +426,23 @@ func discordPayload(msg domain.NotificationMessage, username, avatar string) str
 		e.Footer = &discordEmbedFooter{Text: clip(msg.Footer, discordFooterMax), IconURL: LogoURL}
 		total += runes(e.Footer.Text)
 	}
-	desc := markdownEscaper.Replace(strings.TrimSpace(msg.Body))
+	// The link's field takes its room and its place among the fields
+	// first; it is added after the others.
+	var open *discordEmbedField
+	fieldsMax := discordFieldsMax
 	if msg.URL != "" {
-		if desc != "" {
-			desc += "\n\n"
+		if v := "[" + openLabel + "](" + msg.URL + ")"; runes(v) <= discordFieldValueMax {
+			open = &discordEmbedField{Name: discordBlankName, Value: v}
+			total += runes(open.Name) + runes(open.Value)
+			fieldsMax--
 		}
-		desc += "[" + openLabel + "](" + msg.URL + ")"
 	}
-	if desc != "" {
+	if desc := markdownEscaper.Replace(strings.TrimSpace(msg.Body)); desc != "" {
 		e.Description = clip(desc, max(min(discordDescriptionMax, discordEmbedMax-total), 1))
 		total += runes(e.Description)
 	}
 	for i, f := range msg.Fields {
-		if i == discordFieldsMax {
+		if i == fieldsMax {
 			break
 		}
 		name := clip(f.Name, discordFieldNameMax)
@@ -450,6 +456,9 @@ func discordPayload(msg domain.NotificationMessage, username, avatar string) str
 		}
 		total += runes(name) + runes(value)
 		e.Fields = append(e.Fields, discordEmbedField{Name: name, Value: value, Inline: f.Inline})
+	}
+	if open != nil {
+		e.Fields = append(e.Fields, *open)
 	}
 	if !msg.Time.IsZero() {
 		e.Timestamp = msg.Time.UTC().Format(time.RFC3339)

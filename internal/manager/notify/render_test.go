@@ -90,11 +90,16 @@ func TestDiscordGetsAnEmbedInTheTonesColor(t *testing.T) {
 		t.Fatalf("%+v", p)
 	}
 	e := p.Embeds[0]
+	// The title is no link: "Open in Docker Manager" is the last line,
+	// after every field.
 	if e.Color != 0x4cf683 || e.Author == nil || e.Author.Name != "Image updates · Applied" || e.Title != "Update of Paperless succeeded" ||
-		e.URL != "https://docker.example.com/jobs/j1" ||
-		e.Description != "Recreated silo\\_data & web with the new image.\n\n[Open in Docker Manager](https://docker.example.com/jobs/j1)" ||
-		e.Timestamp != "2026-10-01T09:30:00Z" || e.Footer.Text != "Home" || e.Footer.IconURL != LogoURL || len(e.Fields) != 3 {
+		e.URL != "" || strings.Contains(r.body, `"url"`) ||
+		e.Description != "Recreated silo\\_data & web with the new image." ||
+		e.Timestamp != "2026-10-01T09:30:00Z" || e.Footer.Text != "Home" || e.Footer.IconURL != LogoURL || len(e.Fields) != 4 {
 		t.Fatalf("%+v", e)
+	}
+	if f := e.Fields[3]; f.Inline || f.Name != "\u200b" || f.Value != "[Open in Docker Manager](https://docker.example.com/jobs/j1)" {
+		t.Fatalf("%+v", f)
 	}
 	// The environment links to its page; the list is bulleted, each entry
 	// linked, its digests as code.
@@ -147,7 +152,9 @@ func TestDiscordLimitsAreKept(t *testing.T) {
 	if err := json.Unmarshal([]byte(discordPayload(msg, "", "")), &p); err != nil {
 		t.Fatal(err)
 	}
-	if e := p.Embeds[0]; len([]rune(e.Title)) != discordTitleMax || len(e.Fields) != discordFieldsMax {
+	// The link keeps its place: the last of the fields Discord allows.
+	if e := p.Embeds[0]; len([]rune(e.Title)) != discordTitleMax || len(e.Fields) != discordFieldsMax ||
+		!strings.HasPrefix(e.Fields[discordFieldsMax-1].Value, "[Open in Docker Manager](") {
 		t.Fatalf("title %d, fields %d", len([]rune(e.Title)), len(e.Fields))
 	}
 	// Long fields: each within its limit, the embed within the total.
@@ -163,6 +170,10 @@ func TestDiscordLimitsAreKept(t *testing.T) {
 	e := p.Embeds[0]
 	if embedSize(p) > discordEmbedMax || len([]rune(e.Description)) > discordDescriptionMax || len(e.Fields) == 0 {
 		t.Fatalf("embed %d, description %d, fields %d", embedSize(p), len([]rune(e.Description)), len(e.Fields))
+	}
+	// The link is never crowded out.
+	if last := e.Fields[len(e.Fields)-1]; last.Value != "[Open in Docker Manager](https://docker.example.com/jobs/j1)" {
+		t.Fatalf("last field %+v", last)
 	}
 	for _, f := range e.Fields {
 		if len([]rune(f.Value)) > discordFieldValueMax {
@@ -190,12 +201,13 @@ func TestDiscordShowsAListPlainWhenItsLinksWouldPassTheTotal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := p.Embeds[0]
-	if embedSize(p) > discordEmbedMax || len(e.Fields) != 5 || !strings.Contains(e.Fields[0].Value, "](https://") ||
+	if embedSize(p) > discordEmbedMax || len(e.Fields) != 6 || !strings.Contains(e.Fields[0].Value, "](https://") ||
 		strings.Contains(e.Fields[1].Value, "](https://") || !strings.Contains(e.Fields[1].Value, "- service-09 0123456789ab → ba9876543210") {
 		t.Fatalf("embed %d: %+v", embedSize(p), e.Fields)
 	}
 	// A list with little room left is cut after a whole entry and says
-	// how many are left; the short field after it still fits.
+	// how many are left; the short field after it still fits, and the
+	// link comes last.
 	cut := false
 	for _, f := range e.Fields[:4] {
 		for l := range strings.SplitSeq(f.Value, "\n") {
@@ -207,7 +219,7 @@ func TestDiscordShowsAListPlainWhenItsLinksWouldPassTheTotal(t *testing.T) {
 			}
 		}
 	}
-	if !cut || e.Fields[4].Name != "Do" || e.Fields[4].Value != "x" {
+	if !cut || e.Fields[4].Name != "Do" || e.Fields[4].Value != "x" || !strings.HasPrefix(e.Fields[5].Value, "[Open in Docker Manager](") {
 		t.Fatalf("%+v", e.Fields)
 	}
 }

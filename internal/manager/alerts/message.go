@@ -34,7 +34,8 @@ import (
 
 // Link returns the path of the page an alert is about: the environment's
 // System tab (disks, RAID), the environment (offline, host usage), the
-// job, the update policy.
+// job, the environment update policy that manages the target
+// (updatePolicyPath).
 func Link(a domain.Alert) string {
 	switch a.Kind {
 	case domain.NotifyDiskHealth, domain.NotifyRAID:
@@ -50,11 +51,20 @@ func Link(a domain.Alert) string {
 			return "/jobs/" + url.PathEscape(a.ResourceID)
 		}
 	case domain.NotifyUpdates:
-		if a.ResourceID != "" {
-			return "/updates/" + url.PathEscape(a.ResourceID)
-		}
+		return updatePolicyPath(a.Facts["policyId"])
 	}
 	return "/notifications?tab=alerts"
+}
+
+// updatePolicyPath is the page of an environment update policy (the
+// policyId fact of update alerts and notifications: the parent of the
+// target's record, never the record, which has no page), or Updates for
+// a target without one (a policy from before environment policies).
+func updatePolicyPath(id string) string {
+	if id == "" {
+		return "/updates"
+	}
+	return "/updates/" + url.PathEscape(id)
 }
 
 // NotificationLink returns the path of a notification's job.
@@ -637,6 +647,7 @@ func alertFields(a domain.Alert, env, event string) []domain.NotificationField {
 	case domain.NotifyUpdates:
 		t := firstTarget(a.Targets)
 		l.addLink("Target", f["target"], targetPath(a.EnvironmentID, t), true)
+		l.addLink("Policy", f["policy"], updatePolicyPath(f["policyId"]), true)
 		l.add("Updates", f["count"], true)
 		total, _ := strconv.Atoi(f["count"])
 		if items := serviceItems(f["changes"], a.EnvironmentID, t, total); len(items) > 0 {
@@ -648,20 +659,18 @@ func alertFields(a domain.Alert, env, event string) []domain.NotificationField {
 	return l.ordered()
 }
 
-// line is a delivery's line in a digest.
+// line is a delivery's line in a digest: a problem's severity before its
+// title ("Critical: Disk /dev/sda is failing"), "Resolved: <title>";
+// a finished run's or an info alert's title alone says what happened
+// ("Daily Backups failed", "Paperless has an update available").
 func line(d domain.AlertDelivery) string {
-	switch d.Event {
-	case domain.AlertEventResolved:
+	switch {
+	case d.Event == domain.AlertEventResolved:
 		return "Resolved: " + d.Title
-	case domain.DeliveryEventNotification:
-		return outcomeWords[d.Outcome] + ": " + d.Title
+	case d.Event == domain.DeliveryEventNotification, d.Severity == domain.AlertInfo, severityWords[d.Severity] == "":
+		return d.Title
 	}
 	return severityWords[d.Severity] + ": " + d.Title
-}
-
-// outcomeWords name a notification's outcome.
-var outcomeWords = map[domain.NotificationOutcome]string{
-	domain.OutcomeSuccess: "Done", domain.OutcomeWarning: "Warning", domain.OutcomeFailure: "Failed",
 }
 
 // footer is the line under a message when the instance has no name.
@@ -678,8 +687,8 @@ const (
 var kindLabels = map[domain.NotificationEventKind]string{
 	domain.NotifyDiskHealth: "Disk health", domain.NotifyRAID: "RAID", domain.NotifyTemperature: "Temperature",
 	domain.NotifyDiskSpace: "Disk space", domain.NotifyMemory: "Memory", domain.NotifyEnvironmentOffline: "Environment offline",
-	domain.NotifyBackup: "Backups and restores", domain.NotifyPrune: "Prune", domain.NotifyUpdates: "Image updates",
-	domain.NotifyJobFailed: "Other failed jobs",
+	domain.NotifyBackup: "Backups", domain.NotifyRestore: "Restores", domain.NotifyPrune: "Prune",
+	domain.NotifyUpdates: "Image updates", domain.NotifyJobFailed: "Other jobs",
 }
 
 // outcomeLabels name the outcomes as "What to send" does (outcomeLabel
@@ -712,6 +721,16 @@ func Label(kind domain.NotificationEventKind, o domain.NotificationOutcome) stri
 		return k
 	}
 	return k + " · " + w
+}
+
+// deliveryLabel is the status line of a delivery: a resolution says it is
+// resolved, also when it was sent with its failure's outcome (a failed
+// job of an area, domain.Alert.SentAs).
+func deliveryLabel(d domain.AlertDelivery) string {
+	if d.Event == domain.AlertEventResolved {
+		return Label(d.Kind, domain.OutcomeResolved)
+	}
+	return Label(d.Kind, d.Outcome)
 }
 
 // environmentSuffix names a delivery's environment in a digest entry
@@ -796,7 +815,7 @@ func buildMessage(instance, publicURL string, items []domain.AlertDelivery, now 
 		if it.Event == domain.AlertEventResolved {
 			title = "Resolved: " + title
 		}
-		return domain.NotificationMessage{Label: Label(it.Kind, it.Outcome), Title: title, Body: it.Body,
+		return domain.NotificationMessage{Label: deliveryLabel(it), Title: title, Body: it.Body,
 			Tag: environmentOf(it), URL: abs(it.Link), Tone: it.Tone(), Fields: withLinks(it.Fields, abs),
 			Footer: foot, Time: it.CreatedAt}
 	}

@@ -5,7 +5,7 @@
 // "What to send" is a grid: a checkbox per kind of event (mixed while some
 // of its outcomes are ticked) and one per outcome.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
@@ -99,16 +99,29 @@ describe('ChannelDialog (#142)', () => {
 			'Disk space',
 			'Memory',
 			'Environment offline',
-			'Backups and restores',
+			'Backups',
+			'Restores',
 			'Prune',
 			'Image updates',
-			'Other failed jobs',
+			'Other jobs',
 			'Disk health: Warning',
 			'Environment offline: Back online',
 			'Image updates: Applied',
-			'Other failed jobs: Resolved'
+			'Restores: Success',
+			'Other jobs: Resolved'
 		])
 			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
+		// A row whose label does not say all it covers explains it in an (i).
+		const others = screen
+			.getByRole('checkbox', { name: 'Other jobs' })
+			.closest('.event-kind') as HTMLElement;
+		expect(
+			within(others).getByRole('img', { name: /an API token started/ })
+		).toBeInTheDocument();
+		const prune = screen
+			.getByRole('checkbox', { name: 'Prune' })
+			.closest('.event-kind') as HTMLElement;
+		expect(within(prune).queryByRole('img')).toBeNull();
 		// Each kind leads with its icon (decorative); its outcomes have none.
 		expect(
 			screen.getByRole('checkbox', { name: 'RAID' }).closest('label')?.querySelector('svg')
@@ -192,11 +205,9 @@ describe('ChannelDialog (#142)', () => {
 		expect(screen.queryByLabelText(/^Webhook URL/)).toBeNull();
 		// The channel's events: every update outcome, only failed jobs' failures.
 		expect(screen.getByRole('checkbox', { name: 'Image updates' })).toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other failed jobs' })).toBePartiallyChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other failed jobs: Failure' })).toBeChecked();
-		expect(
-			screen.getByRole('checkbox', { name: 'Other failed jobs: Resolved' })
-		).not.toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other jobs' })).toBePartiallyChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other jobs: Failure' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other jobs: Resolved' })).not.toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBePartiallyChecked();
 		expect(calls).toEqual([]);
@@ -288,8 +299,8 @@ describe('ChannelDialog (#142)', () => {
 		const user = setup();
 		const calls = stubApi();
 		show({ open: true });
-		const backups = await screen.findByRole('checkbox', { name: 'Backups and restores' });
-		const success = screen.getByRole('checkbox', { name: 'Backups and restores: Success' });
+		const backups = await screen.findByRole('checkbox', { name: 'Backups' });
+		const success = screen.getByRole('checkbox', { name: 'Backups: Success' });
 
 		// One outcome off: the kind's checkbox is mixed.
 		await user.click(success);
@@ -303,9 +314,7 @@ describe('ChannelDialog (#142)', () => {
 		await user.click(backups);
 		expect(backups).not.toBeChecked();
 		for (const o of ['Failure', 'Warning', 'Success'])
-			expect(
-				screen.getByRole('checkbox', { name: `Backups and restores: ${o}` })
-			).not.toBeChecked();
+			expect(screen.getByRole('checkbox', { name: `Backups: ${o}` })).not.toBeChecked();
 
 		// Ticking one outcome of an unticked kind makes it mixed.
 		await user.click(screen.getByRole('checkbox', { name: 'Prune: Failure' }));
@@ -336,9 +345,9 @@ describe('ChannelDialog (#142)', () => {
 		const calls = stubApi();
 		show({ open: true, channel });
 		await user.click(await screen.findByRole('checkbox', { name: 'Image updates' }));
-		await user.click(screen.getByRole('checkbox', { name: 'Other failed jobs' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Other jobs' }));
 		// Mixed: the click ticks every outcome; a second one clears them.
-		await user.click(screen.getByRole('checkbox', { name: 'Other failed jobs' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Other jobs' }));
 		await user.click(screen.getByRole('button', { name: 'Save changes' }));
 		expect(await screen.findByText('Choose at least one event to send.')).toBeInTheDocument();
 		expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
