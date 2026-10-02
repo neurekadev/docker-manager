@@ -41,6 +41,8 @@ figure.
   that account. Without a connection, the registry counts per IP address:
   the figure is for the address Docker Manager checks from.
 - Pulls on your servers count too, but show only with the next check.
+  Checks of an image that hasn't changed don't use up pulls (only the first
+  check of a multi-platform image after Docker Manager restarts uses one).
 - **Not reported** means the registry sends no limit (GitHub's registry
   doesn't). **Limit reached** means it refused a check for too many
   requests; when the registry says when the limit resets, so does the row.

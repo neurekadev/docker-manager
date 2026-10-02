@@ -534,6 +534,98 @@ func TestPullLimitsPerHostAndCredential(t *testing.T) {
 	}
 }
 
+// TestPullLimitWritesThatLoseOrComeLate: an answer older than the stored
+// one is not stored and does not hold back the next write; an answer to a
+// credential replaced while the check was in flight is not stored.
+func TestPullLimitWritesThatLoseOrComeLate(t *testing.T) {
+	f := newFixture(t)
+	f.reg.Private["team/app"] = true
+	f.reg.Put("team/app", "1", regclient.MediaOCIManifest, []byte(regtest.ManifestBody))
+	f.reg.Headers = map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "187;w=21600"}
+	c := f.robot("fake", "team/app")
+	host := f.reg.Host()
+	test := func() {
+		t.Helper()
+		if _, err := f.svc.ConnectionTest(f.ctx, c.ID, host+"/team/app:1", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row := func() (domain.RegistryPullLimit, bool) {
+		t.Helper()
+		all, err := f.svc.PullLimits(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range all {
+			if p.ConnectionID == c.ID {
+				return p, true
+			}
+		}
+		return domain.RegistryPullLimit{}, false
+	}
+	test()
+	if _, ok := row(); !ok {
+		t.Fatal("no pull limit after a test")
+	}
+
+	// A newer answer is stored already (its check finished first): this
+	// one loses.
+	newer := f.clk.Now().UTC().Add(time.Hour)
+	limit, five := int64(200), int64(5)
+	if _, err := store.RecordRegistryPullLimit(f.ctx, f.db, domain.RegistryPullLimit{Host: host, ConnectionID: c.ID, Limit: &limit,
+		Remaining: &five, ObservedAt: &newer, CheckedAt: newer}); err != nil {
+		t.Fatal(err)
+	}
+	f.reg.Lock()
+	f.reg.Headers = map[string]string{"RateLimit-Limit": "200;w=21600", "RateLimit-Remaining": "186;w=21600"}
+	f.reg.Unlock()
+	f.clk.Advance(10 * time.Second)
+	test()
+	if p, _ := row(); *p.Remaining != 5 || !p.CheckedAt.Equal(newer) {
+		t.Fatalf("an older answer overwrote a newer one: %+v", p)
+	}
+	// The lost write is not remembered: the same values again, within the
+	// minute, are written.
+	if err := store.DeleteRegistryPullLimits(f.ctx, f.db, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.clk.Advance(10 * time.Second)
+	test()
+	if p, ok := row(); !ok || *p.Remaining != 186 {
+		t.Fatalf("the write after a lost one was held back: %+v %v", p, ok)
+	}
+
+	// A check in flight while the credential is rotated: its answer does
+	// not bring the deleted row back.
+	f.reg.Lock()
+	f.reg.Block, f.reg.Entered = make(chan struct{}), make(chan struct{}, 1)
+	f.reg.Unlock()
+	done := make(chan error, 1)
+	go func() {
+		_, err := f.svc.ConnectionTest(f.ctx, c.ID, host+"/team/app:1", "")
+		done <- err
+	}()
+	<-f.reg.Entered
+	cur, err := f.svc.Get(f.ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Rotate(f.ctx, c.ID, cur.Revision, domain.RegistryCredentialRotation{
+		Secret: f.secrets.New(canary.RegistryCredential, "rotated registry password")}); err != nil {
+		t.Fatal(err)
+	}
+	f.reg.Lock()
+	close(f.reg.Block)
+	f.reg.Block = nil
+	f.reg.Unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := row(); ok {
+		t.Fatalf("an answer to the replaced credential was stored: %+v", p)
+	}
+}
+
 // TestJobsGetTheCurrentCredentialAtDispatch runs the job engine with the
 // service as its CommandSecrets source: commands carry the credential of
 // the connection named in the job input, a rotation applies to later jobs

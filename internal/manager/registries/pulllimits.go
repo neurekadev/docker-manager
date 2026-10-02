@@ -2,6 +2,8 @@ package registries
 
 import (
 	"context"
+	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,11 +34,16 @@ type limitWrite struct {
 	sig regclient.RateLimit
 }
 
-// connectionOf returns the connection ID of a regclient credential key
-// ("<connectionId>/<secretVersion>", "" for anonymous access).
-func connectionOf(credentialKey string) string {
-	id, _, _ := strings.Cut(credentialKey, "/")
-	return id
+// connectionOf returns the connection ID and secret version of a regclient
+// credential key ("<connectionId>/<secretVersion>"; "" and 0 for anonymous
+// access, version 0 when the key has none).
+func connectionOf(credentialKey string) (string, int) {
+	id, v, _ := strings.Cut(credentialKey, "/")
+	version, err := strconv.Atoi(v)
+	if err != nil {
+		version = 0
+	}
+	return id, version
 }
 
 // same reports whether two observations say the same about the limit.
@@ -46,12 +53,16 @@ func same(a, b regclient.RateLimit) bool {
 
 // observeRateLimit records a registry's answer to a check: when it says
 // something new about the limit, else at most once a minute. A failed write
-// is logged and never fails the check.
+// is logged and never fails the check. An answer to a connection's
+// credential is recorded only while that credential is the connection's
+// current one (a check still in flight after a rotation or deletion must
+// not bring its rows back), and only when it is not older than the stored
+// answer.
 func (s *Service) observeRateLimit(ctx context.Context, rl regclient.RateLimit) {
 	if rl.Host == "" {
 		return
 	}
-	connID := connectionOf(rl.CredentialKey)
+	connID, version := connectionOf(rl.CredentialKey)
 	key := rl.Host + "\x00" + connID
 	sig := regclient.RateLimit{Limit: rl.Limit, Remaining: rl.Remaining, Window: rl.Window, Limited: rl.Limited}
 	s.limitsMu.Lock()
@@ -68,12 +79,47 @@ func (s *Service) observeRateLimit(ctx context.Context, rl regclient.RateLimit) 
 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), limitWriteTimeout)
 	defer cancel()
-	if err := store.RecordRegistryPullLimit(ctx, s.db, pullLimitOf(rl, connID)); err != nil {
-		// Forget it so the next answer tries again.
-		s.limitsMu.Lock()
-		delete(s.limits, key)
-		s.limitsMu.Unlock()
+	if connID != "" {
+		current, err := s.currentCredential(ctx, connID, version)
+		if err != nil {
+			s.opts.Logger.Warn("could not record a registry pull limit", "registry", rl.Host, "registry_connection_id", connID, "error", err)
+		}
+		if !current {
+			s.forgetWrite(key, rl.At)
+			return
+		}
+	}
+	applied, err := store.RecordRegistryPullLimit(ctx, s.db, pullLimitOf(rl, connID))
+	if err != nil {
 		s.opts.Logger.Warn("could not record a registry pull limit", "registry", rl.Host, "registry_connection_id", connID, "error", err)
+	}
+	if err != nil || !applied {
+		// Not stored (failed, or a newer answer is stored): the next answer
+		// must not be held back by this one.
+		s.forgetWrite(key, rl.At)
+	}
+}
+
+// currentCredential reports whether a connection exists, is active and its
+// secret version is version.
+func (s *Service) currentCredential(ctx context.Context, connID string, version int) (bool, error) {
+	c, err := store.GetRegistryConnection(ctx, s.db, connID)
+	if errors.Is(err, domain.ErrRegistryConnectionNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return c.Active() && c.SecretVersion == version, nil
+}
+
+// forgetWrite drops the remembered write of key made for the answer at at
+// (a later answer's write stays).
+func (s *Service) forgetWrite(key string, at time.Time) {
+	s.limitsMu.Lock()
+	defer s.limitsMu.Unlock()
+	if w, ok := s.limits[key]; ok && w.at.Equal(at) {
+		delete(s.limits, key)
 	}
 }
 

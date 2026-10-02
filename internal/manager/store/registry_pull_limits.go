@@ -43,8 +43,10 @@ func (r registryPullLimitRow) toDomain() domain.RegistryPullLimit {
 // (p.CheckedAt). The limit columns change only when the answer reported a
 // limit (p.ObservedAt set), so a later answer without limit headers keeps
 // the last reported limit; LimitedUntil is replaced by every answer (nil
-// unless it was a 429), LastLimitedAt only by a 429.
-func RecordRegistryPullLimit(ctx context.Context, db bun.IDB, p domain.RegistryPullLimit) error {
+// unless it was a 429), LastLimitedAt only by a 429. Writes are monotonic:
+// an observation older than the stored row changes nothing (applied false),
+// so a slow check never overwrites a newer answer.
+func RecordRegistryPullLimit(ctx context.Context, db bun.IDB, p domain.RegistryPullLimit) (applied bool, err error) {
 	row := registryPullLimitRow{Host: p.Host, ConnectionID: p.ConnectionID, Limit: p.Limit, Remaining: p.Remaining,
 		ResetAt: utcPtr(p.ResetAt), ObservedAt: utcPtr(p.ObservedAt), CheckedAt: p.CheckedAt.UTC(),
 		LimitedUntil: utcPtr(p.LimitedUntil), LastLimitedAt: utcPtr(p.LastLimitedAt)}
@@ -56,18 +58,25 @@ func RecordRegistryPullLimit(ctx context.Context, db bun.IDB, p domain.RegistryP
 	reported := func(col string) string {
 		return col + " = CASE WHEN EXCLUDED.observed_at IS NULL THEN " + col + " ELSE EXCLUDED." + col + " END"
 	}
-	_, err := db.NewInsert().Model(&row).
+	// Timestamps are UTC text in one format with trailing zeros trimmed
+	// ("...05+00:00", "...05.5+00:00"), so they order as text.
+	res, err := db.NewInsert().Model(&row).
 		On("CONFLICT (host, registry_connection_id) DO UPDATE").
 		Set(reported("pull_limit")).Set(reported("remaining")).Set(reported("window_seconds")).Set(reported("reset_at")).
 		Set(reported("observed_at")).
 		Set("checked_at = EXCLUDED.checked_at").
 		Set("limited_until = EXCLUDED.limited_until").
 		Set("last_limited_at = COALESCE(EXCLUDED.last_limited_at, last_limited_at)").
+		Where("EXCLUDED.checked_at >= checked_at").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("store: record registry pull limit: %w", err)
+		return false, fmt.Errorf("store: record registry pull limit: %w", err)
 	}
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("store: record registry pull limit: %w", err)
+	}
+	return n > 0, nil
 }
 
 // ListRegistryPullLimits returns every stored pull limit by host, anonymous

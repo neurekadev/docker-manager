@@ -277,6 +277,60 @@ func TestPlatformSelection(t *testing.T) {
 	}
 }
 
+// TestKnownIndexNeedsNoGET: the platform manifest an index digest selects
+// is remembered, so a check of an unchanged multi-platform tag is a HEAD
+// only (Docker Hub counts manifest GETs as pulls); a new index is read
+// again.
+func TestKnownIndexNeedsNoGET(t *testing.T) {
+	f := regtest.New(t, regtest.AuthNone, "", "")
+	amd := f.Put("app", "amd", MediaOCIManifest, []byte(manifestBody+" "))
+	arm := f.Put("app", "arm", MediaOCIManifest, []byte(manifestBody+"  "))
+	index := func(digest string) string {
+		return `{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[` +
+			`{"digest":"` + digest + `","platform":{"os":"linux","architecture":"amd64"}},` +
+			`{"digest":"` + arm + `","platform":{"os":"linux","architecture":"arm64"}}]}`
+	}
+	idx := f.Put("app", "multi", MediaOCIIndex, []byte(index(amd)))
+	clk := testutil.FakeClock()
+	c := newClient(t, f, clk)
+	ctx := testutil.Context(t)
+	req := Request{Ref: ref(t, f, "app:multi"), Platform: "linux/amd64"}
+	gets := func() int {
+		f.Lock()
+		defer f.Unlock()
+		return f.GetHits
+	}
+
+	for i := range 2 {
+		res, err := c.Resolve(ctx, req)
+		if err != nil || res.Cached || res.Digest != idx || res.PlatformDigest != amd || res.MediaType != MediaOCIIndex {
+			t.Fatalf("check %d: %+v, %v", i, res, err)
+		}
+		if g := gets(); g != 1 {
+			t.Fatalf("check %d: manifest GETs = %d, want 1", i, g)
+		}
+		clk.Advance(DefaultCacheTTL)
+	}
+	// Another platform of the same index is read once.
+	if res, err := c.Resolve(ctx, Request{Ref: ref(t, f, "app:multi"), Platform: "linux/arm64"}); err != nil || res.PlatformDigest != arm {
+		t.Fatalf("arm64: %+v, %v", res, err)
+	}
+	if g := gets(); g != 2 {
+		t.Fatalf("manifest GETs = %d, want 2", g)
+	}
+
+	// The tag moves to a new index: read again.
+	amd2 := f.Put("app", "amd2", MediaOCIManifest, []byte(manifestBody+"   "))
+	idx2 := f.Put("app", "multi", MediaOCIIndex, []byte(index(amd2)))
+	res, err := c.Resolve(ctx, req)
+	if err != nil || res.Digest != idx2 || res.PlatformDigest != amd2 {
+		t.Fatalf("new index: %+v, %v", res, err)
+	}
+	if g := gets(); g != 3 {
+		t.Fatalf("manifest GETs = %d, want 3", g)
+	}
+}
+
 func TestMissingDigestHeaderFallsBackToGET(t *testing.T) {
 	f := regtest.New(t, regtest.AuthNone, "robot", "correct-horse-battery-canary")
 	f.NoDigest = true

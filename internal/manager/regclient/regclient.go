@@ -32,6 +32,8 @@
 //     was a 429.
 //   - Results are cached for a short TTL and concurrent identical checks
 //     (registry, repository, tag, platform, credential) share one request.
+//     The platform manifest an index digest selects is remembered (it never
+//     changes), so a check of an unchanged multi-platform tag is one HEAD.
 //   - Created reads a platform manifest's image config for its creation
 //     time (display only; one manifest and one blob GET per digest, cached).
 //
@@ -86,6 +88,7 @@ const (
 	maxManifestBytes   = 4 << 20
 	maxConfigBytes     = 4 << 20
 	maxCreatedEntries  = 4096
+	maxPlatformEntries = 4096
 	acceptImage        = MediaOCIManifest + ", " + MediaDockerV2
 	maxErrorBodyBytes  = 16 << 10
 	maxTokenBodyBytes  = 64 << 10
@@ -190,6 +193,9 @@ type Client struct {
 	// created caches image creation times per manifest digest (immutable;
 	// the zero time: the image records none).
 	created map[string]time.Time
+	// platforms maps an index (API host, repository, index digest,
+	// platform) to the platform manifest digest it selects (immutable).
+	platforms map[string]string
 	// observer receives the rate-limit report of every registry response.
 	observer func(context.Context, RateLimit)
 
@@ -260,7 +266,7 @@ func New(opts Options) *Client {
 		opts.Jitter = rand.Float64 //nolint:gosec // backoff jitter, not security
 	}
 	return &Client{opts: opts, cache: map[string]cached{}, inflight: map[string]*call{}, tokens: map[string]cachedToken{},
-		cooldown: map[string]time.Time{}, created: map[string]time.Time{}}
+		cooldown: map[string]time.Time{}, created: map[string]time.Time{}, platforms: map[string]string{}}
 }
 
 // SetRateLimitObserver sets the function every manifest and blob response
@@ -565,6 +571,16 @@ func (c *Client) attempt(ctx context.Context, req Request) (Result, error) {
 	}
 	_ = resp.Body.Close()
 	res := Result{Digest: resp.Header.Get("Docker-Content-Digest"), MediaType: mediaType(resp.Header.Get("Content-Type"))}
+	// An index is content-addressed: the platform manifest it selects never
+	// changes, so a known index needs no GET (Docker Hub counts every
+	// manifest GET as a pull, HEAD is free).
+	if req.Platform != "" && isIndex(res.MediaType) && validDigest(res.Digest) &&
+		(req.Ref.Digest == "" || req.Ref.Digest == res.Digest) {
+		if d, ok := c.knownPlatform(req, res.Digest); ok {
+			res.PlatformDigest = d
+			return res, nil
+		}
+	}
 	var body []byte
 	if res.Digest == "" || res.MediaType == "" || (req.Platform != "" && isIndex(res.MediaType)) {
 		resp, err := c.authorized(ctx, req, http.MethodGet, manifestURL, acceptManifests)
@@ -599,8 +615,31 @@ func (c *Client) attempt(ctx context.Context, req Request) (Result, error) {
 			return Result{}, err
 		}
 		res.PlatformDigest = d
+		c.rememberPlatform(req, res.Digest, d)
 	}
 	return res, nil
+}
+
+// platformKey keys the platform manifest an index selects: API host,
+// repository, index digest (verified content) and platform.
+func platformKey(req Request, index string) string {
+	return strings.Join([]string{imageref.APIHost(req.Ref.Host), req.Ref.Repository, index, req.Platform}, "\x00")
+}
+
+func (c *Client) knownPlatform(req Request, index string) (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	d, ok := c.platforms[platformKey(req, index)]
+	return d, ok
+}
+
+func (c *Client) rememberPlatform(req Request, index, digest string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.platforms) >= maxPlatformEntries {
+		clear(c.platforms)
+	}
+	c.platforms[platformKey(req, index)] = digest
 }
 
 func (c *Client) baseURL(req Request) string {

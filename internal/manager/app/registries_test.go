@@ -240,7 +240,7 @@ func TestRegistryPullLimitsThroughTheAPI(t *testing.T) {
 	// Anonymous checks of the same host are counted apart.
 	ctx := testutil.Context(t)
 	limit, remaining := int64(100), int64(42)
-	if err := store.RecordRegistryPullLimit(ctx, e.m.DB(), domain.RegistryPullLimit{Host: reg.Host(), Limit: &limit,
+	if _, err := store.RecordRegistryPullLimit(ctx, e.m.DB(), domain.RegistryPullLimit{Host: reg.Host(), Limit: &limit,
 		Remaining: &remaining, CheckedAt: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
