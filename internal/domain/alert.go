@@ -102,19 +102,18 @@ func (a Alert) Outcome(event string) NotificationOutcome {
 // channels subscribe to (NotificationChannel.Wants). A failed job's alert
 // is sent as the kind of its job's area (JobEventKind) when it has one:
 // failed is a failure; partly failed or interrupted a warning where the
-// area has warnings (backups), else a failure; its resolution (the next
-// run succeeded) goes to the channels that send the area's successes
-// (the message still says it is resolved). Any other alert: its kind and
+// area has warnings (backups), else a failure. Its resolution (the next
+// run succeeded) has the outcome its failure was sent with, so a channel
+// that was told about the failure and still sends that outcome gets it
+// (the area has no "resolved"; the message still says it is resolved and
+// looks like one, AlertDelivery.Tone). Any other alert: its kind and
 // Outcome.
 func (a Alert) SentAs(event string) (NotificationEventKind, NotificationOutcome) {
 	area := JobEventKind(a.JobKind)
 	if a.Kind != NotifyJobFailed || area == NotifyJobFailed {
 		return a.Kind, a.Outcome(event)
 	}
-	switch {
-	case event == AlertEventResolved:
-		return area, OutcomeSuccess
-	case a.Severity == AlertWarning && slices.Contains(area.Outcomes(), OutcomeWarning):
+	if a.Severity == AlertWarning && slices.Contains(area.Outcomes(), OutcomeWarning) {
 		return area, OutcomeWarning
 	}
 	return area, OutcomeFailure
@@ -288,8 +287,12 @@ const (
 
 // Tone is how the message looks: red for critical problems and failures,
 // amber for warnings, green for resolved problems and successes, blue
-// for news (updates available).
+// for news (updates available). A resolution is green whatever outcome
+// it was sent with (a failed job's, Alert.SentAs).
 func (d AlertDelivery) Tone() NotificationTone {
+	if d.Event == AlertEventResolved {
+		return ToneSuccess
+	}
 	switch d.Outcome {
 	case OutcomeResolved, OutcomeSuccess:
 		return ToneSuccess

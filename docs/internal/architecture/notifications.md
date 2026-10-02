@@ -55,7 +55,9 @@ A failed scheduled or API token job is sent as the kind of its area
 backup retention, verification and imports (of policies and of Docker
 Manager's own backup) as `backup`, update checks as `updates`;
 `job_failed` holds the rest (in practice jobs API tokens start, such as
-deploys).
+deploys). Such a job's resolution is sent with the outcome its failure
+was sent with (`failure`, or `warning` for `backup`) to the channels
+that were told, never as the area's `success`.
 
 A new channel subscribes to every outcome of every kind. The migration
 `20261001090000_notification_events` turned an old channel's kinds into
@@ -63,7 +65,13 @@ all their outcomes (without `resolved` when it did not send resolved
 problems); a channel that had every old kind also got the new ones.
 `20261002120000_restore_notifications` gave every channel subscribed to
 `backup` the same outcomes of `restore` (those restores have: `failure`,
-`success`; none when it sent only backup warnings).
+`success`; none when it sent only backup warnings), and carried every
+channel's `job_failed` outcomes over to the areas its failed jobs moved
+to: `failure` and `warning` to `backup`, either one to `updates`
+`failure` (updates have no warning); `job_failed` and the channel's
+other outcomes stay, and `resolved` maps to no `success` (that would
+send every successful run). The down migration drops `restore` and
+leaves the carried outcomes (they can't be told from chosen ones).
 
 ## Flows
 

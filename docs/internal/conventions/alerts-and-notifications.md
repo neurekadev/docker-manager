@@ -100,9 +100,13 @@ web `web/src/lib/features/notifications`.
   A failed scheduled or API token job is sent as its area's kind
   (`domain.JobEventKind` through `Alert.SentAs`: backup retention,
   verification and imports as backups, update checks as updates; partly
-  failed or interrupted is a warning only where the area has one, a
-  resolution goes with the area's success); `job_failed` keeps the
-  others, and the alert itself stays `job_failed`. The environment
+  failed or interrupted is a warning only where the area has one; a
+  resolution goes with its failure's outcome, to the told channels that
+  still send it, green and labeled "Resolved", never as the area's
+  success); `job_failed` keeps the others, and the alert itself stays
+  `job_failed`. Moving events to another kind carries channels'
+  subscriptions over in its migration, so no channel silently loses
+  what it was sent (`splitSubscriptions`). The environment
   choice is `all_environments` (every environment, future ones included)
   **or** the rows of `notification_channel_environments`. It is always
   explicit: an empty list is refused unless `allEnvironments` is set, and

@@ -10312,7 +10312,7 @@ export interface components {
              */
             kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "restore" | "prune" | "updates" | "job_failed";
             /**
-             * @description What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backup only), success (a failed job of the area that the next run resolved is sent with success). updates: available, failure, success.
+             * @description What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backup only), success (a failed job of the area that the next run resolved is sent with the outcome of its failure). updates: available, failure, success.
              * @example [
              *       "failure"
              *     ]

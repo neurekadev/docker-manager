@@ -724,8 +724,8 @@ func Label(kind domain.NotificationEventKind, o domain.NotificationOutcome) stri
 }
 
 // deliveryLabel is the status line of a delivery: a resolution says it is
-// resolved, also when it was sent to the channels that send its area's
-// successes (a failed job's, domain.Alert.SentAs).
+// resolved, also when it was sent with its failure's outcome (a failed
+// job of an area, domain.Alert.SentAs).
 func deliveryLabel(d domain.AlertDelivery) string {
 	if d.Event == domain.AlertEventResolved {
 		return Label(d.Kind, domain.OutcomeResolved)

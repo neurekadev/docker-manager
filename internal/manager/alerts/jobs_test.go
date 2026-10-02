@@ -69,19 +69,24 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 }
 
 // A failed job of an area reaches the channels by that area's
-// subscription: failures, warnings where the area has them, and its
-// resolution with the area's successes. Other jobs stay "Other jobs".
+// subscription: failures, and warnings where the area has them; its
+// resolution goes with the outcome its failure was sent with, to the
+// channels that were told. Other jobs stay "Other jobs".
 func TestFailedJobsAreSentByTheirArea(t *testing.T) {
 	f := newFixture(t)
 	failures := f.channelWith("backup failures", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}})
+	successes := f.channelWith("backup successes", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeSuccess}})
 	others := f.channelWith("other jobs", domain.NotificationSubscriptions{domain.NotifyJobFailed: domain.NotifyJobFailed.Outcomes()})
 	f.finish(backupJob(domain.JobFailed, domain.OriginScheduled))
 	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID || got[0].msg.Label != "Backups · Failure" {
-		t.Fatalf("%+v (other jobs %s)", got, others.ID)
+		t.Fatalf("%+v (successes %s, other jobs %s)", got, successes.ID, others.ID)
 	}
-	// Resolved: the channel sends no backup successes, so no message.
+	// Resolved: the channel told about the failure hears it is resolved
+	// (green, without sending backup successes); the others never heard
+	// of it.
 	f.finish(backupJob(domain.JobSucceeded, domain.OriginScheduled))
-	if got := f.dispatch(); len(got) != 0 {
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID || got[0].msg.Label != "Backups · Resolved" ||
+		got[0].msg.Tone != domain.ToneSuccess || !strings.HasPrefix(got[0].msg.Title, "Resolved: ") {
 		t.Fatalf("%+v", got)
 	}
 	// A failed deploy an API token started is one of the other jobs.
@@ -98,11 +103,12 @@ func TestFailedJobsAreSentByTheirArea(t *testing.T) {
 		area               domain.NotificationEventKind
 		firing, resolution domain.NotificationOutcome
 	}{
-		{"backup.retention", domain.AlertWarning, domain.NotifyBackup, domain.OutcomeWarning, domain.OutcomeSuccess},
-		{"manager.verify", domain.AlertCritical, domain.NotifyBackup, domain.OutcomeFailure, domain.OutcomeSuccess},
-		{"update.check", domain.AlertCritical, domain.NotifyUpdates, domain.OutcomeFailure, domain.OutcomeSuccess},
+		// A resolution has its failure's outcome, never the area's success.
+		{"backup.retention", domain.AlertWarning, domain.NotifyBackup, domain.OutcomeWarning, domain.OutcomeWarning},
+		{"manager.verify", domain.AlertCritical, domain.NotifyBackup, domain.OutcomeFailure, domain.OutcomeFailure},
+		{"update.check", domain.AlertCritical, domain.NotifyUpdates, domain.OutcomeFailure, domain.OutcomeFailure},
 		// Image updates have no warning: a partial check is a failure.
-		{"update.check", domain.AlertWarning, domain.NotifyUpdates, domain.OutcomeFailure, domain.OutcomeSuccess},
+		{"update.check", domain.AlertWarning, domain.NotifyUpdates, domain.OutcomeFailure, domain.OutcomeFailure},
 		{"stack.deploy", domain.AlertWarning, domain.NotifyJobFailed, domain.OutcomeWarning, domain.OutcomeResolved},
 		{"stack.deploy", domain.AlertCritical, domain.NotifyJobFailed, domain.OutcomeFailure, domain.OutcomeResolved},
 	} {

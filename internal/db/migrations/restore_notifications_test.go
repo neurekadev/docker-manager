@@ -14,7 +14,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
-func TestRestoreSubscriptionsFollowBackups(t *testing.T) {
+func TestSubscriptionsFollowTheSplit(t *testing.T) {
 	for _, c := range []struct {
 		in, want string
 		changed  bool
@@ -25,10 +25,25 @@ func TestRestoreSubscriptionsFollowBackups(t *testing.T) {
 		{`{"backup":["warning","success"]}`, `{"backup":["warning","success"],"restore":["success"]}`, true},
 		// Warnings only: restores have none, so none.
 		{`{"backup":["warning"]}`, `{"backup":["warning"]}`, false},
-		// No backups: no restores.
+		// No backups and no failed jobs: nothing to add.
 		{`{"prune":["failure"]}`, `{"prune":["failure"]}`, false},
+		// Failed jobs carry over to backups and image updates; job_failed
+		// stays, resolved becomes no success.
+		{`{"job_failed":["failure","warning","resolved"]}`,
+			`{"backup":["failure","warning"],"job_failed":["failure","warning","resolved"],"updates":["failure"]}`, true},
+		// A warning alone is a failure of image updates (they have none).
+		{`{"job_failed":["warning"]}`, `{"backup":["warning"],"job_failed":["warning"],"updates":["failure"]}`, true},
+		// Outcomes a channel has stay, in their kind's order; restores come
+		// from the backup outcomes it had, not from the carried ones.
+		{`{"backup":["success"],"job_failed":["failure"],"updates":["available"]}`,
+			`{"backup":["failure","success"],"job_failed":["failure"],"restore":["success"],"updates":["available","failure"]}`, true},
+		// Resolutions only: nothing to carry over.
+		{`{"job_failed":["resolved"]}`, `{"job_failed":["resolved"]}`, false},
+		// Already there: unchanged.
+		{`{"backup":["failure"],"job_failed":["failure"],"restore":["failure"],"updates":["failure"]}`,
+			`{"backup":["failure"],"job_failed":["failure"],"restore":["failure"],"updates":["failure"]}`, false},
 	} {
-		got, changed, err := restoreSubscriptions(c.in)
+		got, changed, err := splitSubscriptions(c.in)
 		if err != nil || got != c.want || changed != c.changed {
 			t.Errorf("%s: %s %v (%v), want %s", c.in, got, changed, err, c.want)
 		}
@@ -36,7 +51,7 @@ func TestRestoreSubscriptionsFollowBackups(t *testing.T) {
 	if got, changed, err := withoutRestores(`{"backup":["failure"],"restore":["failure"]}`); err != nil || !changed || got != `{"backup":["failure"]}` {
 		t.Errorf("down: %s %v %v", got, changed, err)
 	}
-	if _, _, err := restoreSubscriptions("not json"); err == nil {
+	if _, _, err := splitSubscriptions("not json"); err == nil {
 		t.Error("broken subscriptions accepted")
 	}
 }
@@ -98,6 +113,8 @@ func TestRestoresGetTheirOwnKind(t *testing.T) {
 	}
 	backups := channel("backups", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure, domain.OutcomeWarning}})
 	prunes := channel("prunes", domain.NotificationSubscriptions{domain.NotifyPrune: {domain.OutcomeFailure}})
+	jobs := channel("jobs", domain.NotificationSubscriptions{
+		domain.NotifyJobFailed: {domain.OutcomeFailure, domain.OutcomeWarning, domain.OutcomeResolved}})
 
 	migrateTo(t, db, "", dir)
 	kinds := func(table string) map[string]string {
@@ -133,7 +150,18 @@ func TestRestoresGetTheirOwnKind(t *testing.T) {
 	if err != nil || !slices.Equal(c.Subscriptions[domain.NotifyRestore], []domain.NotificationOutcome{domain.OutcomeFailure}) {
 		t.Fatalf("%+v %v", c.Subscriptions, err)
 	}
-	if c, err := store.GetNotificationChannel(ctx, db, prunes); err != nil || len(c.Subscriptions[domain.NotifyRestore]) != 0 {
+	if c, err := store.GetNotificationChannel(ctx, db, prunes); err != nil || len(c.Subscriptions[domain.NotifyRestore]) != 0 ||
+		len(c.Subscriptions[domain.NotifyBackup]) != 0 {
+		t.Fatalf("%+v %v", c.Subscriptions, err)
+	}
+	// A channel of failed jobs keeps getting the failed jobs now sent as
+	// backups and image updates (never their successful runs).
+	c, err = store.GetNotificationChannel(ctx, db, jobs)
+	if err != nil || !c.Subscriptions.Equal(domain.NotificationSubscriptions{
+		domain.NotifyJobFailed: {domain.OutcomeFailure, domain.OutcomeWarning, domain.OutcomeResolved},
+		domain.NotifyBackup:    {domain.OutcomeFailure, domain.OutcomeWarning},
+		domain.NotifyUpdates:   {domain.OutcomeFailure},
+	}) {
 		t.Fatalf("%+v %v", c.Subscriptions, err)
 	}
 

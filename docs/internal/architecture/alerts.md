@@ -215,9 +215,17 @@ after the commit.
   `updates`, which write no alert messages); every other kind stays
   `job_failed` (in practice jobs API tokens start, such as deploys).
   Firing: failed is `failure`; partly failed or interrupted is `warning`
-  where the area has warnings (`backup`), else `failure`. The resolution
-  goes to the told channels that want the area's `success` (the status
-  line still says "Resolved"). `job_failed` keeps its own outcomes.
+  where the area has warnings (`backup`), else `failure`. The area has
+  no `resolved`: the resolution is sent with the outcome its failure was
+  sent with (from the alert's severity when it resolves), so it reaches
+  the told channels (`resolve`, raise.go) that still send that outcome,
+  checked again by the dispatcher (`Wants`); never the area's `success`,
+  which would need run successes switched on. Its status line says
+  "Resolved" (`deliveryLabel`) and its tone is green (`Tone` of a
+  `resolved` event). `job_failed` keeps its own outcomes. The migration
+  carried every channel's `job_failed` failure and warning over to
+  `backup` (failure, warning) and `updates` (failure), so no channel
+  loses the failed jobs it was sent before.
 - **Updates:** the fingerprint is `service@digest` of every candidate with
   an update available (the UI's `summary.available`), so the alert is sent
   again only when a new digest appears. Its facts are the target (a stack
@@ -300,7 +308,7 @@ Every message follows one convention (#174). The **status line**
 (`Label`) is the kind and outcome as **What to send** names them ("Disk
 health · Critical", "Environment offline · Back online", "Image updates ·
 Applied", "Backups · Success", "Restores · Failure"; a resolution says
-"Resolved", also when it went to the channels of its area's successes:
+"Resolved", also a failed job's sent with its failure's outcome:
 "Backups · Resolved"). The **title** is the alert's or notification's: the subject
 first, then what happened ("Disk /dev/sda is failing", "RAID md0 is
 degraded", "Docker data disk is almost full", "homelab is offline",
@@ -331,7 +339,7 @@ container: its page) with its image digests (`from → to`; an update
 alert: what runs and the newer image). The severity is the status
 line's, not a field. Snapshots keep the links as paths; `buildMessage`
 prefixes the public URL (no links without one). The **tone** follows the
-outcome: critical and failure red, warning amber, resolved and success
+outcome: critical and failure red, warning amber, every resolution and success
 green, available blue. The footer is the instance's name ("Docker
 Manager" without one), the time the message's. `Tag` is the
 name of the one environment the message is about (the delivery's

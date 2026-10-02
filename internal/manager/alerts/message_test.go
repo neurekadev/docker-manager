@@ -396,6 +396,8 @@ func TestTonesFollowTheOutcome(t *testing.T) {
 		{domain.AlertDelivery{Outcome: domain.OutcomeResolved}, domain.ToneSuccess},
 		{domain.AlertDelivery{Outcome: domain.OutcomeSuccess}, domain.ToneSuccess},
 		{domain.AlertDelivery{Outcome: domain.OutcomeAvailable}, domain.ToneInfo},
+		// A failed job's resolution keeps its failure's outcome, but is green.
+		{domain.AlertDelivery{Event: domain.AlertEventResolved, Outcome: domain.OutcomeFailure}, domain.ToneSuccess},
 	} {
 		if got := c.d.Tone(); got != c.want {
 			t.Errorf("%s: %s, want %s", c.d.Outcome, got, c.want)

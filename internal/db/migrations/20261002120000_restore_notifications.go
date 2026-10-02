@@ -90,34 +90,88 @@ func rebuildNotifications(kinds, kindOf, deliveryKindOf string) func(ctx context
 	)
 }
 
-// restoreSubscriptions gives a channel subscribed to backups the same
-// outcomes of restores (those restores have: failure, success); a channel
-// without backups gets no restores. Restores were backups until now.
-func restoreSubscriptions(subsJSON string) (string, bool, error) {
+// kindOutcomes are the outcomes of the kinds this migration adds to, in
+// their display order.
+var kindOutcomes = map[string][]string{
+	"backup":  {"failure", "warning", "success"},
+	"restore": {"failure", "success"},
+	"updates": {"available", "failure", "success"},
+}
+
+// addOutcomes adds outcomes to kind k of subs (kept in k's order, without
+// duplicates) and reports whether anything was added.
+func addOutcomes(subs map[string][]string, k string, add ...string) bool {
+	changed := false
+	for _, o := range add {
+		if !slices.Contains(subs[k], o) {
+			subs[k] = append(subs[k], o)
+			changed = true
+		}
+	}
+	if changed {
+		var ordered []string
+		for _, o := range kindOutcomes[k] {
+			if slices.Contains(subs[k], o) {
+				ordered = append(ordered, o)
+			}
+		}
+		subs[k] = ordered
+	}
+	return changed
+}
+
+// splitSubscriptions keeps what a channel was sent before restores and
+// failed jobs got kinds by area:
+//
+//   - a channel subscribed to backups gets the same outcomes of restores
+//     (those restores have: failure, success), from its backup outcomes
+//     before the next step; restores were backups until now;
+//   - a failed scheduled or API token job of an area (a backup
+//     verification, retention or import; an update check) is now sent as
+//     backups or image updates, no longer as job_failed: a channel's
+//     job_failed failure and warning carry over to backups (failure,
+//     warning) and to image updates (either one: failure, as updates have
+//     no warning). Its other outcomes stay, job_failed stays, and
+//     resolved maps to no success (that would send every successful run).
+func splitSubscriptions(subsJSON string) (string, bool, error) {
 	var subs map[string][]string
 	if err := json.Unmarshal([]byte(subsJSON), &subs); err != nil {
 		return "", false, err
 	}
-	backups, ok := subs["backup"]
-	if !ok {
-		return subsJSON, false, nil
-	}
+	changed := false
 	var restores []string
-	for _, o := range []string{"failure", "success"} {
-		if slices.Contains(backups, o) {
+	for _, o := range kindOutcomes["restore"] {
+		if slices.Contains(subs["backup"], o) {
 			restores = append(restores, o)
 		}
 	}
-	if len(restores) == 0 {
+	if len(restores) > 0 && addOutcomes(subs, "restore", restores...) {
+		changed = true
+	}
+	jobs := subs["job_failed"]
+	var backups []string
+	for _, o := range []string{"failure", "warning"} {
+		if slices.Contains(jobs, o) {
+			backups = append(backups, o)
+		}
+	}
+	if len(backups) > 0 && addOutcomes(subs, "backup", backups...) {
+		changed = true
+	}
+	if len(backups) > 0 && addOutcomes(subs, "updates", "failure") {
+		changed = true
+	}
+	if !changed {
 		return subsJSON, false, nil
 	}
-	subs["restore"] = restores
 	b, err := json.Marshal(subs)
 	return string(b), true, err
 }
 
 // withoutRestores drops a channel's restores (down: they are backups
-// again, which the channel's backup outcomes cover).
+// again, which the channel's backup outcomes cover). The outcomes carried
+// over from job_failed stay: they can't be told from ones the owner
+// chose, and they only send what failed jobs of those areas sent before.
 func withoutRestores(subsJSON string) (string, bool, error) {
 	var subs map[string][]string
 	if err := json.Unmarshal([]byte(subsJSON), &subs); err != nil {
@@ -173,7 +227,10 @@ func init() {
 	// backups: notifications allow kind 'restore' and recorded restores
 	// (job kind restore.run) move to it, with their messages' kind; every
 	// channel subscribed to backups also subscribes to restores, with its
-	// backup outcomes restores have (failure, success).
+	// backup outcomes restores have (failure, success). Failed jobs of an
+	// area are sent as that area's kind, so a channel's job_failed failure
+	// and warning carry over to backups and image updates
+	// (splitSubscriptions).
 	Migrations.MustRegister(
 		Tx(func(ctx context.Context, tx bun.Tx) error {
 			if err := rebuildNotifications(`'backup', 'restore', 'prune', 'updates'`,
@@ -181,7 +238,7 @@ func init() {
 				`CASE WHEN n.job_kind = 'restore.run' THEN 'restore' ELSE d.kind END`)(ctx, tx); err != nil {
 				return err
 			}
-			return rewriteSubscriptions(ctx, tx, restoreSubscriptions)
+			return rewriteSubscriptions(ctx, tx, splitSubscriptions)
 		}),
 		Tx(func(ctx context.Context, tx bun.Tx) error {
 			if err := rebuildNotifications(`'backup', 'prune', 'updates'`,
