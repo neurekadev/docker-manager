@@ -103,12 +103,12 @@ func TestConcurrentTakesStayWithinTheBurst(t *testing.T) {
 func TestFullTableForgetsTheBucketClosestToFull(t *testing.T) {
 	clk := testutil.FakeClock()
 	l := New(Limit{Every: time.Minute, Burst: 3}, clk, 3)
+	l.Take("idle")
+	clk.Advance(time.Minute) // idle is full again
 	for range 3 {
 		l.Take("target") // drained: full again in 3 minutes
 	}
-	l.Take("idle")
-	clk.Advance(time.Minute) // idle is full again
-	l.Take("other")          // full again in 1 minute
+	l.Take("other") // full again in 1 minute
 	if !l.Take("new") {
 		t.Fatal("full table refused a new key")
 	}
