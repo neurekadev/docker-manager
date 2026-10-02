@@ -168,7 +168,19 @@ describe('DiskHealthCard', () => {
 		expect(within(rows[0]).getByText('Reallocated_Sector_Ct')).toBeInTheDocument();
 		expect(within(rows[0]).getByText('Pre-fail')).toBeInTheDocument();
 		expect(within(rows[1]).getByText('36 (Min/Max 20/49)')).toBeInTheDocument();
-		expect(within(rows[1]).getByText('Failed in the past')).toBeInTheDocument();
+		// Marks: OK in green for a pre-fail attribute, a warning for one
+		// that failed in the past (#210).
+		expect(within(rows[0]).getByText('OK').closest('[data-tone]')).toHaveAttribute(
+			'data-tone',
+			'ok'
+		);
+		expect(
+			within(rows[1]).getByText('Failed in the past').closest('[data-tone]')
+		).toHaveAttribute('data-tone', 'warn');
+		expect(within(dialog).getByText('Passed').closest('[data-tone]')).toHaveAttribute(
+			'data-tone',
+			'ok'
+		);
 		const values = within(dialog).getByRole('table', { name: 'Health values of /dev/sda' });
 		expect(within(values).getByText('Power cycles')).toBeInTheDocument();
 		expect(within(values).getByText('41')).toBeInTheDocument();

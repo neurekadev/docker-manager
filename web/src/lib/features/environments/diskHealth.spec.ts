@@ -6,7 +6,7 @@ import {
 	arrayName,
 	attributeName,
 	attributeRaw,
-	attributeStatus,
+	attributeCheck,
 	attributeType,
 	canCheckDisks,
 	checkedToast,
@@ -34,11 +34,12 @@ import {
 	raidLayout,
 	raidLevel,
 	raidProgress,
-	selfAssessment,
+	selfAssessmentCheck,
 	showRaidCard,
 	sortArrays,
 	sortDisks,
 	sortMembers,
+	valueCheck,
 	type DiskDevice,
 	type DiskHealth,
 	type RaidArray,
@@ -447,12 +448,68 @@ describe('details (#206)', () => {
 		expect(attributeRaw({ id: 1, name: 'X' })).toBe('—');
 		expect(attributeType({ ...a, prefailure: true })).toBe('Pre-fail');
 		expect(attributeType(a)).toBe('Old age');
-		expect(attributeStatus({ ...a, whenFailed: 'now' }).label).toBe('Failing now');
-		expect(attributeStatus({ ...a, whenFailed: 'past' }).label).toBe('Failed in the past');
-		expect(attributeStatus(a).label).toBe('OK');
-		expect(selfAssessment(disk({ passed: true }))).toBe('Passed');
-		expect(selfAssessment(disk({ passed: false }))).toBe('Failed');
-		expect(selfAssessment(disk())).toBe('');
+	});
+
+	it('marks each health-relevant value OK, warning or danger, as the agent judges it (#210)', () => {
+		const temp = { id: 194, name: 'Temperature_Celsius', raw: 36, threshold: 0 };
+		// Information only: old age without a threshold.
+		expect(attributeCheck(temp)).toBeNull();
+		expect(attributeCheck({ ...temp, whenFailed: 'past' })).toEqual({
+			tone: 'warn',
+			label: 'Failed in the past'
+		});
+		expect(attributeCheck({ id: 5, name: 'Reallocated_Sector_Ct', whenFailed: 'now' })).toEqual(
+			{
+				tone: 'danger',
+				label: 'Failing now'
+			}
+		);
+		expect(attributeCheck({ id: 5, name: 'Reallocated_Sector_Ct', raw: 8 })).toEqual({
+			tone: 'warn',
+			label: '8 reallocated sectors'
+		});
+		expect(attributeCheck({ id: 197, name: 'Current_Pending_Sector', raw: 1 })?.label).toBe(
+			'1 pending sector'
+		);
+		expect(attributeCheck({ id: 197, name: 'Current_Pending_Sector', raw: 0 })).toEqual({
+			tone: 'ok',
+			label: 'OK'
+		});
+		expect(attributeCheck({ id: 1, name: 'Raw_Read_Error_Rate', prefailure: true })?.tone).toBe(
+			'ok'
+		);
+		expect(attributeCheck({ id: 10, name: 'Spin_Retry_Count', threshold: 97 })?.tone).toBe(
+			'ok'
+		);
+
+		expect(selfAssessmentCheck(disk({ passed: true }))).toEqual({
+			tone: 'ok',
+			label: 'Passed'
+		});
+		expect(selfAssessmentCheck(disk({ passed: false }))).toEqual({
+			tone: 'danger',
+			label: 'Failed'
+		});
+		expect(selfAssessmentCheck(disk({ passed: false, criticalWarning: 2 }))?.tone).toBe('warn');
+		expect(selfAssessmentCheck(disk())).toBeNull();
+
+		const nvme = disk({ protocol: 'nvme', availableSpareThreshold: 10 });
+		const check = (key: string, value: number, d = nvme) => valueCheck({ key, value }, d);
+		expect(check('critical_warning', 0)?.tone).toBe('ok');
+		expect(check('critical_warning', 2)).toEqual({ tone: 'warn', label: 'Too hot' });
+		expect(check('critical_warning', 4)).toEqual({ tone: 'danger', label: 'Critical' });
+		expect(check('available_spare', 100)?.tone).toBe('ok');
+		expect(check('available_spare', 5)).toEqual({ tone: 'warn', label: 'Below the minimum' });
+		expect(check('available_spare', 5, disk())).toBeNull();
+		expect(check('percentage_used', 89)?.tone).toBe('ok');
+		expect(check('percentage_used', 90)).toEqual({ tone: 'warn', label: 'Worn' });
+		expect(check('media_errors', 0)?.tone).toBe('ok');
+		expect(check('media_errors', 3)?.tone).toBe('warn');
+		expect(check('read.total_uncorrected_errors', 1)?.tone).toBe('warn');
+		expect(check('verify.total_uncorrected_errors', 0)?.tone).toBe('ok');
+		// Information only.
+		for (const key of ['data_units_written', 'power_cycles', 'power_on_hours', 'temperature'])
+			expect(check(key, 5)).toBeNull();
 	});
 
 	it('labels and formats the other health values', () => {
