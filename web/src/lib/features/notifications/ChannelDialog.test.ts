@@ -5,7 +5,7 @@
 // "What to send" is a grid: a checkbox per kind of event (mixed while some
 // of its outcomes are ticked) and one per outcome.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
@@ -111,10 +111,17 @@ describe('ChannelDialog (#142)', () => {
 			'Other jobs: Resolved'
 		])
 			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
-		// A row whose label does not say all it covers explains it.
+		// A row whose label does not say all it covers explains it in an (i).
+		const others = screen
+			.getByRole('checkbox', { name: 'Other jobs' })
+			.closest('.event-kind') as HTMLElement;
 		expect(
-			screen.getByRole('checkbox', { name: 'Other jobs' }).closest('.event-kind')
-		).toHaveAttribute('title', expect.stringMatching(/schedule or an API token/));
+			within(others).getByRole('img', { name: /an API token started/ })
+		).toBeInTheDocument();
+		const prune = screen
+			.getByRole('checkbox', { name: 'Prune' })
+			.closest('.event-kind') as HTMLElement;
+		expect(within(prune).queryByRole('img')).toBeNull();
 		// Each kind leads with its icon (decorative); its outcomes have none.
 		expect(
 			screen.getByRole('checkbox', { name: 'RAID' }).closest('label')?.querySelector('svg')
