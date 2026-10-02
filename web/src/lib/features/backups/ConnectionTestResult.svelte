@@ -11,6 +11,8 @@
 		access_denied: 'The storage refused the credentials.',
 		bucket_not_found: 'The bucket does not exist at this endpoint.',
 		unreachable: 'The storage could not be reached.',
+		address_not_allowed:
+			'Docker Manager does not connect to this address (loopback, link-local or multicast).',
 		path_not_allowed:
 			'The host does not allow backups in this directory. Its administrator allows backup folders in the host’s settings (see Configuration in the documentation).',
 		path_not_writable: 'Docker Manager cannot write to the directory.',

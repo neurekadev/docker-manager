@@ -4107,7 +4107,7 @@ export interface paths {
         };
         /**
          * List a directory of the stack's project directory
-         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. limits are the file manager limits of this root (edit, upload, download, extraction). Path encoding and limits: docs/internal/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. limits are the file manager limits of this root (edit, upload, download, extraction). Path encoding and limits: docs/internal/api/files.md. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         get: operations["list-stack-files"];
         put?: never;
@@ -4129,7 +4129,7 @@ export interface paths {
         put?: never;
         /**
          * Create an archive in the stack's project directory
-         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["create-stack-file-archive"];
         delete?: never;
@@ -4167,12 +4167,12 @@ export interface paths {
         };
         /**
          * Read a file of the stack's project directory
-         * @description At most the root's edit limit (limits.editMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_EDIT_KB, 512 KiB by default) of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description At most the root's edit limit (limits.editMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_EDIT_KB, 512 KiB by default) of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         get: operations["get-stack-file-content"];
         /**
          * Save a file of the stack's project directory
-         * @description Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Content over the root's edit limit: 413. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Content over the root's edit limit: 413. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         put: operations["replace-stack-file-content"];
         post?: never;
@@ -4193,7 +4193,7 @@ export interface paths {
         put?: never;
         /**
          * Copy files in the stack's project directory
-         * @description Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["create-stack-file-copy"];
         delete?: never;
@@ -4213,7 +4213,7 @@ export interface paths {
         put?: never;
         /**
          * Delete files in the stack's project directory
-         * @description Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["create-stack-file-deletion"];
         delete?: never;
@@ -4231,7 +4231,7 @@ export interface paths {
         };
         /**
          * Download files of the stack's project directory
-         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/internal/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/internal/api/streams.md. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         get: operations["download-stack-files"];
         put?: never;
@@ -4253,7 +4253,7 @@ export interface paths {
         put?: never;
         /**
          * Create a file or directory in the stack's project directory
-         * @description Creates an empty directory or a new file (optional initial content up to the root's edit limit). 409 file_exists when the name exists. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Creates an empty directory or a new file (optional initial content up to the root's edit limit). 409 file_exists when the name exists. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["create-stack-file-entry"];
         delete?: never;
@@ -4273,7 +4273,7 @@ export interface paths {
         put?: never;
         /**
          * Extract an archive in the stack's project directory
-         * @description Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (the root's limits.extractMaxBytes and extractMaxRatio times the archive size, 10 GiB and 100x by default) as well as the entry count (archiveMaxEntries, 100 000 by default). Nested archives are not extracted. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (the root's limits.extractMaxBytes and extractMaxRatio times the archive size, 10 GiB and 100x by default) as well as the entry count (archiveMaxEntries, 100 000 by default). Nested archives are not extracted. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["create-stack-file-extraction"];
         delete?: never;
@@ -4297,7 +4297,7 @@ export interface paths {
         head?: never;
         /**
          * Change permissions or ownership in the stack's project directory
-         * @description Starts a files.metadata job (202 + job): chmod (needs stack.files.chmod) and/or chown (needs stack.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.metadata job (202 + job): chmod (needs stack.files.chmod) and/or chown (needs stack.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         patch: operations["update-stack-file-metadata"];
         trace?: never;
@@ -4313,7 +4313,7 @@ export interface paths {
         put?: never;
         /**
          * Move or rename files in the stack's project directory
-         * @description Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["create-stack-file-move"];
         delete?: never;
@@ -4333,7 +4333,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a file into the stack's project directory
-         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most the root's upload limit (limits.uploadMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most the root's upload limit (limits.uploadMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413). One request per file; upload an archive and extract it for many files. The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs stack.definition.read and every change stack.definition.write.
          */
         post: operations["upload-stack-files"];
         delete?: never;

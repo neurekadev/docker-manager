@@ -5,7 +5,8 @@
 // Docker Manager's own volumes are refused), plus the session wiring: the
 // files.* requests, the files.download/files.upload streams and the files.*
 // job executors. Containment and the operations themselves are described
-// in internal/fsroot.
+// in internal/fsroot; stack scopes follow no symlink at all
+// (fsroot.Options.NoFollow).
 //
 // File contents and names are never logged.
 package files
@@ -62,6 +63,10 @@ func New(o Options) *Service {
 	s.Service = fsroot.New(fsroot.Options{
 		Resolve: s.resolve, Clock: o.Clock, Logger: o.Logger, Limits: o.Limits,
 		Kinds: fsroot.AgentKinds, Invalidate: o.Invalidate,
+		// No symlink is followed in a stack's project directory: an in-root
+		// link would give a Compose source a second name and bypass the
+		// manager's stack.definition.* checks (protocol.FeatureStackFilesNoFollow).
+		NoFollow: []string{protocol.ScopeStack},
 	})
 	return s
 }

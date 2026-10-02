@@ -6,7 +6,7 @@ exist under every root:
 
 | root | prefix | capabilities |
 | --- | --- | --- |
-| stack project directory | `/api/v1/stacks/{stackId}/files` | `stack.files.*` (+ `stack.definition.*` for Compose sources) |
+| stack project directory | `/api/v1/stacks/{stackId}/files` | `stack.files.*` (+ `stack.definition.*` for definition files) |
 | volume | `/api/v1/environments/{environmentId}/volumes/{volumeId}/files` | `volume.files.*` |
 | template draft | `/api/v1/templates/{templateId}/files` | `template.files.*` |
 
@@ -52,9 +52,16 @@ Agent side: [agent-v1.md](../protocol/agent-v1.md#scoped-files-15).
   `422 validation_failed` with the field (`query.path`, `body.paths[2]`, …).
 - New names (entries, uploads) are one path component of at most 255 bytes.
 - Responses carry root-relative paths only, never host paths.
-- Symlinks inside the root are followed; symlinks whose target is absolute or
-  leaves the root are listed (`linkTarget`, `linkStatus: outside`) but never
-  followed: reading or listing through them is `422` on the path.
+- In volumes and template drafts symlinks inside the root are followed;
+  symlinks whose target is absolute or leaves the root are listed
+  (`linkTarget`, `linkStatus: outside`) but never followed: reading or
+  listing through them is `422` on the path.
+- In a stack's project directory no symlink is followed at all (agents
+  announcing `files.stack_no_follow`, see
+  [definition files](#stacks-definition-files)): a path through a symlinked
+  directory is `422` (`forbidden_path`), and a symlink itself is listed,
+  inspected, renamed, copied (as a link) and deleted, but its target is
+  never read or written through it.
 
 ## Entries and revisions
 
@@ -184,18 +191,37 @@ Job failures (per item or for the whole job) carry the agent's code in the
 item message or the job error (`too_large`, `forbidden_path`,
 `unsupported_file`, …).
 
-## Stacks: Compose sources
+## Stacks: definition files
 
+A stack's **definition files** (`api.FileRoot.IsDefinition`) are
 `compose.yaml` / `compose.yml`, `docker-compose.y(a)ml`, override files
-(`compose.<name>.yaml`) and `.env` **at the project root** are the stack's
-Compose sources. They may hold secrets (#25: no stack secret store) and the
-on-disk files are authoritative (#7):
+(`compose.<name>.yaml`) and `.env` **at the project root** (also before the
+stack declares them), plus every file the stack declares wherever it is:
+the files of its newest observed revision, every Compose file (`-f`, e.g.
+`deploy/compose.prod.yml`) and every service `env_file` (e.g.
+`config/app.env`), project-relative and cleaned
+(`stacks.DefinitionPaths`, carried as `api.FileRoot.Definition`; paths
+outside the project directory are left out). They may hold secrets (#25:
+no stack secret store), writing them chooses what runs, and the on-disk
+files are authoritative (#7). Every path an operation touches is checked,
+directories by what they hold (`api.FileRoot.HoldsDefinition`: the root
+always holds them):
 
-- reading them (content, download, copy, archive, or a download/archive of
-  the whole root) additionally needs `stack.definition.read`;
-- changing them (save, create, upload over them, delete, move, move or copy
-  a Compose name into the root, extract into the root, chmod/chown) needs
+- reading them (content, raw download, the source of a copy, archive or
+  download of a directory holding one, the archive of an extraction)
+  additionally needs `stack.definition.read`;
+- changing them (save, create, upload onto one, delete or move of one or
+  of a directory holding one, a copy, move or extraction whose destination
+  is or holds one, an archive created onto one, chmod/chown of one or a
+  recursive one of a directory holding one) needs
   `stack.definition.write`;
+- listings and conflict previews (names and metadata only) need neither;
+- agents without `files.stack_no_follow`
+  (`protocol.FeatureStackFilesNoFollow`) follow in-root symlinks, so any
+  path may name a definition file: for their stacks every content read
+  (content, download, copy, archive, extraction) needs
+  `stack.definition.read` and every change `stack.definition.write`
+  (`api.FileRoot.NoFollow`);
 - a save or a new file with content (`PUT .../content`, `POST .../entries`)
   is validated first with the rest of the definition on disk
   (`files.SourceValidator`, #7): when the definition would no longer load,
@@ -205,7 +231,8 @@ on-disk files are authoritative (#7):
 - every change Docker Manager makes to them is reported to the stack service
   (`files.SourceObserver`, #7), which records a revision and marks
   undeployed changes; nothing is deployed automatically. Job-based changes
-  are reported when the job finished.
+  (a job whose sources or destination are or hold one) are reported when
+  the job finished.
 
 Until the stack service (#7) installs its stack roots
 (`app.Manager.Files().SetStacks`), stack routes answer 404.
@@ -229,6 +256,13 @@ state), so a file grant can never reach Docker Manager's database or credentials
   followed only while they stay inside, absolute and escaping targets fail.
   A directory swapped for a symlink between a check and its use (TOCTOU)
   cannot redirect an operation outside.
+- Stack scopes follow no symlink at all (`fsroot.Options.NoFollow`): paths
+  are walked one component at a time through opened handles (`Lstat` in
+  the parent, the opened directory confirmed with `os.SameFile`), a
+  symlink on the way is refused, and a final symlink is never opened for
+  content. An in-root link would otherwise give a definition file a second
+  name (`d -> .` makes `d/.env` the stack's `.env`) and bypass the checks
+  above, which go by path.
 - Recursive operations (delete, copy, chmod/chown, archives, previews) never
   follow symlinks; a directory is descended only through a handle confirmed
   to be the directory that was checked.
@@ -243,7 +277,9 @@ state), so a file grant can never reach Docker Manager's database or credentials
 - chmod/chown go through the opened file (`fchmod`/`fchown`); special bits
   (setuid, setgid, sticky) cannot be set; special files are refused.
 - Archives: members named `../…`, `/…`, `..\…`, `C:\…` or `C:/…` are
-  refused, as are symlinks leaving the root, anything below a refused link,
+  refused, as are symlinks whose target, resolved from where the link
+  lands (destination plus member name), leaves the root, anything below a
+  refused link (in stack scopes also anything below an extracted link),
   hard links to files outside the archive (allowed ones are extracted as
   copies), devices and FIFOs; permission bits only (no setuid); at most
   `archiveMaxEntries` entries (default 100 000); bytes actually written are
@@ -262,7 +298,11 @@ rename (the ETag check then compares against the state just before); bind
 mounts inside a volume are traversed like directories (`os.Root` does not
 stop at mount points); on Linux `os.Root` uses a per-component `openat`
 walk rather than `openat2(RESOLVE_BENEATH)`; job records of file jobs list
-the paths they touched to everyone allowed to read those jobs.
+the paths they touched to everyone allowed to read those jobs; in stack
+scopes a move checks its source and destination directories without
+following links, but the rename itself addresses both by path (`os.Root`
+has no rename between two directory handles), so a directory swapped for
+an in-root symlink by another process in between is followed.
 
 ## UI (#22, #23)
 

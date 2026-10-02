@@ -46,7 +46,11 @@ its TLS trust), `internal/agent/runtime` (control loop). Protocol:
   origin (`config.ParseRedirectURL`) and a higher generation, writes both
   with `state.Store.SaveManagerRedirect` before answering, swaps the
   runtime's transport and ends the session with 1001; the session asks
-  `session.Options.Target` before every dial. Plain http without
+  `session.Options.Target` before every dial. At the generation the agent
+  already follows it accepts only an https origin or the configured origin
+  (which forgets the redirect; `state.Store.ReplaceManagerRedirect`,
+  announced as `protocol.FeatureManagerRedirectSecure`): never let a
+  redirect at the current generation downgrade to plain http. Plain http without
   `DOCKER_AGENT_MANAGER_ALLOW_HTTP` exists only through
   `transport.NewRedirected` (the persisted redirect address); every other
   manager URL goes through `config.ParseManagerURL`. Enrollment uses the

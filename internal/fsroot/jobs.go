@@ -116,12 +116,22 @@ func (s *Service) jobDelete(ctx context.Context, sc *jobexec.StepContext) error 
 			it.add(p, domain.ItemFailed, "the scope root cannot be deleted")
 			continue
 		}
-		if _, err := r.root.Lstat(p); errors.Is(err, fs.ErrNotExist) {
+		// In NoFollow scopes the entry is removed through its parent's
+		// handle, reached without following symlinks.
+		dir, name, done, err := r.at(p)
+		if err != nil {
+			it.add(p, domain.ItemFailed, codeOf(err))
+			continue
+		}
+		if _, err := dir.Lstat(name); errors.Is(err, fs.ErrNotExist) {
+			done()
 			it.add(p, domain.ItemSkipped, "does not exist")
 			continue
 		}
 		// RemoveAll inside the root unlinks symlinks, never their targets.
-		if err := r.root.RemoveAll(p); err != nil {
+		err = dir.RemoveAll(name)
+		done()
+		if err != nil {
 			it.add(p, domain.ItemFailed, codeOf(classify(err, p)))
 			continue
 		}
@@ -149,7 +159,18 @@ func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string
 	if strings.HasPrefix(destDir+"/", src+"/") {
 		return "", false, false, fail(protocol.CodeConflict, "cannot copy or move a directory into itself")
 	}
-	fi, err := r.root.Lstat(dest)
+	// The source is addressed by path: in NoFollow scopes no directory on
+	// its way may be a symlink (the source itself moves or copies as a
+	// link).
+	if err := r.checkPath(src, false); err != nil {
+		return "", false, false, err
+	}
+	dir, err := r.openDir(destDir, false)
+	if err != nil {
+		return "", false, false, err
+	}
+	defer func() { _ = dir.Close() }()
+	fi, err := dir.Lstat(name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return dest, false, false, nil
 	}
@@ -162,16 +183,23 @@ func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string
 	case protocol.ConflictOverwrite:
 		return dest, false, true, nil
 	case protocol.ConflictKeepBoth:
-		dir, err := r.root.OpenRoot(destDir)
-		if err != nil {
-			return "", false, false, classify(err, destDir)
-		}
-		defer func() { _ = dir.Close() }()
 		n, err := freeName(dir, name)
 		return join(destDir, n), false, false, err
 	}
 	_ = fi
 	return "", false, false, fail(protocol.CodeAlreadyExists, "%s already exists", dest)
+}
+
+// isDir reports whether rel is a directory (in NoFollow scopes reached
+// without following symlinks; elsewhere a symlink to a directory inside
+// the root counts).
+func (s *Service) isDir(r *scopeRoot, rel string) bool {
+	d, err := r.openDir(rel, false)
+	if err != nil {
+		return false
+	}
+	_ = d.Close()
+	return true
 }
 
 func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
@@ -188,7 +216,7 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 		return errMessage(err)
 	}
 	defer r.Close()
-	if fi, err := r.root.Stat(destDir); err != nil || !fi.IsDir() {
+	if !s.isDir(r, destDir) {
 		return errors.New("the destination is not a directory")
 	}
 	it := &items{sc: sc, ctx: ctx}
@@ -215,6 +243,8 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 			}
 		}
 		// Rename works on the entry itself: a symlink moves as a symlink.
+		// (Both paths were checked above; os.Root has no rename between
+		// two directory handles.)
 		if err := r.root.Rename(src, dest); err != nil {
 			it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
 			continue
@@ -241,7 +271,7 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 		return errMessage(err)
 	}
 	defer r.Close()
-	if fi, err := r.root.Stat(destDir); err != nil || !fi.IsDir() {
+	if !s.isDir(r, destDir) {
 		return errors.New("the destination is not a directory")
 	}
 	it := &items{sc: sc, ctx: ctx}
@@ -269,7 +299,7 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			}
 		}
 		failed := 0
-		err = walk(ctx, r.root, src, true, budget, func(rel string, fi fs.FileInfo) error {
+		err = walk(ctx, r, src, true, budget, func(rel string, fi fs.FileInfo) error {
 			budget--
 			to := dest
 			if rel != src {
@@ -305,17 +335,20 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 // are refused.
 func (s *Service) copyEntry(ctx context.Context, r *scopeRoot, from, to string, fi fs.FileInfo) error {
 	switch typeOf(fi.Mode()) {
-	case protocol.FileTypeDir:
-		if err := r.root.Mkdir(to, fi.Mode().Perm()); err != nil {
-			return classify(err, to)
+	case protocol.FileTypeDir, protocol.FileTypeSymlink:
+		dir, name, done, err := r.at(to)
+		if err != nil {
+			return err
 		}
-		return nil
-	case protocol.FileTypeSymlink:
+		defer done()
+		if fi.IsDir() {
+			return classify(dir.Mkdir(name, fi.Mode().Perm()), to)
+		}
 		target, err := r.root.Readlink(from)
 		if err != nil {
 			return classify(err, from)
 		}
-		return classify(r.root.Symlink(target, to), to)
+		return classify(dir.Symlink(target, name), to)
 	case protocol.FileTypeFile:
 		f, ofi, err := openChecked(r.root, from, fi, os.O_RDONLY)
 		if err != nil {
@@ -450,7 +483,7 @@ func (s *Service) jobMetadata(ctx context.Context, sc *jobexec.StepContext) erro
 	for i, p := range paths {
 		sc.Progress(ctx, i*100/len(paths), "")
 		failed := 0
-		err := walk(ctx, r.root, p, in.Recursive, s.limits.MaxWalk, func(rel string, fi fs.FileInfo) error {
+		err := walk(ctx, r, p, in.Recursive, s.limits.MaxWalk, func(rel string, fi fs.FileInfo) error {
 			if err := s.applyMetadata(r, rel, fi, in.Chmod, in.Chown); err != nil {
 				failed++
 				it.add(rel, domain.ItemFailed, codeOf(err))

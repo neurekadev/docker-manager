@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,17 +41,19 @@ type Result struct {
 	CanDelete  *bool
 	ObjectLock *bool
 	// Class is "" when every capability works, otherwise the first failure:
-	// access_denied, bucket_not_found, unreachable, invalid_response.
+	// access_denied, bucket_not_found, unreachable, address_not_allowed,
+	// invalid_response.
 	Class   string
 	Message string
 }
 
 // Probe writes, reads and deletes a random object below the prefix and
 // reads the bucket's Object Lock configuration. Messages never contain the
-// credentials.
+// credentials. A nil client is NewClient's, which refuses loopback,
+// link-local, unspecified and multicast addresses.
 func Probe(ctx context.Context, client *http.Client, t Target, now func() time.Time) Result {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = NewClient(30 * time.Second)
 	}
 	if now == nil {
 		now = time.Now
@@ -103,7 +106,7 @@ func Probe(ctx context.Context, client *http.Client, t Target, now func() time.T
 // on success, otherwise one of Probe's classes.
 func ListDirs(ctx context.Context, client *http.Client, t Target, now func() time.Time) ([]string, string) {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = NewClient(30 * time.Second)
 	}
 	if now == nil {
 		now = time.Now
@@ -140,6 +143,8 @@ func boolPtr(b bool) *bool { return &b }
 
 func classify(status int, err error) string {
 	switch {
+	case errors.Is(err, ErrAddressNotAllowed):
+		return ClassAddressNotAllowed
 	case err != nil:
 		return "unreachable"
 	case status/100 == 2:
@@ -153,6 +158,9 @@ func classify(status int, err error) string {
 }
 
 func message(op string, status int, err error) string {
+	if errors.Is(err, ErrAddressNotAllowed) {
+		return op + ": " + ErrAddressNotAllowed.Error()
+	}
 	if err != nil {
 		return op + ": the endpoint could not be reached"
 	}

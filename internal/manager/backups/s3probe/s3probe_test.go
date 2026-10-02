@@ -1,6 +1,7 @@
 package s3probe_test
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,27 @@ func TestProbeCapabilitiesAndObjectLock(t *testing.T) {
 	}
 	gone := target
 	gone.Endpoint = "http://127.0.0.1:1"
-	if r := s3probe.Probe(testutil.Context(t), nil, gone, now); r.Class != "unreachable" {
+	if r := s3probe.Probe(testutil.Context(t), &http.Client{}, gone, now); r.Class != "unreachable" {
 		t.Errorf("unreachable: %+v", r)
+	}
+}
+
+// TestProbeRefusesLoopbackByDefault: without a client of its own, the probe
+// never connects to a loopback endpoint (the fake listens on 127.0.0.1) and
+// says so, instead of reporting reachability or an HTTP status.
+func TestProbeRefusesLoopbackByDefault(t *testing.T) {
+	fake := s3probetest.New(t, "AKIATEST000000000000", "backups")
+	now := func() time.Time { return time.Date(2026, 9, 25, 2, 0, 0, 0, time.UTC) }
+	target := s3probe.Target{Endpoint: fake.URL, Bucket: "backups", PathStyle: true, AccessKeyID: "AKIATEST000000000000", SecretAccessKey: "x"}
+
+	r := s3probe.Probe(testutil.Context(t), nil, target, now)
+	if r.Class != s3probe.ClassAddressNotAllowed || r.Message != "write: this address is not allowed" || *r.CanWrite {
+		t.Errorf("result = %+v", r)
+	}
+	if dirs, class := s3probe.ListDirs(testutil.Context(t), nil, target, now); class != s3probe.ClassAddressNotAllowed || dirs != nil {
+		t.Errorf("list = %v, %q", dirs, class)
+	}
+	if len(fake.Requests) != 0 {
+		t.Errorf("the refused endpoint got requests: %v", fake.Requests)
 	}
 }

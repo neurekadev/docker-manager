@@ -495,8 +495,8 @@ compose_project_exists`: import it instead).
 | Capability | Opens |
 | --- | --- |
 | `stack.read` | the stack in full: status, revisions refs, images, Engine state, services (containers minimal unless `container.details.read`), image status, events |
-| `stack.definition.read` | revisions with contents, bind sources (they come from the definition) |
-| `stack.definition.write` | revision restores, validation of the definition on disk (`POST /stacks/{id}/validations`) |
+| `stack.definition.read` | revisions with contents, bind sources (they come from the definition), reading the definition files in the file manager |
+| `stack.definition.write` | revision restores, validation of the definition on disk (`POST /stacks/{id}/validations`), changing the definition files in the file manager |
 | `stack.create`, `stack.import` | creation/validation, discovery/import in an environment |
 | `stack.manage` | display metadata (never written to Compose files) |
 | `stack.deploy`, `stack.start/stop/restart/down`, `stack.remove` | the jobs |
@@ -542,7 +542,10 @@ but not deployed is operated as deployed.
 - **#15 file manager** (wired in `app`: `Files().SetStacks(stacks,
   stacks)`): `StackFileRoot` resolves a stack scope to its absolute project
   directory (the stacks volume path the agent reported in its capabilities,
-  or the registered root); `StackSourcesChanged` records a `file_manager`
+  or the registered root) with the stack's definition files
+  (`DefinitionPaths`: observed revision, creation names, every Compose and
+  env file, clean and project-relative), which the file manager guards
+  with `stack.definition.*` wherever they are; `StackSourcesChanged` records a `file_manager`
   revision in the background after a save of a definition file (never
   deploys). `Root`, `IsDefinitionFile` and `RecordFileSave` remain for
   callers that need the definition file list. `app.Manager.Stacks()`

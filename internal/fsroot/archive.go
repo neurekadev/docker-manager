@@ -61,16 +61,19 @@ func entryName(raw string) (string, bool) {
 	return rel, true
 }
 
-// linkTargetInside reports whether a symlink target stored at name
-// resolves inside the root (relative, not climbing out).
-func linkTargetInside(name, target string) bool {
+// linkTargetInside reports whether a symlink target stored at the
+// root-relative path at resolves inside the root (relative, not climbing
+// out). at is where the link lands: for an extraction the destination
+// directory joined with the member name, so a link is judged from its
+// final location, not from the archive's top.
+func linkTargetInside(at, target string) bool {
 	if target == "" || strings.HasPrefix(target, "/") || strings.ContainsAny(target, "\\\x00") {
 		return false
 	}
 	if first, _, _ := strings.Cut(target, "/"); len(first) == 2 && first[1] == ':' {
 		return false
 	}
-	j := path.Join(path.Dir(name), target)
+	j := path.Join(path.Dir(at), target)
 	return j != ".." && !strings.HasPrefix(j, "../")
 }
 
@@ -89,7 +92,7 @@ const typeHardlink = "hardlink"
 
 // scanArchive calls fn for every member of the archive at rel, in order.
 func (s *Service) scanArchive(ctx context.Context, r *scopeRoot, lim Limits, rel string, fn func(archiveEntry) error) error {
-	f, fi, err := openRegular(r.root, rel)
+	f, fi, err := openRegular(r, rel)
 	if err != nil {
 		return err
 	}
@@ -220,6 +223,9 @@ type extractReport func(name, status, message string)
 // bytes written, expansion ratio) stop the whole extraction with
 // too_large. The conflict policy applies per entry.
 func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archiveRel, destRel, policy string, report extractReport) ([]string, error) {
+	if err := r.checkPath(archiveRel, true); err != nil {
+		return nil, err
+	}
 	st, err := r.root.Lstat(archiveRel)
 	if err != nil {
 		return nil, classify(err, archiveRel)
@@ -227,8 +233,8 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archive
 	limit := max(lim.ExtractRatioFloor, st.Size()*lim.MaxExtractRatio)
 	limit = min(limit, lim.MaxExtractBytes)
 	b := &budget{left: limit, max: limit}
-	if err := r.root.MkdirAll(destRel, 0o755); err != nil {
-		return nil, classify(err, destRel)
+	if err := r.mkdirAll(destRel); err != nil {
+		return nil, err
 	}
 	// Regular files this extraction wrote (hard link targets).
 	written := map[string]string{}
@@ -255,12 +261,12 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archive
 		dest := join(destRel, e.name)
 		switch e.typ {
 		case protocol.FileTypeDir:
-			if err := r.root.MkdirAll(dest, 0o755); err != nil {
-				report(e.name, "failed", codeOf(classify(err, e.name)))
+			if err := r.mkdirAll(dest); err != nil {
+				report(e.name, "failed", codeOf(err))
 			}
 			return nil
 		case protocol.FileTypeSymlink:
-			if !linkTargetInside(e.name, e.link) {
+			if !linkTargetInside(dest, e.link) {
 				refused[e.name] = true
 				report(e.name, "skipped", "refused: symlink target leaves the root")
 				return nil
@@ -278,8 +284,8 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archive
 			report(e.name, "skipped", "refused: special file")
 			return nil
 		}
-		if err := r.root.MkdirAll(path.Dir(dest), 0o755); err != nil {
-			report(e.name, "failed", codeOf(classify(err, e.name)))
+		if err := r.mkdirAll(path.Dir(dest)); err != nil {
+			report(e.name, "failed", codeOf(err))
 			return nil
 		}
 		t, err := openTarget(r, dest)
@@ -317,7 +323,7 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archive
 			// Extracted as a copy of the earlier member (a hard link would
 			// give both names two links, and their content is not served).
 			tn, _ := entryName(e.link)
-			hf, _, err := openRegular(r.root, written[tn])
+			hf, _, err := openRegular(r, written[tn])
 			if err != nil {
 				report(e.name, "failed", codeOf(err))
 				return nil
@@ -539,7 +545,7 @@ func (s *Service) writeArchive(ctx context.Context, r *scopeRoot, lim Limits, pa
 		if p != "." {
 			prefix = path.Base(p)
 		}
-		err := walk(ctx, r.root, p, true, s.limits.MaxWalk, func(rel string, fi fs.FileInfo) error {
+		err := walk(ctx, r, p, true, s.limits.MaxWalk, func(rel string, fi fs.FileInfo) error {
 			if rel == skip {
 				return nil
 			}

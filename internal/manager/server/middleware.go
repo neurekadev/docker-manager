@@ -127,8 +127,15 @@ func recoverPanics(next http.Handler) http.Handler {
 	})
 }
 
-// securityHeaders sets the baseline browser hardening headers.
-func securityHeaders(csp string, next http.Handler) http.Handler {
+// HSTSHeader is sent over HTTPS when the public URL is https: browsers then
+// refuse plain http to the manager's host for a year, so a network
+// attacker cannot downgrade a later visit (the session cookie is Secure
+// anyway; this protects the sign-in page itself).
+const HSTSHeader = "max-age=31536000"
+
+// securityHeaders sets the baseline browser hardening headers, and
+// Strict-Transport-Security on HTTPS requests when hsts is set.
+func securityHeaders(csp string, hsts bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
@@ -136,6 +143,9 @@ func securityHeaders(csp string, next http.Handler) http.Handler {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		h.Set("Content-Security-Policy", csp)
+		if info, _ := requestinfo.From(r.Context()); hsts && info.Secure() {
+			h.Set("Strict-Transport-Security", HSTSHeader)
+		}
 		next.ServeHTTP(w, r)
 	})
 }

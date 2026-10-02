@@ -23,29 +23,58 @@ func ipKey(ctx context.Context) string { return throttle.IPKey(requestinfo.Clien
 
 func userKey(id string) string { return "user:" + id }
 
-// allow checks the per-IP limiter and the given account limiter keys.
-func (s *Service) allow(ctx context.Context, accountKeys ...string) error {
-	var wait time.Duration
-	ip := ipKey(ctx)
-	if !s.kit.IPLimit.Allow(ip) {
-		wait = max(wait, s.kit.IPLimit.RetryAfter(ip))
-	}
-	for _, k := range accountKeys {
-		if !s.kit.AccountLimit.Allow(k) {
-			wait = max(wait, s.kit.AccountLimit.RetryAfter(k))
-		}
-	}
-	if wait > 0 {
-		return &domain.RateLimitedError{RetryAfter: max(wait, time.Second)}
-	}
-	return nil
+// limitKey is one bucket an attempt counts against.
+type limitKey struct {
+	l   *throttle.Limiter
+	key string
 }
 
-// fail records a failed attempt against the IP and the account keys.
-func (s *Service) fail(ctx context.Context, accountKeys ...string) {
-	s.kit.IPLimit.Fail(ipKey(ctx))
-	for _, k := range accountKeys {
-		s.kit.AccountLimit.Fail(k)
+// accountLimit is key in the per-account limiter (an account name from one
+// client, or a user ID for the factors after the password).
+func (s *Service) accountLimit(key string) limitKey { return limitKey{s.kit.AccountLimit, key} }
+
+// attempt is one throttled credential check. begin takes a token from the
+// client IP's bucket and every account bucket before anything is verified,
+// so concurrent attempts cannot outrun the limits; fail keeps the tokens
+// spent and release (deferred) refunds them otherwise, so only failures
+// count.
+type attempt struct {
+	taken []limitKey
+	ended bool
+}
+
+// begin starts an attempt, or answers 429 (taking nothing) when any of its
+// buckets is empty.
+func (s *Service) begin(ctx context.Context, keys ...limitKey) (*attempt, error) {
+	keys = append([]limitKey{{s.kit.IPLimit, ipKey(ctx)}}, keys...)
+	a := &attempt{}
+	var wait time.Duration
+	for _, k := range keys {
+		if k.l.Take(k.key) {
+			a.taken = append(a.taken, k)
+		} else {
+			wait = max(wait, k.l.RetryAfter(k.key))
+		}
+	}
+	if wait > 0 || len(a.taken) < len(keys) {
+		a.release()
+		return nil, &domain.RateLimitedError{RetryAfter: max(wait, time.Second)}
+	}
+	return a, nil
+}
+
+// fail ends the attempt as a failed credential check: its tokens stay spent.
+func (a *attempt) fail() { a.ended = true }
+
+// release ends the attempt unless it failed, refunding its tokens. It is
+// safe to call more than once.
+func (a *attempt) release() {
+	if a.ended {
+		return
+	}
+	a.ended = true
+	for _, k := range a.taken {
+		k.l.Refund(k.key)
 	}
 }
 
@@ -67,11 +96,16 @@ func (s *Service) SignIn(ctx context.Context, username, pw, totpCode string, sta
 		return s.continueWithTOTP(ctx, totpCode)
 	}
 	name := strings.TrimSpace(username)
-	acct := throttle.AccountKey(name)
-	if err := s.allow(ctx, acct); err != nil {
+	// The strict account bucket is per client, so failures from one client
+	// never lock the account out for everyone; the account-wide ceiling
+	// bounds guessing spread over many clients.
+	fromClient := throttle.AccountClientKey(name, requestinfo.ClientIP(ctx))
+	att, err := s.begin(ctx, s.accountLimit(fromClient), limitKey{s.kit.AccountCeiling, throttle.AccountKey(name)})
+	if err != nil {
 		s.record(ctx, "auth.sign_in", OutcomeFailure, "", "", "", "rate_limited")
 		return domain.SessionState{}, err
 	}
+	defer att.release()
 	user, creds, err := store.GetUserByUsername(ctx, s.db, name)
 	found := err == nil
 	if err != nil && !errors.Is(err, domain.ErrUserNotFound) {
@@ -82,10 +116,15 @@ func (s *Service) SignIn(ctx context.Context, username, pw, totpCode string, sta
 		return domain.SessionState{}, err
 	}
 	if !found || !ok || !user.Active() {
-		s.fail(ctx, acct)
+		att.fail()
 		s.record(ctx, "auth.sign_in", OutcomeFailure, "", "", "", "invalid_credentials")
 		return domain.SessionState{}, domain.ErrInvalidCredentials
 	}
+	// The password is right: its tokens come back and this client's earlier
+	// failures for the account are forgotten, before any second factor
+	// (which counts on its own).
+	att.release()
+	s.kit.AccountLimit.Reset(fromClient)
 	if rehash {
 		s.upgradeHash(ctx, user.ID, pw)
 	}
@@ -184,12 +223,13 @@ func (s *Service) advance(ctx context.Context, user domain.User, proven factorSe
 // verifyTOTP checks code for user (throttled, replay-safe: the accepted
 // time step is stored with compare-and-set before the factor counts).
 func (s *Service) verifyTOTP(ctx context.Context, user domain.User, creds domain.UserCredentials, code string) error {
-	key := userKey(user.ID)
-	if err := s.allow(ctx, key); err != nil {
+	att, err := s.begin(ctx, s.accountLimit(userKey(user.ID)))
+	if err != nil {
 		return err
 	}
+	defer att.release()
 	if creds.TOTPSeedSealed == "" {
-		s.fail(ctx, key)
+		att.fail()
 		return domain.ErrInvalidCredentials
 	}
 	seed, err := s.keyring.Open(creds.TOTPSeedSealed, totpSeedContext(user.ID))
@@ -206,7 +246,7 @@ func (s *Service) verifyTOTP(ctx context.Context, user domain.User, creds domain
 		}
 	}
 	if !ok {
-		s.fail(ctx, key)
+		att.fail()
 		return domain.ErrInvalidCredentials
 	}
 	return nil
@@ -236,10 +276,11 @@ func (s *Service) RedeemRecoveryCode(ctx context.Context, code string) (domain.S
 	if err != nil {
 		return domain.SessionState{}, err
 	}
-	key := userKey(user.ID)
-	if err := s.allow(ctx, key); err != nil {
+	att, err := s.begin(ctx, s.accountLimit(userKey(user.ID)))
+	if err != nil {
 		return domain.SessionState{}, err
 	}
+	defer att.release()
 	if !proven.has(fPassword) {
 		return domain.SessionState{}, domain.ErrNoPendingFlow
 	}
@@ -248,7 +289,7 @@ func (s *Service) RedeemRecoveryCode(ctx context.Context, code string) (domain.S
 		return domain.SessionState{}, err
 	}
 	if !used {
-		s.fail(ctx, key)
+		att.fail()
 		s.record(ctx, "auth.recovery_code_use", OutcomeFailure, "", "user", user.ID, "invalid_code")
 		return domain.SessionState{}, domain.ErrInvalidCredentials
 	}
@@ -289,13 +330,17 @@ func (s *Service) StepUp(ctx context.Context, req domain.StepUp) (domain.Session
 	if err != nil {
 		return domain.SessionState{}, err
 	}
-	key := userKey(cur.user.ID)
-	if err := s.allow(ctx, key); err != nil {
+	att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
+	if err != nil {
 		return domain.SessionState{}, err
 	}
+	defer att.release()
 	var proven factorSet
 	if len(req.PasskeyResponse) > 0 {
 		if err := s.finishStepUpPasskey(ctx, cur, req.PasskeyResponse); err != nil {
+			if errors.Is(err, domain.ErrInvalidCredentials) {
+				att.fail()
+			}
 			return domain.SessionState{}, err
 		}
 		proven = fPasskey
@@ -309,11 +354,12 @@ func (s *Service) StepUp(ctx context.Context, req domain.StepUp) (domain.Session
 			return domain.SessionState{}, err
 		}
 		if !ok {
-			s.fail(ctx, key)
+			att.fail()
 			s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "invalid_credentials")
 			return domain.SessionState{}, domain.ErrInvalidCredentials
 		}
 		proven = fPassword
+		att.release() // the TOTP code counts on its own
 		if cur.user.TOTPEnabled {
 			if err := s.verifyTOTP(ctx, cur.user, creds, req.TOTPCode); err != nil {
 				s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "totp")
@@ -364,16 +410,19 @@ func (s *Service) ChangePassword(ctx context.Context, currentPW, newPW string, r
 		return err
 	}
 	if creds.PasswordHash != "" {
-		key := userKey(cur.user.ID)
-		if err := s.allow(ctx, key); err != nil {
+		att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
+		if err != nil {
 			return err
 		}
 		ok, _, err := s.kit.Passwords.Verify(ctx, currentPW, creds.PasswordHash)
+		if !ok && err == nil {
+			att.fail()
+		}
+		att.release()
 		if err != nil {
 			return err
 		}
 		if !ok {
-			s.fail(ctx, key)
 			return domain.ErrInvalidCredentials
 		}
 	}
@@ -419,12 +468,14 @@ func (s *Service) ChangePassword(ctx context.Context, currentPW, newPW string, r
 // signs in normally. With revokeAPITokens every API token of the account
 // is revoked too (#31).
 func (s *Service) RedeemPasswordReset(ctx context.Context, code, newPW string, revokeAPITokens bool) error {
-	if err := s.allow(ctx); err != nil {
+	att, err := s.begin(ctx)
+	if err != nil {
 		return err
 	}
+	defer att.release()
 	reset, err := store.FindAccountReset(ctx, s.db, verifier(code), s.now())
 	if errors.Is(err, domain.ErrCodeInvalid) {
-		s.fail(ctx)
+		att.fail()
 		s.record(ctx, "auth.password_reset_redeem", OutcomeFailure, "", "", "", "invalid_code")
 		return err
 	}
@@ -464,7 +515,7 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, code, newPW string, r
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrCodeInvalid) {
-			s.fail(ctx)
+			att.fail()
 		}
 		return err
 	}

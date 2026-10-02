@@ -57,10 +57,11 @@ func (s *Service) VerifyTOTPEnrollment(ctx context.Context, code string) (domain
 	if err != nil {
 		return domain.SessionState{}, err
 	}
-	key := userKey(cur.user.ID)
-	if err := s.allow(ctx, key); err != nil {
+	att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
+	if err != nil {
 		return domain.SessionState{}, err
 	}
+	defer att.release()
 	_, creds, err := store.GetUserWithCredentials(ctx, s.db, cur.user.ID)
 	if err != nil {
 		return domain.SessionState{}, err
@@ -80,7 +81,7 @@ func (s *Service) VerifyTOTPEnrollment(ctx context.Context, code string) (domain
 		return domain.SessionState{}, err
 	}
 	if !ok {
-		s.fail(ctx, key)
+		att.fail()
 		return domain.SessionState{}, &domain.FieldError{Field: "code", Message: "the code does not match; check the authenticator app's clock and try the current code"}
 	}
 	active, err := s.keyring.Seal(seed, totpSeedContext(cur.user.ID))
@@ -379,9 +380,11 @@ func (s *Service) PasskeyAuthenticationVerification(ctx context.Context, respons
 		// A step-up ceremony finished here counts like POST /auth/step-ups.
 		return s.StepUp(ctx, domain.StepUp{PasskeyResponse: response})
 	}
-	if err := s.allow(ctx); err != nil {
+	att, err := s.begin(ctx)
+	if err != nil {
 		return domain.SessionState{}, err
 	}
+	defer att.release()
 	sd, err := s.takeCeremony(ctx, kWALogin)
 	s.kit.Sessions.Remove(ctx, kWAPurpose)
 	if err != nil {
@@ -404,7 +407,7 @@ func (s *Service) PasskeyAuthenticationVerification(ctx context.Context, respons
 	}
 	wu, cred, err := s.kit.RP.FinishLogin(sd, response, want, s.lookupPasskeyUser(ctx))
 	if err != nil {
-		s.fail(ctx)
+		att.fail()
 		s.record(ctx, "auth.sign_in", OutcomeFailure, "", "", "", "passkey")
 		return domain.SessionState{}, domain.ErrInvalidCredentials
 	}
@@ -434,8 +437,7 @@ func (s *Service) finishStepUpPasskey(ctx context.Context, cur *current, respons
 		return err
 	}
 	_, cred, err := s.kit.RP.FinishLogin(sd, response, wu, nil)
-	if err != nil {
-		s.fail(ctx, userKey(cur.user.ID))
+	if err != nil { // StepUp counts the failure
 		s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "passkey")
 		return domain.ErrInvalidCredentials
 	}

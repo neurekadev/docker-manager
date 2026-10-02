@@ -14,7 +14,9 @@ adds repositories; people with permission can create backup policies.
 2. Enter a **Name** and choose the **Storage**:
    - **S3-compatible storage**: the **Endpoint**, **Bucket**, **Access key
      ID** and **Secret access key**. This is the easiest choice, and the
-     only one that holds backups of every server.
+     only one that holds backups of every server. Storage on your network,
+     such as MinIO, works; the connection test refuses loopback and
+     link-local addresses such as `localhost`.
    - **Local directory**: a folder on one server (**Written by**). Allow
      the folder first (see [Allow a local folder](#allow-a-local-folder)).
 3. Choose the **Compression**. **Automatic** suits most data.

@@ -40,26 +40,34 @@ func (s *Service) List(ctx context.Context, in protocol.FilesListInput) (protoco
 		return protocol.FilesListOutput{}, err
 	}
 	defer r.Close()
-	dirInfo, err := r.root.Lstat(rel)
-	if err != nil {
-		return protocol.FilesListOutput{}, classify(err, rel)
+	var dirInfo fs.FileInfo
+	if !r.noFollow {
+		if dirInfo, err = r.root.Lstat(rel); err != nil {
+			return protocol.FilesListOutput{}, classify(err, rel)
+		}
+		if dirInfo.Mode()&fs.ModeSymlink != 0 {
+			// A directory symlink inside the root is listed through its
+			// target (os.Root keeps it inside); an escaping one is refused.
+			if dirInfo, err = r.root.Stat(rel); err != nil {
+				return protocol.FilesListOutput{}, classify(err, rel)
+			}
+		}
+		if !dirInfo.IsDir() {
+			return protocol.FilesListOutput{}, fail(protocol.CodeNotDirectory, "%s is not a directory", rel)
+		}
 	}
-	if dirInfo.Mode()&fs.ModeSymlink != 0 {
-		// A directory symlink inside the root is listed through its target
-		// (os.Root keeps it inside); an escaping one is refused.
-		if dirInfo, err = r.root.Stat(rel); err != nil {
+	// Entries are resolved relative to the opened directory handle (in
+	// NoFollow scopes reached without following any symlink).
+	sub, err := r.openDir(rel, false)
+	if err != nil {
+		return protocol.FilesListOutput{}, err
+	}
+	defer func() { _ = sub.Close() }()
+	if dirInfo == nil {
+		if dirInfo, err = sub.Stat("."); err != nil {
 			return protocol.FilesListOutput{}, classify(err, rel)
 		}
 	}
-	if !dirInfo.IsDir() {
-		return protocol.FilesListOutput{}, fail(protocol.CodeNotDirectory, "%s is not a directory", rel)
-	}
-	// Entries are resolved relative to the opened directory handle.
-	sub, err := r.root.OpenRoot(rel)
-	if err != nil {
-		return protocol.FilesListOutput{}, classify(err, rel)
-	}
-	defer func() { _ = sub.Close() }()
 	d, err := sub.Open(".")
 	if err != nil {
 		return protocol.FilesListOutput{}, classify(err, rel)
@@ -207,7 +215,7 @@ func (s *Service) Read(ctx context.Context, in protocol.FilesReadInput) (protoco
 		return protocol.FilesReadOutput{}, err
 	}
 	defer r.Close()
-	f, fi, err := openRegular(r.root, rel)
+	f, fi, err := openRegular(r, rel)
 	if err != nil {
 		return protocol.FilesReadOutput{}, err
 	}
@@ -264,7 +272,8 @@ type target struct {
 
 func (t *target) Close() { _ = t.dir.Close() }
 
-// openTarget opens the parent directory of rel (which must exist).
+// openTarget opens the parent directory of rel (which must exist; in
+// NoFollow scopes reached without following any symlink).
 func openTarget(r *scopeRoot, rel string) (*target, error) {
 	if rel == "." {
 		return nil, fail(protocol.CodeIsDirectory, "the scope root cannot be replaced")
@@ -273,9 +282,9 @@ func openTarget(r *scopeRoot, rel string) (*target, error) {
 	if !protocol.ValidFileName(name) {
 		return nil, fail(protocol.CodeForbiddenPath, "invalid file name")
 	}
-	dir, err := r.root.OpenRoot(path.Dir(rel))
+	dir, err := r.openDir(path.Dir(rel), false)
 	if err != nil {
-		return nil, classify(err, path.Dir(rel))
+		return nil, err
 	}
 	return &target{dir: dir, name: name, rel: rel}, nil
 }

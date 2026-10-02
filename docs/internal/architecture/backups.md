@@ -13,7 +13,7 @@ the agent's smartctl runner for disk health, see
 | `internal/backup` | Shared by manager and agents: destinations and scopes, snapshot tags, the portable manifest, the retention algorithm, `OpenLocation` (key rotation per location), `ApplyRetention`, `Prune`, `Verify`. |
 | `internal/protocol` (`backup.go`) | Job inputs/outputs, the `backup.scope_preview`, `backup.snapshots`, `backup.contents` requests and the `backup.file` stream; `CommandSecrets.Repositories`. |
 | `internal/agent/backups` | Scope planning, the `backup.run`, `backup.retention`, `backup.verify` executors, requests and stream. |
-| `internal/manager/backups` | Repositories, the Recovery Key, policies, runs (backup sets), the snapshot index, the manager-state snapshot and set manifest, the `manager.backup`, `manager.retention`, `manager.verify` executors, finish hooks, scheduler sources, command secrets. `s3probe` tests S3 capabilities. |
+| `internal/manager/backups` | Repositories, the Recovery Key, policies, runs (backup sets), the snapshot index, the manager-state snapshot and set manifest, the `manager.backup`, `manager.retention`, `manager.verify` executors, finish hooks, scheduler sources, command secrets. `s3probe` tests S3 capabilities over a client that refuses loopback and link-local addresses. |
 | `internal/manager/api` (`backup_repositories.go`, `backup_policies.go`, `backups.go`) | The public routes. |
 
 ## Model
@@ -245,6 +245,23 @@ for 15 minutes, with no option to shorten that (a wrong secret key,
 `SignatureDoesNotMatch`, is retried); the runner reads restic's retry
 notices and stops the run at the first one that no retry can fix (access
 denied, unknown key ID, clock skew, missing bucket) with its class.
+
+The manager's own S3 requests (`s3probe`: connection tests and the
+import's scope listing) go through `s3probe.NewClient`: a direct
+connection (no proxy from the environment), no redirects followed, and a
+dialer `Control` that refuses loopback, link-local (`169.254.0.0/16`,
+`fe80::/10`, so `169.254.169.254`), the IPv6 metadata address
+`fd00:ec2::254`, unspecified, `0.0.0.0/8` and multicast addresses. It
+checks the address being connected to, after DNS resolution, so a name
+that resolves or rebinds there is refused too. Private ranges stay
+allowed (MinIO on the LAN or a Docker network). A refusal is the class
+`address_not_allowed` ("this address is not allowed"), never a status or
+reachability verdict: without the check the connection tests, which a
+fresh manager answers to anyone during setup, would probe internal
+services. A connection test (repository or import) runs no restic after
+a refused address. restic is an external program with its own HTTP
+client; its runs (backups, retention, the import's preview) are not
+covered by the check.
 
 ## Scope (agent)
 

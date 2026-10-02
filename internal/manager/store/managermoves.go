@@ -59,13 +59,16 @@ type redirectJSON struct {
 	URL             string `json:"url"`
 	Sent            bool   `json:"sent"`
 	ErrorClass      string `json:"errorClass,omitempty"`
+	// Set by the new manager after the move (secure.go in managermove).
+	ReturnedAt *time.Time `json:"returnedAt,omitempty"`
+	RotatedAt  *time.Time `json:"rotatedAt,omitempty"`
 }
 
 func encodeRedirects(rs []domain.ManagerMoveRedirect) string {
 	out := make([]redirectJSON, 0, len(rs))
 	for _, r := range rs {
 		out = append(out, redirectJSON{EnvironmentID: r.EnvironmentID, EnvironmentName: r.EnvironmentName, Role: r.Role, URL: r.URL,
-			Sent: r.Sent, ErrorClass: r.ErrorClass})
+			Sent: r.Sent, ErrorClass: r.ErrorClass, ReturnedAt: utcPtr(r.ReturnedAt), RotatedAt: utcPtr(r.RotatedAt)})
 	}
 	b, _ := json.Marshal(out)
 	return string(b)
@@ -79,7 +82,7 @@ func decodeRedirects(raw string) []domain.ManagerMoveRedirect {
 	out := make([]domain.ManagerMoveRedirect, 0, len(in))
 	for _, r := range in {
 		out = append(out, domain.ManagerMoveRedirect{EnvironmentID: r.EnvironmentID, EnvironmentName: r.EnvironmentName, Role: r.Role,
-			URL: r.URL, Sent: r.Sent, ErrorClass: r.ErrorClass})
+			URL: r.URL, Sent: r.Sent, ErrorClass: r.ErrorClass, ReturnedAt: utcPtr(r.ReturnedAt), RotatedAt: utcPtr(r.RotatedAt)})
 	}
 	return out
 }

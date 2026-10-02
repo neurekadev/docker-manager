@@ -54,6 +54,16 @@ const (
 // limits only to them; other agents keep their built-in defaults.
 const FeatureFileLimits = "files.limits"
 
+// FeatureStackFilesNoFollow is the capabilities feature of agents whose
+// file service follows no symlink in stack scopes, not even inside the
+// project directory: a path through a symlinked directory is refused and
+// a final symlink is never opened for content, so a path names exactly
+// one file and the manager's stack.definition.* checks by path hold. For
+// other agents (which follow in-root symlinks) the manager requires
+// stack.definition.read for every content read and stack.definition.write
+// for every change in a stack scope.
+const FeatureStackFilesNoFollow = "files.stack_no_follow"
+
 // FileLimits are the file manager limits the manager configured
 // (DOCKER_MANAGER_FILES_*) for one operation. A zero field keeps the
 // agent's default; larger values than the caps above are lowered to them.

@@ -143,8 +143,8 @@ func capabilities() []Capability {
 		normal("stack.start", TypeStack, "Start stack", "Start all services of a stack.", stackScope),
 		normal("stack.stop", TypeStack, "Stop stack", "Stop all services of a stack.", stackScope),
 		normal("stack.restart", TypeStack, "Restart stack", "Restart all services of a stack.", stackScope),
-		high("stack.definition.read", TypeStack, "View Compose definition", "Read compose.yaml, override files, .env and revisions. They may contain secrets.", stackScope),
-		high("stack.definition.write", TypeStack, "Edit Compose definition", "Change compose.yaml, override files and .env, and restore revisions.", stackScope),
+		high("stack.definition.read", TypeStack, "View Compose definition", "Read the stack's Compose files, override files, env files and revisions, also as part of a folder. They may contain secrets.", stackScope),
+		high("stack.definition.write", TypeStack, "Edit Compose definition", "Change the stack's Compose files, override files and env files, also as part of a folder, and restore revisions.", stackScope),
 		// High risk (#12 security review): creating a stack writes its whole
 		// Compose definition, which may bind host paths or the Docker socket
 		// and run privileged containers once deployed.
@@ -158,7 +158,7 @@ func capabilities() []Capability {
 		adv(high("stack.rename", TypeStack, "Rename stack project", "Change a stack's Compose project name: it stops and starts again, its volumes and project directory move to the new name, and containers outside the stack that use those volumes are stopped and recreated.", stackScope)),
 		adv(high("stack.migrate", TypeStack, "Migrate stacks", "Move a stack and its volumes to another environment (also needs stack.create on the target environment). Stack rules follow the stack; environment rules do not.", stackScope)),
 	)
-	add(fileCaps(TypeStack, "the stack's project directory (compose.yaml, override files and .env additionally need the Compose definition capabilities)", stackScope)...)
+	add(fileCaps(TypeStack, "the stack's project directory (its Compose files, override files and env files additionally need the Compose definition capabilities)", stackScope)...)
 
 	// Containers: stack- and service-scoped rules apply to the stack's
 	// current and future service containers for the capabilities selected.

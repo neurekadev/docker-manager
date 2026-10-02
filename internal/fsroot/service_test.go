@@ -228,3 +228,53 @@ func TestOperationLimitsApply(t *testing.T) {
 		t.Fatalf("preview = %+v, %v", out, err)
 	}
 }
+
+// TestLinkTargetInsideJudgesTheFinalLocation (#180): an extracted
+// symlink's target is resolved from where the link lands (the destination
+// joined with the member name) and must stay inside the root.
+func TestLinkTargetInsideJudgesTheFinalLocation(t *testing.T) {
+	for _, c := range []struct {
+		at, target string
+		want       bool
+	}{
+		{"tmp/d", ".", true},
+		{"tmp/up", "../.env", true},
+		{"a/b/c", "../../x", true},
+		{"tmp/out", "../../x", false},
+		{"d", "..", false},
+		{"d", "../x", false},
+		{"tmp/abs", "/etc/passwd", false},
+		{"tmp/drive", "C:/x", false},
+		{"tmp/back", `..\x`, false},
+		{"tmp/empty", "", false},
+	} {
+		if got := linkTargetInside(c.at, c.target); got != c.want {
+			t.Errorf("linkTargetInside(%q, %q) = %v, want %v", c.at, c.target, got, c.want)
+		}
+	}
+}
+
+// TestNoFollowScopes: in a NoFollow scope kind a path through a symlinked
+// directory and a final symlink are refused for content; other kinds
+// follow links that stay inside the root.
+func TestNoFollowScopes(t *testing.T) {
+	ctx := testutil.Context(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("TOKEN=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(".", filepath.Join(dir, "d")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	stack := protocol.FileScope{Kind: protocol.ScopeStack, ID: "s", Dir: filepath.ToSlash(dir)}
+	s := New(Options{Resolve: dirResolver(dir), Clock: testutil.FakeClock(), NoFollow: []string{protocol.ScopeStack}})
+	if _, err := s.Read(ctx, protocol.FilesReadInput{Scope: stack, Path: "d/.env"}); codeOfErr(t, err) != protocol.CodeForbiddenPath {
+		t.Fatalf("read d/.env in a NoFollow scope: %v", err)
+	}
+	if _, err := s.Read(ctx, protocol.FilesReadInput{Scope: stack, Path: ".env"}); err != nil {
+		t.Fatalf("read .env: %v", err)
+	}
+	if out, err := s.Read(ctx, protocol.FilesReadInput{Scope: scope, Path: "d/.env"}); err != nil || string(out.Data) != "TOKEN=1\n" {
+		t.Fatalf("read d/.env in a volume scope: %q %v", out.Data, err)
+	}
+}

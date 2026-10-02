@@ -85,9 +85,12 @@ func (s *Service) followBus(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-sub.C():
+		case e := <-sub.C():
 			if id := s.shownMove(ctx); id != "" {
 				s.publish(id)
+			}
+			if e.Type == events.EnvironmentOnline {
+				s.notify() // an agent of the arrived move may need its next step (secure.go)
 			}
 		}
 	}

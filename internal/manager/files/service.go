@@ -44,6 +44,10 @@ type StackRoot struct {
 	// Dir is the project directory (absolute host path, identical inside
 	// the agent, #28).
 	Dir string
+	// DefinitionFiles are the stack's declared definition files (Compose,
+	// override and env files), relative to Dir, clean and slash-separated
+	// (api.FileRoot.Definition).
+	DefinitionFiles []string
 }
 
 // StackRoots resolves a stack's file root. The Compose stack workstream
@@ -54,8 +58,8 @@ type StackRoots interface {
 }
 
 // SourceObserver is told when Docker Manager changed a stack's Compose sources
-// (compose.yaml, override files, .env at the project root; see
-// api.IsDefinitionFile) through the file manager. #7 records a new stack
+// (its definition files, see api.FileRoot.IsDefinition) through the file
+// manager. #7 records a new stack
 // revision and marks undeployed changes; it never deploys. Called after
 // the change, never for contents; it must not block for long.
 type SourceObserver interface {
@@ -267,7 +271,17 @@ func (s *Service) StackRoot(ctx context.Context, stackID string) (api.FileRoot, 
 	if err != nil {
 		return api.FileRoot{}, err
 	}
-	return api.FileRoot{Scope: protocol.FileScope{Kind: protocol.ScopeStack, ID: stackID, Dir: r.Dir}, EnvironmentID: r.EnvironmentID}, nil
+	return api.FileRoot{Scope: protocol.FileScope{Kind: protocol.ScopeStack, ID: stackID, Dir: r.Dir}, EnvironmentID: r.EnvironmentID,
+		Definition: r.DefinitionFiles, NoFollow: s.hasFeature(r.EnvironmentID, protocol.FeatureStackFilesNoFollow)}, nil
+}
+
+// hasFeature reports whether the environment's connected agent announced
+// a capabilities feature.
+func (s *Service) hasFeature(environmentID, feature string) bool {
+	fh, ok := s.opts.Agents.(interface {
+		EnvironmentHasFeature(environmentID, feature string) bool
+	})
+	return ok && fh.EnvironmentHasFeature(environmentID, feature)
 }
 
 // Limits returns the file manager limits in effect for a root: the
@@ -298,10 +312,7 @@ func (s *Service) Limits(r api.FileRoot) domain.FileLimits {
 // appliesLimits reports whether the root's agent applies the limits the
 // manager sends (protocol.FeatureFileLimits).
 func (s *Service) appliesLimits(r api.FileRoot) bool {
-	fh, ok := s.opts.Agents.(interface {
-		EnvironmentHasFeature(environmentID, feature string) bool
-	})
-	return ok && r.Scope.Kind != protocol.ScopeTemplate && fh.EnvironmentHasFeature(r.EnvironmentID, protocol.FeatureFileLimits)
+	return r.Scope.Kind != protocol.ScopeTemplate && s.hasFeature(r.EnvironmentID, protocol.FeatureFileLimits)
 }
 
 // agentLimits are the limits sent with an operation on the root: the
@@ -728,26 +739,28 @@ func (s *Service) StartJob(ctx context.Context, r api.FileRoot, kind domain.JobK
 	if err != nil {
 		return j, err
 	}
-	if changed := jobSourcePaths(kind, in); created && r.Scope.Kind == protocol.ScopeStack && len(changed) > 0 {
+	if changed := jobSourcePaths(r, kind, in); created && r.Scope.Kind == protocol.ScopeStack && len(changed) > 0 {
 		s.watch(r, j.ID, changed)
 	}
 	return j, nil
 }
 
-// jobSourcePaths are the root-level definition paths a job may change
-// ("." when an extraction writes into the root with unknown names).
-func jobSourcePaths(kind domain.JobKind, in protocol.FilesJobInput) []string {
+// jobSourcePaths are the paths of a job that are or hold a definition
+// file of the stack and that the job may change: deleted or moved
+// sources, copy and move destinations, an extraction's destination
+// directory (its entries are unknown), an archive file created.
+func jobSourcePaths(r api.FileRoot, kind domain.JobKind, in protocol.FilesJobInput) []string {
 	var out []string
 	add := func(p string) {
-		if api.IsDefinitionFile(p) && !slices.Contains(out, p) {
+		if r.HoldsDefinition(p) && !slices.Contains(out, p) {
 			out = append(out, p)
 		}
 	}
 	target := func(p string) string {
 		if in.Name != "" {
-			return in.Name
+			return path.Join(in.Destination, in.Name)
 		}
-		return path.Base(p)
+		return path.Join(in.Destination, path.Base(p))
 	}
 	switch kind {
 	case jobspec.FilesDelete:
@@ -757,20 +770,14 @@ func jobSourcePaths(kind domain.JobKind, in protocol.FilesJobInput) []string {
 	case jobspec.FilesMove:
 		for _, p := range in.Paths {
 			add(p)
-			if in.Destination == "." {
-				add(target(p))
-			}
+			add(target(p))
 		}
 	case jobspec.FilesCopy:
-		if in.Destination == "." {
-			for _, p := range in.Paths {
-				add(target(p))
-			}
+		for _, p := range in.Paths {
+			add(target(p))
 		}
 	case jobspec.FilesExtract:
-		if in.Destination == "." {
-			out = append(out, ".")
-		}
+		add(in.Destination)
 	case jobspec.FilesArchive:
 		add(in.Destination)
 	}
@@ -796,7 +803,7 @@ func (s *Service) sourcesChanged(ctx context.Context, r api.FileRoot, paths ...s
 	}
 	var defs []string
 	for _, p := range paths {
-		if api.IsDefinitionFile(p) {
+		if r.IsDefinition(p) {
 			defs = append(defs, p)
 		}
 	}

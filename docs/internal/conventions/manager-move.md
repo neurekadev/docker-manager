@@ -89,7 +89,21 @@ check's documented socket exception).
   `manager.identity` answer (`ObserveColocation`), never guessed.
 - "Move complete" decides "needs a fix" from the redirects that were not
   sent and the agent not connecting since the arrival, never from the
-  address an agent reports.
+  address an agent reports; the old server's agent's fix is the HTTPS
+  public URL, never the move's plain-HTTP address.
+- **Plain HTTP is temporary (Back to HTTPS):** after the arrival, with an
+  https public URL, `secureDue` (`secure.go`, the Run loop) sends the agent
+  still on the move's plain-HTTP address the public origin at this
+  manager's generation (only to agents announcing
+  `protocol.FeatureManagerRedirectSecure`, only after
+  `observePublicRequest` saw a request over HTTPS at the public URL), and
+  rotates the credential of every agent whose credential the move sent in
+  clear (`crossedInClear`) through `Enrollments.RotateCredential`, only
+  once its session is https or on the new server's Docker network. Each
+  step is recorded once on the move's redirect (`ReturnedAt`,
+  `RotatedAt`, under the service lock). A new way for a move to put an
+  agent or a credential on plain HTTP across the network must be covered
+  here too; a plain-http public URL (local development) does nothing.
 - **Live, not polled:** every change of a move publishes
   `manager_move.updated` (owner) and, when the session's lock changes,
   `manager_move.lock_changed` (everyone, no ID) through

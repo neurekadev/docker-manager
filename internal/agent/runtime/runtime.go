@@ -229,6 +229,10 @@ type Agent struct {
 	// execShell: container.exec.create is served by containerio, which
 	// resolves terminal shells (#8, FeatureExecShell).
 	execShell bool
+	// redirectSecure: manager.redirect is served by managerRedirect, which
+	// accepts a secure address at the current generation
+	// (FeatureManagerRedirectSecure).
+	redirectSecure bool
 }
 
 // Run runs the agent until ctx is canceled.
@@ -710,6 +714,8 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	// Its file service applies the manager's file manager limits (#15).
 	if slices.Contains(p.Commands, "files.extract") {
 		p.Features = append(p.Features, protocol.FeatureFileLimits)
+		// ... and follows no symlink in stack scopes.
+		p.Features = append(p.Features, protocol.FeatureStackFilesNoFollow)
 	}
 	// Its backup.run reports live activity when asked (#10).
 	if slices.Contains(p.Commands, "backup.run") {
@@ -722,6 +728,11 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	// Its container.exec.create resolves terminal shells (#8).
 	if a.execShell {
 		p.Features = append(p.Features, protocol.FeatureExecShell)
+	}
+	// Its manager.redirect accepts a secure address at the current
+	// generation (after a manager move).
+	if a.redirectSecure {
+		p.Features = append(p.Features, protocol.FeatureManagerRedirectSecure)
 	}
 	if c.EngineError != nil {
 		p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
@@ -868,7 +879,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		// Reported to the manager in the capabilities (protocol.TransportInfo,
 		// #3) so the host page flags this environment.
 		log.Warn("the address Docker Manager gave when it moved uses plain HTTP; once its usual HTTPS address reaches the new " +
-			"server, set DOCKER_AGENT_MANAGER_URL to it")
+			"server, Docker Manager gives the agent that address (or set DOCKER_AGENT_MANAGER_URL to it)")
 	case ti.Flagged():
 		log.Warn("manager URL uses plain HTTP (DOCKER_AGENT_MANAGER_ALLOW_HTTP=true); only acceptable on the manager's internal Docker network")
 	}

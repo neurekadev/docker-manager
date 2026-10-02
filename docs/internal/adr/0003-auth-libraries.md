@@ -185,12 +185,20 @@ by ambient cookies; the session middleware ignores cookies on them.
 `SameSite=Strict` is the independent second layer. WebSocket upgrades are
 origin-checked by `server/ws` (#27).
 
-`throttle.Limiter` is a bounded table of `x/time/rate` buckets, keyed by
+`throttle.Limiter` is a bounded table of token buckets, keyed by
 `requestinfo.ClientIP` (IPv6 per /64; forwarding headers are honoured only
 from `DOCKER_MANAGER_TRUSTED_PROXIES`) and by the account name as typed, whether
-or not it exists. Only failed attempts consume tokens: 20 per client IP
-refilled every 6 s, 10 per account refilled every minute. A full table
-refuses new keys instead of growing (fail closed).
+or not it exists. A credential check takes its tokens before verifying
+anything and refunds them when it succeeds, so only failed attempts count
+and concurrent attempts cannot all pass before the first failure is
+counted (#180): 20 per client IP refilled every 6 s; for a password, 10
+per account name *and client* refilled every minute (so nobody can lock an
+account out by guessing wrong; a successful sign-in resets it) plus 100
+per account name from all clients refilled every 6 s; for second
+factors, step-up and recovery codes, 10 per user refilled every minute. A
+full table never refuses a new key: it forgets the bucket that is full
+again soonest (ordered in a heap), so made-up keys with a failure each are
+forgotten before a key under attack, whose limit they cannot reset.
 
 ### Authorization evaluator: small deterministic evaluator, not Casbin
 
@@ -265,7 +273,10 @@ Authorizer); see `docs/internal/architecture/authorization.md`.
   alternatives of factor sets (`internal/manager/auth/factors.go`); a
   recovery code stands in for TOTP/passkey after a password. Accounts
   lacking enrolled factors get a limited enrollment session with a
-  deadline (grace period); the owner has none.
+  deadline (grace period); the owner has none. A sign-in first proves
+  every second factor the account did enroll (TOTP, passkey) before it
+  gets that session, so a password alone never skips an enrolled factor
+  when the policy asks for one the account lacks (#180).
 - **Recovery codes**: ten 80-bit codes, stored as SHA-256 bound to the user.
   **Invitation / reset / owner-recovery codes**: 256-bit with prefixes
   `dyi_`, `dyr_`, `dyo_`, stored as SHA-256 verifiers, consumed atomically.

@@ -36,7 +36,7 @@ func (s *Service) Download(ctx context.Context, in protocol.FilesDownloadInput, 
 		if len(paths) != 1 || in.Offset < 0 || in.Length < 0 {
 			return fail(protocol.CodeInvalidFrame, "a raw download is one file and a non-negative range")
 		}
-		f, fi, err := openRegular(r.root, paths[0])
+		f, fi, err := openRegular(r, paths[0])
 		if err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@ package stacks_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
@@ -42,6 +43,12 @@ func TestFileManagerHooks(t *testing.T) {
 	root, err := svc.StackFileRoot(h.ctx, st.ID)
 	if err != nil || root.EnvironmentID != env || root.Dir != "/var/lib/docker/volumes/docker-manager_stacks/_data/shop" {
 		t.Fatalf("root %+v %v", root, err)
+	}
+	// The file manager guards the stack's definition files (#180).
+	for _, want := range []string{"compose.yaml", ".env", "compose.override.yaml"} {
+		if !slices.Contains(root.DefinitionFiles, want) {
+			t.Errorf("definition files %v lack %s", root.DefinitionFiles, want)
+		}
 	}
 	if _, err := svc.StackFileRoot(h.ctx, "nope"); !errors.Is(err, domain.ErrFileScopeNotFound) {
 		t.Errorf("unknown stack: %v", err)
@@ -110,5 +117,33 @@ func TestValidateSourceSave(t *testing.T) {
 	}
 	if err := h.svc.ValidateSourceSave(h.ctx, "nope", "compose.yaml", nil); !errors.Is(err, domain.ErrFileScopeNotFound) {
 		t.Errorf("unknown stack: %v", err)
+	}
+}
+
+// TestDefinitionPaths (#180): a stack's definition is its observed files,
+// the names stacks are created with and every Compose and env file it
+// declares, cleaned like file manager paths; paths outside the project
+// directory are left out.
+func TestDefinitionPaths(t *testing.T) {
+	st := domain.Stack{ConfigFiles: []string{"compose.yaml", "./deploy/compose.prod.yml", "/srv/other/compose.yml", "../shared/compose.yml"},
+		EnvFiles: []string{"config//app.env", "config/app.env", "../secrets.env"}}
+	got := stacks.DefinitionPaths(st, []string{"stack.yml", "compose.yaml"})
+	for _, want := range []string{"stack.yml", "compose.yaml", "compose.override.yaml", ".env", "deploy/compose.prod.yml", "config/app.env"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("definition paths %v lack %s", got, want)
+		}
+	}
+	for _, p := range got {
+		if p == "" || p[0] == '/' || p == "." || slices.Contains([]string{"../shared/compose.yml", "../secrets.env", "./deploy/compose.prod.yml"}, p) {
+			t.Errorf("definition paths %v hold %q", got, p)
+		}
+	}
+	if n := len(got); n != len(slices.Compact(slices.Sorted(slices.Values(got)))) {
+		t.Errorf("definition paths %v hold duplicates", got)
+	}
+	for p, want := range map[string]bool{"deploy/compose.prod.yml": true, "./config/app.env": true, "stack.yml": true, "html/x": false, "../secrets.env": false} {
+		if got := stacks.IsDefinitionFile(st, []string{"stack.yml"}, p); got != want {
+			t.Errorf("IsDefinitionFile(%q) = %v, want %v", p, got, want)
+		}
 	}
 }

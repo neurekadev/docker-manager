@@ -81,6 +81,23 @@ stay in the access log. Public operations (sign-in, setup, invitation and
 recovery-code redemption) are always recorded, with an anonymous actor until
 the handler names one.
 
+Anonymous failures are budgeted (#180, `audit/anonymous.go`): a record with
+an anonymous actor, a client IP and an outcome other than success (failed or
+throttled sign-ins, bad codes, refused `/agent/v1` credentials) is written
+only within `AnonPerClient` (10) per client (IPv4 address or IPv6 /64) and
+`AnonTotal` (30) overall per `AnonWindow` (one minute). What the budget
+leaves out is counted and written once the window is over (by the next
+`Record`, at the latest by the next purge) as one summary record per
+action, operation, outcome and error class: anonymous actor, no client IP,
+request or target, details `suppressed` (how many) and `clients` (from how
+many clients, counted up to 1000) and `topClients` (the ten clients that
+sent the most, with their counts, kept with the Space-Saving rule over a
+min-heap so throwaway addresses cannot push the heavy senders out). Summaries a failed
+transaction could not write are given back and written by the next one.
+Anyone can make the manager record a
+failure, and the size cap deletes the oldest records, so without the
+budget a flood could push real history out of the trail.
+
 `TestEveryCatalogedMutatingRouteIsAudited` registers every non-GET route of
 `api/route-inventory.yaml` (planned or implemented) through `api.Register`
 and requires one record with the right action, actor, targets and outcome;

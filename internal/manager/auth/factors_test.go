@@ -39,6 +39,12 @@ func TestEvaluatePolicyMatrix(t *testing.T) {
 		{"passkey: invite without password", domain.FactorsPasskey, 0, 0, false, want{stage: domain.StageEnrollment, missing: pk}},
 		{"passkey: password then passkey", domain.FactorsPasskey, pw | pk, pw, false, want{stage: domain.StageSecondFactor, next: pk}},
 		{"passkey: passkey", domain.FactorsPasskey, pk, pk, false, auth},
+		// A password alone never skips an enrolled factor on the way to the
+		// enrollment session (which could add the attacker's passkey).
+		{"passkey: enrolled totp first", domain.FactorsPasskey, pw | tp, pw, false, want{stage: domain.StageSecondFactor, next: tp}},
+		{"passkey: totp proven, enroll passkey", domain.FactorsPasskey, pw | tp, pw | tp, false, want{stage: domain.StageEnrollment, missing: pk}},
+		{"totp: enrolled passkey first", domain.FactorsTOTP, pw | pk, pw, false, want{stage: domain.StageSecondFactor, next: pk}},
+		{"totp: passkey proven, enroll totp", domain.FactorsTOTP, pw | pk, pw | pk, false, want{stage: domain.StageEnrollment, missing: tp}},
 		{"either: nothing enrolled", domain.FactorsEither, pw, pw, false, want{stage: domain.StageEnrollment, missing: tp | pk}},
 		{"either: totp enrolled", domain.FactorsEither, pw | tp, pw, false, want{stage: domain.StageSecondFactor, next: tp}},
 		{"either: both enrolled", domain.FactorsEither, pw | tp | pk, pw, false, want{stage: domain.StageSecondFactor, next: tp | pk}},

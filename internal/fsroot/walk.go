@@ -24,14 +24,21 @@ type walkFunc func(rel string, fi fs.FileInfo) error
 // below it, parents before children, never following symlinks. A
 // directory is descended only through a handle confirmed to be the
 // directory that was Lstat'ed (a swap is reported as a conflict for that
-// directory). At most limit entries are visited (errWalkLimit).
-func walk(ctx context.Context, r *os.Root, rel string, recursive bool, limit int, fn walkFunc) error {
-	fi, err := r.Lstat(rel)
+// directory). At most limit entries are visited (errWalkLimit). In
+// NoFollow scopes rel itself is reached without following any symlink
+// (scopeRoot.at); a symlink at rel is visited as a link.
+func walk(ctx context.Context, r *scopeRoot, rel string, recursive bool, limit int, fn walkFunc) error {
+	dir, name, done, err := r.at(rel)
+	if err != nil {
+		return err
+	}
+	fi, err := dir.Lstat(name)
+	done()
 	if err != nil {
 		return classify(err, rel)
 	}
 	n := 0
-	return walkEntry(ctx, r, rel, fi, recursive, limit, &n, fn)
+	return walkEntry(ctx, r.root, rel, fi, recursive, limit, &n, fn)
 }
 
 func walkEntry(ctx context.Context, r *os.Root, rel string, fi fs.FileInfo, recursive bool, limit int, n *int, fn walkFunc) error {
@@ -126,7 +133,7 @@ func (s *Service) Preview(ctx context.Context, in protocol.FilesPreviewInput) (p
 	budget := protocol.MaxPreviewEntries
 	count := func(rel string, recursive bool) error {
 		before := out.Impact.Entries
-		err := walk(ctx, r.root, rel, recursive, budget, func(_ string, fi fs.FileInfo) error {
+		err := walk(ctx, r, rel, recursive, budget, func(_ string, fi fs.FileInfo) error {
 			impactOf(&out.Impact, fi)
 			return nil
 		})
@@ -138,7 +145,15 @@ func (s *Service) Preview(ctx context.Context, in protocol.FilesPreviewInput) (p
 		return err
 	}
 	conflict := func(source, destRel string) error {
-		fi, err := r.root.Lstat(destRel)
+		dir, name, done, err := r.at(destRel)
+		if codeOf(err) == protocol.CodeNotFound {
+			return nil // the destination directory does not exist yet
+		}
+		if err != nil {
+			return err
+		}
+		fi, err := dir.Lstat(name)
+		done()
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}

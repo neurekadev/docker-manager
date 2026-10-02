@@ -136,22 +136,38 @@ func TestSignInEnumerationResistance(t *testing.T) {
 	}
 }
 
-// TestSignInThrottling: repeated failures for one account are limited
-// even across client IPs, and one IP is limited across accounts.
+// TestSignInThrottling: failures for one account from one client are
+// limited without locking the account out for everyone else, a successful
+// sign-in forgets them, and one IP is limited across accounts.
 func TestSignInThrottling(t *testing.T) {
 	e := newEnv(t)
 	_, pw := e.setupOwner()
 	wrong := map[string]string{"username": "owner", "password": e.secrets.New(canary.Password, "wrong")}
+	attacker := e.client()
 	for range auth.PerAccount.Burst {
-		e.client().fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, "/api/v1/auth/session", wrong)
+		attacker.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, "/api/v1/auth/session", wrong)
 	}
-	r := e.client().fail(http.StatusTooManyRequests, "rate_limited", http.MethodPost, "/api/v1/auth/session", map[string]string{"username": "owner", "password": pw})
+	r := attacker.fail(http.StatusTooManyRequests, "rate_limited", http.MethodPost, "/api/v1/auth/session", map[string]string{"username": "owner", "password": pw})
 	if r.header.Get("Retry-After") == "" {
 		t.Fatal("429 without Retry-After")
 	}
-	e.clk.Advance(auth.PerAccount.Every)
+	// The attacker cannot lock the owner out: another client signs in.
 	if s := e.client().signIn("owner", pw); s.State != "authenticated" {
+		t.Fatalf("owner locked out by another client's failures: %+v", s)
+	}
+	e.clk.Advance(auth.PerAccount.Every)
+	if s := attacker.signIn("owner", pw); s.State != "authenticated" {
 		t.Fatalf("after refill: %+v", s)
+	}
+	// A successful sign-in forgets the client's earlier failures.
+	alice := e.client()
+	for range auth.PerAccount.Burst - 1 {
+		alice.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, "/api/v1/auth/session", wrong)
+	}
+	alice.signIn("owner", pw)
+	alice.cookie = ""
+	for range auth.PerAccount.Burst - 1 {
+		alice.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, "/api/v1/auth/session", wrong)
 	}
 	// One IP guessing many accounts.
 	c := e.client()
@@ -159,6 +175,55 @@ func TestSignInThrottling(t *testing.T) {
 		c.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, "/api/v1/auth/session", map[string]string{"username": "user" + itoa(i), "password": pw})
 	}
 	c.fail(http.StatusTooManyRequests, "rate_limited", http.MethodPost, "/api/v1/auth/session", map[string]string{"username": "someone", "password": pw})
+}
+
+// TestSignInAccountCeiling: guessing one account's password spread over
+// many clients stops at the account-wide ceiling.
+func TestSignInAccountCeiling(t *testing.T) {
+	e := newEnv(t)
+	_, pw := e.setupOwner()
+	wrong := map[string]string{"username": "owner", "password": e.secrets.New(canary.Password, "wrong")}
+	var c *client
+	for i := range auth.AccountCeiling.Burst {
+		if i%auth.PerAccount.Burst == 0 {
+			c = e.client()
+		}
+		c.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, "/api/v1/auth/session", wrong)
+	}
+	e.client().fail(http.StatusTooManyRequests, "rate_limited", http.MethodPost, "/api/v1/auth/session", map[string]string{"username": "owner", "password": pw})
+	e.clk.Advance(auth.AccountCeiling.Every)
+	if s := e.client().signIn("owner", pw); s.State != "authenticated" {
+		t.Fatalf("after refill: %+v", s)
+	}
+}
+
+// TestConcurrentSignInsStayWithinTheLimit: parallel guesses cannot all be
+// checked before the first failure is counted; only the burst is.
+func TestConcurrentSignInsStayWithinTheLimit(t *testing.T) {
+	e := newEnv(t)
+	e.setupOwner()
+	wrong := map[string]string{"username": "owner", "password": e.secrets.New(canary.Password, "wrong")}
+	c := e.client()
+	const n = 40
+	results := make([]response, n)
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Go(func() { results[i] = c.do(http.MethodPost, "/api/v1/auth/session", wrong) })
+	}
+	wg.Wait()
+	checked := 0
+	for _, r := range results {
+		switch {
+		case r.status == http.StatusUnauthorized:
+			checked++
+		case r.status == http.StatusTooManyRequests && r.code() == "rate_limited":
+		default:
+			t.Errorf("sign-in: %d %s", r.status, r.body)
+		}
+	}
+	if checked != auth.PerAccount.Burst {
+		t.Fatalf("%d of %d parallel guesses were checked, want the burst (%d)", checked, n, auth.PerAccount.Burst)
+	}
 }
 
 // TestInvitations: single use, expiry, revocation, email binding and
@@ -533,6 +598,32 @@ func TestRequiredTOTPPolicy(t *testing.T) {
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/users/"+lateID+"/factor-resets", nil)
 	if s = late.signIn("late", latePW); s.State != "enrollment_required" {
 		t.Fatalf("late after reset %+v", s)
+	}
+}
+
+// TestStricterPolicyStillAsksForEnrolledFactor: when the policy requires a
+// factor the account lacks, a password alone does not reach the
+// enrollment session (where it could register its own passkey): the
+// factor the account did enroll comes first.
+func TestStricterPolicyStillAsksForEnrolledFactor(t *testing.T) {
+	e := newEnv(t)
+	owner, _ := e.setupOwner()
+	alice, alicePW, _ := e.newUser(owner, "alice")
+	secret, _ := alice.enrollTOTP()
+	alice.must(http.StatusNoContent, http.MethodDelete, "/api/v1/auth/session", nil)
+	owner.setSecurity(map[string]any{"requiredFactors": "passkey"})
+
+	s := alice.signIn("alice", alicePW)
+	if s.State != "second_factor_required" || len(s.Factors) == 0 || s.Factors[0] != "totp" {
+		t.Fatalf("password alone under the passkey policy: %+v", s)
+	}
+	if r := alice.do(http.MethodPost, "/api/v1/auth/passkeys/registration-options", nil); r.status == http.StatusOK {
+		t.Fatal("a password-only sign-in could start a passkey registration")
+	}
+	e.clk.Advance(30 * time.Second)
+	s = alice.must(http.StatusOK, http.MethodPost, "/api/v1/auth/session", map[string]string{"totpCode": e.totpCode(secret)}).session(t)
+	if s.State != "enrollment_required" || strings.Join(s.MissingFactors, ",") != "passkey" {
+		t.Fatalf("after the enrolled TOTP: %+v", s)
 	}
 }
 

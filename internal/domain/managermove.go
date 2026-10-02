@@ -66,6 +66,13 @@ type ManagerMoveRedirect struct {
 	// ErrorClass says why it was not sent (offline, unsupported, refused,
 	// timeout); "" when sent.
 	ErrorClass string
+	// ReturnedAt (new manager): when the agent, which dialed the move's
+	// plain-HTTP address, was sent this manager's HTTPS public address.
+	ReturnedAt *time.Time
+	// RotatedAt (new manager): when a new credential was requested for the
+	// agent, whose credential crossed the network in plain HTTP during the
+	// move.
+	RotatedAt *time.Time
 }
 
 // ManagerMove is one move of the manager. The move code is never part of

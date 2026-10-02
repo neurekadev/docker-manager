@@ -7,14 +7,12 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
-	"sync"
 	"time"
-
-	"golang.org/x/time/rate"
 
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/logging"
 	"github.com/neurekadev/docker-manager/internal/manager/api"
+	"github.com/neurekadev/docker-manager/internal/manager/auth/throttle"
 	"github.com/neurekadev/docker-manager/internal/manager/authsep"
 	"github.com/neurekadev/docker-manager/internal/manager/requestinfo"
 )
@@ -28,9 +26,10 @@ type AgentLimits struct {
 	// limited individually and spoofed headers cannot evade the limit.
 	RequestsPerSecond float64
 	Burst             int
-	// MaxTrackedClients bounds the limiter table. When it is full and no
-	// idle entry can be evicted, requests from new clients are rejected
-	// with 429 (fail closed under address-rotation floods).
+	// MaxTrackedClients bounds the limiter table. When it is full, a new
+	// client still gets a bucket (an address-rotation flood never locks
+	// clients out) and the bucket that is full again soonest is forgotten
+	// (throttle.New).
 	MaxTrackedClients int
 	// MaxBodyBytes bounds request bodies (enrollment payloads are small;
 	// session traffic is WebSocket frames, bounded by the ws read limit).
@@ -107,15 +106,14 @@ func EndPreAuth(w http.ResponseWriter) {
 // agentGuard applies AgentLimits to every /agent/v1 request. Its limiter
 // table is shared by all handlers it wraps.
 type agentGuard struct {
-	limits AgentLimits
-	clk    clock.Clock
-
-	mu      sync.Mutex
-	clients map[netip.Prefix]*rate.Limiter
+	limits  AgentLimits
+	clients *throttle.Limiter
 }
 
 func newAgentGuard(limits AgentLimits, clk clock.Clock) *agentGuard {
-	return &agentGuard{limits: limits.withDefaults(), clk: clk, clients: map[netip.Prefix]*rate.Limiter{}}
+	limits = limits.withDefaults()
+	every := time.Duration(float64(time.Second) / limits.RequestsPerSecond)
+	return &agentGuard{limits: limits, clients: throttle.New(throttle.Limit{Every: every, Burst: limits.Burst}, clk, limits.MaxTrackedClients)}
 }
 
 func (g *agentGuard) wrap(next http.Handler) http.Handler {
@@ -145,32 +143,7 @@ func (g *agentGuard) serve(w http.ResponseWriter, r *http.Request, next http.Han
 
 // allow takes one token for the client's bucket.
 func (g *agentGuard) allow(ip netip.Addr) bool {
-	key := clientKey(ip)
-	now := g.clk.Now()
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	lim, ok := g.clients[key]
-	if !ok {
-		if len(g.clients) >= g.limits.MaxTrackedClients {
-			g.evictIdle(now)
-		}
-		if len(g.clients) >= g.limits.MaxTrackedClients {
-			return false
-		}
-		lim = rate.NewLimiter(rate.Limit(g.limits.RequestsPerSecond), g.limits.Burst)
-		g.clients[key] = lim
-	}
-	return lim.AllowN(now, 1)
-}
-
-// evictIdle drops buckets that have fully refilled: forgetting them changes
-// nothing for their clients.
-func (g *agentGuard) evictIdle(now time.Time) {
-	for k, lim := range g.clients {
-		if lim.TokensAt(now) >= float64(g.limits.Burst) {
-			delete(g.clients, k)
-		}
-	}
+	return g.clients.Take(clientKey(ip).String())
 }
 
 // clientKey groups IPv6 clients by /64 (one site or host can rotate through

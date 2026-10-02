@@ -220,16 +220,18 @@ func (s *Service) RevokeInvitation(ctx context.Context, id string) error {
 // failures are throttled per client IP. Consuming the invitation and
 // creating the account happen in one transaction.
 func (s *Service) RedeemInvitation(ctx context.Context, in domain.InvitationRedemption) (domain.SessionState, error) {
-	if err := s.allow(ctx); err != nil {
+	att, err := s.begin(ctx)
+	if err != nil {
 		return domain.SessionState{}, err
 	}
+	defer att.release()
 	now := s.now()
 	inv, err := store.FindRedeemableInvitation(ctx, s.db, verifier(in.Code), now)
 	if err == nil && inv.Email != "" && !strings.EqualFold(inv.Email, strings.TrimSpace(in.Email)) {
 		err = domain.ErrCodeInvalid // bound to another address: indistinguishable from an unknown code
 	}
 	if errors.Is(err, domain.ErrCodeInvalid) {
-		s.fail(ctx)
+		att.fail()
 		s.record(ctx, "invitation.redeem", OutcomeFailure, "", "", "", "invalid_code")
 		return domain.SessionState{}, err
 	}
@@ -284,7 +286,7 @@ func (s *Service) RedeemInvitation(ctx context.Context, in domain.InvitationRede
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrCodeInvalid) {
-			s.fail(ctx)
+			att.fail()
 		}
 		return domain.SessionState{}, err
 	}

@@ -265,3 +265,49 @@ func TestManagerRedirect(t *testing.T) {
 		t.Fatalf("after replacing the corrupt record %+v %v", ms, err)
 	}
 }
+
+// TestReplaceManagerRedirect: the manager the agent follows changes its
+// address at the recorded generation only (a lower or higher one changes
+// nothing), nil forgets the redirect and keeps the generation, and a
+// corrupt record is refused rather than replaced.
+func TestReplaceManagerRedirect(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	moved := ManagerRedirect{URL: "http://192.0.2.10:8080", Replaces: "http://docker-manager:8080", At: at}
+	if err := s.SaveManagerRedirect(3, moved); err != nil {
+		t.Fatal(err)
+	}
+	secure := ManagerRedirect{URL: "https://docker.example.com", Replaces: "http://docker-manager:8080", At: at.Add(time.Hour)}
+	for _, g := range []int64{0, 2, 4} {
+		if err := s.ReplaceManagerRedirect(g, &secure); !errors.Is(err, ErrGenerationNotNewer) {
+			t.Fatalf("generation %d: %v", g, err)
+		}
+	}
+	if ms, _ := s.ManagerState(); ms.Generation != 3 || *ms.Redirect != moved {
+		t.Fatalf("refused replacement written: %+v", ms)
+	}
+	if err := s.ReplaceManagerRedirect(3, &ManagerRedirect{URL: "https://m"}); err == nil {
+		t.Fatal("incomplete redirect saved")
+	}
+	if err := s.ReplaceManagerRedirect(3, &secure); err != nil {
+		t.Fatal(err)
+	}
+	s2, _ := Open(dir)
+	if ms, err := s2.ManagerState(); err != nil || ms.Generation != 3 || ms.Redirect == nil || *ms.Redirect != secure {
+		t.Fatalf("read back %+v %v", ms, err)
+	}
+	if err := s.ReplaceManagerRedirect(3, nil); err != nil {
+		t.Fatal(err)
+	}
+	if ms, _ := s.ManagerState(); ms.Generation != 3 || ms.Redirect != nil {
+		t.Fatalf("after forgetting %+v", ms)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, ManagerFile), []byte(`{"generation":3,"redirect":{"url":""}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceManagerRedirect(3, &secure); err == nil || errors.Is(err, ErrGenerationNotNewer) {
+		t.Fatalf("corrupt record: %v", err)
+	}
+}

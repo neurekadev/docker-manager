@@ -26,6 +26,23 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   `internal/manager/api/files.go` (checks `<root>.files.*` and
   `stack.definition.*`); shared types `internal/protocol/files.go`; contract
   `docs/internal/api/files.md`. Never log file contents or put them in audit details.
+- **Stack definition files:** every path a stack file operation touches
+  (content, sources and destinations of copies, moves, uploads,
+  extractions and archives, deleted and chmod'ed paths, download and
+  archive sources) goes through `fileCtx.requireDefinition` with what it
+  reads and what it changes; a directory counts by what it holds. The set
+  is `api.FileRoot.IsDefinition`: the root-level Compose names
+  (`api.IsDefinitionFile`) plus `FileRoot.Definition`, which
+  `files.Service.StackRoot` fills from `stacks.DefinitionPaths` (observed
+  revision, Compose and env files; clean root-relative paths). Never
+  decide by name alone, and report job changes with `jobSourcePaths`.
+- **Symlinks in stacks:** stack scopes follow no symlink
+  (`fsroot.Options.NoFollow`, set by the agent): resolve paths in `fsroot`
+  only through `scopeRoot.openDir` / `at` / `openRegular` / `openTarget` /
+  `walk`, never `r.root.<op>(rel)` on a user path. The manager trusts
+  paths only for agents announcing `protocol.FeatureStackFilesNoFollow`
+  (`FileRoot.NoFollow`); for others every stack content read needs
+  `stack.definition.read` and every change `stack.definition.write`.
 - **Limits:** the file manager's size and entry limits are the manager's
   `DOCKER_MANAGER_FILES_*` configuration (`config.Config.Files`,
   `domain.FileLimits`). `files.Service.Limits(root)` is the limit in

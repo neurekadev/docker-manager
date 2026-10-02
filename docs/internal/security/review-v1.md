@@ -35,6 +35,21 @@ behind the operator's reverse proxy.
 | F3 | Jobs and sessions | #12 asks for in-flight recovery after the requester signs out; no test covered it. Jobs carry their principal and are re-authorized at dispatch against the user's permissions, not the session, so a sign-out does not orphan or fail them. No bug. | none | added `TestJobOutlivesTheRequestersSession` |
 | F4 | Dependencies | govulncheck v1.8.0: no reachable vulnerability; GO-2026-5932 (`golang.org/x/crypto/openpgp`, unmaintained) is in a required module but not imported. `npm audit --omit=dev`: 5 low (`cookie` < 0.7.0 via `@sveltejs/kit`); the UI ships as a static SPA (adapter-static), so SvelteKit's server-side cookie parsing never runs. | low | accepted; re-check by hand (govulncheck, `npm audit`) with every dependency update; no CI job runs them any more |
 
+Findings of the 2026-10-01 review of the externally reachable paths (manager
+behind a reverse proxy, #180), all fixed in one change:
+
+| # | Area | Finding | Severity | Resolution |
+| --- | --- | --- | --- | --- |
+| F5 | Rate limiting | The sign-in limiter checked for a token before the Argon2id check and took it after, so parallel guesses all passed the check (same for TOTP, recovery codes, step-up, codes). | high | tokens are taken before verifying and refunded on success (`auth` attempt, `throttle.Take/Refund`); `TestConcurrentSignInsStayWithinTheLimit`, `TestConcurrentTakesStayWithinTheBurst` |
+| F6 | Factor enforcement | When the policy required a factor the account lacked (passkey policy with password + TOTP, TOTP policy with password + passkey), a password alone opened the enrollment session, which could register the attacker's passkey or TOTP. | medium | every enrolled, unproven second factor is asked for first (`evaluate`); `TestEvaluatePolicyMatrix`, `TestStricterPolicyStillAsksForEnrolledFactor` |
+| F7 | Audit coverage | Anonymous failed requests (public routes, `/agent/v1` refusals) wrote one record each; the size cap then purged the oldest records, so a flood could erase real history. | medium | anonymous failures are budgeted per client and in total per minute and summarized beyond it (`audit/anonymous.go`) |
+| F8 | Rate limiting | The per-account sign-in bucket was keyed on the name only and checked before the password, so anyone could block password sign-in of a known account. | medium | per account and client, under an account-wide ceiling; reset on success; `TestSignInThrottling`, `TestSignInAccountCeiling` |
+| F9 | Capability boundaries | The file manager required `stack.definition.*` only for root-level `compose*.yml` and `.env`: a stack's other Compose and env files, and any path through an in-root symlink (an extracted `d -> .`), were reachable with `stack.files.*` alone. | high | the stack's declared definition files are authorized for every path an operation reads or changes; stack scopes follow no symlink (`files.stack_no_follow`; older agents need `stack.definition.*` for every content operation); extraction judges link targets from where they land |
+| F10 | TLS enforcement | After a manager move, the old server's agent kept the plain-HTTP address the move gave it, and two agent credentials had crossed the network in clear. | low | the new manager sends that agent its HTTPS public URL and rotates both credentials (`managermove/secure.go`) |
+| F11 | Rate limiting | Limiter tables (sign-in, `/agent/v1`) refused new clients when full. | low | they never refuse a new key and forget the bucket that is full again soonest, so made-up keys cannot reset a key under attack |
+| F12 | Outbound requests | The S3 connection test reached loopback, link-local and metadata addresses (a reachability oracle, also before an owner exists). | low | the probe's dialer refuses them at connect time and follows no redirect; restic itself is not covered (documented in the backups guide) |
+| F13 | TLS enforcement | No `Strict-Transport-Security` from the app. | info | sent on HTTPS requests when the public URL is https |
+
 No other defects were found. The remaining items below record what was
 checked.
 
@@ -226,12 +241,21 @@ checked.
 ## Rate limiting
 
 - Per-IP and per-account token buckets for sign-in, TOTP, recovery codes,
-  step-up, invitations, password resets and setup, with a bounded table
-  that fails closed; a constant Argon2id cost for unknown accounts;
-  `/agent/v1` per client IP (IPv6 per /64), bounded bodies and pre-auth
-  deadlines.
-- `TestSignInThrottling`, `TestSignInEnumerationResistance`,
-  `TestTableBoundFailsClosed`, `TestUnknownAccountCostsOneComputation`,
+  step-up, invitations, password resets and setup. Tokens are taken before
+  the credential is checked and refunded on success, so parallel guesses
+  cannot outrun the limit; the password bucket is per account name and
+  client (no lockout by others) under an account-wide ceiling; bounded
+  tables never refuse a new key and forget the bucket that is full again
+  soonest (#180). A constant
+  Argon2id cost for unknown accounts; `/agent/v1` per client IP (IPv6 per
+  /64, same bounded table), bounded bodies and pre-auth deadlines.
+- Anonymous failed requests (public routes, `/agent/v1` refusals) are
+  written to the audit trail within a per-client and total budget per
+  minute; the rest is summarized, so a flood cannot purge real history
+  through the size cap (#180).
+- `TestSignInThrottling`, `TestSignInAccountCeiling`,
+  `TestConcurrentSignInsStayWithinTheLimit`, `TestSignInEnumerationResistance`,
+  `TestFullTableForgetsTheBucketClosestToFull`, `TestUnknownAccountCostsOneComputation`,
   `TestAgentRateLimitPerClientIP`, `TestAgentBodyBound`,
   `TestAgentPreAuthTimeout`.
 - Limitation: the limiters live in the manager's memory; a restart resets

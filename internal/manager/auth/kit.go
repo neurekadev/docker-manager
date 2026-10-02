@@ -39,10 +39,16 @@ import (
 var (
 	// PerIP bounds failed attempts from one client IP (IPv6: per /64).
 	PerIP = throttle.Limit{Every: 6 * time.Second, Burst: 20}
-	// PerAccount bounds failed attempts against one account name, from
-	// anywhere: 10 guesses, then one per minute (NIST SP 800-63B allows at
-	// most 100 consecutive failures; this is far below).
+	// PerAccount bounds failed attempts against one account name from one
+	// client IP, and against one user's second factors and step-up: 10
+	// guesses, then one per minute (NIST SP 800-63B allows at most 100
+	// consecutive failures; this is far below). Keyed per client for the
+	// password, so nobody can lock an account out by guessing wrong.
 	PerAccount = throttle.Limit{Every: time.Minute, Burst: 10}
+	// AccountCeiling bounds failed password sign-ins against one account
+	// name from all clients together (guessing spread over many
+	// addresses): 100, then one per 6 seconds.
+	AccountCeiling = throttle.Limit{Every: 6 * time.Second, Burst: 100}
 )
 
 // SweepInterval is how often expired sessions are deleted.
@@ -89,6 +95,7 @@ type Kit struct {
 	CSRF            *csrf.Guard
 	IPLimit         *throttle.Limiter
 	AccountLimit    *throttle.Limiter
+	AccountCeiling  *throttle.Limiter
 	db              bun.IDB
 	logger          *slog.Logger
 }
@@ -148,9 +155,10 @@ func NewKit(o KitOptions) (*Kit, error) {
 	return &Kit{
 		Clock: o.Clock, IdleTimeout: o.IdleTimeout, Lifetime: o.Lifetime, StayIdleTimeout: o.StayIdleTimeout, StayLifetime: o.StayLifetime,
 		SessionStore: sessionStore, Sessions: sm, Passwords: hasher, RP: rp, CSRF: guard, db: o.DB,
-		IPLimit:      throttle.New(PerIP, o.Clock, 50000),
-		AccountLimit: throttle.New(PerAccount, o.Clock, 50000),
-		logger:       o.Logger,
+		IPLimit:        throttle.New(PerIP, o.Clock, 50000),
+		AccountLimit:   throttle.New(PerAccount, o.Clock, 50000),
+		AccountCeiling: throttle.New(AccountCeiling, o.Clock, 50000),
+		logger:         o.Logger,
 	}, nil
 }
 
