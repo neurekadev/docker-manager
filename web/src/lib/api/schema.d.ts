@@ -7978,7 +7978,44 @@ export interface components {
             /** @enum {string} */
             whenFailed: "now" | "past";
         };
+        DiskAttributeRow: {
+            /**
+             * Format: int64
+             * @example 5
+             */
+            id: number;
+            /** @example Reallocated_Sector_Ct */
+            name: string;
+            /** @description The attribute predicts a failure (else it counts age or usage). */
+            prefailure?: boolean;
+            /** Format: int64 */
+            raw?: number;
+            /**
+             * @description smartctl's rendering of the raw value when it says more than the number.
+             * @example 35 (Min/Max 20/45)
+             */
+            rawText?: string;
+            /**
+             * Format: int64
+             * @description The attribute fails at or below this normalized value.
+             */
+            threshold?: number;
+            /**
+             * Format: int64
+             * @description Normalized value (0..255).
+             */
+            value?: number;
+            /** @enum {string} */
+            whenFailed?: "now" | "past";
+            /**
+             * Format: int64
+             * @description Lowest normalized value seen.
+             */
+            worst?: number;
+        };
         DiskDevice: {
+            /** @description The ATA attribute table as read (absent from older agents). */
+            attributes?: components["schemas"]["DiskAttributeRow"][];
             /**
              * Format: int64
              * @description Percent.
@@ -8056,6 +8093,8 @@ export interface components {
             type: string;
             /** Format: int64 */
             uncorrectedErrors?: number;
+            /** @description The other numeric health values the disk reports, by smartctl's JSON key: the NVMe health log, the SCSI error counters, the power cycle count (absent from older agents). */
+            values?: components["schemas"]["DiskValue"][];
         };
         DiskHealth: {
             /**
@@ -8094,6 +8133,15 @@ export interface components {
              * @enum {string}
              */
             scope: "smart" | "raid";
+        };
+        DiskValue: {
+            /**
+             * @description smartctl's JSON key; nested keys joined by dots.
+             * @example data_units_written
+             */
+            key: string;
+            /** Format: int64 */
+            value: number;
         };
         DismissAlertsInputBody: {
             /**
@@ -11126,6 +11174,12 @@ export interface components {
             action?: "recovery" | "resync" | "reshape" | "check" | "repair";
             /** Format: int64 */
             active?: number;
+            /** @description The array has a write-intent bitmap. */
+            bitmap?: boolean;
+            /** Format: int64 */
+            bitmapChunkBytes?: number;
+            /** Format: int64 */
+            chunkBytes?: number;
             /** Format: int64 */
             devices?: number;
             /** Format: int64 */
@@ -11138,11 +11192,21 @@ export interface components {
             /** @enum {string} */
             kind: "md" | "zfs";
             /**
+             * @description raid5/6 parity algorithm or raid10 copies ("2 near-copies").
+             * @example algorithm 2
+             */
+            layout?: string;
+            /**
              * @description md level (absent for inactive arrays and ZFS pools).
              * @example raid1
              */
             level?: string;
             members: components["schemas"]["RAIDMember"][];
+            /**
+             * @description md superblock version (1.2, 0.90, external:…).
+             * @example 1.2
+             */
+            metadata?: string;
             /** @example md0 */
             name: string;
             /** @description The action waits (DELAYED or PENDING). */
@@ -25850,6 +25914,19 @@ export interface operations {
                      *         "checking": false,
                      *         "devices": [
                      *           {
+                     *             "attributes": [
+                     *               {
+                     *                 "id": 5,
+                     *                 "name": "Reallocated_Sector_Ct",
+                     *                 "prefailure": false,
+                     *                 "raw": 1,
+                     *                 "rawText": "35 (Min/Max 20/45)",
+                     *                 "threshold": 1,
+                     *                 "value": 1,
+                     *                 "whenFailed": "now",
+                     *                 "worst": 1
+                     *               }
+                     *             ],
                      *             "availableSpare": 1,
                      *             "availableSpareThreshold": 1,
                      *             "capacityBytes": 1,
@@ -25883,7 +25960,13 @@ export interface operations {
                      *             "state": "ok",
                      *             "temperatureC": 1,
                      *             "type": "sat",
-                     *             "uncorrectedErrors": 1
+                     *             "uncorrectedErrors": 1,
+                     *             "values": [
+                     *               {
+                     *                 "key": "data_units_written",
+                     *                 "value": 1
+                     *               }
+                     *             ]
                      *           }
                      *         ],
                      *         "receivedAt": "2026-09-25T12:00:00Z",
@@ -25895,10 +25978,14 @@ export interface operations {
                      *           {
                      *             "action": "recovery",
                      *             "active": 1,
+                     *             "bitmap": false,
+                     *             "bitmapChunkBytes": 1,
+                     *             "chunkBytes": 1,
                      *             "devices": 1,
                      *             "finishSeconds": 1,
                      *             "health": "ONLINE",
                      *             "kind": "md",
+                     *             "layout": "algorithm 2",
                      *             "level": "raid1",
                      *             "members": [
                      *               {
@@ -25908,6 +25995,7 @@ export interface operations {
                      *                 "writeMostly": false
                      *               }
                      *             ],
+                     *             "metadata": "1.2",
                      *             "name": "md0",
                      *             "pending": false,
                      *             "progress": 1,
@@ -30089,6 +30177,19 @@ export interface operations {
                      *         "checking": false,
                      *         "devices": [
                      *           {
+                     *             "attributes": [
+                     *               {
+                     *                 "id": 5,
+                     *                 "name": "Reallocated_Sector_Ct",
+                     *                 "prefailure": false,
+                     *                 "raw": 1,
+                     *                 "rawText": "35 (Min/Max 20/45)",
+                     *                 "threshold": 1,
+                     *                 "value": 1,
+                     *                 "whenFailed": "now",
+                     *                 "worst": 1
+                     *               }
+                     *             ],
                      *             "availableSpare": 1,
                      *             "availableSpareThreshold": 1,
                      *             "capacityBytes": 1,
@@ -30122,7 +30223,13 @@ export interface operations {
                      *             "state": "ok",
                      *             "temperatureC": 1,
                      *             "type": "sat",
-                     *             "uncorrectedErrors": 1
+                     *             "uncorrectedErrors": 1,
+                     *             "values": [
+                     *               {
+                     *                 "key": "data_units_written",
+                     *                 "value": 1
+                     *               }
+                     *             ]
                      *           }
                      *         ],
                      *         "receivedAt": "2026-09-25T12:00:00Z",
@@ -30171,10 +30278,14 @@ export interface operations {
                      *           {
                      *             "action": "recovery",
                      *             "active": 1,
+                     *             "bitmap": false,
+                     *             "bitmapChunkBytes": 1,
+                     *             "chunkBytes": 1,
                      *             "devices": 1,
                      *             "finishSeconds": 1,
                      *             "health": "ONLINE",
                      *             "kind": "md",
+                     *             "layout": "algorithm 2",
                      *             "level": "raid1",
                      *             "members": [
                      *               {
@@ -30184,6 +30295,7 @@ export interface operations {
                      *                 "writeMostly": false
                      *               }
                      *             ],
+                     *             "metadata": "1.2",
                      *             "name": "md0",
                      *             "pending": false,
                      *             "progress": 1,

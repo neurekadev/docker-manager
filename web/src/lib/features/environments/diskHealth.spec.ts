@@ -1,9 +1,13 @@
 // Disk health view models (#143): badges, issues in words, durations,
 // notices, toasts and the RAID rows.
 import { describe, expect, it } from 'vitest';
-import { formatHours, formatTemperature } from '$lib/ui';
+import { formatBytes, formatHours, formatTemperature } from '$lib/ui';
 import {
+	arrayName,
 	attributeName,
+	attributeRaw,
+	attributeStatus,
+	attributeType,
 	canCheckDisks,
 	checkedToast,
 	deviceName,
@@ -13,17 +17,24 @@ import {
 	diskKind,
 	diskNotice,
 	diskSummary,
+	healthValue,
 	issuesText,
+	memberDisk,
+	memberDiskPaths,
 	memberLabel,
+	memberRole,
 	noDisks,
 	noRaidText,
 	noSmartDisks,
 	poweredOn,
 	raidBadge,
 	raidCheckedToast,
+	raidBitmap,
 	raidDisks,
+	raidLayout,
 	raidLevel,
 	raidProgress,
+	selfAssessment,
 	showRaidCard,
 	sortArrays,
 	sortDisks,
@@ -330,10 +341,10 @@ describe('RAID', () => {
 			'2 disks'
 		);
 		expect(memberLabel({ name: 'sdc1', slot: 2, state: 'failed' })).toMatchObject({
-			text: 'sdc1 failed',
+			text: '/dev/sdc1 failed',
 			failed: true
 		});
-		expect(memberLabel({ name: 'sdd1', slot: 3, state: 'spare' }).text).toBe('sdd1 spare');
+		expect(memberLabel({ name: 'sdd1', slot: 3, state: 'spare' }).text).toBe('/dev/sdd1 spare');
 		expect(
 			sortMembers([
 				{ name: 'sda1', slot: 0, state: 'active' },
@@ -384,5 +395,89 @@ describe('RAID', () => {
 			'Checked 2 arrays on nas'
 		);
 		expect(raidCheckedToast(none, 'nas')).toBe('No RAID arrays found on nas');
+	});
+});
+
+describe('details (#206)', () => {
+	it('names md arrays by their device path, ZFS pools by name', () => {
+		expect(arrayName(md())).toBe('/dev/md0');
+		expect(arrayName(md({ name: '/dev/md/data' }))).toBe('/dev/md/data');
+		expect(memberLabel({ name: 'cciss!c0d0p1', slot: 0, state: 'active' }).text).toBe(
+			'/dev/cciss/c0d0p1'
+		);
+		expect(arrayName({ kind: 'zfs', name: 'tank', state: 'healthy', members: [] })).toBe(
+			'tank'
+		);
+	});
+
+	it('describes the layout, bitmap and member roles', () => {
+		expect(raidLayout(md({ layout: 'algorithm 2' }))).toBe('Left-symmetric (algorithm 2)');
+		expect(raidLayout(md({ layout: 'algorithm 7' }))).toBe('Algorithm 7');
+		expect(raidLayout(md({ layout: '2 near-copies' }))).toBe('2 near-copies');
+		expect(raidLayout(md())).toBe('');
+		expect(raidBitmap(md())).toBe('None');
+		expect(raidBitmap(md({ bitmap: true, bitmapChunkBytes: 64 * 1024 * 1024 }))).toBe(
+			'Yes, 64 MB chunks'
+		);
+		expect(raidBitmap(md({ bitmap: true }))).toBe('Yes');
+		expect(memberRole({ name: 'sda1', slot: 0, state: 'active', writeMostly: true })).toBe(
+			'Active, write-mostly'
+		);
+		expect(memberRole({ name: 'sdb1', slot: 1, state: 'replacement' })).toBe(
+			'Replacing a member'
+		);
+	});
+
+	it('finds the disk a member lives on', () => {
+		expect(memberDiskPaths('sda1')).toEqual(['/dev/sda']);
+		expect(memberDiskPaths('sdab')).toEqual(['/dev/sdab']);
+		expect(memberDiskPaths('nvme0n1p2')).toEqual(['/dev/nvme0', '/dev/nvme0n1']);
+		expect(memberDiskPaths('loop0')).toEqual([]);
+		const nvme = disk({ name: '/dev/nvme0', type: 'nvme', protocol: 'nvme' });
+		const devices = [disk(), nvme];
+		expect(memberDisk({ name: 'sda2', slot: 0, state: 'active' }, devices)).toBe(devices[0]);
+		expect(memberDisk({ name: 'nvme0n1p1', slot: 1, state: 'active' }, devices)).toBe(nvme);
+		expect(memberDisk({ name: 'sdc1', slot: 2, state: 'active' }, devices)).toBeUndefined();
+	});
+
+	it('shows ATA attributes as smartctl does', () => {
+		const a = { id: 194, name: 'Temperature_Celsius', raw: 36 };
+		expect(attributeRaw(a)).toBe('36');
+		expect(attributeRaw({ ...a, rawText: '36 (Min/Max 20/49)' })).toBe('36 (Min/Max 20/49)');
+		expect(attributeRaw({ id: 1, name: 'X' })).toBe('—');
+		expect(attributeType({ ...a, prefailure: true })).toBe('Pre-fail');
+		expect(attributeType(a)).toBe('Old age');
+		expect(attributeStatus({ ...a, whenFailed: 'now' }).label).toBe('Failing now');
+		expect(attributeStatus({ ...a, whenFailed: 'past' }).label).toBe('Failed in the past');
+		expect(attributeStatus(a).label).toBe('OK');
+		expect(selfAssessment(disk({ passed: true }))).toBe('Passed');
+		expect(selfAssessment(disk({ passed: false }))).toBe('Failed');
+		expect(selfAssessment(disk())).toBe('');
+	});
+
+	it('labels and formats the other health values', () => {
+		expect(healthValue({ key: 'data_units_written', value: 2 })).toEqual({
+			label: 'Data written',
+			text: formatBytes(1_024_000)
+		});
+		expect(healthValue({ key: 'power_on_hours', value: 30 })).toEqual({
+			label: 'Powered on',
+			text: '1 d 6 h'
+		});
+		expect(healthValue({ key: 'critical_warning', value: 0 }).text).toBe('None');
+		expect(healthValue({ key: 'critical_warning', value: 4 }).text).toBe('0x04');
+		expect(healthValue({ key: 'controller_busy_time', value: 90 }).text).toBe('1 h 30 min');
+		expect(healthValue({ key: 'temperature', value: 38 }).text).toBe(formatTemperature(38));
+		expect(healthValue({ key: 'unsafe_shutdowns', value: 1234 })).toEqual({
+			label: 'Unsafe shutdowns',
+			text: '1,234'
+		});
+		expect(healthValue({ key: 'read.total_errors_corrected', value: 5 })).toEqual({
+			label: 'Read: total errors corrected',
+			text: '5'
+		});
+		expect(healthValue({ key: 'accumulated_start_stop_cycles', value: 7 }).label).toBe(
+			'Accumulated start stop cycles'
+		);
 	});
 });

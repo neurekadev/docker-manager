@@ -24,6 +24,16 @@ const (
 	MaxHealthMembers = 128
 	// MaxFailingAttributes bounds the failing ATA attributes of one device.
 	MaxFailingAttributes = 32
+	// MaxSMARTAttributes bounds the ATA attribute table of one device
+	// (ATA keeps at most 30).
+	MaxSMARTAttributes = 64
+	// MaxSMARTValues bounds the other health values of one device.
+	MaxSMARTValues = 64
+	// MaxHealthDetailBytes bounds the encoded attribute tables and values
+	// of all devices of one answer together: beyond it the agent leaves
+	// them out, last devices first, so a host with many disks stays well
+	// within MaxFrameSize.
+	MaxHealthDetailBytes = 512 << 10
 	// maxHealthText bounds the free-text fields (model, serial, names).
 	maxHealthText = 255
 	// maxHealthMessage bounds an error message.
@@ -214,6 +224,14 @@ type SMARTDevice struct {
 	// SCSI.
 	GrownDefects      *int64 `json:"grownDefects,omitempty"`
 	UncorrectedErrors *int64 `json:"uncorrectedErrors,omitempty"`
+	// Attributes is the ATA attribute table as read (for the details
+	// view; the state derives from the fields above), Values the other
+	// numeric health values the device reports, by smartctl's JSON key:
+	// the NVMe health log (data_units_read, power_cycles, ...), the SCSI
+	// error counters (read.total_errors_corrected, ...) and the power
+	// cycle count. Absent from agents that predate them.
+	Attributes []SMARTAttributeRow `json:"attributes,omitempty"`
+	Values     []SMARTValue        `json:"values,omitempty"`
 	// State is derived from the values (DiskOK, DiskWarning, DiskFailing),
 	// DiskSleeping (in standby: the values are the previous read's) or
 	// DiskError (ErrorCode says why; after a failed read the previous
@@ -231,6 +249,34 @@ type SMARTAttribute struct {
 	// WhenFailed is "now" (failing) or "past" (was at or below the
 	// threshold at some time).
 	WhenFailed string `json:"whenFailed"`
+}
+
+// SMARTAttributeRow is one row of a device's ATA attribute table.
+type SMARTAttributeRow struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	// Value, Worst and Threshold are the normalized values (0..255; the
+	// attribute fails at or below its threshold).
+	Value     *int `json:"value,omitempty"`
+	Worst     *int `json:"worst,omitempty"`
+	Threshold *int `json:"threshold,omitempty"`
+	// Raw is the raw value; RawText smartctl's rendering of it when it
+	// says more ("35 (Min/Max 20/45)").
+	Raw     *int64 `json:"raw,omitempty"`
+	RawText string `json:"rawText,omitempty"`
+	// Prefailure: the attribute predicts a failure (else it counts age
+	// or usage).
+	Prefailure bool `json:"prefailure,omitempty"`
+	// WhenFailed is "now", "past" or empty.
+	WhenFailed string `json:"whenFailed,omitempty"`
+}
+
+// SMARTValue is one other numeric health value of a device.
+type SMARTValue struct {
+	// Key is smartctl's JSON key, nested keys joined by dots
+	// (read.total_errors_corrected).
+	Key   string `json:"key"`
+	Value int64  `json:"value"`
 }
 
 // RAIDReport is the RAID state read when answering.
@@ -257,6 +303,17 @@ type MDArray struct {
 	Active    int        `json:"active,omitempty"`
 	SizeBytes int64      `json:"sizeBytes,omitempty"`
 	Members   []MDMember `json:"members"`
+	// Metadata is the superblock version (1.2, 0.90, external:...,
+	// non-persistent);
+	// ChunkBytes the chunk size; Layout the raid5/6 algorithm ("algorithm
+	// 2") or the raid10 copies ("2 near-copies"); Bitmap a write-intent
+	// bitmap with BitmapChunkBytes its chunk size. Absent from agents
+	// that predate them.
+	Metadata         string `json:"metadata,omitempty"`
+	ChunkBytes       int64  `json:"chunkBytes,omitempty"`
+	Layout           string `json:"layout,omitempty"`
+	Bitmap           bool   `json:"bitmap,omitempty"`
+	BitmapChunkBytes int64  `json:"bitmapChunkBytes,omitempty"`
 	// Action is the running (or pending) sync: recovery, resync, reshape,
 	// check or repair. Progress is 0..100; FinishSeconds and
 	// SpeedBytesPerSecond the kernel's estimate.
@@ -344,8 +401,20 @@ func (d SMARTDevice) validate() error {
 		d.OfflineUncorrectable, d.MediaErrors, d.GrownDefects, d.UncorrectedErrors) {
 		return invalid("smart device value out of range")
 	}
-	if len(d.FailingAttributes) > MaxFailingAttributes {
-		return invalid("smart device lists too many failing attributes")
+	if len(d.FailingAttributes) > MaxFailingAttributes || len(d.Attributes) > MaxSMARTAttributes || len(d.Values) > MaxSMARTValues {
+		return invalid("smart device lists too many attributes or values")
+	}
+	for _, a := range d.Attributes {
+		if a.ID < 0 || a.ID > 255 || !healthText(a.Name, 64) || !healthText(a.RawText, 64) || !intIn(a.Value, 0, 255) ||
+			!intIn(a.Worst, 0, 255) || !intIn(a.Threshold, 0, 255) || !nonNegative(a.Raw) ||
+			(a.WhenFailed != "" && a.WhenFailed != "now" && a.WhenFailed != "past") {
+			return invalid("smart attribute row out of range")
+		}
+	}
+	for _, v := range d.Values {
+		if v.Key == "" || !healthText(v.Key, 64) {
+			return invalid("smart value out of range")
+		}
 	}
 	for _, a := range d.FailingAttributes {
 		if a.ID < 0 || a.ID > 255 || !healthText(a.Name, 64) || (a.WhenFailed != "now" && a.WhenFailed != "past") {
@@ -362,7 +431,8 @@ func (r RAIDReport) validate() error {
 	for _, a := range r.MD {
 		if a.Name == "" || !healthText(a.Name, 64) || !healthText(a.Level, 32) || !raidState(a.State) ||
 			a.Devices < 0 || a.Active < 0 || a.Active > a.Devices || a.Devices > MaxHealthMembers*4 || a.SizeBytes < 0 ||
-			len(a.Members) > MaxHealthMembers || !finite(a.Progress, 0, 100) || !nonNegative(a.FinishSeconds, a.SpeedBytesPerSecond) {
+			len(a.Members) > MaxHealthMembers || !finite(a.Progress, 0, 100) || !nonNegative(a.FinishSeconds, a.SpeedBytesPerSecond) ||
+			!healthText(a.Metadata, 64) || !healthText(a.Layout, 64) || a.ChunkBytes < 0 || a.BitmapChunkBytes < 0 {
 			return invalid("md array out of range")
 		}
 		switch a.Action {

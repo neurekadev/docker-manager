@@ -456,6 +456,17 @@ them with "Check disks now" and "Check RAID now".
   uncorrected errors (read + write + verify). Attribute 188 (command
   timeout) is left out: several vendors pack three counters into its raw
   value, so any healthy drive with a past power loss would warn.
+  For the System tab's disk details (#206) the device also carries the
+  whole ATA attribute table (`attributes`: id, name, normalized value,
+  worst, threshold, raw value and smartctl's raw text when it says more,
+  pre-fail flag, `when_failed`) and `values`: every number of the NVMe
+  health log, the SCSI error counter log (`read.total_errors_corrected`,
+  one nesting level) and start-stop counter, in smartctl's order, plus
+  `power_cycle_count` when there is no NVMe log (strings, arrays and
+  deeper objects are left out; at most 64 each; beyond 512 KiB of them in
+  one answer, `protocol.MaxHealthDetailBytes`, the last devices go
+  without, so a host with many disks stays within a frame). They are
+  shown only; the state derives from the fields above.
   `protocol.DeriveDiskState`: **failing** for a failed self-assessment, an
   attribute failing now or an NVMe critical warning about the drive
   (spare, reliability, read-only, backup memory); **warning** for an NVMe
@@ -485,7 +496,10 @@ them with "Check disks now" and "Check RAID now".
 - **RAID** is read on every request from the sampler's procfs
   (`DOCKER_AGENT_HOST_PROC`): `/proc/mdstat` (name, level, active or
   inactive, read-only, members with `(F)` failed / `(S)` spare / `(W)`
-  write-mostly / `(R)` / `(J)` flags, `[n/m]`, size, the recovery,
+  write-mostly / `(R)` / `(J)` flags, `[n/m]`, size, superblock version
+  (`super 1.2`; md prints none for 0.90, so a size line without one is
+  0.90), chunk size, layout (`algorithm
+  N` or the raid10 copies), the bitmap line and its chunk size, the recovery,
   resync, reshape, check or repair line with percent, finish estimate and
   speed, `=DELAYED` / `=PENDING`) and `/proc/spl/kstat/zfs/<pool>/state`
   (`ONLINE` healthy, `DEGRADED` degraded, `FAULTED`/`UNAVAIL`/`SUSPENDED`/
@@ -534,7 +548,13 @@ whose answer failed to store does.
 above plus `agent_outdated` when the agent's capabilities lack
 `host.health` and `unknown` before the first report; `checking`,
 `checkedAt`, the devices) and `raid` (the md arrays and ZFS pools as
-`arrays` with `kind`). `POST …/environments/{id}/disk-health/checks
+`arrays` with `kind`). The Disk health and RAID cards show md arrays and
+members by device path (`/dev/md0`, `/dev/sda1`; alerts keep the kernel
+name) and an info button per row opening the details: a disk's identity
+and every attribute and value (`DiskDetailsDialog`), an array's
+superblock, chunk, layout, bitmap, sync and members with the health of the
+disk each lives on (`RaidDetailsDialog`, matched by path: `sda1` →
+`/dev/sda`, `nvme0n1p1` → `/dev/nvme0`). `POST …/environments/{id}/disk-health/checks
 {scope: smart|raid}` (`environment.system.read`: a read that changes
 nothing on the host, audited as `environment.disk_health.check`) answers
 the fresh state.

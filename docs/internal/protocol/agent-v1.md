@@ -1176,10 +1176,13 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   reallocatedSectors?, endToEndErrors?, reportedUncorrectable?, pendingSectors?,
   offlineUncorrectable?, failingAttributes? [{id, name, whenFailed}],
   criticalWarning?, availableSpare?, availableSpareThreshold?,
-  mediaErrors?, percentageUsed?, grownDefects?, uncorrectedErrors?, state,
-  errorCode?, readAt?}]}, raid {readAt, message?, md [{name, level?,
-  state, readOnly?, devices?, active?, sizeBytes?, members [{name, slot,
-  state, writeMostly?}], action?, pending?, progress?, finishSeconds?,
+  mediaErrors?, percentageUsed?, grownDefects?, uncorrectedErrors?,
+  attributes? [{id, name, value?, worst?, threshold?, raw?, rawText?,
+  prefailure?, whenFailed?}], values? [{key, value}], state, errorCode?,
+  readAt?}]}, raid {readAt, message?, md [{name, level?, state, readOnly?,
+  devices?, active?, sizeBytes?, members [{name, slot, state,
+  writeMostly?}], metadata?, chunkBytes?, layout?, bitmap?,
+  bitmapChunkBytes?, action?, pending?, progress?, finishSeconds?,
   speedBytesPerSecond?}], zfs [{name, health, state}]}}` (#143, added
   after `metrics.live`: the manager sends it only to agents whose
   capabilities list it; Go types in `internal/protocol/health.go`). The
@@ -1191,7 +1194,13 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   scan no longer finds stays listed as `error` `missing` until the agent
   restarts) and the md arrays and ZFS pools read from procfs on every
   request. `intervalSeconds` (added later; older agents omit it) is the
-  agent's read interval. `refresh` is empty, `smart` (a fresh scan and read of every
+  agent's read interval. `attributes` (the ATA attribute table as read),
+  `values` (the other numeric health values by smartctl's JSON key, nested
+  keys joined by dots: the NVMe health log, the SCSI error counters and
+  start-stop counter, the power cycle count) and the md `metadata`,
+  `chunkBytes`, `layout`, `bitmap` and `bitmapChunkBytes` were added later
+  (#206; older agents omit them, the details dialogs show what is there).
+  `refresh` is empty, `smart` (a fresh scan and read of every
   disk, never a self-test: the agent waits up to 3 s, then answers with
   `smart.checking` and the result comes with a later request) or `raid`
   (never a scrub); anything else is `invalid_argument`. `smart.status` is
@@ -1202,8 +1211,11 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   `smart_disabled` or `no_data`); array
   and pool states are `healthy`, `degraded`, `rebuilding`, `checking`,
   `failed` or `inactive`; `whenFailed` is `now` or `past`. At most 256
-  devices, 64 md arrays, 64 pools, 128 members per array and 32 failing
-  attributes per device; the manager validates every bound
+  devices, 64 md arrays, 64 pools, 128 members per array, 32 failing
+  attributes, 64 attribute rows and 64 values per device (keys and raw
+  texts at most 64 bytes; beyond 512 KiB of attribute rows and values in
+  one answer the agent leaves them out, last devices first, so the answer
+  stays within a frame); the manager validates every bound
   (`HostHealthOutput.Validate`). A device is identified by `name` and
   `type` together (disks behind one RAID controller share its path). A
   read that failed, or read nothing about the disk's health

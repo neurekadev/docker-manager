@@ -15,7 +15,11 @@ memory, network and disk use over time, see [Metrics](/metrics).
    **Temperature**, how long it has been **Powered on** and its
    **Issues** in words, for example "8 reallocated sectors" or "Worn 92%".
    Serial numbers and firmware are under **Advanced**.
-3. Press **Check disks now** to read every disk again right away. The
+3. Press the info button (ⓘ) at the end of a disk's row to see all its
+   SMART data: every attribute with its value, worst, threshold and raw
+   value, and the other values the disk reports, such as power cycles or
+   data written.
+4. Press **Check disks now** to read every disk again right away. The
    agent also reads them every 30 minutes; **Last checked** says when it
    last did.
 
@@ -40,10 +44,13 @@ A disk's health is one of:
 ## Check RAID arrays
 
 If the server has Linux software RAID or ZFS pools, the **RAID** card
-lists each array with its state (**Healthy**, **Degraded**,
-**Rebuilding**, **Checking**, **Failed** or **Inactive**), its disks (a
-failed one in red) and the progress of a rebuild or check with the time
-left. Press **Check RAID now** to read it again. A server without arrays
+lists each array, a software RAID array by its path such as `/dev/md0`,
+with its state (**Healthy**, **Degraded**, **Rebuilding**, **Checking**,
+**Failed** or **Inactive**), its disks (a failed one in red) and the
+progress of a rebuild or check with the time left. Press the info button
+(ⓘ) to see the array's level, size, metadata, chunk size, layout and
+bitmap, and each member with its slot, role and the health of its disk.
+Press **Check RAID now** to read it again. A server without arrays
 shows **No RAID arrays found** in the **Disk health** card.
 
 ## Give the agent access to the disks

@@ -43,6 +43,10 @@ var (
 	mdFinishRE   = regexp.MustCompile(`finish\s*=\s*([\d.]+)min`)
 	mdSpeedRE    = regexp.MustCompile(`speed\s*=\s*(\d+)K/sec`)
 	mdCopiesRE   = regexp.MustCompile(`\b(\d+) (?:near|far|offset)-copies\b`)
+	mdSuperRE    = regexp.MustCompile(`\bsuper (\S+)`)
+	mdChunkRE    = regexp.MustCompile(`\b(\d+)[kK] chunks?\b`)
+	mdAlgoRE     = regexp.MustCompile(`\balgorithm \d+\b`)
+	mdBitmapRE   = regexp.MustCompile(`^bitmap:.*?\b(\d+)KB chunk\b`)
 )
 
 // ParseMDStat parses /proc/mdstat into arrays (at most
@@ -164,12 +168,30 @@ func parseMDHead(name, rest string) protocol.MDArray {
 	return a
 }
 
-// parseMDDetail reads the indented lines: size and [n/m] [UU_], the
-// progress line and resync=DELAYED/PENDING.
+// parseMDDetail reads the indented lines: size, superblock version (md
+// prints none for 0.90, so a size line without one means 0.90), chunk
+// size, layout and [n/m] [UU_], the bitmap line, the progress line and
+// resync=DELAYED/PENDING.
 func parseMDDetail(a *protocol.MDArray, line string) {
 	if m := mdBlocksRE.FindStringSubmatch(line); m != nil {
-		if n, err := strconv.ParseInt(m[1], 10, 64); err == nil && n >= 0 && n <= math.MaxInt64/1024 {
-			a.SizeBytes = n * 1024
+		a.SizeBytes = kib(m[1])
+		a.Metadata = "0.90"
+		if s := mdSuperRE.FindStringSubmatch(line); s != nil {
+			a.Metadata = truncate(strings.TrimSuffix(s[1], ","), 64)
+		}
+		if c := mdChunkRE.FindStringSubmatch(line); c != nil {
+			a.ChunkBytes = kib(c[1])
+		}
+		if l := mdAlgoRE.FindString(line); l != "" {
+			a.Layout = l
+		} else if cs := mdCopiesRE.FindAllString(line, -1); len(cs) > 0 {
+			a.Layout = truncate(strings.Join(cs, " "), 64)
+		}
+	}
+	if strings.HasPrefix(line, "bitmap:") {
+		a.Bitmap = true
+		if m := mdBitmapRE.FindStringSubmatch(line); m != nil {
+			a.BitmapChunkBytes = kib(m[1])
 		}
 	}
 	if m := mdStatusRE.FindStringSubmatch(line); m != nil {
@@ -191,8 +213,7 @@ func parseMDDetail(a *protocol.MDArray, line string) {
 			}
 		}
 		if s := mdSpeedRE.FindStringSubmatch(line); s != nil {
-			if k, err := strconv.ParseInt(s[1], 10, 64); err == nil && k >= 0 && k <= math.MaxInt64/1024 {
-				bps := k * 1024
+			if bps := kib(s[1]); bps > 0 || s[1] == "0" {
 				a.SpeedBytesPerSecond = &bps
 			}
 		}
@@ -201,6 +222,15 @@ func parseMDDetail(a *protocol.MDArray, line string) {
 	if m := mdPendingRE.FindStringSubmatch(line); m != nil && a.Action == "" {
 		a.Action, a.Pending = m[1], true
 	}
+}
+
+// kib converts a KiB count to bytes (0 when out of range).
+func kib(s string) int64 {
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 || n > math.MaxInt64/1024 {
+		return 0
+	}
+	return n * 1024
 }
 
 // redundancy is how many members a level may lose (-1: unknown).

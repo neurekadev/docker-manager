@@ -1,10 +1,12 @@
 package smartctl
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/neurekadev/docker-manager/internal/protocol"
@@ -60,7 +62,18 @@ func TestParseReadFixtures(t *testing.T) {
 			want := protocol.SMARTDevice{Name: "/dev/sda", Type: "sat", Protocol: protocol.DiskATA, Model: "WDC WD40EFZX-68AWUN0",
 				Serial: "WD-WX12D3456789", Firmware: "81.00B81", CapacityBytes: 4000787030016, RotationRPM: iptr(5400),
 				SMARTSupported: true, Passed: bptr(true), TemperatureC: iptr(36), PowerOnHours: i64(20560), Reallocated: i64(0),
-				Pending: i64(0), OfflineUncorrectable: i64(0), State: protocol.DiskOK}
+				Pending: i64(0), OfflineUncorrectable: i64(0), State: protocol.DiskOK,
+				Attributes: []protocol.SMARTAttributeRow{
+					{ID: 1, Name: "Raw_Read_Error_Rate", Value: iptr(200), Worst: iptr(200), Threshold: iptr(51), Raw: i64(0), Prefailure: true},
+					{ID: 5, Name: "Reallocated_Sector_Ct", Value: iptr(200), Worst: iptr(200), Threshold: iptr(140), Raw: i64(0),
+						Prefailure: true},
+					{ID: 9, Name: "Power_On_Hours", Value: iptr(72), Worst: iptr(72), Threshold: iptr(0), Raw: i64(20560)},
+					{ID: 194, Name: "Temperature_Celsius", Value: iptr(114), Worst: iptr(101), Threshold: iptr(0), Raw: i64(36),
+						RawText: "36 (Min/Max 20/49)"},
+					{ID: 197, Name: "Current_Pending_Sector", Value: iptr(200), Worst: iptr(200), Threshold: iptr(0), Raw: i64(0)},
+					{ID: 198, Name: "Offline_Uncorrectable", Value: iptr(100), Worst: iptr(253), Threshold: iptr(0), Raw: i64(0)},
+				},
+				Values: []protocol.SMARTValue{{Key: "power_cycle_count", Value: 41}}}
 			if !reflect.DeepEqual(d, want) {
 				t.Fatalf("got  %+v\nwant %+v", d, want)
 			}
@@ -100,6 +113,15 @@ func TestParseReadFixtures(t *testing.T) {
 				*d.TemperatureC != 38 || d.CapacityBytes != 1000204886016 || d.RotationRPM != nil {
 				t.Fatalf("%+v", d)
 			}
+			// The whole health log in smartctl's order; no ATA table.
+			want := []protocol.SMARTValue{{Key: "critical_warning"}, {Key: "temperature", Value: 38}, {Key: "available_spare", Value: 100},
+				{Key: "available_spare_threshold", Value: 10}, {Key: "percentage_used", Value: 2},
+				{Key: "data_units_read", Value: 38519204}, {Key: "data_units_written", Value: 43826192}, {Key: "power_cycles", Value: 212},
+				{Key: "power_on_hours", Value: 5012}, {Key: "unsafe_shutdowns", Value: 18}, {Key: "media_errors"},
+				{Key: "num_err_log_entries"}}
+			if !reflect.DeepEqual(d.Values, want) || d.Attributes != nil {
+				t.Errorf("values %+v attributes %+v", d.Values, d.Attributes)
+			}
 		}},
 		{"nvme_critical.json", ScanDevice{Name: "/dev/nvme1", Type: "nvme"}, BitDiskFailing, func(t *testing.T, r Reading) {
 			d := r.Device
@@ -119,6 +141,12 @@ func TestParseReadFixtures(t *testing.T) {
 			if d.State != protocol.DiskWarning || d.Protocol != protocol.DiskSCSI || d.Model != "SEAGATE ST4000NM0023" ||
 				d.Firmware != "GS0F" || *d.GrownDefects != 12 || *d.UncorrectedErrors != 3 || *d.PowerOnHours != 51034 {
 				t.Fatalf("%+v", d)
+			}
+			want := []protocol.SMARTValue{{Key: "read.total_errors_corrected", Value: 5}, {Key: "read.total_uncorrected_errors", Value: 1},
+				{Key: "write.total_errors_corrected"}, {Key: "write.total_uncorrected_errors"},
+				{Key: "verify.total_errors_corrected", Value: 2}, {Key: "verify.total_uncorrected_errors", Value: 2}}
+			if !reflect.DeepEqual(d.Values, want) {
+				t.Errorf("values %+v", d.Values)
 			}
 		}},
 		{"usb_unsupported.json", ScanDevice{Name: "/dev/sdc", Type: "sat"}, BitCommandLine, func(t *testing.T, r Reading) {
@@ -255,5 +283,36 @@ func TestParseReadNVMeTemperatureOnly(t *testing.T) {
 		BitDiskFailing, "")
 	if r.Device.State != protocol.DiskWarning || *r.Device.CriticalWarning != protocol.NVMeWarnTemperature {
 		t.Fatalf("%+v", r.Device)
+	}
+}
+
+// TestWalkValuesKeepsNumbersOnly: strings, booleans, arrays and objects
+// nested twice are left out, large numbers are clamped and the list is
+// bounded.
+func TestWalkValuesKeepsNumbersOnly(t *testing.T) {
+	var vs []protocol.SMARTValue
+	walkValues([]byte(`{"a":1,"s":"12.5","b":true,"n":null,"arr":[1,2],"o":{"x":2,"deep":{"y":3}},"big":1e40,"f":2.5}`), "", &vs)
+	want := []protocol.SMARTValue{{Key: "a", Value: 1}, {Key: "o.x", Value: 2}, {Key: "big", Value: math.MaxInt64}, {Key: "f", Value: 2}}
+	if !reflect.DeepEqual(vs, want) {
+		t.Fatalf("values %+v", vs)
+	}
+	vs = nil
+	walkValues([]byte(`not json`), "", &vs)
+	if vs != nil {
+		t.Errorf("garbage gave %+v", vs)
+	}
+	var many strings.Builder
+	many.WriteString("{")
+	for i := range protocol.MaxSMARTValues + 5 {
+		if i > 0 {
+			many.WriteString(",")
+		}
+		fmt.Fprintf(&many, `"k%d":%d`, i, i)
+	}
+	many.WriteString("}")
+	vs = nil
+	walkValues([]byte(many.String()), "", &vs)
+	if len(vs) != protocol.MaxSMARTValues {
+		t.Errorf("%d values, want %d", len(vs), protocol.MaxSMARTValues)
 	}
 }

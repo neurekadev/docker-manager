@@ -8,11 +8,13 @@
 	// live stream brings the new report). Notices replace the list when the
 	// agent can't read the disks, is too old, has disk health turned off,
 	// or the disks report no SMART data. "No RAID arrays found" tells the
-	// host has none (the RAID card only shows with arrays). A disk with a
+	// host has none (the RAID card only shows with arrays). The info button
+	// opens a disk's full SMART data (DiskDetailsDialog, #206). A disk with a
 	// firing alert (#159) has a mark beside its path that opens Alerts. Every
 	// disk shows the disk tile (RESOURCE_ICONS).
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import Info from '@lucide/svelte/icons/info';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { api, unwrap, type Environment } from '$lib/api/client';
 	import { queryKeys } from '$lib/api/queries';
@@ -24,6 +26,7 @@
 	import {
 		Button,
 		Card,
+		IconButton,
 		Notice,
 		StatusBadge,
 		Table,
@@ -33,6 +36,7 @@
 		toast,
 		type Column
 	} from '$lib/ui';
+	import DiskDetailsDialog from './DiskDetailsDialog.svelte';
 	import {
 		canCheckDisks,
 		capacity,
@@ -81,6 +85,20 @@
 	const checking = $derived(busy || health.checking);
 	const showCheck = $derived(online && canCheckDisks(health));
 	const noRaid = $derived(noRaidText(raid));
+
+	// The disk whose details are open, by key: live refreshes update it.
+	let detailsOpen = $state(false);
+	let selectedKey = $state('');
+	const selected = $derived(rows.find((d) => diskKey(d) === selectedKey));
+	// A row that leaves (a notice replaced the list) closes its details, so
+	// they never reopen by themselves when it comes back.
+	$effect(() => {
+		if (!selected) detailsOpen = false;
+	});
+	function showDetails(d: DiskDevice) {
+		selectedKey = diskKey(d);
+		detailsOpen = true;
+	}
 
 	$effect(() => {
 		if (awaiting && !health.checking && health.checkedAt !== awaiting.before) {
@@ -151,6 +169,15 @@
 			// Phones show the issues: what needs doing matters more than the
 			// temperature.
 			title: (d) => issuesText(d)
+		},
+		{
+			id: 'details',
+			header: 'Details',
+			hideHeader: true,
+			cell: detailsCell,
+			width: '48px',
+			pin: 'end',
+			stack: 'head'
 		}
 	];
 	const detailColumns: Column<DiskDevice>[] = [
@@ -201,6 +228,14 @@
 	<span class:muted={text === 'None' || text === '—'} class:problem={d.state === 'failing'}
 		>{text}</span
 	>
+{/snippet}
+{#snippet detailsCell(d: DiskDevice)}
+	<IconButton
+		icon={Info}
+		label="Details of {deviceName(d, health.devices)}"
+		size="sm"
+		onclick={() => showDetails(d)}
+	/>
 {/snippet}
 {#snippet serialCell(d: DiskDevice)}
 	{#if d.serial}{d.serial}{:else}{@render dash()}{/if}
@@ -272,6 +307,14 @@
 	{/if}
 	{#if noRaid}<p class="muted foot">{noRaid}</p>{/if}
 </Card>
+{#if selected}
+	<DiskDetailsDialog
+		bind:open={detailsOpen}
+		disk={selected}
+		name={deviceName(selected, health.devices)}
+		{now}
+	/>
+{/if}
 
 <style>
 	/* The name line keeps the column's ellipsis beside the tile. */

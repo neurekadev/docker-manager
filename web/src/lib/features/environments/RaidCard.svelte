@@ -1,15 +1,18 @@
 <script lang="ts">
 	// RAID arrays of one environment (#143), on the System tab: Linux
 	// software RAID (md) and ZFS pools, problems first, one line each: the
-	// name and level, the state, the member disks (failed ones in red) and
-	// a running rebuild or check with its progress and the kernel's finish
-	// estimate. "Check RAID now" reads the state again (never a scrub).
+	// name (md arrays and members by device path, /dev/md0) and level, the
+	// state, the member disks (failed ones in red) and a running rebuild or
+	// check with its progress and the kernel's finish estimate. The info
+	// button opens the array's details (RaidDetailsDialog, #206). "Check
+	// RAID now" reads the state again (never a scrub).
 	// An array with a firing alert (#159) has a mark beside its name that
 	// opens Alerts. Every array shows the RAID tile
 	// (RESOURCE_ICONS).
 	// Shown only when the host has arrays (the Disk health card says "No
 	// RAID arrays found" otherwise) or the state could not be read.
 	import { useQueryClient } from '@tanstack/svelte-query';
+	import Info from '@lucide/svelte/icons/info';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { api, unwrap, type Environment } from '$lib/api/client';
 	import { queryKeys } from '$lib/api/queries';
@@ -20,6 +23,7 @@
 	import {
 		Button,
 		Card,
+		IconButton,
 		Meter,
 		Notice,
 		StatusBadge,
@@ -29,7 +33,9 @@
 		toast,
 		type Column
 	} from '$lib/ui';
+	import RaidDetailsDialog from './RaidDetailsDialog.svelte';
 	import {
+		arrayName,
 		memberLabel,
 		raidBadge,
 		raidCheckedToast,
@@ -38,6 +44,7 @@
 		raidProgress,
 		sortArrays,
 		sortMembers,
+		type DiskDevice,
 		type RaidArray,
 		type RaidHealth
 	} from './diskHealth';
@@ -46,12 +53,15 @@
 		env,
 		raid,
 		online,
+		devices = [],
 		alerts = [],
 		now
 	}: {
 		env: Environment;
 		raid: RaidHealth;
 		online: boolean;
+		/** The environment's disks, for the members' disk health in the details. */
+		devices?: DiskDevice[];
 		/** The environment's firing alerts (arrays are matched by kind and name). */
 		alerts?: Alert[];
 		now?: Date;
@@ -63,6 +73,21 @@
 	let busy = $state(false);
 	const rows = $derived(sortArrays(raid.arrays));
 	const showCheck = $derived(online && raid.status !== 'agent_outdated');
+
+	// The array whose details are open, by key: live refreshes update it.
+	const arrayKey = (a: RaidArray) => `${a.kind}/${a.name}`;
+	let detailsOpen = $state(false);
+	let selectedKey = $state('');
+	const selected = $derived(rows.find((a) => arrayKey(a) === selectedKey));
+	// A row that leaves (a notice replaced the list) closes its details, so
+	// they never reopen by themselves when it comes back.
+	$effect(() => {
+		if (!selected) detailsOpen = false;
+	});
+	function showDetails(a: RaidArray) {
+		selectedKey = arrayKey(a);
+		detailsOpen = true;
+	}
 
 	async function check() {
 		busy = true;
@@ -91,10 +116,10 @@
 			id: 'array',
 			header: 'Array',
 			cell: arrayCell,
-			sortValue: (a) => a.name,
+			sortValue: (a) => arrayName(a),
 			maxWidth: '260px',
 			truncate: true,
-			title: (a) => `${a.name} · ${raidLevel(a)}`,
+			title: (a) => `${arrayName(a)} · ${raidLevel(a)}`,
 			stack: 'title'
 		},
 		{ id: 'state', header: 'State', cell: stateCell, width: '140px', stack: 'status' },
@@ -111,7 +136,16 @@
 					.filter(Boolean)
 					.join(', ')
 		},
-		{ id: 'progress', header: 'Progress', cell: progressCell, width: '320px' }
+		{ id: 'progress', header: 'Progress', cell: progressCell, width: '320px' },
+		{
+			id: 'details',
+			header: 'Details',
+			hideHeader: true,
+			cell: detailsCell,
+			width: '48px',
+			pin: 'end',
+			stack: 'head'
+		}
 	];
 </script>
 
@@ -119,7 +153,7 @@
 	{@const alert = byArray.get(arrayAlertKey(a.kind, a.name))}
 	<IconCell icon="raidArray"
 		><span class="line"
-			><span class="mono">{a.name}</span>{#if alert}<AlertMark {alert} />{/if}<span
+			><span class="mono">{arrayName(a)}</span>{#if alert}<AlertMark {alert} />{/if}<span
 				class="muted level">{raidLevel(a)}</span
 			></span
 		></IconCell
@@ -147,7 +181,7 @@
 					<Meter
 						value={p.percent}
 						max={100}
-						label="{a.name} progress"
+						label="{arrayName(a)} progress"
 						valueText={p.text}
 						role="progressbar"
 						tone="neutral"
@@ -158,6 +192,14 @@
 			<span class="muted text">{p.text}</span>
 		</div>
 	{:else}<span class="muted">—</span>{/if}
+{/snippet}
+{#snippet detailsCell(a: RaidArray)}
+	<IconButton
+		icon={Info}
+		label="Details of {arrayName(a)}"
+		size="sm"
+		onclick={() => showDetails(a)}
+	/>
 {/snippet}
 
 <Card title="RAID" padding="none" id="raid">
@@ -183,14 +225,12 @@
 		</div>
 	{/if}
 	{#if rows.length}
-		<Table
-			label="RAID arrays of {env.name}"
-			{rows}
-			{columns}
-			rowKey={(a) => `${a.kind}/${a.name}`}
-		/>
+		<Table label="RAID arrays of {env.name}" {rows} {columns} rowKey={arrayKey} />
 	{/if}
 </Card>
+{#if selected}
+	<RaidDetailsDialog bind:open={detailsOpen} array={selected} {devices} />
+{/if}
 
 <style>
 	/* The name line keeps the column's ellipsis beside the tile. */

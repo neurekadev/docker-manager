@@ -6325,9 +6325,76 @@
         ],
         "type": "object"
       },
+      "DiskAttributeRow": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "examples": [
+              5
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "examples": [
+              "Reallocated_Sector_Ct"
+            ],
+            "type": "string"
+          },
+          "prefailure": {
+            "description": "The attribute predicts a failure (else it counts age or usage).",
+            "type": "boolean"
+          },
+          "raw": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rawText": {
+            "description": "smartctl's rendering of the raw value when it says more than the number.",
+            "examples": [
+              "35 (Min/Max 20/45)"
+            ],
+            "type": "string"
+          },
+          "threshold": {
+            "description": "The attribute fails at or below this normalized value.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "value": {
+            "description": "Normalized value (0..255).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "whenFailed": {
+            "enum": [
+              "now",
+              "past"
+            ],
+            "type": "string"
+          },
+          "worst": {
+            "description": "Lowest normalized value seen.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "DiskDevice": {
         "additionalProperties": false,
         "properties": {
+          "attributes": {
+            "description": "The ATA attribute table as read (absent from older agents).",
+            "items": {
+              "$ref": "#/components/schemas/DiskAttributeRow"
+            },
+            "type": "array"
+          },
           "availableSpare": {
             "description": "Percent.",
             "format": "int64",
@@ -6471,6 +6538,13 @@
           "uncorrectedErrors": {
             "format": "int64",
             "type": "integer"
+          },
+          "values": {
+            "description": "The other numeric health values the disk reports, by smartctl's JSON key: the NVMe health log, the SCSI error counters, the power cycle count (absent from older agents).",
+            "items": {
+              "$ref": "#/components/schemas/DiskValue"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -6573,6 +6647,27 @@
         },
         "required": [
           "scope"
+        ],
+        "type": "object"
+      },
+      "DiskValue": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "description": "smartctl's JSON key; nested keys joined by dots.",
+            "examples": [
+              "data_units_written"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "value"
         ],
         "type": "object"
       },
@@ -14427,6 +14522,18 @@
             "format": "int64",
             "type": "integer"
           },
+          "bitmap": {
+            "description": "The array has a write-intent bitmap.",
+            "type": "boolean"
+          },
+          "bitmapChunkBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "chunkBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
           "devices": {
             "format": "int64",
             "type": "integer"
@@ -14455,6 +14562,13 @@
             ],
             "type": "string"
           },
+          "layout": {
+            "description": "raid5/6 parity algorithm or raid10 copies (\"2 near-copies\").",
+            "examples": [
+              "algorithm 2"
+            ],
+            "type": "string"
+          },
           "level": {
             "description": "md level (absent for inactive arrays and ZFS pools).",
             "examples": [
@@ -14467,6 +14581,13 @@
               "$ref": "#/components/schemas/RAIDMember"
             },
             "type": "array"
+          },
+          "metadata": {
+            "description": "md superblock version (1.2, 0.90, external:…).",
+            "examples": [
+              "1.2"
+            ],
+            "type": "string"
           },
           "name": {
             "examples": [
@@ -40134,6 +40255,19 @@
                     "checking": false,
                     "devices": [
                       {
+                        "attributes": [
+                          {
+                            "id": 5,
+                            "name": "Reallocated_Sector_Ct",
+                            "prefailure": false,
+                            "raw": 1,
+                            "rawText": "35 (Min/Max 20/45)",
+                            "threshold": 1,
+                            "value": 1,
+                            "whenFailed": "now",
+                            "worst": 1
+                          }
+                        ],
                         "availableSpare": 1,
                         "availableSpareThreshold": 1,
                         "capacityBytes": 1,
@@ -40167,7 +40301,13 @@
                         "state": "ok",
                         "temperatureC": 1,
                         "type": "sat",
-                        "uncorrectedErrors": 1
+                        "uncorrectedErrors": 1,
+                        "values": [
+                          {
+                            "key": "data_units_written",
+                            "value": 1
+                          }
+                        ]
                       }
                     ],
                     "receivedAt": "2026-09-25T12:00:00Z",
@@ -40179,10 +40319,14 @@
                       {
                         "action": "recovery",
                         "active": 1,
+                        "bitmap": false,
+                        "bitmapChunkBytes": 1,
+                        "chunkBytes": 1,
                         "devices": 1,
                         "finishSeconds": 1,
                         "health": "ONLINE",
                         "kind": "md",
+                        "layout": "algorithm 2",
                         "level": "raid1",
                         "members": [
                           {
@@ -40192,6 +40336,7 @@
                             "writeMostly": false
                           }
                         ],
+                        "metadata": "1.2",
                         "name": "md0",
                         "pending": false,
                         "progress": 1,
@@ -46673,6 +46818,19 @@
                     "checking": false,
                     "devices": [
                       {
+                        "attributes": [
+                          {
+                            "id": 5,
+                            "name": "Reallocated_Sector_Ct",
+                            "prefailure": false,
+                            "raw": 1,
+                            "rawText": "35 (Min/Max 20/45)",
+                            "threshold": 1,
+                            "value": 1,
+                            "whenFailed": "now",
+                            "worst": 1
+                          }
+                        ],
                         "availableSpare": 1,
                         "availableSpareThreshold": 1,
                         "capacityBytes": 1,
@@ -46706,7 +46864,13 @@
                         "state": "ok",
                         "temperatureC": 1,
                         "type": "sat",
-                        "uncorrectedErrors": 1
+                        "uncorrectedErrors": 1,
+                        "values": [
+                          {
+                            "key": "data_units_written",
+                            "value": 1
+                          }
+                        ]
                       }
                     ],
                     "receivedAt": "2026-09-25T12:00:00Z",
@@ -46755,10 +46919,14 @@
                       {
                         "action": "recovery",
                         "active": 1,
+                        "bitmap": false,
+                        "bitmapChunkBytes": 1,
+                        "chunkBytes": 1,
                         "devices": 1,
                         "finishSeconds": 1,
                         "health": "ONLINE",
                         "kind": "md",
+                        "layout": "algorithm 2",
                         "level": "raid1",
                         "members": [
                           {
@@ -46768,6 +46936,7 @@
                             "writeMostly": false
                           }
                         ],
+                        "metadata": "1.2",
                         "name": "md0",
                         "pending": false,
                         "progress": 1,

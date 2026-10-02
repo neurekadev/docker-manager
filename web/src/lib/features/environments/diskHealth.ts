@@ -5,13 +5,21 @@
 // module turns them into badges, issues in words, notices and the check
 // toasts. Numbers go through the shared formatters ($lib/ui format).
 import type { Schema } from '$lib/api/client';
-import { formatBytes, formatDuration, formatHours, formatPercent } from '$lib/ui';
+import {
+	formatBytes,
+	formatDuration,
+	formatHours,
+	formatPercent,
+	formatTemperature
+} from '$lib/ui';
 
 export type DiskHealth = Schema<'DiskHealth'>;
 export type DiskDevice = Schema<'DiskDevice'>;
 export type RaidHealth = Schema<'RAIDHealth'>;
 export type RaidArray = Schema<'RAIDArray'>;
 export type RaidMember = Schema<'RAIDMember'>;
+export type DiskAttributeRow = Schema<'DiskAttributeRow'>;
+export type DiskValue = Schema<'DiskValue'>;
 
 /** Where the user docs explain how the agent gets access to the disks. */
 export const DISK_ACCESS_DOCS =
@@ -210,6 +218,77 @@ export function deviceName(d: DiskDevice, all: DiskDevice[]): string {
 	return shared ? `${d.name} (${d.type})` : d.name;
 }
 
+/** The self-assessment in words: "Passed", "Failed"; "" when not reported. */
+export function selfAssessment(d: DiskDevice): string {
+	if (d.passed === undefined) return '';
+	return d.passed ? 'Passed' : 'Failed';
+}
+
+/** An ATA attribute's type as smartctl names it. */
+export function attributeType(a: DiskAttributeRow): string {
+	return a.prefailure ? 'Pre-fail' : 'Old age';
+}
+
+/** An ATA attribute's raw value: smartctl's text when it says more ("36 (Min/Max 20/49)"). */
+export function attributeRaw(a: DiskAttributeRow): string {
+	if (a.rawText) return a.rawText;
+	return a.raw === undefined ? '—' : wholeNumber(a.raw);
+}
+
+/** An ATA attribute's status: failing now, failed in the past, else OK. */
+export function attributeStatus(a: DiskAttributeRow): Badge {
+	if (a.whenFailed === 'now') return { status: 'failing', label: 'Failing now' };
+	if (a.whenFailed === 'past') return { status: 'warning', label: 'Failed in the past' };
+	return { status: 'healthy', label: 'OK' };
+}
+
+const wholeNumber = (v: number) => v.toLocaleString('en');
+
+/** NVMe counts data in units of 1,000 sectors of 512 bytes. */
+const NVME_DATA_UNIT = 512_000;
+
+const minutes = (v: number) => formatDuration(v * 60);
+
+/** Labels and formats of the health values smartctl reports, by key. */
+const VALUES: Record<string, { label: string; format?: (v: number) => string }> = {
+	critical_warning: {
+		label: 'Critical warning',
+		format: (v) => (v ? `0x${v.toString(16).padStart(2, '0')}` : 'None')
+	},
+	temperature: { label: 'Temperature', format: formatTemperature },
+	available_spare: { label: 'Available spare', format: formatPercent },
+	available_spare_threshold: { label: 'Available spare threshold', format: formatPercent },
+	percentage_used: { label: 'Percentage used', format: formatPercent },
+	data_units_read: { label: 'Data read', format: (v) => formatBytes(v * NVME_DATA_UNIT) },
+	data_units_written: { label: 'Data written', format: (v) => formatBytes(v * NVME_DATA_UNIT) },
+	host_reads: { label: 'Host read commands' },
+	host_writes: { label: 'Host write commands' },
+	controller_busy_time: { label: 'Controller busy time', format: minutes },
+	power_cycles: { label: 'Power cycles' },
+	power_cycle_count: { label: 'Power cycles' },
+	power_on_hours: { label: 'Powered on', format: formatHours },
+	unsafe_shutdowns: { label: 'Unsafe shutdowns' },
+	media_errors: { label: 'Media and data integrity errors' },
+	num_err_log_entries: { label: 'Error log entries' },
+	warning_temp_time: { label: 'Time above the warning temperature', format: minutes },
+	critical_comp_time: { label: 'Time above the critical temperature', format: minutes }
+};
+
+/**
+ * A health value as shown: its label and value in words. Nested SCSI
+ * counters name their operation first ("Read: total errors corrected").
+ */
+export function healthValue(v: DiskValue): { label: string; text: string } {
+	const spec = VALUES[v.key];
+	if (spec) return { label: spec.label, text: (spec.format ?? wholeNumber)(v.value) };
+	const dot = v.key.indexOf('.');
+	const label =
+		dot > 0
+			? `${attributeName(v.key.slice(0, dot))}: ${attributeName(v.key.slice(dot + 1)).toLowerCase()}`
+			: attributeName(v.key);
+	return { label, text: wholeNumber(v.value) };
+}
+
 /** Notice text: plain parts and code (a setting to type). */
 export type NoticePart = string | { code: string };
 
@@ -337,7 +416,84 @@ export function raidBadge(a: RaidArray): Badge {
 	return RAID_BADGE[a.state] ?? { status: 'unknown', label: 'Unknown' };
 }
 
-/** The array's kind: "RAID 1", "RAID 10", "Linear", "ZFS pool". */
+/**
+ * A kernel device name as its path: "sda1" → "/dev/sda1"; the kernel
+ * writes a "/" in a name as "!" ("cciss!c0d0p1" → "/dev/cciss/c0d0p1").
+ */
+export function devPath(name: string): string {
+	return name.startsWith('/') ? name : `/dev/${name.replaceAll('!', '/')}`;
+}
+
+/** An array's name as shown: md arrays by their device path ("/dev/md0"), ZFS pools by name. */
+export function arrayName(a: RaidArray): string {
+	return a.kind === 'md' ? devPath(a.name) : a.name;
+}
+
+/**
+ * The paths smartctl may list a member's disk under: "sda1" → /dev/sda,
+ * "nvme0n1p2" → /dev/nvme0 or /dev/nvme0n1; none for other devices.
+ */
+export function memberDiskPaths(name: string): string[] {
+	const nvme = name.match(/^(nvme\d+)(n\d+)(?:p\d+)?$/);
+	if (nvme) return [`/dev/${nvme[1]}`, `/dev/${nvme[1]}${nvme[2]}`];
+	const disk = name.match(/^((?:sd|vd|hd|xvd)[a-z]+)\d*$/);
+	return disk ? [`/dev/${disk[1]}`] : [];
+}
+
+/** The disk a member lives on, among the SMART devices; undefined when none matches. */
+export function memberDisk(m: RaidMember, devices: DiskDevice[]): DiskDevice | undefined {
+	for (const p of memberDiskPaths(m.name)) {
+		const d = devices.find((d) => d.name === p);
+		if (d) return d;
+	}
+	return undefined;
+}
+
+const MEMBER_ROLE: Record<RaidMember['state'], string> = {
+	active: 'Active',
+	spare: 'Spare',
+	failed: 'Failed',
+	replacement: 'Replacing a member',
+	journal: 'Journal'
+};
+
+/** A member's role in words: "Active", "Spare", "Failed", "Active, write-mostly". */
+export function memberRole(m: RaidMember): string {
+	const role = MEMBER_ROLE[m.state] ?? 'Unknown';
+	return m.writeMostly ? `${role}, write-mostly` : role;
+}
+
+/** md's raid5/6 parity algorithms by number (mdadm's names). */
+const MD_ALGORITHMS: Record<number, string> = {
+	0: 'left-asymmetric',
+	1: 'right-asymmetric',
+	2: 'left-symmetric',
+	3: 'right-symmetric',
+	4: 'parity-first',
+	5: 'parity-last',
+	16: 'left-asymmetric-6',
+	17: 'right-asymmetric-6',
+	18: 'left-symmetric-6',
+	19: 'right-symmetric-6',
+	20: 'parity-first-6'
+};
+
+/** An md layout in words: "Left-symmetric (algorithm 2)", "2 near-copies"; "" when not reported. */
+export function raidLayout(a: RaidArray): string {
+	if (!a.layout) return '';
+	const m = a.layout.match(/^algorithm (\d+)$/);
+	const name = m ? MD_ALGORITHMS[Number(m[1])] : undefined;
+	if (name) return `${name[0].toUpperCase()}${name.slice(1)} (${a.layout})`;
+	return a.layout[0].toUpperCase() + a.layout.slice(1);
+}
+
+/** The write-intent bitmap in words: "Yes, 64 MB chunks", "None". */
+export function raidBitmap(a: RaidArray): string {
+	if (!a.bitmap) return 'None';
+	return a.bitmapChunkBytes ? `Yes, ${formatBytes(a.bitmapChunkBytes)} chunks` : 'Yes';
+}
+
+/** The array's kind: "RAID 1\", "RAID 10", "Linear", "ZFS pool". */
 export function raidLevel(a: RaidArray): string {
 	if (a.kind === 'zfs') return 'ZFS pool';
 	const m = a.level?.match(/^raid(\d+)$/);
@@ -353,26 +509,27 @@ export function raidDisks(a: RaidArray): string {
 	return count(a.members.length, 'disk');
 }
 
-/** A member's label and whether it is highlighted (failed). */
+/** A member's label by its path and whether it is highlighted (failed). */
 export function memberLabel(m: RaidMember): { text: string; failed: boolean; title: string } {
+	const path = devPath(m.name);
 	switch (m.state) {
 		case 'failed':
-			return { text: `${m.name} failed`, failed: true, title: `${m.name} has failed` };
+			return { text: `${path} failed`, failed: true, title: `${path} has failed` };
 		case 'spare':
-			return { text: `${m.name} spare`, failed: false, title: `${m.name} is a spare` };
+			return { text: `${path} spare`, failed: false, title: `${path} is a spare` };
 		case 'replacement':
 			return {
-				text: `${m.name} replacing`,
+				text: `${path} replacing`,
 				failed: false,
-				title: `${m.name} replaces a member`
+				title: `${path} replaces a member`
 			};
 		case 'journal':
-			return { text: `${m.name} journal`, failed: false, title: `${m.name} is the journal` };
+			return { text: `${path} journal`, failed: false, title: `${path} is the journal` };
 	}
 	return {
-		text: m.name,
+		text: path,
 		failed: false,
-		title: m.writeMostly ? `${m.name} (write-mostly)` : m.name
+		title: m.writeMostly ? `${path} (write-mostly)` : path
 	};
 }
 

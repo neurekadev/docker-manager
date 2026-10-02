@@ -1,6 +1,7 @@
 package smartctl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"math"
@@ -176,13 +177,21 @@ type readOutput struct {
 		Hours num `json:"hours"`
 	} `json:"power_on_time"`
 	PowerMode          json.RawMessage `json:"power_mode"`
+	PowerCycleCount    num             `json:"power_cycle_count"`
 	ATASmartAttributes *struct {
 		Table []struct {
 			ID         int    `json:"id"`
 			Name       string `json:"name"`
+			Value      num    `json:"value"`
+			Worst      num    `json:"worst"`
+			Thresh     num    `json:"thresh"`
 			WhenFailed string `json:"when_failed"`
-			Raw        struct {
-				Value num `json:"value"`
+			Flags      struct {
+				Prefailure bool `json:"prefailure"`
+			} `json:"flags"`
+			Raw struct {
+				Value  num    `json:"value"`
+				String string `json:"string"`
 			} `json:"raw"`
 		} `json:"table"`
 	} `json:"ata_smart_attributes"`
@@ -279,8 +288,22 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 				d.FailingAttributes = append(d.FailingAttributes, protocol.SMARTAttribute{ID: attr.ID, Name: bound(attr.Name, 64),
 					WhenFailed: attr.WhenFailed})
 			}
+			if attr.ID < 0 || attr.ID > 255 || len(d.Attributes) >= protocol.MaxSMARTAttributes {
+				continue
+			}
+			row := protocol.SMARTAttributeRow{ID: attr.ID, Name: bound(attr.Name, 64), Value: attr.Value.intPtr(0, 255),
+				Worst: attr.Worst.intPtr(0, 255), Threshold: attr.Thresh.intPtr(0, 255), Raw: attr.Raw.Value.nonNegative(),
+				Prefailure: attr.Flags.Prefailure}
+			if attr.WhenFailed == "now" || attr.WhenFailed == "past" {
+				row.WhenFailed = attr.WhenFailed
+			}
+			if t := strings.TrimSpace(attr.Raw.String); t != "" && (row.Raw == nil || t != strconv.FormatInt(*row.Raw, 10)) {
+				row.RawText = bound(t, 64)
+			}
+			d.Attributes = append(d.Attributes, row)
 		}
 	}
+	d.Values = otherValues(b, out.PowerCycleCount)
 	if n := out.NVMeLog; n != nil {
 		d.CriticalWarning = n.CriticalWarning.intPtr(0, 255)
 		d.AvailableSpare = n.AvailableSpare.intPtr(0, 255)
@@ -338,6 +361,67 @@ func parseRead(scan ScanDevice, b []byte, exit ExitBits, stderr string) Reading 
 	}
 	d.State = protocol.DeriveDiskState(d)
 	return Reading{Device: d}
+}
+
+// otherValues lists the numeric values of the NVMe health log, the SCSI
+// error counters and start-stop counter in smartctl's order, then the
+// power cycle count when the NVMe log has none (at most
+// protocol.MaxSMARTValues).
+func otherValues(b []byte, powerCycles num) []protocol.SMARTValue {
+	var raw struct {
+		NVMe      json.RawMessage `json:"nvme_smart_health_information_log"`
+		SCSI      json.RawMessage `json:"scsi_error_counter_log"`
+		StartStop json.RawMessage `json:"scsi_start_stop_cycle_counter"`
+	}
+	if json.Unmarshal(b, &raw) != nil {
+		return nil
+	}
+	var vs []protocol.SMARTValue
+	walkValues(raw.NVMe, "", &vs)
+	walkValues(raw.SCSI, "", &vs)
+	walkValues(raw.StartStop, "", &vs)
+	if p := powerCycles.ptr(); p != nil && len(raw.NVMe) == 0 && len(vs) < protocol.MaxSMARTValues {
+		vs = append(vs, protocol.SMARTValue{Key: "power_cycle_count", Value: *p})
+	}
+	return vs
+}
+
+// walkValues appends the numbers of a JSON object in order, one level of
+// nested objects with their key as prefix ("read.total_errors_corrected");
+// arrays, strings and deeper objects are skipped.
+func walkValues(raw json.RawMessage, prefix string, vs *[]protocol.SMARTValue) {
+	if len(raw) == 0 {
+		return
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return
+	}
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return
+		}
+		key, _ := t.(string)
+		var v json.RawMessage
+		if dec.Decode(&v) != nil {
+			return
+		}
+		full := prefix + key
+		switch {
+		case key == "" || len(full) > 64:
+		case len(v) > 0 && v[0] == '{':
+			if prefix == "" {
+				walkValues(v, full+".", vs)
+			}
+		default:
+			var n num
+			if len(*vs) < protocol.MaxSMARTValues && (len(v) > 0 && v[0] != '"') && n.UnmarshalJSON(v) == nil && n.set {
+				*vs = append(*vs, protocol.SMARTValue{Key: full, Value: n.v})
+			}
+		}
+	}
 }
 
 // ScanOpenError is the state error code of a device the scan could not

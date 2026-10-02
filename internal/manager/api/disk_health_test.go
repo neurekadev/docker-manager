@@ -39,16 +39,20 @@ func (a *healthAgents) RequestEnvironment(_ context.Context, env, name string, i
 	}
 	a.refreshes = append(a.refreshes, input.(protocol.HostHealthInput).Refresh)
 	now := a.clk.Now().UTC()
-	passed, temp, pending := true, 41, int64(8)
+	passed, temp, pending, hundred, zero := true, 41, int64(8), 100, 0
 	progress, finish := 17.3, int64(4686)
 	return json.Marshal(protocol.HostHealthOutput{SampledAt: now,
 		SMART: protocol.SMARTReport{Status: protocol.SMARTOK, CheckedAt: &now, ScannedAt: &now, Devices: []protocol.SMARTDevice{
 			{Name: "/dev/sda", Type: "sat", Protocol: protocol.DiskATA, Model: "TOSHIBA MG08ACA16TE", Serial: "X0A0A0A0FVGG", SMARTSupported: true,
-				Passed: &passed, TemperatureC: &temp, Pending: &pending, State: protocol.DiskWarning, ReadAt: &now},
+				Passed: &passed, TemperatureC: &temp, Pending: &pending, State: protocol.DiskWarning, ReadAt: &now,
+				Attributes: []protocol.SMARTAttributeRow{{ID: 197, Name: "Current_Pending_Sector", Value: &hundred, Worst: &hundred,
+					Threshold: &zero, Raw: &pending, WhenFailed: "past"}},
+				Values: []protocol.SMARTValue{{Key: "power_cycle_count", Value: 41}}},
 		}},
 		RAID: protocol.RAIDReport{ReadAt: now,
 			MD: []protocol.MDArray{{Name: "md0", Level: "raid1", State: protocol.RAIDRebuilding, Devices: 2, Active: 1, Action: protocol.MDRecovery,
-				Progress: &progress, FinishSeconds: &finish,
+				Progress: &progress, FinishSeconds: &finish, Metadata: "1.2", ChunkBytes: 512 << 10, Layout: "2 near-copies",
+				Bitmap: true, BitmapChunkBytes: 64 << 20,
 				Members: []protocol.MDMember{{Name: "sdc1", Slot: 2, State: protocol.MemberActive}, {Name: "sda1", Slot: 0, State: protocol.MemberActive}}}},
 			ZFS: []protocol.ZFSPool{{Name: "tank", Health: "DEGRADED", State: protocol.RAIDDegraded}}},
 	})
@@ -141,9 +145,20 @@ func TestDiskHealthCheckRoute(t *testing.T) {
 		*out.DiskHealth.Devices[0].PendingSectors != 8 || out.DiskHealth.Devices[0].Serial != "X0A0A0A0FVGG" {
 		t.Fatalf("check answer %+v", out)
 	}
+	if a := out.DiskHealth.Devices[0].Attributes; len(a) != 1 || a[0].ID != 197 || *a[0].Raw != 8 || *a[0].Threshold != 0 ||
+		a[0].WhenFailed != "past" {
+		t.Errorf("attributes %+v", a)
+	}
+	if v := out.DiskHealth.Devices[0].Values; len(v) != 1 || v[0] != (DiskValue{Key: "power_cycle_count", Value: 41}) {
+		t.Errorf("values %+v", v)
+	}
 	if len(out.RAID.Arrays) != 2 || out.RAID.Arrays[0].Kind != "md" || out.RAID.Arrays[0].State != "rebuilding" ||
 		*out.RAID.Arrays[0].Progress != 17.3 || out.RAID.Arrays[1].Kind != "zfs" || out.RAID.Arrays[1].Health != "DEGRADED" {
 		t.Fatalf("raid %+v", out.RAID)
+	}
+	if a := out.RAID.Arrays[0]; a.Metadata != "1.2" || a.ChunkBytes != 512<<10 || a.Layout != "2 near-copies" || !a.Bitmap ||
+		a.BitmapChunkBytes != 64<<20 {
+		t.Errorf("md details %+v", a)
 	}
 
 	// Too soon: 429 with Retry-After; RAID has its own limit.

@@ -278,7 +278,14 @@
 		/>
 	{/if}
 	{#if system.raid && showRaidCard(system.raid)}
-		<RaidCard {env} raid={system.raid} online={system.online} {alerts} {now} />
+		<RaidCard
+			{env}
+			raid={system.raid}
+			devices={system.diskHealth?.devices}
+			online={system.online}
+			{alerts}
+			{now}
+		/>
 	{/if}
 </div>
 
