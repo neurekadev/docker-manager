@@ -517,8 +517,9 @@ func TestEmailLinesStayShort(t *testing.T) {
 	if strings.ReplaceAll(emailLines(text), "\n", " ") != text {
 		t.Fatal("text changed")
 	}
-	// A tag starting just under the soft length: never broken inside a
-	// quoted value, only between attributes.
+	// A tag starting just under the soft length: it starts a line when it
+	// would not fit, and is broken only between attributes, never inside
+	// a quoted value.
 	tag := strings.Repeat("x", emailLineSoft-1) + `<td style="font-family:Inter,'Segoe UI';` + strings.Repeat("padding:0 4px; ", 60) + `" ` +
 		strings.Repeat(`data-a="b" `, 100) + `>t`
 	got := emailLines(tag)
@@ -526,8 +527,13 @@ func TestEmailLinesStayShort(t *testing.T) {
 	if value, _, _ := strings.Cut(rest, `"`); strings.Contains(value, "\n") {
 		t.Fatalf("broken inside a value: %q", value)
 	}
-	if !strings.Contains(got, "\n") || strings.ReplaceAll(got, "\n", " ") != tag {
+	if !strings.Contains(got, "\n<td") || strings.ReplaceAll(strings.ReplaceAll(got, "\n<", "<"), "\n", " ") != tag {
 		t.Fatalf("%q", got)
+	}
+	for l := range strings.SplitSeq(got, "\n") {
+		if len(l) > 998 {
+			t.Fatalf("a line of %d octets", len(l))
+		}
 	}
 	// A long text without spaces is cut anyway, never inside a character
 	// or an entity.

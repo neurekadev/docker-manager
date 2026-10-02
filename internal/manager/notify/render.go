@@ -696,7 +696,8 @@ func emailHTML(msg domain.NotificationMessage) string {
 
 // Email line lengths: SMTP allows 998 octets a line and Shoutrrr sends the
 // HTML part as it is (8 bit), so emailLines breaks a line before a tag once
-// it passes emailLineSoft; past emailLineHard at a space, in a text or
+// it passes emailLineSoft or when the tag would not fit within
+// emailLineMax (it starts a line then); past emailLineHard at a space, in a text or
 // between a tag's attributes (never inside a quoted value); and past
 // emailLineMax anywhere in a text but inside a character or an entity.
 const (
@@ -729,7 +730,7 @@ func emailLines(s string) string {
 			}
 		case c == '<':
 			inTag, inEntity = true, false
-			if n >= emailLineSoft {
+			if n > 0 && (n >= emailLineSoft || n+tagLen(s, i) > emailLineMax) {
 				b.WriteByte('\n')
 				n = 0
 			}
@@ -759,4 +760,23 @@ func emailLines(s string) string {
 		n++
 	}
 	return b.String()
+}
+
+// tagLen is the length of the tag starting at s[i], to its '>' outside
+// quoted values.
+func tagLen(s string, i int) int {
+	var quote byte
+	for j := i + 1; j < len(s); j++ {
+		switch c := s[j]; {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '>':
+			return j - i + 1
+		}
+	}
+	return len(s) - i
 }
