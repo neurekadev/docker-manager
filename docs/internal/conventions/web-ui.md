@@ -9,7 +9,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   (`$lib/design/tokens.css`); no raw hex, no one-off copies of a component.
   `IconButton` needs `label`; dropdowns are `Select` (a themed Bits UI
   listbox, never a native `<select>`), `Combobox`, `MultiSelect` (several
-  choices as switch rows with counts, e.g. the log viewer's Levels) or
+  choices as switch rows with counts, e.g. the log viewer's Services and Levels) or
   `SuggestField` (free text with suggestions, never a `<datalist>`); every `title`
   attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
   so never build a tooltip by hand; confirmations use `ConfirmDialog` /
@@ -26,7 +26,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   column (`pin: 'end'`); headings inside a card are
   `h3.subsection-title`. Colours belong to types, never to single items:
   every service uses `SERVICE_COLOR`/`SERVICE_HEX` (`$lib/design/hue`),
-  also in merged logs, chart series and filter chips (they name the
+  also in merged logs, chart series and filters (they name the
   service); no hashed or per-item colours, except a chart of every
   container of an environment (`MultiSeriesChart`: Beszel's order, on each
   chart the containers ranked by their total over the range get

@@ -107,7 +107,7 @@ export function highlight(text: string, ranges: readonly Range[]): Part[] {
 
 /** What the viewer shows of the buffered lines. */
 export interface LineFilter {
-	/** Whether the line's source is shown (the service chips); absent: all. */
+	/** Whether the line's source is shown (the Services filter); absent: all. */
 	source?: (key: string) => boolean;
 	/** The levels shown; absent: all. */
 	levels?: readonly LogLevel[];
@@ -151,6 +151,19 @@ export function tally(lines: readonly LogLine[]): Record<LogLevel | LogStream, n
 	return out;
 }
 
+/** How many of the lines each service has (`serviceOf`: a source's service). */
+export function serviceTally(
+	lines: readonly LogLine[],
+	serviceOf: Readonly<Record<string, string>>
+): Record<string, number> {
+	const out: Record<string, number> = {};
+	for (const l of lines) {
+		const svc = serviceOf[l.source];
+		if (svc !== undefined) out[svc] = (out[svc] ?? 0) + 1;
+	}
+	return out;
+}
+
 /**
  * The level filter's button text: "All levels", the chosen levels ("Error,
  * Warning"; "4 levels" from three on), then a single chosen stream.
@@ -169,8 +182,9 @@ export function levelSummary(levels: readonly LogLevel[], streams: readonly LogS
 }
 
 /**
- * The service chips' state: `only` (from ?service=<name>) shows that one
- * service while it exists; otherwise every service not in `hidden`.
+ * The Services filter's state: `only` (from ?service=<name>) shows that one
+ * service while it exists; otherwise every service not in `hidden`, so a
+ * service that starts later shows.
  */
 export function serviceShown(
 	service: string,
@@ -180,16 +194,20 @@ export function serviceShown(
 	return !o.hidden.includes(service);
 }
 
-/** The hidden services after toggling `service`, starting from `only` if set. */
-export function toggleHidden(
-	service: string,
-	o: { only?: string | null; hidden: readonly string[]; services: readonly string[] }
-): string[] {
-	const hidden =
-		o.only && o.services.includes(o.only)
-			? o.services.filter((s) => s !== o.only)
-			: [...o.hidden];
-	return hidden.includes(service) ? hidden.filter((s) => s !== service) : [...hidden, service];
+/** The hidden services when the Services filter shows `shown`. */
+export function hiddenServices(services: readonly string[], shown: readonly string[]): string[] {
+	return services.filter((s) => !shown.includes(s));
+}
+
+/**
+ * The Services filter's button text: "All services", the shown services
+ * ("web, db"; "3 services" from three on) or "Nothing selected".
+ */
+export function serviceSummary(services: readonly string[], shown: readonly string[]): string {
+	const names = services.filter((s) => shown.includes(s));
+	if (!names.length) return 'Nothing selected';
+	if (names.length === services.length) return 'All services';
+	return names.length > 2 ? `${names.length} services` : names.join(', ');
 }
 
 /** The lines as a plain text file (RFC 3339 timestamps, UTC). */
