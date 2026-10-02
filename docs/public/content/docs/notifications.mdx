@@ -44,10 +44,12 @@ other jobs only when a schedule or an API token started them.
 Messages use what each service can show. In Discord and Slack the strip
 beside the message is red for failures and critical problems, amber for
 warnings, green when a problem is resolved or a run succeeded, and blue
-for news; Discord shows the numbers as fields. Email arrives as a
-formatted message whose subject starts with the environment's name in
-brackets, for example `[homelab] Disk /dev/sda is failing`; ntfy and
-Gotify arrive with a priority and a link.
+for news; Discord shows the numbers as fields. Email arrives in
+Docker Manager's dark colors with its logo (some mail programs change
+the colors or ask before they show the logo), and its subject starts
+with the environment's name in brackets, for example
+`[homelab] Disk /dev/sda is failing`; ntfy and Gotify arrive with a
+priority and a link.
 
 ## Send a test
 

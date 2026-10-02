@@ -44,8 +44,8 @@ func toneColor(t domain.NotificationTone) uint {
 
 func toneHex(t domain.NotificationTone) string { return fmt.Sprintf("#%06x", toneColor(t)) }
 
-// toneWords name the tone in plain text (the email's top line of a
-// message without a status line).
+// toneWords name the tone in plain text (an email's badge and inbox
+// preview when the message has no status line).
 var toneWords = map[domain.NotificationTone]string{
 	domain.ToneCritical: "Critical", domain.ToneWarning: "Warning", domain.ToneSuccess: "OK", domain.ToneInfo: "Info",
 }
@@ -527,59 +527,164 @@ func telegramHTML(msg domain.NotificationMessage) string {
 	return strings.Join(parts, "\n\n")
 }
 
+// Email colors: the web's design tokens (web/src/lib/design/tokens.css),
+// copied because mail programs know no custom properties
+// (TestEmailColorsAreTheAppsTokens keeps them equal). Emails are dark like
+// the app and declare it (color-scheme), which most mail programs follow;
+// some (Gmail's apps, Outlook.com) recolor anyway.
+const (
+	emailCanvas     = "#0a0f15" // --surface-canvas
+	emailPanel      = "#121a24" // --surface-panel
+	emailBorder     = "#1f2a38" // --border-subtle
+	emailCodeBg     = "#0f161f" // --code-bg
+	emailCodeBorder = "#2b3747" // --border-strong
+	emailStrong     = "#f2f4f7" // --text-strong
+	emailText       = "#c8d3e2" // --text-default
+	emailMuted      = "#8392a8" // --text-muted
+	emailLink       = "#52a3f7" // --accent-text
+	emailOnAccent   = "#ffffff" // --text-on-accent
+
+	emailFont = `Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
+	emailMono = `'JetBrains Mono',SFMono-Regular,Consolas,Menlo,monospace`
+)
+
+// EmailLogoURL is the logo emails show at 32 px: the documentation site's
+// 192 px one (LogoURL's reasons, a smaller file).
+const EmailLogoURL = "https://docs.neureka.dev/docker-manager/logo.png"
+
+// emailBadges are the app's status badge (Badge.svelte) background and
+// border per tone: --danger-soft and --danger-border and so on, the
+// accent badge for information (its border is the accent at 40 % over
+// --accent-soft).
+var emailBadges = map[domain.NotificationTone]struct{ bg, border string }{
+	domain.ToneCritical: {"#3f2029", "#5a2a33"},
+	domain.ToneWarning:  {"#33280f", "#4d3c14"},
+	domain.ToneSuccess:  {"#0f2a1f", "#1d4a33"},
+	domain.ToneInfo:     {"#112745", "#19408f"},
+}
+
+// emailBadge is the badge of tone t: its text and dot (the tone's color,
+// the accent's text color for information), background and border.
+func emailBadge(t domain.NotificationTone) (fg, bg, border string) {
+	b, ok := emailBadges[t]
+	if !ok || t == domain.ToneInfo {
+		info := emailBadges[domain.ToneInfo]
+		return emailLink, info.bg, info.border
+	}
+	return toneHex(t), b.bg, b.border
+}
+
 var emailMarkup = markup{
 	esc: html.EscapeString,
 	link: func(text, u string) string {
-		return `<a href="` + html.EscapeString(u) + `" style="color:#58a6ff;text-decoration:none;">` + text + `</a>`
+		return `<a href="` + html.EscapeString(u) + `" style="color:` + emailLink + `;text-decoration:none;">` + text + `</a>`
 	},
 	code: func(s string) string {
-		return `<code style="font-family:SFMono-Regular,Consolas,Menlo,monospace;font-size:12px;background:#0d1117;` +
-			`border:1px solid #262f3d;border-radius:4px;padding:1px 4px;">` + html.EscapeString(s) + `</code>`
+		return `<code style="font-family:` + emailMono + `;font-size:12px;color:` + emailStrong + `;background:` + emailCodeBg +
+			`;border:1px solid ` + emailCodeBorder + `;border-radius:4px;padding:1px 4px;">` + html.EscapeString(s) + `</code>`
 	},
 	bullet: "• ",
 }
 
-// emailHTML is a small card: a colored top bar with the status line (the
-// tone's word without one), the title, the description, a table of
-// fields, a button to the page and the footer. Inline styles only (mail
-// programs drop style sheets).
+// emailPreheader is the inbox preview line: the description (the status
+// line without one), followed by blank space so mail programs do not
+// fill the preview with the header.
+func emailPreheader(msg domain.NotificationMessage, label string) string {
+	text := strings.Join(strings.Fields(msg.Body), " ")
+	if text == "" {
+		text = label
+	}
+	return html.EscapeString(clip(text, 140)) + strings.Repeat("&#847;&zwnj;&nbsp;", 40)
+}
+
+// emailTable opens a layout table (attrs extra attributes).
+func emailTable(attrs string) string {
+	return `<table role="presentation" cellspacing="0" cellpadding="0" border="0"` + attrs + `>`
+}
+
+// emailCell opens a cell with style; every cell names the font itself
+// (Outlook does not pass it on into tables).
+func emailCell(style string) string {
+	return `<td style="font-family:` + emailFont + `;` + style + `">`
+}
+
+// emailHTML is every email's one layout, dark like the app: the logo and
+// name above a card with the tone's strip, the status line as the app's
+// badge (the tone's word without one), the title, the description, a
+// table of fields, a button to the page, then the footer (the instance)
+// and the time, either alone when the other is missing. Tables, cell
+// padding and inline styles only (mail programs drop style sheets, and
+// Outlook margins and max-width, which a fixed-width table stands in for).
 func emailHTML(msg domain.NotificationMessage) string {
-	color := toneHex(msg.Tone)
 	esc := html.EscapeString
 	label := msg.Label
 	if label == "" {
 		label = toneWords[msg.Tone]
 	}
+	fg, bg, border := emailBadge(msg.Tone)
 	var b strings.Builder
-	b.WriteString(`<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#0d1117;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">`)
-	b.WriteString(`<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background:#161b22;border:1px solid #262f3d;border-radius:12px;border-top:4px solid ` + color + `;">`)
-	b.WriteString(`<tr><td style="padding:20px 24px 4px;color:` + color + `;font-size:12px;font-weight:600;">` + esc(label) + `</td></tr>`)
-	b.WriteString(`<tr><td style="padding:0 24px 8px;color:#e6edf3;font-size:18px;font-weight:600;">` + esc(msg.Title) + `</td></tr>`)
+	b.WriteString(`<!DOCTYPE html><html lang="en" style="color-scheme:dark;"><head><meta charset="utf-8">` +
+		`<meta name="viewport" content="width=device-width,initial-scale=1">` +
+		`<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>`)
+	b.WriteString(`<body bgcolor="` + emailCanvas + `" style="margin:0;padding:0;background:` + emailCanvas + `;color-scheme:dark;">`)
+	b.WriteString(`<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">` + emailPreheader(msg, label) + `</div>`)
+	b.WriteString(emailTable(` width="100%" bgcolor="`+emailCanvas+`" style="background:`+emailCanvas+`;"`) +
+		`<tr><td align="center" style="padding:24px 12px;">` +
+		`<!--[if mso]>` + emailTable(` width="600" align="center"`) + `<tr><td><![endif]-->` +
+		emailTable(` width="100%" style="max-width:600px;"`))
+
+	// The logo lockup, as in the sidebar.
+	b.WriteString(`<tr>` + emailCell("padding:0 4px 16px;") + emailTable("") + `<tr>` +
+		emailCell("padding-right:10px;vertical-align:middle;") + `<img src="` + EmailLogoURL +
+		`" width="32" height="32" alt="" style="display:block;border:0;outline:none;"></td>` +
+		emailCell("vertical-align:middle;color:"+emailStrong+";font-size:16px;line-height:24px;font-weight:600;letter-spacing:-0.01em;") +
+		EmailFromName + `</td></tr></table></td></tr>`)
+
+	// The card: one row per part, spaced by cell padding.
+	b.WriteString(`<tr><td bgcolor="` + emailPanel + `" style="background:` + emailPanel + `;border:1px solid ` + emailBorder +
+		`;border-top:4px solid ` + toneHex(msg.Tone) + `;border-radius:12px;padding:24px;">` + emailTable(` width="100%"`))
+	b.WriteString(`<tr><td>` + emailTable("") + `<tr>` +
+		emailCell("background:"+bg+";border:1px solid "+border+";border-radius:6px;padding:3px 8px;color:"+fg+
+			";font-size:12px;line-height:16px;font-weight:500;white-space:nowrap;") +
+		`<span style="font-size:10px;">&#9679;</span>&nbsp; ` + esc(label) + `</td></tr></table></td></tr>`)
+	b.WriteString(`<tr>` + emailCell("padding-top:16px;color:"+emailStrong+";font-size:20px;line-height:28px;font-weight:600;") +
+		esc(msg.Title) + `</td></tr>`)
 	if body := strings.TrimSpace(msg.Body); body != "" {
-		b.WriteString(`<tr><td style="padding:0 24px 16px;color:#c3cdd9;font-size:14px;line-height:20px;">` +
+		b.WriteString(`<tr>` + emailCell("padding-top:8px;color:"+emailText+";font-size:14px;line-height:20px;") +
 			strings.ReplaceAll(esc(body), "\n", "<br>") + `</td></tr>`)
 	}
 	if len(msg.Fields) > 0 {
-		b.WriteString(`<tr><td style="padding:0 24px 16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;line-height:20px;">`)
+		b.WriteString(`<tr><td style="padding-top:20px;">` + emailTable(` width="100%"`))
 		for _, f := range msg.Fields {
-			b.WriteString(`<tr><td style="padding:6px 16px 6px 0;color:#8b98a9;white-space:nowrap;vertical-align:top;border-top:1px solid #262f3d;">` +
-				esc(f.Name) + `</td><td style="padding:6px 0;color:#e6edf3;border-top:1px solid #262f3d;">` +
-				strings.ReplaceAll(emailMarkup.value(f), "\n", "<br>") + `</td></tr>`)
+			b.WriteString(`<tr>` + emailCell("width:35%;padding:8px 16px 8px 0;color:"+emailMuted+
+				";font-size:13px;line-height:20px;vertical-align:top;border-top:1px solid "+emailBorder+";") + esc(f.Name) + `</td>` +
+				emailCell("padding:8px 0;color:"+emailStrong+";font-size:14px;line-height:20px;vertical-align:top;border-top:1px solid "+
+					emailBorder+";") + strings.ReplaceAll(emailMarkup.value(f), "\n", "<br>") + `</td></tr>`)
 		}
 		b.WriteString(`</table></td></tr>`)
 	}
 	if msg.URL != "" {
-		b.WriteString(`<tr><td style="padding:4px 24px 20px;"><a href="` + esc(msg.URL) +
-			`" style="display:inline-block;padding:8px 14px;background:#2566fd;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">` +
-			openLabel + `</a></td></tr>`)
+		accent := toneHex(domain.ToneInfo)
+		b.WriteString(`<tr><td style="padding-top:24px;">` + emailTable("") + `<tr><td bgcolor="` + accent +
+			`" style="background:` + accent + `;border-radius:8px;"><a href="` + esc(msg.URL) +
+			`" style="display:inline-block;padding:10px 16px;font-family:` + emailFont + `;color:` + emailOnAccent +
+			`;font-size:14px;line-height:20px;font-weight:600;text-decoration:none;border-radius:8px;">` + openLabel +
+			`</a></td></tr></table></td></tr>`)
 	}
+	b.WriteString(`</table></td></tr>`)
+
+	// The footer: the instance and the time.
+	var foot []string
 	if msg.Footer != "" {
-		b.WriteString(`<tr><td style="padding:12px 24px;color:#8b98a9;font-size:12px;border-top:1px solid #262f3d;">` + esc(msg.Footer))
-		if !msg.Time.IsZero() {
-			b.WriteString(` · ` + esc(msg.Time.UTC().Format("Jan 2, 2006, 15:04")) + ` UTC`)
-		}
-		b.WriteString(`</td></tr>`)
+		foot = append(foot, esc(msg.Footer))
 	}
-	b.WriteString(`</table></body></html>`)
+	if !msg.Time.IsZero() {
+		foot = append(foot, esc(msg.Time.UTC().Format("Jan 2, 2006, 15:04"))+" UTC")
+	}
+	if len(foot) > 0 {
+		b.WriteString(`<tr>` + emailCell("padding:16px 4px 0;color:"+emailMuted+";font-size:12px;line-height:16px;") +
+			strings.Join(foot, " · ") + `</td></tr>`)
+	}
+	b.WriteString(`</table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>`)
 	return b.String()
 }

@@ -6,6 +6,10 @@
  *
  * Rules: components use tokens, never raw hex values; add a token here (and
  * to the README) before using a new value in more than one place.
+ *
+ * Notification emails copy the surface, border, text, accent and status
+ * values (internal/manager/notify/render.go): change them there too (a Go
+ * unit test compares them).
  */
 :root {
 	color-scheme: dark;

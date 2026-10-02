@@ -40,6 +40,10 @@ only).
 
 `web/src/lib/design/tokens.css` (imported once by `global.css` in the root
 layout). `design.spec.ts` pins the sampled values and checks contrast.
+Notification emails copy the surface, border, text, accent and status
+values (`internal/manager/notify/render.go`, mail programs know no custom
+properties); `TestEmailColorsAreTheAppsTokens` fails until both match, so
+a token change updates the email too.
 
 ### Surfaces (cool blue-black, not neutral grey)
 
