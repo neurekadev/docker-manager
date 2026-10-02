@@ -18,6 +18,7 @@ import (
 	"testing"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
@@ -515,6 +516,31 @@ func TestEmailLinesStayShort(t *testing.T) {
 	}
 	if strings.ReplaceAll(emailLines(text), "\n", " ") != text {
 		t.Fatal("text changed")
+	}
+	// A tag starting just under the soft length: never broken inside a
+	// quoted value, only between attributes.
+	tag := strings.Repeat("x", emailLineSoft-1) + `<td style="font-family:Inter,'Segoe UI';` + strings.Repeat("padding:0 4px; ", 60) + `" ` +
+		strings.Repeat(`data-a="b" `, 100) + `>t`
+	got := emailLines(tag)
+	_, rest, _ := strings.Cut(got, `style="`)
+	if value, _, _ := strings.Cut(rest, `"`); strings.Contains(value, "\n") {
+		t.Fatalf("broken inside a value: %q", value)
+	}
+	if !strings.Contains(got, "\n") || strings.ReplaceAll(got, "\n", " ") != tag {
+		t.Fatalf("%q", got)
+	}
+	// A long text without spaces is cut anyway, never inside a character
+	// or an entity.
+	for _, text := range []string{strings.Repeat("字", 700), strings.Repeat("&nbsp;", 400), strings.Repeat("a", 2500)} {
+		got := emailLines(text)
+		if strings.ReplaceAll(got, "\n", "") != text {
+			t.Fatalf("changed: %q", got)
+		}
+		for l := range strings.SplitSeq(got, "\n") {
+			if len(l) > 998 || !utf8.ValidString(l) || strings.HasPrefix(text, "&") && (!strings.HasPrefix(l, "&") || !strings.HasSuffix(l, ";")) {
+				t.Fatalf("line %q", l)
+			}
+		}
 	}
 }
 

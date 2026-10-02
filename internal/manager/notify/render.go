@@ -694,25 +694,63 @@ func emailHTML(msg domain.NotificationMessage) string {
 	return emailLines(b.String())
 }
 
-// Email line lengths: SMTP allows 998 characters a line and Shoutrrr sends
-// the HTML part as it is (8 bit), so emailLines breaks a line before a tag
-// once it passes emailLineSoft and, in a long text without tags, at a
-// space once it passes emailLineHard.
+// Email line lengths: SMTP allows 998 octets a line and Shoutrrr sends the
+// HTML part as it is (8 bit), so emailLines breaks a line before a tag once
+// it passes emailLineSoft; past emailLineHard at a space, in a text or
+// between a tag's attributes (never inside a quoted value); and past
+// emailLineMax anywhere in a text but inside a character or an entity.
 const (
 	emailLineSoft = 500
 	emailLineHard = 900
+	emailLineMax  = 990
 )
 
 func emailLines(s string) string {
 	var b strings.Builder
 	n := 0
+	inTag, inEntity := false, false
+	var quote byte
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+		brk := false
 		switch {
-		case c == '<' && n >= emailLineSoft:
-			b.WriteByte('\n')
-			n = 0
+		case inTag:
+			switch {
+			case quote != 0:
+				if c == quote {
+					quote = 0
+				}
+			case c == '"' || c == '\'':
+				quote = c
+			case c == '>':
+				inTag = false
+			case c == ' ' && n >= emailLineHard:
+				brk = true
+			}
+		case c == '<':
+			inTag, inEntity = true, false
+			if n >= emailLineSoft {
+				b.WriteByte('\n')
+				n = 0
+			}
 		case c == ' ' && n >= emailLineHard:
+			brk, inEntity = true, false
+		default:
+			// A character starts at an ASCII or a lead byte; an entity runs
+			// from & to ;.
+			if n >= emailLineMax && !inEntity && (c < 0x80 || c >= 0xc0) {
+				b.WriteByte('\n')
+				n = 0
+			}
+			switch {
+			case c == '&':
+				inEntity = true
+			case inEntity && (c == ';' || !(c == '#' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')):
+				inEntity = false
+			}
+		}
+		if brk {
+			// The space becomes the line break.
 			b.WriteByte('\n')
 			n = 0
 			continue
