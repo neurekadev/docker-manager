@@ -159,16 +159,29 @@ type HostSample struct {
 	// CPUPercent is busy time of all cores, 0..100 (% of total capacity).
 	CPUPercent *float64 `json:"cpuPercent,omitempty"`
 	CPUs       int      `json:"cpus,omitempty"`
-	// MemoryUsedBytes is total minus available (page cache is not "used").
-	MemoryUsedBytes      *int64   `json:"memoryUsedBytes,omitempty"`
-	MemoryTotalBytes     *int64   `json:"memoryTotalBytes,omitempty"`
-	MemoryAvailableBytes *int64   `json:"memoryAvailableBytes,omitempty"`
-	Load1                *float64 `json:"load1,omitempty"`
-	Load5                *float64 `json:"load5,omitempty"`
-	Load15               *float64 `json:"load15,omitempty"`
+	// MemoryUsedBytes is total minus available without the ZFS ARC
+	// (neither the page cache nor the ARC is "used").
+	MemoryUsedBytes      *int64 `json:"memoryUsedBytes,omitempty"`
+	MemoryTotalBytes     *int64 `json:"memoryTotalBytes,omitempty"`
+	MemoryAvailableBytes *int64 `json:"memoryAvailableBytes,omitempty"`
+	// MemoryCacheBytes is the buffers and page cache (without shared
+	// memory); MemoryZFSARCBytes the ZFS ARC, absent without ZFS. Both
+	// are absent from older agents.
+	MemoryCacheBytes  *int64 `json:"memoryCacheBytes,omitempty"`
+	MemoryZFSARCBytes *int64 `json:"memoryZfsArcBytes,omitempty"`
+	// Swap in use and configured (0 without swap; absent from older agents).
+	SwapUsedBytes  *int64   `json:"swapUsedBytes,omitempty"`
+	SwapTotalBytes *int64   `json:"swapTotalBytes,omitempty"`
+	Load1          *float64 `json:"load1,omitempty"`
+	Load5          *float64 `json:"load5,omitempty"`
+	Load15         *float64 `json:"load15,omitempty"`
 	// Network rates in bytes per second over the observed interfaces.
 	NetworkRxBytesPerSecond *float64 `json:"networkRxBytesPerSecond,omitempty"`
 	NetworkTxBytesPerSecond *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	// Disk throughput in bytes per second summed over the host's whole
+	// disks (absent from older agents).
+	DiskReadBytesPerSecond  *float64 `json:"diskReadBytesPerSecond,omitempty"`
+	DiskWriteBytesPerSecond *float64 `json:"diskWriteBytesPerSecond,omitempty"`
 	// NetworkScope is host (the host's network namespace, agent started with
 	// pid: host or network_mode: host) or agent (only the agent container's
 	// own namespace).
@@ -317,7 +330,9 @@ func (b MetricBatch) validate() error {
 	h := b.Host
 	if !finite(h.CPUPercent, 0, 100) || !finite(h.Load1, 0, 1e6) || !finite(h.Load5, 0, 1e6) || !finite(h.Load15, 0, 1e6) ||
 		!finite(h.NetworkRxBytesPerSecond, 0, maxRate) || !finite(h.NetworkTxBytesPerSecond, 0, maxRate) ||
-		!nonNegative(h.MemoryUsedBytes, h.MemoryTotalBytes, h.MemoryAvailableBytes, h.UptimeSeconds) || h.CPUs < 0 ||
+		!finite(h.DiskReadBytesPerSecond, 0, maxRate) || !finite(h.DiskWriteBytesPerSecond, 0, maxRate) ||
+		!nonNegative(h.MemoryUsedBytes, h.MemoryTotalBytes, h.MemoryAvailableBytes, h.MemoryCacheBytes, h.MemoryZFSARCBytes,
+			h.SwapUsedBytes, h.SwapTotalBytes, h.UptimeSeconds) || h.CPUs < 0 ||
 		(h.NetworkScope != "" && h.NetworkScope != "host" && h.NetworkScope != "agent") {
 		return invalid("host sample out of range")
 	}

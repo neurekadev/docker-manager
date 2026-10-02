@@ -424,9 +424,10 @@ func (s *Store) Latest(ctx context.Context, env string) (domain.LatestMetrics, b
 		return out, false, nil
 	}
 	var ts, flags int64
-	var cpu, used, total, l1, l5, l15, rx, tx sql.NullInt64
-	err := s.read.QueryRowContext(ctx, `SELECT ts, flags, cpu, mem_used, mem_total, load1, load5, load15, net_rx, net_tx FROM host_raw
-		WHERE series_id = ? ORDER BY ts DESC LIMIT 1`, id).Scan(&ts, &flags, &cpu, &used, &total, &l1, &l5, &l15, &rx, &tx)
+	var cpu, used, total, l1, l5, l15, rx, tx, cache, arc, swapUsed, swapTotal, dr, dw sql.NullInt64
+	err := s.read.QueryRowContext(ctx, `SELECT ts, flags, cpu, mem_used, mem_total, load1, load5, load15, net_rx, net_tx,
+		mem_cache, mem_arc, swap_used, swap_total, disk_r, disk_w FROM host_raw WHERE series_id = ? ORDER BY ts DESC LIMIT 1`, id).
+		Scan(&ts, &flags, &cpu, &used, &total, &l1, &l5, &l15, &rx, &tx, &cache, &arc, &swapUsed, &swapTotal, &dr, &dw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, false, nil
 	}
@@ -435,7 +436,9 @@ func (s *Store) Latest(ctx context.Context, env string) (domain.LatestMetrics, b
 	}
 	out.At, out.Flags = time.Unix(ts, 0).UTC(), int(flags)
 	out.Host = domain.HostValues{CPUPercent: fscale(cpu, 0.01), MemoryUsedBytes: iptr(used), MemoryTotalBytes: iptr(total),
-		Load1: fscale(l1, 0.01), Load5: fscale(l5, 0.01), Load15: fscale(l15, 0.01), NetworkRxBPS: fscale(rx, 1), NetworkTxBPS: fscale(tx, 1)}
+		Load1: fscale(l1, 0.01), Load5: fscale(l5, 0.01), Load15: fscale(l15, 0.01), NetworkRxBPS: fscale(rx, 1), NetworkTxBPS: fscale(tx, 1),
+		MemoryCacheBytes: iptr(cache), MemoryZFSARCBytes: iptr(arc), SwapUsedBytes: iptr(swapUsed), SwapTotalBytes: iptr(swapTotal),
+		DiskReadBPS: fscale(dr, 1), DiskWriteBPS: fscale(dw, 1)}
 	for _, m := range s.names(env, domain.MetricDisk) {
 		s.mu.Lock()
 		did := s.series[seriesKey{env, domain.MetricDisk, m}]

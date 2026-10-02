@@ -113,8 +113,21 @@ describe('timeSeriesOption (the ECharts option of TimeSeriesChart)', () => {
 				{ name: 'Before compression', values: [4, 4, 4], color: '#b4c4f2', dashed: true }
 			]
 		});
-		expect(o.series[0].lineStyle).toEqual({ color: '#2bb0f6', width: 1.75 });
-		expect(o.series[1].lineStyle).toEqual({ color: '#b4c4f2', width: 1.75, type: 'dashed' });
+		expect(o.series[0].lineStyle).toEqual({ color: '#2bb0f6', width: 1 });
+		expect(o.series[1].lineStyle).toEqual({ color: '#b4c4f2', width: 1.5, type: 'dashed' });
+	});
+
+	it('draws every line like Beszel: monotone curves, areas as 1 px lines over their fill', () => {
+		const o = timeSeriesOption({
+			...opts,
+			lines: [opts.lines[0], { ...opts.lines[1], area: true, fill: 0.2 }, opts.lines[1]]
+		});
+		expect(o.series.every((s) => s.smooth && s.smoothMonotone === 'x')).toBe(true);
+		expect(o.series.every((s) => s.symbol === 'circle' && s.stack === undefined)).toBe(true);
+		expect(o.series[0].areaStyle).toEqual({ color: '#2bb0f6', opacity: 0.4 });
+		expect(o.series[1].areaStyle?.opacity).toBe(0.2);
+		expect(o.series[1].lineStyle.width).toBe(1);
+		expect(o.series[2].lineStyle.width).toBe(1.5);
 	});
 });
 
@@ -148,7 +161,8 @@ describe('timeSeriesOption for many items (MultiSeriesChart)', () => {
 		expect(o.series[1].areaStyle?.opacity).toBeLessThan(0.4);
 		const flat = timeSeriesOption({ ...base, stacked: false }).series[0];
 		expect(flat.stack).toBeUndefined();
-		expect(flat.smooth).toBeUndefined();
+		expect(flat.areaStyle).toBeUndefined();
+		expect(flat.lineStyle.width).toBe(1.5);
 	});
 
 	it('renders the caller’s tooltip of the hovered bucket, outside the card, beside the pointer', () => {

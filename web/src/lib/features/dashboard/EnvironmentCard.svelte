@@ -10,7 +10,7 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import type { Schema } from '$lib/api/client';
 	import { environmentMetricsQuery, environmentSystemQuery } from '$lib/api/queries';
-	import { TILE_HEX } from '$lib/design/hue';
+	import { METRIC_COLORS } from '$lib/design/hue';
 	import { environmentIcon } from '$lib/features/common/resourceIcons';
 	import { seriesValues } from '$lib/features/environments/model';
 	import { routes } from '$lib/routes';
@@ -149,7 +149,7 @@
 					<span class="spark">
 						<Sparkline
 							values={cpu}
-							color={TILE_HEX.cyan.fg}
+							color={METRIC_COLORS.cpu}
 							label="CPU of {env.name}, last 30 minutes{cpuGaps.length
 								? ', with gaps without samples'
 								: ''}"
@@ -169,7 +169,7 @@
 					<span class="spark">
 						<Sparkline
 							values={mem}
-							color={TILE_HEX.indigo.fg}
+							color={METRIC_COLORS.memoryUsed}
 							label="Memory of {env.name}, last 30 minutes"
 						/>
 					</span>

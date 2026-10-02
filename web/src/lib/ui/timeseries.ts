@@ -34,6 +34,8 @@ export interface ChartLine {
 	values: (number | null)[];
 	color?: string;
 	area?: boolean;
+	/** Opacity of the area's fill (default 0.4, Beszel's). */
+	fill?: number;
 	/** A dashed line, also in the legend (a reference line next to a solid one). */
 	dashed?: boolean;
 }

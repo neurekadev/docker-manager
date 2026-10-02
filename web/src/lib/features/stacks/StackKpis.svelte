@@ -10,7 +10,7 @@
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
 	import Rocket from '@lucide/svelte/icons/rocket';
-	import { TILE_HEX, type TileColor } from '$lib/design/hue';
+	import { METRIC_COLORS, type TileColor } from '$lib/design/hue';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import {
 		KpiCard,
@@ -91,7 +91,7 @@
 	>
 		{#snippet sparkline()}
 			{#if usage && usage.cpu.some((v) => v !== null)}
-				<Sparkline values={usage.cpu} color={TILE_HEX.cyan.fg} label={cpuTrend} />
+				<Sparkline values={usage.cpu} color={METRIC_COLORS.cpu} label={cpuTrend} />
 			{/if}
 		{/snippet}
 	</KpiCard>

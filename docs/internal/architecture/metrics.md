@@ -43,14 +43,18 @@ The agent reads procfs (`DOCKER_AGENT_HOST_PROC`, default `/proc`) every 10 s:
 | Value | Source | Notes |
 | --- | --- | --- |
 | CPU % | `stat` (aggregate `cpu` line) | busy = total − idle − iowait between two samples, percent of all cores (0–100); the first sample has none |
-| memory used / total / available | `meminfo` | used = `MemTotal` − `MemAvailable` (page cache is not used); kernels without `MemAvailable` use free + buffers + cached |
+| memory used / total / available | `meminfo`, `spl/kstat/zfs/arcstats` | used = `MemTotal` − `MemAvailable` − the ZFS ARC (neither the page cache nor the ARC is used, like Beszel); kernels without `MemAvailable` use free + buffers + cached; the ARC is subtracted only while it is below that |
+| memory cache, ZFS ARC | `meminfo`, `spl/kstat/zfs/arcstats` | cache = `Buffers` + `Cached` + `SReclaimable` − `Shmem`, at most total − used − ARC; ARC = the arcstats `size` row, absent on hosts without ZFS (no arcstats: nothing logged) |
+| swap used / total | `meminfo` | `SwapTotal` − `SwapFree`; 0 / 0 without swap |
 | load 1/5/15 | `loadavg` | as reported by the kernel |
 | uptime | `uptime` | seconds |
 | network rx/tx | `1/net/dev` | bytes per second summed over non-virtual interfaces (loopback, veth, bridges and overlay/CNI devices are excluded) |
+| disk read/write | `diskstats` | bytes per second (512-byte sectors) summed over the whole disks (`sd*`, `hd*`, `vd*`, `xvd*`, `nvme*n*`, `mmcblk*`; partitions, loop, device-mapper, md and zram devices are left out, their traffic is counted on the disks) |
 | disks | `statfs(2)` of the verified storage roots (#28) | one entry per distinct filesystem, labeled by role: `docker` (Docker's volume directory, i.e. the Docker root filesystem), `stacks`, `bind-N`; never a host path |
 
 **Mount and namespace caveats.** `/proc/stat`, `/proc/meminfo`,
-`/proc/loadavg` and `/proc/uptime` are not namespaced: inside the agent
+`/proc/loadavg`, `/proc/uptime`, `/proc/diskstats` and the ZFS
+`/proc/spl/kstat/zfs/arcstats` are not namespaced: inside the agent
 container they describe the whole host (unless the host runs something like
 lxcfs that virtualizes them; then the agent sees the container's view).
 Network counters are per network namespace. The agent reads those of PID 1:
@@ -75,7 +79,10 @@ volumes' filesystem.
 
 A value that cannot be read (missing file, parse error, counter going
 backwards after a reboot or wrap) is absent from that sample: a gap, never
-zero. Each problem is logged once until it clears.
+zero. Each problem is logged once until it clears. Tests:
+`TestHostMemorySplitsUsedCacheAndZFSARC`, `TestReadDiskIOSumsWholeDisks`,
+`TestHostSamplesMemoryBreakdownAndDiskThroughput` (agent),
+`TestHostMemorySwapAndDiskThroughputAreStored` (storage, rollups).
 
 **Temperatures** (#146, `observe/hwmon.go`). With every 10 s sample the
 agent reads the kernel's hwmon sensors from sysfs
@@ -287,8 +294,12 @@ for a range: one value per step bucket. Temperature series
 (`temperature.celsius`, `temperature.celsius.max`, unit `celsius`) are
 listed only for the sensors with at least one reading in the range (a
 sensor that disappeared drops out), sorted by name; filesystems are always
-listed. The environment's Overview draws them as the **Temperature** chart
-after the host charts: one line per sensor (not stacked), ranked and
+listed. The environment's Overview draws the host charts in Beszel's order,
+colours and style (`METRIC_COLORS`): CPU, Memory (used, ZFS ARC and
+cache / buffers stacked, ARC and cache only while the range has them), one
+Disk chart per filesystem, Disk I/O (only while the range has values),
+Network, Swap (only when the latest swap total is above 0), Load, and the
+sensors as the **Temperature** chart after the host charts: one line per sensor (not stacked), ranked and
 coloured by its maximum over the range, headed by the hottest sensor's
 latest value, and absent when no sensor has a reading.
 
@@ -298,8 +309,13 @@ latest value, and absent when no sensor has a reading.
   about 300 points. Recent buckets not yet rolled up are read from the finer
   level, so a chart never has a hole at its right edge.
 - Averages are sample-weighted; `.max` keys are the maximum within the
-  bucket (`cpu.percent.max`, `memory.used_bytes.max`, network maxima,
-  `temperature.celsius.max`).
+  bucket (`cpu.percent.max`, `memory.used_bytes.max`, network and
+  `block.*` disk throughput maxima, `temperature.celsius.max`).
+- Host keys beyond CPU, memory used/total, load and network:
+  `memory.cache_bytes`, `memory.zfs_arc_bytes`, `swap.used_bytes`,
+  `swap.total_bytes` (bytes) and `block.read_bytes_per_second`,
+  `block.write_bytes_per_second` (the host's disks; the container keys of
+  the same name are its block I/O). Samples of older agents have none (gaps).
 - **Gaps, not zeros:** a bucket without samples is `null` (the agent was
   offline, the manager did not collect, the value was unknown). An
   environment that was offline for 20 minutes shows 20 minutes of `null`s

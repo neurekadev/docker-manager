@@ -60,8 +60,10 @@ func (s *Sampler) sampleLive(ctx context.Context) protocol.LiveMetricsOutput {
 		l.cpu = nil
 	}
 	var memTotal int64
-	if m, err := readMem(s.opts.Proc); err == nil {
-		out.Host.MemoryTotalBytes, out.Host.MemoryUsedBytes = i64(m.total), i64(m.total-m.available)
+	// Used as in the samples (without the ZFS ARC), so a live value never
+	// jumps from the stored one.
+	if m, err := readHostMemory(s.opts.Proc); err == nil {
+		out.Host.MemoryTotalBytes, out.Host.MemoryUsedBytes = i64(m.total), i64(m.used)
 		memTotal = m.total
 	}
 	out.Containers, out.Flags = s.liveContainers(ctx, out.Host.CPUs, memTotal)

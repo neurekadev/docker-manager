@@ -44,3 +44,27 @@ func TestTemperatureSamplesAreBounded(t *testing.T) {
 		}
 	}
 }
+
+func TestHostMemoryAndDiskThroughputAreBounded(t *testing.T) {
+	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	with := func(h HostSample) HostMetricsOutput {
+		return HostMetricsOutput{Epoch: "e", Now: at, IntervalSeconds: 10, Batches: []MetricBatch{{Seq: 1, At: at, Host: h}}}
+	}
+	n, rate := int64(1<<30), 2e6
+	if err := with(HostSample{MemoryCacheBytes: &n, MemoryZFSARCBytes: &n, SwapUsedBytes: &n, SwapTotalBytes: &n,
+		DiskReadBytesPerSecond: &rate, DiskWriteBytesPerSecond: &rate}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	neg, huge, nan := int64(-1), 2e12, math.NaN()
+	for name, h := range map[string]HostSample{
+		"negative cache": {MemoryCacheBytes: &neg},
+		"negative arc":   {MemoryZFSARCBytes: &neg},
+		"negative swap":  {SwapUsedBytes: &neg},
+		"huge read":      {DiskReadBytesPerSecond: &huge},
+		"not finite":     {DiskWriteBytesPerSecond: &nan},
+	} {
+		if err := with(h).Validate(); !errors.Is(err, ErrInvalidFrame) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

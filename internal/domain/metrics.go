@@ -39,11 +39,20 @@ type HostValues struct {
 	CPUPercent       *float64
 	MemoryUsedBytes  *int64
 	MemoryTotalBytes *int64
-	Load1            *float64
-	Load5            *float64
-	Load15           *float64
-	NetworkRxBPS     *float64
-	NetworkTxBPS     *float64
+	// MemoryCacheBytes (buffers and page cache) and MemoryZFSARCBytes (the
+	// ZFS ARC, nil without ZFS) are not part of MemoryUsedBytes.
+	MemoryCacheBytes  *int64
+	MemoryZFSARCBytes *int64
+	SwapUsedBytes     *int64
+	SwapTotalBytes    *int64
+	Load1             *float64
+	Load5             *float64
+	Load15            *float64
+	NetworkRxBPS      *float64
+	NetworkTxBPS      *float64
+	// DiskReadBPS and DiskWriteBPS are the throughput of the host's disks.
+	DiskReadBPS  *float64
+	DiskWriteBPS *float64
 }
 
 // ContainerValues are one container's values of one sample.
