@@ -589,10 +589,12 @@ ended jobs leaving the tray for a toast).
 - **Icons** (#22): the app icon is the Docker Manager logo (the whale
   carrying containers); the shell's lockup (`src/lib/shell/Logo.svelte`)
   shows the 64 px icon. Sources: `web/scripts/logo.png` (1024 px, the logo
-  on a transparent square: the `any` icons and `favicon.ico`) and
-  `web/scripts/icon-maskable.png` (full bleed on the `--surface-shell`
-  tile, the logo inside the 80 % safe circle: the maskable and Apple touch
-  icons). Regenerate the PNGs after changing either:
+  on a transparent square: the `any` icons, `favicon.ico` and the Apple
+  touch icon) and `web/scripts/icon-maskable.png` (full bleed on the
+  `--surface-shell` tile, the logo inside the 80 % safe circle: the
+  maskable icon). The Apple touch icon keeps a transparent background so
+  iOS supplies the tile behind it (#214), with the logo at the size it has
+  in the maskable icon. Regenerate the PNGs after changing either:
 
   ```bash
   cd web
