@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -327,35 +330,90 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 		t.Fatalf("%s", html)
 	}
 	// Branded and dark like the app: the logo and name, the app's canvas
-	// and panel, a dark color scheme, the status line as the tone's badge.
+	// and panel, a dark color scheme, the accent button; an Outlook-only
+	// fixed width; no title of ours (the address may set the subject).
 	for _, want := range []string{
-		`<img src="` + LogoURL + `"`, ">Docker Manager</td>",
+		`<img src="` + EmailLogoURL + `"`, ";letter-spacing:-0.01em;\">Docker Manager</td>",
 		`<meta name="color-scheme" content="dark">`, "background:#0a0f15", "background:#121a24",
-		"background:#0f2a1f;border:1px solid #1d4a33;", "&nbsp; Image updates · Applied</td>",
-		"<title>" + msg.Title + "</title>", "background:#2566fd",
+		"&nbsp; Image updates · Applied</td>", "background:#2566fd", `<!--[if mso]><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("missing %q in %s", want, html)
 		}
 	}
+	if strings.Contains(html, "<title>") {
+		t.Fatalf("%s", html)
+	}
+	// Every cell names the font (Outlook does not pass it on).
+	if n, m := strings.Count(html, "<td style=\"font-family:"), strings.Count(html, "<td style="); n < m-4 {
+		t.Fatalf("%d of %d cells name the font: %s", n, m, html)
+	}
 	// The inbox preview is the description, before the header.
 	if i, j := strings.Index(html, "Body with {{ braces }}"), strings.Index(html, ">Docker Manager</td>"); i < 0 || i > j {
 		t.Fatalf("%s", html)
 	}
-	// The footer names the instance and the time.
+	// The footer names the instance and the time, either alone without
+	// the other.
 	if !strings.Contains(html, ">Home · Oct 1, 2026, 09:30 UTC</td>") {
 		t.Fatalf("%s", html)
+	}
+	noFooter := msg
+	noFooter.Footer = ""
+	if h := emailHTML(noFooter); !strings.Contains(h, `line-height:16px;">Oct 1, 2026, 09:30 UTC</td>`) {
+		t.Fatalf("%s", h)
+	}
+	noFooter.Time = time.Time{}
+	if h := emailHTML(noFooter); strings.Contains(h, "UTC</td>") || strings.Contains(h, "padding:16px 4px 0;") {
+		t.Fatalf("%s", h)
 	}
 	// Without a status line the badge names the tone.
 	msg.Label = ""
 	if !strings.Contains(emailHTML(msg), "&nbsp; OK</td>") {
 		t.Fatal("no tone word")
 	}
-	// Every tone has its badge.
-	for tone, badge := range emailBadges {
+	// Each tone's badge is the app's: the tone's text, soft background and
+	// border; information (and an unknown tone) the accent badge.
+	badge := func(bg, border, fg string) string {
+		return "background:" + bg + ";border:1px solid " + border + ";border-radius:6px;padding:3px 8px;color:" + fg + ";"
+	}
+	for tone, want := range map[domain.NotificationTone]string{
+		domain.ToneCritical: badge("#3f2029", "#5a2a33", "#fd6b66"),
+		domain.ToneWarning:  badge("#33280f", "#4d3c14", "#f5b544"),
+		domain.ToneSuccess:  badge("#0f2a1f", "#1d4a33", "#4cf683"),
+		domain.ToneInfo:     badge("#112745", "#19408f", "#52a3f7"),
+		"other":             badge("#112745", "#19408f", "#52a3f7"),
+	} {
 		msg.Tone = tone
-		if !strings.Contains(emailHTML(msg), "color:"+badge.fg+";") {
-			t.Fatalf("no badge for %s", tone)
+		if h := emailHTML(msg); !strings.Contains(h, want) {
+			t.Fatalf("%s: missing %q in %s", tone, want, h)
+		}
+	}
+}
+
+// TestEmailColorsAreTheAppsTokens keeps the email's copied colors equal to
+// the web's design tokens.
+func TestEmailColorsAreTheAppsTokens(t *testing.T) {
+	css, err := os.ReadFile(filepath.Join("..", "..", "..", "web", "src", "lib", "design", "tokens.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens := map[string]string{}
+	for _, m := range regexp.MustCompile(`(?m)^\s*--([a-z0-9-]+):\s*(#[0-9a-f]{6});`).FindAllStringSubmatch(string(css), -1) {
+		tokens[m[1]] = m[2]
+	}
+	for token, value := range map[string]string{
+		"surface-canvas": emailCanvas, "surface-panel": emailPanel, "border-subtle": emailBorder,
+		"code-bg": emailCodeBg, "border-strong": emailCodeBorder, "text-strong": emailStrong,
+		"text-default": emailText, "text-muted": emailMuted, "accent-text": emailLink, "text-on-accent": emailOnAccent,
+		"danger": toneHex(domain.ToneCritical), "warn": toneHex(domain.ToneWarning), "ok": toneHex(domain.ToneSuccess),
+		"accent":      toneHex(domain.ToneInfo),
+		"danger-soft": emailBadges[domain.ToneCritical].bg, "danger-border": emailBadges[domain.ToneCritical].border,
+		"warn-soft": emailBadges[domain.ToneWarning].bg, "warn-border": emailBadges[domain.ToneWarning].border,
+		"ok-soft": emailBadges[domain.ToneSuccess].bg, "ok-border": emailBadges[domain.ToneSuccess].border,
+		"accent-soft": emailBadges[domain.ToneInfo].bg,
+	} {
+		if tokens[token] != value {
+			t.Errorf("--%s is %q in tokens.css, %q in the email", token, tokens[token], value)
 		}
 	}
 }
