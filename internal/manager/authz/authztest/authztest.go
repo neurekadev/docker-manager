@@ -146,6 +146,8 @@ func (p *Policy) Subject(pr authz.Principal) policy.Subject {
 		s.Token = []policy.Rule{}
 		if ts, ok := p.tokens[pr.TokenID]; ok && ts.user == pr.UserID {
 			s.Token = append(s.Token, ts.rules...)
+		} else {
+			s.Ended = true // unknown or revoked, as in production
 		}
 	}
 	return s

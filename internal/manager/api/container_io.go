@@ -95,8 +95,9 @@ type ExecAttach struct {
 	ContainerID   string
 	SessionID     string
 	Ticket        string
-	// Allowed re-checks container.exec while attached.
-	Allowed func(ctx context.Context) bool
+	// Allowed re-checks container.exec while attached (Decision.Ended: the
+	// token or account no longer works).
+	Allowed func(ctx context.Context) authz.Decision
 }
 
 // LogLineDTO is one line of container output (secrets may appear in logs;
@@ -435,7 +436,7 @@ func ticketFrom(protocols string) string {
 func (h *ioAPI) attachment(sc *scope, d protocol.ContainerDetails, res authz.Resource, sid, ticket string) ExecAttach {
 	p := sc.p
 	return ExecAttach{Principal: p, EnvironmentID: sc.env.ID, ContainerID: d.ID, SessionID: sid, Ticket: ticket,
-		Allowed: func(ctx context.Context) bool { return authz.CanExec(authz.For(ctx, h.authz, p), res).Allowed }}
+		Allowed: func(ctx context.Context) authz.Decision { return authz.CanExec(authz.For(ctx, h.authz, p), res) }}
 }
 
 func (h *ioAPI) streamExec(ctx context.Context, in *streamExecInput) (*huma.StreamResponse, error) {

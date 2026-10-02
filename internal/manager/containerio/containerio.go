@@ -342,7 +342,7 @@ type session struct {
 	attached bool
 	ended    bool
 	stop     func(code websocket.StatusCode, reason string)
-	allowed  func(ctx context.Context) bool
+	allowed  func(ctx context.Context) authz.Decision
 }
 
 func (x *session) end(code websocket.StatusCode, reason string) {
@@ -761,7 +761,13 @@ func (s *Service) relay(ctx, ioCtx context.Context, c *ws.Conn, x *session) (*in
 		case <-maxDur.C():
 			return nil, closeIdle, "maximum session duration"
 		case <-recheck.C():
-			if x.res.Type != "" && !s.allowed(ctx, x) {
+			if x.res.Type == "" {
+				continue
+			}
+			if d := s.allowed(ctx, x); !d.Allowed {
+				if d.Ended {
+					return nil, closeSessionExpired, "session expired"
+				}
 				return nil, closeRevoked, "container.exec revoked"
 			}
 		case <-ctx.Done():
@@ -780,11 +786,14 @@ func (s *Service) relay(ctx, ioCtx context.Context, c *ws.Conn, x *session) (*in
 }
 
 // allowed re-checks container.exec for an attached session.
-func (s *Service) allowed(ctx context.Context, x *session) bool {
+func (s *Service) allowed(ctx context.Context, x *session) authz.Decision {
 	x.mu.Lock()
 	f := x.allowed
 	x.mu.Unlock()
-	return f == nil || f(ctx)
+	if f == nil {
+		return authz.Allow("no re-check")
+	}
+	return f(ctx)
 }
 
 func mustJSON(v any) []byte {

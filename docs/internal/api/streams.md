@@ -39,10 +39,11 @@ Paths are relative to `/api/v1`.
   never go into URLs. A revoked, expired or disabled token ends its open
   streams like an ended session (SSE `event: close`, reason
   `session_expired`), within the sweep interval for expiry. A stream whose
-  own re-check (a job stream's wake-up, a log stream's heartbeat) sees the
-  ended token or account before the identity layer ends it closes with
-  `session_expired` too (`authz.Decision.Ended`, `DeniedCloseReason`),
-  never `permissions_changed`.
+  own re-check (a job stream's wake-up, a log stream's heartbeat, the
+  terminal's re-check) sees the ended token or account before the identity
+  layer ends it closes the same way (`authz.Decision.Ended`,
+  `DeniedCloseReason`): SSE `session_expired`, WebSocket `4401`, never
+  `permissions_changed` / `4403`.
 - **Authorization** is checked when the stream opens and again whenever the
   caller's permissions, session or token change. A revoked permission ends
   the stream (SSE: `event: close` with reason `permissions_changed`;
