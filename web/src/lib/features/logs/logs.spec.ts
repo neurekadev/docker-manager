@@ -1,17 +1,36 @@
 // Log feed (#8): SSE per container, merge by time, cursor resume with
-// dedupe, dropped counts, end reasons, follow on/off, bounded buffer.
+// dedupe, dropped counts, end reasons, follow on/off, bounded buffer;
+// levels, search and the viewer's filters.
 import { describe, expect, it } from 'vitest';
 import { LogFeed, type EventSourceLike, type LogLine, type RawLine } from './feed.svelte';
 import {
-	countMatches,
 	filterLines,
 	formatLogTime,
 	highlight,
+	levelSummary,
 	logText,
+	plainSearch,
+	regexMatches,
+	regexPattern,
 	serviceShown,
-	toggleHidden
+	tally,
+	toggleHidden,
+	type Matcher
 } from './format';
+import { continues, detectLevel, stripAnsi, type LogLevel } from './level';
 import { endReason, streamUrl, timeKey, type LogSource } from './stream';
+
+/** A plain search that is not empty (fails the test otherwise). */
+function plain(query: string, caseSensitive = false): Matcher {
+	const m = plainSearch(query, caseSensitive);
+	if (!m) throw new Error(`search ${query} is empty`);
+	return m;
+}
+
+/** A line with only its text (the search reads nothing else). */
+function textLine(text: string): LogLine {
+	return { seq: 0, source: 'k', at: 'T', key: 'T', stream: 'stdout', text, level: 'other' };
+}
 
 class FakeES implements EventSourceLike {
 	static all: FakeES[] = [];
@@ -84,19 +103,113 @@ describe('stream helpers', () => {
 	});
 
 	it('formats, highlights and exports lines', () => {
-		expect(highlight('GET /health 200', 'health')).toEqual([
+		expect(highlight('GET /health 200', [[5, 11]])).toEqual([
 			{ text: 'GET /', match: false },
 			{ text: 'health', match: true },
 			{ text: ' 200', match: false }
 		]);
-		expect(highlight('abc', '')).toEqual([{ text: 'abc', match: false }]);
+		expect(highlight('abc', [])).toEqual([{ text: 'abc', match: false }]);
 		expect(formatLogTime('nope')).toBe('nope');
 		expect(formatLogTime('2026-09-25T10:14:22Z')).toMatch(/^2026-09-2\d \d\d:14:22$/);
 		const text = logText(
-			[{ seq: 1, source: 'k', at: 'T1', key: 'T1', stream: 'stderr', text: 'boom' }],
+			[
+				{
+					seq: 1,
+					source: 'k',
+					at: 'T1',
+					key: 'T1',
+					stream: 'stderr',
+					text: 'boom',
+					level: 'other'
+				}
+			],
 			{ timestamps: true, source: () => 'silo-web' }
 		);
 		expect(text).toBe('T1 silo-web stderr boom\n');
+	});
+});
+
+describe('levels', () => {
+	it.each<[string, LogLevel]>([
+		['time="2026-09-25T10:00:00Z" level=warning msg="slow request"', 'warning'],
+		['{"level":"debug","msg":"loaded config"}', 'debug'],
+		['{"severity":"ERROR","message":"boom"}', 'error'],
+		['{"level":30,"msg":"listening"}', 'info'],
+		['{"level":50,"msg":"failed"}', 'error'],
+		['{"level":10,"msg":"entering"}', 'verbose'],
+		['2026/09/25 10:00:00 [error] 29#29: *1 open() failed', 'error'],
+		['2026/09/25 10:00:00 [notice] 1#1: start worker processes', 'info'],
+		['2026-09-25 10:00:00.000 UTC [44] ERROR:  relation "users" does not exist', 'error'],
+		['2026-09-25 10:00:00.000 UTC [1] LOG:  database system is ready', 'info'],
+		['2026-09-25 10:00:00.000 UTC [1] DEBUG2:  autovacuum', 'debug'],
+		['2026-09-25T10:00:00Z WRN retrying in 5s', 'warning'],
+		['10:00:00 TRACE entering handler', 'verbose'],
+		['I0925 10:14:22.123456       1 server.go:42] serving', 'info'],
+		['E0925 10:14:22.123456       1 server.go:42] failed', 'error'],
+		['npm ERR! code ELIFECYCLE', 'error'],
+		['panic: runtime error: index out of range', 'error'],
+		['warning: unused variable', 'warning'],
+		['ValueError: invalid literal for int()', 'error'],
+		['Traceback (most recent call last):', 'error'],
+		// The first level word wins; lower-case words in messages are no level.
+		['INFO retry after ERROR in upstream', 'info'],
+		['GET /errors 200 1.2ms', 'other'],
+		['found 0 errors and 1 warning', 'other'],
+		['ERRORS_TOTAL=0', 'other'],
+		['', 'other']
+	])('reads %j as %s', (text, level) => {
+		expect(detectLevel(text)).toBe(level);
+	});
+
+	it('marks continuation lines and strips terminal colours', () => {
+		expect(continues('    at com.example.Pool.acquire(Pool.java:42)')).toBe(true);
+		expect(continues('\tmain.go:12 +0x1d')).toBe(true);
+		expect(continues('Caused by: java.io.IOException')).toBe(true);
+		expect(continues('GET / 200')).toBe(false);
+		expect(continues('   ')).toBe(false);
+		expect(stripAnsi('\x1b[32mINFO\x1b[0m ready')).toBe('INFO ready');
+		expect(stripAnsi('\x1b]0;title\x07plain')).toBe('plain');
+		expect(stripAnsi('no escapes')).toBe('no escapes');
+	});
+});
+
+describe('search', () => {
+	it('matches plain text case-insensitively, trimmed, unless Match case', () => {
+		expect(plainSearch('')).toBeNull();
+		expect(plainSearch('   ')).toBeNull();
+		const m = plain(' get ');
+		expect(m.test(textLine('GET /health'))).toBe(true);
+		expect(m.ranges(textLine('get GET'))).toEqual([
+			[0, 3],
+			[4, 7]
+		]);
+		const exact = plain('GET', true);
+		expect(exact.test(textLine('get /health'))).toBe(false);
+		expect(exact.ranges(textLine('get GET'))).toEqual([[4, 7]]);
+	});
+
+	it('compiles regular expressions and reports invalid ones', () => {
+		expect(regexPattern('')).toBeNull();
+		expect(regexPattern('(oops')).toBe('invalid');
+		expect(regexPattern(String.raw`5\d\d`)).toEqual({ source: String.raw`5\d\d`, flags: 'gi' });
+		expect(regexPattern('ERROR', true)).toEqual({ source: 'ERROR', flags: 'g' });
+	});
+
+	it('matches regular expressions line by line (the worker side)', () => {
+		const p = { source: String.raw`5\d\d`, flags: 'gi' };
+		expect(regexMatches(p, ['GET /login 500', 'GET /login 200', '500 then 502'])).toEqual([
+			[[11, 14]],
+			null,
+			[
+				[0, 3],
+				[9, 12]
+			]
+		]);
+		expect(regexMatches({ source: 'error', flags: 'gi' }, ['ERROR'])).toEqual([[[0, 5]]]);
+		expect(regexMatches({ source: 'error', flags: 'g' }, ['ERROR'])).toEqual([null]);
+		// Only empty matches: the line matches, nothing is highlighted.
+		expect(regexMatches({ source: 'x*', flags: 'gi' }, ['abc'])).toEqual([[]]);
+		expect(highlight('abc', [])).toEqual([{ text: 'abc', match: false }]);
 	});
 });
 
@@ -105,45 +218,73 @@ describe('line filters', () => {
 		seq: number,
 		source: string,
 		text: string,
-		stream: 'stdout' | 'stderr' = 'stdout'
+		stream: 'stdout' | 'stderr' = 'stdout',
+		level: LogLevel = 'other'
 	): LogLine => ({
 		seq,
 		source,
 		at: `T${seq}`,
 		key: `T${seq}`,
 		stream,
-		text
+		text,
+		level
 	});
 	const lines = [
-		line(1, 'web', 'GET /health 200'),
-		line(2, 'db', 'connection refused', 'stderr'),
-		line(3, 'web', 'GET /login 500', 'stderr'),
+		line(1, 'web', 'GET /health 200', 'stdout', 'info'),
+		line(2, 'db', 'connection refused', 'stderr', 'error'),
+		line(3, 'web', 'GET /login 500', 'stderr', 'warning'),
 		line(4, 'db', 'checkpoint complete')
 	];
 
 	it('returns the lines unchanged when nothing filters', () => {
 		expect(filterLines(lines, {})).toBe(lines);
-		expect(filterLines(lines, { errorsOnly: false, query: '' })).toBe(lines);
+		expect(filterLines(lines, { match: null })).toBe(lines);
+		// Every level and both streams chosen: nothing to filter.
+		expect(
+			filterLines(lines, {
+				levels: ['error', 'warning', 'info', 'debug', 'verbose', 'other'],
+				streams: ['stdout', 'stderr']
+			})
+		).toBe(lines);
 	});
 
-	it('keeps errors only, matching lines only and shown services, combined', () => {
-		expect(filterLines(lines, { errorsOnly: true }).map((l) => l.seq)).toEqual([2, 3]);
-		expect(filterLines(lines, { query: 'get' }).map((l) => l.seq)).toEqual([1, 3]);
+	it('keeps the chosen levels, streams, matches and services, combined', () => {
+		expect(filterLines(lines, { levels: ['error', 'warning'] }).map((l) => l.seq)).toEqual([
+			2, 3
+		]);
+		expect(filterLines(lines, { streams: ['stderr'] }).map((l) => l.seq)).toEqual([2, 3]);
+		expect(filterLines(lines, { match: plain('get') }).map((l) => l.seq)).toEqual([1, 3]);
 		expect(filterLines(lines, { source: (k) => k === 'db' }).map((l) => l.seq)).toEqual([2, 4]);
 		expect(
 			filterLines(lines, {
 				source: (k) => k === 'web',
-				errorsOnly: true,
-				query: 'login'
+				levels: ['warning'],
+				streams: ['stderr'],
+				match: plain('login')
 			}).map((l) => l.seq)
 		).toEqual([3]);
-		expect(filterLines(lines, { query: 'nothing' })).toEqual([]);
+		expect(filterLines(lines, { match: plain('nothing') })).toEqual([]);
+		expect(filterLines(lines, { levels: [] })).toEqual([]);
 	});
 
-	it('counts case-insensitive matches', () => {
-		expect(countMatches(lines, 'get')).toBe(2);
-		expect(countMatches(lines, '')).toBe(0);
-		expect(countMatches(lines, 'zzz')).toBe(0);
+	it('counts levels and streams and names the choice', () => {
+		expect(tally(lines)).toEqual({
+			error: 1,
+			warning: 1,
+			info: 1,
+			debug: 0,
+			verbose: 0,
+			other: 1,
+			stdout: 2,
+			stderr: 2
+		});
+		const every: LogLevel[] = ['error', 'warning', 'info', 'debug', 'verbose', 'other'];
+		expect(levelSummary(every, ['stdout', 'stderr'])).toBe('All levels');
+		expect(levelSummary(['warning', 'error'], ['stdout', 'stderr'])).toBe('Error, Warning');
+		expect(levelSummary(['error', 'warning', 'info'], ['stdout', 'stderr'])).toBe('3 levels');
+		expect(levelSummary(every, ['stderr'])).toBe('All levels · stderr');
+		expect(levelSummary([], ['stdout'])).toBe('Nothing selected');
+		expect(levelSummary(['error'], [])).toBe('Nothing selected');
 	});
 
 	it('starts with one service from ?service= and toggles from there', () => {
@@ -187,6 +328,27 @@ describe('LogFeed', () => {
 		expect(f.dropped).toBe(7);
 		f.stop();
 		expect(FakeES.all.every((e) => e.closed)).toBe(true);
+	});
+
+	it('strips colours and gives each line its level; stack frames keep their container’s', () => {
+		const f = feed([web, db]);
+		f.start();
+		const [w, d] = FakeES.all;
+		w.line('2026-09-25T10:00:01Z', '\x1b[31mERROR\x1b[0m pool exhausted', 'stderr');
+		d.line('2026-09-25T10:00:02Z', 'LOG:  checkpoint starting', 'stderr');
+		w.line('2026-09-25T10:00:03Z', '    at Pool.acquire(Pool.java:42)', 'stderr');
+		d.line('2026-09-25T10:00:04Z', '    detail of the checkpoint');
+		w.line('2026-09-25T10:00:05Z', 'GET / 200');
+		w.line('2026-09-25T10:00:06Z', '    indented after a line without a level');
+		expect(f.lines.map((l) => [l.text, l.level])).toEqual([
+			['ERROR pool exhausted', 'error'],
+			['LOG:  checkpoint starting', 'info'],
+			['    at Pool.acquire(Pool.java:42)', 'error'],
+			['    detail of the checkpoint', 'info'],
+			['GET / 200', 'other'],
+			['    indented after a line without a level', 'other']
+		]);
+		f.stop();
 	});
 
 	it('resumes at the cursor after Follow is turned back on and skips repeats', () => {

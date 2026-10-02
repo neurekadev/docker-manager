@@ -66,6 +66,7 @@
 		KpiCard,
 		Menu,
 		Meter,
+		MultiSelect,
 		MultiSeriesChart,
 		Notice,
 		OfflineEnvironment,
@@ -278,6 +279,7 @@
 	let password = $state('');
 	let notes = $state('');
 	let policy = $state('missing');
+	let levelChoice = $state(['error', 'warning', 'info', 'stdout', 'stderr']);
 	let registry = $state('');
 	let follow = $state(true);
 	let backups = $state(true);
@@ -711,6 +713,39 @@
 						{ value: 'ghcr', label: 'GitHub Container Registry (ghcr.io)' },
 						{ value: 'hub', label: 'Docker Hub (docker.io)' },
 						{ value: 'local', label: 'Homelab registry (registry.lan:5000)' }
+					]}
+				/>
+				<MultiSelect
+					label="Levels"
+					allLabel="All levels"
+					bind:value={levelChoice}
+					groups={[
+						{
+							label: 'Levels',
+							options: [
+								{ value: 'error', label: 'Error', count: 4, hue: 'var(--danger)' },
+								{
+									value: 'warning',
+									label: 'Warning',
+									count: 12,
+									hue: 'var(--warn)'
+								},
+								{ value: 'info', label: 'Info', count: 318, hue: 'var(--info)' },
+								{
+									value: 'debug',
+									label: 'Debug',
+									count: 96,
+									hue: 'var(--tile-violet-fg)'
+								}
+							]
+						},
+						{
+							label: 'Output',
+							options: [
+								{ value: 'stdout', label: 'Standard output', count: 402 },
+								{ value: 'stderr', label: 'Standard error', count: 28 }
+							]
+						}
 					]}
 				/>
 				<TextArea label="Notes" bind:value={notes} description="Optional." />

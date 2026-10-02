@@ -775,10 +775,26 @@ only wire resources to it:
   tabs, so a viewer streams one container and polls the others
   (`GET …/logs?since=`, every 3 s); over HTTP/2 or HTTP/3 it streams up to
   twelve. Every service has the same colour (`SERVICE_COLOR`); the prefix
-  and the chips name the service. The service chips, "Errors only" (standard error) and
-  "Matching lines only" filter the buffered lines (`filterLines` in
-  `logs/format.ts`); wrapped lines are rendered without the fixed-height
-  window.
+  and the chips name the service. The feed strips terminal escape codes
+  from each line and gives it a level read from its text (`detectLevel` in
+  `logs/level.ts`: `level=`/`"level":` keys and pino's numbers, `[error]`,
+  upper-case words such as `WARN`/`ERR`/`LOG:`, glog's `E0925`, `panic:`,
+  `ValueError:`; else "Other"); an indented line (`continues`) takes the
+  previous level of its container. The service chips, the search (shows
+  only matching lines as you type; Match case; plain text with
+  `plainSearch`, regular expressions in a worker, `RegexSearch` in
+  `logs/regex-search.svelte.ts` with `regex.worker.ts`: each line is
+  searched once, in chunks of at most 1,000 lines; a chunk that runs past
+  2 s, counted from the worker's `ready` so a cold start never counts,
+  such as a pattern that backtracks for minutes, terminates the worker and
+  shows "Too slow to search" instead of freezing the page; a pattern that
+  throws in the worker, or a worker error, shows "Search unavailable"; both
+  states last until the pattern changes) and Levels (a `MultiSelect` of the levels and the
+  output streams; each count applies the other group's choice) filter the
+  buffered lines in that order (`filterLines` in `logs/format.ts`); the
+  line's left edge marks errors (red), warnings (amber) and standard error
+  without a level (grey). Wrapped lines are rendered without the
+  fixed-height window.
 - **Terminals:** `ExecTerminal` creates the exec session for the chosen
   shell (Detect automatically, Bash, sh, Zsh; the agent finds its path in the
   container and the session reports the command it started), opens the

@@ -10,6 +10,8 @@
 //   - `end {reason}` (container_removed, permissions_changed, agent_offline)
 //     ends a source; `close {reason}` (max_age) lets EventSource reconnect;
 //     session_expired stops.
+//   - each line's text loses its terminal colour codes and gets its level
+//     (level.ts; a continuation line takes its container's previous level).
 //   - the buffer is bounded (MAX_LINES, oldest dropped first); nothing is
 //     stored beyond the page (log lines can hold secrets).
 //   - over HTTP/1.1 a browser keeps six connections per host: containers
@@ -17,6 +19,7 @@
 //     (same cursor and dedupe), so a stack with many services never starves
 //     the page's API calls.
 
+import { continues, detectLevel, stripAnsi, type LogLevel } from './level';
 import { streamUrl, timeKey, type LogSource } from './stream';
 
 export { endReason, streamUrl, timeKey, type LogSource } from './stream';
@@ -31,7 +34,9 @@ export interface LogLine {
 	/** timeKey(at): sortable. */
 	key: string;
 	stream: 'stdout' | 'stderr';
+	/** The line without terminal escape sequences. */
 	text: string;
+	level: LogLevel;
 	partial?: boolean;
 }
 
@@ -111,6 +116,9 @@ export class LogFeed {
 	#timers = new Map<string, unknown>();
 	/** Sources followed by polling (over the stream budget). */
 	#polling: string[] = [];
+	/** Each source's last level (continuation lines take it). */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	#levels = new Map<string, LogLevel>();
 	#seq = 0;
 	#stopped = true;
 
@@ -343,13 +351,19 @@ export class LogFeed {
 				cur.seen.push(d.line);
 			} else this.#cursors.set(key, { at, seen: [d.line] });
 		} else this.#cursors.set(key, { at, seen: [d.line] });
+		const text = stripAnsi(d.line);
+		let level = detectLevel(text);
+		const before = this.#levels.get(key);
+		if (level === 'other' && before && continues(text)) level = before;
+		this.#levels.set(key, level);
 		this.#append({
 			seq: ++this.#seq,
 			source: key,
 			at,
 			key: k,
 			stream: d.stream,
-			text: d.line,
+			text,
+			level,
 			partial: d.partial
 		});
 	}

@@ -2,18 +2,25 @@
 	// Log viewer (#8, #22 the mockup's log panel): container or stack
 	// service logs merged by time, each service in its hue (the service hue
 	// identity), service filter chips, Follow (live stream with cursor
-	// resume), timestamps, line wrap, search with highlighting ("Matching
-	// lines only"), "Errors only" (standard error), clear view, download
-	// and pop-out. Unwrapped lines render in a fixed-height window, so
-	// thousands of lines stay fast (wrapped lines render all, skipping the
-	// off-screen ones' layout). Log lines are never stored beyond the page.
-	import { onDestroy } from 'svelte';
+	// resume), timestamps, line wrap, a search that shows only the matching
+	// lines as you type (highlighted; Match case, regular expressions), the
+	// Levels filter (each line's level and output stream, with counts),
+	// clear view, download and pop-out. Unwrapped lines render in a
+	// fixed-height window, so thousands of lines stay fast (wrapped lines
+	// render all, skipping the off-screen ones' layout). Log lines are never
+	// stored beyond the page.
+	import { onDestroy, untrack } from 'svelte';
 	import ArrowDownToLine from '@lucide/svelte/icons/arrow-down-to-line';
+	import CaseSensitive from '@lucide/svelte/icons/case-sensitive';
+	import Clock from '@lucide/svelte/icons/clock';
 	import Download from '@lucide/svelte/icons/download';
 	import Eraser from '@lucide/svelte/icons/eraser';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import ListFilter from '@lucide/svelte/icons/list-filter';
+	import Regex from '@lucide/svelte/icons/regex';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
+	import TextWrap from '@lucide/svelte/icons/text-wrap';
 	import type { Snippet } from 'svelte';
 	import { SERVICE_HEX, TILE_HEX } from '$lib/design/hue';
 	import {
@@ -21,23 +28,30 @@
 		Chip,
 		EmptyState,
 		IconButton,
+		MultiSelect,
 		Notice,
 		Skeleton,
 		Switch,
 		TextField,
-		toast
+		toast,
+		type MultiSelectGroup
 	} from '$lib/ui';
 	import { virtualWindow } from '$lib/ui/table';
 	import { endReason, type LogFeed, type LogLine } from './feed.svelte';
 	import {
-		countMatches,
 		filterLines,
 		formatLogTime,
 		highlight,
+		levelSummary,
 		logText,
+		plainSearch,
+		regexPattern,
 		serviceShown,
+		tally,
 		toggleHidden
 	} from './format';
+	import { LOG_LEVELS, LOG_STREAMS } from './level';
+	import { RegexSearch } from './regex-search.svelte';
 
 	interface Props {
 		feed: LogFeed;
@@ -69,9 +83,15 @@
 	const ROW = 20;
 	let timestamps = $state(true);
 	let wrap = $state(false);
-	let errorsOnly = $state(false);
-	let matchingOnly = $state(false);
 	let query = $state('');
+	let caseSensitive = $state(false);
+	let regex = $state(false);
+	// The Levels filter: the chosen levels and output streams (all at first).
+	const EVERY: string[] = [...LOG_LEVELS, ...LOG_STREAMS].map((o) => o.value);
+	let picked = $state<string[]>(EVERY);
+	const levels = $derived(LOG_LEVELS.map((l) => l.value).filter((v) => picked.includes(v)));
+	const streams = $derived(LOG_STREAMS.map((s) => s.value).filter((v) => picked.includes(v)));
+	const narrowed = $derived(picked.length < EVERY.length);
 	let hidden = $state<string[]>([]);
 	let only = $state<string | null>(null);
 	// The page's ?service=<name> selects one service (again when it changes).
@@ -98,16 +118,72 @@
 	const chipState = $derived({ only, hidden, services: names });
 	const isShown = (svc: string) => serviceShown(svc, chipState);
 	const allShown = $derived(names.every(isShown));
-	// Service chips and "Errors only" first; the search count reads these.
-	const visible = $derived(
+	// Service chips, then the search, then the levels. Each Levels count
+	// tells how many of the searched lines that choice shows with the other
+	// group's choices (levels under the chosen output and the other way).
+	const bySource = $derived(
 		filterLines(feed.lines, {
-			source: allShown ? undefined : (key) => isShown(serviceOf[key] ?? ''),
-			errorsOnly
+			source: allShown ? undefined : (key) => isShown(serviceOf[key] ?? '')
 		})
 	);
-	const q = $derived(query.trim().toLowerCase());
-	const matches = $derived(countMatches(visible, q));
-	const shown = $derived(matchingOnly && q ? filterLines(visible, { query: q }) : visible);
+	// Plain text matches here; a regular expression runs in the search
+	// worker, which stops it when it runs too long.
+	const regexSearch = new RegexSearch(
+		() => new Worker(new URL('./regex.worker.ts', import.meta.url), { type: 'module' })
+	);
+	onDestroy(() => regexSearch.dispose());
+	const pattern = $derived(regex ? regexPattern(query, caseSensitive) : null);
+	$effect(() => {
+		const p = pattern;
+		const lines = bySource;
+		if (p && p !== 'invalid') untrack(() => regexSearch.run(p, lines));
+	});
+	// An invalid or too slow expression filters nothing until it is fixed;
+	// so does any expression when the search worker failed.
+	const refused = $derived(
+		pattern === 'invalid'
+			? 'invalid'
+			: !pattern
+				? null
+				: regexSearch.failed
+					? 'failed'
+					: regexSearch.slow
+						? 'slow'
+						: null
+	);
+	const matcher = $derived.by(() => {
+		if (!regex) return plainSearch(query, caseSensitive);
+		if (!pattern || refused) return null;
+		void regexSearch.version;
+		return regexSearch.matcher();
+	});
+	const searched = $derived(filterLines(bySource, { match: matcher }));
+	const shown = $derived(filterLines(searched, { levels, streams }));
+	const levelCounts = $derived(tally(filterLines(searched, { streams })));
+	const streamCounts = $derived(tally(filterLines(searched, { levels })));
+	const levelGroups = $derived<MultiSelectGroup[]>([
+		{
+			label: 'Levels',
+			options: LOG_LEVELS.map((l) => ({ ...l, count: levelCounts[l.value] }))
+		},
+		{
+			label: 'Output',
+			options: LOG_STREAMS.map((s) => ({
+				value: s.value,
+				label: s.label,
+				count: streamCounts[s.value]
+			}))
+		}
+	]);
+
+	function onSearchKey(e: KeyboardEvent) {
+		// Escape clears the search first (and leaves the drawer open).
+		if (e.key === 'Escape' && query) {
+			e.preventDefault();
+			e.stopPropagation();
+			query = '';
+		}
+	}
 
 	/** A service's colour: its source's tile colour, else the one service colour (#22). */
 	function hueOf(svc: string): string {
@@ -222,23 +298,72 @@
 				label="Search logs"
 				hideLabel
 				type="search"
-				placeholder="Search logs"
+				placeholder={regex ? 'Search with a regular expression' : 'Search logs'}
+				spellcheck="false"
+				autocomplete="off"
+				mono={regex}
+				aria-invalid={!!refused || undefined}
+				onkeydown={onSearchKey}
 				bind:value={query}
 			/>
-			{#if q}<span class="count num" aria-live="polite"
-					>{matches} {matches === 1 ? 'match' : 'matches'}</span
-				>{/if}
-		</div>
-		<div class="switches">
-			<Switch bind:checked={matchingOnly} label="Matching lines only" />
-			<Switch bind:checked={errorsOnly} label="Errors only" />
-			<Switch bind:checked={wrap} label="Wrap lines" />
-			<Switch bind:checked={timestamps} label="Timestamps" />
-			<Switch
-				checked={feed.following}
-				label="Follow"
-				onchange={(on) => feed.setFollowing(on)}
+			<IconButton
+				icon={CaseSensitive}
+				size="sm"
+				label="Match case"
+				pressed={caseSensitive}
+				onclick={() => (caseSensitive = !caseSensitive)}
 			/>
+			<IconButton
+				icon={Regex}
+				size="sm"
+				label="Use regular expression"
+				pressed={regex}
+				onclick={() => (regex = !regex)}
+			/>
+			<span class="count num" class:invalid={!!refused} aria-live="polite"
+				>{#if refused === 'invalid'}Invalid expression{:else if refused === 'slow'}<span
+						title="Searching took too long and was stopped. Simplify the expression, for example avoid repeats inside repeats such as (a+)+."
+						>Too slow to search</span
+					>{:else if refused === 'failed'}<span
+						title="This expression could not be searched. Change it, or turn off Use regular expression to search plain text."
+						>Search unavailable</span
+					>{:else if matcher}{shown.length}
+					{shown.length === 1 ? 'match' : 'matches'}{/if}</span
+			>
+		</div>
+		<div class="filters">
+			<MultiSelect
+				label="Levels"
+				hideLabel
+				title="Levels and output"
+				icon={ListFilter}
+				groups={levelGroups}
+				summary={levelSummary(levels, streams)}
+				bind:value={picked}
+			/>
+			<div class="view" role="group" aria-label="Display">
+				<IconButton
+					icon={TextWrap}
+					size="sm"
+					label="Wrap lines"
+					pressed={wrap}
+					onclick={() => (wrap = !wrap)}
+				/>
+				<IconButton
+					icon={Clock}
+					size="sm"
+					label="Timestamps"
+					pressed={timestamps}
+					onclick={() => (timestamps = !timestamps)}
+				/>
+			</div>
+			<div class="follow">
+				<Switch
+					checked={feed.following}
+					label="Follow"
+					onchange={(on) => feed.setFollowing(on)}
+				/>
+			</div>
 		</div>
 		<div class="actions">
 			<IconButton icon={Eraser} size="sm" label="Clear view" onclick={() => feed.clear()} />
@@ -305,7 +430,7 @@
 	>
 		{#if shown.length === 0}
 			<div class="empty">
-				{#if waiting}
+				{#if waiting || (regex && matcher && regexSearch.busy && searched.length === 0)}
 					<div aria-busy="true"><Skeleton lines={5} /></div>
 				{:else if feed.lines.length > 0 && !allShown && !names.some(isShown)}
 					<EmptyState
@@ -314,20 +439,30 @@
 						title="Every service is hidden"
 						description="Choose a service above to show its lines."
 					/>
-				{:else if visible.length > 0}
+				{:else if matcher && bySource.length > 0 && searched.length === 0}
 					<EmptyState
 						compact
 						icon={ScrollText}
 						title="No lines match “{query.trim()}”"
-						description="Change the search, or turn off Matching lines only to see every line."
-					/>
-				{:else if feed.lines.length > 0 && errorsOnly}
+						description="Change the search to see more lines."
+					>
+						{#snippet actions()}
+							<Button size="sm" onclick={() => (query = '')}>Clear search</Button>
+						{/snippet}
+					</EmptyState>
+				{:else if searched.length > 0 && narrowed}
 					<EmptyState
 						compact
 						icon={ScrollText}
-						title="No error lines"
-						description="None of these lines were written as errors. Turn off Errors only to see every line."
-					/>
+						title="No lines at the chosen levels"
+						description="Choose more in Levels to see more lines."
+					>
+						{#snippet actions()}
+							<Button size="sm" onclick={() => (picked = EVERY)}
+								>Show all levels</Button
+							>
+						{/snippet}
+					</EmptyState>
 				{:else if feed.lines.length > 0}
 					<EmptyState
 						compact
@@ -353,6 +488,7 @@
 					class="line"
 					class:wrap
 					class:stderr={l.stream === 'stderr'}
+					data-level={l.level}
 					style={wrap ? undefined : `height: ${ROW}px`}
 				>
 					{#if timestamps}<span class="ts num">{formatLogTime(l.at)}</span>{/if}
@@ -363,7 +499,7 @@
 						<span class="bar" aria-hidden="true">|</span>
 					{/if}
 					<span class="text" aria-label={lineLabel(l)}
-						>{#each highlight(l.text, q) as part, i (i)}{#if part.match}<mark
+						>{#each highlight(l.text, matcher ? matcher.ranges(l) : []) as part, i (i)}{#if part.match}<mark
 									>{part.text}</mark
 								>{:else}{part.text}{/if}{/each}</span
 					>
@@ -375,8 +511,9 @@
 
 	<footer class="status">
 		<span class="num">
-			{shown.length}
-			{shown.length === 1 ? 'line' : 'lines'}{feed.trimmed ? ' (the newest 5000)' : ''}
+			{#if shown.length < feed.lines.length}{shown.length} of{/if}
+			{feed.lines.length}
+			{feed.lines.length === 1 ? 'line' : 'lines'}{feed.trimmed ? ' (the newest 5000)' : ''}
 		</span>
 		<span role="status">
 			{#if !feed.following}Paused: turn on Follow to continue{:else if liveCount > 0}Live{:else if waiting}Connecting…{/if}
@@ -419,26 +556,50 @@
 	.search {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: 2px;
 		flex: 1;
-		min-width: 180px;
-		max-width: 320px;
+		min-width: 220px;
+		max-width: 440px;
 		color: var(--text-muted);
 	}
 
 	.search > :global(.field) {
 		flex: 1;
+		margin-right: var(--space-1);
 	}
 
 	.count {
+		margin-left: var(--space-1);
 		font-size: var(--text-caption);
 		white-space: nowrap;
 	}
 
-	.switches {
+	.count:empty {
+		display: none;
+	}
+
+	.count.invalid {
+		color: var(--danger);
+	}
+
+	.filters {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-2) var(--space-4);
+		align-items: center;
+		gap: var(--space-2) var(--space-3);
+	}
+
+	.view {
+		display: flex;
+		gap: 2px;
+		padding-left: var(--space-3);
+		border-left: 1px solid var(--border-subtle);
+	}
+
+	.follow {
+		display: flex;
+		padding-left: var(--space-3);
+		border-left: 1px solid var(--border-subtle);
 	}
 
 	.actions {
@@ -493,12 +654,34 @@
 		overflow-wrap: anywhere;
 	}
 
+	.line:hover {
+		background: var(--code-active-line);
+	}
+
+	/* The edge marks the level; standard error without one gets a quiet edge. */
 	.line.stderr {
+		box-shadow: inset 2px 0 0 var(--border-strong);
+	}
+
+	.line[data-level='error'] {
 		box-shadow: inset 2px 0 0 var(--danger);
 	}
 
-	.line.stderr .text {
+	.line[data-level='error'] .text {
 		color: var(--code-url);
+	}
+
+	.line[data-level='warning'] {
+		box-shadow: inset 2px 0 0 var(--warn);
+	}
+
+	.line[data-level='warning'] .text {
+		color: var(--code-string);
+	}
+
+	.line[data-level='debug'] .text,
+	.line[data-level='verbose'] .text {
+		color: var(--text-muted);
 	}
 
 	.ts {
@@ -525,6 +708,7 @@
 
 	.empty {
 		padding: var(--space-6) var(--space-4);
+		font-family: var(--font-sans);
 	}
 
 	.status {
@@ -546,6 +730,12 @@
 		.search {
 			max-width: none;
 			flex-basis: 100%;
+		}
+
+		.view,
+		.follow {
+			padding-left: 0;
+			border-left: 0;
 		}
 	}
 </style>
