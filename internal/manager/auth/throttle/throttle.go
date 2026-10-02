@@ -35,6 +35,7 @@ type Limiter struct {
 	limit      Limit
 	clk        clock.Clock
 	maxEntries int
+	hardMax    int
 
 	mu      sync.Mutex
 	buckets map[string]*list.Element // of *bucket
@@ -47,10 +48,18 @@ type bucket struct {
 	at     time.Time
 }
 
-// New returns a limiter. maxEntries bounds memory; when the table is full,
-// the least recently used bucket is forgotten to make room, so a flood of
-// new keys never locks out other clients (forgetting a bucket only gives
-// its key a full burst again).
+// evictScan bounds how many of the least recently used buckets a full
+// table looks at for one that has refilled.
+const evictScan = 64
+
+// New returns a limiter. maxEntries bounds memory: when the table is full,
+// a new key forgets a bucket that has refilled (forgetting it changes
+// nothing), looking at the evictScan least recently used ones. Buckets
+// that still hold failures are kept up to four times maxEntries, so
+// flooding the table with made-up keys does not reset the limit of a key
+// under attack; only past that is the least recently used one forgotten
+// (its key gets a full burst again). New keys are never refused, so a
+// flood never locks out other clients.
 func New(limit Limit, clk clock.Clock, maxEntries int) *Limiter {
 	if clk == nil {
 		clk = clock.Real()
@@ -64,7 +73,7 @@ func New(limit Limit, clk clock.Clock, maxEntries int) *Limiter {
 	if limit.Every <= 0 {
 		limit.Every = time.Second
 	}
-	return &Limiter{limit: limit, clk: clk, maxEntries: maxEntries, buckets: map[string]*list.Element{}, lru: list.New()}
+	return &Limiter{limit: limit, clk: clk, maxEntries: maxEntries, hardMax: 4 * maxEntries, buckets: map[string]*list.Element{}, lru: list.New()}
 }
 
 // bucket returns key's bucket refilled to now, creating (and evicting for)
@@ -80,13 +89,37 @@ func (l *Limiter) bucket(key string, now time.Time) *bucket {
 		return b
 	}
 	for len(l.buckets) >= l.maxEntries {
-		oldest := l.lru.Front()
-		l.lru.Remove(oldest)
-		delete(l.buckets, oldest.Value.(*bucket).key)
+		if e := l.refilled(now); e != nil {
+			l.drop(e)
+			continue
+		}
+		if len(l.buckets) < l.hardMax {
+			break
+		}
+		l.drop(l.lru.Front())
 	}
 	b := &bucket{key: key, tokens: float64(l.limit.Burst), at: now}
 	l.buckets[key] = l.lru.PushBack(b)
 	return b
+}
+
+// refilled returns one of the evictScan least recently used buckets that
+// is full again, or nil. The caller holds l.mu.
+func (l *Limiter) refilled(now time.Time) *list.Element {
+	e := l.lru.Front()
+	for i := 0; e != nil && i < evictScan; i, e = i+1, e.Next() {
+		b := e.Value.(*bucket)
+		if b.tokens+float64(now.Sub(b.at))/float64(l.limit.Every) >= float64(l.limit.Burst) {
+			return e
+		}
+	}
+	return nil
+}
+
+// drop forgets e's bucket. The caller holds l.mu.
+func (l *Limiter) drop(e *list.Element) {
+	l.lru.Remove(e)
+	delete(l.buckets, e.Value.(*bucket).key)
 }
 
 // Take consumes one token for key if one is available, reporting whether
@@ -137,8 +170,7 @@ func (l *Limiter) Reset(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if e, ok := l.buckets[key]; ok {
-		l.lru.Remove(e)
-		delete(l.buckets, key)
+		l.drop(e)
 	}
 }
 

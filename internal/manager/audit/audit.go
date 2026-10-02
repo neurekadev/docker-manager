@@ -128,10 +128,7 @@ var ErrInvalidEvent = errors.New("audit: invalid event")
 // Record appends ev in its own transaction, after the summaries of
 // anonymous failures whose window ended (anonymous.go).
 func (l *Log) Record(ctx context.Context, ev domain.AuditEvent) error {
-	return l.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if err := l.writeAnonSummaries(ctx, tx); err != nil {
-			return err
-		}
+	return l.inTxWithAnonSummaries(ctx, func(ctx context.Context, tx bun.Tx) error {
 		return l.RecordTx(ctx, tx, ev)
 	})
 }

@@ -3,6 +3,8 @@ package audit
 import (
 	"context"
 	"net/netip"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,8 +24,10 @@ import (
 // and AnonTotal overall. What the budget leaves out is counted and
 // written as one summary record per action, outcome and error class
 // (details "suppressed": how many, "clients": from how many clients,
-// counted up to maxAnonSummaryClients) once the window is over: by the
-// next Record after it, or by the next Purge at the latest.
+// counted up to maxAnonSummaryClients, "topClients": the clients that
+// sent the most, with their counts) once the window is over: by the next
+// Record after it, or by the next Purge at the latest. Summaries a failed
+// transaction could not write are kept for the next one.
 const (
 	// AnonWindow is the budget period.
 	AnonWindow = time.Minute
@@ -37,8 +41,10 @@ const (
 	// maxAnonClients bounds the per-client table; past it new clients are
 	// over budget for the rest of the window.
 	maxAnonClients = 10000
-	// maxAnonSummaryClients bounds the distinct clients a summary counts.
+	// maxAnonSummaryClients bounds the clients a summary counts records of.
 	maxAnonSummaryClients = 1000
+	// anonTopClients is how many clients a summary names.
+	anonTopClients = 10
 )
 
 // anonKey groups the records a summary stands for.
@@ -48,9 +54,72 @@ type anonKey struct {
 	errorClass          string
 }
 
+// anonSummary counts the records of one key left out. clients counts them
+// per client for at most maxAnonSummaryClients clients; past that a new
+// client replaces the one with the lowest count and takes over its count
+// (Space-Saving), so the clients sending the most stay in it however many
+// others there are.
 type anonSummary struct {
 	count   int
-	clients map[string]struct{}
+	clients map[string]int
+}
+
+func newAnonSummary() *anonSummary { return &anonSummary{clients: map[string]int{}} }
+
+// add counts n records of client.
+func (s *anonSummary) add(client string, n int) {
+	s.count += n
+	if _, ok := s.clients[client]; !ok && len(s.clients) >= maxAnonSummaryClients {
+		low, lowN := "", 0
+		for c, cn := range s.clients {
+			if low == "" || cn < lowN || cn == lowN && c < low {
+				low, lowN = c, cn
+			}
+		}
+		delete(s.clients, low)
+		s.clients[client] = lowN
+	}
+	s.clients[client] += n
+}
+
+// merge adds the counts of o.
+func (s *anonSummary) merge(o *anonSummary) {
+	for c, n := range o.clients {
+		s.add(c, n)
+	}
+	s.count += o.count - sumCounts(o.clients)
+}
+
+func sumCounts(m map[string]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
+}
+
+// topClients are the anonTopClients clients with the most records, most
+// first: the summary keeps who sent the flood.
+func (s *anonSummary) topClients() []map[string]any {
+	type entry struct {
+		client string
+		n      int
+	}
+	all := make([]entry, 0, len(s.clients))
+	for c, n := range s.clients {
+		all = append(all, entry{c, n})
+	}
+	slices.SortFunc(all, func(a, b entry) int {
+		if a.n != b.n {
+			return b.n - a.n
+		}
+		return strings.Compare(a.client, b.client)
+	})
+	out := []map[string]any{}
+	for _, e := range all[:min(len(all), anonTopClients)] {
+		out = append(out, map[string]any{"client": e.client, "count": e.n})
+	}
+	return out
 }
 
 // anonGate is the budget of anonymous failures for the current window and
@@ -63,6 +132,28 @@ type anonGate struct {
 	// left are the records left out in the current window; due are those
 	// of ended windows, not written yet.
 	left, due map[anonKey]*anonSummary
+}
+
+// putDue merges summaries into due; the caller holds g.mu.
+func (g *anonGate) putDue(sums map[anonKey]*anonSummary) {
+	for k, s := range sums {
+		if g.due == nil {
+			g.due = map[anonKey]*anonSummary{}
+		}
+		if d, ok := g.due[k]; ok {
+			d.merge(s)
+		} else {
+			g.due[k] = s
+		}
+	}
+}
+
+// restore gives back summaries takeDue returned that could not be written
+// (their transaction failed), so the next write tries again.
+func (g *anonGate) restore(sums map[anonKey]*anonSummary) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.putDue(sums)
 }
 
 // anonymousFailure reports whether rec is subject to the budget: an
@@ -78,21 +169,7 @@ func (g *anonGate) roll(now time.Time) {
 	if !g.start.IsZero() && now.Sub(g.start) < AnonWindow {
 		return
 	}
-	for k, s := range g.left {
-		if g.due == nil {
-			g.due = map[anonKey]*anonSummary{}
-		}
-		if d, ok := g.due[k]; ok {
-			d.count += s.count
-			for c := range s.clients {
-				if len(d.clients) < maxAnonSummaryClients {
-					d.clients[c] = struct{}{}
-				}
-			}
-		} else {
-			g.due[k] = s
-		}
-	}
+	g.putDue(g.left)
 	g.start, g.total, g.clients, g.left = now, 0, map[string]int{}, nil
 }
 
@@ -115,13 +192,10 @@ func (g *anonGate) admit(rec *domain.AuditRecord, now time.Time) bool {
 	}
 	s, ok := g.left[k]
 	if !ok {
-		s = &anonSummary{clients: map[string]struct{}{}}
+		s = newAnonSummary()
 		g.left[k] = s
 	}
-	s.count++
-	if len(s.clients) < maxAnonSummaryClients {
-		s.clients[client] = struct{}{}
-	}
+	s.add(client, 1)
 	return false
 }
 
@@ -149,25 +223,45 @@ func anonClient(ip string) string {
 	return a.String()
 }
 
-// writeAnonSummaries appends one summary record per due key in tx. The
-// records carry no client, request or target of their own: they stand for
-// many requests.
-func (l *Log) writeAnonSummaries(ctx context.Context, tx bun.IDB) error {
-	for k, s := range l.anon.takeDue(l.clock.Now()) {
+// writeAnonSummaries appends one summary record per due key in tx and
+// returns what it took from the gate, for the caller to give back
+// (anonGate.restore) when the transaction does not commit. The records
+// carry no client, request or target of their own (they stand for many
+// requests); their details name the clients that sent the most.
+func (l *Log) writeAnonSummaries(ctx context.Context, tx bun.IDB) (map[anonKey]*anonSummary, error) {
+	due := l.anon.takeDue(l.clock.Now())
+	for k, s := range due {
 		ev := domain.AuditEvent{
 			Action: k.action, OperationID: k.operationID, Outcome: k.outcome, ErrorClass: k.errorClass,
 			Actor:   domain.AuditActor{Kind: domain.AuditActorAnonymous},
-			Details: map[string]any{"suppressed": s.count, "clients": len(s.clients)},
+			Details: map[string]any{"suppressed": s.count, "clients": len(s.clients), "topClients": s.topClients()},
 		}
 		// A fresh context: the summary must not take the client IP or the
 		// request ID of the request that happens to write it.
 		rec, err := l.normalize(context.Background(), ev)
 		if err != nil {
-			return err
+			return due, err
 		}
 		if err := l.appendRecord(ctx, tx, rec); err != nil {
-			return err
+			return due, err
 		}
 	}
-	return nil
+	return due, nil
+}
+
+// inTxWithAnonSummaries runs fn in a transaction after writing the due
+// summaries, and gives the summaries back when the transaction fails.
+func (l *Log) inTxWithAnonSummaries(ctx context.Context, fn func(ctx context.Context, tx bun.Tx) error) error {
+	var due map[anonKey]*anonSummary
+	err := l.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		var err error
+		if due, err = l.writeAnonSummaries(ctx, tx); err != nil {
+			return err
+		}
+		return fn(ctx, tx)
+	})
+	if err != nil {
+		l.anon.restore(due)
+	}
+	return err
 }

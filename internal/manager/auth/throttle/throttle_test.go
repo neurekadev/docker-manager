@@ -1,6 +1,7 @@
 package throttle
 
 import (
+	"fmt"
 	"net/netip"
 	"sync"
 	"testing"
@@ -95,22 +96,40 @@ func TestConcurrentTakesStayWithinTheBurst(t *testing.T) {
 	}
 }
 
-// TestFullTableEvictsLeastRecentlyUsed: when the table is full a new key
-// still gets a bucket (never fail closed); the least recently used bucket
-// is forgotten.
-func TestFullTableEvictsLeastRecentlyUsed(t *testing.T) {
-	l := New(Limit{Every: time.Hour, Burst: 1}, testutil.FakeClock(), 2)
-	l.Take("a")
-	l.Take("b")
-	l.Take("a") // a is now the most recently used
+// TestFullTableEvictsRefilledBucketsFirst: when the table is full a new
+// key still gets a bucket (never fail closed). A bucket that has refilled
+// goes first; buckets still holding failures are kept up to four times
+// the bound, so made-up keys cannot reset a drained one; only then does
+// the least recently used one go.
+func TestFullTableEvictsRefilledBucketsFirst(t *testing.T) {
+	clk := testutil.FakeClock()
+	l := New(Limit{Every: time.Hour, Burst: 1}, clk, 2)
+	l.Take("idle")
+	clk.Advance(time.Hour) // idle is full again
+	l.Take("target")       // drained
 	if !l.Take("c") {
 		t.Fatal("full table refused a new key")
 	}
-	if l.Take("a") {
-		t.Fatal("the recently used bucket a was evicted")
+	if l.Take("target") {
+		t.Fatal("the drained bucket was evicted while a refilled one could go")
 	}
-	if !l.Take("b") {
-		t.Fatal("the least recently used bucket b was kept")
+	// Flooding with made-up keys keeps the drained bucket up to the hard bound.
+	for i := range 4*2 - 3 {
+		if !l.Take(fmt.Sprintf("junk-%d", i)) {
+			t.Fatalf("junk key %d refused", i)
+		}
+	}
+	if l.Take("target") {
+		t.Fatal("made-up keys below the hard bound reset the drained bucket")
+	}
+	// Past the hard bound the least recently used bucket goes.
+	for i := range 20 {
+		if !l.Take(fmt.Sprintf("more-%d", i)) {
+			t.Fatalf("key %d refused past the hard bound", i)
+		}
+	}
+	if !l.Take("c") {
+		t.Fatal("the least recently used bucket was kept past the hard bound")
 	}
 }
 

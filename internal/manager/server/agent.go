@@ -26,9 +26,10 @@ type AgentLimits struct {
 	// limited individually and spoofed headers cannot evade the limit.
 	RequestsPerSecond float64
 	Burst             int
-	// MaxTrackedClients bounds the limiter table. When it is full, the
-	// least recently seen client is forgotten (it gets a full burst again),
-	// so an address-rotation flood never locks out new clients.
+	// MaxTrackedClients bounds the limiter table. When it is full, a new
+	// client still gets a bucket (an address-rotation flood never locks
+	// clients out): a refilled bucket is forgotten first, drained ones are
+	// kept up to four times the bound (throttle.New).
 	MaxTrackedClients int
 	// MaxBodyBytes bounds request bodies (enrollment payloads are small;
 	// session traffic is WebSocket frames, bounded by the ws read limit).

@@ -35,9 +35,7 @@ const maxBatchesPerPurge = 100
 // with no record after it (anonymous.go).
 func (l *Log) Purge(ctx context.Context) (PurgeResult, error) {
 	var res PurgeResult
-	if err := l.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		return l.writeAnonSummaries(ctx, tx)
-	}); err != nil {
+	if err := l.inTxWithAnonSummaries(ctx, func(context.Context, bun.Tx) error { return nil }); err != nil {
 		return res, err
 	}
 	for res.Batches < maxBatchesPerPurge {

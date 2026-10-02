@@ -3,6 +3,7 @@ package audit_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"testing"
@@ -27,6 +28,12 @@ func (f *fixture) anonFail(ip string) {
 type summary struct {
 	domain.AuditRecord
 	Suppressed, Clients int
+	TopClients          []topClient
+}
+
+type topClient struct {
+	Client string `json:"client"`
+	Count  int    `json:"count"`
 }
 
 // summaries returns the summary records (details "suppressed").
@@ -35,14 +42,15 @@ func summaries(t *testing.T, recs []domain.AuditRecord) []summary {
 	var out []summary
 	for _, r := range recs {
 		var d struct {
-			Suppressed *int `json:"suppressed"`
-			Clients    int  `json:"clients"`
+			Suppressed *int        `json:"suppressed"`
+			Clients    int         `json:"clients"`
+			TopClients []topClient `json:"topClients"`
 		}
 		if err := json.Unmarshal(r.Details, &d); err != nil {
 			t.Fatal(err)
 		}
 		if d.Suppressed != nil {
-			out = append(out, summary{AuditRecord: r, Suppressed: *d.Suppressed, Clients: d.Clients})
+			out = append(out, summary{AuditRecord: r, Suppressed: *d.Suppressed, Clients: d.Clients, TopClients: d.TopClients})
 		}
 	}
 	return out
@@ -76,8 +84,8 @@ func TestAnonymousFailuresPerClientBudget(t *testing.T) {
 		s.ErrorClass != "invalid_credentials" || s.Actor.Kind != domain.AuditActorAnonymous || s.ClientIP != "" {
 		t.Fatalf("summary %+v", s)
 	}
-	if s.Suppressed != 5 || s.Clients != 1 {
-		t.Fatalf("summary counts %d from %d clients, want 5 from 1", s.Suppressed, s.Clients)
+	if s.Suppressed != 5 || s.Clients != 1 || len(s.TopClients) != 1 || s.TopClients[0] != (topClient{"203.0.113.7", 5}) {
+		t.Fatalf("summary counts %d from %d clients (%+v), want 5 from 203.0.113.7", s.Suppressed, s.Clients, s.TopClients)
 	}
 	// The new window has a fresh budget.
 	f.anonFail("203.0.113.7")
@@ -137,5 +145,48 @@ func TestBudgetSparesOtherRecords(t *testing.T) {
 	}
 	if n := len(f.all()); n != 3*(audit.AnonTotal+5) {
 		t.Fatalf("%d records, want every one", n)
+	}
+}
+
+// TestSummariesSurviveAFailedTransaction: summaries taken for a write
+// whose transaction rolls back are written by the next one.
+func TestSummariesSurviveAFailedTransaction(t *testing.T) {
+	f := newFixture(t)
+	for range audit.AnonPerClient + 2 {
+		f.anonFail("203.0.113.7")
+	}
+	f.clk.Advance(audit.AnonWindow)
+	// An invalid event fails its transaction after the summary was written in it.
+	if err := f.log.Record(f.ctx, domain.AuditEvent{Action: "Not A Key"}); !errors.Is(err, audit.ErrInvalidEvent) {
+		t.Fatalf("invalid event: %v", err)
+	}
+	if n := len(summaries(t, f.all())); n != 0 {
+		t.Fatalf("%d summaries after the rollback", n)
+	}
+	f.record(domain.AuditEvent{Action: "stack.deploy", Actor: audit.ServiceActor()})
+	sums := summaries(t, f.all())
+	if len(sums) != 1 || sums[0].Suppressed != 2 {
+		t.Fatalf("summaries after the next record: %+v", sums)
+	}
+}
+
+// TestSummaryNamesTheHeaviestClients: an attacker cannot hide among many
+// throwaway addresses: the clients sending the most stay in the summary.
+func TestSummaryNamesTheHeaviestClients(t *testing.T) {
+	f := newFixture(t)
+	for i := range audit.AnonTotal { // spend the total budget
+		f.anonFail(fmt.Sprintf("198.51.100.%d", i+1))
+	}
+	for i := range 1200 { // more throwaway clients than a summary counts
+		f.anonFail(fmt.Sprintf("2001:db8:%x::1", i+1))
+	}
+	for range 7 {
+		f.anonFail("203.0.113.7")
+	}
+	f.clk.Advance(audit.AnonWindow)
+	f.record(domain.AuditEvent{Action: "stack.deploy", Actor: audit.ServiceActor()})
+	sums := summaries(t, f.all())
+	if len(sums) != 1 || sums[0].Suppressed != 1207 || len(sums[0].TopClients) == 0 || sums[0].TopClients[0].Client != "203.0.113.7" {
+		t.Fatalf("summary %+v", sums)
 	}
 }
