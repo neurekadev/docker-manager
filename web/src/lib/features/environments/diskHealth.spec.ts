@@ -17,7 +17,9 @@ import {
 	diskKind,
 	diskNotice,
 	diskSummary,
+	exceededLimit,
 	healthValue,
+	hotTimeCheck,
 	issuesText,
 	memberDisk,
 	memberDiskPaths,
@@ -39,7 +41,9 @@ import {
 	sortArrays,
 	sortDisks,
 	sortMembers,
+	temperatureCheck,
 	valueCheck,
+	wearCheck,
 	type DiskDevice,
 	type DiskHealth,
 	type RaidArray,
@@ -536,5 +540,82 @@ describe('details (#206)', () => {
 		expect(healthValue({ key: 'accumulated_start_stop_cycles', value: 7 }).label).toBe(
 			'Accumulated start stop cycles'
 		);
+	});
+});
+
+describe('the disk’s own limits (#212)', () => {
+	it('judges the temperature against the disk’s limit, else its critical one', () => {
+		expect(exceededLimit(disk({ temperatureC: 69, temperatureLimitC: 70 }))).toBeUndefined();
+		expect(exceededLimit(disk({ temperatureC: 70, temperatureLimitC: 70 }))).toBe(70);
+		expect(exceededLimit(disk({ temperatureC: 86, temperatureCriticalC: 85 }))).toBe(85);
+		expect(exceededLimit(disk({ temperatureLimitC: 70 }))).toBeUndefined();
+		expect(temperatureCheck(disk({ temperatureC: 41, temperatureLimitC: 70 }))).toEqual({
+			tone: 'ok',
+			label: `${formatTemperature(41)} (limit ${formatTemperature(70)})`
+		});
+		expect(temperatureCheck(disk({ temperatureC: 72, temperatureLimitC: 70 }))?.tone).toBe(
+			'warn'
+		);
+		// No limit: no mark.
+		expect(temperatureCheck(disk({ temperatureC: 41 }))).toBeNull();
+	});
+
+	it('names a hot disk and its time above the limits in its issues', () => {
+		expect(
+			diskIssues(disk({ state: 'warning', temperatureC: 72, temperatureLimitC: 70 }))
+		).toEqual([`Too hot: ${formatTemperature(72)} (limit ${formatTemperature(70)})`]);
+		// The NVMe temperature warning and the limit: one issue.
+		expect(
+			diskIssues(
+				disk({
+					state: 'warning',
+					passed: false,
+					criticalWarning: 2,
+					temperatureC: 83,
+					temperatureLimitC: 82
+				})
+			)
+		).toHaveLength(1);
+		expect(
+			diskIssues(
+				disk({
+					state: 'warning',
+					overTemperatureMinutes: 34,
+					criticalTemperatureMinutes: 1
+				})
+			)
+		).toEqual([
+			'Ran above its temperature limit for 34 min',
+			'Ran above its critical temperature for 1 min'
+		]);
+		expect(diskIssues(disk({ overTemperatureMinutes: 0 }))).toEqual([]);
+	});
+
+	it('marks wear and the time above the limits', () => {
+		expect(wearCheck(disk({ percentageUsed: 7 }))).toEqual({ tone: 'ok', label: '7% used' });
+		expect(wearCheck(disk({ percentageUsed: 93 }))?.tone).toBe('warn');
+		expect(wearCheck(disk())).toBeNull();
+		expect(hotTimeCheck(disk())).toBeNull();
+		expect(hotTimeCheck(disk({ overTemperatureMinutes: 0 }))).toEqual({
+			tone: 'ok',
+			label: 'Never'
+		});
+		expect(
+			hotTimeCheck(disk({ overTemperatureMinutes: 90, criticalTemperatureMinutes: 2 }))
+		).toEqual({ tone: 'warn', label: '1 h 30 min, 2 min above critical' });
+		const nvme = disk({ protocol: 'nvme', temperatureLimitC: 82 });
+		expect(valueCheck({ key: 'temperature', value: 38 }, nvme)).toEqual({
+			tone: 'ok',
+			label: 'OK'
+		});
+		expect(valueCheck({ key: 'temperature', value: 84 }, nvme)).toEqual({
+			tone: 'warn',
+			label: 'Too hot'
+		});
+		expect(valueCheck({ key: 'warning_temp_time', value: 0 }, nvme)?.tone).toBe('ok');
+		expect(valueCheck({ key: 'critical_comp_time', value: 3 }, nvme)).toEqual({
+			tone: 'warn',
+			label: 'Ran hot'
+		});
 	});
 });

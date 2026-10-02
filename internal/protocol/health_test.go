@@ -77,6 +77,10 @@ func TestHostHealthValidate(t *testing.T) {
 		"negative chunk":     func(o *HostHealthOutput) { o.RAID.MD[0].ChunkBytes = -1 },
 		"long array layout":  func(o *HostHealthOutput) { o.RAID.MD[0].Layout = strings.Repeat("l", 65) },
 		"bad array metadata": func(o *HostHealthOutput) { o.RAID.MD[0].Metadata = "\xff" },
+		"temperature limit":  func(o *HostHealthOutput) { o.SMART.Devices[0].TemperatureLimitC = &tooHot },
+		"critical limit":     func(o *HostHealthOutput) { o.SMART.Devices[0].TemperatureCriticalC = &tooHot },
+		"negative hot time":  func(o *HostHealthOutput) { o.SMART.Devices[0].OverTemperatureMinutes = &neg },
+		"negative crit time": func(o *HostHealthOutput) { o.SMART.Devices[0].CriticalTemperatureMinutes = &neg },
 	}
 	for name, mut := range bad {
 		o := validHealth()
@@ -135,6 +139,14 @@ func TestDeriveDiskState(t *testing.T) {
 		{"almost worn", SMARTDevice{PercentageUsed: i(Worn - 1)}, DiskOK},
 		{"spare below threshold", SMARTDevice{AvailableSpare: i(5), AvailableSpareThreshold: i(10)}, DiskWarning},
 		{"spare at threshold", SMARTDevice{AvailableSpare: i(10), AvailableSpareThreshold: i(10)}, DiskOK},
+		// The drive's own temperature limits (#212).
+		{"below its limit", SMARTDevice{Passed: &tr, TemperatureC: i(69), TemperatureLimitC: i(70)}, DiskOK},
+		{"at its limit", SMARTDevice{Passed: &tr, TemperatureC: i(70), TemperatureLimitC: i(70)}, DiskWarning},
+		{"at its critical limit only", SMARTDevice{TemperatureC: i(85), TemperatureCriticalC: i(85)}, DiskWarning},
+		{"limit without a reading", SMARTDevice{Passed: &tr, TemperatureLimitC: i(70)}, DiskOK},
+		{"ran hot", SMARTDevice{Passed: &tr, OverTemperatureMinutes: &one}, DiskWarning},
+		{"ran critically hot", SMARTDevice{Passed: &tr, CriticalTemperatureMinutes: &one}, DiskWarning},
+		{"never ran hot", SMARTDevice{Passed: &tr, OverTemperatureMinutes: &zero, CriticalTemperatureMinutes: &zero}, DiskOK},
 	} {
 		if got := DeriveDiskState(c.d); got != c.want {
 			t.Errorf("%s: %s, want %s", c.name, got, c.want)

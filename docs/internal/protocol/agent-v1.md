@@ -1173,6 +1173,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   message?, checking?, scannedAt?, checkedAt?, intervalSeconds?, devices
   [{name, type, protocol?, model?, serial?, firmware?, capacityBytes?,
   rotationRpm?, smartSupported, passed?, temperatureC?, powerOnHours?,
+  temperatureLimitC?, temperatureCriticalC?, overTemperatureMinutes?,
+  criticalTemperatureMinutes?,
   reallocatedSectors?, endToEndErrors?, reportedUncorrectable?, pendingSectors?,
   offlineUncorrectable?, failingAttributes? [{id, name, whenFailed}],
   criticalWarning?, availableSpare?, availableSpareThreshold?,
@@ -1200,6 +1202,10 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   start-stop counter, the power cycle count) and the md `metadata`,
   `chunkBytes`, `layout`, `bitmap` and `bitmapChunkBytes` were added later
   (#206; older agents omit them, the details dialogs show what is there).
+  `temperatureLimitC`, `temperatureCriticalC` (the drive's own limits,
+  -273..1000), `overTemperatureMinutes` and `criticalTemperatureMinutes`
+  (lifetime minutes above them) were added with #212; older agents omit
+  them.
   `refresh` is empty, `smart` (a fresh scan and read of every
   disk, never a self-test: the agent waits up to 3 s, then answers with
   `smart.checking` and the result comes with a later request) or `raid`

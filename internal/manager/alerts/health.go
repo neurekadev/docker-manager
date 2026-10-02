@@ -475,6 +475,21 @@ func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string) O
 			tokens = append(tokens, "critical_warning")
 		}
 	}
+	if protocol.OverTemperatureLimit(d) {
+		// At or above the disk's own limit (#212): the same problem as the
+		// NVMe temperature warning, one token.
+		facts["temperatureC"] = strconv.Itoa(*d.TemperatureC)
+		limit := d.TemperatureLimitC
+		if limit == nil || *d.TemperatureC < *limit {
+			limit = d.TemperatureCriticalC
+		}
+		facts["temperatureLimitC"] = strconv.Itoa(*limit)
+		if !hot {
+			tokens = append(tokens, "over_temperature")
+		}
+	}
+	count("overTemperatureMinutes", "ran_hot", d.OverTemperatureMinutes)
+	count("criticalTemperatureMinutes", "ran_critically_hot", d.CriticalTemperatureMinutes)
 	var attrs []string
 	for _, a := range d.FailingAttributes {
 		attrs = append(attrs, fmt.Sprintf("%d %s (%s)", a.ID, a.Name, a.WhenFailed))

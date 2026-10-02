@@ -8028,6 +8028,11 @@ export interface components {
             availableSpareThreshold?: number;
             /** Format: int64 */
             capacityBytes?: number;
+            /**
+             * Format: int64
+             * @description Minutes the disk spent above temperatureCriticalC in its lifetime.
+             */
+            criticalTemperatureMinutes?: number;
             /** Format: int64 */
             criticalWarning?: number;
             /** Format: int64 */
@@ -8050,13 +8055,18 @@ export interface components {
             name: string;
             /** Format: int64 */
             offlineUncorrectable?: number;
+            /**
+             * Format: int64
+             * @description Minutes the disk spent above temperatureLimitC in its lifetime.
+             */
+            overTemperatureMinutes?: number;
             /** @description The disk's overall self-assessment. */
             passed?: boolean;
             /** Format: int64 */
             pendingSectors?: number;
             /**
              * Format: int64
-             * @description Wear estimate in percent (may exceed 100).
+             * @description Wear estimate in percent (may exceed 100): NVMe, SAS, and SATA SSDs that report it.
              */
             percentageUsed?: number;
             /** Format: int64 */
@@ -8086,6 +8096,16 @@ export interface components {
             state: "ok" | "warning" | "failing" | "sleeping" | "error";
             /** Format: int64 */
             temperatureC?: number;
+            /**
+             * Format: int64
+             * @description NVMe critical composite temperature.
+             */
+            temperatureCriticalC?: number;
+            /**
+             * Format: int64
+             * @description The highest temperature the disk should run at, as it reports it (NVMe warning composite temperature, SATA maximum operating temperature, SAS drive trip).
+             */
+            temperatureLimitC?: number;
             /**
              * @description smartctl device type.
              * @example sat
@@ -25930,6 +25950,7 @@ export interface operations {
                      *             "availableSpare": 1,
                      *             "availableSpareThreshold": 1,
                      *             "capacityBytes": 1,
+                     *             "criticalTemperatureMinutes": 1,
                      *             "criticalWarning": 1,
                      *             "endToEndErrors": 1,
                      *             "errorCode": "permission_denied",
@@ -25946,6 +25967,7 @@ export interface operations {
                      *             "model": "WDC WD40EFZX-68AWUN0",
                      *             "name": "/dev/sda",
                      *             "offlineUncorrectable": 1,
+                     *             "overTemperatureMinutes": 1,
                      *             "passed": false,
                      *             "pendingSectors": 1,
                      *             "percentageUsed": 1,
@@ -25959,6 +25981,8 @@ export interface operations {
                      *             "smartSupported": false,
                      *             "state": "ok",
                      *             "temperatureC": 1,
+                     *             "temperatureCriticalC": 1,
+                     *             "temperatureLimitC": 1,
                      *             "type": "sat",
                      *             "uncorrectedErrors": 1,
                      *             "values": [
@@ -30193,6 +30217,7 @@ export interface operations {
                      *             "availableSpare": 1,
                      *             "availableSpareThreshold": 1,
                      *             "capacityBytes": 1,
+                     *             "criticalTemperatureMinutes": 1,
                      *             "criticalWarning": 1,
                      *             "endToEndErrors": 1,
                      *             "errorCode": "permission_denied",
@@ -30209,6 +30234,7 @@ export interface operations {
                      *             "model": "WDC WD40EFZX-68AWUN0",
                      *             "name": "/dev/sda",
                      *             "offlineUncorrectable": 1,
+                     *             "overTemperatureMinutes": 1,
                      *             "passed": false,
                      *             "pendingSectors": 1,
                      *             "percentageUsed": 1,
@@ -30222,6 +30248,8 @@ export interface operations {
                      *             "smartSupported": false,
                      *             "state": "ok",
                      *             "temperatureC": 1,
+                     *             "temperatureCriticalC": 1,
+                     *             "temperatureLimitC": 1,
                      *             "type": "sat",
                      *             "uncorrectedErrors": 1,
                      *             "values": [

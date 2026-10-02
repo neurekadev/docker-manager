@@ -57,6 +57,11 @@ type DiskDevice struct {
 	Passed         *bool  `json:"passed,omitempty" doc:"The disk's overall self-assessment."`
 	TemperatureC   *int   `json:"temperatureC,omitempty"`
 	PowerOnHours   *int64 `json:"powerOnHours,omitempty"`
+	// The disk's own temperature limits and the time it spent above them.
+	TemperatureLimitC          *int   `json:"temperatureLimitC,omitempty" doc:"The highest temperature the disk should run at, as it reports it (NVMe warning composite temperature, SATA maximum operating temperature, SAS drive trip)."`
+	TemperatureCriticalC       *int   `json:"temperatureCriticalC,omitempty" doc:"NVMe critical composite temperature."`
+	OverTemperatureMinutes     *int64 `json:"overTemperatureMinutes,omitempty" doc:"Minutes the disk spent above temperatureLimitC in its lifetime."`
+	CriticalTemperatureMinutes *int64 `json:"criticalTemperatureMinutes,omitempty" doc:"Minutes the disk spent above temperatureCriticalC in its lifetime."`
 	// ATA.
 	ReallocatedSectors    *int64          `json:"reallocatedSectors,omitempty"`
 	EndToEndErrors        *int64          `json:"endToEndErrors,omitempty"`
@@ -69,7 +74,7 @@ type DiskDevice struct {
 	AvailableSpare          *int   `json:"availableSpare,omitempty" doc:"Percent."`
 	AvailableSpareThreshold *int   `json:"availableSpareThreshold,omitempty" doc:"Percent."`
 	MediaErrors             *int64 `json:"mediaErrors,omitempty"`
-	PercentageUsed          *int   `json:"percentageUsed,omitempty" doc:"Wear estimate in percent (may exceed 100)."`
+	PercentageUsed          *int   `json:"percentageUsed,omitempty" doc:"Wear estimate in percent (may exceed 100): NVMe, SAS, and SATA SSDs that report it."`
 	// SCSI.
 	GrownDefects      *int64             `json:"grownDefects,omitempty"`
 	UncorrectedErrors *int64             `json:"uncorrectedErrors,omitempty"`
@@ -214,7 +219,9 @@ func healthDTOs(h *observe.HostHealth, served, known bool) (DiskHealth, RAIDHeal
 func diskDevice(d protocol.SMARTDevice) DiskDevice {
 	out := DiskDevice{Name: d.Name, Type: d.Type, Protocol: d.Protocol, Model: d.Model, Serial: d.Serial, Firmware: d.Firmware,
 		CapacityBytes: d.CapacityBytes, RotationRPM: d.RotationRPM, SMARTSupported: d.SMARTSupported, Passed: d.Passed,
-		TemperatureC: d.TemperatureC, PowerOnHours: d.PowerOnHours, ReallocatedSectors: d.Reallocated, EndToEndErrors: d.EndToEndErrors,
+		TemperatureC: d.TemperatureC, PowerOnHours: d.PowerOnHours, TemperatureLimitC: d.TemperatureLimitC,
+		TemperatureCriticalC: d.TemperatureCriticalC, OverTemperatureMinutes: d.OverTemperatureMinutes,
+		CriticalTemperatureMinutes: d.CriticalTemperatureMinutes, ReallocatedSectors: d.Reallocated, EndToEndErrors: d.EndToEndErrors,
 		ReportedUncorrectable: d.ReportedUncorrectable, PendingSectors: d.Pending, OfflineUncorrectable: d.OfflineUncorrectable,
 		CriticalWarning: d.CriticalWarning, AvailableSpare: d.AvailableSpare, AvailableSpareThreshold: d.AvailableSpareThreshold,
 		MediaErrors: d.MediaErrors, PercentageUsed: d.PercentageUsed, GrownDefects: d.GrownDefects, UncorrectedErrors: d.UncorrectedErrors,

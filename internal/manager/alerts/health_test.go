@@ -569,3 +569,43 @@ func TestStaleHealthWarns(t *testing.T) {
 		t.Fatalf("%+v", as)
 	}
 }
+
+// TestDiskOverItsTemperatureLimit (#212): a disk at or above its own
+// temperature limit, or with time spent above it, raises a warning whose
+// facts name the reading, the limit and the minutes; a changing reading
+// keeps the fingerprint, and the NVMe temperature warning is the same
+// problem as the limit.
+func TestDiskOverItsTemperatureLimit(t *testing.T) {
+	hot := disk(protocol.DiskWarning)
+	hot.TemperatureC, hot.TemperatureLimitC, hot.OverTemperatureMinutes = intp(72), intp(70), i64(34)
+	o := diskObservation(domain.Environment{ID: "env-1"}, hot, "k")
+	if o.Severity != domain.AlertWarning || o.Facts["temperatureC"] != "72" || o.Facts["temperatureLimitC"] != "70" ||
+		o.Facts["overTemperatureMinutes"] != "34" || o.Facts["criticalTemperatureMinutes"] != "" {
+		t.Fatalf("%+v", o)
+	}
+	hotter := hot
+	hotter.TemperatureC = intp(75)
+	if diskObservation(domain.Environment{ID: "env-1"}, hotter, "k").Fingerprint != o.Fingerprint {
+		t.Error("a new reading must not look like a new problem")
+	}
+	// Above the critical limit only: that limit is named.
+	crit := disk(protocol.DiskWarning)
+	crit.TemperatureC, crit.TemperatureCriticalC = intp(86), intp(85)
+	if f := diskObservation(domain.Environment{ID: "env-1"}, crit, "k").Facts; f["temperatureLimitC"] != "85" {
+		t.Errorf("critical limit %+v", f)
+	}
+	// The NVMe temperature warning and the limit: one problem.
+	nvme := disk(protocol.DiskWarning)
+	nvme.Passed, nvme.CriticalWarning = boolp(false), intp(protocol.NVMeWarnTemperature)
+	both := nvme
+	both.TemperatureC, both.TemperatureLimitC = intp(83), intp(82)
+	if diskObservation(domain.Environment{ID: "env-1"}, nvme, "k").Fingerprint != diskObservation(domain.Environment{ID: "env-1"}, both, "k").Fingerprint {
+		t.Error("the limit repeats the NVMe temperature warning")
+	}
+	// Below the limit and never above it: no temperature facts.
+	cool := disk(protocol.DiskOK)
+	cool.TemperatureC, cool.TemperatureLimitC, cool.OverTemperatureMinutes = intp(40), intp(70), i64(0)
+	if f := diskObservation(domain.Environment{ID: "env-1"}, cool, "k").Facts; f["temperatureC"] != "" || f["overTemperatureMinutes"] != "" {
+		t.Errorf("cool disk %+v", f)
+	}
+}

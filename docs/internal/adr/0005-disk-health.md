@@ -60,6 +60,14 @@ limit, a disk not read for `DOCKER_AGENT_SMART_WAKE_AFTER` (default 24 h,
 spin-up per day by default. `0` keeps the never-wake behavior for
 operators who prefer it.
 
+**Amendment (#212): device statistics.** `-a` leaves out an ATA
+drive's device statistics log, where SATA SSDs report their wear (page 7)
+and drives their maximum operating temperature and the time spent above
+it (page 5). ATA devices are read with `-l devstat,5 -l devstat,7` too:
+two more read-only log reads, no setting changed, `-n standby` unchanged.
+A drive without the log or a page reports less (smartctl may set exit
+bit 2, which the agent does not judge by when the JSON is complete).
+
 **Licensing.** smartmontools is GPL-2.0-or-later; Docker Manager is
 AGPL-3.0. The agent does not link it: it executes an independent program
 and parses its output, which is aggregation, not a derivative work. The

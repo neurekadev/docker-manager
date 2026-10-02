@@ -85,8 +85,13 @@ const count = (n: number, one: string, many = `${one}s`) =>
 export function diskIssues(d: DiskDevice): string[] {
 	if (d.state === 'error') return [unreadableReason(d.errorCode)];
 	const out: string[] = [];
-	if (d.criticalWarning === NVME_WARN_TEMPERATURE) out.push('Too hot');
-	else {
+	const limit = exceededLimit(d);
+	if (limit !== undefined)
+		out.push(
+			`Too hot: ${formatTemperature(d.temperatureC)} (limit ${formatTemperature(limit)})`
+		);
+	else if (d.criticalWarning === NVME_WARN_TEMPERATURE) out.push('Too hot');
+	if (d.criticalWarning !== NVME_WARN_TEMPERATURE) {
 		if (d.passed === false) out.push('Self-assessment failed');
 		if (d.criticalWarning) out.push('Critical warning');
 	}
@@ -113,9 +118,27 @@ export function diskIssues(d: DiskDevice): string[] {
 		out.push(
 			`Spare ${formatPercent(d.availableSpare)} (minimum ${formatPercent(d.availableSpareThreshold)})`
 		);
+	if (n(d.overTemperatureMinutes) > 0)
+		out.push(`Ran above its temperature limit for ${minutes(n(d.overTemperatureMinutes))}`);
+	if (n(d.criticalTemperatureMinutes) > 0)
+		out.push(
+			`Ran above its critical temperature for ${minutes(n(d.criticalTemperatureMinutes))}`
+		);
 	const past = (d.failingAttributes ?? []).filter((a) => a.whenFailed === 'past');
 	for (const a of past) out.push(`${attributeName(a.name)} failed in the past`);
 	return out;
+}
+
+/**
+ * The disk's own temperature limit its reading is at or above (#212, the
+ * agent's OverTemperatureLimit): its limit, else its critical one;
+ * undefined when it is cooler or reports no limit.
+ */
+export function exceededLimit(d: DiskDevice): number | undefined {
+	if (d.temperatureC === undefined) return undefined;
+	for (const l of [d.temperatureLimitC, d.temperatureCriticalC])
+		if (l !== undefined && d.temperatureC >= l) return l;
+	return undefined;
 }
 
 /** The wear from which a disk counts as worn out (the agent's rule). */
@@ -244,6 +267,41 @@ export function selfAssessmentCheck(d: DiskDevice): SmartCheck | null {
 	return { tone: 'danger', label: 'Failed' };
 }
 
+/**
+ * The temperature against the disk's own limit (#212): at or above it a
+ * warning, else OK, labelled with both ("72 °C (limit 70 °C)"); null
+ * when the disk reports no reading or no limit (shown without a mark).
+ */
+export function temperatureCheck(d: DiskDevice): SmartCheck | null {
+	const limit = exceededLimit(d) ?? d.temperatureLimitC ?? d.temperatureCriticalC;
+	if (d.temperatureC === undefined || limit === undefined) return null;
+	const label = `${formatTemperature(d.temperatureC)} (limit ${formatTemperature(limit)})`;
+	return { tone: exceededLimit(d) === undefined ? 'ok' : 'warn', label };
+}
+
+/** The wear (percentage used): a warning from WORN percent; null when not reported. */
+export function wearCheck(d: DiskDevice): SmartCheck | null {
+	if (d.percentageUsed === undefined) return null;
+	const label = `${formatPercent(d.percentageUsed)} used`;
+	return { tone: d.percentageUsed >= WORN ? 'warn' : 'ok', label };
+}
+
+/**
+ * The time the disk spent above its temperature limits in its lifetime:
+ * any a warning ("34 min, 1 min above critical"), none OK ("Never");
+ * null when the disk does not count it.
+ */
+export function hotTimeCheck(d: DiskDevice): SmartCheck | null {
+	const over = d.overTemperatureMinutes;
+	const crit = d.criticalTemperatureMinutes;
+	if (over === undefined && crit === undefined) return null;
+	if (!over && !crit) return { tone: 'ok', label: 'Never' };
+	const parts: string[] = [];
+	if (over) parts.push(minutes(over));
+	if (crit) parts.push(`${minutes(crit)} above critical`);
+	return { tone: 'warn', label: parts.join(', ') };
+}
+
 /** The ATA attributes the agent counts (raw value above 0: a warning), by ID. */
 const ATA_COUNTED: Record<number, string> = {
 	5: 'reallocated sector',
@@ -291,6 +349,13 @@ export function valueCheck(v: DiskValue, d: DiskDevice): SmartCheck | null {
 			return v.value >= WORN ? { tone: 'warn', label: 'Worn' } : OK;
 		case 'media_errors':
 			return v.value > 0 ? { tone: 'warn', label: 'Errors found' } : OK;
+		case 'temperature': {
+			const c = temperatureCheck({ ...d, temperatureC: v.value });
+			return c && { tone: c.tone, label: c.tone === 'ok' ? 'OK' : 'Too hot' };
+		}
+		case 'warning_temp_time':
+		case 'critical_comp_time':
+			return v.value > 0 ? { tone: 'warn', label: 'Ran hot' } : OK;
 	}
 	if (v.key.endsWith('.total_uncorrected_errors'))
 		return v.value > 0 ? { tone: 'warn', label: 'Errors found' } : OK;
@@ -310,10 +375,10 @@ export function attributeRaw(a: DiskAttributeRow): string {
 
 const wholeNumber = (v: number) => v.toLocaleString('en');
 
+const minutes = (v: number) => formatDuration(v * 60);
+
 /** NVMe counts data in units of 1,000 sectors of 512 bytes. */
 const NVME_DATA_UNIT = 512_000;
-
-const minutes = (v: number) => formatDuration(v * 60);
 
 /** Labels and formats of the health values smartctl reports, by key. */
 const VALUES: Record<string, { label: string; format?: (v: number) => string }> = {

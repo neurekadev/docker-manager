@@ -118,9 +118,13 @@ func TestParseReadFixtures(t *testing.T) {
 				{Key: "available_spare_threshold", Value: 10}, {Key: "percentage_used", Value: 2},
 				{Key: "data_units_read", Value: 38519204}, {Key: "data_units_written", Value: 43826192}, {Key: "power_cycles", Value: 212},
 				{Key: "power_on_hours", Value: 5012}, {Key: "unsafe_shutdowns", Value: 18}, {Key: "media_errors"},
-				{Key: "num_err_log_entries"}}
+				{Key: "num_err_log_entries"}, {Key: "warning_temp_time"}, {Key: "critical_comp_time"}}
 			if !reflect.DeepEqual(d.Values, want) || d.Attributes != nil {
 				t.Errorf("values %+v attributes %+v", d.Values, d.Attributes)
+			}
+			if *d.TemperatureLimitC != 82 || *d.TemperatureCriticalC != 85 || *d.OverTemperatureMinutes != 0 ||
+				*d.CriticalTemperatureMinutes != 0 {
+				t.Errorf("limits: %+v", d)
 			}
 		}},
 		{"nvme_critical.json", ScanDevice{Name: "/dev/nvme1", Type: "nvme"}, BitDiskFailing, func(t *testing.T, r Reading) {
@@ -139,7 +143,8 @@ func TestParseReadFixtures(t *testing.T) {
 		{"scsi.json", ScanDevice{Name: "/dev/sdb", Type: "scsi"}, 0, func(t *testing.T, r Reading) {
 			d := r.Device
 			if d.State != protocol.DiskWarning || d.Protocol != protocol.DiskSCSI || d.Model != "SEAGATE ST4000NM0023" ||
-				d.Firmware != "GS0F" || *d.GrownDefects != 12 || *d.UncorrectedErrors != 3 || *d.PowerOnHours != 51034 {
+				d.Firmware != "GS0F" || *d.GrownDefects != 12 || *d.UncorrectedErrors != 3 || *d.PowerOnHours != 51034 ||
+				*d.TemperatureLimitC != 60 || d.TemperatureCriticalC != nil {
 				t.Fatalf("%+v", d)
 			}
 			want := []protocol.SMARTValue{{Key: "read.total_errors_corrected", Value: 5}, {Key: "read.total_uncorrected_errors", Value: 1},
@@ -314,5 +319,40 @@ func TestWalkValuesKeepsNumbersOnly(t *testing.T) {
 	walkValues([]byte(many.String()), "", &vs)
 	if len(vs) != protocol.MaxSMARTValues {
 		t.Errorf("%d values, want %d", len(vs), protocol.MaxSMARTValues)
+	}
+}
+
+// TestParseReadSATAWearAndTemperatureLimit (#212): a SATA SSD's wear comes
+// from smartctl's endurance_used (device statistics page 7), its limit and
+// time over it from page 5; a temperature at its limit warns, a limit of
+// 0 is none.
+func TestParseReadSATAWearAndTemperatureLimit(t *testing.T) {
+	sda := ScanDevice{Name: "/dev/sda", Type: "sat", Protocol: protocol.DiskATA}
+	read := func(extra string) protocol.SMARTDevice {
+		t.Helper()
+		r := parseRead(sda, []byte(`{"device":{"name":"/dev/sda","type":"sat","protocol":"ATA"},"smart_status":{"passed":true},`+
+			`"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":0}}]},`+extra+`}`), 0, "")
+		out := protocol.HostHealthOutput{SampledAt: testEpoch, SMART: protocol.SMARTReport{Status: protocol.SMARTOK,
+			Devices: []protocol.SMARTDevice{r.Device}}, RAID: protocol.RAIDReport{ReadAt: testEpoch}}
+		if err := out.Validate(); err != nil {
+			t.Fatalf("does not validate: %v", err)
+		}
+		return r.Device
+	}
+	d := read(`"temperature":{"current":41,"op_limit_max":70,"lifetime_over_limit_minutes":0},"endurance_used":{"current_percent":7}`)
+	if d.State != protocol.DiskOK || *d.PercentageUsed != 7 || *d.TemperatureLimitC != 70 || *d.OverTemperatureMinutes != 0 {
+		t.Fatalf("healthy: %+v", d)
+	}
+	if d := read(`"endurance_used":{"current_percent":93}`); d.State != protocol.DiskWarning || *d.PercentageUsed != 93 {
+		t.Errorf("worn: %+v", d)
+	}
+	if d := read(`"temperature":{"current":70,"op_limit_max":70}`); d.State != protocol.DiskWarning {
+		t.Errorf("at its limit: %+v", d)
+	}
+	if d := read(`"temperature":{"current":45,"op_limit_max":70,"lifetime_over_limit_minutes":3}`); d.State != protocol.DiskWarning {
+		t.Errorf("ran hot: %+v", d)
+	}
+	if d := read(`"temperature":{"current":45,"op_limit_max":0}`); d.TemperatureLimitC != nil || d.State != protocol.DiskOK {
+		t.Errorf("a limit of 0 is none: %+v", d)
 	}
 }

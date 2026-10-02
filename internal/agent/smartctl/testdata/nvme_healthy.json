@@ -46,10 +46,21 @@
     "power_on_hours": 5012,
     "unsafe_shutdowns": 18,
     "media_errors": 0,
-    "num_err_log_entries": 0
+    "num_err_log_entries": 0,
+    "warning_temp_time": 0,
+    "critical_comp_time": 0
+  },
+  "nvme_composite_temperature_threshold": {
+    "warning": 82,
+    "critical": 85
   },
   "temperature": {
-    "current": 38
+    "current": 38,
+    "op_limit_max": 82,
+    "critical_limit_max": 85
+  },
+  "endurance_used": {
+    "current_percent": 2
   },
   "power_on_time": {
     "hours": 5012

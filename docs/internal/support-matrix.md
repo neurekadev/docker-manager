@@ -388,7 +388,7 @@ whole-scope overflow).
 
 | Source | Support |
 | --- | --- |
-| SATA/ATA disks, SAS/SCSI disks, NVMe drives | SMART through smartctl 7.5 (`--scan-open`, then `-a -n standby` per device, `-n never` once a disk went unread for `DOCKER_AGENT_SMART_WAKE_AFTER`); needs the agent to run privileged ([ADR 0005](adr/0005-disk-health.md)) |
+| SATA/ATA disks, SAS/SCSI disks, NVMe drives | SMART through smartctl 7.5 (`--scan-open`, then `-a -n standby` per device (ATA also `-l devstat,5 -l devstat,7`), `-n never` once a disk went unread for `DOCKER_AGENT_SMART_WAKE_AFTER`); needs the agent to run privileged ([ADR 0005](adr/0005-disk-health.md)) |
 | USB enclosures | only bridges smartctl detects on its own; others report no SMART data (`unsupported`) |
 | Virtual disks (virtio, QEMU, VMware, Hyper-V) | no SMART data: reported as such, not as a problem |
 | Disks behind hardware RAID controllers | the disks smartctl's scan finds behind the controller (for example MegaRAID, one device per slot: `megaraid,N`) are shown; the controller's own array state is not covered (vendor tools) |

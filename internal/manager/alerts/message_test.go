@@ -42,6 +42,10 @@ func TestDetailInWords(t *testing.T) {
 			"SMART self-assessment failed, 1 reallocated sector, 8 pending sectors. Back up its data and replace the disk. Model WDC WD40EFZX."},
 		{domain.Alert{Kind: domain.NotifyDiskHealth, Facts: map[string]string{"state": "warning", "percentageUsed": "93"}},
 			"Wear at 93%."},
+		// The disk's own temperature limit and time above it (#212).
+		{domain.Alert{Kind: domain.NotifyDiskHealth, Facts: map[string]string{"state": "warning", "temperatureC": "72",
+			"temperatureLimitC": "70", "overTemperatureMinutes": "34", "criticalTemperatureMinutes": "1"}},
+			"Too hot: 72 °C, its limit is 70 °C, 34 minutes above its temperature limit so far, 1 minute above its critical temperature so far."},
 		{domain.Alert{Kind: domain.NotifyDiskHealth, Facts: map[string]string{"state": "error", "errorCode": "open_failed"}},
 			"The disk can't be read: it could not be opened."},
 		{domain.Alert{Kind: domain.NotifyRAID, Facts: map[string]string{"arrayKind": "md", "level": "raid5", "devices": "3", "active": "2",
