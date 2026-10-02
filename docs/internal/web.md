@@ -774,7 +774,8 @@ only wire resources to it:
   `ValueError:`; else "Other"); an indented line (`continues`) takes the
   previous level of its container. The service chips, the search (shows
   only matching lines as you type; Match case, regular expressions:
-  `compileSearch`) and Levels (a `MultiSelect` of the levels and the
+  `compileSearch`, which refuses nested repeats such as `(a+)+` because
+  their backtracking would freeze the page: `nestedRepeat`) and Levels (a `MultiSelect` of the levels and the
   output streams; each count applies the other group's choice) filter the
   buffered lines in that order (`filterLines` in `logs/format.ts`); the
   line's left edge marks errors (red), warnings (amber) and standard error

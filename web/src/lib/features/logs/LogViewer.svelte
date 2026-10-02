@@ -125,7 +125,9 @@
 		})
 	);
 	const search = $derived(compileSearch(query, { caseSensitive, regex }));
-	const matcher = $derived(search === 'invalid' ? null : search);
+	// An invalid or too slow expression filters nothing until it is fixed.
+	const refused = $derived(typeof search === 'string' ? search : null);
+	const matcher = $derived(typeof search === 'string' ? null : search);
 	const searched = $derived(filterLines(bySource, { match: matcher }));
 	const shown = $derived(filterLines(searched, { levels, streams }));
 	const levelCounts = $derived(tally(filterLines(searched, { streams })));
@@ -271,7 +273,7 @@
 				spellcheck="false"
 				autocomplete="off"
 				mono={regex}
-				aria-invalid={search === 'invalid' || undefined}
+				aria-invalid={!!refused || undefined}
 				onkeydown={onSearchKey}
 				bind:value={query}
 			/>
@@ -289,8 +291,11 @@
 				pressed={regex}
 				onclick={() => (regex = !regex)}
 			/>
-			<span class="count num" class:invalid={search === 'invalid'} aria-live="polite"
-				>{#if search === 'invalid'}Invalid expression{:else if matcher}{shown.length}
+			<span class="count num" class:invalid={!!refused} aria-live="polite"
+				>{#if search === 'invalid'}Invalid expression{:else if search === 'slow'}<span
+						title="A repeated group that repeats inside, such as (a+)+, can freeze the page."
+						>Avoid nested repeats</span
+					>{:else if matcher}{shown.length}
 					{shown.length === 1 ? 'match' : 'matches'}{/if}</span
 			>
 		</div>

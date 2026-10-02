@@ -38,11 +38,55 @@ export interface Matcher {
 }
 
 /**
- * Compiles the search box's text: null when it is empty (every line
- * matches), 'invalid' for a regular expression that does not compile.
- * Plain text ignores the spaces around it.
+ * Whether a regular expression repeats a group that itself repeats
+ * (`(a+)+`, `(\w*\s?)*`): such patterns can backtrack for minutes on one
+ * line, and the search runs on every keystroke and every new line in the
+ * page's thread, which JavaScript cannot interrupt.
  */
-export function compileSearch(query: string, o: SearchOptions = {}): Matcher | 'invalid' | null {
+export function nestedRepeat(source: string): boolean {
+	// Per open group: whether it holds a repeat.
+	const groups: boolean[] = [];
+	let inClass = false;
+	// The group that closed just before this character, if it held a repeat.
+	let closed = false;
+	for (let i = 0; i < source.length; i++) {
+		const c = source[i];
+		if (c === '\\') {
+			i++;
+			closed = false;
+			continue;
+		}
+		if (inClass) {
+			if (c === ']') inClass = false;
+			continue;
+		}
+		if (c === ')') {
+			closed = groups.pop() ?? false;
+			if (closed && groups.length) groups[groups.length - 1] = true;
+			continue;
+		}
+		const repeat = c === '*' || c === '+' || (c === '{' && /^\{\d*,/.test(source.slice(i)));
+		if (repeat) {
+			if (closed) return true;
+			if (groups.length) groups[groups.length - 1] = true;
+		}
+		if (c === '[') inClass = true;
+		if (c === '(') groups.push(false);
+		closed = false;
+	}
+	return false;
+}
+
+/**
+ * Compiles the search box's text: null when it is empty (every line
+ * matches), 'invalid' for a regular expression that does not compile,
+ * 'slow' for one with nested repeats (`nestedRepeat`). Plain text ignores
+ * the spaces around it.
+ */
+export function compileSearch(
+	query: string,
+	o: SearchOptions = {}
+): Matcher | 'invalid' | 'slow' | null {
 	if (o.regex) {
 		if (!query) return null;
 		let re: RegExp;
@@ -51,6 +95,7 @@ export function compileSearch(query: string, o: SearchOptions = {}): Matcher | '
 		} catch {
 			return 'invalid';
 		}
+		if (nestedRepeat(query)) return 'slow';
 		const one = new RegExp(re.source, o.caseSensitive ? '' : 'i');
 		return {
 			test: (text) => one.test(text),

@@ -10,6 +10,7 @@ import {
 	highlight,
 	levelSummary,
 	logText,
+	nestedRepeat,
 	serviceShown,
 	tally,
 	toggleHidden,
@@ -185,6 +186,9 @@ describe('search', () => {
 	it('matches regular expressions and reports invalid ones', () => {
 		expect(compileSearch('', { regex: true })).toBeNull();
 		expect(compileSearch('(oops', { regex: true })).toBe('invalid');
+		// Nested repeats can backtrack for minutes: refused before they run.
+		expect(compileSearch('(a+)+$', { regex: true })).toBe('slow');
+		expect(compileSearch('(a+)+$')).not.toBe('slow');
 		const m = matcher('5\\d\\d', { regex: true });
 		expect(m.test('GET /login 500')).toBe(true);
 		expect(m.test('GET /login 200')).toBe(false);
@@ -200,6 +204,27 @@ describe('search', () => {
 		expect(highlight('abc', matcher('x*', { regex: true }))).toEqual([
 			{ text: 'abc', match: false }
 		]);
+	});
+});
+
+describe('nested repeats', () => {
+	it.each<[string, boolean]>([
+		['(a+)+$', true],
+		['(\\w*\\s?)*', true],
+		['(?:x|y+)*z', true],
+		['((a+))+', true],
+		['(a{2,})+', true],
+		['(a+){2,5}', true],
+		['(ERROR|WARN)', false],
+		['5\\d\\d', false],
+		['a+b*c+', false],
+		['(ab)+', false],
+		['(a{2})+', false],
+		['[(+]+', false],
+		['\\(a+\\)+', false],
+		['(a+)?', false]
+	])('%s: %s', (source, nested) => {
+		expect(nestedRepeat(source)).toBe(nested);
 	});
 });
 
