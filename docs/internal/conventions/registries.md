@@ -21,5 +21,14 @@ registry credentials (`internal/manager/registries`, `app.Manager.Registries()`)
 - **Manager-side digest checks** (#20): `Registries().Check(ctx,
   registries.CheckRequest{...})` (cached, deduplicated, rate-limit aware,
   `regclient` error classes). Image references and hosts: `internal/imageref`.
+- **Rate limits are per host and credential** (#217): the `regclient`
+  cooldown after a 429 is keyed by API host and credential key, and every
+  registry response is reported to the observer the registries service
+  sets (`SetRateLimitObserver`), which keeps the last reported pull limit
+  per host and connection (`''` anonymous) in `registry_pull_limits`.
+  Never key rate-limit state by host alone, never store or log Docker
+  Hub's `docker-ratelimit-source` (an IP address), and never let recording
+  a limit fail a check. Every new registry request path goes through
+  `authorized`, so it is reported too.
 - Tests: fake registry `regclient/regtest`; register secrets as
   `canary.RegistryCredential`.

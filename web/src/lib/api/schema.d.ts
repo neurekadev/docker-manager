@@ -3646,6 +3646,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registries/pull-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List registry pull limits
+         * @description The last pull limit each registry reported to Docker Manager's checks (RateLimit-* or X-RateLimit-* headers, 429 answers), per registry host and credential: a connection's (shown with registry.read on it) and anonymous access (shown with registry.read on the instance). A registry that reports no limit has a row without limit once it was checked. Pulls on the hosts are counted by the registry but not seen here.
+         */
+        get: operations["list-registry-pull-limits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/registries/{registryId}": {
         parameters: {
             query?: never;
@@ -10656,6 +10676,17 @@ export interface components {
              */
             total?: number;
         };
+        PageRegistryPullLimit: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["RegistryPullLimit"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageSchedule: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Schedule"][];
@@ -11502,6 +11533,60 @@ export interface components {
             registryId?: string;
             /** @description Match for this stack (stack-bound connections). */
             stackId?: string;
+        };
+        RegistryPullLimit: {
+            /**
+             * Format: date-time
+             * @description The registry's last answer to a check with this credential.
+             */
+            checkedAt: string;
+            /**
+             * @description Normalized registry host.
+             * @example docker.io
+             */
+            host: string;
+            /**
+             * Format: date-time
+             * @description The last 429 answer.
+             */
+            lastLimitedAt?: string;
+            /**
+             * Format: int64
+             * @description Pulls allowed per window, as last reported; absent while the registry reports no limit (GHCR, for example).
+             * @example 200
+             */
+            limit?: number;
+            /** @description The last answer was 429 Too Many Requests and the limit has not reset yet. */
+            limited: boolean;
+            /**
+             * Format: date-time
+             * @description When the limit of the last 429 resets, when the registry said so.
+             */
+            limitedUntil?: string;
+            /**
+             * Format: date-time
+             * @description When the registry last reported the limit.
+             */
+            observedAt?: string;
+            /** @description The connection whose credential the checks used (its account's limit covers every pull with that account); absent for anonymous access, whose limit is per IP address. */
+            registryId?: string;
+            /**
+             * Format: int64
+             * @description Pulls left in the window, as last reported.
+             * @example 187
+             */
+            remaining?: number;
+            /**
+             * Format: date-time
+             * @description When the window resets, when reported.
+             */
+            resetAt?: string;
+            /**
+             * Format: int64
+             * @description The limit's window in seconds, when reported.
+             * @example 21600
+             */
+            windowSeconds?: number;
         };
         RegistrySecret: {
             /**
@@ -41582,6 +41667,65 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-registry-pull-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "checkedAt": "2026-09-25T12:00:00Z",
+                     *           "host": "docker.io",
+                     *           "lastLimitedAt": "2026-09-25T12:00:00Z",
+                     *           "limit": 200,
+                     *           "limited": false,
+                     *           "limitedUntil": "2026-09-25T12:00:00Z",
+                     *           "observedAt": "2026-09-25T12:00:00Z",
+                     *           "registryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "remaining": 187,
+                     *           "resetAt": "2026-09-25T12:00:00Z",
+                     *           "windowSeconds": 21600
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageRegistryPullLimit"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

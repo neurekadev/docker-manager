@@ -2,7 +2,7 @@
 // for Docker-free tests of registry checks (#19, #20): Bearer token or
 // Basic auth, private and denied repositories, scripted failures (429 with
 // Retry-After, 5xx), multi-platform indexes, image config blobs and request
-// accounting.
+// accounting, and response headers such as rate limits.
 package regtest
 
 import (
@@ -48,6 +48,9 @@ type Registry struct {
 	NoDigest bool
 	// Realm overrides the token realm (default <server>/token).
 	Realm string
+	// Headers are set on every authorized manifest response (rate-limit
+	// headers, for example).
+	Headers map[string]string
 	// Block, when set, holds manifest requests until closed; Entered is
 	// signaled (non-blocking) when a manifest request arrives.
 	Block   chan struct{}
@@ -232,6 +235,9 @@ func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
 	}
 	if !r.authorizedLocked(w, req, repo, authz) {
 		return
+	}
+	for k, v := range r.Headers {
+		w.Header().Set(k, v)
 	}
 	m, ok := r.manifests[repo+":"+ref]
 	if !ok {
