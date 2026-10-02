@@ -440,6 +440,18 @@ describe('StepUpDialog (#16, #186)', () => {
 		return bodies;
 	}
 
+	/** A memory localStorage (the test environment may not provide one). */
+	function stubStorage() {
+		const data = new Map<string, string>();
+		const storage = {
+			getItem: (k: string) => data.get(k) ?? null,
+			setItem: (k: string, v: string) => void data.set(k, v),
+			removeItem: (k: string) => void data.delete(k)
+		};
+		vi.stubGlobal('localStorage', storage);
+		return storage;
+	}
+
 	function open(user: Account) {
 		const prompt = new StepUpPrompt();
 		render(QueryHarness<ComponentProps<typeof StepUpDialog>>, {
@@ -467,6 +479,7 @@ describe('StepUpDialog (#16, #186)', () => {
 	it('falls back to the password on request', async () => {
 		const user = setup();
 		const bodies = stubApi();
+		const storage = stubStorage();
 		const done = open(
 			account({ password: true, totp: true, passkeys: 0, recoveryCodesRemaining: 10 })
 		);
@@ -478,7 +491,7 @@ describe('StepUpDialog (#16, #186)', () => {
 		expect(await done).toBe(true);
 		expect(bodies).toEqual([{ password: 'correct horse' }]);
 		// The fallback is not remembered: the code stays the default.
-		expect(localStorage.getItem('docker-manager:verify-with')).toBeNull();
+		expect(storage.getItem('docker-manager:verify-with')).toBeNull();
 	});
 
 	it('asks an account without a second factor for the password', async () => {
@@ -498,6 +511,7 @@ describe('StepUpDialog (#16, #186)', () => {
 	it('starts the passkey at once and can switch to the code, remembering it', async () => {
 		const user = setup();
 		const bodies = stubApi();
+		const storage = stubStorage();
 		vi.stubGlobal('isSecureContext', true);
 		vi.stubGlobal('PublicKeyCredential', class {});
 		// The browser's prompt stays open until the switch aborts it.
@@ -523,14 +537,13 @@ describe('StepUpDialog (#16, #186)', () => {
 			await user.click(
 				within(dialog).getByRole('button', { name: 'Use authenticator code instead' })
 			);
-			expect(localStorage.getItem('docker-manager:verify-with')).toBe('totp');
+			expect(storage.getItem('docker-manager:verify-with')).toBe('totp');
 			await user.type(within(dialog).getByLabelText('Authenticator code'), '654321');
 			await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
 			expect(await done).toBe(true);
 			expect(bodies).toEqual([{ totpCode: '654321' }]);
 		} finally {
 			Reflect.deleteProperty(navigator, 'credentials');
-			localStorage.removeItem('docker-manager:verify-with');
 		}
 	});
 
