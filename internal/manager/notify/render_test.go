@@ -333,26 +333,31 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	}
 }
 
-func TestEmailSubjectNamesTheEnvironmentAndTheSender(t *testing.T) {
+func TestEmailSubjectHasTheTagAndTheSender(t *testing.T) {
 	svc := initialized(t, "smtp://mail.example.com:587/?from=dm@example.com&to=ops@example.com")
 	msg := sample()
-	msg.Environment = "Hyperion"
+	msg.Tag = "Hyperion"
 	r := render("smtp", svc, msg, url.Values{})
 	if r.params["title"] != "[Hyperion] Update of Paperless succeeded" || r.params["fromname"] != EmailFromName {
 		t.Fatalf("%+v", r.params)
 	}
-	// Without an environment (a test message) the subject is the title.
-	msg.Environment = ""
+	// Without a tag the subject is the title.
+	msg.Tag = ""
 	if r := render("smtp", svc, msg, url.Values{}); r.params["title"] != msg.Title || r.params["fromname"] != "Docker Manager" {
 		t.Fatalf("%+v", r.params)
 	}
 	// A sender name or subject in the address wins.
-	msg.Environment = "Hyperion"
+	msg.Tag = "Hyperion"
 	r = render("smtp", svc, msg, url.Values{"FromName": {"Ops"}, "subject": {"Alert"}})
 	if _, ok := r.params["fromname"]; ok {
 		t.Fatalf("%+v", r.params)
 	}
 	if _, ok := r.params["title"]; ok {
+		t.Fatalf("%+v", r.params)
+	}
+	// A test message's subject reads "[Test] Docker Manager test message".
+	test := (&Service{}).testMessage(domain.NotificationChannel{Name: "Ops"}, time.Now())
+	if r := render("smtp", svc, test, url.Values{}); r.params["title"] != "[Test] Docker Manager test message" {
 		t.Fatalf("%+v", r.params)
 	}
 	// Other services keep the plain title.

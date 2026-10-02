@@ -788,7 +788,7 @@ func buildMessage(instance, publicURL string, items []domain.AlertDelivery, now 
 			title = "Resolved: " + title
 		}
 		return domain.NotificationMessage{Label: Label(it.Kind, it.Outcome), Title: title, Body: it.Body,
-			Environment: environmentOf(it), URL: abs(it.Link), Tone: it.Tone(), Fields: withLinks(it.Fields, abs),
+			Tag: environmentOf(it), URL: abs(it.Link), Tone: it.Tone(), Fields: withLinks(it.Fields, abs),
 			Footer: foot, Time: it.CreatedAt}
 	}
 	fired, resolved, finished := 0, 0, 0
@@ -827,7 +827,7 @@ func buildMessage(instance, publicURL string, items []domain.AlertDelivery, now 
 	}
 	var l fieldList
 	l.addItems(digestField, entries)
-	msg := domain.NotificationMessage{Label: digestLabel, Title: strings.Join(what, ", "), Environment: commonEnvironment(items),
+	msg := domain.NotificationMessage{Label: digestLabel, Title: strings.Join(what, ", "), Tag: commonEnvironment(items),
 		Tone: tone, Fields: l.ordered(), Footer: foot, Time: now}
 	if base != "" {
 		msg.URL = base + "/notifications"
