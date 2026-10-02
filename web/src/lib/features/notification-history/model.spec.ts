@@ -24,7 +24,8 @@ const now = new Date(2026, 8, 30, 12, 0);
 describe('notifications in words', () => {
 	it('names the kinds and outcomes as the badges and filters do', () => {
 		expect(NOTIFICATION_KINDS.map((k) => k.label)).toEqual([
-			'Backups and restores',
+			'Backups',
+			'Restores',
 			'Prune',
 			'Image updates'
 		]);
@@ -41,6 +42,7 @@ describe('notifications in words', () => {
 
 	it('shows each kind with the tile of the policy that runs it', () => {
 		expect(notificationTile('backup')).toEqual(RESOURCE_ICONS.backup);
+		expect(notificationTile('restore')).toEqual(RESOURCE_ICONS.backup);
 		expect(notificationTile('prune')).toEqual(RESOURCE_ICONS.maintenancePolicy);
 		expect(notificationTile('updates')).toEqual(RESOURCE_ICONS.updatePolicy);
 		expect(notificationTile('other')).toEqual(RESOURCE_ICONS.job);

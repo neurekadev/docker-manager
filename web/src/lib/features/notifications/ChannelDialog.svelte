@@ -379,7 +379,7 @@
 						{#each EVENT_KINDS.filter((k) => k.group === g.group) as k (k.kind)}
 							{@const mark = kindState(k, picks)}
 							<div class="event-row">
-								<div class="event-kind">
+								<div class="event-kind" title={k.hint}>
 									<Checkbox
 										label={k.label}
 										icon={k.icon}

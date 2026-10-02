@@ -19,8 +19,9 @@ them with `notify.Service.Send`. Binding rules:
 
 ## Model
 
-Migrations `20260930090000_create_notification_channels` and
-`20261001090000_notification_events` (subscriptions):
+Migrations `20260930090000_create_notification_channels`,
+`20261001090000_notification_events` (subscriptions) and
+`20261002120000_restore_notifications` (restores split from backups):
 
 - `notification_channels`: display name (unique, case-insensitive
   `name_key`), `service` (the URL's Shoutrrr service: `discord`, `smtp`,
@@ -43,15 +44,26 @@ Event kinds (`domain.NotificationEventKinds`) and their outcomes
 | --- | --- |
 | `disk_health`, `raid`, `temperature`, `disk_space`, `memory` | `warning`, `critical`, `resolved` |
 | `environment_offline` | `critical`, `resolved` |
-| `backup` (backups and restores) | `failure`, `warning`, `success` |
+| `backup` (backups) | `failure`, `warning`, `success` |
+| `restore` (restores) | `failure`, `success` |
 | `prune` | `failure`, `success` |
 | `updates` | `available` (an update check found newer images), `failure`, `success` (an update run) |
-| `job_failed` (other failed jobs) | `failure`, `warning`, `resolved` |
+| `job_failed` (other jobs) | `failure`, `warning`, `resolved` |
+
+A failed scheduled or API token job is sent as the kind of its area
+(`domain.JobEventKind`; [alerts.md](alerts.md), "Failed jobs by area"):
+backup retention, verification and imports (of policies and of Docker
+Manager's own backup) as `backup`, update checks as `updates`;
+`job_failed` holds the rest (in practice jobs API tokens start, such as
+deploys).
 
 A new channel subscribes to every outcome of every kind. The migration
-turned an old channel's kinds into all their outcomes (without `resolved`
-when it did not send resolved problems); a channel that had every old
-kind also got the new ones.
+`20261001090000_notification_events` turned an old channel's kinds into
+all their outcomes (without `resolved` when it did not send resolved
+problems); a channel that had every old kind also got the new ones.
+`20261002120000_restore_notifications` gave every channel subscribed to
+`backup` the same outcomes of `restore` (those restores have: `failure`,
+`success`; none when it sent only backup warnings).
 
 ## Flows
 
@@ -100,7 +112,7 @@ richest form, from the address's service name and query options:
 
 | service | form |
 | --- | --- |
-| `discord` | one embed in the webhook's JSON mode (the service's `Config.JSON`): the status line as the author, the title linking to the page, the body (Markdown escaped) and "Open in Docker Manager", the fields (inline ones side by side; linked values `[value](url)`; lists as `- ` entries, each linked, with its change as `` `from` → `to` ``, cut after a whole entry with "…and n more"; Discord's limits kept, the 6000 characters of the whole embed too: a field that would pass them is shown plain within the room left, a list cut after a whole entry, and a field without room is skipped while later ones may still fit), the tone's color as the strip, the footer (the instance's name) beside the logo `LogoURL` (the documentation site's, which Discord can always fetch), the time; the username and avatar only when the address sets them (the webhook's own stay otherwise); mentions disabled |
+| `discord` | one embed in the webhook's JSON mode (the service's `Config.JSON`): the status line as the author, the title (not a link), the body (Markdown escaped), the fields (inline ones side by side; linked values `[value](url)`; lists as `- ` entries, each linked, with its change as `` `from` → `to` ``, cut after a whole entry with "…and n more"), then "Open in Docker Manager" as the last field (a zero-width space as its name, so the link is the message's last line); Discord's limits kept, the 6000 characters of the whole embed too, the link's room and its place among the 25 fields taken first so it is never left out: a field that would pass them is shown plain within the room left, a list cut after a whole entry, and a field without room is skipped while later ones may still fit; the tone's color as the strip, the footer (the instance's name) beside the logo `LogoURL` (the documentation site's, which Discord can always fetch), the time; the username and avatar only when the address sets them (the webhook's own stay otherwise); mentions disabled |
 | `slack` | `color` (the tone's hex) and `title`; one line per attachment: the status line in italics, the body, `*Name:* value` fields (linked values `<url\|value>`, a list's `• ` entries on lines of their own, changes as code), `<url\|Open in Docker Manager>` |
 | `teams` | `title` and `color` (`attention`, `warning`, `good`, `accent`); Markdown body |
 | `smtp` | subject = title after the message's `Tag` in brackets (its environment, "[homelab] Disk /dev/sda is failing", or "[Test]" for a test message; the title alone without one, as in a digest of several environments); `fromname` `EmailFromName` ("Docker Manager"); a `subject`, `title` or `fromname` in the address wins; every email in one branded dark layout (`emailHTML`, the app's look: the design tokens' canvas, panel, border, text, accent and status colors copied as values, which `TestEmailColorsAreTheAppsTokens` compares with `tokens.css`; `color-scheme: dark` declared, which most mail programs follow, though Gmail's apps and Outlook.com may recolor; a hidden preheader with the body, or the status line, for the inbox preview; the logo `EmailLogoURL` (the documentation site's 192 px one) and "Docker Manager" as in the sidebar; a card with the tone's top strip, the status line as the app's status badge in the tone's colors, or the tone's word without one; title, body, a table of fields with linked values and lists, changes as `<code>`, the "Open in Docker Manager" button; the footer (the instance) and the time under the card, either alone without the other; no `<title>`, so an owner's `subject` is never contradicted; tables, cell padding, a font on every cell and an Outlook-only 600 px table, inline styles only; lines broken (`emailLines`) before a tag past 500 octets or when the tag would not fit within 990, past 900 at a space in a text or between a tag's attributes (never inside a quoted value), past 990 anywhere in a text but inside a character or an entity, as SMTP allows 998 and Shoutrrr sends the part as it is) as the HTML part (`usehtml`, the service's template `HTML`: Shoutrrr's ID, matched case-sensitively, `emailHTMLTemplate`; a real send to a loopback SMTP server in `render_test.go` checks it), the plain text as the plain part |

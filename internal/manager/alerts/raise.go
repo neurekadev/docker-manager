@@ -169,8 +169,10 @@ type snapshot struct {
 
 // enqueueTo adds a message of a to every channel that wants its outcome
 // for its kind and environment; only (when only is not nil) to those
-// channels. A failed backup, prune or update run is not sent as a failed
-// job: its notification says it (with its own subscription).
+// channels. A failed backup, restore, prune or update run is not sent as
+// a failed job: its notification says it (with its own subscription).
+// Another failed job of an area (a backup verification, an update check)
+// is sent as its area's kind (domain.Alert.SentAs).
 func enqueueTo(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time, only map[string]bool) error {
 	if a.Kind == domain.NotifyJobFailed && domain.NotificationKindOfJob(a.JobKind) != "" {
 		return nil
@@ -183,8 +185,9 @@ func enqueueTo(ctx context.Context, db bun.IDB, a domain.Alert, event string, no
 // alertSnapshot is what a message of a says about event (without its
 // fields, which need the environment's name).
 func alertSnapshot(a domain.Alert, event string) snapshot {
-	m := snapshot{alertID: a.ID, event: event, kind: a.Kind, environmentID: a.EnvironmentID, severity: a.Severity,
-		outcome: a.Outcome(event), title: a.Title, body: Detail(a), link: Link(a)}
+	kind, outcome := a.SentAs(event)
+	m := snapshot{alertID: a.ID, event: event, kind: kind, environmentID: a.EnvironmentID, severity: a.Severity,
+		outcome: outcome, title: a.Title, body: Detail(a), link: Link(a)}
 	if event == domain.AlertEventResolved {
 		m.body = resolvedDetail(a)
 	}

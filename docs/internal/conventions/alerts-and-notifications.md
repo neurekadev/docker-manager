@@ -25,7 +25,8 @@ web `web/src/lib/features/notifications`.
   footer, a time and a link; `render` turns it into the richest form of
   the address's service (Discord an embed sent in its JSON mode: the
   status line as author, the tone's color, linked values and bulleted
-  lists, the logo `notify.LogoURL` beside the footer; Slack colored
+  lists, "Open in Docker Manager" as the last field, its room reserved
+  first, the logo `notify.LogoURL` beside the footer; Slack colored
   attachments, Teams an accented card, email one branded dark layout
   (`emailHTML`: the web's design tokens copied as values and kept equal
   by `TestEmailColorsAreTheAppsTokens`, a dark `color-scheme`, the logo
@@ -39,18 +40,25 @@ web `web/src/lib/features/notifications`.
   knows are set, and an option the owner put in the address (`color`,
   `priority`, `parsemode`, `usehtml`, a Discord `username` or `avatar`,
   …) wins over ours; Discord's name and avatar are never set otherwise
-  (the webhook's own stay). The logo is the documentation site's:
+  (the webhook's own stay). In chat formats the title is never a link:
+  "Open in Docker Manager" is the message's last line, after every field
+  (email keeps its button). The logo is the documentation site's:
   Discord fetches it itself, and the manager's own address may be
   private. Callers never format for a service.
 - **One message convention** (`alerts/message.go`): the status line is
   the kind and outcome as **What to send** names them (`alerts.Label`,
-  "Disk health · Critical"); the title puts the subject first, then what
-  happened ("Disk /dev/sda is failing", "Update of Paperless
+  "Disk health · Critical", "Backups · Success"; a resolution "…
+  · Resolved", `deliveryLabel`); the title puts the subject first, then
+  what happened ("Disk /dev/sda is failing", "Update of Paperless
+  succeeded"; a backup policy's run is its policy, "Daily Backups
   succeeded"), names the environment only when it is the subject
   ("homelab is offline") and never the instance (the footer does);
-  resolutions are "Resolved: <title>". Fields: the environment, the
-  target (a stack by its display name), the policy and the repository
-  link to their pages; short (inline) fields come before lists
+  resolutions are "Resolved: <title>"; digest entries put a problem's
+  severity first and a finished run's title alone. Fields: the
+  environment, the target (a stack by its display name), the policy and
+  the repository link to their pages (an update policy: the environment
+  policy above the target's record, `putUpdatePolicy`, never the record,
+  which has no page); short (inline) fields come before lists
   (`fieldList.ordered`); services are a list, each linked to its logs (a
   standalone container: its page), with its image digests. Snapshots keep
   paths; `buildMessage` makes them URLs with the public URL (none
@@ -87,8 +95,14 @@ web `web/src/lib/features/notifications`.
   empty; a new channel gets every outcome of every kind): each kind lists
   its outcomes in `NotificationEventKind.Outcomes()` (problems warning,
   critical, resolved; offline critical, resolved; backups failure,
-  warning, success; prune failure, success; updates available, failure,
-  success; other failed jobs failure, warning, resolved). The environment
+  warning, success; restores and prune failure, success; updates
+  available, failure, success; other jobs failure, warning, resolved).
+  A failed scheduled or API token job is sent as its area's kind
+  (`domain.JobEventKind` through `Alert.SentAs`: backup retention,
+  verification and imports as backups, update checks as updates; partly
+  failed or interrupted is a warning only where the area has one, a
+  resolution goes with the area's success); `job_failed` keeps the
+  others, and the alert itself stays `job_failed`. The environment
   choice is `all_environments` (every environment, future ones included)
   **or** the rows of `notification_channel_environments`. It is always
   explicit: an empty list is refused unless `allEnvironments` is set, and
@@ -114,7 +128,9 @@ web `web/src/lib/features/notifications`.
   are kept. Email's **From name** is written as `fromname` only when it
   is not the default. Secrets are `PasswordField`s; the stored address stays masked
   until "Show address" (`withStepUp`). "What to send" is one row per kind
-  (a master checkbox, the kind's outcomes beside it). Channel changes
+  (a master checkbox, the kind's outcomes beside it; a kind whose label
+  does not say all it covers explains it as the row's tooltip,
+  `EventKindInfo.hint`: Backups, Image updates, Other jobs). Channel changes
   arrive on the live topic `settings` (`notificationKeys`).
 
 ## Alerts (#159) and notifications
@@ -141,15 +157,16 @@ Notifications page: tabs Notifications and Alerts) and the bell
   `missing_at_least_<k>` ladders), never states that replace each other:
   an improvement must never add a token. Getting worse counts up the
   alert's `escalation`.
-- **A notification is a finished run.** Every finished backup and
-  restore, prune and update run (any origin; cancelled ones are not)
-  records one `notifications` row (kind, outcome, facts, job) and its
+- **A notification is a finished run.** Every finished backup (kind
+  `backup`), restore (`restore`), prune and update run (any origin;
+  cancelled ones are not) records one `notifications` row (kind,
+  outcome, facts, job) and its
   messages in a savepoint of the job's finishing transaction
   (`onRunFinished`), announced as `notification.created` once committed.
   Outcomes: failure (failed, partly failed, interrupted), warning (a
   backup that saved everything but had unreadable files or skipped
-  items), success. A failed backup, prune or update run of a schedule or
-  API token still raises its `job_failed` alert (the Alerts tab), but
+  items), success. A failed backup, restore, prune or update run of a
+  schedule or API token still raises its `job_failed` alert (the Alerts tab), but
   that alert writes no messages: the notification is the message
   (`enqueueTo`, `domain.NotificationKindOfJob`).
 - **Host usage thresholds** (`thresholds.go`): temperature, disk space

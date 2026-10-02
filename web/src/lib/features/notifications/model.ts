@@ -2,6 +2,7 @@
 // outcomes a channel can send ("What to send"), what a channel sends, its
 // status and why it fails. Pure (services.spec.ts).
 import Archive from '@lucide/svelte/icons/archive';
+import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 import ChartPie from '@lucide/svelte/icons/chart-pie';
 import CircleX from '@lucide/svelte/icons/circle-x';
 import MemoryStick from '@lucide/svelte/icons/memory-stick';
@@ -24,10 +25,12 @@ export type EventGroup = 'hosts' | 'jobs';
 
 export interface EventKindInfo {
 	kind: EventKind;
-	/** The checkbox label ("Backups and restores"). */
+	/** The checkbox label ("Backups"). */
 	label: string;
-	/** In a sentence ("backups and restores"). */
+	/** In a sentence ("backups"). */
 	short: string;
+	/** What else it covers, when the label does not say it (the row's tooltip). */
+	hint?: string;
 	group: EventGroup;
 	icon: IconComponent;
 	/** What a channel can send of it, in display order, with the checkbox labels. */
@@ -95,13 +98,25 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	},
 	{
 		kind: 'backup',
-		label: 'Backups and restores',
-		short: 'backups and restores',
+		label: 'Backups',
+		short: 'backups',
+		hint: 'Finished backups, and failed verifications, retention and imports started by a schedule or an API token.',
 		group: 'jobs',
 		icon: Archive,
 		outcomes: [
 			{ outcome: 'failure', label: 'Failure' },
 			{ outcome: 'warning', label: 'Warning' },
+			{ outcome: 'success', label: 'Success' }
+		]
+	},
+	{
+		kind: 'restore',
+		label: 'Restores',
+		short: 'restores',
+		group: 'jobs',
+		icon: ArchiveRestore,
+		outcomes: [
+			{ outcome: 'failure', label: 'Failure' },
 			{ outcome: 'success', label: 'Success' }
 		]
 	},
@@ -120,6 +135,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 		kind: 'updates',
 		label: 'Image updates',
 		short: 'image updates',
+		hint: 'Updates a check found, finished update runs, and failed update checks started by a schedule or an API token.',
 		group: 'jobs',
 		icon: PackageCheck,
 		outcomes: [
@@ -130,8 +146,9 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	},
 	{
 		kind: 'job_failed',
-		label: 'Other failed jobs',
-		short: 'other failed jobs',
+		label: 'Other jobs',
+		short: 'other jobs',
+		hint: 'Failed jobs started by a schedule or an API token that no row above covers, such as deploys.',
 		group: 'jobs',
 		icon: CircleX,
 		outcomes: [
@@ -236,7 +253,7 @@ function everyOutcome(events: readonly EventSubscription[]): boolean {
 
 /**
  * What a channel sends in a few words: "All events", "Backups and
- * restores", "Disk health and RAID", "4 kinds of events", with " (some
+ * restores", "Disk health", "4 kinds of events", with " (some
  * outcomes)" when not every outcome of the chosen kinds is sent.
  */
 export function kindsSummary(events: readonly EventSubscription[]): string {
@@ -254,7 +271,7 @@ export function kindsSummary(events: readonly EventSubscription[]): string {
 
 /**
  * Every sent kind with its outcomes, one per line (the Sends column's
- * tooltip): "Backups and restores: Failure, Success".
+ * tooltip): "Backups: Failure, Success".
  */
 export function eventsDetail(events: readonly EventSubscription[]): string {
 	return EVENT_KINDS.flatMap((k) => {

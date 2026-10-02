@@ -10,7 +10,9 @@
 	// The policy's running checks and updates show under the header: the
 	// ones started here at once, and every running one from the running
 	// jobs list, so they are still there after a reload or when the user
-	// comes back (docs/internal/web.md, "Job progress after reload").
+	// comes back (docs/internal/web.md, "Job progress after reload"). The
+	// ID of a target's record (older messages linked it) opens the
+	// environment policy that manages it.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -58,7 +60,7 @@
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
-	import { can } from '$lib/features/common/access';
+	import { can, isNotFound } from '$lib/features/common/access';
 	import {
 		environmentName,
 		ifMatch,
@@ -87,6 +89,7 @@
 		policyStatusText,
 		publishedText,
 		reasonLabel,
+		recordPolicyHref,
 		summarizeTargets,
 		targetState,
 		targetsUpdateText,
@@ -96,6 +99,7 @@
 	} from '$lib/features/updates/model';
 	import {
 		environmentUpdatePolicyQuery,
+		updatePolicyQuery,
 		environmentUpdateTargetsQuery,
 		type EnvironmentUpdatePolicy
 	} from '$lib/features/updates/queries';
@@ -113,6 +117,29 @@
 	const id = $derived(page.params.policyId ?? '');
 	const qc = useQueryClient();
 	const policy = createQuery(() => environmentUpdatePolicyQuery(id));
+	// A link from an older notification or alert names a target's record
+	// (it has no page): when no environment policy has the ID, look the
+	// record up and open the policy that manages it instead of "does not
+	// exist"; only when neither exists is it not found.
+	const policyMissing = $derived(policy.isError && isNotFound(policy.error));
+	const record = createQuery(() => ({
+		...updatePolicyQuery(id),
+		enabled: policyMissing,
+		retry: false
+	}));
+	$effect(() => {
+		if (policyMissing && record.data)
+			void goto(recordPolicyHref(record.data), { replaceState: true });
+	});
+	// Shown as loading while the record is looked up and followed.
+	const lookingUp: {
+		data: EnvironmentUpdatePolicy | undefined;
+		error: unknown;
+		isPending: boolean;
+		isError: boolean;
+		refetch: () => unknown;
+	} = { data: undefined, error: null, isPending: true, isError: false, refetch: () => undefined };
+	const shown = $derived(policyMissing && !record.isError ? lookingUp : policy);
 	const perms = createQuery(() => myPermissionsQuery());
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
@@ -375,7 +402,7 @@
 
 <Page>
 	<QueryView
-		query={policy}
+		query={shown}
 		errorTitle="The update policy could not be loaded."
 		notFoundTitle="This update policy does not exist."
 		notFoundDescription="It was deleted, or you no longer have access to it."

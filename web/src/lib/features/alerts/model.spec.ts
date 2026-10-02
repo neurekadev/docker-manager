@@ -34,7 +34,9 @@ describe('alerts in words (#159)', () => {
 	it('names the kinds in the notification channels’ order', () => {
 		// Backups, restores and prunes are notifications, never alerts.
 		expect(ALERT_KINDS.map((k) => k.kind)).toEqual(
-			EVENT_KINDS.map((k) => k.kind).filter((k) => !['backup', 'prune'].includes(k))
+			EVENT_KINDS.map((k) => k.kind).filter(
+				(k) => !['backup', 'restore', 'prune'].includes(k)
+			)
 		);
 		expect(ALERT_KINDS.map((k) => k.label)).toEqual([
 			'Disk health',

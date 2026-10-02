@@ -51,7 +51,11 @@ checked, previewed or run (manual or scheduled):
   in the scope, or no longer qualifies: no saved specification, Docker
   Manager's own). `GET /update-policies` (and so update badges, counts and
   notices) lists only covered records; inactive ones stay readable by ID.
-  Its `targetName` is the target's name as users know it.
+  Its `targetName` is the target's name as users know it, its `parentId`
+  the environment policy that manages it (absent for a policy from before
+  environment policies). A record has no page of its own: links to it
+  open its environment policy (alerts and notifications link the parent;
+  the web's `/updates/{id}` follows an older link to a record there).
 
 Covered targets:
 
@@ -102,7 +106,9 @@ After every succeeded (or partial) `update.check` the alerts service's
 finish hook raises, updates or resolves the policy's `updates` alert
 from these candidates (sent again only for a new digest; resolved when
 none is left), and every finished `update.run` records an `updates`
-notification with what it updated ([alerts](alerts.md)).
+notification with what it updated ([alerts](alerts.md)); both name and
+link the environment policy above the record. A failed scheduled or API
+token `update.check` is sent under the `updates` kind.
 
 ## Digest model (`update_candidates`)
 

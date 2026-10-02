@@ -98,6 +98,28 @@ func (a Alert) Outcome(event string) NotificationOutcome {
 	return OutcomeWarning
 }
 
+// SentAs returns the kind and outcome of a message about event: the ones
+// channels subscribe to (NotificationChannel.Wants). A failed job's alert
+// is sent as the kind of its job's area (JobEventKind) when it has one:
+// failed is a failure; partly failed or interrupted a warning where the
+// area has warnings (backups), else a failure; its resolution (the next
+// run succeeded) goes to the channels that send the area's successes
+// (the message still says it is resolved). Any other alert: its kind and
+// Outcome.
+func (a Alert) SentAs(event string) (NotificationEventKind, NotificationOutcome) {
+	area := JobEventKind(a.JobKind)
+	if a.Kind != NotifyJobFailed || area == NotifyJobFailed {
+		return a.Kind, a.Outcome(event)
+	}
+	switch {
+	case event == AlertEventResolved:
+		return area, OutcomeSuccess
+	case a.Severity == AlertWarning && slices.Contains(area.Outcomes(), OutcomeWarning):
+		return area, OutcomeWarning
+	}
+	return area, OutcomeFailure
+}
+
 // Alert is one problem (firing) or a past one (resolved).
 type Alert struct {
 	ID string

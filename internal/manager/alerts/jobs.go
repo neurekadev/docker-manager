@@ -21,7 +21,11 @@ import (
 // target), or per kind, environment and first target without a policy.
 // The key's next successful job resolves it (whoever started it); without
 // a new run it expires after JobExpiry (no message). A job's error text
-// never reaches an alert: only its state and error class.
+// never reaches an alert: only its state and error class. The alert's
+// kind stays job_failed (the Alerts tab's "Failed job"); its messages go
+// out as its job's area (domain.JobEventKind, domain.Alert.SentAs): a
+// failed backup verification as Backups, an update check as Image
+// updates.
 
 // jobKey is the dedupe key of a job's alert.
 func jobKey(j domain.Job) string {
@@ -231,9 +235,10 @@ func (s *Service) ExpireJobs(ctx context.Context) error {
 
 // Update alerts: after an update check, the policy's candidates with an
 // update available (the UI's "available") raise one info alert per
-// policy; it is sent again only when a new digest appears, and resolves
-// when none is left (after an update, or a check that finds none). A
-// deleted or excluded policy's alert ends silently.
+// target record; it is sent again only when a new digest appears, and
+// resolves when none is left (after an update, or a check that finds
+// none). A deleted or excluded policy's alert ends silently. It links to
+// the environment policy that manages the target (putUpdatePolicy).
 
 func updatesKey(policyID string) string { return "updates_available/" + policyID }
 
@@ -308,11 +313,26 @@ func evaluateUpdates(ctx context.Context, db bun.IDB, policyID string, now time.
 	}
 	facts := map[string]string{"count": fmt.Sprint(len(services)), "services": strings.Join(listed, ", "), "target": name,
 		"changes": encodeChanges(changes)}
+	putUpdatePolicy(ctx, db, p, facts)
 	return raise(ctx, db, Observation{
 		Key: key, Kind: domain.NotifyUpdates, Severity: domain.AlertInfo, EnvironmentID: p.EnvironmentID,
 		ResourceType: domain.AlertResourceUpdatePolicy, ResourceID: p.ID, Targets: []domain.JobTarget{target}, Title: title,
 		Facts: facts, Fingerprint: domain.Fingerprint(tokens...),
 	}, now)
+}
+
+// putUpdatePolicy records the policy that manages target record p in the
+// facts: the environment policy above it (policy and policyId, its page);
+// the record's own name, without a page, for a policy from before
+// environment policies. The record itself has no page of its own.
+func putUpdatePolicy(ctx context.Context, db bun.IDB, p domain.UpdatePolicy, f map[string]string) {
+	if p.ParentID == "" {
+		f["policy"] = p.Name
+		return
+	}
+	if ep, err := store.GetEnvironmentUpdatePolicy(ctx, db, p.ParentID); err == nil {
+		f["policy"], f["policyId"] = ep.Name, ep.ID
+	}
 }
 
 // ReconcileUpdates evaluates every firing update alert again (updates

@@ -1,4 +1,4 @@
-// Notifications in words: finished backups and restores, prunes and update
+// Notifications in words: finished backups, restores, prunes and update
 // runs as the Notifications page lists them (newest first, grouped by
 // day in the viewer's time zone), how each went (Done, Warning, Failed),
 // the tile of its kind, its labelled values and where it leads (the run's
@@ -16,10 +16,10 @@ export type NotificationField = Schema<'NotificationField'>;
 
 /** The kinds of notifications in display order, named as "What to send" names them. */
 export const NOTIFICATION_KINDS: { kind: NotificationKind; label: string }[] = (
-	['backup', 'prune', 'updates'] as const
+	['backup', 'restore', 'prune', 'updates'] as const
 ).map((kind) => ({ kind, label: eventKind(kind)?.label ?? kind }));
 
-/** "Backups and restores", "Prune", "Image updates". */
+/** "Backups", "Restores", "Prune", "Image updates". */
 export function notificationKindLabel(kind: string): string {
 	return NOTIFICATION_KINDS.find((k) => k.kind === kind)?.label ?? kind;
 }
@@ -45,10 +45,14 @@ export function outcomeTone(o: string): 'ok' | 'warn' | 'danger' {
 	return OUTCOMES[o as NotificationOutcome]?.tone ?? 'ok';
 }
 
-/** The tile of a kind: the icon of the policy that runs it (backups, maintenance, updates). */
+/**
+ * The tile of a kind: the icon of the policy that runs it (backups,
+ * maintenance, updates); a restore the backup's.
+ */
 export function notificationTile(kind: string): ResourceIcon {
 	switch (kind) {
 		case 'backup':
+		case 'restore':
 			return resourceIcon('backup');
 		case 'prune':
 			return resourceIcon('maintenancePolicy');

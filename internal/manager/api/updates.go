@@ -128,10 +128,11 @@ type UpdateHistoryEntry struct {
 }
 
 // UpdatePolicy is an update policy. Shaping (#17): update_policy.read
-// shows it in full; other capabilities on it show id, name, environment
-// and target.
+// shows it in full; other capabilities on it show id, parent, name,
+// environment and target.
 type UpdatePolicy struct {
 	ID                 string               `json:"id"`
+	ParentID           string               `json:"parentId,omitempty" doc:"The environment update policy that manages this target (its page); absent for a policy created before environment policies."`
 	EnvironmentID      string               `json:"environmentId"`
 	Name               string               `json:"name"`
 	Target             UpdateTarget         `json:"target"`
@@ -219,7 +220,8 @@ func newUpdateSchedule(p domain.UpdateSchedule, st updates.ScheduleStatus) *Upda
 }
 
 func (h *updatesAPI) newPolicy(ctx context.Context, p domain.UpdatePolicy, v authz.View) (UpdatePolicy, error) {
-	out := UpdatePolicy{ID: p.ID, EnvironmentID: p.EnvironmentID, Name: p.Name, Target: UpdateTarget{Type: string(p.TargetType), ID: p.TargetID},
+	out := UpdatePolicy{ID: p.ID, ParentID: p.ParentID, EnvironmentID: p.EnvironmentID, Name: p.Name,
+		Target:     UpdateTarget{Type: string(p.TargetType), ID: p.TargetID},
 		TargetName: h.targetName(ctx, p), View: v.Level.String(), Actions: Actions(v)}
 	if v.Has(string(CapUpdatePolicyManage)) {
 		out.Revision = p.Revision

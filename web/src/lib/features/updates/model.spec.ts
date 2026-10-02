@@ -13,6 +13,7 @@ import {
 	policyStatusText,
 	publishedText,
 	reasonLabel,
+	recordPolicyHref,
 	recoveryText,
 	runnable,
 	summarizeTargets,
@@ -357,5 +358,14 @@ describe('update badges (#20)', () => {
 		expect(containerPolicy(index, { environmentId: 'e1', name: 'pihole', stack: {} })).toBe(
 			undefined
 		);
+	});
+});
+
+describe('links to a target record (#218)', () => {
+	it('lead to the environment policy that manages it, else Updates', () => {
+		expect(recordPolicyHref({ id: 'rec-1', parentId: 'pol-1' })).toBe('/updates/pol-1');
+		expect(recordPolicyHref({ id: 'rec-1' })).toBe('/updates');
+		// Never back to itself.
+		expect(recordPolicyHref({ id: 'rec-1', parentId: 'rec-1' })).toBe('/updates');
 	});
 });

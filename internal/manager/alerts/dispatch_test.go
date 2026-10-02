@@ -59,10 +59,11 @@ func TestChannelSubscriptionsPickTheChannels(t *testing.T) {
 	if got[all.ID] != 1 || got[onlyEnv1.ID] != 1 || got[quiet.ID] != 0 || got[onlyEnv2.ID] != 0 || got[jobsOnly.ID] != 0 {
 		t.Fatalf("resolved: %+v", got)
 	}
-	// A manager job (no environment) reaches every channel of the kind,
-	// restricted ones too.
+	// A job without an environment reaches every channel of the kind,
+	// restricted ones too (one of the other jobs: a failed backup
+	// verification would be sent as backups).
 	j := backupJob(domain.JobFailed, domain.OriginScheduled)
-	j.EnvironmentID = ""
+	j.Kind, j.EnvironmentID = "stack.deploy", ""
 	f.finish(j)
 	got = channelsOf(f.dispatch())
 	if got[jobsOnly.ID] != 1 || got[all.ID] != 1 || got[onlyEnv2.ID] != 1 {

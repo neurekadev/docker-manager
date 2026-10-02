@@ -92,19 +92,20 @@ func putTarget(f map[string]string, t domain.JobTarget) {
 	}
 }
 
-// policyPath is the page of a notification's policy ("" without one).
+// policyPath is the page of a notification's policy ("" without one): an
+// update run's is its environment policy (updatePolicyPath; Updates for
+// a policy from before environment policies).
 func policyPath(n domain.Notification) string {
 	id := n.Facts["policyId"]
-	if id == "" {
-		return ""
-	}
 	switch {
+	case n.Kind == domain.NotifyUpdates && n.Facts["policy"] != "":
+		return updatePolicyPath(id)
+	case id == "":
+		return ""
 	case n.Kind == domain.NotifyBackup && n.Facts["jobKind"] == "backup.run":
 		return "/backups/policies/" + url.PathEscape(id)
 	case n.Kind == domain.NotifyPrune:
 		return "/maintenance/" + url.PathEscape(id)
-	case n.Kind == domain.NotifyUpdates:
-		return "/updates/" + url.PathEscape(id)
 	}
 	return ""
 }
@@ -262,12 +263,13 @@ func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[str
 	if warning {
 		outcome = domain.OutcomeWarning
 	}
+	// The policy's name is the subject ("Daily Backups succeeded").
 	what := "Backup"
 	switch {
 	case j.Kind == "manager.backup":
 		what = "Docker Manager backup"
 	case f["policy"] != "":
-		what = "Backup " + f["policy"]
+		what = f["policy"]
 	}
 	return outcome, what + " " + verbOf(j, warning)
 }
@@ -431,9 +433,11 @@ func updateNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[str
 		f["target"] = target
 		putTarget(f, t)
 	}
+	// The input's policy is the target's record: the notification names
+	// the environment policy that manages it.
 	if in.PolicyID != "" {
 		if p, err := store.GetUpdatePolicy(ctx, db, in.PolicyID); err == nil {
-			f["policy"], f["policyId"] = p.Name, in.PolicyID
+			putUpdatePolicy(ctx, db, p, f)
 		}
 	}
 	var out protocol.UpdateRunOutput
@@ -560,14 +564,16 @@ func NotificationDetail(n domain.Notification) string {
 		}
 		return b.String()
 	}
+	// A restore recorded before restores had a kind of their own is a
+	// backup with restore.run's facts.
+	if n.Kind == domain.NotifyRestore || f["jobKind"] == "restore.run" {
+		if f["redeploy"] == "true" {
+			return "The data is back in place. Deploy the stack to apply its restored Compose file."
+		}
+		return "The data is back in place."
+	}
 	switch n.Kind {
 	case domain.NotifyBackup:
-		if f["jobKind"] == "restore.run" {
-			if f["redeploy"] == "true" {
-				return "The data is back in place. Deploy the stack to apply its restored Compose file."
-			}
-			return "The data is back in place."
-		}
 		var parts []string
 		if f["items"] != "" {
 			parts = append(parts, fmt.Sprintf("%s of %s backed up", f["backedUp"], plural(f["items"], "item", "items")))
@@ -587,10 +593,10 @@ func NotificationDetail(n domain.Notification) string {
 			s += "."
 		}
 		if f["unreadableItems"] != "" {
-			s += " Some files could not be read in " + f["unreadableItems"] + ": check their permissions on the host."
+			s += " Some files in " + f["unreadableItems"] + " could not be read: check their permissions on the host."
 		}
 		if f["skippedItems"] != "" {
-			s += " Skipped (removed before their turn): " + f["skippedItems"] + "."
+			s += " Skipped because they were removed before their turn: " + f["skippedItems"] + "."
 		}
 		return strings.TrimSpace(s)
 	case domain.NotifyPrune:
@@ -598,7 +604,7 @@ func NotificationDetail(n domain.Notification) string {
 			return ""
 		}
 		if f["removed"] == "0" {
-			return "Nothing was unused."
+			return "There was nothing unused to remove."
 		}
 		s := fmt.Sprintf("Removed %s and reclaimed %s.", plural(f["removed"], "object", "objects"), bytesFact(f["reclaimedBytes"]))
 		if f["deferred"] != "" {
@@ -608,10 +614,10 @@ func NotificationDetail(n domain.Notification) string {
 	case domain.NotifyUpdates:
 		var parts []string
 		if f["updated"] != "" {
-			parts = append(parts, "Recreated with the new image: "+plural(f["updated"], "service", "services")+".")
+			parts = append(parts, plural(f["updated"], "service", "services")+" recreated with the new image.")
 		}
 		if f["keptStoppedServices"] != "" {
-			parts = append(parts, "Kept stopped (they use the new image at their next start): "+f["keptStoppedServices"]+".")
+			parts = append(parts, "Kept stopped: "+f["keptStoppedServices"]+". They use the new image when they start.")
 		}
 		if len(parts) == 0 && f["unchangedServices"] != "" {
 			parts = append(parts, "Every service already runs the newest image.")
@@ -639,7 +645,7 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 	l.addLink("Environment", env, environmentPath(n.EnvironmentID), true)
 	target := factTarget(f)
 	switch n.Kind {
-	case domain.NotifyBackup:
+	case domain.NotifyBackup, domain.NotifyRestore:
 		l.addLink("Policy", f["policy"], policyPath(n), true)
 		l.addLink("Target", f["target"], targetPath(n.EnvironmentID, target), true)
 		repo := ""
@@ -663,7 +669,7 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 			l.add("Snapshots", f["snapshots"], true)
 		}
 		l.add("Not backed up", f["failedItems"], false)
-		l.add("Files unreadable in", f["unreadableItems"], false)
+		l.add("Unreadable files in", f["unreadableItems"], false)
 	case domain.NotifyPrune:
 		l.addLink("Policy", f["policy"], policyPath(n), true)
 		l.add("Reclaimed", bytesFact(f["reclaimedBytes"]), true)

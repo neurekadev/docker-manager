@@ -116,7 +116,7 @@ func TestAPruneReportsWhatItReclaimedPerKindOfObject(t *testing.T) {
 	empty := f.run("prune.run", domain.JobSucceeded, domain.OriginScheduled)
 	empty.ResultOutput = output(t, protocol.PruneRunOutput{})
 	f.finish(empty)
-	if n := f.notifications()[0]; n.Title != "Prune found nothing to remove" || NotificationDetail(n) != "Nothing was unused." {
+	if n := f.notifications()[0]; n.Title != "Prune found nothing to remove" || NotificationDetail(n) != "There was nothing unused to remove." {
 		t.Fatalf("%+v", n)
 	}
 }
@@ -148,7 +148,8 @@ func TestAFailedBackupIsExplainedAndSentOnce(t *testing.T) {
 	}
 	for _, s := range got {
 		m := s.msg
-		if m.Title != "Backup Nightly failed" || m.Tone != domain.ToneCritical ||
+		// The policy's name is the subject.
+		if m.Title != "Nightly failed" || m.Label != "Backups · Failure" || m.Tone != domain.ToneCritical ||
 			m.Body != "The backup storage could not be reached (DNS, network or TLS). Check that the host can reach the storage "+
 				"endpoint. Not backed up: app, db." {
 			t.Fatalf("%s: %+v", s.channel, m)
@@ -187,8 +188,8 @@ func TestAFailedBackupIsExplainedAndSentOnce(t *testing.T) {
 	}
 	got = f.dispatch()
 	if len(got) != 1 || got[0].channel != all.ID || got[0].msg.Tone != domain.ToneWarning ||
-		got[0].msg.Title != "Backup finished with warnings" ||
-		!strings.Contains(got[0].msg.Body, "2 of 2 items backed up (4 GiB read) in 3 min 12 s. Some files could not be read in db") {
+		got[0].msg.Title != "Backup finished with warnings" || got[0].msg.Label != "Backups · Warning" ||
+		!strings.Contains(got[0].msg.Body, "2 of 2 items backed up (4 GiB read) in 3 min 12 s. Some files in db could not be read") {
 		t.Fatalf("%+v (failures %s)", got, failures.ID)
 	}
 	// A cancelled run is not reported.
@@ -220,7 +221,7 @@ func TestAnUpdateRunListsWhatItUpdated(t *testing.T) {
 		t.Fatal("the container's environment was stored")
 	}
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.Body != "Recreated with the new image: 1 service." || got[0].msg.Label != "Image updates · Applied" {
+	if len(got) != 1 || got[0].msg.Body != "1 service recreated with the new image." || got[0].msg.Label != "Image updates · Applied" {
 		t.Fatalf("%+v", got)
 	}
 	// The target and every service link to their pages; the updated one
@@ -240,6 +241,34 @@ func TestAnUpdateRunListsWhatItUpdated(t *testing.T) {
 	// Short fields first, the lists after them.
 	if !m.Fields[0].Inline || m.Fields[len(m.Fields)-1].Inline {
 		t.Fatalf("%+v", m.Fields)
+	}
+}
+
+// Restores are a kind of their own: a channel that sends backups only
+// does not get them.
+func TestARestoreIsARestore(t *testing.T) {
+	f := newFixture(t)
+	restores := f.channelWith("restores", domain.NotificationSubscriptions{domain.NotifyRestore: {domain.OutcomeSuccess}})
+	backups := f.channelWith("backups", domain.NotificationSubscriptions{domain.NotifyBackup: domain.NotifyBackup.Outcomes()})
+	j := f.run("restore.run", domain.JobSucceeded, domain.OriginManual)
+	j.Input = output(t, map[string]any{"volumes": []map[string]any{{"name": "silo_data"}}})
+	f.finish(j)
+	n := f.notifications()[0]
+	if n.Kind != domain.NotifyRestore || n.Title != "Restore of silo_data succeeded" || NotificationDetail(n) != "The data is back in place." {
+		t.Fatalf("%+v", n)
+	}
+	got := f.dispatch()
+	if len(got) != 1 || got[0].channel != restores.ID || got[0].msg.Label != "Restores · Success" {
+		t.Fatalf("%+v (backups %s)", got, backups.ID)
+	}
+	if tf := fieldNamed(got[0].msg.Fields, "Target"); tf.Value != "silo_data" || tf.Link != "https://docker.example.com/volumes/env-1/silo_data" {
+		t.Fatalf("%+v", tf)
+	}
+	// One recorded as a backup before restores had their own kind still
+	// reads as a restore.
+	old := domain.Notification{Kind: domain.NotifyBackup, Outcome: domain.OutcomeSuccess, Facts: map[string]string{"jobKind": "restore.run"}}
+	if NotificationDetail(old) != "The data is back in place." {
+		t.Fatal(NotificationDetail(old))
 	}
 }
 

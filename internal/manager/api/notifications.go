@@ -69,8 +69,8 @@ type NotificationChannel struct {
 
 // NotificationSubscription is what a channel sends of one kind of event.
 type NotificationSubscription struct {
-	Kind     string   `json:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,backup,prune,updates,job_failed" example:"backup" doc:"The kind of event: disk_health, raid, temperature, disk_space, memory and environment_offline problems; backup (backups and restores), prune and updates runs; job_failed (other failed scheduled or API token jobs)."`
-	Outcomes []string `json:"outcomes" minItems:"1" maxItems:"6" enum:"warning,critical,resolved,available,failure,success" example:"failure" doc:"What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backups), success. updates: available, failure, success."`
+	Kind     string   `json:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,backup,restore,prune,updates,job_failed" example:"backup" doc:"The kind of event: disk_health, raid, temperature, disk_space, memory and environment_offline problems; backup, restore, prune and updates runs (a failed scheduled or API token job of their area too: a backup verification, retention or import is a backup, an update check updates); job_failed (other failed scheduled or API token jobs)."`
+	Outcomes []string `json:"outcomes" minItems:"1" maxItems:"6" enum:"warning,critical,resolved,available,failure,success" example:"failure" doc:"What of it to send. Problems: warning, critical, resolved (environment_offline: critical, resolved; job_failed: failure, warning, resolved). Runs: failure, warning (backup only), success (a failed job of the area that the next run resolved is sent with success). updates: available, failure, success."`
 }
 
 func newSubscriptions(s domain.NotificationSubscriptions) []NotificationSubscription {

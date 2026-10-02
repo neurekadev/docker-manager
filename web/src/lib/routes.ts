@@ -172,7 +172,7 @@ export const routes = {
 	},
 	job: (id: string) => `/jobs/${e(id)}`,
 	schedules: () => '/schedules',
-	/** Notifications: finished backups and restores, prunes and update runs (the first tab). */
+	/** Notifications: finished backups, restores, prunes and update runs (the first tab). */
 	notificationHistory: () => '/notifications',
 	/** Alerts (#159), the Notifications page's second tab: hosts' problems, offline environments, failed jobs, updates. */
 	alerts: () => '/notifications?tab=alerts',

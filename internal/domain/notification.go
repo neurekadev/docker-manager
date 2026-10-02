@@ -16,9 +16,11 @@ import (
 
 // NotificationEventKind is a kind of event a channel can be subscribed to:
 // an alert kind (a problem that fires and resolves) or a notification
-// kind (a run that finished: a backup or restore, a prune, an update).
+// kind (a run that finished: a backup, a restore, a prune, an update).
 // updates is both: its alerts say updates are available, its
-// notifications that an update run finished.
+// notifications that an update run finished. A failed scheduled or API
+// token job is sent as the kind of its area (JobEventKind: backups,
+// restores, prune, image updates); job_failed holds the others.
 type NotificationEventKind string
 
 // Event kinds.
@@ -30,6 +32,7 @@ const (
 	NotifyMemory             NotificationEventKind = "memory"
 	NotifyEnvironmentOffline NotificationEventKind = "environment_offline"
 	NotifyBackup             NotificationEventKind = "backup"
+	NotifyRestore            NotificationEventKind = "restore"
 	NotifyPrune              NotificationEventKind = "prune"
 	NotifyUpdates            NotificationEventKind = "updates"
 	NotifyJobFailed          NotificationEventKind = "job_failed"
@@ -38,7 +41,7 @@ const (
 // NotificationEventKinds returns every event kind in display order.
 func NotificationEventKinds() []NotificationEventKind {
 	return []NotificationEventKind{NotifyDiskHealth, NotifyRAID, NotifyTemperature, NotifyDiskSpace, NotifyMemory,
-		NotifyEnvironmentOffline, NotifyBackup, NotifyPrune, NotifyUpdates, NotifyJobFailed}
+		NotifyEnvironmentOffline, NotifyBackup, NotifyRestore, NotifyPrune, NotifyUpdates, NotifyJobFailed}
 }
 
 // AlertKinds returns the kinds alerts are raised with, in display order.
@@ -50,7 +53,7 @@ func AlertKinds() []NotificationEventKind {
 // NotificationKinds returns the kinds of notifications (finished runs),
 // in display order.
 func NotificationKinds() []NotificationEventKind {
-	return []NotificationEventKind{NotifyBackup, NotifyPrune, NotifyUpdates}
+	return []NotificationEventKind{NotifyBackup, NotifyRestore, NotifyPrune, NotifyUpdates}
 }
 
 // Valid reports whether k is a known event kind.
@@ -83,12 +86,15 @@ func NotificationOutcomeValues() []NotificationOutcome {
 //   - disks, RAID, temperature, disk space, memory: warning, critical,
 //     resolved;
 //   - environment offline: critical (offline), resolved (back online);
-//   - backups and restores: failure, warning, success;
-//   - prune: failure, success;
+//   - backups: failure, warning, success;
+//   - restores, prune: failure, success;
 //   - updates: available (a check found newer images), failure, success
 //     (an update run applied them);
-//   - other failed jobs: failure, warning (partly failed or interrupted),
+//   - other jobs: failure, warning (partly failed or interrupted),
 //     resolved (the next run succeeded).
+//
+// A failed job of an area is sent with its area's outcomes
+// (Alert.SentAs).
 func (k NotificationEventKind) Outcomes() []NotificationOutcome {
 	switch k {
 	case NotifyDiskHealth, NotifyRAID, NotifyTemperature, NotifyDiskSpace, NotifyMemory:
@@ -97,7 +103,7 @@ func (k NotificationEventKind) Outcomes() []NotificationOutcome {
 		return []NotificationOutcome{OutcomeCritical, OutcomeResolved}
 	case NotifyBackup:
 		return []NotificationOutcome{OutcomeFailure, OutcomeWarning, OutcomeSuccess}
-	case NotifyPrune:
+	case NotifyRestore, NotifyPrune:
 		return []NotificationOutcome{OutcomeFailure, OutcomeSuccess}
 	case NotifyUpdates:
 		return []NotificationOutcome{OutcomeAvailable, OutcomeFailure, OutcomeSuccess}
