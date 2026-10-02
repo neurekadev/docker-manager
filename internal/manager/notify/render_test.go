@@ -322,14 +322,41 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	html := b.String()
 	if html != emailHTML(msg) || !strings.Contains(html, "{{ braces }} &amp; &lt;tags&gt;") ||
 		!strings.Contains(html, "border-top:4px solid #4cf683") || !strings.Contains(html, `href="https://docker.example.com/jobs/j1"`) ||
-		!strings.Contains(html, ">Image updates · Applied</td>") || !strings.Contains(html, `href="https://docker.example.com/environments/e1"`) ||
+		!strings.Contains(html, `href="https://docker.example.com/environments/e1"`) ||
 		!strings.Contains(html, ">1a2b</code> → <code") {
 		t.Fatalf("%s", html)
 	}
-	// Without a status line the top bar names the tone.
+	// Branded and dark like the app: the logo and name, the app's canvas
+	// and panel, a dark color scheme, the status line as the tone's badge.
+	for _, want := range []string{
+		`<img src="` + LogoURL + `"`, ">Docker Manager</td>",
+		`<meta name="color-scheme" content="dark">`, "background:#0a0f15", "background:#121a24",
+		"background:#0f2a1f;border:1px solid #1d4a33;", "&nbsp; Image updates · Applied</td>",
+		"<title>" + msg.Title + "</title>", "background:#2566fd",
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("missing %q in %s", want, html)
+		}
+	}
+	// The inbox preview is the description, before the header.
+	if i, j := strings.Index(html, "Body with {{ braces }}"), strings.Index(html, ">Docker Manager</td>"); i < 0 || i > j {
+		t.Fatalf("%s", html)
+	}
+	// The footer names the instance and the time.
+	if !strings.Contains(html, ">Home · Oct 1, 2026, 09:30 UTC</td>") {
+		t.Fatalf("%s", html)
+	}
+	// Without a status line the badge names the tone.
 	msg.Label = ""
-	if !strings.Contains(emailHTML(msg), ">OK</td>") {
+	if !strings.Contains(emailHTML(msg), "&nbsp; OK</td>") {
 		t.Fatal("no tone word")
+	}
+	// Every tone has its badge.
+	for tone, badge := range emailBadges {
+		msg.Tone = tone
+		if !strings.Contains(emailHTML(msg), "color:"+badge.fg+";") {
+			t.Fatalf("no badge for %s", tone)
+		}
 	}
 }
 
