@@ -40,6 +40,10 @@ class FakeWorker implements WorkerLike {
 		const r = this.requests.at(-1)!;
 		this.#send({ id: r.id, results: regexMatches(r.pattern, r.texts) });
 	}
+	/** The pattern threw in the worker (the worker catches it). */
+	fail() {
+		this.#send({ id: this.requests.at(-1)!.id, failed: true });
+	}
 }
 
 const line = (seq: number, text: string): LogLine => ({
@@ -168,9 +172,10 @@ describe('RegexSearch', () => {
 		expect(FakeWorker.all[1].terminated).toBe(true);
 	});
 
-	it('reports a worker that fails as unavailable, never as a slow pattern', () => {
+	it('reports a worker that fails as unavailable until the pattern changes', () => {
 		const { search, timers } = setup();
-		search.run(p500, [line(1, 'x 500')]);
+		const lines = [line(1, 'x 500')];
+		search.run(p500, lines);
 		const w = FakeWorker.all[0];
 		w.onerror?.(new Event('error') as ErrorEvent);
 		expect(w.terminated).toBe(true);
@@ -178,8 +183,32 @@ describe('RegexSearch', () => {
 		expect(search.slow).toBe(false);
 		expect(search.busy).toBe(false);
 		expect(timers).toHaveLength(0);
-		// No new worker for later searches.
-		search.run({ source: 'x', flags: 'gi' }, [line(1, 'x 500')]);
+		// The same pattern stays failed; another one tries a new worker.
+		search.run(p500, lines);
 		expect(FakeWorker.all).toHaveLength(1);
+		search.run({ source: 'x', flags: 'gi' }, lines);
+		expect(search.failed).toBe(false);
+		expect(FakeWorker.all).toHaveLength(2);
+		FakeWorker.all[1].ready();
+		FakeWorker.all[1].answer();
+		expect(search.matcher().test(lines[0])).toBe(true);
+	});
+
+	it('fails only the pattern that throws in the worker, keeping the worker', () => {
+		const { search } = setup();
+		const lines = [line(1, 'x 500')];
+		search.run(p500, lines);
+		const w = FakeWorker.all[0];
+		w.ready();
+		w.fail();
+		expect(search.failed).toBe(true);
+		expect(search.busy).toBe(false);
+		expect(w.terminated).toBe(false);
+		search.run({ source: 'x', flags: 'gi' }, lines);
+		expect(search.failed).toBe(false);
+		expect(FakeWorker.all).toHaveLength(1);
+		expect(w.requests).toHaveLength(2);
+		w.answer();
+		expect(search.matcher().test(lines[0])).toBe(true);
 	});
 });

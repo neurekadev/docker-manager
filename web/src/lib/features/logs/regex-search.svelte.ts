@@ -6,8 +6,9 @@
 // than the time limit (a pattern that backtracks for minutes, such as
 // (a|aa)+$) terminates the worker: the pattern is reported as too slow
 // instead of freezing the page. The limit starts once the worker has
-// loaded, so a cold start never counts against the pattern; a worker that
-// fails makes the search unavailable instead.
+// loaded, so a cold start never counts against the pattern. A pattern that
+// throws in the worker, or a worker that fails, makes the search
+// unavailable for that pattern; the next pattern tries again.
 import type { LogLine } from './feed.svelte';
 import type { Matcher, Pattern, Range } from './format';
 
@@ -29,7 +30,8 @@ export interface RegexRequest {
 }
 
 /** The worker's messages: `ready` once loaded, then one reply per request. */
-export type RegexReply = { ready: true } | { id: number; results: (Range[] | null)[] };
+export type RegexReply =
+	{ ready: true } | { id: number; results: (Range[] | null)[] } | { id: number; failed: true };
 
 export interface RegexSearchOptions {
 	/** A chunk running longer than this stops the pattern (default 2 s). */
@@ -45,7 +47,7 @@ export class RegexSearch {
 	version = $state(0);
 	/** The current pattern ran past the time limit and was stopped. */
 	slow = $state(false);
-	/** The worker failed: regular expressions cannot be searched. */
+	/** The current pattern threw in the worker, or the worker failed. */
 	failed = $state(false);
 	/** Lines are being searched. */
 	busy = $state(false);
@@ -80,6 +82,7 @@ export class RegexSearch {
 			this.#pattern = pattern;
 			this.#results.clear();
 			this.slow = false;
+			this.failed = false;
 			this.version++;
 		}
 		this.#lines = lines;
@@ -156,6 +159,13 @@ export class RegexSearch {
 		if (!f || f.id !== r.id) return;
 		this.#clear(f.timer);
 		this.#inflight = null;
+		if ('failed' in r) {
+			// The pattern threw; the worker itself is fine for the next one.
+			this.busy = false;
+			this.failed = true;
+			this.version++;
+			return;
+		}
 		f.seqs.forEach((seq, i) => this.#results.set(seq, r.results[i] ?? null));
 		this.version++;
 		// The next chunk, or the lines that arrived meanwhile.

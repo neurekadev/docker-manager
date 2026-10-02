@@ -325,7 +325,7 @@
 						title="Searching took too long and was stopped. Simplify the expression, for example avoid repeats inside repeats such as (a+)+."
 						>Too slow to search</span
 					>{:else if refused === 'failed'}<span
-						title="The search for regular expressions could not start. Reload the page, or turn off Use regular expression to search plain text."
+						title="This expression could not be searched. Change it, or turn off Use regular expression to search plain text."
 						>Search unavailable</span
 					>{:else if matcher}{shown.length}
 					{shown.length === 1 ? 'match' : 'matches'}{/if}</span

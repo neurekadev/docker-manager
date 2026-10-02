@@ -779,8 +779,9 @@ only wire resources to it:
   searched once, in chunks of at most 1,000 lines; a chunk that runs past
   2 s, counted from the worker's `ready` so a cold start never counts,
   such as a pattern that backtracks for minutes, terminates the worker and
-  shows "Too slow to search" instead of freezing the page; a worker error
-  shows "Search unavailable") and Levels (a `MultiSelect` of the levels and the
+  shows "Too slow to search" instead of freezing the page; a pattern that
+  throws in the worker, or a worker error, shows "Search unavailable"; both
+  states last until the pattern changes) and Levels (a `MultiSelect` of the levels and the
   output streams; each count applies the other group's choice) filter the
   buffered lines in that order (`filterLines` in `logs/format.ts`); the
   line's left edge marks errors (red), warnings (amber) and standard error
