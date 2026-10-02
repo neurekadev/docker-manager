@@ -551,7 +551,9 @@ above plus `agent_outdated` when the agent's capabilities lack
 `arrays` with `kind`). The Disk health and RAID cards show md arrays and
 members by device path (`/dev/md0`, `/dev/sda1`; alerts keep the kernel
 name) and an info button per row opening the details: a disk's identity
-and every attribute and value (`DiskDetailsDialog`), an array's
+and every attribute and value (`DiskDetailsDialog`; each value that bears
+on the disk's health marked OK, warning or danger by the agent's rules,
+`attributeCheck` / `valueCheck` / `selfAssessmentCheck`, #210), an array's
 superblock, chunk, layout, bitmap, sync and members with the health of the
 disk each lives on (`RaidDetailsDialog`, matched by path: `sda1` →
 `/dev/sda`, `nvme0n1p1` → `/dev/nvme0`). `POST …/environments/{id}/disk-health/checks

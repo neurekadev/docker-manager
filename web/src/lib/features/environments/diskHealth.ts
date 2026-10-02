@@ -218,10 +218,83 @@ export function deviceName(d: DiskDevice, all: DiskDevice[]): string {
 	return shared ? `${d.name} (${d.type})` : d.name;
 }
 
-/** The self-assessment in words: "Passed", "Failed"; "" when not reported. */
-export function selfAssessment(d: DiskDevice): string {
-	if (d.passed === undefined) return '';
-	return d.passed ? 'Passed' : 'Failed';
+/**
+ * A SMART value's verdict for the disk details (#210): OK, warning or
+ * danger with a short label, by the agent's rules (DeriveDiskState), so a
+ * mark never contradicts the disk's badge. null: the value is information
+ * only (power-on hours, data written).
+ */
+export interface SmartCheck {
+	tone: 'ok' | 'warn' | 'danger';
+	label: string;
+}
+
+const OK: SmartCheck = { tone: 'ok', label: 'OK' };
+
+/**
+ * The self-assessment: passed OK, failed danger, or a warning when the
+ * only NVMe critical warning is the temperature (it clears when the drive
+ * cools; the agent calls that a warning); null when not reported.
+ */
+export function selfAssessmentCheck(d: DiskDevice): SmartCheck | null {
+	if (d.passed === undefined) return null;
+	if (d.passed) return { tone: 'ok', label: 'Passed' };
+	if (d.criticalWarning === NVME_WARN_TEMPERATURE)
+		return { tone: 'warn', label: 'Failed: too hot' };
+	return { tone: 'danger', label: 'Failed' };
+}
+
+/** The ATA attributes the agent counts (raw value above 0: a warning), by ID. */
+const ATA_COUNTED: Record<number, string> = {
+	5: 'reallocated sector',
+	184: 'end-to-end error',
+	187: 'uncorrectable error',
+	197: 'pending sector',
+	198: 'uncorrectable sector'
+};
+
+/**
+ * An ATA attribute's verdict: failing now danger; failed in the past or a
+ * counted attribute with a raw value above 0 ("8 reallocated sectors")
+ * warning; else OK for an attribute that can fail (pre-fail, a threshold
+ * above 0 or a counted one); null for one that only informs (old age
+ * without a threshold: power-on hours, temperature).
+ */
+export function attributeCheck(a: DiskAttributeRow): SmartCheck | null {
+	if (a.whenFailed === 'now') return { tone: 'danger', label: 'Failing now' };
+	if (a.whenFailed === 'past') return { tone: 'warn', label: 'Failed in the past' };
+	const counted = ATA_COUNTED[a.id];
+	if (counted && a.raw !== undefined && a.raw > 0)
+		return { tone: 'warn', label: count(a.raw, counted) };
+	if (counted || a.prefailure || (a.threshold ?? 0) > 0) return OK;
+	return null;
+}
+
+/**
+ * A health value's verdict: the NVMe critical warning (none OK, the
+ * temperature alone a warning, else danger), available spare against its
+ * minimum, wear from WORN percent, media errors and SCSI uncorrected
+ * errors; null for the values that only inform.
+ */
+export function valueCheck(v: DiskValue, d: DiskDevice): SmartCheck | null {
+	switch (v.key) {
+		case 'critical_warning':
+			if (v.value === 0) return OK;
+			if (v.value === NVME_WARN_TEMPERATURE) return { tone: 'warn', label: 'Too hot' };
+			return { tone: 'danger', label: 'Critical' };
+		case 'available_spare':
+			if (d.availableSpareThreshold === undefined) return null;
+			return v.value < d.availableSpareThreshold
+				? { tone: 'warn', label: 'Below the minimum' }
+				: OK;
+		case 'percentage_used':
+			return v.value >= WORN ? { tone: 'warn', label: 'Worn' } : OK;
+		case 'media_errors':
+			return v.value > 0 ? { tone: 'warn', label: 'Errors found' } : OK;
+	}
+	if (v.key.endsWith('.total_uncorrected_errors'))
+		return v.value > 0 ? { tone: 'warn', label: 'Errors found' } : OK;
+	return null;
 }
 
 /** An ATA attribute's type as smartctl names it. */
@@ -233,13 +306,6 @@ export function attributeType(a: DiskAttributeRow): string {
 export function attributeRaw(a: DiskAttributeRow): string {
 	if (a.rawText) return a.rawText;
 	return a.raw === undefined ? '—' : wholeNumber(a.raw);
-}
-
-/** An ATA attribute's status: failing now, failed in the past, else OK. */
-export function attributeStatus(a: DiskAttributeRow): Badge {
-	if (a.whenFailed === 'now') return { status: 'failing', label: 'Failing now' };
-	if (a.whenFailed === 'past') return { status: 'warning', label: 'Failed in the past' };
-	return { status: 'healthy', label: 'OK' };
 }
 
 const wholeNumber = (v: number) => v.toLocaleString('en');

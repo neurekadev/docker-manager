@@ -4,7 +4,9 @@
 	// attribute as smartctl reads it (value, worst, threshold, raw, type,
 	// status) and the other health values the disk reports (the NVMe health
 	// log, SCSI error counters, the power cycle count), in smartctl's order.
-	// An agent that predates the full read sends neither table.
+	// Every value that says something about the disk's health carries an
+	// OK, warning or danger mark (SmartCheckMark, #210); informational ones
+	// none. An agent that predates the full read sends neither table.
 	import Facts, { type Fact } from '$lib/features/common/Facts.svelte';
 	import {
 		Button,
@@ -16,9 +18,10 @@
 		formatTemperature,
 		type Column
 	} from '$lib/ui';
+	import SmartCheckMark from './SmartCheckMark.svelte';
 	import {
+		attributeCheck,
 		attributeRaw,
-		attributeStatus,
 		attributeType,
 		capacity,
 		diskBadge,
@@ -26,7 +29,8 @@
 		healthValue,
 		issuesText,
 		poweredOn,
-		selfAssessment,
+		selfAssessmentCheck,
+		valueCheck,
 		type DiskAttributeRow,
 		type DiskDevice,
 		type DiskValue
@@ -57,7 +61,7 @@
 		{ label: 'Capacity', value: capacity(disk) },
 		{ label: 'Kind', value: diskKind(disk) },
 		{ label: 'Device type', value: disk.type, mono: true },
-		{ label: 'Self-assessment', value: selfAssessment(disk) },
+		{ label: 'Self-assessment', render: selfAssessmentFact },
 		{
 			label: 'Temperature',
 			value: disk.temperatureC === undefined ? '' : formatTemperature(disk.temperatureC)
@@ -91,11 +95,12 @@
 			title: (a) => attributeRaw(a)
 		},
 		{ id: 'type', header: 'Type', cell: typeCell, width: '96px' },
-		{ id: 'status', header: 'Status', cell: statusCell, width: '160px', stack: 'status' }
+		{ id: 'status', header: 'Status', cell: statusCell, width: '210px', stack: 'status' }
 	];
 	const valueColumns: Column<DiskValue>[] = [
 		{ id: 'label', header: 'Value', cell: labelCell, stack: 'title' },
-		{ id: 'value', header: 'Reading', cell: readingCell, numeric: true }
+		{ id: 'value', header: 'Reading', cell: readingCell, numeric: true },
+		{ id: 'status', header: 'Status', cell: valueStatusCell, width: '210px', stack: 'status' }
 	];
 </script>
 
@@ -103,6 +108,10 @@
 {#snippet healthFact()}
 	{@const b = diskBadge(disk)}
 	<StatusBadge status={b.status} label={b.label} title={b.title} />
+{/snippet}
+{#snippet selfAssessmentFact()}
+	{@const c = selfAssessmentCheck(disk)}
+	{#if c}<SmartCheckMark check={c} />{:else}{@render dash()}{/if}
 {/snippet}
 {#snippet readFact()}
 	{#if disk.readAt}<time datetime={disk.readAt} title={formatDateTime(disk.readAt)}
@@ -123,11 +132,15 @@
 {#snippet rawCell(a: DiskAttributeRow)}{attributeRaw(a)}{/snippet}
 {#snippet typeCell(a: DiskAttributeRow)}{attributeType(a)}{/snippet}
 {#snippet statusCell(a: DiskAttributeRow)}
-	{@const b = attributeStatus(a)}
-	<StatusBadge status={b.status} label={b.label} />
+	{@const c = attributeCheck(a)}
+	{#if c}<SmartCheckMark check={c} />{:else}{@render dash()}{/if}
 {/snippet}
 {#snippet labelCell(v: DiskValue)}<span title={v.key}>{healthValue(v).label}</span>{/snippet}
 {#snippet readingCell(v: DiskValue)}{healthValue(v).text}{/snippet}
+{#snippet valueStatusCell(v: DiskValue)}
+	{@const c = valueCheck(v, disk)}
+	{#if c}<SmartCheckMark check={c} />{:else}{@render dash()}{/if}
+{/snippet}
 
 <Dialog bind:open title={name} description={disk.model} size="xl">
 	<div class="body">
