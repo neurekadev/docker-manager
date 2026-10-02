@@ -22,99 +22,28 @@ export interface Part {
 	match: boolean;
 }
 
-/** How the search reads its text. */
-export interface SearchOptions {
-	/** Match upper and lower case exactly. */
-	caseSensitive?: boolean;
-	/** The text is a regular expression. */
-	regex?: boolean;
-}
+/** [start, end) of a match in a line's text. */
+export type Range = [number, number];
 
-/** A compiled search: whether a line matches and where. */
+/** A search: whether a line matches and where (in order, none empty). */
 export interface Matcher {
-	test(text: string): boolean;
-	/** The [start, end) ranges of the matches, in order, none empty. */
-	ranges(text: string): [number, number][];
+	test(line: LogLine): boolean;
+	ranges(line: LogLine): Range[];
 }
 
 /**
- * Whether a regular expression repeats a group that itself repeats
- * (`(a+)+`, `(\w*\s?)*`): such patterns can backtrack for minutes on one
- * line, and the search runs on every keystroke and every new line in the
- * page's thread, which JavaScript cannot interrupt.
+ * The search box's plain text as a matcher (null when empty): case
+ * folded unless `caseSensitive`, the spaces around it ignored.
  */
-export function nestedRepeat(source: string): boolean {
-	// Per open group: whether it holds a repeat.
-	const groups: boolean[] = [];
-	let inClass = false;
-	// The group that closed just before this character, if it held a repeat.
-	let closed = false;
-	for (let i = 0; i < source.length; i++) {
-		const c = source[i];
-		if (c === '\\') {
-			i++;
-			closed = false;
-			continue;
-		}
-		if (inClass) {
-			if (c === ']') inClass = false;
-			continue;
-		}
-		if (c === ')') {
-			closed = groups.pop() ?? false;
-			if (closed && groups.length) groups[groups.length - 1] = true;
-			continue;
-		}
-		const repeat = c === '*' || c === '+' || (c === '{' && /^\{\d*,/.test(source.slice(i)));
-		if (repeat) {
-			if (closed) return true;
-			if (groups.length) groups[groups.length - 1] = true;
-		}
-		if (c === '[') inClass = true;
-		if (c === '(') groups.push(false);
-		closed = false;
-	}
-	return false;
-}
-
-/**
- * Compiles the search box's text: null when it is empty (every line
- * matches), 'invalid' for a regular expression that does not compile,
- * 'slow' for one with nested repeats (`nestedRepeat`). Plain text ignores
- * the spaces around it.
- */
-export function compileSearch(
-	query: string,
-	o: SearchOptions = {}
-): Matcher | 'invalid' | 'slow' | null {
-	if (o.regex) {
-		if (!query) return null;
-		let re: RegExp;
-		try {
-			re = new RegExp(query, o.caseSensitive ? 'g' : 'gi');
-		} catch {
-			return 'invalid';
-		}
-		if (nestedRepeat(query)) return 'slow';
-		const one = new RegExp(re.source, o.caseSensitive ? '' : 'i');
-		return {
-			test: (text) => one.test(text),
-			ranges(text) {
-				const out: [number, number][] = [];
-				for (const m of text.matchAll(re))
-					if (m[0].length) out.push([m.index, m.index + m[0].length]);
-				return out;
-			}
-		};
-	}
-	const q = o.caseSensitive ? query.trim() : query.trim().toLowerCase();
+export function plainSearch(query: string, caseSensitive = false): Matcher | null {
+	const q = caseSensitive ? query.trim() : query.trim().toLowerCase();
 	if (!q) return null;
-	const fold = (t: string) => (o.caseSensitive ? t : t.toLowerCase());
+	const fold = (t: string) => (caseSensitive ? t : t.toLowerCase());
 	return {
-		test: (text) => fold(text).includes(q),
-		ranges(text) {
-			const t = fold(text);
-			const out: [number, number][] = [];
+		test: (l) => fold(l.text).includes(q),
+		ranges(l) {
+			const t = fold(l.text);
+			const out: Range[] = [];
 			for (let i = t.indexOf(q); i >= 0; i = t.indexOf(q, i + q.length))
 				out.push([i, i + q.length]);
 			return out;
@@ -122,9 +51,48 @@ export function compileSearch(
 	};
 }
 
-/** Splits `text` around the search's matches (one plain part without one). */
-export function highlight(text: string, m: Matcher | null): Part[] {
-	const ranges = m ? m.ranges(text) : [];
+/** A regular expression search; the search worker runs it (regex-search.svelte.ts). */
+export interface Pattern {
+	source: string;
+	flags: string;
+}
+
+/**
+ * The search box's text as a regular expression: null when empty,
+ * 'invalid' when it does not compile.
+ */
+export function regexPattern(query: string, caseSensitive = false): Pattern | 'invalid' | null {
+	if (!query) return null;
+	const flags = caseSensitive ? 'g' : 'gi';
+	try {
+		new RegExp(query, flags);
+	} catch {
+		return 'invalid';
+	}
+	return { source: query, flags };
+}
+
+/**
+ * Each text's matches of the pattern: null when it does not match, its
+ * ranges otherwise (empty when it matches only empty strings). Runs in the
+ * search worker, where a pattern that backtracks for minutes can be
+ * stopped.
+ */
+export function regexMatches(p: Pattern, texts: readonly string[]): (Range[] | null)[] {
+	const re = new RegExp(p.source, p.flags);
+	return texts.map((text) => {
+		let found = false;
+		const out: Range[] = [];
+		for (const m of text.matchAll(re)) {
+			found = true;
+			if (m[0].length) out.push([m.index, m.index + m[0].length]);
+		}
+		return found ? out : null;
+	});
+}
+
+/** Splits `text` around the match ranges (one plain part without one). */
+export function highlight(text: string, ranges: readonly Range[]): Part[] {
 	if (!ranges.length) return [{ text, match: false }];
 	const out: Part[] = [];
 	let i = 0;
@@ -160,7 +128,7 @@ export function filterLines(lines: readonly LogLine[], f: LineFilter): readonly 
 			(!f.source || f.source(l.source)) &&
 			(!levels || levels.includes(l.level)) &&
 			(!streams || streams.includes(l.stream)) &&
-			(!m || m.test(l.text))
+			(!m || m.test(l))
 	);
 }
 

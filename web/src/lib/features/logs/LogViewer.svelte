@@ -9,7 +9,7 @@
 	// fixed-height window, so thousands of lines stay fast (wrapped lines
 	// render all, skipping the off-screen ones' layout). Log lines are never
 	// stored beyond the page.
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import ArrowDownToLine from '@lucide/svelte/icons/arrow-down-to-line';
 	import CaseSensitive from '@lucide/svelte/icons/case-sensitive';
 	import Clock from '@lucide/svelte/icons/clock';
@@ -39,17 +39,19 @@
 	import { virtualWindow } from '$lib/ui/table';
 	import { endReason, type LogFeed, type LogLine } from './feed.svelte';
 	import {
-		compileSearch,
 		filterLines,
 		formatLogTime,
 		highlight,
 		levelSummary,
 		logText,
+		plainSearch,
+		regexPattern,
 		serviceShown,
 		tally,
 		toggleHidden
 	} from './format';
 	import { LOG_LEVELS, LOG_STREAMS } from './level';
+	import { RegexSearch } from './regex-search.svelte';
 
 	interface Props {
 		feed: LogFeed;
@@ -124,10 +126,28 @@
 			source: allShown ? undefined : (key) => isShown(serviceOf[key] ?? '')
 		})
 	);
-	const search = $derived(compileSearch(query, { caseSensitive, regex }));
+	// Plain text matches here; a regular expression runs in the search
+	// worker, which stops it when it runs too long.
+	const regexSearch = new RegexSearch(
+		() => new Worker(new URL('./regex.worker.ts', import.meta.url), { type: 'module' })
+	);
+	onDestroy(() => regexSearch.dispose());
+	const pattern = $derived(regex ? regexPattern(query, caseSensitive) : null);
+	$effect(() => {
+		const p = pattern;
+		const lines = bySource;
+		if (p && p !== 'invalid') untrack(() => regexSearch.run(p, lines));
+	});
 	// An invalid or too slow expression filters nothing until it is fixed.
-	const refused = $derived(typeof search === 'string' ? search : null);
-	const matcher = $derived(typeof search === 'string' ? null : search);
+	const refused = $derived(
+		pattern === 'invalid' ? 'invalid' : pattern && regexSearch.slow ? 'slow' : null
+	);
+	const matcher = $derived.by(() => {
+		if (!regex) return plainSearch(query, caseSensitive);
+		if (!pattern || refused) return null;
+		void regexSearch.version;
+		return regexSearch.matcher();
+	});
 	const searched = $derived(filterLines(bySource, { match: matcher }));
 	const shown = $derived(filterLines(searched, { levels, streams }));
 	const levelCounts = $derived(tally(filterLines(searched, { streams })));
@@ -292,9 +312,9 @@
 				onclick={() => (regex = !regex)}
 			/>
 			<span class="count num" class:invalid={!!refused} aria-live="polite"
-				>{#if search === 'invalid'}Invalid expression{:else if search === 'slow'}<span
-						title="A repeated group that repeats inside, such as (a+)+, can freeze the page."
-						>Avoid nested repeats</span
+				>{#if refused === 'invalid'}Invalid expression{:else if refused === 'slow'}<span
+						title="Searching took too long and was stopped. Simplify the expression, for example avoid repeats inside repeats such as (a+)+."
+						>Too slow to search</span
 					>{:else if matcher}{shown.length}
 					{shown.length === 1 ? 'match' : 'matches'}{/if}</span
 			>
@@ -398,7 +418,7 @@
 	>
 		{#if shown.length === 0}
 			<div class="empty">
-				{#if waiting}
+				{#if waiting || (regex && matcher && regexSearch.busy && searched.length === 0)}
 					<div aria-busy="true"><Skeleton lines={5} /></div>
 				{:else if feed.lines.length > 0 && !allShown && !names.some(isShown)}
 					<EmptyState
@@ -467,7 +487,7 @@
 						<span class="bar" aria-hidden="true">|</span>
 					{/if}
 					<span class="text" aria-label={lineLabel(l)}
-						>{#each highlight(l.text, matcher) as part, i (i)}{#if part.match}<mark
+						>{#each highlight(l.text, matcher ? matcher.ranges(l) : []) as part, i (i)}{#if part.match}<mark
 									>{part.text}</mark
 								>{:else}{part.text}{/if}{/each}</span
 					>

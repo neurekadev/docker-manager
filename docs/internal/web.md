@@ -773,9 +773,12 @@ only wire resources to it:
   upper-case words such as `WARN`/`ERR`/`LOG:`, glog's `E0925`, `panic:`,
   `ValueError:`; else "Other"); an indented line (`continues`) takes the
   previous level of its container. The service chips, the search (shows
-  only matching lines as you type; Match case, regular expressions:
-  `compileSearch`, which refuses nested repeats such as `(a+)+` because
-  their backtracking would freeze the page: `nestedRepeat`) and Levels (a `MultiSelect` of the levels and the
+  only matching lines as you type; Match case; plain text with
+  `plainSearch`, regular expressions in a worker, `RegexSearch` in
+  `logs/regex-search.svelte.ts` with `regex.worker.ts`: each line is
+  searched once, and a batch that runs past 2 s, such as a pattern that
+  backtracks for minutes, terminates the worker and shows "Too slow to
+  search" instead of freezing the page) and Levels (a `MultiSelect` of the levels and the
   output streams; each count applies the other group's choice) filter the
   buffered lines in that order (`filterLines` in `logs/format.ts`); the
   line's left edge marks errors (red), warnings (amber) and standard error

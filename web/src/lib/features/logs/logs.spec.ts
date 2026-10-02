@@ -4,13 +4,14 @@
 import { describe, expect, it } from 'vitest';
 import { LogFeed, type EventSourceLike, type LogLine, type RawLine } from './feed.svelte';
 import {
-	compileSearch,
 	filterLines,
 	formatLogTime,
 	highlight,
 	levelSummary,
 	logText,
-	nestedRepeat,
+	plainSearch,
+	regexMatches,
+	regexPattern,
 	serviceShown,
 	tally,
 	toggleHidden,
@@ -19,11 +20,16 @@ import {
 import { continues, detectLevel, stripAnsi, type LogLevel } from './level';
 import { endReason, streamUrl, timeKey, type LogSource } from './stream';
 
-/** A search that compiles (fails the test otherwise). */
-function matcher(query: string, o: Parameters<typeof compileSearch>[1] = {}): Matcher {
-	const m = compileSearch(query, o);
-	if (!m || m === 'invalid') throw new Error(`search ${query} did not compile`);
+/** A plain search that is not empty (fails the test otherwise). */
+function plain(query: string, caseSensitive = false): Matcher {
+	const m = plainSearch(query, caseSensitive);
+	if (!m) throw new Error(`search ${query} is empty`);
 	return m;
+}
+
+/** A line with only its text (the search reads nothing else). */
+function textLine(text: string): LogLine {
+	return { seq: 0, source: 'k', at: 'T', key: 'T', stream: 'stdout', text, level: 'other' };
 }
 
 class FakeES implements EventSourceLike {
@@ -97,13 +103,12 @@ describe('stream helpers', () => {
 	});
 
 	it('formats, highlights and exports lines', () => {
-		expect(highlight('GET /health 200', matcher('health'))).toEqual([
+		expect(highlight('GET /health 200', [[5, 11]])).toEqual([
 			{ text: 'GET /', match: false },
 			{ text: 'health', match: true },
 			{ text: ' 200', match: false }
 		]);
-		expect(highlight('abc', null)).toEqual([{ text: 'abc', match: false }]);
-		expect(highlight('abc', matcher('zzz'))).toEqual([{ text: 'abc', match: false }]);
+		expect(highlight('abc', [])).toEqual([{ text: 'abc', match: false }]);
 		expect(formatLogTime('nope')).toBe('nope');
 		expect(formatLogTime('2026-09-25T10:14:22Z')).toMatch(/^2026-09-2\d \d\d:14:22$/);
 		const text = logText(
@@ -170,61 +175,41 @@ describe('levels', () => {
 
 describe('search', () => {
 	it('matches plain text case-insensitively, trimmed, unless Match case', () => {
-		expect(compileSearch('')).toBeNull();
-		expect(compileSearch('   ')).toBeNull();
-		const m = matcher(' get ');
-		expect(m.test('GET /health')).toBe(true);
-		expect(m.ranges('get GET')).toEqual([
+		expect(plainSearch('')).toBeNull();
+		expect(plainSearch('   ')).toBeNull();
+		const m = plain(' get ');
+		expect(m.test(textLine('GET /health'))).toBe(true);
+		expect(m.ranges(textLine('get GET'))).toEqual([
 			[0, 3],
 			[4, 7]
 		]);
-		const exact = matcher('GET', { caseSensitive: true });
-		expect(exact.test('get /health')).toBe(false);
-		expect(exact.ranges('get GET')).toEqual([[4, 7]]);
+		const exact = plain('GET', true);
+		expect(exact.test(textLine('get /health'))).toBe(false);
+		expect(exact.ranges(textLine('get GET'))).toEqual([[4, 7]]);
 	});
 
-	it('matches regular expressions and reports invalid ones', () => {
-		expect(compileSearch('', { regex: true })).toBeNull();
-		expect(compileSearch('(oops', { regex: true })).toBe('invalid');
-		// Nested repeats can backtrack for minutes: refused before they run.
-		expect(compileSearch('(a+)+$', { regex: true })).toBe('slow');
-		expect(compileSearch('(a+)+$')).not.toBe('slow');
-		const m = matcher('5\\d\\d', { regex: true });
-		expect(m.test('GET /login 500')).toBe(true);
-		expect(m.test('GET /login 200')).toBe(false);
-		// Repeated tests do not carry state between lines (no lastIndex).
-		expect(m.test('GET /login 503')).toBe(true);
-		expect(m.ranges('500 then 502')).toEqual([
-			[0, 3],
-			[9, 12]
-		]);
-		expect(matcher('error', { regex: true }).test('ERROR')).toBe(true);
-		expect(matcher('error', { regex: true, caseSensitive: true }).test('ERROR')).toBe(false);
-		// Empty matches highlight nothing.
-		expect(highlight('abc', matcher('x*', { regex: true }))).toEqual([
-			{ text: 'abc', match: false }
-		]);
+	it('compiles regular expressions and reports invalid ones', () => {
+		expect(regexPattern('')).toBeNull();
+		expect(regexPattern('(oops')).toBe('invalid');
+		expect(regexPattern('5\d\d')).toEqual({ source: '5\d\d', flags: 'gi' });
+		expect(regexPattern('ERROR', true)).toEqual({ source: 'ERROR', flags: 'g' });
 	});
-});
 
-describe('nested repeats', () => {
-	it.each<[string, boolean]>([
-		['(a+)+$', true],
-		['(\\w*\\s?)*', true],
-		['(?:x|y+)*z', true],
-		['((a+))+', true],
-		['(a{2,})+', true],
-		['(a+){2,5}', true],
-		['(ERROR|WARN)', false],
-		['5\\d\\d', false],
-		['a+b*c+', false],
-		['(ab)+', false],
-		['(a{2})+', false],
-		['[(+]+', false],
-		['\\(a+\\)+', false],
-		['(a+)?', false]
-	])('%s: %s', (source, nested) => {
-		expect(nestedRepeat(source)).toBe(nested);
+	it('matches regular expressions line by line (the worker side)', () => {
+		const p = { source: '5\d\d', flags: 'gi' };
+		expect(regexMatches(p, ['GET /login 500', 'GET /login 200', '500 then 502'])).toEqual([
+			[[11, 14]],
+			null,
+			[
+				[0, 3],
+				[9, 12]
+			]
+		]);
+		expect(regexMatches({ source: 'error', flags: 'gi' }, ['ERROR'])).toEqual([[[0, 5]]]);
+		expect(regexMatches({ source: 'error', flags: 'g' }, ['ERROR'])).toEqual([null]);
+		// Only empty matches: the line matches, nothing is highlighted.
+		expect(regexMatches({ source: 'x*', flags: 'gi' }, ['abc'])).toEqual([[]]);
+		expect(highlight('abc', [])).toEqual([{ text: 'abc', match: false }]);
 	});
 });
 
@@ -268,17 +253,17 @@ describe('line filters', () => {
 			2, 3
 		]);
 		expect(filterLines(lines, { streams: ['stderr'] }).map((l) => l.seq)).toEqual([2, 3]);
-		expect(filterLines(lines, { match: matcher('get') }).map((l) => l.seq)).toEqual([1, 3]);
+		expect(filterLines(lines, { match: plain('get') }).map((l) => l.seq)).toEqual([1, 3]);
 		expect(filterLines(lines, { source: (k) => k === 'db' }).map((l) => l.seq)).toEqual([2, 4]);
 		expect(
 			filterLines(lines, {
 				source: (k) => k === 'web',
 				levels: ['warning'],
 				streams: ['stderr'],
-				match: matcher('login')
+				match: plain('login')
 			}).map((l) => l.seq)
 		).toEqual([3]);
-		expect(filterLines(lines, { match: matcher('nothing') })).toEqual([]);
+		expect(filterLines(lines, { match: plain('nothing') })).toEqual([]);
 		expect(filterLines(lines, { levels: [] })).toEqual([]);
 	});
 
