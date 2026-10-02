@@ -485,7 +485,7 @@ func Detail(a domain.Alert) string {
 		}
 		return who + " did not finish successfully. " + why
 	case domain.NotifyUpdates:
-		return "A check found newer images. To install them, open the update policy and press Preview updates, then Apply updates."
+		return "A check found newer images. To install them, open the update policy and press Preview Updates, then Apply Updates."
 	}
 	return ""
 }

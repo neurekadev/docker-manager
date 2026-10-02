@@ -20,12 +20,12 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
-// manager.move (Move everything): an environment migration of every
+// manager.move (Move Everything): an environment migration of every
 // movable stack from the environment next to this manager to the new
 // server's environment, run with the owner's principal and waited for;
 // then the move is ready and the waiting manager gets the handoff. When
 // the migration does not complete, the move goes back to open and the
-// job fails with the migration's guidance; Move everything again moves
+// job fails with the migration's guidance; Move Everything again moves
 // what is left.
 
 const moveKind = jobspec.ManagerMove
@@ -53,7 +53,7 @@ type moveJobOutput struct {
 	NoStacks bool `json:"noStacks,omitempty"`
 }
 
-// StartRun starts manager.move (Move everything; owner, recent step-up):
+// StartRun starts manager.move (Move Everything; owner, recent step-up):
 // allowed for an open or ready move whose new server's agent is connected
 // and whose waiting manager checked in (domain.ErrManagerMoveNewServerMissing
 // otherwise). One at a time: a moving move answers
@@ -192,7 +192,7 @@ func (s *Service) stepMigrate(ctx context.Context, sc *jobexec.StepContext) erro
 			recovery = "See the environment migration for the cause."
 		}
 		return refuse(ClassAppsNotMoved, fmt.Sprintf("the environment migration ended %s (%s)", done.State, done.ErrorClass),
-			recovery+" Then press Move everything again: it moves what is left. Docker Manager itself has not moved.")
+			recovery+" Then press Move Everything again: it moves what is left. Docker Manager itself has not moved.")
 	}
 	return nil
 }
@@ -217,7 +217,7 @@ func (s *Service) startMigration(ctx context.Context, sc *jobexec.StepContext, m
 		}
 		return moveJobOutput{}, refuse(ClassAppsBlocked, "the apps cannot move: "+blockerSummary(blocked.Plan),
 			"Open Environments → the old server → Migrate environment to the new server's environment to see what blocks it, fix it, "+
-				"then press Move everything again.")
+				"then press Move Everything again.")
 	case err != nil:
 		return moveJobOutput{}, err
 	}
@@ -349,7 +349,7 @@ func (s *Service) onMoveFinished(ctx context.Context, db bun.IDB, j domain.Job) 
 	if err := store.UpdateManagerMove(ctx, db, &m, domain.MoveMoving); err != nil && !errors.Is(err, domain.ErrManagerMoveState) {
 		return err
 	}
-	s.log.Warn("the apps did not all move: the move waits for Move everything again", "move_id", m.ID, "job_id", j.ID,
+	s.log.Warn("the apps did not all move: the move waits for Move Everything again", "move_id", m.ID, "job_id", j.ID,
 		"state", string(j.State), "class", j.ErrorClass)
 	return nil
 }

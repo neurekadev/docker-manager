@@ -10806,7 +10806,7 @@
           },
           "progress": {
             "$ref": "#/components/schemas/ManagerMoveProgress",
-            "description": "Old manager: the latest Move everything (manager.move) and its environment migration."
+            "description": "Old manager: the latest Move Everything (manager.move) and its environment migration."
           },
           "readyAt": {
             "format": "date-time",
@@ -10831,7 +10831,7 @@
             "type": "string"
           },
           "state": {
-            "description": "Old manager: open (waiting for the new server, then for Move everything), moving (manager.move moves the apps), ready (the apps moved; the new manager gets the handoff when it asks next), draining (read-only, jobs finish), handed_off (the state was copied; agents refused), confirmed (the new manager runs the instance), cancelled, expired. New manager: arrived (this manager runs the moved instance).",
+            "description": "Old manager: open (waiting for the new server, then for Move Everything), moving (manager.move moves the apps), ready (the apps moved; the new manager gets the handoff when it asks next), draining (read-only, jobs finish), handed_off (the state was copied; agents refused), confirmed (the new manager runs the instance), cancelled, expired. New manager: arrived (this manager runs the moved instance).",
             "enum": [
               "open",
               "moving",
@@ -11099,7 +11099,7 @@
             "type": "string"
           },
           "recovery": {
-            "description": "What to do after a failure (then Move everything again).",
+            "description": "What to do after a failure (then Move Everything again).",
             "type": "string"
           },
           "stacksMoved": {
@@ -11812,7 +11812,7 @@
             "type": "string"
           },
           "phase": {
-            "description": "none: not moving. connecting: asking the old manager (errorCode after a failed attempt; it keeps asking). waiting: the old manager answered; the apps have not moved yet (oldState open: press Move everything there; moving: stacksMoved of stacksTotal). finishing_jobs: the old manager is read-only while its jobs finish. copying, checking, staging: the state arrives. restarting: this manager restarts as the moved Docker Manager. failed: the copy was refused (recovery); restart this manager after fixing. complete: this manager runs the moved Docker Manager; point DNS at this server and remove the move lines from .env.",
+            "description": "none: not moving. connecting: asking the old manager (errorCode after a failed attempt; it keeps asking). waiting: the old manager answered; the apps have not moved yet (oldState open: press Move Everything there; moving: stacksMoved of stacksTotal). finishing_jobs: the old manager is read-only while its jobs finish. copying, checking, staging: the state arrives. restarting: this manager restarts as the moved Docker Manager. failed: the copy was refused (recovery); restart this manager after fixing. complete: this manager runs the moved Docker Manager; point DNS at this server and remove the move lines from .env.",
             "enum": [
               "none",
               "connecting",
@@ -58766,7 +58766,7 @@
     },
     "/api/v1/manager/move": {
       "get": {
-        "description": "The move that is open or in progress on this manager (the new server's state, the apps' environment, the progress of Move everything, the jobs a draining move waits for, the redirects), else the move this manager arrived by (Move complete: the confirmation, the redirects with the agents that still need the new address, the old server's environment). 404 when there is none. Instance owner only (never delegable, never with an API token).",
+        "description": "The move that is open or in progress on this manager (the new server's state, the apps' environment, the progress of Move Everything, the jobs a draining move waits for, the redirects), else the move this manager arrived by (Move complete: the confirmation, the redirects with the agents that still need the new address, the old server's environment). 404 when there is none. Instance owner only (never delegable, never with an API token).",
         "operationId": "get-manager-move",
         "responses": {
           "200": {
@@ -59126,7 +59126,7 @@
     },
     "/api/v1/manager/move/cancellations": {
       "post": {
-        "description": "Ends a move that was not handed off and unlocks this manager (a running Move everything is cancelled; stacks that moved stay on the new server). After the handoff only with resumeHere and the typed instance name: you state that the new manager never started with the copy. When agents were already told the new address, the instance's generation goes up and this manager restarts, so they accept it again. A confirmed move cannot be cancelled (409 manager_move_state). Requires a recent step-up. Instance owner only (never delegable, never with an API token).",
+        "description": "Ends a move that was not handed off and unlocks this manager (a running Move Everything is cancelled; stacks that moved stay on the new server). After the handoff only with resumeHere and the typed instance name: you state that the new manager never started with the copy. When agents were already told the new address, the instance's generation goes up and this manager restarts, so they accept it again. A confirmed move cannot be cancelled (409 manager_move_state). Requires a recent step-up. Instance owner only (never delegable, never with an API token).",
         "operationId": "create-manager-move-cancellation",
         "requestBody": {
           "content": {
@@ -59668,7 +59668,7 @@
     },
     "/api/v1/manager/move/handoff": {
       "post": {
-        "description": "Called by the new manager in waiting mode once its check-in reports the move ready (each call records its check-in too). Until Move everything made the move ready: 409 manager_move_not_ready with Retry-After and the progress in X-Docker-Manager-Move-State (open, moving), X-Docker-Manager-Move-Stacks (<moved>/<total>) and X-Docker-Manager-Move-Current-Stack. The first call of a ready move makes this manager read-only (no new job, no schedule; running jobs finish); while jobs run it answers 409 jobs_running with Retry-After and X-Docker-Manager-Jobs-Running. Then the agents it can place are told the new address (manager.redirect), agents are refused, the state is copied (the copy's generation goes up by one) and the response streams the package encrypted with XChaCha20-Poly1305 under a key derived from the code (a tar of state.json, docker-manager.db, secret-key.sealed, templates.tar.gz and manifest.json). Repeating it after the handoff streams the same copy. Authenticated by a signature of the move code (Authorization: DMM <moveId>:<unix time>:<nonce>:<HMAC-SHA256>, docs/internal/architecture/manager-move.md), never by a session or the code itself: 401 move_code_invalid for a wrong signature, a replayed nonce or an ended move, 401 move_clock_skew when the time is more than five minutes off. Plain HTTP is accepted (the signature and the package encryption protect the exchange).",
+        "description": "Called by the new manager in waiting mode once its check-in reports the move ready (each call records its check-in too). Until Move Everything made the move ready: 409 manager_move_not_ready with Retry-After and the progress in X-Docker-Manager-Move-State (open, moving), X-Docker-Manager-Move-Stacks (<moved>/<total>) and X-Docker-Manager-Move-Current-Stack. The first call of a ready move makes this manager read-only (no new job, no schedule; running jobs finish); while jobs run it answers 409 jobs_running with Retry-After and X-Docker-Manager-Jobs-Running. Then the agents it can place are told the new address (manager.redirect), agents are refused, the state is copied (the copy's generation goes up by one) and the response streams the package encrypted with XChaCha20-Poly1305 under a key derived from the code (a tar of state.json, docker-manager.db, secret-key.sealed, templates.tar.gz and manifest.json). Repeating it after the handoff streams the same copy. Authenticated by a signature of the move code (Authorization: DMM <moveId>:<unix time>:<nonce>:<HMAC-SHA256>, docs/internal/architecture/manager-move.md), never by a session or the code itself: 401 move_code_invalid for a wrong signature, a replayed nonce or an ended move, 401 move_clock_skew when the time is more than five minutes off. Plain HTTP is accepted (the signature and the package encryption protect the exchange).",
         "operationId": "create-manager-move-handoff",
         "responses": {
           "200": {
@@ -59930,7 +59930,7 @@
             "cookieSession": []
           }
         ],
-        "summary": "Move everything",
+        "summary": "Move Everything",
         "tags": [
           "Manager move"
         ],

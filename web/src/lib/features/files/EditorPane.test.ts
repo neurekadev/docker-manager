@@ -215,6 +215,6 @@ describe('EditorPane', () => {
 		expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
 		expect(screen.queryByRole('button', { name: 'Format' })).toBeNull();
 		expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
-		expect(screen.getByText('Read Only')).toBeInTheDocument();
+		expect(screen.getByText('Read-Only')).toBeInTheDocument();
 	});
 });

@@ -78,7 +78,7 @@ func TestDetailInWords(t *testing.T) {
 			"A job started by an API token did not finish successfully. Some of its items failed. Open the job to see which ones."},
 		// The services are a field of their own.
 		{domain.Alert{Kind: domain.NotifyUpdates, Facts: map[string]string{"services": "web, db"}},
-			"A check found newer images. To install them, open the update policy and press Preview updates, then Apply updates."},
+			"A check found newer images. To install them, open the update policy and press Preview Updates, then Apply Updates."},
 	} {
 		if got := Detail(c.a); got != c.want {
 			t.Errorf("%s: %q, want %q", c.a.Kind, got, c.want)

@@ -176,9 +176,9 @@ same change.
 | `manager_moved` | 409 | no | Docker Manager is moving (or moved) to a new server: it is read-only. Every non-GET request except sign-in, sign-out and the move routes is refused; use the new server's manager. | #35 |
 | `jobs_running` | 409 | no | The handoff waits for the jobs still running on the old manager; `Retry-After` says when to ask again and `X-Docker-Manager-Jobs-Running` how many run. | #35 |
 | `manager_move_exists` | 409 | no | A move of this manager is already open or in progress; cancel it before creating another. | #35 |
-| `manager_move_state` | 409 | no | The move is not in a state that allows this (Move everything needs an open or ready move; new setup files need an open or ready move; a confirmed move cannot be cancelled; a confirmation needs a handed-off move). | #35 |
-| `manager_move_not_ready` | 409 | no | The handoff waits until Move everything moved the apps; `Retry-After` says when to ask again and `X-Docker-Manager-Move-State`, `X-Docker-Manager-Move-Stacks` and `X-Docker-Manager-Move-Current-Stack` carry the progress. | #35 |
-| `manager_move_new_server_missing` | 409 | no | Move everything needs the new server: its agent connected and its Docker Manager (waiting mode) checked in within two minutes. | #35 |
+| `manager_move_state` | 409 | no | The move is not in a state that allows this (Move Everything needs an open or ready move; new setup files need an open or ready move; a confirmed move cannot be cancelled; a confirmation needs a handed-off move). | #35 |
+| `manager_move_not_ready` | 409 | no | The handoff waits until Move Everything moved the apps; `Retry-After` says when to ask again and `X-Docker-Manager-Move-State`, `X-Docker-Manager-Move-Stacks` and `X-Docker-Manager-Move-Current-Stack` carry the progress. | #35 |
+| `manager_move_new_server_missing` | 409 | no | Move Everything needs the new server: its agent connected and its Docker Manager (waiting mode) checked in within two minutes. | #35 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |

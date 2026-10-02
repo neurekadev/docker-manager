@@ -335,7 +335,7 @@ migration, redirects, times, the sealed code). States:
   the move raises the instance generation by two and restarts the manager
   (see "Two managers never control the same agents").
 
-## Move everything (`manager.move`)
+## Move Everything (`manager.move`)
 
 `create-manager-move-run` (owner, step-up) needs an `open` or `ready`
 move whose new server's agent enrolled with the move's token and is
@@ -357,7 +357,7 @@ runs:
    messages). The step waits for the migration (polled and on its
    changes, a cancellation of `manager.move` cancels it); a migration that
    does not succeed fails the job (`manager_move_apps_not_moved`, the
-   migration's recovery and "press Move everything again").
+   migration's recovery and "press Move Everything again").
 2. `ready` — the move becomes `ready`.
 
 A `manager.move` that does not succeed puts the move back to `open` (its

@@ -460,7 +460,7 @@
 			{:else if tab.status === 'ready' && !readOnly}
 				<span>Saved</span>
 			{/if}
-			{#if readOnly && tab.status === 'ready'}<span>Read Only</span>{/if}
+			{#if readOnly && tab.status === 'ready'}<span>Read-Only</span>{/if}
 			{#if definition && stack}
 				{#if stack.undeployed && !isDirty(tab)}
 					<span class="hint">Saved changes aren't deployed yet.</span>
