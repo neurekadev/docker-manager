@@ -55,8 +55,14 @@ func TestRefundRestoresSuccessfulAttempts(t *testing.T) {
 		l.Refund("k")
 	}
 	l.Refund("k") // at the burst already
-	if !l.Take("k") || !l.Take("k") || l.Take("k") {
-		t.Fatal("refund must restore exactly the burst, not more")
+	taken := 0
+	for range 3 {
+		if l.Take("k") {
+			taken++
+		}
+	}
+	if taken != 2 {
+		t.Fatalf("%d attempts after the refunds, want exactly the burst (2)", taken)
 	}
 	l.Refund("unknown") // never seen: nothing to restore, no bucket created
 	if l.RetryAfter("unknown") != 0 {
