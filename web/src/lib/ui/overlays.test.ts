@@ -227,6 +227,25 @@ describe('TooltipLayer', () => {
 		other.remove();
 	});
 
+	it('keeps a tapped info tip open when focus leaves a container around it', async () => {
+		render(TooltipLayer);
+		const region = document.createElement('div');
+		region.tabIndex = -1;
+		region.innerHTML =
+			'<span id="tip" role="img" tabindex="0" aria-label="Why" title="Why" data-dy-info>i</span>';
+		document.body.append(region);
+		region.focus();
+		const tip = document.getElementById('tip')!;
+		fireEvent.pointerDown(tip, { pointerType: 'touch' });
+		fireEvent.pointerUp(tip, { pointerType: 'touch' });
+		tip.focus();
+		fireEvent.click(tip);
+		expect(await screen.findByRole('tooltip')).toHaveTextContent('Why');
+		tip.blur();
+		await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+		region.remove();
+	});
+
 	it('shows nothing when a plain title is tapped', async () => {
 		render(TooltipLayer);
 		const span = document.createElement('span');

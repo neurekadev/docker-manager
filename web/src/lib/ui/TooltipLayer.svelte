@@ -121,9 +121,10 @@
 			const el = tooltipAnchor(e.target);
 			if (el && el === e.target && el.matches(':focus-visible')) schedule(el, 0);
 		};
-		// Only the anchor losing focus hides it: a tap moves focus too.
+		// Only the anchor itself losing focus hides it: a tap moves focus
+		// too, also out of a focused dialog or region around the tip.
 		const blur = (e: FocusEvent) => {
-			if (anchor && e.target instanceof Node && e.target.contains(anchor)) hide();
+			if (anchor && e.target === anchor) hide();
 		};
 		const key = (e: KeyboardEvent) => {
 			if (e.key === 'Escape' && anchor) hide();
