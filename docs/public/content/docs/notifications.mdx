@@ -45,7 +45,9 @@ Messages use what each service can show. In Discord and Slack the strip
 beside the message is red for failures and critical problems, amber for
 warnings, green when a problem is resolved or a run succeeded, and blue
 for news; Discord shows the numbers as fields. Email arrives as a
-formatted message, ntfy and Gotify with a priority and a link.
+formatted message whose subject starts with the environment's name in
+brackets, for example `[homelab] Disk /dev/sda is failing`; ntfy and
+Gotify arrive with a priority and a link.
 
 ## Send a test
 
@@ -75,7 +77,7 @@ press **Delete** in its menu.
 | Slack | An incoming webhook's **Webhook URL** |
 | Microsoft Teams | The **Workflow URL** of a Power Automate workflow started by "When a Teams webhook request is received" |
 | Telegram | The **Bot token** from @BotFather and the **Chats** (chat IDs or `@channel` names) |
-| Email (SMTP) | Your mail server's **SMTP server**, **Port** and **Encryption**, a **Username** and **Password** if it needs a login, and the **From** and **To** addresses |
+| Email (SMTP) | Your mail server's **SMTP server**, **Port** and **Encryption**, a **Username** and **Password** if it needs a login, the **From** and **To** addresses and, if you like, a **From name** (the sender's name, Docker Manager unless you change it) |
 | ntfy | The **Server** (`ntfy.sh` or your own) and a **Topic**; a login for a server with access control |
 | Gotify | The **Server** and an **Application token** |
 | Pushover | Your **User key** and an application's **API token** |

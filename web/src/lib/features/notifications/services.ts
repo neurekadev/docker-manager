@@ -390,6 +390,9 @@ const ENCRYPTION: Record<string, string> = {
 
 const MAIL_RE = /^[^\s@,]+@[^\s@,]+$/;
 
+/** The sender name of an email without one of its own (notify.EmailFromName). */
+export const EMAIL_FROM_NAME = 'Docker Manager';
+
 const email: ServiceSpec = {
 	id: 'email',
 	label: 'Email (SMTP)',
@@ -443,6 +446,14 @@ const email: ServiceSpec = {
 			placeholder: 'docker-manager@example.com'
 		},
 		{
+			key: 'fromName',
+			label: 'From name',
+			kind: 'text',
+			initial: EMAIL_FROM_NAME,
+			placeholder: EMAIL_FROM_NAME,
+			description: `The sender name mail programs show. Leave empty for ${EMAIL_FROM_NAME}.`
+		},
+		{
 			key: 'to',
 			label: 'To',
 			kind: 'text',
@@ -458,9 +469,13 @@ const email: ServiceSpec = {
 		const user = (v.username ?? '').trim();
 		const pass = v.password ?? '';
 		const auth = user ? `${enc(user)}${pass ? `:${enc(pass)}` : ''}@` : '';
+		// The default name is the manager's own (notify.EmailFromName): the
+		// address names only another one.
+		const fromName = (v.fromName ?? '').trim();
 		const q = queryString(
 			[
 				['fromaddress', v.from.trim()],
+				['fromname', fromName === EMAIL_FROM_NAME ? '' : fromName],
 				['toaddresses', splitList(v.to).join(',')]
 			],
 			[ENCRYPTION[v.encryption || 'auto'], v.extra].filter(Boolean).join('&')
@@ -475,6 +490,7 @@ const email: ServiceSpec = {
 		const { values, extra } = takeQuery(p.query, [
 			'fromaddress',
 			'from',
+			'fromname',
 			'toaddresses',
 			'to',
 			'encryption',
@@ -500,6 +516,7 @@ const email: ServiceSpec = {
 			username: p.user ?? '',
 			password: p.password ?? '',
 			from: values.fromaddress ?? values.from ?? '',
+			fromName: values.fromname || EMAIL_FROM_NAME,
 			to: splitList(values.toaddresses ?? values.to ?? '').join(', '),
 			extra
 		};

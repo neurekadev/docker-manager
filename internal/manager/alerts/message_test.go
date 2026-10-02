@@ -324,6 +324,33 @@ func TestDigestEntriesNameTheirEnvironment(t *testing.T) {
 	}
 }
 
+func TestMessagesNameTheirEnvironment(t *testing.T) {
+	d := func(env string) domain.AlertDelivery {
+		out := domain.AlertDelivery{Event: domain.AlertEventFiring, Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical,
+			Outcome: domain.OutcomeCritical, Title: "Disk /dev/sda is failing"}
+		if env != "" {
+			out.Fields = []domain.NotificationField{{Name: "Environment", Value: env, Inline: true}}
+		}
+		return out
+	}
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		name  string
+		items []domain.AlertDelivery
+		want  string
+	}{
+		{"one", []domain.AlertDelivery{d("Hyperion")}, "Hyperion"},
+		{"none", []domain.AlertDelivery{d("")}, ""},
+		{"digest of one environment", []domain.AlertDelivery{d("Hyperion"), d("Hyperion")}, "Hyperion"},
+		{"digest of several", []domain.AlertDelivery{d("Hyperion"), d("office")}, ""},
+		{"digest with one without", []domain.AlertDelivery{d("Hyperion"), d("")}, ""},
+	} {
+		if got := buildMessage("Home", "", c.items, now).Environment; got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
 func TestMessagesLinkFieldsWithThePublicURL(t *testing.T) {
 	d := domain.AlertDelivery{Event: domain.DeliveryEventNotification, Kind: domain.NotifyUpdates, Outcome: domain.OutcomeSuccess,
 		Title: "Update of Paperless succeeded", Link: "/jobs/j1", Fields: []domain.NotificationField{

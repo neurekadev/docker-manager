@@ -151,8 +151,15 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 			set("priority", "1")
 		}
 	case "smtp":
-		// The subject is the title; the HTML part replaces the plain one
-		// where the mail program can show it.
+		// The subject is the title after the environment's name in
+		// brackets, the sender's name ours unless the address names one
+		// (a subject in the address wins as well); the HTML part replaces
+		// the plain one where the mail program can show it.
+		delete(r.params, "title")
+		if !userSet(q, "subject") {
+			set("title", emailSubject(msg))
+		}
+		set("fromname", EmailFromName)
 		if !userSet(q, "usehtml") {
 			if t, ok := svc.(interface{ SetTemplateString(id, body string) error }); ok &&
 				t.SetTemplateString("html", templateLiteral(emailHTML(msg))) == nil {
@@ -166,6 +173,19 @@ func render(service string, svc types.Service, msg domain.NotificationMessage, q
 		set("url", msg.URL)
 	}
 	return r
+}
+
+// EmailFromName is the sender's name of an email whose address names
+// none (the web's EMAIL_FROM_NAME).
+const EmailFromName = "Docker Manager"
+
+// emailSubject is the title, after the environment's name in brackets
+// when the message is about one ("[homelab] Disk /dev/sda is failing").
+func emailSubject(msg domain.NotificationMessage) string {
+	if msg.Environment == "" {
+		return msg.Title
+	}
+	return "[" + msg.Environment + "] " + msg.Title
 }
 
 // templateLiteral makes s a Go template that prints s as it is.

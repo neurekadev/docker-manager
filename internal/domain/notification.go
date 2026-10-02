@@ -327,6 +327,10 @@ type NotificationMessage struct {
 	Label string
 	Title string
 	Body  string
+	// Environment is the name of the one environment the message is
+	// about ("" for none or several): emails prefix their subject with
+	// it ("[homelab] Disk /dev/sda is failing").
+	Environment string
 	// URL links to the page in Docker Manager the message is about
 	// (optional).
 	URL    string

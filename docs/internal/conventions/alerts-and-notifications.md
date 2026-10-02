@@ -27,7 +27,9 @@ web `web/src/lib/features/notifications`.
   status line as author, the tone's color, linked values and bulleted
   lists, the logo `notify.LogoURL` beside the footer; Slack colored
   attachments, Teams an accented card, email an HTML card with the plain
-  part kept, Telegram HTML, ntfy and Gotify Markdown with priority and
+  part kept, the subject prefixed with the message's `Environment` in
+  brackets and the sender named `EmailFromName` ("Docker Manager", the
+  web's `EMAIL_FROM_NAME`) unless the address names one, Telegram HTML, ntfy and Gotify Markdown with priority and
   click link, Pushover a priority, a generic webhook `tone` and `url`
   keys, anything else plain text). Tone colors are the app's `--danger`,
   `--warn`, `--ok` and `--accent` tokens. Only parameters the service
@@ -104,7 +106,8 @@ web `web/src/lib/features/notifications`.
 - **Web:** the dialog builds the URL from friendly fields
   (`services.ts`: `buildUrl`/`parseUrl`, round trip exact, unknown shapes
   edited as the raw URL under "Other"); extra query options of a stored URL
-  are kept. Secrets are `PasswordField`s; the stored address stays masked
+  are kept. Email's **From name** is written as `fromname` only when it
+  is not the default. Secrets are `PasswordField`s; the stored address stays masked
   until "Show address" (`withStepUp`). "What to send" is one row per kind
   (a master checkbox, the kind's outcomes beside it). Channel changes
   arrive on the live topic `settings` (`notificationKeys`).
