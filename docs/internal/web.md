@@ -776,9 +776,11 @@ only wire resources to it:
   only matching lines as you type; Match case; plain text with
   `plainSearch`, regular expressions in a worker, `RegexSearch` in
   `logs/regex-search.svelte.ts` with `regex.worker.ts`: each line is
-  searched once, and a batch that runs past 2 s, such as a pattern that
-  backtracks for minutes, terminates the worker and shows "Too slow to
-  search" instead of freezing the page) and Levels (a `MultiSelect` of the levels and the
+  searched once, in chunks of at most 1,000 lines; a chunk that runs past
+  2 s, counted from the worker's `ready` so a cold start never counts,
+  such as a pattern that backtracks for minutes, terminates the worker and
+  shows "Too slow to search" instead of freezing the page; a worker error
+  shows "Search unavailable") and Levels (a `MultiSelect` of the levels and the
   output streams; each count applies the other group's choice) filter the
   buffered lines in that order (`filterLines` in `logs/format.ts`); the
   line's left edge marks errors (red), warnings (amber) and standard error

@@ -138,9 +138,18 @@
 		const lines = bySource;
 		if (p && p !== 'invalid') untrack(() => regexSearch.run(p, lines));
 	});
-	// An invalid or too slow expression filters nothing until it is fixed.
+	// An invalid or too slow expression filters nothing until it is fixed;
+	// so does any expression when the search worker failed.
 	const refused = $derived(
-		pattern === 'invalid' ? 'invalid' : pattern && regexSearch.slow ? 'slow' : null
+		pattern === 'invalid'
+			? 'invalid'
+			: !pattern
+				? null
+				: regexSearch.failed
+					? 'failed'
+					: regexSearch.slow
+						? 'slow'
+						: null
 	);
 	const matcher = $derived.by(() => {
 		if (!regex) return plainSearch(query, caseSensitive);
@@ -315,6 +324,9 @@
 				>{#if refused === 'invalid'}Invalid expression{:else if refused === 'slow'}<span
 						title="Searching took too long and was stopped. Simplify the expression, for example avoid repeats inside repeats such as (a+)+."
 						>Too slow to search</span
+					>{:else if refused === 'failed'}<span
+						title="The search for regular expressions could not start. Reload the page, or turn off Use regular expression to search plain text."
+						>Search unavailable</span
 					>{:else if matcher}{shown.length}
 					{shown.length === 1 ? 'match' : 'matches'}{/if}</span
 			>

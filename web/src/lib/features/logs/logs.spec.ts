@@ -191,12 +191,12 @@ describe('search', () => {
 	it('compiles regular expressions and reports invalid ones', () => {
 		expect(regexPattern('')).toBeNull();
 		expect(regexPattern('(oops')).toBe('invalid');
-		expect(regexPattern('5\d\d')).toEqual({ source: '5\d\d', flags: 'gi' });
+		expect(regexPattern(String.raw`5\d\d`)).toEqual({ source: String.raw`5\d\d`, flags: 'gi' });
 		expect(regexPattern('ERROR', true)).toEqual({ source: 'ERROR', flags: 'g' });
 	});
 
 	it('matches regular expressions line by line (the worker side)', () => {
-		const p = { source: '5\d\d', flags: 'gi' };
+		const p = { source: String.raw`5\d\d`, flags: 'gi' };
 		expect(regexMatches(p, ['GET /login 500', 'GET /login 200', '500 then 502'])).toEqual([
 			[[11, 14]],
 			null,
