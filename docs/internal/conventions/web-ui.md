@@ -8,8 +8,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
 - **Components:** build pages only from `$lib/ui` (one barrel) and tokens
   (`$lib/design/tokens.css`); no raw hex, no one-off copies of a component.
   `IconButton` needs `label`; dropdowns are `Select` (a themed Bits UI
-  listbox, never a native `<select>`), `Combobox` or `SuggestField` (free
-  text with suggestions, never a `<datalist>`); every `title`
+  listbox, never a native `<select>`), `Combobox`, `MultiSelect` (several
+  choices as switch rows with counts, e.g. the log viewer's Levels) or
+  `SuggestField` (free text with suggestions, never a `<datalist>`); every `title`
   attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
   so never build a tooltip by hand; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm

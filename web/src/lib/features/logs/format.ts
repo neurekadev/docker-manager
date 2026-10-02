@@ -1,6 +1,9 @@
 // Presentation helpers of the log viewer (#8): local timestamps like the
-// mockup ("2024-04-27 10:14:22"), search highlighting and the download text.
+// mockup ("2024-04-27 10:14:22"), the search (plain or regular expression,
+// matching lines only, highlighted), the level and stream filter and the
+// download text.
 import type { LogLine } from './feed.svelte';
+import { LOG_LEVELS, LOG_STREAMS, type LogLevel, type LogStream } from './level';
 
 const pad = (n: number, w = 2) => String(n).padStart(w, '0');
 
@@ -19,51 +22,137 @@ export interface Part {
 	match: boolean;
 }
 
-/** Splits `text` around case-insensitive occurrences of `q` (lower case). */
-export function highlight(text: string, q: string): Part[] {
-	if (!q) return [{ text, match: false }];
-	const lower = text.toLowerCase();
+/** How the search reads its text. */
+export interface SearchOptions {
+	/** Match upper and lower case exactly. */
+	caseSensitive?: boolean;
+	/** The text is a regular expression. */
+	regex?: boolean;
+}
+
+/** A compiled search: whether a line matches and where. */
+export interface Matcher {
+	test(text: string): boolean;
+	/** The [start, end) ranges of the matches, in order, none empty. */
+	ranges(text: string): [number, number][];
+}
+
+/**
+ * Compiles the search box's text: null when it is empty (every line
+ * matches), 'invalid' for a regular expression that does not compile.
+ * Plain text ignores the spaces around it.
+ */
+export function compileSearch(query: string, o: SearchOptions = {}): Matcher | 'invalid' | null {
+	if (o.regex) {
+		if (!query) return null;
+		let re: RegExp;
+		try {
+			re = new RegExp(query, o.caseSensitive ? 'g' : 'gi');
+		} catch {
+			return 'invalid';
+		}
+		const one = new RegExp(re.source, o.caseSensitive ? '' : 'i');
+		return {
+			test: (text) => one.test(text),
+			ranges(text) {
+				const out: [number, number][] = [];
+				for (const m of text.matchAll(re))
+					if (m[0].length) out.push([m.index, m.index + m[0].length]);
+				return out;
+			}
+		};
+	}
+	const q = o.caseSensitive ? query.trim() : query.trim().toLowerCase();
+	if (!q) return null;
+	const fold = (t: string) => (o.caseSensitive ? t : t.toLowerCase());
+	return {
+		test: (text) => fold(text).includes(q),
+		ranges(text) {
+			const t = fold(text);
+			const out: [number, number][] = [];
+			for (let i = t.indexOf(q); i >= 0; i = t.indexOf(q, i + q.length))
+				out.push([i, i + q.length]);
+			return out;
+		}
+	};
+}
+
+/** Splits `text` around the search's matches (one plain part without one). */
+export function highlight(text: string, m: Matcher | null): Part[] {
+	const ranges = m ? m.ranges(text) : [];
+	if (!ranges.length) return [{ text, match: false }];
 	const out: Part[] = [];
 	let i = 0;
-	for (;;) {
-		const j = lower.indexOf(q, i);
-		if (j < 0) break;
-		if (j > i) out.push({ text: text.slice(i, j), match: false });
-		out.push({ text: text.slice(j, j + q.length), match: true });
-		i = j + q.length;
+	for (const [a, b] of ranges) {
+		if (a > i) out.push({ text: text.slice(i, a), match: false });
+		out.push({ text: text.slice(a, b), match: true });
+		i = b;
 	}
 	if (i < text.length) out.push({ text: text.slice(i), match: false });
-	return out.length ? out : [{ text, match: false }];
+	return out;
 }
 
 /** What the viewer shows of the buffered lines. */
 export interface LineFilter {
 	/** Whether the line's source is shown (the service chips); absent: all. */
 	source?: (key: string) => boolean;
-	/** Only lines written to standard error. */
-	errorsOnly?: boolean;
-	/** Only lines containing `query` (lower case; empty: every line). */
-	query?: string;
+	/** The levels shown; absent: all. */
+	levels?: readonly LogLevel[];
+	/** The output streams shown; absent: both. */
+	streams?: readonly LogStream[];
+	/** The search; absent: every line. */
+	match?: Matcher | null;
 }
 
 /** The lines that pass the filter, in order (the input when nothing filters). */
 export function filterLines(lines: readonly LogLine[], f: LineFilter): readonly LogLine[] {
-	const q = f.query ?? '';
-	if (!f.source && !f.errorsOnly && !q) return lines;
+	const levels = f.levels && f.levels.length < LOG_LEVELS.length ? f.levels : undefined;
+	const streams = f.streams && f.streams.length < LOG_STREAMS.length ? f.streams : undefined;
+	const m = f.match;
+	if (!f.source && !levels && !streams && !m) return lines;
 	return lines.filter(
 		(l) =>
 			(!f.source || f.source(l.source)) &&
-			(!f.errorsOnly || l.stream === 'stderr') &&
-			(!q || l.text.toLowerCase().includes(q))
+			(!levels || levels.includes(l.level)) &&
+			(!streams || streams.includes(l.stream)) &&
+			(!m || m.test(l.text))
 	);
 }
 
-/** How many of the lines contain `q` (lower case). */
-export function countMatches(lines: readonly LogLine[], q: string): number {
-	if (!q) return 0;
-	let n = 0;
-	for (const l of lines) if (l.text.toLowerCase().includes(q)) n++;
-	return n;
+/** How many of the lines have each level and come from each stream. */
+export function tally(lines: readonly LogLine[]): Record<LogLevel | LogStream, number> {
+	const out = {
+		error: 0,
+		warning: 0,
+		info: 0,
+		debug: 0,
+		verbose: 0,
+		other: 0,
+		stdout: 0,
+		stderr: 0
+	};
+	for (const l of lines) {
+		out[l.level]++;
+		out[l.stream]++;
+	}
+	return out;
+}
+
+/**
+ * The level filter's button text: "All levels", the chosen levels ("Error,
+ * Warning"; "4 levels" from three on), then a single chosen stream.
+ */
+export function levelSummary(levels: readonly LogLevel[], streams: readonly LogStream[]): string {
+	if (!levels.length || !streams.length) return 'Nothing selected';
+	const names = LOG_LEVELS.filter((l) => levels.includes(l.value)).map((l) => l.label);
+	const head =
+		names.length === LOG_LEVELS.length
+			? 'All levels'
+			: names.length > 2
+				? `${names.length} levels`
+				: names.join(', ');
+	if (streams.length === LOG_STREAMS.length) return head;
+	return `${head} · ${LOG_STREAMS.find((s) => s.value === streams[0])!.short}`;
 }
 
 /**

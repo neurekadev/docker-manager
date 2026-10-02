@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import Checkbox from './Checkbox.svelte';
+import MultiSelect from './MultiSelect.svelte';
 import PasswordField from './PasswordField.svelte';
 import RadioGroup from './RadioGroup.svelte';
 import Select from './Select.svelte';
@@ -107,6 +108,56 @@ describe('fields', () => {
 		expect(screen.getByRole('combobox', { name: 'Environment' })).toHaveTextContent(
 			'Choose an environment'
 		);
+	});
+});
+
+describe('multi select', () => {
+	it('toggles options as switches, keeps one with Only and selects all again', async () => {
+		const user = setup();
+		const change = vi.fn();
+		render(MultiSelect, {
+			props: {
+				label: 'Filter',
+				allLabel: 'Everything',
+				onchange: change,
+				value: ['error', 'warning', 'stdout', 'stderr'],
+				groups: [
+					{
+						label: 'Levels',
+						options: [
+							{ value: 'error', label: 'Error', count: 3, hue: 'var(--danger)' },
+							{ value: 'warning', label: 'Warning', count: 1 }
+						]
+					},
+					{
+						label: 'Output',
+						options: [
+							{ value: 'stdout', label: 'Standard output' },
+							{ value: 'stderr', label: 'Standard error' }
+						]
+					}
+				]
+			}
+		});
+		const trigger = screen.getByRole('button', { name: 'Filter' });
+		expect(trigger).toHaveTextContent('Everything');
+		await user.click(trigger);
+		const warning = await screen.findByRole('switch', { name: /Warning/ });
+		expect(warning).toHaveAttribute('aria-checked', 'true');
+		expect(screen.getByRole('switch', { name: /Error/ })).toHaveTextContent('3');
+		await user.click(warning);
+		expect(change).toHaveBeenLastCalledWith(['error', 'stdout', 'stderr']);
+		expect(warning).toHaveAttribute('aria-checked', 'false');
+		expect(trigger).toHaveTextContent('3 of 4');
+		// Only keeps one option of its group; the other group stays as it is.
+		await user.click(screen.getByRole('button', { name: 'Only Standard error' }));
+		expect(change).toHaveBeenLastCalledWith(['error', 'stderr']);
+		await user.click(screen.getByRole('button', { name: 'All levels' }));
+		expect(change).toHaveBeenLastCalledWith(['error', 'warning', 'stderr']);
+		await user.click(screen.getByRole('button', { name: 'Select all' }));
+		expect(change).toHaveBeenLastCalledWith(['error', 'warning', 'stdout', 'stderr']);
+		expect(trigger).toHaveTextContent('Everything');
+		expect(screen.queryByRole('button', { name: 'Select all' })).toBeNull();
 	});
 });
 

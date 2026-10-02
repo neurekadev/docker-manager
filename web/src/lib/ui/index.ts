@@ -54,6 +54,8 @@ export { default as PasswordField } from './PasswordField.svelte';
 export { default as TextArea } from './TextArea.svelte';
 export { default as Select } from './Select.svelte';
 export type { SelectOption } from './Select.svelte';
+export { default as MultiSelect } from './MultiSelect.svelte';
+export type { MultiSelectOption, MultiSelectGroup } from './MultiSelect.svelte';
 export { default as Combobox } from './Combobox.svelte';
 export { default as SuggestField } from './SuggestField.svelte';
 export { default as Checkbox } from './Checkbox.svelte';

@@ -6,9 +6,14 @@ description: Read what your containers write, live.
 Open the **Logs** tab of a stack or a container. New lines appear as they
 are written.
 
-- **Search logs** highlights matching lines. **Matching lines only** hides
-  the rest.
-- **Errors only** shows only what the containers wrote as errors.
+- **Search logs** shows only the lines that match as you type, with the
+  matches highlighted. **Match case** and **Use regular expression** change
+  how the search reads your text. Press Escape to clear it.
+- **Levels** picks which lines to show: **Error**, **Warning**, **Info**,
+  **Debug**, **Verbose** and **Other** (lines without a level), and under
+  **Output** the containers' **Standard output** and **Standard error**.
+  Each shows how many lines it has. **Only** keeps just that one,
+  **Select all** shows everything again.
 - **Wrap lines**, **Timestamps** and **Follow** change how lines are shown.
   Turn off **Follow** to stop scrolling while you read.
 - **Download shown lines** saves what you see to a file.
@@ -17,5 +22,11 @@ are written.
 On a stack, pick the services to show, or **All services**. **Logs of** in a
 service's row menu opens the logs of just that service.
 
-The view starts with the last 200 lines of each container and keeps the
-newest 5,000.
+## Good to know
+
+- The level comes from the line's text, in the usual formats such as
+  `level=warn`, `"level":"error"`, `[info]` or `ERROR`. Indented lines,
+  such as the lines of a stack trace, keep the level of the line above.
+- Error lines have a red edge and warnings an amber one.
+- The view starts with the last 200 lines of each container and keeps the
+  newest 5,000.
