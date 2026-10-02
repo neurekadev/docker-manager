@@ -4,8 +4,7 @@
 // Colours are the design tokens (#22): the shell surface as theme colour
 // (browser chrome matches the top bar) and the canvas as splash background.
 // The icons are the Docker Manager logo (the whale carrying containers),
-// generated from scripts/logo.png and scripts/icon-maskable.png
-// (docs/internal/web.md, "Icons").
+// generated from scripts/logo.png (docs/internal/web.md, "Icons").
 import type { ManifestOptions } from 'vite-plugin-pwa';
 
 /** --surface-shell and --surface-canvas (src/lib/design/tokens.css). */
