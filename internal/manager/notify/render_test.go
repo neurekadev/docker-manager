@@ -333,6 +333,34 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	}
 }
 
+func TestEmailSubjectNamesTheEnvironmentAndTheSender(t *testing.T) {
+	svc := initialized(t, "smtp://mail.example.com:587/?from=dm@example.com&to=ops@example.com")
+	msg := sample()
+	msg.Environment = "Hyperion"
+	r := render("smtp", svc, msg, url.Values{})
+	if r.params["title"] != "[Hyperion] Update of Paperless succeeded" || r.params["fromname"] != EmailFromName {
+		t.Fatalf("%+v", r.params)
+	}
+	// Without an environment (a test message) the subject is the title.
+	msg.Environment = ""
+	if r := render("smtp", svc, msg, url.Values{}); r.params["title"] != msg.Title || r.params["fromname"] != "Docker Manager" {
+		t.Fatalf("%+v", r.params)
+	}
+	// A sender name or subject in the address wins.
+	msg.Environment = "Hyperion"
+	r = render("smtp", svc, msg, url.Values{"FromName": {"Ops"}, "subject": {"Alert"}})
+	if _, ok := r.params["fromname"]; ok {
+		t.Fatalf("%+v", r.params)
+	}
+	if _, ok := r.params["title"]; ok {
+		t.Fatalf("%+v", r.params)
+	}
+	// Other services keep the plain title.
+	if r := render("ntfy", initialized(t, "ntfy://ntfy.sh/topic"), msg, url.Values{}); r.params["title"] != msg.Title {
+		t.Fatalf("%+v", r.params)
+	}
+}
+
 // received is one request a fake push server got.
 type received struct {
 	header http.Header

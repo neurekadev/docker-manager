@@ -294,7 +294,10 @@ line's, not a field. Snapshots keep the links as paths; `buildMessage`
 prefixes the public URL (no links without one). The **tone** follows the
 outcome: critical and failure red, warning amber, resolved and success
 green, available blue. The footer is the instance's name ("Docker
-Manager" without one), the time the message's. The link is the public
+Manager" without one), the time the message's. `Environment` is the
+name of the one environment the message is about (the delivery's
+Environment field; a digest's only when every entry names the same one):
+emails prefix their subject with it. The link is the public
 URL plus the page it is about (the
 environment's System tab for disks and RAID, the environment for offline
 and host usage, the job for failed jobs and notifications, the update

@@ -718,6 +718,31 @@ func environmentSuffix(d domain.AlertDelivery) string {
 	return ""
 }
 
+// environmentOf is the name of a delivery's environment (its
+// Environment field), "" without one.
+func environmentOf(d domain.AlertDelivery) string {
+	for _, f := range d.Fields {
+		if f.Name == "Environment" {
+			return f.Value
+		}
+	}
+	return ""
+}
+
+// commonEnvironment is the environment every delivery names, "" when
+// one names none or they differ.
+func commonEnvironment(items []domain.AlertDelivery) string {
+	env := ""
+	for i, it := range items {
+		e := environmentOf(it)
+		if e == "" || (i > 0 && e != env) {
+			return ""
+		}
+		env = e
+	}
+	return env
+}
+
 // withLinks returns fields with their pages as URLs (abs), or without
 // links when there is no public URL.
 func withLinks(fields []domain.NotificationField, abs func(string) string) []domain.NotificationField {
@@ -762,8 +787,9 @@ func buildMessage(instance, publicURL string, items []domain.AlertDelivery, now 
 		if it.Event == domain.AlertEventResolved {
 			title = "Resolved: " + title
 		}
-		return domain.NotificationMessage{Label: Label(it.Kind, it.Outcome), Title: title, Body: it.Body, URL: abs(it.Link),
-			Tone: it.Tone(), Fields: withLinks(it.Fields, abs), Footer: foot, Time: it.CreatedAt}
+		return domain.NotificationMessage{Label: Label(it.Kind, it.Outcome), Title: title, Body: it.Body,
+			Environment: environmentOf(it), URL: abs(it.Link), Tone: it.Tone(), Fields: withLinks(it.Fields, abs),
+			Footer: foot, Time: it.CreatedAt}
 	}
 	fired, resolved, finished := 0, 0, 0
 	tone := domain.ToneSuccess
@@ -801,8 +827,8 @@ func buildMessage(instance, publicURL string, items []domain.AlertDelivery, now 
 	}
 	var l fieldList
 	l.addItems(digestField, entries)
-	msg := domain.NotificationMessage{Label: digestLabel, Title: strings.Join(what, ", "), Tone: tone, Fields: l.ordered(),
-		Footer: foot, Time: now}
+	msg := domain.NotificationMessage{Label: digestLabel, Title: strings.Join(what, ", "), Environment: commonEnvironment(items),
+		Tone: tone, Fields: l.ordered(), Footer: foot, Time: now}
 	if base != "" {
 		msg.URL = base + "/notifications"
 		if finished == 0 {

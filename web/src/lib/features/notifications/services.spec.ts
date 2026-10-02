@@ -98,6 +98,13 @@ describe('notification services (#142): friendly fields to Shoutrrr URLs', () =>
 		expect(build('email', { ...base, username: '', password: '' })).toMatch(
 			/^smtp:\/\/smtp\.example\.com:587\/\?/
 		);
+		// The address names only a sender name other than the default.
+		expect(build('email', { ...base, fromName: ' Hyperion Alerts ' })).toContain(
+			'?fromaddress=docker-manager@example.com&fromname=Hyperion%20Alerts&toaddresses='
+		);
+		for (const fromName of ['Docker Manager', ''])
+			expect(build('email', { ...base, fromName })).not.toContain('fromname');
+		expect(initialValues('email').fromName).toBe('Docker Manager');
 	});
 
 	it('builds the push, chat and webhook services', () => {
@@ -188,6 +195,10 @@ describe('notification services (#142): friendly fields to Shoutrrr URLs', () =>
 				'email',
 				'smtp://mail.example.com:25/?fromaddress=a@x.com&toaddresses=b@x.com&encryption=None&usestarttls=no'
 			],
+			[
+				'email',
+				'smtp://mail.example.com:587/?fromaddress=a@x.com&fromname=Ops%20Team&toaddresses=b@x.com&encryption=Auto'
+			],
 			['ntfy', 'ntfy://u:p@ntfy.example.com/topic?scheme=http&priority=5'],
 			['gotify', 'gotify://push.example.com/sub/AzyoeNS.D4iJLVa?disabletls=yes'],
 			['pushover', 'pushover://shoutrrr:tok@user/?devices=a,b'],
@@ -209,8 +220,10 @@ describe('notification services (#142): friendly fields to Shoutrrr URLs', () =>
 			encryption: 'implicit',
 			username: 'u@x.com',
 			password: 'p:w',
-			to: 'b@x.com, c+d@x.com'
+			to: 'b@x.com, c+d@x.com',
+			fromName: 'Docker Manager'
 		});
+		expect(parseUrl(urls[6][1]).values.fromName).toBe('Ops Team');
 	});
 
 	it('edits unknown services and unreadable shapes as the raw URL', () => {
