@@ -77,6 +77,7 @@ func (s *Service) subjectOf(ctx context.Context, p authz.Principal) (policy.Subj
 			if err != nil {
 				return policy.Subject{}, err
 			}
+			subj.Ended = !ok
 			if ok {
 				for _, r := range rules {
 					if r.Effect == domain.PermissionAllow {

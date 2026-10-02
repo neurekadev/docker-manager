@@ -220,6 +220,23 @@ type Decision struct {
 	Allowed bool
 	// Reason is a short, non-sensitive explanation for logs and audit.
 	Reason string
+	// Ended: denied because the caller's credential or account no longer
+	// works (an API token revoked, expired or deleted, a disabled or
+	// deleted account), not because of its rules. The identity layer ends
+	// such a caller's requests as ErrSessionEnded right after; a stream
+	// whose own re-check sees it first closes the same way
+	// (DeniedCloseReason).
+	Ended bool
+}
+
+// DeniedCloseReason is the close reason of a stream whose re-check was
+// denied: "session_expired" when the credential ended, else
+// "permissions_changed".
+func DeniedCloseReason(d Decision) string {
+	if d.Ended {
+		return "session_expired"
+	}
+	return "permissions_changed"
 }
 
 // Allow and Deny build decisions.

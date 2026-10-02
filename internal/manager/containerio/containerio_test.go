@@ -538,7 +538,7 @@ func TestExecFailedUpgradeKeepsTheTicket(t *testing.T) {
 	// A plain request: the upgrade fails before any connection exists.
 	w := httptest.NewRecorder()
 	a := api.ExecAttach{Principal: authz.Principal{Kind: authz.KindUser, UserID: "alice"}, EnvironmentID: env1,
-		ContainerID: "web", SessionID: s.ID, Ticket: s.Ticket, Allowed: func(context.Context) bool { return true }}
+		ContainerID: "web", SessionID: s.ID, Ticket: s.Ticket, Allowed: func(context.Context) authz.Decision { return authz.Allow("test") }}
 	f.svc.Attach(f.ctx, w, httptest.NewRequest(http.MethodGet, s.StreamURL, nil), a)
 	if w.Code != http.StatusUpgradeRequired {
 		t.Fatalf("status %d, want 426", w.Code)
@@ -771,5 +771,34 @@ func TestExecLimitsTimeoutsAndCleanup(t *testing.T) {
 	}
 	if r := f.do("alice", "", http.MethodPost, f.base+"/exec-sessions", map[string]any{}); r.status != 429 {
 		t.Fatalf("5th session: %d %s", r.status, r.body)
+	}
+}
+
+// TestExecRecheckOfADisabledAccountIsSessionExpired: the re-check that
+// finds the account disabled (or the token ended) closes with 4401, not
+// 4403, even before the identity layer ends the request.
+func TestExecRecheckOfADisabledAccountIsSessionExpired(t *testing.T) {
+	f := newFixture(t)
+	running := make(chan struct{}, 1)
+	f.eng.SetProcess(func(stdin io.Reader, _, _ io.Writer) int {
+		running <- struct{}{}
+		_, _ = io.Copy(io.Discard, stdin)
+		return 0
+	})
+	s := f.create("alice", "", map[string]any{})
+	c, _, err := f.attach("alice", "", s, s.Ticket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-running
+	// Waiters: attach-window timer, idle timer, max-duration timer,
+	// recheck ticker, keep-alive ticker.
+	if err := f.clk.BlockUntilWaiters(f.ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	f.pol.Disable("alice")
+	f.clk.Advance(15 * time.Second)
+	if _, _, code := readUntilClose(t, f.ctx, c); code != 4401 {
+		t.Fatalf("close %d, want 4401", code)
 	}
 }

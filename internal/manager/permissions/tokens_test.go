@@ -80,9 +80,21 @@ func TestTokenScopeIntersectsCurrentPermissions(t *testing.T) {
 			t.Errorf("%s %s on %s/%s: %v, want %v", c.p.Key(), c.capability, c.r.EnvironmentID, c.r.ID, got, c.want)
 		}
 	}
+	// A denial by rules is not an ended credential; a revoked or unknown
+	// token is (streams close as session_expired, not permissions_changed).
+	if d := f.svc.Can(f.ctx, tok("t-web", rita), "container.restart", db); d.Allowed || d.Ended {
+		t.Fatalf("outside the scope: %+v", d)
+	}
 	src.revoke("t-web")
-	if can(tok("t-web", rita), "container.restart", web) {
-		t.Fatal("revoked token still allowed")
+	if d := f.svc.Can(f.ctx, tok("t-web", rita), "container.restart", web); d.Allowed || !d.Ended ||
+		authz.DeniedCloseReason(d) != "session_expired" {
+		t.Fatalf("revoked token: %+v", d)
+	}
+	if d := f.svc.Can(f.ctx, tok("t-unknown", rita), "container.restart", web); !d.Ended {
+		t.Fatalf("unknown token: %+v", d)
+	}
+	if rc, ok := authz.For(f.ctx, f.svc, tok("t-web", rita)).(authz.Reacher); !ok || rc.Reaches(web) {
+		t.Fatal("a revoked token reaches nothing")
 	}
 	// Narrowing the group narrows the token at once.
 	f.setGroup(ops.ID, "allow container.logs.read @env:e1")
