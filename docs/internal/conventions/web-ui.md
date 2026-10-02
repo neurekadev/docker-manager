@@ -12,7 +12,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   choices as switch rows with counts, e.g. the log viewer's Services and Levels) or
   `SuggestField` (free text with suggestions, never a `<datalist>`); every `title`
   attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
-  so never build a tooltip by hand; confirmations use `ConfirmDialog` /
+  so never build a tooltip by hand; an (i) that explains something is
+  `InfoTip` (or `Disclosure`'s `hint` in a summary): an info tip that a
+  tap opens too, since phones have no hover; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
   for high impact), only for damaging actions (stop, take down, delete,
   remove; start, restart and deploy run at once); Start, Restart and Stop

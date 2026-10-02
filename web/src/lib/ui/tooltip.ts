@@ -45,3 +45,12 @@ export function tooltipAnchor(target: EventTarget | null): HTMLElement | null {
 	const text = el.getAttribute('title') ?? el.dataset.dyTitle ?? '';
 	return text.trim() ? el : null;
 }
+
+/**
+ * The info tip (an (i) marked `data-dy-info`) a pointer or tap target
+ * belongs to: its title also opens on a tap, since touch has no hover.
+ */
+export function infoAnchor(target: EventTarget | null): HTMLElement | null {
+	const el = tooltipAnchor(target);
+	return el?.hasAttribute('data-dy-info') ? el : null;
+}

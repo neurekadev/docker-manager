@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import DialogHarness from '../../test/DialogHarness.svelte';
 import StackedDialogsHarness from '../../test/StackedDialogsHarness.svelte';
 import ConfirmDialog from './ConfirmDialog.svelte';
 import DestructiveConfirm from './DestructiveConfirm.svelte';
 import TooltipLayer from './TooltipLayer.svelte';
-import { tooltipAnchor } from './tooltip';
+import { infoAnchor, tooltipAnchor } from './tooltip';
 import { ApiRequestError } from '$lib/api/client';
 
 describe('Dialog', () => {
@@ -183,5 +183,60 @@ describe('TooltipLayer', () => {
 		expect(button).toHaveAttribute('title', 'Check for updates');
 		expect(button).not.toHaveAttribute('aria-describedby');
 		button.remove();
+	});
+
+	it('finds info tips only where data-dy-info marks the titled element', () => {
+		document.body.innerHTML =
+			'<span id="i" title="Why" data-dy-info><b id="ib">i</b></span><span id="t" title="Plain"></span>';
+		expect(infoAnchor(document.getElementById('ib'))?.id).toBe('i');
+		expect(infoAnchor(document.getElementById('t'))).toBeNull();
+		expect(infoAnchor(null)).toBeNull();
+		document.body.innerHTML = '';
+	});
+
+	it('toggles an info tip on tap, without activating its summary, and hides it on a tap elsewhere', async () => {
+		render(TooltipLayer);
+		const details = document.createElement('details');
+		details.innerHTML =
+			'<summary>Labels<span id="tip" role="img" aria-label="From Compose" title="From Compose" data-dy-info>i</span></summary>';
+		const other = document.createElement('p');
+		document.body.append(details, other);
+		const tip = document.getElementById('tip')!;
+		const tap = (el: Element) => {
+			fireEvent.pointerDown(el, { pointerType: 'touch' });
+			fireEvent.pointerOut(el, { pointerType: 'touch' });
+			fireEvent.pointerUp(el, { pointerType: 'touch' });
+			return fireEvent.click(el);
+		};
+
+		expect(tap(tip)).toBe(false);
+		expect(details.open).toBe(false);
+		expect(await screen.findByRole('tooltip')).toHaveTextContent('From Compose');
+		// The accessible name already says it: no second description.
+		expect(tip).not.toHaveAttribute('aria-describedby');
+
+		tap(tip);
+		await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+		expect(tip).toHaveAttribute('title', 'From Compose');
+
+		tap(tip);
+		await screen.findByRole('tooltip');
+		tap(other);
+		await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+		details.remove();
+		other.remove();
+	});
+
+	it('shows nothing when a plain title is tapped', async () => {
+		render(TooltipLayer);
+		const span = document.createElement('span');
+		span.title = 'Up to date';
+		document.body.append(span);
+		fireEvent.pointerDown(span, { pointerType: 'touch' });
+		fireEvent.pointerUp(span, { pointerType: 'touch' });
+		expect(fireEvent.click(span)).toBe(true);
+		await Promise.resolve();
+		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+		span.remove();
 	});
 });
