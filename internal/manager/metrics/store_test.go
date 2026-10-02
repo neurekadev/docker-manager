@@ -277,7 +277,7 @@ func TestQueryValidation(t *testing.T) {
 		t.Fatalf("3 days at 1 min is 4320 points: %+v %v", r, err)
 	}
 	r, err = s.Query(ctx, domain.MetricQuery{EnvironmentID: env, Kind: domain.MetricHost, From: now.Add(-3 * 24 * time.Hour), To: now})
-	if err != nil || r.Resolution != LevelQuarter || len(r.Timestamps) > MaxPoints || len(r.Series) != 12 {
+	if err != nil || r.Resolution != LevelQuarter || len(r.Timestamps) > MaxPoints || len(r.Series) != len(kinds[domain.MetricHost].metrics) {
 		t.Fatalf("%+v %v", r.Resolution, err)
 	}
 }
