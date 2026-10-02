@@ -472,7 +472,10 @@ func (m *Monitor) readOne(ctx context.Context, dev smartctl.ScanDevice, prev pro
 			// A problem the kept measurements show stays until a read
 			// clears it: a failing disk that spins down never looks merely
 			// asleep. Derived from the values, since prev.State may be the
-			// error of a failed read since.
+			// error of a failed read since. The temperature is not kept: a
+			// disk in standby cools, and an old reading over its limit must
+			// not keep it "too hot" (#212).
+			prev.TemperatureC = nil
 			prev.State, prev.ErrorCode = protocol.DeriveDiskState(prev), ""
 			if prev.State == protocol.DiskOK {
 				prev.State = protocol.DiskSleeping

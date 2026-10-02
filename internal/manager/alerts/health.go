@@ -476,19 +476,20 @@ func diskObservation(e domain.Environment, d protocol.SMARTDevice, key string) O
 		}
 	}
 	if protocol.OverTemperatureLimit(d) {
-		// At or above the disk's own limit (#212): the same problem as the
-		// NVMe temperature warning, one token.
+		// At or above the disk's own limit (#212).
 		facts["temperatureC"] = strconv.Itoa(*d.TemperatureC)
 		limit := d.TemperatureLimitC
 		if limit == nil || *d.TemperatureC < *limit {
 			limit = d.TemperatureCriticalC
 		}
 		facts["temperatureLimitC"] = strconv.Itoa(*limit)
-		if !hot {
-			tokens = append(tokens, "over_temperature")
-		}
+		tokens = append(tokens, "over_temperature")
 	}
-	count("overTemperatureMinutes", "ran_hot", d.OverTemperatureMinutes)
+	// Time above the limit is the same problem as being above it now, one
+	// token: a lifetime count keeps it once the disk ran hot, so a reading
+	// that crosses its limit back and forth never looks like a new problem
+	// (no re-send, no cleared dismissal). Fingerprint drops the repeat.
+	count("overTemperatureMinutes", "over_temperature", d.OverTemperatureMinutes)
 	count("criticalTemperatureMinutes", "ran_critically_hot", d.CriticalTemperatureMinutes)
 	var attrs []string
 	for _, a := range d.FailingAttributes {

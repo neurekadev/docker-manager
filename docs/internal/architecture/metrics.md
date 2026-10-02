@@ -410,7 +410,8 @@ them with "Check disks now" and "Check RAID now".
   at most 4 at once, 30 s each) at start, every
   `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
   disks now". A disk in standby is not woken (exit status 3 plus the
-  standby message): it keeps its previous values with state `sleeping`,
+  standby message): it keeps its previous values (not its temperature,
+  which changes while it sleeps, #212) with state `sleeping`,
   except that `failing` and `warning`, derived from the kept values, stay
   (standby clears no problem, also after a failed read in between). A
   disk not read for `DOCKER_AGENT_SMART_WAKE_AFTER` (default 24 h, 1 h–30

@@ -573,8 +573,9 @@ func TestStaleHealthWarns(t *testing.T) {
 // TestDiskOverItsTemperatureLimit (#212): a disk at or above its own
 // temperature limit, or with time spent above it, raises a warning whose
 // facts name the reading, the limit and the minutes; a changing reading
-// keeps the fingerprint, and the NVMe temperature warning is the same
-// problem as the limit.
+// keeps the fingerprint, the NVMe temperature warning is the same problem
+// as the limit, and a disk that ran hot crossing its limit back and forth
+// never shows a new problem.
 func TestDiskOverItsTemperatureLimit(t *testing.T) {
 	hot := disk(protocol.DiskWarning)
 	hot.TemperatureC, hot.TemperatureLimitC, hot.OverTemperatureMinutes = intp(72), intp(70), i64(34)
@@ -601,6 +602,12 @@ func TestDiskOverItsTemperatureLimit(t *testing.T) {
 	both.TemperatureC, both.TemperatureLimitC = intp(83), intp(82)
 	if diskObservation(domain.Environment{ID: "env-1"}, nvme, "k").Fingerprint != diskObservation(domain.Environment{ID: "env-1"}, both, "k").Fingerprint {
 		t.Error("the limit repeats the NVMe temperature warning")
+	}
+	// Ran hot, now cooler than its limit, then over it again: no new token.
+	cooled := disk(protocol.DiskWarning)
+	cooled.TemperatureC, cooled.TemperatureLimitC, cooled.OverTemperatureMinutes = intp(60), intp(70), i64(34)
+	if domain.NewTokens(diskObservation(domain.Environment{ID: "env-1"}, cooled, "k").Fingerprint, o.Fingerprint) {
+		t.Error("crossing the limit again must not look like a new problem")
 	}
 	// Below the limit and never above it: no temperature facts.
 	cool := disk(protocol.DiskOK)

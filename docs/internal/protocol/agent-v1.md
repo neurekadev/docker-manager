@@ -1190,7 +1190,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   capabilities list it; Go types in `internal/protocol/health.go`). The
   disk health of the host: SMART data read with the agent image's
   smartctl (cached, refreshed every `DOCKER_AGENT_SMART_INTERVAL`; a disk
-  in standby is not woken and keeps its previous values with state
+  in standby is not woken and keeps its previous values (not its
+  temperature, #212) with state
   `sleeping`, or `failing` / `warning` when the last read found that,
   until it went unread for `DOCKER_AGENT_SMART_WAKE_AFTER`; a disk a later
   scan no longer finds stays listed as `error` `missing` until the agent
