@@ -11,7 +11,7 @@ import StackHeader from './StackHeader.svelte';
 import { JobTray } from './tray.svelte';
 
 // A stack's links: shown in its header (full view only) and edited in
-// "Edit details" with the server's rules checked inline.
+// "Edit Details" with the server's rules checked inline.
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
@@ -100,7 +100,7 @@ describe('stack links in the header', () => {
 	});
 });
 
-describe('Edit details: links', () => {
+describe('Edit Details: links', () => {
 	const dialog = () =>
 		show(EditDetailsDialog as unknown as Component<Record<string, unknown>>, {
 			stack: stack(),
@@ -110,15 +110,15 @@ describe('Edit details: links', () => {
 	it('saves the edited links in order with the details', async () => {
 		const user = setup();
 		dialog();
-		const d = await screen.findByRole('dialog', { name: 'Edit details of Silo' });
-		expect(within(d).getByLabelText('URL of link 1')).toHaveValue(
+		const d = await screen.findByRole('dialog', { name: 'Edit Details of Silo' });
+		expect(within(d).getByLabelText('URL of Link 1')).toHaveValue(
 			'https://docs.example.com/silo'
 		);
-		await user.click(within(d).getByRole('button', { name: 'Remove link 2' }));
-		await user.click(within(d).getByRole('button', { name: 'Add link' }));
-		await user.type(within(d).getByLabelText('Label of link 2'), 'Website');
-		await user.type(within(d).getByLabelText('URL of link 2'), 'https://silo.example.com');
-		await user.click(within(d).getByRole('button', { name: 'Save details' }));
+		await user.click(within(d).getByRole('button', { name: 'Remove Link 2' }));
+		await user.click(within(d).getByRole('button', { name: 'Add Link' }));
+		await user.type(within(d).getByLabelText('Label of Link 2'), 'Website');
+		await user.type(within(d).getByLabelText('URL of Link 2'), 'https://silo.example.com');
+		await user.click(within(d).getByRole('button', { name: 'Save Details' }));
 		await waitFor(() => expect(patches).toHaveLength(1));
 		expect((patches[0] as { links: unknown }).links).toEqual([
 			{ label: 'Documentation', url: 'https://docs.example.com/silo' },
@@ -145,12 +145,12 @@ describe('Edit details: links', () => {
 			}),
 			onclose: () => {}
 		});
-		const d = await screen.findByRole('dialog', { name: 'Edit details of Silo' });
+		const d = await screen.findByRole('dialog', { name: 'Edit Details of Silo' });
 		expect(within(d).queryByText(/icon/i)).not.toBeInTheDocument();
 		const svc = within(d).getByLabelText('Description of web');
 		await user.clear(svc);
 		await user.type(svc, 'Web frontend');
-		await user.click(within(d).getByRole('button', { name: 'Save details' }));
+		await user.click(within(d).getByRole('button', { name: 'Save Details' }));
 		await waitFor(() => expect(patches).toHaveLength(1));
 		const body = patches[0] as Record<string, unknown>;
 		expect(body).not.toHaveProperty('icon');
@@ -160,11 +160,11 @@ describe('Edit details: links', () => {
 	it('does not save invalid links and says why', async () => {
 		const user = setup();
 		dialog();
-		const d = await screen.findByRole('dialog', { name: 'Edit details of Silo' });
-		await user.click(within(d).getByRole('button', { name: 'Add link' }));
-		await user.type(within(d).getByLabelText('URL of link 3'), 'file:///etc/passwd');
-		await user.click(within(d).getByRole('button', { name: 'Save details' }));
-		expect(within(d).getByLabelText('URL of link 3')).toHaveAccessibleDescription(
+		const d = await screen.findByRole('dialog', { name: 'Edit Details of Silo' });
+		await user.click(within(d).getByRole('button', { name: 'Add Link' }));
+		await user.type(within(d).getByLabelText('URL of Link 3'), 'file:///etc/passwd');
+		await user.click(within(d).getByRole('button', { name: 'Save Details' }));
+		expect(within(d).getByLabelText('URL of Link 3')).toHaveAccessibleDescription(
 			'Use a web address that starts with http:// or https://.'
 		);
 		expect(patches).toHaveLength(0);
@@ -181,10 +181,10 @@ describe('Edit details: links', () => {
 				retryable: false
 			});
 		dialog();
-		const d = await screen.findByRole('dialog', { name: 'Edit details of Silo' });
-		await user.click(within(d).getByRole('button', { name: 'Save details' }));
+		const d = await screen.findByRole('dialog', { name: 'Edit Details of Silo' });
+		await user.click(within(d).getByRole('button', { name: 'Save Details' }));
 		await waitFor(() =>
-			expect(within(d).getByLabelText('URL of link 2')).toHaveAccessibleDescription(
+			expect(within(d).getByLabelText('URL of Link 2')).toHaveAccessibleDescription(
 				'Is listed twice.'
 			)
 		);

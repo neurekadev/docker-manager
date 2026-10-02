@@ -50,7 +50,7 @@
 	const STATES = [
 		{ value: 'exited', label: 'Exited' },
 		{ value: 'dead', label: 'Dead' },
-		{ value: 'created', label: 'Created, never started' }
+		{ value: 'created', label: 'Created, Never Started' }
 	];
 	const states = $derived(
 		rule.containerStates?.length ? rule.containerStates : ['exited', 'dead']
@@ -67,11 +67,11 @@
 			onchange={(v) => set({ enabled: v })}
 		/>
 		<div class="badges">
-			{#if meta?.deletesData || volume}<Badge tone="danger">Deletes data</Badge>{/if}
+			{#if meta?.deletesData || volume}<Badge tone="danger">Deletes Data</Badge>{/if}
 			{#if rule.enabled}<Badge tone="warn" dot>{ageText(rule.minAgeHours)}</Badge>{/if}
 		</div>
 		<button type="button" class="toggle" aria-expanded={open} onclick={() => (open = !open)}>
-			{open ? 'Hide options' : 'Options'}
+			{open ? 'Hide Options' : 'Options'}
 		</button>
 	</div>
 
@@ -99,7 +99,7 @@
 		<div class="options">
 			<Fields columns={2}>
 				<TextField
-					label="Only remove objects older than"
+					label="Only Remove Objects Older Than"
 					type="number"
 					min="0"
 					value={String(age.value)}
@@ -123,7 +123,7 @@
 
 			{#if rule.category === 'stopped_containers'}
 				<fieldset class="states">
-					<legend>Container states</legend>
+					<legend>Container States</legend>
 					<ChoiceGrid min="160px">
 						{#each STATES as s (s.value)}
 							<Checkbox
@@ -145,14 +145,14 @@
 			{#if rule.category === 'build_cache'}
 				<Fields columns={2}>
 					<Switch
-						label="All unused records"
+						label="All Unused Records"
 						description="Off: only dangling records (not shared, not internal)."
 						checked={!!rule.buildCacheAll}
 						{disabled}
 						onchange={(v) => set({ buildCacheAll: v })}
 					/>
 					<TextField
-						label="Keep the most recent cache up to (GB)"
+						label="Keep the Most Recent Cache Up to (GB)"
 						type="number"
 						min="0"
 						step="0.5"
@@ -174,7 +174,7 @@
 			{#if meta?.labels !== false && rule.category !== 'build_cache'}
 				<Fields columns={2}>
 					<TextArea
-						label="Only objects with these labels"
+						label="Only Objects with These Labels"
 						description="Optional. One per line, key or key=value; all must match."
 						value={listToLines(rule.includeLabels)}
 						mono
@@ -183,7 +183,7 @@
 						onchange={(e) => set({ includeLabels: linesToList(e.currentTarget.value) })}
 					/>
 					<TextArea
-						label="Never objects with these labels"
+						label="Never Objects with These Labels"
 						description="Optional. One per line; any match keeps the object."
 						value={listToLines(rule.excludeLabels)}
 						mono
@@ -194,7 +194,7 @@
 				</Fields>
 			{/if}
 			<TextArea
-				label="Never remove"
+				label="Never Remove"
 				description="Optional. Names or IDs (at least 12 characters), one per line."
 				value={listToLines(rule.exclude)}
 				mono
@@ -206,7 +206,7 @@
 				<Notice
 					tone="info"
 					icon={TriangleAlert}
-					title="What the Engine can't do here"
+					title="What the Engine Can't Do Here"
 					live="none"
 				>
 					<ul class="limits" role="list">

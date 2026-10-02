@@ -94,7 +94,7 @@
 		},
 		{
 			id: 'used',
-			header: 'Redeemed by',
+			header: 'Redeemed By',
 			cell: usedCell,
 			width: '190px',
 			maxWidth: '190px',
@@ -115,7 +115,7 @@
 {#snippet createdCell(i: Invitation)}
 	<NameCell
 		icon="invitation"
-		name={i.email ?? 'Anyone with the link'}
+		name={i.email ?? 'Anyone with the Link'}
 		sub="Created {formatDateTime(i.createdAt)}{who(i.createdBy)
 			? ` by ${who(i.createdBy)}`
 			: ''}"
@@ -159,7 +159,7 @@
 		<AccessHeader>
 			{#snippet actions()}
 				<Button variant="primary" icon={UserPlus} onclick={() => (inviteOpen = true)}
-					>Invite user</Button
+					>Invite User</Button
 				>
 			{/snippet}
 		</AccessHeader>
@@ -186,7 +186,7 @@
 									<Button
 										variant="primary"
 										icon={UserPlus}
-										onclick={() => (inviteOpen = true)}>Invite user</Button
+										onclick={() => (inviteOpen = true)}>Invite User</Button
 									>
 								{/snippet}
 							</EmptyState>
@@ -200,7 +200,7 @@
 			bind:open={revokeOpen}
 			title="Revoke this invitation?"
 			consequences={['The link stops working at once. Nobody can create an account with it.']}
-			confirmLabel="Revoke invitation"
+			confirmLabel="Revoke Invitation"
 			tone="danger"
 			onconfirm={() => (revoking ? revoke(revoking) : undefined)}
 		/>

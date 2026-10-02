@@ -53,7 +53,7 @@ export function accountStatus(a: Pick<Account, 'status' | 'owner' | 'enrollmentD
 	label: string;
 } {
 	if (a.status === 'disabled') return { tone: 'neutral', label: 'Disabled' };
-	if (a.enrollmentDeadline) return { tone: 'warn', label: 'Enrolling factors' };
+	if (a.enrollmentDeadline) return { tone: 'warn', label: 'Enrolling Factors' };
 	return { tone: 'ok', label: 'Active' };
 }
 

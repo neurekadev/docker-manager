@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Notification channels (#142; owner only, a Settings tab): where
 	// Docker Manager sends messages, what each channel sends and whether
-	// its last message arrived. The owner adds ("Add channel",
+	// its last message arrived. The owner adds ("Add Channel",
 	// ?create=1), edits, tests and deletes them; addresses stay sealed on
 	// the manager and are only shown in the edit dialog on request. Below
 	// them the alert thresholds: when a host's temperature, disk space or
@@ -88,7 +88,7 @@
 	function menu(c: NotificationChannel): MenuEntry[] {
 		return [
 			{
-				label: 'Send test',
+				label: 'Send Test',
 				description: testing === c.id ? 'Sending…' : undefined,
 				disabled: testing === c.id,
 				onSelect: () => void test(c)
@@ -133,7 +133,7 @@
 		},
 		{
 			id: 'sent',
-			header: 'Last sent',
+			header: 'Last Sent',
 			cell: sentCell,
 			sortValue: (c) => c.lastSuccessAt ?? '',
 			width: '180px',
@@ -190,7 +190,7 @@
 		{#snippet actions()}
 			{#if owner}
 				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
-					>Add channel</Button
+					>Add Channel</Button
 				>
 			{/if}
 		{/snippet}
@@ -199,11 +199,11 @@
 	{#if perms.data && !owner}
 		<DeniedState level={2} title="Only the owner manages notification channels." />
 	{:else}
-		<Card title="Notification channels" padding="none">
+		<Card title="Notification Channels" padding="none">
 			<QueryView query={list} errorTitle="The notification channels could not be loaded.">
 				{#snippet children(rows)}
 					<Table
-						label="Notification channels"
+						label="Notification Channels"
 						{rows}
 						{columns}
 						rowKey={(c) => c.id}
@@ -222,7 +222,7 @@
 										variant="primary"
 										icon={Plus}
 										onclick={() => (createDialog.open = true)}
-										>Add channel</Button
+										>Add Channel</Button
 									>
 								{/snippet}
 							</EmptyState>
@@ -247,7 +247,7 @@
 				'Docker Manager sends nothing to it anymore.'
 			]}
 			confirmText={deleting.name}
-			confirmLabel="Delete channel"
+			confirmLabel="Delete Channel"
 			onconfirm={remove}
 		/>
 	{/if}

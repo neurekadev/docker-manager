@@ -58,15 +58,15 @@
 	);
 
 	usePage(() => ({
-		title: 'Raw snapshots',
+		title: 'Raw Snapshots',
 		crumbs: onlyRepo
 			? [
 					{ label: 'Backups', href: routes.backups() },
 					{ label: 'Repositories', href: routes.backupRepositories() },
 					{ label: onlyRepo.name, href: routes.backupRepository(onlyRepo.id) },
-					{ label: 'Raw snapshots' }
+					{ label: 'Raw Snapshots' }
 				]
-			: [{ label: 'Backups', href: routes.backups() }, { label: 'Raw snapshots' }],
+			: [{ label: 'Backups', href: routes.backups() }, { label: 'Raw Snapshots' }],
 		environmentScoped: true
 	}));
 	const listings = createQueries(() => ({
@@ -207,7 +207,7 @@
 
 <Page>
 	<PageHeader
-		title="Raw snapshots"
+		title="Raw Snapshots"
 		description={onlyRepo
 			? `What restic itself holds in ${onlyRepo.name}, read live. Backups lists the same backups by run.`
 			: 'What restic itself holds in your repositories, read live. Backups lists the same backups by run.'}
@@ -243,7 +243,7 @@
 			<div class="tools">
 				<div class="filter">
 					<TextField
-						label="Search snapshots"
+						label="Search Snapshots"
 						hideLabel
 						placeholder="Search snapshots"
 						bind:value={filter}
@@ -263,7 +263,7 @@
 			<div class="pad"><Skeleton lines={5} height="20px" /></div>
 		{:else}
 			<Table
-				label="Restic snapshots"
+				label="Restic Snapshots"
 				{rows}
 				{columns}
 				rowKey={(r) => r.key}

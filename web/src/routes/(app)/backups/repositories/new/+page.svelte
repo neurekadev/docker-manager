@@ -55,11 +55,11 @@
 	import { repositoriesQuery } from '$lib/features/backups/queries';
 
 	usePage({
-		title: 'Add backup repository',
+		title: 'Add Backup Repository',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
 			{ label: 'Repositories', href: routes.backupRepositories() },
-			{ label: 'Add repository' }
+			{ label: 'Add Repository' }
 		]
 	});
 
@@ -112,7 +112,7 @@
 		);
 	const fields = $derived(fieldErrors(error));
 	const executors = $derived([
-		{ value: 'manager', label: 'The manager' },
+		{ value: 'manager', label: 'The Manager' },
 		...(envs.data ?? [])
 			.filter((e) => e.status !== 'archived')
 			.map((e) => ({ value: e.id, label: `Environment ${e.name}` }))
@@ -146,7 +146,7 @@
 		},
 		{
 			id: 'confirm',
-			label: 'Confirm the key',
+			label: 'Confirm the Key',
 			description: 'Prove you saved it. Nothing is written before.'
 		},
 		{
@@ -244,7 +244,7 @@
 
 <Page narrow>
 	<PageHeader
-		title="Add backup repository"
+		title="Add Backup Repository"
 		description="A local directory or an S3 bucket where Docker Manager stores encrypted backups of the manager and each environment."
 	/>
 	{#if perms.isPending}
@@ -258,23 +258,23 @@
 	{:else}
 		<Card>
 			<StepWizard
-				label="Add backup repository"
+				label="Add Backup Repository"
 				{steps}
 				bind:current
 				{onnext}
 				onfinish={finish}
 				{canAdvance}
-				nextLabel={current === 0 && !created ? 'Save and continue' : 'Next'}
-				finishLabel={test && !test.ok ? 'Finish anyway' : 'Done'}
+				nextLabel={current === 0 && !created ? 'Save and Continue' : 'Next'}
+				finishLabel={test && !test.ok ? 'Finish Anyway' : 'Done'}
 				oncancel={cancel}
-				cancelLabel={created ? 'Finish later' : 'Cancel'}
+				cancelLabel={created ? 'Finish Later' : 'Cancel'}
 			>
 				{#snippet step(s)}
 					{#if s.id === 'destination'}
 						{#if created}
 							<Notice
 								tone="info"
-								title="The repository {created.repository.name} exists"
+								title="The Repository {created.repository.name} Exists"
 								live="none"
 							>
 								Its destination can't change any more. Continue with the Recovery
@@ -307,7 +307,7 @@
 									filename="docker-manager-recovery-key.txt"
 									fingerprint={created.recoveryKey.fingerprint}
 									description={RECOVERY_KEY_WARNING}
-									confirmLabel="I saved it, continue"
+									confirmLabel="I Saved It, Continue"
 									onconfirm={() => {
 										keyStored = true;
 										current = 2;
@@ -321,7 +321,7 @@
 							<Notice
 								tone="info"
 								icon={KeyRound}
-								title="This repository uses your existing Recovery Key"
+								title="This Repository Uses Your Existing Recovery Key"
 								live="none"
 							>
 								{RECOVERY_KEY_SCOPE} Its fingerprint is
@@ -333,7 +333,7 @@
 						{/if}
 					{:else if s.id === 'confirm'}
 						{#if confirmed}
-							<Notice tone="info" title="Recovery Key confirmed" live="status">
+							<Notice tone="info" title="Recovery Key Confirmed" live="status">
 								{confirmed.repository.name} is ready. Docker Manager is preparing it for
 								backups now.
 							</Notice>
@@ -341,7 +341,7 @@
 								jobs={migration}
 								titleOf={migrationTitle}
 								variant="inline"
-								label="Moving the repositories to the confirmed key"
+								label="Moving the Repositories to the Confirmed Key"
 							/>
 						{:else if created}
 							<RecoveryKeyChallenge
@@ -362,7 +362,7 @@
 							<ConnectionTestResult {test} />
 						{/if}
 						<div class="retest">
-							<Button onclick={runTest} loading={testing}>Test again</Button>
+							<Button onclick={runTest} loading={testing}>Test Again</Button>
 						</div>
 					{/if}
 				{/snippet}

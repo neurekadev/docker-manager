@@ -111,7 +111,7 @@
 		start: ['Start', 'Started', 'started'],
 		stop: ['Stop', 'Stopped', 'stopped'],
 		restart: ['Restart', 'Restarted', 'restarted'],
-		down: ['Take down', 'Took down', 'taken down']
+		down: ['Take Down', 'Took down', 'taken down']
 	};
 	async function run() {
 		if (!op) return;
@@ -164,7 +164,7 @@
 			{#snippet actions()}
 				{#if canDeploy && hasOrphans}
 					<Button size="sm" onclick={() => ctx.removeOrphans.request()}
-						>Remove old containers…</Button
+						>Remove Old Containers…</Button
 					>
 				{/if}
 				{#if canDeploy && !onlyOrphans}

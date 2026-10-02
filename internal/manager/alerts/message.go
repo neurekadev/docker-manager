@@ -14,8 +14,8 @@ import (
 // Messages (#159, #174) follow one convention, for alerts and
 // notifications alike:
 //
-//   - a status line: the kind and outcome as "What to send" names them
-//     ("Disk health · Critical", "Image updates · Available");
+//   - a status line: the kind and outcome as "What to Send" names them
+//     ("Disk Health · Critical", "Image Updates · Available");
 //   - the title: the subject first, then what happened ("Disk /dev/sda is
 //     failing", "Update of Paperless succeeded"); the environment only
 //     when it is the subject ("homelab is offline"), it has its own field;
@@ -245,8 +245,23 @@ func monitoringDetail(f map[string]string) string {
 }
 
 // MountLabel names a filesystem an agent reports usage of, like the app
-// does.
+// does (a label: "Docker Data", "Bind Mount 2").
 func MountLabel(mount string) string {
+	switch mount {
+	case "docker":
+		return "Docker Data"
+	case "stacks":
+		return "Stacks"
+	}
+	if n, ok := strings.CutPrefix(mount, "bind-"); ok {
+		return "Bind Mount " + n
+	}
+	return mount
+}
+
+// mountWords names a filesystem inside a sentence ("Docker data disk is
+// almost full").
+func mountWords(mount string) string {
 	switch mount {
 	case "docker":
 		return "Docker data"
@@ -425,7 +440,7 @@ func Detail(a domain.Alert) string {
 		}
 		return s + ". Check the host's cooling and load."
 	case domain.NotifyDiskSpace:
-		s := "The " + MountLabel(f["mount"]) + " filesystem is " + f["usedPercent"] + "% full"
+		s := "The " + mountWords(f["mount"]) + " filesystem is " + f["usedPercent"] + "% full"
 		if free, total := bytesFact(f["freeBytes"]), bytesFact(f["totalBytes"]); free != "" && total != "" {
 			s += ": " + free + " free of " + total
 		}
@@ -470,7 +485,7 @@ func Detail(a domain.Alert) string {
 		}
 		return who + " did not finish successfully. " + why
 	case domain.NotifyUpdates:
-		return "A check found newer images. To install them, open the update policy and press Preview updates, then Apply updates."
+		return "A check found newer images. To install them, open the update policy and press Preview Updates, then Apply Updates."
 	}
 	return ""
 }
@@ -524,7 +539,7 @@ func originWords(f map[string]string) string {
 	case string(domain.OriginScheduled):
 		return "Schedule"
 	case string(domain.OriginAPIToken):
-		return "API token"
+		return "API Token"
 	case string(domain.OriginManual):
 		if f["startedBy"] != "" {
 			return f["startedBy"]
@@ -536,7 +551,7 @@ func originWords(f map[string]string) string {
 
 // jobStateWords name a finished job's state.
 var jobStateWords = map[string]string{
-	string(domain.JobFailed): "Failed", string(domain.JobPartial): "Partly failed", string(domain.JobInterrupted): "Interrupted",
+	string(domain.JobFailed): "Failed", string(domain.JobPartial): "Partly Failed", string(domain.JobInterrupted): "Interrupted",
 	string(domain.JobSucceeded): "Succeeded",
 }
 
@@ -605,9 +620,9 @@ func alertFields(a domain.Alert, env, event string) []domain.NotificationField {
 		l.add("Level", f["level"], true)
 		l.add("Health", f["health"], true)
 		if f["devices"] != "" {
-			l.add("Disks working", f["active"]+" of "+f["devices"], true)
+			l.add("Disks Working", f["active"]+" of "+f["devices"], true)
 		}
-		l.add("Failed disks", f["failedMembers"], false)
+		l.add("Failed Disks", f["failedMembers"], false)
 	case domain.NotifyTemperature:
 		l.add("Sensor", f["sensor"], true)
 		if f["celsius"] != "" {
@@ -632,17 +647,17 @@ func alertFields(a domain.Alert, env, event string) []domain.NotificationField {
 		l.add("Thresholds", thresholdWords(f, "%"), false)
 	case domain.NotifyEnvironmentOffline:
 		if t, err := time.Parse(time.RFC3339, f["since"]); err == nil {
-			l.add("Offline since", t.UTC().Format("Jan 2, 2006, 15:04")+" UTC", true)
+			l.add("Offline Since", t.UTC().Format("Jan 2, 2006, 15:04")+" UTC", true)
 		}
 	case domain.NotifyJobFailed:
-		l.add("Job", kindNoun(domain.JobKind(f["jobKind"])), true)
+		l.add("Job", kindLabel(domain.JobKind(f["jobKind"])), true)
 		l.addLink("Target", f["target"], targetPath(a.EnvironmentID, firstTarget(a.Targets)), true)
 		l.add("State", jobStateWords[f["jobState"]], true)
-		l.add("Started by", originWords(f), true)
+		l.add("Started By", originWords(f), true)
 		if event != domain.AlertEventResolved {
 			l.add("Failed", f["failedItems"], false)
-			l.add("What went wrong", errorReason(jobErrorClass(f)), false)
-			l.add("What to do", errorFix(jobErrorClass(f)), false)
+			l.add("What Went Wrong", errorReason(jobErrorClass(f)), false)
+			l.add("What to Do", errorFix(jobErrorClass(f)), false)
 		}
 	case domain.NotifyUpdates:
 		t := firstTarget(a.Targets)
@@ -680,18 +695,18 @@ const footer = "Docker Manager"
 // of its list.
 const (
 	digestLabel = "Summary"
-	digestField = "What happened"
+	digestField = "What Happened"
 )
 
-// kindLabels name the event kinds as "What to send" does.
+// kindLabels name the event kinds as "What to Send" does.
 var kindLabels = map[domain.NotificationEventKind]string{
-	domain.NotifyDiskHealth: "Disk health", domain.NotifyRAID: "RAID", domain.NotifyTemperature: "Temperature",
-	domain.NotifyDiskSpace: "Disk space", domain.NotifyMemory: "Memory", domain.NotifyEnvironmentOffline: "Environment offline",
+	domain.NotifyDiskHealth: "Disk Health", domain.NotifyRAID: "RAID", domain.NotifyTemperature: "Temperature",
+	domain.NotifyDiskSpace: "Disk Space", domain.NotifyMemory: "Memory", domain.NotifyEnvironmentOffline: "Environment Offline",
 	domain.NotifyBackup: "Backups", domain.NotifyRestore: "Restores", domain.NotifyPrune: "Prune",
-	domain.NotifyUpdates: "Image updates", domain.NotifyJobFailed: "Other jobs",
+	domain.NotifyUpdates: "Image Updates", domain.NotifyJobFailed: "Other Jobs",
 }
 
-// outcomeLabels name the outcomes as "What to send" does (outcomeLabel
+// outcomeLabels name the outcomes as "What to Send" does (outcomeLabel
 // has the kinds that name one otherwise).
 var outcomeLabels = map[domain.NotificationOutcome]string{
 	domain.OutcomeWarning: "Warning", domain.OutcomeCritical: "Critical", domain.OutcomeResolved: "Resolved",
@@ -703,7 +718,7 @@ func outcomeLabel(kind domain.NotificationEventKind, o domain.NotificationOutcom
 	case kind == domain.NotifyEnvironmentOffline && o == domain.OutcomeCritical:
 		return "Offline"
 	case kind == domain.NotifyEnvironmentOffline && o == domain.OutcomeResolved:
-		return "Back online"
+		return "Back Online"
 	case kind == domain.NotifyUpdates && o == domain.OutcomeSuccess:
 		return "Applied"
 	}
@@ -711,7 +726,7 @@ func outcomeLabel(kind domain.NotificationEventKind, o domain.NotificationOutcom
 }
 
 // Label is a message's status line: its kind and outcome as "What to
-// send" names them ("Disk health · Critical").
+// Send" names them ("Disk Health · Critical").
 func Label(kind domain.NotificationEventKind, o domain.NotificationOutcome) string {
 	k, w := kindLabels[kind], outcomeLabel(kind, o)
 	switch {

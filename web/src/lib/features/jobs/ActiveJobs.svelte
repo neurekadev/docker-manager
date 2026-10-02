@@ -19,7 +19,7 @@
 		jobs?: TrackedJobs;
 		/** …or what the view shows (the component tracks it itself). */
 		filter?: JobMatch | null;
-		/** What a job is called here (default: "Restart container web"). */
+		/** What a job is called here (default: "Restart Container web"). */
 		titleOf?: (job: Job) => string | undefined;
 		/** Names for targets the page knows (stacks, policies). */
 		nameOf?: NameOf;
@@ -40,7 +40,7 @@
 		variant = 'panel',
 		onfinish,
 		max = MAX_JOB_STREAMS,
-		label = 'Running jobs'
+		label = 'Running Jobs'
 	}: Props = $props();
 
 	const own = untrack(() => (jobs ? null : useTrackedJobs(() => filter)));

@@ -23,7 +23,7 @@
 	id="updates"
 	subtitle="Image checks and automatic updates come from the environment's update policy."
 >
-	{#snippet actions()}<Button size="sm" href={routes.updates()}>Open update policies</Button
+	{#snippet actions()}<Button size="sm" href={routes.updates()}>Open Update Policies</Button
 		>{/snippet}
 	{#if policies.isPending}
 		<Skeleton lines={2} />

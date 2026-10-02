@@ -174,7 +174,7 @@ func TestListSchedulesShowsNextRunAndHistory(t *testing.T) {
 		t.Fatalf("%d %s", r.Status, r.Body)
 	}
 	s := page.Items[0]
-	if s.PolicyID != "pol-a" || s.KindLabel != "Docker prune" || s.CatchUp != "skip" || s.NextRun == nil ||
+	if s.PolicyID != "pol-a" || s.KindLabel != "Docker Prune" || s.CatchUp != "skip" || s.NextRun == nil ||
 		s.NextRun.Local != "2026-03-09T02:30" || s.NextRun.DST != "none" || len(s.RecentRuns) != 1 {
 		t.Fatalf("%+v", s)
 	}

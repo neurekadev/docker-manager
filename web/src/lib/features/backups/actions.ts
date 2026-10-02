@@ -34,7 +34,7 @@ export async function runPolicy(
 		refresh(qc);
 		toast.info(`Started a backup of ${p.name}`, {
 			body: `${out.jobs.length} ${out.jobs.length === 1 ? 'job' : 'jobs'}; progress shows under Running now.`,
-			action: { label: 'Open policy', onclick: () => void goto(routes.backupPolicy(p.id)) }
+			action: { label: 'Open Policy', onclick: () => void goto(routes.backupPolicy(p.id)) }
 		});
 		return true;
 	} catch (e) {

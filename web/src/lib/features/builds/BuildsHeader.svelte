@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Header and tabs of the builds section (#33): build history and saved
-	// build definitions. Both tabs show the same actions: "Build image"
-	// (primary), "New definition" (opens the definitions with the create
+	// build definitions. Both tabs show the same actions: "Build Image"
+	// (primary), "New Definition" (opens the definitions with the create
 	// dialog) and the page's extra ones (the build cache prune).
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
@@ -38,20 +38,20 @@
 		{@render extra?.()}
 		{#if canDefine}
 			{#if onnewdefinition}
-				<Button icon={Plus} onclick={onnewdefinition}>New definition</Button>
+				<Button icon={Plus} onclick={onnewdefinition}>New Definition</Button>
 			{:else}
-				<Button icon={Plus} href={routes.buildDefinitionNew()}>New definition</Button>
+				<Button icon={Plus} href={routes.buildDefinitionNew()}>New Definition</Button>
 			{/if}
 		{/if}
 		{#if canBuild}
 			<Button variant="primary" icon={Play} href={routes.newBuild(environmentId)}
-				>Build image</Button
+				>Build Image</Button
 			>
 		{/if}
 	{/snippet}
 </PageHeader>
 <TabNav
-	label="Builds sections"
+	label="Builds Sections"
 	current={page.url.pathname}
 	items={[
 		{ href: routes.builds(), label: 'History' },

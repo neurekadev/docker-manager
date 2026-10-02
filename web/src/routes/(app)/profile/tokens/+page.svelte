@@ -19,8 +19,8 @@
 	import ProfileHeader from '$lib/features/profile/ProfileHeader.svelte';
 
 	usePage({
-		title: 'API tokens',
-		crumbs: [{ label: 'Profile', href: routes.profile() }, { label: 'API tokens' }]
+		title: 'API Tokens',
+		crumbs: [{ label: 'Profile', href: routes.profile() }, { label: 'API Tokens' }]
 	});
 
 	const perms = createQuery(() => myPermissionsQuery());
@@ -30,22 +30,22 @@
 
 <Page>
 	<ProfileHeader
-		title="API tokens"
+		title="API Tokens"
 		description="Tokens let scripts call the Docker Manager API as you, with only the actions you grant them. A token never exceeds your current permissions."
 	>
 		{#snippet actions()}
 			{#if can(access, 'api_tokens.create')}
 				<Button variant="primary" icon={Plus} href={routes.apiTokenNew()}
-					>Create token</Button
+					>Create Token</Button
 				>
 			{/if}
 		{/snippet}
 	</ProfileHeader>
-	<Card title="Your tokens" padding="none">
+	<Card title="Your Tokens" padding="none">
 		<QueryView query={tokens} errorTitle="Your API tokens could not be loaded.">
 			{#snippet children(rows)}
 				{#if rows.length}
-					<TokensTable tokens={rows} label="Your API tokens" />
+					<TokensTable tokens={rows} label="Your API Tokens" />
 				{:else}
 					<EmptyState
 						{...resourceIcon('apiToken')}
@@ -59,7 +59,7 @@
 						{#snippet actions()}
 							{#if can(access, 'api_tokens.create')}
 								<Button variant="primary" icon={Plus} href={routes.apiTokenNew()}
-									>Create token</Button
+									>Create Token</Button
 								>
 							{/if}
 						{/snippet}

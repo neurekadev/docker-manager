@@ -133,19 +133,19 @@
 						href: c.imageId ? routes.image(env, c.imageId) : undefined
 					},
 					{
-						label: 'Restart policy',
+						label: 'Restart Policy',
 						value: restartPolicyLabel(d.restartPolicy, d.restartMaxRetries)
 					},
 					...(d.hostname && !hostnameIsId(d.hostname, c.id)
 						? [{ label: 'Hostname', value: d.hostname, mono: true }]
 						: []),
-					{ label: 'Network mode', value: d.networkMode, mono: true },
+					{ label: 'Network Mode', value: d.networkMode, mono: true },
 					{ label: 'User', value: d.user || 'Image default' },
 					...(d.running
 						? []
 						: [
 								{
-									label: 'Exit code',
+									label: 'Exit Code',
 									value: d.exitCode,
 									note: d.oomKilled ? 'out of memory' : undefined
 								},
@@ -159,11 +159,11 @@
 			: [
 					{ label: 'Command', value: joinCommand(d.cmd), mono: true },
 					{ label: 'Entrypoint', value: joinCommand(d.entrypoint), mono: true },
-					{ label: 'Working directory', value: d.workingDir, mono: true },
+					{ label: 'Working Directory', value: d.workingDir, mono: true },
 					...(check
 						? [
 								{
-									label: 'Health check',
+									label: 'Health Check',
 									value: check,
 									mono: true,
 									note: d.healthcheck?.retries
@@ -181,14 +181,14 @@
 			? []
 			: [
 					{
-						label: 'CPU limit',
+						label: 'CPU Limit',
 						value: d.resources.cpus
 							? `${formatNumber(d.resources.cpus)} CPUs`
 							: 'No limit'
 					},
-					{ label: 'CPU weight', value: d.resources.cpuShares || 'Default' },
+					{ label: 'CPU Weight', value: d.resources.cpuShares || 'Default' },
 					{
-						label: 'Memory limit',
+						label: 'Memory Limit',
 						value: d.resources.memoryBytes
 							? formatBytes(d.resources.memoryBytes)
 							: 'No limit'
@@ -206,7 +206,7 @@
 	const mountColumns: Column<Mount>[] = [
 		{ id: 'type', header: 'Type', cell: mountType, width: '90px', stack: 'status' },
 		{ id: 'source', header: 'Source', cell: mountSource, stack: 'title', maxWidth: '360px' },
-		{ id: 'destination', header: 'Path in container', cell: mountDest, maxWidth: '360px' },
+		{ id: 'destination', header: 'Path in Container', cell: mountDest, maxWidth: '360px' },
 		{ id: 'mode', header: 'Mode', cell: mountMode, width: '110px' }
 	];
 </script>
@@ -218,12 +218,12 @@
 	{:else}<span class="mono">{m.source || '—'}</span>{/if}
 {/snippet}
 {#snippet mountDest(m: Mount)}<span class="mono">{m.destination}</span>{/snippet}
-{#snippet mountMode(m: Mount)}{m.readOnly ? 'Read-only' : 'Read-write'}{/snippet}
+{#snippet mountMode(m: Mount)}{m.readOnly ? 'Read-Only' : 'Read-Write'}{/snippet}
 
 {#if c}
 	{#if c.view !== 'full'}
 		<Notice tone="info" title="You can see this container's status" live="none">
-			Its configuration needs the "View container details" permission. Ask the owner of this
+			Its configuration needs the "View Container Details" permission. Ask the owner of this
 			Docker Manager if you need it.
 		</Notice>
 	{/if}
@@ -243,7 +243,7 @@
 							<Sparkline
 								values={cpu.slice(-60)}
 								color={cpuColor}
-								label="CPU recently"
+								label="CPU Recently"
 							/>
 						{/if}
 					{/snippet}
@@ -261,7 +261,7 @@
 							<Sparkline
 								values={mem.slice(-60)}
 								color={memColor}
-								label="Memory recently"
+								label="Memory Recently"
 							/>
 						{/if}
 					{/snippet}
@@ -307,13 +307,13 @@
 			{#snippet actions()}
 				<div class="range">
 					<Select
-						label="Time range"
+						label="Time Range"
 						hideLabel
 						bind:value={range}
 						options={[
-							{ value: '3600', label: 'Last hour' },
-							{ value: '21600', label: 'Last 6 hours' },
-							{ value: '86400', label: 'Last 24 hours' }
+							{ value: '3600', label: 'Last Hour' },
+							{ value: '21600', label: 'Last 6 Hours' },
+							{ value: '86400', label: 'Last 24 Hours' }
 						]}
 					/>
 				</div>
@@ -362,7 +362,7 @@
 				<Facts items={config} label="Configuration of {c.name}" />
 				<div class="advanced">
 					<Disclosure summary="Advanced">
-						<Facts items={advanced} label="Advanced configuration of {c.name}" />
+						<Facts items={advanced} label="Advanced Configuration of {c.name}" />
 					</Disclosure>
 				</div>
 			</Card>
@@ -424,7 +424,7 @@
 		{/if}
 
 		<Columns ratio="equal">
-			<Card title="Environment variables">
+			<Card title="Environment Variables">
 				{#if d.recreate.envKeys?.length}
 					<p class="hint">
 						Names only: Docker Manager stores the values sealed and never shows them.

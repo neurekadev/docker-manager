@@ -138,13 +138,13 @@ function dialog() {
 describe('ImportStackDialog', () => {
 	it('lists projects without containers and every project’s volumes', async () => {
 		dialog();
-		const list = await screen.findByRole('list', { name: 'Compose projects on nas' });
+		const list = await screen.findByRole('list', { name: 'Compose Projects on nas' });
 		const items = within(list).getAllByRole('listitem');
 		const wiki = items.find((li) => li.textContent?.includes('wiki'));
 		const shop = items.find((li) => li.textContent?.includes('shop'));
 		expect(wiki).toBeDefined();
 		expect(shop).toBeDefined();
-		expect(within(wiki!).getByText('No containers')).toBeInTheDocument();
+		expect(within(wiki!).getByText('No Containers')).toBeInTheDocument();
 		expect(within(wiki!).queryByText(/of 0 running/)).toBeNull();
 		expect(
 			within(wiki!).getByText(
@@ -161,7 +161,7 @@ describe('ImportStackDialog', () => {
 	it('imports a project without containers by copy without asking to stop anything', async () => {
 		const user = setup();
 		dialog();
-		const list = await screen.findByRole('list', { name: 'Compose projects on nas' });
+		const list = await screen.findByRole('list', { name: 'Compose Projects on nas' });
 		const wiki = within(list)
 			.getAllByRole('listitem')
 			.find((li) => li.textContent?.includes('wiki'))!;
@@ -187,13 +187,13 @@ describe('ImportStackDialog', () => {
 		// Not "Managed" while the import runs, and nothing to start.
 		expect(within(row).queryByText('Managed')).toBeNull();
 		expect(within(row).queryByRole('button', { name: 'Import' })).toBeNull();
-		expect(within(row).queryByRole('link', { name: 'Open stack' })).toBeNull();
+		expect(within(row).queryByRole('link', { name: 'Open Stack' })).toBeNull();
 	});
 
 	it('hides a managed project without a running import', async () => {
 		more = [media];
 		dialog();
-		await screen.findByRole('list', { name: 'Compose projects on nas' });
+		await screen.findByRole('list', { name: 'Compose Projects on nas' });
 		expect(screen.queryByText('media')).toBeNull();
 	});
 });

@@ -3,80 +3,96 @@
 // is injectable for tests.
 import type { Job } from '$lib/api/client';
 import { ACTIVE_JOB_STATES, isActiveJobState } from '$lib/api/job-states';
-import { formatDuration } from '$lib/ui/format';
+import { formatDuration, titleCase } from '$lib/ui/format';
 import { routes } from '$lib/routes';
 
 /** Every job kind of the catalog (docs/internal/architecture/job-engine.md). */
 export const JOB_KIND_LABELS: Record<string, string> = {
-	'backup.import': 'Import backups',
-	'backup.retention': 'Apply backup retention',
-	'backup.run': 'Back up',
-	'backup.verify': 'Verify backup repository',
-	'container.create': 'Create container',
-	'container.pause': 'Pause container',
-	'container.remove': 'Remove container',
-	'container.restart': 'Restart container',
-	'container.start': 'Start container',
-	'container.stop': 'Stop container',
-	'container.unpause': 'Resume container',
-	'container.update': 'Update container settings',
-	'environment.migrate': 'Migrate environment',
-	'files.archive': 'Archive files',
-	'files.copy': 'Copy files',
-	'files.delete': 'Delete files',
-	'files.extract': 'Extract archive',
-	'files.metadata': 'Change file permissions',
-	'files.move': 'Move files',
-	'image.build': 'Build image',
-	'image.pull': 'Pull image',
-	'image.remove': 'Remove image',
-	'manager.backup': 'Back up Docker Manager',
-	'manager.move': 'Move every app to the new server',
-	'manager.retention': 'Apply Docker Manager backup retention',
-	'manager.verify': 'Verify Docker Manager backups',
-	'network.create': 'Create network',
-	'network.remove': 'Remove network',
-	'prune.run': 'Prune Docker objects',
+	'backup.import': 'Import Backups',
+	'backup.retention': 'Apply Backup Retention',
+	'backup.run': 'Back Up',
+	'backup.verify': 'Verify Backup Repository',
+	'container.create': 'Create Container',
+	'container.pause': 'Pause Container',
+	'container.remove': 'Remove Container',
+	'container.restart': 'Restart Container',
+	'container.start': 'Start Container',
+	'container.stop': 'Stop Container',
+	'container.unpause': 'Resume Container',
+	'container.update': 'Update Container Settings',
+	'environment.migrate': 'Migrate Environment',
+	'files.archive': 'Archive Files',
+	'files.copy': 'Copy Files',
+	'files.delete': 'Delete Files',
+	'files.extract': 'Extract Archive',
+	'files.metadata': 'Change File Permissions',
+	'files.move': 'Move Files',
+	'image.build': 'Build Image',
+	'image.pull': 'Pull Image',
+	'image.remove': 'Remove Image',
+	'manager.backup': 'Back Up Docker Manager',
+	'manager.move': 'Move Every App to the New Server',
+	'manager.retention': 'Apply Docker Manager Backup Retention',
+	'manager.verify': 'Verify Docker Manager Backups',
+	'network.create': 'Create Network',
+	'network.remove': 'Remove Network',
+	'prune.run': 'Prune Docker Objects',
 	'restore.run': 'Restore',
-	'stack.build': 'Build stack images',
-	'stack.deploy': 'Deploy stack',
-	'stack.down': 'Take stack down',
-	'stack.import': 'Import project',
-	'stack.migrate': 'Migrate stack',
-	'stack.pull': 'Pull stack images',
-	'stack.remove': 'Delete stack',
-	'stack.remove_source': 'Remove migrated stack',
-	'stack.rename': 'Rename stack',
-	'stack.restart': 'Restart stack',
-	'stack.start': 'Start stack',
-	'stack.stop': 'Stop stack',
-	'stack.update': 'Update stack images',
-	'template.files.archive': 'Archive template files',
-	'template.files.copy': 'Copy template files',
-	'template.files.delete': 'Delete template files',
-	'template.files.extract': 'Extract archive in a template',
-	'template.files.metadata': 'Change template file permissions',
-	'template.files.move': 'Move template files',
-	'update.check': 'Check for updates',
-	'update.run': 'Apply updates',
-	'volume.create': 'Create volume',
-	'volume.migrate': 'Migrate volume',
-	'volume.remove': 'Remove volume'
+	'stack.build': 'Build Stack Images',
+	'stack.deploy': 'Deploy Stack',
+	'stack.down': 'Take Stack Down',
+	'stack.import': 'Import Project',
+	'stack.migrate': 'Migrate Stack',
+	'stack.pull': 'Pull Stack Images',
+	'stack.remove': 'Delete Stack',
+	'stack.remove_source': 'Remove Migrated Stack',
+	'stack.rename': 'Rename Stack',
+	'stack.restart': 'Restart Stack',
+	'stack.start': 'Start Stack',
+	'stack.stop': 'Stop Stack',
+	'stack.update': 'Update Stack Images',
+	'template.files.archive': 'Archive Template Files',
+	'template.files.copy': 'Copy Template Files',
+	'template.files.delete': 'Delete Template Files',
+	'template.files.extract': 'Extract Archive in a Template',
+	'template.files.metadata': 'Change Template File Permissions',
+	'template.files.move': 'Move Template Files',
+	'update.check': 'Check for Updates',
+	'update.run': 'Apply Updates',
+	'volume.create': 'Create Volume',
+	'volume.migrate': 'Migrate Volume',
+	'volume.remove': 'Remove Volume'
 };
 
-/** "Deploy stack"; unknown kinds read as their words ("Foo bar"). */
+/** "Deploy Stack"; unknown kinds read as their words in Title Case ("Foo Bar"). */
 export function jobKindLabel(kind: string | undefined): string {
 	if (!kind) return 'Job';
 	const known = JOB_KIND_LABELS[kind];
 	if (known) return known;
-	const s = kind.replaceAll('.', ' ').replaceAll('_', ' ');
-	return s[0].toUpperCase() + s.slice(1);
+	return titleCase(kind.replaceAll('.', ' ').replaceAll('_', ' '));
+}
+
+/** Words a kind label keeps capitalized inside a sentence (product names). */
+const PROPER_WORDS = new Set(['Docker', 'Manager']);
+
+/**
+ * The kind as the start of a sentence ("Check for updates, started on its
+ * schedule."): its label in sentence case, keeping product names and
+ * acronyms ("Back up Docker Manager").
+ */
+export function jobKindPhrase(kind: string | undefined): string {
+	return jobKindLabel(kind)
+		.split(' ')
+		.map((w, i) =>
+			i === 0 || PROPER_WORDS.has(w) || /[A-Z].*[A-Z]/.test(w) ? w : w.toLowerCase()
+		)
+		.join(' ');
 }
 
 export const ORIGIN_LABELS: Record<Job['origin'], string> = {
 	manual: 'Manual',
 	scheduled: 'Scheduled',
-	api_token: 'API token'
+	api_token: 'API Token'
 };
 
 const TARGET_NOUNS: Record<string, string> = {
@@ -113,7 +129,7 @@ export function targetName(type: string, id: string, nameOf?: NameOf): string {
 	return UUID.test(id) ? (TARGET_NOUNS[type] ?? type.replaceAll('_', ' ')) : id;
 }
 
-/** "Restart container homeassistant"; opaque targets (policy IDs) are left out. */
+/** "Restart Container homeassistant"; opaque targets (policy IDs) are left out. */
 export function jobTitle(job: Pick<Job, 'kind' | 'targets'>, nameOf?: NameOf): string {
 	const t = job.targets ?? [];
 	const kind = jobKindLabel(job.kind);
@@ -126,7 +142,7 @@ export function jobTitle(job: Pick<Job, 'kind' | 'targets'>, nameOf?: NameOf): s
 export interface JobHeadline {
 	/** The target's human name ("zerobyte", "Silo and 2 more"), else the kind. */
 	title: string;
-	/** The kind ("Check for updates") when the title is a name, else `fallback` or "". */
+	/** The kind ("Check for Updates") when the title is a name, else `fallback` or "". */
 	subtitle: string;
 }
 
@@ -144,7 +160,7 @@ const ENVIRONMENT_KINDS = new Set(['environment.migrate']);
 
 /**
  * The headline of a job row, leading with the target's name:
- * `{ title: 'zerobyte', subtitle: 'Check for updates' }`. Targets are named
+ * `{ title: 'zerobyte', subtitle: 'Check for Updates' }`. Targets are named
  * by `nameOf` (stack IDs through `stackNames(stacks)`, policies by the
  * page's policy list), else by their ID when it is a name (containers,
  * volumes, networks, images; paths by their last segment). Jobs without a
@@ -181,22 +197,22 @@ export function policyPage(kind: string, policyId?: string): { href: string; lab
 	if (kind.startsWith('prune.'))
 		return {
 			href: policyId ? routes.maintenancePolicy(policyId) : routes.maintenance(),
-			label: 'Maintenance policy'
+			label: 'Maintenance Policy'
 		};
 	if (kind.startsWith('update.'))
 		return {
 			href: policyId ? routes.updatePolicy(policyId) : routes.updates(),
-			label: 'Update policy'
+			label: 'Update Policy'
 		};
 	if (kind === 'backup.verify' || kind === 'manager.verify')
 		return {
 			href: policyId ? routes.backupRepository(policyId) : routes.backupRepositories(),
-			label: 'Backup repository'
+			label: 'Backup Repository'
 		};
 	if (kind.startsWith('backup.') || kind.startsWith('manager.'))
 		return {
 			href: policyId ? routes.backupPolicy(policyId) : routes.backupPolicies(),
-			label: 'Backup policy'
+			label: 'Backup Policy'
 		};
 	return { href: routes.schedules(), label: 'Policy' };
 }
@@ -239,19 +255,19 @@ export function jobAgain(
 	if (job.policyId && /^(update|prune|backup|manager)\./.test(job.kind))
 		return {
 			href: policyPage(job.kind, job.policyId).href,
-			label: 'Open the policy to run it again'
+			label: 'Open the Policy to Run It Again'
 		};
 	if (job.kind === 'image.build' && job.environmentId)
 		return {
 			href: routes.build(job.environmentId, job.id),
-			label: 'Open the build to build again'
+			label: 'Open the Build to Build Again'
 		};
 	if (t?.type === 'stack')
-		return { href: routes.stack(t.id), label: 'Open the stack to try again' };
+		return { href: routes.stack(t.id), label: 'Open the Stack to Try Again' };
 	if (t?.type === 'container' && job.environmentId && !job.kind.endsWith('.remove'))
 		return {
 			href: routes.container(t.environmentId ?? job.environmentId, t.id),
-			label: 'Open the container to try again'
+			label: 'Open the Container to Try Again'
 		};
 	return null;
 }
@@ -314,11 +330,11 @@ export function jobActive(state: Job['state']): boolean {
 
 /** Groups of states offered by the jobs filter. */
 export const STATE_FILTERS: { id: string; label: string; states: Job['state'][] }[] = [
-	{ id: '', label: 'All states', states: [] },
-	{ id: 'active', label: 'In progress', states: [...ACTIVE_JOB_STATES] },
+	{ id: '', label: 'All States', states: [] },
+	{ id: 'active', label: 'In Progress', states: [...ACTIVE_JOB_STATES] },
 	{
 		id: 'problems',
-		label: 'Failed or partly failed',
+		label: 'Failed or Partly Failed',
 		states: ['failed', 'partial', 'interrupted']
 	},
 	{ id: 'succeeded', label: 'Succeeded', states: ['succeeded'] },

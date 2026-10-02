@@ -17,7 +17,7 @@
 	// (the running list, docs/internal/web.md "Job progress after reload");
 	// the latest one, once it ended, opens on its result while old copies
 	// wait for their removal or stacks it did not move are still on the
-	// source (restoredMigration), with "Start a new migration".
+	// source (restoredMigration), with "Start a New Migration".
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy, tick, untrack } from 'svelte';
@@ -357,7 +357,7 @@
 		toast[t.tone](t.title, {
 			body: t.body,
 			action: open
-				? { label: 'Open job', onclick: () => void goto(routes.job(open)) }
+				? { label: 'Open Job', onclick: () => void goto(routes.job(open)) }
 				: undefined
 		});
 	}
@@ -457,7 +457,7 @@
 		void queryClient.invalidateQueries({ queryKey: environmentMigrationKeys.list(source) });
 	}
 
-	const removalTitle = (title: string) => `Remove the old copy of ${title}`;
+	const removalTitle = (title: string) => `Remove the Old Copy of ${title}`;
 
 	function removalJobTitle(job: Job): string | undefined {
 		const id = jobStackIds(job)[0];
@@ -521,9 +521,9 @@
 	});
 	const nextLabel = $derived(
 		steps[current].id === 'destination'
-			? 'Check migration'
+			? 'Check Migration'
 			: steps[current].id === 'confirm'
-				? 'Start migration'
+				? 'Start Migration'
 				: 'Next'
 	);
 </script>
@@ -537,7 +537,7 @@
 				</Notice>
 			{/if}
 			<Select
-				label="Destination environment"
+				label="Destination Environment"
 				options={destOptions}
 				bind:value={target}
 				placeholder="Choose an environment"
@@ -591,7 +591,7 @@
 				<Notice tone={head.tone} title={head.title} live="none">
 					{#snippet actions()}
 						<Button size="sm" icon={RotateCw} loading={checking} onclick={checkAgain}
-							>Check again</Button
+							>Check Again</Button
 						>
 					{/snippet}
 				</Notice>
@@ -701,7 +701,7 @@
 										variant="danger-soft"
 										icon={Trash2}
 										onclick={() => (removing = true)}
-										>Remove old copies from {sourceName}</Button
+										>Remove Old Copies From {sourceName}</Button
 									>
 								{/if}
 							{/snippet}
@@ -712,7 +712,7 @@
 						variant="inline"
 						titleOf={removalJobTitle}
 						onfinish={removalEnded}
-						label="Removing old copies"
+						label="Removing Old Copies"
 					/>
 					{#if left.length || everyStackMoved(rec) || movable}
 						<div class="again">
@@ -735,7 +735,7 @@
 							<div class="buttons">
 								{#if left.length}
 									<Button icon={ArrowRightLeft} onclick={migrateRest}
-										>Migrate the rest</Button
+										>Migrate the Rest</Button
 									>
 								{:else if everyStackMoved(rec) && !movable}
 									<Button icon={Archive} href={routes.environment(source)}
@@ -744,7 +744,7 @@
 								{/if}
 								{#if movable}
 									<Button icon={Plus} onclick={startNew}
-										>Start a new migration</Button
+										>Start a New Migration</Button
 									>
 								{/if}
 							</div>
@@ -792,7 +792,7 @@
 		compact
 	>
 		{#snippet actions()}
-			<Button variant="primary" href={routes.addEnvironment()}>Add environment</Button>
+			<Button variant="primary" href={routes.addEnvironment()}>Add Environment</Button>
 			<Button href={routes.environment(source)}>Back to {sourceName}</Button>
 		{/snippet}
 	</EmptyState>
@@ -834,7 +834,7 @@
 	]}
 	affected={copies.map((c) => ({ label: c.title, detail: 'stopped copy' }))}
 	confirmText={sourceName}
-	confirmLabel="Remove old copies"
+	confirmLabel="Remove Old Copies"
 	onconfirm={removeCopies}
 />
 

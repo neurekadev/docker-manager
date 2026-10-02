@@ -2,7 +2,7 @@
 
 You upgrade the images where they run, or let Docker Manager do it: once its
 own Compose project is imported as a stack (see [deployment.md](../deployment.md),
-"Docker Manager's own containers"), **Deploy with pull** or a digest update
+"Docker Manager's own containers"), **Pull & Deploy** or a digest update
 policy (#20) pulls and recreates the manager and the co-located agent. The
 agent never recreates its own container in the middle of a job: it hands
 that service to a short-lived helper container after the job (#32), which

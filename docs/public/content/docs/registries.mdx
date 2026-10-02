@@ -9,12 +9,12 @@ A **registry connection** is a login Docker Manager uses for private
 images: for deploys, image pulls, update checks and the base images of
 builds. Only the owner can add and change them.
 
-1. Open **Registries** and press **Add connection**.
-2. Enter a **Name** and the **Registry host**: `docker.io` for Docker Hub,
+1. Open **Registries** and press **Add Connection**.
+2. Enter a **Name** and the **Registry Host**: `docker.io` for Docker Hub,
    `ghcr.io` for GitHub, or `host:port` for your own registry.
-3. Enter the **Username** and an **Access token** (recommended) or
+3. Enter the **Username** and an **Access Token** (recommended) or
    password.
-4. Under **Use it for**, choose every environment and stack, one
+4. Under **Use It For**, choose every environment and stack, one
    environment or one stack. You can also limit it to some repositories.
 
 For your own registry without HTTPS on a trusted network, tick **Plain
@@ -22,11 +22,11 @@ HTTP**.
 
 When several connections fit an image, the most specific one wins: a stack
 before an environment before everything, then an exact repository before a
-wider one, then the higher **Priority**. **Test an image** shows which
+wider one, then the higher **Priority**. **Test an Image** shows which
 connection an image would use.
 
-A connection's menu has **Test connection**, **Edit**, **Rotate
-credential**, **Revoke** and **Delete**.
+A connection's menu has **Test Connection**, **Edit**, **Rotate
+Credential**, **Revoke** and **Delete**.
 
 ## Pull limits
 
@@ -34,7 +34,7 @@ Registries such as Docker Hub limit how many images you can pull. The
 **Pull Limit** column shows what the registry last reported to Docker
 Manager's checks for each connection, for example "187 of 200 left, per 6
 hours". **Anonymous Access** lists the same for registries Docker Manager
-checked without a connection. **Test connection** updates a connection's
+checked without a connection. **Test Connection** updates a connection's
 figure.
 
 - A connection's limit belongs to its account and covers every pull with
@@ -43,13 +43,13 @@ figure.
 - Pulls on your servers count too, but show only with the next check.
   Checks of an image that hasn't changed don't use up pulls (only the first
   check of a multi-platform image after Docker Manager restarts uses one).
-- **Not reported** means the registry sends no limit (GitHub's registry
-  doesn't). **Limit reached** means it refused a check for too many
+- **Not Reported** means the registry sends no limit (GitHub's registry
+  doesn't). **Limit Reached** means it refused a check for too many
   requests; when the registry says when the limit resets, so does the row.
 
 ## Git credentials
 
-The **Git credentials** tab holds logins for private Git repositories, used
-by [builds](/builds). Press **Add credential** and enter a **Name**,
+The **Git Credentials** tab holds logins for private Git repositories, used
+by [builds](/builds). Press **Add Credential** and enter a **Name**,
 the **Host** (for example `github.com`), the repositories it is for, a
-**Username** and an **Access token**.
+**Username** and an **Access Token**.

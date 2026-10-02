@@ -50,10 +50,10 @@ type CapabilityInfo struct {
 // Capabilities returns the audit capabilities for the #17 catalog.
 func Capabilities() []CapabilityInfo {
 	return []CapabilityInfo{
-		{Key: CapabilityRead, Label: "View audit log", Scope: "instance", HighRisk: true, OwnerOnlyByDefault: true,
+		{Key: CapabilityRead, Label: "View Audit Log", Scope: "instance", HighRisk: true, OwnerOnlyByDefault: true,
 			Description: "Read every audit record. All-or-nothing: records reveal activity on resources the reader cannot otherwise see."},
-		{Key: CapabilityExport, Label: "Export audit log", Scope: "instance", HighRisk: true, OwnerOnlyByDefault: true,
-			Description: "Download audit records as NDJSON or CSV. All-or-nothing, like View audit log."},
+		{Key: CapabilityExport, Label: "Export Audit Log", Scope: "instance", HighRisk: true, OwnerOnlyByDefault: true,
+			Description: "Download audit records as NDJSON or CSV. All-or-nothing, like View Audit Log."},
 	}
 }
 

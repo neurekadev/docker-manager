@@ -63,12 +63,12 @@ function move(p: Partial<ManagerMove> = {}): ManagerMove {
 describe('move status on the old manager', () => {
 	it('says what each state means and which way out it offers', () => {
 		expect(moveStatus(move())).toMatchObject({
-			label: 'Waiting for the new server',
+			label: 'Waiting for the New Server',
 			tone: 'info',
 			stop: 'cancel'
 		});
 		expect(moveStatus(move({ state: 'moving' }))).toMatchObject({
-			label: 'Moving apps',
+			label: 'Moving Apps',
 			stop: 'cancel'
 		});
 		expect(moveStatus(move({ state: 'ready' })).stop).toBe('cancel');
@@ -82,7 +82,7 @@ describe('move status on the old manager', () => {
 		);
 		expect(moveStatus(move({ state: 'draining' })).title).toBe('Locked: handing over');
 		expect(moveStatus(move({ state: 'handed_off' }))).toMatchObject({
-			label: 'Handed over',
+			label: 'Handed Over',
 			title: 'Handed over: waiting for the new Docker Manager to confirm',
 			stop: 'resume'
 		});
@@ -112,23 +112,23 @@ describe('the banner of a locked manager', () => {
 
 	it('shows while the manager moves, from the session lock or a refused change', () => {
 		expect(moveBanner('moving', false, address)?.title).toBe(
-			'This Docker Manager is moving to a new server'
+			'This Docker Manager Is Moving to a New Server'
 		);
 		expect(moveBanner('moving', false, address)?.body).toBe(
 			'Nothing can be changed here. Your apps keep running.'
 		);
 		// A session read before the lock began: the first manager_moved refusal is enough.
 		expect(moveBanner(undefined, true, address)?.title).toBe(
-			'This Docker Manager is moving to a new server'
+			'This Docker Manager Is Moving to a New Server'
 		);
 		expect(moveBanner('none', true, address)?.title).toBe(
-			'This Docker Manager is moving to a new server'
+			'This Docker Manager Is Moving to a New Server'
 		);
 	});
 
 	it('names the address once the move is confirmed', () => {
 		expect(moveBanner('moved', true, address)).toEqual({
-			title: 'This Docker Manager moved to a new server',
+			title: 'This Docker Manager Moved to a New Server',
 			body: 'Nothing can be changed here. Use https://docker.example.com once it leads to the new server.'
 		});
 	});
@@ -179,7 +179,7 @@ describe('the old manager’s wizard', () => {
 			expect(stepOf(move({ state }))).toBe('move');
 		for (const state of ['cancelled', 'expired', 'arrived', 'confirmed'] as const)
 			expect(stepOf(move({ state }))).toBe('server');
-		expect(MOVE_STEPS.map((s) => s.label)).toEqual(['New server', 'Check', 'Move']);
+		expect(MOVE_STEPS.map((s) => s.label)).toEqual(['New Server', 'Check', 'Move']);
 	});
 
 	it('knows an active and a handed-over move', () => {
@@ -369,7 +369,7 @@ describe('the old manager’s wizard', () => {
 
 	it('shows Move everything from the move alone', () => {
 		expect(runView(move())).toMatchObject({ phase: 'idle' });
-		expect(moveButtonLabel('idle')).toBe('Move everything');
+		expect(moveButtonLabel('idle')).toBe('Move Everything');
 		const moving = runView(
 			move({
 				state: 'moving',
@@ -430,7 +430,7 @@ describe('the old manager’s wizard', () => {
 			title: 'Not every app moved',
 			recovery: 'nextcloud did not start on new-box. Press Move everything again.'
 		});
-		expect(moveButtonLabel('failed')).toBe('Try again');
+		expect(moveButtonLabel('failed')).toBe('Try Again');
 		expect(
 			runView(
 				move({
@@ -487,11 +487,11 @@ describe('the new server’s status page', () => {
 
 	it('highlights the step the move is at', () => {
 		expect(waitSteps(status({ oldState: 'open' })).map((s) => s.label)).toEqual([
-			'Waiting for the old server',
-			'Moving your apps',
-			'Finishing running jobs',
+			'Waiting for the Old Server',
+			'Moving Your Apps',
+			'Finishing Running Jobs',
 			'Copying Docker Manager',
-			'Checking the copy',
+			'Checking the Copy',
 			'Restarting',
 			'Done'
 		]);
@@ -510,7 +510,7 @@ describe('the new server’s status page', () => {
 			)
 		).toEqual({
 			id: 'apps',
-			label: 'Moving your apps (2 of 5, now: immich)',
+			label: 'Moving Your Apps (2 of 5, now: immich)',
 			state: 'current'
 		});
 		expect(waitStepOf(status({ oldState: 'ready' }))).toBe('jobs');
@@ -529,7 +529,7 @@ describe('the new server’s status page', () => {
 		// Earlier steps are done; the apps keep their count.
 		const copying = waitSteps(status({ phase: 'copying', stacksMoved: 5, stacksTotal: 5 }));
 		expect(copying.slice(0, 3).every((s) => s.state === 'done')).toBe(true);
-		expect(copying[1].label).toBe('Moving your apps (5 of 5)');
+		expect(copying[1].label).toBe('Moving Your Apps (5 of 5)');
 		expect(copying[4].state).toBe('todo');
 	});
 
@@ -576,8 +576,8 @@ describe('the new server’s status page', () => {
 		});
 		expect(waitNotice(status({ oldState: 'open' }))).toEqual({
 			tone: 'info',
-			title: 'Ready when you are',
-			body: 'On the old server, press Move everything to start.'
+			title: 'Ready When You Are',
+			body: 'On the old server, press Move Everything to start.'
 		});
 		expect(waitNotice(status({ oldState: 'moving' }))).toBeNull();
 	});

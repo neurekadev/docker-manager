@@ -185,13 +185,13 @@
 				</Notice>
 			{/if}
 			<ListCard
-				title="All builds"
+				title="All Builds"
 				id="builds"
 				summary={list.data
 					? listSummary(rows.length, all.length, filtered, 'build', 'builds')
 					: undefined}
-				label="Filter builds"
-				searchLabel="Search builds"
+				label="Filter Builds"
+				searchLabel="Search Builds"
 				placeholder="Search builds"
 				filters={defs}
 				store={filters}
@@ -228,7 +228,7 @@
 												icon={Play}
 												href={routes.newBuild(
 													scope.single ? scope.targets[0]?.id : undefined
-												)}>Build image</Button
+												)}>Build Image</Button
 											>
 										{/if}
 									{/snippet}

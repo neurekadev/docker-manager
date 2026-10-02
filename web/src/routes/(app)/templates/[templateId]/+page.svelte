@@ -48,7 +48,7 @@
 					size="sm"
 					label={tag}
 					href={routes.templates(tag)}
-					title="Show templates tagged {tag}"
+					title="Show Templates Tagged {tag}"
 				/>{/each}
 		</span>
 	{:else}<span class="muted">None</span>{/if}
@@ -63,7 +63,7 @@
 	<Columns ratio="equal">
 		{#if latest}
 			{@const v = latest}
-			<Card title="Latest version" id="latest">
+			<Card title="Latest Version" id="latest">
 				<div class="stack">
 					{#snippet digest()}<Digest value={v.archiveSha256} />{/snippet}
 					<Facts
@@ -79,7 +79,7 @@
 								value: `${contentsSummary(v.entries)}, ${formatBytes(v.contentSize)}`
 							},
 							{
-								label: 'Compose files',
+								label: 'Compose Files',
 								value: composeFiles(v.definition)
 									.map((f) => f.path)
 									.join(', ')
@@ -88,28 +88,28 @@
 					/>
 					{#if v.notes}
 						<div>
-							<h3 class="subsection-title">What changed</h3>
+							<h3 class="subsection-title">What Changed</h3>
 							<p class="notes">{v.notes}</p>
 						</div>
 					{/if}
 					<Disclosure summary="Details">
 						<Facts
 							items={[
-								{ label: 'Archive digest', render: digest },
-								{ label: 'Archive size', value: formatBytes(v.archiveSize) }
+								{ label: 'Archive Digest', render: digest },
+								{ label: 'Archive Size', value: formatBytes(v.archiveSize) }
 							]}
 						/>
 					</Disclosure>
 				</div>
 			</Card>
 		{:else}
-			<Notice tone="info" title="Not published yet" live="none">
+			<Notice tone="info" title="Not Published Yet" live="none">
 				Stacks are created from published versions. Edit the draft's files, then publish its
 				first version.
 				{#snippet actions()}
 					{#if can('template.files.read')}
 						<Button size="sm" icon={FolderOpen} href={routes.template(t.id, 'files')}
-							>Open files</Button
+							>Open Files</Button
 						>
 					{/if}
 				{/snippet}
@@ -133,7 +133,7 @@
 						value: t.createdAt ? formatDateTime(t.createdAt) : null
 					},
 					{
-						label: 'Last changed',
+						label: 'Last Changed',
 						value: t.updatedAt ? formatRelative(t.updatedAt) : null,
 						title: t.updatedAt ? formatDateTime(t.updatedAt) : undefined
 					}
@@ -144,7 +144,7 @@
 
 	{#if latest}
 		<Card
-			title="What it runs"
+			title="What It Runs"
 			subtitle="{versionTitle(
 				latest.label
 			)}: its services and the settings its .env asks for."

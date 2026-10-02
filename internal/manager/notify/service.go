@@ -41,7 +41,7 @@ const (
 	MaxEnvironments    = 100
 	TestInterval       = 5 * time.Second
 	auditTargetType    = "notification_channel"
-	testMessageLabel   = "Test message"
+	testMessageLabel   = "Test Message"
 	testMessageTitle   = "Docker Manager test message"
 	testMessageBodyFmt = "This is a test message from Docker Manager. If you can read it, the channel %q works."
 	// testMessageTag marks a test email's subject ("[Test] ...").

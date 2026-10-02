@@ -123,7 +123,7 @@
 		affected={target.repoTags.length
 			? target.repoTags.map((t) => ({ label: t, detail: 'tag' }))
 			: [{ label: shortDigest(target.id), detail: 'untagged image' }]}
-		confirmLabel="Remove image"
+		confirmLabel="Remove Image"
 		onconfirm={remove}
 	/>
 
@@ -168,7 +168,7 @@
 				form="tag-form"
 				variant="primary"
 				loading={tagBusy}
-				disabled={!repository.trim()}>Tag image</Button
+				disabled={!repository.trim()}>Tag Image</Button
 			>
 		{/snippet}
 	</Dialog>

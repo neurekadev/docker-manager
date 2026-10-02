@@ -155,7 +155,7 @@
 		if (can('container.details.read'))
 			for (const c of named)
 				items.push({
-					label: named.length === 1 ? 'Container details' : `Container ${c.name}`,
+					label: named.length === 1 ? 'Container Details' : `Container ${c.name}`,
 					icon: Box,
 					href: routes.container(stack.environmentId, c.name!)
 				});
@@ -314,7 +314,7 @@
 						<a
 							class="vol-name link"
 							href={routes.volume(stack.environmentId, v.name)}
-							aria-label="Anonymous volume {v.name}">Anonymous</a
+							aria-label="Anonymous Volume {v.name}">Anonymous</a
 						>
 						{#if v.destinations.length}<span class="vol-path mono"
 								>{v.destinations[0]}</span
@@ -384,7 +384,7 @@
 			<IconButton
 				size="sm"
 				variant="secondary"
-				label="Open a terminal in {s.name}"
+				label="Open a Terminal in {s.name}"
 				icon={SquareTerminal}
 				href={routes.stackTerminal(
 					stack.id,
@@ -398,7 +398,7 @@
 						{...props}
 						size="sm"
 						variant="secondary"
-						label="More actions for {s.name}"
+						label="More Actions for {s.name}"
 						icon={EllipsisVertical}
 					/>{/snippet}
 			</Menu>
@@ -416,7 +416,7 @@
 		<EmptyState
 			icon={Layers}
 			color="blue"
-			title="No services running yet"
+			title="No Services Running Yet"
 			description="Deploy the stack to create its containers."
 			level={3}
 			compact

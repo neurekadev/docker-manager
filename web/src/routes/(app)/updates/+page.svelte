@@ -149,7 +149,7 @@
 	const attentionColumns: Column<EnvironmentTarget>[] = $derived([
 		{
 			id: 'target',
-			header: 'Stack or container',
+			header: 'Stack or Container',
 			cell: targetCell,
 			sortValue: (t) => targetName(t),
 			maxWidth: '320px',
@@ -170,7 +170,7 @@
 		{ id: 'state', header: 'Status', cell: stateCell, width: '200px', stack: 'status' },
 		{
 			id: 'checked',
-			header: 'Last check',
+			header: 'Last Check',
 			cell: checkedCell,
 			sortValue: (t) => t.candidateSummary.lastCheckAt ?? '',
 			width: '150px',
@@ -193,7 +193,7 @@
 		icon="updatePolicy"
 		name={p.name}
 		href={routes.updatePolicy(p.id)}
-		sub={p.scope === 'all' ? 'All environments' : envName(p.environmentId)}
+		sub={p.scope === 'all' ? 'All Environments' : envName(p.environmentId)}
 	/>{/snippet}
 {#snippet statusCell(p: EnvironmentUpdatePolicy)}
 	{@const running = activityText(activity.get(p.id))}
@@ -230,7 +230,7 @@
 	{@const p = byId.get(t.policyId)}
 	{#if p && p.view === 'full'}
 		<Button size="sm" variant="secondary" icon={Eye} onclick={() => preview(t, p)}
-			>Preview update</Button
+			>Preview Update</Button
 		>
 	{/if}
 {/snippet}
@@ -243,7 +243,7 @@
 		{#snippet actions()}{#if canManage}<Button
 					variant="primary"
 					icon={Plus}
-					onclick={() => (createDialog.open = true)}>Create update policy</Button
+					onclick={() => (createDialog.open = true)}>Create Update Policy</Button
 				>{/if}{/snippet}
 	</PageHeader>
 
@@ -251,7 +251,7 @@
 		jobs={updateJobs}
 		nameOf={stackNames(stacks.data)}
 		onfinish={updateFinished}
-		label="Running updates"
+		label="Running Updates"
 	/>
 
 	<QueryView query={policies} errorTitle="The update policies could not be loaded.">
@@ -268,7 +268,7 @@
 								variant="primary"
 								icon={Plus}
 								onclick={() => (createDialog.open = true)}
-								>Create update policy</Button
+								>Create Update Policy</Button
 							>{/if}
 					{/snippet}
 				</EmptyState>
@@ -276,7 +276,7 @@
 		{:else}
 			<KpiRow>
 				<KpiCard
-					label="Updates available"
+					label="Updates Available"
 					value={String(totals.withUpdates)}
 					secondary={targetsUpdateText(covered)}
 					{...resourceIcon('updatePolicy')}
@@ -293,7 +293,7 @@
 					tone={totals.failing ? 'danger' : undefined}
 				/>
 				<KpiCard
-					label="Up to date"
+					label="Up to Date"
 					value={String(totals.upToDate)}
 					secondary={totals.unchecked
 						? `${totals.unchecked} not checked yet`
@@ -303,7 +303,7 @@
 					tone={totals.upToDate ? 'ok' : undefined}
 				/>
 				<KpiCard
-					label="Last check"
+					label="Last Check"
 					value={totals.lastCheckAt ? formatRelative(totals.lastCheckAt) : 'Never'}
 					secondary={totals.lastCheckAt
 						? formatDateTime(totals.lastCheckAt)
@@ -314,7 +314,7 @@
 			</KpiRow>
 
 			<Card
-				title="Needs attention"
+				title="Needs Attention"
 				subtitle="Stacks and containers with a newer image or a failed check or update."
 				padding="none"
 			>
@@ -344,7 +344,7 @@
 				padding="none"
 			>
 				<Table
-					label="Update policies"
+					label="Update Policies"
 					rows={visiblePolicies}
 					columns={policyColumns}
 					rowKey={(p) => p.id}

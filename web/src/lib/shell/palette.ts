@@ -112,28 +112,28 @@ interface PaletteAction {
 export const PALETTE_ACTIONS: PaletteAction[] = [
 	{
 		id: 'create-stack',
-		label: 'Create stack',
+		label: 'Create Stack',
 		icon: RESOURCE_ICONS.stack.icon,
 		capabilities: ['stack.create'],
 		href: (env) => routes.newStack(env)
 	},
 	{
 		id: 'create-container',
-		label: 'Create container',
+		label: 'Create Container',
 		icon: RESOURCE_ICONS.container.icon,
 		capabilities: ['container.create'],
 		href: (env) => routes.newContainer(env ?? undefined)
 	},
 	{
 		id: 'build-image',
-		label: 'Build image',
+		label: 'Build Image',
 		icon: RESOURCE_ICONS.build.icon,
 		capabilities: ['image.build'],
 		href: (env) => routes.newBuild(env ?? undefined)
 	},
 	{
 		id: 'add-environment',
-		label: 'Add environment',
+		label: 'Add Environment',
 		icon: RESOURCE_ICONS.environment.icon,
 		capabilities: ['agent.enroll'],
 		href: () => routes.addEnvironment()

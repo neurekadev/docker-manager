@@ -191,7 +191,7 @@
 			{/if}
 		</div>
 	{:else if r.view === 'full' && !r.agentId}
-		<span class="muted">No agent</span>
+		<span class="muted">No Agent</span>
 	{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet containersCell(r: Row)}
@@ -241,7 +241,7 @@
 {#snippet archivedActionsCell(r: Environment)}
 	{#if canEnroll}
 		<span class="above"
-			><Button size="sm" href={routes.addEnvironment(r.id)}>Re-attach</Button></span
+			><Button size="sm" href={routes.addEnvironment(r.id)}>Re-Attach</Button></span
 		>
 	{/if}
 {/snippet}
@@ -255,7 +255,7 @@
 		{:else}
 			<div class="rows">
 				<Table
-					label="Active environments"
+					label="Active Environments"
 					{rows}
 					{columns}
 					rowKey={(r) => r.id}
@@ -273,7 +273,7 @@
 								{#if canEnroll}<Button
 										variant="primary"
 										icon={Plus}
-										href={routes.addEnvironment()}>Add environment</Button
+										href={routes.addEnvironment()}>Add Environment</Button
 									>{/if}
 							{/snippet}
 						</EmptyState>
@@ -292,7 +292,7 @@
 			{#snippet actions()}
 				{#if canEnroll}
 					<Button variant="primary" icon={Plus} href={routes.addEnvironment()}
-						>Add environment</Button
+						>Add Environment</Button
 					>
 				{/if}
 			{/snippet}
@@ -307,7 +307,7 @@
 		{:else if !showTabs}
 			{@render activeList()}
 		{:else}
-			<Tabs items={tabs} value={tab} label="Environments by status" onchange={selectTab}>
+			<Tabs items={tabs} value={tab} label="Environments by Status" onchange={selectTab}>
 				{#snippet panel(id)}
 					{#if id === 'active'}
 						{@render activeList()}
@@ -326,7 +326,7 @@
 							{:else}
 								<div class="rows">
 									<Table
-										label="Archived environments"
+										label="Archived Environments"
 										rows={archivedRows}
 										columns={archivedColumns}
 										rowKey={(r) => r.id}

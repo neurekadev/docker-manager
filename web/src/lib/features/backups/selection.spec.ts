@@ -74,7 +74,7 @@ describe('backup path selection (#10)', () => {
 			volumePaths: { shop_db: '/vol/shop_db/_data', shop_cache: '/vol/shop_cache/_data' }
 		};
 		expect(pickerRoots(b).map((r) => r.label)).toEqual([
-			'shop project files',
+			'shop Project Files',
 			'Volume shop_cache',
 			'Volume shop_db'
 		]);

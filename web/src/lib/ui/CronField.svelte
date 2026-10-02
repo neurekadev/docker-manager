@@ -157,7 +157,7 @@
 		<Select label="Repeats" options={KINDS} value={preset} onchange={setKind} />
 		{#if preset === 'hourly'}
 			<TextField
-				label="At minute"
+				label="At Minute"
 				type="number"
 				min="0"
 				max="59"
@@ -176,7 +176,7 @@
 		{/if}
 	</div>
 	{#if preset === 'custom'}
-		<Field label="Cron expression" {description} error={cronError}>
+		<Field label="Cron Expression" {description} error={cronError}>
 			{#snippet children(c)}
 				<input
 					id={c.id}
@@ -192,11 +192,11 @@
 	{:else if cronError}
 		<p class="error" role="alert">{cronError}</p>
 	{/if}
-	<Combobox label="Time zone" options={zones} bind:value={timeZone} />
+	<Combobox label="Time Zone" options={zones} bind:value={timeZone} />
 	<div class="preview" id={previewId} aria-live="polite">
 		{#if preview.data && !cronError}
 			{#if preset === 'custom' && words !== cron.trim()}<p class="words">{words}</p>{/if}
-			<p class="head">Next runs</p>
+			<p class="head">Next Runs</p>
 			<ol role="list">
 				{#each preview.data.runs as run (run.at)}
 					<li class="num">
@@ -208,7 +208,7 @@
 			</ol>
 			{#if preview.data.notes.length}
 				<details class="notes">
-					<summary>Missed runs, restarts and daylight saving time</summary>
+					<summary>Missed Runs, Restarts and Daylight Saving Time</summary>
 					{#each preview.data.notes as note (note)}<p class="note">{note}</p>{/each}
 				</details>
 			{/if}

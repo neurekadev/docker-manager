@@ -4,7 +4,7 @@
 	// registry last reported for the connection (#217), and last use. The
 	// priority column shows only when priorities differ; the credential's
 	// fingerprint is in the edit dialog. The owner adds (the header's "Add
-	// connection", ?create=1), edits, rotates, revokes, deletes and tests
+	// Connection", ?create=1), edits, rotates, revokes, deletes and tests
 	// them. Below, the pull limits of anonymous access per registry, when
 	// images were checked without a connection.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -73,12 +73,12 @@
 		if (manage) {
 			out.push(
 				{
-					label: 'Test connection',
+					label: 'Test Connection',
 					onSelect: () => host?.request({ kind: 'registry', item: c }, 'test')
 				},
 				{ label: 'Edit', onSelect: () => ((editing = c), (editOpen = true)) },
 				{
-					label: 'Rotate credential',
+					label: 'Rotate Credential',
 					onSelect: () => host?.request({ kind: 'registry', item: c }, 'rotate')
 				},
 				{ separator: true }
@@ -123,7 +123,7 @@
 			maxWidth: '320px',
 			stack: 'meta'
 		},
-		{ id: 'binding', header: 'Used for', cell: bindingCell, stack: 'meta' },
+		{ id: 'binding', header: 'Used For', cell: bindingCell, stack: 'meta' },
 		...(samePriority
 			? []
 			: [
@@ -147,7 +147,7 @@
 		},
 		{
 			id: 'used',
-			header: 'Last used',
+			header: 'Last Used',
 			cell: usedCell,
 			sortValue: (c) => c.lastUsedAt ?? '',
 			width: '130px',
@@ -257,7 +257,7 @@
 		padding="none"
 	>
 		<div class="how">
-			<Disclosure summary="How a connection is chosen">
+			<Disclosure summary="How a Connection Is Chosen">
 				<p class="muted">
 					A connection bound to the image's stack or environment comes first, then the
 					longest repository match, then the higher priority. Signing in to Docker Hub
@@ -269,7 +269,7 @@
 			<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 		{:else}
 			<Table
-				label="Registry connections"
+				label="Registry Connections"
 				{rows}
 				{columns}
 				rowKey={(c) => c.id}
@@ -294,7 +294,7 @@
 			padding="none"
 		>
 			<Table
-				label="Anonymous access per registry"
+				label="Anonymous Access per Registry"
 				rows={anonymous}
 				columns={anonymousColumns}
 				rowKey={(p) => p.host}

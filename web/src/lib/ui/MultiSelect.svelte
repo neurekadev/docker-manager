@@ -20,7 +20,7 @@
 	// the log viewer's levels. The trigger looks like Select and shows
 	// `summary`; the popover lists every option as a switch (role="switch",
 	// the whole row toggles) with "Only" to keep just that option of its
-	// group, "All" per group and "Select all" at the foot. Values are unique
+	// group, "All" per group and "Select All" at the foot. Values are unique
 	// across groups; `value` holds the chosen ones.
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { mergeProps } from 'bits-ui';
@@ -120,7 +120,7 @@
 									<button
 										type="button"
 										class="ms-link"
-										aria-label="All {(g.label ?? label).toLowerCase()}"
+										aria-label="All {g.label ?? label}"
 										onclick={() => groupAll(g)}>All</button
 									>
 								{/if}
@@ -164,7 +164,7 @@
 				{#if !everything}
 					<div class="ms-foot">
 						<button type="button" class="ms-link" onclick={() => set(all)}
-							>Select all</button
+							>Select All</button
 						>
 					</div>
 				{/if}

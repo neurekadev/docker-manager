@@ -88,7 +88,7 @@ describe('RestoreDialog after a reload', () => {
 		).toBeInTheDocument();
 		expect(screen.getAllByRole('progressbar')).toHaveLength(1);
 		expect(
-			screen.queryByRole('button', { name: 'Replace everything' })
+			screen.queryByRole('button', { name: 'Replace Everything' })
 		).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
 	});
@@ -97,7 +97,7 @@ describe('RestoreDialog after a reload', () => {
 		const fetched = mount([restore('0190-2', { targets: [{ type: 'stack', id: 'st-2' }] })]);
 		await waitFor(() => expect(fetched).toContain('/api/v1/jobs'));
 		expect(
-			await screen.findByRole('button', { name: 'Replace everything' })
+			await screen.findByRole('button', { name: 'Replace Everything' })
 		).toBeInTheDocument();
 		expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 	});

@@ -27,7 +27,7 @@ import (
 
 func sample() domain.NotificationMessage {
 	return domain.NotificationMessage{
-		Label: "Image updates · Applied", Title: "Update of Paperless succeeded",
+		Label: "Image Updates · Applied", Title: "Update of Paperless succeeded",
 		Body: "Recreated silo_data & web with the new image.",
 		URL:  "https://docker.example.com/jobs/j1", Tone: domain.ToneSuccess, Footer: "Home",
 		Time: time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC),
@@ -92,7 +92,7 @@ func TestDiscordGetsAnEmbedInTheTonesColor(t *testing.T) {
 	e := p.Embeds[0]
 	// The title is no link: "Open in Docker Manager" is the last line,
 	// after every field.
-	if e.Color != 0x4cf683 || e.Author == nil || e.Author.Name != "Image updates · Applied" || e.Title != "Update of Paperless succeeded" ||
+	if e.Color != 0x4cf683 || e.Author == nil || e.Author.Name != "Image Updates · Applied" || e.Title != "Update of Paperless succeeded" ||
 		e.URL != "" || strings.Contains(r.body, `"url"`) ||
 		e.Description != "Recreated silo\\_data & web with the new image." ||
 		e.Timestamp != "2026-10-01T09:30:00Z" || e.Footer.Text != "Home" || e.Footer.IconURL != LogoURL || len(e.Fields) != 4 {
@@ -252,14 +252,14 @@ func TestServicesGetTheirRichestForm(t *testing.T) {
 	msg := sample()
 	slack := render("slack", nil, msg, url.Values{})
 	if slack.params["color"] != "#4cf683" || slack.params["title"] != msg.Title ||
-		!strings.HasPrefix(slack.body, "_Image updates · Applied_\n") ||
+		!strings.HasPrefix(slack.body, "_Image Updates · Applied_\n") ||
 		!strings.Contains(slack.body, "*Environment:* <https://docker.example.com/environments/e1|homelab>") ||
 		!strings.Contains(slack.body, "*Updated:*\n• <https://docker.example.com/stacks/s1/logs?service=web|web &lt;x&gt;> `1a2b` → `3c4d`\n• worker") ||
 		!strings.Contains(slack.body, "<https://docker.example.com/jobs/j1|Open in Docker Manager>") || strings.Contains(slack.body, "\n\n") {
 		t.Fatalf("%+v", slack)
 	}
 	tg := render("telegram", nil, msg, url.Values{})
-	if tg.params["parsemode"] != "HTML" || !strings.HasPrefix(tg.body, "<i>Image updates · Applied</i>") ||
+	if tg.params["parsemode"] != "HTML" || !strings.HasPrefix(tg.body, "<i>Image Updates · Applied</i>") ||
 		!strings.Contains(tg.body, "<b>Reclaimed:</b> 4.2 GiB") ||
 		!strings.Contains(tg.body, `<b>Environment:</b> <a href="https://docker.example.com/environments/e1">homelab</a>`) ||
 		!strings.Contains(tg.body, `• <a href="https://docker.example.com/stacks/s1/logs?service=web">web &lt;x&gt;</a> <code>1a2b</code> → <code>3c4d</code>`) ||
@@ -296,7 +296,7 @@ func TestServicesGetTheirRichestForm(t *testing.T) {
 	// Anything else: the title and plain text, the status line first, a
 	// line per field and a list's entries below its name.
 	other := render("bark", nil, msg, url.Values{})
-	if len(other.params) != 1 || other.body != "Image updates · Applied\n\nRecreated silo_data & web with the new image.\n\n"+
+	if len(other.params) != 1 || other.body != "Image Updates · Applied\n\nRecreated silo_data & web with the new image.\n\n"+
 		"Environment: homelab\nReclaimed: 4.2 GiB\nUpdated:\n- web <x>: 1a2b → 3c4d\n- worker\n\nhttps://docker.example.com/jobs/j1" {
 		t.Fatalf("%q", other.body)
 	}
@@ -356,7 +356,7 @@ func TestEmailIsAnHTMLCardWithAPlainPart(t *testing.T) {
 	for _, want := range []string{
 		`<img src="` + EmailLogoURL + `"`, ";letter-spacing:-0.01em;\">Docker Manager</td>",
 		`<meta name="color-scheme" content="dark">`, "background:#0a0f15", "background:#121a24",
-		"&nbsp; Image updates · Applied</td>", "background:#2566fd", `<!--[if mso]><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600"`,
+		"&nbsp; Image Updates · Applied</td>", "background:#2566fd", `<!--[if mso]><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("missing %q in %s", want, html)
@@ -493,7 +493,7 @@ func TestEmailArrivesWithTheBrandedCard(t *testing.T) {
 	if !strings.HasPrefix(html, want) {
 		t.Fatalf("the HTML part is not the card:\n%s", html)
 	}
-	for _, s := range []string{`<img src="` + EmailLogoURL + `"`, "&nbsp; Test message</td>", `href="https://docker.example.com"`} {
+	for _, s := range []string{`<img src="` + EmailLogoURL + `"`, "&nbsp; Test Message</td>", `href="https://docker.example.com"`} {
 		if !strings.Contains(html, s) {
 			t.Fatalf("missing %q in %s", s, html)
 		}

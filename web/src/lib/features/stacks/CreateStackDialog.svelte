@@ -184,7 +184,7 @@
 
 <Dialog
 	bind:open
-	title="Create stack"
+	title="Create Stack"
 	description="Write or paste a Compose file. Docker Manager saves it as a new stack and never overwrites anything."
 	size="xl"
 	dismissible={!busy}
@@ -206,7 +206,7 @@
 			level={3}
 		>
 			{#snippet actions()}<Button variant="primary" href={routes.environments()}
-					>Open environments</Button
+					>Open Environments</Button
 				>{/snippet}
 		</EmptyState>
 	{:else if allowed.length === 0}
@@ -248,7 +248,7 @@
 					oninput={() => (nameConflict = null)}
 					onblur={() => (touched = true)}
 				/>
-				<TextField label="Display name" bind:value={displayName} description="Optional." />
+				<TextField label="Display Name" bind:value={displayName} description="Optional." />
 				<TextField
 					label="Description"
 					bind:value={description}
@@ -256,7 +256,7 @@
 				/>
 				<Checkbox
 					bind:checked={deployAfter}
-					label="Deploy after creating"
+					label="Deploy After Creating"
 					description="Starts the stack right after creating it."
 				/>
 				{#if validation}<ValidationResult {validation} />{/if}
@@ -275,7 +275,7 @@
 			</div>
 			<div class="editors">
 				<div class="editor">
-					<span class="editor-label">Compose file</span>
+					<span class="editor-label">Compose File</span>
 					<CodeEditor
 						value={compose}
 						label="compose.yaml"
@@ -287,7 +287,7 @@
 					/>
 				</div>
 				<div class="editor">
-					<span class="editor-label">.env file</span>
+					<span class="editor-label">.env File</span>
 					<CodeEditor
 						value={envFile}
 						label=".env"
@@ -320,7 +320,7 @@
 				loading={creating}
 				disabled={!ready || (env && !env.online) || validating}
 			>
-				{deployAfter ? 'Create and deploy' : 'Create stack'}
+				{deployAfter ? 'Create and Deploy' : 'Create Stack'}
 			</Button>
 		{/if}
 	{/snippet}

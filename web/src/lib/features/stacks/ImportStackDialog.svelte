@@ -143,7 +143,7 @@
 
 	function imported(name: string, stackId: string | undefined) {
 		toast.success(`Imported ${name}`, {
-			action: stackId ? { label: 'Open stack', onclick: () => openStack(stackId) } : undefined
+			action: stackId ? { label: 'Open Stack', onclick: () => openStack(stackId) } : undefined
 		});
 	}
 
@@ -190,13 +190,13 @@
 
 <Dialog
 	bind:open
-	title="Import project"
+	title="Import Project"
 	description="Compose projects on the environment, running, stopped or without containers, that Docker Manager does not manage yet."
 	size="lg"
 >
 	<div class="body">
 		<div class="tools">
-			<Switch bind:checked={hideManaged} label="Hide managed stacks" />
+			<Switch bind:checked={hideManaged} label="Hide Managed Stacks" />
 			<span class="spacer"></span>
 			{#if allowed.length > 1}
 				<Select
@@ -244,7 +244,7 @@
 				icon={FolderSearch}
 				color="blue"
 				title="Every Compose project on {env?.name} is already managed."
-				description="Turn off “Hide managed stacks” to see them."
+				description="Turn off “Hide Managed Stacks” to see them."
 				level={3}
 				compact
 			/>
@@ -258,7 +258,7 @@
 				compact
 			/>
 		{:else}
-			<ul class="list" role="list" aria-label="Compose projects on {env?.name}">
+			<ul class="list" role="list" aria-label="Compose Projects on {env?.name}">
 				{#each list as p (p.name)}
 					{@const k = keyOf(p)}
 					{@const c = containerCounts(p)}
@@ -272,7 +272,7 @@
 							<div class="title">
 								<span class="name">{p.name}</span>
 								{#if p.containerless}
-									<Badge title="Never started, or taken down">No containers</Badge
+									<Badge title="Never started, or taken down">No Containers</Badge
 									>
 								{:else}
 									<StatusBadge
@@ -286,7 +286,7 @@
 							<div class="actions">
 								{#if p.stackId && !importing}
 									<Button size="sm" href={routes.stack(p.stackId)}
-										>Open stack</Button
+										>Open Stack</Button
 									>
 								{:else if !p.stackId && mode !== 'blocked' && !job}
 									<Button
@@ -321,7 +321,7 @@
 							{#if details.length || p.sourceDir || p.workingDir}
 								<Disclosure
 									summary={mode === 'blocked'
-										? 'Why and how to fix it'
+										? 'Why and How to Fix It'
 										: 'Details'}
 								>
 									<ul class="details" role="list">
@@ -329,7 +329,7 @@
 									</ul>
 									{#if p.sourceDir || p.workingDir}
 										<p class="folder">
-											<span class="muted">Folder on the host</span>
+											<span class="muted">Folder on the Host</span>
 											<span class="mono">{p.sourceDir || p.workingDir}</span>
 										</p>
 									{/if}
@@ -350,7 +350,7 @@
 	bind:open={confirmOpen}
 	title="Import {confirming?.name ?? 'the project'}?"
 	consequences={confirming ? importConsequences(confirming) : []}
-	confirmLabel="Stop and import"
+	confirmLabel="Stop and Import"
 	onconfirm={() => (confirming ? start(confirming) : undefined)}
 />
 

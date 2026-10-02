@@ -138,7 +138,7 @@
 
 <Dialog
 	bind:open
-	title="Update preview"
+	title="Update Preview"
 	description="What updating {name} does now, from the latest check."
 	size="lg"
 >
@@ -160,20 +160,20 @@
 	{:else if preview}
 		<div class="preview">
 			{#if preview.sourceDrift}
-				<Notice tone="danger" title="Undeployed changes block updates" live="none">
+				<Notice tone="danger" title="Undeployed Changes Block Updates" live="none">
 					The Compose files on disk differ from the deployed revision. Deploy the stack
 					first, then check again: an update never applies definition changes you have not
 					deployed.
 				</Notice>
 			{/if}
 			{#if !preview.inWindow && policy.window}
-				<Notice tone="info" title="Outside the update window" live="none">
+				<Notice tone="info" title="Outside the Update Window" live="none">
 					Scheduled updates only run inside the window; this manual update runs now.
 				</Notice>
 			{/if}
 
 			{#if count === 0}
-				<Notice tone="info" title="Nothing to update" live="none">
+				<Notice tone="info" title="Nothing to Update" live="none">
 					No service has a newer digest behind its tag. Run a check to look again.
 				</Notice>
 			{:else}
@@ -203,10 +203,10 @@
 								<div class="meta">
 									{#if item.running}<Badge tone="ok" dot>Running</Badge
 										>{:else}<Badge tone="neutral" dot
-											>Stopped: stays stopped</Badge
+											>Stopped: Stays Stopped</Badge
 										>{/if}
 									{#if item.candidate.nonVersionTag}<Badge tone="warn"
-											>Tag can change meaning</Badge
+											>Tag Can Change Meaning</Badge
 										>{/if}
 									<span class="muted">Downtime: {item.downtime}</span>
 								</div>
@@ -229,7 +229,7 @@
 
 			{#if preview.restarted.length}
 				<section>
-					<h3>Restarted with them</h3>
+					<h3>Restarted with Them</h3>
 					<p class="muted">
 						These running services depend on an updated one with <span class="mono"
 							>restart: true</span
@@ -240,7 +240,7 @@
 			{/if}
 
 			{#if preview.sharedTag.length}
-				<Notice tone="warn" title="The pull moves shared tags" live="none">
+				<Notice tone="warn" title="The Pull Moves Shared Tags" live="none">
 					<p>
 						Other containers on this environment use the same tags. They keep running
 						their current image and pick up the new one the next time they are
@@ -261,7 +261,7 @@
 
 			{#if preview.skipped.length}
 				<section>
-					<h3>Left out</h3>
+					<h3>Left Out</h3>
 					<ul class="plain" role="list">
 						{#each preview.skipped as c (c.id)}
 							<li>
@@ -299,12 +299,12 @@
 		{:else}
 			<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
 			{#if runError}
-				<Button variant="secondary" onclick={load}>Refresh preview</Button>
+				<Button variant="secondary" onclick={load}>Refresh Preview</Button>
 			{/if}
 			{#if canRun && preview && count > 0 && !preview.sourceDrift}
 				<Button variant="primary" loading={starting} onclick={apply}>
 					Update {count}
-					{count === 1 ? 'service' : 'services'}
+					{count === 1 ? 'Service' : 'Services'}
 				</Button>
 			{/if}
 		{/if}

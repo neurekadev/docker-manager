@@ -53,7 +53,7 @@
 			<span class="reveal">
 				<IconButton
 					size="sm"
-					label={revealed ? 'Hide password' : 'Show password'}
+					label={revealed ? 'Hide Password' : 'Show Password'}
 					icon={revealed ? EyeOff : Eye}
 					pressed={revealed}
 					onclick={() => (revealed = !revealed)}

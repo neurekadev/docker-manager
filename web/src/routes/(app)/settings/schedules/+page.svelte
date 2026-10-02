@@ -39,8 +39,8 @@
 	type Kind = Schema<'ScheduleKindDefault'>;
 
 	usePage({
-		title: 'Schedule defaults',
-		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Schedule defaults' }]
+		title: 'Schedule Defaults',
+		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Schedule Defaults' }]
 	});
 
 	const qc = useQueryClient();
@@ -105,12 +105,12 @@
 		{ id: 'cron', header: 'Default', cell: cronCell, width: '240px', stack: 'status' },
 		{
 			id: 'suggested',
-			header: 'Docker Manager’s suggestion',
+			header: 'Docker Manager’s Suggestion',
 			cell: suggestedCell,
 			width: '240px',
 			stack: 'meta'
 		},
-		{ id: 'catch', header: 'Missed runs', cell: catchCell, width: '200px', stack: 'meta' },
+		{ id: 'catch', header: 'Missed Runs', cell: catchCell, width: '200px', stack: 'meta' },
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -152,24 +152,24 @@
 
 <Page>
 	<SettingsHeader
-		title="Schedule defaults"
+		title="Schedule Defaults"
 		description="What new backup, update and maintenance schedules start with. Existing policies keep their own."
 	/>
 	{#if perms.data && !canRead}
 		<DeniedState
 			level={2}
 			title="You can't see the schedule defaults."
-			description="Ask the owner of this Docker Manager for the View settings permission."
+			description="Ask the owner of this Docker Manager for the View Settings permission."
 		/>
 	{:else}
 		<QueryView query={defaults} errorTitle="The schedule defaults could not be loaded.">
 			{#snippet children(d)}
 				<Card
-					title="Default time zone"
+					title="Default Time Zone"
 					subtitle="New policies use it unless you choose another zone for them."
 				>
 					<div class="zone">
-						<Combobox label="Time zone" options={zones} bind:value={zone} />
+						<Combobox label="Time Zone" options={zones} bind:value={zone} />
 						{#if canEdit}
 							<Button
 								disabled={!zone || zone === d.timeZone}
@@ -179,20 +179,20 @@
 										d,
 										{ timeZone: zone },
 										`Saved the default time zone ${zone}`
-									)}>Save time zone</Button
+									)}>Save Time Zone</Button
 							>
 						{/if}
 					</div>
 				</Card>
-				<Card title="Default schedules" padding="none">
+				<Card title="Default Schedules" padding="none">
 					<Table
-						label="Default schedules"
+						label="Default Schedules"
 						rows={d.kinds}
 						columns={kindColumns}
 						rowKey={(k) => k.kind}
 					/>
 				</Card>
-				{#if saveError && !editing}<Notice tone="danger" title="Not saved" live="alert"
+				{#if saveError && !editing}<Notice tone="danger" title="Not Saved" live="alert"
 						>{saveError}</Notice
 					>{/if}
 				<Dialog
@@ -208,14 +208,14 @@
 							bind:cron={editCron}
 							bind:timeZone={editZone}
 						/>
-						{#if saveError}<Notice tone="danger" title="Not saved" live="alert"
+						{#if saveError}<Notice tone="danger" title="Not Saved" live="alert"
 								>{saveError}</Notice
 							>{/if}
 						<FormFooter>
 							<Button
 								variant="ghost"
 								onclick={() => editing && (editCron = editing.suggested)}
-								>Use Docker Manager’s suggestion</Button
+								>Use Docker Manager’s Suggestion</Button
 							>
 							<Button
 								variant="primary"
@@ -226,7 +226,7 @@
 										d,
 										{ crons: { [editing.kind]: editCron } },
 										`Saved the default for ${editing.label}`
-									)}>Save default</Button
+									)}>Save Default</Button
 							>
 						</FormFooter>
 					{/if}

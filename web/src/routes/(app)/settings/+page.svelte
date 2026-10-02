@@ -62,7 +62,7 @@
 			onsave={rename}
 		/>
 	{:else if can(access, 'settings.read') && !instance.isError}
-		<Card title="About this Docker Manager"><Skeleton lines={3} /></Card>
+		<Card title="About This Docker Manager"><Skeleton lines={3} /></Card>
 	{:else if can(access, 'settings.read')}
 		<ErrorState
 			error={instance.error}
@@ -71,7 +71,7 @@
 			retrying={instance.isFetching}
 		/>
 	{:else}
-		<Card title="About this Docker Manager">
+		<Card title="About This Docker Manager">
 			{#if health.data}
 				<p class="about">
 					<Info size={16} aria-hidden="true" />
@@ -87,11 +87,11 @@
 	{/if}
 
 	{#if can(access, 'settings.read')}
-		<Card title="Maintenance defaults">
+		<Card title="Maintenance Defaults">
 			<p class="more">
 				<span class="muted">The cleanup rules new maintenance policies start with.</span>
 				<Button size="sm" icon={Wrench} href={routes.maintenanceDefaults()}
-					>Open maintenance defaults</Button
+					>Open Maintenance Defaults</Button
 				>
 			</p>
 		</Card>

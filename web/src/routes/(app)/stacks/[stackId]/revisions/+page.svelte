@@ -4,7 +4,7 @@
 	// made on the host and restores. Runs of revisions with the same files
 	// (the same fingerprint) show as one row. While the files on disk differ
 	// from the deployed revision, their diff shows straight away with "Deploy
-	// these changes" and "Restore deployed revision"; otherwise compare any
+	// These Changes" and "Restore Deployed Revision"; otherwise compare any
 	// two (never two with the same files by default) and restore one to
 	// disk. A restore never deploys, it offers the deploy afterwards.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -127,7 +127,7 @@
 	const labelOf = (id: string) => {
 		const r = list.find((x) => x.id === id);
 		if (!r) return 'Revision';
-		if (pendingDiff) return id === appliedId ? `Deployed (revision ${r.seq})` : 'On disk';
+		if (pendingDiff) return id === appliedId ? `Deployed (Revision ${r.seq})` : 'On Disk';
 		return `Revision ${r.seq}`;
 	};
 
@@ -177,7 +177,7 @@
 	}
 
 	function authorOf(r: StackRevision): string {
-		if (r.authorTokenId) return r.authorUserId === me ? 'You (API token)' : 'API token';
+		if (r.authorTokenId) return r.authorUserId === me ? 'You (API Token)' : 'API Token';
 		if (r.authorUserId) return r.authorUserId === me ? 'You' : 'Another user';
 		return r.source === 'external' ? 'On the host' : 'Docker Manager';
 	}
@@ -189,7 +189,7 @@
 			items.push({ label: 'Compare', icon: GitCompare, onSelect: () => compareWith(r) });
 		if (can('stack.definition.write') && !r.contentOmitted && !has(g, diskId))
 			items.push({
-				label: 'Restore to disk',
+				label: 'Restore to Disk',
 				icon: RotateCcw,
 				disabled: offline,
 				onSelect: () => {
@@ -246,12 +246,12 @@
 	{@const r = g.head}
 	<span class="marks">
 		{#if has(g, appliedId)}<Badge tone="ok" dot>Deployed</Badge>{/if}
-		{#if has(g, diskId)}<Badge tone={has(g, appliedId) ? 'neutral' : 'warn'} dot>On disk</Badge
+		{#if has(g, diskId)}<Badge tone={has(g, appliedId) ? 'neutral' : 'warn'} dot>On Disk</Badge
 			>{/if}
-		{#if has(g, failedId)}<Badge tone="danger" dot>Deploy failed</Badge>{/if}
+		{#if has(g, failedId)}<Badge tone="danger" dot>Deploy Failed</Badge>{/if}
 		{#if r.contentOmitted}<Badge
 				title="Over 96 KiB: only fingerprints were kept, so it cannot be shown or restored"
-				>Too large to show</Badge
+				>Too Large to Show</Badge
 			>{/if}
 		{#if r.restoredFrom}{@const src = list.find((x) => x.id === r.restoredFrom)}<span
 				class="muted"
@@ -268,12 +268,12 @@
 {#snippet actionsCell(g: RevisionGroup<StackRevision>)}
 	{@const items = rowMenu(g)}
 	{#if items.length}
-		<Menu {items} label="Actions for revision {g.head.seq}" align="end">
+		<Menu {items} label="Actions for Revision {g.head.seq}" align="end">
 			{#snippet trigger(props)}<IconButton
 					{...props}
 					size="sm"
 					variant="secondary"
-					label="Actions for revision {g.head.seq}"
+					label="Actions for Revision {g.head.seq}"
 					icon={EllipsisVertical}
 				/>{/snippet}
 		</Menu>
@@ -293,7 +293,7 @@
 			It differs from the deployed revision; nothing was deployed. Deploy it to apply it.
 			{#snippet actions()}
 				{#if can('stack.deploy')}<Button size="sm" variant="primary" onclick={deployNow}
-						>Deploy now</Button
+						>Deploy Now</Button
 					>{/if}
 				<Button size="sm" variant="ghost" onclick={() => (offerDeploy = null)}>Later</Button
 				>
@@ -329,7 +329,7 @@
 				<Button
 					icon={GitCompare}
 					onclick={() => (showing = true)}
-					disabled={!from || !to || headOf(from) === headOf(to)}>Show changes</Button
+					disabled={!from || !to || headOf(from) === headOf(to)}>Show Changes</Button
 				>
 			</div>
 		{:else if omitted}
@@ -358,7 +358,7 @@
 					<div class="intro-actions">
 						{#if can('stack.definition.write') && applied && !applied.contentOmitted}
 							<Button icon={RotateCcw} disabled={offline} onclick={restoreDeployed}
-								>Restore deployed revision</Button
+								>Restore Deployed Revision</Button
 							>
 						{/if}
 						{#if can('stack.deploy')}
@@ -367,7 +367,7 @@
 								icon={Rocket}
 								loading={deploying}
 								disabled={offline}
-								onclick={deployNow}>Deploy these changes</Button
+								onclick={deployNow}>Deploy These Changes</Button
 							>
 						{/if}
 					</div>
@@ -443,7 +443,7 @@
 			'The files on disk now are recorded as a revision first, so nothing is lost.',
 			'Nothing is deployed: you can deploy the restored files afterwards.'
 		]}
-		confirmLabel="Restore to disk"
+		confirmLabel="Restore to Disk"
 		onconfirm={restore}
 	/>
 {/if}

@@ -345,7 +345,7 @@
 						variant="primary"
 						icon={Plus}
 						href={routes.newContainer(scope.single ? scope.targets[0]?.id : undefined)}
-						>Create container</Button
+						>Create Container</Button
 					>
 				{/if}
 			{/snippet}
@@ -353,7 +353,7 @@
 
 		<ActiveJobs
 			filter={kindJobs(['container.create'], environmentSelection.id)}
-			label="Containers being created"
+			label="Containers Being Created"
 			onfinish={(j) => {
 				if (j.state === 'succeeded') void list.refetch();
 			}}
@@ -375,13 +375,13 @@
 			/>
 		{:else}
 			<ListCard
-				title="All containers"
+				title="All Containers"
 				id="containers"
 				summary={list.data
 					? listSummary(rows.length, all.length, filtered, 'container', 'containers')
 					: undefined}
-				label="Filter containers"
-				searchLabel="Search containers"
+				label="Filter Containers"
+				searchLabel="Search Containers"
 				placeholder="Search name, image or address"
 				filters={defs}
 				store={filters}
@@ -431,13 +431,13 @@
 												icon={Plus}
 												href={routes.newContainer(
 													scope.single ? scope.targets[0]?.id : undefined
-												)}>Create container</Button
+												)}>Create Container</Button
 											>
 										{/if}
 										<Button
 											variant="secondary"
 											icon={Layers}
-											href={routes.stacks()}>Go to stacks</Button
+											href={routes.stacks()}>Go to Stacks</Button
 										>
 									{/snippet}
 								</EmptyState>

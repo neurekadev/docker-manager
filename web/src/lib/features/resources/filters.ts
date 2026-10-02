@@ -26,7 +26,7 @@ export interface ListFilter<T> {
 	label: string;
 	kind?: 'select' | 'text' | 'switch';
 	/**
-	 * The option that filters nothing ("All statuses"); the placeholder of
+	 * The option that filters nothing ("All Statuses"); the placeholder of
 	 * a text filter; the tooltip of a switch ("Only volumes no container uses").
 	 */
 	all: string;
@@ -167,7 +167,7 @@ export function environmentFilter<T extends { environmentId?: string }>(
 	return {
 		id: 'environment',
 		label: 'Environment',
-		all: 'All environments',
+		all: 'All Environments',
 		dynamic: true,
 		options: [...envs]
 			.sort((a, b) => a.name.localeCompare(b.name))
@@ -183,10 +183,10 @@ export function stackFilter<T extends { stack?: { project: string } }>(
 	return {
 		id: 'stack',
 		label: 'Stack',
-		all: 'All stacks',
+		all: 'All Stacks',
 		dynamic: true,
 		options: [
-			{ value: '-', label: 'No stack (standalone)' },
+			{ value: '-', label: 'No Stack (Standalone)' },
 			...distinctOptions(rows.map((r) => r.stack?.project))
 		],
 		match: (r, v) => (v === '-' ? !r.stack : r.stack?.project === v)
@@ -235,7 +235,7 @@ export function labelTexts(labels: Record<string, string> | undefined): string[]
 	return Object.entries(labels ?? {}).map(([k, v]) => `${k}=${v}`);
 }
 
-/** Options with the badge vocabulary's labels ("partial" → "Partially running"). */
+/** Options with the badge vocabulary's labels ("partial" → "Partially Running"). */
 export const statusOptions = (values: readonly string[]): FilterOption[] =>
 	values.map((v) => ({ value: v, label: statusInfo(v).label }));
 
@@ -260,7 +260,7 @@ export function containerFilters(
 			{
 				id: 'status',
 				label: 'Status',
-				all: 'All statuses',
+				all: 'All Statuses',
 				options: statusOptions([
 					'running',
 					'unhealthy',
@@ -318,7 +318,7 @@ export function volumeFilters(rows: readonly Volume[], ctx: FilterContext): List
 			{
 				id: 'driver',
 				label: 'Driver',
-				all: 'All drivers',
+				all: 'All Drivers',
 				dynamic: true,
 				options: distinctOptions(rows.map((vol) => vol.driver)),
 				match: (vol, v) => vol.driver === v
@@ -357,7 +357,7 @@ export function networkFilters(
 			{
 				id: 'driver',
 				label: 'Driver',
-				all: 'All drivers',
+				all: 'All Drivers',
 				dynamic: true,
 				options: distinctOptions(rows.map((n) => n.driver)),
 				match: (n, v) => n.driver === v

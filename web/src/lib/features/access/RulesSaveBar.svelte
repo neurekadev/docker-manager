@@ -23,7 +23,7 @@
 
 	const changes = $derived(diffRules(before, after));
 	const word = (e: 'allow' | 'deny' | null) =>
-		e === 'allow' ? 'Allow' : e === 'deny' ? 'Deny' : mode === 'user' ? 'Inherit' : 'No rule';
+		e === 'allow' ? 'Allow' : e === 'deny' ? 'Deny' : mode === 'user' ? 'Inherit' : 'No Rule';
 	const lines = $derived(
 		changes.map(
 			(c) =>
@@ -33,7 +33,7 @@
 </script>
 
 {#if changes.length}
-	<div class="bar" role="region" aria-label="Unsaved permission changes">
+	<div class="bar" role="region" aria-label="Unsaved Permission Changes">
 		<p>
 			<strong class="num">{changes.length}</strong> unsaved {changes.length === 1
 				? 'change'
@@ -41,7 +41,7 @@
 		</p>
 		<div class="buttons">
 			<Button variant="ghost" onclick={ondiscard}>Discard</Button>
-			<Button variant="primary" onclick={() => (open = true)}>Save permissions</Button>
+			<Button variant="primary" onclick={() => (open = true)}>Save Permissions</Button>
 		</div>
 	</div>
 {/if}
@@ -53,7 +53,7 @@
 		? 'Every member gets these rules at once; their open pages and streams restart.'
 		: 'These overrides apply at once; the user’s open pages and streams restart.'}
 	consequences={lines}
-	confirmLabel="Save permissions"
+	confirmLabel="Save Permissions"
 	onconfirm={onsave}
 />
 

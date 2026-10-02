@@ -38,32 +38,32 @@ export function deploymentFacts(
 				: 'HTTPS behind a reverse proxy'
 		},
 		{
-			label: 'Trusted proxies',
+			label: 'Trusted Proxies',
 			value:
 				proxies === 0
 					? 'None: forwarded headers are ignored'
 					: `${proxies} address ${proxies === 1 ? 'range' : 'ranges'}`
 		},
-		{ label: 'Stream heartbeat', value: `Every ${d.streamHeartbeatSeconds} s` },
-		{ label: 'Largest upload', value: formatBytes(d.filesMaxUploadBytes) },
-		{ label: 'Largest file to edit', value: formatBytes(d.filesMaxEditBytes) },
-		{ label: 'Largest download or archive', value: formatBytes(d.filesMaxDownloadBytes) },
+		{ label: 'Stream Heartbeat', value: `Every ${d.streamHeartbeatSeconds} s` },
+		{ label: 'Largest Upload', value: formatBytes(d.filesMaxUploadBytes) },
+		{ label: 'Largest File to Edit', value: formatBytes(d.filesMaxEditBytes) },
+		{ label: 'Largest Download or Archive', value: formatBytes(d.filesMaxDownloadBytes) },
 		{
-			label: 'Largest extraction',
+			label: 'Largest Extraction',
 			value: `${formatBytes(d.filesMaxExtractBytes)}, at most ${d.filesMaxExtractRatio}× the archive, ${d.filesMaxArchiveEntries.toLocaleString('en')} entries`
 		},
-		{ label: 'Metrics endpoint', value: d.metricsEndpoint ? 'On' : 'Off' }
+		{ label: 'Metrics Endpoint', value: d.metricsEndpoint ? 'On' : 'Off' }
 	];
 }
 
 export type RequiredFactors = SecuritySettings['requiredFactors'];
 
 export const FACTOR_POLICY: Record<RequiredFactors, string> = {
-	none: 'Password or passkey',
-	totp: 'Password and authenticator app',
+	none: 'Password or Passkey',
+	totp: 'Password and Authenticator App',
 	passkey: 'Passkey',
-	either: 'Authenticator app or passkey',
-	both: 'Authenticator app and passkey'
+	either: 'Authenticator App or Passkey',
+	both: 'Authenticator App and Passkey'
 };
 
 /** What choosing a factor policy means for the people who sign in. */
@@ -94,13 +94,13 @@ export function factorChangeConsequences(
 }
 
 /**
- * Consequences of turning "Stay signed in" off (#16): devices that stayed
+ * Consequences of turning "Stay Signed In" off (#16): devices that stayed
  * signed in fall back to the normal session limits. Empty otherwise.
  */
 export function staySignedInConsequences(from: boolean, to: boolean): string[] {
 	if (!from || to) return [];
 	return [
-		'The sign-in page stops offering Stay signed in.',
+		'The sign-in page stops offering Stay Signed In.',
 		'Devices that stayed signed in move back to the normal limits; those already past them are signed out.'
 	];
 }
@@ -114,28 +114,28 @@ export function settingsChanges(
 	const add = (label: string, a: unknown, b: unknown) => {
 		if (b !== undefined && a !== b) out.push(`${label}: ${fmt(a)} → ${fmt(b)}`);
 	};
-	add('Strict passwords', before.strictPasswords, after.strictPasswords);
-	add('Minimum password length', before.minPasswordLength, after.minPasswordLength);
+	add('Strict Passwords', before.strictPasswords, after.strictPasswords);
+	add('Minimum Password Length', before.minPasswordLength, after.minPasswordLength);
 	add(
-		'Required sign-in',
+		'Required Sign-In',
 		FACTOR_POLICY[before.requiredFactors],
 		after.requiredFactors && FACTOR_POLICY[after.requiredFactors]
 	);
-	add('Enrollment grace (hours)', before.enrollmentGraceHours, after.enrollmentGraceHours);
-	add('Stay signed in', before.allowStaySignedIn, after.allowStaySignedIn);
-	add('Invitation lifetime (hours)', before.invitationTtlHours, after.invitationTtlHours);
+	add('Enrollment Grace (Hours)', before.enrollmentGraceHours, after.enrollmentGraceHours);
+	add('Stay Signed In', before.allowStaySignedIn, after.allowStaySignedIn);
+	add('Invitation Lifetime (Hours)', before.invitationTtlHours, after.invitationTtlHours);
 	add(
-		'Password reset lifetime (hours)',
+		'Password Reset Lifetime (Hours)',
 		before.passwordResetTtlHours,
 		after.passwordResetTtlHours
 	);
-	add('API tokens', before.apiTokensEnabled, after.apiTokensEnabled);
+	add('API Tokens', before.apiTokensEnabled, after.apiTokensEnabled);
 	add(
-		'Longest token lifetime (days)',
+		'Longest Token Lifetime (Days)',
 		before.apiTokenMaxLifetimeDays,
 		after.apiTokenMaxLifetimeDays
 	);
-	add('Tokens without expiry', before.apiTokensNonExpiring, after.apiTokensNonExpiring);
+	add('Tokens Without Expiry', before.apiTokensNonExpiring, after.apiTokensNonExpiring);
 	return out;
 }
 

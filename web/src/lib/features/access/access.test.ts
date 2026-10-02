@@ -111,7 +111,7 @@ const catalog: Catalog = {
 };
 const all = {
 	key: 'instance',
-	label: 'All resources',
+	label: 'All Resources',
 	scope: { kind: 'instance' as const },
 	type: 'instance'
 };
@@ -131,23 +131,23 @@ describe('ActionMatrix', () => {
 		render(ActionMatrix, {
 			props: { catalog, node: all, mode: 'group', rules: [], onchange: vi.fn() }
 		});
-		const region = screen.getByRole('region', { name: 'Actions for All resources' });
+		const region = screen.getByRole('region', { name: 'Actions for All Resources' });
 		expect(within(region).getByRole('heading', { name: /^Containers/ })).toBeInTheDocument();
 		const containers = within(region).getByRole('button', { name: /^Containers/ });
 		expect(containers).toHaveAttribute('aria-expanded', 'false');
 		expect(containers).toHaveTextContent('4 actions');
 		expect(
-			within(region).queryByRole('radiogroup', { name: 'Restart for All resources' })
+			within(region).queryByRole('radiogroup', { name: 'Restart for All Resources' })
 		).toBeNull();
 		await user.click(containers);
 		expect(containers).toHaveAttribute('aria-expanded', 'true');
 		expect(
-			within(region).getByRole('radiogroup', { name: 'Open terminal for All resources' })
-		).not.toHaveTextContent('High risk');
-		expect(within(region).getAllByText('High risk')).toHaveLength(1);
+			within(region).getByRole('radiogroup', { name: 'Open terminal for All Resources' })
+		).not.toHaveTextContent('High Risk');
+		expect(within(region).getAllByText('High Risk')).toHaveLength(1);
 		expect(within(region).getByText('1 less common action')).toBeInTheDocument();
 		expect(
-			within(region).queryByRole('radiogroup', { name: 'Pause for All resources' })
+			within(region).queryByRole('radiogroup', { name: 'Pause for All Resources' })
 		).not.toBeVisible();
 		expect(within(region).getByText(/including ones added later/)).toBeInTheDocument();
 	});
@@ -182,8 +182,8 @@ describe('ActionMatrix', () => {
 		const onchange = vi.fn();
 		render(ActionMatrix, { props: { catalog, node: all, mode: 'group', rules: [], onchange } });
 		await user.click(screen.getByRole('button', { name: /^Containers/ }));
-		const restart = screen.getByRole('radiogroup', { name: 'Restart for All resources' });
-		expect(restart).toHaveTextContent('No rule');
+		const restart = screen.getByRole('radiogroup', { name: 'Restart for All Resources' });
+		expect(restart).toHaveTextContent('No Rule');
 		await user.click(within(restart).getByText('Allow'));
 		expect(onchange).toHaveBeenLastCalledWith([
 			{ capability: 'container.restart', scope: { kind: 'instance' }, effect: 'allow' }
@@ -206,7 +206,7 @@ describe('ActionMatrix', () => {
 				onchange
 			}
 		});
-		await user.click(screen.getByRole('button', { name: 'Allow all containers' }));
+		await user.click(screen.getByRole('button', { name: 'Allow All Containers' }));
 		expect(screen.queryByRole('alertdialog')).toBeNull();
 		const allowed = [
 			{ capability: 'stack.deploy', scope: instance, effect: 'allow' },
@@ -217,7 +217,7 @@ describe('ActionMatrix', () => {
 		];
 		expect(onchange).toHaveBeenLastCalledWith(allowed);
 		await rerender({ catalog, node: all, mode: 'group', rules: allowed as Rule[], onchange });
-		await user.click(screen.getByRole('button', { name: 'Clear containers' }));
+		await user.click(screen.getByRole('button', { name: 'Clear Containers' }));
 		expect(onchange).toHaveBeenLastCalledWith([
 			{ capability: 'stack.deploy', scope: instance, effect: 'allow' }
 		]);
@@ -241,7 +241,7 @@ describe('ActionMatrix', () => {
 		render(ActionMatrix, {
 			props: { catalog, node: stack, mode: 'group', rules: [elsewhere], onchange }
 		});
-		await choose(user, screen.getByRole('combobox', { name: 'Start from' }), 'Operator');
+		await choose(user, screen.getByRole('combobox', { name: 'Start From' }), 'Operator');
 		expect(onchange).toHaveBeenLastCalledWith([
 			elsewhere,
 			{ capability: 'stack.deploy', scope: stack.scope, effect: 'allow' }
@@ -266,7 +266,7 @@ describe('ActionMatrix', () => {
 				onchange: vi.fn()
 			}
 		});
-		expect(screen.getByRole('combobox', { name: 'Start from' })).toHaveTextContent('Admin');
+		expect(screen.getByRole('combobox', { name: 'Start From' })).toHaveTextContent('Admin');
 	});
 
 	it('explains what a user inherits from the group, and overrides it', async () => {
@@ -286,14 +286,14 @@ describe('ActionMatrix', () => {
 				onchange
 			}
 		});
-		expect(screen.queryByRole('combobox', { name: 'Start from' })).toBeNull();
+		expect(screen.queryByRole('combobox', { name: 'Start From' })).toBeNull();
 		await user.click(screen.getByRole('button', { name: /^Containers/ }));
-		const restart = screen.getByRole('radiogroup', { name: 'Restart for All resources' });
+		const restart = screen.getByRole('radiogroup', { name: 'Restart for All Resources' });
 		expect(restart).toHaveAccessibleDescription(
 			/Inherits Allow from group Operators, rule for everywhere/
 		);
 		expect(
-			screen.getByRole('radiogroup', { name: 'Start for All resources' })
+			screen.getByRole('radiogroup', { name: 'Start for All Resources' })
 		).toHaveAccessibleDescription(/Inherits Deny from group Operators \(no rule\)/);
 		await user.click(within(restart).getByText('Deny'));
 		expect(onchange).toHaveBeenLastCalledWith([
@@ -349,7 +349,7 @@ describe('ActionMatrix', () => {
 			}
 		});
 		expect(screen.queryByRole('button', { name: /^Containers/ })).toBeNull();
-		expect(screen.getByRole('button', { name: 'Grant all stacks' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Grant All Stacks' })).toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: /^Stacks/ }));
 		expect(screen.getByRole('checkbox', { name: 'Grant Deploy' })).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox', { name: 'Grant Restart' })).toBeNull();
@@ -437,14 +437,14 @@ describe('RulesSaveBar', () => {
 			}
 		});
 		expect(
-			screen.getByRole('region', { name: 'Unsaved permission changes' })
+			screen.getByRole('region', { name: 'Unsaved Permission Changes' })
 		).toHaveTextContent('1 unsaved change');
-		await user.click(screen.getByRole('button', { name: 'Save permissions' }));
+		await user.click(screen.getByRole('button', { name: 'Save Permissions' }));
 		const dialog = await screen.findByRole('alertdialog', {
 			name: 'Save the permissions of Operators?'
 		});
-		expect(dialog).toHaveTextContent('Restart (containers) on everything: No rule → Allow');
-		await user.click(within(dialog).getByRole('button', { name: 'Save permissions' }));
+		expect(dialog).toHaveTextContent('Restart (Containers) on everything: No Rule → Allow');
+		await user.click(within(dialog).getByRole('button', { name: 'Save Permissions' }));
 		expect(onsave).toHaveBeenCalled();
 	});
 });

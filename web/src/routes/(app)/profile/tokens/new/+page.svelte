@@ -39,11 +39,11 @@
 	import { securitySettingsQuery } from '$lib/features/settings/queries';
 
 	usePage({
-		title: 'Create API token',
+		title: 'Create API Token',
 		crumbs: [
 			{ label: 'Profile', href: routes.profile() },
-			{ label: 'API tokens', href: routes.apiTokens() },
-			{ label: 'Create token' }
+			{ label: 'API Tokens', href: routes.apiTokens() },
+			{ label: 'Create Token' }
 		]
 	});
 
@@ -117,17 +117,17 @@
 
 <Page narrow={!!created}>
 	<PageHeader
-		title="Create API token"
+		title="Create API Token"
 		description="Grant only what the script needs. You can revoke the token at any time."
 	/>
 	{#if perms.data && !can(access, 'api_tokens.create')}
 		<DeniedState
 			level={2}
 			title="You can't create API tokens."
-			description="Ask the owner of this Docker Manager for the Create API tokens permission."
+			description="Ask the owner of this Docker Manager for the Create API Tokens permission."
 		/>
 	{:else if created}
-		<Card title="Your new token">
+		<Card title="Your New Token">
 			<SecretReveal
 				secret={created.token}
 				label="API token"
@@ -166,22 +166,22 @@
 						label="Expires"
 						bind:value={expiry}
 						options={[
-							{ value: '7', label: 'In 7 days' },
-							{ value: '30', label: 'In 30 days' },
-							{ value: '90', label: 'In 90 days' },
-							{ value: 'custom', label: 'On a date' }
+							{ value: '7', label: 'In 7 Days' },
+							{ value: '30', label: 'In 30 Days' },
+							{ value: '90', label: 'In 90 Days' },
+							{ value: 'custom', label: 'On a Date' }
 						]}
 						error={tooLong
 							? `Tokens may live at most ${maxDays} days here.`
 							: fields['body.expiresAt']}
 					/>
 					{#if expiry === 'custom'}
-						<TextField label="Expiry date" type="date" bind:value={customDate} />
+						<TextField label="Expiry Date" type="date" bind:value={customDate} />
 					{/if}
 					{#if access.owner && security.data?.apiTokensNonExpiring}
 						<Checkbox
 							bind:checked={neverExpires}
-							label="Never expires"
+							label="Never Expires"
 							description="Allowed by the sign-in policy. Revoke it when you no longer need it."
 						/>
 					{/if}
@@ -192,7 +192,7 @@
 			</Fields>
 		</Card>
 		<Card
-			title="What the token may do"
+			title="What the Token May Do"
 			subtitle="Only actions you hold now are offered. The token never exceeds your current permissions: if yours shrink, so does the token."
 		>
 			<QueryView query={catalog} errorTitle="The permission catalog could not be loaded.">
@@ -222,7 +222,7 @@
 			{/snippet}
 			<Button variant="ghost" href={routes.apiTokens()}>Cancel</Button>
 			<Button variant="primary" loading={busy} disabled={!canCreate} onclick={create}>
-				Create token
+				Create Token
 			</Button>
 		</FormFooter>
 	{/if}

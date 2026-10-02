@@ -250,10 +250,10 @@ export function stackMoveSummary(s: StackMove): string {
 export type MoveTone = 'ok' | 'danger' | 'info' | 'neutral';
 
 const MOVE_STATES: Record<MovedStack['state'], { label: string; tone: MoveTone }> = {
-	pending: { label: 'Not started', tone: 'neutral' },
+	pending: { label: 'Not Started', tone: 'neutral' },
 	moving: { label: 'Moving', tone: 'info' },
 	moved: { label: 'Moved', tone: 'ok' },
-	failed: { label: 'Did not move', tone: 'danger' }
+	failed: { label: 'Did Not Move', tone: 'danger' }
 };
 
 /** A stack's state in a run, in words, with its badge tone. */
@@ -264,7 +264,7 @@ export function moveState(state: MovedStack['state']): { label: string; tone: Mo
 /** What became of a moved stack's old copy on the source, in words (nothing for the others). */
 export function oldCopyState(s: Pick<MovedStack, 'state' | 'sourceRemoved'>): string | undefined {
 	if (s.state !== 'moved') return undefined;
-	return s.sourceRemoved ? 'Old copy removed' : 'Old copy kept';
+	return s.sourceRemoved ? 'Old Copy Removed' : 'Old Copy Kept';
 }
 
 const ENDED_RUNS: readonly EnvironmentMigration['state'][] = [
@@ -438,7 +438,7 @@ export function oldCopiesNotice(
 	};
 }
 
-/** The toast when a run ends, and the job "Open job" opens (the failed stack's migration). */
+/** The toast when a run ends, and the job "Open Job" opens (the failed stack's migration). */
 export interface FinishToast {
 	tone: 'success' | 'warn' | 'error';
 	title: string;

@@ -65,7 +65,7 @@
 
 	const columns: Column<Candidate>[] = $derived([
 		{ id: 'name', header: 'Connection', cell: nameCell, stack: 'title' },
-		{ id: 'binding', header: 'Used for', cell: bindingCell, stack: 'meta' },
+		{ id: 'binding', header: 'Used For', cell: bindingCell, stack: 'meta' },
 		{ id: 'spec', header: 'Repositories', cell: specCell, stack: 'meta' },
 		...(samePriority
 			? []
@@ -97,15 +97,15 @@
 {#snippet stateCell(c: Candidate)}
 	{#if m?.selected?.id === c.connection.id}
 		<Badge tone={c.connection.status === 'revoked' ? 'danger' : 'ok'} dot
-			>{c.connection.status === 'revoked' ? 'Selected, revoked' : 'Selected'}</Badge
+			>{c.connection.status === 'revoked' ? 'Selected, Revoked' : 'Selected'}</Badge
 		>
 	{:else if m?.tied?.includes(c.connection.id)}<Badge tone="warn" dot>Tied</Badge>
-	{:else}<span class="muted">Less specific</span>{/if}
+	{:else}<span class="muted">Less Specific</span>{/if}
 {/snippet}
 
 <Dialog
 	bind:open
-	title="Test an image"
+	title="Test an Image"
 	description="See which connection Docker Manager uses to pull an image."
 	size="lg"
 >
@@ -124,7 +124,7 @@
 					label="Environment"
 					bind:value={env}
 					options={[
-						{ value: '', label: 'Any environment' },
+						{ value: '', label: 'Any Environment' },
 						...(scope.envs.data ?? []).map((e) => ({ value: e.id, label: e.name }))
 					]}
 				/>
@@ -133,7 +133,7 @@
 				label="Stack"
 				bind:value={stack}
 				options={[
-					{ value: '', label: 'No stack' },
+					{ value: '', label: 'No Stack' },
 					...(stacks.data ?? []).map((s) => ({ value: s.id, label: s.name }))
 				]}
 			/>

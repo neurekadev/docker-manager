@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Jobs as a table (#26): on what, what, where, state, why and when. Rows
 	// lead with the target's name (jobHeadline: "zerobyte" over "Check for
-	// updates"), so fifty checks do not read as fifty identical rows. On
+	// Updates"), so fifty checks do not read as fifty identical rows. On
 	// phones a row is two lines: the headline with its state and start time.
 	// Used by the jobs page, the dashboard and the environment page. Rows
 	// arrive newest first from the server (manualSort: no client re-sorting).

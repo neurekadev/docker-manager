@@ -53,7 +53,7 @@
 			{#if charts.cpu.length}
 				<div class="filter">
 					<TextField
-						label="Filter containers"
+						label="Filter Containers"
 						hideLabel
 						placeholder="Filter by name"
 						type="search"
@@ -97,7 +97,7 @@
 					{shown}
 				/>
 				<MultiSeriesChart
-					title="Docker memory"
+					title="Docker Memory"
 					unit="bytes"
 					timestamps={h.timestamps}
 					from={h.from}
@@ -106,7 +106,7 @@
 					{shown}
 				/>
 				<MultiSeriesChart
-					title="Docker network"
+					title="Docker Network"
 					unit="bytes_per_second"
 					timestamps={h.timestamps}
 					from={h.from}
@@ -115,7 +115,7 @@
 					{shown}
 				/>
 				<MultiSeriesChart
-					title="Docker disk I/O"
+					title="Docker Disk I/O"
 					unit="bytes_per_second"
 					timestamps={h.timestamps}
 					from={h.from}

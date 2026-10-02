@@ -2,7 +2,7 @@
 	// The environment page's notice while stacks that moved away from it
 	// (#35, an environment migration) left their stopped old copies here:
 	// "3 stacks moved to NAS. Their old copies are still on this server."
-	// with "Review the migration" (the migrate page opens on the run's
+	// with "Review the Migration" (the migrate page opens on the run's
 	// result, where the copies are removed). The list of migrations answers
 	// only callers who may migrate one of their stacks and lists only the
 	// stacks the caller can see; anything else shows nothing. Keyed under
@@ -44,7 +44,7 @@
 		{notice.body}
 		{#snippet actions()}
 			<Button size="sm" href={routes.environmentMigrate(environmentId)}
-				>Review the migration</Button
+				>Review the Migration</Button
 			>
 		{/snippet}
 	</Notice>

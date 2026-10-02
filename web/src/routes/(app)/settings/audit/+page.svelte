@@ -3,7 +3,7 @@
 	// result. One list card: a search over the loaded records and a few
 	// filters (who, outcome, category, when) in its header; exact action
 	// keys, a resource, an environment and custom dates wait under "More
-	// filters". Records read in words (action labels, resource names);
+	// Filters". Records read in words (action labels, resource names);
 	// runs of identical records collapse into one row ("24 times"). Each
 	// record opens with its details and the rule or settings diff of an
 	// edit; raw keys and IDs stay under Advanced. Export as NDJSON or CSV
@@ -77,8 +77,8 @@
 	} from '$lib/features/settings/queries';
 
 	usePage({
-		title: 'Audit log',
-		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Audit log' }]
+		title: 'Audit Log',
+		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Audit Log' }]
 	});
 
 	const perms = createQuery(() => myPermissionsQuery());
@@ -148,7 +148,7 @@
 					.sort((a, b) => a.label.localeCompare(b.label)),
 				...Object.entries(ACTOR_LABELS).map(([k, label]) => ({
 					value: `kind:${k}`,
-					label: k === 'user' ? 'Any user' : k === 'api_token' ? 'Any API token' : label
+					label: k === 'user' ? 'Any User' : k === 'api_token' ? 'Any API Token' : label
 				}))
 			],
 			match: serverSide
@@ -156,27 +156,27 @@
 		{
 			id: 'outcome',
 			label: 'Outcome',
-			all: 'Any outcome',
+			all: 'Any Outcome',
 			options: Object.entries(OUTCOME).map(([value, o]) => ({ value, label: o.label })),
 			match: serverSide
 		},
 		{
 			id: 'category',
 			label: 'Category',
-			all: 'Any category',
+			all: 'Any Category',
 			options: Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label })),
 			match: serverSide
 		},
 		{
 			id: 'when',
 			label: 'When',
-			all: 'Any time',
+			all: 'Any Time',
 			options: RANGES.map((r) => ({ value: r.value, label: r.label })),
 			match: serverSide
 		}
 	]);
 
-	// "More filters": exact action keys, one resource, an environment, dates.
+	// "More Filters": exact action keys, one resource, an environment, dates.
 	const MORE = ['action', 'resource', 'environment', 'from', 'until'];
 	const moreSet = $derived(MORE.some((k) => store.get(k) !== ''));
 	function clearMore() {
@@ -328,7 +328,7 @@
 
 <Page>
 	<SettingsHeader
-		title="Audit log"
+		title="Audit Log"
 		description="Every sign-in, permission change and operation, with who did it and the result. Records cannot be changed or deleted."
 	>
 		{#snippet actions()}
@@ -345,22 +345,22 @@
 		<DeniedState
 			level={2}
 			title="You can't read the audit log."
-			description="It shows activity on every resource, so the owner grants it separately (View audit log)."
+			description="It shows activity on every resource, so the owner grants it separately (View Audit Log)."
 		/>
 	{:else}
 		<ListCard
-			title="Audit records"
+			title="Audit Records"
 			id="audit-records"
 			{summary}
-			label="Filter audit records"
-			searchLabel="Search records"
+			label="Filter Audit Records"
+			searchLabel="Search Records"
 			placeholder="Search records"
 			{filters}
 			{store}
 		>
 			<div class="more">
 				<Disclosure
-					summary={moreSet ? 'More filters (in use)' : 'More filters'}
+					summary={moreSet ? 'More Filters (In Use)' : 'More Filters'}
 					open={moreSet}
 				>
 					<div class="more-fields">
@@ -369,7 +369,7 @@
 								label="Environment"
 								placeholder="Any environment"
 								options={[
-									{ value: '', label: 'Any environment' },
+									{ value: '', label: 'Any Environment' },
 									...(envs.data ?? []).map((e) => ({
 										value: e.id,
 										label: e.name
@@ -394,7 +394,7 @@
 							bind:value={() => store.get('until'), (v) => store.set('until', v)}
 						/>
 						<TextField
-							label="Action keys"
+							label="Action Keys"
 							mono
 							placeholder="stack.deploy, auth.sign_in"
 							description="Optional. Exact keys as shown in a record's details, comma-separated."
@@ -413,7 +413,7 @@
 					{#if moreSet}
 						<div>
 							<Button size="sm" variant="ghost" icon={X} onclick={clearMore}
-								>Clear more filters</Button
+								>Clear More Filters</Button
 							>
 						</div>
 					{/if}
@@ -432,7 +432,7 @@
 					onretry={() => records.refetch()}
 				/>
 			{:else}
-				<Table label="Audit records" {rows} {columns} rowKey={(r) => r.key} manualSort>
+				<Table label="Audit Records" {rows} {columns} rowKey={(r) => r.key} manualSort>
 					{#snippet empty()}
 						{#if filtering}
 							<NoMatches
@@ -459,7 +459,7 @@
 							</p>{/if}
 						<Button
 							loading={records.isFetchingNextPage}
-							onclick={() => records.fetchNextPage()}>Load older records</Button
+							onclick={() => records.fetchNextPage()}>Load Older Records</Button
 						>
 					</div>
 				{/if}
@@ -498,13 +498,13 @@
 								.map((t) => (t.name === t.type ? t.type : `${t.type} ${t.name}`))
 								.join(', ') || undefined
 					},
-					{ label: 'Client address', value: e.clientIp, mono: true },
-					{ label: 'Browser or client', value: e.userAgent }
+					{ label: 'Client Address', value: e.clientIp, mono: true },
+					{ label: 'Browser or Client', value: e.userAgent }
 				]}
 			/>
 			{#if open && open.events.length > 1}
 				<section>
-					<h3 class="subsection-title">{open.events.length} identical records</h3>
+					<h3 class="subsection-title">{open.events.length} Identical Records</h3>
 					<div class="times">
 						{#each open.events as x (x.id)}
 							<Chip
@@ -519,7 +519,7 @@
 			{/if}
 			{#if diff.length}
 				<section>
-					<h3 class="subsection-title">What changed</h3>
+					<h3 class="subsection-title">What Changed</h3>
 					<ul class="diff" role="list">
 						{#each diff as d (d.field)}
 							<li>
@@ -546,22 +546,22 @@
 					</ul>
 				</section>
 			{/if}
-			{#if e.jobId}<a href={routes.job(e.jobId)}>Open the job</a>{/if}
+			{#if e.jobId}<a href={routes.job(e.jobId)}>Open the Job</a>{/if}
 			<Disclosure summary="Advanced">
 				<Facts
 					columns={1}
 					items={[
-						{ label: 'Action key', value: e.action, mono: true },
+						{ label: 'Action Key', value: e.action, mono: true },
 						{
 							label: 'Targets',
 							value:
 								e.targets.map((t) => `${t.type}:${t.id}`).join(', ') || undefined,
 							mono: true
 						},
-						{ label: 'Error class', value: e.errorClass, mono: true },
+						{ label: 'Error Class', value: e.errorClass, mono: true },
 						{ label: 'Request ID', value: e.requestId, mono: true },
 						{ label: 'Job', value: e.jobId, mono: true },
-						{ label: 'Chain position', value: e.seq }
+						{ label: 'Chain Position', value: e.seq }
 					]}
 				/>
 				{#if pairs.length}

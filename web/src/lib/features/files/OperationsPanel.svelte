@@ -45,7 +45,7 @@
 	const streamed = $derived(streamedIds(entries));
 
 	function titleFor(e: TrackedEntry): string {
-		return e.title || (e.job ? titleOf(e.job) : 'File operation');
+		return e.title || (e.job ? titleOf(e.job) : 'File Operation');
 	}
 
 	function finished(e: TrackedEntry, job: Job) {
@@ -71,7 +71,7 @@
 </script>
 
 {#if uploads.items.length || entries.length}
-	<section class="ops" aria-label="File operations">
+	<section class="ops" aria-label="File Operations">
 		{#if uploads.items.length}
 			<div class="block">
 				<div class="head">
@@ -95,13 +95,13 @@
 					</p>
 					{#if running.length}
 						<Button size="sm" variant="ghost" onclick={() => uploads.cancelAll()}
-							>Cancel uploads</Button
+							>Cancel Uploads</Button
 						>
 					{:else}
 						<IconButton
 							icon={X}
 							size="sm"
-							label="Dismiss uploads"
+							label="Dismiss Uploads"
 							onclick={() => uploads.dismiss()}
 						/>
 					{/if}
@@ -109,7 +109,7 @@
 				<div
 					class="bar"
 					role="progressbar"
-					aria-label="Upload progress"
+					aria-label="Upload Progress"
 					aria-valuemin={0}
 					aria-valuemax={100}
 					aria-valuenow={uploads.totalBytes
@@ -139,7 +139,7 @@
 								<IconButton
 									icon={X}
 									size="sm"
-									label="Cancel upload of {item.name}"
+									label="Cancel Upload of {item.name}"
 									onclick={() => uploads.cancel(item.id)}
 								/>
 							{/if}

@@ -7,7 +7,7 @@
 </script>
 
 {#if status === 'update_available'}
-	<Badge tone="warn"><ArrowUpCircle size={14} aria-hidden="true" /> Update available</Badge>
+	<Badge tone="warn"><ArrowUpCircle size={14} aria-hidden="true" /> Update Available</Badge>
 {:else if status === 'up_to_date'}
-	<Badge tone="ok"><CircleCheck size={14} aria-hidden="true" /> Up to date</Badge>
+	<Badge tone="ok"><CircleCheck size={14} aria-hidden="true" /> Up to Date</Badge>
 {/if}

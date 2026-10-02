@@ -14,12 +14,12 @@ export function environmentStatus(e: Pick<Environment, 'online' | 'status'>): En
 
 /** Chart ranges (the API picks raw 10 s, 1 min or 15 min storage). */
 export const METRIC_RANGES = [
-	{ id: '1h', label: '1 hour', seconds: 3600 },
-	{ id: '6h', label: '6 hours', seconds: 6 * 3600 },
-	{ id: '24h', label: '24 hours', seconds: 24 * 3600 },
-	{ id: '7d', label: '7 days', seconds: 7 * 86400 },
-	{ id: '30d', label: '30 days', seconds: 30 * 86400 },
-	{ id: '90d', label: '90 days', seconds: 90 * 86400 }
+	{ id: '1h', label: '1 Hour', seconds: 3600 },
+	{ id: '6h', label: '6 Hours', seconds: 6 * 3600 },
+	{ id: '24h', label: '24 Hours', seconds: 24 * 3600 },
+	{ id: '7d', label: '7 Days', seconds: 7 * 86400 },
+	{ id: '30d', label: '30 Days', seconds: 30 * 86400 },
+	{ id: '90d', label: '90 Days', seconds: 90 * 86400 }
 ] as const;
 
 export type MetricRangeId = (typeof METRIC_RANGES)[number]['id'];
@@ -65,7 +65,7 @@ export function memoryLines(m: EnvironmentMetrics | undefined): ChartLine[] {
 		});
 	if (hasValues(m, 'memory.cache_bytes'))
 		parts.push({
-			name: 'Cache / buffers',
+			name: 'Cache / Buffers',
 			values: seriesValues(m, 'memory.cache_bytes'),
 			color: METRIC_COLORS.memoryCache
 		});
@@ -87,10 +87,10 @@ export function diskMounts(m: EnvironmentMetrics | undefined): string[] {
 
 /** Filesystem roles in the user's words (never host paths, #5). */
 export function mountLabel(mount: string): string {
-	if (mount === 'docker') return 'Docker data';
+	if (mount === 'docker') return 'Docker Data';
 	if (mount === 'stacks') return 'Stacks';
 	const m = mount.match(/^bind-(\d+)$/);
-	return m ? `Bind mount ${m[1]}` : mount;
+	return m ? `Bind Mount ${m[1]}` : mount;
 }
 
 export const COMPATIBILITY: Record<
@@ -98,8 +98,8 @@ export const COMPATIBILITY: Record<
 	{ status: string; label: string; tone: 'ok' | 'warn' | 'danger' }
 > = {
 	current: { status: 'current', label: 'Current', tone: 'ok' },
-	outdated: { status: 'outdated', label: 'Upgrade recommended', tone: 'warn' },
-	unsupported: { status: 'unsupported', label: 'Unsupported: refused', tone: 'danger' }
+	outdated: { status: 'outdated', label: 'Upgrade Recommended', tone: 'warn' },
+	unsupported: { status: 'unsupported', label: 'Unsupported: Refused', tone: 'danger' }
 };
 
 type Dependent = Schema<'RemovalDependentKind'>;

@@ -132,28 +132,28 @@ part of `GET /template-icons`.
 ## Web UI
 
 `$lib/features/templates` and `web/src/routes/(app)/templates`. The UI calls
-registries of other instances **template sources** ("Template sources" at
-`/templates/registries`, "Add template source"); the API keeps the registry
+registries of other instances **template sources** ("Template Sources" at
+`/templates/registries`, "Add Template Source"); the API keeps the registry
 names. `/templates` is one `ListCard` of `TemplateCard`s (a grid that fills
 the row) with one set of filters: search, Source, Tag and Status ("Ready
-to use" = has a version, "Draft only"; never confused with the Public/Private
+to Use" = has a version, "Draft Only"; never confused with the Public/Private
 visibility); a source whose last sync failed is named in a notice above it.
 In the create-from-template dialog a card is a button that chooses the
 template (`TemplateCard` `onselect`); elsewhere it links to its page.
 
-Template pages use `PageHeader`: "Create stack" is the primary action once
-a version is published (with `template.use`), "Publish version" otherwise.
+Template pages use `PageHeader`: "Create Stack" is the primary action once
+a version is published (with `template.use`), "Publish Version" otherwise.
 Versions read "Version 1.2.0" as a label and "1.2.0" as a value. The
 overview shows the latest version beside the details (`Columns`), the
-archive digest only under "Details", and "What it runs": the services,
+archive digest only under "Details", and "What It Runs": the services,
 images and ports of the version's Compose files and the names of its `.env`
 settings (`DefinitionSummary`, pure helpers `composeServices`/`envKeys` in
 `model.ts`; YAML parsed with `parseYaml` from `$lib/lazy`). It reads the
 version definition, so it needs `template.use`; values are never rendered.
 Without `template.use` it names the Compose files only; with the minimal
 view the overview says access is limited. Contents count like the Files
-tab: "2 items" (`contentsSummary`). "Duplicate as a new
-template" sits in the versions card's header.
+tab: "2 items" (`contentsSummary`). "Duplicate as a New
+Template" sits in the versions card's header.
 
 ## Copies: duplicate, restore, save a stack
 

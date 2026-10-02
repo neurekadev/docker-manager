@@ -96,10 +96,10 @@
 	const active = useTrackedJobs(() => (id ? { kinds: ['prune.run'], policyId: id } : null));
 
 	usePage(() => ({
-		title: policy.data?.name ?? 'Maintenance policy',
+		title: policy.data?.name ?? 'Maintenance Policy',
 		crumbs: [
 			{ label: 'Maintenance', href: routes.maintenance() },
-			{ label: policy.data?.name ?? 'Maintenance policy' }
+			{ label: policy.data?.name ?? 'Maintenance Policy' }
 		]
 	}));
 
@@ -221,7 +221,7 @@
 		if (!has(p, 'maintenance_policy.manage')) return [];
 		return [
 			{
-				label: 'Delete policy',
+				label: 'Delete Policy',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleteOpen = true)
@@ -252,7 +252,7 @@
 						icon: Server,
 						label:
 							p.scope === 'all'
-								? 'All environments'
+								? 'All Environments'
 								: environmentName(envs.data, p.environmentId)
 					},
 					{ label: rulesOnText(p) }
@@ -265,7 +265,7 @@
 							icon={Play}
 							loading={active.busy}
 							onclick={() => (runOpen = true)}
-							disabled={on.length === 0}>Run now</Button
+							disabled={on.length === 0}>Run Now</Button
 						>
 					{/if}
 					{#if has(p, 'maintenance.preview')}
@@ -277,11 +277,11 @@
 						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
 					{/if}
 					{#if menu.length}
-						<Menu items={menu} label="More actions for {p.name}">
+						<Menu items={menu} label="More Actions for {p.name}">
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="More actions"
+									label="More Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -299,12 +299,12 @@
 				jobs={active}
 				titleOf={runTitle}
 				onfinish={finished}
-				label="Running prunes of {p.name}"
+				label="Running Prunes of {p.name}"
 			/>
 
 			<KpiRow>
 				<KpiCard
-					label="Last run"
+					label="Last Run"
 					value={p.lastRun ? formatRelative(p.lastRun.finishedAt) : 'Never'}
 					secondary={p.lastRun
 						? `${p.lastRun.origin === 'scheduled' ? 'Scheduled' : 'By hand'}, ${formatDateTime(p.lastRun.finishedAt)}`
@@ -320,7 +320,7 @@
 						: undefined}
 				/>
 				<KpiCard
-					label="Next run"
+					label="Next Run"
 					value={p.schedule?.enabled && p.schedule.nextRun
 						? formatRelative(p.schedule.nextRun.utc)
 						: 'Not scheduled'}
@@ -331,14 +331,14 @@
 					color="slate"
 				/>
 				<KpiCard
-					label="Rules on"
+					label="Rules On"
 					value="{on.length} of {normalizeRules(p.rules).length}"
 					secondary={rulesText(p, info)}
 					icon={ListChecks}
 					color="violet"
 				/>
 				<KpiCard
-					label="Space reclaimed"
+					label="Space Reclaimed"
 					value={p.lastRun ? formatBytes(p.lastRun.bytesReclaimed) : '—'}
 					secondary={p.lastRun
 						? `Last run removed ${p.lastRun.removed}${p.lastRun.failed ? `, ${p.lastRun.failed} failed` : ''}`
@@ -349,7 +349,7 @@
 				/>
 			</KpiRow>
 
-			<Card title="What it covers">
+			<Card title="What It Covers">
 				{#if on.length === 0}
 					<p class="muted lead">
 						Every rule is off: this policy removes nothing until you turn one on.
@@ -374,7 +374,7 @@
 				{#if p.schedule}
 					<ScheduleSummary {...p.schedule} />
 					{#if notStarted.length}
-						<h3 class="subsection-title sub">Scheduled runs that did not start</h3>
+						<h3 class="subsection-title sub">Scheduled Runs That Did Not Start</h3>
 						<ul class="runs" role="list">
 							{#each notStarted.slice(0, 5) as r (r.scheduledFor)}
 								{@const st = runStatus(r)}
@@ -397,11 +397,11 @@
 				{/if}
 			</Card>
 
-			<Card title="Recent runs" padding="none">
+			<Card title="Recent Runs" padding="none">
 				{#if jobs.isPending}
 					<div class="inset"><Skeleton lines={3} height="20px" /></div>
 				{:else}
-					<RunsTable {runs} label="Recent runs of {p.name}">
+					<RunsTable {runs} label="Recent Runs of {p.name}">
 						{#snippet empty()}<EmptyState
 								icon={resourceIcon('maintenancePolicy').icon}
 								title="No runs yet."
@@ -458,7 +458,7 @@
 							onclick={() => {
 								previewOpen = false;
 								runOpen = true;
-							}}>Run now</Button
+							}}>Run Now</Button
 						>
 					{/if}
 				{/snippet}
@@ -484,14 +484,14 @@
 			{/if}
 			<DestructiveConfirm
 				bind:open={deleteOpen}
-				title="Delete maintenance policy {p.name}"
+				title="Delete Maintenance Policy {p.name}"
 				consequences={[
 					'Removes the policy and its schedule; queued scheduled runs are dropped.',
 					'A run in progress finishes. Nothing on the environment is removed by deleting the policy.',
 					'Job history and the audit log stay.'
 				]}
 				confirmText={p.name}
-				confirmLabel="Delete policy"
+				confirmLabel="Delete Policy"
 				onconfirm={() => remove(p)}
 			/>
 		{/snippet}

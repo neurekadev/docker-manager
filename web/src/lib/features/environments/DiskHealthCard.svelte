@@ -2,7 +2,7 @@
 	// Disk health of one environment (#143), on the System tab: one line
 	// per disk (device and model, health, temperature, power-on time and
 	// what is wrong in words), problems first; serial numbers, firmware and
-	// sizes wait under "Advanced". "Check disks now" asks the agent for a
+	// sizes wait under "Advanced". "Check Disks Now" asks the agent for a
 	// fresh SMART read (never a self-test; a disk in standby is not woken)
 	// and toasts the result, also when the read outlasts the request (the
 	// live stream brings the new report). Notices replace the list when the
@@ -154,7 +154,7 @@
 		},
 		{
 			id: 'powered',
-			header: 'Powered on',
+			header: 'Powered On',
 			cell: poweredCell,
 			sortValue: (d) => d.powerOnHours,
 			width: '120px',
@@ -189,11 +189,11 @@
 			sortValue: (d) => deviceName(d, health.devices),
 			stack: 'title'
 		},
-		{ id: 'serial', header: 'Serial number', cell: serialCell, mono: true },
+		{ id: 'serial', header: 'Serial Number', cell: serialCell, mono: true },
 		{ id: 'firmware', header: 'Firmware', cell: firmwareCell, mono: true },
 		{ id: 'capacity', header: 'Capacity', cell: capacityCell, numeric: true },
 		{ id: 'kind', header: 'Kind', cell: kindCell },
-		{ id: 'read', header: 'Last read', cell: readCell }
+		{ id: 'read', header: 'Last Read', cell: readCell }
 	];
 </script>
 
@@ -255,7 +255,7 @@
 		>{:else}{@render dash()}{/if}
 {/snippet}
 
-<Card title="Disk health" subtitle={diskSummary(health)} padding="none" id="disk-health">
+<Card title="Disk Health" subtitle={diskSummary(health)} padding="none" id="disk-health">
 	{#snippet actions()}
 		<div class="head-actions">
 			{#if health.checkedAt}
@@ -265,7 +265,7 @@
 			{/if}
 			{#if showCheck}
 				<Button size="sm" icon={RefreshCw} loading={checking} onclick={check}
-					>Check disks now</Button
+					>Check Disks Now</Button
 				>
 			{/if}
 		</div>
@@ -292,7 +292,7 @@
 			<Disclosure summary="Advanced">
 				<div class="details">
 					<Table
-						label="Disk details of {env.name}"
+						label="Disk Details of {env.name}"
 						{rows}
 						columns={detailColumns}
 						rowKey={diskKey}

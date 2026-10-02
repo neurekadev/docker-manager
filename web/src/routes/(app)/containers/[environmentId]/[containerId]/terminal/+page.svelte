@@ -21,7 +21,7 @@
 
 	// The same trail as the container's other tabs: Containers / env / name / Terminal.
 	usePage(() => ({
-		title: `${name} terminal`,
+		title: `${name} Terminal`,
 		crumbs: [
 			{ label: 'Containers', href: routes.containers() },
 			{ label: envName },
@@ -44,7 +44,7 @@
 		<EmptyState
 			icon={LockKeyhole}
 			title="You can't open terminals in {name}"
-			description="Ask the owner of this Docker Manager for the “Open terminal” permission on {name}."
+			description="Ask the owner of this Docker Manager for the “Open Terminal” permission on {name}."
 		/>
 	{:else if container.data}
 		<TerminalPanel

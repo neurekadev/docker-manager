@@ -1,5 +1,5 @@
 // Notification channels (#142) in words: the kinds of events and their
-// outcomes a channel can send ("What to send"), what a channel sends, its
+// outcomes a channel can send ("What to Send"), what a channel sends, its
 // status and why it fails. Pure (services.spec.ts).
 import Archive from '@lucide/svelte/icons/archive';
 import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
@@ -20,7 +20,7 @@ export type NotificationTest = Schema<'NotificationChannelTest'>;
 export type EventSubscription = Schema<'NotificationSubscription'>;
 export type EventKind = EventSubscription['kind'];
 export type EventOutcome = EventSubscription['outcomes'][number];
-/** The groups of "What to send": problems of the hosts, runs of jobs. */
+/** The groups of "What to Send": problems of the hosts, runs of jobs. */
 export type EventGroup = 'hosts' | 'jobs';
 
 export interface EventKindInfo {
@@ -47,7 +47,7 @@ const PROBLEM: EventKindInfo['outcomes'] = [
 export const EVENT_KINDS: EventKindInfo[] = [
 	{
 		kind: 'disk_health',
-		label: 'Disk health',
+		label: 'Disk Health',
 		short: 'disk health',
 		group: 'hosts',
 		icon: resourceIcon('disk').icon,
@@ -71,7 +71,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	},
 	{
 		kind: 'disk_space',
-		label: 'Disk space',
+		label: 'Disk Space',
 		short: 'disk space',
 		group: 'hosts',
 		icon: ChartPie,
@@ -87,13 +87,13 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	},
 	{
 		kind: 'environment_offline',
-		label: 'Environment offline',
+		label: 'Environment Offline',
 		short: 'offline environments',
 		group: 'hosts',
 		icon: ServerOff,
 		outcomes: [
 			{ outcome: 'critical', label: 'Offline' },
-			{ outcome: 'resolved', label: 'Back online' }
+			{ outcome: 'resolved', label: 'Back Online' }
 		]
 	},
 	{
@@ -133,7 +133,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	},
 	{
 		kind: 'updates',
-		label: 'Image updates',
+		label: 'Image Updates',
 		short: 'image updates',
 		hint: 'Updates a check found, finished update runs, and failed update checks started by a schedule or an API token.',
 		group: 'jobs',
@@ -146,7 +146,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	},
 	{
 		kind: 'job_failed',
-		label: 'Other jobs',
+		label: 'Other Jobs',
 		short: 'other jobs',
 		hint: 'Failed jobs that an API token started and no row above covers: deploys, starts and stops, image pulls and builds, container, volume and file actions, and migrations.',
 		group: 'jobs',
@@ -159,7 +159,7 @@ export const EVENT_KINDS: EventKindInfo[] = [
 	}
 ];
 
-/** The groups of "What to send" in order, with their legends. */
+/** The groups of "What to Send" in order, with their legends. */
 export const EVENT_GROUPS: { group: EventGroup; label: string }[] = [
 	{ group: 'hosts', label: 'Hosts' },
 	{ group: 'jobs', label: 'Jobs' }
@@ -330,17 +330,17 @@ export function errorText(errorClass: string | undefined): string {
 export interface ChannelStatus {
 	/** The StatusBadge state (its tone). */
 	status: 'healthy' | 'failed' | 'unknown' | 'stopped';
-	label: 'Working' | 'Failing' | 'Not tested' | 'Off';
+	label: 'Working' | 'Failing' | 'Not Tested' | 'Off';
 	/** Why it fails, in words (the badge's tooltip). */
 	reason?: string;
 }
 
-/** A channel's status: Off, Not tested, Working or Failing (with the reason). */
+/** A channel's status: Off, Not Tested, Working or Failing (with the reason). */
 export function channelStatus(
 	c: Pick<NotificationChannel, 'enabled' | 'lastResult'>
 ): ChannelStatus {
 	if (!c.enabled) return { status: 'stopped', label: 'Off' };
-	if (!c.lastResult) return { status: 'unknown', label: 'Not tested' };
+	if (!c.lastResult) return { status: 'unknown', label: 'Not Tested' };
 	if (c.lastResult === 'ok') return { status: 'healthy', label: 'Working' };
 	return { status: 'failed', label: 'Failing', reason: errorText(c.lastResult) };
 }

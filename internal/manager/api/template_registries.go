@@ -168,7 +168,7 @@ func (h *tmplRegistriesAPI) ownName(ctx context.Context) string {
 			return s.Name
 		}
 	}
-	return "This instance"
+	return "This Instance"
 }
 
 type templateRegistryListOutput struct{ Body Page[TemplateRegistryInfo] }

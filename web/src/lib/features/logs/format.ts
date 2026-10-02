@@ -165,15 +165,15 @@ export function serviceTally(
 }
 
 /**
- * The level filter's button text: "All levels", the chosen levels ("Error,
+ * The level filter's button text: "All Levels", the chosen levels ("Error,
  * Warning"; "4 levels" from three on), then a single chosen stream.
  */
 export function levelSummary(levels: readonly LogLevel[], streams: readonly LogStream[]): string {
-	if (!levels.length || !streams.length) return 'Nothing selected';
+	if (!levels.length || !streams.length) return 'Nothing Selected';
 	const names = LOG_LEVELS.filter((l) => levels.includes(l.value)).map((l) => l.label);
 	const head =
 		names.length === LOG_LEVELS.length
-			? 'All levels'
+			? 'All Levels'
 			: names.length > 2
 				? `${names.length} levels`
 				: names.join(', ');
@@ -200,13 +200,13 @@ export function hiddenServices(services: readonly string[], shown: readonly stri
 }
 
 /**
- * The Services filter's button text: "All services", the shown services
- * ("web, db"; "3 services" from three on) or "Nothing selected".
+ * The Services filter's button text: "All Services", the shown services
+ * ("web, db"; "3 services" from three on) or "Nothing Selected".
  */
 export function serviceSummary(services: readonly string[], shown: readonly string[]): string {
 	const names = services.filter((s) => shown.includes(s));
-	if (!names.length) return 'Nothing selected';
-	if (names.length === services.length) return 'All services';
+	if (!names.length) return 'Nothing Selected';
+	if (names.length === services.length) return 'All Services';
 	return names.length > 2 ? `${names.length} services` : names.join(', ');
 }
 

@@ -4,7 +4,7 @@
 	// filters (search, source, tag, status). A source that failed its last
 	// sync is named above the list. This instance's templates open their
 	// management pages; a source's templates open a read-only page to
-	// create stacks from. "New template" needs template.create (the server
+	// create stacks from. "New Template" needs template.create (the server
 	// decides).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
@@ -63,10 +63,10 @@
 		description="Ready-made Compose projects to create stacks from, yours and those of other Docker Managers."
 	>
 		{#snippet actions()}
-			<Button icon={Archive} href={routes.templateRegistries()}>Template sources</Button>
+			<Button icon={Archive} href={routes.templateRegistries()}>Template Sources</Button>
 			{#if canCreate}
 				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
-					>New template</Button
+					>New Template</Button
 				>
 			{/if}
 		{/snippet}
@@ -81,9 +81,9 @@
 				: `${failing.length} template sources could not be synced`}
 		>
 			Their templates may be out of date. See the reason and sync again under Template
-			sources.
+			Sources.
 			{#snippet actions()}
-				<Button size="sm" href={routes.templateRegistries()}>Open template sources</Button>
+				<Button size="sm" href={routes.templateRegistries()}>Open Template Sources</Button>
 			{/snippet}
 		</Notice>
 	{/if}
@@ -96,13 +96,13 @@
 		/>
 	{:else}
 		<ListCard
-			title="All templates"
+			title="All Templates"
 			id="templates"
 			summary={catalog.data
 				? listSummary(rows.length, all.length, filtered, 'template', 'templates')
 				: undefined}
-			label="Filter templates"
-			searchLabel="Search templates"
+			label="Filter Templates"
+			searchLabel="Search Templates"
 			placeholder="Search templates"
 			filters={defs}
 			store={filters}
@@ -121,7 +121,7 @@
 								iconUrl={t.iconUrl}
 								visibility={t.visibility}
 								latest={t.versions[0]?.label}
-								source={t.own ? 'This instance' : t.registryName}
+								source={t.own ? 'This Instance' : t.registryName}
 								onTag={toggleTag}
 							/>
 						</li>
@@ -143,9 +143,9 @@
 					{#snippet actions()}
 						{#if canCreate}<Button
 								variant="primary"
-								onclick={() => (createDialog.open = true)}>New template</Button
+								onclick={() => (createDialog.open = true)}>New Template</Button
 							>{/if}
-						<Button href={routes.templateRegistries()}>Open template sources</Button>
+						<Button href={routes.templateRegistries()}>Open Template Sources</Button>
 					{/snippet}
 				</EmptyState>
 			{/if}

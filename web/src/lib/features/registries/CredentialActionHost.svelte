@@ -203,8 +203,8 @@
 		!!r && 'reference' in r;
 	const secretLabel = $derived(
 		target?.kind === 'registry' && target.item.credentialType === 'password'
-			? 'New password'
-			: 'New access token'
+			? 'New Password'
+			: 'New Access Token'
 	);
 	const testPlaceholder = $derived.by(() => {
 		if (target?.kind !== 'registry') return '';
@@ -217,7 +217,7 @@
 {#if target}
 	<Dialog
 		bind:open={rotateOpen}
-		title="Rotate the credential of {target.item.name}"
+		title="Rotate the Credential of {target.item.name}"
 		size="sm"
 		dismissible={!busy}
 	>
@@ -267,7 +267,7 @@
 				form="rotate-form"
 				variant="primary"
 				loading={busy}
-				disabled={!secret}>Rotate credential</Button
+				disabled={!secret}>Rotate Credential</Button
 			>
 		{/snippet}
 	</Dialog>
@@ -281,7 +281,7 @@
 				? 'Pulls, deploys and update checks of matching images fail until you rotate a new credential in. Docker Manager never falls back to anonymous access.'
 				: 'Builds from matching repositories fail until you rotate a new token in.'
 		]}
-		confirmLabel="Revoke credential"
+		confirmLabel="Revoke Credential"
 		tone="danger"
 		onconfirm={revoke}
 	/>
@@ -297,7 +297,7 @@
 				: 'Matching repositories are cloned without credentials afterwards unless another credential matches.'
 		]}
 		confirmText={target.item.name}
-		confirmLabel={target.kind === 'registry' ? 'Delete connection' : 'Delete credential'}
+		confirmLabel={target.kind === 'registry' ? 'Delete Connection' : 'Delete Credential'}
 		onconfirm={remove}
 	/>
 
@@ -312,7 +312,7 @@
 		>
 			{#if target.kind === 'registry'}
 				<TextField
-					label="Image reference"
+					label="Image Reference"
 					mono
 					required
 					bind:value={reference}
@@ -397,7 +397,7 @@
 				form="test-form"
 				variant="primary"
 				loading={busy}
-				disabled={!reference.trim()}>Test connection</Button
+				disabled={!reference.trim()}>Test Connection</Button
 			>
 		{/snippet}
 	</Dialog>

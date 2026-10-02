@@ -15,7 +15,7 @@
 	{actions}
 />
 <TabNav
-	label="Access sections"
+	label="Access Sections"
 	current={page.url.pathname}
 	items={[
 		{ href: routes.access(), label: 'Users' },

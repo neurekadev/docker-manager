@@ -62,7 +62,7 @@
 		title: backup.data ? itemName(backup.data) : 'Backup',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
-			{ label: 'All backups', href: routes.backupList() },
+			{ label: 'All Backups', href: routes.backupList() },
 			{ label: backup.data ? itemName(backup.data) : 'Backup' }
 		]
 	}));
@@ -147,7 +147,7 @@
 				]}
 			>
 				{#snippet status()}
-					{#if b.forgottenAt}<Badge tone="neutral" dot>Forgotten by retention</Badge>
+					{#if b.forgottenAt}<Badge tone="neutral" dot>Forgotten by Retention</Badge>
 					{:else if b.state === 'complete'}<Badge tone="ok" dot>Complete</Badge>
 					{:else}<Badge tone="warn" dot>Partial</Badge>{/if}
 				{/snippet}
@@ -168,7 +168,7 @@
 			{#if b.state === 'partial'}
 				<Notice tone="warn" title="Some files could not be read" live="none">
 					This backup is usable but incomplete; its job lists the files that were skipped.
-					{#if b.jobId}<a href={routes.job(b.jobId)}>Open the job</a>{/if}
+					{#if b.jobId}<a href={routes.job(b.jobId)}>Open the Job</a>{/if}
 				</Notice>
 			{/if}
 			{#if b.kind === 'manager_state'}
@@ -177,8 +177,8 @@
 					title="Manager state restores happen on a new Docker Manager"
 					live="none"
 				>
-					To recover the manager, set up a fresh Docker Manager and choose Import from
-					backup during setup, with this repository and your Recovery Key. A running
+					To recover the manager, set up a fresh Docker Manager and choose Import From
+					Backup during setup, with this repository and your Recovery Key. A running
 					manager is never overwritten.
 				</Notice>
 			{/if}
@@ -205,7 +205,7 @@
 						},
 						{ label: 'Environment', value: where },
 						{
-							label: 'Last verified',
+							label: 'Last Verified',
 							value: b.verifiedAt ? formatDateTime(b.verifiedAt) : 'Not yet'
 						}
 					]}
@@ -216,11 +216,11 @@
 							columns={1}
 							items={[
 								{
-									label: 'Repository location',
+									label: 'Repository Location',
 									value: b.scope ? scopeName(b.scope, envName) : '—'
 								},
 								{
-									label: 'Paths in the backup',
+									label: 'Paths in the Backup',
 									value: b.paths?.join(', '),
 									mono: true
 								},
@@ -233,7 +233,7 @@
 
 			{#if b.set && st}
 				<Card
-					title="Backup run"
+					title="Backup Run"
 					subtitle="Everything backed up by the same run. Hosts are backed up one after another, so each backup has its own time."
 				>
 					{#snippet actions()}<Badge tone={st.tone} dot>{st.label}</Badge>{/snippet}
@@ -260,7 +260,7 @@
 				description="Checks the whole repository location that holds this backup: every backup stored there, not only this one. Damage makes the check fail."
 			>
 				<RadioGroup
-					label="How much to check"
+					label="How Much to Check"
 					options={VERIFY_READ_OPTIONS}
 					bind:value={subset}
 				/>
@@ -272,7 +272,7 @@
 				{#snippet footer()}
 					<Button variant="ghost" onclick={() => (verifyOpen = false)}>Cancel</Button>
 					<Button variant="primary" loading={verifying} onclick={() => verify(b)}
-						>Verify repository</Button
+						>Verify Repository</Button
 					>
 				{/snippet}
 			</Dialog>

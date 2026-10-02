@@ -56,23 +56,23 @@ describe('PermissionsDialog', () => {
 		const { user, submitted, previews } = setup();
 		const octal = screen.getByLabelText(/^Mode/);
 		expect(octal).toHaveValue('0755');
-		await user.click(screen.getByRole('checkbox', { name: 'Group write' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Group Write' }));
 		expect(octal).toHaveValue('0775');
 		await user.clear(octal);
 		await user.type(octal, '0640');
-		expect(screen.getByRole('checkbox', { name: 'Owner execute' })).not.toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Group read' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Owner Execute' })).not.toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Group Read' })).toBeChecked();
 		await waitFor(() => expect(screen.getByText(/Changes 1 folder/)).toBeInTheDocument());
 		await user.click(
-			screen.getByRole('switch', { name: 'Apply to everything inside the selected folders' })
+			screen.getByRole('switch', { name: 'Apply to Everything Inside the Selected Folders' })
 		);
 		await waitFor(() =>
 			expect(screen.getByText(/Changes 2 folders, 3 files \(2 KB\)/)).toBeInTheDocument()
 		);
 		expect(previews).toEqual([false, true]);
-		await user.click(screen.getByRole('switch', { name: 'Use another mode for folders' }));
-		expect(screen.getByLabelText('Mode for folders')).toHaveValue('0755');
-		await user.click(screen.getByRole('button', { name: 'Change permissions' }));
+		await user.click(screen.getByRole('switch', { name: 'Use Another Mode for Folders' }));
+		expect(screen.getByLabelText('Mode for Folders')).toHaveValue('0755');
+		await user.click(screen.getByRole('button', { name: 'Change Permissions' }));
 		expect(submitted).toEqual([
 			{ recursive: true, chmod: { mode: '0640', dirMode: '0755' }, chown: undefined }
 		]);
@@ -80,17 +80,17 @@ describe('PermissionsDialog', () => {
 
 	it('changes owners with validated numeric IDs', async () => {
 		const { user, submitted } = setup();
-		await user.click(screen.getByRole('switch', { name: 'Change mode' }));
-		await user.click(screen.getByRole('switch', { name: 'Change owner' }));
+		await user.click(screen.getByRole('switch', { name: 'Change Mode' }));
+		await user.click(screen.getByRole('switch', { name: 'Change Owner' }));
 		expect(screen.getByLabelText('Owner ID (UID)')).toHaveValue('1000');
 		expect(screen.getByLabelText('Group ID (GID)')).toHaveValue('100');
 		await user.clear(screen.getByLabelText('Owner ID (UID)'));
 		await user.type(screen.getByLabelText('Owner ID (UID)'), 'root');
 		expect(screen.getByText('Use numeric IDs from 0 to 2147483647.')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Change permissions' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Change Permissions' })).toBeDisabled();
 		await user.clear(screen.getByLabelText('Owner ID (UID)'));
 		await user.type(screen.getByLabelText('Owner ID (UID)'), '0');
-		await user.click(screen.getByRole('button', { name: 'Change permissions' }));
+		await user.click(screen.getByRole('button', { name: 'Change Permissions' }));
 		expect(submitted).toEqual([
 			{ recursive: false, chmod: undefined, chown: { uid: 0, gid: 100 } }
 		]);
@@ -98,7 +98,7 @@ describe('PermissionsDialog', () => {
 
 	it('offers only what the capabilities allow', () => {
 		setup({ canChmod: false });
-		expect(screen.queryByRole('switch', { name: 'Change mode' })).toBeNull();
-		expect(screen.getByRole('switch', { name: 'Change owner' })).toBeChecked();
+		expect(screen.queryByRole('switch', { name: 'Change Mode' })).toBeNull();
+		expect(screen.getByRole('switch', { name: 'Change Owner' })).toBeChecked();
 	});
 });

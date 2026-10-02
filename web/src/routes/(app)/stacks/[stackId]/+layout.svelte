@@ -3,7 +3,7 @@
 	// state notices (offline environment, failed deploy), the route tabs
 	// (Overview · Files · Logs · Terminal · Revisions · Backups · Policies ·
 	// Activity)
-	// with the "Undeployed changes" chip, the stack's jobs (started here or
+	// with the "Undeployed Changes" chip, the stack's jobs (started here or
 	// running when the page opens: the running list brings them back after
 	// a reload), then the tab. Files, Logs and Terminal are track B3's
 	// routes.
@@ -119,7 +119,7 @@
 	});
 	const offline = $derived(!!s && (s.readOnly || s.environmentOnline === false));
 
-	// A job started on the way here (Create and deploy, a migration): show
+	// A job started on the way here (Create and Deploy, a migration): show
 	// it in the tray, then drop it from the URL (after a reload the running
 	// list brings it back while it runs).
 	$effect(() => {
@@ -161,7 +161,7 @@
 		description="It may have been deleted or moved, or your access changed. Stacks you can see are listed under Stacks."
 		level={1}
 	>
-		{#snippet actions()}<Button variant="primary" href={routes.stacks()}>Open stacks</Button
+		{#snippet actions()}<Button variant="primary" href={routes.stacks()}>Open Stacks</Button
 			>{/snippet}
 	</EmptyState>
 {:else if stack.isError}
@@ -191,18 +191,18 @@
 				{#snippet actions()}
 					{#if can('stack.definition.read')}
 						<Button size="sm" href={routes.stack(id, 'revisions')}
-							>Open revisions</Button
+							>Open Revisions</Button
 						>
 					{/if}
 					{#if s.lastJob}
-						<Button size="sm" href={routes.job(s.lastJob.id)}>Open the job</Button>
+						<Button size="sm" href={routes.job(s.lastJob.id)}>Open the Job</Button>
 					{/if}
 				{/snippet}
 			</Notice>
 		{/if}
 
 		{#if !wizard}
-			<TabNav label="{title} sections" current={page.url.pathname} items={tabs}>
+			<TabNav label="{title} Sections" current={page.url.pathname} items={tabs}>
 				{#snippet after()}
 					{#if s.undeployedChanges}
 						<a class="chip" href={routes.stack(id, 'revisions')}
@@ -210,7 +210,7 @@
 								tone="warn"
 								dot
 								title="The files on disk differ from the deployed revision"
-								>Undeployed changes</Badge
+								>Undeployed Changes</Badge
 							></a
 						>
 					{/if}

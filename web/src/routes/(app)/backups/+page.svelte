@@ -152,7 +152,7 @@
 		>
 			Nothing is backed up to this repository until the owner re-enters the Recovery Key.
 			{#snippet actions()}
-				<Button size="sm" href={routes.backupRepository(r.id)}>Confirm the key</Button>
+				<Button size="sm" href={routes.backupRepository(r.id)}>Confirm the Key</Button>
 			{/snippet}
 		</Notice>
 	{/each}
@@ -160,7 +160,7 @@
 	{#if repos.isPending || policies.isPending}
 		<Skeleton lines={4} height="72px" />
 	{:else if !setupDone}
-		<Card title="Set up backups">
+		<Card title="Set Up Backups">
 			<ol class="setup" role="list">
 				<li class:done={readyRepos.length > 0}>
 					<span class="marker" aria-hidden="true"
@@ -170,7 +170,7 @@
 							/>{:else}1{/if}</span
 					>
 					<div class="step">
-						<h3>Add a backup repository</h3>
+						<h3>Add a Backup Repository</h3>
 						<p class="muted">
 							A local disk on a host or an S3 bucket. Save the Recovery Key it shows:
 							every backup opens with it.
@@ -183,7 +183,7 @@
 							<span class="state">Confirm the Recovery Key above to finish.</span>
 						{:else if canAddRepository}
 							<div>
-								<Button href={routes.backupRepositoryNew()}>Add repository</Button>
+								<Button href={routes.backupRepositoryNew()}>Add Repository</Button>
 							</div>
 						{:else}
 							<span class="state"
@@ -195,7 +195,7 @@
 				<li class:done={(policies.data ?? []).length > 0}>
 					<span class="marker" aria-hidden="true">2</span>
 					<div class="step">
-						<h3>Create a backup policy</h3>
+						<h3>Create a Backup Policy</h3>
 						<p class="muted">
 							Covers all environments or one: every managed stack and volume is
 							included until you leave it out. Choose when it runs and how long
@@ -207,7 +207,7 @@
 									variant={readyRepos.length ? 'primary' : 'secondary'}
 									disabled={!readyRepos.length}
 									onclick={() => (createDialog.open = true)}
-									>Create backup policy</Button
+									>Create Backup Policy</Button
 								>
 							</div>
 						{/if}
@@ -220,7 +220,7 @@
 	{#if setupDone}
 		<KpiRow>
 			<KpiCard
-				label="Last complete run"
+				label="Last Complete Run"
 				value={lastComplete ? formatRelative(lastComplete.startedAt) : 'None yet'}
 				secondary={lastComplete
 					? lastBytes !== undefined
@@ -232,14 +232,14 @@
 				tone={lastComplete ? 'ok' : undefined}
 			/>
 			<KpiCard
-				label="Next run"
+				label="Next Run"
 				value={nextRun ? formatRelative(nextRun) : 'Not scheduled'}
 				secondary={nextRun ? formatDateTime(nextRun) : 'No schedule is on'}
 				icon={CalendarClock}
 				color="slate"
 			/>
 			<KpiCard
-				label="Partial or failed runs"
+				label="Partial or Failed Runs"
 				value={String(troubled)}
 				secondary="Of the last {sets.length} runs"
 				icon={TriangleAlert}
@@ -260,7 +260,7 @@
 
 		{#if running.length}
 			<Card
-				title="Running now"
+				title="Running Now"
 				subtitle="Backups with the file each one reads, and retentions, updated every second."
 			>
 				<RunningBackups jobs={running} {policyName} environmentName={envName} />
@@ -292,18 +292,18 @@
 		</Card>
 
 		<Card
-			title="Recent runs"
+			title="Recent Runs"
 			subtitle="Each run of a policy, with the backups it holds."
 			padding="none"
 		>
 			{#snippet actions()}
-				<Button size="sm" variant="ghost" href={routes.backupList()}>All backups</Button>
+				<Button size="sm" variant="ghost" href={routes.backupList()}>All Backups</Button>
 			{/snippet}
 			<QueryView query={policies} errorTitle="The backup runs could not be loaded.">
 				{#if sets.length}
 					<SetsTable
 						sets={sets.slice(0, RECENT_RUNS)}
-						label="Recent runs"
+						label="Recent Runs"
 						environmentName={envName}
 						backups={backups.data}
 						activity={running}

@@ -35,7 +35,7 @@
 				? stack.displayName || stack.name
 				: stacks.isPending
 					? 'Stack'
-					: 'Deleted stack'
+					: 'Deleted Stack'
 			: (container?.name ?? id)
 	);
 	const href = $derived(
@@ -43,10 +43,10 @@
 			? stack
 				? routes.stack(id, 'policies')
 				: undefined
-			: container && container.name !== 'Removed container'
+			: container && container.name !== 'Removed Container'
 				? routes.container(environmentId, container.name)
 				: undefined
 	);
 </script>
 
-<NameCell {name} {href} sub={sub ?? (type === 'stack' ? 'Stack' : 'Standalone container')} />
+<NameCell {name} {href} sub={sub ?? (type === 'stack' ? 'Stack' : 'Standalone Container')} />

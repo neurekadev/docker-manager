@@ -91,13 +91,13 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   select the environment first); a list with filters opens filtered by
   presetting its `ListFilters` before the link is followed
   (`presetFilters` in `$lib/features/dashboard/AttentionStrip.svelte`,
-  the dashboard's "Needs attention"). A whole card or table row opens its
+  the dashboard's "Needs Attention"). A whole card or table row opens its
   object through its name link stretched over it (`::after`, the row or
   card `position: relative`, links and buttons inside above it).
   Router errors inside the signed-in area render in the shell
   (`routes/(app)/+error.svelte`), others in `routes/+error.svelte`; both
   use `ErrorPageBody` ($lib/features/common): one heading, Reload (not
-  for 404), Back, Go to the dashboard.
+  for 404), Back, Go to the Dashboard.
 - **Public pages** (`(auth)`): the title is `AuthHeader`
   (`$lib/features/auth`); submit buttons stay enabled (a browser's
   autofill may not report values before the user interacts): controls
@@ -135,7 +135,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   (`ACTIVE_JOB_STATES` in `$lib/api/job-states.ts`);
   job rows lead with the target's name (`jobHeadline(job, { nameOf,
   fallback })` in `$lib/features/jobs/labels.ts`: stack IDs resolve with
-  `stackNames(stacks)`, opaque IDs are never shown). The runs of a policy
+  `stackNames(stacks)`, opaque IDs are never shown). Job kinds are named
+  by `jobKindLabel` (`JOB_KIND_LABELS`, Title Case: "Deploy Stack"); a
+  sentence (the bell's job notices, the job page's summary) uses
+  `jobKindPhrase`, the same label in sentence case ("Deploy stack"). The runs of a policy
   (an update check starts one job per target) show one line each
   (`groupRuns`, `runSummary` in `runs.ts`: "20 checks, all succeeded",
   "2 of 20 checks failed"; `RunsTable`), linking to the failed job or to
@@ -143,9 +146,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   loads its runs with `recentJobsQuery(n, { policyId })`; the job page
   states the job once (`JobProgress summary={false}`), a failure as a
   headline in words (`jobErrorHeadline`) over the engine's message, and
-  "Try again" (`jobRetry`): a retry through `POST /jobs/{jobId}/retries`
+  "Try Again" (`jobRetry`): a retry through `POST /jobs/{jobId}/retries`
   when the job is `retryable` (opens the new job; a retry shows "Retry
-  of"), else the page of the originating action (`jobAgain`).
+  Of"), else the page of the originating action (`jobAgain`).
   Feature screens may keep their factories in `$lib/features/<area>/queries.ts`
   (docs/internal/web.md, "Feature modules"); step-up-guarded calls go through
   `withStepUp` (`$lib/auth/stepup.svelte`). Confirming identity (the
@@ -159,7 +162,22 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   users get `DeniedState`. The server still decides.
 - **Copy:** buttons name the result and the toast repeats it ("Deployed
   Silo"); errors say what happened and what to do, no apology; empty states
-  invite action; sentence case, no all-caps labels.
+  invite action; no all-caps labels. **Names and labels are Title Case**
+  (#219): navigation, page titles and crumbs, card, section and dialog
+  titles, tabs, column headers, field, checkbox, switch and option labels,
+  menu items, buttons, badges and status labels, empty-state titles, filter
+  labels, job kind labels and short label maps ("Image Updates", "Last
+  Used", "Add Connection", "What to Send"). Capitalize every word except
+  articles (a, an, the), coordinating conjunctions (and, but, or, nor) and
+  short prepositions (as, at, by, for, in, of, on, per, to, via, with),
+  unless the word is first or last; each part of a hyphenated word
+  ("Sign-In"). Product names, acronyms and literal values keep their own
+  casing (Docker Manager, GHCR, RAID, SMART, API, URL, `docker-compose.yml`,
+  `pull: always`, image references, cron expressions). Sentences stay in
+  sentence case: descriptions, help text, hints, placeholders, tooltips
+  that are sentences, toasts, errors, confirmations, empty-state bodies and
+  anything ending in ".", "!" or "?". The manager's notification labels
+  follow the same rule (`alerts/message.go`).
 - **Tests:** unit tests only: `*.spec.ts` (Node logic), `*.test.ts` (jsdom
   components with `@testing-library/svelte`: roles, labels, keyboard,
   focus). Components reading queries: `web/src/test/QueryHarness.svelte`
@@ -180,8 +198,8 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   removal preview). Credential changes go through `withStepUp`
   (`$lib/auth/stepup.svelte`). `unwrap` resolves a 204 to `undefined`.
   Section lists (containers, images, volumes, networks, stacks, jobs,
-  schedules) are one `ListCard` ("All containers", count, search, selects
-  and switches in the header, "Clear filters", `NoMatches`); their filters
+  schedules) are one `ListCard` ("All Containers", count, search, selects
+  and switches in the header, "Clear Filters", `NoMatches`); their filters
   are `ListFilter`s in pure, spec-tested modules and their state a
   `ListFilters` store (per list and browser tab in `sessionStorage`, UI
   state only). Keep filters few: text attributes (names, images, digests,
@@ -209,7 +227,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   dropped silently); `runBulk` (`bulk-run.ts`) sends one request per
   object through the single-object helpers (`runContainerAction`,
   `object-actions.ts`) and shows one summary toast. Detail pages: removal
-  is the last entry of the header's "More actions" menu after a separator
+  is the last entry of the header's "More Actions" menu after a separator
   and absent for Docker Manager's own objects (the notice says why); no
   removal-preview card on the page (the removal dialog shows the
   server's preview); labels through `LabelsCard` (system labels such as
@@ -231,16 +249,16 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   as "password" find the page that holds it).
 - **Policy pages** (updates, maintenance, backups): `PageHeader` with the
   policy name, one status sentence as description and the actions
-  (primary "Run now" or "Preview updates", then "Check now"/"Preview",
+  (primary "Run Now" or "Preview Updates", then "Check Now"/"Preview",
   "Edit" (the only edit entry), the rest in the ⋯ menu, destructive
   last); then `KpiRow` (last run, next run, coverage, one value of the
-  policy's own); then the cards "What it covers", "Schedule" and "Recent
-  runs". Edit forms are one dialog with Cancel and Save changes; their
+  policy's own); then the cards "What It Covers", "Schedule" and "Recent
+  Runs". Edit forms are one dialog with Cancel and Save Changes; their
   cron field shows only while the schedule is on. Links to a policy go to
   the policy itself (`policyHref(kind, policyId)`, `policyPage(kind,
   policyId)`), never only to its section. Update targets show by name
   (`TargetName`: a container is looked up by name or Engine ID, never
-  shown by ID); inactive targets are "Excluded" or "No longer found" as
+  shown by ID); inactive targets are "Excluded" or "No Longer Found" as
   the manager's `inactiveReason` says (never guessed from the exclusion
   lists), and every count on Updates counts the covered
   targets the policy pages count ("6 images in 5 stacks"). A newer image
@@ -252,7 +270,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   of the user's own manual jobs; every item links somewhere
   (`noticeHref`). The badge counts the items not dismissed and stays until
   each is dismissed (closing the popover changes nothing). Dismiss (×) and
-  "Dismiss all" dismiss an alert for everyone when its `actions` hold
+  "Dismiss All" dismiss an alert for everyone when its `actions` hold
   `alert.dismiss`, else for this browser only; job notices are dismissed
   for this browser. Browser-local dismissals are keys only
   (`job:<id>`, `alert:<id>:<escalation>`, so an alert that gets worse, at
@@ -279,13 +297,13 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `notification` only.
 - **Alerts tab** (`$lib/features/alerts`): one `ListCard` (state
   Active/Dismissed/Resolved, kind, environment; `alertFilters`, presets
-  through `alertsPreset` for links from "Needs attention" and the System
+  through `alertsPreset` for links from "Needs Attention" and the System
   tab's `AlertMark`); severity is a `StatusBadge` ("Critical", "Warning",
   "Info"); rows lead with the alert's title linking to its `link`, then
   the detail and a line with the kind's icon and its inline fields;
   Dismiss only with `alert.dismiss` in `actions`. Queries are keyed
   `liveKeys.alerts(...)` (topic `alerts`).
-- **Alert thresholds** (`ThresholdsCard`, Settings → Notifications, owner
+- **Alert Thresholds** (`ThresholdsCard`, Settings → Notifications, owner
   only): the defaults in one grid (`ThresholdGrid`, validated by
   `thresholds.ts` like the server: whole numbers, 0 off, warning below
   critical), overrides in a table with `OverrideDialog`; every save PUTs

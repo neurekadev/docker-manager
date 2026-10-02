@@ -23,7 +23,7 @@
 		visibility?: string;
 		/** The newest version's label; absent while only a draft exists. */
 		latest?: string;
-		/** Where the template comes from ("This instance", a source's name). */
+		/** Where the template comes from ("This Instance", a source's name). */
 		source?: string;
 		onTag?: (tag: string) => void;
 	}
@@ -47,10 +47,10 @@
 
 <article class="card" class:interactive={!!href || !!onselect}>
 	{#if onselect}
-		<button type="button" class="cover" aria-label="Use template {name}" onclick={onselect}
+		<button type="button" class="cover" aria-label="Use Template {name}" onclick={onselect}
 		></button>
 	{:else if href}
-		<a class="cover" {href} aria-label="Open template {name}"></a>
+		<a class="cover" {href} aria-label="Open Template {name}"></a>
 	{/if}
 	<div class="head">
 		<TemplateIcon url={iconUrl} />
@@ -74,7 +74,7 @@
 							<Chip
 								size="sm"
 								label={tag}
-								title="Show templates tagged {tag}"
+								title="Show Templates Tagged {tag}"
 								onclick={() => tagAction(tag)}
 							/>
 						{:else}

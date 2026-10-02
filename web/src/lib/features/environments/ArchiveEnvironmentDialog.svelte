@@ -110,7 +110,7 @@
 		consequences={removalConsequences(preview)}
 		{affected}
 		confirmText={env.name}
-		confirmLabel="Archive environment"
+		confirmLabel="Archive Environment"
 		onconfirm={archive}
 	>
 		{#snippet extra()}
@@ -128,7 +128,7 @@
 						{env.name} is re-attached.
 					</Notice>
 					<Button size="sm" onclick={migrateFirst}
-						>Migrate {n === 1 ? 'the stack' : `${n} stacks`} first</Button
+						>Migrate {n === 1 ? 'the Stack' : `${n} Stacks`} First</Button
 					>
 				</div>
 			{/if}

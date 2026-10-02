@@ -20,7 +20,7 @@
 </script>
 
 {#if stack.managed && stack.stackId}
-	<a class="stack" href={routes.stack(stack.stackId)} title="Managed stack {stack.project}">
+	<a class="stack" href={routes.stack(stack.stackId)} title="Managed Stack {stack.project}">
 		<Badge tone="accent">
 			<Layers size={13} strokeWidth={1.75} aria-hidden="true" />
 			{label}<span class="sr-only"> (managed stack)</span>

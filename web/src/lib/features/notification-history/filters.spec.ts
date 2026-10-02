@@ -25,14 +25,14 @@ describe('notifications list filters', () => {
 			['environment', 'Environment']
 		]);
 		expect(selectOptions(all[0], undefined).map((o) => o.label)).toEqual([
-			'All kinds',
+			'All Kinds',
 			'Backups',
 			'Restores',
 			'Prune',
-			'Image updates'
+			'Image Updates'
 		]);
 		expect(selectOptions(all[1], undefined).map((o) => o.label)).toEqual([
-			'All outcomes',
+			'All Outcomes',
 			'Done',
 			'Warning',
 			'Failed'

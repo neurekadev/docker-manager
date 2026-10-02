@@ -17,15 +17,15 @@
 	const items = $derived<MenuEntry[]>([
 		{ heading: user.owner ? `${name} (owner)` : name },
 		{ label: 'Profile', icon: UserRound, href: routes.profile() },
-		{ label: 'API tokens', icon: KeyRound, href: routes.apiTokens() },
+		{ label: 'API Tokens', icon: KeyRound, href: routes.apiTokens() },
 		{ separator: true },
-		{ label: 'Sign out', icon: LogOut, onSelect: onsignout }
+		{ label: 'Sign Out', icon: LogOut, onSelect: onsignout }
 	]);
 </script>
 
 <Menu {items} label="Account">
 	{#snippet trigger(props)}
-		<button {...props} type="button" class="avatar" aria-label="Account menu for {name}">
+		<button {...props} type="button" class="avatar" aria-label="Account Menu for {name}">
 			<span aria-hidden="true">{initial}</span>
 		</button>
 	{/snippet}

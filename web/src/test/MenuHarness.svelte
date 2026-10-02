@@ -12,22 +12,22 @@
 	label="Actions for silo-web"
 	items={[
 		{ label: 'Restart', onSelect: () => onpick('restart') },
-		{ label: 'Disabled action', disabled: true, onSelect: () => onpick('disabled') },
+		{ label: 'Disabled Action', disabled: true, onSelect: () => onpick('disabled') },
 		{ separator: true },
 		{ label: 'Remove', tone: 'danger', onSelect: () => onpick('remove') }
 	]}
 >
 	{#snippet trigger(props)}
-		<IconButton {...props} label="More actions for silo-web" icon={EllipsisVertical} />
+		<IconButton {...props} label="More Actions for silo-web" icon={EllipsisVertical} />
 	{/snippet}
 </Menu>
 
 <SplitButton
 	label="Deploy"
-	menuLabel="More deploy options"
+	menuLabel="More Deploy Options"
 	onclick={() => onpick('deploy')}
 	items={[
-		{ label: 'Deploy with pull', onSelect: () => onpick('pull') },
-		{ label: 'Build and deploy', onSelect: () => onpick('build') }
+		{ label: 'Deploy with Pull', onSelect: () => onpick('pull') },
+		{ label: 'Build and Deploy', onSelect: () => onpick('build') }
 	]}
 />

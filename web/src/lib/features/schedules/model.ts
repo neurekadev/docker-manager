@@ -26,8 +26,8 @@ export function formatRunTime(at: string, timeZone: string): string {
 
 /** A short DST label for a run time, or null for an ordinary time. */
 export function dstLabel(r: Pick<RunTime, 'dst'>): string | null {
-	if (r.dst === 'gap') return 'Clocks move forward';
-	if (r.dst === 'repeated') return 'Clocks move back';
+	if (r.dst === 'gap') return 'Clocks Move Forward';
+	if (r.dst === 'repeated') return 'Clocks Move Back';
 	return null;
 }
 
@@ -94,7 +94,7 @@ export function policyHref(kind: string, policyId?: string): string {
 const ENVIRONMENT_KINDS = new Set(['update_check', 'update_run', 'prune']);
 
 /**
- * Where a schedule applies: its environment, "All environments" for
+ * Where a schedule applies: its environment, "All Environments" for
  * update and prune policies over every environment, else "Manager" (backups
  * and repository verification run on Docker Manager itself).
  */
@@ -102,8 +102,8 @@ export function scheduleScope(
 	s: Pick<Schedule, 'kind' | 'environmentId'>,
 	envName: (id: string) => string | undefined
 ): string {
-	if (s.environmentId) return envName(s.environmentId) ?? 'Unknown environment';
-	return ENVIRONMENT_KINDS.has(s.kind) ? 'All environments' : 'Manager';
+	if (s.environmentId) return envName(s.environmentId) ?? 'Unknown Environment';
+	return ENVIRONMENT_KINDS.has(s.kind) ? 'All Environments' : 'Manager';
 }
 
 /** Policy names that two different policies share (they need their scope to tell apart). */

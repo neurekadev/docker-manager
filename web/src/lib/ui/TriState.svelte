@@ -18,7 +18,7 @@
 		highRisk?: boolean;
 		/**
 		 * override (user rules): Inherit / Allow / Deny. rule (group rules):
-		 * No rule / Allow / Deny, where no rule means deny unless a broader
+		 * No Rule / Allow / Deny, where no rule means deny unless a broader
 		 * rule allows it.
 		 */
 		variant?: 'override' | 'rule';
@@ -39,7 +39,7 @@
 	const uid = $props.id();
 
 	const options: { value: TriValue; label: string }[] = $derived([
-		{ value: 'inherit', label: variant === 'rule' ? 'No rule' : 'Inherit' },
+		{ value: 'inherit', label: variant === 'rule' ? 'No Rule' : 'Inherit' },
 		{ value: 'allow', label: 'Allow' },
 		{ value: 'deny', label: 'Deny' }
 	]);
@@ -76,7 +76,7 @@
 					onchange={() => onchange?.(o.value)}
 				/>
 				<span>{o.label}</span>
-				{#if o.value === 'allow' && highRisk}<span class="risk">High risk</span>{/if}
+				{#if o.value === 'allow' && highRisk}<span class="risk">High Risk</span>{/if}
 			</label>
 		{/each}
 	</div>

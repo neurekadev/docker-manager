@@ -34,13 +34,13 @@
 		options={[
 			{
 				value: 'local',
-				label: 'Local directory',
+				label: 'Local Directory',
 				description:
 					'A disk or mount of the manager or of one environment. Recovery needs that disk.'
 			},
 			{
 				value: 's3',
-				label: 'S3-compatible storage',
+				label: 'S3-Compatible Storage',
 				description:
 					'AWS S3, MinIO, Backblaze B2, Wasabi and others. Recovery needs the bucket and a key pair.'
 			}
@@ -49,7 +49,7 @@
 	{#if value.kind === 'local'}
 		{#if executors}
 			<Select
-				label="Written by"
+				label="Written By"
 				description="Local repositories live on one host; each environment backs up to its own."
 				options={executors}
 				bind:value={value.executor}
@@ -98,7 +98,7 @@
 				error={errors['body.prefix']}
 			/>
 			<TextField
-				label="Access key ID"
+				label="Access Key ID"
 				mono
 				bind:value={value.accessKeyId}
 				autocomplete="off"
@@ -109,7 +109,7 @@
 				error={errors['body.accessKeyId']}
 			/>
 			<PasswordField
-				label="Secret access key"
+				label="Secret Access Key"
 				bind:value={value.secretAccessKey}
 				autocomplete="off"
 				required={!credentialsOptional}
@@ -118,7 +118,7 @@
 			/>
 		</Fields>
 		<Switch
-			label="Path-style addressing"
+			label="Path-Style Addressing"
 			description="On for MinIO and most self-hosted S3; off for AWS virtual-hosted buckets."
 			bind:checked={value.pathStyle}
 		/>

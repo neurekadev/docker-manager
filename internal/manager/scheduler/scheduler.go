@@ -427,7 +427,7 @@ func (s *Service) advance(ctx context.Context, k Kind, sc domain.Schedule, now t
 					first := d.first
 					r.CatchUp, r.MissedCount, r.MissedFrom = true, d.count, &first
 					r.Reason = fmt.Sprintf("catch-up run: %s were due while the manager was not running (or its clock jumped forward); "+
-						"%s schedules run once to catch up", countRuns(d.count, d.more), k.Label)
+						"%s schedules run once to catch up", countRuns(d.count, d.more), k.noun())
 				}
 				if err := store.InsertScheduleRun(ctx, tx, &r); err != nil && !errors.Is(err, store.ErrScheduleRunExists) {
 					return err
@@ -538,7 +538,7 @@ func (s *Service) recordMissed(ctx context.Context, tx bun.Tx, k Kind, sc domain
 	case k.CatchUp == domain.CatchUpOnce:
 		reason += "one catch-up run replaces them"
 	default:
-		reason += k.Label + " schedules do not catch up missed runs; the next run is at its scheduled time"
+		reason += k.noun() + " schedules do not catch up missed runs; the next run is at its scheduled time"
 	}
 	r := domain.ScheduleRun{ID: ids.New(), ScheduleID: sc.ID, ScheduledFor: last, IdempotencyKey: runKey(sc, last),
 		Outcome: domain.RunMissed, MissedCount: missed.count, MissedFrom: &first, Reason: reason, ErrorClass: "missed",
@@ -592,7 +592,7 @@ func (s *Service) process(ctx context.Context, r domain.ScheduleRun, now time.Ti
 					"the manager stopped before this run was enqueued; a later run replaced it")
 			case k.CatchUp == domain.CatchUpSkip:
 				return s.finishRun(ctx, k, sc, r, domain.RunMissed, "missed",
-					"the manager stopped before this run was enqueued; "+k.Label+" schedules do not catch up missed runs")
+					"the manager stopped before this run was enqueued; "+k.noun()+" schedules do not catch up missed runs")
 			}
 		}
 		active, err := store.ActivePolicyJob(ctx, s.db, sc.PolicyID, k.JobKinds, nil)

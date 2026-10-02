@@ -90,12 +90,12 @@
 
 {#snippet nameCell(g: Group)}
 	<NameCell icon="group" name={g.name} href={routes.accessGroup(g.id)}>
-		{#snippet extra()}{#if g.default}<Badge tone="accent">Default for new users</Badge
+		{#snippet extra()}{#if g.default}<Badge tone="accent">Default for New Users</Badge
 				>{/if}{/snippet}
 	</NameCell>
 {/snippet}
 {#snippet accessCell(g: Group)}
-	{#if g.grantsAccess}<Badge tone="ok" dot>Grants access</Badge>{:else}<Badge dot>No access</Badge
+	{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge>{:else}<Badge dot>No Access</Badge
 		>{/if}
 {/snippet}
 {#snippet membersCell(g: Group)}<span class="num">{g.memberCount}</span>{/snippet}
@@ -112,7 +112,7 @@
 		<AccessHeader>
 			{#snippet actions()}
 				<Button variant="primary" icon={Plus} onclick={() => (createOpen = true)}
-					>Create group</Button
+					>Create Group</Button
 				>
 			{/snippet}
 		</AccessHeader>
@@ -134,7 +134,7 @@
 
 <Dialog
 	bind:open={createOpen}
-	title="Create a group"
+	title="Create a Group"
 	description="New groups start without access; choose their permissions next."
 	size="sm"
 >
@@ -161,7 +161,7 @@
 			type="submit"
 			form="group-form"
 			loading={busy}
-			disabled={!name.trim()}>Create group</Button
+			disabled={!name.trim()}>Create Group</Button
 		>
 	{/snippet}
 </Dialog>

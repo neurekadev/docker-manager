@@ -92,7 +92,7 @@
 		{ id: 'schedule', header: 'Schedule', cell: scheduleCell, width: '220px', stack: 'meta' },
 		{
 			id: 'last',
-			header: 'Last run',
+			header: 'Last Run',
 			cell: lastCell,
 			sortValue: (p) => p.lastRun?.finishedAt ?? '',
 			width: '280px',
@@ -119,7 +119,7 @@
 	{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet envCell(p: MaintenancePolicy)}{p.scope === 'all'
-		? 'All environments'
+		? 'All Environments'
 		: environmentName(envs.data, p.environmentId)}{/snippet}
 {#snippet scheduleCell(p: MaintenancePolicy)}
 	{#if p.schedule}<ScheduleSummary compact {...p.schedule} />{:else}<span class="muted">—</span
@@ -147,12 +147,12 @@
 		{#snippet actions()}
 			{#if can(access, 'settings.read')}
 				<Button icon={SlidersHorizontal} onclick={() => (defaultsDialog.open = true)}
-					>Default rules</Button
+					>Default Rules</Button
 				>
 			{/if}
 			{#if canManage && list.length > 0}
 				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
-					>Create maintenance policy</Button
+					>Create Maintenance Policy</Button
 				>
 			{/if}
 		{/snippet}
@@ -173,7 +173,7 @@
 								variant="primary"
 								icon={Plus}
 								onclick={() => (createDialog.open = true)}
-								>Create maintenance policy</Button
+								>Create Maintenance Policy</Button
 							>
 						{/if}
 					{/snippet}
@@ -189,7 +189,7 @@
 					color="slate"
 				/>
 				<KpiCard
-					label="Last run"
+					label="Last Run"
 					value={totals.latest ? formatRelative(totals.latest.finishedAt) : 'Never'}
 					secondary={totals.latest
 						? formatDateTime(totals.latest.finishedAt)
@@ -212,7 +212,7 @@
 					tone={totals.failed ? 'warn' : undefined}
 				/>
 				<KpiCard
-					label="Space reclaimed"
+					label="Space Reclaimed"
 					value={formatBytes(totals.bytes)}
 					secondary="By the last run of each policy"
 					icon={HardDrive}
@@ -222,7 +222,7 @@
 
 			<Card title="Policies" padding="none">
 				<Table
-					label="Maintenance policies"
+					label="Maintenance Policies"
 					rows={list}
 					{columns}
 					rowKey={(p) => p.id}

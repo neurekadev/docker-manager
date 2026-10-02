@@ -63,7 +63,7 @@ describe('EditEnvironmentDialog (#3)', () => {
 		expect(name).toHaveValue('homelab');
 		await user.clear(name);
 		await user.type(name, 'homelab-1');
-		await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
 		await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
 		const patch = requests.find((r) => r.method === 'PATCH')!;
 		expect(new URL(patch.url).pathname).toBe('/api/v1/environments/e1');
@@ -89,16 +89,16 @@ describe('EditEnvironmentDialog (#3)', () => {
 		);
 		mount(EditEnvironmentDialog, { env, open: true });
 		const dialog = await screen.findByRole('dialog', { name: 'Edit homelab' });
-		const addr = within(dialog).getByRole('textbox', { name: /^Service address/ });
+		const addr = within(dialog).getByRole('textbox', { name: /^Service Address/ });
 		await user.clear(addr);
 		await user.type(addr, 'nas.home.arpa');
-		await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
 		expect(
 			await within(dialog).findByText('Someone else changed this environment.')
 		).toBeInTheDocument();
 		expect(addr).toHaveValue('nas.home.arpa');
 		expect(
-			within(dialog).getByRole('button', { name: 'Load current values' })
+			within(dialog).getByRole('button', { name: 'Load Current Values' })
 		).toBeInTheDocument();
 	});
 });
@@ -145,9 +145,9 @@ describe('ArchiveEnvironmentDialog (#34)', () => {
 		expect(dialog).not.toHaveTextContent('POST /api'); // API wording never reaches the user
 		expect(within(dialog).getByText('silo')).toBeInTheDocument();
 		expect(
-			within(dialog).getByRole('button', { name: 'Migrate 2 stacks first' })
+			within(dialog).getByRole('button', { name: 'Migrate 2 Stacks First' })
 		).toBeInTheDocument();
-		const confirm = within(dialog).getByRole('button', { name: 'Archive environment' });
+		const confirm = within(dialog).getByRole('button', { name: 'Archive Environment' });
 		expect(confirm).toBeDisabled();
 		await user.type(
 			within(dialog).getByRole('textbox', { name: 'Type homelab to confirm' }),
@@ -171,7 +171,7 @@ describe('ArchiveEnvironmentDialog (#34)', () => {
 		);
 		mount(ArchiveEnvironmentDialog, { env, open: true });
 		const dialog = await screen.findByRole('alertdialog', { name: 'Archive homelab' });
-		await user.click(within(dialog).getByRole('button', { name: 'Migrate 2 stacks first' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Migrate 2 Stacks First' }));
 		expect(goto).toHaveBeenCalledWith('/environments/e1/migrate');
 	});
 
@@ -237,7 +237,7 @@ describe('AgentsPanel (#3)', () => {
 		});
 		mount(AgentsPanel, { env });
 		const table = await screen.findByRole('table', { name: 'Agents of homelab' });
-		expect(within(table).getByText('Upgrade recommended')).toBeInTheDocument();
+		expect(within(table).getByText('Upgrade Recommended')).toBeInTheDocument();
 		expect(table).toHaveTextContent('Connected now'); // not its once-a-minute last-seen time
 		expect(table).not.toHaveTextContent('a1'); // the agent ID is only the name's tooltip
 		// Only the active agent has actions (not the revoked one).
@@ -247,12 +247,12 @@ describe('AgentsPanel (#3)', () => {
 
 		await user.click(within(table).getByRole('button', { name: 'Actions for homelab' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
-			'Rotate credential',
-			'Remove agent'
+			'Rotate Credential',
+			'Remove Agent'
 		]);
-		await user.click(screen.getByRole('menuitem', { name: 'Rotate credential' }));
-		const rotate = await screen.findByRole('alertdialog', { name: 'Rotate agent credential' });
-		await user.click(within(rotate).getByRole('button', { name: 'Rotate credential' }));
+		await user.click(screen.getByRole('menuitem', { name: 'Rotate Credential' }));
+		const rotate = await screen.findByRole('alertdialog', { name: 'Rotate Agent Credential' });
+		await user.click(within(rotate).getByRole('button', { name: 'Rotate Credential' }));
 		await waitFor(() =>
 			expect(requests.some((r) => r.url.endsWith('/credential-rotations'))).toBe(true)
 		);
@@ -264,19 +264,19 @@ describe('AgentsPanel (#3)', () => {
 		expect(await screen.findByText('Rotated the credential of homelab')).toBeInTheDocument();
 
 		await user.click(within(table).getByRole('button', { name: 'Actions for homelab' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Remove agent' }));
-		const remove = await screen.findByRole('alertdialog', { name: 'Remove agent' });
+		await user.click(await screen.findByRole('menuitem', { name: 'Remove Agent' }));
+		const remove = await screen.findByRole('alertdialog', { name: 'Remove Agent' });
 		expect(remove).toHaveTextContent('stays offline and detached');
 		await user.type(
 			within(remove).getByRole('textbox', { name: 'Type homelab to confirm' }),
 			'homelab'
 		);
-		await user.click(within(remove).getByRole('button', { name: 'Remove agent' }));
+		await user.click(within(remove).getByRole('button', { name: 'Remove Agent' }));
 		await waitFor(() => expect(requests.some((r) => r.method === 'DELETE')).toBe(true));
 		expect(requests.find((r) => r.method === 'DELETE')!.headers.get('If-Match')).toBe('"4"');
 	});
 
-	it('offers Re-attach when only removed agents are left', async () => {
+	it('offers Re-Attach when only removed agents are left', async () => {
 		stubApi((req) => {
 			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
 				return json({
@@ -293,7 +293,7 @@ describe('AgentsPanel (#3)', () => {
 		mount(AgentsPanel, { env });
 		await screen.findByRole('table', { name: 'Agents of homelab' });
 		expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Re-attach' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Re-Attach' })).toHaveAttribute(
 			'href',
 			expect.stringContaining('reattach=e1')
 		);
@@ -331,7 +331,7 @@ describe('SystemPanel (#3)', () => {
 
 	it('shows when a disconnected agent was last seen', () => {
 		mount(SystemPanel, { env: { ...seen, online: false }, system: system(false), now });
-		expect(screen.getByText('Not connected')).toBeInTheDocument();
+		expect(screen.getByText('Not Connected')).toBeInTheDocument();
 		expect(screen.getByText(/^last seen/)).toBeInTheDocument();
 		expect(screen.getByText('2 minutes ago')).toHaveAttribute(
 			'datetime',

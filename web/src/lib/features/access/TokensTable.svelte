@@ -109,7 +109,7 @@
 		},
 		{
 			id: 'used',
-			header: 'Last used',
+			header: 'Last Used',
 			cell: usedCell,
 			width: '170px',
 			sortValue: (t) => t.lastUsedAt ?? ''
@@ -191,7 +191,7 @@
 		'Scripts using it get 401 from now on, and its open streams close.',
 		'Revoking is final: create a new token to replace it.'
 	]}
-	confirmLabel="Revoke token"
+	confirmLabel="Revoke Token"
 	tone="danger"
 	onconfirm={() => (revoking ? revoke(revoking) : undefined)}
 />
@@ -202,14 +202,14 @@
 	onclose={() => (renaming = null)}
 >
 	<TextField label="Name" bind:value={newName} required />
-	{#if renameError}<Notice tone="danger" title="Not renamed" live="alert">{renameError}</Notice
+	{#if renameError}<Notice tone="danger" title="Not Renamed" live="alert">{renameError}</Notice
 		>{/if}
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (renaming = null)}>Cancel</Button>
 		<Button
 			variant="primary"
 			disabled={!newName.trim()}
-			onclick={() => renaming && rename(renaming)}>Rename token</Button
+			onclick={() => renaming && rename(renaming)}>Rename Token</Button
 		>
 	{/snippet}
 </Dialog>

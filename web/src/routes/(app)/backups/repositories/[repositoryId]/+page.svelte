@@ -116,7 +116,7 @@
 	}
 
 	usePage(() => ({
-		title: repo.data?.name ?? 'Backup repository',
+		title: repo.data?.name ?? 'Backup Repository',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
 			{ label: 'Repositories', href: routes.backupRepositories() },
@@ -237,7 +237,7 @@
 	function menuFor(r: BackupRepository): MenuEntry[] {
 		const items: MenuEntry[] = [];
 		if (has(r, 'backup_repository.manage'))
-			items.push({ label: 'Edit repository', icon: Pencil, onSelect: () => openEdit(r) });
+			items.push({ label: 'Edit Repository', icon: Pencil, onSelect: () => openEdit(r) });
 		if (owner && r.state === 'ready')
 			items.push({
 				label: 'Rotate Recovery Key',
@@ -246,14 +246,14 @@
 			});
 		if (r.state === 'ready' && r.view === 'full')
 			items.push({
-				label: 'Raw snapshots',
+				label: 'Raw Snapshots',
 				icon: Camera,
 				href: routes.backupSnapshots(r.id)
 			});
 		if (has(r, 'backup_repository.manage')) {
 			items.push({ separator: true });
 			items.push({
-				label: 'Remove repository',
+				label: 'Remove Repository',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleteOpen = true)
@@ -272,8 +272,8 @@
 			title: (l) => l.repository,
 			stack: 'title'
 		},
-		{ id: 'backup', header: 'Last backup', cell: lastBackupCell, width: '150px' },
-		{ id: 'verified', header: 'Last verified', cell: verifiedCell, width: '190px' },
+		{ id: 'backup', header: 'Last Backup', cell: lastBackupCell, width: '150px' },
+		{ id: 'verified', header: 'Last Verified', cell: verifiedCell, width: '190px' },
 		{ id: 'size', header: 'Size', cell: sizeCell, numeric: true, width: '100px' },
 		{ id: 'key', header: 'Key', cell: keyCell, width: '120px', stack: 'hidden' }
 	];
@@ -318,7 +318,7 @@
 						? repositoryStatusLine(health.data, r.storage?.sizeBytes)
 						: undefined}
 				meta={[
-					{ label: r.kind === 's3' ? 'S3 storage' : 'Local directory' },
+					{ label: r.kind === 's3' ? 'S3 Storage' : 'Local Directory' },
 					{
 						label: repositoryLocation(r, envName),
 						mono: true,
@@ -329,21 +329,21 @@
 				{#snippet status()}
 					{#if r.state === 'ready'}<Badge tone="ok" dot>Ready</Badge>{:else}<Badge
 							tone="warn"
-							dot>Awaiting key confirmation</Badge
+							dot>Awaiting Key Confirmation</Badge
 						>{/if}
 				{/snippet}
 				{#snippet actions()}
 					{#if manage}
 						<Button icon={PlugZap} loading={testing} onclick={() => runTest(r)}
-							>Test connection</Button
+							>Test Connection</Button
 						>
 					{/if}
 					{#if menu.length}
-						<Menu items={menu} label="More actions for {r.name}">
+						<Menu items={menu} label="More Actions for {r.name}">
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="More actions"
+									label="More Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -387,7 +387,7 @@
 			/>
 
 			{#if test}
-				<Card title="Connection test"><ConnectionTestResult {test} /></Card>
+				<Card title="Connection Test"><ConnectionTestResult {test} /></Card>
 			{/if}
 
 			{#if r.state === 'ready'}
@@ -396,7 +396,7 @@
 						{#if h.problems.length}
 							<Notice
 								tone={h.healthy ? 'warn' : 'danger'}
-								title="Needs attention"
+								title="Needs Attention"
 								live="none"
 							>
 								<ul class="plain" role="list">
@@ -408,7 +408,7 @@
 							<Notice
 								tone="warn"
 								icon={KeyRound}
-								title="Recovery Key rotation in progress"
+								title="Recovery Key Rotation in Progress"
 								live="none"
 							>
 								{(h.keyState.pendingLocations ?? []).length === 1
@@ -423,7 +423,7 @@
 									items={[
 										{
 											label: 'State',
-											value: h.healthy ? 'Healthy' : 'Needs attention'
+											value: h.healthy ? 'Healthy' : 'Needs Attention'
 										},
 										{
 											label: 'Stored',
@@ -435,19 +435,19 @@
 											label: 'Compression',
 											value: compressionText(r.compression)
 										},
-										{ label: 'Backups kept', value: h.snapshots },
+										{ label: 'Backups Kept', value: h.snapshots },
 										{
-											label: 'Newest backup',
+											label: 'Newest Backup',
 											value: h.lastBackupAt
 												? formatDateTime(h.lastBackupAt)
 												: 'None yet'
 										},
 										{
-											label: 'Age of the newest backup',
+											label: 'Age of the Newest Backup',
 											value: h.backupAge ? formatGoDuration(h.backupAge) : '—'
 										},
 										{
-											label: 'Last verified',
+											label: 'Last Verified',
 											value: h.lastVerifiedAt
 												? formatDateTime(h.lastVerifiedAt)
 												: 'Never'
@@ -461,7 +461,7 @@
 										<Button
 											size="sm"
 											icon={RotateCw}
-											onclick={() => openVerify(r)}>Edit schedule</Button
+											onclick={() => openVerify(r)}>Edit Schedule</Button
 										>
 									{/if}
 								{/snippet}
@@ -486,7 +486,7 @@
 						</p>
 					{/if}
 				</Card>
-				<Card title="What a recovery needs">
+				<Card title="What a Recovery Needs">
 					{#if r.recoveryRequirements?.length}
 						<ul class="plain" role="list">
 							{#each r.recoveryRequirements as q (q)}<li>{sentenceCase(q)}</li>{/each}
@@ -500,7 +500,7 @@
 			</Columns>
 
 			{#if r.state === 'ready'}
-				<Disclosure summary="Advanced: locations, key details and raw snapshots">
+				<Disclosure summary="Advanced: Locations, Key Details and Raw Snapshots">
 					<div class="advanced">
 						{#if health.data}
 							<Card
@@ -515,7 +515,7 @@
 											variant="ghost"
 											icon={Camera}
 											href={routes.backupSnapshots(r.id)}
-											>Raw snapshots</Button
+											>Raw Snapshots</Button
 										>
 									{/if}
 								{/snippet}
@@ -526,29 +526,29 @@
 									rowKey={(l) => l.scope}
 								/>
 							</Card>
-							<Card title="Key details">
+							<Card title="Key Details">
 								<Facts
 									columns={1}
 									items={[
 										{
-											label: 'Recovery Key fingerprint',
+											label: 'Recovery Key Fingerprint',
 											value: health.data.keyState.fingerprint,
 											mono: true
 										},
 										{
-											label: 'Key generation',
+											label: 'Key Generation',
 											value: health.data.keyState.generation
 										},
 										...(health.data.keyState.rotationInProgress
 											? [
 													{
-														label: 'Previous key fingerprint',
+														label: 'Previous Key Fingerprint',
 														value: health.data.keyState
 															.previousFingerprint,
 														mono: true
 													},
 													{
-														label: 'Still on the previous key',
+														label: 'Still on the Previous Key',
 														value: (
 															health.data.keyState.pendingLocations ??
 															[]
@@ -561,7 +561,7 @@
 										...(r.kind === 's3' && r.credential
 											? [
 													{
-														label: 'Stored S3 key pair fingerprint',
+														label: 'Stored S3 Key Pair Fingerprint',
 														value: r.credential.fingerprint,
 														mono: true
 													}
@@ -578,7 +578,7 @@
 			<KeyRotationDialog bind:open={rotateOpen} repositoryId={r.id} />
 			<DestructiveConfirm
 				bind:open={deleteOpen}
-				title="Remove backup repository {r.name}"
+				title="Remove Backup Repository {r.name}"
 				consequences={[
 					'Docker Manager stops using this destination and forgets its settings and S3 credentials.',
 					'Its backups leave the Backups lists: without the repository they can no longer be browsed or restored here.',
@@ -586,7 +586,7 @@
 					'Policies must not use it: change them first.'
 				]}
 				confirmText={r.name}
-				confirmLabel="Remove repository"
+				confirmLabel="Remove Repository"
 				onconfirm={() => remove(r)}
 			/>
 			<Dialog
@@ -598,22 +598,22 @@
 					<TextField label="Name" bind:value={editName} required />
 					{#if r.kind === 's3'}
 						<TextField label="Region" description="Optional." bind:value={editRegion} />
-						<Switch label="Path-style addressing" bind:checked={editPathStyle} />
+						<Switch label="Path-Style Addressing" bind:checked={editPathStyle} />
 						<TextField
-							label="New access key ID"
+							label="New Access Key ID"
 							mono
 							description="Optional. Replaces the stored key pair (both fields)."
 							bind:value={editAccessKey}
 							autocomplete="off"
 						/>
 						<PasswordField
-							label="New secret access key"
+							label="New Secret Access Key"
 							bind:value={editSecret}
 							autocomplete="off"
 						/>
 					{/if}
 					<CompressionField bind:value={editCompression} />
-					{#if saveError}<Notice tone="danger" title="Not saved" live="alert"
+					{#if saveError}<Notice tone="danger" title="Not Saved" live="alert"
 							>{saveError}</Notice
 						>{/if}
 				</Fields>
@@ -643,18 +643,18 @@
 										: {})
 								},
 								`Saved backup repository ${editName.trim()}`
-							)}>Save changes</Button
+							)}>Save Changes</Button
 					>
 				{/snippet}
 			</Dialog>
 			<Dialog
 				bind:open={verifyOpen}
-				title="Verification schedule"
+				title="Verification Schedule"
 				description="Checks every location of {r.name} for damage."
 			>
 				<Fields>
 					<Switch
-						label="Verify automatically"
+						label="Verify Automatically"
 						description="Off: verify by hand with Verify on one of its backups."
 						bind:checked={vEnabled}
 					/>
@@ -667,11 +667,11 @@
 						/>
 					{/if}
 					<RadioGroup
-						label="How much to check"
+						label="How Much to Check"
 						options={verifyReadOptions(r.verification?.readDataSubset)}
 						bind:value={vSubset}
 					/>
-					{#if saveError}<Notice tone="danger" title="Not saved" live="alert"
+					{#if saveError}<Notice tone="danger" title="Not Saved" live="alert"
 							>{saveError}</Notice
 						>{/if}
 				</Fields>
@@ -690,7 +690,7 @@
 									verifyReadData: vSubset
 								},
 								'Saved the verification schedule'
-							)}>Save schedule</Button
+							)}>Save Schedule</Button
 					>
 				{/snippet}
 			</Dialog>

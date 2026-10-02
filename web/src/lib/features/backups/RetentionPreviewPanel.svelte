@@ -99,7 +99,7 @@
 
 <div class="panel">
 	{#if !auto}
-		<div><Button onclick={open} {loading} {disabled}>Preview retention</Button></div>
+		<div><Button onclick={open} {loading} {disabled}>Preview Retention</Button></div>
 	{/if}
 	{#if error}<Notice tone="danger" title="The preview could not be computed" live="alert"
 			>{error}</Notice

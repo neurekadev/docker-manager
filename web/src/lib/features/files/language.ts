@@ -10,11 +10,11 @@ export const LANGUAGE_LABELS: Record<EditorLanguage, string> = {
 	shell: 'Shell',
 	dockerfile: 'Dockerfile',
 	nginx: 'Nginx',
-	properties: 'Env / properties',
+	properties: 'Env / Properties',
 	toml: 'TOML',
 	xml: 'XML',
 	markdown: 'Markdown',
-	text: 'Plain text'
+	text: 'Plain Text'
 };
 
 const BY_EXTENSION: Record<string, EditorLanguage> = {

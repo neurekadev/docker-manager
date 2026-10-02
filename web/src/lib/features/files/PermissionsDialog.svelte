@@ -160,7 +160,7 @@
 
 <Dialog
 	bind:open
-	title="Change permissions"
+	title="Change Permissions"
 	description="{entries.length === 1
 		? entries[0].name
 		: `${entries.length} items`}: modes and owners use the host's numeric IDs."
@@ -171,7 +171,7 @@
 		{#if canChmod}
 			<fieldset>
 				<legend>
-					<Switch bind:checked={changeMode} label="Change mode" />
+					<Switch bind:checked={changeMode} label="Change Mode" />
 				</legend>
 				{#if changeMode}
 					<table class="matrix">
@@ -188,7 +188,7 @@
 									{#each BITS as b (b.id)}
 										<td>
 											<Checkbox
-												label="{w.label} {b.label.toLowerCase()}"
+												label="{w.label} {b.label}"
 												hideLabel
 												checked={(bits & (b.bit << w.shift)) !== 0}
 												onchange={(e) =>
@@ -202,7 +202,7 @@
 					</table>
 					<div class="row">
 						<TextField
-							label={hasDirs && separateDirs ? 'Mode for files' : 'Mode'}
+							label={hasDirs && separateDirs ? 'Mode for Files' : 'Mode'}
 							mono
 							value={octal}
 							oninput={(e) => onOctal(e.currentTarget.value)}
@@ -213,14 +213,14 @@
 							<div class="dirs">
 								<Switch
 									bind:checked={separateDirs}
-									label="Use another mode for folders"
+									label="Use Another Mode for Folders"
 									description={hasFiles || recursive
 										? 'Folders usually need execute to be opened.'
 										: undefined}
 								/>
 								{#if separateDirs}
 									<TextField
-										label="Mode for folders"
+										label="Mode for Folders"
 										mono
 										bind:value={dirOctal}
 										error={dirValid
@@ -236,7 +236,7 @@
 		{/if}
 		{#if canChown}
 			<fieldset>
-				<legend><Switch bind:checked={changeOwner} label="Change owner" /></legend>
+				<legend><Switch bind:checked={changeOwner} label="Change Owner" /></legend>
 				{#if changeOwner}
 					<div class="row">
 						<TextField
@@ -261,7 +261,7 @@
 		{#if hasDirs}
 			<Switch
 				bind:checked={recursive}
-				label="Apply to everything inside the selected folders"
+				label="Apply to Everything Inside the Selected Folders"
 				description="Symbolic links are never followed."
 			/>
 		{/if}
@@ -279,7 +279,7 @@
 			type="submit"
 			form="permissions-form"
 			loading={busy}
-			disabled={!valid}>Change permissions</Button
+			disabled={!valid}>Change Permissions</Button
 		>
 	{/snippet}
 </Dialog>

@@ -71,8 +71,8 @@
 </script>
 
 {#if !enrollment}
-	<Button variant="primary" loading={busy} onclick={start}>Set up authenticator app</Button>
-	{#if message}<Notice tone="danger" title="Not started" live="alert">{message}</Notice>{/if}
+	<Button variant="primary" loading={busy} onclick={start}>Set Up Authenticator App</Button>
+	{#if message}<Notice tone="danger" title="Not Started" live="alert">{message}</Notice>{/if}
 {:else}
 	<div class="setup">
 		{#if qr}
@@ -94,14 +94,14 @@
 			</p>
 			<form onsubmit={verify} novalidate>
 				<TextField
-					label="Code from the app"
+					label="Code From the App"
 					bind:value={code}
 					inputmode="numeric"
 					autocomplete="one-time-code"
 					description="Confirm before {formatDateTime(enrollment.expiresAt)}."
 					required
 				/>
-				{#if message}<Notice tone="danger" title="Not turned on" live="alert"
+				{#if message}<Notice tone="danger" title="Not Turned On" live="alert"
 						>{message}</Notice
 					>{/if}
 				<FormFooter>
@@ -110,7 +110,7 @@
 						variant="primary"
 						type="submit"
 						loading={busy}
-						disabled={code.replace(/\s/g, '').length < 6}>Turn on</Button
+						disabled={code.replace(/\s/g, '').length < 6}>Turn On</Button
 					>
 				</FormFooter>
 			</form>

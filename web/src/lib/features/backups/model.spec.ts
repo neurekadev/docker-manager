@@ -412,9 +412,9 @@ describe('fresh-manager import (#24)', () => {
 	it('says which key opens each location', () => {
 		const loc = { repository: 'r', scope: 'env:e1', found: true, reachable: true };
 		expect(locationState({ ...loc, key: 'current' }).tone).toBe('ok');
-		expect(locationState({ ...loc, key: 'previous' }).label).toMatch(/previous key/);
-		expect(locationState({ ...loc, reachable: false }).label).toBe('Not reachable from here');
-		expect(locationState({ ...loc, found: false }).label).toBe('Not found');
+		expect(locationState({ ...loc, key: 'previous' }).label).toMatch(/Previous Key/);
+		expect(locationState({ ...loc, reachable: false }).label).toBe('Not Reachable From Here');
+		expect(locationState({ ...loc, found: false }).label).toBe('Not Found');
 	});
 
 	it('has recovery copy for every documented import error (#24)', () => {
@@ -506,7 +506,7 @@ describe('retention preview (#10)', () => {
 		);
 		expect(groups.map((g) => [g.name, g.forget, g.keep])).toEqual([
 			['Stack shop', 1, 2],
-			['Manager state', 0, 1],
+			['Manager State', 0, 1],
 			['Volume media', 0, 1]
 		]);
 		expect(groups[0].decisions.map((x) => x.time)).toEqual([

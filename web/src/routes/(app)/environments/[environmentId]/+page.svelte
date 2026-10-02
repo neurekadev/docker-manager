@@ -5,10 +5,10 @@
 	// filesystems and metrics charts (live, gaps visible), system
 	// information with identifiers under "Advanced", the agents with
 	// credential rotation and removal, the jobs (paged), edit (name, service
-	// address), "Migrate environment" (its stacks to another environment;
+	// address), "Migrate Environment" (its stacks to another environment;
 	// with a second environment and a stack the caller may migrate), a
 	// notice while stacks migrated away left their old copies here
-	// ("Review the migration") and archive with the removal preview. Active
+	// ("Review the Migration") and archive with the removal preview. Active
 	// disk health and RAID alerts (#159) show as one notice leading to the
 	// System tab, where each disk and array with an alert is marked. The
 	// tab lives in the URL (?tab=system|agents|jobs).
@@ -125,8 +125,8 @@
 	const alertNotice = $derived(healthNotice(diskAlerts.filter(isActive)));
 	const alertNoticeAction = $derived(
 		diskAlerts.some((a) => isActive(a) && a.kind === 'disk_health')
-			? 'View disks'
-			: 'View RAID arrays'
+			? 'View Disks'
+			: 'View RAID Arrays'
 	);
 	const capacity = createQuery(() => ({
 		...environmentCapacityQuery(id),
@@ -142,7 +142,7 @@
 		enabled: !!e && tab === 'jobs' && hasAny(access, 'stack.')
 	}));
 	const nameOf = $derived(stackNames(stacks.data));
-	// "Migrate environment": a second environment and a stack here the
+	// "Migrate Environment": a second environment and a stack here the
 	// caller may migrate.
 	const envStacks = createQuery(() => ({
 		...stacksQuery(id),
@@ -190,7 +190,7 @@
 				icon: MonitorCog,
 				label: host.hostname,
 				mono: true,
-				title: 'Host name'
+				title: 'Host Name'
 			});
 		if (engine)
 			out.push({
@@ -204,7 +204,7 @@
 				icon: Globe,
 				label: e.serviceAddress,
 				mono: true,
-				title: 'Service address'
+				title: 'Service Address'
 			});
 		if (e?.agentVersion) out.push({ label: `Agent ${e.agentVersion}` });
 		return out;
@@ -213,14 +213,14 @@
 		const out: MenuEntry[] = [];
 		if (canMigrate)
 			out.push({
-				label: 'Migrate environment',
+				label: 'Migrate Environment',
 				icon: Truck,
 				href: routes.environmentMigrate(id)
 			});
 		if (can('environment.remove')) {
 			if (out.length) out.push({ separator: true });
 			out.push({
-				label: 'Archive environment',
+				label: 'Archive Environment',
 				icon: Archive,
 				tone: 'danger',
 				onSelect: () => (archiveOpen = true)
@@ -259,13 +259,13 @@
 				{#if archived}
 					{#if canEnroll}
 						<Button variant="primary" icon={Undo2} href={routes.addEnvironment(e.id)}
-							>Re-attach</Button
+							>Re-Attach</Button
 						>
 					{/if}
 				{:else}
 					{#if detached && canEnroll}
 						<Button variant="primary" icon={Undo2} href={routes.addEnvironment(e.id)}
-							>Re-attach</Button
+							>Re-Attach</Button
 						>
 					{/if}
 					{#if hasAny(access, 'stack.')}
@@ -275,11 +275,11 @@
 						<Button icon={Pencil} onclick={() => (editOpen = true)}>Edit</Button>
 					{/if}
 					{#if menu.length}
-						<Menu items={menu} label="More actions for {e.name}">
+						<Menu items={menu} label="More Actions for {e.name}">
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="More actions"
+									label="More Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -318,7 +318,7 @@
 					? 'It cannot connect until you upgrade it on the host.'
 					: 'It works, but upgrade it soon: the next Docker Manager release will refuse it.'}
 				{#if e.upgradeInstructions}
-					<Disclosure summary="How to upgrade">
+					<Disclosure summary="How to Upgrade">
 						<pre class="mono instructions">{e.upgradeInstructions}</pre>
 					</Disclosure>
 				{:else}
@@ -349,12 +349,12 @@
 			/>
 		{/if}
 
-		<Tabs items={tabItems} value={tab} label="{e.name} sections" onchange={selectTab}>
+		<Tabs items={tabItems} value={tab} label="{e.name} Sections" onchange={selectTab}>
 			{#snippet panel(t)}
 				{#if t === 'overview'}
 					<div class="stack">
 						{#if can('environment.metrics.read') && !archived}
-							<section aria-label="Current usage" aria-busy={capacity.isPending}>
+							<section aria-label="Current Usage" aria-busy={capacity.isPending}>
 								<KpiRow>
 									{#if !cap}
 										{#each [0, 1, 2, 3] as i (i)}<div class="kpi-skeleton">
@@ -384,7 +384,7 @@
 													<Meter
 														value={cap.memoryUsedBytes}
 														max={cap.memoryTotalBytes}
-														label="Memory in use"
+														label="Memory in Use"
 														valueText="{formatBytes(
 															cap.memoryUsedBytes
 														)} of {formatBytes(cap.memoryTotalBytes)}"
@@ -394,7 +394,7 @@
 										</KpiCard>
 										{#if dockerDisk}
 											<KpiCard
-												label="Docker data disk"
+												label="Docker Data Disk"
 												value={formatBytes(dockerDisk.usedBytes)}
 												unit="/ {formatBytes(dockerDisk.totalBytes)}"
 												icon={HardDrive}
@@ -404,7 +404,7 @@
 													<Meter
 														value={dockerDisk.usedBytes}
 														max={dockerDisk.totalBytes}
-														label="Docker data disk in use"
+														label="Docker Data Disk in Use"
 														valueText="{formatBytes(
 															dockerDisk.usedBytes
 														)} of {formatBytes(dockerDisk.totalBytes)}"
@@ -430,7 +430,7 @@
 
 						{#if docker}
 							{#snippet objects(d: DockerCounts)}
-								<Card title="Docker objects">
+								<Card title="Docker Objects">
 									<dl class="counts">
 										<div>
 											<dt>Containers</dt>
@@ -493,7 +493,7 @@
 													<Meter
 														value={d.usedBytes}
 														max={d.totalBytes}
-														label="{mountLabel(d.mount)} in use"
+														label="{mountLabel(d.mount)} in Use"
 														valueText="{formatBytes(
 															d.usedBytes
 														)} of {formatBytes(d.totalBytes)}"
@@ -546,7 +546,7 @@
 							<a
 								class="small"
 								href="{routes.jobs()}?environment={encodeURIComponent(e.id)}"
-								>All jobs with filters</a
+								>All Jobs with Filters</a
 							>
 						{/snippet}
 						{#if jobs.isPending}
@@ -576,7 +576,7 @@
 								<div class="more">
 									<Button
 										loading={jobs.isFetchingNextPage}
-										onclick={() => jobs.fetchNextPage()}>Load more jobs</Button
+										onclick={() => jobs.fetchNextPage()}>Load More Jobs</Button
 									>
 								</div>
 							{/if}

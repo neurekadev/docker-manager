@@ -119,9 +119,9 @@ describe('stack page tray after a reload', () => {
 		details = { '0190-1': running[1] };
 		openStackPage('http://localhost/stacks/st-1');
 
-		const tray = await screen.findByRole('region', { name: 'Jobs started here' });
+		const tray = await screen.findByRole('region', { name: 'Jobs Started Here' });
 		await waitFor(() => expect(tray).toHaveTextContent('Deploy Silo'));
-		expect(tray).not.toHaveTextContent('Check for updates');
+		expect(tray).not.toHaveTextContent('Check for Updates');
 		expect(screen.getAllByRole('progressbar')).toHaveLength(1);
 	});
 
@@ -129,7 +129,7 @@ describe('stack page tray after a reload', () => {
 		details = { 'job-new': job('job-new', { state: 'queued' }) };
 		// Arriving from Create stack: the job is in the URL, not yet listed.
 		openStackPage('http://localhost/stacks/st-1?job=job-new&kind=deploy');
-		const tray = await screen.findByRole('region', { name: 'Jobs started here' });
+		const tray = await screen.findByRole('region', { name: 'Jobs Started Here' });
 		await waitFor(() => expect(tray).toHaveTextContent('Deploy Silo'));
 		expect(nav.goto).toHaveBeenCalledWith('/stacks/st-1', expect.anything());
 		cleanup();
@@ -137,7 +137,7 @@ describe('stack page tray after a reload', () => {
 		// Reloaded: the URL no longer names it; the running list does.
 		running = [job('job-new')];
 		openStackPage('http://localhost/stacks/st-1');
-		const again = await screen.findByRole('region', { name: 'Jobs started here' });
+		const again = await screen.findByRole('region', { name: 'Jobs Started Here' });
 		await waitFor(() => expect(again).toHaveTextContent('Deploy Silo'));
 	});
 });
@@ -169,10 +169,10 @@ describe('JobTray.adopt', () => {
 		const tray = new JobTray();
 		tray.add(
 			{ id: '0190-1' },
-			{ kind: 'stack.deploy', title: 'Pull & deploy Silo', success: 'x', failure: 'y' }
+			{ kind: 'stack.deploy', title: 'Pull & Deploy Silo', success: 'x', failure: 'y' }
 		);
 		tray.adopt([job('0190-1')], describeJob);
-		expect(tray.jobs.map((t) => t.title)).toEqual(['Pull & deploy Silo']);
+		expect(tray.jobs.map((t) => t.title)).toEqual(['Pull & Deploy Silo']);
 	});
 });
 
@@ -205,7 +205,7 @@ describe('JobTrayView', () => {
 		showTray(tray);
 		await waitFor(() => expect(toast.items.map((t) => t.title)).toEqual(['Deployed Silo']));
 		expect(tray.jobs).toEqual([]);
-		expect(screen.queryByRole('region', { name: 'Jobs started here' })).toBeNull();
+		expect(screen.queryByRole('region', { name: 'Jobs Started Here' })).toBeNull();
 	});
 
 	it('reports a failed deploy as a toast with a link to the job', async () => {
@@ -233,7 +233,7 @@ describe('JobTrayView', () => {
 		await waitFor(() =>
 			expect(toast.items.map((t) => t.title)).toEqual(['Silo was not deployed'])
 		);
-		expect(toast.items[0].action?.label).toBe('Open job');
+		expect(toast.items[0].action?.label).toBe('Open Job');
 		expect(tray.jobs).toEqual([]);
 		expect(screen.queryByRole('button', { name: 'Dismiss Deploy Silo' })).toBeNull();
 	});

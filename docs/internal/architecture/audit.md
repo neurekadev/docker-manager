@@ -149,7 +149,7 @@ manager, e.g. `app.Manager.Audit()`):
   (details both server addresses, `enrollmentId`, `sourceEnvironmentId`),
   `manager.move.setup_files` (new setup files: `state`, `enrollmentId`,
   `previousEnrollmentId`, `agentEnrolled`),
-  `manager.move.run` (Move everything), `manager.move.cancel`,
+  `manager.move.run` (Move Everything), `manager.move.cancel`,
   `manager.move.handoff` (detail `handoffAddress`, `redirectCount`;
   anonymous actor: a signature of the move code authenticates it) and
   `manager.move.confirm` are recorded by construction on the old manager

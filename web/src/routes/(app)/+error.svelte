@@ -6,7 +6,7 @@
 	import ErrorPageBody from '$lib/features/common/ErrorPageBody.svelte';
 	import { usePage } from '$lib/shell/page.svelte';
 
-	const title = $derived(page.status === 404 ? 'Page not found' : 'Error');
+	const title = $derived(page.status === 404 ? 'Page Not Found' : 'Error');
 	usePage(() => ({ title, crumbs: [{ label: title }] }));
 </script>
 

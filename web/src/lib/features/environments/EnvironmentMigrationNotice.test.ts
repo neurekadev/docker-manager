@@ -1,6 +1,6 @@
 // The environment page's notice about old copies (#35): moved stacks whose
 // stopped copies are still on the environment, with "Review the
-// migration"; nothing once they are removed or for callers the list
+// Migration"; nothing once they are removed or for callers the list
 // refuses; and a job event (the jobs list key) refreshing it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
@@ -114,7 +114,7 @@ describe('EnvironmentMigrationNotice', () => {
 
 		expect(await screen.findByText('2 stacks moved to nas')).toBeInTheDocument();
 		expect(screen.getByText('Their old copies are still on this server.')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Review the migration' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Review the Migration' })).toHaveAttribute(
 			'href',
 			'/environments/env-1/migrate'
 		);
@@ -131,22 +131,22 @@ describe('EnvironmentMigrationNotice', () => {
 		recent = [record([moved('st-1', 'proxy', true), moved('st-2', 'app', true)])];
 		await client.invalidateQueries({ queryKey: liveKeys.list('jobs') });
 		await waitFor(() => expect(screen.queryByText('1 stack moved to nas')).toBeNull());
-		expect(screen.queryByRole('link', { name: 'Review the migration' })).toBeNull();
+		expect(screen.queryByRole('link', { name: 'Review the Migration' })).toBeNull();
 	});
 
 	it('shows nothing while a migration still runs, when refused or when not asked', async () => {
 		recent = [record([moved('st-1', 'proxy')], { state: 'running' })];
 		notice();
 		await waitFor(() => expect(listed).toBe(1));
-		expect(screen.queryByRole('link', { name: 'Review the migration' })).toBeNull();
+		expect(screen.queryByRole('link', { name: 'Review the Migration' })).toBeNull();
 
 		status = 403;
 		notice();
 		await waitFor(() => expect(listed).toBe(2));
-		expect(screen.queryByRole('link', { name: 'Review the migration' })).toBeNull();
+		expect(screen.queryByRole('link', { name: 'Review the Migration' })).toBeNull();
 
 		notice({ enabled: false });
 		expect(listed).toBe(2);
-		expect(screen.queryByRole('link', { name: 'Review the migration' })).toBeNull();
+		expect(screen.queryByRole('link', { name: 'Review the Migration' })).toBeNull();
 	});
 });

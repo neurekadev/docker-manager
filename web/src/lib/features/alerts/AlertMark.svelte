@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The mark beside a disk or RAID array with a firing alert (#159, the
-	// System tab): "Alert" in the severity's tone, or "Alert dismissed"
+	// System tab): "Alert" in the severity's tone, or "Alert Dismissed"
 	// while someone dismissed it, the alert's title as tooltip. It opens
 	// Alerts filtered to this environment, the alert's kind and its state
 	// (Active or Dismissed).
@@ -18,7 +18,7 @@
 	} = $props();
 
 	const view = $derived(alertView(alert));
-	const text = $derived(view === 'dismissed' ? 'Alert dismissed' : 'Alert');
+	const text = $derived(view === 'dismissed' ? 'Alert Dismissed' : 'Alert');
 
 	function open() {
 		const p = alertsPreset(

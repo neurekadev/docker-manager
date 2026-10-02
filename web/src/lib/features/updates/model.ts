@@ -27,13 +27,13 @@ export interface Presentation {
 }
 
 const STATUS: Record<CandidateStatus, Presentation> = {
-	update_available: { tone: 'warn', label: 'Update available' },
-	up_to_date: { tone: 'ok', label: 'Up to date' },
-	unchecked: { tone: 'neutral', label: 'Not checked yet' },
-	ineligible: { tone: 'neutral', label: 'Not eligible' },
+	update_available: { tone: 'warn', label: 'Update Available' },
+	up_to_date: { tone: 'ok', label: 'Up to Date' },
+	unchecked: { tone: 'neutral', label: 'Not Checked Yet' },
+	ineligible: { tone: 'neutral', label: 'Not Eligible' },
 	quarantined: { tone: 'danger', label: 'Quarantined' },
-	check_failed: { tone: 'danger', label: 'Check failed' },
-	run_failed: { tone: 'danger', label: 'Update failed' }
+	check_failed: { tone: 'danger', label: 'Check Failed' },
+	run_failed: { tone: 'danger', label: 'Update Failed' }
 };
 
 export function candidateStatus(s: CandidateStatus): Presentation {
@@ -80,7 +80,7 @@ export function checkErrorText(c: UpdateCandidate): string | null {
 /** One-line summary of a policy's candidates for lists. */
 export function summaryText(p: UpdatePolicy): { text: string; tone: BadgeTone } {
 	const s = p.summary;
-	if (!s) return { text: 'Not checked yet', tone: 'neutral' };
+	if (!s) return { text: 'Not Checked Yet', tone: 'neutral' };
 	if (s.quarantined > 0) return { text: `${s.quarantined} quarantined`, tone: 'danger' };
 	if (s.failed > 0) return { text: `${s.failed} failed`, tone: 'danger' };
 	if (s.available > 0)
@@ -88,9 +88,9 @@ export function summaryText(p: UpdatePolicy): { text: string; tone: BadgeTone } 
 			text: `${s.available} ${s.available === 1 ? 'update' : 'updates'} available`,
 			tone: 'warn'
 		};
-	if (!s.lastCheckAt) return { text: 'Not checked yet', tone: 'neutral' };
-	if (s.upToDate > 0) return { text: 'Up to date', tone: 'ok' };
-	return { text: 'Nothing eligible', tone: 'neutral' };
+	if (!s.lastCheckAt) return { text: 'Not Checked Yet', tone: 'neutral' };
+	if (s.upToDate > 0) return { text: 'Up to Date', tone: 'ok' };
+	return { text: 'Nothing Eligible', tone: 'neutral' };
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -157,13 +157,13 @@ function plural(n: number, one: string, many: string): string {
 /** One target's state from its candidate summary (lists, policy targets). */
 export function summaryState(s: UpdateSummary | undefined, inactive = false): Presentation {
 	if (inactive) return { tone: 'neutral', label: 'Excluded' };
-	if (!s) return { tone: 'neutral', label: 'Not checked yet' };
+	if (!s) return { tone: 'neutral', label: 'Not Checked Yet' };
 	const failures = s.failed + s.quarantined;
 	if (failures) return { tone: 'danger', label: plural(failures, 'failure', 'failures') };
 	if (s.available)
 		return { tone: 'warn', label: `${plural(s.available, 'update', 'updates')} available` };
-	if (!s.lastCheckAt) return { tone: 'neutral', label: 'Not checked yet' };
-	return { tone: 'ok', label: 'Up to date' };
+	if (!s.lastCheckAt) return { tone: 'neutral', label: 'Not Checked Yet' };
+	return { tone: 'ok', label: 'Up to Date' };
 }
 
 /** Counts of targets by state and the newest check (KPI row of Updates). */
@@ -275,7 +275,7 @@ export function targetState(
 	reason: InactiveReason | null
 ): Presentation {
 	if (reason === 'excluded') return { tone: 'neutral', label: 'Excluded' };
-	if (reason === 'missing') return { tone: 'neutral', label: 'No longer found' };
+	if (reason === 'missing') return { tone: 'neutral', label: 'No Longer Found' };
 	return summaryState(s);
 }
 
@@ -351,7 +351,7 @@ export function containerTargetName(
 ): { name: string; found: boolean } {
 	const c = containers?.find((x) => x.name === id || x.id === id);
 	if (c) return { name: c.name, found: true };
-	if (CONTAINER_ID.test(id)) return { name: 'Removed container', found: false };
+	if (CONTAINER_ID.test(id)) return { name: 'Removed Container', found: false };
 	return { name: id, found: !containers };
 }
 

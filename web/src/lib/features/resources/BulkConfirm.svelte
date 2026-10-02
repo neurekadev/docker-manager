@@ -54,15 +54,15 @@
 	{#if plan.run.length}
 		<div class="group">
 			<p class="head">Runs on {plan.run.length}</p>
-			<ul role="list" aria-label="Runs on">
+			<ul role="list" aria-label="Runs On">
 				{#each plan.run as item, i (i)}<li class="name">{name(item)}</li>{/each}
 			</ul>
 		</div>
 	{/if}
 	{#if plan.refused.length}
 		<div class="group">
-			<p class="head">Left out ({plan.refused.length})</p>
-			<ul role="list" aria-label="Left out">
+			<p class="head">Left Out ({plan.refused.length})</p>
+			<ul role="list" aria-label="Left Out">
 				{#each plan.refused as r, i (i)}
 					<li>
 						<span class="name">{name(r.item)}</span><span class="why">{r.reason}</span>

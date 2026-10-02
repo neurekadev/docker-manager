@@ -60,12 +60,12 @@
 		{ label: 'Health', render: healthFact },
 		{ label: 'Issues', value: issuesText(disk) },
 		{ label: 'Model', value: disk.model },
-		{ label: 'Serial number', value: disk.serial, mono: true },
+		{ label: 'Serial Number', value: disk.serial, mono: true },
 		{ label: 'Firmware', value: disk.firmware, mono: true },
 		{ label: 'Capacity', value: capacity(disk) },
 		{ label: 'Kind', value: diskKind(disk) },
-		{ label: 'Device type', value: disk.type, mono: true },
-		{ label: 'Self-assessment', render: selfAssessmentFact },
+		{ label: 'Device Type', value: disk.type, mono: true },
+		{ label: 'Self-Assessment', render: selfAssessmentFact },
 		temperatureCheck(disk)
 			? { label: 'Temperature', render: temperatureFact }
 			: {
@@ -73,10 +73,10 @@
 					value:
 						disk.temperatureC === undefined ? '' : formatTemperature(disk.temperatureC)
 				},
-		...(hotTimeCheck(disk) ? [{ label: 'Time above its limit', render: hotTimeFact }] : []),
+		...(hotTimeCheck(disk) ? [{ label: 'Time Above Its Limit', render: hotTimeFact }] : []),
 		...(wearCheck(disk) ? [{ label: 'Wear', render: wearFact }] : []),
-		{ label: 'Powered on', value: poweredOn(disk) === '—' ? '' : poweredOn(disk) },
-		{ label: 'Last read', render: readFact }
+		{ label: 'Powered On', value: poweredOn(disk) === '—' ? '' : poweredOn(disk) },
+		{ label: 'Last Read', render: readFact }
 	]);
 
 	const attributeColumns: Column<DiskAttributeRow>[] = [
@@ -162,10 +162,10 @@
 		<Facts items={facts} columns={3} />
 		{#if attributes.length}
 			<section>
-				<h3 class="subsection-title">SMART attributes</h3>
+				<h3 class="subsection-title">SMART Attributes</h3>
 				<div class="table">
 					<Table
-						label="SMART attributes of {name}"
+						label="SMART Attributes of {name}"
 						rows={attributes}
 						columns={attributeColumns}
 						rowKey={(a) => String(attributes.indexOf(a))}
@@ -175,10 +175,10 @@
 		{/if}
 		{#if values.length}
 			<section>
-				<h3 class="subsection-title">Health values</h3>
+				<h3 class="subsection-title">Health Values</h3>
 				<div class="table">
 					<Table
-						label="Health values of {name}"
+						label="Health Values of {name}"
 						rows={values}
 						columns={valueColumns}
 						rowKey={(v) => v.key}

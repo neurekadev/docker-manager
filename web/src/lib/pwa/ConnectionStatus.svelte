@@ -10,7 +10,7 @@
 <div
 	role="status"
 	aria-live="polite"
-	aria-label="Connection status"
+	aria-label="Connection Status"
 	data-testid="connection-status"
 	data-state={connectivity.state}
 	class="connection"

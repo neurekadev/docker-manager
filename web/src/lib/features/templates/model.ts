@@ -22,17 +22,17 @@ export function tagCounts(
 }
 
 /**
- * Whether a template has a published version ("Ready to use") or only its
+ * Whether a template has a published version ("Ready to Use") or only its
  * draft. Named "Status" so it is not confused with the visibility (Public,
  * Private). The stored ID stays "published".
  */
 const READY_FILTER = {
 	id: 'published',
 	label: 'Status',
-	all: 'All statuses',
+	all: 'All Statuses',
 	options: [
-		{ value: 'yes', label: 'Ready to use' },
-		{ value: 'no', label: 'Draft only' }
+		{ value: 'yes', label: 'Ready to Use' },
+		{ value: 'no', label: 'Draft Only' }
 	]
 };
 
@@ -42,7 +42,7 @@ export function templateFilters(templates: readonly Template[]): ListFilter<Temp
 		{
 			id: 'tag',
 			label: 'Tag',
-			all: 'All tags',
+			all: 'All Tags',
 			dynamic: true,
 			options: tagCounts(templates).map((t) => ({
 				value: t.tag,
@@ -53,7 +53,7 @@ export function templateFilters(templates: readonly Template[]): ListFilter<Temp
 		{
 			id: 'visibility',
 			label: 'Visibility',
-			all: 'Public and private',
+			all: 'Public and Private',
 			options: [
 				{ value: 'public', label: 'Public' },
 				{ value: 'private', label: 'Private' }
@@ -126,7 +126,7 @@ export function catalogFilters(
 		{
 			id: 'registry',
 			label: 'Source',
-			all: 'All sources',
+			all: 'All Sources',
 			dynamic: true,
 			options: [...registries]
 				.map(([value, label]) => ({ value, label }))
@@ -136,7 +136,7 @@ export function catalogFilters(
 		{
 			id: 'tag',
 			label: 'Tag',
-			all: 'All tags',
+			all: 'All Tags',
 			dynamic: true,
 			options: tagCounts(items).map((t) => ({
 				value: t.tag,
@@ -161,11 +161,11 @@ export function catalogHref(
 }
 
 /**
- * A version as a label ("Version 1.2.0"), or "Draft only" before the first
+ * A version as a label ("Version 1.2.0"), or "Draft Only" before the first
  * one. Values in tables and selects stay the bare label ("1.2.0").
  */
 export function versionTitle(label: string | undefined): string {
-	return label ? `Version ${label}` : 'Draft only';
+	return label ? `Version ${label}` : 'Draft Only';
 }
 
 /** The contents of a version in the file manager's words: "2 items". */

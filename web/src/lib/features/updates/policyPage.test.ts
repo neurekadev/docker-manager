@@ -1,7 +1,7 @@
 // The update policy page's running checks and updates (#20,
 // docs/internal/web.md "Job progress after reload"): the policy's running
-// jobs come back from the running list after a reload (Check now stays
-// busy while its checks run), and Check now shows the jobs it started at
+// jobs come back from the running list after a reload (Check Now stays
+// busy while its checks run), and Check Now shows the jobs it started at
 // once.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
@@ -171,21 +171,21 @@ describe('update policy page: running checks and updates', () => {
 		openPage();
 
 		expect(
-			await screen.findByRole('progressbar', { name: 'Check for updates web progress' })
+			await screen.findByRole('progressbar', { name: 'Check for Updates web progress' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Apply updates api progress' })
+			screen.getByRole('progressbar', { name: 'Apply Updates api progress' })
 		).toBeInTheDocument();
 		// Another policy's check is not this page's.
 		expect(screen.getAllByRole('progressbar')).toHaveLength(2);
 		expect(
-			screen.getByRole('region', { name: 'Running checks and updates of Nightly updates' })
+			screen.getByRole('region', { name: 'Running Checks and Updates of Nightly updates' })
 		).toBeInTheDocument();
-		// Its checks are running: Check now waits for them.
-		expect(screen.getByRole('button', { name: /Check now/ })).toBeDisabled();
+		// Its checks are running: Check Now waits for them.
+		expect(screen.getByRole('button', { name: /Check Now/ })).toBeDisabled();
 	});
 
-	it('shows the checks Check now started at once', async () => {
+	it('shows the checks Check Now started at once', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		started = [
 			job('0190-5', { state: 'queued', origin: 'manual' }),
@@ -198,14 +198,14 @@ describe('update policy page: running checks and updates', () => {
 		details = Object.fromEntries(started.map((j) => [j.id, j]));
 		openPage();
 
-		await user.click(await screen.findByRole('button', { name: /Check now/ }));
+		await user.click(await screen.findByRole('button', { name: /Check Now/ }));
 
 		await waitFor(() => expect(screen.getAllByRole('progressbar')).toHaveLength(2));
 		expect(
-			screen.getByRole('progressbar', { name: 'Check for updates web progress' })
+			screen.getByRole('progressbar', { name: 'Check for Updates web progress' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Check for updates api progress' })
+			screen.getByRole('progressbar', { name: 'Check for Updates api progress' })
 		).toBeInTheDocument();
 	});
 });

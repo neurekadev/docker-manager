@@ -78,7 +78,7 @@ func TestDetailInWords(t *testing.T) {
 			"A job started by an API token did not finish successfully. Some of its items failed. Open the job to see which ones."},
 		// The services are a field of their own.
 		{domain.Alert{Kind: domain.NotifyUpdates, Facts: map[string]string{"services": "web, db"}},
-			"A check found newer images. To install them, open the update policy and press Preview updates, then Apply updates."},
+			"A check found newer images. To install them, open the update policy and press Preview Updates, then Apply Updates."},
 	} {
 		if got := Detail(c.a); got != c.want {
 			t.Errorf("%s: %q, want %q", c.a.Kind, got, c.want)
@@ -140,16 +140,16 @@ func TestAlertFieldsLabelTheNumbers(t *testing.T) {
 	j := domain.Alert{Kind: domain.NotifyJobFailed, Severity: domain.AlertCritical, Facts: map[string]string{"jobKind": "backup.verify",
 		"jobState": "failed", "origin": "scheduled", "errorClass": "repository_damaged", "target": "Nightly"}}
 	fs = alertFields(j, "homelab", domain.AlertEventFiring)
-	if v, _ := field(fs, "What went wrong"); v != "The repository check found damaged or missing data." {
+	if v, _ := field(fs, "What Went Wrong"); v != "The repository check found damaged or missing data." {
 		t.Errorf("%q", v)
 	}
-	if v, _ := field(fs, "Job"); v != "Backup verification" {
+	if v, _ := field(fs, "Job"); v != "Backup Verification" {
 		t.Errorf("%q", v)
 	}
-	if v, _ := field(fs, "Started by"); v != "Schedule" {
+	if v, _ := field(fs, "Started By"); v != "Schedule" {
 		t.Errorf("%q", v)
 	}
-	if _, ok := field(alertFields(j, "homelab", domain.AlertEventResolved), "What to do"); ok {
+	if _, ok := field(alertFields(j, "homelab", domain.AlertEventResolved), "What to Do"); ok {
 		t.Error("a resolution says what to do")
 	}
 	// A failed job's target links to its page.
@@ -219,14 +219,14 @@ func TestLabelsNameTheKindAndOutcomeLikeWhatToSend(t *testing.T) {
 		outcome domain.NotificationOutcome
 		want    string
 	}{
-		{domain.NotifyDiskHealth, domain.OutcomeCritical, "Disk health · Critical"},
-		{domain.NotifyEnvironmentOffline, domain.OutcomeCritical, "Environment offline · Offline"},
-		{domain.NotifyEnvironmentOffline, domain.OutcomeResolved, "Environment offline · Back online"},
+		{domain.NotifyDiskHealth, domain.OutcomeCritical, "Disk Health · Critical"},
+		{domain.NotifyEnvironmentOffline, domain.OutcomeCritical, "Environment Offline · Offline"},
+		{domain.NotifyEnvironmentOffline, domain.OutcomeResolved, "Environment Offline · Back Online"},
 		{domain.NotifyBackup, domain.OutcomeWarning, "Backups · Warning"},
 		{domain.NotifyRestore, domain.OutcomeFailure, "Restores · Failure"},
-		{domain.NotifyUpdates, domain.OutcomeAvailable, "Image updates · Available"},
-		{domain.NotifyUpdates, domain.OutcomeSuccess, "Image updates · Applied"},
-		{domain.NotifyJobFailed, domain.OutcomeFailure, "Other jobs · Failure"},
+		{domain.NotifyUpdates, domain.OutcomeAvailable, "Image Updates · Available"},
+		{domain.NotifyUpdates, domain.OutcomeSuccess, "Image Updates · Applied"},
+		{domain.NotifyJobFailed, domain.OutcomeFailure, "Other Jobs · Failure"},
 	} {
 		if got := Label(c.kind, c.outcome); got != c.want {
 			t.Errorf("%s %s: %q, want %q", c.kind, c.outcome, got, c.want)
@@ -256,13 +256,13 @@ func TestMessagesAndDigests(t *testing.T) {
 	// The title is the alert's own (no instance name: the footer says it),
 	// under the status line.
 	one := buildMessage("Home", "https://docker.example.com/", []domain.AlertDelivery{snap(disk, domain.AlertEventFiring)}, now)
-	if one.Title != "Disk /dev/sda is failing" || one.Label != "Disk health · Critical" ||
+	if one.Title != "Disk /dev/sda is failing" || one.Label != "Disk Health · Critical" ||
 		one.Body != "SMART self-assessment failed. Back up its data and replace the disk." ||
 		one.URL != "https://docker.example.com/environments/env-1?tab=system" || one.Tone != domain.ToneCritical || one.Footer != "Home" {
 		t.Fatalf("%+v", one)
 	}
 	res := buildMessage("Home", "https://docker.example.com", []domain.AlertDelivery{snap(offline, domain.AlertEventResolved)}, now)
-	if res.Title != "Resolved: office is offline" || res.Label != "Environment offline · Back online" ||
+	if res.Title != "Resolved: office is offline" || res.Label != "Environment Offline · Back Online" ||
 		res.Body != "The environment is connected again." || res.Tone != domain.ToneSuccess {
 		t.Fatalf("%+v", res)
 	}
@@ -282,7 +282,7 @@ func TestMessagesAndDigests(t *testing.T) {
 		{Text: "Resolved: office is offline", Link: "https://docker.example.com/environments/env-2"},
 		{Text: "Prune reclaimed 4.2 GiB"},
 	}
-	if list.Name != "What happened" || len(list.Items) != len(want) {
+	if list.Name != "What Happened" || len(list.Items) != len(want) {
 		t.Fatalf("%+v", list)
 	}
 	for i, it := range list.Items {
@@ -371,7 +371,7 @@ func TestMessagesLinkFieldsWithThePublicURL(t *testing.T) {
 		}}
 	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
 	m := buildMessage("Home", "https://docker.example.com/", []domain.AlertDelivery{d}, now)
-	if m.Label != "Image updates · Applied" || m.Fields[0].Link != "https://docker.example.com/environments/env-1" ||
+	if m.Label != "Image Updates · Applied" || m.Fields[0].Link != "https://docker.example.com/environments/env-1" ||
 		m.Fields[1].Items[0].Link != "https://docker.example.com/stacks/s1/logs?service=web" || m.Fields[1].Items[0].From != "1a" {
 		t.Fatalf("%+v", m)
 	}
@@ -430,5 +430,30 @@ func TestFingerprintTokens(t *testing.T) {
 	}
 	if !domain.NewTokens("", "x") || domain.NewTokens("x", "") {
 		t.Fatal("NewTokens with empty fingerprints")
+	}
+}
+
+func TestLabelsAreTitleCaseAndSentencesAreNot(t *testing.T) {
+	for kind, want := range map[domain.JobKind]string{
+		"manager.retention": "Docker Manager Backup Retention", "stack.down": "Take Down",
+		"update.check": "Update Check", "prune.run": "Prune", "unknown.kind": "A Job",
+	} {
+		if got := kindLabel(kind); got != want {
+			t.Errorf("kindLabel(%s) = %q, want %q", kind, got, want)
+		}
+	}
+	if got := titleCase("left for the next run"); got != "Left for the Next Run" {
+		t.Errorf("%q", got)
+	}
+	if got := titleCase("built-in check of it"); got != "Built-In Check of It" {
+		t.Errorf("%q", got)
+	}
+	// A filesystem is a label in its field and keeps its words in a sentence.
+	a := domain.Alert{Kind: domain.NotifyDiskSpace, Facts: map[string]string{"mount": "docker", "usedPercent": "90"}}
+	if v, _ := field(Fields(a, ""), "Filesystem"); v != "Docker Data" || MountLabel("bind-2") != "Bind Mount 2" {
+		t.Errorf("%q", v)
+	}
+	if !strings.HasPrefix(Detail(a), "The Docker data filesystem is 90% full") {
+		t.Errorf("%q", Detail(a))
 	}
 }

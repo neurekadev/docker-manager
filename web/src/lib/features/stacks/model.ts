@@ -313,13 +313,13 @@ export function shortDigest(d: string | undefined | null): string {
 }
 
 const CANDIDATE_STATUS: Record<string, string> = {
-	update_available: 'Update available',
-	up_to_date: 'Up to date',
+	update_available: 'Update Available',
+	up_to_date: 'Up to Date',
 	quarantined: 'Quarantined',
-	check_failed: 'Check failed',
-	run_failed: 'Update failed',
-	ineligible: 'Not eligible',
-	unchecked: 'Not checked yet'
+	check_failed: 'Check Failed',
+	run_failed: 'Update Failed',
+	ineligible: 'Not Eligible',
+	unchecked: 'Not Checked Yet'
 };
 
 /** Plain-language update candidate status (#20). */
@@ -334,9 +334,9 @@ export function shortHash(hash: string): string {
 
 export const REVISION_SOURCES: Record<string, string> = {
 	deploy: 'Deploy',
-	editor: 'Stack editor',
-	file_manager: 'File manager',
-	external: 'Edited on disk',
+	editor: 'Stack Editor',
+	file_manager: 'File Manager',
+	external: 'Edited on Disk',
 	restore: 'Restore'
 };
 
@@ -490,43 +490,43 @@ export type MigrationFinding = Schema<'MigrationFinding'>;
 
 /** Plain-language names of the preflight's finding codes (#35; stack, volume and environment migrations). */
 const FINDING_TITLES: Record<string, string> = {
-	agent_unsupported: 'Agent too old',
-	anonymous_volume_skipped: 'Anonymous volume skipped',
-	container_name_conflict: 'Container name taken',
-	containers_running: 'Containers still running',
-	dependency_cycle: 'Stacks depend on each other',
-	device_mapping: 'Device mapping',
-	directory_conflict: 'Project directory exists',
-	docker_manager_resource: "Docker Manager's own resource",
-	environment_offline: 'Environment offline',
-	external_bind_path: 'Bind path outside the project',
-	external_network_missing: 'External network missing',
-	external_volume_missing: 'External volume missing',
-	host_ports_unverified: 'Host ports not verified',
-	image_not_pullable: 'Image cannot be pulled',
-	image_rebuild: 'Image rebuilt on the destination',
-	image_transfer: 'Image copied through the manager',
-	image_unverified: 'Image not verified',
-	insufficient_space: 'Not enough free space',
-	leftovers_removed: 'Earlier partial copy removed',
-	network_create_denied: 'Network cannot be created',
-	network_created: 'Network created first',
-	network_name_conflict: 'Network name taken',
-	network_not_creatable: 'Network must be created by hand',
-	no_stacks: 'No stacks to migrate',
-	plain_http_transport: 'Unencrypted transfer',
-	platform_mismatch: 'Platform mismatch',
-	port_conflict: 'Port already in use',
-	project_name_conflict: 'Compose project exists',
-	project_warning: 'Definition warning',
-	registry_selection: 'Registry connection',
-	same_environment: 'Same environment',
-	size_estimated: 'Size estimated',
-	stack_name_conflict: 'Stack name taken',
-	storage_unavailable: 'Storage unavailable',
-	volume_definition_only: 'Volume data not migrated',
-	volume_missing: 'Volume missing',
-	volume_name_conflict: 'Volume name taken'
+	agent_unsupported: 'Agent Too Old',
+	anonymous_volume_skipped: 'Anonymous Volume Skipped',
+	container_name_conflict: 'Container Name Taken',
+	containers_running: 'Containers Still Running',
+	dependency_cycle: 'Stacks Depend on Each Other',
+	device_mapping: 'Device Mapping',
+	directory_conflict: 'Project Directory Exists',
+	docker_manager_resource: "Docker Manager's Own Resource",
+	environment_offline: 'Environment Offline',
+	external_bind_path: 'Bind Path Outside the Project',
+	external_network_missing: 'External Network Missing',
+	external_volume_missing: 'External Volume Missing',
+	host_ports_unverified: 'Host Ports Not Verified',
+	image_not_pullable: 'Image Cannot Be Pulled',
+	image_rebuild: 'Image Rebuilt on the Destination',
+	image_transfer: 'Image Copied Through the Manager',
+	image_unverified: 'Image Not Verified',
+	insufficient_space: 'Not Enough Free Space',
+	leftovers_removed: 'Earlier Partial Copy Removed',
+	network_create_denied: 'Network Cannot Be Created',
+	network_created: 'Network Created First',
+	network_name_conflict: 'Network Name Taken',
+	network_not_creatable: 'Network Must Be Created by Hand',
+	no_stacks: 'No Stacks to Migrate',
+	plain_http_transport: 'Unencrypted Transfer',
+	platform_mismatch: 'Platform Mismatch',
+	port_conflict: 'Port Already in Use',
+	project_name_conflict: 'Compose Project Exists',
+	project_warning: 'Definition Warning',
+	registry_selection: 'Registry Connection',
+	same_environment: 'Same Environment',
+	size_estimated: 'Size Estimated',
+	stack_name_conflict: 'Stack Name Taken',
+	storage_unavailable: 'Storage Unavailable',
+	volume_definition_only: 'Volume Data Not Migrated',
+	volume_missing: 'Volume Missing',
+	volume_name_conflict: 'Volume Name Taken'
 };
 
 export function findingTitle(code: string): string {
@@ -557,18 +557,18 @@ const JOB_KINDS: Record<string, string> = {
 	'stack.start': 'Start',
 	'stack.stop': 'Stop',
 	'stack.restart': 'Restart',
-	'stack.down': 'Take down',
+	'stack.down': 'Take Down',
 	'stack.remove': 'Delete',
-	'stack.build': 'Build images',
+	'stack.build': 'Build Images',
 	'stack.migrate': 'Migrate',
-	'environment.migrate': 'Migrate environment',
-	'stack.remove_source': 'Remove from source',
+	'environment.migrate': 'Migrate Environment',
+	'stack.remove_source': 'Remove From Source',
 	'stack.rename': 'Rename',
-	'stack.pull': 'Pull images',
-	'update.check': 'Update check',
+	'stack.pull': 'Pull Images',
+	'update.check': 'Update Check',
 	'update.run': 'Update',
 	'backup.run': 'Backup',
-	'backup.restore': 'Restore from backup'
+	'backup.restore': 'Restore From Backup'
 };
 
 /** Plain-language name of a job kind ("stack.deploy" → "Deploy"). */
@@ -579,17 +579,17 @@ export function jobKindLabel(kind: string): string {
 }
 
 const AUDIT_ACTIONS: Record<string, string> = {
-	'stack.definition.read': 'Opened the definition',
-	'stack.definition.write': 'Changed the definition',
-	'stack.manage': 'Edited details',
-	'stack.rename.preview': 'Previewed a rename',
-	'stack.validate': 'Validated the definition',
+	'stack.definition.read': 'Opened the Definition',
+	'stack.definition.write': 'Changed the Definition',
+	'stack.manage': 'Edited Details',
+	'stack.rename.preview': 'Previewed a Rename',
+	'stack.validate': 'Validated the Definition',
 	'stack.create': 'Created',
 	'stack.import': 'Imported',
-	'job.queued': 'Job queued',
-	'job.started': 'Job started',
-	'job.finished': 'Job finished',
-	'job.cancel_requested': 'Cancellation requested'
+	'job.queued': 'Job Queued',
+	'job.started': 'Job Started',
+	'job.finished': 'Job Finished',
+	'job.cancel_requested': 'Cancellation Requested'
 };
 
 /** Plain-language audit action ("stack.deploy" → "Deploy"). */
@@ -679,9 +679,9 @@ export interface DeployChoice {
 
 /** What runs while a deploy job is in the tray, e.g. "Pull Silo". */
 export function deployTitle(title: string, c: DeployChoice): string {
-	if (c.build) return `Build and deploy ${title}`;
-	if (c.pull) return `Pull and deploy ${title}`;
-	if (c.removeOrphans) return `Deploy ${title} and remove orphans`;
+	if (c.build) return `Build and Deploy ${title}`;
+	if (c.pull) return `Pull and Deploy ${title}`;
+	if (c.removeOrphans) return `Deploy ${title} and Remove Orphans`;
 	return `Deploy ${title}`;
 }
 
@@ -736,7 +736,7 @@ const DRIFT_TEXT: Record<string, (s: string) => string> = {
 	running_while_stopped: (s) =>
 		`${s} runs although the stack was stopped. Stop the stack again, or start it to keep it running.`,
 	unexpected_service: (s) =>
-		`${s} is no longer in the Compose file, but its container is still on the host. “Remove old containers” deploys the stack and removes it.`,
+		`${s} is no longer in the Compose file, but its container is still on the host. “Remove Old Containers” deploys the stack and removes it.`,
 	image_changed: (s) =>
 		`${s} runs another image than the last deploy used. Deploy the stack to run the image its Compose file names.`
 };

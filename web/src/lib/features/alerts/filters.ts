@@ -53,7 +53,7 @@ export function alertFilters(ctx: FilterContext): ListFilter<Alert>[] {
 		{
 			id: 'kind',
 			label: 'Kind',
-			all: 'All kinds',
+			all: 'All Kinds',
 			options: ALERT_KINDS.map((k) => ({ value: k.kind, label: k.label })),
 			match: (a, v) => a.kind === v
 		}

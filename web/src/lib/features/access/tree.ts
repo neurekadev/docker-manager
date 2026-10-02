@@ -1,4 +1,4 @@
-// The resource tree of the permission editor (#17): All resources >
+// The resource tree of the permission editor (#17): All Resources >
 // environment > stacks, containers, volumes, … and the instance-wide
 // resources (backup repositories and policies, registry connections, Git
 // credentials). Each category lists its resources lazily with the API the
@@ -178,7 +178,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'update_policy',
-		label: 'Update policies',
+		label: 'Update Policies',
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(updatePoliciesQuery(env), (p: Named) =>
@@ -187,7 +187,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'maintenance_policy',
-		label: 'Maintenance policies',
+		label: 'Maintenance Policies',
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(maintenancePoliciesQuery(env), (p: Named) =>
@@ -196,7 +196,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'backup_repository',
-		label: 'Backup repositories',
+		label: 'Backup Repositories',
 		perEnvironment: false,
 		nodes: () =>
 			nodeQuery(repositoriesQuery(), (r: Named) =>
@@ -205,7 +205,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'backup_policy',
-		label: 'Backup policies',
+		label: 'Backup Policies',
 		perEnvironment: false,
 		nodes: () =>
 			nodeQuery(backupPoliciesQuery(), (p: Named) =>
@@ -214,7 +214,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'registry',
-		label: 'Registry connections',
+		label: 'Registry Connections',
 		perEnvironment: false,
 		nodes: () =>
 			nodeQuery(
@@ -231,7 +231,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'git_credential',
-		label: 'Git credentials',
+		label: 'Git Credentials',
 		perEnvironment: false,
 		nodes: () =>
 			nodeQuery(
@@ -295,7 +295,7 @@ export function serviceNodes(
 export function instanceNode(): ScopeNode {
 	return {
 		key: 'instance',
-		label: 'All resources',
+		label: 'All Resources',
 		scope: { kind: 'instance' },
 		type: 'instance'
 	};

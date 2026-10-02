@@ -187,13 +187,13 @@ export function scopeLabel(
 	return `${s.resourceType} ${res}${env ? ` on ${env}` : ''}`;
 }
 
-/** The capability's label from the catalog ("Restart"), else its key. */
+/** The capability's label from the catalog ("Restart (Containers)"), else its key. */
 export function capabilityLabel(catalog: Catalog | undefined, key: string): string {
 	const c = catalog?.capabilities.find((x) => x.key === key);
 	if (!c) return key;
 	const t = catalog?.resourceTypes.find((x) => x.key === c.resourceType);
 	return t && !c.label.toLowerCase().includes(t.label.toLowerCase().replace(/s$/, ''))
-		? `${c.label} (${t.label.toLowerCase()})`
+		? `${c.label} (${t.label})`
 		: c.label;
 }
 

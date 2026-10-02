@@ -131,15 +131,15 @@ Open your address, for example `https://docker.example.com`.
 </Callout>
 
 Choose a username and a password of at least 15 characters, then press
-**Create owner account**. Then add an authenticator app or a passkey under
+**Create Owner Account**. Then add an authenticator app or a passkey under
 **Profile** (see [Users & Groups](/users-and-groups#your-account)).
 
 ## 5. Connect this server
 
-1. Open **Environments** and press **Add environment**.
+1. Open **Environments** and press **Add Environment**.
 2. Give it a name if you like (without one, the server's name is used), and
-   press **Create install command**.
-3. Open the **On the Docker Manager host** tab and copy the command.
+   press **Create Install Command**.
+3. Open the **On the Docker Manager Host** tab and copy the command.
 4. Run it on your server, in the folder with your `compose.yaml`
    (`/opt/docker-manager`).
 
@@ -152,15 +152,15 @@ with its containers, images, volumes and networks. Next,
 Every other server you want to manage needs its own agent. It connects to
 your Docker Manager address over HTTPS and needs no open ports.
 
-1. In Docker Manager, open **Environments → Add environment**, give it a
-   name if you like and press **Create install command**. The command works
-   once and expires after one hour (up to 24 hours under **More options**).
+1. In Docker Manager, open **Environments → Add Environment**, give it a
+   name if you like and press **Create Install Command**. The command works
+   once and expires after one hour (up to 24 hours under **More Options**).
 2. Start the agent in one of two ways:
-   - **Single command**: copy the command from the **On another Docker
-     host** tab and run it on the new server.
+   - **Single command**: copy the command from the **On Another Docker
+     Host** tab and run it on the new server.
    - **Compose**: make a folder such as `/opt/docker-manager` on the new
      server and create the `compose.yaml` below. Copy the lines that start
-     with `DOCKER_AGENT_` from the **On another Docker host, with Compose**
+     with `DOCKER_AGENT_` from the **On Another Docker Host, with Compose**
      tab into a `.env` file next to it, and run `docker compose up -d`.
 
 ```yaml title="compose.yaml"
@@ -201,24 +201,24 @@ server doesn't connect, see [Troubleshooting](/troubleshooting#a-server-stays-of
 Good to know:
 
 - One Docker server can have only one agent. To connect a server again that
-  Docker Manager already knows, use **Re-attach** (see
+  Docker Manager already knows, use **Re-Attach** (see
   [Environments](/environments#re-attach-an-environment)).
 - For a cloned virtual machine, tick **This host is a clone of a connected
-  host** under **More options** before you create the command.
-- Unused commands are listed under **Waiting for an agent** on the
+  host** under **More Options** before you create the command.
+- Unused commands are listed under **Waiting for an Agent** on the
   **Environments** page. **Revoke** cancels one.
 
 ## Upgrade
 
 Docker Manager upgrades itself from the app, like any other stack.
 
-1. **Once:** open **Stacks → Import project**, pick this server and press
+1. **Once:** open **Stacks → Import Project**, pick this server and press
    **Import** next to `docker-manager`. It keeps running while it is
    imported.
 2. **To upgrade:** open the `docker-manager` stack and choose **Pull &
    Deploy** in the menu next to **Deploy**.
 3. The app shows **A new version of Docker Manager is available**. Press
-   **Reload to update**.
+   **Reload to Update**.
 
 If you installed Docker Manager before it showed disk health, add
 `privileged: true` to each server's `docker-agent` service so the agent can

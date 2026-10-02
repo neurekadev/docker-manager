@@ -42,18 +42,18 @@
 		description="The devices signed in to Docker Manager with your account. Sign out any you don't recognise or no longer use."
 	/>
 	<Card
-		title="Signed-in devices"
+		title="Signed-In Devices"
 		subtitle="Each browser you signed in with appears here, with its address and last activity."
 		padding="none"
 	>
 		{#snippet actions()}
 			{#if others > 0}
 				<Button size="sm" icon={LogOut} onclick={() => (confirmOpen = true)}
-					>Sign out other devices</Button
+					>Sign Out Other Devices</Button
 				>
 			{/if}
 		{/snippet}
-		<SessionsTable label="Your signed-in devices" />
+		<SessionsTable label="Your Signed-In Devices" />
 	</Card>
 </Page>
 
@@ -64,7 +64,7 @@
 		`${others === 1 ? '1 other device is' : `${others} other devices are`} signed out now, and their open pages stop.`,
 		'This device stays signed in. You can sign in on the others again.'
 	]}
-	confirmLabel="Sign out other devices"
+	confirmLabel="Sign Out Other Devices"
 	tone="danger"
 	onconfirm={signOutOthers}
 />

@@ -113,7 +113,7 @@
 				<EmptyState
 					compact
 					icon={FileQuestion}
-					title="You can't open {basename(path)}"
+					title="You Can't Open {basename(path)}"
 					description={tab.error instanceof ApiRequestError
 						? tab.error.message
 						: 'Ask the owner of this Docker Manager for access to this file.'}
@@ -160,7 +160,7 @@
 		<div class="code" hidden={preview}>
 			<CodeEditor
 				value={tab.buffer}
-				label="{path} editor"
+				label="{path} Editor"
 				language={tab.language}
 				readOnly={readOnly || tab.truncated}
 				height="100%"

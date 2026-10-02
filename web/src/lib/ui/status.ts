@@ -1,6 +1,8 @@
 // Status vocabulary (#22): one mapping from API states to badge tone and
-// plain-language label, shared by StatusBadge, tables and JobProgress.
+// plain-language label in Title Case (#219), shared by StatusBadge, tables
+// and JobProgress.
 import type { BadgeTone } from './Badge.svelte';
+import { titleCase } from './format';
 
 export interface StatusInfo {
 	tone: BadgeTone;
@@ -22,12 +24,12 @@ const STATUS: Record<string, StatusInfo> = {
 	created: { tone: 'neutral', label: 'Created', pulse: false },
 	dead: { tone: 'danger', label: 'Dead', pulse: false },
 	removing: { tone: 'warn', label: 'Removing', pulse: true },
-	missing: { tone: 'neutral', label: 'Not running', pulse: false },
-	partial: { tone: 'warn', label: 'Partially running', pulse: false },
+	missing: { tone: 'neutral', label: 'Not Running', pulse: false },
+	partial: { tone: 'warn', label: 'Partially Running', pulse: false },
 	unknown: { tone: 'neutral', label: 'Unknown', pulse: false },
 	// Stack deployment status (#7).
 	deployed: { tone: 'ok', label: 'Deployed', pulse: false },
-	undeployed: { tone: 'neutral', label: 'Not deployed', pulse: false },
+	undeployed: { tone: 'neutral', label: 'Not Deployed', pulse: false },
 	down: { tone: 'neutral', label: 'Down', pulse: false },
 	// Environments (#3).
 	online: { tone: 'ok', label: 'Online', pulse: false },
@@ -44,7 +46,7 @@ const STATUS: Record<string, StatusInfo> = {
 	interrupted: { tone: 'danger', label: 'Interrupted', pulse: false },
 	skipped: { tone: 'neutral', label: 'Skipped', pulse: false },
 	// Updates (#20).
-	update_available: { tone: 'warn', label: 'Update available', pulse: false },
+	update_available: { tone: 'warn', label: 'Update Available', pulse: false },
 	// Disk health (#143): disks (healthy, warning, failing, sleeping,
 	// unreadable) and RAID arrays (healthy, degraded, rebuilding, checking,
 	// failed, inactive).
@@ -63,7 +65,7 @@ const STATUS: Record<string, StatusInfo> = {
 
 // Job "partial" differs from stack "partial": callers pass kind="job".
 const JOB_OVERRIDES: Record<string, StatusInfo> = {
-	partial: { tone: 'warn', label: 'Partly failed', pulse: false },
+	partial: { tone: 'warn', label: 'Partly Failed', pulse: false },
 	running: { tone: 'info', label: 'Running', pulse: true }
 };
 
@@ -73,7 +75,7 @@ export function statusInfo(status: string, kind: 'resource' | 'job' = 'resource'
 	return (
 		STATUS[key] ?? {
 			tone: 'neutral',
-			label: key ? key[0].toUpperCase() + key.slice(1).replaceAll('_', ' ') : 'Unknown',
+			label: key ? titleCase(key.replaceAll('_', ' ')) : 'Unknown',
 			pulse: false
 		}
 	);

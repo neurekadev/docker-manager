@@ -180,8 +180,8 @@
 				value: '',
 				label:
 					primary?.kind === 's3'
-						? `Same as the policy (${primary.name})`
-						: 'Choose a repository'
+						? `Same as the Policy (${primary.name})`
+						: 'Choose a Repository'
 			},
 			...readyRepos
 				.filter((r) => r.kind === 's3' || r.executor === envId)
@@ -291,7 +291,7 @@
 		},
 		{
 			id: 'scope',
-			label: 'What to back up',
+			label: 'What to Back Up',
 			description: 'The manager state, stacks and volumes, and whether containers stop.'
 		},
 		{ id: 'schedule', label: 'Schedule', description: 'When backups run automatically.' },
@@ -405,8 +405,8 @@
 		<Select
 			label="Environments"
 			options={[
-				{ value: 'all', label: 'All environments' },
-				{ value: 'environment', label: 'One environment' }
+				{ value: 'all', label: 'All Environments' },
+				{ value: 'environment', label: 'One Environment' }
 			]}
 			bind:value={scopeMode}
 			disabled={!!policy}
@@ -428,10 +428,10 @@
 		{#if repos.isPending}
 			<Skeleton lines={1} height="36px" />
 		{:else if readyRepos.length === 0}
-			<Notice tone="warn" title="No repository is ready" live="none">
+			<Notice tone="warn" title="No Repository Is Ready" live="none">
 				Add a backup repository and confirm its Recovery Key first.
 				{#snippet actions()}<Button size="sm" href={routes.backupRepositoryNew()}
-						>Add repository</Button
+						>Add Repository</Button
 					>{/snippet}
 			</Notice>
 		{:else}
@@ -466,10 +466,10 @@
 				legend="Manager"
 				hint="The manager's database and settings, needed to recover Docker Manager itself."
 			>
-				<Switch label="Back up the manager state" bind:checked={includeManager} />
+				<Switch label="Back Up the Manager State" bind:checked={includeManager} />
 				{#if includeManager}
 					<Switch
-						label="Include the metrics database"
+						label="Include the Metrics Database"
 						description="Off by default: charts history is large and can be rebuilt."
 						bind:checked={includeMetrics}
 					/>
@@ -504,7 +504,7 @@
 				</div>
 			{/each}
 			<Switch
-				label="Back up allowed folders outside stacks"
+				label="Back Up Allowed Folders Outside Stacks"
 				description="Off by default. On: folders a stack mounts from outside its own folder (such as /srv/media) are backed up too, but only those the server allows (see Backups in the documentation)."
 				bind:checked={externalBinds}
 				onchange={() => (touched = true)}
@@ -515,13 +515,13 @@
 			hint="The volumes of included stacks and every standalone volume are backed up. Uncheck a volume to leave it out."
 		>
 			<Switch
-				label="Back up anonymous volumes"
+				label="Back Up Anonymous Volumes"
 				description="Off by default: anonymous volumes usually hold caches and scratch data that containers recreate. On: those of included stacks and standalone ones are backed up too."
 				bind:checked={anonymousVolumes}
 				onchange={() => (touched = true)}
 			/>
 			<Switch
-				label="Back up buildx builder volumes"
+				label="Back Up buildx Builder Volumes"
 				description="Off by default: they hold the build cache of buildx builders, which is rebuilt when needed. Volumes with the label docker-manager.backup.exclude=true, or used by a container with it, are never backed up."
 				bind:checked={buildxVolumes}
 				onchange={() => (touched = true)}
@@ -548,11 +548,11 @@
 			{/each}
 		</FieldGroup>
 		<FieldGroup
-			legend="Running containers"
+			legend="Running Containers"
 			hint="Live backups are crash-consistent: fine for most data; databases are safe this way only if they survive a power loss."
 		>
 			<Switch
-				label="Stop containers during backups"
+				label="Stop Containers During Backups"
 				description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. Docker Manager's own containers never stop."
 				bind:checked={shutdown}
 				onchange={() => (touched = true)}
@@ -570,7 +570,7 @@
 		</FieldGroup>
 		{#if involvedEnvs.length}
 			<FieldGroup
-				legend="Repositories per environment"
+				legend="Repositories per Environment"
 				hint="A local repository only holds data of its own host; S3 repositories hold everything."
 			>
 				{#each involvedEnvs as envId (envId)}
@@ -588,10 +588,10 @@
 		<div class="preview-bar">
 			<Button onclick={previewScope} loading={scopeLoading}
 				>{scope && scopeStale
-					? 'Preview again'
+					? 'Preview Again'
 					: shutdown
-						? 'Preview what gets backed up and stopped'
-						: 'Preview what gets backed up'}</Button
+						? 'Preview What Gets Backed Up and Stopped'
+						: 'Preview What Gets Backed Up'}</Button
 			>
 			<span class="muted small"
 				>Each environment's agent resolves the sources; nothing is stored.</span
@@ -602,9 +602,9 @@
 			>{/if}
 		{#if scope}
 			{#if scopeStale}
-				<Notice tone="info" title="Out of date" live="polite">
+				<Notice tone="info" title="Out of Date" live="polite">
 					This preview doesn't include your latest changes. Press <strong
-						>Preview again</strong
+						>Preview Again</strong
 					> to update it.
 				</Notice>
 			{/if}
@@ -625,7 +625,7 @@
 {#snippet scheduleSection()}
 	<Fields>
 		<Switch
-			label="Back up automatically"
+			label="Back Up Automatically"
 			description="Off: backups run only when you start them. Turning it on needs every repository's Recovery Key confirmed."
 			bind:checked={enabled}
 			onchange={() => (touched = true)}
@@ -643,7 +643,7 @@
 		/>
 		{#if !editing}
 			<Checkbox
-				label="Run the first backup after creating"
+				label="Run the First Backup After Creating"
 				description={shutdown
 					? 'Checks that everything can be read and stored. The affected containers stop while it runs.'
 					: 'Checks that everything can be read and stored.'}
@@ -657,11 +657,11 @@
 	<div class="editor">
 		<div class="column">
 			<section aria-labelledby="policy-where">
-				<h3 class="subsection-title" id="policy-where">Name and destination</h3>
+				<h3 class="subsection-title" id="policy-where">Name and Destination</h3>
 				{@render destinationSection()}
 			</section>
 			<section aria-labelledby="policy-what">
-				<h3 class="subsection-title" id="policy-what">What to back up</h3>
+				<h3 class="subsection-title" id="policy-what">What to Back Up</h3>
 				{@render scopeSection()}
 			</section>
 		</div>
@@ -677,21 +677,21 @@
 		</div>
 	</div>
 	{#if saveError}
-		<Notice tone="danger" title="Not saved" live="alert">{saveError}</Notice>
+		<Notice tone="danger" title="Not Saved" live="alert">{saveError}</Notice>
 	{/if}
 	<FormFooter>
 		<Button variant="ghost" disabled={saving} onclick={() => oncancel?.()}>Cancel</Button>
-		<Button variant="primary" loading={saving} onclick={submit}>Save changes</Button>
+		<Button variant="primary" loading={saving} onclick={submit}>Save Changes</Button>
 	</FormFooter>
 {:else}
 	<StepWizard
-		label="Create backup policy"
+		label="Create Backup Policy"
 		{steps}
 		bind:current
 		{onnext}
 		onfinish={finish}
 		{canAdvance}
-		finishLabel="Create policy"
+		finishLabel="Create Policy"
 		oncancel={oncancel ? () => oncancel?.() : undefined}
 		stepsClickable
 		minHeight="min(560px, 60vh)"

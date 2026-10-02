@@ -19,63 +19,63 @@ a `build:` section are built there, and other images are copied.
 
 ## Move a stack
 
-Open the stack and choose **More stack actions → Migrate**.
+Open the stack and choose **More Stack Actions → Migrate**.
 
-1. **Destination**: pick the server and press **Check destination**.
+1. **Destination**: pick the server and press **Check Destination**.
 2. **Check**: see what must be fixed first and what will be copied. Untick
    a volume that should start empty on the new server.
 3. **Confirm**: tick that the stack is unavailable during the migration and
-   press **Start migration**.
+   press **Start Migration**.
 
 The stack stops, is copied and starts on the new server. If anything fails,
 it starts again on the old server.
 
 ## Move a volume
 
-Open a volume and its **Migrate** tab. Pick the **Destination environment**
-and, if you like, a **Name on the destination**, and press **Next**. Review
-the **Check** and press **Migrate volume**. The original is not changed.
+Open a volume and its **Migrate** tab. Pick the **Destination Environment**
+and, if you like, a **Name on the Destination**, and press **Next**. Review
+the **Check** and press **Migrate Volume**. The original is not changed.
 
-If containers use the volume, stop them first, or tick **Copy while the
-containers keep running**.
+If containers use the volume, stop them first, or tick **Copy While the
+Containers Keep Running**.
 
 ## Move a whole environment
 
 Use this to move to a new server or to empty one before you retire it.
-Open the environment and choose **More actions → Migrate environment**.
+Open the environment and choose **More Actions → Migrate Environment**.
 
 1. **Destination**: pick the new server and untick stacks that should
    stay.
 2. **Check**: stacks that share a network or a volume, such as a reverse
    proxy and the apps behind it, form a group that moves together.
-3. **Confirm** and press **Start migration**.
+3. **Confirm** and press **Start Migration**.
 
 The groups move one after the other; the others keep running until it is
 their turn. If a stack can't be moved, fix the problem and press **Migrate
-the rest**.
+the Rest**.
 
 ## Move Docker Manager to a new server
 
 Use this when you replace the server Docker Manager runs on. Your apps on
 that server move along, and your other servers stay connected.
 
-1. Open **Settings → Move to a new server**. Enter **This server's
-   address** and **New server's address** (IP addresses or host names on
-   your network) and press **Create setup files**.
+1. Open **Settings → Move to a New Server**. Enter **This Server's
+   Address** and **New Server's Address** (IP addresses or host names on
+   your network) and press **Create Setup Files**.
 2. On the new server, save the `compose.yaml` and `.env` it shows in an
    empty folder and run `docker compose up -d`. Or paste the command under
-   **Or paste this on the new server**. Then press **Next**.
-3. On the **Check** step, read **Before you start** and press **Next**.
-   Then press **Move everything**.
+   **Or Paste This on the New Server**. Then press **Next**.
+3. On the **Check** step, read **Before You Start** and press **Next**.
+   Then press **Move Everything**.
 4. When the page says **Docker Manager moved.**, point your Docker Manager
    address (and your apps' addresses) at the new server, and sign in.
 
 <Callout type="warn">
   The setup files contain a pairing code and are shown once. Keep them
-  private. If you lose them, press **Create new setup files**.
+  private. If you lose them, press **Create New Setup Files**.
 </Callout>
 
-Until Docker Manager has handed itself over, you can **Cancel the move**;
+Until Docker Manager has handed itself over, you can **Cancel the Move**;
 apps that already moved stay on the new server. While your address still
 points at the old server, follow the move on the new server's status page
 at `http://<new server's address>:8080`.
@@ -85,9 +85,9 @@ at `http://<new server's address>:8080`.
 The old copy stays on the old server, stopped. Check that everything works
 first, then remove it:
 
-- For one stack, press **Remove from …** when the migration finishes, or
-  **Start again on …** to run it there once more.
-- After an environment migration, **Remove old copies from …** removes them
+- For one stack, press **Remove From …** when the migration finishes, or
+  **Start Again on …** to run it there once more.
+- After an environment migration, **Remove Old Copies From …** removes them
   all at once.
 
 Docker Manager never deletes an old copy on its own. When a server is

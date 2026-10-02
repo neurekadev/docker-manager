@@ -1,9 +1,9 @@
 <script lang="ts" generics="T">
 	// The card of a list page (#22; containers, images, volumes, networks,
-	// stacks, jobs, schedules): "All containers" and the count as its
+	// stacks, jobs, schedules): "All Containers" and the count as its
 	// header, the search, the select filters and the switches built into
 	// the header (wrapping below the title when they do not fit), and
-	// "Clear filters" while any of them is set. The state lives in a
+	// "Clear Filters" while any of them is set. The state lives in a
 	// ListFilters store (kept per list and browser tab); the page filters
 	// its rows with the same filters (applyListFilters).
 	import X from '@lucide/svelte/icons/x';
@@ -20,13 +20,13 @@
 	import type { ListFilters } from './list-filters.svelte';
 
 	interface Props {
-		/** "All containers". */
+		/** "All Containers". */
 		title: string;
 		/** Card ID (its heading is labelled by it). */
 		id: string;
 		/** "12 of 40 containers", shown next to the title and announced. */
 		summary?: string;
-		/** Name of the search region, e.g. "Filter containers". */
+		/** Name of the search region, e.g. "Filter Containers". */
 		label: string;
 		searchLabel: string;
 		placeholder: string;
@@ -100,7 +100,7 @@
 				</div>
 			{/each}
 			{#if filtering}
-				<Button variant="ghost" icon={X} onclick={clear}>Clear filters</Button>
+				<Button variant="ghost" icon={X} onclick={clear}>Clear Filters</Button>
 			{/if}
 		</div>
 	{/snippet}

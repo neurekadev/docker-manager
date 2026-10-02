@@ -65,12 +65,12 @@
 </script>
 
 <Card
-	title="Move complete"
+	title="Move Complete"
 	subtitle={move.sourceUrl
 		? `Docker Manager moved here from ${move.sourceUrl}. A few things are left to do.`
 		: 'Docker Manager moved here. A few things are left to do.'}
 >
-	<ul class="items" role="list" aria-label="Left to do after the move">
+	<ul class="items" role="list" aria-label="Left to Do After the Move">
 		{#each items as it (it.id)}
 			<li class:done={it.done}>
 				<span class="mark" aria-hidden="true">
@@ -93,7 +93,7 @@
 					{#if it.id === 'confirm' && canAcknowledge(move)}
 						<div class="act">
 							<Button size="sm" onclick={() => (acknowledging = true)}
-								>Mark as done</Button
+								>Mark as Done</Button
 							>
 						</div>
 					{:else if it.id === 'copies' && !it.done && old}
@@ -106,7 +106,7 @@
 									variant="danger-soft"
 									icon={Trash2}
 									onclick={() => (removing = true)}
-									>Remove old copies from {old.name}</Button
+									>Remove Old Copies From {old.name}</Button
 								>
 							{:else}
 								<Button size="sm" href={routes.environment(old.environmentId)}
@@ -120,7 +120,7 @@
 								size="sm"
 								icon={Archive}
 								href={routes.environment(old.environmentId)}
-								>Open {old.name} to archive it</Button
+								>Open {old.name} to Archive It</Button
 							>
 						</div>
 					{/if}
@@ -137,7 +137,7 @@
 		'Docker Manager stops asking the old server to confirm the move.',
 		'Only do this when Docker Manager on the old server is stopped or no longer in use. Two copies must never manage the same servers.'
 	]}
-	confirmLabel="Mark as done"
+	confirmLabel="Mark as Done"
 	tone="danger"
 	onconfirm={acknowledge}
 />
@@ -153,7 +153,7 @@
 		]}
 		affected={copies.map((c) => ({ label: c.title, detail: 'stopped copy' }))}
 		confirmText={old.name}
-		confirmLabel="Remove old copies"
+		confirmLabel="Remove Old Copies"
 		onconfirm={removeCopies}
 	/>
 {/if}

@@ -151,7 +151,7 @@ describe('running backups', () => {
 		expect(activityItemName(job({ kind: 'stack', stackName: 'shop' }).current!)).toBe(
 			'Stack shop'
 		);
-		expect(activityItemName(job({ kind: 'manager_state' }).current!)).toBe('Manager state');
+		expect(activityItemName(job({ kind: 'manager_state' }).current!)).toBe('Manager State');
 	});
 
 	it('shortens long paths in the middle', () => {
@@ -320,7 +320,7 @@ describe('restic snapshots', () => {
 		expect(snapshotName(snap('a', '', { class: 'stack', item: 'stack/01a0e0da-c66c' }))).toBe(
 			'Stack 01a0e0da'
 		);
-		expect(snapshotName(snap('a', '', { class: 'manager_state' }))).toBe('Manager state');
+		expect(snapshotName(snap('a', '', { class: 'manager_state' }))).toBe('Manager State');
 		expect(snapshotName(snap('a', '', { class: 'host_manifest' }))).toBe('Manifest');
 		expect(snapshotName(snap('abcdef123', '', { class: 'foreign', paths: [] }))).toBe(
 			'abcdef12'

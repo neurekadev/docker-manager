@@ -94,7 +94,7 @@
 	);
 
 	const envName = (n: Notification) =>
-		n.environmentId ? (names.get(n.environmentId) ?? 'Unknown environment') : 'Docker Manager';
+		n.environmentId ? (names.get(n.environmentId) ?? 'Unknown Environment') : 'Docker Manager';
 </script>
 
 {#snippet item(n: Notification)}
@@ -152,11 +152,11 @@
 	/>
 {:else}
 	<ListCard
-		title="All notifications"
+		title="All Notifications"
 		id="notifications"
 		{summary}
-		label="Filter notifications"
-		searchLabel="Search notifications"
+		label="Filter Notifications"
+		searchLabel="Search Notifications"
 		placeholder="Search notifications"
 		filters={defs}
 		store={filters}
@@ -177,10 +177,10 @@
 							<Button
 								variant="secondary"
 								loading={list.isFetchingNextPage}
-								onclick={() => list.fetchNextPage()}>Load more notifications</Button
+								onclick={() => list.fetchNextPage()}>Load More Notifications</Button
 							>
 							<Button variant="ghost" onclick={() => filters.clear()}
-								>Clear filters</Button
+								>Clear Filters</Button
 							>
 						{/snippet}
 					</EmptyState>
@@ -216,7 +216,7 @@
 			{#if list.hasNextPage}
 				<div class="more">
 					<Button loading={list.isFetchingNextPage} onclick={() => list.fetchNextPage()}
-						>Load more notifications</Button
+						>Load More Notifications</Button
 					>
 				</div>
 			{/if}

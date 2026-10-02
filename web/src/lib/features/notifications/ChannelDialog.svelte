@@ -123,7 +123,7 @@
 		for (const id of listed) {
 			if (out.some((c) => c.id === id)) continue;
 			const known = envs.data?.find((e) => e.id === id);
-			out.push({ id, label: known ? `${known.name} (archived)` : 'Removed environment' });
+			out.push({ id, label: known ? `${known.name} (archived)` : 'Removed Environment' });
 		}
 		return out;
 	});
@@ -240,7 +240,7 @@
 				toast.success(`Added ${created.name}`, {
 					body: 'Send a test message to check that it arrives.',
 					action: {
-						label: 'Send test',
+						label: 'Send Test',
 						onclick: () => void runTest(created, queryClient)
 					}
 				});
@@ -276,7 +276,7 @@
 
 <Dialog
 	bind:open
-	title={channel ? `Edit ${channel.name}` : 'Add notification channel'}
+	title={channel ? `Edit ${channel.name}` : 'Add Notification Channel'}
 	description="Docker Manager sends messages about the events you choose to this destination."
 	size="xl"
 	dismissible={!busy}
@@ -360,7 +360,7 @@
 						size="sm"
 						icon={Eye}
 						loading={revealing}
-						onclick={() => void showAddress()}>Show address</Button
+						onclick={() => void showAddress()}>Show Address</Button
 					>
 				</div>
 				{#if revealError}<p class="error" role="alert">{revealError}</p>{/if}
@@ -368,7 +368,7 @@
 		</section>
 
 		<section class="col" aria-labelledby="channel-subscription">
-			<h3 id="channel-subscription" class="subsection-title">What to send</h3>
+			<h3 id="channel-subscription" class="subsection-title">What to Send</h3>
 			<fieldset
 				class="group events"
 				aria-describedby={eventsError ? 'channel-events-error' : undefined}
@@ -418,8 +418,8 @@
 				<Select
 					label="Environments"
 					options={[
-						{ value: 'all', label: 'All environments' },
-						{ value: 'some', label: 'Some environments' }
+						{ value: 'all', label: 'All Environments' },
+						{ value: 'some', label: 'Some Environments' }
 					]}
 					bind:value={() => envMode, (v) => (envMode = v as 'all' | 'some')}
 					description={envMode === 'all'
@@ -431,7 +431,7 @@
 						class="group"
 						aria-describedby={envError ? 'channel-envs-error' : undefined}
 					>
-						<legend class="sr-only">Environments to send about</legend>
+						<legend class="sr-only">Environments to Send About</legend>
 						{#each envChoices as e (e.id)}
 							<Checkbox
 								label={e.label}
@@ -461,7 +461,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>
 		<Button type="submit" form="channel-form" variant="primary" loading={busy}
-			>{channel ? 'Save changes' : 'Add channel'}</Button
+			>{channel ? 'Save Changes' : 'Add Channel'}</Button
 		>
 	{/snippet}
 </Dialog>
@@ -499,7 +499,7 @@
 		font-weight: var(--weight-medium);
 	}
 
-	/* What to send: one row per kind, its outcomes in three aligned columns
+	/* What to Send: one row per kind, its outcomes in three aligned columns
 	   beside it, or below it (indented under the label) where the column
 	   is narrow. */
 	.events {

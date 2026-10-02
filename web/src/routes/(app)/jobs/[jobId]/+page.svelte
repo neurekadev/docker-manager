@@ -6,10 +6,10 @@
 	// follows the job's event stream: items and messages), the timeline to
 	// the second, and the technical detail (kind, error class, locks,
 	// attempt, IDs) behind "Advanced". Cancel while the job can still stop
-	// at a safe point. "Try again" starts a retry (POST /jobs/{id}/retries)
+	// at a safe point. "Try Again" starts a retry (POST /jobs/{id}/retries)
 	// when the server offers one (`retryable`) and opens the new job; other
 	// failed jobs link to the page of the action that started them. A retry
-	// names the job it retries ("Retry of").
+	// names the job it retries ("Retry Of").
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -35,6 +35,7 @@
 		jobErrorHeadline,
 		jobHeadline,
 		jobKindLabel,
+		jobKindPhrase,
 		jobRetry,
 		policyPage,
 		RETRY_ERRORS,
@@ -119,7 +120,7 @@
 	/** "Check for updates, started on its schedule. It succeeded after 1 s." */
 	const summary = $derived.by(() => {
 		if (!j) return '';
-		const what = jobKindLabel(j.kind);
+		const what = jobKindPhrase(j.kind);
 		const how =
 			j.origin === 'scheduled'
 				? 'started on its schedule'
@@ -194,7 +195,7 @@
 		j
 			? [
 					{ label: 'Queued', at: j.createdAt },
-					{ label: 'Sent to its runner', at: j.dispatchedAt },
+					{ label: 'Sent to Its Runner', at: j.dispatchedAt },
 					{ label: 'Started', at: j.startedAt },
 					{ label: 'Finished', at: j.finishedAt }
 				].filter((t) => t.at)
@@ -222,7 +223,7 @@
 			{#snippet actions()}
 				{#if again === 'retry'}
 					<Button variant="primary" icon={RotateCw} loading={retrying} onclick={retry}
-						>Try again</Button
+						>Try Again</Button
 					>
 				{:else if again}
 					<Button variant="primary" icon={RotateCw} href={again.href}
@@ -233,7 +234,7 @@
 					<Button
 						variant="danger-soft"
 						icon={CircleStop}
-						onclick={() => (cancelOpen = true)}>Cancel job</Button
+						onclick={() => (cancelOpen = true)}>Cancel Job</Button
 					>
 				{/if}
 			{/snippet}
@@ -258,7 +259,7 @@
 			</Notice>
 		{/if}
 		{#if j.cancelRequested && jobActive(j.state)}
-			<Notice tone="info" title="Cancellation requested" live="status">
+			<Notice tone="info" title="Cancellation Requested" live="status">
 				The job stops at its next safe point; cleanup steps (such as restarting stopped
 				containers) still run.
 			</Notice>
@@ -306,7 +307,7 @@
 							>
 						</dd>
 					{/if}
-					<dt>Started by</dt>
+					<dt>Started By</dt>
 					<dd>
 						{#if j.policyId}
 							{@const pol = policyPage(j.kind, j.policyId)}
@@ -321,7 +322,7 @@
 						{/if}
 					</dd>
 					{#if j.retryOf}
-						<dt>Retry of</dt>
+						<dt>Retry Of</dt>
 						<dd><a href={routes.job(j.retryOf)}>The earlier job</a></dd>
 					{/if}
 					<dt>Duration</dt>
@@ -347,7 +348,7 @@
 				<dl class="facts">
 					<dt>Kind</dt>
 					<dd class="mono">{j.kind}</dd>
-					<dt>Runs on</dt>
+					<dt>Runs On</dt>
 					<dd>
 						{j.executor === 'agent' ? 'The environment’s agent' : 'Docker Manager'}
 					</dd>
@@ -359,7 +360,7 @@
 							>{/if}
 					</dd>
 					{#if j.error}
-						<dt>Error class</dt>
+						<dt>Error Class</dt>
 						<dd class="mono">{j.error.class}</dd>
 					{/if}
 					{#if j.locks.length}
@@ -411,14 +412,14 @@
 
 	<ConfirmDialog
 		bind:open={cancelOpen}
-		title="Cancel {jobKindLabel(j.kind).toLowerCase()}"
+		title="Cancel {jobKindLabel(j.kind)}"
 		message="The job stops at its next safe point."
 		consequences={[
 			'Steps that already finished are not undone.',
 			'Cleanup steps still run, for example restarting containers stopped for a backup.'
 		]}
-		confirmLabel="Cancel job"
-		cancelLabel="Keep running"
+		confirmLabel="Cancel Job"
+		cancelLabel="Keep Running"
 		tone="danger"
 		onconfirm={cancel}
 	/>

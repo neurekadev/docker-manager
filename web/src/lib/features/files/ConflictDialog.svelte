@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Conflict resolution (#15): one conflict at a time with Replace, Keep
-	// both or Skip; "Apply to all remaining conflicts" is off by default.
+	// Both or Skip; "Apply to All Remaining Conflicts" is off by default.
 	// `single` asks once for the whole operation (an extraction or an
 	// archive is one request with one policy): the conflicting names are
 	// listed and the choice covers all of them.
@@ -117,7 +117,7 @@
 			<div class="all">
 				<Checkbox
 					bind:checked={applyAll}
-					label="Apply to all {remaining} remaining conflicts"
+					label="Apply to All {remaining} Remaining Conflicts"
 				/>
 			</div>
 		{/if}
@@ -126,18 +126,18 @@
 		<Button variant="ghost" onclick={() => finish(null)}>Cancel</Button>
 		{#if allowSkip}
 			<Button variant="secondary" onclick={() => decide('skip')}
-				>{single ? 'Skip existing' : 'Skip'}</Button
+				>{single ? 'Skip Existing' : 'Skip'}</Button
 			>
 		{/if}
 		<Button variant="secondary" onclick={() => decide('keep_both')}
 			>{single || !current
-				? 'Keep both'
-				: `Keep both (${keepBothName(basename(current.destination))})`}</Button
+				? 'Keep Both'
+				: `Keep Both (${keepBothName(basename(current.destination))})`}</Button
 		>
 		<!-- An entry pasted into its own folder can only be duplicated. -->
 		{#if single || !current?.self}
 			<Button variant="danger" onclick={() => decide('overwrite')}
-				>{single ? 'Replace all' : 'Replace'}</Button
+				>{single ? 'Replace All' : 'Replace'}</Button
 			>
 		{/if}
 	{/snippet}

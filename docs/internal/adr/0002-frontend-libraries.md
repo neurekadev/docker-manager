@@ -81,7 +81,7 @@ build works. It is a build-time plugin only:
 4. Nothing is written to a cache outside `install`; `activate` deletes older
    `docker-manager-precache-*` caches only.
 5. A new build installs and **waits**. The page shows "A new version of
-   Docker Manager is available" with *Reload to update* and *Later*; only the
+   Docker Manager is available" with *Reload to Update* and *Later*; only the
    click sends `SKIP_WAITING` and reloads once the new worker controls the
    page. Nothing reloads automatically, so unsaved edits, terminals and
    restores are never interrupted (#23).

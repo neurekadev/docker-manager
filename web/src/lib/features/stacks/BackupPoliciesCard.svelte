@@ -37,7 +37,7 @@
 
 <Card title="Backups" id="backups" subtitle="System backup policies that include this stack">
 	{#snippet actions()}
-		<Button size="sm" href={routes.backups()}>Open backups</Button>
+		<Button size="sm" href={routes.backups()}>Open Backups</Button>
 	{/snippet}
 	{#if policies.isPending}
 		<div aria-busy="true"><Skeleton lines={3} /></div>
@@ -67,7 +67,7 @@
 					<div class="head">
 						<a class="name" href={routes.backupPolicy(p.id)}>{p.name}</a>
 						{#if p.enabled}<Badge tone="ok" dot>Scheduled</Badge>{:else}<Badge
-								>Manual only</Badge
+								>Manual Only</Badge
 							>{/if}
 					</div>
 					<dl class="facts">
@@ -77,7 +77,7 @@
 								{p.schedule.cron} <span class="muted">({p.schedule.timeZone})</span>
 							</dd>
 							{#if p.enabled && p.schedule.nextRun}
-								<dt>Next run</dt>
+								<dt>Next Run</dt>
 								<dd>{formatDateTime(p.schedule.nextRun, p.schedule.timeZone)}</dd>
 							{/if}
 						{/if}
@@ -90,11 +90,11 @@
 								: ''}
 						</dd>
 						{#if p.shutdown}
-							<dt>During backups</dt>
+							<dt>During Backups</dt>
 							<dd>Containers are stopped and started again</dd>
 						{/if}
 						{#if last}
-							<dt>Last backup</dt>
+							<dt>Last Backup</dt>
 							<dd>
 								<StatusBadge
 									status={last.state === 'complete' ? 'succeeded' : last.state}

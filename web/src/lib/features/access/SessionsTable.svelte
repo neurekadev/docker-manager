@@ -43,7 +43,7 @@
 		label?: string;
 	}
 
-	let { userId, label = 'Signed-in devices' }: Props = $props();
+	let { userId, label = 'Signed-In Devices' }: Props = $props();
 	const qc = useQueryClient();
 	const sessions = createQuery(() => (userId ? userSessionsQuery(userId) : mySessionsQuery()));
 	const now = $derived(new Date(clock.now));
@@ -107,21 +107,21 @@
 		},
 		{
 			id: 'created',
-			header: 'Signed in',
+			header: 'Signed In',
 			cell: createdCell,
 			width: '140px',
 			sortValue: (s) => s.createdAt
 		},
 		{
 			id: 'seen',
-			header: 'Last active',
+			header: 'Last Active',
 			cell: seenCell,
 			width: '140px',
 			sortValue: (s) => s.lastSeenAt
 		},
 		{
 			id: 'stay',
-			header: 'Stay signed in',
+			header: 'Stay Signed In',
 			cell: stayCell,
 			width: '140px',
 			sortValue: (s) => (s.staySignedIn ? 1 : 0)
@@ -138,7 +138,7 @@
 	];
 </script>
 
-{#snippet thisDevice()}<Badge tone="accent">This device</Badge>{/snippet}
+{#snippet thisDevice()}<Badge tone="accent">This Device</Badge>{/snippet}
 {#snippet deviceCell(s: UserSession)}
 	<NameCell icon="session" name={deviceOf(s)} extra={s.current ? thisDevice : undefined} />
 {/snippet}
@@ -164,8 +164,8 @@
 		variant="ghost"
 		loading={busy === s.id}
 		disabled={!!busy}
-		aria-label="Sign out {deviceOf(s)}{s.current ? ' (this device)' : ''}"
-		onclick={() => signOutDevice(s)}>Sign out</Button
+		aria-label="Sign Out {deviceOf(s)}{s.current ? ' (This Device)' : ''}"
+		onclick={() => signOutDevice(s)}>Sign Out</Button
 	>
 {/snippet}
 

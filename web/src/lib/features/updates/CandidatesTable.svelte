@@ -34,8 +34,8 @@
 			stack: 'status',
 			width: '160px'
 		},
-		{ id: 'current', header: 'Running digest', cell: currentCell, width: '170px' },
-		{ id: 'candidate', header: 'Registry digest', cell: candidateCell, width: '170px' },
+		{ id: 'current', header: 'Running Digest', cell: currentCell, width: '170px' },
+		{ id: 'candidate', header: 'Registry Digest', cell: candidateCell, width: '170px' },
 		{ id: 'notes', header: 'Details', cell: notesCell },
 		{
 			id: 'checked',
@@ -52,7 +52,7 @@
 		{#snippet extra()}
 			{#if c.nonVersionTag}
 				<Badge tone="warn">
-					<TriangleAlert size={12} aria-hidden="true" /> Tag can change meaning
+					<TriangleAlert size={12} aria-hidden="true" /> Tag Can Change Meaning
 				</Badge>
 			{/if}
 		{/snippet}

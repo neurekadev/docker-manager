@@ -137,28 +137,28 @@
 <Dialog bind:open title="Change {container.name}" size="md">
 	<div class="form">
 		<Select
-			label="Restart policy"
+			label="Restart Policy"
 			bind:value={restart}
 			description="When Docker starts the container again on its own."
 			options={[...RESTART_OPTIONS]}
 		/>
 		<div class="grid">
 			<TextField
-				label="CPU limit"
+				label="CPU Limit"
 				inputmode="decimal"
 				bind:value={cpus}
 				description="CPUs, e.g. 1.5. Optional."
 				error={invalid.cpus ?? fieldError(cause, 'body.resources.cpus')}
 			/>
 			<TextField
-				label="Memory limit (MB)"
+				label="Memory Limit (MB)"
 				inputmode="numeric"
 				bind:value={memory}
 				description="Optional."
 				error={invalid.memory ?? fieldError(cause, 'body.resources.memoryBytes')}
 			/>
 			<TextField
-				label="Process limit"
+				label="Process Limit"
 				inputmode="numeric"
 				bind:value={pids}
 				description="-1 for unlimited. Optional."
@@ -166,7 +166,7 @@
 			/>
 		</div>
 		{#if recreate.length}
-			<Notice tone="info" title="Other settings need a new container" live="none">
+			<Notice tone="info" title="Other Settings Need a New Container" live="none">
 				Changing the {recreate.join(', ')} of a container needs a new one. Create a container
 				with the new settings (and remove this one), or
 				<a href={routes.stacks()}>use a Compose stack</a>
@@ -183,7 +183,7 @@
 			variant="primary"
 			loading={busy}
 			disabled={!!(invalid.cpus || invalid.memory || invalid.pids)}
-			onclick={save}>Save changes</Button
+			onclick={save}>Save Changes</Button
 		>
 	{/snippet}
 </Dialog>

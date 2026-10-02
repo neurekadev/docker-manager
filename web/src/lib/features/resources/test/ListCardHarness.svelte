@@ -32,7 +32,7 @@
 		{
 			id: 'status',
 			label: 'Status',
-			all: 'All statuses',
+			all: 'All Statuses',
 			options: [
 				{ value: 'running', label: 'Running' },
 				{ value: 'exited', label: 'Exited' }
@@ -42,7 +42,7 @@
 		{
 			id: 'driver',
 			label: 'Driver',
-			all: 'All drivers',
+			all: 'All Drivers',
 			dynamic: true,
 			options: distinctOptions(rows.map((r) => r.driver)),
 			match: (r, v) => r.driver === v
@@ -54,11 +54,11 @@
 </script>
 
 <ListCard
-	title="All things"
+	title="All Things"
 	id="things"
 	summary={listSummary(shown.length, rows.length, filtered, 'thing', 'things')}
-	label="Filter things"
-	searchLabel="Search things"
+	label="Filter Things"
+	searchLabel="Search Things"
 	placeholder="Search by name"
 	filters={defs}
 	{store}

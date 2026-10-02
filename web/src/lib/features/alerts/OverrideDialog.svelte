@@ -55,7 +55,7 @@
 
 	const editing = $derived(!!environmentId);
 	const nameOf = (id: string) =>
-		environments.find((e) => e.id === id)?.name ?? 'Removed environment';
+		environments.find((e) => e.id === id)?.name ?? 'Removed Environment';
 	const options = $derived(
 		editing
 			? [{ value: environmentId!, label: nameOf(environmentId!) }]
@@ -130,7 +130,7 @@
 
 <Dialog
 	bind:open
-	title="Override thresholds"
+	title="Override Thresholds"
 	description="Leave a level empty to use the default; 0 turns it off there."
 	size="md"
 	dismissible={!busy}
@@ -155,7 +155,7 @@
 			error={envError}
 		/>
 		<ThresholdGrid
-			label="Levels of the environment"
+			label="Levels of the Environment"
 			{form}
 			{errors}
 			{placeholders}
@@ -170,7 +170,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>
 		<Button type="submit" form="override-form" variant="primary" loading={busy}
-			>{editing ? 'Save changes' : 'Add override'}</Button
+			>{editing ? 'Save Changes' : 'Add Override'}</Button
 		>
 	{/snippet}
 </Dialog>

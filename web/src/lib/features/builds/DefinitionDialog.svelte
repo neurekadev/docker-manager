@@ -2,7 +2,7 @@
 	// Create or edit a saved build definition (#33): a name, a description
 	// and the Git build source, re-run on demand (no scheduled rebuilds in
 	// v1). Edits send If-Match with the loaded revision. A new definition
-	// can start from a build's source ("Save as definition" on a build).
+	// can start from a build's source ("Save as Definition" on a build).
 	import { untrack } from 'svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap } from '$lib/api/client';
@@ -113,7 +113,7 @@
 
 <Dialog
 	bind:open
-	title={definition ? `Edit ${definition.name}` : 'New build definition'}
+	title={definition ? `Edit ${definition.name}` : 'New Build Definition'}
 	size="lg"
 	dismissible={!busy}
 >
@@ -158,7 +158,7 @@
 			form="definition-form"
 			variant="primary"
 			loading={busy}
-			disabled={!valid}>{definition ? 'Save changes' : 'Save definition'}</Button
+			disabled={!valid}>{definition ? 'Save Changes' : 'Save Definition'}</Button
 		>
 	{/snippet}
 </Dialog>

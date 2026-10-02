@@ -47,7 +47,7 @@ describe('verifyMatch', () => {
 			'Verify NAS for Silo'
 		);
 		expect(verifyTitle({ kind: 'manager.verify' }, 'NAS', name)).toBe(
-			'Verify NAS (manager state)'
+			'Verify NAS (Manager State)'
 		);
 	});
 });

@@ -44,7 +44,7 @@
 
 	usePage({
 		title: 'Backups',
-		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'All backups' }],
+		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'All Backups' }],
 		environmentScoped: true
 	});
 
@@ -78,7 +78,7 @@
 	const runs = $derived(groupBackupsByRun(matching));
 
 	function runName(r: BackupRun): string {
-		if (r.setId) return policyName(r.policyId) ?? 'Backup run';
+		if (r.setId) return policyName(r.policyId) ?? 'Backup Run';
 		const b = r.backups[0];
 		return b ? itemName(b) : 'Backup';
 	}
@@ -173,7 +173,7 @@
 			aria-expanded={open}
 			onclick={() => (open ? expanded.delete(r.key) : expanded.add(r.key))}
 		>
-			{open ? 'Show fewer' : `Show all ${r.backups.length}`}
+			{open ? 'Show Fewer' : `Show All ${r.backups.length}`}
 			<ChevronDown size={14} aria-hidden="true" class={open ? 'up' : ''} />
 		</button>
 	{/if}
@@ -193,7 +193,7 @@
 				href={routes.backupRestore(r.backups[0].id)}>Restore</Button
 			>
 		{:else if items.length}
-			<Menu {items} label="Restore from the run of {formatDateTime(r.time)}" align="end">
+			<Menu {items} label="Restore From the Run of {formatDateTime(r.time)}" align="end">
 				{#snippet trigger(props)}
 					<Button
 						{...props}
@@ -211,7 +211,7 @@
 <Page>
 	<BackupsHeader />
 	<Card
-		title="All backups"
+		title="All Backups"
 		subtitle={backups.data
 			? `${matching.length} ${matching.length === 1 ? 'backup' : 'backups'} from ${runs.length} ${runs.length === 1 ? 'run' : 'runs'}; restore one from its run or its page.`
 			: undefined}
@@ -221,7 +221,7 @@
 		{#snippet actions()}
 			<div class="filter">
 				<TextField
-					label="Search backups"
+					label="Search Backups"
 					hideLabel
 					placeholder="Search backups"
 					bind:value={filter}
@@ -230,7 +230,7 @@
 		{/snippet}
 		<QueryView query={backups} errorTitle="The backups could not be loaded.">
 			<Table
-				label="All backups by run"
+				label="All Backups by Run"
 				rows={runs}
 				{columns}
 				rowKey={(r) => r.key}

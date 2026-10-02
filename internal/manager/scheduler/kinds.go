@@ -33,8 +33,13 @@ const (
 type Kind struct {
 	// Key is the stable identifier (lower snake_case).
 	Key string
-	// Label is the plain-language name.
+	// Label is the plain-language name, in Title Case ("Image Update
+	// Checks").
 	Label string
+	// Noun is the name as it reads inside a sentence, in sentence case
+	// ("Image update checks schedules do not catch up missed runs"); the
+	// run reasons use it. Empty means Label.
+	Noun string
 	// Suggested is Docker Manager's shipped default expression (editable per
 	// instance in the schedule defaults, per policy in the policy).
 	Suggested string
@@ -53,6 +58,14 @@ type Kind struct {
 }
 
 var kindKeyRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+
+// noun is the kind's name inside a sentence: Noun, else Label.
+func (k Kind) noun() string {
+	if k.Noun != "" {
+		return k.Noun
+	}
+	return k.Label
+}
 
 func (k Kind) validate() error {
 	if !kindKeyRE.MatchString(k.Key) {
@@ -89,17 +102,17 @@ func BuiltinKinds() []Kind {
 		{Key: KindBackup, Label: "Backups", Suggested: "0 * * * *", CatchUp: domain.CatchUpOnce,
 			PolicyType: catalog.TypeBackupPolicy, ReadCapability: "backup_policy.read",
 			JobKinds: []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup}},
-		{Key: KindUpdateCheck, Label: "Image update checks", Suggested: "0 3 * * *", CatchUp: domain.CatchUpOnce,
-			PolicyType: catalog.TypeUpdatePolicy, ReadCapability: "update_policy.read",
+		{Key: KindUpdateCheck, Label: "Image Update Checks", Noun: "Image update checks", Suggested: "0 3 * * *",
+			CatchUp: domain.CatchUpOnce, PolicyType: catalog.TypeUpdatePolicy, ReadCapability: "update_policy.read",
 			JobKinds: []domain.JobKind{jobspec.UpdateCheck}},
-		{Key: KindUpdateRun, Label: "Image update runs", Suggested: "0 4 * * *", CatchUp: domain.CatchUpSkip,
-			PolicyType: catalog.TypeUpdatePolicy, ReadCapability: "update_policy.read",
+		{Key: KindUpdateRun, Label: "Image Update Runs", Noun: "Image update runs", Suggested: "0 4 * * *",
+			CatchUp: domain.CatchUpSkip, PolicyType: catalog.TypeUpdatePolicy, ReadCapability: "update_policy.read",
 			JobKinds: []domain.JobKind{jobspec.UpdateRun}},
-		{Key: KindPrune, Label: "Docker prune", Suggested: "0 3 * * 0", CatchUp: domain.CatchUpSkip,
+		{Key: KindPrune, Label: "Docker Prune", Noun: "Docker prune", Suggested: "0 3 * * 0", CatchUp: domain.CatchUpSkip,
 			PolicyType: catalog.TypeMaintenancePolicy, ReadCapability: "maintenance_policy.read",
 			JobKinds: []domain.JobKind{jobspec.PruneRun}},
-		{Key: KindBackupVerification, Label: "Repository verification", Suggested: "0 5 * * 0", CatchUp: domain.CatchUpOnce,
-			PolicyType: catalog.TypeBackupRepository, ReadCapability: "backup_repository.read",
+		{Key: KindBackupVerification, Label: "Repository Verification", Noun: "Repository verification", Suggested: "0 5 * * 0",
+			CatchUp: domain.CatchUpOnce, PolicyType: catalog.TypeBackupRepository, ReadCapability: "backup_repository.read",
 			JobKinds: []domain.JobKind{jobspec.BackupVerify, jobspec.ManagerVerify}},
 	}
 }

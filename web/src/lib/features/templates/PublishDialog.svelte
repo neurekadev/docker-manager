@@ -71,7 +71,7 @@
 
 <Dialog
 	bind:open
-	title="Publish a version of {template.name}"
+	title="Publish a Version of {template.name}"
 	description="The draft's files are frozen as they are now. You can keep editing the draft; stacks are created from published versions."
 	size="md"
 	dismissible={!saving}
@@ -93,7 +93,7 @@
 			error={labelError}
 		/>
 		<TextArea
-			label="What changed"
+			label="What Changed"
 			bind:value={notes}
 			maxlength={4096}
 			description="Optional. Shown to people who create stacks from this version."
@@ -123,7 +123,7 @@
 			form="publish-template"
 			loading={saving}
 			disabled={!label.trim() || (isPublic && !acknowledged)}
-			>Publish version {label.trim()}</Button
+			>Publish Version {label.trim()}</Button
 		>
 	{/snippet}
 </Dialog>

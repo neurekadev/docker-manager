@@ -14,8 +14,8 @@
 	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
 
 	usePage({
-		title: 'All API tokens',
-		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'API tokens' }]
+		title: 'All API Tokens',
+		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'API Tokens' }]
 	});
 
 	const perms = createQuery(() => myPermissionsQuery());
@@ -25,7 +25,7 @@
 
 <Page>
 	<SettingsHeader
-		title="All API tokens"
+		title="All API Tokens"
 		description="Every user's tokens. Revoke any of them; values are never shown."
 	/>
 	{#if perms.data && !owner}
@@ -35,7 +35,7 @@
 			<QueryView query={tokens} errorTitle="The API tokens could not be loaded.">
 				{#snippet children(rows)}
 					{#if rows.length}
-						<TokensTable tokens={rows} label="All API tokens" all />
+						<TokensTable tokens={rows} label="All API Tokens" all />
 					{:else}
 						<EmptyState
 							{...resourceIcon('apiToken')}

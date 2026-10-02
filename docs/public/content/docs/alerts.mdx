@@ -14,14 +14,14 @@ the app and go to your [notification channels](/notifications).
 
 | Alert | When | Ends when |
 | --- | --- | --- |
-| **Disk health** | A disk is failing (**Critical**), needs attention because of damaged sectors, wear, low spare or heat (**Warning**), can't be read or is missing (**Warning**). A server whose disks can't be scanned or read, or whose disk health is out of date, raises one too (**Warning**). A sleeping disk, or one without health data such as a virtual disk, never raises one. | The disk is healthy again, or the server's disks are checked again. |
+| **Disk Health** | A disk is failing (**Critical**), needs attention because of damaged sectors, wear, low spare or heat (**Warning**), can't be read or is missing (**Warning**). A server whose disks can't be scanned or read, or whose disk health is out of date, raises one too (**Warning**). A sleeping disk, or one without health data such as a virtual disk, never raises one. | The disk is healthy again, or the server's disks are checked again. |
 | **RAID** | An array has failed or is inactive (**Critical**), or is degraded or rebuilding (**Warning**). A degraded ZFS pool is a **Warning**; a faulted, unavailable, suspended or removed one is **Critical**. A server whose RAID state can't be read, or is out of date, raises one too (**Warning**). | The array or pool is healthy again, or its state can be read again. |
 | **Temperature** | The hottest sensor of a server stays at or above the warning level (**Warning**) or the critical level (**Critical**) for 5 minutes. | It is 3 °C below the warning level. |
-| **Disk space** | A server's Docker data, stacks or bind mount disk stays at or above the warning or critical level for 5 minutes. | It is 3 points below the warning level. |
+| **Disk Space** | A server's Docker data, stacks or bind mount disk stays at or above the warning or critical level for 5 minutes. | It is 3 points below the warning level. |
 | **Memory** | A server's memory use stays at or above the warning or critical level for 5 minutes. | It is 3 points below the warning level. |
-| **Environment offline** | A server has been offline for 5 minutes (**Critical**). | The server is back online. |
-| **Failed job** | A scheduled job, or one started with an API token, failed (**Critical**), partly failed or was interrupted (**Warning**). Jobs you start yourself show only in your bell. | The next run of the same job succeeds. |
-| **Updates available** | An update check finds newer images (**Info**). | No update is left. |
+| **Environment Offline** | A server has been offline for 5 minutes (**Critical**). | The server is back online. |
+| **Failed Job** | A scheduled job, or one started with an API token, failed (**Critical**), partly failed or was interrupted (**Warning**). Jobs you start yourself show only in your bell. | The next run of the same job succeeds. |
+| **Updates Available** | An update check finds newer images (**Info**). | No update is left. |
 
 A disk or array that is no longer reported for a day, a failed job that
 doesn't run again for 7 days, and the alerts of an archived environment
@@ -32,13 +32,13 @@ example after a restart, its alert moves with it.
 ## Change the thresholds
 
 1. Open **Settings → Notifications**.
-2. Under **Alert thresholds**, set the **Warning** and **Critical** levels
-   of **Temperature (°C)**, **Disk space (% used)** and **Memory (% used)**.
+2. Under **Alert Thresholds**, set the **Warning** and **Critical** levels
+   of **Temperature (°C)**, **Disk Space (% Used)** and **Memory (% Used)**.
    `0` turns a level off.
-3. Press **Save thresholds**.
+3. Press **Save Thresholds**.
 
-To use other levels on one server, press **Add override** under
-**Environment overrides**, choose the **Environment** and fill in only the
+To use other levels on one server, press **Add Override** under
+**Environment Overrides**, choose the **Environment** and fill in only the
 levels you want to change; empty ones use the defaults. Only the owner
 can change thresholds.
 
@@ -58,9 +58,9 @@ memory.
   dismissed. The count stays until you dismiss them.
 - Click an alert or notification to open what it is about: the server's
   **System** tab, the server, the job or the update policy.
-- The dashboard's **Needs attention** shows how many disks and RAID arrays
+- The dashboard's **Needs Attention** shows how many disks and RAID arrays
   need attention, and an environment's page shows a notice with **View
-  disks**.
+  Disks**.
 
 You see an alert when you may see what it is about: the server's system
 information for disks and RAID, its host stats for temperature, disk
@@ -70,7 +70,7 @@ policy. You see a notification when you may see its job.
 ## Dismiss an alert
 
 1. Press **Dismiss** next to the alert on the **Alerts** tab, or **×**
-   next to it in the bell. **Dismiss all** (on the tab or in the bell)
+   next to it in the bell. **Dismiss All** (on the tab or in the bell)
    dismisses every alert you see.
 2. The alert leaves the bell, the dashboard and the environment's notice
    for everyone. It stays under **Dismissed** until the problem is gone.
@@ -82,21 +82,21 @@ again.
 ## Get them as messages
 
 Add a [notification channel](/notifications) and tick what it should send
-under **What to send**. A channel gets:
+under **What to Send**. A channel gets:
 
 - a message when an alert starts, and again when it gets worse, for the
   levels you ticked (**Warning**, **Critical**),
 - a **Resolved:** message when the problem is gone, if the channel got
   the alert and you ticked **Resolved** (a failed job sent under
-  **Backups** or **Image updates** needs no extra tick),
+  **Backups** or **Image Updates** needs no extra tick),
 - a message when a backup, restore, prune or update finishes, for the
   outcomes you ticked.
 
 Every message looks the same way:
 
 - a top line with what it is about and how it went, named as under
-  **What to send** (for example **Disk health · Critical**, **Backups ·
-  Success** or **Image updates · Applied**),
+  **What to Send** (for example **Disk Health · Critical**, **Backups ·
+  Success** or **Image Updates · Applied**),
 - a title that names the disk, server, stack or backup policy first, then
   what happened, for example "Disk /dev/sda is failing", "Daily Backups
   succeeded" or "Update of Paperless succeeded",
@@ -104,7 +104,7 @@ Every message looks the same way:
   policy and services link to their pages; an update lists each service
   with its old and new image digest,
 - **Open in Docker Manager** at the end in chat apps (a button in
-  email), and your Docker Manager's **Name** (**Settings → About this
+  email), and your Docker Manager's **Name** (**Settings → About This
   Docker Manager**) at the bottom.
 
 Several at once arrive as one message. If a channel can't be reached,
@@ -112,12 +112,12 @@ Docker Manager tries again for a day.
 
 ## Good to know
 
-- A failed scheduled job shows as a **Failed job** alert, but its message
-  comes from the row of its area under **What to send**: a backup,
+- A failed scheduled job shows as a **Failed Job** alert, but its message
+  comes from the row of its area under **What to Send**: a backup,
   verification, retention or import from **Backups**, a restore from
   **Restores**, a prune from **Prune**, an update check or update from
-  **Image updates**. **Other jobs** gets the rest.
-- Dismissing for everyone needs the **Dismiss alerts** permission (the
+  **Image Updates**. **Other Jobs** gets the rest.
+- Dismissing for everyone needs the **Dismiss Alerts** permission (the
   **Operator** and **Admin** presets have it). Without it, dismissing in
   the bell hides the alert only in your browser.
 - Change how long a server may be offline with

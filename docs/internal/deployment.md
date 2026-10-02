@@ -171,7 +171,7 @@ container, so it must see those files at the same paths:
   at its own mountpoint (the documented compose files do this). The
   documented compose files also mount their own folder read-only at
   `/import/docker-manager` (`.:/import/docker-manager:ro`,
-  `agents.ImportOwnProject`), so **Import project** can copy Docker
+  `agents.ImportOwnProject`), so **Import Project** can copy Docker
   Manager's own project and it is upgraded from the app afterwards. No
   other host paths are needed; Docker Manager's own state lives in named
   volumes.
@@ -181,7 +181,7 @@ container, so it must see those files at the same paths:
 - Optional, only to import existing Compose projects that live elsewhere
   (e.g. `/opt/stacks` of another tool): mount that directory into the agent
   below `/import`, read-only is enough (`/opt/stacks:/import/stacks:ro`, or
-  several such as `/srv/apps:/import/apps:ro`). **Import project** then
+  several such as `/srv/apps:/import/apps:ro`). **Import Project** then
   moves a project into the stacks volume: it stops the project, copies its
   whole directory (Compose files and the data folders next to them, with
   owners, permissions, times, links and extended attributes), verifies the
@@ -279,7 +279,7 @@ The documented compose files let the agent read their own folder (the
 `compose.yaml`, `.env` and relative files), keep its directory inside a
 registered stack root: for example put it in `/opt/stacks/docker-manager`,
 set `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` on the agent and bind-mount
-`/opt/stacks:/opt/stacks`. Otherwise **Import project** copies the whole
+`/opt/stacks:/opt/stacks`. Otherwise **Import Project** copies the whole
 directory into the stacks volume while it keeps running, and Docker Manager
 moves onto the copy at its next deploy.
 
@@ -325,7 +325,7 @@ finish).
   /api/v1/invitations`); the one-time link is shown once and expires
   (default 72 h). New users join the default group, initially
   **Restricted** with no access, until the owner grants permissions (#17).
-- **Sign-in policy** (owner, *Settings → Sign-in policy*): strict passwords
+- **Sign-In Policy** (owner, *Settings → Sign-In Policy*): strict passwords
   (default on: at least 15 characters, common and breached passwords
   refused, no composition rules or forced rotation) and the required
   factors: `none`, `totp`, `passkey`, `either` or `both`. Changing the
@@ -336,7 +336,7 @@ finish).
   no deadline and is never locked out.
 - **Sessions** end after 8 h of inactivity and 24 h at most
   (`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT`, `DOCKER_MANAGER_SESSION_LIFETIME`), and
-  their cookie ends with the browser. **Stay signed in** at sign-in (the
+  their cookie ends with the browser. **Stay Signed In** at sign-in (the
   owner can turn the option off in the sign-in policy) keeps a device
   signed in for 30 days of inactivity and a year at most
   (`DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT`,
@@ -344,7 +344,7 @@ finish).
   see their signed-in devices (browser, IP, last activity) under
   **Profile → Sessions** and sign them out one by one; the owner does the
   same on a user's page. Disabling a user, a factor or password reset, and
-  "sign out everywhere" end the user's sessions and open live streams
+  "Sign Out Everywhere" end the user's sessions and open live streams
   immediately.
 - **Lost factors:** a user completes a password sign-in with one of their
   ten one-time recovery codes, or asks the owner for a factor reset (TOTP,

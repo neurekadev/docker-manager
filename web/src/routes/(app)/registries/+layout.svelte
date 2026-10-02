@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Registries and Git credentials (#19, #33): header, its actions and the
 	// tabs. The header's actions follow the tab: registry connections have
-	// "Test an image" (a dialog, ?test=1) and "Add connection", Git
-	// credentials "Add credential"; adding opens the tab's dialog through
+	// "Test an Image" (a dialog, ?test=1) and "Add Connection", Git
+	// credentials "Add Credential"; adding opens the tab's dialog through
 	// ?create=1. Credential changes ask for a step-up through withStepUp
 	// (the dialog is mounted by the signed-in layout).
 	import type { Snippet } from 'svelte';
@@ -43,31 +43,31 @@
 						<Button
 							variant="primary"
 							icon={Plus}
-							onclick={() => (createDialog.open = true)}>Add credential</Button
+							onclick={() => (createDialog.open = true)}>Add Credential</Button
 						>
 					{/if}
 				{:else}
 					{#if scope.hasAny('registry.')}
 						<Button icon={FlaskConical} onclick={() => (testDialog.open = true)}
-							>Test an image</Button
+							>Test an Image</Button
 						>
 					{/if}
 					{#if owner}
 						<Button
 							variant="primary"
 							icon={Plus}
-							onclick={() => (createDialog.open = true)}>Add connection</Button
+							onclick={() => (createDialog.open = true)}>Add Connection</Button
 						>
 					{/if}
 				{/if}
 			{/snippet}
 		</PageHeader>
 		<TabNav
-			label="Registry sections"
+			label="Registry Sections"
 			current={page.url.pathname}
 			items={[
-				{ href: routes.registries(), label: 'Registry connections' },
-				{ href: routes.gitCredentials(), label: 'Git credentials' }
+				{ href: routes.registries(), label: 'Registry Connections' },
+				{ href: routes.gitCredentials(), label: 'Git Credentials' }
 			]}
 		/>
 		{@render children()}

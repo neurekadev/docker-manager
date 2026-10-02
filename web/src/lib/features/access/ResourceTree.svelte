@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The searchable resource tree of the permission editor (#17):
-	// All resources > environment > stacks (> services), containers,
+	// All Resources > environment > stacks (> services), containers,
 	// volumes, … and the resources shared by every environment. Each node
 	// shows how many rules target it.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -33,7 +33,7 @@
 
 <div class="tree">
 	<TextField
-		label="Find a resource"
+		label="Find a Resource"
 		hideLabel
 		placeholder="Find a resource"
 		bind:value={search}
@@ -83,7 +83,7 @@
 				</li>
 			{/each}
 			<li class="shared">
-				<p class="shared-label">Shared by every environment</p>
+				<p class="shared-label">Shared by Every Environment</p>
 				<ul role="list">
 					{#each CATEGORIES.filter((c) => !c.perEnvironment) as c (c.type)}
 						<TreeCategory

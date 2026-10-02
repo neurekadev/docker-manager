@@ -6,7 +6,7 @@
 	// confirmation and the move's progress with each part's checksum.
 	// Changing which images or volumes are copied runs the check again
 	// (debounced) and Next waits for it, so the confirmation and the
-	// "Remove from source" list always match what is copied. Afterwards the
+	// "Remove From …" list always match what is copied. Afterwards the
 	// source stays stopped: remove it, or start it again. Nothing is
 	// deleted automatically. A migration needs a second environment; with
 	// only one the wizard says so instead of showing its steps. A migration
@@ -325,7 +325,7 @@
 		if (!jobId) return;
 		const job = await removeMigrationSource(stack.id, jobId);
 		tray.add(job, {
-			title: `Remove ${title} from ${envName(source)}`,
+			title: `Remove ${title} From ${envName(source)}`,
 			success: `Removed ${title} from ${envName(source)}`,
 			failure: `${title} was not removed from ${envName(source)}`
 		});
@@ -353,9 +353,9 @@
 	});
 	const nextLabel = $derived(
 		steps[current].id === 'destination'
-			? 'Check destination'
+			? 'Check Destination'
 			: steps[current].id === 'confirm'
-				? 'Start migration'
+				? 'Start Migration'
 				: 'Next'
 	);
 
@@ -372,22 +372,22 @@
 		},
 		{
 			id: 'action',
-			header: 'On the destination',
+			header: 'On the Destination',
 			cell: svcAction,
 			title: (s) => (s.reason ? sentence(s.reason) : undefined)
 		},
-		{ id: 'copy', header: 'Copy image', cell: svcCopy, width: '110px', stack: 'actions' }
+		{ id: 'copy', header: 'Copy Image', cell: svcCopy, width: '110px', stack: 'actions' }
 	];
 	const volumeColumns: Column<VolumePlan>[] = [
 		{ id: 'name', header: 'Volume', cell: volName, stack: 'title' },
 		{ id: 'size', header: 'Size', cell: volSize, numeric: true, width: '110px' },
 		{
 			id: 'action',
-			header: 'What happens',
+			header: 'What Happens',
 			cell: volAction,
 			title: (v) => (v.reason ? sentence(v.reason) : undefined)
 		},
-		{ id: 'copy', header: 'Copy data', cell: volCopy, width: '110px', stack: 'actions' }
+		{ id: 'copy', header: 'Copy Data', cell: volCopy, width: '110px', stack: 'actions' }
 	];
 </script>
 
@@ -414,7 +414,7 @@
 	{@const choice = volumeChoice(v, excluded)}
 	{#if choice === 'anonymous'}
 		<Checkbox
-			label="Copy the data of anonymous volume {shortId(v.source)}"
+			label="Copy the Data of Anonymous Volume {shortId(v.source)}"
 			hideLabel
 			checked={anonymous.includes(v.source)}
 			onchange={(e) =>
@@ -426,7 +426,7 @@
 		/>
 	{:else if choice === 'named'}
 		<Checkbox
-			label="Copy the data of volume {v.key ?? v.source}"
+			label="Copy the Data of Volume {v.key ?? v.source}"
 			hideLabel
 			checked={!excluded.includes(v.source)}
 			onchange={(e) =>
@@ -441,7 +441,7 @@
 {/snippet}
 {#snippet volName(v: VolumePlan)}
 	{#if v.anonymous}
-		<span class="strong">Anonymous volume</span>
+		<span class="strong">Anonymous Volume</span>
 		<span class="muted mono" title={v.source}>{shortId(v.source)}</span>
 	{:else}
 		<span class="strong" title={v.source}>{v.key ?? v.source}</span>
@@ -465,7 +465,7 @@
 			{/if}
 		{:else}
 			<RadioGroup
-				label="Destination environment"
+				label="Destination Environment"
 				bind:value={target}
 				options={targets.map((e: Environment) => ({
 					value: e.id,
@@ -499,14 +499,14 @@
 
 			{#if preview.blockers.length}
 				<section aria-labelledby="blockers-title">
-					<h3 id="blockers-title" class="subsection-title">To fix before moving</h3>
+					<h3 id="blockers-title" class="subsection-title">To Fix Before Moving</h3>
 					<MigrationFindings list={preview.blockers} tone="danger" />
 				</section>
 			{/if}
 
 			<dl class="facts">
 				<div>
-					<dt>Data to copy</dt>
+					<dt>Data to Copy</dt>
 					<dd class="num">
 						{formatBytes(preview.data.totalBytes)}{preview.data.truncated
 							? ' or more'
@@ -523,7 +523,7 @@
 									preview.data.destinationVolumesFree
 								)
 							)}
-							{#if space === 'short'}<Badge tone="danger" dot>Not enough</Badge
+							{#if space === 'short'}<Badge tone="danger" dot>Not Enough</Badge
 								>{:else}<Badge tone="ok" dot>Enough</Badge>{/if}
 						{/if}
 					</dd>
@@ -563,7 +563,7 @@
 
 			{#if preview.access.changes.length}
 				<section aria-labelledby="access-title">
-					<h3 id="access-title" class="subsection-title">Access changes</h3>
+					<h3 id="access-title" class="subsection-title">Access Changes</h3>
 					<ul class="plain" role="list">
 						{#each preview.access.changes as c (c.userId)}
 							<li><span class="strong">{c.username}</span> {accessChangeText(c)}</li>
@@ -575,7 +575,7 @@
 			<Disclosure summary="Images of {count(preview.services.length, 'service')}">
 				<div class="table">
 					<Table
-						label="Images on the destination"
+						label="Images on the Destination"
 						rows={preview.services}
 						columns={serviceColumns}
 						rowKey={(r) => r.name}
@@ -588,10 +588,10 @@
 				</p>
 			</Disclosure>
 
-			<Disclosure summary="More details">
+			<Disclosure summary="More Details">
 				<dl class="details">
 					<div>
-						<dt>Data to copy</dt>
+						<dt>Data to Copy</dt>
 						<dd>
 							Project files {formatBytes(preview.data.projectBytes)}, volumes {formatBytes(
 								preview.data.volumeBytes
@@ -599,18 +599,18 @@
 						</dd>
 					</div>
 					<div>
-						<dt>How the downtime was estimated</dt>
+						<dt>How the Downtime Was Estimated</dt>
 						<dd>{sentence(preview.downtime.basis)}</dd>
 					</div>
 					<div>
-						<dt>New folder on {envName(target)}</dt>
+						<dt>New Folder on {envName(target)}</dt>
 						<dd class="mono">
 							{preview.targetDirectory ?? preview.projectName ?? projectName}
 						</dd>
 					</div>
 					{#if preview.transport.bandwidthLimitBytesPerSecond > 0}
 						<div>
-							<dt>Bandwidth limit</dt>
+							<dt>Bandwidth Limit</dt>
 							<dd class="num">
 								{formatBytes(preview.transport.bandwidthLimitBytesPerSecond)}/s
 							</dd>
@@ -634,7 +634,7 @@
 					</div>
 					{#if preview.excluded.length}
 						<div>
-							<dt>Not migrated</dt>
+							<dt>Not Migrated</dt>
 							<dd>
 								<ul class="plain" role="list">
 									{#each preview.excluded as x (x.name)}<li>
@@ -646,7 +646,7 @@
 					{/if}
 					{#if preview.leftovers.length}
 						<div>
-							<dt>Earlier attempts</dt>
+							<dt>Earlier Attempts</dt>
 							<dd>
 								Partial data of {count(
 									preview.leftovers.length,
@@ -705,13 +705,13 @@
 					it back.
 					{#snippet actions()}
 						<Button size="sm" icon={Play} onclick={() => (restarting = true)}
-							>Start again on {envName(source)}</Button
+							>Start Again on {envName(source)}</Button
 						>
 						<Button
 							size="sm"
 							variant="danger-soft"
 							icon={Trash2}
-							onclick={() => (removing = true)}>Remove from {envName(source)}</Button
+							onclick={() => (removing = true)}>Remove From {envName(source)}</Button
 						>
 					{/snippet}
 				</Notice>
@@ -731,7 +731,7 @@
 						Nothing was deleted: {title} stays on {envName(source)}. Fix the cause
 						above, then try again.
 					</p>
-					<Button onclick={startOver}>Start over</Button>
+					<Button onclick={startOver}>Start Over</Button>
 				</div>
 			{/if}
 		</div>
@@ -758,7 +758,7 @@
 		compact
 	>
 		{#snippet actions()}
-			<Button variant="primary" href={routes.addEnvironment()}>Add environment</Button>
+			<Button variant="primary" href={routes.addEnvironment()}>Add Environment</Button>
 			<Button href={routes.stack(stack.id)}>Back to {title}</Button>
 		{/snippet}
 	</EmptyState>
@@ -772,7 +772,7 @@
 		{canAdvance}
 		canGoBack={!jobId}
 		{nextLabel}
-		finishLabel="Open the stack"
+		finishLabel="Open the Stack"
 	/>
 {/if}
 
@@ -784,7 +784,7 @@
 		`${title} keeps running on ${destName} too: both copies run and their data drifts apart.`,
 		'To move the stack back, migrate it back instead.'
 	]}
-	confirmLabel="Start again on {envName(source)}"
+	confirmLabel="Start Again on {envName(source)}"
 	onconfirm={startSource}
 />
 
@@ -798,7 +798,7 @@
 	]}
 	affected={removed}
 	confirmText={projectName}
-	confirmLabel="Remove from {envName(source)}"
+	confirmLabel="Remove From {envName(source)}"
 	onconfirm={removeSource}
 />
 

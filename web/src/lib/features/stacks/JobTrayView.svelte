@@ -57,7 +57,7 @@
 		} else {
 			toast.error(t.failure, {
 				body: stackJobGuidance(job.error),
-				action: { label: 'Open job', onclick: () => void goto(routes.job(job.id)) }
+				action: { label: 'Open Job', onclick: () => void goto(routes.job(job.id)) }
 			});
 		}
 		// The stack, its services, revisions and image status changed.
@@ -69,7 +69,7 @@
 </script>
 
 {#if tray.jobs.length}
-	<div class="tray" aria-label="Jobs started here" role="region">
+	<div class="tray" aria-label="Jobs Started Here" role="region">
 		{#each tray.jobs as t (t.id)}
 			{@const job = listed.get(t.id)}
 			<div class="entry">

@@ -169,13 +169,19 @@ export function validHost(s: string): boolean {
 	return HOST_RE.test(s.trim());
 }
 
+/** A Title Case label inside a sentence: "Bot Token" → "bot token", acronyms kept ("API token"). */
+function inSentence(label: string): string {
+	return label
+		.split(' ')
+		.map((w) => (/^[A-Z][a-z]/.test(w) ? w[0].toLowerCase() + w.slice(1) : w))
+		.join(' ');
+}
+
 function required(spec: ServiceField[], v: Values): Record<string, string> {
 	const out: Record<string, string> = {};
 	for (const f of spec) {
 		if (f.required && !(v[f.key] ?? '').trim())
-			out[f.key] =
-				f.missing ??
-				`Enter the ${/^[A-Z][a-z]/.test(f.label) ? f.label[0].toLowerCase() + f.label.slice(1) : f.label}.`;
+			out[f.key] = f.missing ?? `Enter the ${inSentence(f.label)}.`;
 	}
 	return out;
 }
@@ -192,7 +198,7 @@ const CONNECTION: ServiceField = {
 	initial: 'https',
 	options: [
 		{ value: 'https', label: 'HTTPS' },
-		{ value: 'http', label: 'HTTP (unencrypted)' }
+		{ value: 'http', label: 'HTTP (Unencrypted)' }
 	]
 };
 
@@ -339,7 +345,7 @@ const telegram: ServiceSpec = {
 	fields: [
 		{
 			key: 'token',
-			label: 'Bot token',
+			label: 'Bot Token',
 			kind: 'secret',
 			required: true,
 			mono: true,
@@ -400,7 +406,7 @@ const email: ServiceSpec = {
 	fields: [
 		{
 			key: 'host',
-			label: 'SMTP server',
+			label: 'SMTP Server',
 			kind: 'text',
 			required: true,
 			mono: true,
@@ -447,7 +453,7 @@ const email: ServiceSpec = {
 		},
 		{
 			key: 'fromName',
-			label: 'From name',
+			label: 'From Name',
 			kind: 'text',
 			initial: EMAIL_FROM_NAME,
 			placeholder: EMAIL_FROM_NAME,
@@ -563,7 +569,7 @@ const ntfy: ServiceSpec = {
 		},
 		{
 			key: 'password',
-			label: 'Password or access token',
+			label: 'Password or Access Token',
 			kind: 'secret',
 			description: 'Optional.'
 		},
@@ -617,7 +623,7 @@ const gotify: ServiceSpec = {
 			description:
 				'Host with :port and path if Gotify runs under one (gotify.example.com/gotify).'
 		},
-		{ key: 'token', label: 'Application token', kind: 'secret', required: true, mono: true },
+		{ key: 'token', label: 'Application Token', kind: 'secret', required: true, mono: true },
 		CONNECTION
 	],
 	build(v) {
@@ -656,8 +662,8 @@ const pushover: ServiceSpec = {
 	label: 'Pushover',
 	hint: 'Your user key is on the Pushover dashboard; create an application there for the API token.',
 	fields: [
-		{ key: 'userKey', label: 'User key', kind: 'secret', required: true, mono: true },
-		{ key: 'token', label: 'API token', kind: 'secret', required: true, mono: true },
+		{ key: 'userKey', label: 'User Key', kind: 'secret', required: true, mono: true },
+		{ key: 'token', label: 'API Token', kind: 'secret', required: true, mono: true },
 		{
 			key: 'devices',
 			label: 'Devices',
@@ -711,7 +717,7 @@ const matrix: ServiceSpec = {
 			kind: 'text',
 			description: 'Optional with an access token.'
 		},
-		{ key: 'password', label: 'Password or access token', kind: 'secret', required: true },
+		{ key: 'password', label: 'Password or Access Token', kind: 'secret', required: true },
 		{
 			key: 'rooms',
 			label: 'Rooms',
@@ -779,12 +785,12 @@ const webhook: ServiceSpec = {
 		},
 		{
 			key: 'format',
-			label: 'Message format',
+			label: 'Message Format',
 			kind: 'select',
 			initial: 'json',
 			options: [
-				{ value: 'json', label: 'JSON (title and message)' },
-				{ value: 'plain', label: 'Plain text' }
+				{ value: 'json', label: 'JSON (Title and Message)' },
+				{ value: 'plain', label: 'Plain Text' }
 			]
 		}
 	],

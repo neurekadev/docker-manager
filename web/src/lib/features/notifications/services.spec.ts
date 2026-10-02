@@ -320,14 +320,14 @@ describe('notification channels in words (#142)', () => {
 			])
 		).toBe(
 			[
-				'Environment offline: Offline, Back online',
-				'Image updates: Applied',
-				'Other jobs: Failure, Resolved'
+				'Environment Offline: Offline, Back Online',
+				'Image Updates: Applied',
+				'Other Jobs: Failure, Resolved'
 			].join('\n')
 		);
 	});
 
-	it('defines the kinds and outcomes of "What to send" in the manager’s order', () => {
+	it('defines the kinds and outcomes of "What to Send" in the manager’s order', () => {
 		expect(EVENT_KINDS.map((k) => k.kind)).toEqual([
 			'disk_health',
 			'raid',
@@ -344,7 +344,7 @@ describe('notification channels in words (#142)', () => {
 		expect(EVENT_GROUPS.map((g) => g.label)).toEqual(['Hosts', 'Jobs']);
 		const labels = (kind: string) => eventKind(kind)?.outcomes.map((o) => o.label);
 		expect(labels('temperature')).toEqual(['Warning', 'Critical', 'Resolved']);
-		expect(labels('environment_offline')).toEqual(['Offline', 'Back online']);
+		expect(labels('environment_offline')).toEqual(['Offline', 'Back Online']);
 		expect(labels('backup')).toEqual(['Failure', 'Warning', 'Success']);
 		expect(labels('restore')).toEqual(['Failure', 'Success']);
 		expect(labels('prune')).toEqual(['Failure', 'Success']);
@@ -352,20 +352,20 @@ describe('notification channels in words (#142)', () => {
 			'Backups',
 			'Restores',
 			'Prune',
-			'Image updates',
-			'Other jobs'
+			'Image Updates',
+			'Other Jobs'
 		]);
 		// The rows whose label does not say all they cover explain it.
 		expect(eventKind('job_failed')?.hint).toMatch(/an API token started/);
 		expect(labels('updates')).toEqual(['Available', 'Failure', 'Applied']);
 		expect(labels('job_failed')).toEqual(['Failure', 'Warning', 'Resolved']);
 		expect(EVENT_KINDS.filter((k) => k.group === 'hosts').map((k) => k.label)).toEqual([
-			'Disk health',
+			'Disk Health',
 			'RAID',
 			'Temperature',
-			'Disk space',
+			'Disk Space',
 			'Memory',
-			'Environment offline'
+			'Environment Offline'
 		]);
 	});
 
@@ -395,14 +395,14 @@ describe('notification channels in words (#142)', () => {
 		expect(allEvents()).toHaveLength(EVENT_KINDS.length);
 	});
 
-	it('shows Off, Not tested, Working and Failing with the reason', () => {
+	it('shows Off, Not Tested, Working and Failing with the reason', () => {
 		expect(channelStatus({ enabled: false, lastResult: 'ok' })).toEqual({
 			status: 'stopped',
 			label: 'Off'
 		});
 		expect(channelStatus({ enabled: true })).toEqual({
 			status: 'unknown',
-			label: 'Not tested'
+			label: 'Not Tested'
 		});
 		expect(channelStatus({ enabled: true, lastResult: 'ok' }).label).toBe('Working');
 		expect(channelStatus({ enabled: true, lastResult: 'auth' })).toEqual({

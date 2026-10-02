@@ -1,6 +1,6 @@
 // Search and filters of the schedules list (#13; ListCard, like the
 // resource lists): kind, state and, while every environment is shown,
-// the environment ("Manager or all environments" for policies without one).
+// the environment ("Manager or All Environments" for policies without one).
 // Pure; tested in model.spec.ts.
 import type { Schedule } from '$lib/api/client';
 import type { ListFilter } from '$lib/features/resources/filters';
@@ -21,7 +21,7 @@ export function scheduleFilters(
 		{
 			id: 'kind',
 			label: 'Kind',
-			all: 'All kinds',
+			all: 'All Kinds',
 			dynamic: true,
 			options: [...new Map(rows.map((s) => [s.kind, s.kindLabel])).entries()]
 				.map(([value, label]) => ({ value, label }))
@@ -31,7 +31,7 @@ export function scheduleFilters(
 		{
 			id: 'state',
 			label: 'State',
-			all: 'Any state',
+			all: 'Any State',
 			options: [
 				{ value: 'enabled', label: 'Enabled' },
 				{ value: 'disabled', label: 'Disabled' },
@@ -44,10 +44,10 @@ export function scheduleFilters(
 		filters.push({
 			id: 'environment',
 			label: 'Environment',
-			all: 'All environments',
+			all: 'All Environments',
 			dynamic: true,
 			options: [
-				{ value: '-', label: 'Manager or all environments' },
+				{ value: '-', label: 'Manager or All Environments' },
 				...ctx.envs
 					.map((e) => ({ value: e.id, label: e.name }))
 					.sort((a, b) => a.label.localeCompare(b.label))

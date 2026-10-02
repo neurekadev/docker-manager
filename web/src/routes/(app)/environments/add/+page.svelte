@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Add environment (#3) and re-attach an archived one (#34) in three
 	// steps: 1 name it (token lifetime and the clone option under "More
-	// options"), 2 run the generated command (it carries a one-use
+	// Options"), 2 run the generated command (it carries a one-use
 	// enrollment token from POST /agent-enrollments, intent new or
 	// reattach:<id>) with the waiting status under it, 3 connected. The
 	// token lives only in this page's memory; while it is shown, the PWA
@@ -59,7 +59,7 @@
 		...environmentQuery(reattachId),
 		enabled: !!reattachId
 	}));
-	const title = $derived(reattachId ? 'Re-attach environment' : 'Add environment');
+	const title = $derived(reattachId ? 'Re-Attach Environment' : 'Add Environment');
 
 	usePage(() => ({
 		title,
@@ -235,7 +235,7 @@
 									{:else}
 										<div class="field">
 											<TextField
-												label="Environment name"
+												label="Environment Name"
 												bind:value={name}
 												description="Optional. Without one, the host's name is used. You can rename it later."
 												maxlength={64}
@@ -244,10 +244,10 @@
 											/>
 										</div>
 									{/if}
-									<Disclosure summary="More options">
+									<Disclosure summary="More Options">
 										<div class="field">
 											<Select
-												label="Command expires after"
+												label="Command Expires After"
 												options={TOKEN_LIFETIMES}
 												bind:value={lifetime}
 												description="The command works once. An unused one stops working when it expires."
@@ -275,7 +275,7 @@
 											variant="primary"
 											type="submit"
 											icon={Plus}
-											loading={creating}>Create install command</Button
+											loading={creating}>Create Install Command</Button
 										>
 										<Button variant="ghost" href={routes.environments()}
 											>Cancel</Button
@@ -290,7 +290,7 @@
 				<li>
 					<Card>
 						<section class="step" aria-labelledby="step-2">
-							{@render stepHead(2, 'Run this command', connected)}
+							{@render stepHead(2, 'Run This Command', connected)}
 							{#if !created}
 								<p class="muted">The command appears here once you create it.</p>
 							{:else}
@@ -298,7 +298,7 @@
 									<Tabs
 										items={commandTabs}
 										bind:value={variant}
-										label="Install commands"
+										label="Install Commands"
 									>
 										{#snippet panel(id)}
 											{@const c = commands.find((x) => x.variant === id)}
@@ -359,13 +359,13 @@
 											>{created.managerUrl}</span
 										>; the host needs no open ports.
 									</p>
-									<Disclosure summary="Connect by hand with the token">
+									<Disclosure summary="Connect by Hand with the Token">
 										<SecretReveal
 											secret={created.token}
 											label="enrollment token"
 											filename="docker-manager-enrollment-token.txt"
 											description="For setting up the agent yourself. The commands above already contain it. It works once."
-											confirmLabel="Hide token and commands"
+											confirmLabel="Hide Token and Commands"
 											onconfirm={() => (showSecrets = false)}
 										/>
 									</Disclosure>
@@ -373,7 +373,7 @@
 								{#if pending}
 									<div class="actions">
 										<Button variant="danger-soft" onclick={revoke}
-											>Revoke command</Button
+											>Revoke Command</Button
 										>
 									</div>
 								{/if}
@@ -404,7 +404,7 @@
 										>
 									{/if}
 									<Button variant="ghost" href={routes.environments()}
-										>Back to environments</Button
+										>Back to Environments</Button
 									>
 								</div>
 							{:else}

@@ -88,14 +88,14 @@
 			filename="docker-manager-recovery-key-new.txt"
 			fingerprint={started.recoveryKey.fingerprint}
 			description={RECOVERY_KEY_WARNING}
-			confirmLabel="I saved it, continue"
+			confirmLabel="I Saved It, Continue"
 			onconfirm={() => (stored = true)}
 		/>
 	{:else}
 		<RecoveryKeyChallenge
 			{repositoryId}
 			fingerprint={started.keyState.pendingFingerprint}
-			submitLabel="Make the new key current"
+			submitLabel="Make the New Key Current"
 			onconfirmed={done}
 		/>
 	{/if}
@@ -103,7 +103,7 @@
 	{#snippet footer()}
 		{#if !started}
 			<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-			<Button variant="primary" loading={busy} onclick={generate}>Generate new key</Button>
+			<Button variant="primary" loading={busy} onclick={generate}>Generate New Key</Button>
 		{/if}
 	{/snippet}
 </Dialog>

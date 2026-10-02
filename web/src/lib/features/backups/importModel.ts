@@ -40,8 +40,8 @@ export function importSource(
 const LOCATED: Record<ImportMember['located'], { tone: BadgeTone; label: string }> = {
 	found: { tone: 'ok', label: 'Found' },
 	missing: { tone: 'danger', label: 'Missing' },
-	unverified: { tone: 'warn', label: 'Not reachable yet' },
-	not_backed_up: { tone: 'neutral', label: 'Not backed up' }
+	unverified: { tone: 'warn', label: 'Not Reachable Yet' },
+	not_backed_up: { tone: 'neutral', label: 'Not Backed Up' }
 };
 
 export function located(m: ImportMember['located']) {
@@ -50,13 +50,13 @@ export function located(m: ImportMember['located']) {
 
 /** Whether a location can be read now, and with which key. */
 export function locationState(l: ImportLocation): { tone: BadgeTone; label: string } {
-	if (!l.found) return { tone: 'neutral', label: 'Not found' };
-	if (!l.reachable) return { tone: 'warn', label: 'Not reachable from here' };
-	if (l.key === 'previous') return { tone: 'warn', label: 'Opens with the previous key' };
+	if (!l.found) return { tone: 'neutral', label: 'Not Found' };
+	if (!l.reachable) return { tone: 'warn', label: 'Not Reachable From Here' };
+	if (l.key === 'previous') return { tone: 'warn', label: 'Opens with the Previous Key' };
 	if (l.key === 'current') return { tone: 'ok', label: 'Opens with the Recovery Key' };
 	return {
 		tone: 'danger',
-		label: l.errorClass ? l.errorClass.replaceAll('_', ' ') : 'Cannot open'
+		label: l.errorClass ? l.errorClass.replaceAll('_', ' ') : 'Cannot Open'
 	};
 }
 

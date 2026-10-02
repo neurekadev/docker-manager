@@ -59,10 +59,10 @@
 			sortValue: (u) => groupName(u.groupId),
 			width: '170px'
 		},
-		{ id: 'factors', header: 'Signs in with', cell: factorsCell, width: '200px' },
+		{ id: 'factors', header: 'Signs In With', cell: factorsCell, width: '200px' },
 		{
 			id: 'last',
-			header: 'Last sign-in',
+			header: 'Last Sign-In',
 			cell: lastCell,
 			sortValue: (u) => u.lastSignInAt ?? '',
 			width: '140px'
@@ -85,7 +85,7 @@
 	<Badge tone={s.tone} dot>{s.label}</Badge>
 {/snippet}
 {#snippet groupCell(u: Account)}{u.owner
-		? 'Owner (every permission)'
+		? 'Owner (Every Permission)'
 		: groupName(u.groupId)}{/snippet}
 {#snippet factorsCell(u: Account)}<span class="muted">{factorsText(u.factors)}</span>{/snippet}
 {#snippet lastCell(u: Account)}
@@ -105,7 +105,7 @@
 		<AccessHeader>
 			{#snippet actions()}
 				<Button variant="primary" icon={UserPlus} onclick={() => (inviteOpen = true)}
-					>Invite user</Button
+					>Invite User</Button
 				>
 			{/snippet}
 		</AccessHeader>
@@ -133,7 +133,7 @@
 									<Button
 										variant="primary"
 										icon={UserPlus}
-										onclick={() => (inviteOpen = true)}>Invite user</Button
+										onclick={() => (inviteOpen = true)}>Invite User</Button
 									>
 								{/snippet}
 							</EmptyState>

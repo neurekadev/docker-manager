@@ -304,15 +304,15 @@ export const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 
 /** Restart policy options of the create and edit forms, in words. */
 export const RESTART_OPTIONS = [
-	{ value: 'no', label: 'Never restart' },
-	{ value: 'on-failure', label: 'On failure' },
-	{ value: 'unless-stopped', label: 'Unless stopped' },
+	{ value: 'no', label: 'Never Restart' },
+	{ value: 'on-failure', label: 'On Failure' },
+	{ value: 'unless-stopped', label: 'Unless Stopped' },
 	{ value: 'always', label: 'Always' }
 ] as const;
 
 /**
- * A restart policy in words: "Never restart", "Unless stopped", "Always",
- * "On failure (up to 5 retries)", "On failure" when unlimited or not
+ * A restart policy in words: "Never Restart", "Unless Stopped", "Always",
+ * "On Failure (Up to 5 Retries)", "On Failure" when unlimited or not
  * reported. `maxRetries` is the container's `restartMaxRetries`; a name
  * carrying the retries ("on-failure:5") is understood too.
  */
@@ -322,20 +322,20 @@ export function restartPolicyLabel(policy: string | undefined, maxRetries?: numb
 	switch (name) {
 		case '':
 		case 'no':
-			return 'Never restart';
+			return 'Never Restart';
 		case 'always':
 			return 'Always';
 		case 'unless-stopped':
-			return 'Unless stopped';
+			return 'Unless Stopped';
 		case 'on-failure':
 			return retries && retries > 0
-				? `On failure (up to ${retries} ${retries === 1 ? 'retry' : 'retries'})`
-				: 'On failure';
+				? `On Failure (Up to ${retries} ${retries === 1 ? 'Retry' : 'Retries'})`
+				: 'On Failure';
 	}
 	return name;
 }
 
-/** A container's health in words ("No health check" without one). */
+/** A container's health in words ("No Health Check" without one). */
 export function healthLabel(health: string | undefined): string {
 	switch (health) {
 		case 'healthy':
@@ -345,7 +345,7 @@ export function healthLabel(health: string | undefined): string {
 		case 'starting':
 			return 'Starting';
 	}
-	return 'No health check';
+	return 'No Health Check';
 }
 
 /**

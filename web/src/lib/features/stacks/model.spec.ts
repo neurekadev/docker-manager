@@ -296,8 +296,8 @@ describe('revisions', () => {
 	it('labels revisions and their sources', () => {
 		expect(shortHash('sha256:0c712efabc')).toBe('0c712ef');
 		expect(revisionLabel({ seq: 3, hash: '0c712efabc' })).toBe('Revision 3 (0c712ef)');
-		expect(revisionSource('file_manager')).toBe('File manager');
-		expect(revisionSource('external')).toBe('Edited on disk');
+		expect(revisionSource('file_manager')).toBe('File Manager');
+		expect(revisionSource('external')).toBe('Edited on Disk');
 	});
 
 	// Newest first: 5 and 4 have the same files, as have 2 and 1.
@@ -439,8 +439,8 @@ describe('migration, updates and jobs', () => {
 		expect(downtimeText(40)).toBe('About 40 s');
 		expect(downtimeText(185)).toBe('About 3 min');
 		expect(downtimeText(3 * 3600)).toBe('About 3 h');
-		expect(findingTitle('port_conflict')).toBe('Port already in use');
-		expect(findingTitle('network_not_creatable')).toBe('Network must be created by hand');
+		expect(findingTitle('port_conflict')).toBe('Port Already in Use');
+		expect(findingTitle('network_not_creatable')).toBe('Network Must Be Created by Hand');
 		expect(findingTitle('some_new_code')).toBe('Some new code');
 	});
 
@@ -448,7 +448,7 @@ describe('migration, updates and jobs', () => {
 		expect(shortDigest('redis@sha256:91b0a4c2d3e4f5a6b7')).toBe('91b0a4c2d3e4');
 		expect(shortDigest('sha256:858f009f9709ce57aa')).toBe('858f009f9709');
 		expect(shortDigest(undefined)).toBe('—');
-		expect(candidateStatus('update_available')).toBe('Update available');
+		expect(candidateStatus('update_available')).toBe('Update Available');
 		expect(
 			updateAvailable([{ update: 'up_to_date' }, { update: 'update_available' }] as never)
 		).toBe(true);
@@ -458,8 +458,8 @@ describe('migration, updates and jobs', () => {
 	it('names job kinds and audit actions', () => {
 		expect(jobKindLabel('stack.deploy')).toBe('Deploy');
 		expect(jobKindLabel('volume.migrate')).toBe('Volume migrate');
-		expect(auditActionLabel('stack.definition.read')).toBe('Opened the definition');
-		expect(auditActionLabel('stack.validate')).toBe('Validated the definition');
+		expect(auditActionLabel('stack.definition.read')).toBe('Opened the Definition');
+		expect(auditActionLabel('stack.validate')).toBe('Validated the Definition');
 		expect(auditActionLabel('stack.restart')).toBe('Restart');
 		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
 	});

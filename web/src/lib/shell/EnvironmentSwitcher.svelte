@@ -49,7 +49,7 @@
 			? environments.filter((e) => e.name.toLowerCase().includes(filter.toLowerCase()))
 			: environments
 	);
-	const title = $derived(current ? current.name : 'All environments');
+	const title = $derived(current ? current.name : 'All Environments');
 	const secondary = $derived(
 		current
 			? current.online
@@ -87,7 +87,7 @@
 
 <Popover
 	bind:open
-	label="Choose an environment"
+	label="Choose an Environment"
 	align="start"
 	side={compact ? 'right' : 'bottom'}
 	width="300px"
@@ -128,7 +128,7 @@
 		{#if environments.length > 5}
 			<label class="filter">
 				<Search size={16} strokeWidth={1.75} aria-hidden="true" />
-				<span class="sr-only">Filter environments</span>
+				<span class="sr-only">Filter Environments</span>
 				<input bind:value={filter} placeholder="Filter environments" autocomplete="off" />
 			</label>
 		{/if}
@@ -149,7 +149,7 @@
 			>
 				{@render dot(online < environments.length ? 'warn' : 'ok')}
 				<span class="option-text">
-					<span class="name">All environments</span>
+					<span class="name">All Environments</span>
 					<span class="secondary">{online} of {environments.length} online</span>
 				</span>
 				{#if selected === null}<Check
@@ -188,7 +188,7 @@
 		{#if canAdd}
 			<a class="add" href={routes.addEnvironment()} onclick={() => (open = false)}>
 				<Plus size={16} strokeWidth={1.75} aria-hidden="true" />
-				Add environment
+				Add Environment
 			</a>
 		{/if}
 	</div>

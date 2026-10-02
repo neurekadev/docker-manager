@@ -50,7 +50,7 @@
 	{:else}
 		{#if access.owner}
 			<Card
-				title="Support bundle"
+				title="Support Bundle"
 				subtitle="A zip to attach to a bug report or read yourself."
 			>
 				<ul class="plain" role="list">
@@ -62,20 +62,20 @@
 					</li>
 					<li>The manager's recent log lines</li>
 				</ul>
-				<Notice tone="info" title="No secrets inside" live="none">
+				<Notice tone="info" title="No Secrets Inside" live="none">
 					Passwords, tokens, keys, credentials, the Recovery Key, authenticator app (TOTP)
 					secrets, Compose and .env contents and job inputs are never included.
 					Downloading it is recorded in the audit log.
 				</Notice>
 				<div class="act">
 					<Button variant="primary" icon={Download} href="/api/v1/support-bundle"
-						>Download support bundle</Button
+						>Download Support Bundle</Button
 					>
 				</div>
 			</Card>
 		{/if}
 		<Card
-			title="Internal metrics"
+			title="Internal Metrics"
 			subtitle="Docker Manager's own metrics in Prometheus format: job queue, agent sessions, streams, database sizes."
 		>
 			<p class="line">
@@ -90,14 +90,14 @@
 						>DOCKER_MANAGER_METRICS_ENABLED=true</span
 					> (off by default).
 				</li>
-				<li>Create an API token that may only “Scrape internal metrics”.</li>
+				<li>Create an API token that may only “Scrape Internal Metrics”.</li>
 				<li>
 					Scrape the URL with <span class="mono">Authorization: Bearer &lt;token&gt;</span
 					>.
 				</li>
 			</ol>
 			<div class="act">
-				<Button href={routes.apiTokenNew()}>Create a token</Button>
+				<Button href={routes.apiTokenNew()}>Create a Token</Button>
 			</div>
 		</Card>
 	{/if}

@@ -26,7 +26,7 @@
 
 {#if items.length}
 	<section class="attention" aria-labelledby="attention-title">
-		<h2 id="attention-title" class="subsection-title">Needs attention</h2>
+		<h2 id="attention-title" class="subsection-title">Needs Attention</h2>
 		<ul role="list">
 			{#each items as item (item.id)}
 				<li>

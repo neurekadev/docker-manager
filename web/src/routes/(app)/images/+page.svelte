@@ -97,7 +97,7 @@
 			out.push({ label: 'Tag…', onSelect: () => host?.request(im, 'tag') });
 		if (im.repoTags[0] && scope.can('container.create', im.environmentId))
 			out.push({
-				label: 'Create container',
+				label: 'Create Container',
 				href: routes.newContainer(im.environmentId, im.repoTags[0])
 			});
 		if (can(im.actions, 'image.remove'))
@@ -120,7 +120,7 @@
 		},
 		{
 			id: 'use',
-			header: 'Used by',
+			header: 'Used By',
 			cell: useCell,
 			sortValue: (im) => im.usedBy?.length ?? 0,
 			width: '150px',
@@ -186,7 +186,7 @@
 {#snippet useCell(im: Image)}
 	{#if im.usedBy?.length}
 		<Badge tone="ok" dot>{im.usedBy.length} container{im.usedBy.length === 1 ? '' : 's'}</Badge>
-	{:else if im.inUse}<Badge tone="ok" dot>In use</Badge>
+	{:else if im.inUse}<Badge tone="ok" dot>In Use</Badge>
 	{:else}<Badge>Unused</Badge>{/if}
 {/snippet}
 {#snippet envCell(im: Image)}{scope.name(im.environmentId)}{/snippet}
@@ -238,7 +238,7 @@
 				<PruneButton target="images" {scope} />
 				{#if pullable.length}
 					<Button variant="primary" icon={Download} onclick={() => (pullOpen = true)}
-						>Pull image</Button
+						>Pull Image</Button
 					>
 				{/if}
 			{/snippet}
@@ -246,7 +246,7 @@
 
 		<ActiveJobs
 			jobs={pulls}
-			label="Image pulls"
+			label="Image Pulls"
 			onfinish={(j) => {
 				if (j.state === 'succeeded') void list.refetch();
 			}}
@@ -268,13 +268,13 @@
 			/>
 		{:else}
 			<ListCard
-				title="All images"
+				title="All Images"
 				id="images"
 				summary={list.data
 					? `${listSummary(rows.length, all.length, filtered, 'image', 'images')}, ${formatBytes(totalSize)}`
 					: undefined}
-				label="Filter images"
-				searchLabel="Search images"
+				label="Filter Images"
+				searchLabel="Search Images"
 				placeholder="Search tag, ID or label"
 				filters={defs}
 				store={filters}
@@ -320,7 +320,7 @@
 											<Button
 												variant="primary"
 												icon={Download}
-												onclick={() => (pullOpen = true)}>Pull image</Button
+												onclick={() => (pullOpen = true)}>Pull Image</Button
 											>
 										{/if}
 									{/snippet}
@@ -342,7 +342,7 @@
 								safe to remove.
 							</p>
 							<Table
-								label="Untagged images"
+								label="Untagged Images"
 								rows={groups.untagged}
 								{columns}
 								rowKey={key}

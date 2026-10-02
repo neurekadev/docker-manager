@@ -60,7 +60,7 @@
 	let confirming = $state(false);
 
 	usePage(() => ({
-		title: `${t?.name ?? 'Template'} versions`,
+		title: `${t?.name ?? 'Template'} Versions`,
 		crumbs: [
 			{ label: 'Templates', href: routes.templates() },
 			{ label: t?.name ?? 'Template', href: routes.template(id) },
@@ -78,7 +78,7 @@
 				width: '140px',
 				stack: 'title'
 			},
-			{ id: 'notes', header: 'What changed', cell: notesCell },
+			{ id: 'notes', header: 'What Changed', cell: notesCell },
 			{
 				id: 'size',
 				header: 'Contents',
@@ -133,7 +133,7 @@
 {/snippet}
 {#snippet duplicateAction()}
 	<Button size="sm" icon={Copy} onclick={() => (duplicating = true)}
-		>Duplicate as a new template</Button
+		>Duplicate as a New Template</Button
 	>
 {/snippet}
 {#snippet actionsCell(v: TemplateVersion)}
@@ -141,7 +141,7 @@
 		{#if canRestore}
 			<IconButton
 				icon={RotateCcw}
-				label="Restore the draft to version {v.label}"
+				label="Restore the Draft to Version {v.label}"
 				onclick={() => {
 					restoring = v;
 					confirmRestore = true;
@@ -151,7 +151,7 @@
 		{#if canPublish}
 			<IconButton
 				icon={Trash2}
-				label="Delete version {v.label}"
+				label="Delete Version {v.label}"
 				onclick={() => {
 					removing = v;
 					confirming = true;
@@ -170,7 +170,7 @@
 {:else}
 	<Card
 		padding="none"
-		title="Published versions"
+		title="Published Versions"
 		id="versions"
 		actions={canDuplicate && (versions.data ?? []).length ? duplicateAction : undefined}
 	>
@@ -208,7 +208,7 @@
 			'Changes to the draft since then are lost.',
 			'Published versions stay as they are.'
 		]}
-		confirmLabel="Restore draft"
+		confirmLabel="Restore Draft"
 		onconfirm={restore}
 	/>
 {/if}
@@ -229,7 +229,7 @@
 			'Stacks created from it keep working with their own files.',
 			'Other Docker Managers stop offering it after their next sync.'
 		]}
-		confirmLabel="Delete version"
+		confirmLabel="Delete Version"
 		tone="danger"
 		onconfirm={remove}
 	/>

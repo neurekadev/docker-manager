@@ -87,7 +87,7 @@ describe('ActiveJobs', () => {
 			'state=queued,blocked,dispatched,running,cancelling'
 		);
 		expect(list).toContain('limit=200');
-		expect(screen.getByRole('region', { name: 'Running jobs' })).toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Running Jobs' })).toBeInTheDocument();
 		// The two oldest are compact rows (a link to the job, no stream).
 		expect(screen.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual([
 			'/jobs/0190-2',
@@ -105,7 +105,7 @@ describe('ActiveJobs', () => {
 		expect(
 			fetched.some((u) => u === '/api/v1/jobs/0190-1' || u === '/api/v1/jobs/0190-2')
 		).toBe(false);
-		expect(screen.getByText('Restart container web0190-5')).toBeInTheDocument();
+		expect(screen.getByText('Restart Container web0190-5')).toBeInTheDocument();
 	});
 
 	it('keeps an ended job until it is dismissed', async () => {
@@ -116,19 +116,19 @@ describe('ActiveJobs', () => {
 		const client = mount({ filter: { environmentId: 'e1' }, onfinish });
 
 		const dismiss = await screen.findByRole('button', {
-			name: 'Dismiss Restart container web0190-1'
+			name: 'Dismiss Restart Container web0190-1'
 		});
 		expect(onfinish).toHaveBeenCalledWith(expect.objectContaining({ state: 'succeeded' }));
 		// Gone from the running list: the outcome stays.
 		running = [];
 		await client.invalidateQueries({ queryKey: ['jobs'] });
-		expect(screen.getByText('Restart container web0190-1')).toBeInTheDocument();
+		expect(screen.getByText('Restart Container web0190-1')).toBeInTheDocument();
 
 		await user.click(dismiss);
 		await waitFor(() =>
-			expect(screen.queryByText('Restart container web0190-1')).not.toBeInTheDocument()
+			expect(screen.queryByText('Restart Container web0190-1')).not.toBeInTheDocument()
 		);
-		expect(screen.queryByRole('region', { name: 'Running jobs' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('region', { name: 'Running Jobs' })).not.toBeInTheDocument();
 	});
 
 	it('shows a job started here at once, with its title', async () => {

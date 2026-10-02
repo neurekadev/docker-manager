@@ -128,7 +128,7 @@ against a built manager (below).
 
 Rules: the browser talks only to same-origin `/api/v1` (never an agent or
 Docker socket); tokens and secrets never go to `localStorage`,
-`sessionStorage` or Cache Storage. The sign-in page remembers the **Stay signed in** choice
+`sessionStorage` or Cache Storage. The sign-in page remembers the **Stay Signed In** choice
 in `localStorage` (`docker-manager:stay-signed-in`, `"1"`/`"0"`, a
 preference only; `src/lib/features/auth/stay.ts`), and the last switch
 between passkey and authenticator code under `docker-manager:verify-with`
@@ -166,7 +166,7 @@ policy filters become the `GET /jobs` query (`jobQuery`), the count uses
 the first page's `total` when the server sends it ("50 of 1,234 jobs",
 `jobsSummary`), the search runs over the loaded jobs, and
 `?environment=` from an environment page, `?kind=` and `?policyId=`
-(`routes.jobs(kind, { policyId })`, a policy run's "Open jobs") set their
+(`routes.jobs(kind, { policyId })`, a policy run's "Open Jobs") set their
 filters once; the policy filter shows only while set.
 
 The containers list and a stack's services table share their column
@@ -202,7 +202,7 @@ controls that want an explicit trigger (`IconButton`).
 The permission editor of #17 (the design's "PermissionTree") is
 `$lib/features/access/PermissionEditor.svelte`: a searchable resource tree
 (`ResourceTree`, categories in `tree.ts`) beside the actions of the chosen
-scope (`ActionMatrix`), in three modes: `group` (No rule / Allow / Deny),
+scope (`ActionMatrix`), in three modes: `group` (No Rule / Allow / Deny),
 `user` (Inherit / Allow / Deny with the inherited decision explained) and
 `token` (grants limited to what the caller holds, #31). Scopes carry
 `environmentId` only for the types named per environment (container,
@@ -215,10 +215,10 @@ environment (from the stack list). Rule logic
 `RulesSaveBar` lists every change before the revisioned, step-up save.
 `ActionMatrix` shows one collapsible section per resource type (open at
 first only where the scope has rules, all while filtering), each with
-"Allow all" ("Grant all" for tokens) and "Clear" ("Inherit all" for users)
+"Allow All" ("Grant All" for tokens) and "Clear" ("Inherit All" for users)
 that change the draft at once; the controls sit in one right-aligned
-column and "High risk" is marked once, next to the action. Groups and
-tokens can "Start from" a preset at the chosen scope (`presets.ts`:
+column and "High Risk" is marked once, next to the action. Groups and
+tokens can "Start From" a preset at the chosen scope (`presets.ts`:
 Viewer = every normal-risk `*.read`, Operator = Viewer plus the common
 normal-risk actions and container logs, Admin = everything the scope
 offers), derived from the catalog's key, risk and advanced flags, never
@@ -250,7 +250,7 @@ addresses `/settings/security` and `/settings/tokens[/new]` are
 The audit log (`routes/(app)/settings/audit`) is a `ListCard` over the
 server-filtered, paged `GET /audit`: Who (actor kinds, and each user for
 the owner), Outcome, Category and When in the header, exact action keys,
-a resource, the environment and custom dates under "More filters"; the
+a resource, the environment and custom dates under "More Filters"; the
 search runs over the loaded records. Helpers in
 `$lib/features/settings/audit.ts`: `auditActionLabel` (a label map for
 lifecycle and identity keys, else the catalog label), `targetText`
@@ -274,8 +274,8 @@ section), "Pull & Deploy" (one deploy with `pull: always`; the menu
 button's accessible label says "newer images are available" when
 `updateAvailable`) and "Cleanup Orphans & Deploy", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
-context's `removeOrphans` request) the overview's drift notice ("Remove old
-containers…") opens too. There is no separate Update button; schedules and
+context's `removeOrphans` request) the overview's drift notice ("Remove Old
+Containers…") opens too. There is no separate Update button; schedules and
 automatic updates stay in the update policy.
 
 Start, Restart and Stop are one split button, `LifecycleButton`
@@ -306,7 +306,7 @@ stack and container lists) keep their own entries in the same order
 also starts the rest of a partially running stack). The container list's
 bulk bar stays separate buttons (a selection mixes states).
 
-There is no Take down in the UI (the `stack.down` operation and capability
+There is no Take Down in the UI (the `stack.down` operation and capability
 stay in the API). The header hides its actions while the migration wizard
 is open, and Migrate while the caller sees one environment.
 
@@ -315,7 +315,7 @@ Rename (`stack.rename`) is the pencil right of the stack's name
 revision; off while offline, for Docker Manager's own stack and while a
 rename runs, the reason as its tooltip). It turns the name into a field
 in place (`RenameStackInline` through `PageHeader`'s `titleEditor`; the h1
-stays for screen readers) labeled "Stack name" that edits the Compose
+stays for screen readers) labeled "Stack Name" that edits the Compose
 project name, also when the heading shows a display name. Enter or the
 check button renames at once, without a confirmation; Escape or the cancel
 button keeps the name. The name is checked first (`renameNameError`), then
@@ -333,17 +333,17 @@ badge says so.
 The Revisions tab groups consecutive revisions with the same fingerprint
 (`groupRevisions`), never opens a comparison of two equal ones
 (`defaultComparison`, `comparisonFor`) and, while the files on disk differ
-from the deployed revision, shows that diff at once with "Deploy these
-changes" and "Restore deployed revision". The Activity tab hides update
+from the deployed revision, shows that diff at once with "Deploy These
+Changes" and "Restore Deployed Revision". The Activity tab hides update
 checks by default (`visibleJobs`), folds a job's audit records into one row
 (`auditRows` in `$lib/features/stacks/activity.ts`) and reads the audit
-log 50 records at a time ("Load more").
+log 50 records at a time ("Load More").
 
-An environment's stacks move together through **Migrate environment**
+An environment's stacks move together through **Migrate Environment**
 (`routes.environmentMigrate`, `/environments/<id>/migrate`): the entry of
-the environment page's "More actions" menu (shown with a second
+the environment page's "More Actions" menu (shown with a second
 environment and a stack there the caller may migrate) and the archive
-dialog's "Migrate N stacks first". The wizard is
+dialog's "Migrate N Stacks First". The wizard is
 `$lib/features/environments/EnvironmentMigrationWizard.svelte` (view
 model `environment-migration.ts`, requests `migration-actions.ts`, the
 run's record in `queries.ts`, keyed under its job,
@@ -356,36 +356,36 @@ removals'). Destination: the other active environments (offline ones
 off) and the stacks, all ticked; Docker Manager's own stack (found from
 its protected containers and the check's `skipped`) and stacks without
 `stack.migrate` are off with the reason, and nothing unticked sends no
-stack list. Check (Next runs it; "Check again"): the problems of the
+stack list. Check (Next runs it; "Check Again"): the problems of the
 whole migration, then each stack's under its name, data, free space, the
 longest downtime with its basis, the order (one row per group, its
 stacks in move order with what each waits for), networks created first,
 what is not moved and why, warnings, and each stack's details (volumes,
 images, warnings, access changes). Confirm, then Move: the
 `environment.migrate` job's progress and each stack's outcome from the
-record, one toast (the stack that did not move, with "Open job" on its
-stack migration), each stack's state ("Moved" with "Old copy kept" or
-"Old copy removed", "Did not move", "Not started"), "Migrate the rest"
-(back to Check, for the run's stacks still on the source), "Remove old
-copies from <source>" (type-to-confirm; the moved stacks' copies of this
+record, one toast (the stack that did not move, with "Open Job" on its
+stack migration), each stack's state ("Moved" with "Old Copy Kept" or
+"Old Copy Removed", "Did Not Move", "Not Started"), "Migrate the Rest"
+(back to Check, for the run's stacks still on the source), "Remove Old
+Copies From <source>" (type-to-confirm; the moved stacks' copies of this
 run and of earlier ones, `pendingCopies`; one source removal per stack,
 followed as tracked jobs, `oldCopyRemovalMatch` in `ActiveJobs`, so they
 survive a reload; one `bulkSummary` toast when the ones started together
-ended; the result reads `sourceRemoved` from the record), "Start a new
-migration" (the first step, while the source has stacks to migrate)
+ended; the result reads `sourceRemoved` from the record), "Start a New
+Migration" (the first step, while the source has stacks to migrate)
 and, when every stack moved, a link to archive the source. The wizard
 opens on the latest run's result once it ended (no toast, no
 notification) while it left something to do: old copies to remove or
 its stacks still on the source (`restoredMigration`, decided once when
 the list first answers). Next's tooltip says why it is off
-(`StepWizard` `disabledReason`); "Migrate the rest" and "Start a new
-migration" move the focus to the step's heading. The environment page
+(`StepWizard` `disabledReason`); "Migrate the Rest" and "Start a New
+Migration" move the focus to the step's heading. The environment page
 shows `EnvironmentMigrationNotice.svelte` while old copies wait on it
 ("3 stacks moved to NAS", "Their old copies are still on this server.",
-"Review the migration" to the migrate page; `oldCopiesNotice`; only for
+"Review the Migration" to the migrate page; `oldCopiesNotice`; only for
 callers with a `stack.migrate` grant: the list answers 403 to others and
 lists only the stacks the caller sees). The check's findings
-(everything below the headline and "Check again") are
+(everything below the headline and "Check Again") are
 `EnvironmentMigrationCheck.svelte`, shared with the manager move's Check
 step. Both migration wizards list findings with
 `$lib/features/stacks/MigrationFindings.svelte`. Tests:
@@ -396,7 +396,7 @@ Moving Docker Manager to a new server
 ([manager-move.md](architecture/manager-move.md)) lives in
 `$lib/features/managermove`: pure `model.ts` with `model.spec.ts` (the
 move's states, the wizard's steps, checklist, reminders and progress, the
-status page's steps and notices, Move complete's items, all in words);
+status page's steps and notices, Move Complete's items, all in words);
 requests in `queries.ts` (`managerMoveQuery` resolves the 404 of "no
 move" to `null`; `createMove`, `createSetupFiles`, `startMoveRun`,
 `cancelMove` and `acknowledgeConfirmation` go through `withStepUp`;
@@ -408,17 +408,17 @@ session (`liveKeys.session`, the banner's lock). Nothing on the old or new
 manager polls the move; only the new server's status page polls
 (`WAIT_POLL_MS`, 3 s: no sign-in there, so no stream).
 
-- **Settings, Move to a new server** (`routes.managerMove`,
+- **Settings, Move to a New Server** (`routes.managerMove`,
   `/settings/move`, an owner-only Settings tab; the palette finds Settings
   by "migrate manager" or "new server"): `ManagerMoveWizard.svelte`, a
-  `StepWizard` of three steps. *New server*: "This server's address"
-  (prefilled from `GET /manager/move/defaults`), "New server's address",
-  optional "Name for the new server", then "Create setup files"
+  `StepWizard` of three steps. *New Server*: "This Server's Address"
+  (prefilled from `GET /manager/move/defaults`), "New Server's Address",
+  optional "Name for the New Server", then "Create Setup Files"
   (step-up) shows the returned `compose.yaml` and `.env` once under "Set
-  up the new server" (copy and download buttons through
+  Up the New Server" (copy and download buttons through
   `InstallCommand`'s `filename`; the answer lives only in the component,
   never in a query, URL or storage; its heading takes the focus), the
-  same as one paste under "Or paste this on the new server"
+  same as one paste under "Or Paste This on the New Server"
   (`setupScript`: a `set -e` subshell that creates `docker-manager/`,
   writes both files from quoted here-documents whose delimiter is no line
   of the file (`heredocDelimiter`), makes `.env` mode 600 before the
@@ -426,19 +426,19 @@ manager polls the move; only the new server's status page polls
   server's agent connected" / "New Docker Manager is waiting"; Next waits
   for both (`disabledReason` says why). Files that are no longer on the
   page (a reload) or whose enrollment token expired
-  (`setupFilesReason`, `setupFilesNotice`) are replaced with "Create new
-  setup files" (`ConfirmDialog` with `setupFilesConsequences`, step-up,
+  (`setupFilesReason`, `setupFilesNotice`) are replaced with "Create New
+  Setup Files" (`ConfirmDialog` with `setupFilesConsequences`, step-up,
   `POST /manager/move/setup-files`; `agentEnrolled` answers say the
   agent stays connected, `AGENT_KEPT`). *Check*: the environment migration's
   check from the environment next to Docker Manager to the new server's
   (`EnvironmentMigrationCheck`), or "Only Docker Manager moves" when
-  there is none or it has no stacks, plus "Before you start" (the proxy
-  reminders and the status address). *Move*: "Move everything"
+  there is none or it has no stacks, plus "Before You Start" (the proxy
+  reminders and the status address). *Move*: "Move Everything"
   (step-up), then the progress read from the move alone (`runView`:
   stacks moved of all, the current stack, "Handing over Docker
   Manager"); a stopped run shows its reason and recovery with "Try
-  again"; a ready move whose new manager stopped asking says so
-  (`NOT_ASKING`). "Cancel the move" (`ConfirmDialog`,
+  Again"; a ready move whose new manager stopped asking says so
+  (`NOT_ASKING`). "Cancel the Move" (`ConfirmDialog`,
   `cancelConsequences`) sits in the wizard's footer until the handoff.
   The wizard opens where the move stands (`stepOf`), so a reload or
   coming back resumes; a step that changes by itself (the move went on,
@@ -446,7 +446,7 @@ manager polls the move; only the new server's status page polls
   tracked (`runs.add`, `managerMoveJobMatch`) and a change of the running
   list reads the move at once. After the handoff the moved panel says
   where to point DNS and where to follow the move (`movedPanel`), with
-  "Resume on this server" (`DestructiveConfirm` typing the instance name)
+  "Resume on This Server" (`DestructiveConfirm` typing the instance name)
   until the new manager confirms. Resuming, or cancelling once agents
   heard the new address (`restartsWhenEnded`), restarts Docker Manager:
   the wizard shows "Restarting Docker Manager…", waits for it
@@ -459,7 +459,7 @@ manager polls the move; only the new server's status page polls
   /api/v1/move/status` alone (polled every 3 s, no session or cookie, so
   it works over plain http): the steps with the current one highlighted
   (`waitSteps`) and one notice (`waitNotice`: done with where to point
-  DNS, a problem with the server's recovery, or "press Move everything
+  DNS, a problem with the server's recovery, or "press Move Everything
   on the old server"). A manager in waiting mode answers every other
   route with 503 `manager_move_waiting`, so the root layout wraps every
   page in `MoveGate.svelte`: it reads the status once before any sign-in
@@ -469,14 +469,14 @@ manager polls the move; only the new server's status page polls
   start as always. The root layout starts the live stream only from
   `MoveGate`'s `onready` (known, not waiting), so a waiting manager gets
   no stream requests it would answer with 503.
-- **Move complete** (the new manager, owner): `MoveCompleteCard.svelte`
+- **Move Complete** (the new manager, owner): `MoveCompleteCard.svelte`
   on the dashboard (and on the Settings tab) while `moveCompleteDone` is
   false: the old manager's confirmation (live: each attempt announces the
-  move; "Mark as done" with a warning once a confirmation failed), agents
+  move; "Mark as Done" with a warning once a confirmation failed), agents
   that did not get the new address with their one-line fix, the moved
   stacks' stopped copies on the old server (removed from the environment
   migration's record with `removeOldCopies`, type-to-confirm, one summary
-  toast) and "Open <old environment> to archive it" (its page).
+  toast) and "Open <old environment> to Archive It" (its page).
 
 A locked manager shows a persistent banner in the shell (`MoveBanner`
 in `AppShell`, `moveBanner`): the owner's shell reads the move, everyone
@@ -499,8 +499,8 @@ one factor once and the call is retried; dismissing it throws
 `StepUpCancelledError`. The factor follows `$lib/auth/verify.ts` (#186),
 shared with the sign-in page's second step: a passkey first (its browser
 prompt starts as the dialog opens), else the authenticator code alone,
-else the password. "Use a passkey instead", "Use authenticator code
-instead" and "Use your password instead" switch to any other factor the
+else the password. "Use a Passkey Instead", "Use Authenticator Code
+Instead" and "Use Your Password Instead" switch to any other factor the
 account has (the password is a fallback for every account with one); the
 browser remembers a switch between passkey and code, never the password.
 
@@ -541,10 +541,10 @@ the web refetches the list.)
   replays the end and closes). The stack page's `JobTrayView` applies the
   same cap (`streamedIds`) and, unlike `ActiveJobs`, drops a job when it
   ends: the toast reports the outcome (a failure's toast stays until
-  closed, with the recovery advice and "Open job").
+  closed, with the recovery advice and "Open Job").
 - **Top bar**: `RunningJobs` (`$lib/shell`) shows "N running" from the
   same list, linking to `/jobs?state=active` (the jobs list's "In
-  progress" filter); hidden while nothing runs and for restricted users.
+  Progress" filter); hidden while nothing runs and for restricted users.
 
 What each view matches (the pure helpers are spec-tested next to them):
 
@@ -563,7 +563,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 | images, containers lists, new container | `image.pull`, `container.create` of the selected environment |
 | prune buttons | `prune.run` without a policy in the button's environments ("Pruning…"; the dialog opens on it) |
 | maintenance page | every job of the policy (one bar per environment) |
-| backup overview and policy pages | not generic job cards: the running backups and retentions of `GET /backup-activity` as one steady line each in "Running now" (`RunningBackups`); a job leaving that list reports its outcome once (`onJobsFinished`); the activity also feeds the runs table |
+| backup overview and policy pages | not generic job cards: the running backups and retentions of `GET /backup-activity` as one steady line each in "Running Now" (`RunningBackups`); a job leaving that list reports its outcome once (`onJobsFinished`); the activity also feeds the runs table |
 | backup, repository pages | verifications of the repository (`features/backups/jobs.ts`) |
 | restore dialog and wizard | a restore of the backup's stack or volumes opens on its progress |
 | update policy page, Updates, preview dialog | the policy's `update.check`/`update.run`; the Updates list counts them per policy; the preview dialog opens on a running `update.run`; succeeded update jobs clear after 4 s |
@@ -609,7 +609,7 @@ ended jobs leaving the tray for a toast).
   or stored; navigations are network-first with the precached shell as the
   offline fallback. Details and rationale: ADR 0002.
 - **Updates**: a new build installs in the background and waits. The
-  *App update* notice offers *Reload to update* (applies it and reloads once)
+  *App Update* notice offers *Reload to Update* (applies it and reloads once)
   or *Later*; nothing reloads on its own. While critical work is registered
   (`criticalWork` from `$lib/live`: an unsaved editor buffer, a live
   terminal, an in-progress restore or upload) the button is disabled, the
@@ -626,7 +626,7 @@ ended jobs leaving the tray for a toast).
   `register` and its release do not track reactive reads, so an `$effect`
   may return `criticalWork.register(...)` as its cleanup while a form is
   dirty.
-- **Offline**: the *Connection status* notice shows when the browser is
+- **Offline**: the *Connection Status* notice shows when the browser is
   offline or the manager is unreachable (network failure or a bare
   502/503/504 from the proxy). Queries pause while offline and refetch on
   reconnect; nothing is queued.
@@ -747,7 +747,7 @@ only wire resources to it:
   the tab turns unsaved), text that does not parse keeps the document
   and shows an error toast. A click that opens a file does not select it;
   permissions and owners are a details view (off by default); the
-  toolbar's Upload files, Upload folder, New file and New folder are small
+  toolbar's Upload Files, Upload Folder, New File and New Folder are small
   icon buttons named by their tooltips; below
   1024 px list and editor are `Tabs`. In a stack, saving a Compose source
   validates the definition on disk in the stack's own project directory
@@ -787,20 +787,20 @@ only wire resources to it:
   `logs/format.ts`); each count applies the other filters' choices, a
   service's also while it is hidden, so the search runs over every
   service's lines. The search (shows
-  only matching lines as you type; Match case; plain text with
+  only matching lines as you type; Match Case; plain text with
   `plainSearch`, regular expressions in a worker, `RegexSearch` in
   `logs/regex-search.svelte.ts` with `regex.worker.ts`: each line is
   searched once, in chunks of at most 1,000 lines; a chunk that runs past
   2 s, counted from the worker's `ready` so a cold start never counts,
   such as a pattern that backtracks for minutes, terminates the worker and
-  shows "Too slow to search" instead of freezing the page; a pattern that
-  throws in the worker, or a worker error, shows "Search unavailable"; both
+  shows "Too Slow to Search" instead of freezing the page; a pattern that
+  throws in the worker, or a worker error, shows "Search Unavailable"; both
   states last until the pattern changes); Levels is a `MultiSelect` of the
   levels and the output streams. The line's left edge marks errors (red),
   warnings (amber) and standard error without a level (grey). Wrapped lines are rendered without the
   fixed-height window.
 - **Terminals:** `ExecTerminal` creates the exec session for the chosen
-  shell (Detect automatically, Bash, sh, Zsh; the agent finds its path in the
+  shell (Detect Automatically, Bash, sh, Zsh; the agent finds its path in the
   container and the session reports the command it started), opens the
   WebSocket with the ticket in the subprotocol, frames stdin/stdout,
   sends `resize` when `TerminalView` (`fit`) changes size, maps close codes

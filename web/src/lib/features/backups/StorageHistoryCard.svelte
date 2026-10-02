@@ -46,12 +46,12 @@
 	const columns: Column<StorageRow>[] = [
 		{ id: 'when', header: 'Time', stack: 'title' },
 		{ id: 'stored', header: 'Stored', numeric: true },
-		{ id: 'beforeCompression', header: 'Before compression', numeric: true }
+		{ id: 'beforeCompression', header: 'Before Compression', numeric: true }
 	];
 </script>
 
 <Card
-	title="Storage over time"
+	title="Storage Over Time"
 	subtitle="Stored after deduplication and compression, and the same data before compression."
 >
 	{#snippet actions()}
@@ -97,7 +97,7 @@
 						area: true
 					},
 					{
-						name: 'Before compression',
+						name: 'Before Compression',
 						values: series.beforeCompression,
 						color: TILE_HEX.slate.fg,
 						dashed: true
@@ -105,9 +105,9 @@
 				]}
 			/>
 			<p class="summary">{storageSummary(series, rangeLabel)}</p>
-			<Disclosure summary="Show the figures as a table">
+			<Disclosure summary="Show the Figures as a Table">
 				<Table
-					label="Storage over time"
+					label="Storage Over Time"
 					rows={storageRows(series)}
 					{columns}
 					rowKey={(r) => r.at}

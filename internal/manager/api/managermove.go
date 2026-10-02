@@ -19,7 +19,7 @@ import (
 
 // Moving the manager to a new server (docs/internal/architecture/manager-move.md).
 // Old manager: the owner creates the move (the new server's files), runs
-// Move everything (manager.move), reads and cancels the move; the waiting
+// Move Everything (manager.move), reads and cancels the move; the waiting
 // new manager calls the handoff and the confirmation, signed with the move
 // code (Authorization: DMM ...). New manager: GET /move/status is the
 // waiting mode's public status; the owner reads the arrived move ("Move
@@ -132,7 +132,7 @@ func waitingError() *Error {
 // the move code.
 type ManagerMove struct {
 	ID                string     `json:"id" example:"0190a6e0-0000-7000-8000-000000000035"`
-	State             string     `json:"state" enum:"open,moving,ready,draining,handed_off,confirmed,cancelled,expired,arrived" example:"open" doc:"Old manager: open (waiting for the new server, then for Move everything), moving (manager.move moves the apps), ready (the apps moved; the new manager gets the handoff when it asks next), draining (read-only, jobs finish), handed_off (the state was copied; agents refused), confirmed (the new manager runs the instance), cancelled, expired. New manager: arrived (this manager runs the moved instance)."`
+	State             string     `json:"state" enum:"open,moving,ready,draining,handed_off,confirmed,cancelled,expired,arrived" example:"open" doc:"Old manager: open (waiting for the new server, then for Move Everything), moving (manager.move moves the apps), ready (the apps moved; the new manager gets the handoff when it asks next), draining (read-only, jobs finish), handed_off (the state was copied; agents refused), confirmed (the new manager runs the instance), cancelled, expired. New manager: arrived (this manager runs the moved instance)."`
 	CreatedAt         time.Time  `json:"createdAt"`
 	ExpiresAt         time.Time  `json:"expiresAt" doc:"A move that was not handed off ends at this time (seven days after it was created)."`
 	ThisServerAddress string     `json:"thisServerAddress,omitempty" example:"192.168.1.10:8080" doc:"Old manager: this server's address (host:port) as the new server reaches it."`
@@ -148,7 +148,7 @@ type ManagerMove struct {
 	JobsRunning       int                     `json:"jobsRunning" example:"0" doc:"Draining: the jobs the handoff waits for."`
 	NewServer         *ManagerMoveNewServer   `json:"newServer,omitempty" doc:"Old manager: where the new server stands."`
 	SourceEnvironment *ManagerMoveEnvironment `json:"sourceEnvironment,omitempty" doc:"Old manager: the environment next to this manager, whose apps move. Absent when none is known (only Docker Manager moves)."`
-	Progress          *ManagerMoveProgress    `json:"progress,omitempty" doc:"Old manager: the latest Move everything (manager.move) and its environment migration."`
+	Progress          *ManagerMoveProgress    `json:"progress,omitempty" doc:"Old manager: the latest Move Everything (manager.move) and its environment migration."`
 	Redirects         []ManagerMoveRedirect   `json:"redirects" doc:"The agents told the new manager's address just before the handoff (empty before). On an arrived move with connected and needsFix."`
 	// Arrived move (new manager).
 	SourceURL             string                     `json:"sourceUrl,omitempty" example:"http://192.168.1.10:8080" doc:"Arrived: the old manager's address."`
@@ -179,12 +179,12 @@ type ManagerMoveEnvironment struct {
 	StackCount    int    `json:"stackCount" doc:"Its stacks (Docker Manager's own stack stays and moves with the manager)."`
 }
 
-// ManagerMoveProgress is the latest Move everything.
+// ManagerMoveProgress is the latest Move Everything.
 type ManagerMoveProgress struct {
 	JobID        string `json:"jobId,omitempty" doc:"The manager.move job."`
 	JobState     string `json:"jobState,omitempty" enum:"queued,blocked,dispatched,running,cancelling,succeeded,failed,partial,cancelled,interrupted"`
 	ErrorCode    string `json:"errorCode,omitempty" example:"manager_move_apps_not_moved"`
-	Recovery     string `json:"recovery,omitempty" doc:"What to do after a failure (then Move everything again)."`
+	Recovery     string `json:"recovery,omitempty" doc:"What to do after a failure (then Move Everything again)."`
 	MigrationID  string `json:"migrationId,omitempty" doc:"The environment migration moving the apps (GET /api/v1/environments/{sourceEnvironment.environmentId}/migrations/{migrationId})."`
 	StacksMoved  int    `json:"stacksMoved"`
 	StacksTotal  int    `json:"stacksTotal"`
@@ -346,7 +346,7 @@ type managerMoveCheckInOutput struct {
 // MoveStatus is the waiting mode's status (public; never the code or any
 // content).
 type MoveStatus struct {
-	Phase               string     `json:"phase" enum:"none,connecting,waiting,finishing_jobs,copying,checking,staging,restarting,failed,complete" doc:"none: not moving. connecting: asking the old manager (errorCode after a failed attempt; it keeps asking). waiting: the old manager answered; the apps have not moved yet (oldState open: press Move everything there; moving: stacksMoved of stacksTotal). finishing_jobs: the old manager is read-only while its jobs finish. copying, checking, staging: the state arrives. restarting: this manager restarts as the moved Docker Manager. failed: the copy was refused (recovery); restart this manager after fixing. complete: this manager runs the moved Docker Manager; point DNS at this server and remove the move lines from .env."`
+	Phase               string     `json:"phase" enum:"none,connecting,waiting,finishing_jobs,copying,checking,staging,restarting,failed,complete" doc:"none: not moving. connecting: asking the old manager (errorCode after a failed attempt; it keeps asking). waiting: the old manager answered; the apps have not moved yet (oldState open: press Move Everything there; moving: stacksMoved of stacksTotal). finishing_jobs: the old manager is read-only while its jobs finish. copying, checking, staging: the state arrives. restarting: this manager restarts as the moved Docker Manager. failed: the copy was refused (recovery); restart this manager after fixing. complete: this manager runs the moved Docker Manager; point DNS at this server and remove the move lines from .env."`
 	OldManager          string     `json:"oldManager,omitempty" example:"http://192.168.1.10:8080" doc:"DOCKER_MANAGER_MOVE_FROM."`
 	OldState            string     `json:"oldState,omitempty" enum:"open,moving,ready,draining,handed_off" doc:"The old move's state from its last answer."`
 	StacksMoved         int        `json:"stacksMoved"`
@@ -382,7 +382,7 @@ func moveError(err error) error {
 			WithHeader("Retry-After", strconv.Itoa(secs)).WithHeader(managermove.JobsRunningHeader, strconv.Itoa(jr.Count))
 	case errors.As(err, &nr):
 		secs := max(int(nr.RetryAfter/time.Second), 1)
-		e := Conflict(CodeManagerMoveNotReady, "the apps have not moved yet: press Move everything on this manager; ask again later").
+		e := Conflict(CodeManagerMoveNotReady, "the apps have not moved yet: press Move Everything on this manager; ask again later").
 			WithHeader("Retry-After", strconv.Itoa(secs)).WithHeader(managermove.MoveStateHeader, string(nr.State)).
 			WithHeader(managermove.MoveStacksHeader, strconv.Itoa(nr.StacksMoved)+"/"+strconv.Itoa(nr.StacksTotal))
 		if c := headerSafe(nr.CurrentStack); c != "" {
@@ -564,7 +564,7 @@ func registerManagerMove(a huma.API, deps Deps) {
 			OperationID: "get-manager-move", Method: http.MethodGet, Path: BasePath + "/manager/move",
 			Summary: "Get the current move",
 			Description: "The move that is open or in progress on this manager (the new server's state, the apps' environment, the " +
-				"progress of Move everything, the jobs a draining move waits for, the redirects), else the move this manager arrived " +
+				"progress of Move Everything, the jobs a draining move waits for, the redirects), else the move this manager arrived " +
 				"by (Move complete: the confirmation, the redirects with the agents that still need the new address, the old server's " +
 				"environment). 404 when there is none. " + ownerOnly,
 			Tags: []string{tag}, Security: cookieOnly, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusServiceUnavailable},
@@ -585,7 +585,7 @@ func registerManagerMove(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "create-manager-move-run", Method: http.MethodPost, Path: BasePath + "/manager/move/runs",
-			Summary: "Move everything",
+			Summary: "Move Everything",
 			Description: "Queues manager.move (202 + job): an environment migration of every stack of the environment next to this " +
 				"manager to the new server's environment, then the move is ready and the new manager gets the handoff when it asks " +
 				"next. Needs an open or ready move whose new server's agent is connected and whose new manager checked in (409 " +
@@ -611,7 +611,7 @@ func registerManagerMove(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "create-manager-move-cancellation", Method: http.MethodPost, Path: BasePath + "/manager/move/cancellations",
 			Summary: "Cancel the current move",
-			Description: "Ends a move that was not handed off and unlocks this manager (a running Move everything is cancelled; stacks " +
+			Description: "Ends a move that was not handed off and unlocks this manager (a running Move Everything is cancelled; stacks " +
 				"that moved stay on the new server). After the handoff only with resumeHere and the typed instance name: you state " +
 				"that the new manager never started with the copy. When agents were already told the new address, the instance's " +
 				"generation goes up and this manager restarts, so they accept it again. A confirmed move cannot be cancelled (409 " +
@@ -690,7 +690,7 @@ func registerManagerMove(a huma.API, deps Deps) {
 			OperationID: "create-manager-move-handoff", Method: http.MethodPost, Path: BasePath + "/manager/move/handoff",
 			Summary: "Hand this manager's state to the waiting new manager",
 			Description: "Called by the new manager in waiting mode once its check-in reports the move ready (each call records its " +
-				"check-in too). Until Move everything made the move ready: 409 manager_move_not_ready with Retry-After and the progress in " + managermove.MoveStateHeader +
+				"check-in too). Until Move Everything made the move ready: 409 manager_move_not_ready with Retry-After and the progress in " + managermove.MoveStateHeader +
 				" (open, moving), " + managermove.MoveStacksHeader + " (<moved>/<total>) and " + managermove.MoveCurrentStackHeader +
 				". The first call of a ready move makes this manager read-only (no new job, no schedule; running jobs finish); while " +
 				"jobs run it answers 409 jobs_running with Retry-After and " + managermove.JobsRunningHeader + ". Then the agents it " +

@@ -69,12 +69,12 @@ export function entryKind(e: Pick<FileEntry, 'type' | 'linkStatus'>): string {
 			return 'Folder';
 		case 'symlink':
 			return e.linkStatus === 'outside'
-				? 'Link outside this root'
+				? 'Link Outside This Root'
 				: e.linkStatus === 'dangling'
-					? 'Broken link'
+					? 'Broken Link'
 					: 'Link';
 		case 'other':
-			return 'Special file';
+			return 'Special File';
 		default:
 			return 'File';
 	}

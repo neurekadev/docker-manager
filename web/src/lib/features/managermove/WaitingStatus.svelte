@@ -35,7 +35,7 @@
 
 <div class="status">
 	<AuthHeader
-		title="Moving Docker Manager here"
+		title="Moving Docker Manager Here"
 		lead={s?.oldManager
 			? `From ${s.oldManager}. This page updates by itself.`
 			: 'This page updates by itself.'}
@@ -60,7 +60,7 @@
 		</Notice>
 		<div><Button href={routes.dashboard()}>Open Docker Manager</Button></div>
 	{:else}
-		<ol class="steps" role="list" aria-label="Steps of the move">
+		<ol class="steps" role="list" aria-label="Steps of the Move">
 			{#each steps as st (st.id)}
 				<li
 					class={st.state}

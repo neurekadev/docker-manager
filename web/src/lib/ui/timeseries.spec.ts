@@ -110,7 +110,7 @@ describe('timeSeriesOption (the ECharts option of TimeSeriesChart)', () => {
 			...opts,
 			lines: [
 				opts.lines[0],
-				{ name: 'Before compression', values: [4, 4, 4], color: '#b4c4f2', dashed: true }
+				{ name: 'Before Compression', values: [4, 4, 4], color: '#b4c4f2', dashed: true }
 			]
 		});
 		expect(o.series[0].lineStyle).toEqual({ color: '#2bb0f6', width: 1 });

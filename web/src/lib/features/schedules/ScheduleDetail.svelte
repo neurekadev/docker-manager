@@ -36,10 +36,10 @@
 		const failed = r.jobs.find((j) => ['failed', 'partial', 'interrupted'].includes(j.state));
 		const one = failed ?? (r.jobs.length === 1 ? r.jobs[0] : undefined);
 		return one
-			? { href: routes.job(one.jobId), label: failed ? 'Open the failed job' : 'Open job' }
+			? { href: routes.job(one.jobId), label: failed ? 'Open the Failed Job' : 'Open Job' }
 			: {
 					href: routes.jobs(r.jobs[0].kind, { policyId: schedule.policyId }),
-					label: 'Open jobs'
+					label: 'Open Jobs'
 				};
 	}
 </script>
@@ -52,16 +52,16 @@
 		<dd title="{schedule.cron} ({schedule.timeZone})">
 			{describeCron(schedule.cron, schedule.timeZone)}
 		</dd>
-		<dt>Time zone</dt>
+		<dt>Time Zone</dt>
 		<dd>{schedule.timeZone}</dd>
-		<dt>After downtime</dt>
+		<dt>After Downtime</dt>
 		<dd>
 			{schedule.catchUp === 'once' ? 'One catch-up run' : 'Missed runs are recorded, not run'}
 		</dd>
 	</dl>
 
 	{#if schedule.invalidReason}
-		<Notice tone="danger" title="This schedule cannot run" live="none">
+		<Notice tone="danger" title="This Schedule Cannot Run" live="none">
 			{schedule.invalidReason} Fix the schedule in the policy.
 		</Notice>
 	{:else if !schedule.enabled}
@@ -72,7 +72,7 @@
 	{/if}
 
 	<section aria-labelledby="next-{schedule.id}">
-		<h3 id="next-{schedule.id}" class="subsection-title">Next runs</h3>
+		<h3 id="next-{schedule.id}" class="subsection-title">Next Runs</h3>
 		{#if preview.isPending}
 			<Skeleton lines={5} height="16px" />
 		{:else if preview.isError}
@@ -100,7 +100,7 @@
 	</section>
 
 	<section aria-labelledby="history-{schedule.id}">
-		<h3 id="history-{schedule.id}" class="subsection-title">Recent runs</h3>
+		<h3 id="history-{schedule.id}" class="subsection-title">Recent Runs</h3>
 		{#if runs.length}
 			<ol class="runs">
 				{#each runs as r (r.scheduledFor)}
@@ -111,7 +111,7 @@
 							>{formatRunTime(r.scheduledFor, schedule.timeZone)}</span
 						>
 						<StatusBadge status={s.status} kind={s.kind} label={s.label || undefined} />
-						{#if r.catchUp}<Badge tone="info">Catch-up</Badge>{/if}
+						{#if r.catchUp}<Badge tone="info">Catch-Up</Badge>{/if}
 						{#if r.jobs.length}
 							<p class="note">
 								{runSummary(r.jobs, r.jobs[0].kind).text}{#if link}
@@ -126,7 +126,7 @@
 			{#if schedule.recentRuns.length > shown}
 				<div class="more">
 					<Button size="sm" variant="ghost" onclick={() => (shown += PAGE)}
-						>Load more</Button
+						>Load More</Button
 					>
 				</div>
 			{/if}
@@ -135,7 +135,7 @@
 		{/if}
 	</section>
 
-	<Button href={policyHref(schedule.kind, schedule.policyId)}>Edit the policy</Button>
+	<Button href={policyHref(schedule.kind, schedule.policyId)}>Edit the Policy</Button>
 </div>
 
 <style>

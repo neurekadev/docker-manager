@@ -8,7 +8,7 @@ import { formatDateTime, formatDuration, formatRelative } from '$lib/ui/format';
 export const LOW_SHARE = 0.1;
 
 export interface PullLimitView {
-	/** "187 of 200 left", "Limit reached", "Not reported". */
+	/** "187 of 200 left", "Limit Reached", "Not Reported". */
 	text: string;
 	/** "per 6 hours · checked 4 minutes ago", "resets in 12 minutes". */
 	sub: string;
@@ -44,7 +44,7 @@ export function pullLimitView(
 			? `resets ${formatRelative(p.limitedUntil, now)}`
 			: `checked ${formatRelative(p.checkedAt, now)}`;
 		return {
-			text: 'Limit reached',
+			text: 'Limit Reached',
 			sub,
 			tone: 'warn',
 			title: formatDateTime(p.lastLimitedAt ?? p.checkedAt)
@@ -52,7 +52,7 @@ export function pullLimitView(
 	}
 	if (p.limit === undefined) {
 		return {
-			text: 'Not reported',
+			text: 'Not Reported',
 			sub: `checked ${formatRelative(p.checkedAt, now)}`,
 			tone: 'muted',
 			title: formatDateTime(p.checkedAt)

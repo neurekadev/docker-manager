@@ -59,7 +59,7 @@ describe('refusals (#32: a clear reason for every refused action)', () => {
 				protection: stacks
 			}).title
 		).toBe("The stacks volume can't be removed from Docker Manager.");
-		expect(protectionLabel(stacks)).toBe('The Docker Manager stacks volume');
+		expect(protectionLabel(stacks)).toBe('The Docker Manager Stacks Volume');
 		expect(protectionLabel({ ...agent, role: 'manager' })).toBe('The Docker Manager');
 	});
 

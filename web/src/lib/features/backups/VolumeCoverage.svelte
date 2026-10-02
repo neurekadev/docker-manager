@@ -84,10 +84,10 @@
 	{:else}
 		<div class="lists">
 			<div class="list">
-				<span class="list-title">Stack volumes</span>
+				<span class="list-title">Stack Volumes</span>
 				{#if stackVolumes.length}
 					<CoverageList
-						label="Stack volumes on {environmentName}"
+						label="Stack Volumes on {environmentName}"
 						items={stackVolumes.map((v) => item(v, true))}
 						{excluded}
 						{onchange}
@@ -97,10 +97,10 @@
 				{/if}
 			</div>
 			<div class="list">
-				<span class="list-title">Standalone volumes</span>
+				<span class="list-title">Standalone Volumes</span>
 				{#if standalone.length}
 					<CoverageList
-						label="Standalone volumes on {environmentName}"
+						label="Standalone Volumes on {environmentName}"
 						items={standalone.map((v) => item(v, false))}
 						{excluded}
 						{onchange}

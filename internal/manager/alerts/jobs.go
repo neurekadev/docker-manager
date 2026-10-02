@@ -22,10 +22,10 @@ import (
 // The key's next successful job resolves it (whoever started it); without
 // a new run it expires after JobExpiry (no message). A job's error text
 // never reaches an alert: only its state and error class. The alert's
-// kind stays job_failed (the Alerts tab's "Failed job"); its messages go
+// kind stays job_failed (the Alerts tab's "Failed Job"); its messages go
 // out as its job's area (domain.JobEventKind, domain.Alert.SentAs): a
 // failed backup verification as Backups, an update check as Image
-// updates.
+// Updates.
 
 // jobKey is the dedupe key of a job's alert.
 func jobKey(j domain.Job) string {
@@ -39,7 +39,8 @@ func jobKey(j domain.Job) string {
 	return "job_failed/job/" + string(j.Kind) + "/" + j.EnvironmentID + "/" + target
 }
 
-// kindNouns names what a job does, for alert titles.
+// kindNouns names what a job does, for alert titles (kindLabel for the
+// Job field).
 var kindNouns = map[domain.JobKind]string{
 	"backup.run": "Backup", "backup.retention": "Backup retention", "backup.verify": "Backup verification",
 	"backup.import": "Backup import", "manager.backup": "Docker Manager backup",
@@ -59,6 +60,36 @@ func kindNoun(k domain.JobKind) string {
 		return n
 	}
 	return "A job"
+}
+
+// kindLabel names what a job does as a label (the Job field): kindNoun in
+// Title Case ("Backup Retention", "Take Down").
+func kindLabel(k domain.JobKind) string { return titleCase(kindNoun(k)) }
+
+// minorWords stay lowercase inside a Title Case label.
+var minorWords = map[string]bool{
+	"a": true, "an": true, "the": true, "and": true, "but": true, "or": true, "nor": true,
+	"as": true, "at": true, "by": true, "for": true, "in": true, "of": true, "on": true,
+	"per": true, "to": true, "via": true, "with": true,
+}
+
+// titleCase capitalizes each word of a label but the minor ones inside it,
+// keeping the rest of each word as it is (acronyms, "Docker Manager").
+func titleCase(s string) string {
+	words := strings.Split(s, " ")
+	for i, w := range words {
+		if w == "" || (i > 0 && i < len(words)-1 && minorWords[w]) {
+			continue
+		}
+		parts := strings.Split(w, "-")
+		for j, p := range parts {
+			if p != "" {
+				parts[j] = strings.ToUpper(p[:1]) + p[1:]
+			}
+		}
+		words[i] = strings.Join(parts, "-")
+	}
+	return strings.Join(words, " ")
 }
 
 // targetName names a job's first target as users know it (a stack's

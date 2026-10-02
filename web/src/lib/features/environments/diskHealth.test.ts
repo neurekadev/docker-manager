@@ -1,6 +1,6 @@
 // Disk health and RAID cards (#143): the notices that replace the list,
-// one row per disk with its issues in words, "Check disks now" and "Check
-// RAID now" calling the check route and toasting the result (also when
+// one row per disk with its issues in words, "Check Disks Now" and "Check
+// RAID Now" calling the check route and toasting the result (also when
 // the agent is still reading and the result arrives later).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
@@ -117,7 +117,7 @@ describe('DiskHealthCard', () => {
 		// Serial numbers wait under "Advanced".
 		expect(screen.getByText('Advanced')).toBeInTheDocument();
 		const details = screen.getByRole('table', {
-			name: 'Disk details of homelab',
+			name: 'Disk Details of homelab',
 			hidden: true
 		});
 		expect(within(details).getByText('WD-WX12D3456789')).toBeInTheDocument();
@@ -164,11 +164,11 @@ describe('DiskHealthCard', () => {
 		const dialog = await screen.findByRole('dialog', { name: '/dev/sda' });
 		expect(within(dialog).getByText('WD-WX12D3456789')).toBeInTheDocument();
 		expect(within(dialog).getByText('Passed')).toBeInTheDocument();
-		const attrs = within(dialog).getByRole('table', { name: 'SMART attributes of /dev/sda' });
+		const attrs = within(dialog).getByRole('table', { name: 'SMART Attributes of /dev/sda' });
 		const rows = within(attrs).getAllByRole('row').slice(1);
 		expect(rows).toHaveLength(2);
 		expect(within(rows[0]).getByText('Reallocated_Sector_Ct')).toBeInTheDocument();
-		expect(within(rows[0]).getByText('Pre-fail')).toBeInTheDocument();
+		expect(within(rows[0]).getByText('Pre-Fail')).toBeInTheDocument();
 		expect(within(rows[1]).getByText('36 (Min/Max 20/49)')).toBeInTheDocument();
 		// Marks: OK in green for a pre-fail attribute, a warning for one
 		// that failed in the past (#210).
@@ -177,7 +177,7 @@ describe('DiskHealthCard', () => {
 			'ok'
 		);
 		expect(
-			within(rows[1]).getByText('Failed in the past').closest('[data-tone]')
+			within(rows[1]).getByText('Failed in the Past').closest('[data-tone]')
 		).toHaveAttribute('data-tone', 'warn');
 		expect(within(dialog).getByText('Passed').closest('[data-tone]')).toHaveAttribute(
 			'data-tone',
@@ -191,8 +191,8 @@ describe('DiskHealthCard', () => {
 			'data-tone',
 			'warn'
 		);
-		const values = within(dialog).getByRole('table', { name: 'Health values of /dev/sda' });
-		expect(within(values).getByText('Power cycles')).toBeInTheDocument();
+		const values = within(dialog).getByRole('table', { name: 'Health Values of /dev/sda' });
+		expect(within(values).getByText('Power Cycles')).toBeInTheDocument();
 		expect(within(values).getByText('41')).toBeInTheDocument();
 	});
 
@@ -224,11 +224,11 @@ describe('DiskHealthCard', () => {
 		expect(screen.queryByRole('table', { name: 'Disks of homelab' })).toBeNull();
 		if (status === 'no_access') {
 			expect(screen.getByText('privileged: true')).toBeInTheDocument();
-			const link = screen.getByRole('link', { name: /How to give the agent access/ });
+			const link = screen.getByRole('link', { name: /How to Give the Agent Access/ });
 			expect(link).toHaveAttribute('target', '_blank');
 			expect(link).toHaveAttribute('rel', 'noopener noreferrer');
 		}
-		expect(screen.queryByRole('button', { name: 'Check disks now' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Check Disks Now' })).toBeNull();
 	});
 
 	it('says when the disks report no SMART data', () => {
@@ -271,7 +271,7 @@ describe('DiskHealthCard', () => {
 
 	it('hides the check while the environment is offline', () => {
 		mount(DiskHealthCard, { env, health: report(), online: false, now });
-		expect(screen.queryByRole('button', { name: 'Check disks now' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Check Disks Now' })).toBeNull();
 	});
 
 	it('checks the disks and toasts the result', async () => {
@@ -285,7 +285,7 @@ describe('DiskHealthCard', () => {
 			})
 		);
 		mount(DiskHealthCard, { env, health: report(), raid: noArrays, online: true, now });
-		await user.click(screen.getByRole('button', { name: 'Check disks now' }));
+		await user.click(screen.getByRole('button', { name: 'Check Disks Now' }));
 		await waitFor(() =>
 			expect(toast.items.map((t) => t.title)).toContain('Checked 2 disks on homelab')
 		);
@@ -318,7 +318,7 @@ describe('DiskHealthCard', () => {
 		// `props` is wrapped once more.
 		const update = (props: Record<string, unknown>) =>
 			view.rerender({ props: { props } } as unknown as Parameters<typeof view.rerender>[0]);
-		await user.click(screen.getByRole('button', { name: 'Check disks now' }));
+		await user.click(screen.getByRole('button', { name: 'Check Disks Now' }));
 		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(toast.items).toHaveLength(0);
 		// The live stream refreshes the system information: still reading…
@@ -329,7 +329,7 @@ describe('DiskHealthCard', () => {
 			online: true,
 			now
 		});
-		expect(screen.getByRole('button', { name: 'Check disks now' })).toHaveAttribute(
+		expect(screen.getByRole('button', { name: 'Check Disks Now' })).toHaveAttribute(
 			'aria-busy',
 			'true'
 		);
@@ -361,7 +361,7 @@ describe('DiskHealthCard', () => {
 			)
 		);
 		mount(DiskHealthCard, { env, health: report(), online: true, now });
-		await user.click(screen.getByRole('button', { name: 'Check disks now' }));
+		await user.click(screen.getByRole('button', { name: 'Check Disks Now' }));
 		await waitFor(() =>
 			expect(toast.items.map((t) => t.title)).toContain('Couldn’t check the disks on homelab')
 		);
@@ -407,7 +407,7 @@ describe('RaidCard', () => {
 
 	it('shows each array with its state, members and rebuild progress', () => {
 		mount(RaidCard, { env, raid, online: true, now });
-		const table = screen.getByRole('table', { name: 'RAID arrays of homelab' });
+		const table = screen.getByRole('table', { name: 'RAID Arrays of homelab' });
 		const rows = within(table).getAllByRole('row').slice(1);
 		expect(within(rows[0]).getByText('/dev/md1')).toBeInTheDocument();
 		// Every array shows the RAID tile, decorative.
@@ -428,7 +428,7 @@ describe('RaidCard', () => {
 		expect(
 			within(rows[0]).getByRole('progressbar', { name: '/dev/md1 progress' })
 		).toHaveAttribute('aria-valuenow', '17.3');
-		expect(within(rows[2]).getByText('ZFS pool')).toBeInTheDocument();
+		expect(within(rows[2]).getByText('ZFS Pool')).toBeInTheDocument();
 	});
 
 	it('opens an array’s details with its members and their disks', async () => {
@@ -470,7 +470,7 @@ describe('RaidCard', () => {
 		const user = setup();
 		stubApi(() => json({ environmentId: 'e1', scope: 'raid', diskHealth: report(), raid }));
 		mount(RaidCard, { env, raid, online: true, now });
-		await user.click(screen.getByRole('button', { name: 'Check RAID now' }));
+		await user.click(screen.getByRole('button', { name: 'Check RAID Now' }));
 		await waitFor(() =>
 			expect(toast.items.map((t) => t.title)).toContain('Checked 3 arrays on homelab')
 		);
@@ -535,10 +535,10 @@ describe('alert marks (#159)', () => {
 			dismissed: true
 		});
 		mount(RaidCard, { env, raid, online: true, alerts: [poolAlert], now });
-		const table = screen.getByRole('table', { name: 'RAID arrays of homelab' });
+		const table = screen.getByRole('table', { name: 'RAID Arrays of homelab' });
 		expect(
 			within(table).getAllByRole('link', {
-				name: 'Alert dismissed: ZFS pool tank on homelab is degraded'
+				name: 'Alert Dismissed: ZFS pool tank on homelab is degraded'
 			})
 		).toHaveLength(1);
 	});

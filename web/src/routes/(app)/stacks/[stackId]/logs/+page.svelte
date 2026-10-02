@@ -19,7 +19,7 @@
 	const service = $derived(page.url.searchParams.get('service'));
 
 	usePage(() => ({
-		title: `${name} logs`,
+		title: `${name} Logs`,
 		crumbs: [
 			{ label: 'Stacks', href: routes.stacks() },
 			{ label: name, href: routes.stack(stackId) },

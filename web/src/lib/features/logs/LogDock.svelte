@@ -40,14 +40,14 @@
 	}
 </script>
 
-<section class="dock" style="height: {height}px" aria-label="Logs drawer">
+<section class="dock" style="height: {height}px" aria-label="Logs Drawer">
 	<!-- A focusable separator is a widget (ARIA window splitter): arrows resize it. -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 	<div
 		class="handle"
 		role="separator"
 		aria-orientation="horizontal"
-		aria-label="Resize the logs drawer"
+		aria-label="Resize the Logs Drawer"
 		aria-valuemin={MIN}
 		aria-valuenow={height}
 		tabindex="0"
@@ -56,7 +56,7 @@
 	></div>
 	<LogPanel target={{ kind: 'stack', stackId }} {name} dense>
 		{#snippet extra()}
-			<IconButton icon={X} size="sm" label="Close the logs drawer" onclick={onclose} />
+			<IconButton icon={X} size="sm" label="Close the Logs Drawer" onclick={onclose} />
 		{/snippet}
 	</LogPanel>
 </section>

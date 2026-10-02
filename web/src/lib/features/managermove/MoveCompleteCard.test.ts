@@ -119,7 +119,7 @@ describe('MoveCompleteCard', () => {
 			})
 		);
 
-		expect(screen.getByRole('heading', { name: 'Move complete' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Move Complete' })).toBeInTheDocument();
 		expect(
 			screen.getByText(/Docker Manager moved here from http:\/\/192\.168\.1\.10:8080\./)
 		).toBeInTheDocument();
@@ -128,19 +128,19 @@ describe('MoveCompleteCard', () => {
 		expect(
 			screen.getByText('DOCKER_AGENT_MANAGER_URL=http://192.168.1.20:8080')
 		).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Copy setting' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Copy Setting' })).toBeInTheDocument();
 		// The old copies come from the environment migration that moved the apps.
 		expect(
-			await screen.findByRole('button', { name: 'Remove old copies from old-box' })
+			await screen.findByRole('button', { name: 'Remove Old Copies From old-box' })
 		).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Open old-box to archive it' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Open old-box to Archive It' })).toHaveAttribute(
 			'href',
 			'/environments/env-old'
 		);
-		expect(screen.queryByRole('button', { name: 'Mark as done' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Mark as Done' })).toBeNull();
 	});
 
-	it('offers Mark as done once the confirmation failed, with a warning', async () => {
+	it('offers Mark as Done once the confirmation failed, with a warning', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		card(arrived({ confirmError: 'state_refused' }));
 
@@ -150,11 +150,11 @@ describe('MoveCompleteCard', () => {
 				'The old server refused the confirmation. Make sure Docker Manager no longer runs there, then mark this as done.'
 			)
 		).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'Mark as done' }));
+		await user.click(screen.getByRole('button', { name: 'Mark as Done' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Mark the move as done?' });
 		expect(dialog).toHaveTextContent('Two copies must never manage the same servers.');
 		const confirm = screen
-			.getAllByRole('button', { name: 'Mark as done' })
+			.getAllByRole('button', { name: 'Mark as Done' })
 			.find((b) => dialog.contains(b));
 		await user.click(confirm!);
 		await waitFor(() => expect(acknowledged).toBe(1));

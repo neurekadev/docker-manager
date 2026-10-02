@@ -8,8 +8,8 @@
 	// Deploy and the status line keeps a Deploy action while the saved
 	// definition is not deployed (with stack.deploy). An external change keeps the unsaved
 	// buffer and shows the conflict banner exactly per the brief:
-	// "<file> changed on disk. Your edits are kept." with Compare, Reload from
-	// disk, Save as… and Overwrite (confirmed).
+	// "<file> changed on disk. Your edits are kept." with Compare, Reload From
+	// Disk, Save As… and Overwrite (confirmed).
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import Eye from '@lucide/svelte/icons/eye';
@@ -100,7 +100,7 @@
 				action: s.deploy
 					? { label: 'Deploy', onclick: () => void deploy() }
 					: s.revisionsHref
-						? { label: 'Open revisions', onclick: () => void goto(s.revisionsHref!) }
+						? { label: 'Open Revisions', onclick: () => void goto(s.revisionsHref!) }
 						: undefined
 			});
 			void validate(t);
@@ -150,7 +150,7 @@
 		if (!t || !canWrite || t.saving || t.status !== 'ready' || t.truncated) return;
 		if (t.conflict) {
 			toast.warn(`${basename(t.path)} changed on disk`, {
-				body: 'Your edits are kept. Choose Compare, Reload from disk, Save as… or Overwrite first.'
+				body: 'Your edits are kept. Choose Compare, Reload From Disk, Save As… or Overwrite first.'
 			});
 			return;
 		}
@@ -280,7 +280,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <section class="pane" aria-label="Editor" onkeydown={onKeydown}>
 	<div class="bar">
-		<div class="tabs" role="tablist" aria-label="Open files">
+		<div class="tabs" role="tablist" aria-label="Open Files">
 			{#each session.tabs as t, i (t.path)}
 				{@const dirty = isDirty(t)}
 				<div class="tab" class:active={t.path === session.active}>
@@ -336,7 +336,7 @@
 				{#if formattable(tab.language) && canWrite && !tab.truncated}
 					<SplitButton
 						label="Format"
-						menuLabel="More format options"
+						menuLabel="More Format Options"
 						size="sm"
 						variant="secondary"
 						items={formatItems}
@@ -348,7 +348,7 @@
 					icon={TextWrap}
 					variant="secondary"
 					size="sm"
-					label="Wrap long lines"
+					label="Wrap Long Lines"
 					pressed={wrap}
 					disabled={!!previews[tab.path]}
 					onclick={() => (wrap = !wrap)}
@@ -357,7 +357,7 @@
 					icon={Search}
 					variant="secondary"
 					size="sm"
-					label="Search and replace"
+					label="Search and Replace"
 					disabled={!handle || !!previews[tab.path]}
 					onclick={() => handle?.openSearch()}
 				/>
@@ -397,11 +397,11 @@
 					size="sm"
 					variant="ghost"
 					disabled={tab.conflict?.diskText == null}
-					onclick={() => (reloadOpen = true)}>Reload from disk</Button
+					onclick={() => (reloadOpen = true)}>Reload From Disk</Button
 				>
 				{#if canWrite}
 					<Button size="sm" variant="ghost" onclick={() => (saveAsOpen = true)}
-						>Save as…</Button
+						>Save As…</Button
 					>
 					<Button
 						size="sm"
@@ -420,7 +420,7 @@
 			<IconButton
 				icon={X}
 				size="sm"
-				label="Hide the validation result"
+				label="Hide the Validation Result"
 				onclick={() => (validation = null)}
 			/>
 		</div>
@@ -456,11 +456,11 @@
 			{#if tab.saving}
 				<span>Saving…</span>
 			{:else if isDirty(tab)}
-				<span class="unsaved">Unsaved changes</span>
+				<span class="unsaved">Unsaved Changes</span>
 			{:else if tab.status === 'ready' && !readOnly}
 				<span>Saved</span>
 			{/if}
-			{#if readOnly && tab.status === 'ready'}<span>Read only</span>{/if}
+			{#if readOnly && tab.status === 'ready'}<span>Read-Only</span>{/if}
 			{#if definition && stack}
 				{#if stack.undeployed && !isDirty(tab)}
 					<span class="hint">Saved changes aren't deployed yet.</span>
@@ -485,7 +485,7 @@
 	bind:open={closeOpen}
 	title="Close {closing ? basename(closing.path) : ''} without saving?"
 	message="Your unsaved edits are lost. The file on disk stays as it is."
-	confirmLabel="Discard edits and close"
+	confirmLabel="Discard Edits and Close"
 	tone="danger"
 	onconfirm={() => closing && session.close(closing.path)}
 />
@@ -506,7 +506,7 @@
 	bind:open={reloadOpen}
 	title="Reload {tab ? basename(tab.path) : ''} from disk?"
 	message="Your unsaved edits are discarded and the editor shows the version on disk."
-	confirmLabel="Discard edits and reload"
+	confirmLabel="Discard Edits and Reload"
 	tone="danger"
 	onconfirm={() => tab && session.reloadFromDisk(tab.path)}
 />
@@ -523,10 +523,10 @@
 {#if tab}
 	<NameDialog
 		bind:open={saveAsOpen}
-		title="Save {basename(tab.path)} as"
-		label="New file name"
+		title="Save {basename(tab.path)} As"
+		label="New File Name"
 		initial={basename(tab.path).replace(/(\.[^.]+)?$/, (m) => ` (edited)${m}`)}
-		confirmLabel="Save as"
+		confirmLabel="Save As"
 		taken={takenNames?.(parent(tab.path)) ?? []}
 		onsubmit={saveAs}
 	/>

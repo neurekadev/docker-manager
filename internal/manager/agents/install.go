@@ -57,20 +57,20 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 
 	return []domain.InstallCommand{
 		{
-			Variant: InstallColocated, Title: "Agent next to the manager",
+			Variant: InstallColocated, Title: "Agent Next to the Manager",
 			Description: "Run in the directory of the manager's compose.yaml. " +
 				"The co-located agent already runs on the internal URL; it enrolls within seconds and the command prints the result.",
 			Command: colocated,
 		},
 		{
-			Variant: InstallRemote, Title: "Agent on another Docker host",
+			Variant: InstallRemote, Title: "Agent on Another Docker Host",
 			Description: "Starts the agent with the manager's public HTTPS origin and hands it the token on stdin, " +
 				"so the token never appears in the container configuration. Only this host's Docker socket and its volume directory are mounted; " +
 				"Docker socket access confers host-level authority. It runs privileged so it can read the disks' health.",
 			Command: run.String(),
 		},
 		{
-			Variant: InstallRemoteCompose, Title: "Agent on another Docker host (Compose)",
+			Variant: InstallRemoteCompose, Title: "Agent on Another Docker Host (Compose)",
 			Description: "The same agent with Compose: put these lines in the .env file next to its compose.yaml. " +
 				"Remove DOCKER_AGENT_ENROLLMENT_TOKEN after the agent enrolled; the used token cannot enroll again.",
 			Command: env.String(),

@@ -31,14 +31,14 @@ export function notificationFilters(ctx: FilterContext): ListFilter<Notification
 		{
 			id: 'kind',
 			label: 'Kind',
-			all: 'All kinds',
+			all: 'All Kinds',
 			options: NOTIFICATION_KINDS.map((k) => ({ value: k.kind, label: k.label })),
 			match: (n, v) => n.kind === v
 		},
 		{
 			id: 'outcome',
 			label: 'Outcome',
-			all: 'All outcomes',
+			all: 'All Outcomes',
 			options: NOTIFICATION_OUTCOMES.map((o) => ({ value: o.outcome, label: o.label })),
 			match: (n, v) => n.outcome === v
 		}

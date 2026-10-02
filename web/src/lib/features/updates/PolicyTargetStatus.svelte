@@ -28,8 +28,8 @@
 		{#if s.failing}<Badge tone="danger" dot>{s.failing} failing</Badge>{/if}
 		{#if s.withUpdates}<Badge tone="warn" dot>{targetsUpdateText(active)}</Badge>{/if}
 		{#if !s.failing && !s.withUpdates}
-			{#if active.length && s.unchecked === active.length}<Badge dot>Not checked yet</Badge
-				>{:else if active.length}<Badge tone="ok" dot>Up to date</Badge>{/if}
+			{#if active.length && s.unchecked === active.length}<Badge dot>Not Checked Yet</Badge
+				>{:else if active.length}<Badge tone="ok" dot>Up to Date</Badge>{/if}
 		{/if}
 		<span class="muted num">{active.length} covered</span>
 	</span>

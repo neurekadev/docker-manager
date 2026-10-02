@@ -1,6 +1,6 @@
 // Search and filters of the jobs list (#26; ListCard, like the resource
 // lists): state, kind, the environment while every environment is shown
-// and, while set (a policy's "Open jobs", ?policyId=), the policy. The
+// and, while set (a policy's "Open Jobs", ?policyId=), the policy. The
 // server applies them (GET /jobs is paged) and the same filters check the
 // loaded rows; the search runs over the loaded jobs' words (kind, target,
 // environment, origin, state). The count says how many jobs match when the
@@ -35,7 +35,7 @@ export function jobFilters(ctx: FilterContext & { policy?: JobPolicy }): ListFil
 		{
 			id: 'state',
 			label: 'State',
-			all: 'All states',
+			all: 'All States',
 			options: STATE_FILTERS.filter((s) => s.id).map((s) => ({
 				value: s.id,
 				label: s.label
@@ -45,7 +45,7 @@ export function jobFilters(ctx: FilterContext & { policy?: JobPolicy }): ListFil
 		{
 			id: 'kind',
 			label: 'Kind',
-			all: 'All kinds',
+			all: 'All Kinds',
 			options: Object.entries(JOB_KIND_LABELS)
 				.map(([value, label]) => ({ value, label }))
 				.sort((a, b) => a.label.localeCompare(b.label)),
@@ -53,12 +53,12 @@ export function jobFilters(ctx: FilterContext & { policy?: JobPolicy }): ListFil
 		}
 	];
 	if (ctx.envs.length) filters.push(environmentFilter<Job>(ctx.envs));
-	// Only while set: its one option is the policy, "All policies" clears it.
+	// Only while set: its one option is the policy, "All Policies" clears it.
 	if (ctx.policy)
 		filters.push({
 			id: 'policy',
 			label: 'Policy',
-			all: 'All policies',
+			all: 'All Policies',
 			dynamic: true,
 			options: [{ value: ctx.policy.id, label: ctx.policy.name }],
 			match: (j, v) => j.policyId === v

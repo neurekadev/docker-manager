@@ -1,10 +1,11 @@
 // Audit log viewer (#30): presentation helpers. Pure (settings.spec.ts).
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
+import { titleCase } from '$lib/ui/format';
 import type { AuditEvent, AuditFilter } from './queries';
 
 export const OUTCOME: Record<AuditEvent['outcome'], { tone: BadgeTone; label: string }> = {
 	success: { tone: 'ok', label: 'Succeeded' },
-	partial: { tone: 'warn', label: 'Partly failed' },
+	partial: { tone: 'warn', label: 'Partly Failed' },
 	failure: { tone: 'danger', label: 'Failed' },
 	denied: { tone: 'danger', label: 'Denied' },
 	error: { tone: 'danger', label: 'Error' }
@@ -20,10 +21,10 @@ export const CATEGORY_LABELS: Record<AuditEvent['category'], string> = {
 
 export const ACTOR_LABELS: Record<AuditEvent['actor']['kind'], string> = {
 	user: 'User',
-	api_token: 'API token',
-	service: 'Docker Manager (scheduled)',
+	api_token: 'API Token',
+	service: 'Docker Manager (Scheduled)',
 	agent: 'Agent',
-	anonymous: 'Not signed in'
+	anonymous: 'Not Signed In'
 };
 
 export interface DiffRow {
@@ -157,7 +158,7 @@ interface LabelCatalog {
 	resourceTypes: { key: string; label: string }[];
 }
 
-/** An audit action in words ("Signed in", "Deploy (stacks)", "Stack migrate preview"). */
+/** An audit action in words ("Signed in", "Deploy (Stacks)", "Stack migrate preview"). */
 export function auditActionLabel(action: string, catalog?: LabelCatalog): string {
 	const known = AUDIT_ACTION_LABELS[action];
 	if (known) return known;
@@ -165,7 +166,7 @@ export function auditActionLabel(action: string, catalog?: LabelCatalog): string
 	if (c) {
 		const t = catalog?.resourceTypes.find((x) => x.key === c.resourceType);
 		return t && !c.label.toLowerCase().includes(t.label.toLowerCase().replace(/s$/, ''))
-			? `${c.label} (${t.label.toLowerCase()})`
+			? `${c.label} (${t.label})`
 			: c.label;
 	}
 	return sentence(action);
@@ -180,7 +181,7 @@ function sentence(key: string): string {
 /** Resource types of audit targets, in words. */
 export const TARGET_TYPES: Record<string, string> = {
 	stack: 'Stack',
-	service: 'Stack service',
+	service: 'Stack Service',
 	container: 'Container',
 	image: 'Image',
 	volume: 'Volume',
@@ -190,21 +191,21 @@ export const TARGET_TYPES: Record<string, string> = {
 	job: 'Job',
 	user: 'User',
 	group: 'Group',
-	api_token: 'API token',
+	api_token: 'API Token',
 	passkey: 'Passkey',
 	invitation: 'Invitation',
-	registry: 'Registry connection',
-	git_credential: 'Git credential',
+	registry: 'Registry Connection',
+	git_credential: 'Git Credential',
 	backup: 'Backup',
-	backup_repository: 'Backup repository',
-	backup_policy: 'Backup policy',
-	update_policy: 'Update policy',
-	maintenance_policy: 'Maintenance policy',
-	build_definition: 'Build definition',
-	template: 'Stack template',
+	backup_repository: 'Backup Repository',
+	backup_policy: 'Backup Policy',
+	update_policy: 'Update Policy',
+	maintenance_policy: 'Maintenance Policy',
+	build_definition: 'Build Definition',
+	template: 'Stack Template',
 	schedule: 'Schedule',
 	settings: 'Settings',
-	notification_channel: 'Notification channel'
+	notification_channel: 'Notification Channel'
 };
 
 /** An ID nobody reads: a UUID, a long hex string or a digest. */
@@ -224,7 +225,7 @@ export function targetText(
 	t: { type: string; id: string },
 	nameOf: (type: string, id: string) => string | undefined = () => undefined
 ): { name: string; type: string } {
-	const type = TARGET_TYPES[t.type] ?? sentence(t.type);
+	const type = TARGET_TYPES[t.type] ?? titleCase(t.type.replace(/[._]+/g, ' ').trim());
 	const name = nameOf(t.type, t.id) ?? (!t.id || isOpaqueId(t.id) ? undefined : t.id);
 	return { name: name ?? type, type };
 }
@@ -247,10 +248,10 @@ export function parseWho(value: string): Pick<AuditFilter, 'actorKind' | 'actorI
 
 /** The time ranges of the "When" filter. */
 export const RANGES: { value: string; label: string; hours: number }[] = [
-	{ value: '1h', label: 'Last hour', hours: 1 },
-	{ value: '24h', label: 'Last 24 hours', hours: 24 },
-	{ value: '7d', label: 'Last 7 days', hours: 24 * 7 },
-	{ value: '30d', label: 'Last 30 days', hours: 24 * 30 }
+	{ value: '1h', label: 'Last Hour', hours: 1 },
+	{ value: '24h', label: 'Last 24 Hours', hours: 24 },
+	{ value: '7d', label: 'Last 7 Days', hours: 24 * 7 },
+	{ value: '30d', label: 'Last 30 Days', hours: 24 * 30 }
 ];
 
 /** The start of a range as RFC 3339 (undefined: any time). */

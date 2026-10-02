@@ -86,7 +86,7 @@
 
 <Dialog
 	bind:open
-	title="Edit details of {stackTitle(initial)}"
+	title="Edit Details of {stackTitle(initial)}"
 	description="Details are stored in Docker Manager. Compose files are never changed."
 	size="md"
 	dismissible={!saving}
@@ -100,7 +100,7 @@
 		}}
 	>
 		<TextField
-			label="Display name"
+			label="Display Name"
 			bind:value={displayName}
 			description="Optional. Shown instead of the project name {initial.name}."
 		/>
@@ -131,7 +131,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={saving}>Cancel</Button>
 		<Button variant="primary" type="submit" form="stack-details" loading={saving}
-			>Save details</Button
+			>Save Details</Button
 		>
 	{/snippet}
 </Dialog>

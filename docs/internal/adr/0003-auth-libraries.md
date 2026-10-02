@@ -75,7 +75,7 @@ Cookie policy (`sessions.NewManager`): name `__Host-docker_manager_session`
 (browser-enforced `Secure`, `Path=/`, no `Domain`), `HttpOnly`,
 `SameSite=Strict`, `Secure` always (browsers accept it on
 `http://localhost`, the only plain-HTTP mode). The cookie ends with the
-browser (`Persist` off) unless the user signed in with **Stay signed in**
+browser (`Persist` off) unless the user signed in with **Stay Signed In**
 (`RememberMe`); then it persists until the session's deadline.
 `HashTokenInStore` is on: the database holds only SHA-256 hashes of
 session tokens. Idle timeout 8 h and absolute lifetime 24 h by default

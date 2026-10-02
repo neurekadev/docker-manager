@@ -11,7 +11,7 @@
 	// severity, the environment and
 	// since when; dismissed rows say who dismissed them and when, resolved
 	// ones how and when they ended. Active alerts the user may dismiss have
-	// a Dismiss button; "Dismiss all" (confirmed) dismisses every listed one
+	// a Dismiss button; "Dismiss All" (confirmed) dismisses every listed one
 	// the user may dismiss. Everything is live (topic alerts).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import BellRing from '@lucide/svelte/icons/bell-ring';
@@ -261,7 +261,7 @@
 		or memory, offline environments, failed scheduled jobs and available updates.
 	</p>
 	{#if dismissible.length}
-		<Button icon={CheckCheck} onclick={() => (confirmOpen = true)}>Dismiss all</Button>
+		<Button icon={CheckCheck} onclick={() => (confirmOpen = true)}>Dismiss All</Button>
 	{/if}
 </div>
 
@@ -273,11 +273,11 @@
 	/>
 {:else}
 	<ListCard
-		title="All alerts"
+		title="All Alerts"
 		id="alerts"
 		summary={alerts.data ? alertsSummary(rows.length, all.length) : undefined}
-		label="Filter alerts"
-		searchLabel="Search alerts"
+		label="Filter Alerts"
+		searchLabel="Search Alerts"
 		placeholder="Search alerts"
 		filters={defs}
 		store={filters}
@@ -327,7 +327,7 @@
 											variant="secondary"
 											icon={BellRing}
 											href={routes.notifications()}
-											>Set up notifications</Button
+											>Set Up Notifications</Button
 										>
 									{/if}
 								{/snippet}
@@ -342,7 +342,7 @@
 
 <ConfirmDialog
 	bind:open={confirmOpen}
-	title="Dismiss all alerts"
+	title="Dismiss All Alerts"
 	message="Dismisses {alertCount(
 		dismissible.length
 	)} for everyone. They stay in Alerts and open again if they get worse."

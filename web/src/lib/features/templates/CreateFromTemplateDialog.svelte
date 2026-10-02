@@ -234,7 +234,7 @@
 
 <Dialog
 	bind:open
-	title={picked ? `Create stack from ${picked.name}` : 'Create stack from template'}
+	title={picked ? `Create Stack From ${picked.name}` : 'Create Stack From Template'}
 	description={picked
 		? 'Copies every file of the chosen version into a new project directory. Nothing existing is overwritten; your .env is saved before anything runs.'
 		: 'Choose the template to create the stack from. Only templates with a published version you may use are listed.'}
@@ -266,20 +266,20 @@
 				description="Templates appear here once they have a published version and you may use them."
 				level={3}
 			>
-				{#snippet actions()}<Button href={routes.templates()}>Open templates</Button
+				{#snippet actions()}<Button href={routes.templates()}>Open Templates</Button
 					>{/snippet}
 			</EmptyState>
 		{:else}
 			<div class="picker">
 				<TextField
-					label="Search templates"
+					label="Search Templates"
 					hideLabel
 					type="search"
 					placeholder="Search templates"
 					bind:value={query}
 				/>
 				{#if tags.length}
-					<div class="chips" role="group" aria-label="Filter by tag">
+					<div class="chips" role="group" aria-label="Filter by Tag">
 						{#each tags as t (t.tag)}
 							<Chip
 								label={t.tag}
@@ -301,7 +301,7 @@
 									tags={t.tags}
 									iconUrl={t.iconUrl}
 									latest={t.versions[0]?.label}
-									source={t.own ? 'This instance' : t.registryName}
+									source={t.own ? 'This Instance' : t.registryName}
 								/>
 							</li>
 						{/each}
@@ -319,7 +319,7 @@
 					<div class="chosen-text">
 						<strong>{picked.name}</strong>
 						<span class="muted"
-							>{picked.own ? 'This instance' : picked.registryName}</span
+							>{picked.own ? 'This Instance' : picked.registryName}</span
 						>
 					</div>
 					{#if !templateId}
@@ -361,10 +361,10 @@
 					oninput={() => (nameConflict = null)}
 					onblur={() => (touched = true)}
 				/>
-				<TextField label="Display name" bind:value={displayName} description="Optional." />
+				<TextField label="Display Name" bind:value={displayName} description="Optional." />
 				<Checkbox
 					bind:checked={deployAfter}
-					label="Deploy after creating"
+					label="Deploy After Creating"
 					description="Starts a deploy right away; otherwise deploy it from the stack page."
 				/>
 				{#if failure}
@@ -440,7 +440,7 @@
 				loading={creating}
 				disabled={!ready || (env && !env.online)}
 			>
-				{deployAfter ? 'Create and deploy' : 'Create stack'}
+				{deployAfter ? 'Create and Deploy' : 'Create Stack'}
 			</Button>
 		{/if}
 	{/snippet}

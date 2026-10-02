@@ -89,7 +89,7 @@
 			{ label: target.name, detail: target.kind },
 			...(target.usedBy ?? []).map((c) => ({ label: c.name, detail: c.state ?? 'container' }))
 		]}
-		confirmLabel={target.kind === 'volume' ? 'Remove volume and its data' : 'Remove network'}
+		confirmLabel={target.kind === 'volume' ? 'Remove Volume and Its Data' : 'Remove Network'}
 		onconfirm={remove}
 	/>
 {/if}

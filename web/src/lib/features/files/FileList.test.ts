@@ -72,15 +72,15 @@ describe('FileList', () => {
 		await user.click(screen.getByRole('checkbox', { name: 'Select b.json' }));
 		await user.click(screen.getByRole('checkbox', { name: 'Select d.txt' }));
 		expect(selected()).toBe('config/b.json,config/d.txt');
-		await user.click(screen.getByRole('checkbox', { name: 'Select all entries' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Select All Entries' }));
 		expect(selected()?.split(',')).toHaveLength(5);
-		await user.click(screen.getByRole('checkbox', { name: 'Select all entries' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Select All Entries' }));
 		expect(selected()).toBe('');
 	});
 
 	it('shows the ".." row below the root; it opens the parent', async () => {
 		const { events, user } = setup();
-		const up = screen.getByRole('row', { name: /Parent folder/ });
+		const up = screen.getByRole('row', { name: /Parent Folder/ });
 		await user.dblClick(up);
 		expect(events).toContain('parent');
 		expect(up).not.toHaveAttribute('aria-selected');
@@ -88,7 +88,7 @@ describe('FileList', () => {
 
 	it('has no ".." row at the root', () => {
 		setup({ dir: '.' });
-		expect(screen.queryByRole('row', { name: /Parent folder/ })).toBeNull();
+		expect(screen.queryByRole('row', { name: /Parent Folder/ })).toBeNull();
 	});
 
 	it('drives selection and commands from the keyboard while it has focus', async () => {

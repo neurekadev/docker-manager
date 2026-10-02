@@ -174,7 +174,23 @@ describe('policy summaries', () => {
 					rule('unused_images', true)
 				]
 			})
-		).toMatch(/^Stopped containers, .+ and .+$/);
+		).toBe('Stopped containers, dangling images and unused images');
+	});
+
+	it('reads the Title Case category labels in sentence case', () => {
+		const info = [
+			{ category: 'stopped_containers', label: 'Stopped Containers' },
+			{ category: 'build_cache', label: 'Build Cache' }
+		] as Parameters<typeof rulesText>[1];
+		expect(
+			rulesText(
+				{ rules: [rule('stopped_containers', true), rule('build_cache', true)] },
+				info
+			)
+		).toBe('Stopped containers and build cache');
+		expect(ruleSummary(rule('build_cache', true), info)).toBe(
+			'Build cache older than 30 days, dangling records only'
+		);
 	});
 
 	it('counts the turned-on rules of every category', () => {

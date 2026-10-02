@@ -98,8 +98,8 @@ describe('Alerts page (#159)', () => {
 		stub(() => [failingDisk, degradedArray, offlineEdge]);
 		mount(AlertsView, { environmentId: null });
 		await screen.findByRole('table', { name: 'Alerts' });
-		await user.click(screen.getByRole('button', { name: 'Dismiss all' }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Dismiss all alerts' });
+		await user.click(screen.getByRole('button', { name: 'Dismiss All' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Dismiss All Alerts' });
 		expect(dialog).toHaveTextContent(
 			'Dismisses 2 alerts for everyone. They stay in Alerts and open again if they get worse.'
 		);
@@ -158,11 +158,11 @@ describe('Alerts page (#159)', () => {
 		expect(
 			await screen.findByRole('heading', { name: 'No active alerts.' })
 		).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Set up notifications' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Set Up Notifications' })).toHaveAttribute(
 			'href',
 			'/settings/notifications'
 		);
-		expect(screen.queryByRole('button', { name: 'Dismiss all' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Dismiss All' })).not.toBeInTheDocument();
 	});
 
 	it('shows who dismissed an alert and how resolved ones ended', async () => {
@@ -202,7 +202,7 @@ describe('Alerts page (#159)', () => {
 		);
 		mount(AlertsView, { environmentId: null });
 		const resolved = await screen.findByRole('table', { name: 'Alerts' });
-		expect(within(resolved).getByText('Environment archived')).toBeInTheDocument();
+		expect(within(resolved).getByText('Environment Archived')).toBeInTheDocument();
 		expect(
 			within(resolved).getByRole('columnheader', { name: /Resolution/ })
 		).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe('AlertMark (#159 System tab)', () => {
 		stub(() => []);
 		render(AlertMark, { props: { alert: { ...degradedArray, dismissed: true } } });
 		const link = screen.getByRole('link', {
-			name: 'Alert dismissed: RAID md0 on homelab is degraded'
+			name: 'Alert Dismissed: RAID md0 on homelab is degraded'
 		});
 		expect(link).toHaveAttribute('href', '/notifications?tab=alerts');
 		expect(link).toHaveAttribute('title', 'RAID md0 on homelab is degraded');

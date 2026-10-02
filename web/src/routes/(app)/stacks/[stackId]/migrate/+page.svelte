@@ -13,7 +13,7 @@
 	const title = $derived(stackTitle(stack));
 </script>
 
-<Card title="Migrate {title} to another environment" id="migrate">
+<Card title="Migrate {title} to Another Environment" id="migrate">
 	{#if stack.actions.includes('stack.migrate')}
 		{#key ctx.id}<MigrationWizard {stack} tray={ctx.tray} />{/key}
 	{:else}

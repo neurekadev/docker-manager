@@ -172,7 +172,7 @@ describe('credential display (#19)', () => {
 		expect(maskFingerprint('fp_3f2a9c0d1e4b5a67')).toBe('fp_3f2a…5a67');
 		expect(maskFingerprint('short')).toBe('short');
 		expect(maskFingerprint(undefined)).toBe('—');
-		expect(checkLabel('rate_limited')).toBe('Rate limited');
+		expect(checkLabel('rate_limited')).toBe('Rate Limited');
 		expect(checkLabel('something_new')).toBe('something new');
 	});
 });

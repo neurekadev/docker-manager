@@ -39,17 +39,17 @@ describe('alerts in words (#159)', () => {
 			)
 		);
 		expect(ALERT_KINDS.map((k) => k.label)).toEqual([
-			'Disk health',
+			'Disk Health',
 			'RAID',
 			'Temperature',
-			'Disk space',
+			'Disk Space',
 			'Memory',
-			'Environment offline',
-			'Updates available',
-			'Failed job'
+			'Environment Offline',
+			'Updates Available',
+			'Failed Job'
 		]);
-		expect(kindLabel('job_failed')).toBe('Failed job');
-		expect(kindLabel('updates')).toBe('Updates available');
+		expect(kindLabel('job_failed')).toBe('Failed Job');
+		expect(kindLabel('updates')).toBe('Updates Available');
 		expect(kindLabel('something_new')).toBe('something_new');
 		expect(kindIcon('temperature')).toBe(Thermometer);
 		// Disks and RAID arrays show the tiles of their tables on the System tab.
@@ -125,7 +125,7 @@ describe('alerts in words (#159)', () => {
 		expect(resolutionLabel({})).toBe('Resolved');
 		expect(resolutionLabel({ resolution: 'removed' })).toBe('Removed');
 		expect(resolutionLabel({ resolution: 'expired' })).toBe('Expired');
-		expect(resolutionLabel({ resolution: 'archived' })).toBe('Environment archived');
+		expect(resolutionLabel({ resolution: 'archived' })).toBe('Environment Archived');
 		const now = new Date('2026-09-30T12:00:00Z');
 		expect(
 			dismissedText(

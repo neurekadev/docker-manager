@@ -105,13 +105,13 @@
 
 {#if rows.length}
 	<Card
-		title="Waiting for an agent"
+		title="Waiting for an Agent"
 		subtitle="Install commands that no host has used yet"
 		padding="none"
 		id="enrollments"
 	>
 		<Table
-			label="Install commands waiting for an agent"
+			label="Install Commands Waiting for an Agent"
 			{rows}
 			{columns}
 			rowKey={(e) => e.id}
@@ -122,13 +122,13 @@
 
 <ConfirmDialog
 	bind:open={confirmOpen}
-	title="Revoke install command"
+	title="Revoke Install Command"
 	message="The install command stops working."
 	consequences={[
 		'An agent that has not connected yet cannot use it.',
 		'Agents that already connected keep working.'
 	]}
-	confirmLabel="Revoke command"
+	confirmLabel="Revoke Command"
 	tone="danger"
 	onconfirm={revoke}
 />

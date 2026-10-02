@@ -35,7 +35,7 @@
 			width: '100px',
 			sortValue: (i) => i.bytes
 		},
-		{ id: 'since', header: 'Age from', cell: sinceCell, width: '130px' }
+		{ id: 'since', header: 'Age From', cell: sinceCell, width: '130px' }
 	];
 
 	const shown = $derived(preview.categories.filter((c) => c.items.length > 0 || c.remove > 0));
@@ -51,7 +51,7 @@
 {/snippet}
 {#snippet decisionCell(i: PruneItem)}
 	<Badge tone={DECISION[i.decision].tone} dot
-		>{i.decision === 'remove' ? 'Will be removed' : DECISION[i.decision].label}</Badge
+		>{i.decision === 'remove' ? 'Will Be Removed' : DECISION[i.decision].label}</Badge
 	>
 {/snippet}
 {#snippet reasonCell(i: PruneItem)}<span class="reason">{i.reason}</span>{/snippet}
@@ -70,7 +70,7 @@
 		<span class="muted">Previewed {formatRelative(preview.at)}.</span>
 	</p>
 	{#if preview.notes.length}
-		<Disclosure summary="How runs decide">
+		<Disclosure summary="How Runs Decide">
 			{#each preview.notes as n (n)}<p class="muted note">{n}</p>{/each}
 		</Disclosure>
 	{/if}
@@ -92,7 +92,7 @@
 				</span>
 			</h3>
 			<Table
-				label="{categoryLabel(c.category, info)} in the preview"
+				label="{categoryLabel(c.category, info)} in the Preview"
 				rows={c.items}
 				{columns}
 				rowKey={(i) => i.id}

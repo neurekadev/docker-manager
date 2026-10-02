@@ -79,7 +79,7 @@
 			label="I saved the Recovery Key outside Docker Manager"
 			description="For example in a password manager and on paper in a safe place."
 		/>
-		<Notice tone="info" title="What this check proves" live="none">
+		<Notice tone="info" title="What This Check Proves" live="none">
 			It proves you copied the key correctly, not that your copy is safe. {RECOVERY_KEY_WARNING}
 		</Notice>
 		{#if error}<Notice tone="danger" title="The key was not confirmed" live="alert"

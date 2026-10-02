@@ -4,7 +4,7 @@
 	// (system labels folded). The title is the first tag (cut with its
 	// full text as tooltip), the digest short with a copy button. Actions:
 	// create a container, tag; removal (server preview first) is the last
-	// entry of the "More actions" menu. Its running jobs (removal, pulls and
+	// entry of the "More Actions" menu. Its running jobs (removal, pulls and
 	// builds of its tags) come from the running list, also after a reload.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -133,12 +133,12 @@
 			? [
 					{ label: 'Entrypoint', value: joinCommand(d.entrypoint), mono: true },
 					{ label: 'Command', value: joinCommand(d.cmd), mono: true },
-					{ label: 'Working directory', value: d.workingDir, mono: true },
+					{ label: 'Working Directory', value: d.workingDir, mono: true },
 					{ label: 'User', value: d.user || 'root' },
-					{ label: 'Exposed ports', value: d.exposedPorts.join(', '), mono: true },
+					{ label: 'Exposed Ports', value: d.exposedPorts.join(', '), mono: true },
 					{ label: 'Volumes', value: d.volumes.join(', '), mono: true },
 					{
-						label: 'Health check',
+						label: 'Health Check',
 						value: d.hasHealthTest ? 'Defined by the image' : 'None'
 					}
 				]
@@ -170,7 +170,7 @@
 			level={1}
 		>
 			{#snippet actions()}<Button variant="secondary" href={routes.images()}
-					>Back to images</Button
+					>Back to Images</Button
 				>{/snippet}
 		</EmptyState>
 	{:else if q.isError}
@@ -190,7 +190,7 @@
 			{meta}
 		>
 			{#snippet status()}
-				{#if im.inUse}<Badge tone="ok" dot>In use</Badge>{:else}<Badge>Unused</Badge>{/if}
+				{#if im.inUse}<Badge tone="ok" dot>In Use</Badge>{:else}<Badge>Unused</Badge>{/if}
 				{#if im.protection}<ProtectionBadge
 						protection={im.protection}
 						label="Used by Docker Manager"
@@ -201,16 +201,16 @@
 					<Button
 						variant="primary"
 						icon={Plus}
-						href={routes.newContainer(env, im.repoTags[0])}>Create container</Button
+						href={routes.newContainer(env, im.repoTags[0])}>Create Container</Button
 					>
 				{/if}
 				{#if overflow.length}
-					<Menu items={overflow} label="More actions for {title}" align="end">
+					<Menu items={overflow} label="More Actions for {title}" align="end">
 						{#snippet trigger(props)}
 							<IconButton
 								{...props}
 								icon={Ellipsis}
-								label="More actions"
+								label="More Actions"
 								variant="secondary"
 							/>
 						{/snippet}
@@ -230,7 +230,7 @@
 				on the host if you really need to.
 			</Notice>
 		{/if}
-		<ActiveJobs {jobs} variant="inline" label="Running jobs of {title}" />
+		<ActiveJobs {jobs} variant="inline" label="Running Jobs of {title}" />
 
 		<Columns ratio="equal">
 			<Card title="Details">
@@ -269,7 +269,7 @@
 					</p>
 				{/if}
 			</Card>
-			<Card title="Used by">
+			<Card title="Used By">
 				{#if im.usedBy?.length}
 					<ul class="list" role="list">
 						{#each [...im.usedBy].sort( (a, b) => a.name.localeCompare(b.name) ) as c (c.id)}

@@ -64,7 +64,7 @@
 		title: 'Restore',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
-			{ label: 'All backups', href: routes.backupList() },
+			{ label: 'All Backups', href: routes.backupList() },
 			{ label: backup.data ? itemName(backup.data) : 'Backup', href: routes.backup(id) },
 			{ label: 'Restore' }
 		]
@@ -138,19 +138,19 @@
 		if (b.kind === 'stack')
 			out.push({
 				value: 'stack',
-				label: 'Stack definition and files',
+				label: 'Stack Definition and Files',
 				description:
 					'compose.yaml, .env, the workspace and relative bind data. Volumes are not touched; deploy afterwards to apply it.'
 			});
 		out.push({
 			value: 'volume',
-			label: b.kind === 'stack' ? 'Volumes of the stack' : 'The volume',
+			label: b.kind === 'stack' ? 'Volumes of the Stack' : 'The Volume',
 			description:
 				'Named volumes only. The stack definition is not changed. A missing volume is created.'
 		});
 		out.push({
 			value: 'file',
-			label: 'One file',
+			label: 'One File',
 			description:
 				'Put one file back in place. To get a copy instead, download it from the backup.'
 		});
@@ -180,7 +180,7 @@
 	const steps = [
 		{
 			id: 'scope',
-			label: 'What to restore',
+			label: 'What to Restore',
 			description: 'Restores go to where the data lives now.'
 		},
 		{
@@ -267,13 +267,13 @@
 					: ''}."
 			/>
 			{#if b.kind === 'manager_state'}
-				<Card title="Restore the manager on a new Docker Manager">
+				<Card title="Restore the Manager on a New Docker Manager">
 					<ol class="steps" role="list">
 						<li>
 							Start a new Docker Manager with an empty data volume (keep this one
 							running or stopped; it is not touched).
 						</li>
-						<li>Open its setup page and choose <strong>Import from backup</strong>.</li>
+						<li>Open its setup page and choose <strong>Import From Backup</strong>.</li>
 						<li>
 							Enter this repository's location, its access keys if it is S3, and your
 							Recovery Key.
@@ -295,7 +295,7 @@
 			{:else if !has(b, 'backup.restore')}
 				<DeniedState
 					title="You can't restore this backup."
-					description="Restores need the Restore backups permission on the backup and on every target."
+					description="Restores need the Restore Backups permission on the backup and on every target."
 					level={2}
 				/>
 			{:else}
@@ -310,9 +310,9 @@
 						nextLabel={current === 0
 							? 'Review'
 							: current === 2 && !job
-								? 'Restore now'
+								? 'Restore Now'
 								: 'Next'}
-						finishLabel={job ? (result ? 'Done' : 'Restoring…') : 'Restore now'}
+						finishLabel={job ? (result ? 'Done' : 'Restoring…') : 'Restore Now'}
 						onfinish={() => goto(routes.backup(b.id))}
 					>
 						{#snippet step(s)}
@@ -347,7 +347,7 @@
 									{/if}
 									{#if scope === 'file'}
 										<TextField
-											label="File in the backup"
+											label="File in the Backup"
 											mono
 											bind:value={filePath}
 											placeholder="/…/compose.yaml"
@@ -381,7 +381,7 @@
 									<Fields>
 										<Notice
 											tone="danger"
-											title="This overwrites the current data"
+											title="This Overwrites the Current Data"
 											live="none"
 										>
 											<ul class="plain" role="list">
@@ -428,7 +428,7 @@
 													{#if stackRestore && b.stackId}<Button
 															size="sm"
 															href={routes.stack(b.stackId)}
-															>Open the stack</Button
+															>Open the Stack</Button
 														>{/if}
 												{/snippet}
 											</Notice>
@@ -438,8 +438,8 @@
 													? 'warn'
 													: 'danger'}
 												title={result.state === 'partial'
-													? 'Partly restored'
-													: 'Not restored'}
+													? 'Partly Restored'
+													: 'Not Restored'}
 												live="alert"
 											>
 												{result.error?.recovery ??

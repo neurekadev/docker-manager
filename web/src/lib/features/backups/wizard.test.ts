@@ -1,6 +1,6 @@
 // Backup policy form (#10): creating walks through the wizard's steps
 // (Cancel on each, visited steps reopen) and nothing is saved before the
-// last one; editing is one screen saved once with Save changes. Retention
+// last one; editing is one screen saved once with Save Changes. Retention
 // starts on a preset; Custom reveals the rules.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
@@ -110,13 +110,13 @@ const heading = (name: string) => screen.findByRole('heading', { name, level: 2 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('PolicyWizard (#10)', () => {
-	it('editing shows every section on one screen and saves once with Save changes', async () => {
+	it('editing shows every section on one screen and saves once with Save Changes', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const writes = stubApi([policy]);
 		const ondone = vi.fn();
 		const oncancel = vi.fn();
 		renderWizard({ policy, owner: false, ondone, oncancel });
-		for (const section of ['Name and destination', 'What to back up', 'Schedule', 'Retention'])
+		for (const section of ['Name and Destination', 'What to Back Up', 'Schedule', 'Retention'])
 			expect(
 				await screen.findByRole('heading', { name: section, level: 3 })
 			).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe('PolicyWizard (#10)', () => {
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		expect(oncancel).toHaveBeenCalledTimes(1);
 		expect(writes).toEqual([]);
-		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await vi.waitFor(() => expect(ondone).toHaveBeenCalled());
 		expect(writes.map((w) => `${w.method} ${w.path}`)).toEqual([
 			'PATCH /api/v1/backup-policies/bp1'
@@ -143,7 +143,7 @@ describe('PolicyWizard (#10)', () => {
 		expect(writes[0].body).toMatchObject({ name: 'Nightly', retention: { daily: 7 } });
 	});
 
-	it('creating writes nothing until Create policy, then creates it with every setting', async () => {
+	it('creating writes nothing until Create Policy, then creates it with every setting', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const writes = stubApi();
 		const ondone = vi.fn();
@@ -154,15 +154,15 @@ describe('PolicyWizard (#10)', () => {
 		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
 		await choose(user, await screen.findByRole('combobox', { name: /^Repository/ }), /^Local/);
 		await user.click(screen.getByRole('button', { name: 'Next' }));
-		expect(await heading('What to back up')).toBeInTheDocument();
+		expect(await heading('What to Back Up')).toBeInTheDocument();
 		// Consistency is part of this step now.
 		expect(
-			screen.getByRole('switch', { name: /Stop containers during backups/ })
+			screen.getByRole('switch', { name: /Stop Containers During Backups/ })
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
-		await user.click(screen.getByRole('switch', { name: /Back up anonymous volumes/ }));
+		await user.click(screen.getByRole('switch', { name: /Back Up Anonymous Volumes/ }));
 		await user.click(
-			screen.getByRole('switch', { name: /Back up allowed folders outside stacks/ })
+			screen.getByRole('switch', { name: /Back Up Allowed Folders Outside Stacks/ })
 		);
 		for (const next of ['Schedule', 'Retention']) {
 			await user.click(screen.getByRole('button', { name: 'Next' }));
@@ -175,17 +175,17 @@ describe('PolicyWizard (#10)', () => {
 		expect(await heading('Retention')).toBeInTheDocument();
 		// New policies start on the recommended preset; Custom reveals the rules.
 		expect(
-			screen.getByRole('radio', { name: /7 daily, 4 weekly, 12 monthly \(recommended\)/ })
+			screen.getByRole('radio', { name: /7 Daily, 4 Weekly, 12 Monthly \(Recommended\)/ })
 		).toBeChecked();
 		expect(screen.queryByRole('spinbutton', { name: /^Daily/ })).toBeNull();
 		await user.click(screen.getByRole('radio', { name: /^Custom/ }));
 		expect(screen.getByRole('spinbutton', { name: /^Daily/ })).toHaveValue(7);
-		await user.click(screen.getByRole('radio', { name: /^Keep the last 30/ }));
+		await user.click(screen.getByRole('radio', { name: /^Keep the Last 30/ }));
 		expect(screen.getByText('Keep last 30.')).toBeInTheDocument();
 		expect(writes).toEqual([]);
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		expect(oncancel).toHaveBeenCalledTimes(1);
-		await user.click(screen.getByRole('button', { name: 'Create policy' }));
+		await user.click(screen.getByRole('button', { name: 'Create Policy' }));
 		await vi.waitFor(() => expect(ondone).toHaveBeenCalled());
 		expect(writes).toHaveLength(1);
 		expect(writes[0]).toMatchObject({

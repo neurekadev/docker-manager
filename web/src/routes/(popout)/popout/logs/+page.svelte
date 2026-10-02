@@ -31,7 +31,7 @@
 	);
 
 	$effect(() => {
-		document.title = name ? `${name} logs · Docker Manager` : 'Logs · Docker Manager';
+		document.title = name ? `${name} Logs · Docker Manager` : 'Logs · Docker Manager';
 	});
 </script>
 
@@ -41,7 +41,7 @@
 {:else}
 	<EmptyState
 		level={1}
-		title="Nothing to show"
-		description="Open the logs from a stack or container page, then choose Open in a new window."
+		title="Nothing to Show"
+		description="Open the logs from a stack or container page, then choose Open in a New Window."
 	/>
 {/if}

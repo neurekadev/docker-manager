@@ -33,7 +33,7 @@
 		alertsHref
 	}: {
 		notices?: Notices;
-		/** The Notifications page's Alerts tab, when the user may open it ("View all alerts"). */
+		/** The Notifications page's Alerts tab, when the user may open it ("View All Alerts"). */
 		alertsHref?: string;
 	} = $props();
 
@@ -134,7 +134,7 @@
 		<div class="foot">
 			{#if items.length}
 				<Button size="sm" variant="ghost" loading={busy} onclick={dismissAll}
-					>Dismiss all</Button
+					>Dismiss All</Button
 				>
 			{/if}
 			{#if alertsHref}
@@ -142,7 +142,7 @@
 					size="sm"
 					variant="secondary"
 					href={alertsHref}
-					onclick={() => (open = false)}>View all alerts</Button
+					onclick={() => (open = false)}>View All Alerts</Button
 				>
 			{/if}
 		</div>

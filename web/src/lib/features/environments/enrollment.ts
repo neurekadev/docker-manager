@@ -24,10 +24,10 @@ export function enrollmentStateStatus(state: AgentEnrollment['state']): string {
 
 /** Token lifetimes offered (the API allows 1 min to 24 h; default 1 h). */
 export const TOKEN_LIFETIMES = [
-	{ value: '900', label: '15 minutes' },
-	{ value: '3600', label: '1 hour' },
-	{ value: '14400', label: '4 hours' },
-	{ value: '86400', label: '24 hours' }
+	{ value: '900', label: '15 Minutes' },
+	{ value: '3600', label: '1 Hour' },
+	{ value: '14400', label: '4 Hours' },
+	{ value: '86400', label: '24 Hours' }
 ];
 
 /**
@@ -41,19 +41,19 @@ export const INSTALL_VARIANTS: Record<
 > = {
 	colocated: {
 		order: 0,
-		heading: 'On the Docker Manager host',
+		heading: 'On the Docker Manager Host',
 		description:
 			'Run it in the folder with Docker Manager’s compose.yaml. The agent there is already running; it connects within seconds.'
 	},
 	remote: {
 		order: 1,
-		heading: 'On another Docker host',
+		heading: 'On Another Docker Host',
 		description:
 			'Starts the agent on that host and hands it the one-time token. The agent controls Docker on the host, so run it only on hosts you manage.'
 	},
 	remote_compose: {
 		order: 2,
-		heading: 'On another Docker host, with Compose',
+		heading: 'On Another Docker Host, with Compose',
 		description:
 			'Put these lines in the .env file next to the agent’s compose.yaml, then start it. Remove the token from the file once the host shows as connected.'
 	}
@@ -64,7 +64,7 @@ export const REJECTIONS: Record<string, string> = {
 	engine_already_enrolled:
 		'Docker on this host is already connected through another agent. Remove that agent first.',
 	engine_identity_conflict:
-		'Docker Manager already knows a host that looks exactly like this one (a cloned machine?). If it is a different host, create a new command with “This host is a clone” under More options.',
+		'Docker Manager already knows a host that looks exactly like this one (a cloned machine?). If it is a different host, create a new command with “This host is a clone” under More Options.',
 	environment_archived: 'The environment is archived. Re-attach it from the archived list.',
 	environment_detached: 'The environment has no agent. Re-attach it with a new command.',
 	engine_mismatch: 'The agent runs on a different host than the environment it should re-attach.',

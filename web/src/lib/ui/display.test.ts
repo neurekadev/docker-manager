@@ -39,18 +39,18 @@ describe('KpiCard', () => {
 	it('keeps label, value and secondary line on one line with the full text as tooltip', () => {
 		render(KpiCard, {
 			props: {
-				label: 'Memory used by all containers',
+				label: 'Memory Used by All Containers',
 				value: '1.8 GB',
 				unit: '/ 8 GB',
 				secondary: 'Of the host’s memory',
 				tone: 'warn'
 			}
 		});
-		const card = screen.getByRole('group', { name: 'Memory used by all containers' });
+		const card = screen.getByRole('group', { name: 'Memory Used by All Containers' });
 		expect(card).toBeInTheDocument();
-		expect(screen.getByText('Memory used by all containers')).toHaveAttribute(
+		expect(screen.getByText('Memory Used by All Containers')).toHaveAttribute(
 			'title',
-			'Memory used by all containers'
+			'Memory Used by All Containers'
 		);
 		expect(screen.getByText('1.8 GB')).toHaveAttribute('title', '1.8 GB / 8 GB');
 		expect(screen.getByText('Of the host’s memory')).toHaveAttribute(
@@ -63,9 +63,9 @@ describe('KpiCard', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const onclick = vi.fn((e: MouseEvent) => e.preventDefault());
 		render(KpiCard, {
-			props: { label: 'Containers running', value: '8 / 9', href: '/containers', onclick }
+			props: { label: 'Containers Running', value: '8 / 9', href: '/containers', onclick }
 		});
-		const link = screen.getByRole('link', { name: 'Containers running' });
+		const link = screen.getByRole('link', { name: 'Containers Running' });
 		expect(link).toHaveAttribute('href', '/containers');
 		await user.click(link);
 		expect(onclick).toHaveBeenCalledTimes(1);

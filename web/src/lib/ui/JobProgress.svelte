@@ -13,7 +13,7 @@
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
 	import { notices as appNotices, type Notices } from '$lib/shell/notices.svelte';
-	import { formatPercent } from './format';
+	import { formatPercent, titleCase } from './format';
 	import StatusBadge from './StatusBadge.svelte';
 	import { statusInfo } from './status';
 	import { errorMessage } from './errors';
@@ -91,8 +91,7 @@
 
 	function kindLabel(kind?: string): string {
 		if (!kind) return 'Job';
-		const s = kind.replaceAll('.', ' ').replaceAll('_', ' ');
-		return s[0].toUpperCase() + s.slice(1);
+		return titleCase(kind.replaceAll('.', ' ').replaceAll('_', ' '));
 	}
 </script>
 

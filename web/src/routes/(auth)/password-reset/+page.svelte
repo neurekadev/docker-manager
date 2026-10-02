@@ -71,11 +71,11 @@
 	}
 </script>
 
-<svelte:head><title>Set a new password · Docker Manager</title></svelte:head>
+<svelte:head><title>Set a New Password · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<AuthHeader
-		title="Set a new password"
+		title="Set a New Password"
 		lead="This signs you out everywhere. Sign in with the new password afterwards."
 	/>
 
@@ -92,7 +92,7 @@
 
 	<form onsubmit={submit} novalidate>
 		<TextField
-			label="Reset code"
+			label="Reset Code"
 			name="code"
 			bind:value={code}
 			mono
@@ -102,7 +102,7 @@
 			error={untilFilled(invalid.code, code) ?? field('code')}
 		/>
 		<PasswordField
-			label="New password"
+			label="New Password"
 			autocomplete="new-password"
 			description="Use a long passphrase; common and breached passwords are refused."
 			name="password"
@@ -111,7 +111,7 @@
 			error={untilFilled(invalid.password, password) ?? field('newPassword')}
 		/>
 		<PasswordField
-			label="Repeat the new password"
+			label="Repeat the New Password"
 			autocomplete="new-password"
 			name="confirm"
 			bind:value={confirm}
@@ -120,10 +120,10 @@
 		/>
 		<Checkbox
 			bind:checked={revokeTokens}
-			label="Also revoke my API tokens"
+			label="Also Revoke My API Tokens"
 			description="Choose this if someone else may have used your account."
 		/>
-		<Button type="submit" variant="primary" block loading={busy}>Set new password</Button>
+		<Button type="submit" variant="primary" block loading={busy}>Set New Password</Button>
 	</form>
 </div>
 

@@ -3,7 +3,7 @@
 	// button: its state, level, size, disks, superblock, chunk size,
 	// layout, bitmap and running sync, then every member by path with its
 	// slot, role and the health of the disk it lives on (matched against
-	// the Disk health card's disks). A ZFS pool reports only its health.
+	// the Disk Health card's disks). A ZFS pool reports only its health.
 	import Facts, { type Fact } from '$lib/features/common/Facts.svelte';
 	import { Button, Dialog, StatusBadge, Table, formatBytes, type Column } from '$lib/ui';
 	import {
@@ -48,18 +48,18 @@
 					{ label: 'Disks', value: raidDisks(array) },
 					{ label: 'Metadata', value: array.metadata, mono: true },
 					{
-						label: 'Chunk size',
+						label: 'Chunk Size',
 						value: array.chunkBytes ? formatBytes(array.chunkBytes) : ''
 					},
 					{ label: 'Layout', value: raidLayout(array) },
-					{ label: 'Write-intent bitmap', value: raidBitmap(array) },
-					{ label: 'Read-only', value: array.readOnly ? 'Yes' : 'No' },
+					{ label: 'Write-Intent Bitmap', value: raidBitmap(array) },
+					{ label: 'Read-Only', value: array.readOnly ? 'Yes' : 'No' },
 					{ label: 'Sync', value: raidProgress(array)?.text ?? 'None' }
 				]
 			: [
 					{ label: 'State', render: stateFact },
 					{ label: 'Kind', value: raidLevel(array) },
-					{ label: 'Pool health', value: array.health, mono: true }
+					{ label: 'Pool Health', value: array.health, mono: true }
 				]
 	);
 
@@ -81,7 +81,7 @@
 			sortValue: (m) => m.slot
 		},
 		{ id: 'role', header: 'Role', cell: roleCell, stack: 'status' },
-		{ id: 'disk', header: 'Disk health', cell: diskCell }
+		{ id: 'disk', header: 'Disk Health', cell: diskCell }
 	];
 </script>
 

@@ -118,7 +118,7 @@
 		},
 		{ title: 'Text', tokens: ['text-strong', 'text-default', 'text-muted', 'text-faint'] },
 		{
-			title: 'Accent and status',
+			title: 'Accent and Status',
 			tokens: [
 				'accent',
 				'accent-text',
@@ -135,25 +135,25 @@
 	];
 	const typeScale = [
 		{
-			name: 'Page title',
+			name: 'Page Title',
 			size: '28 / 34, 600',
 			style: 'font-size: 28px; line-height: 34px; font-weight: 600',
 			sample: 'Silo'
 		},
 		{
-			name: 'Page title on phones, boot screen',
+			name: 'Page Title on Phones, Boot Screen',
 			size: '22 / 28, 600',
 			style: 'font-size: 22px; line-height: 28px; font-weight: 600',
 			sample: 'Silo'
 		},
 		{
-			name: 'KPI value',
+			name: 'KPI Value',
 			size: '20 / 28, 600',
 			style: 'font-size: 20px; line-height: 28px; font-weight: 600',
 			sample: '1.8 GB'
 		},
 		{
-			name: 'Section title',
+			name: 'Section Title',
 			size: '16 / 24, 600',
 			style: 'font-size: 16px; line-height: 24px; font-weight: 600',
 			sample: 'Services'
@@ -162,7 +162,7 @@
 			name: 'Subsection (.subsection-title)',
 			size: '14 / 20, 600',
 			style: 'font-size: 14px; line-height: 20px; font-weight: 600',
-			sample: 'Environment variables'
+			sample: 'Environment Variables'
 		},
 		{
 			name: 'Control',
@@ -171,7 +171,7 @@
 			sample: 'Deploy'
 		},
 		{
-			name: 'Body and tables',
+			name: 'Body and Tables',
 			size: '13 / 20, 400',
 			style: 'font-size: 13px; line-height: 20px',
 			sample: 'unless-stopped'
@@ -207,7 +207,7 @@
 			onSelect: () => toast.success(`Restarted ${s.name}`)
 		},
 		{
-			label: 'View logs',
+			label: 'View Logs',
 			icon: FileText,
 			onSelect: () => toast.info('Logs open in the Logs tab')
 		},
@@ -235,7 +235,7 @@
 		{ id: 'containers', header: 'Containers', cell: containersCell, width: '110px' },
 		{ id: 'image', header: 'Image', cell: imageCell, sortValue: (s) => s.image, mono: true },
 		{ id: 'ports', header: 'Ports', cell: portsCell },
-		{ id: 'restart', header: 'Restart policy', cell: restartCell },
+		{ id: 'restart', header: 'Restart Policy', cell: restartCell },
 		{ id: 'cpu', header: 'CPU', cell: cpuCell, sortValue: (s) => s.cpu, numeric: true },
 		{
 			id: 'memory',
@@ -354,7 +354,7 @@
 	});
 </script>
 
-<svelte:head><title>Design system · Docker Manager</title></svelte:head>
+<svelte:head><title>Design System · Docker Manager</title></svelte:head>
 
 {#snippet nameCell(s: DemoService)}
 	<span class="svc">
@@ -385,12 +385,12 @@
 {#snippet actionsCell(s: DemoService)}
 	<span class="row-actions">
 		<IconButton size="sm" label="Open {s.name}" icon={ExternalLink} />
-		<IconButton size="sm" label="Open a terminal in {s.name}" icon={SquareTerminal} />
+		<IconButton size="sm" label="Open a Terminal in {s.name}" icon={SquareTerminal} />
 		<Menu items={rowMenu(s)} label="Actions for {s.name}">
 			{#snippet trigger(props)}<IconButton
 					{...props}
 					size="sm"
-					label="More actions for {s.name}"
+					label="More Actions for {s.name}"
 					icon={EllipsisVertical}
 				/>{/snippet}
 		</Menu>
@@ -399,7 +399,7 @@
 
 <div class="gallery">
 	<header class="intro">
-		<h1>Docker Manager design system</h1>
+		<h1>Docker Manager Design System</h1>
 		<p class="muted">
 			Tokens and components from $lib/design and $lib/ui, with sample data. Rules:
 			docs/internal/design/README.md.
@@ -407,7 +407,7 @@
 	</header>
 
 	<section aria-labelledby="stack-title" class="section">
-		<h2 id="stack-title">Stack detail, composed from the library</h2>
+		<h2 id="stack-title">Stack Detail, Composed From the Library</h2>
 		<PageHeader
 			title="Silo"
 			description="Personal cloud and media platform"
@@ -434,7 +434,7 @@
 				<SplitButton
 					label="Deploy"
 					icon={Rocket}
-					menuLabel="More deploy options"
+					menuLabel="More Deploy Options"
 					onclick={() => toast.success('Deployed Silo')}
 					items={[
 						{
@@ -462,10 +462,10 @@
 					}}
 				/>
 				<Menu
-					label="More stack actions"
+					label="More Stack Actions"
 					items={[
 						{ label: 'Migrate', icon: ArrowRightLeft },
-						{ label: 'Edit details', icon: FileText },
+						{ label: 'Edit Details', icon: FileText },
 						{ separator: true },
 						{
 							label: 'Delete',
@@ -478,14 +478,14 @@
 					{#snippet trigger(props)}<IconButton
 							{...props}
 							variant="secondary"
-							label="More stack actions"
+							label="More Stack Actions"
 							icon={EllipsisVertical}
 						/>{/snippet}
 				</Menu>
 			{/snippet}
 		</PageHeader>
 		<TabNav
-			label="Stack sections"
+			label="Stack Sections"
 			current="/design"
 			items={[
 				{ href: '/design', label: 'Overview' },
@@ -497,7 +497,7 @@
 				{ href: '/design/activity', label: 'Activity' }
 			]}
 		>
-			{#snippet after()}<Badge tone="warn" dot>Undeployed changes</Badge>{/snippet}
+			{#snippet after()}<Badge tone="warn" dot>Undeployed Changes</Badge>{/snippet}
 		</TabNav>
 		<KpiRow>
 			<KpiCard
@@ -508,7 +508,7 @@
 				color="green"
 				secondary="4 of 5 services running"
 			/>
-			<KpiCard label="CPU usage" value="12.4%" icon={Cpu} color="cyan">
+			<KpiCard label="CPU Usage" value="12.4%" icon={Cpu} color="cyan">
 				{#snippet sparkline()}<Sparkline
 						values={cpu}
 						color={TILE_HEX.cyan.fg}
@@ -516,7 +516,7 @@
 					/>{/snippet}
 			</KpiCard>
 			<KpiCard
-				label="Memory usage"
+				label="Memory Usage"
 				value="1.8 GB"
 				unit="/ 8 GB"
 				icon={MemoryStick}
@@ -525,7 +525,7 @@
 				{#snippet bar()}<Meter
 						value={1.8}
 						max={8}
-						label="Memory usage"
+						label="Memory Usage"
 						valueText="1.8 GB of 8 GB"
 					/>{/snippet}
 			</KpiCard>
@@ -537,7 +537,7 @@
 				secondary="Since Sep 11, 2026"
 			/>
 			<KpiCard
-				label="Last deploy"
+				label="Last Deploy"
 				value="2 days ago"
 				icon={Rocket}
 				color="violet"
@@ -559,7 +559,7 @@
 	</section>
 
 	<section aria-labelledby="hue-title" class="section">
-		<h2 id="hue-title">Service colour</h2>
+		<h2 id="hue-title">Service Colour</h2>
 		<p class="muted">
 			Every service has the same tile and the same colour, also where the output of several
 			services is interleaved: the log prefix, chart series and filter chip name the service.
@@ -573,7 +573,7 @@
 					</span>
 				{/each}
 			</div>
-			<pre class="logs" aria-label="Log sample">{#each logLines as [svc, line], i (i)}<span
+			<pre class="logs" aria-label="Log Sample">{#each logLines as [svc, line], i (i)}<span
 						class="ts">2026-09-25 10:14:{22 + i}</span
 					>  <span style="color: {TILE_HEX[SERVICE_COLOR].fg}">{svc.padEnd(11)}</span
 					> {line}
@@ -593,7 +593,7 @@
 				{/each}
 			</div>
 		{/each}
-		<h3>Category tiles</h3>
+		<h3>Category Tiles</h3>
 		<div class="swatches">
 			{#each TILE_COLORS as c (c)}
 				<div class="swatch"><IconTile icon={Layers} color={c} /><code>{c}</code></div>
@@ -611,7 +611,7 @@
 	</section>
 
 	<section aria-labelledby="actions-title" class="section">
-		<h2 id="actions-title">Actions and status</h2>
+		<h2 id="actions-title">Actions and Status</h2>
 		<div class="row">
 			<Button variant="primary">Save</Button>
 			<Button>Restart</Button>
@@ -623,7 +623,7 @@
 			<Button size="sm">Small</Button>
 			<SplitButton
 				label="Format"
-				menuLabel="More format options"
+				menuLabel="More Format Options"
 				size="sm"
 				variant="secondary"
 				onclick={() => toast.success('Formatted compose.yaml')}
@@ -637,18 +637,18 @@
 			/>
 			<LifecycleButton
 				running={false}
-				menuLabel="More start and stop options (stopped)"
+				menuLabel="More Start and Stop Options (Stopped)"
 				actions={{
 					start: { run: () => toast.success('Started silo-worker') },
 					restart: { run: () => {}, disabled: true },
 					stop: { run: () => {}, disabled: true }
 				}}
 			/>
-			<IconButton label="Open a terminal" icon={SquareTerminal} variant="secondary" />
+			<IconButton label="Open a Terminal" icon={SquareTerminal} variant="secondary" />
 			<Tooltip text="Tooltips name controls; they never replace the name.">
-				{#snippet trigger(props)}<Button {...props}>Hover or focus me</Button>{/snippet}
+				{#snippet trigger(props)}<Button {...props}>Hover or Focus Me</Button>{/snippet}
 			</Tooltip>
-			<span>Explained label <InfoTip text="An (i) explains the label beside it." /></span>
+			<span>Explained Label <InfoTip text="An (i) explains the label beside it." /></span>
 		</div>
 		<div class="row">
 			{#each ['running', 'healthy', 'stopped', 'exited', 'paused', 'restarting', 'unhealthy', 'offline', 'queued', 'blocked', 'failed'] as s (s)}
@@ -656,10 +656,10 @@
 			{/each}
 			<StatusBadge status="partial" kind="job" />
 			<StatusBadge status="running" kind="job" />
-			<Badge tone="warn" dot>Update available</Badge>
+			<Badge tone="warn" dot>Update Available</Badge>
 		</div>
 		<div class="row">
-			<Chip label="All services" selected={chipAll} onclick={() => (chipAll = !chipAll)} />
+			<Chip label="All Services" selected={chipAll} onclick={() => (chipAll = !chipAll)} />
 			<Chip label="media" count={4} href="#actions-title" />
 			<Chip label="cloud" size="sm" />
 			<Chip
@@ -682,42 +682,42 @@
 		<Card>
 			<div class="form-grid">
 				<TextField
-					label="Stack name"
+					label="Stack Name"
 					bind:value={name}
 					mono
 					description="The Compose project name."
 				/>
 				<PasswordField
-					label="Registry password"
+					label="Registry Password"
 					bind:value={password}
 					autocomplete="new-password"
 				/>
 				<TextField
-					label="Invalid example"
+					label="Invalid Example"
 					value="silo stack"
 					error="Use lowercase letters, digits, dashes and underscores."
 				/>
 				<Select
-					label="Pull policy"
+					label="Pull Policy"
 					bind:value={policy}
 					options={[
-						{ value: 'missing', label: 'Pull missing images' },
-						{ value: 'always', label: 'Always pull' }
+						{ value: 'missing', label: 'Pull Missing Images' },
+						{ value: 'always', label: 'Always Pull' }
 					]}
 				/>
 				<Combobox
-					label="Registry connection"
+					label="Registry Connection"
 					bind:value={registry}
 					placeholder="Search connections"
 					options={[
 						{ value: 'ghcr', label: 'GitHub Container Registry (ghcr.io)' },
 						{ value: 'hub', label: 'Docker Hub (docker.io)' },
-						{ value: 'local', label: 'Homelab registry (registry.lan:5000)' }
+						{ value: 'local', label: 'Homelab Registry (registry.lan:5000)' }
 					]}
 				/>
 				<MultiSelect
 					label="Levels"
-					allLabel="All levels"
+					allLabel="All Levels"
 					bind:value={levelChoice}
 					groups={[
 						{
@@ -742,8 +742,8 @@
 						{
 							label: 'Output',
 							options: [
-								{ value: 'stdout', label: 'Standard output', count: 402 },
-								{ value: 'stderr', label: 'Standard error', count: 28 }
+								{ value: 'stdout', label: 'Standard Output', count: 402 },
+								{ value: 'stderr', label: 'Standard Error', count: 28 }
 							]
 						}
 					]}
@@ -756,20 +756,20 @@
 				/>
 				<Checkbox
 					bind:checked={backups}
-					label="Include volumes"
+					label="Include Volumes"
 					description="Back up the stack's named volumes too."
 				/>
 				<RadioGroup
-					label="Restart policy"
+					label="Restart Policy"
 					value="unless-stopped"
 					options={[
 						{ value: 'no', label: 'No' },
-						{ value: 'unless-stopped', label: 'Unless stopped' },
+						{ value: 'unless-stopped', label: 'Unless Stopped' },
 						{ value: 'always', label: 'Always' }
 					]}
 				/>
 				<TriState
-					label="Restart containers on homelab"
+					label="Restart Containers on homelab"
 					bind:value={tri}
 					inherited="allow"
 					inheritedFrom="group Operators"
@@ -780,32 +780,32 @@
 	</section>
 
 	<section aria-labelledby="overlays-title" class="section">
-		<h2 id="overlays-title">Overlays and feedback</h2>
+		<h2 id="overlays-title">Overlays and Feedback</h2>
 		<div class="row">
-			<Button onclick={() => (dialogOpen = true)}>Open dialog</Button>
-			<Button onclick={() => (confirmOpen = true)}>Confirm dialog</Button>
+			<Button onclick={() => (dialogOpen = true)}>Open Dialog</Button>
+			<Button onclick={() => (confirmOpen = true)}>Confirm Dialog</Button>
 			<Button variant="danger-soft" onclick={() => (destroyOpen = true)}
-				>Destructive confirm</Button
+				>Destructive Confirm</Button
 			>
-			<Button onclick={() => (drawerOpen = true)}>Open drawer</Button>
-			<Popover label="Popover example" align="start">
+			<Button onclick={() => (drawerOpen = true)}>Open Drawer</Button>
+			<Popover label="Popover Example" align="start">
 				{#snippet trigger(props)}<Button {...props}>Popover</Button>{/snippet}
 				<p class="pad">Popovers hold non-modal detail, like the notices list.</p>
 			</Popover>
-			<Button onclick={() => toast.success('Saved compose.yaml')}>Success toast</Button>
+			<Button onclick={() => toast.success('Saved compose.yaml')}>Success Toast</Button>
 			<Button
 				onclick={() =>
 					toast.error('Silo was not deployed', {
 						body: 'homelab is offline. Try again when it is back.'
-					})}>Error toast</Button
+					})}>Error Toast</Button
 			>
-			<Button onclick={() => (secretOpen = true)}>One-time secret</Button>
+			<Button onclick={() => (secretOpen = true)}>One-Time Secret</Button>
 		</div>
 		<Notice tone="warn" title="silo/compose.yaml changed on disk. Your edits are kept.">
 			{#snippet actions()}
 				<Button size="sm">Compare</Button>
-				<Button size="sm">Reload from disk</Button>
-				<Button size="sm">Save as…</Button>
+				<Button size="sm">Reload From Disk</Button>
+				<Button size="sm">Save As…</Button>
 				<Button size="sm" variant="danger-soft">Overwrite</Button>
 			{/snippet}
 		</Notice>
@@ -823,8 +823,8 @@
 					description="Create a stack or import an existing Compose project."
 					level={3}
 				>
-					{#snippet actions()}<Button variant="primary">Create stack</Button><Button
-							>Import project</Button
+					{#snippet actions()}<Button variant="primary">Create Stack</Button><Button
+							>Import Project</Button
 						>{/snippet}
 				</EmptyState></Card
 			>
@@ -841,15 +841,15 @@
 	</section>
 
 	<section aria-labelledby="jobs-title" class="section">
-		<h2 id="jobs-title">Job progress</h2>
+		<h2 id="jobs-title">Job Progress</h2>
 		<div class="jobs">
-			<JobProgress {watcher} title="Prune stopped containers on nas" />
-			<JobProgress {watcher} title="Prune stopped containers on nas" variant="inline" />
+			<JobProgress {watcher} title="Prune Stopped Containers on nas" />
+			<JobProgress {watcher} title="Prune Stopped Containers on nas" variant="inline" />
 			<Button size="sm" onclick={replay}>Replay</Button>
 		</div>
-		<Card title="Step wizard" level={3}>
+		<Card title="Step Wizard" level={3}>
 			<StepWizard
-				label="Backup setup"
+				label="Backup Setup"
 				bind:current={wizardStep}
 				steps={[
 					{ id: 'repo', label: 'Repository', description: 'Where backups are stored.' },
@@ -869,11 +869,11 @@
 
 	<section aria-labelledby="charts-title" class="section">
 		<h2 id="charts-title">Charts</h2>
-		<Card title="Many items on one chart">
+		<Card title="Many Items on One Chart">
 			{#snippet actions()}
 				<div class="chart-filter">
 					<TextField
-						label="Filter containers"
+						label="Filter Containers"
 						hideLabel
 						placeholder="Filter by name"
 						type="search"
@@ -882,7 +882,7 @@
 				</div>
 			{/snippet}
 			<MultiSeriesChart
-				title="Docker memory"
+				title="Docker Memory"
 				unit="bytes"
 				timestamps={memoryTimes}
 				items={memoryItems}
@@ -890,7 +890,7 @@
 				height="240px"
 			/>
 		</Card>
-		<Card title="Values that do not add up">
+		<Card title="Values That Do Not Add Up">
 			<MultiSeriesChart
 				title="Temperature"
 				unit="celsius"
@@ -903,12 +903,12 @@
 	</section>
 
 	<section aria-labelledby="lazy-title" class="section">
-		<h2 id="lazy-title">Lazy surfaces</h2>
+		<h2 id="lazy-title">Lazy Surfaces</h2>
 		<p data-testid="loaded">Loaded: {loaded.length ? loaded.join(', ') : 'none'}</p>
 		<div class="row">
-			<Button onclick={() => load('editor')}>Load editor</Button>
-			<Button onclick={() => load('chart')}>Load chart</Button>
-			<Button onclick={() => load('terminal')}>Load terminal</Button>
+			<Button onclick={() => load('editor')}>Load Editor</Button>
+			<Button onclick={() => load('chart')}>Load Chart</Button>
+			<Button onclick={() => load('terminal')}>Load Terminal</Button>
 		</div>
 		<div class="lazy">
 			<div class="lazy-box editor" data-testid="editor" bind:this={editorEl}></div>
@@ -921,7 +921,7 @@
 			<div class="lazy-box" data-testid="terminal" bind:this={terminalEl}></div>
 		</div>
 		<ContextMenu
-			label="File actions"
+			label="File Actions"
 			items={[
 				{ label: 'Rename', onSelect: () => (contextChoice = 'Rename') },
 				{ label: 'Download', icon: Download, onSelect: () => (contextChoice = 'Download') },
@@ -946,7 +946,7 @@
 
 <Dialog
 	bind:open={dialogOpen}
-	title="Edit details"
+	title="Edit Details"
 	description="Display metadata of Silo; never written to Compose files."
 >
 	<TextField label="Description" value="Personal cloud and media platform" />
@@ -955,7 +955,7 @@
 		<Button
 			variant="primary"
 			onclick={() => ((dialogOpen = false), toast.success('Saved details of Silo'))}
-			>Save details</Button
+			>Save Details</Button
 		>
 	{/snippet}
 </Dialog>
@@ -975,13 +975,13 @@
 	]}
 	affected={demoServices.map((s) => ({ label: `silo-${s.name}-1`, detail: 'container' }))}
 	confirmText="silo"
-	confirmLabel="Delete stack"
+	confirmLabel="Delete Stack"
 	onconfirm={() => toast.success('Deleted Silo')}
 />
 <Drawer bind:open={drawerOpen} title="silo-api">
 	<div class="pad"><p class="muted">Drawers hold detail panes and the log drawer.</p></div>
 </Drawer>
-<Dialog bind:open={secretOpen} title="Save your Recovery Key">
+<Dialog bind:open={secretOpen} title="Save Your Recovery Key">
 	<SecretReveal
 		secret="DYRK-7Q2M-XK4P-9WNA-3HJD-L6ZT-RB5E-C8VF-2GUY-QK7S-M4XD-N9PA-H3JT-W6LC"
 		label="Recovery Key"

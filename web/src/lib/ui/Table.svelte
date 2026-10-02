@@ -141,7 +141,7 @@
 				<div class="card-head">
 					{#if selectable}
 						<Checkbox
-							label={rowLabel ? rowLabel(row) : `Select row ${key}`}
+							label={rowLabel ? rowLabel(row) : `Select Row ${key}`}
 							hideLabel
 							checked={selected.includes(key)}
 							onchange={(e) => toggleRow(key, e.currentTarget.checked)}
@@ -194,7 +194,7 @@
 					{#if selectable}
 						<th class="select" scope="col">
 							<Checkbox
-								label="Select all rows"
+								label="Select All Rows"
 								hideLabel
 								checked={headerState === true}
 								indeterminate={headerState === 'mixed'}
@@ -264,7 +264,7 @@
 						{#if selectable}
 							<td class="select">
 								<Checkbox
-									label={rowLabel ? rowLabel(row) : `Select row ${key}`}
+									label={rowLabel ? rowLabel(row) : `Select Row ${key}`}
 									hideLabel
 									checked={selected.includes(key)}
 									onchange={(e) => toggleRow(key, e.currentTarget.checked)}

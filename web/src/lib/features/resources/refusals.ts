@@ -84,25 +84,25 @@ export function sentence(text: string): string {
 export function protectionLabel(p: Protection): string {
 	switch (p.role) {
 		case 'agent':
-			return p.self ? "This environment's Docker Agent" : 'A Docker Agent';
+			return p.self ? "This Environment's Docker Agent" : 'A Docker Agent';
 		case 'manager':
 			return p.self ? 'The Docker Manager' : 'A Docker Manager';
 		case 'docker_manager_project':
-			return "Part of Docker Manager's own deployment";
+			return "Part of Docker Manager's Own Deployment";
 		case 'docker_manager_image':
-			return 'An image Docker Manager runs from';
+			return 'An Image Docker Manager Runs From';
 		case 'manager_data':
-			return "Docker Manager's data volume";
+			return "Docker Manager's Data Volume";
 		case 'agent_state':
-			return "The Docker Agent's state volume";
+			return "The Docker Agent's State Volume";
 		case 'stacks':
-			return 'The Docker Manager stacks volume';
+			return 'The Docker Manager Stacks Volume';
 		case 'docker_manager_volume':
-			return 'A volume Docker Manager uses';
+			return 'A Volume Docker Manager Uses';
 		case 'docker_manager_network':
-			return 'A network Docker Manager uses';
+			return 'A Network Docker Manager Uses';
 	}
-	return 'A Docker Manager resource';
+	return 'A Docker Manager Resource';
 }
 
 /** The subject of a refused action on a protected resource. */
@@ -173,7 +173,7 @@ function forCode(code: string | undefined, raw: string, ctx: RefusalContext): Re
 			return {
 				code,
 				title: `${name} is running.`,
-				body: 'Stop it first, or remove it with "Stop and remove", which kills it.'
+				body: 'Stop it first, or remove it with "Stop and Remove", which kills it.'
 			};
 		case 'image_in_use':
 			return {

@@ -248,7 +248,7 @@
 
 <Dialog
 	bind:open
-	title={editing ? `Edit ${p?.name}` : 'Create update policy'}
+	title={editing ? `Edit ${p?.name}` : 'Create Update Policy'}
 	description="Follows the digests behind the tags of every stack and Docker Manager-managed container in scope. Your Compose files and tags never change."
 	size="xl"
 	dismissible={!busy}
@@ -267,7 +267,7 @@
 		{/if}
 		<div class="layout">
 			<section class="col" aria-labelledby="upd-covers">
-				<h3 id="upd-covers" class="section">What it covers</h3>
+				<h3 id="upd-covers" class="section">What It Covers</h3>
 				<Fields>
 					<TextField
 						label="Name"
@@ -295,12 +295,12 @@
 								options={[
 									{
 										value: 'all',
-										label: 'All environments',
+										label: 'All Environments',
 										description: 'Environments added later are covered too.'
 									},
 									{
 										value: 'environment',
-										label: 'One environment',
+										label: 'One Environment',
 										description:
 											'Only the stacks and containers of one environment.'
 									}
@@ -329,7 +329,7 @@
 							<p class="muted">No managed stacks in scope.</p>
 						{:else}
 							<CoverageList
-								label="Stacks covered"
+								label="Stacks Covered"
 								min="200px"
 								items={visibleStacks.map((s) => ({
 									key: s.id,
@@ -348,7 +348,7 @@
 						{/if}
 					</FieldGroup>
 					<FieldGroup
-						legend="Standalone containers"
+						legend="Standalone Containers"
 						hint="Containers Docker Manager created and can recreate from their saved specification."
 					>
 						{#if containersLoading}
@@ -363,7 +363,7 @@
 							</p>
 						{:else}
 							<CoverageList
-								label="Standalone containers covered"
+								label="Standalone Containers Covered"
 								min="200px"
 								items={containers.map((c) => ({
 									key: c.key,
@@ -386,21 +386,21 @@
 			</section>
 
 			<section class="col" aria-labelledby="upd-when">
-				<h3 id="upd-when" class="section">When it runs</h3>
+				<h3 id="upd-when" class="section">When It Runs</h3>
 				<Fields>
 					<FieldGroup
 						legend="Checks"
 						hint="A check compares the digest behind each tag with what runs on the host. It never pulls or changes anything."
 					>
 						<Switch
-							label="Check automatically"
+							label="Check Automatically"
 							description="Off: checks run only when you start them."
 							bind:checked={checkEnabled}
 							onchange={() => (touched = true)}
 						/>
 						{#if checkZone && checkEnabled}
 							<CronField
-								label="Check schedule"
+								label="Check Schedule"
 								kind="update_check"
 								bind:cron={checkCron}
 								bind:timeZone={checkZone}
@@ -412,7 +412,7 @@
 						hint="An update pulls the new image and recreates the services that changed, dependencies first."
 					>
 						<Switch
-							label="Update automatically"
+							label="Update Automatically"
 							description="Off: updates run only when you apply them from the preview."
 							bind:checked={runEnabled}
 							onchange={() => (touched = true)}
@@ -421,7 +421,7 @@
 							<Notice
 								tone="warn"
 								icon={TriangleAlert}
-								title="Containers restart without asking"
+								title="Containers Restart Without Asking"
 								live="none"
 							>
 								At each time of the update schedule, Docker Manager applies what the
@@ -432,7 +432,7 @@
 						{/if}
 						{#if runZone && runEnabled}
 							<CronField
-								label="Update schedule"
+								label="Update Schedule"
 								kind="update_run"
 								bind:cron={runCron}
 								bind:timeZone={runZone}
@@ -440,17 +440,17 @@
 						{/if}
 					</FieldGroup>
 					<Disclosure
-						summary="Update window and health wait"
+						summary="Update Window and Health Wait"
 						open={windowOn || !!waitTimeout}
 					>
 						<Switch
-							label="Only update inside a window"
+							label="Only Update Inside a Window"
 							description="Scheduled updates outside the window are skipped; manual updates run any time."
 							bind:checked={windowOn}
 							onchange={() => (touched = true)}
 						/>
 						{#if windowOn}
-							<FieldGroup legend="Update window" hint="No day checked: every day.">
+							<FieldGroup legend="Update Window" hint="No day checked: every day.">
 								<ChoiceGrid min="64px">
 									{#each DAY_OPTIONS as d (d.value)}
 										<Checkbox
@@ -482,7 +482,7 @@
 							</FieldGroup>
 						{/if}
 						<TextField
-							label="Health wait"
+							label="Health Wait"
 							description="Optional. Seconds to wait for recreated containers to become healthy before the update counts as failed."
 							bind:value={waitTimeout}
 							inputmode="numeric"
@@ -502,7 +502,7 @@
 			loading={busy}
 			disabled={!canSave}
 		>
-			{editing ? 'Save changes' : 'Create update policy'}
+			{editing ? 'Save Changes' : 'Create Update Policy'}
 		</Button>
 	{/snippet}
 </Dialog>

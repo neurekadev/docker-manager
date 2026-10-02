@@ -24,7 +24,7 @@
 		label: string;
 		icon?: IconComponent;
 		items: MenuEntry[];
-		/** Accessible name of the chevron, e.g. "More deploy options". */
+		/** Accessible name of the chevron, e.g. "More Deploy Options". */
 		menuLabel: string;
 		onclick?: () => void;
 		variant?: SplitButtonVariant;

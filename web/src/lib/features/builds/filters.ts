@@ -22,7 +22,7 @@ export function buildFilters(ctx: FilterContext): ListFilter<ImageBuild>[] {
 		{
 			id: 'status',
 			label: 'Result',
-			all: 'Any result',
+			all: 'Any Result',
 			options: RESULTS.map(({ value, label }) => ({ value, label })),
 			match: (b, v) => !!RESULTS.find((r) => r.value === v)?.states.includes(b.status)
 		}

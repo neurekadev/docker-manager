@@ -136,7 +136,7 @@
 			? [
 					{
 						id: 'use',
-						header: 'Used by',
+						header: 'Used By',
 						cell: useCell,
 						sortValue: usersOf,
 						width: '150px',
@@ -273,7 +273,7 @@
 				<PruneButton target="networks" {scope} />
 				{#if creatable.length}
 					<Button variant="primary" icon={Plus} onclick={() => (createOpen = true)}
-						>Create network</Button
+						>Create Network</Button
 					>
 				{/if}
 			{/snippet}
@@ -295,13 +295,13 @@
 			/>
 		{:else}
 			<ListCard
-				title="All networks"
+				title="All Networks"
 				id="networks"
 				summary={list.data
 					? listSummary(rows.length, all.length, filtered, 'network', 'networks')
 					: undefined}
-				label="Filter networks"
-				searchLabel="Search networks"
+				label="Filter Networks"
+				searchLabel="Search Networks"
 				placeholder="Search name, subnet or driver"
 				filters={defs}
 				store={filters}
@@ -345,7 +345,7 @@
 												variant="primary"
 												icon={Plus}
 												onclick={() => (createOpen = true)}
-												>Create network</Button
+												>Create Network</Button
 											>
 										{/if}
 									{/snippet}

@@ -23,4 +23,7 @@ schedules elsewhere.
   of a policy set `jobs.Request.PolicyID` so overlap prevention sees them.
 - Schedule kinds live in `scheduler.BuiltinKinds` (default expression,
   catch-up policy, policy type + read capability for `GET /schedules`,
-  job kinds for overlap); keep your kind's row accurate.
+  job kinds for overlap); keep your kind's row accurate. `Label` is the
+  Title Case name the UI shows ("Image Update Checks"); `Noun` is its
+  sentence-case form for run reasons ("Image update checks"), needed
+  whenever it differs from `Label`.

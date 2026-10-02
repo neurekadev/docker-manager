@@ -103,14 +103,14 @@ describe('OperationsPanel', () => {
 		mount();
 
 		expect(
-			await screen.findByRole('progressbar', { name: 'Copy files in config progress' })
+			await screen.findByRole('progressbar', { name: 'Copy Files in config progress' })
 		).toBeInTheDocument();
-		expect(screen.getByRole('region', { name: 'File operations' })).toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'File Operations' })).toBeInTheDocument();
 		expect(screen.getAllByRole('progressbar')).toHaveLength(1);
 
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		await waitFor(() => expect(cancelled).toEqual(['0190-1']));
-		expect(await screen.findByText('Cancelling: Copy files in config')).toBeInTheDocument();
+		expect(await screen.findByText('Cancelling: Copy Files in config')).toBeInTheDocument();
 	});
 
 	it('announces the end of a restored job once and keeps it until dismissed', async () => {
@@ -119,18 +119,18 @@ describe('OperationsPanel', () => {
 		details = { '0190-1': job('0190-1', { state: 'succeeded', progress: { percent: 100 } }) };
 		const { onfinish } = mount();
 
-		const dismiss = await screen.findByRole('button', { name: 'Dismiss Copy files in config' });
+		const dismiss = await screen.findByRole('button', { name: 'Dismiss Copy Files in config' });
 		expect(onfinish).toHaveBeenCalledOnce();
 		expect(onfinish).toHaveBeenCalledWith(
 			expect.objectContaining({ id: '0190-1', state: 'succeeded' }),
-			'Copy files in config'
+			'Copy Files in config'
 		);
 		expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
 
 		await user.click(dismiss);
 		await waitFor(() =>
 			expect(
-				screen.queryByRole('region', { name: 'File operations' })
+				screen.queryByRole('region', { name: 'File Operations' })
 			).not.toBeInTheDocument()
 		);
 	});

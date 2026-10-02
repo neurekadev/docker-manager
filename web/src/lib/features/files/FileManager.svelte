@@ -401,7 +401,7 @@
 			let decisions: ReadonlyMap<string, ConflictChoice> = NO_DECISIONS;
 			if (conflicts.length) {
 				const d = await askConflicts(
-					`Upload into ${target === '.' ? rootLabel : target}`,
+					`Upload Into ${target === '.' ? rootLabel : target}`,
 					conflicts
 				);
 				if (!d) return;
@@ -536,10 +536,10 @@
 
 	function create(type: 'file' | 'dir') {
 		nameDialog = {
-			title: type === 'file' ? 'New file' : 'New folder',
-			label: type === 'file' ? 'File name' : 'Folder name',
+			title: type === 'file' ? 'New File' : 'New Folder',
+			label: type === 'file' ? 'File Name' : 'Folder Name',
 			initial: '',
-			confirm: type === 'file' ? 'Create file' : 'Create folder',
+			confirm: type === 'file' ? 'Create File' : 'Create Folder',
 			submit: async (name) => {
 				const entry = await files.createEntry(
 					join(dir, name),
@@ -558,7 +558,7 @@
 		if (!can('move')) return;
 		nameDialog = {
 			title: `Rename ${entry.name}`,
-			label: 'New name',
+			label: 'New Name',
 			initial: entry.name,
 			confirm: 'Rename',
 			submit: async (name) => {
@@ -720,7 +720,7 @@
 		const job = await files.metadata({ paths, ...c });
 		track(
 			job,
-			`Change permissions of ${describe(paths)}`,
+			`Change Permissions of ${describe(paths)}`,
 			`Changed permissions of ${describe(paths)}`
 		);
 	}
@@ -753,11 +753,11 @@
 		const w = writable;
 		if (entries.length === 0) {
 			if (can('write') && w) {
-				out.push({ label: 'New file', icon: FilePlus, onSelect: () => create('file') });
-				out.push({ label: 'New folder', icon: FolderPlus, onSelect: () => create('dir') });
-				out.push({ label: 'Upload files', icon: Upload, onSelect: () => pickFiles(false) });
+				out.push({ label: 'New File', icon: FilePlus, onSelect: () => create('file') });
+				out.push({ label: 'New Folder', icon: FolderPlus, onSelect: () => create('dir') });
+				out.push({ label: 'Upload Files', icon: Upload, onSelect: () => pickFiles(false) });
 				out.push({
-					label: 'Upload folder',
+					label: 'Upload Folder',
 					icon: FolderUp,
 					onSelect: () => pickFiles(true)
 				});
@@ -777,7 +777,7 @@
 		const paths = entries.map((e) => e.path);
 		if (one) {
 			out.push({
-				label: one.type === 'dir' ? 'Open folder' : 'Open',
+				label: one.type === 'dir' ? 'Open Folder' : 'Open',
 				icon: FolderOpen,
 				shortcut: 'Enter',
 				onSelect: () => onopen(one)
@@ -814,7 +814,7 @@
 			});
 		if (one && one.type === 'dir' && canPaste)
 			out.push({
-				label: 'Paste into folder',
+				label: 'Paste Into Folder',
 				icon: ClipboardPaste,
 				onSelect: () => void paste(one.path)
 			});
@@ -828,7 +828,7 @@
 		if ((can('archive') || can('chmod') || can('chown')) && w) out.push({ separator: true });
 		if (can('archive') && w)
 			out.push({
-				label: 'Create archive…',
+				label: 'Create Archive…',
 				icon: FileArchive,
 				onSelect: () => requestArchive(paths)
 			});
@@ -895,14 +895,14 @@
 		<div class="state">
 			<EmptyState
 				icon={LockKeyhole}
-				title="You can't browse these files"
-				description="Ask the owner of this Docker Manager for the “Browse and view files” permission on {rootLabel}."
+				title="You Can't Browse These Files"
+				description="Ask the owner of this Docker Manager for the “Browse and View Files” permission on {rootLabel}."
 			/>
 		</div>
 	{:else}
 		<header class="head">
 			<h2 class="title">{title}</h2>
-			<nav class="crumbs" aria-label="Folder path">
+			<nav class="crumbs" aria-label="Folder Path">
 				<ol role="list">
 					{#each pathCrumbs as c, i (c.path)}
 						<li>
@@ -951,7 +951,7 @@
 					class="toolbar"
 					class:selecting={targets.length > 0}
 					role="toolbar"
-					aria-label="File actions"
+					aria-label="File Actions"
 				>
 					{#if targets.length}
 						<!-- The selection's actions take the place of Upload/New (same
@@ -960,7 +960,7 @@
 							<IconButton
 								icon={X}
 								size="sm"
-								label="Clear selection"
+								label="Clear Selection"
 								onclick={() => (selection = sel.clear(selection))}
 							/>
 							<span class="count num" aria-live="polite"
@@ -970,7 +970,7 @@
 								<IconButton
 									icon={Download}
 									size="sm"
-									label="Download selection"
+									label="Download Selection"
 									onclick={() => download(targetEntries)}
 								/>
 							{/if}
@@ -978,7 +978,7 @@
 								<IconButton
 									icon={Copy}
 									size="sm"
-									label="Copy selection"
+									label="Copy Selection"
 									onclick={() => copySelection('copy')}
 								/>
 							{/if}
@@ -986,7 +986,7 @@
 								<IconButton
 									icon={Scissors}
 									size="sm"
-									label="Cut selection"
+									label="Cut Selection"
 									onclick={() => copySelection('cut')}
 								/>
 							{/if}
@@ -995,12 +995,12 @@
 									icon={Trash2}
 									size="sm"
 									variant="danger-soft"
-									label="Delete selection"
+									label="Delete Selection"
 									onclick={() => requestDelete(targets)}
 								/>
 							{/if}
 							<Menu
-								label="More actions for the selection"
+								label="More Actions for the Selection"
 								items={menuFor(targetEntries)}
 							>
 								{#snippet trigger(props)}
@@ -1008,7 +1008,7 @@
 										{...props}
 										icon={EllipsisVertical}
 										size="sm"
-										label="More actions"
+										label="More Actions"
 									/>
 								{/snippet}
 							</Menu>
@@ -1021,28 +1021,28 @@
 								icon={Upload}
 								size="sm"
 								variant="secondary"
-								label="Upload files"
+								label="Upload Files"
 								onclick={() => pickFiles(false)}
 							/>
 							<IconButton
 								icon={FolderUp}
 								size="sm"
 								variant="secondary"
-								label="Upload folder"
+								label="Upload Folder"
 								onclick={() => pickFiles(true)}
 							/>
 							<IconButton
 								icon={FilePlus}
 								size="sm"
 								variant="secondary"
-								label="New file"
+								label="New File"
 								onclick={() => create('file')}
 							/>
 							<IconButton
 								icon={FolderPlus}
 								size="sm"
 								variant="secondary"
-								label="New folder"
+								label="New Folder"
 								onclick={() => create('dir')}
 							/>
 						</div>
@@ -1057,9 +1057,9 @@
 							{clip.paths.length === 1 ? 'item' : 'items'}</Button
 						>
 					{/if}
-					<div class="filter" role="search" aria-label="Filter by name">
+					<div class="filter" role="search" aria-label="Filter by Name">
 						<TextField
-							label="Filter by name"
+							label="Filter by Name"
 							hideLabel
 							type="search"
 							placeholder="Filter by name"
@@ -1069,7 +1069,7 @@
 					<IconButton
 						icon={filters.hidden ? Eye : EyeOff}
 						size="sm"
-						label={filters.hidden ? 'Hide hidden files' : 'Show hidden files'}
+						label={filters.hidden ? 'Hide Hidden Files' : 'Show Hidden Files'}
 						pressed={filters.hidden}
 						onclick={() => (filters = { ...filters, hidden: !filters.hidden })}
 					/>
@@ -1077,7 +1077,7 @@
 						<IconButton
 							icon={ListTree}
 							size="sm"
-							label="Show permissions and owners"
+							label="Show Permissions and Owners"
 							pressed={details}
 							onclick={() => (details = !details)}
 						/>
@@ -1093,7 +1093,7 @@
 							{#if listError instanceof ApiRequestError && listError.status === 404 && !isRoot(dir)}
 								<EmptyState
 									compact
-									title="{basename(dir)} doesn't exist anymore"
+									title="{basename(dir)} Doesn't Exist Anymore"
 									description="It was moved or deleted. Go back to {rootLabel}."
 								>
 									{#snippet actions()}
@@ -1113,7 +1113,7 @@
 							{/if}
 						</div>
 					{:else}
-						<ContextMenu items={contextItems} label="File actions">
+						<ContextMenu items={contextItems} label="File Actions">
 							{#snippet children(props)}
 								<FileList
 									bind:ref={listEl}
@@ -1164,7 +1164,7 @@
 										{#if filters.q}
 											<EmptyState
 												compact
-												title="No names contain “{filters.q}”"
+												title="No Names Contain “{filters.q}”"
 												description="Clear the filter to see every entry of {where(
 													dir
 												)}."
@@ -1173,14 +1173,14 @@
 													<Button
 														size="sm"
 														onclick={() => (filterText = '')}
-														>Clear filter</Button
+														>Clear Filter</Button
 													>
 												{/snippet}
 											</EmptyState>
 										{:else}
 											<EmptyState
 												compact
-												title="{where(dir)} is empty"
+												title="{where(dir)} Is Empty"
 												description={can('write') && writable
 													? 'Create a file or folder, or drop files here to upload them.'
 													: 'Nothing is stored here yet.'}
@@ -1191,13 +1191,13 @@
 															size="sm"
 															icon={FilePlus}
 															onclick={() => create('file')}
-															>New file</Button
+															>New File</Button
 														>
 														<Button
 															size="sm"
 															icon={Upload}
 															onclick={() => pickFiles(false)}
-															>Upload files</Button
+															>Upload Files</Button
 														>
 													{/if}
 												{/snippet}
@@ -1238,7 +1238,7 @@
 							<IconButton
 								icon={X}
 								size="sm"
-								label="Clear the clipboard"
+								label="Clear the Clipboard"
 								onclick={() => fileClipboard.clear()}
 							/>
 						</span>
@@ -1278,7 +1278,7 @@
 				<Tabs
 					items={paneTabs}
 					bind:value={() => pane, (v) => (pane = v === 'editor' ? 'editor' : 'files')}
-					label="Files and editor"
+					label="Files and Editor"
 				>
 					{#snippet panel(id)}
 						{#if id === 'editor'}{@render editorPane()}{:else}{@render browserPane()}{/if}
@@ -1293,7 +1293,7 @@
 						class="splitter"
 						role="separator"
 						aria-orientation="vertical"
-						aria-label="Resize the file list"
+						aria-label="Resize the File List"
 						aria-valuemin={280}
 						aria-valuemax={900}
 						aria-valuenow={listWidth}
@@ -1394,7 +1394,7 @@
 	message="{session.dirtyCount} open {session.dirtyCount === 1
 		? 'file has'
 		: 'files have'} unsaved edits. Leaving discards them; the files on disk stay as they are."
-	confirmLabel="Discard edits and leave"
+	confirmLabel="Discard Edits and Leave"
 	tone="danger"
 	onconfirm={() => {
 		leaving = true;

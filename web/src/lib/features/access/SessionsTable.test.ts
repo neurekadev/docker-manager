@@ -1,5 +1,5 @@
 // Signed-in devices (#16): the rows name the device in words, mark this
-// device, and Sign out ends one device (my own through /me, a user's
+// device, and Sign Out ends one device (my own through /me, a user's
 // through /users/{id}); this device signs out like the user menu does.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
@@ -92,17 +92,17 @@ function show(props: { userId?: string; label?: string } = {}) {
 describe('SessionsTable', () => {
 	it('lists my devices in words and marks this device', async () => {
 		show();
-		const table = await screen.findByRole('table', { name: 'Signed-in devices' });
+		const table = await screen.findByRole('table', { name: 'Signed-In Devices' });
 		const rows = within(table).getAllByRole('row').slice(1);
 		expect(rows).toHaveLength(2);
-		const mine = rows.find((r) => within(r).queryByText('This device'));
+		const mine = rows.find((r) => within(r).queryByText('This Device'));
 		expect(mine).toBeDefined();
 		expect(within(mine!).getByText('Firefox on Windows')).toBeInTheDocument();
 		expect(within(mine!).getByText('203.0.113.7')).toBeInTheDocument();
 		expect(within(mine!).getByText('Yes')).toBeInTheDocument();
 		const other = rows.find((r) => r !== mine)!;
 		expect(within(other).getByText('Chrome on Android')).toBeInTheDocument();
-		expect(within(other).queryByText('This device')).toBeNull();
+		expect(within(other).queryByText('This Device')).toBeNull();
 		expect(within(other).getByText('No')).toBeInTheDocument();
 		expect(calls).toContainEqual({ method: 'GET', path: '/api/v1/me/sessions' });
 	});
@@ -110,7 +110,7 @@ describe('SessionsTable', () => {
 	it('signs out another device of mine without asking', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		show();
-		await user.click(await screen.findByRole('button', { name: 'Sign out Chrome on Android' }));
+		await user.click(await screen.findByRole('button', { name: 'Sign Out Chrome on Android' }));
 		await waitFor(() =>
 			expect(calls).toContainEqual({ method: 'DELETE', path: '/api/v1/me/sessions/s-2' })
 		);
@@ -125,7 +125,7 @@ describe('SessionsTable', () => {
 		show();
 		await user.click(
 			await screen.findByRole('button', {
-				name: 'Sign out Firefox on Windows (this device)'
+				name: 'Sign Out Firefox on Windows (This Device)'
 			})
 		);
 		await waitFor(() =>
@@ -139,10 +139,10 @@ describe('SessionsTable', () => {
 	it("uses the user's endpoints for the owner", async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		items = [session('s-9', { userAgent: CHROME_ANDROID })];
-		show({ userId: 'u-1', label: 'Signed-in devices of Ada' });
-		await screen.findByRole('table', { name: 'Signed-in devices of Ada' });
+		show({ userId: 'u-1', label: 'Signed-In Devices of Ada' });
+		await screen.findByRole('table', { name: 'Signed-In Devices of Ada' });
 		expect(calls).toContainEqual({ method: 'GET', path: '/api/v1/users/u-1/sessions' });
-		await user.click(screen.getByRole('button', { name: 'Sign out Chrome on Android' }));
+		await user.click(screen.getByRole('button', { name: 'Sign Out Chrome on Android' }));
 		await waitFor(() =>
 			expect(calls).toContainEqual({
 				method: 'DELETE',
@@ -161,7 +161,7 @@ describe('SessionsTable', () => {
 	it('names an unknown browser plainly and shows a missing address as unknown', async () => {
 		items = [session('s-3')];
 		show();
-		const table = await screen.findByRole('table', { name: 'Signed-in devices' });
+		const table = await screen.findByRole('table', { name: 'Signed-In Devices' });
 		expect(within(table).getByText('Unknown device')).toBeInTheDocument();
 		expect(within(table).getByText('Unknown')).toBeInTheDocument();
 	});

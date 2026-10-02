@@ -86,7 +86,7 @@
 			error={fieldError(error, 'body.name')}
 		/>
 		<TextField
-			label="Service address"
+			label="Service Address"
 			bind:value={address}
 			mono
 			maxlength={253}
@@ -98,7 +98,7 @@
 		{#if conflict}
 			<Notice tone="warn" title="Someone else changed this environment." live="alert">
 				Your values are still here. Load the current values to compare, then save again.
-				{#snippet actions()}<Button size="sm" onclick={reload}>Load current values</Button
+				{#snippet actions()}<Button size="sm" onclick={reload}>Load Current Values</Button
 					>{/snippet}
 			</Notice>
 		{:else if error && !fieldError(error, 'body.name') && !fieldError(error, 'body.serviceAddress')}
@@ -110,7 +110,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
 		<Button variant="primary" type="submit" form="edit-environment" loading={saving}
-			>Save changes</Button
+			>Save Changes</Button
 		>
 	{/snippet}
 </Dialog>

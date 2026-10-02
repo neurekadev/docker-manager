@@ -21,4 +21,4 @@
 </script>
 
 <PageHeader {title} {description} {actions} />
-<TabNav label="Settings sections" current={page.url.pathname} items={tabs} />
+<TabNav label="Settings Sections" current={page.url.pathname} items={tabs} />

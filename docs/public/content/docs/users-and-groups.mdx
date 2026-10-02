@@ -9,39 +9,39 @@ menu. Nobody can sign up on their own.
 
 ## Invite someone
 
-1. Open **Access** and press **Invite user**.
-2. Press **Create invite link**, copy the link and send it yourself.
+1. Open **Access** and press **Invite User**.
+2. Press **Create Invite Link**, copy the link and send it yourself.
    Docker Manager doesn't email it.
 
 The link works once and expires after 72 hours, unless you choose another
 time under **Options**. The person opens it,
-chooses a username and password, and presses **Create account**. The
+chooses a username and password, and presses **Create Account**. The
 **Invitations** tab lists your links; **Revoke** stops an unused one.
 
 ## Groups
 
 Every person belongs to one **group**, and the group's
 [permissions](/permissions) decide what its members may do. New
-accounts join the group marked **Default for new users**: at first
+accounts join the group marked **Default for New Users**: at first
 **Restricted**, which gives no access.
 
-- **Create group** makes a new group.
-- **Add members** on a group's page moves people into it.
-- A group's menu can **Rename group**, **Make default for new users** or
-  **Delete group** (only an empty group that is not the default).
+- **Create Group** makes a new group.
+- **Add Members** on a group's page moves people into it.
+- A group's menu can **Rename Group**, **Make Default for New Users** or
+  **Delete Group** (only an empty group that is not the default).
 
 ## Manage a person
 
-Open a person under **Access** to **Move user** to another group, see
-their **Sessions**, or use **Account actions**:
+Open a person under **Access** to **Move User** to another group, see
+their **Sessions**, or use **Account Actions**:
 
-- **Disable account** signs them out and revokes their API tokens.
-  **Enable account** lets them back in.
-- **Sign out everywhere**.
-- **Reset sign-in factors** removes their authenticator app, passkeys and
+- **Disable Account** signs them out and revokes their API tokens.
+  **Enable Account** lets them back in.
+- **Sign Out Everywhere**.
+- **Reset Sign-In Factors** removes their authenticator app, passkeys and
   recovery codes.
-- **Create password reset link** makes a one-time link to send them.
-- **Delete account**.
+- **Create Password Reset Link** makes a one-time link to send them.
+- **Delete Account**.
 
 The owner account can't be disabled or deleted.
 
@@ -50,36 +50,36 @@ The owner account can't be disabled or deleted.
 Click the round button with your initial at the top right and choose
 **Profile**:
 
-- **Change password**. Passwords need at least 15 characters, unless the
+- **Change Password**. Passwords need at least 15 characters, unless the
   owner changed this in the sign-in policy.
-- **Set up authenticator app** to enter a code after your password, or
-  **Add passkey** to sign in with your fingerprint, face or PIN instead of
+- **Set Up Authenticator App** to enter a code after your password, or
+  **Add Passkey** to sign in with your fingerprint, face or PIN instead of
   a password.
-- **Generate new codes**: 10 recovery codes for when you can't use your
+- **Generate New Codes**: 10 recovery codes for when you can't use your
   authenticator app.
-- **Sessions** lists the devices you are signed in on. **Sign out** next to
+- **Sessions** lists the devices you are signed in on. **Sign Out** next to
   one signs it out at once.
 
 Some changes, such as creating an API token or changing the sign-in
-policy, first ask you to **Confirm it's you** with one method:
+policy, first ask you to **Confirm It's You** with one method:
 
 - With a passkey, your browser asks for it right away.
 - Otherwise, with an authenticator app, enter its code.
 - Otherwise, enter your password.
 
-To use another method, choose **Use authenticator code instead**, **Use a
-passkey instead** or **Use your password instead**. Your browser
+To use another method, choose **Use Authenticator Code Instead**, **Use a
+Passkey Instead** or **Use Your Password Instead**. Your browser
 remembers whether you prefer the passkey or the code, also for signing
 in. A confirmation lasts 10 minutes.
 
 You are signed out after 8 hours without activity and after 24 hours at
-most. On your own computer, tick **Stay signed in** to stay signed in for
+most. On your own computer, tick **Stay Signed In** to stay signed in for
 up to a year. Passkeys belong to one address: after Docker Manager moves to
 a new address, add them again.
 
 ## Sign-in policy
 
-The owner sets the rules for everyone under **Settings → Sign-in policy**:
+The owner sets the rules for everyone under **Settings → Sign-In Policy**:
 password rules, which sign-in factors every account must use, how long
-links work, whether API tokens are allowed, and whether **Stay signed in**
+links work, whether API tokens are allowed, and whether **Stay Signed In**
 is allowed. Changing the required factors signs everyone else out.

@@ -327,8 +327,8 @@ describe('the outcome', () => {
 		expect(everyStackMoved(r)).toBe(false);
 		expect(everyStackMoved(record([r.stacks[0]]))).toBe(true);
 		expect(everyStackMoved(record([]))).toBe(false);
-		expect(moveState('failed')).toEqual({ label: 'Did not move', tone: 'danger' });
-		expect(moveState('pending').label).toBe('Not started');
+		expect(moveState('failed')).toEqual({ label: 'Did Not Move', tone: 'danger' });
+		expect(moveState('pending').label).toBe('Not Started');
 	});
 
 	it('names the stack that did not move and opens its migration', () => {
@@ -409,8 +409,8 @@ describe('an ended migration to act on', () => {
 		expect(migrationEnded({ state: 'running' })).toBe(false);
 		for (const st of ['completed', 'failed', 'cancelled', 'interrupted'] as const)
 			expect(migrationEnded({ state: st })).toBe(true);
-		expect(oldCopyState(moved('st-1', 'app'))).toBe('Old copy kept');
-		expect(oldCopyState(moved('st-1', 'app', true))).toBe('Old copy removed');
+		expect(oldCopyState(moved('st-1', 'app'))).toBe('Old Copy Kept');
+		expect(oldCopyState(moved('st-1', 'app', true))).toBe('Old Copy Removed');
 		expect(oldCopyState(failed('st-1', 'app'))).toBeUndefined();
 	});
 

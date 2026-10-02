@@ -70,7 +70,7 @@ describe('VisibilityDialog', () => {
 		mount(VisibilityDialog, { open: true, template });
 		const d = await screen.findByRole('alertdialog', { name: 'Make Nextcloud public?' });
 		expect(within(d).getByText(/including \.env/)).toBeInTheDocument();
-		const confirm = within(d).getByRole('button', { name: 'Make public' });
+		const confirm = within(d).getByRole('button', { name: 'Make Public' });
 		expect(confirm).toBeDisabled();
 		await user.click(within(d).getByLabelText(/becomes public/));
 		expect(confirm).toBeEnabled();
@@ -89,10 +89,10 @@ describe('PublishDialog', () => {
 	it('suggests the next label and publishes a private template without acknowledgement', async () => {
 		const user = setup();
 		mount(PublishDialog, { open: true, template });
-		const d = await screen.findByRole('dialog', { name: 'Publish a version of Nextcloud' });
+		const d = await screen.findByRole('dialog', { name: 'Publish a Version of Nextcloud' });
 		expect(within(d).getByLabelText('Version', { exact: false })).toHaveValue('1.2.1');
 		expect(within(d).queryByText('This template is public')).toBeNull();
-		await user.click(within(d).getByRole('button', { name: 'Publish version 1.2.1' }));
+		await user.click(within(d).getByRole('button', { name: 'Publish Version 1.2.1' }));
 		await waitFor(() => expect(seen).toHaveLength(1));
 		expect(seen[0]).toMatchObject({
 			method: 'POST',
@@ -104,9 +104,9 @@ describe('PublishDialog', () => {
 	it('asks public templates for the acknowledgement', async () => {
 		const user = setup();
 		mount(PublishDialog, { open: true, template: { ...template, visibility: 'public' } });
-		const d = await screen.findByRole('dialog', { name: 'Publish a version of Nextcloud' });
+		const d = await screen.findByRole('dialog', { name: 'Publish a Version of Nextcloud' });
 		expect(within(d).getByText('This template is public')).toBeInTheDocument();
-		const publish = within(d).getByRole('button', { name: 'Publish version 1.2.1' });
+		const publish = within(d).getByRole('button', { name: 'Publish Version 1.2.1' });
 		expect(publish).toBeDisabled();
 		await user.click(within(d).getByLabelText(/becomes public/));
 		await user.click(publish);
@@ -129,7 +129,7 @@ describe('TemplateCard', () => {
 				onTag
 			}
 		});
-		expect(screen.getByRole('link', { name: 'Open template Nextcloud' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Open Template Nextcloud' })).toHaveAttribute(
 			'href',
 			'/templates/tp-1'
 		);
@@ -148,8 +148,8 @@ describe('TemplateCard', () => {
 		});
 		expect(screen.queryByRole('link')).toBeNull();
 		expect(screen.getAllByRole('button')).toHaveLength(1);
-		expect(screen.getByText('Draft only')).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'Use template Nextcloud' }));
+		expect(screen.getByText('Draft Only')).toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Use Template Nextcloud' }));
 		expect(onselect).toHaveBeenCalledTimes(1);
 		expect(onTag).not.toHaveBeenCalled();
 	});
@@ -288,9 +288,9 @@ describe('CreateFromTemplateDialog', () => {
 		const posted: Seen[] = [];
 		stubCreateFlow(posted);
 		mount(CreateFromTemplateDialog, { open: true, environmentId: 'env-1', templateId: 'tp-1' });
-		const d = await screen.findByRole('dialog', { name: 'Create stack from Next Cloud' });
+		const d = await screen.findByRole('dialog', { name: 'Create Stack From Next Cloud' });
 		await waitFor(() => expect(within(d).getByLabelText(/^Name/)).toHaveValue('next-cloud'));
-		await user.click(within(d).getByRole('button', { name: 'Create stack' }));
+		await user.click(within(d).getByRole('button', { name: 'Create Stack' }));
 		await waitFor(() => expect(posted).toHaveLength(1));
 		expect(posted[0].body).toMatchObject({
 			environmentId: 'env-1',
@@ -306,10 +306,10 @@ describe('CreateFromTemplateDialog', () => {
 		const user = setup();
 		stubCreateFlow([]);
 		mount(CreateFromTemplateDialog, { open: true, environmentId: 'env-1' });
-		const d = await screen.findByRole('dialog', { name: 'Create stack from template' });
-		await user.click(await within(d).findByRole('button', { name: 'Use template Next Cloud' }));
-		await screen.findByRole('dialog', { name: 'Create stack from Next Cloud' });
+		const d = await screen.findByRole('dialog', { name: 'Create Stack From Template' });
+		await user.click(await within(d).findByRole('button', { name: 'Use Template Next Cloud' }));
+		await screen.findByRole('dialog', { name: 'Create Stack From Next Cloud' });
 		await waitFor(() => expect(screen.getByLabelText(/^Name/)).toHaveValue('next-cloud'));
-		expect(screen.queryByRole('link', { name: /Open template/ })).toBeNull();
+		expect(screen.queryByRole('link', { name: /Open Template/ })).toBeNull();
 	});
 });

@@ -5,7 +5,7 @@
 	let { mark = false, href = '/' }: { mark?: boolean; href?: string } = $props();
 </script>
 
-<a {href} class="logo" class:mark aria-label="Docker Manager, go to the dashboard">
+<a {href} class="logo" class:mark aria-label="Docker Manager, Go to the Dashboard">
 	<img src="/icons/pwa-64x64.png" width="32" height="32" alt="" aria-hidden="true" />
 	{#if !mark}<span class="name">Docker Manager</span>{/if}
 </a>

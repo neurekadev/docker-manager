@@ -55,7 +55,7 @@ describe('RunningBackups (#10)', () => {
 				environmentName: envName
 			}
 		});
-		const bar = screen.getByRole('progressbar', { name: 'Backup progress of Nightly, prod' });
+		const bar = screen.getByRole('progressbar', { name: 'Backup Progress of Nightly, prod' });
 		expect(bar).toHaveAttribute('aria-valuenow', '75');
 		expect(screen.getByText('Volume media')).toBeInTheDocument();
 		expect(screen.getByText('2 of 2')).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe('RunningBackups (#10)', () => {
 		expect(screen.getByText('Retention of Nightly')).toBeInTheDocument();
 		expect(screen.getByText('Freeing the space of the removed backups')).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Retention progress of Nightly, prod' })
+			screen.getByRole('progressbar', { name: 'Retention Progress of Nightly, prod' })
 		).toHaveAttribute('aria-valuenow', '40');
 	});
 
@@ -142,13 +142,13 @@ describe('RunningBackups (#10)', () => {
 		expect(
 			within(dialog).getByText('Containers stopped for the backup start again.')
 		).toBeInTheDocument();
-		await user.click(within(dialog).getByRole('button', { name: 'Keep backing up' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Keep Backing Up' }));
 		expect(posted).toEqual([]);
 
 		await user.click(screen.getByRole('button', { name: 'Cancel Nightly, prod' }));
 		await user.click(
 			within(await screen.findByRole('alertdialog')).getByRole('button', {
-				name: 'Cancel backup'
+				name: 'Cancel Backup'
 			})
 		);
 		expect(posted).toEqual(['POST /api/v1/jobs/j1/cancellations']);
@@ -180,18 +180,18 @@ describe('StorageCard (#10)', () => {
 		});
 		expect(screen.getByText(/stored in/)).toHaveTextContent('79.6 GB stored in 2 repositories');
 		expect(
-			screen.getByRole('meter', { name: 'Stored size of the backed-up data' })
+			screen.getByRole('meter', { name: 'Stored Size of the Backed-Up Data' })
 		).toHaveAttribute('aria-valuetext', '79.6 GB stored for 160 GB of data');
 		const stat = (label: string) =>
 			screen.getByText(label, { selector: 'dt' }).nextElementSibling;
-		expect(stat('Unique data backed up')).toHaveTextContent('160 GB');
-		expect(stat('Saved by compression')).toHaveTextContent('80.4 GB');
-		expect(stat('Compression ratio')).toHaveTextContent('2.01x');
+		expect(stat('Unique Data Backed Up')).toHaveTextContent('160 GB');
+		expect(stat('Saved by Compression')).toHaveTextContent('80.4 GB');
+		expect(stat('Compression Ratio')).toHaveTextContent('2.01x');
 		// At most three figures: no snapshot count, no share compressed.
 		expect(screen.getAllByRole('term')).toHaveLength(3);
 		expect(screen.queryByText(/snapshot/i)).toBeNull();
 		expect(
-			within(screen.getByRole('list', { name: 'Storage per repository' })).getAllByRole(
+			within(screen.getByRole('list', { name: 'Storage per Repository' })).getAllByRole(
 				'listitem'
 			)
 		).toHaveLength(2);

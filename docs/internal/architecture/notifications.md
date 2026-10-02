@@ -91,7 +91,7 @@ leaves the carried outcomes (they can't be told from chosen ones).
   it; the API audits every call (`notification_channel.reveal`, category
   credentials, the service as detail).
 - **Test** (owner): reads the channel and its address in one row read,
-  sends "Docker Manager test message" (status line "Test message", info
+  sends "Docker Manager test message" (status line "Test Message", info
   tone, the channel's name and how many kinds it sends as fields, the
   public URL) through it,
   enabled or not, at most once per channel every 5 s (in memory, fake
@@ -164,15 +164,15 @@ published as `resource.changed` (`notification_channel`, topic
 
 **Settings → Notifications** (owner only): a table (name with the channel
 tile and "service, target", status Working / Failing with the reason as
-tooltip / Not tested / Off, what it sends, last sent) with the row menu
-Send test, Edit, Delete, and the **Alert thresholds** card (the defaults
+tooltip / Not Tested / Off, what it sends, last sent) with the row menu
+Send Test, Edit, Delete, and the **Alert Thresholds** card (the defaults
 and per-environment overrides, `PUT /alert-settings`,
 [alerts.md](alerts.md#evaluators)). One dialog adds and edits: the
 service picker (icons from `serviceIcons.ts`), the service's friendly
 fields (secrets as `PasswordField`), the stored address masked until
-**Show address**, "What to send" (a row per kind, grouped Hosts and Jobs:
+**Show Address**, "What to Send" (a row per kind, grouped Hosts and Jobs:
 a master checkbox and the kind's outcomes beside it; nothing ticked
-blocks Save; environments when there is a choice: "All environments" is
+blocks Save; environments when there is a choice: "All Environments" is
 an explicit choice, the ticks list the active environments plus any
 archived or removed one the filter names, an emptied selection blocks
 Save) and **Enabled**. `services.ts` builds the Shoutrrr URL from the

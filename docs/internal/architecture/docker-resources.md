@@ -55,7 +55,7 @@ Moby adapter (#21). There is no Engine API passthrough.
 - `container.inspect` reports the on-failure restart policy's maximum
   retry count (`restartMaxRetries`; absent when unlimited or for other
   policies); the API `ContainerDetails` shows it as `restartMaxRetries`
-  and the UI as "On failure (up to 5 retries)".
+  and the UI as "On Failure (Up to 5 Retries)".
 - `network.inspect` reports each attached container's addresses on the
   network (`ipAddress`, `ipv6Address`); the API `Network.containers`
   carries them (GET only). For older agents, which omit them, the UI takes

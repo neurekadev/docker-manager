@@ -57,7 +57,7 @@ describe('container actions on Docker Manager itself (#32)', () => {
 		render(ActionHostHarness, { props: { container: agent, verb: 'stop' } });
 		await user.click(screen.getByRole('button', { name: 'Request stop' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Stop docker-agent?' });
-		await user.click(within(dialog).getByRole('button', { name: 'Stop container' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Stop Container' }));
 		const alert = await within(dialog).findByRole('alert');
 		expect(alert).toHaveTextContent(
 			"Docker Manager's own agent can't be stopped from Docker Manager."
@@ -120,7 +120,7 @@ describe('RemovalDialog (#6 deletion consequences)', () => {
 						'All data in the volume is deleted permanently (restore it from a backup, #10).'
 					]
 				},
-				confirmLabel: 'Remove volume and its data',
+				confirmLabel: 'Remove Volume and Its Data',
 				onconfirm
 			}
 		});
@@ -128,7 +128,7 @@ describe('RemovalDialog (#6 deletion consequences)', () => {
 		expect(dialog).toHaveTextContent(
 			'All data in the volume is deleted permanently (restore it from a backup).'
 		);
-		const button = within(dialog).getByRole('button', { name: 'Remove volume and its data' });
+		const button = within(dialog).getByRole('button', { name: 'Remove Volume and Its Data' });
 		expect(button).toBeDisabled();
 		await user.type(within(dialog).getByLabelText('Type app_data to confirm'), 'app_data');
 		await user.click(button);
@@ -151,7 +151,7 @@ describe('RemovalDialog (#6 deletion consequences)', () => {
 					],
 					consequences: []
 				},
-				confirmLabel: 'Remove network',
+				confirmLabel: 'Remove Network',
 				onconfirm: vi.fn()
 			}
 		});
@@ -204,7 +204,7 @@ describe('marks and notices', () => {
 				composeLabels: { 'docker-manager.backup.exclude': 'true' }
 			}
 		});
-		const compose = screen.getByLabelText('Labels of media_data: from the Compose file');
+		const compose = screen.getByLabelText('Labels of media_data: From the Compose File');
 		expect(compose).toHaveTextContent('docker-manager.backup.exclude');
 		expect(compose.closest('details')).toHaveAttribute('open');
 		expect(screen.getByText('None on the volume itself.')).toBeInTheDocument();
@@ -253,19 +253,19 @@ describe('BulkConfirm (#22 polish: bulk actions, #32 refusals reported)', () => 
 					skipped: []
 				},
 				name: (v: { name: string }) => v.name,
-				confirmLabel: 'Remove 1 volume and its data',
+				confirmLabel: 'Remove 1 Volume and Its Data',
 				danger: true,
 				confirmText: 'remove 1 volume',
 				onconfirm
 			}
 		});
 		const dialog = await screen.findByRole('alertdialog', { name: 'Remove 1 volume?' });
-		expect(within(dialog).getByRole('list', { name: 'Runs on' })).toHaveTextContent('old');
-		const left = within(dialog).getByRole('list', { name: 'Left out' });
+		expect(within(dialog).getByRole('list', { name: 'Runs On' })).toHaveTextContent('old');
+		const left = within(dialog).getByRole('list', { name: 'Left Out' });
 		expect(left).toHaveTextContent('data');
 		expect(left).toHaveTextContent('Containers still mount it.');
 		const confirm = within(dialog).getByRole('button', {
-			name: 'Remove 1 volume and its data'
+			name: 'Remove 1 Volume and Its Data'
 		});
 		expect(confirm).toBeDisabled();
 		await user.type(
@@ -290,12 +290,12 @@ describe('BulkConfirm (#22 polish: bulk actions, #32 refusals reported)', () => 
 					skipped: []
 				},
 				name: (c: { name: string }) => c.name,
-				confirmLabel: 'Stop 0 containers',
+				confirmLabel: 'Stop 0 Containers',
 				onconfirm: vi.fn()
 			}
 		});
 		const dialog = await screen.findByRole('alertdialog', { name: 'Stop 0 containers?' });
 		expect(dialog).toHaveTextContent('None of the selected objects can take this action.');
-		expect(within(dialog).getByRole('button', { name: 'Stop 0 containers' })).toBeDisabled();
+		expect(within(dialog).getByRole('button', { name: 'Stop 0 Containers' })).toBeDisabled();
 	});
 });

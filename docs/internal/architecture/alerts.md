@@ -2,7 +2,7 @@
 
 **Alerts** are problems Docker Manager raises by itself, keeps until they
 are resolved, shows in the app (the bell, the Notifications page's Alerts
-tab, the dashboard's "Needs attention", the environment's notice) and
+tab, the dashboard's "Needs Attention", the environment's notice) and
 sends through the notification channels subscribed to their kind and
 outcome ([notifications.md](notifications.md)). **Notifications** are
 runs that finished (a backup, a restore, a prune, an update run): recorded
@@ -194,7 +194,7 @@ after the commit.
   `step_failed`. A failed backup, restore, prune or update run raises
   its alert like any job, but the alert writes **no messages**: the run's
   notification is its message. Every alert of a failed job keeps the
-  kind `job_failed` (the Alerts tab's "Failed job", its dedupe key and
+  kind `job_failed` (the Alerts tab's "Failed Job", its dedupe key and
   expiry). The hook writes in a savepoint of the
   job's transaction: a failure rolls back the alert only (logged), never
   the job's outcome. Alerts changed there are held by job and announced
@@ -207,7 +207,7 @@ after the commit.
 - **Failed jobs by area:** the messages of a failed job's alert go out
   as the kind of its job's area (`domain.JobEventKind`, used by
   `alertSnapshot` through `Alert.SentAs`), so channels choose them with
-  that area's row of **What to send**: `backup.retention`,
+  that area's row of **What to Send**: `backup.retention`,
   `backup.verify`, `backup.import`, `manager.retention` and
   `manager.verify` as `backup`, `update.check` as `updates` (the runs
   with notifications as theirs: `backup.run` and `manager.backup`
@@ -282,7 +282,7 @@ changes):
   (100) of each channel's oldest messages that are due (later ones wait
   for their own delay or backoff), which go out as one message
   (one alert or notification) or one digest (status line "Summary",
-  title "3 alerts, 1 resolved, 2 notifications", a "What happened" list
+  title "3 alerts, 1 resolved, 2 notifications", a "What Happened" list
   of at most 20 entries: a problem's severity before its title
   ("Critical: Disk /dev/sda is failing"), "Resolved: <title>", a finished
   run's or available updates' title alone (it says what happened), each
@@ -307,9 +307,9 @@ transaction.
 ## Messages
 
 Every message follows one convention (#174). The **status line**
-(`Label`) is the kind and outcome as **What to send** names them ("Disk
-health · Critical", "Environment offline · Back online", "Image updates ·
-Applied", "Backups · Success", "Restores · Failure"; a resolution says
+(`Label`) is the kind and outcome as **What to Send** names them, in Title
+Case ("Disk Health · Critical", "Environment Offline · Back Online", "Image
+Updates · Applied", "Backups · Success", "Restores · Failure"; a resolution says
 "Resolved", also a failed job's sent with its failure's outcome:
 "Backups · Resolved"). The **title** is the alert's or notification's: the subject
 first, then what happened ("Disk /dev/sda is failing", "RAID md0 is
@@ -330,11 +330,14 @@ to do. A failure is explained from its error class (`errors.go`,
 `describeError`: about 90 classes of the job engine, restic, backups,
 restores, updates, update checks and prune, each "what went wrong" and
 "what to do"; an unknown class is named as it is). The **fields**
-(`alertFields`, `NotificationFields`) label the numbers, the short
-(inline) ones before the lists: the environment, what it is about (the
+(`alertFields`, `NotificationFields`) label the numbers in Title Case, the
+short (inline) ones before the lists: the environment, what it is about (the
 target, policy and repository), sizes and counts per kind (a prune's
-Containers / Images / Volumes / Networks / Build cache), duration, who
-started it, "What went wrong" and "What to do". The environment, target,
+Containers / Images / Volumes / Networks / Build Cache), duration, who
+started it ("Started By"), "What Went Wrong" and "What to Do". A failed
+job's Job field is `kindLabel` (the title's `kindNoun` in Title Case:
+"Backup Retention"); a filesystem's is `MountLabel` ("Docker Data", "Bind
+Mount 2"), while sentences use `mountWords` ("Docker data"). The environment, target,
 policy and repository link to their pages; services are lists, each
 entry linked to the stack's logs of that service (a standalone
 container: its page) with its image digests (`from → to`; an update
@@ -373,7 +376,7 @@ Dismissing (`alert.dismiss`, normal risk, scoped like the source: the
 environment, every target of the failed job, or the update policy) is
 instance-wide and recorded on the alert (who, when); the API call is
 audited (`alert.dismiss`, the kind and severity as details). A dismissed
-alert leaves the bell, "Needs attention" and the environment's notice for
+alert leaves the bell, "Needs Attention" and the environment's notice for
 everyone, stays in the Alerts list (Dismissed) and opens again when it
 gets worse. Notifications are a history: not dismissed.
 
@@ -384,7 +387,7 @@ gets worse. Notifications are a history: not dismissed.
 | `list-alerts` | `GET /alerts` | `state` `active`/`dismissed`/`firing`/`resolved`, `kind`, `environmentId`; newest first; filtered per alert |
 | `get-alert` | `GET /alerts/{alertId}` | 404 unless the source is visible |
 | `create-alert-dismissal` | `POST /alerts/{alertId}/dismissals` | `alert.dismiss`; 409 `alert_not_firing` |
-| `create-alert-dismissals` | `POST /alerts/dismissals` | "Dismiss all": the listed (or every active) alerts the caller may dismiss, at most 500 |
+| `create-alert-dismissals` | `POST /alerts/dismissals` | "Dismiss All": the listed (or every active) alerts the caller may dismiss, at most 500 |
 | `list-notifications` | `GET /notifications` | `kind`, `outcome`, `environmentId`; newest first; filtered per notification |
 | `get-alert-settings` | `GET /alert-settings` | owner; ETag |
 | `update-alert-settings` | `PUT /alert-settings` | owner; If-Match; replaces the thresholds and every override; audited (the values) |

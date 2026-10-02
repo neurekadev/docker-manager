@@ -163,11 +163,11 @@
 	}
 </script>
 
-<svelte:head><title>Add a sign-in factor · Docker Manager</title></svelte:head>
+<svelte:head><title>Add a Sign-In Factor · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<AuthHeader
-		title={done ? 'You are all set' : 'Add a sign-in factor'}
+		title={done ? 'You are all set' : 'Add a Sign-In Factor'}
 		lead={done
 			? undefined
 			: `This Docker Manager requires ${policyText} before you can continue.`}
@@ -194,9 +194,9 @@
 			</p>
 			<div class="row">
 				<Button variant="primary" loading={busy === 'codes'} onclick={createCodes}
-					>Create recovery codes</Button
+					>Create Recovery Codes</Button
 				>
-				<Button variant="ghost" onclick={finish}>Skip for now</Button>
+				<Button variant="ghost" onclick={finish}>Skip for Now</Button>
 			</div>
 		{/if}
 	{:else}
@@ -210,7 +210,7 @@
 		{#if missing.includes('totp')}
 			<section class="factor" aria-labelledby="totp-title">
 				<h2 id="totp-title">
-					<Smartphone size={18} strokeWidth={1.75} aria-hidden="true" /> Authenticator app
+					<Smartphone size={18} strokeWidth={1.75} aria-hidden="true" /> Authenticator App
 				</h2>
 				{#if !totp}
 					<p class="muted">
@@ -218,7 +218,7 @@
 						sign-in codes.
 					</p>
 					<Button variant="primary" loading={busy === 'totp'} onclick={startTotp}
-						>Set up an authenticator app</Button
+						>Set Up an Authenticator App</Button
 					>
 				{:else}
 					<p class="muted">Scan the code with your app, then enter the code it shows.</p>
@@ -241,7 +241,7 @@
 					</div>
 					<form onsubmit={verifyTotp}>
 						<TextField
-							label="Code from the app"
+							label="Code From the App"
 							bind:value={code}
 							inputmode="numeric"
 							autocomplete="one-time-code"
@@ -253,7 +253,7 @@
 							type="submit"
 							variant="primary"
 							loading={busy === 'verify'}
-							disabled={code.replace(/\s/g, '').length < 6}>Confirm code</Button
+							disabled={code.replace(/\s/g, '').length < 6}>Confirm Code</Button
 						>
 					</form>
 				{/if}
@@ -270,7 +270,7 @@
 						Use your device's screen lock, a security key or your password manager.
 					</p>
 					<TextField
-						label="Passkey name"
+						label="Passkey Name"
 						description="Optional, e.g. “Work laptop”."
 						bind:value={passkeyName}
 					/>
@@ -280,7 +280,7 @@
 						loading={busy === 'passkey'}
 						onclick={addPasskey}
 					>
-						Add a passkey
+						Add a Passkey
 					</Button>
 				{:else}
 					<Notice tone="warn" title="Passkeys need a secure connection">
@@ -290,7 +290,7 @@
 			</section>
 		{/if}
 
-		<button type="button" class="link" onclick={switchUser}>Sign in as someone else</button>
+		<button type="button" class="link" onclick={switchUser}>Sign In as Someone Else</button>
 	{/if}
 </div>
 

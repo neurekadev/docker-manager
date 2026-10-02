@@ -45,7 +45,7 @@
 			'Remove passwords, keys and tokens from the draft and publish a clean version first.',
 			'Making it private again hides it from the public page; copies others already downloaded stay with them.'
 		]}
-		confirmLabel="Make public"
+		confirmLabel="Make Public"
 		canConfirm={acknowledged}
 		onconfirm={confirm}
 	>
@@ -63,7 +63,7 @@
 			'Other Docker Managers stop offering it after their next sync.',
 			'Stacks created from it anywhere keep working.'
 		]}
-		confirmLabel="Make private"
+		confirmLabel="Make Private"
 		onconfirm={confirm}
 	/>
 {/if}

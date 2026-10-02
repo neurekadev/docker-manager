@@ -136,6 +136,6 @@ describe('MigrationWizard', () => {
 		).toBeInTheDocument();
 		await waitFor(() => expect(fetched.some((u) => u.startsWith('/api/v1/jobs?'))).toBe(true));
 		expect(screen.queryByRole('progressbar')).toBeNull();
-		expect(screen.getByRole('group', { name: 'Destination environment' })).toBeInTheDocument();
+		expect(screen.getByRole('group', { name: 'Destination Environment' })).toBeInTheDocument();
 	});
 });

@@ -70,7 +70,13 @@ Europe/Berlin while the runner evaluates every 5 minutes).
 | `update_check` | `0 3 * * *` | catch up once | `update_policy` / `update_policy.read` | `update.check` |
 | `update_run` | `0 4 * * *` | skip | `update_policy` / `update_policy.read` | `update.run` |
 | `prune` | `0 3 * * 0` | skip | `maintenance_policy` / `maintenance_policy.read` | `prune.run` |
-| `backup_verification` | `0 5 * * 0` | catch up once | `backup_repository` / `backup_repository.read` | `backup.verify` |
+| `backup_verification` | `0 5 * * 0` | catch up once | `backup_repository` / `backup_repository.read` | `backup.verify`, `manager.verify` |
+
+Each kind's `Label` is its Title Case name in the UI and the API's
+`kindLabel` ("Backups", "Image Update Checks", "Image Update Runs", "Docker
+Prune", "Repository Verification"); `Noun` is the same name in sentence
+case for the run reasons ("Docker prune schedules do not catch up missed
+runs"), empty meaning `Label`.
 
 The instance settings hold one editable default expression per kind and a
 default time zone (`UTC` until changed): `GET/PATCH

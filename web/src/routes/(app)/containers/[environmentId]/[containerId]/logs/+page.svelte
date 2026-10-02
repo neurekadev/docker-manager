@@ -16,7 +16,7 @@
 
 	// The same trail as the container's other tabs: Containers / env / name / Logs.
 	usePage(() => ({
-		title: `${containerId} logs`,
+		title: `${containerId} Logs`,
 		crumbs: [
 			{ label: 'Containers', href: routes.containers() },
 			{ label: envName },

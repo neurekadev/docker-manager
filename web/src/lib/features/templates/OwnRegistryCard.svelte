@@ -1,5 +1,5 @@
 <script lang="ts">
-	// This instance's registry (template registry; "Share your templates" on
+	// This instance's registry (template registry; "Share Your Templates" on
 	// the Template sources page): the URL other instances add to use its
 	// public templates, how many templates it
 	// shares and a link to its public page. The URL is this manager's
@@ -14,7 +14,7 @@
 	const shared = $derived(templates.filter((t) => t.visibility === 'public' && t.latest).length);
 </script>
 
-<Card title="Share your templates" id="own-registry">
+<Card title="Share Your Templates" id="own-registry">
 	<div class="body">
 		<p class="muted">
 			{shared === 0
@@ -27,7 +27,7 @@
 				<code>{url}</code>
 				<CopyButton value={url} what="address" />
 			</div>
-			<Button icon={ExternalLink} href={routes.registry()}>Open the public page</Button>
+			<Button icon={ExternalLink} href={routes.registry()}>Open the Public Page</Button>
 		</div>
 	</div>
 </Card>

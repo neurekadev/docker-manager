@@ -121,7 +121,7 @@
 
 <Dialog
 	bind:open
-	title={kind === 'volume' ? 'Create a volume' : 'Create a network'}
+	title={kind === 'volume' ? 'Create a Volume' : 'Create a Network'}
 	size="md"
 	dismissible={!busy}
 >
@@ -140,7 +140,7 @@
 				options={environments.map((e) => ({ value: e.id, label: e.name }))}
 			/>
 		{:else if environments.length === 0}
-			<Notice tone="warn" title="No environment to create it in" live="none">
+			<Notice tone="warn" title="No Environment to Create It In" live="none">
 				Creating a {kind} needs an online environment where you have the permission.
 			</Notice>
 		{/if}
@@ -178,7 +178,7 @@
 			</div>
 		{/if}
 		<TextArea
-			label="Driver options"
+			label="Driver Options"
 			mono
 			rows={2}
 			bind:value={optionsText}
@@ -206,7 +206,7 @@
 			form="create-{kind}"
 			variant="primary"
 			loading={busy}
-			disabled={!valid}>{kind === 'volume' ? 'Create volume' : 'Create network'}</Button
+			disabled={!valid}>{kind === 'volume' ? 'Create Volume' : 'Create Network'}</Button
 		>
 	{/snippet}
 </Dialog>

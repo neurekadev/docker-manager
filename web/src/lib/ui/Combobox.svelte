@@ -61,7 +61,7 @@
 					aria-invalid={c.invalid || undefined}
 					oninput={(e) => (search = e.currentTarget.value)}
 				/>
-				<Combobox.Trigger class="dy-combobox-trigger" aria-label="Show options for {label}">
+				<Combobox.Trigger class="dy-combobox-trigger" aria-label="Show Options for {label}">
 					<ChevronsUpDown size={16} strokeWidth={1.75} aria-hidden="true" />
 				</Combobox.Trigger>
 			</div>

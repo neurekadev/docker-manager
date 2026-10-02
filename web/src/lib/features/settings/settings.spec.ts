@@ -86,7 +86,7 @@ describe('audit viewer (#30)', () => {
 		};
 		expect(auditActionLabel('registry.use', catalog)).toBe('Used a registry connection');
 		expect(auditActionLabel('auth.sign_in')).toBe('Signed in');
-		expect(auditActionLabel('stack.deploy', catalog)).toBe('Deploy (stacks)');
+		expect(auditActionLabel('stack.deploy', catalog)).toBe('Deploy (Stacks)');
 		expect(auditActionLabel('stack.create', catalog)).toBe('Create stacks');
 		expect(auditActionLabel('stack.migrate.preview')).toBe('Stack migrate preview');
 	});
@@ -96,16 +96,16 @@ describe('audit viewer (#30)', () => {
 			type === 'registry' && id === 'r1' ? 'Docker Hub' : undefined;
 		expect(targetText({ type: 'registry', id: 'r1' }, nameOf)).toEqual({
 			name: 'Docker Hub',
-			type: 'Registry connection'
+			type: 'Registry Connection'
 		});
 		expect(
 			targetText({ type: 'registry', id: '01a0daae-eed1-4c1f-9a2b-3c4d5e6f7a8b' }, nameOf)
-		).toEqual({ name: 'Registry connection', type: 'Registry connection' });
+		).toEqual({ name: 'Registry Connection', type: 'Registry Connection' });
 		expect(targetText({ type: 'container', id: 'silo-web' })).toEqual({
 			name: 'silo-web',
 			type: 'Container'
 		});
-		expect(targetText({ type: 'build_run', id: 'x1' }).type).toBe('Build run');
+		expect(targetText({ type: 'build_run', id: 'x1' }).type).toBe('Build Run');
 		expect(isOpaqueId('sha256:0123456789abcdef')).toBe(true);
 		expect(isOpaqueId('0123456789ab')).toBe(true);
 		expect(isOpaqueId('silo-db')).toBe(false);
@@ -174,20 +174,20 @@ describe('sign-in policy (#16)', () => {
 		expect(
 			settingsChanges(base, { ...base, requiredFactors: 'both', apiTokensEnabled: false })
 		).toEqual([
-			'Required sign-in: Password or passkey → Authenticator app and passkey',
-			'API tokens: on → off'
+			'Required Sign-In: Password or Passkey → Authenticator App and Passkey',
+			'API Tokens: on → off'
 		]);
 		expect(settingsChanges(base, { ...base, allowStaySignedIn: false })).toEqual([
-			'Stay signed in: on → off'
+			'Stay Signed In: on → off'
 		]);
 	});
 
-	it('says what turning Stay signed in off does to devices, and nothing otherwise', () => {
+	it('says what turning Stay Signed In off does to devices, and nothing otherwise', () => {
 		expect(staySignedInConsequences(true, true)).toEqual([]);
 		expect(staySignedInConsequences(false, true)).toEqual([]);
 		expect(staySignedInConsequences(false, false)).toEqual([]);
 		const c = staySignedInConsequences(true, false).join(' ');
-		expect(c).toMatch(/stops offering Stay signed in/);
+		expect(c).toMatch(/stops offering Stay Signed In/);
 		expect(c).toMatch(/move back to the normal limits/);
 	});
 
@@ -236,13 +236,13 @@ describe('instance settings (#4)', () => {
 		expect(Object.fromEntries(facts.map((f) => [f.label, f.value]))).toEqual({
 			'Public URL': 'http://localhost:8080',
 			Mode: 'Local development over plain HTTP',
-			'Trusted proxies': 'None: forwarded headers are ignored',
-			'Stream heartbeat': 'Every 15 s',
-			'Largest upload': '512 MB',
-			'Largest file to edit': '2 MB',
-			'Largest download or archive': '10 GB',
-			'Largest extraction': '20 GB, at most 100× the archive, 100,000 entries',
-			'Metrics endpoint': 'On'
+			'Trusted Proxies': 'None: forwarded headers are ignored',
+			'Stream Heartbeat': 'Every 15 s',
+			'Largest Upload': '512 MB',
+			'Largest File to Edit': '2 MB',
+			'Largest Download or Archive': '10 GB',
+			'Largest Extraction': '20 GB, at most 100× the archive, 100,000 entries',
+			'Metrics Endpoint': 'On'
 		});
 	});
 });
@@ -258,17 +258,17 @@ describe('Settings tabs', () => {
 		const tabs = settingsTabs(access(true));
 		expect(tabs.map((t) => [t.label, t.href])).toEqual([
 			['Overview', '/settings'],
-			['API tokens', '/settings/tokens/all'],
-			['Sign-in policy', '/settings/sign-in'],
-			['Schedule defaults', '/settings/schedules'],
+			['API Tokens', '/settings/tokens/all'],
+			['Sign-In Policy', '/settings/sign-in'],
+			['Schedule Defaults', '/settings/schedules'],
 			['Notifications', '/settings/notifications'],
-			['Audit log', '/settings/audit'],
+			['Audit Log', '/settings/audit'],
 			['Diagnostics', '/settings/diagnostics'],
-			['Move to a new server', '/settings/move']
+			['Move to a New Server', '/settings/move']
 		]);
 		// The caller's own account and tokens are the Profile, not Settings.
 		expect(tabs.map((t) => t.label)).not.toContain('Profile');
-		expect(tabs.map((t) => t.label)).not.toContain('Profile and security');
+		expect(tabs.map((t) => t.label)).not.toContain('Profile and Security');
 		expect(tabs.some((t) => t.href.startsWith('/profile'))).toBe(false);
 	});
 
@@ -276,6 +276,6 @@ describe('Settings tabs', () => {
 		expect(settingsTabs(access(false)).map((t) => t.label)).toEqual(['Overview']);
 		expect(
 			settingsTabs(access(false, 'settings.read', 'audit.read')).map((t) => t.label)
-		).toEqual(['Overview', 'Schedule defaults', 'Audit log']);
+		).toEqual(['Overview', 'Schedule Defaults', 'Audit Log']);
 	});
 });

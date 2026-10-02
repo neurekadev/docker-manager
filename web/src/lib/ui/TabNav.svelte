@@ -2,7 +2,7 @@
 	export interface TabLink {
 		href: string;
 		label: string;
-		/** A chip after the tab (e.g. "Undeployed changes" beside the tabs). */
+		/** A chip after the tab (e.g. "Undeployed Changes" beside the tabs). */
 		count?: number;
 	}
 </script>
@@ -18,7 +18,7 @@
 		/** The current path (page.url.pathname). */
 		current: string;
 		label: string;
-		/** Content after the tabs (e.g. an "Undeployed changes" chip). */
+		/** Content after the tabs (e.g. an "Undeployed Changes" chip). */
 		after?: Snippet;
 	}
 
