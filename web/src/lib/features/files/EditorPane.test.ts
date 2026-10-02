@@ -1,6 +1,6 @@
 // The editor's external-change conflict (#15, #22 brief): the banner reads
-// "<file> changed on disk. Your edits are kept." with Compare, Reload from
-// disk, Save as… and Overwrite (confirmed); Save stays off until resolved.
+// "<file> changed on disk. Your edits are kept." with Compare, Reload From
+// Disk, Save As… and Overwrite (confirmed); Save stays off until resolved.
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -61,7 +61,7 @@ describe('EditorPane', () => {
 		);
 
 		session.edit('compose.yaml', 'a: mine\n');
-		await waitFor(() => expect(screen.getByText('Unsaved changes')).toBeInTheDocument());
+		await waitFor(() => expect(screen.getByText('Unsaved Changes')).toBeInTheDocument());
 		// Somebody changed it on the host: the next read carries a new ETag.
 		session.apply(
 			'compose.yaml',
@@ -76,7 +76,7 @@ describe('EditorPane', () => {
 		);
 		const banner = await screen.findByRole('alert');
 		expect(banner).toHaveTextContent('compose.yaml changed on disk. Your edits are kept.');
-		for (const name of ['Compare', 'Reload from disk', 'Save as…', 'Overwrite'])
+		for (const name of ['Compare', 'Reload From Disk', 'Save As…', 'Overwrite'])
 			expect(screen.getByRole('button', { name })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 		expect(session.current?.buffer).toBe('a: mine\n');
@@ -100,7 +100,7 @@ describe('EditorPane', () => {
 		await waitFor(() => expect(session.current?.status).toBe('ready'));
 		expect(screen.getByText("Saving doesn't deploy Silo.")).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /Deploy/ })).toBeNull();
-		expect(screen.getByRole('button', { name: 'Wrap long lines' })).toHaveAttribute(
+		expect(screen.getByRole('button', { name: 'Wrap Long Lines' })).toHaveAttribute(
 			'aria-pressed',
 			'false'
 		);
@@ -215,6 +215,6 @@ describe('EditorPane', () => {
 		expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
 		expect(screen.queryByRole('button', { name: 'Format' })).toBeNull();
 		expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
-		expect(screen.getByText('Read only')).toBeInTheDocument();
+		expect(screen.getByText('Read Only')).toBeInTheDocument();
 	});
 });

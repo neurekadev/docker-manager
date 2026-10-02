@@ -103,7 +103,7 @@
 		{ id: 'agent', header: 'Agent', cell: agentCell, stack: 'title' },
 		{ id: 'status', header: 'Status', cell: statusCell, width: '150px', stack: 'status' },
 		{ id: 'version', header: 'Version', cell: versionCell, width: '200px' },
-		{ id: 'seen', header: 'Last seen', cell: seenCell, width: '160px' },
+		{ id: 'seen', header: 'Last Seen', cell: seenCell, width: '160px' },
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -119,7 +119,7 @@
 		const out: MenuEntry[] = [];
 		if (a.actions.includes('agent.manage'))
 			out.push({
-				label: 'Rotate credential',
+				label: 'Rotate Credential',
 				icon: KeyRound,
 				onSelect: () => {
 					target = a;
@@ -129,7 +129,7 @@
 		if (a.actions.includes('agent.remove')) {
 			if (out.length) out.push({ separator: true });
 			out.push({
-				label: 'Remove agent',
+				label: 'Remove Agent',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => {
@@ -155,7 +155,7 @@
 	{:else}
 		<StatusBadge
 			status={a.connected ? 'online' : 'offline'}
-			label={a.connected ? 'Connected' : 'Not connected'}
+			label={a.connected ? 'Connected' : 'Not Connected'}
 		/>
 	{/if}
 {/snippet}
@@ -211,7 +211,7 @@
 					{env.name} stays offline until you re-attach it by enrolling an agent on its Docker
 					Engine.
 					{#snippet actions()}
-						<Button size="sm" href={routes.addEnvironment(env.id)}>Re-attach</Button>
+						<Button size="sm" href={routes.addEnvironment(env.id)}>Re-Attach</Button>
 					{/snippet}
 				</Notice>
 			</div>
@@ -225,7 +225,7 @@
 					compact
 				>
 					{#snippet actions()}
-						<Button href={routes.addEnvironment(env.id)}>Re-attach</Button>
+						<Button href={routes.addEnvironment(env.id)}>Re-Attach</Button>
 					{/snippet}
 				</EmptyState>
 			{/snippet}
@@ -235,19 +235,19 @@
 
 <ConfirmDialog
 	bind:open={rotateOpen}
-	title="Rotate agent credential"
+	title="Rotate Agent Credential"
 	message="Docker Manager issues a new credential to {target ? agentLabel(target) : 'the agent'}."
 	consequences={[
 		'The agent stores the new credential and confirms it; then the old one is revoked.',
 		'If the agent is offline, it receives the new credential when it reconnects. The old one keeps working until then.'
 	]}
-	confirmLabel="Rotate credential"
+	confirmLabel="Rotate Credential"
 	onconfirm={rotate}
 />
 
 <DestructiveConfirm
 	bind:open={removeOpen}
-	title="Remove agent"
+	title="Remove Agent"
 	consequences={[
 		`Revokes the agent's credential and closes its connection.`,
 		`${env.name} stays offline and detached: jobs cannot run there until a new agent re-attaches it.`,
@@ -262,7 +262,7 @@
 			]
 		: []}
 	confirmText={env.name}
-	confirmLabel="Remove agent"
+	confirmLabel="Remove Agent"
 	onconfirm={remove}
 />
 

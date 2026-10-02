@@ -4,7 +4,7 @@
 	// environment the wizard says that a second one is needed instead of
 	// showing its steps; a running migration opens on its progress, the last
 	// one on its result while it left something to do (the environment
-	// page's "Review the migration" leads here); an archived environment
+	// page's "Review the Migration" leads here); an archived environment
 	// runs no jobs.
 	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
@@ -21,7 +21,7 @@
 	const e = $derived(env.data);
 
 	usePage(() => ({
-		title: `Migrate ${e?.name ?? 'environment'}`,
+		title: `Migrate ${e?.name ?? 'Environment'}`,
 		crumbs: [
 			{ label: 'Environments', href: routes.environments() },
 			{ label: e?.name ?? '…', href: routes.environment(id) },

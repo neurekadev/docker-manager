@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Sign-in policy (#16, #31; owner only): strict passwords, the factors
 	// every account must use (with the enrollment consequences stated before
-	// saving), whether the sign-in page offers Stay signed in, invitation
+	// saving), whether the sign-in page offers Stay Signed In, invitation
 	// and reset lifetimes, and API tokens (on/off, longest lifetime, tokens
 	// without expiry). Saving needs a step-up.
 	import { untrack } from 'svelte';
@@ -44,8 +44,8 @@
 	} from '$lib/features/settings/queries';
 
 	usePage({
-		title: 'Sign-in policy',
-		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Sign-in policy' }]
+		title: 'Sign-In Policy',
+		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Sign-In Policy' }]
 	});
 
 	const qc = useQueryClient();
@@ -136,7 +136,7 @@
 
 <Page>
 	<SettingsHeader
-		title="Sign-in policy"
+		title="Sign-In Policy"
 		description="How everyone signs in to this Docker Manager, and whether scripts may use API tokens."
 	/>
 	{#if perms.data && !owner}
@@ -151,12 +151,12 @@
 					>
 						<Fields columns={2}>
 							<Switch
-								label="Strict passwords"
+								label="Strict Passwords"
 								description="Enforce the minimum length below (otherwise at least 8 characters)."
 								bind:checked={form.strictPasswords}
 							/>
 							<TextField
-								label="Minimum length"
+								label="Minimum Length"
 								type="number"
 								min="8"
 								value={String(form.minPasswordLength)}
@@ -168,12 +168,12 @@
 						</Fields>
 					</Card>
 					<Card
-						title="Required sign-in"
+						title="Required Sign-In"
 						subtitle="What every account must use. Accounts without it get a limited session to add it."
 					>
 						<Fields>
 							<RadioGroup
-								label="Every account signs in with"
+								label="Every Account Signs In With"
 								bind:value={form.requiredFactors}
 								options={(Object.keys(FACTOR_POLICY) as RequiredFactors[]).map(
 									(k) => ({
@@ -186,7 +186,7 @@
 							<!-- Two columns, like the other number fields of the policy. -->
 							<Fields columns={2}>
 								<TextField
-									label="Time to add required factors (hours)"
+									label="Time to Add Required Factors (Hours)"
 									type="number"
 									min="1"
 									value={String(form.enrollmentGraceHours)}
@@ -200,21 +200,21 @@
 						</Fields>
 					</Card>
 					<Card
-						title="Staying signed in"
+						title="Staying Signed In"
 						subtitle="By default a browser is signed out after 8 hours without activity, 24 hours at most, and when it closes."
 					>
 						<Fields columns={2}>
 							<Switch
-								label="Allow Stay signed in"
+								label="Allow Stay Signed In"
 								description="People can keep a device signed in for longer: by default 30 days without activity, a year at most. Off moves those devices back to the normal limits."
 								bind:checked={form.allowStaySignedIn}
 							/>
 						</Fields>
 					</Card>
-					<Card title="Invitations and resets">
+					<Card title="Invitations and Resets">
 						<Fields columns={2}>
 							<TextField
-								label="Invitations expire after (hours)"
+								label="Invitations Expire After (Hours)"
 								type="number"
 								min="1"
 								value={String(form.invitationTtlHours)}
@@ -223,7 +223,7 @@
 								error={fields['body.invitationTtlHours']}
 							/>
 							<TextField
-								label="Password reset links expire after (hours)"
+								label="Password Reset Links Expire After (Hours)"
 								type="number"
 								min="1"
 								value={String(form.passwordResetTtlHours)}
@@ -235,17 +235,17 @@
 						</Fields>
 					</Card>
 					<Card
-						title="API tokens"
+						title="API Tokens"
 						subtitle="Tokens act with at most their user's current permissions and never count as a sign-in factor."
 					>
 						<Fields columns={2}>
 							<Switch
-								label="Allow API tokens"
+								label="Allow API Tokens"
 								description="Off stops every token at once (they work again when turned back on; revoke them to end them)."
 								bind:checked={form.apiTokensEnabled}
 							/>
 							<TextField
-								label="Longest lifetime (days)"
+								label="Longest Lifetime (Days)"
 								type="number"
 								min="1"
 								value={String(form.apiTokenMaxLifetimeDays)}
@@ -256,7 +256,7 @@
 								error={fields['body.apiTokenMaxLifetimeDays']}
 							/>
 							<Switch
-								label="Allow tokens without expiry"
+								label="Allow Tokens Without Expiry"
 								description="Off by default. Tokens that never expire must be revoked by hand."
 								bind:checked={form.apiTokensNonExpiring}
 							/>
@@ -266,12 +266,12 @@
 						<Button
 							variant="ghost"
 							disabled={!changes.length}
-							onclick={() => base && (form = { ...base })}>Discard changes</Button
+							onclick={() => base && (form = { ...base })}>Discard Changes</Button
 						>
 						<Button
 							variant="primary"
 							disabled={!changes.length}
-							onclick={() => (confirmOpen = true)}>Save sign-in policy</Button
+							onclick={() => (confirmOpen = true)}>Save Sign-In Policy</Button
 						>
 					</FormFooter>
 				{/if}
@@ -284,7 +284,7 @@
 	bind:open={confirmOpen}
 	title="Save the sign-in policy?"
 	{consequences}
-	confirmLabel="Save sign-in policy"
+	confirmLabel="Save Sign-In Policy"
 	tone={base && form && base.requiredFactors !== form.requiredFactors ? 'danger' : 'default'}
 	onconfirm={save}
 />

@@ -1,9 +1,9 @@
-// Settings → Move to a new server (the old manager's wizard): the setup
+// Settings → Move to a New Server (the old manager's wizard): the setup
 // files after a step-up, shown once, with the one command to paste; new
 // setup files when they are gone or expired; Next only once the new
 // server's agent connected and its Docker Manager waits (its tooltip says
-// why); the check with the reminders; Move everything and its progress
-// read from the move; a stopped run with "Try again"; the moved panel
+// why); the check with the reminders; Move Everything and its progress
+// read from the move; a stopped run with "Try Again"; the moved panel
 // after the handoff; resuming here waits for the restart.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
@@ -227,15 +227,15 @@ describe('ManagerMoveWizard', () => {
 		wizard();
 
 		expect(
-			await screen.findByRole('heading', { level: 2, name: 'New server' })
+			await screen.findByRole('heading', { level: 2, name: 'New Server' })
 		).toBeInTheDocument();
-		const here = screen.getByRole('textbox', { name: /This server's address/ });
+		const here = screen.getByRole('textbox', { name: /This Server's Address/ });
 		await waitFor(() => expect(here).toHaveValue('192.168.1.10'));
 		await user.type(
-			screen.getByRole('textbox', { name: /New server's address/ }),
+			screen.getByRole('textbox', { name: /New Server's Address/ }),
 			'192.168.1.20'
 		);
-		await user.click(screen.getByRole('button', { name: 'Create setup files' }));
+		await user.click(screen.getByRole('button', { name: 'Create Setup Files' }));
 
 		// The manager asks for a recent sign-in first; the files come after it.
 		await waitFor(() => expect(stepUp.open).toBe(true));
@@ -257,9 +257,9 @@ describe('ManagerMoveWizard', () => {
 		expect(screen.getByText('docker compose up -d')).toBeInTheDocument();
 		// The same in one paste: the folder, both files and the start.
 		expect(
-			screen.getByRole('heading', { name: 'Or paste this on the new server' })
+			screen.getByRole('heading', { name: 'Or Paste This on the New Server' })
 		).toBeInTheDocument();
-		const script = screen.getByLabelText('One command: command').textContent ?? '';
+		const script = screen.getByLabelText('One Command: command').textContent ?? '';
 		expect(script).toContain('mkdir -p docker-manager');
 		expect(script).toContain(
 			"cat > .env <<'DOCKER_MANAGER_EOF'\nDOCKER_MANAGER_MOVE_CODE=dmm_x_y\n"
@@ -268,7 +268,7 @@ describe('ManagerMoveWizard', () => {
 		expect(script.trimEnd().endsWith('docker compose up -d\n)')).toBe(true);
 		// The files' heading takes the focus.
 		await waitFor(() =>
-			expect(screen.getByRole('heading', { name: 'Set up the new server' })).toHaveFocus()
+			expect(screen.getByRole('heading', { name: 'Set Up the New Server' })).toHaveFocus()
 		);
 
 		// The checklist waits for the new server; Next stays off until it is
@@ -282,8 +282,8 @@ describe('ManagerMoveWizard', () => {
 			"Wait until the new server's agent is connected and its Docker Manager is waiting."
 		);
 		// The files are on the page: nothing to create again.
-		expect(screen.queryByRole('button', { name: 'Create new setup files' })).toBeNull();
-		expect(screen.getByRole('button', { name: 'Cancel the move' })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Create New Setup Files' })).toBeNull();
+		expect(screen.getByRole('button', { name: 'Cancel the Move' })).toBeInTheDocument();
 	});
 
 	it('goes on once the new server is ready, checks, and moves everything', async () => {
@@ -297,7 +297,7 @@ describe('ManagerMoveWizard', () => {
 
 		expect(await screen.findByRole('heading', { level: 2, name: 'Check' })).toBeInTheDocument();
 		expect(await screen.findByText('Ready to migrate 2 stacks to new-box')).toBeInTheDocument();
-		expect(screen.getByRole('heading', { name: 'Before you start' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Before You Start' })).toBeInTheDocument();
 		expect(
 			screen.getByText(
 				'Your usual address stops working while your reverse proxy moves, until you point DNS at the new server.'
@@ -310,9 +310,9 @@ describe('ManagerMoveWizard', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Next' }));
 		expect(await screen.findByRole('heading', { level: 2, name: 'Move' })).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'Move everything' }));
+		await user.click(screen.getByRole('button', { name: 'Move Everything' }));
 
-		expect(await screen.findByRole('progressbar', { name: 'Apps moved' })).toBeInTheDocument();
+		expect(await screen.findByRole('progressbar', { name: 'Apps Moved' })).toBeInTheDocument();
 		expect(runsStarted).toBe(1);
 		expect(screen.getByText('Moving your apps: 1 of 2 stacks')).toBeInTheDocument();
 		expect(screen.getByText('Now moving app.')).toBeInTheDocument();
@@ -330,7 +330,7 @@ describe('ManagerMoveWizard', () => {
 		expect(
 			await screen.findByText('The setup files were shown when you created the move.')
 		).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'Create new setup files' }));
+		await user.click(screen.getByRole('button', { name: 'Create New Setup Files' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Create new setup files?' });
 		expect(dialog).toHaveTextContent(
 			'The setup files you have now stop working. Docker Manager on the new server must use the new ones.'
@@ -338,7 +338,7 @@ describe('ManagerMoveWizard', () => {
 		expect(dialog).toHaveTextContent(
 			"The new server's agent gets a new enrollment token, valid for 24 hours."
 		);
-		await user.click(within(dialog).getByRole('button', { name: 'Create new setup files' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Create New Setup Files' }));
 
 		expect(
 			await screen.findByText(
@@ -365,7 +365,7 @@ describe('ManagerMoveWizard', () => {
 		expect(
 			screen.getByText('The setup files expired. Create new setup files.')
 		).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Create new setup files' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Create New Setup Files' })).toBeInTheDocument();
 	});
 
 	it('says only Docker Manager moves when there are no apps', async () => {
@@ -403,8 +403,8 @@ describe('ManagerMoveWizard', () => {
 		expect(
 			screen.getByText('app did not start on new-box. Press Move everything again.')
 		).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
-		expect(screen.getByRole('button', { name: 'Cancel the move' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Try Again' })).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Cancel the Move' })).toBeInTheDocument();
 	});
 
 	it('says where to point DNS once handed over, and offers to resume here', async () => {
@@ -421,9 +421,9 @@ describe('ManagerMoveWizard', () => {
 			screen.getByText(/Handed over\. Waiting for the new Docker Manager to confirm\./)
 		).toBeInTheDocument();
 		expect(
-			await screen.findByRole('button', { name: 'Resume on this server' })
+			await screen.findByRole('button', { name: 'Resume on This Server' })
 		).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Cancel the move' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Cancel the Move' })).toBeNull();
 	});
 
 	it('waits for Docker Manager to restart after resuming here', async () => {
@@ -431,12 +431,12 @@ describe('ManagerMoveWizard', () => {
 		current = move({ ...ready, state: 'handed_off' });
 		wizard();
 
-		await user.click(await screen.findByRole('button', { name: 'Resume on this server' }));
+		await user.click(await screen.findByRole('button', { name: 'Resume on This Server' }));
 		const dialog = await screen.findByRole('alertdialog', {
 			name: 'Resume Docker Manager on this server?'
 		});
 		await user.type(within(dialog).getByLabelText('Type Home to confirm'), 'Home');
-		await user.click(within(dialog).getByRole('button', { name: 'Resume on this server' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Resume on This Server' }));
 
 		expect(await screen.findByText(/Restarting Docker Manager…/)).toBeInTheDocument();
 		expect(

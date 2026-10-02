@@ -44,9 +44,9 @@ Check the agent's log on that server. Usual causes:
 ## Docker is already connected through another agent
 
 The server already has an agent in Docker Manager. To replace it, choose
-**Remove agent** on the environment's **Agents** tab, then
+**Remove Agent** on the environment's **Agents** tab, then
 [re-attach](/environments#re-attach-an-environment) it. Don't use **Add
-environment** for a server Docker Manager already knows.
+Environment** for a server Docker Manager already knows.
 
 ## Stack actions are refused because of the storage layout
 
@@ -57,7 +57,7 @@ volume lines exactly as in the Quickstart, or see
 
 ## Docker Manager can't read a server's disks
 
-The **Disk health** card on the server's **System** tab says **Docker
+The **Disk Health** card on the server's **System** tab says **Docker
 Manager can’t read this server’s disks.** The agent runs without
 `privileged: true`, so it can't open the disks. Add the line to the agent
 and deploy it again (see
@@ -87,7 +87,7 @@ Docker Manager never stops or removes its own containers, data or images.
 ## A job ended as interrupted
 
 The manager or agent restarted during the job. Check the result, then start
-it again. Failed deploys, image pulls and update checks have **Try again**
+it again. Failed deploys, image pulls and update checks have **Try Again**
 on their job page.
 
 ## An update is refused because of undeployed changes
@@ -119,7 +119,7 @@ again. Usual fixes:
   **Encryption** (587 with **Explicit TLS (STARTTLS)**, 465 with
   **Implicit TLS**); a self-signed certificate is refused.
 - **Refused the credentials** or **rejected the message**: press **Edit →
-  Show address** and check the token, password, webhook URL, chat, topic
+  Show Address** and check the token, password, webhook URL, chat, topic
   or recipients. A webhook deleted in Discord or Slack needs a new URL.
 - **Redirected to another address**: enter the address the service
   redirects to.

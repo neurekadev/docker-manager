@@ -25,7 +25,7 @@
 		/** Display name (stack or container). */
 		name: string;
 		dense?: boolean;
-		/** Offer "Open in a new window" (not inside the window itself). */
+		/** Offer "Open in a New Window" (not inside the window itself). */
 		popout?: boolean;
 		extra?: Snippet;
 		/** Stack logs: start with only this service selected (?service=<name>). */
@@ -180,7 +180,7 @@
 	<div class="state">
 		<EmptyState
 			icon={ScrollText}
-			title="{name} has no containers"
+			title="{name} Has No Containers"
 			description="Logs appear here once {name} is deployed and its containers run."
 		/>
 	</div>

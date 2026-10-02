@@ -44,7 +44,7 @@
 	const can = (a: string) => !!t?.actions.includes(a);
 
 	usePage(() => ({
-		title: `${t?.name ?? 'Template'} settings`,
+		title: `${t?.name ?? 'Template'} Settings`,
 		crumbs: [
 			{ label: 'Templates', href: routes.templates() },
 			{ label: t?.name ?? 'Template', href: routes.template(id) },
@@ -176,7 +176,7 @@
 					variant="primary"
 					type="submit"
 					loading={saving}
-					disabled={!dirty || !name.trim() || !!tagError}>Save details</Button
+					disabled={!dirty || !name.trim() || !!tagError}>Save Details</Button
 				>
 			</div>
 		</form>
@@ -202,7 +202,7 @@
 						.env.
 					</p>
 					<div class="row">
-						<Button onclick={() => (visibilityOpen = true)}>Make private</Button>
+						<Button onclick={() => (visibilityOpen = true)}>Make Private</Button>
 					</div>
 				{:else}
 					<p>
@@ -211,7 +211,7 @@
 						one as a template source.
 					</p>
 					<div class="row">
-						<Button onclick={() => (visibilityOpen = true)}>Make public</Button>
+						<Button onclick={() => (visibilityOpen = true)}>Make Public</Button>
 					</div>
 				{/if}
 			</div>
@@ -220,14 +220,14 @@
 {/snippet}
 
 {#snippet deleteCard()}
-	<Card title="Delete template" id="delete">
+	<Card title="Delete Template" id="delete">
 		<div class="body">
 			<p>
 				Deletes the draft, the icon and every version. Stacks created from it keep working
 				with their own files.
 			</p>
 			<div class="row">
-				<Button variant="danger" onclick={() => (deleteOpen = true)}>Delete template</Button
+				<Button variant="danger" onclick={() => (deleteOpen = true)}>Delete Template</Button
 				>
 			</div>
 		</div>
@@ -257,7 +257,7 @@
 				'Stacks created from it keep working, but no longer show its icon.'
 			]}
 			confirmText={t.name}
-			confirmLabel="Delete template"
+			confirmLabel="Delete Template"
 			onconfirm={remove}
 		/>
 	{/if}

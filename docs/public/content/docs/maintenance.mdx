@@ -9,30 +9,30 @@ remove them. Docker Manager cleans them up once, or on a schedule.
 ## Clean up once
 
 The **Containers**, **Images**, **Volumes**, **Networks** and **Builds**
-pages each have a prune button: **Prune containers**, **Prune images**,
-**Prune volumes**, **Prune networks** and **Prune build cache**.
+pages each have a prune button: **Prune Containers**, **Prune Images**,
+**Prune Volumes**, **Prune Networks** and **Prune Build Cache**.
 
 1. Press it and choose what to remove.
 2. Press **Preview** to see exactly what goes and how much space you get
    back.
-3. Press **Remove … objects** to confirm.
+3. Press **Remove … Objects** to confirm.
 
 ## Maintenance policies
 
 A **maintenance policy** cleans up on a schedule. Each server can have one.
 
-1. Open **Maintenance** and press **Create maintenance policy**.
+1. Open **Maintenance** and press **Create Maintenance Policy**.
 2. Enter a **Name** and choose the **Environments**.
-3. Turn on the rules you want: **Stopped containers**, **Dangling images**
-   or **All unused images**, **Unused networks**, **Build cache**, and
-   **Anonymous volumes** or **Named volumes**. Removing volumes deletes
+3. Turn on the rules you want: **Stopped Containers**, **Dangling Images**
+   or **All Unused Images**, **Unused Networks**, **Build Cache**, and
+   **Anonymous Volumes** or **Named Volumes**. Removing volumes deletes
    their data, so you must confirm it.
 4. For each rule, you can keep objects younger than some days, or list
-   objects to **Never remove**.
-5. Turn on **Run automatically** and pick the schedule.
+   objects to **Never Remove**.
+5. Turn on **Run Automatically** and pick the schedule.
 
 On a policy's page, **Preview** shows what a run would remove right now and
-**Run now** runs it. **Maintenance → Default rules** sets the rules new
+**Run Now** runs it. **Maintenance → Default Rules** sets the rules new
 policies start with.
 
 <Callout type="warn">

@@ -632,8 +632,8 @@ func NotificationDetail(n domain.Notification) string {
 // the lists (their plain text).
 var updateGroups = []struct{ name, key, plain string }{
 	{"Updated", "updated", "updatedServices"},
-	{"Already up to date", "unchanged", "unchangedServices"},
-	{"Kept stopped", "keptStopped", "keptStoppedServices"},
+	{"Already Up to Date", "unchanged", "unchangedServices"},
+	{"Kept Stopped", "keptStopped", "keptStoppedServices"},
 	{"Failed", "failed", "failedServices"},
 }
 
@@ -663,13 +663,13 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 			}
 			l.add("Items", v, true)
 		}
-		l.add("Data read", bytesFact(f["bytes"]), true)
-		l.add("Repository size", bytesFact(f["repositorySize"]), true)
+		l.add("Data Read", bytesFact(f["bytes"]), true)
+		l.add("Repository Size", bytesFact(f["repositorySize"]), true)
 		if f["snapshots"] != "" && f["snapshots"] != "0" {
 			l.add("Snapshots", f["snapshots"], true)
 		}
-		l.add("Not backed up", f["failedItems"], false)
-		l.add("Unreadable files in", f["unreadableItems"], false)
+		l.add("Not Backed Up", f["failedItems"], false)
+		l.add("Unreadable Files In", f["unreadableItems"], false)
 	case domain.NotifyPrune:
 		l.addLink("Policy", f["policy"], policyPath(n), true)
 		l.add("Reclaimed", bytesFact(f["reclaimedBytes"]), true)
@@ -678,7 +678,7 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 			{"images", "Images", "image", "images"},
 			{"volumes", "Volumes", "volume", "volumes"},
 			{"networks", "Networks", "network", "networks"},
-			{"buildCache", "Build cache", "entry", "entries"},
+			{"buildCache", "Build Cache", "entry", "entries"},
 		} {
 			if f[g.key+"Removed"] == "" {
 				continue
@@ -691,7 +691,7 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 		}
 		l.add("Skipped", f["skipped"], true)
 		l.add("Failed", f["failed"], true)
-		l.add("Left for the next run", f["deferred"], true)
+		l.add("Left for the Next Run", f["deferred"], true)
 	case domain.NotifyUpdates:
 		l.addLink("Target", f["target"], targetPath(n.EnvironmentID, target), true)
 		l.addLink("Policy", f["policy"], policyPath(n), true)
@@ -705,13 +705,13 @@ func NotificationFields(n domain.Notification, env string) []domain.Notification
 		}
 	}
 	l.add("Duration", durationWords(f["durationSeconds"]), true)
-	l.add("Started by", originWords(f), true)
+	l.add("Started By", originWords(f), true)
 	if n.Outcome == domain.OutcomeFailure {
 		class := f["errorClass"]
 		if class == "" || class == "step_failed" {
 			class = f["memberErrorClass"]
 		}
-		l.add("What to do", errorFix(class), false)
+		l.add("What to Do", errorFix(class), false)
 	}
 	return l.ordered()
 }

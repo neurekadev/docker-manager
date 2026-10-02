@@ -10,7 +10,7 @@
 	// available — and Cleanup Orphans & Deploy), the lifecycle split button
 	// (LifecycleButton: Stop while anything runs, Start when stopped; its
 	// menu has Start, Restart and Stop) and overflow (Migrate with more than
-	// one environment, Edit details, Save as template, Delete). Each action
+	// one environment, Edit Details, Save as Template, Delete). Each action
 	// is shown only with its capability (the server still decides). Start
 	// and Restart run at once; Stop, Delete and Cleanup Orphans & Deploy
 	// confirm with their exact consequences first. Docker Manager's own stack
@@ -326,14 +326,14 @@
 			});
 		if (can('stack.manage') && stack.revision !== undefined)
 			items.push({
-				label: 'Edit details',
+				label: 'Edit Details',
 				icon: Pencil,
 				onSelect: () => (editing = true),
 				disabled: renaming
 			});
 		if (can('stack.files.download') && can('stack.definition.read'))
 			items.push({
-				label: 'Save as template',
+				label: 'Save as Template',
 				icon: LayoutTemplate,
 				onSelect: () => (savingTemplate = true),
 				disabled: offline || renaming
@@ -400,7 +400,7 @@
 		<StatusBadge status={stackStatus(stack)} />
 		{#if offline}<Badge tone="offline" dot>Read-only while {envName} is offline</Badge>{/if}
 		{#if stack.protection}<ProtectionBadge protection={stack.protection} />{/if}
-		{#if restoring}<Badge tone="warn" dot>Restoring from a backup</Badge>{/if}
+		{#if restoring}<Badge tone="warn" dot>Restoring From a Backup</Badge>{/if}
 		{#if renaming}<Badge tone="warn" dot>{renamingReason}</Badge>{/if}
 	{/snippet}
 	{#snippet actions()}
@@ -410,8 +410,8 @@
 					label="Deploy"
 					icon={Rocket}
 					menuLabel={updateDot
-						? 'More deploy options (newer images are available)'
-						: 'More deploy options'}
+						? 'More Deploy Options (newer images are available)'
+						: 'More Deploy Options'}
 					loading={starting !== null}
 					disabled={offline || renaming}
 					title={renaming ? renamingReason : undefined}
@@ -431,11 +431,11 @@
 			{/if}
 			{#if protectedStack}<span class="sr-only">{selfReason}</span>{/if}
 			{#if overflow.length}
-				<Menu label="More stack actions" items={overflow} align="end">
+				<Menu label="More Stack Actions" items={overflow} align="end">
 					{#snippet trigger(props)}<IconButton
 							{...props}
 							variant="secondary"
-							label="More stack actions"
+							label="More Stack Actions"
 							icon={EllipsisVertical}
 						/>{/snippet}
 				</Menu>
@@ -468,13 +468,13 @@
 		detail: `${containerWord(s.containers)}`
 	}))}
 	confirmText={stack.name}
-	confirmLabel={removeVolumes ? 'Delete stack and volumes' : 'Delete stack'}
+	confirmLabel={removeVolumes ? 'Delete Stack and Volumes' : 'Delete Stack'}
 	onconfirm={remove}
 >
 	{#snippet extra()}
 		<Checkbox
 			bind:checked={removeVolumes}
-			label="Also remove the stack’s volumes"
+			label="Also Remove the Stack’s Volumes"
 			description="Only the volumes this stack created: the named volumes its Compose file declares (not external) and the anonymous volumes of its containers. Their data is deleted."
 		/>
 	{/snippet}

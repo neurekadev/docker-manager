@@ -57,7 +57,7 @@
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({
-		title: 'Create container',
+		title: 'Create Container',
 		crumbs: [{ label: 'Containers', href: routes.containers() }, { label: 'Create' }],
 		environmentScoped: true
 	});
@@ -316,7 +316,7 @@
 	}
 
 	const networkOptions = $derived([
-		{ value: '', label: 'Choose a network' },
+		{ value: '', label: 'Choose a Network' },
 		...(networks.data?.items ?? []).map((n) => ({ value: n.name, label: n.name }))
 	]);
 	const volumeNames = $derived(
@@ -342,7 +342,7 @@
 {:else}
 	<Page narrow>
 		<PageHeader
-			title="Create container"
+			title="Create Container"
 			description="One container from an image that is already on the environment."
 		/>
 		<Notice
@@ -361,7 +361,7 @@
 				<Notice tone="danger" title={outcome.title} live="alert">
 					{outcome.body}
 					{#snippet actions()}
-						<Button variant="secondary" onclick={backToForm}>Back to the form</Button>
+						<Button variant="secondary" onclick={backToForm}>Back to the Form</Button>
 					{/snippet}
 				</Notice>
 			{/if}
@@ -373,7 +373,7 @@
 					if (valid) void create();
 				}}
 			>
-				<Card title="Image and name">
+				<Card title="Image and Name">
 					<div class="fields two">
 						{#if allowed.length > 1}
 							<Select
@@ -419,7 +419,7 @@
 										<Button
 											variant="secondary"
 											icon={Download}
-											onclick={() => (pullOpen = true)}>Pull image</Button
+											onclick={() => (pullOpen = true)}>Pull Image</Button
 										>
 									{/if}
 								{/snippet}
@@ -428,7 +428,7 @@
 					{/if}
 				</Card>
 
-				<Card title="Environment variables">
+				<Card title="Environment Variables">
 					<TextArea
 						label="Variables"
 						mono
@@ -444,13 +444,13 @@
 					{#each ports as p, i (i)}
 						<div class="row ports">
 							<TextField
-								label="Host port"
+								label="Host Port"
 								inputmode="numeric"
 								bind:value={p.host}
 								placeholder="any"
 							/>
 							<TextField
-								label="Container port"
+								label="Container Port"
 								inputmode="numeric"
 								required
 								bind:value={p.container}
@@ -464,14 +464,14 @@
 								]}
 							/>
 							<TextField
-								label="Host address"
+								label="Host Address"
 								mono
 								bind:value={p.ip}
 								placeholder="all addresses"
 							/>
 							<IconButton
 								icon={Trash2}
-								label="Remove port {i + 1}"
+								label="Remove Port {i + 1}"
 								onclick={() => ports.splice(i, 1)}
 							/>
 						</div>
@@ -483,11 +483,11 @@
 						icon={Plus}
 						onclick={() =>
 							ports.push({ host: '', container: '', protocol: 'tcp', ip: '' })}
-						>Add port</Button
+						>Add Port</Button
 					>
 				</Card>
 
-				<Card title="Volumes and host paths">
+				<Card title="Volumes and Host Paths">
 					{#each mounts as m, i (i)}
 						<div class="row mounts">
 							<Select
@@ -495,7 +495,7 @@
 								bind:value={m.type}
 								options={[
 									{ value: 'volume', label: 'Volume' },
-									{ value: 'bind', label: 'Host path' },
+									{ value: 'bind', label: 'Host Path' },
 									{ value: 'tmpfs', label: 'Memory (tmpfs)' }
 								]}
 							/>
@@ -509,23 +509,23 @@
 								/>
 							{:else if m.type === 'bind'}
 								<TextField
-									label="Host path"
+									label="Host Path"
 									mono
 									bind:value={m.source}
 									placeholder="/srv/data"
 								/>
 							{/if}
 							<TextField
-								label="Path in the container"
+								label="Path in the Container"
 								mono
 								required
 								bind:value={m.target}
 								placeholder="/data"
 							/>
-							<Checkbox label="Read-only" bind:checked={m.readOnly} />
+							<Checkbox label="Read-Only" bind:checked={m.readOnly} />
 							<IconButton
 								icon={Trash2}
-								label="Remove mount {i + 1}"
+								label="Remove Mount {i + 1}"
 								onclick={() => mounts.splice(i, 1)}
 							/>
 						</div>
@@ -545,7 +545,7 @@
 								source: '',
 								target: '',
 								readOnly: false
-							})}>Add mount</Button
+							})}>Add Mount</Button
 					>
 				</Card>
 
@@ -562,7 +562,7 @@
 							/>
 							<IconButton
 								icon={Trash2}
-								label="Remove network {i + 1}"
+								label="Remove Network {i + 1}"
 								onclick={() => nets.splice(i, 1)}
 							/>
 						</div>
@@ -574,27 +574,27 @@
 						variant="secondary"
 						size="sm"
 						icon={Plus}
-						onclick={() => nets.push({ name: '', aliases: '' })}>Add network</Button
+						onclick={() => nets.push({ name: '', aliases: '' })}>Add Network</Button
 					>
 				</Card>
 
-				<Card title="Restart and limits">
+				<Card title="Restart and Limits">
 					<div class="fields three">
 						<Select
-							label="Restart policy"
+							label="Restart Policy"
 							bind:value={restart}
 							description="When Docker starts the container again on its own."
 							options={[...RESTART_OPTIONS]}
 						/>
 						<TextField
-							label="CPU limit"
+							label="CPU Limit"
 							inputmode="decimal"
 							bind:value={cpus}
 							description="CPUs. Optional."
 							error={errors.cpus}
 						/>
 						<TextField
-							label="Memory limit (MB)"
+							label="Memory Limit (MB)"
 							inputmode="numeric"
 							bind:value={memory}
 							description="Optional."
@@ -605,7 +605,7 @@
 
 				<Card title="Advanced">
 					<Disclosure
-						summary="Command, user, health check and labels"
+						summary="Command, User, Health Check and Labels"
 						open={advancedError}
 					>
 						<div class="advanced">
@@ -627,7 +627,7 @@
 									error={errors.entrypoint}
 								/>
 								<TextField
-									label="Working directory"
+									label="Working Directory"
 									mono
 									bind:value={workingDir}
 									description="Optional."
@@ -640,10 +640,10 @@
 									description="Optional."
 								/>
 							</div>
-							<h3 class="subsection-title">Health check</h3>
+							<h3 class="subsection-title">Health Check</h3>
 							<div class="fields three">
 								<TextField
-									label="Health check command"
+									label="Health Check Command"
 									mono
 									bind:value={healthCmd}
 									placeholder="curl -f http://localhost/"
@@ -651,7 +651,7 @@
 									error={errors.health}
 								/>
 								<TextField
-									label="Check every (seconds)"
+									label="Check Every (Seconds)"
 									inputmode="numeric"
 									bind:value={healthInterval}
 									description="Optional."
@@ -682,7 +682,7 @@
 					>
 				{/if}
 				<div class="submit">
-					<Checkbox label="Start it after creating" bind:checked={start} />
+					<Checkbox label="Start It After Creating" bind:checked={start} />
 					{#if blocker}<p class="blocker" aria-live="polite">{blocker}</p>{/if}
 					<Button variant="ghost" href={routes.containers()}>Cancel</Button>
 					<Button
@@ -690,7 +690,7 @@
 						variant="primary"
 						icon={Plus}
 						loading={busy}
-						disabled={!valid}>Create container</Button
+						disabled={!valid}>Create Container</Button
 					>
 				</div>
 			</form>

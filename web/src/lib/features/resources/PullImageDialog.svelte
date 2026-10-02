@@ -125,14 +125,14 @@
 	);
 </script>
 
-<Dialog bind:open title="Pull an image" size="md" dismissible={!busy}>
+<Dialog bind:open title="Pull an Image" size="md" dismissible={!busy}>
 	<div class="form">
 		{#if jobId}
 			{#key jobId}
 				<JobProgress {jobId} {title} onfinish={finished} />
 			{/key}
 			{#if guidance}
-				<Notice tone="warn" title="What to do" live="alert">{guidance}</Notice>
+				<Notice tone="warn" title="What to Do" live="alert">{guidance}</Notice>
 			{/if}
 		{:else}
 			{#if environments.length > 1}
@@ -142,7 +142,7 @@
 					options={environments.map((e) => ({ value: e.id, label: e.name }))}
 				/>
 			{:else if environments.length === 0}
-				<Notice tone="warn" title="No environment to pull into" live="none">
+				<Notice tone="warn" title="No Environment to Pull Into" live="none">
 					Pulling needs an online environment where you may pull images.
 				</Notice>
 			{/if}
@@ -182,7 +182,7 @@
 	{#snippet footer()}
 		{#if jobId}
 			<Button variant={running ? 'ghost' : 'primary'} onclick={() => (open = false)}
-				>{running ? 'Continue in the background' : 'Done'}</Button
+				>{running ? 'Continue in the Background' : 'Done'}</Button
 			>
 		{:else}
 			<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>
@@ -191,7 +191,7 @@
 				icon={Download}
 				loading={busy}
 				disabled={!ref.trim() || !env || !ready}
-				onclick={pull}>Pull image</Button
+				onclick={pull}>Pull Image</Button
 			>
 		{/if}
 	{/snippet}

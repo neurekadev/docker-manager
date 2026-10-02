@@ -60,7 +60,7 @@
 	function who(j: Job): string {
 		if (j.origin === 'scheduled') return 'Schedule';
 		const mine = j.initiatorUserId && j.initiatorUserId === me;
-		if (j.origin === 'api_token') return mine ? 'You (API token)' : 'API token';
+		if (j.origin === 'api_token') return mine ? 'You (API Token)' : 'API Token';
 		return mine ? 'You' : j.initiatorUserId ? 'Another user' : 'Docker Manager';
 	}
 
@@ -69,7 +69,7 @@
 			case 'user':
 				return r.actor.userId === me ? 'You' : 'Another user';
 			case 'api_token':
-				return 'API token';
+				return 'API Token';
 			case 'service':
 				return 'Docker Manager';
 			case 'agent':
@@ -94,7 +94,7 @@
 			stack: 'status',
 			width: '150px'
 		},
-		{ id: 'who', header: 'Started by', cell: whoCell, width: '150px' },
+		{ id: 'who', header: 'Started By', cell: whoCell, width: '150px' },
 		{
 			id: 'at',
 			header: 'Started',
@@ -164,7 +164,7 @@
 
 <Card title="Jobs" padding="none" id="jobs" subtitle="Newest first">
 	{#snippet actions()}
-		<Switch bind:checked={hideChecks} label="Hide update checks" />
+		<Switch bind:checked={hideChecks} label="Hide Update Checks" />
 	{/snippet}
 	{#if jobs.isPending}
 		<div class="pad" aria-busy="true"><Skeleton lines={5} height="20px" /></div>
@@ -193,7 +193,7 @@
 						? `Only update checks so far.`
 						: `No jobs for ${title} yet.`}
 					description={listed.hidden
-						? 'Turn off “Hide update checks” to see them.'
+						? 'Turn off “Hide Update Checks” to see them.'
 						: 'Deploys, restarts, updates and backups of this stack show up here.'}
 					level={3}
 					compact
@@ -211,7 +211,7 @@
 
 {#if canAudit}
 	<Card
-		title="Audit log"
+		title="Audit Log"
 		padding="none"
 		id="audit"
 		subtitle="Every recorded action touching this stack"
@@ -230,7 +230,7 @@
 			</div>
 		{:else}
 			<Table
-				label="Audit records of {title}"
+				label="Audit Records of {title}"
 				{rows}
 				columns={auditColumns}
 				rowKey={(r) => r.id}
@@ -242,7 +242,7 @@
 			{#if audit.data?.more}
 				<div class="more">
 					<Button size="sm" loading={audit.isFetching} onclick={() => (auditPages += 1)}
-						>Load more</Button
+						>Load More</Button
 					>
 				</div>
 			{/if}

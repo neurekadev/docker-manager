@@ -74,11 +74,11 @@
 				}}
 			/>
 			<Button icon={ImageUp} loading={busy} onclick={() => input?.click()}
-				>{template.icon ? 'Replace icon' : 'Upload icon'}</Button
+				>{template.icon ? 'Replace Icon' : 'Upload Icon'}</Button
 			>
 			{#if template.icon}
 				<Button variant="ghost" disabled={busy} onclick={() => void remove()}
-					>Remove icon</Button
+					>Remove Icon</Button
 				>
 			{/if}
 		</div>

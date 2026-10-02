@@ -25,6 +25,7 @@
 		formatBytes,
 		toast
 	} from '$lib/ui';
+	import { titleCase } from '$lib/ui/format';
 	import { actionError } from '$lib/features/common/errors';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { idempotencyKey } from '$lib/features/resources/jobs.svelte';
@@ -141,7 +142,7 @@
 					body: { rules, confirm: true }
 				})
 			);
-			prunes.add(job, `Prune ${info.what} on ${envName}`);
+			prunes.add(job, `Prune ${titleCase(info.what)} on ${envName}`);
 			shownId = job.id;
 		} catch (e) {
 			error = e;
@@ -202,7 +203,7 @@
 		{:else if preview}
 			<PrunePreviewView {preview} info={defaults.data?.categories} />
 			{#if runProblem}
-				<Notice tone="warn" title="Not ready to prune" live="status">{runProblem}</Notice>
+				<Notice tone="warn" title="Not Ready to Prune" live="status">{runProblem}</Notice>
 			{/if}
 		{:else}
 			{#if environments.length > 1}
@@ -236,14 +237,14 @@
 	{#snippet footer()}
 		{#if shown}
 			<Button variant={running ? 'ghost' : 'primary'} onclick={() => (open = false)}
-				>{running ? 'Continue in the background' : 'Done'}</Button
+				>{running ? 'Continue in the Background' : 'Done'}</Button
 			>
 		{:else if preview}
 			<Button
 				variant="ghost"
 				icon={ArrowLeft}
 				onclick={() => (preview = null)}
-				disabled={busy}>Change options</Button
+				disabled={busy}>Change Options</Button
 			>
 			<Button
 				variant="danger"
@@ -252,8 +253,8 @@
 				disabled={!!runProblem || preview.remove === 0}
 				onclick={prune}
 				>{preview.remove === 0
-					? 'Nothing to prune'
-					: `Remove ${preview.remove} ${preview.remove === 1 ? 'object' : 'objects'} (≈ ${formatBytes(preview.bytes)})`}</Button
+					? 'Nothing to Prune'
+					: `Remove ${preview.remove} ${preview.remove === 1 ? 'Object' : 'Objects'} (≈ ${formatBytes(preview.bytes)})`}</Button
 			>
 		{:else}
 			<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>

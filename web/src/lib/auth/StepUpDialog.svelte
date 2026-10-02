@@ -34,9 +34,9 @@
 
 	const methods = $derived(stepUpMethods(user.factors, passkeysSupported()));
 	const SWITCH: Record<VerifyMethod, string> = {
-		passkey: 'Use a passkey instead',
-		totp: 'Use authenticator code instead',
-		password: 'Use your password instead'
+		passkey: 'Use a Passkey Instead',
+		totp: 'Use Authenticator Code Instead',
+		password: 'Use Your Password Instead'
 	};
 
 	let open = $state(false);
@@ -136,7 +136,7 @@
 
 <Dialog
 	bind:open
-	title="Confirm it's you"
+	title="Confirm It's You"
 	description="This change needs a recent sign-in. Confirm your identity to continue; it stays confirmed for 10 minutes."
 	size="sm"
 	onclose={() => {
@@ -144,7 +144,7 @@
 	}}
 >
 	{#if message}
-		<Notice tone="danger" title="Not confirmed" live="alert">{message}</Notice>
+		<Notice tone="danger" title="Not Confirmed" live="alert">{message}</Notice>
 	{/if}
 	{#if method === 'passkey'}
 		<div class="form">
@@ -155,13 +155,13 @@
 				loading={busy}
 				disabled={busy}
 				onclick={withPasskey}
-				block>Confirm with a passkey</Button
+				block>Confirm with a Passkey</Button
 			>
 		</div>
 	{:else if method === 'totp'}
 		<form class="form" onsubmit={submit} novalidate>
 			<TextField
-				label="Authenticator code"
+				label="Authenticator Code"
 				description="The current 6-digit code from your authenticator app."
 				bind:value={totpCode}
 				inputmode="numeric"

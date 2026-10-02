@@ -9,17 +9,17 @@ not pushed to a registry.
 
 ## Build an image
 
-1. Open **Builds** and press **Build image**.
+1. Open **Builds** and press **Build Image**.
 2. Pick the **Environment** to build on.
 3. Enter the **Repository URL** (HTTPS) and, if needed, the **Ref**: a
    branch, tag or commit. Empty uses the default branch.
-4. Enter one or more **Image names**, for example `myapp:latest`.
+4. Enter one or more **Image Names**, for example `myapp:latest`.
 5. Under **Advanced** you can set the folder, the Dockerfile, the target
    stage, the platform and build arguments, or build without the cache.
-6. Press **Build image** and follow the output.
+6. Press **Build Image** and follow the output.
 
 For a private repository, add a login under
-[Registries → Git credentials](/registries#git-credentials) first.
+[Registries → Git Credentials](/registries#git-credentials) first.
 
 <Callout type="warn" title="Build arguments are not secret">
   Anyone who can see the image can read its build argument values. Never
@@ -28,12 +28,12 @@ For a private repository, add a login under
 
 ## Build again
 
-- **Build again** repeats a finished build. If it used build arguments, the
+- **Build Again** repeats a finished build. If it used build arguments, the
   form opens filled in and you type their values again.
-- **Save as definition** keeps its settings on the **Definitions** tab, so
+- **Save as Definition** keeps its settings on the **Definitions** tab, so
   you can start it again any time. Type the build argument values once; the
   definition keeps them.
 
 To build a stack's own images, use **Build & Deploy** on the
-[stack](/stacks#deploy-start-and-stop). **Prune build cache** on the
+[stack](/stacks#deploy-start-and-stop). **Prune Build Cache** on the
 **Builds** page frees disk space (see [Maintenance](/maintenance)).

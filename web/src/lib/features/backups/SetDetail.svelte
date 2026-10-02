@@ -34,8 +34,8 @@
 		s.origin === 'scheduled'
 			? 'Scheduled'
 			: s.origin === 'api_token'
-				? 'API token'
-				: 'Started by hand'
+				? 'API Token'
+				: 'Started by Hand'
 	);
 </script>
 
@@ -57,12 +57,12 @@
 	/>
 	{#snippet stateFact()}<Badge tone={st.tone} dot>{st.label}</Badge>{/snippet}
 	{#snippet policyFact()}<a href={routes.backupPolicy(policyId ?? '')}
-			>{policyName ?? 'Open policy'}</a
+			>{policyName ?? 'Open Policy'}</a
 		>{/snippet}
 
 	{#if activity.length}
 		<section aria-labelledby="set-{s.id}-running">
-			<h3 id="set-{s.id}-running">Running now</h3>
+			<h3 id="set-{s.id}-running">Running Now</h3>
 			<RunningBackups
 				jobs={activity}
 				policyName={() => policyName ?? 'Backup'}

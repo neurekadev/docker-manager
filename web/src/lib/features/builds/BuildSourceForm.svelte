@@ -81,13 +81,13 @@
 	/>
 	{#if credentials && creds.data}
 		<Select
-			label="Git credential"
+			label="Git Credential"
 			bind:value={form.gitCredentialId}
 			description={matching.length
 				? 'For private repositories. Default: the credential that matches the repository.'
 				: `No credential matches ${host || 'this host'}: public repositories only.`}
 			options={[
-				{ value: '', label: 'Matching credential (or none)' },
+				{ value: '', label: 'Matching Credential (or None)' },
 				...matching.map((c) => ({
 					value: c.id,
 					label: `${c.name} (${c.host}${c.pathPrefix ? `/${c.pathPrefix}` : ''})`
@@ -97,7 +97,7 @@
 	{/if}
 	<div class="wide">
 		<TextArea
-			label="Image names"
+			label="Image Names"
 			mono
 			required
 			rows={2}
@@ -111,7 +111,7 @@
 		<Disclosure summary="Advanced" open={advancedOpen}>
 			<div class="grid">
 				<TextField
-					label="Context directory"
+					label="Context Directory"
 					mono
 					bind:value={form.contextPath}
 					placeholder="services/api"
@@ -127,7 +127,7 @@
 					error={errors.dockerfile ?? serverError('dockerfile')}
 				/>
 				<TextField
-					label="Target stage"
+					label="Target Stage"
 					mono
 					bind:value={form.target}
 					description="Optional. Default: the last stage."
@@ -143,7 +143,7 @@
 				/>
 				<div class="wide">
 					<TextArea
-						label="Build arguments"
+						label="Build Arguments"
 						mono
 						rows={3}
 						bind:value={form.buildArgs}
@@ -165,12 +165,12 @@
 				</div>
 				<div class="checks wide">
 					<Checkbox
-						label="Build without cache"
+						label="Build Without Cache"
 						description="Runs every step again (slower)."
 						bind:checked={form.noCache}
 					/>
 					<Checkbox
-						label="Pull newer base images"
+						label="Pull Newer Base Images"
 						description="Checks the registry for newer FROM images first."
 						bind:checked={form.pull}
 					/>

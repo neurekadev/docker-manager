@@ -45,7 +45,7 @@ execution Docker Manager allows (forbidigo exception for that one file):
 - read-only use: `--scan-open` and `-a` only. The agent never starts a
   self-test, never changes a drive setting, and passes `-n standby` so a
   disk in standby is not spun up (it keeps its previous values, marked
-  sleeping). "Check disks now" means a fresh read, not a self-test.
+  sleeping). "Check Disks Now" means a fresh read, not a self-test.
 - a smartctl that does not exit after it was killed (a process in
   uninterruptible I/O on a dying disk, which no signal ends) is given up
   on 10 s after the kill: the read reports a timeout, and that device is

@@ -75,7 +75,7 @@ export function canCopyImage(s: ServicePlan, transfer: string[]): boolean {
 }
 
 /**
- * Which "Copy data" choice a volume offers: anonymous volumes can be
+ * Which "Copy Data" choice a volume offers: anonymous volumes can be
  * added, named volumes the check copies (or the user excluded) can be
  * left out; external, missing and definition-only volumes offer none.
  */

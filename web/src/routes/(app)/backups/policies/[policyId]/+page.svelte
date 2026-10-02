@@ -106,7 +106,7 @@
 	const editDialog = urlDialog('edit');
 
 	usePage(() => ({
-		title: policy.data?.name ?? 'Backup policy',
+		title: policy.data?.name ?? 'Backup Policy',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
 			{ label: policy.data?.name ?? 'Policy' }
@@ -219,14 +219,14 @@
 		const items: MenuEntry[] = [];
 		if (has(p, 'backup.retention') && retentionActive(p.retention))
 			items.push({
-				label: 'Apply retention now',
+				label: 'Apply Retention Now',
 				icon: Eraser,
 				onSelect: () => (retentionOpen = true)
 			});
 		if (has(p, 'backup_policy.manage')) {
 			if (items.length) items.push({ separator: true });
 			items.push({
-				label: 'Delete policy',
+				label: 'Delete Policy',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleteOpen = true)
@@ -291,18 +291,18 @@
 							variant="primary"
 							icon={Play}
 							loading={running || active}
-							onclick={() => run(p)}>{active ? 'Backing up…' : 'Back up now'}</Button
+							onclick={() => run(p)}>{active ? 'Backing Up…' : 'Back Up Now'}</Button
 						>
 					{/if}
 					{#if has(p, 'backup_policy.manage')}
 						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
 					{/if}
 					{#if menu.length}
-						<Menu items={menu} label="More actions for {p.name}">
+						<Menu items={menu} label="More Actions for {p.name}">
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="More actions"
+									label="More Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -314,7 +314,7 @@
 
 			{#if policyActivity.length}
 				<Card
-					title="Running now"
+					title="Running Now"
 					subtitle="Progress and the file each backup reads, updated every second."
 				>
 					<RunningBackups
@@ -327,7 +327,7 @@
 
 			<KpiRow>
 				<KpiCard
-					label="Last run"
+					label="Last Run"
 					value={last ? formatRelative(last.finishedAt ?? last.startedAt) : 'Not run yet'}
 					secondary={last
 						? `${setState(last.state).label}${lastBytes !== undefined ? `, ${formatBytes(lastBytes)}` : ''}`
@@ -343,7 +343,7 @@
 						: undefined}
 				/>
 				<KpiCard
-					label="Next run"
+					label="Next Run"
 					value={p.schedule?.enabled && p.schedule.nextRun
 						? formatRelative(p.schedule.nextRun)
 						: 'Not scheduled'}
@@ -374,7 +374,7 @@
 			</KpiRow>
 
 			<Columns ratio="equal">
-				<Card title="What it covers">
+				<Card title="What It Covers">
 					<Facts
 						columns={1}
 						items={[
@@ -389,7 +389,7 @@
 												: 'None'
 										},
 										{
-											label: 'Standalone volumes',
+											label: 'Standalone Volumes',
 											value: p.volumes.length
 												? p.volumes
 														.map(
@@ -400,7 +400,7 @@
 												: 'None'
 										},
 										{
-											label: 'Anonymous volumes',
+											label: 'Anonymous Volumes',
 											value: p.stacks.some((s) => s.anonymousVolumes)
 												? 'Included for some stacks'
 												: 'Not backed up'
@@ -420,24 +420,24 @@
 												: 'Every stack and standalone volume'
 										},
 										{
-											label: 'Anonymous volumes',
+											label: 'Anonymous Volumes',
 											value: p.anonymousVolumes
 												? 'Backed up'
 												: 'Not backed up'
 										},
 										{
-											label: 'Buildx builder volumes',
+											label: 'Buildx Builder Volumes',
 											value: p.buildxVolumes ? 'Backed up' : 'Not backed up'
 										},
 										{
-											label: 'Allowed folders outside stacks',
+											label: 'Allowed Folders Outside Stacks',
 											value: p.externalBinds ? 'Backed up' : 'Not backed up'
 										}
 									]),
-							{ label: 'Manager state', value: manager },
-							{ label: 'Containers during backups', value: containers },
+							{ label: 'Manager State', value: manager },
+							{ label: 'Containers During Backups', value: containers },
 							{
-								label: 'Stored in',
+								label: 'Stored In',
 								value: [
 									repo?.name ?? '—',
 									...Object.entries(p.environmentRepositories ?? {}).map(
@@ -452,7 +452,7 @@
 				<Card title="Schedule">
 					{#if p.schedule?.enabled}
 						<ScheduleSummary {...p.schedule} nextRun={undefined} />
-						<h3 class="subsection-title next">Next runs</h3>
+						<h3 class="subsection-title next">Next Runs</h3>
 						{#if nextRuns.isPending}
 							<Skeleton lines={3} height="16px" />
 						{:else if nextRuns.data?.runs.length}
@@ -483,7 +483,7 @@
 				</Card>
 			</Columns>
 
-			<Card title="Recent runs" padding="none">
+			<Card title="Recent Runs" padding="none">
 				{#if p.recentSets?.length}
 					<SetsTable
 						sets={p.recentSets.map((s) => ({
@@ -491,7 +491,7 @@
 							policyId: p.id,
 							policyName: p.name
 						}))}
-						label="Recent runs of {p.name}"
+						label="Recent Runs of {p.name}"
 						showPolicy={false}
 						environmentName={envName}
 						backups={backups.data}
@@ -523,8 +523,8 @@
 					p.retention
 				)}. Removed backups can't be restored; the newest backup of each stack and volume always stays."
 				confirmLabel={retentionState.ready && retentionState.forget
-					? `Remove ${retentionState.forget} ${retentionState.forget === 1 ? 'backup' : 'backups'}`
-					: 'Apply retention'}
+					? `Remove ${retentionState.forget} ${retentionState.forget === 1 ? 'Backup' : 'Backups'}`
+					: 'Apply Retention'}
 				canConfirm={retentionState.ready && retentionState.forget > 0}
 				tone="danger"
 				size="lg"
@@ -546,14 +546,14 @@
 			</ConfirmDialog>
 			<DestructiveConfirm
 				bind:open={deleteOpen}
-				title="Delete backup policy {p.name}"
+				title="Delete Backup Policy {p.name}"
 				consequences={[
 					'Scheduled backups of this policy stop.',
 					'Its backups stay and can still be restored.',
 					'Repositories and the Recovery Key are not touched.'
 				]}
 				confirmText={p.name}
-				confirmLabel="Delete policy"
+				confirmLabel="Delete Policy"
 				onconfirm={() => remove(p)}
 			/>
 		{/snippet}

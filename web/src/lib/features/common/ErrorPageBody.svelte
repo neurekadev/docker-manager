@@ -16,7 +16,7 @@
 	const notFound = $derived(status === 404);
 </script>
 
-<svelte:head><title>{notFound ? 'Page not found' : 'Error'} · Docker Manager</title></svelte:head>
+<svelte:head><title>{notFound ? 'Page Not Found' : 'Error'} · Docker Manager</title></svelte:head>
 
 <section class="error-body" aria-labelledby="error-title">
 	<IconTile
@@ -24,7 +24,7 @@
 		color={notFound ? 'slate' : 'rose'}
 		size="lg"
 	/>
-	<h1 id="error-title">{notFound ? 'Page not found' : 'This page failed to load'}</h1>
+	<h1 id="error-title">{notFound ? 'Page Not Found' : 'This page failed to load'}</h1>
 	<p class="desc">
 		{notFound
 			? 'There is nothing at this address. Check the link, or go back.'
@@ -38,7 +38,7 @@
 		{/if}
 		<Button icon={ArrowLeft} onclick={() => history.back()}>Back</Button>
 		<Button variant={notFound ? 'primary' : 'ghost'} href={routes.dashboard()}
-			>Go to the dashboard</Button
+			>Go to the Dashboard</Button
 		>
 	</div>
 </section>

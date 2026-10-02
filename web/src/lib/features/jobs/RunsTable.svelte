@@ -66,12 +66,12 @@
 {#snippet actionsCell(r: JobRun)}
 	{@const j = runJob(r)}
 	{#if j}
-		<Button size="sm" variant="ghost" href={routes.job(j.id)}>Open job</Button>
+		<Button size="sm" variant="ghost" href={routes.job(j.id)}>Open Job</Button>
 	{:else}
 		<Button
 			size="sm"
 			variant="ghost"
-			href={routes.jobs(r.kind, { policyId: r.jobs[0]?.policyId })}>Open jobs</Button
+			href={routes.jobs(r.kind, { policyId: r.jobs[0]?.policyId })}>Open Jobs</Button
 		>
 	{/if}
 {/snippet}

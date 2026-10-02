@@ -2,7 +2,7 @@
 	// This instance's public template registry (template registry), readable
 	// without signing in: the public templates with their tags and versions,
 	// search and tag filters, and the registry URL to add in another Docker
-	// Manager (Templates → Template sources) in a compact side
+	// Manager (Templates → Template Sources) in a compact side
 	// card, below the templates on narrow screens. Private templates never
 	// appear here.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -50,7 +50,7 @@
 	});
 
 	$effect(() => {
-		document.title = index.data ? `${index.data.name} templates` : 'Templates';
+		document.title = index.data ? `${index.data.name} Templates` : 'Templates';
 	});
 </script>
 
@@ -76,7 +76,7 @@
 	{@const idx = index.data}
 	<div class="page">
 		<PageHeader
-			title="{idx.name} templates"
+			title="{idx.name} Templates"
 			description="Complete Compose projects shared by this Docker Manager. {idx.templates
 				.length} {idx.templates.length === 1 ? 'template' : 'templates'}{idx.templates
 				.length
@@ -100,7 +100,7 @@
 					<div class="filters">
 						<div class="search">
 							<TextField
-								label="Search templates"
+								label="Search Templates"
 								hideLabel
 								type="search"
 								placeholder="Search templates"
@@ -108,7 +108,7 @@
 							/>
 						</div>
 						{#if tags.length}
-							<div class="chips" role="group" aria-label="Filter by tag">
+							<div class="chips" role="group" aria-label="Filter by Tag">
 								{#each tags as { tag: t, count: n } (t)}
 									<Chip
 										label={t}
@@ -122,7 +122,7 @@
 						{/if}
 					</div>
 					{#if shown.length}
-						<ul class="grid" aria-label="Public templates">
+						<ul class="grid" aria-label="Public Templates">
 							{#each shown as t (t.id)}
 								<li class="item">
 									<TemplateCard
@@ -160,12 +160,12 @@
 			<aside class="side" aria-labelledby="add-title">
 				<Card>
 					<div class="add" id="add">
-						<h2 id="add-title" class="subsection-title">Use these templates</h2>
+						<h2 id="add-title" class="subsection-title">Use These Templates</h2>
 						<p class="muted">
 							In your Docker Manager, open <strong
-								>Templates → Template sources</strong
+								>Templates → Template Sources</strong
 							>, choose
-							<strong>Add template source</strong> and paste this address:
+							<strong>Add Template Source</strong> and paste this address:
 						</p>
 						<div class="url">
 							<code title={registryUrl}>{registryUrl}</code>

@@ -73,7 +73,7 @@ describe('retention presets', () => {
 			'everything',
 			'custom'
 		]);
-		expect(RETENTION_PRESETS[0].label).toBe('7 daily, 4 weekly, 12 monthly (recommended)');
+		expect(RETENTION_PRESETS[0].label).toBe('7 Daily, 4 Weekly, 12 Monthly (Recommended)');
 		expect(retentionPreset(DEFAULT_RETENTION)).toBe('recommended');
 	});
 
@@ -210,7 +210,7 @@ describe('policy pages', () => {
 
 	it('sums up what a policy covers', () => {
 		expect(coverageSummary(policy(), envName)).toEqual({
-			value: 'All environments',
+			value: 'All Environments',
 			secondary: 'Every stack and volume'
 		});
 		expect(
@@ -375,14 +375,14 @@ describe('backups grouped by run', () => {
 describe('repositories and verification', () => {
 	it('offers plain choices of how much a verification reads', () => {
 		expect(verifyReadOptions('').map((o) => o.label)).toEqual([
-			'Check structure only',
-			'Also read 5% of the data',
-			'Read all data'
+			'Check Structure Only',
+			'Also Read 5% of the Data',
+			'Read All Data'
 		]);
 		// A saved amount that is none of them stays choosable.
 		expect(verifyReadOptions('1/10').at(-1)).toMatchObject({
 			value: '1/10',
-			label: 'Also read 1/10 of the data'
+			label: 'Also Read 1/10 of the Data'
 		});
 		expect(verifyReadText('')).toBe('checks the structure only');
 		expect(verifyReadText('5%')).toBe('also reads 5% of the data');
@@ -425,7 +425,7 @@ describe('repositories and verification', () => {
 	});
 
 	it('names locations and restore targets without internal paths', () => {
-		expect(scopeName('docker-manager', envName)).toBe('Manager state');
+		expect(scopeName('docker-manager', envName)).toBe('Manager State');
 		expect(scopeName('env:e1', envName)).toBe('Environment prod');
 		expect(scopeName('docker-manager-env-e2', envName)).toBe('Environment edge');
 		expect(
@@ -436,7 +436,7 @@ describe('repositories and verification', () => {
 			})
 		).toBe('Volume shop_db');
 		expect(restoreTargetName({ kind: 'project', name: 'shop', path: '/srv/stacks/shop' })).toBe(
-			'Files of stack shop'
+			'Files of Stack shop'
 		);
 		expect(restoreTargetName({ kind: 'file', path: '/srv/stacks/shop/compose.yaml' })).toBe(
 			'File compose.yaml'

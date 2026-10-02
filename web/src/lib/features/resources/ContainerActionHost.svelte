@@ -132,7 +132,7 @@
 			'Its restart policy does not start it again; start it when you need it.',
 			...(stackNote ? [stackNote] : [])
 		]}
-		confirmLabel="Stop container"
+		confirmLabel="Stop Container"
 		tone="danger"
 		onconfirm={() => send(target!, 'stop')}
 	/>
@@ -142,7 +142,7 @@
 		title="Restart {target.name}?"
 		message="This restarts part of Docker Manager itself. The Docker Manager UI and API disconnect until it is back; this page reconnects on its own."
 		consequences={target.protection ? [target.protection.reason] : []}
-		confirmLabel="Restart container"
+		confirmLabel="Restart Container"
 		onconfirm={() => send(target!, 'restart', { confirm: true })}
 	/>
 
@@ -152,7 +152,7 @@
 		name={target.name}
 		{removal}
 		affected={[{ label: target.name, detail: target.state }]}
-		confirmLabel={running ? 'Stop and remove' : 'Remove container'}
+		confirmLabel={running ? 'Stop and Remove' : 'Remove Container'}
 		onconfirm={() => send(target!, 'remove', { force: running })}
 	/>
 {/if}

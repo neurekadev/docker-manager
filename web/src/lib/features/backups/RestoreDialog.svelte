@@ -185,14 +185,14 @@
 	alert
 	dismissible={!starting}
 	title={full
-		? `Restore all of ${subject}`
-		: `Restore ${plan.kind === 'paths' ? plan.paths.length : 0} selected items`}
+		? `Restore All of ${subject}`
+		: `Restore ${plan.kind === 'paths' ? plan.paths.length : 0} Selected Items`}
 	description="From the backup of {formatDateTime(backup.snapshotTime)}."
 >
 	{#if !job}
 		<Notice
 			tone="danger"
-			title={full ? 'Everything is replaced' : 'Only the selected items are replaced'}
+			title={full ? 'Everything Is Replaced' : 'Only the Selected Items Are Replaced'}
 			live="none"
 		>
 			<ul class="consequences">
@@ -212,7 +212,7 @@
 		{/if}
 		{#if full && canDeploy && backup.kind === 'stack' && !volume}
 			<Switch
-				label="Deploy {subject} afterwards"
+				label="Deploy {subject} Afterwards"
 				description="Deploys the restored definition with the services that were running before. Off: the stack shows undeployed changes until you deploy it."
 				bind:checked={redeploy}
 			/>
@@ -253,9 +253,9 @@
 			>
 			<Button variant="danger" loading={starting} disabled={!canConfirm} onclick={start}>
 				{full
-					? 'Replace everything'
+					? 'Replace Everything'
 					: `Replace ${plan.kind === 'paths' ? plan.paths.length : 0} ${
-							plan.kind === 'paths' && plan.paths.length === 1 ? 'item' : 'items'
+							plan.kind === 'paths' && plan.paths.length === 1 ? 'Item' : 'Items'
 						}`}
 			</Button>
 		{:else}

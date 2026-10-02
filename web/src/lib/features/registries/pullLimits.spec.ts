@@ -56,7 +56,7 @@ describe('pullLimitView', () => {
 
 	it('says when a registry reports no limit', () => {
 		expect(pullLimitView(limit({}), now)).toMatchObject({
-			text: 'Not reported',
+			text: 'Not Reported',
 			sub: 'checked 4 minutes ago',
 			tone: 'muted'
 		});
@@ -68,7 +68,7 @@ describe('pullLimitView', () => {
 			now
 		);
 		expect(v).toMatchObject({
-			text: 'Limit reached',
+			text: 'Limit Reached',
 			sub: 'resets in 12 minutes',
 			tone: 'warn'
 		});

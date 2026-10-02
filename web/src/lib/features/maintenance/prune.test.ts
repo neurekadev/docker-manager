@@ -121,20 +121,20 @@ afterEach(() => {
 describe('PruneButton (#14)', () => {
 	it('is hidden without maintenance.run and maintenance.preview', () => {
 		mount('images', false);
-		expect(screen.queryByRole('button', { name: 'Prune images' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Prune Images' })).not.toBeInTheDocument();
 	});
 
 	it('starts with all unused images and previews before removing anything', async () => {
 		const user = setup();
 		const calls = mount('images');
-		await user.click(screen.getByRole('button', { name: 'Prune images' }));
-		const dialog = await screen.findByRole('dialog', { name: 'Prune images' });
+		await user.click(screen.getByRole('button', { name: 'Prune Images' }));
+		const dialog = await screen.findByRole('dialog', { name: 'Prune Images' });
 		expect(dialog).toBeInTheDocument();
-		expect(await screen.findByRole('switch', { name: 'Dangling images' })).not.toBeChecked();
-		expect(screen.getByRole('switch', { name: 'Unused images' })).toBeChecked();
+		expect(await screen.findByRole('switch', { name: 'Dangling Images' })).not.toBeChecked();
+		expect(screen.getByRole('switch', { name: 'Unused Images' })).toBeChecked();
 
 		await user.click(screen.getByRole('button', { name: 'Preview' }));
-		const remove = await screen.findByRole('button', { name: /^Remove 2 objects/ });
+		const remove = await screen.findByRole('button', { name: /^Remove 2 Objects/ });
 		const previewCall = calls.find((c) => c.url.endsWith('/prune-previews'));
 		expect(previewCall?.url).toBe('/api/v1/environments/env-1/prune-previews');
 		expect(previewCall?.body).toEqual({
@@ -155,10 +155,10 @@ describe('PruneButton (#14)', () => {
 	it('does not run volume rules before their data-loss opt-in', async () => {
 		const user = setup();
 		mount('volumes');
-		await user.click(screen.getByRole('button', { name: 'Prune volumes' }));
-		await screen.findByRole('switch', { name: 'Anonymous volumes' });
+		await user.click(screen.getByRole('button', { name: 'Prune Volumes' }));
+		await screen.findByRole('switch', { name: 'Anonymous Volumes' });
 		await user.click(screen.getByRole('button', { name: 'Preview' }));
-		expect(await screen.findByRole('button', { name: /^Remove 2 objects/ })).toBeDisabled();
+		expect(await screen.findByRole('button', { name: /^Remove 2 Objects/ })).toBeDisabled();
 		expect(screen.getByText(/deletes their data/)).toBeInTheDocument();
 	});
 
@@ -167,14 +167,14 @@ describe('PruneButton (#14)', () => {
 		mount('images', true, [pruneJob('0190-2', { policyId: 'pol-1' }), pruneJob('0190-1')]);
 		const button = await screen.findByRole('button', { name: 'Pruning…' });
 		await user.click(button);
-		await screen.findByRole('dialog', { name: 'Prune images' });
+		await screen.findByRole('dialog', { name: 'Prune Images' });
 		expect(
 			await screen.findByRole('progressbar', { name: 'Prune on Silo progress' })
 		).toBeInTheDocument();
 		// A policy's prune is not this button's: one bar only.
 		expect(screen.getAllByRole('progressbar')).toHaveLength(1);
 		expect(
-			screen.getByRole('button', { name: 'Continue in the background' })
+			screen.getByRole('button', { name: 'Continue in the Background' })
 		).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
 	});

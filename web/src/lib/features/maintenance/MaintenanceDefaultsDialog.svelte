@@ -80,7 +80,7 @@
 
 <Dialog
 	bind:open
-	title="Maintenance defaults"
+	title="Maintenance Defaults"
 	description="The rules every new maintenance policy starts with. Existing policies keep their own rules. Docker Manager ships every rule off with a 30-day age; volume rules also need their own opt-in."
 	size="xl"
 	dismissible={!busy}
@@ -89,7 +89,7 @@
 		query={defaults}
 		errorTitle="The maintenance defaults could not be loaded."
 		deniedTitle="You can't see the maintenance defaults."
-		deniedDescription="Ask the owner of this Docker Manager for the View settings permission."
+		deniedDescription="Ask the owner of this Docker Manager for the View Settings permission."
 	>
 		{#snippet children(d)}
 			{#if error}
@@ -121,7 +121,7 @@
 				variant="primary"
 				loading={busy}
 				disabled={!dirty || problems.length > 0}
-				onclick={save}>Save defaults</Button
+				onclick={save}>Save Defaults</Button
 			>
 		{/if}
 	{/snippet}

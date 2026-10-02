@@ -7,12 +7,12 @@
 	let open = $state(false);
 </script>
 
-<Button onclick={() => (open = true)}>Edit details</Button>
+<Button onclick={() => (open = true)}>Edit Details</Button>
 <button type="button">Elsewhere</button>
-<Dialog bind:open title="Edit details" description="Display metadata" {dismissible}>
+<Dialog bind:open title="Edit Details" description="Display metadata" {dismissible}>
 	<input aria-label="Description" />
 	{#snippet footer()}
-		<Button onclick={() => (open = false)}>Save details</Button>
+		<Button onclick={() => (open = false)}>Save Details</Button>
 	{/snippet}
 </Dialog>
 <p data-testid="state">{open ? 'open' : 'closed'}</p>

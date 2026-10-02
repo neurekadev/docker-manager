@@ -69,7 +69,7 @@
 		bind:this={box}
 		{onscroll}
 		role="log"
-		aria-label="Build log"
+		aria-label="Build Log"
 		aria-live="off"
 		tabindex="0"
 	>

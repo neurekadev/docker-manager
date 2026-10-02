@@ -9,10 +9,10 @@ export type StorageHistory = Schema<'BackupStorageHistory'>;
 
 /** The ranges the card offers; the server picks hourly or daily points. */
 export const STORAGE_RANGES = [
-	{ id: '7d', label: 'Last 7 days', days: 7 },
-	{ id: '30d', label: 'Last 30 days', days: 30 },
-	{ id: '90d', label: 'Last 90 days', days: 90 },
-	{ id: '1y', label: 'Last year', days: 365 }
+	{ id: '7d', label: 'Last 7 Days', days: 7 },
+	{ id: '30d', label: 'Last 30 Days', days: 30 },
+	{ id: '90d', label: 'Last 90 Days', days: 90 },
+	{ id: '1y', label: 'Last Year', days: 365 }
 ] as const;
 
 export type StorageRangeId = (typeof STORAGE_RANGES)[number]['id'];
@@ -23,7 +23,7 @@ function range(id: string) {
 	return STORAGE_RANGES.find((r) => r.id === id) ?? STORAGE_RANGES[1];
 }
 
-/** "Last 30 days" (unknown IDs: the default range). */
+/** "Last 30 Days" (unknown IDs: the default range). */
 export function storageRangeLabel(id: string): string {
 	return range(id).label;
 }
@@ -71,7 +71,7 @@ export function storageSeries(h: StorageHistory | undefined): StorageSeries | un
 export function storageSummary(s: StorageSeries, rangeLabel: string): string {
 	const last = s.stored[s.stored.length - 1];
 	const diff = last - s.stored[0];
-	const within = `in the ${rangeLabel.charAt(0).toLowerCase()}${rangeLabel.slice(1)}`;
+	const within = `in the ${rangeLabel.toLowerCase()}`;
 	const change =
 		diff === 0
 			? `no change ${within}`

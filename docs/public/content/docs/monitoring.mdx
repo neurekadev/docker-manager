@@ -11,8 +11,8 @@ memory, network and disk use over time, see [Metrics](/metrics).
 ## Check a server's disks
 
 1. Open **Environments**, pick an environment and open its **System** tab.
-2. The **Disk health** card lists each disk with its **Health**,
-   **Temperature**, how long it has been **Powered on** and its
+2. The **Disk Health** card lists each disk with its **Health**,
+   **Temperature**, how long it has been **Powered On** and its
    **Issues** in words, for example "8 reallocated sectors" or "Worn 92%".
    Serial numbers and firmware are under **Advanced**.
 3. Press the info button (ⓘ) at the end of a disk's row to see all its
@@ -21,7 +21,7 @@ memory, network and disk use over time, see [Metrics](/metrics).
    data written. Each value that says something about the disk's health
    has a green check (OK), an amber triangle (warning) or a red alert
    (failing) in its **Status** column.
-4. Press **Check disks now** to read every disk again right away. The
+4. Press **Check Disks Now** to read every disk again right away. The
    agent also reads them every 30 minutes; **Last checked** says when it
    last did.
 
@@ -55,14 +55,14 @@ with its state (**Healthy**, **Degraded**, **Rebuilding**, **Checking**,
 progress of a rebuild or check with the time left. Press the info button
 (ⓘ) to see the array's level, size, metadata, chunk size, layout and
 bitmap, and each member with its slot, role and the health of its disk.
-Press **Check RAID now** to read it again. A server without arrays
-shows **No RAID arrays found** in the **Disk health** card.
+Press **Check RAID Now** to read it again. A server without arrays
+shows **No RAID arrays found** in the **Disk Health** card.
 
 ## Give the agent access to the disks
 
 To read the disks, the agent runs with `privileged: true`. The
 [Quickstart](/quickstart) files and the install commands do this. If the
-**Disk health** card says **Docker Manager can’t read this server’s
+**Disk Health** card says **Docker Manager can’t read this server’s
 disks.**, add the line to that server's agent:
 
 1. Open **Stacks** and the server's `docker-manager` stack, then its

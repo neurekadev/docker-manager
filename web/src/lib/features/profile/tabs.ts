@@ -8,7 +8,7 @@ import type { TabLink } from '$lib/ui';
 export function profileTabs(): TabLink[] {
 	return [
 		{ href: routes.profile(), label: 'Account' },
-		{ href: routes.apiTokens(), label: 'API tokens' },
+		{ href: routes.apiTokens(), label: 'API Tokens' },
 		{ href: routes.mySessions(), label: 'Sessions' }
 	];
 }

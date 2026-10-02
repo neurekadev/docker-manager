@@ -61,7 +61,7 @@ describe('auditRows', () => {
 		expect(rows).toEqual([
 			{
 				id: 'f',
-				label: 'Deploy stack',
+				label: 'Deploy Stack',
 				status: 'failed',
 				denied: false,
 				at: '2026-09-27T10:02:00Z',
@@ -70,7 +70,7 @@ describe('auditRows', () => {
 			},
 			{
 				id: 'r',
-				label: 'Opened the definition',
+				label: 'Opened the Definition',
 				status: 'succeeded',
 				denied: false,
 				at: '2026-09-27T09:00:00Z',
@@ -85,7 +85,7 @@ describe('auditRows', () => {
 			ev({ id: 'd', action: 'stack.remove', outcome: 'denied' })
 		]);
 		expect(rows.map((r) => [r.label, r.status, r.denied])).toEqual([
-			['Restart stack', 'running', false],
+			['Restart Stack', 'running', false],
 			['Delete', 'failed', true]
 		]);
 	});

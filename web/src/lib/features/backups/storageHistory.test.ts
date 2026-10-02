@@ -84,18 +84,18 @@ describe('StorageHistoryCard (#10)', () => {
 		expect(seen).toHaveLength(1);
 		expect(daysBack(seen[0])).toBeCloseTo(30, 1);
 		expect(seen[0].get('environmentId')).toBe('e1');
-		expect(screen.getByRole('combobox', { name: 'Range' })).toHaveTextContent('Last 30 days');
+		expect(screen.getByRole('combobox', { name: 'Range' })).toHaveTextContent('Last 30 Days');
 
 		// The legend names both lines with their latest values.
 		expect(fig).toHaveTextContent('Stored 3 GB');
-		expect(fig).toHaveTextContent('Before compression 7 GB');
+		expect(fig).toHaveTextContent('Before Compression 7 GB');
 		expect(
 			screen.getByText('3 GB stored now, up 1 GB in the last 30 days.')
 		).toBeInTheDocument();
 
 		await waitFor(() => expect(lazy.mounted).toHaveLength(1));
 		const o = lazy.mounted[0];
-		expect(o.lines.map((l) => l.name)).toEqual(['Stored', 'Before compression']);
+		expect(o.lines.map((l) => l.name)).toEqual(['Stored', 'Before Compression']);
 		// The point before the first measurement is left out; the axis
 		// still spans the whole range.
 		expect(o.lines[0].values).toEqual([2 * GB, 2 * GB, 3 * GB]);
@@ -105,7 +105,7 @@ describe('StorageHistoryCard (#10)', () => {
 		expect(o.to).toBe(Date.parse(history.to));
 
 		// The figures as a table: changes and the latest, newest first.
-		const table = screen.getByRole('table', { name: 'Storage over time', hidden: true });
+		const table = screen.getByRole('table', { name: 'Storage Over Time', hidden: true });
 		expect(table.querySelectorAll('tbody tr')).toHaveLength(2);
 	});
 
@@ -116,11 +116,11 @@ describe('StorageHistoryCard (#10)', () => {
 		await screen.findByRole('figure', { name: 'Storage' });
 		expect(seen[0].get('environmentId')).toBeNull();
 
-		await choose(user, screen.getByRole('combobox', { name: 'Range' }), 'Last 7 days');
+		await choose(user, screen.getByRole('combobox', { name: 'Range' }), 'Last 7 Days');
 		await waitFor(() => expect(seen).toHaveLength(2));
 		expect(daysBack(seen[1])).toBeCloseTo(7, 1);
 
-		await choose(user, screen.getByRole('combobox', { name: 'Range' }), 'Last year');
+		await choose(user, screen.getByRole('combobox', { name: 'Range' }), 'Last Year');
 		await waitFor(() => expect(seen).toHaveLength(3));
 		expect(daysBack(seen[2])).toBeCloseTo(365, 1);
 	});

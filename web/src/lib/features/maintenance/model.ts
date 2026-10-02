@@ -26,13 +26,13 @@ export const CATEGORIES: Category[] = [
 
 /** Fallback labels when the defaults (with the manager's labels) are not readable. */
 export const CATEGORY_LABELS: Record<Category, string> = {
-	stopped_containers: 'Stopped containers',
-	dangling_images: 'Dangling images',
-	unused_images: 'Unused images',
-	unused_networks: 'Unused networks',
-	build_cache: 'Build cache',
-	anonymous_volumes: 'Anonymous volumes',
-	named_volumes: 'Named volumes'
+	stopped_containers: 'Stopped Containers',
+	dangling_images: 'Dangling Images',
+	unused_images: 'Unused Images',
+	unused_networks: 'Unused Networks',
+	build_cache: 'Build Cache',
+	anonymous_volumes: 'Anonymous Volumes',
+	named_volumes: 'Named Volumes'
 };
 
 export function isVolumeCategory(c: Category): boolean {
@@ -41,6 +41,18 @@ export function isVolumeCategory(c: Category): boolean {
 
 export function categoryLabel(c: Category, info?: CategoryInfo[]): string {
 	return info?.find((i) => i.category === c)?.label ?? CATEGORY_LABELS[c] ?? c;
+}
+
+/**
+ * A category label inside a sentence: "Stopped Containers" reads
+ * "stopped containers" ("Stopped containers" at the start); words with
+ * more than one capital (acronyms) stay as they are.
+ */
+function categoryPhrase(label: string, first: boolean): string {
+	return label
+		.split(' ')
+		.map((w, i) => ((first && i === 0) || /[A-Z].*[A-Z]/.test(w) ? w : w.toLowerCase()))
+		.join(' ');
 }
 
 /** Rules in display order, one per category (missing ones disabled, 30 days). */
@@ -67,7 +79,8 @@ export function ageText(hours: number): string {
 
 /** One line per enabled rule, e.g. "Stopped containers older than 30 days". */
 export function ruleSummary(r: MaintenanceRule, info?: CategoryInfo[]): string {
-	const parts = [`${categoryLabel(r.category, info)} ${ageText(r.minAgeHours)}`];
+	const label = categoryPhrase(categoryLabel(r.category, info), true);
+	const parts = [`${label} ${ageText(r.minAgeHours)}`];
 	if (r.category === 'build_cache') {
 		parts.push(r.buildCacheAll ? 'all unused records' : 'dangling records only');
 		if (r.keepStorageBytes) parts.push(`keeping ${formatBytes(r.keepStorageBytes)}`);
@@ -135,10 +148,9 @@ export function runSummaryText(s: Schema<'MaintenanceRunSummary'>): string {
 
 /** The categories a policy's turned-on rules clean, e.g. "Stopped containers and unused images". */
 export function rulesText(p: Pick<MaintenancePolicy, 'rules'>, info?: CategoryInfo[]): string {
-	const labels = enabledRules(p).map((r, i) => {
-		const l = categoryLabel(r.category, info);
-		return i === 0 ? l : l.charAt(0).toLowerCase() + l.slice(1);
-	});
+	const labels = enabledRules(p).map((r, i) =>
+		categoryPhrase(categoryLabel(r.category, info), i === 0)
+	);
 	if (!labels.length) return 'Every rule is off';
 	if (labels.length === 1) return labels[0];
 	return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
@@ -184,31 +196,31 @@ export interface PruneTargetInfo {
 
 export const PRUNE_TARGETS: Record<PruneTarget, PruneTargetInfo> = {
 	containers: {
-		title: 'Prune containers',
+		title: 'Prune Containers',
 		what: 'stopped containers',
 		categories: ['stopped_containers'],
 		start: 'stopped_containers'
 	},
 	images: {
-		title: 'Prune images',
+		title: 'Prune Images',
 		what: 'unused images',
 		categories: ['dangling_images', 'unused_images'],
 		start: 'unused_images'
 	},
 	networks: {
-		title: 'Prune networks',
+		title: 'Prune Networks',
 		what: 'unused networks',
 		categories: ['unused_networks'],
 		start: 'unused_networks'
 	},
 	volumes: {
-		title: 'Prune volumes',
+		title: 'Prune Volumes',
 		what: 'unused volumes',
 		categories: ['anonymous_volumes', 'named_volumes'],
 		start: 'anonymous_volumes'
 	},
 	build_cache: {
-		title: 'Prune build cache',
+		title: 'Prune Build Cache',
 		what: 'build cache',
 		categories: ['build_cache'],
 		start: 'build_cache'

@@ -55,7 +55,7 @@
 		await deployStackWith(cur.id, {});
 		toast.info(`Deploying ${name}`, {
 			body: 'The stack page shows its progress.',
-			action: { label: 'Open stack', onclick: () => void goto(routes.stack(cur.id)) }
+			action: { label: 'Open Stack', onclick: () => void goto(routes.stack(cur.id)) }
 		});
 	}
 
@@ -73,7 +73,7 @@
 	);
 
 	usePage(() => ({
-		title: `${name} files`,
+		title: `${name} Files`,
 		crumbs: [
 			{ label: 'Stacks', href: routes.stacks() },
 			{ label: name, href: routes.stack(stackId) },
@@ -94,7 +94,7 @@
 				title="This stack doesn't exist"
 				description="It was deleted, or you can't see it. Open the stacks list to find it."
 			>
-				{#snippet actions()}<Button href={routes.stacks()}>Open stacks</Button>{/snippet}
+				{#snippet actions()}<Button href={routes.stacks()}>Open Stacks</Button>{/snippet}
 			</EmptyState>
 		{:else}
 			<ErrorState
@@ -113,7 +113,7 @@
 				environmentOnline={s.environmentOnline ?? env?.online ?? true}
 				environmentName={env?.name ?? 'The environment'}
 				label="Files of {name}"
-				title="Stack files"
+				title="Stack Files"
 			>
 				{#snippet actions()}
 					{#if canLogs}
@@ -123,7 +123,7 @@
 							icon={ScrollText}
 							aria-pressed={logsOpen}
 							onclick={() => (logsOpen = !logsOpen)}
-							>{logsOpen ? 'Hide logs' : 'Show logs'}</Button
+							>{logsOpen ? 'Hide Logs' : 'Show Logs'}</Button
 						>
 					{/if}
 				{/snippet}

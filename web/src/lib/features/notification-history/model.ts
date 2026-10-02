@@ -14,12 +14,12 @@ export type NotificationKind = Notification['kind'];
 export type NotificationOutcome = Notification['outcome'];
 export type NotificationField = Schema<'NotificationField'>;
 
-/** The kinds of notifications in display order, named as "What to send" names them. */
+/** The kinds of notifications in display order, named as "What to Send" names them. */
 export const NOTIFICATION_KINDS: { kind: NotificationKind; label: string }[] = (
 	['backup', 'restore', 'prune', 'updates'] as const
 ).map((kind) => ({ kind, label: eventKind(kind)?.label ?? kind }));
 
-/** "Backups", "Restores", "Prune", "Image updates". */
+/** "Backups", "Restores", "Prune", "Image Updates". */
 export function notificationKindLabel(kind: string): string {
 	return NOTIFICATION_KINDS.find((k) => k.kind === kind)?.label ?? kind;
 }

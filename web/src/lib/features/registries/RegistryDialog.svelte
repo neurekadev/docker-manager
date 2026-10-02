@@ -2,7 +2,7 @@
 	// Add or edit a registry connection (#19). The secret is write-only: it
 	// is entered once, sealed on the manager and never shown again (only
 	// its fingerprint). Editing changes the matching and binding; a new
-	// secret goes through "Rotate credential". Changes need a step-up.
+	// secret goes through "Rotate Credential". Changes need a step-up.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -141,7 +141,7 @@
 
 <Dialog
 	bind:open
-	title={connection ? `Edit ${connection.name}` : 'Add a registry connection'}
+	title={connection ? `Edit ${connection.name}` : 'Add a Registry Connection'}
 	description="Docker Manager uses it for pulls, deploys and update checks of matching images. It is shared by the whole instance, not a personal login."
 	size="lg"
 	dismissible={!busy}
@@ -155,7 +155,7 @@
 		}}
 	>
 		<section class="col" aria-labelledby="registry-login">
-			<h3 id="registry-login" class="section">Registry and credential</h3>
+			<h3 id="registry-login" class="section">Registry and Credential</h3>
 			<TextField
 				label="Name"
 				required
@@ -165,7 +165,7 @@
 			/>
 			{#if !connection}
 				<TextField
-					label="Registry host"
+					label="Registry Host"
 					mono
 					required
 					bind:value={host}
@@ -179,7 +179,7 @@
 					options={[
 						{
 							value: 'token',
-							label: 'Access token',
+							label: 'Access Token',
 							description: 'Recommended: a read-only (pull) token.'
 						},
 						{
@@ -198,7 +198,7 @@
 					error={fieldError(failure, 'body.username')}
 				/>
 				<PasswordField
-					label={credentialType === 'token' ? 'Access token' : 'Password'}
+					label={credentialType === 'token' ? 'Access Token' : 'Password'}
 					autocomplete="new-password"
 					required
 					bind:value={secret}
@@ -214,12 +214,12 @@
 				>
 					The credential {connection.secret?.fingerprint
 						? `(${connection.secret.fingerprint})`
-						: ''} is write-only. Use Rotate credential to replace it.
+						: ''} is write-only. Use Rotate Credential to replace it.
 				</Notice>
 			{/if}
 		</section>
 		<section class="col" aria-labelledby="registry-match">
-			<h3 id="registry-match" class="section">Which images use it</h3>
+			<h3 id="registry-match" class="section">Which Images Use It</h3>
 			<TextField
 				label="Repositories"
 				mono
@@ -229,12 +229,12 @@
 				error={fieldError(failure, 'body.repositoryPattern')}
 			/>
 			<Select
-				label="Use it for"
+				label="Use It For"
 				bind:value={binding}
 				options={[
-					{ value: 'none', label: 'Every environment and stack' },
-					{ value: 'environment', label: 'One environment' },
-					{ value: 'stack', label: 'One stack' }
+					{ value: 'none', label: 'Every Environment and Stack' },
+					{ value: 'environment', label: 'One Environment' },
+					{ value: 'stack', label: 'One Stack' }
 				]}
 				description="A bound connection wins over a general one for the same image."
 			/>
@@ -289,7 +289,7 @@
 			form="registry-form"
 			variant="primary"
 			loading={busy}
-			disabled={!valid}>{connection ? 'Save changes' : 'Add connection'}</Button
+			disabled={!valid}>{connection ? 'Save Changes' : 'Add Connection'}</Button
 		>
 	{/snippet}
 </Dialog>

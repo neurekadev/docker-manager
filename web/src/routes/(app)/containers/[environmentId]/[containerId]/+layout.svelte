@@ -6,7 +6,7 @@
 	// on this container and why (#32 protection, managed stacks), its
 	// running jobs (from the running list: they come back after a reload),
 	// and the tabs: Overview here, Logs and Terminal (#8) as
-	// child routes. Removal is the last entry of the "More actions" menu.
+	// child routes. Removal is the last entry of the "More Actions" menu.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -128,7 +128,7 @@
 				label: c.stack.service
 					? `${c.stack.project} / ${c.stack.service}`
 					: c.stack.project,
-				title: c.stack.managed ? 'Managed stack' : 'Compose project'
+				title: c.stack.managed ? 'Managed Stack' : 'Compose Project'
 			});
 		const started = c.details?.startedAt;
 		if (c.state === 'running' && started)
@@ -155,11 +155,11 @@
 			out.push({ label: 'Unpause', icon: Play, onSelect: () => host?.request(c, 'unpause') });
 		if (c.view === 'full' && can(c.actions, 'container.update'))
 			out.push({
-				label: 'Change restart policy and limits…',
+				label: 'Change Restart Policy and Limits…',
 				onSelect: () => (editOpen = true)
 			});
 		if (c.imageId && c.view === 'full')
-			out.push({ label: 'Open image', href: routes.image(env, c.imageId) });
+			out.push({ label: 'Open Image', href: routes.image(env, c.imageId) });
 		// Docker Manager's own containers are never removed: no entry (the notice says why).
 		if (has('remove') && !c.protection) {
 			if (out.length) out.push({ separator: true });
@@ -206,7 +206,7 @@
 			level={1}
 		>
 			{#snippet actions()}
-				<Button variant="secondary" href={routes.containers()}>Back to containers</Button>
+				<Button variant="secondary" href={routes.containers()}>Back to Containers</Button>
 			{/snippet}
 		</EmptyState>
 	{:else if q.isError}
@@ -237,12 +237,12 @@
 					<LifecycleButton {running} actions={lifecycle} />
 				{/if}
 				{#if overflow.length}
-					<Menu items={overflow} label="More actions for {c.name}" align="end">
+					<Menu items={overflow} label="More Actions for {c.name}" align="end">
 						{#snippet trigger(props)}
 							<IconButton
 								{...props}
 								icon={Ellipsis}
-								label="More actions"
+								label="More Actions"
 								variant="secondary"
 							/>
 						{/snippet}
@@ -269,7 +269,7 @@
 			<Notice
 				tone="info"
 				icon={Layers}
-				title="Part of the stack {c.stack.project}"
+				title="Part of the Stack {c.stack.project}"
 				live="none"
 			>
 				Change this container through its stack: settings changes and removal here are
@@ -279,9 +279,9 @@
 			</Notice>
 		{/if}
 
-		<ActiveJobs {jobs} variant="inline" label="Running jobs of {c.name}" />
+		<ActiveJobs {jobs} variant="inline" label="Running Jobs of {c.name}" />
 
-		<TabNav items={tabs} current={page.url.pathname} label="Container sections" />
+		<TabNav items={tabs} current={page.url.pathname} label="Container Sections" />
 		{@render children()}
 	{/if}
 </Page>

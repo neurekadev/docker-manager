@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Volume detail (#6): header with usage, size and actions ("Browse
-	// files"; removal with the server's preview is the last entry of the
-	// "More actions" menu), what Docker Manager refuses and why (#32,
+	// Files"; removal with the server's preview is the last entry of the
+	// "More Actions" menu), what Docker Manager refuses and why (#32,
 	// managed stacks, non-local drivers #28), and the tabs: Overview here,
 	// Files (#15 volume file manager), Backups (#10) and Migrate (#35, only
 	// with another environment to move to) as child routes. Its running
@@ -111,7 +111,7 @@
 								{
 									icon: Layers,
 									label: v.stack.project,
-									title: v.stack.managed ? 'Managed stack' : 'Compose project'
+									title: v.stack.managed ? 'Managed Stack' : 'Compose Project'
 								}
 							]
 						: []),
@@ -172,7 +172,7 @@
 			level={1}
 		>
 			{#snippet actions()}<Button variant="secondary" href={routes.volumes()}
-					>Back to volumes</Button
+					>Back to Volumes</Button
 				>{/snippet}
 		</EmptyState>
 	{:else if q.isError}
@@ -184,8 +184,8 @@
 	{:else if v}
 		<PageHeader title={v.name} truncate {...resourceIcon('volume')} {meta}>
 			{#snippet status()}
-				{#if v.inUse}<Badge tone="ok" dot>In use</Badge>{:else}<Badge>Unused</Badge>{/if}
-				{#if !access.local}<Badge tone="warn">Read-only</Badge>{/if}
+				{#if v.inUse}<Badge tone="ok" dot>In Use</Badge>{:else}<Badge>Unused</Badge>{/if}
+				{#if !access.local}<Badge tone="warn">Read-Only</Badge>{/if}
 				{#if v.protection}<ProtectionBadge
 						protection={v.protection}
 						label="Used by Docker Manager"
@@ -196,16 +196,16 @@
 					<Button
 						variant="secondary"
 						icon={FolderOpen}
-						href={routes.volume(env, name, 'files')}>Browse files</Button
+						href={routes.volume(env, name, 'files')}>Browse Files</Button
 					>
 				{/if}
 				{#if overflow.length}
-					<Menu items={overflow} label="More actions for {v.name}" align="end">
+					<Menu items={overflow} label="More Actions for {v.name}" align="end">
 						{#snippet trigger(props)}
 							<IconButton
 								{...props}
 								icon={Ellipsis}
-								label="More actions"
+								label="More Actions"
 								variant="secondary"
 							/>
 						{/snippet}
@@ -229,15 +229,15 @@
 			<Notice
 				tone="warn"
 				icon={TriangleAlert}
-				title="Read-only in Docker Manager"
+				title="Read-Only in Docker Manager"
 				live="none"
 			>
 				{access.reason} Containers can still use it; Docker Manager lists it and can remove it.
 			</Notice>
 		{/if}
-		<ActiveJobs {jobs} variant="inline" label="Running jobs of {name}" />
+		<ActiveJobs {jobs} variant="inline" label="Running Jobs of {name}" />
 
-		<TabNav items={tabs} current={page.url.pathname} label="Volume sections" />
+		<TabNav items={tabs} current={page.url.pathname} label="Volume Sections" />
 		{@render children()}
 	{/if}
 </Page>

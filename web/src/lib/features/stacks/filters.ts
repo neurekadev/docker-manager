@@ -21,7 +21,7 @@ export function stackFilters(ctx: StackFilterContext): ListFilter<Stack>[] {
 		{
 			id: 'status',
 			label: 'Status',
-			all: 'All statuses',
+			all: 'All Statuses',
 			options: statusOptions([
 				'running',
 				'partial',
@@ -37,11 +37,11 @@ export function stackFilters(ctx: StackFilterContext): ListFilter<Stack>[] {
 		{
 			id: 'changes',
 			label: 'Changes',
-			all: 'All changes',
+			all: 'All Changes',
 			options: [
-				{ value: 'undeployed', label: 'Undeployed changes' },
-				{ value: 'update', label: 'Update available' },
-				{ value: 'none', label: 'No pending changes' }
+				{ value: 'undeployed', label: 'Undeployed Changes' },
+				{ value: 'update', label: 'Update Available' },
+				{ value: 'none', label: 'No Pending Changes' }
 			],
 			match: (s, v) => {
 				const update = ctx.updates.get(s.id) === 'update_available';

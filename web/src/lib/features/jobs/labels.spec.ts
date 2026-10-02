@@ -13,6 +13,7 @@ import {
 	jobErrorHeadline,
 	jobHeadline,
 	jobKindLabel,
+	jobKindPhrase,
 	jobRetry,
 	jobTargetLabel,
 	jobTitle,
@@ -34,9 +35,11 @@ describe('job labels (#26 catalog)', () => {
 		);
 		expect(kinds.length).toBeGreaterThan(30);
 		for (const k of kinds) expect(JOB_KIND_LABELS[k], k).toBeTruthy();
-		expect(jobKindLabel('stack.deploy')).toBe('Deploy stack');
-		expect(jobKindLabel('future.thing_done')).toBe('Future thing done');
+		expect(jobKindLabel('stack.deploy')).toBe('Deploy Stack');
+		expect(jobKindLabel('future.thing_done')).toBe('Future Thing Done');
 		expect(jobKindLabel(undefined)).toBe('Job');
+		expect(jobKindPhrase('update.check')).toBe('Check for updates');
+		expect(jobKindPhrase('manager.backup')).toBe('Back up Docker Manager');
 	});
 
 	it('names targets by name, never by an opaque ID', () => {
@@ -56,11 +59,11 @@ describe('job labels (#26 catalog)', () => {
 		expect(jobTargetLabel({ targets: [] })).toBe('');
 		expect(targetName('volume', 'pgdata')).toBe('pgdata');
 		expect(jobTitle({ kind: 'stack.deploy', targets: [stack] }, names)).toBe(
-			'Deploy stack Silo'
+			'Deploy Stack Silo'
 		);
-		expect(jobTitle({ kind: 'prune.run', targets: [policy] })).toBe('Prune Docker objects');
+		expect(jobTitle({ kind: 'prune.run', targets: [policy] })).toBe('Prune Docker Objects');
 		expect(jobTitle({ kind: 'container.restart', targets: [ctr] })).toBe(
-			'Restart container homeassistant'
+			'Restart Container homeassistant'
 		);
 	});
 
@@ -72,10 +75,10 @@ describe('job labels (#26 catalog)', () => {
 				{ kind: 'update.check', targets: [{ type: 'stack', id }] },
 				{ nameOf: names }
 			)
-		).toEqual({ title: 'zerobyte', subtitle: 'Check for updates' });
+		).toEqual({ title: 'zerobyte', subtitle: 'Check for Updates' });
 		// An unresolved stack ID never shows: the kind leads.
 		expect(jobHeadline({ kind: 'stack.deploy', targets: [{ type: 'stack', id }] })).toEqual({
-			title: 'Deploy stack',
+			title: 'Deploy Stack',
 			subtitle: ''
 		});
 		expect(
@@ -83,7 +86,7 @@ describe('job labels (#26 catalog)', () => {
 				{ kind: 'prune.run', targets: [{ type: 'maintenance_policy', id }] },
 				{ fallback: 'homelab' }
 			)
-		).toEqual({ title: 'Prune Docker objects', subtitle: 'homelab' });
+		).toEqual({ title: 'Prune Docker Objects', subtitle: 'homelab' });
 		expect(
 			jobHeadline({
 				kind: 'container.restart',
@@ -92,15 +95,15 @@ describe('job labels (#26 catalog)', () => {
 					{ type: 'container', id: 'mqtt' }
 				]
 			})
-		).toEqual({ title: 'homeassistant and 1 more', subtitle: 'Restart container' });
+		).toEqual({ title: 'homeassistant and 1 more', subtitle: 'Restart Container' });
 		expect(
 			jobHeadline({
 				kind: 'files.delete',
 				targets: [{ type: 'path', id: '/srv/stacks/silo/compose.yaml' }]
 			})
-		).toEqual({ title: 'compose.yaml', subtitle: 'Delete files' });
+		).toEqual({ title: 'compose.yaml', subtitle: 'Delete Files' });
 		expect(jobHeadline({ kind: 'manager.backup', targets: [] })).toEqual({
-			title: 'Back up Docker Manager',
+			title: 'Back Up Docker Manager',
 			subtitle: ''
 		});
 		// An environment migration names the environment, not its first stack.
@@ -113,10 +116,10 @@ describe('job labels (#26 catalog)', () => {
 		};
 		expect(jobHeadline(migrate, { nameOf: names, fallback: 'homelab' })).toEqual({
 			title: 'homelab',
-			subtitle: 'Migrate environment'
+			subtitle: 'Migrate Environment'
 		});
 		expect(jobHeadline(migrate, { nameOf: names })).toEqual({
-			title: 'Migrate environment',
+			title: 'Migrate Environment',
 			subtitle: ''
 		});
 	});
@@ -196,7 +199,7 @@ describe('job labels (#26 catalog)', () => {
 		expect(jobRetry({ ...base, state: 'cancelled', retryable: false })).toBeNull();
 		expect(jobRetry({ ...base, state: 'failed', retryable: false })).toEqual({
 			href: '/stacks/s1',
-			label: 'Open the stack to try again'
+			label: 'Open the Stack to Try Again'
 		});
 		expect(jobRetry({ ...base, state: 'partial' })).toEqual(
 			expect.objectContaining({ href: '/stacks/s1' })

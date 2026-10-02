@@ -11,7 +11,7 @@
 <div class="public">
 	<header class="bar">
 		<Logo href={routes.registry()} />
-		<Button variant="ghost" href={routes.dashboard()}>Sign in</Button>
+		<Button variant="ghost" href={routes.dashboard()}>Sign In</Button>
 	</header>
 	<main class="content">
 		{@render children()}

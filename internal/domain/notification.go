@@ -328,7 +328,7 @@ func (it NotificationItem) Plain() string {
 // push services a title, priority and link, the rest plain text.
 type NotificationMessage struct {
 	// Label is the short status line above the title: the event's kind
-	// and outcome as "What to send" names them ("Disk health ·
+	// and outcome as "What to Send" names them ("Disk Health ·
 	// Critical").
 	Label string
 	Title string

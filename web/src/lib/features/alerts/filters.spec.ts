@@ -38,18 +38,18 @@ describe('alerts list filters (#159)', () => {
 			'Resolved'
 		]);
 		expect(selectOptions(all[1], undefined).map((o) => o.label)).toEqual([
-			'All kinds',
-			'Disk health',
+			'All Kinds',
+			'Disk Health',
 			'RAID',
 			'Temperature',
-			'Disk space',
+			'Disk Space',
 			'Memory',
-			'Environment offline',
-			'Updates available',
-			'Failed job'
+			'Environment Offline',
+			'Updates Available',
+			'Failed Job'
 		]);
 		expect(selectOptions(all[2], undefined).map((o) => o.label)).toEqual([
-			'All environments',
+			'All Environments',
 			'edge',
 			'homelab'
 		]);

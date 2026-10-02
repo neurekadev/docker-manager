@@ -34,19 +34,19 @@ const RUNNING: Record<string, string> = {
 	'environment.migrate': 'Migrating',
 	'stack.build': 'Building',
 	'stack.deploy': 'Deploying',
-	'stack.down': 'Taking down',
+	'stack.down': 'Taking Down',
 	'stack.import': 'Importing',
 	'stack.migrate': 'Migrating',
 	'stack.pull': 'Pulling',
 	'stack.remove': 'Deleting',
-	'stack.remove_source': 'Removing source',
+	'stack.remove_source': 'Removing Source',
 	'stack.rename': 'Renaming',
 	'stack.restart': 'Restarting',
 	'stack.start': 'Starting',
 	'stack.stop': 'Stopping',
 	'stack.update': 'Updating',
 	'update.run': 'Updating',
-	'backup.run': 'Backing up',
+	'backup.run': 'Backing Up',
 	'restore.run': 'Restoring'
 };
 

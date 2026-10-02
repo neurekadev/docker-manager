@@ -5,7 +5,7 @@
 </script>
 
 <script lang="ts">
-	// Button (#22). Labels name the result ("Deploy", "Save changes"), never
+	// Button (#22). Labels name the result ("Deploy", "Save Changes"), never
 	// "Submit". With href it renders a link styled as a button. loading keeps
 	// the label, swaps the icon for a spinner and sets aria-busy.
 	import type { Snippet } from 'svelte';

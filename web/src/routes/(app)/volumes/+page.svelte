@@ -4,7 +4,7 @@
 	// driver, stack and environment, with "Unused" and "Managed" (Docker
 	// Manager's stacks and its own) switches (ListCard); who uses it, its
 	// stack, driver (hidden while every volume has the same), size and age.
-	// Volumes whose files Docker Manager cannot open carry a "Read-only"
+	// Volumes whose files Docker Manager cannot open carry a "Read-Only"
 	// tag with the reason (#28: non-local drivers and NFS/CIFS-backed
 	// volumes). Docker Manager's own volumes (#32) carry the shield mark
 	// and are never removed. Marks stay on the name's line, so every row
@@ -156,7 +156,7 @@
 			can(v.actions, 'volume.files.read')
 		)
 			out.push({
-				label: 'Browse files',
+				label: 'Browse Files',
 				href: routes.volume(v.environmentId, v.name, 'files')
 			});
 		if (
@@ -199,7 +199,7 @@
 		},
 		{
 			id: 'use',
-			header: 'Used by',
+			header: 'Used By',
 			cell: useCell,
 			sortValue: (v) => v.usedBy?.length ?? (v.inUse ? 1 : 0),
 			width: '170px',
@@ -272,7 +272,7 @@
 			<a class="name mono" href={routes.volume(v.environmentId, v.name)}>{v.name}</a>
 			{#if v.protection}<ProtectionMark protection={v.protection} />{/if}
 			{#if !access.local}<span class="tag" title={access.reason}
-					><Badge tone="warn">Read-only</Badge><span class="sr-only"
+					><Badge tone="warn">Read-Only</Badge><span class="sr-only"
 						>: {access.reason}</span
 					></span
 				>{/if}
@@ -286,7 +286,7 @@
 				>{v.usedBy.length} container{v.usedBy.length === 1 ? '' : 's'}</Badge
 			>
 		</span>
-	{:else if v.inUse}<Badge tone="ok" dot>In use</Badge>
+	{:else if v.inUse}<Badge tone="ok" dot>In Use</Badge>
 	{:else}<Badge>Unused</Badge>{/if}
 {/snippet}
 {#snippet sizeCell(v: Volume)}
@@ -343,7 +343,7 @@
 				<PruneButton target="volumes" {scope} />
 				{#if creatable.length}
 					<Button variant="primary" icon={Plus} onclick={() => (createOpen = true)}
-						>Create volume</Button
+						>Create Volume</Button
 					>
 				{/if}
 			{/snippet}
@@ -365,13 +365,13 @@
 			/>
 		{:else}
 			<ListCard
-				title="All volumes"
+				title="All Volumes"
 				id="volumes"
 				summary={list.data
 					? listSummary(rows.length, all.length, filtered, 'volume', 'volumes')
 					: undefined}
-				label="Filter volumes"
-				searchLabel="Search volumes"
+				label="Filter Volumes"
+				searchLabel="Search Volumes"
 				placeholder="Search name, stack or driver"
 				filters={defs}
 				store={filters}
@@ -418,7 +418,7 @@
 												variant="primary"
 												icon={Plus}
 												onclick={() => (createOpen = true)}
-												>Create volume</Button
+												>Create Volume</Button
 											>
 										{/if}
 									{/snippet}

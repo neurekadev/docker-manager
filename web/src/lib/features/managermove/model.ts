@@ -68,7 +68,7 @@ export function moveStatus(move: ManagerMove): MoveStatusView {
 	switch (move.state) {
 		case 'open':
 			return {
-				label: 'Waiting for the new server',
+				label: 'Waiting for the New Server',
 				tone: 'info',
 				pulse: true,
 				title: 'Waiting for the new server',
@@ -76,7 +76,7 @@ export function moveStatus(move: ManagerMove): MoveStatusView {
 			};
 		case 'moving':
 			return {
-				label: 'Moving apps',
+				label: 'Moving Apps',
 				tone: 'info',
 				pulse: true,
 				title: 'Moving your apps to the new server',
@@ -103,7 +103,7 @@ export function moveStatus(move: ManagerMove): MoveStatusView {
 			};
 		case 'handed_off':
 			return {
-				label: 'Handed over',
+				label: 'Handed Over',
 				tone: 'info',
 				pulse: true,
 				title: 'Handed over: waiting for the new Docker Manager to confirm',
@@ -164,12 +164,12 @@ export function moveBanner(
 ): MoveBanner | null {
 	if (lock === 'moved')
 		return {
-			title: 'This Docker Manager moved to a new server',
+			title: 'This Docker Manager Moved to a New Server',
 			body: `Nothing can be changed here. Use ${address} once it leads to the new server.`
 		};
 	if (lock === 'moving' || refused)
 		return {
-			title: 'This Docker Manager is moving to a new server',
+			title: 'This Docker Manager Is Moving to a New Server',
 			body: 'Nothing can be changed here. Your apps keep running.'
 		};
 	return null;
@@ -185,7 +185,7 @@ export const MOVE_JOB_KIND = 'manager.move';
 export const MOVE_STEPS = [
 	{
 		id: 'server',
-		label: 'New server',
+		label: 'New Server',
 		description:
 			'Docker Manager creates the setup files for the new server. You start them there.'
 	},
@@ -483,9 +483,9 @@ function movingView(move: ManagerMove, base: { moved: number; total: number }): 
 
 /** The wizard's main button on the Move step. */
 export function moveButtonLabel(phase: RunPhase): string {
-	if (phase === 'failed') return 'Try again';
+	if (phase === 'failed') return 'Try Again';
 	if (phase === 'moving' || phase === 'handing_over') return 'Moving…';
-	return 'Move everything';
+	return 'Move Everything';
 }
 
 /**
@@ -594,20 +594,20 @@ export function waitStepOf(s: MoveStatus): WaitStepId {
 function waitLabel(id: WaitStepId, s: MoveStatus, current: boolean): string {
 	switch (id) {
 		case 'wait':
-			return 'Waiting for the old server';
+			return 'Waiting for the Old Server';
 		case 'apps': {
-			if (!s.stacksTotal) return 'Moving your apps';
+			if (!s.stacksTotal) return 'Moving Your Apps';
 			const now = current && s.currentStack ? `, now: ${s.currentStack}` : '';
-			return `Moving your apps (${s.stacksMoved} of ${s.stacksTotal}${now})`;
+			return `Moving Your Apps (${s.stacksMoved} of ${s.stacksTotal}${now})`;
 		}
 		case 'jobs':
-			return 'Finishing running jobs';
+			return 'Finishing Running Jobs';
 		case 'copy':
 			return s.bytesTotal > 0
 				? `Copying Docker Manager (${formatBytes(s.bytesReceived)} of ${formatBytes(s.bytesTotal)})`
 				: 'Copying Docker Manager';
 		case 'check':
-			return 'Checking the copy';
+			return 'Checking the Copy';
 		case 'restart':
 			return 'Restarting';
 		case 'done':
@@ -672,8 +672,8 @@ export function waitNotice(s: MoveStatus): WaitNotice | null {
 	if (waitStepOf(s) === 'wait' && s.oldState === 'open')
 		return {
 			tone: 'info',
-			title: 'Ready when you are',
-			body: 'On the old server, press Move everything to start.'
+			title: 'Ready When You Are',
+			body: 'On the old server, press Move Everything to start.'
 		};
 	return null;
 }

@@ -9,7 +9,7 @@
 
 <script lang="ts">
 	// Container terminal (#8, #22): pick the container (a stack's services),
-	// the shell (Detect automatically: Bash if present, else sh; the agent
+	// the shell (Detect Automatically: Bash if present, else sh; the agent
 	// finds it in the container) and connect; xterm fills the space and
 	// follows its size. `autoConnect` connects once on arrival (a link such
 	// as "Open a terminal in silo-web"), never on a plain visit.
@@ -172,7 +172,7 @@
 					? 'Disconnected'
 					: session.state === 'closed'
 						? 'Ended'
-						: 'Not connected'
+						: 'Not Connected'
 	);
 </script>
 
@@ -218,7 +218,7 @@
 					loading={busy}
 					disabled={!target || !!target.unavailable || !term}
 					>{session.state === 'closed' || session.state === 'failed'
-						? 'Connect again'
+						? 'Connect Again'
 						: 'Connect'}</Button
 				>
 			{/if}
@@ -263,7 +263,7 @@
 	{/if}
 
 	<div class="screen">
-		<TerminalView label="{label} output" fit rawNewlines bind:terminal={term} {onready} />
+		<TerminalView label="{label} Output" fit rawNewlines bind:terminal={term} {onready} />
 		{#if session.state === 'idle'}
 			<div class="overlay" aria-hidden="true">
 				<SquareTerminal size={28} strokeWidth={1.5} />

@@ -46,7 +46,7 @@
 
 	function where(a: BackupActivity): string {
 		return a.kind.startsWith('manager.')
-			? 'Manager state'
+			? 'Manager State'
 			: a.environmentId
 				? environmentName(a.environmentId)
 				: 'Environment';
@@ -154,7 +154,7 @@
 						role="progressbar"
 						tone="neutral"
 						size="sm"
-						label="{retention ? 'Retention' : 'Backup'} progress of {policyName(
+						label="{retention ? 'Retention' : 'Backup'} Progress of {policyName(
 							a.policyId
 						)}, {where(a)}"
 						valueText={pct >= 0 ? formatPercent(pct) : 'Starting'}
@@ -194,8 +194,8 @@
 		title="Cancel this {retention ? 'retention' : 'backup'}?"
 		message="{what(confirming)} · {where(confirming)}"
 		consequences={consequences(confirming)}
-		confirmLabel="Cancel {retention ? 'retention' : 'backup'}"
-		cancelLabel={retention ? 'Keep running' : 'Keep backing up'}
+		confirmLabel="Cancel {retention ? 'Retention' : 'Backup'}"
+		cancelLabel={retention ? 'Keep Running' : 'Keep Backing Up'}
 		tone="danger"
 		onconfirm={cancel}
 	/>

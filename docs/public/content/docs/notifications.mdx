@@ -12,14 +12,14 @@ them.
 
 ## Add a channel
 
-1. Open **Settings → Notifications** and press **Add channel**.
+1. Open **Settings → Notifications** and press **Add Channel**.
 2. Enter a **Name** and choose the **Service**.
 3. Fill in what the service asks for (see
    [What each service needs](#what-each-service-needs)).
-4. Under **What to send**, tick what the channel is for (see
-   [What to send](#what-to-send)), and choose **All environments** or
-   **Some environments**.
-5. Press **Add channel**. Docker Manager may ask you to confirm your
+4. Under **What to Send**, tick what the channel is for (see
+   [What to send](#what-to-send)), and choose **All Environments** or
+   **Some Environments**.
+5. Press **Add Channel**. Docker Manager may ask you to confirm your
    identity first.
 
 A channel that is not **Enabled** gets nothing but test messages.
@@ -31,22 +31,22 @@ the outcomes you want beside it. A new channel sends everything.
 
 | Row | Outcomes |
 | --- | --- |
-| **Disk health**, **RAID**, **Temperature**, **Disk space**, **Memory** | **Warning**, **Critical**, **Resolved** |
-| **Environment offline** | **Offline**, **Back online** |
+| **Disk Health**, **RAID**, **Temperature**, **Disk Space**, **Memory** | **Warning**, **Critical**, **Resolved** |
+| **Environment Offline** | **Offline**, **Back Online** |
 | **Backups** | **Failure**, **Warning** (everything was saved, but some files could not be read or an item was skipped; or a verification, retention or import partly failed or was interrupted), **Success** |
 | **Restores** | **Failure**, **Success** |
 | **Prune** | **Failure**, **Success** |
-| **Image updates** | **Available** (a check found newer images), **Failure**, **Applied** |
-| **Other jobs** | **Failure**, **Warning** (partly failed or interrupted), **Resolved** |
+| **Image Updates** | **Available** (a check found newer images), **Failure**, **Applied** |
+| **Other Jobs** | **Failure**, **Warning** (partly failed or interrupted), **Resolved** |
 
 Backups, restores, prunes and updates are reported however they were
 started. Other jobs are reported only when they fail and a schedule or
 an API token started them, under the row of their area: a backup
 verification, retention or import under **Backups**, an update check
-under **Image updates**. When such a job's next run succeeds, a channel
-that got the failure gets a **Resolved** message. **Other jobs** holds
+under **Image Updates**. When such a job's next run succeeds, a channel
+that got the failure gets a **Resolved** message. **Other Jobs** holds
 the rest, such as a deploy started with an API token. The (i) beside
-**Backups**, **Image updates** and **Other jobs** says what each covers.
+**Backups**, **Image Updates** and **Other Jobs** says what each covers.
 
 Messages use what each service can show. In Discord and Slack the strip
 beside the message is red for failures and critical problems, amber for
@@ -61,20 +61,20 @@ priority and a link.
 
 ## Send a test
 
-Press **Send test** in the message that confirms the new channel, or in
+Press **Send Test** in the message that confirms the new channel, or in
 the channel's menu. A message tells you that it was sent, or what failed
 and what to check. A test email's subject starts with `[Test]`.
 
 The **Status** column shows the last result: **Working**, **Failing**
-(point at it for the reason), **Not tested** or **Off**.
+(point at it for the reason), **Not Tested** or **Off**.
 
 ## View or change a channel
 
 1. Open the channel's menu and press **Edit**.
-2. The address is stored encrypted. Press **Show address** to see and
+2. The address is stored encrypted. Press **Show Address** to see and
    change it; Docker Manager asks you to confirm your identity, and the
    audit log records every time it is shown.
-3. Change what you need and press **Save changes**.
+3. Change what you need and press **Save Changes**.
 
 Choosing another **Service** replaces the address. To remove a channel,
 press **Delete** in its menu.
@@ -86,12 +86,12 @@ press **Delete** in its menu.
 | Discord | The channel's **Webhook URL** (Edit channel → Integrations → Webhooks) |
 | Slack | An incoming webhook's **Webhook URL** |
 | Microsoft Teams | The **Workflow URL** of a Power Automate workflow started by "When a Teams webhook request is received" |
-| Telegram | The **Bot token** from @BotFather and the **Chats** (chat IDs or `@channel` names) |
-| Email (SMTP) | Your mail server's **SMTP server**, **Port** and **Encryption**, a **Username** and **Password** if it needs a login, the **From** and **To** addresses and, if you like, a **From name** (the sender's name, Docker Manager unless you change it) |
+| Telegram | The **Bot Token** from @BotFather and the **Chats** (chat IDs or `@channel` names) |
+| Email (SMTP) | Your mail server's **SMTP Server**, **Port** and **Encryption**, a **Username** and **Password** if it needs a login, the **From** and **To** addresses and, if you like, a **From Name** (the sender's name, Docker Manager unless you change it) |
 | ntfy | The **Server** (`ntfy.sh` or your own) and a **Topic**; a login for a server with access control |
-| Gotify | The **Server** and an **Application token** |
-| Pushover | Your **User key** and an application's **API token** |
-| Matrix | The **Homeserver**, a **Password or access token** and, if you like, the **Rooms** |
+| Gotify | The **Server** and an **Application Token** |
+| Pushover | Your **User Key** and an application's **API Token** |
+| Matrix | The **Homeserver**, a **Password or Access Token** and, if you like, the **Rooms** |
 | Webhook | The **Webhook URL**; Docker Manager sends JSON with title and message, or plain text |
 | Other (Shoutrrr URL) | The service's Shoutrrr URL, for example `bark://…` |
 

@@ -178,7 +178,7 @@ describe('scopes and capabilities (#17)', () => {
 	});
 
 	it('names capabilities in plain language', () => {
-		expect(capabilityLabel(catalog, 'container.restart')).toBe('Restart (containers)');
+		expect(capabilityLabel(catalog, 'container.restart')).toBe('Restart (Containers)');
 		expect(capabilityLabel(catalog, 'stack.create')).toBe('Create stacks');
 		expect(capabilityLabel(catalog, 'nope.x')).toBe('nope.x');
 	});
@@ -436,7 +436,7 @@ describe('accounts and tokens', () => {
 		expect(accountStatus({ status: 'disabled', owner: false }).label).toBe('Disabled');
 		expect(
 			accountStatus({ status: 'active', owner: false, enrollmentDeadline: 'x' }).label
-		).toBe('Enrolling factors');
+		).toBe('Enrolling Factors');
 		expect(invitationStatus('pending').label).toBe('Pending');
 		expect(tokenStatus('revoked').label).toBe('Revoked');
 	});

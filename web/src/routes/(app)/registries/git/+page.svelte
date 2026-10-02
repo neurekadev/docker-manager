@@ -2,7 +2,7 @@
 	// Git credentials (#33): HTTPS tokens for builds from private
 	// repositories; managed like registry connections (write-only token,
 	// rotate, revoke, test with a repository URL). The header's "Add
-	// credential" opens the dialog (?create=1).
+	// Credential" opens the dialog (?create=1).
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import { gitCredentialsQuery, type GitCredential } from '$lib/api/queries';
@@ -32,8 +32,8 @@
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({
-		title: 'Git credentials',
-		crumbs: [{ label: 'Registries', href: routes.registries() }, { label: 'Git credentials' }]
+		title: 'Git Credentials',
+		crumbs: [{ label: 'Registries', href: routes.registries() }, { label: 'Git Credentials' }]
 	});
 
 	const scope = useEnvironmentScope();
@@ -53,12 +53,12 @@
 		if (manage) {
 			out.push(
 				{
-					label: 'Test connection',
+					label: 'Test Connection',
 					onSelect: () => host?.request({ kind: 'git', item: c }, 'test')
 				},
 				{ label: 'Edit', onSelect: () => ((editing = c), (editOpen = true)) },
 				{
-					label: 'Rotate token',
+					label: 'Rotate Token',
 					onSelect: () => host?.request({ kind: 'git', item: c }, 'rotate')
 				},
 				{ separator: true }
@@ -105,7 +105,7 @@
 		},
 		{
 			id: 'used',
-			header: 'Last used',
+			header: 'Last Used',
 			cell: usedCell,
 			sortValue: (c) => c.lastUsedAt ?? '',
 			width: '130px',
@@ -181,7 +181,7 @@
 			<div class="loading" aria-busy="true"><Skeleton lines={3} height="20px" /></div>
 		{:else}
 			<Table
-				label="Git credentials"
+				label="Git Credentials"
 				{rows}
 				{columns}
 				rowKey={(c) => c.id}

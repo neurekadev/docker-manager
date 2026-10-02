@@ -99,13 +99,13 @@ describe('container page', () => {
 		mount();
 
 		expect(await screen.findByText('Overview tab')).toBeInTheDocument();
-		const region = await screen.findByRole('region', { name: 'Running jobs of web' });
-		expect(region).toHaveTextContent('Restart container web');
+		const region = await screen.findByRole('region', { name: 'Running Jobs of web' });
+		expect(region).toHaveTextContent('Restart Container web');
 		expect(
-			screen.getByRole('progressbar', { name: 'Restart container web progress' })
+			screen.getByRole('progressbar', { name: 'Restart Container web progress' })
 		).toBeInTheDocument();
 		// The other container's job is not shown here.
-		expect(screen.queryByText('Restart container db')).not.toBeInTheDocument();
+		expect(screen.queryByText('Restart Container db')).not.toBeInTheDocument();
 		const list = fetched.find((u) => u.startsWith('/api/v1/jobs?')) ?? '';
 		expect(decodeURIComponent(list)).toContain(
 			'state=queued,blocked,dispatched,running,cancelling'
@@ -123,7 +123,7 @@ describe('container page', () => {
 		await new Promise((r) => setTimeout(r, 0));
 		expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 		expect(
-			screen.queryByRole('region', { name: 'Running jobs of web' })
+			screen.queryByRole('region', { name: 'Running Jobs of web' })
 		).not.toBeInTheDocument();
 	});
 });

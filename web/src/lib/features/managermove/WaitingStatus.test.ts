@@ -74,16 +74,16 @@ describe('WaitingStatus', () => {
 		page();
 
 		expect(
-			await screen.findByRole('heading', { level: 1, name: 'Moving Docker Manager here' })
+			await screen.findByRole('heading', { level: 1, name: 'Moving Docker Manager Here' })
 		).toBeInTheDocument();
-		const steps = await screen.findByRole('list', { name: 'Steps of the move' });
+		const steps = await screen.findByRole('list', { name: 'Steps of the Move' });
 		const items = within(steps).getAllByRole('listitem');
 		expect(items.map((li) => li.textContent?.trim())).toEqual([
-			'Waiting for the old server: done',
-			'Moving your apps (2 of 5, now: immich): in progress',
-			'Finishing running jobs: not started',
+			'Waiting for the Old Server: done',
+			'Moving Your Apps (2 of 5, now: immich): in progress',
+			'Finishing Running Jobs: not started',
 			'Copying Docker Manager: not started',
-			'Checking the copy: not started',
+			'Checking the Copy: not started',
 			'Restarting: not started',
 			'Done: not started'
 		]);
@@ -106,7 +106,7 @@ describe('WaitingStatus', () => {
 				'Point DNS for docker.example.com at this server, then sign in there as usual. You can remove DOCKER_MANAGER_MOVE_FROM and DOCKER_MANAGER_MOVE_CODE from the .env.'
 			)
 		).toBeInTheDocument();
-		const items = within(screen.getByRole('list', { name: 'Steps of the move' })).getAllByRole(
+		const items = within(screen.getByRole('list', { name: 'Steps of the Move' })).getAllByRole(
 			'listitem'
 		);
 		expect(items.every((li) => li.getAttribute('aria-current') === null)).toBe(true);
@@ -126,20 +126,20 @@ describe('WaitingStatus', () => {
 		expect(
 			screen.getByText('Update Docker Manager on this server, then restart it.')
 		).toBeInTheDocument();
-		const items = within(screen.getByRole('list', { name: 'Steps of the move' })).getAllByRole(
+		const items = within(screen.getByRole('list', { name: 'Steps of the Move' })).getAllByRole(
 			'listitem'
 		);
 		expect(items[4]).toHaveAttribute('aria-current', 'step');
-		expect(items[4]).toHaveTextContent('Checking the copy: failed');
+		expect(items[4]).toHaveTextContent('Checking the Copy: failed');
 	});
 
 	it('says what to do on the old server while the move waits for it', async () => {
 		status = base({ oldState: 'open' });
 		page();
 
-		expect(await screen.findByText('Ready when you are')).toBeInTheDocument();
+		expect(await screen.findByText('Ready When You Are')).toBeInTheDocument();
 		expect(
-			screen.getByText('On the old server, press Move everything to start.')
+			screen.getByText('On the old server, press Move Everything to start.')
 		).toBeInTheDocument();
 	});
 });

@@ -65,7 +65,7 @@
 
 <Dialog
 	bind:open
-	title="New template"
+	title="New Template"
 	description="A template is a complete Compose project you can create stacks from. It starts private, with a starter compose.yaml you edit next."
 	size="md"
 	dismissible={!saving}
@@ -114,7 +114,7 @@
 			type="submit"
 			form="create-template"
 			loading={saving}
-			disabled={!name.trim() || !!tagError}>Create template</Button
+			disabled={!name.trim() || !!tagError}>Create Template</Button
 		>
 	{/snippet}
 </Dialog>

@@ -483,15 +483,15 @@ describe('command palette model', () => {
 		expect(actionResults(undefined, null)).toEqual([]);
 		const owner = actionResults(accessOf(perms({ owner: true })), 'e1');
 		expect(owner.map((a) => [a.label, a.href])).toEqual([
-			['Create stack', '/stacks?create=1&environment=e1'],
-			['Create container', '/containers/new?environment=e1'],
-			['Build image', '/builds/new?environment=e1'],
-			['Add environment', '/environments/add']
+			['Create Stack', '/stacks?create=1&environment=e1'],
+			['Create Container', '/containers/new?environment=e1'],
+			['Build Image', '/builds/new?environment=e1'],
+			['Add Environment', '/environments/add']
 		]);
 		const builder = actionResults(accessOf(perms({ entries: [allow('image.build')] })), null);
-		expect(builder.map((a) => a.label)).toEqual(['Build image']);
+		expect(builder.map((a) => a.label)).toEqual(['Build Image']);
 		const stacksOnly = actionResults(accessOf(perms({ owner: true })), null, 'stack');
-		expect(stacksOnly.map((a) => a.label)).toEqual(['Create stack']);
+		expect(stacksOnly.map((a) => a.label)).toEqual(['Create Stack']);
 	});
 
 	const hit = (h: Partial<SearchHit>): SearchHit =>

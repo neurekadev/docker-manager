@@ -35,8 +35,8 @@
 
 <div class="test">
 	<div class="row">
-		{#if test.ok}<Badge tone="ok" dot>Connection works</Badge>{:else}<Badge tone="danger" dot
-				>Connection failed</Badge
+		{#if test.ok}<Badge tone="ok" dot>Connection Works</Badge>{:else}<Badge tone="danger" dot
+				>Connection Failed</Badge
 			>{/if}
 		{#each checks as c (c.label)}
 			<Badge tone={c.v ? 'ok' : 'danger'}>{c.label}: {c.v ? 'yes' : 'no'}</Badge>
@@ -47,7 +47,7 @@
 		<p class="danger">{RESULT[test.result] ?? test.message ?? test.result}</p>
 	{/if}
 	{#if test.objectLock}
-		<Notice tone="warn" title="The bucket enforces Object Lock" live="none">
+		<Notice tone="warn" title="The Bucket Enforces Object Lock" live="none">
 			Retention may be unable to delete old backups until their lock expires. Backups still
 			work.
 		</Notice>
@@ -59,10 +59,10 @@
 			{#each test.scopes as s (s.scope)}
 				<li>
 					<span class="mono">{s.scope}</span>
-					{#if !s.exists}<Badge>Not created yet</Badge>
+					{#if !s.exists}<Badge>Not Created Yet</Badge>
 					{:else if s.keyAccepted}<Badge tone="ok">Opens with the Recovery Key</Badge>
-					{:else if s.previousKey}<Badge tone="warn">Still on the previous key</Badge>
-					{:else}<Badge tone="danger">Key rejected</Badge>{/if}
+					{:else if s.previousKey}<Badge tone="warn">Still on the Previous Key</Badge>
+					{:else}<Badge tone="danger">Key Rejected</Badge>{/if}
 					{#if s.errorClass}<span class="danger">{s.errorClass.replaceAll('_', ' ')}</span
 						>{/if}
 				</li>

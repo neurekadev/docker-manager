@@ -9,30 +9,30 @@ A **template** is a complete Compose app: `compose.yaml`, an optional
 
 ## Create a template
 
-1. Open **Templates** and press **New template**. Enter a name, a short
-   description and tags, and press **Create template**.
+1. Open **Templates** and press **New Template**. Enter a name, a short
+   description and tags, and press **Create Template**.
 2. On the **Files** tab, edit the starter `compose.yaml`, add a `.env` and
    the files your services need.
-3. Press **Publish version**, enter a **Version** such as `1.0.0` and **What
-   changed**. The version's files are frozen; you can keep editing the
+3. Press **Publish Version**, enter a **Version** such as `1.0.0` and **What
+   Changed**. The version's files are frozen; you can keep editing the
    draft.
 
 A template needs a `compose.yaml` (or `docker-compose.yml`) at the top,
 must not set a top-level `name:`, and holds up to 32 MB and 5,000 files.
 
 To turn a running app into a template, open the stack and choose **More
-stack actions → Save as template**. Save it as a new template, or into an
+Stack Actions → Save as Template**. Save it as a new template, or into an
 existing template's draft (this replaces the draft). Leave out data folders
 such as databases or uploads.
 
 ## Create a stack from a template
 
-1. Open **Stacks → Create stack ▾ → Create stack from template**, or press
-   **Create stack** on a template's page.
+1. Open **Stacks → Create Stack ▾ → Create Stack From Template**, or press
+   **Create Stack** on a template's page.
 2. Pick the template, its **Version**, the **Environment** and a **Name**.
 3. Change the `.env` values for this stack, such as passwords.
-4. Press **Create stack**, or tick **Deploy after creating** and press
-   **Create and deploy**.
+4. Press **Create Stack**, or tick **Deploy After Creating** and press
+   **Create and Deploy**.
 
 The stack gets its own copy of the files. Changing the template later does
 not change the stack.
@@ -41,8 +41,8 @@ not change the stack.
 
 The **Versions** tab lists every published version.
 
-- **Restore draft** puts a version's files back into the draft.
-- **Duplicate as a new template** makes your own copy of a version.
+- **Restore Draft** puts a version's files back into the draft.
+- **Duplicate as a New Template** makes your own copy of a version.
 - Deleting a version does not affect stacks created from it.
 
 Under **Settings** you can upload an icon (PNG, JPEG, GIF, WebP or SVG, up
@@ -50,7 +50,7 @@ to 256 KB and 1024 × 1024 pixels), and change the details, tags and links.
 
 ## Share templates
 
-New templates are **private**. **Settings → Make public** shares a template
+New templates are **private**. **Settings → Make Public** shares a template
 with other Docker Manager installations.
 
 <Callout type="warn" title="Public means public">
@@ -61,10 +61,10 @@ with other Docker Manager installations.
 
 To use templates from another Docker Manager:
 
-1. On the other one, copy the address under **Templates → Template sources
-   → Share your templates**.
-2. On yours, open **Templates → Template sources**, press **Add template
-   source** and paste it. The address must use HTTPS. Only the owner can
+1. On the other one, copy the address under **Templates → Template Sources
+   → Share Your Templates**.
+2. On yours, open **Templates → Template Sources**, press **Add Template
+   Source** and paste it. The address must use HTTPS. Only the owner can
    add sources.
 
 Its public templates now appear on your **Templates** page, marked with its

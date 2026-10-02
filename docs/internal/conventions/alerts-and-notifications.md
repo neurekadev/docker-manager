@@ -46,15 +46,19 @@ web `web/src/lib/features/notifications`.
   Discord fetches it itself, and the manager's own address may be
   private. Callers never format for a service.
 - **One message convention** (`alerts/message.go`): the status line is
-  the kind and outcome as **What to send** names them (`alerts.Label`,
-  "Disk health · Critical", "Backups · Success"; a resolution "…
+  the kind and outcome as **What to Send** names them (`alerts.Label`,
+  "Disk Health · Critical", "Backups · Success"; a resolution "…
   · Resolved", `deliveryLabel`); the title puts the subject first, then
   what happened ("Disk /dev/sda is failing", "Update of Paperless
   succeeded"; a backup policy's run is its policy, "Daily Backups
   succeeded"), names the environment only when it is the subject
   ("homelab is offline") and never the instance (the footer does);
   resolutions are "Resolved: <title>"; digest entries put a problem's
-  severity first and a finished run's title alone. Fields: the
+  severity first and a finished run's title alone. Status lines and
+  field names are Title Case labels ("Started By", "What to Do"); a
+  failed job's Job field is `kindLabel` (`kindNoun`, the titles' word,
+  in Title Case) and a filesystem's `MountLabel` ("Docker Data";
+  `mountWords` inside sentences). Fields: the
   environment, the target (a stack by its display name), the policy and
   the repository link to their pages (an update policy: the environment
   policy above the target's record, `putUpdatePolicy`, never the record,
@@ -129,12 +133,12 @@ web `web/src/lib/features/notifications`.
 - **Web:** the dialog builds the URL from friendly fields
   (`services.ts`: `buildUrl`/`parseUrl`, round trip exact, unknown shapes
   edited as the raw URL under "Other"); extra query options of a stored URL
-  are kept. Email's **From name** is written as `fromname` only when it
+  are kept. Email's **From Name** is written as `fromname` only when it
   is not the default. Secrets are `PasswordField`s; the stored address stays masked
-  until "Show address" (`withStepUp`). "What to send" is one row per kind
+  until "Show Address" (`withStepUp`). "What to Send" is one row per kind
   (a master checkbox, the kind's outcomes beside it; a kind whose label
   does not say all it covers explains it in an (i) beside it (`InfoTip`,
-  `EventKindInfo.hint`: Backups, Image updates, Other jobs)). Channel changes
+  `EventKindInfo.hint`: Backups, Image Updates, Other Jobs)). Channel changes
   arrive on the live topic `settings` (`notificationKeys`).
 
 ## Alerts (#159) and notifications

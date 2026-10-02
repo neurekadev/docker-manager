@@ -2,7 +2,7 @@
 	// One build (#33): its source, the exact commit it built (resolved from
 	// the ref before the build), the result (image, duration or the error in
 	// words) and the live BuildKit log. A running build can be cancelled; a
-	// finished one built again with the same inputs ("Build again": its
+	// finished one built again with the same inputs ("Build Again": its
 	// definition's run, else the same source; with build arguments, whose
 	// values are never kept, the prefilled form) or saved as a definition.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -175,7 +175,7 @@
 						title: b.gitUrl
 					},
 					{ label: 'Ref', value: b.ref || 'Default branch', mono: !!b.ref },
-					{ label: 'Resolved to', value: b.resolvedRef, mono: true },
+					{ label: 'Resolved To', value: b.resolvedRef, mono: true },
 					{ label: 'Commit', value: b.resolvedCommit, mono: true },
 					{
 						label: 'Context',
@@ -183,14 +183,14 @@
 						mono: !!b.contextPath
 					},
 					{ label: 'Dockerfile', value: b.dockerfile || 'Dockerfile', mono: true },
-					{ label: 'Target stage', value: b.target, mono: true },
+					{ label: 'Target Stage', value: b.target, mono: true },
 					{
 						label: 'Platform',
 						value: b.platform || "The environment's platform",
 						mono: !!b.platform
 					},
 					{
-						label: 'Build arguments',
+						label: 'Build Arguments',
 						value: b.buildArgNames.join(', '),
 						mono: true,
 						note: b.buildArgNames.length ? 'names only' : undefined
@@ -208,7 +208,7 @@
 	const result = $derived<Fact[]>(
 		b
 			? [
-					{ label: 'Image names', value: b.tags.join(', '), mono: true },
+					{ label: 'Image Names', value: b.tags.join(', '), mono: true },
 					{
 						label: 'Image ID',
 						value: b.imageId,
@@ -248,7 +248,7 @@
 			level={1}
 		>
 			{#snippet actions()}<Button variant="secondary" href={routes.builds()}
-					>Back to builds</Button
+					>Back to Builds</Button
 				>{/snippet}
 		</EmptyState>
 	{:else if q.isError}
@@ -268,12 +268,12 @@
 			{#snippet actions()}
 				{#if canBuild && !running}
 					<Button variant="primary" icon={RotateCw} loading={again} onclick={buildAgain}
-						>Build again</Button
+						>Build Again</Button
 					>
 				{/if}
 				{#if canSave && !b.definitionId}
 					<Button icon={FileCode} onclick={() => (saveOpen = true)}
-						>Save as definition</Button
+						>Save as Definition</Button
 					>
 				{/if}
 				{#if b.resolvedCommit}<CopyButton
@@ -283,7 +283,7 @@
 					/>{/if}
 				{#if cancellable}
 					<Button variant="danger-soft" icon={Square} onclick={() => (cancelOpen = true)}
-						>Cancel build</Button
+						>Cancel Build</Button
 					>
 				{/if}
 			{/snippet}
@@ -299,7 +299,7 @@
 				{#if b.errorClass}
 					<Disclosure summary="Details">
 						<span class="muted"
-							>Error class: <span class="mono">{b.errorClass}</span></span
+							>Error Class: <span class="mono">{b.errorClass}</span></span
 						>
 					</Disclosure>
 				{/if}
@@ -311,8 +311,8 @@
 		{/if}
 
 		<Columns ratio="equal">
-			<Card title="Source"><Facts items={source} label="Source of the build" /></Card>
-			<Card title="Result"><Facts items={result} label="Result of the build" /></Card>
+			<Card title="Source"><Facts items={source} label="Source of the Build" /></Card>
+			<Card title="Result"><Facts items={result} label="Result of the Build" /></Card>
 		</Columns>
 		<Card title="Log">
 			{#key b.jobId}<BuildLog
@@ -329,8 +329,8 @@
 				'BuildKit stops at the next safe point; nothing is tagged.',
 				'Layers built so far stay in the build cache.'
 			]}
-			confirmLabel="Cancel build"
-			cancelLabel="Keep building"
+			confirmLabel="Cancel Build"
+			cancelLabel="Keep Building"
 			tone="danger"
 			onconfirm={cancel}
 		/>

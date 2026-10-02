@@ -107,12 +107,12 @@
 		},
 		{
 			id: 'test',
-			label: 'Check access',
+			label: 'Check Access',
 			description: 'Which repositories this Docker Manager can open.'
 		},
 		{
 			id: 'set',
-			label: 'Choose a backup',
+			label: 'Choose a Backup',
 			description: 'Backup sets found in the repositories, newest first.'
 		},
 		{
@@ -193,16 +193,16 @@
 	}
 </script>
 
-<svelte:head><title>Import from backup · Docker Manager</title></svelte:head>
+<svelte:head><title>Import From Backup · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<AuthHeader
-		title="Import from backup"
+		title="Import From Backup"
 		lead="Recover a Docker Manager from its backups on this new, empty manager. You need the backup location, its access keys if it is S3, and your Recovery Key; not the old manager."
 	>
 		{#snippet before()}
 			<a class="back" href={routes.setup()}
-				><ArrowLeft size={14} aria-hidden="true" /> Set up a new Docker Manager instead</a
+				><ArrowLeft size={14} aria-hidden="true" /> Set Up a New Docker Manager Instead</a
 			>
 		{/snippet}
 	</AuthHeader>
@@ -214,7 +214,7 @@
 			<Notice
 				tone="danger"
 				icon={ShieldAlert}
-				title="Import on Docker Manager's public URL"
+				title="Import on Docker Manager's Public URL"
 				live="alert"
 			>
 				{status.data?.explanation ??
@@ -222,14 +222,14 @@
 			</Notice>
 		{/if}
 		<StepWizard
-			label="Import from backup"
+			label="Import From Backup"
 			{steps}
 			bind:current
 			{onnext}
 			onfinish={finish}
 			{canAdvance}
-			nextLabel={current === 0 ? 'Check access' : current === 1 ? 'Show backups' : 'Next'}
-			finishLabel={done ? 'Sign in' : started ? 'Importing…' : 'Import and restart'}
+			nextLabel={current === 0 ? 'Check Access' : current === 1 ? 'Show Backups' : 'Next'}
+			finishLabel={done ? 'Sign In' : started ? 'Importing…' : 'Import and Restart'}
 		>
 			{#snippet step(s)}
 				{#if s.id === 'source'}
@@ -264,12 +264,12 @@
 				{:else if s.id === 'test' && test}
 					<Fields>
 						<div class="row">
-							{#if test.ok}<Badge tone="ok" dot>Access works</Badge>{:else}<Badge
+							{#if test.ok}<Badge tone="ok" dot>Access Works</Badge>{:else}<Badge
 									tone="danger"
-									dot>No access</Badge
+									dot>No Access</Badge
 								>{/if}
 							<span class="muted"
-								>Key fingerprint <span class="mono">{test.keyFingerprint}</span
+								>Key Fingerprint <span class="mono">{test.keyFingerprint}</span
 								></span
 							>
 							<span class="muted"
@@ -278,7 +278,7 @@
 						</div>
 						{#each test.problems as p (p)}<Notice
 								tone="warn"
-								title="Needs attention"
+								title="Needs Attention"
 								live="none">{p}</Notice
 							>{/each}
 						{#if test.objectLock}
@@ -306,13 +306,13 @@
 				{:else if s.id === 'set' && preview}
 					<Fields>
 						{#if preview.sets.length === 0}
-							<Notice tone="warn" title="No backup sets found" live="none">
+							<Notice tone="warn" title="No Backup Sets Found" live="none">
 								The repositories hold no Docker Manager backup set. Check the
 								destination and the key.
 							</Notice>
 						{:else}
 							<RadioGroup
-								label="Backup set"
+								label="Backup Set"
 								bind:value={setId}
 								onchange={() => (checked = null)}
 								options={preview.sets.map((x) => ({
@@ -327,7 +327,7 @@
 						{/if}
 						{#if selectedSet}
 							<div class="members">
-								<p class="head">What this set holds</p>
+								<p class="head">What This Set Holds</p>
 								<ul role="list">
 									{#each selectedSet.members as m, i (`${m.scope}-${m.item}-${i}`)}
 										{@const l = located(m.located)}
@@ -354,7 +354,7 @@
 									<Notice
 										tone={selectedSet.keyBundle === 'ok' ? 'info' : 'danger'}
 										title={selectedSet.keyBundle === 'ok'
-											? 'Ready to import'
+											? 'Ready to Import'
 											: 'This set cannot be imported yet'}
 										live="status"
 									>
@@ -372,7 +372,7 @@
 				{:else if s.id === 'import'}
 					<Fields>
 						{#if !started}
-							<Notice tone="warn" title="What the import does" live="none">
+							<Notice tone="warn" title="What the Import Does" live="none">
 								<ul class="plain" role="list">
 									<li>
 										This manager's empty state is replaced by the backup and the
@@ -430,7 +430,7 @@
 									>{job?.restartPending || health.isError
 										? 'Restarting Docker Manager'
 										: job?.state === 'running'
-											? 'Restoring the manager state'
+											? 'Restoring the Manager State'
 											: 'Queued'}</Badge
 								>
 								<p class="muted small">

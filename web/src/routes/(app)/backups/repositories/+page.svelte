@@ -31,7 +31,7 @@
 	import { repositoriesQuery } from '$lib/features/backups/queries';
 
 	usePage({
-		title: 'Backup repositories',
+		title: 'Backup Repositories',
 		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'Repositories' }]
 	});
 
@@ -53,7 +53,7 @@
 		{ id: 'test', header: 'Connection', cell: testCell, width: '240px', stack: 'meta' },
 		{
 			id: 'verified',
-			header: 'Last verified',
+			header: 'Last Verified',
 			cell: verifiedCell,
 			width: '150px',
 			stack: 'hidden'
@@ -71,7 +71,7 @@
 {/snippet}
 {#snippet stateCell(r: BackupRepository)}
 	{#if r.state === 'ready'}<Badge tone="ok" dot>Confirmed</Badge>{:else}<Badge tone="warn" dot
-			>Awaiting confirmation</Badge
+			>Awaiting Confirmation</Badge
 		>{/if}
 {/snippet}
 {#snippet testCell(r: BackupRepository)}
@@ -94,7 +94,7 @@
 		{#snippet actions()}
 			<!-- Without a ready repository the header's primary button adds one. -->
 			{#if perms.data?.owner && (repos.data ?? []).some((r) => r.state === 'ready')}
-				<Button icon={Plus} href={routes.backupRepositoryNew()}>Add repository</Button>
+				<Button icon={Plus} href={routes.backupRepositoryNew()}>Add Repository</Button>
 			{/if}
 		{/snippet}
 	</BackupsHeader>
@@ -102,7 +102,7 @@
 		<QueryView query={repos} errorTitle="The backup repositories could not be loaded.">
 			{#snippet children(rows)}
 				<Table
-					label="Backup repositories"
+					label="Backup Repositories"
 					{rows}
 					{columns}
 					rowKey={(r) => r.id}
@@ -121,7 +121,7 @@
 									<Button
 										variant="primary"
 										icon={Plus}
-										href={routes.backupRepositoryNew()}>Add repository</Button
+										href={routes.backupRepositoryNew()}>Add Repository</Button
 									>
 								{/if}
 							{/snippet}

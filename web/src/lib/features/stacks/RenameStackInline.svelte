@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Rename a stack's Compose project in place (#7), in the stack header's
-	// title row: the field edits the project name (labelled "Stack name",
+	// title row: the field edits the project name (labelled "Stack Name",
 	// also when the heading shows a display name). Enter or the check button
 	// renames at once, without a confirmation (owner decision); Escape or
 	// the cancel button leaves the name as it was. The name is checked
@@ -92,12 +92,12 @@
 <form class="rename" onsubmit={submit} novalidate aria-label="Rename {stack.name}">
 	<!-- The visible hint; the field's own label says the same to assistive technology. -->
 	<span class="hint" aria-hidden="true"
-		>Stack name{#if note}<span class="note"> · {note}</span>{/if}</span
+		>Stack Name{#if note}<span class="note"> · {note}</span>{/if}</span
 	>
 	<div class="row">
 		<div class="field">
 			<TextField
-				label="Stack name"
+				label="Stack Name"
 				hideLabel
 				bind:value={name}
 				bind:ref={input}
@@ -122,14 +122,14 @@
 			type="submit"
 			variant="secondary"
 			icon={Check}
-			label="Rename stack"
+			label="Rename Stack"
 			disabled={submitting}
 			aria-busy={submitting || undefined}
 		/>
 		<IconButton
 			variant="ghost"
 			icon={X}
-			label="Cancel rename"
+			label="Cancel Rename"
 			disabled={submitting}
 			onclick={onclose}
 		/>

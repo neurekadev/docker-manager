@@ -329,7 +329,7 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   a conflict policy, and files over `limits.uploadMaxBytes` fail in the
   queue without being sent; downloads of several entries or a folder are ZIP
   archives. Conflicts (`conflict-previews`) are asked per item, "Apply to
-  all" off; one request per decision group, conflict-free items with
+  All" off; one request per decision group, conflict-free items with
   `fail`. Extraction and archive names ask once (one request). Delete,
   chmod/chown show the previewed impact; recursive and multi-entry deletes
   need type-to-confirm. Jobs show `JobProgress` with per-item results and
@@ -348,7 +348,7 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   `limits.editMaxBytes`, named in the notice), binary files as a
   download (images previewed up to 5 MiB). An external change keeps the
   unsaved buffer: "<file> changed on disk. Your edits are kept." with
-  Compare (line diff), Reload from disk, Save as… and Overwrite (confirmed,
+  Compare (line diff), Reload From Disk, Save As… and Overwrite (confirmed,
   `If-Match` of the version shown); Save stays off until one is chosen.
   Unsaved buffers, uploads and open terminals are `criticalWork` (#23).
 - **Live:** the open view declares its scope (`liveClient().setScopes`), so

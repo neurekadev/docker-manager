@@ -155,7 +155,7 @@
 					aria-controls="{uid}-list"
 					aria-activedescendant={results.length ? `${uid}-opt-${active}` : undefined}
 					aria-autocomplete="list"
-					aria-label="Search pages, environments, stacks and containers"
+					aria-label="Search Pages, Environments, Stacks and Containers"
 					placeholder={environmentName
 						? `Search in ${environmentName}…`
 						: 'Search anything…'}

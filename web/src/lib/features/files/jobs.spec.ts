@@ -78,9 +78,9 @@ describe('fileJobMatch', () => {
 describe('fileJobTitle', () => {
 	it('names the folder a job acts in, or the root', () => {
 		expect(fileJobDir(stackJob('files.copy', 'config/nginx'), stack)).toBe('config/nginx');
-		expect(fileJobTitle(stackJob('files.copy'), stack, 'silo')).toBe('Copy files in config');
+		expect(fileJobTitle(stackJob('files.copy'), stack, 'silo')).toBe('Copy Files in config');
 		expect(fileJobTitle(stackJob('files.delete', ''), stack, 'silo')).toBe(
-			'Delete files in silo'
+			'Delete Files in silo'
 		);
 		expect(
 			fileJobTitle(
@@ -88,7 +88,7 @@ describe('fileJobTitle', () => {
 				template,
 				'Web app'
 			)
-		).toBe('Archive template files in Web app');
+		).toBe('Archive Template Files in Web app');
 		// A path of another root is not ours to name.
 		expect(fileJobDir(stackJob('files.copy'), volume)).toBe('');
 	});

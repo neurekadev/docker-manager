@@ -7,11 +7,11 @@ describe('ErrorPageBody (#22 error pages)', () => {
 		render(ErrorPageBody, { props: { status: 404 } });
 		expect(screen.getAllByRole('heading')).toHaveLength(1);
 		expect(
-			screen.getByRole('heading', { level: 1, name: 'Page not found' })
+			screen.getByRole('heading', { level: 1, name: 'Page Not Found' })
 		).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Go to the dashboard' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Go to the Dashboard' })).toHaveAttribute(
 			'href',
 			'/'
 		);

@@ -22,7 +22,7 @@ function actions(over: LifecycleActions = {}) {
 }
 
 async function menuItems(user: ReturnType<typeof setup>) {
-	await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+	await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 	const menu = await screen.findByRole('menu');
 	return within(menu).getAllByRole('menuitem');
 }
@@ -83,7 +83,7 @@ describe('LifecycleButton', () => {
 		render(LifecycleButton, { props: { running: true, actions: { stop: { run: stop } } } });
 		expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
 		expect(
-			screen.queryByRole('button', { name: 'More start and stop options' })
+			screen.queryByRole('button', { name: 'More Start and Stop Options' })
 		).not.toBeInTheDocument();
 	});
 
@@ -125,7 +125,7 @@ describe('LifecycleButton', () => {
 		const main = screen.getByRole('button', { name: 'Stop' });
 		expect(main).toBeDisabled();
 		expect(main).toHaveAttribute('title', 'Renaming Silo…');
-		expect(screen.getByRole('button', { name: 'More start and stop options' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'More Start and Stop Options' })).toBeDisabled();
 	});
 
 	it('shows the running action with a spinner on the main part', () => {
@@ -134,6 +134,6 @@ describe('LifecycleButton', () => {
 		const main = screen.getByRole('button', { name: 'Restart' });
 		expect(main).toHaveAttribute('aria-busy', 'true');
 		expect(main).toBeDisabled();
-		expect(screen.getByRole('button', { name: 'More start and stop options' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'More Start and Stop Options' })).toBeDisabled();
 	});
 });

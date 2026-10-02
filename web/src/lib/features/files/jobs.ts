@@ -44,7 +44,7 @@ export function fileJobDir(job: Pick<Job, 'targets'>, scope: FileScope): string 
 
 /**
  * The title of a file job the view did not start itself (found again in
- * the running list): "Copy files in config", "Delete files in silo".
+ * the running list): "Copy Files in config", "Delete Files in silo".
  */
 export function fileJobTitle(
 	job: Pick<Job, 'kind' | 'targets'>,

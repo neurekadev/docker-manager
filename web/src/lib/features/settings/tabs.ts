@@ -9,13 +9,13 @@ import { can } from '$lib/features/common/access';
 
 export function settingsTabs(access: Access): TabLink[] {
 	const t: TabLink[] = [{ href: routes.settings(), label: 'Overview' }];
-	if (access.owner) t.push({ href: routes.allApiTokens(), label: 'API tokens' });
-	if (access.owner) t.push({ href: routes.signInPolicy(), label: 'Sign-in policy' });
+	if (access.owner) t.push({ href: routes.allApiTokens(), label: 'API Tokens' });
+	if (access.owner) t.push({ href: routes.signInPolicy(), label: 'Sign-In Policy' });
 	if (can(access, 'settings.read'))
-		t.push({ href: routes.scheduleDefaults(), label: 'Schedule defaults' });
+		t.push({ href: routes.scheduleDefaults(), label: 'Schedule Defaults' });
 	if (access.owner) t.push({ href: routes.notifications(), label: 'Notifications' });
-	if (can(access, 'audit.read')) t.push({ href: routes.audit(), label: 'Audit log' });
+	if (can(access, 'audit.read')) t.push({ href: routes.audit(), label: 'Audit Log' });
 	if (access.owner) t.push({ href: routes.diagnostics(), label: 'Diagnostics' });
-	if (access.owner) t.push({ href: routes.managerMove(), label: 'Move to a new server' });
+	if (access.owner) t.push({ href: routes.managerMove(), label: 'Move to a New Server' });
 	return t;
 }

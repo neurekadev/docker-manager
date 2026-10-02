@@ -150,7 +150,7 @@ type EnvironmentSystem struct {
 	InventoryAt      *time.Time    `json:"inventoryAt,omitempty" doc:"When the agent read the Engine inventory."`
 	ClockSkewSeconds *float64      `json:"clockSkewSeconds,omitempty" doc:"The agent clock's offset (manager minus agent) applied to its samples; absent within 2 s."`
 	// Disk health (#143): refreshed about every minute and on "Check
-	// disks now" / "Check RAID now"; the last known one while offline.
+	// Disks Now" / "Check RAID Now"; the last known one while offline.
 	DiskHealth *DiskHealth `json:"diskHealth,omitempty" doc:"SMART state of the host's disks."`
 	RAID       *RAIDHealth `json:"raid,omitempty" doc:"State of the host's software RAID arrays (md) and ZFS pools."`
 }

@@ -60,7 +60,7 @@ describe('templates model', () => {
 		expect(run({}, 'proxy')).toEqual(['a']);
 		// "Status" (has a version or not) is not confused with the visibility.
 		expect(defs.map((d) => d.label)).toEqual(['Tag', 'Visibility', 'Status']);
-		expect(defs[2].options?.map((o) => o.label)).toEqual(['Ready to use', 'Draft only']);
+		expect(defs[2].options?.map((o) => o.label)).toEqual(['Ready to Use', 'Draft Only']);
 	});
 
 	it('suggests the next version label', () => {
@@ -110,7 +110,7 @@ describe('templates model', () => {
 				(t) => t.templateId
 			);
 		expect(defs.map((d) => d.label)).toEqual(['Source', 'Tag', 'Status']);
-		expect(defs[0].all).toBe('All sources');
+		expect(defs[0].all).toBe('All Sources');
 		expect(defs[0].options?.map((o) => o.label)).toEqual(['Friend', 'Home']);
 		expect(run({ registry: 'remote-1' })).toEqual(['b']);
 		expect(run({ published: 'no' })).toEqual(['a']);
@@ -121,7 +121,7 @@ describe('templates model', () => {
 
 	it('labels versions one way', () => {
 		expect(versionTitle('1.2.0')).toBe('Version 1.2.0');
-		expect(versionTitle(undefined)).toBe('Draft only');
+		expect(versionTitle(undefined)).toBe('Draft Only');
 	});
 
 	it('counts contents like the Files tab', () => {

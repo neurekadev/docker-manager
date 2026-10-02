@@ -103,8 +103,8 @@ func TestAPruneReportsWhatItReclaimedPerKindOfObject(t *testing.T) {
 		t.Fatalf("%+v", m)
 	}
 	for name, want := range map[string]string{"Environment": "homelab", "Reclaimed": "3 GiB", "Containers": "2 containers · 128 MiB",
-		"Images": "1 image · 2 GiB", "Networks": "1 network", "Build cache": "1 entry · 896 MiB", "Skipped": "1",
-		"Duration": "3 min 12 s", "Started by": "A user"} {
+		"Images": "1 image · 2 GiB", "Networks": "1 network", "Build Cache": "1 entry · 896 MiB", "Skipped": "1",
+		"Duration": "3 min 12 s", "Started By": "A user"} {
 		if v, _ := field(m.Fields, name); v != want {
 			t.Errorf("%s: %q, want %q", name, v, want)
 		}
@@ -154,7 +154,7 @@ func TestAFailedBackupIsExplainedAndSentOnce(t *testing.T) {
 				"endpoint. Not backed up: app, db." {
 			t.Fatalf("%s: %+v", s.channel, m)
 		}
-		if v, _ := field(m.Fields, "What to do"); v != "Check that the host can reach the storage endpoint." {
+		if v, _ := field(m.Fields, "What to Do"); v != "Check that the host can reach the storage endpoint." {
 			t.Fatalf("%q", v)
 		}
 		if v, _ := field(m.Fields, "Items"); v != "0 of 2 backed up · 2 failed" {
@@ -221,7 +221,7 @@ func TestAnUpdateRunListsWhatItUpdated(t *testing.T) {
 		t.Fatal("the container's environment was stored")
 	}
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.Body != "1 service recreated with the new image." || got[0].msg.Label != "Image updates · Applied" {
+	if len(got) != 1 || got[0].msg.Body != "1 service recreated with the new image." || got[0].msg.Label != "Image Updates · Applied" {
 		t.Fatalf("%+v", got)
 	}
 	// The target and every service link to their pages; the updated one
@@ -235,7 +235,7 @@ func TestAnUpdateRunListsWhatItUpdated(t *testing.T) {
 		Link: "https://docker.example.com/containers/" + j.EnvironmentID + "/web", From: "aaaaaaaaaaaa", To: "bbbbbbbbbbbb"}) {
 		t.Fatalf("%+v", updated)
 	}
-	if same := fieldNamed(m.Fields, "Already up to date"); len(same.Items) != 1 || same.Items[0].Text != "cache" || same.Items[0].From != "" {
+	if same := fieldNamed(m.Fields, "Already Up to Date"); len(same.Items) != 1 || same.Items[0].Text != "cache" || same.Items[0].From != "" {
 		t.Fatalf("%+v", same)
 	}
 	// Short fields first, the lists after them.
@@ -289,7 +289,7 @@ func TestNotificationsOfEarlierVersionsKeepTheirLists(t *testing.T) {
 	if v, _ := field(fs, "Updated"); v != "web (nginx:1.27): aaaaaaaaaaaa → bbbbbbbbbbbb" {
 		t.Errorf("%q", v)
 	}
-	if v, _ := field(fs, "Already up to date"); v != "cache" {
+	if v, _ := field(fs, "Already Up to Date"); v != "cache" {
 		t.Errorf("%q", v)
 	}
 }

@@ -44,25 +44,25 @@ describe('LinksEditor', () => {
 			props: { initial: [{ label: 'Docs', url: 'https://docs.example.com' }] }
 		});
 		expect(screen.getByRole('group', { name: 'Links' })).toBeInTheDocument();
-		expect(screen.getByLabelText('Label of link 1')).toHaveValue('Docs');
+		expect(screen.getByLabelText('Label of Link 1')).toHaveValue('Docs');
 
-		await user.click(screen.getByRole('button', { name: 'Add link' }));
-		await user.type(screen.getByLabelText('URL of link 2'), ' https://git.example.com/app ');
+		await user.click(screen.getByRole('button', { name: 'Add Link' }));
+		await user.type(screen.getByLabelText('URL of Link 2'), ' https://git.example.com/app ');
 		expect(saved()).toEqual([
 			{ label: 'Docs', url: 'https://docs.example.com' },
 			{ url: 'https://git.example.com/app' }
 		]);
 
-		await user.click(screen.getByRole('button', { name: 'Remove link 1' }));
+		await user.click(screen.getByRole('button', { name: 'Remove Link 1' }));
 		expect(saved()).toEqual([{ url: 'https://git.example.com/app' }]);
-		expect(screen.getByLabelText('URL of link 1')).toHaveValue(' https://git.example.com/app ');
+		expect(screen.getByLabelText('URL of Link 1')).toHaveValue(' https://git.example.com/app ');
 	});
 
 	it('says what is wrong once a field is left, as the server would', async () => {
 		const user = setup();
 		render(LinksEditorHarness, { props: {} });
-		await user.click(screen.getByRole('button', { name: 'Add link' }));
-		const url = screen.getByLabelText('URL of link 1');
+		await user.click(screen.getByRole('button', { name: 'Add Link' }));
+		const url = screen.getByLabelText('URL of Link 1');
 		await user.type(url, 'javascript:alert(1)');
 		// Not while typing.
 		expect(url).not.toHaveAccessibleDescription(/http/);
@@ -90,7 +90,7 @@ describe('LinksEditor', () => {
 				showAll: true
 			}
 		});
-		expect(screen.getByLabelText('URL of link 2')).toHaveAccessibleDescription(
+		expect(screen.getByLabelText('URL of Link 2')).toHaveAccessibleDescription(
 			'This address is already listed.'
 		);
 	});
@@ -105,18 +105,18 @@ describe('LinksEditor', () => {
 				}
 			}
 		});
-		expect(screen.getByLabelText('URL of link 1')).toHaveAccessibleDescription(
+		expect(screen.getByLabelText('URL of Link 1')).toHaveAccessibleDescription(
 			'Must not contain a user name or password.'
 		);
 	});
 
-	it('offers "Add link" only below 10 links', () => {
+	it('offers "Add Link" only below 10 links', () => {
 		render(LinksEditorHarness, {
 			props: {
 				initial: Array.from({ length: 10 }, (_, i) => ({ url: `https://example.com/${i}` }))
 			}
 		});
-		expect(screen.queryByRole('button', { name: 'Add link' })).not.toBeInTheDocument();
-		expect(screen.getAllByRole('button', { name: /^Remove link/ })).toHaveLength(10);
+		expect(screen.queryByRole('button', { name: 'Add Link' })).not.toBeInTheDocument();
+		expect(screen.getAllByRole('button', { name: /^Remove Link/ })).toHaveLength(10);
 	});
 });

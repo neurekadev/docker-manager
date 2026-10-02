@@ -34,7 +34,7 @@ describe('InstanceCard (#4)', () => {
 	it('shows the name, version and the read-only deployment settings', () => {
 		render(InstanceCard, { props: { settings, version: 'edge (build abc)', onsave: vi.fn() } });
 		expect(
-			screen.getByRole('heading', { name: 'About this Docker Manager' })
+			screen.getByRole('heading', { name: 'About This Docker Manager' })
 		).toBeInTheDocument();
 		expect(screen.getByText('Docker Manager')).toBeInTheDocument();
 		expect(screen.getByText('https://docker.example.com')).toBeInTheDocument();

@@ -1,7 +1,7 @@
 // The backup policy page's running jobs: the policy's running backups and
 // retentions come back from GET /backup-activity as one steady line each
-// in "Running now", the recent runs show the set being written with its
-// progress, and Back up now waits.
+// in "Running Now", the recent runs show the set being written with its
+// progress, and Back Up Now waits.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
@@ -183,22 +183,22 @@ describe('backup policy page: running jobs', () => {
 		openPage();
 
 		expect(
-			await screen.findByRole('progressbar', { name: 'Backup progress of Nightly, Silo' })
+			await screen.findByRole('progressbar', { name: 'Backup Progress of Nightly, Silo' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Retention progress of Nightly, Rack' })
+			screen.getByRole('progressbar', { name: 'Retention Progress of Nightly, Rack' })
 		).toBeInTheDocument();
 		expect(screen.getByText('Freeing the space of the removed backups')).toBeInTheDocument();
 		// Another policy's backup has no line here, and no generic job cards.
-		expect(screen.queryAllByRole('progressbar', { name: / progress of / })).toHaveLength(2);
-		expect(screen.queryByRole('region', { name: 'Running jobs of Nightly' })).toBeNull();
+		expect(screen.queryAllByRole('progressbar', { name: / Progress of / })).toHaveLength(2);
+		expect(screen.queryByRole('region', { name: 'Running Jobs of Nightly' })).toBeNull();
 		// The retention can be cancelled from its line.
 		expect(screen.getByRole('button', { name: 'Cancel Nightly, Rack' })).toBeInTheDocument();
 
 		// The recent runs show the set being written, from this policy's activity.
 		expect(
-			await screen.findByRole('progressbar', { name: /^Progress of the set started/ })
+			await screen.findByRole('progressbar', { name: /^Progress of the Set Started/ })
 		).toHaveAttribute('aria-valuenow', '40');
-		expect(screen.getByRole('button', { name: 'Backing up…' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Backing Up…' })).toBeDisabled();
 	});
 });

@@ -11,7 +11,7 @@
 
 <script lang="ts">
 	// The selection bar of a resource list (#22 polish): how many rows are
-	// selected, the bulk actions and "Clear selection". Shown above the
+	// selected, the bulk actions and "Clear Selection". Shown above the
 	// table while rows are selected; the actions open a confirmation that
 	// lists what runs and what is left out.
 	import X from '@lucide/svelte/icons/x';
@@ -39,7 +39,7 @@
 				onclick={a.onclick}>{a.label}</Button
 			>
 		{/each}
-		<Button size="sm" variant="ghost" icon={X} onclick={onclear}>Clear selection</Button>
+		<Button size="sm" variant="ghost" icon={X} onclick={onclear}>Clear Selection</Button>
 	</div>
 </div>
 

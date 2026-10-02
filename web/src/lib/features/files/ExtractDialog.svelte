@@ -50,15 +50,15 @@
 <Dialog bind:open title="Extract {archive}" size="sm" dismissible={!busy}>
 	<form id="extract-form" class="form" onsubmit={submit}>
 		<RadioGroup
-			label="Extract into"
+			label="Extract Into"
 			bind:value={where}
 			options={[
-				{ value: 'new', label: 'A new folder' },
-				{ value: 'here', label: `This folder (${here})` }
+				{ value: 'new', label: 'A New Folder' },
+				{ value: 'here', label: `This Folder (${here})` }
 			]}
 		/>
 		{#if where === 'new'}
-			<TextField label="Folder name" mono bind:value={name} {error} autocomplete="off" />
+			<TextField label="Folder Name" mono bind:value={name} {error} autocomplete="off" />
 		{:else if error}
 			<p class="error" role="alert">{error}</p>
 		{/if}

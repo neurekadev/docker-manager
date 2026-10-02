@@ -29,18 +29,18 @@ describe('EnvironmentSwitcher', () => {
 			props: { environments: envs, selected: null, onselect, canAdd: true }
 		});
 		const trigger = screen.getByRole('button', {
-			name: 'Environment: All environments, 1 of 2 online'
+			name: 'Environment: All Environments, 1 of 2 online'
 		});
 		await user.click(trigger);
 		const list = await screen.findByRole('listbox', { name: 'Environments' });
 		const options = within(list).getAllByRole('option');
 		expect(options.map((o) => o.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-			'All environments 1 of 2 online',
+			'All Environments 1 of 2 online',
 			'homelab Online',
 			'edge Offline'
 		]);
 		expect(options[0]).toHaveAttribute('aria-selected', 'true');
-		expect(screen.getByRole('link', { name: 'Add environment' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Add Environment' })).toHaveAttribute(
 			'href',
 			'/environments/add'
 		);
@@ -137,7 +137,7 @@ describe('NoticesBell', () => {
 		});
 		expect(disk).toHaveAttribute('href', '/environments/e1?tab=system');
 		expect(screen.getByText('Critical')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'View all alerts' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'View All Alerts' })).toHaveAttribute(
 			'href',
 			'/notifications?tab=alerts'
 		);
@@ -187,7 +187,7 @@ describe('NoticesBell', () => {
 		const notices = seeded();
 		mountBell(notices);
 		await user.click(screen.getByRole('button', { name: 'Notices, 3 items' }));
-		await user.click(await screen.findByRole('button', { name: 'Dismiss all' }));
+		await user.click(await screen.findByRole('button', { name: 'Dismiss All' }));
 		await waitFor(() =>
 			expect(posts).toEqual([
 				{ path: '/api/v1/alerts/dismissals', body: { alertIds: ['a1'] } }
@@ -204,7 +204,7 @@ describe('LiveIndicator', () => {
 	it('is silent while live and says so while reconnecting or polling', async () => {
 		const status = new LiveStatus();
 		render(LiveIndicator, { props: { status } });
-		const region = screen.getByRole('status', { name: 'Live updates' });
+		const region = screen.getByRole('status', { name: 'Live Updates' });
 		expect(region).toHaveTextContent('');
 		status.set('live', 1);
 		status.set('reconnecting', 2);
@@ -257,7 +257,7 @@ describe('CommandPalette', () => {
 		render(PaletteHarness, { props: { pages, onnavigate } });
 		await user.click(screen.getByRole('button', { name: 'Search' }));
 		const input = await screen.findByRole('combobox', {
-			name: 'Search pages, environments, stacks and containers'
+			name: 'Search Pages, Environments, Stacks and Containers'
 		});
 		await waitFor(() => expect(input).toHaveFocus());
 		// Pages first, without a request.
@@ -316,7 +316,7 @@ describe('CommandPalette', () => {
 		render(PaletteHarness, { props: { pages: [], onnavigate: vi.fn() } });
 		await user.click(screen.getByRole('button', { name: 'Search' }));
 		const input = await screen.findByRole('combobox', {
-			name: 'Search pages, environments, stacks and containers'
+			name: 'Search Pages, Environments, Stacks and Containers'
 		});
 		await user.type(input, 'a');
 		await waitFor(() =>
@@ -379,7 +379,7 @@ describe('CommandPalette', () => {
 			within(actions)
 				.getAllByRole('option')
 				.map((o) => o.textContent?.trim())
-		).toEqual(['Create stack']);
+		).toEqual(['Create Stack']);
 		expect(within(list).getByRole('group', { name: 'Pages' })).toBeInTheDocument();
 		// Phones get a visible way out.
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -393,24 +393,24 @@ describe('UserMenu', () => {
 		const onsignout = vi.fn();
 		const account = { id: 'u1', username: 'ada', displayName: 'Ada', owner: true } as Account;
 		render(UserMenu, { props: { user: account, onsignout } });
-		await user.click(screen.getByRole('button', { name: 'Account menu for Ada' }));
+		await user.click(screen.getByRole('button', { name: 'Account Menu for Ada' }));
 		const items = await screen.findAllByRole('menuitem');
 		expect(items.map((i) => i.textContent?.trim())).toEqual([
 			'Profile',
-			'API tokens',
-			'Sign out'
+			'API Tokens',
+			'Sign Out'
 		]);
 		expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute(
 			'href',
 			'/profile'
 		);
-		expect(screen.getByRole('menuitem', { name: 'API tokens' })).toHaveAttribute(
+		expect(screen.getByRole('menuitem', { name: 'API Tokens' })).toHaveAttribute(
 			'href',
 			'/profile/tokens'
 		);
 		// The old combined entry is gone; Settings stays in the sidebar.
 		expect(screen.queryByRole('menuitem', { name: /security|settings/i })).toBeNull();
-		await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+		await user.click(screen.getByRole('menuitem', { name: 'Sign Out' }));
 		expect(onsignout).toHaveBeenCalledOnce();
 	});
 });

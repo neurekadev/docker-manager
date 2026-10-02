@@ -45,7 +45,7 @@ describe('ErrorState', () => {
 		expect(details).toHaveAttribute('aria-expanded', 'true');
 		expect(alert).toHaveTextContent('environment_offline');
 		expect(alert).toHaveTextContent('req-42');
-		await user.click(screen.getByRole('button', { name: 'Copy request ID' }));
+		await user.click(screen.getByRole('button', { name: 'Copy Request ID' }));
 		expect(await navigator.clipboard.readText()).toBe('req-42');
 		await user.click(screen.getByRole('button', { name: 'Retry' }));
 		expect(retry).toHaveBeenCalled();
@@ -115,17 +115,17 @@ describe('JobProgress', () => {
 			client: demoJobClient(demoJob('partial'))
 		});
 		watcher.start();
-		render(JobProgress, { props: { watcher, title: 'Prune stopped containers on nas' } });
+		render(JobProgress, { props: { watcher, title: 'Prune Stopped Containers on nas' } });
 		es.emit('job', demoJob('running'));
 		await waitFor(() =>
 			expect(
 				screen.getByRole('progressbar', {
-					name: 'Prune stopped containers on nas progress'
+					name: 'Prune Stopped Containers on nas progress'
 				})
 			).toBeInTheDocument()
 		);
 		for (const ev of demoJobEvents) es.emit(ev.type, ev);
-		await waitFor(() => expect(screen.getByText('Partly failed')).toBeInTheDocument());
+		await waitFor(() => expect(screen.getByText('Partly Failed')).toBeInTheDocument());
 		expect(screen.queryByRole('progressbar')).toBeNull();
 		expect(screen.getByText('1 of 3 items failed, 2 succeeded')).toBeInTheDocument();
 		const items = within(screen.getByRole('list', { name: 'Items' })).getAllByRole('listitem');
@@ -140,7 +140,7 @@ describe('JobProgress', () => {
 		expect(
 			screen
 				.getAllByRole('status')
-				.some((s) => s.textContent === 'Prune stopped containers on nas: partly failed')
+				.some((s) => s.textContent === 'Prune Stopped Containers on nas: partly failed')
 		).toBe(true);
 		watcher.stop();
 	});
@@ -154,7 +154,7 @@ describe('JobProgress notices', () => {
 		render(JobProgress, {
 			props: {
 				jobId: 'job-9',
-				title: 'Prune stopped containers on nas',
+				title: 'Prune Stopped Containers on nas',
 				notices,
 				onfinish: finished,
 				options: { eventSource: () => es, client: demoJobClient(demoJob('partial')) }
@@ -167,7 +167,7 @@ describe('JobProgress notices', () => {
 		expect(notices.items[0]).toMatchObject({
 			kind: 'job',
 			tone: 'warn',
-			title: 'Prune stopped containers on nas: partly failed',
+			title: 'Prune Stopped Containers on nas: partly failed',
 			href: `/jobs/${demoJob().id}`
 		});
 	});
@@ -210,7 +210,7 @@ describe('StepWizard', () => {
 		}));
 		render(StepWizard, {
 			props: {
-				label: 'Backup setup',
+				label: 'Backup Setup',
 				steps: [
 					{ id: 'repo', label: 'Repository' },
 					{ id: 'key', label: 'Recovery Key' }
@@ -222,7 +222,7 @@ describe('StepWizard', () => {
 				onfinish: finish
 			}
 		});
-		const steps = screen.getByRole('list', { name: 'Backup setup steps' });
+		const steps = screen.getByRole('list', { name: 'Backup Setup Steps' });
 		expect(within(steps).getAllByRole('listitem')[0]).toHaveAttribute('aria-current', 'step');
 		await user.click(screen.getByRole('button', { name: 'Next' }));
 		expect(screen.getByRole('alert')).toHaveTextContent('Choose a destination first.');

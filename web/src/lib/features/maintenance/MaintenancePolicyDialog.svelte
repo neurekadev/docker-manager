@@ -89,7 +89,7 @@
 	);
 
 	const envOptions = $derived([
-		...(allowAll || p?.environmentId === '' ? [{ value: '', label: 'All environments' }] : []),
+		...(allowAll || p?.environmentId === '' ? [{ value: '', label: 'All Environments' }] : []),
 		...(envs.data ?? [])
 			.filter((e) => e.status !== 'archived')
 			.map((e) => ({ value: e.id, label: e.online ? e.name : `${e.name} (offline)` }))
@@ -169,7 +169,7 @@
 
 <Dialog
 	bind:open
-	title={editing ? `Edit ${p?.name}` : 'Create maintenance policy'}
+	title={editing ? `Edit ${p?.name}` : 'Create Maintenance Policy'}
 	description="Turn on the rules you want. Docker Manager's own objects, stack resources, saved containers and backups are always kept."
 	size="xl"
 	dismissible={!busy}
@@ -210,8 +210,8 @@
 							<span
 								>{environmentId
 									? (envs.data?.find((e) => e.id === environmentId)?.name ??
-										'One environment')
-									: 'All environments'}</span
+										'One Environment')
+									: 'All Environments'}</span
 							>
 							<span class="muted small">Create another policy to change scope.</span>
 						</div>
@@ -220,7 +220,7 @@
 							label="Environments"
 							options={envOptions}
 							bind:value={environmentId}
-							placeholder="All environments"
+							placeholder="All Environments"
 							error={fields['body.environmentId']}
 						/>
 					{/if}
@@ -237,7 +237,7 @@
 				hint="Runs missed while Docker Manager was down are skipped, never run late."
 			>
 				<Switch
-					label="Run automatically"
+					label="Run Automatically"
 					description="Off: the policy runs only when you start it."
 					bind:checked={enabled}
 					onchange={() => (touched = true)}
@@ -273,7 +273,7 @@
 			loading={busy}
 			disabled={!canSave}
 		>
-			{editing ? 'Save changes' : 'Create maintenance policy'}
+			{editing ? 'Save Changes' : 'Create Maintenance Policy'}
 		</Button>
 	{/snippet}
 </Dialog>

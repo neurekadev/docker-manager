@@ -255,18 +255,18 @@
 		if (u.owner) return [];
 		return [
 			u.status === 'active'
-				? { label: 'Disable account', icon: UserX, onSelect: () => ask('disable') }
-				: { label: 'Enable account', icon: UserCheck, onSelect: () => ask('enable') },
-			{ label: 'Sign out everywhere', icon: LogOut, onSelect: () => ask('sessions') },
-			{ label: 'Reset sign-in factors', icon: RotateCcw, onSelect: () => ask('factors') },
+				? { label: 'Disable Account', icon: UserX, onSelect: () => ask('disable') }
+				: { label: 'Enable Account', icon: UserCheck, onSelect: () => ask('enable') },
+			{ label: 'Sign Out Everywhere', icon: LogOut, onSelect: () => ask('sessions') },
+			{ label: 'Reset Sign-In Factors', icon: RotateCcw, onSelect: () => ask('factors') },
 			{
-				label: 'Create password reset link',
+				label: 'Create Password Reset Link',
 				icon: KeyRound,
 				onSelect: () => ask('password')
 			},
 			{ separator: true },
 			{
-				label: 'Delete account',
+				label: 'Delete Account',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleteOpen = true)
@@ -280,7 +280,7 @@
 		return {
 			disable: {
 				title: `Disable ${n}?`,
-				label: 'Disable account',
+				label: 'Disable Account',
 				lines: [
 					'Every session and open page of the account ends at once.',
 					'Its API tokens stop working.',
@@ -289,17 +289,17 @@
 			},
 			enable: {
 				title: `Enable ${n}?`,
-				label: 'Enable account',
+				label: 'Enable Account',
 				lines: ['They can sign in again with their existing factors.']
 			},
 			sessions: {
 				title: `Sign out ${n} everywhere?`,
-				label: 'Sign out everywhere',
+				label: 'Sign Out Everywhere',
 				lines: ['Every session and open page ends now. They can sign in again.']
 			},
 			factors: {
 				title: `Reset the sign-in factors of ${n}?`,
-				label: 'Reset factors',
+				label: 'Reset Factors',
 				lines: [
 					'Removes their authenticator app (TOTP), passkeys and recovery codes.',
 					'Ends their sessions; they sign in with their password and enroll again.',
@@ -308,7 +308,7 @@
 			},
 			password: {
 				title: `Create a password reset link for ${n}?`,
-				label: 'Create link',
+				label: 'Create Link',
 				lines: [
 					'The link works once and replaces earlier unused links.',
 					'Redeeming it ends all of their sessions.'
@@ -316,7 +316,7 @@
 			},
 			move: {
 				title: `Move ${n} to ${g?.name ?? 'another group'}?`,
-				label: 'Move user',
+				label: 'Move User',
 				lines: [
 					`Their access becomes that of ${g?.name ?? 'the group'} plus their own overrides, at once.`,
 					'Their open pages and streams restart.'
@@ -353,7 +353,7 @@
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="Account actions"
+									label="Account Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -367,15 +367,15 @@
 				<Facts
 					columns={3}
 					items={[
-						{ label: 'Signs in with', value: factorsText(u.factors) },
-						{ label: 'Recovery codes left', value: u.factors.recoveryCodesRemaining },
+						{ label: 'Signs In With', value: factorsText(u.factors) },
+						{ label: 'Recovery Codes Left', value: u.factors.recoveryCodesRemaining },
 						{
-							label: 'Last sign-in',
+							label: 'Last Sign-In',
 							value: u.lastSignInAt ? formatDateTime(u.lastSignInAt) : 'Never'
 						},
 						{ label: 'Created', value: formatDateTime(u.createdAt) },
 						{
-							label: 'Enrollment open until',
+							label: 'Enrollment Open Until',
 							value: u.enrollmentDeadline
 								? formatDateTime(u.enrollmentDeadline)
 								: undefined
@@ -401,7 +401,7 @@
 					)} is signed in on. Signing one out ends it and its open pages at once."
 					padding="none"
 				>
-					<SessionsTable userId={u.id} label="Signed-in devices of {displayName(u)}" />
+					<SessionsTable userId={u.id} label="Signed-In Devices of {displayName(u)}" />
 				</Card>
 
 				<Card
@@ -413,14 +413,14 @@
 							label="Group"
 							options={(groups.data ?? []).map((g) => ({
 								value: g.id,
-								label: g.default ? `${g.name} (default)` : g.name
+								label: g.default ? `${g.name} (Default)` : g.name
 							}))}
 							value={moveTo || u.groupId}
 							onchange={(v) => (moveTo = v)}
 						/>
 						<Button
 							disabled={!moveTo || moveTo === u.groupId}
-							onclick={() => ask('move')}>Move user</Button
+							onclick={() => ask('move')}>Move User</Button
 						>
 					</div>
 				</Card>
@@ -436,7 +436,7 @@
 								size="sm"
 								variant="ghost"
 								icon={RotateCcw}
-								onclick={() => (draft = [])}>Reset all to inherit</Button
+								onclick={() => (draft = [])}>Reset All to Inherit</Button
 							>
 						{/if}
 					{/snippet}
@@ -467,22 +467,22 @@
 				</Card>
 
 				<Card
-					title="Effective access"
+					title="Effective Access"
 					subtitle="What {displayName(
 						u
 					)} can do now, and why. Anything not listed is denied."
 				>
 					{#snippet actions()}
 						<Button size="sm" loading={previewing} onclick={runPreview}
-							>{dirty ? 'Preview with unsaved changes' : 'View as this user'}</Button
+							>{dirty ? 'Preview with Unsaved Changes' : 'View as This User'}</Button
 						>
 					{/snippet}
 					{#if preview}
 						<Notice
 							tone="info"
 							title={dirty
-								? 'Preview of the unsaved overrides'
-								: 'Access as evaluated now'}
+								? 'Preview of the Unsaved Overrides'
+								: 'Access as Evaluated Now'}
 							live="status"
 						>
 							{preview.effective.entries.length} decisions. Nothing is saved and no session
@@ -490,14 +490,14 @@
 							{#snippet actions()}<Button
 									size="sm"
 									variant="ghost"
-									onclick={() => (preview = null)}>Close preview</Button
+									onclick={() => (preview = null)}>Close Preview</Button
 								>{/snippet}
 						</Notice>
 						<div class="spaced">
 							<EffectiveTable
 								entries={preview.effective.entries}
 								catalog={catalog.data}
-								label="Previewed access of {displayName(u)}"
+								label="Previewed Access of {displayName(u)}"
 							/>
 						</div>
 					{:else}
@@ -510,7 +510,7 @@
 									<EffectiveTable
 										entries={eff.entries}
 										catalog={catalog.data}
-										label="Effective access of {displayName(u)}"
+										label="Effective Access of {displayName(u)}"
 									/>
 								{:else}
 									<p class="muted">
@@ -546,7 +546,7 @@
 					{#if confirm === 'factors' || confirm === 'password'}
 						<Checkbox
 							bind:checked={revokeTokens}
-							label="Also revoke their API tokens"
+							label="Also Revoke Their API Tokens"
 							description="For example when the account may be compromised."
 						/>
 					{/if}
@@ -561,12 +561,12 @@
 					'They can only come back with a new invitation.'
 				]}
 				confirmText={u.username}
-				confirmLabel="Delete account"
+				confirmLabel="Delete Account"
 				onconfirm={() => remove(u)}
 			/>
 			<Dialog
 				open={!!resetLink}
-				title="Password reset link for {displayName(u)}"
+				title="Password Reset Link for {displayName(u)}"
 				dismissible={false}
 				onclose={() => (resetLink = null)}
 			>

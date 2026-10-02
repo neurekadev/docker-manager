@@ -51,7 +51,7 @@ export const weeklyPrune = sampleNotification({
 		{ name: 'Images', value: '7 images · 4.1 GiB', inline: true },
 		{ name: 'Volumes', value: '1 volume', inline: true },
 		{ name: 'Networks', value: '2 networks', inline: true },
-		{ name: 'Build cache', value: '14 entries · 96 MB', inline: true }
+		{ name: 'Build Cache', value: '14 entries · 96 MB', inline: true }
 	],
 	createdAt: sep(29, 23, 30)
 });
@@ -68,7 +68,7 @@ export const failedUpdate = sampleNotification({
 		{ name: 'Target', value: 'Silo', inline: true },
 		{ name: 'Updated', value: 'web' },
 		{ name: 'Failed', value: 'worker' },
-		{ name: 'What to do', value: 'Open the job to see what went wrong, then try again.' }
+		{ name: 'What to Do', value: 'Open the job to see what went wrong, then try again.' }
 	],
 	createdAt: sep(27, 4)
 });

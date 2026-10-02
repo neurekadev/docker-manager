@@ -15,15 +15,15 @@ export function maskFingerprint(fp: string | undefined): string {
 
 const CHECKS: Record<string, string> = {
 	ok: 'Works',
-	unauthorized: 'Login refused',
-	forbidden: 'No access',
-	not_found: 'Not found',
-	rate_limited: 'Rate limited',
+	unauthorized: 'Login Refused',
+	forbidden: 'No Access',
+	not_found: 'Not Found',
+	rate_limited: 'Rate Limited',
 	registry_unavailable: 'Unreachable',
 	git_unavailable: 'Unreachable',
-	platform_not_found: 'Platform missing',
-	invalid_response: 'Bad answer',
-	ref_not_found: 'Ref not found',
+	platform_not_found: 'Platform Missing',
+	invalid_response: 'Bad Answer',
+	ref_not_found: 'Ref Not Found',
 	invalid_git_url: 'Bad URL'
 };
 

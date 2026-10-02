@@ -73,7 +73,7 @@
 	}
 </script>
 
-<svelte:head><title>Accept invitation · Docker Manager</title></svelte:head>
+<svelte:head><title>Accept Invitation · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<AuthHeader
@@ -95,7 +95,7 @@
 	<form onsubmit={submit} novalidate>
 		{#if !linkCode}
 			<TextField
-				label="Invite link"
+				label="Invite Link"
 				name="invite"
 				bind:value={pasted}
 				mono
@@ -117,7 +117,7 @@
 			error={untilFilled(invalid.username, username) ?? field('username')}
 		/>
 		<TextField
-			label="Display name"
+			label="Display Name"
 			description="Optional."
 			bind:value={displayName}
 			autocomplete="name"
@@ -139,9 +139,9 @@
 			bind:value={password}
 			error={field('password')}
 		/>
-		<Button type="submit" variant="primary" block loading={busy}>Create account</Button>
+		<Button type="submit" variant="primary" block loading={busy}>Create Account</Button>
 	</form>
-	<p class="help">Already have an account? <a href={routes.signIn()}>Sign in</a></p>
+	<p class="help">Already have an account? <a href={routes.signIn()}>Sign In</a></p>
 </div>
 
 <style>

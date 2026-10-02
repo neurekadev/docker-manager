@@ -15,4 +15,4 @@
 </script>
 
 <PageHeader {title} {description} {actions} />
-<TabNav label="Profile sections" current={page.url.pathname} items={profileTabs()} />
+<TabNav label="Profile Sections" current={page.url.pathname} items={profileTabs()} />

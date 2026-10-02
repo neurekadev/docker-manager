@@ -272,7 +272,7 @@
 
 	async function start() {
 		const job = await startMoveRun();
-		runs.add(job, 'Move everything');
+		runs.add(job, 'Move Everything');
 		await qc.invalidateQueries({ queryKey: managerMoveKeys.current });
 	}
 
@@ -325,7 +325,7 @@
 		}
 		return undefined;
 	});
-	const nextLabel = $derived(stepId === 'server' && !active ? 'Create setup files' : 'Next');
+	const nextLabel = $derived(stepId === 'server' && !active ? 'Create Setup Files' : 'Next');
 	const canStop = $derived(!!active && moveStatus(active).stop === 'cancel');
 
 	// Cancel (before the handoff) and resume here (after it).
@@ -383,7 +383,7 @@
 	{#if !active}
 		<div class="form">
 			<TextField
-				label="This server's address"
+				label="This Server's Address"
 				bind:value={thisAddr}
 				required
 				autocomplete="off"
@@ -393,7 +393,7 @@
 					: fieldError(createError, 'body.thisServerAddress')}
 			/>
 			<TextField
-				label="New server's address"
+				label="New Server's Address"
 				bind:value={newAddr}
 				required
 				autocomplete="off"
@@ -404,7 +404,7 @@
 					: fieldError(createError, 'body.newServerAddress')}
 			/>
 			<TextField
-				label="Name for the new server"
+				label="Name for the New Server"
 				bind:value={newName}
 				autocomplete="off"
 				description="Optional. How the new server shows in Docker Manager. Leave it empty to use its address."
@@ -422,7 +422,7 @@
 					{reasonNotice.body}
 					{#snippet actions()}
 						<Button size="sm" icon={RotateCw} onclick={() => (renewing = true)}
-							>Create new setup files</Button
+							>Create New Setup Files</Button
 						>
 					{/snippet}
 				</Notice>
@@ -445,7 +445,7 @@
 				{/if}
 				<section class="files" aria-labelledby="files-title">
 					<h3 id="files-title" class="subsection-title" tabindex="-1">
-						Set up the new server
+						Set Up the New Server
 					</h3>
 					<InstallCommand
 						title="compose.yaml"
@@ -462,17 +462,17 @@
 						filename=".env"
 					/>
 					<InstallCommand
-						title="Start command"
+						title="Start Command"
 						description="Then run this in that folder:"
 						command="docker compose up -d"
 					/>
 				</section>
 				<section class="files" aria-labelledby="script-title">
 					<h3 id="script-title" class="subsection-title">
-						Or paste this on the new server
+						Or Paste This on the New Server
 					</h3>
 					<InstallCommand
-						title="One command"
+						title="One Command"
 						description="Creates the folder {SETUP_FOLDER} with both files and starts Docker Manager."
 						command={script}
 						what="command"
@@ -480,7 +480,7 @@
 				</section>
 			{/if}
 			<section aria-labelledby="checklist-title">
-				<h3 id="checklist-title" class="subsection-title">On the new server</h3>
+				<h3 id="checklist-title" class="subsection-title">On the New Server</h3>
 				<ul class="checklist" role="list">
 					{#each newServerChecklist(active) as item (item.label)}
 						<li class:done={item.done}>
@@ -530,7 +530,7 @@
 				<Notice tone={head.tone} title={head.title} live="none">
 					{#snippet actions()}
 						<Button size="sm" icon={RotateCw} loading={checking} onclick={checkAgain}
-							>Check again</Button
+							>Check Again</Button
 						>
 					{/snippet}
 				</Notice>
@@ -547,7 +547,7 @@
 				<EnvironmentMigrationCheck {preview} {sourceName} {destName} {titleOf} {own} />
 			{/if}
 			<section class="before" aria-labelledby="before-title">
-				<h3 id="before-title" class="subsection-title">Before you start</h3>
+				<h3 id="before-title" class="subsection-title">Before You Start</h3>
 				<ul class="plain" role="list">
 					{#each BEFORE_YOU_START as line (line)}<li>{line}</li>{/each}
 					{#if active.statusUrl}
@@ -578,7 +578,7 @@
 				{#if run.total > 0}
 					<Meter
 						role="progressbar"
-						label="Apps moved"
+						label="Apps Moved"
 						value={run.moved}
 						max={run.total}
 						valueText="{run.moved} of {run.total}"
@@ -598,7 +598,7 @@
 			{:else if phase === 'failed'}
 				<Notice tone="danger" title={run.title} live="alert">{run.recovery}</Notice>
 				<p class="muted">
-					Try again moves what is left. Apps that already moved stay on {destName}.
+					Try Again moves what is left. Apps that already moved stay on {destName}.
 				</p>
 			{/if}
 		</div>
@@ -679,7 +679,7 @@
 							<Button
 								variant="danger-soft"
 								icon={Undo2}
-								onclick={() => (resuming = true)}>Resume on this server</Button
+								onclick={() => (resuming = true)}>Resume on This Server</Button
 							>
 						</div>
 					</section>
@@ -691,7 +691,7 @@
 	{:else}
 		<Card>
 			<StepWizard
-				label="Move to a new server"
+				label="Move to a New Server"
 				{steps}
 				bind:current
 				{step}
@@ -702,7 +702,7 @@
 				{nextLabel}
 				finishLabel={moveButtonLabel(phase)}
 				oncancel={canStop ? () => (cancelling = true) : undefined}
-				cancelLabel="Cancel the move"
+				cancelLabel="Cancel the Move"
 			/>
 		</Card>
 	{/if}
@@ -713,7 +713,7 @@
 		bind:open={renewing}
 		title="Create new setup files?"
 		consequences={setupFilesConsequences(active)}
-		confirmLabel="Create new setup files"
+		confirmLabel="Create New Setup Files"
 		onconfirm={renewFiles}
 	/>
 {/if}
@@ -722,8 +722,8 @@
 	bind:open={cancelling}
 	title="Cancel the move?"
 	consequences={cancelConsequences(active)}
-	confirmLabel="Cancel the move"
-	cancelLabel="Keep the move"
+	confirmLabel="Cancel the Move"
+	cancelLabel="Keep the Move"
 	tone="danger"
 	onconfirm={cancel}
 />
@@ -737,7 +737,7 @@
 		'Apps that moved stay on the new server.'
 	]}
 	confirmText={instanceName}
-	confirmLabel="Resume on this server"
+	confirmLabel="Resume on This Server"
 	onconfirm={resume}
 />
 

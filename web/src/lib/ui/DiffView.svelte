@@ -38,7 +38,7 @@
 		<span class="file mono">{title}</span>
 		<span class="stats num">
 			{#if result.same}
-				<span class="muted">No changes</span>
+				<span class="muted">No Changes</span>
 			{:else}
 				<span class="add">+{result.added}</span>
 				<span class="del">−{result.removed}</span>
@@ -52,7 +52,7 @@
 		<div class="scroll">
 			<table class="lines">
 				<thead class="sr-only">
-					<tr><th>{beforeLabel} line</th><th>{afterLabel} line</th><th>Change</th></tr>
+					<tr><th>{beforeLabel} Line</th><th>{afterLabel} Line</th><th>Change</th></tr>
 				</thead>
 				<tbody>
 					{#each result.hunks as hunk, hi (hi)}
@@ -69,10 +69,10 @@
 											strokeWidth={1.75}
 											aria-hidden="true"
 										/>
-										Show {hunk.skippedBefore} unchanged {hunk.skippedBefore ===
+										Show {hunk.skippedBefore} Unchanged {hunk.skippedBefore ===
 										1
-											? 'line'
-											: 'lines'}
+											? 'Line'
+											: 'Lines'}
 									</button>
 								</td>
 							</tr>
@@ -102,9 +102,9 @@
 										strokeWidth={1.75}
 										aria-hidden="true"
 									/>
-									Show {result.skippedAfter} unchanged {result.skippedAfter === 1
-										? 'line'
-										: 'lines'}
+									Show {result.skippedAfter} Unchanged {result.skippedAfter === 1
+										? 'Line'
+										: 'Lines'}
 								</button>
 							</td>
 						</tr>
@@ -114,7 +114,7 @@
 		</div>
 		{#if expanded}
 			<button type="button" class="collapse" onclick={() => (expanded = false)}
-				>Hide unchanged lines</button
+				>Hide Unchanged Lines</button
 			>
 		{/if}
 	{/if}

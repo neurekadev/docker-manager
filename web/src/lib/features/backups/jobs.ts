@@ -23,14 +23,14 @@ export function verifyMatch(repositoryId: string, scope?: string): JobMatch {
 	return { kinds: [...VERIFY_KINDS], targets };
 }
 
-/** "Verify NAS for Silo" / "Verify NAS (manager state)". */
+/** "Verify NAS for Silo" / "Verify NAS (Manager State)". */
 export function verifyTitle(
 	job: Pick<Job, 'kind' | 'environmentId'>,
 	repository: string,
 	environmentName: (id: string) => string
 ): string {
 	if (job.kind === 'manager.verify' || !job.environmentId)
-		return `Verify ${repository} (manager state)`;
+		return `Verify ${repository} (Manager State)`;
 	return `Verify ${repository} for ${environmentName(job.environmentId)}`;
 }
 

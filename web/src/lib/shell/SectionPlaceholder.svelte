@@ -23,7 +23,7 @@
 		<EmptyState
 			{icon}
 			color="slate"
-			title="Not in the web UI yet"
+			title="Not in the Web UI Yet"
 			description="The {title.toLowerCase()} screens come in a later update. The API already serves this area."
 			level={2}
 		/>

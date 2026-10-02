@@ -1,14 +1,16 @@
 <script lang="ts">
 	// Copy to clipboard (#22): request IDs, paths, digests, one-time secrets.
-	// Confirms with "Copied" (announced) for two seconds.
+	// Confirms with "Copied" (announced) for two seconds. The label is in
+	// Title Case ("Copy Request ID"); the announcements keep `what` as is.
 	import Check from '@lucide/svelte/icons/check';
 	import Copy from '@lucide/svelte/icons/copy';
 	import IconButton from './IconButton.svelte';
 	import Button from './Button.svelte';
+	import { titleCase } from './format';
 
 	interface Props {
 		value: string;
-		/** What is copied, e.g. "request ID" → "Copy request ID". */
+		/** What is copied, e.g. "request ID" → "Copy Request ID". */
 		what: string;
 		/** Show a text button instead of an icon button. */
 		text?: boolean;
@@ -18,6 +20,7 @@
 
 	let { value, what, text = false, size = 'sm', oncopied }: Props = $props();
 	let copied = $state(false);
+	const copyLabel = $derived(`Copy ${titleCase(what)}`);
 	let failed = $state(false);
 
 	async function copy() {
@@ -35,12 +38,12 @@
 
 {#if text}
 	<Button {size} icon={copied ? Check : Copy} onclick={copy}
-		>{copied ? 'Copied' : `Copy ${what}`}</Button
+		>{copied ? 'Copied' : copyLabel}</Button
 	>
 {:else}
 	<IconButton
 		{size}
-		label={copied ? 'Copied' : `Copy ${what}`}
+		label={copied ? 'Copied' : copyLabel}
 		icon={copied ? Check : Copy}
 		onclick={copy}
 	/>

@@ -27,7 +27,7 @@ describe('notifications in words', () => {
 			'Backups',
 			'Restores',
 			'Prune',
-			'Image updates'
+			'Image Updates'
 		]);
 		expect(notificationKindLabel('prune')).toBe('Prune');
 		expect(notificationKindLabel('something_new')).toBe('something_new');
@@ -62,14 +62,14 @@ describe('notifications in words', () => {
 			'Images',
 			'Volumes',
 			'Networks',
-			'Build cache'
+			'Build Cache'
 		]);
 		expect(blockFields(weeklyPrune)).toEqual([]);
 		expect(inlineFields(failedUpdate).map((f) => f.name)).toEqual(['Target']);
 		expect(blockFields(failedUpdate).map((f) => f.name)).toEqual([
 			'Updated',
 			'Failed',
-			'What to do'
+			'What to Do'
 		]);
 	});
 

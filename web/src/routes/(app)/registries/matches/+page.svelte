@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Which connection does an image use? (#19 match preview) is the "Test
-	// an image" dialog of the registry connections now; this route keeps old
+	// an Image" dialog of the registry connections now; this route keeps old
 	// links working by opening it there.
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';

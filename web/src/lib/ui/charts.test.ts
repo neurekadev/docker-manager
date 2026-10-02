@@ -56,7 +56,7 @@ describe('TimeSeriesChart (#5 charts)', () => {
 		});
 		const fig = screen.getByRole('figure', { name: 'CPU' });
 		expect(fig).toHaveTextContent('12.5%');
-		const gaps = within(fig).getByRole('list', { name: 'CPU: time without samples' });
+		const gaps = within(fig).getByRole('list', { name: 'CPU: Time Without Samples' });
 		expect(gaps).toHaveTextContent(/No samples since \d\d:\d\d/);
 		expect(fig).toHaveTextContent('CPU: latest 12.5%. 1 gap without samples.');
 		await waitFor(() => expect(lazy.mounted).toHaveLength(1));
@@ -133,15 +133,15 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 		const before = lazy.mounted.length;
 		render(MultiSeriesChart, {
 			props: {
-				title: 'Docker memory',
+				title: 'Docker Memory',
 				unit: 'count',
 				timestamps: ts,
 				items,
 				shown: (n: string) => n !== 'web'
 			}
 		});
-		expect(screen.getByRole('figure', { name: 'Docker memory' })).toHaveTextContent(
-			'Docker memory: latest total 1. Largest: cache 1.'
+		expect(screen.getByRole('figure', { name: 'Docker Memory' })).toHaveTextContent(
+			'Docker Memory: latest total 1. Largest: cache 1.'
 		);
 		await waitFor(() => expect(lazy.mounted).toHaveLength(before + 1));
 		const o = lazy.mounted[before];
@@ -266,7 +266,7 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 	it('totals the newest bucket of the shown items, not of a hidden newer one', () => {
 		render(MultiSeriesChart, {
 			props: {
-				title: 'Docker network',
+				title: 'Docker Network',
 				unit: 'count',
 				timestamps: ts,
 				items: [
@@ -276,19 +276,19 @@ describe('MultiSeriesChart (every container of an environment)', () => {
 				shown: (n: string) => n === 'db'
 			}
 		});
-		expect(screen.getByRole('figure', { name: 'Docker network' })).toHaveTextContent(
-			'Docker network: latest total 5. Largest: db 5.'
+		expect(screen.getByRole('figure', { name: 'Docker Network' })).toHaveTextContent(
+			'Docker Network: latest total 5. Largest: db 5.'
 		);
 	});
 });
 
 describe('Sparkline', () => {
 	it('draws values that arrived while ECharts was still loading', async () => {
-		const { rerender } = render(Sparkline, { props: { values: [], label: 'CPU trend' } });
-		await rerender({ values: [1, 2, null, 3], label: 'CPU trend' });
+		const { rerender } = render(Sparkline, { props: { values: [], label: 'CPU Trend' } });
+		await rerender({ values: [1, 2, null, 3], label: 'CPU Trend' });
 		lazy.resolve?.();
 		await waitFor(() => expect(lazy.spark.at(-1)).toEqual([1, 2, null, 3]));
-		expect(screen.getByText('CPU trend')).toBeInTheDocument();
+		expect(screen.getByText('CPU Trend')).toBeInTheDocument();
 	});
 
 	it('redraws when the values change after ECharts loaded', async () => {
@@ -306,8 +306,8 @@ describe('Sparkline', () => {
 		vi.mocked(mountSparkline).mockImplementationOnce(() =>
 			Promise.reject(new Error('chunk failed'))
 		);
-		const { rerender } = render(Sparkline, { props: { values: [1], label: 'Memory trend' } });
-		await rerender({ values: [1, 2], label: 'Memory trend' });
-		expect(screen.getByText('Memory trend')).toBeInTheDocument();
+		const { rerender } = render(Sparkline, { props: { values: [1], label: 'Memory Trend' } });
+		await rerender({ values: [1, 2], label: 'Memory Trend' });
+		expect(screen.getByText('Memory Trend')).toBeInTheDocument();
 	});
 });

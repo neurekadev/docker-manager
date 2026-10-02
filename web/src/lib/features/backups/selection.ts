@@ -91,7 +91,7 @@ export function pickerRoots(
 	if (!volume && b.kind === 'stack' && b.projectPath)
 		out.push({
 			path: b.projectPath,
-			label: `${b.stackName ?? 'Stack'} project files`,
+			label: `${b.stackName ?? 'Stack'} Project Files`,
 			kind: 'project'
 		});
 	for (const [name, path] of vols) {

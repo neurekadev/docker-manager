@@ -26,8 +26,8 @@ describe('Button', () => {
 	});
 
 	it('renders links styled as buttons', () => {
-		render(Button, { props: { href: '/stacks', children: text('Open stacks') } });
-		expect(screen.getByRole('link', { name: 'Open stacks' })).toHaveAttribute(
+		render(Button, { props: { href: '/stacks', children: text('Open Stacks') } });
+		expect(screen.getByRole('link', { name: 'Open Stacks' })).toHaveAttribute(
 			'href',
 			'/stacks'
 		);
@@ -63,7 +63,7 @@ describe('Menu and SplitButton', () => {
 		const pick = vi.fn();
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		render(MenuHarness, { props: { onpick: pick } });
-		const trigger = screen.getByRole('button', { name: 'More actions for silo-web' });
+		const trigger = screen.getByRole('button', { name: 'More Actions for silo-web' });
 		trigger.focus();
 		await user.keyboard('{Enter}');
 		const menu = await screen.findByRole('menu');
@@ -71,7 +71,7 @@ describe('Menu and SplitButton', () => {
 		const items = screen.getAllByRole('menuitem');
 		expect(items.map((i) => i.textContent?.trim())).toEqual([
 			'Restart',
-			'Disabled action',
+			'Disabled Action',
 			'Remove'
 		]);
 		expect(items[1]).toHaveAttribute('aria-disabled', 'true');
@@ -86,8 +86,8 @@ describe('Menu and SplitButton', () => {
 		render(MenuHarness, { props: { onpick: pick } });
 		await user.click(screen.getByRole('button', { name: 'Deploy' }));
 		expect(pick).toHaveBeenLastCalledWith('deploy');
-		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Build and deploy' }));
+		await user.click(screen.getByRole('button', { name: 'More Deploy Options' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Build and Deploy' }));
 		expect(pick).toHaveBeenLastCalledWith('build');
 		expect(screen.getByRole('group', { name: 'Deploy' })).toBeInTheDocument();
 	});

@@ -55,7 +55,7 @@
 							items.filter((i) => !i.locked).map((i) => i.key),
 							false
 						)
-					)}>Include all</Button
+					)}>Include All</Button
 			>
 		{/if}
 	</div>

@@ -13,9 +13,9 @@ describe('Dialog', () => {
 	it('traps focus, closes on Escape and returns focus to the opener', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		render(DialogHarness);
-		const opener = screen.getByRole('button', { name: 'Edit details' });
+		const opener = screen.getByRole('button', { name: 'Edit Details' });
 		await user.click(opener);
-		const dialog = await screen.findByRole('dialog', { name: 'Edit details' });
+		const dialog = await screen.findByRole('dialog', { name: 'Edit Details' });
 		expect(dialog).toHaveAccessibleDescription('Display metadata');
 		await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
 		// Tab never leaves the dialog.
@@ -32,10 +32,10 @@ describe('Dialog', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		render(StackedDialogsHarness);
 		const layer = (el: HTMLElement) => Number(el.style.getPropertyValue('--dy-layer'));
-		await user.click(screen.getByRole('button', { name: 'Invite user' }));
-		const invite = await screen.findByRole('dialog', { name: 'Invite a user' });
-		await user.click(screen.getByRole('button', { name: 'Create invitation' }));
-		const stepUp = await screen.findByRole('dialog', { name: "Confirm it's you" });
+		await user.click(screen.getByRole('button', { name: 'Invite User' }));
+		const invite = await screen.findByRole('dialog', { name: 'Invite a User' });
+		await user.click(screen.getByRole('button', { name: 'Create Invitation' }));
+		const stepUp = await screen.findByRole('dialog', { name: "Confirm It's You" });
 		// The step-up check comes first in the DOM, so it must be the higher layer.
 		expect(
 			stepUp.compareDocumentPosition(invite) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -44,15 +44,15 @@ describe('Dialog', () => {
 		await waitFor(() => expect(stepUp.contains(document.activeElement)).toBe(true));
 		await user.keyboard('{Escape}');
 		await waitFor(() =>
-			expect(screen.queryByRole('dialog', { name: "Confirm it's you" })).toBeNull()
+			expect(screen.queryByRole('dialog', { name: "Confirm It's You" })).toBeNull()
 		);
-		expect(screen.getByRole('dialog', { name: 'Invite a user' })).toBeInTheDocument();
+		expect(screen.getByRole('dialog', { name: 'Invite a User' })).toBeInTheDocument();
 	});
 
 	it('ignores Escape when not dismissible (busy)', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		render(DialogHarness, { props: { dismissible: false } });
-		await user.click(screen.getByRole('button', { name: 'Edit details' }));
+		await user.click(screen.getByRole('button', { name: 'Edit Details' }));
 		await screen.findByRole('dialog');
 		await user.keyboard('{Escape}');
 		expect(screen.getByTestId('state')).toHaveTextContent('open');
@@ -108,14 +108,14 @@ describe('DestructiveConfirm', () => {
 				consequences: ['Removes 3 containers. Volumes and files are kept.'],
 				affected: [{ label: 'silo-web-1', detail: 'running' }, { label: 'silo-db-1' }],
 				confirmText: 'silo',
-				confirmLabel: 'Delete stack',
+				confirmLabel: 'Delete Stack',
 				onconfirm
 			}
 		});
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		expect(dialog).toHaveTextContent('Removes 3 containers. Volumes and files are kept.');
 		expect(dialog).toHaveTextContent('Affected (2)');
-		const button = screen.getByRole('button', { name: 'Delete stack' });
+		const button = screen.getByRole('button', { name: 'Delete Stack' });
 		expect(button).toBeDisabled();
 		const input = screen.getByLabelText('Type silo to confirm');
 		await user.type(input, 'Silo');
@@ -137,28 +137,28 @@ describe('DestructiveConfirm', () => {
 				title: 'Remove container?',
 				consequences: ['Removes the container.'],
 				confirmText: name,
-				confirmLabel: 'Remove container',
+				confirmLabel: 'Remove Container',
 				onconfirm: vi.fn()
 			}
 		});
 		const dialog = await screen.findByRole('alertdialog', { name: 'Remove container?' });
 		const code = dialog.querySelector('code');
 		expect(code).toHaveTextContent(name);
-		await user.click(screen.getByRole('button', { name: 'Copy name' }));
+		await user.click(screen.getByRole('button', { name: 'Copy Name' }));
 		expect(write).toHaveBeenCalledWith(name);
 		expect(await navigator.clipboard.readText()).toBe(name);
 		expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
 		// Pasting the copied name enables the action.
 		await user.click(screen.getByLabelText(`Type ${name} to confirm`));
 		await user.paste(name);
-		expect(screen.getByRole('button', { name: 'Remove container' })).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Remove Container' })).toBeEnabled();
 	});
 });
 
 describe('TooltipLayer', () => {
 	it('finds the nearest element with a title, never an SVG one', () => {
 		document.body.innerHTML =
-			'<span id="a" title="Up to date"><b id="b">x</b></span><svg title="no"><g id="g"></g></svg><i id="c" title=" "></i>';
+			'<span id="a" title="Up to Date"><b id="b">x</b></span><svg title="no"><g id="g"></g></svg><i id="c" title=" "></i>';
 		expect(tooltipAnchor(document.getElementById('b'))?.id).toBe('a');
 		expect(tooltipAnchor(document.getElementById('g'))).toBeNull();
 		expect(tooltipAnchor(document.getElementById('c'))).toBeNull();
@@ -169,18 +169,18 @@ describe('TooltipLayer', () => {
 	it('shows a title as a themed tooltip on keyboard focus and puts the title back', async () => {
 		render(TooltipLayer);
 		const button = document.createElement('button');
-		button.title = 'Check for updates';
+		button.title = 'Check for Updates';
 		button.textContent = 'Check';
 		document.body.append(button);
 		button.matches = ((q: string) => q === ':focus-visible') as typeof button.matches;
 		button.focus();
 		const tip = await screen.findByRole('tooltip');
-		expect(tip).toHaveTextContent('Check for updates');
+		expect(tip).toHaveTextContent('Check for Updates');
 		expect(button).not.toHaveAttribute('title');
-		expect(button).toHaveAccessibleDescription('Check for updates');
+		expect(button).toHaveAccessibleDescription('Check for Updates');
 		button.blur();
 		await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
-		expect(button).toHaveAttribute('title', 'Check for updates');
+		expect(button).toHaveAttribute('title', 'Check for Updates');
 		expect(button).not.toHaveAttribute('aria-describedby');
 		button.remove();
 	});

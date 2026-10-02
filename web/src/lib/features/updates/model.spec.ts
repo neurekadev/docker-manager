@@ -50,14 +50,14 @@ const policy = (summary?: UpdatePolicy['summary']): UpdatePolicy =>
 	}) as UpdatePolicy;
 
 describe('update candidates', () => {
-	it('presents every status with a tone and a sentence-case label', () => {
+	it('presents every status with a tone and a Title Case label', () => {
 		expect(candidateStatus('update_available')).toEqual({
 			tone: 'warn',
-			label: 'Update available'
+			label: 'Update Available'
 		});
 		expect(candidateStatus('quarantined').tone).toBe('danger');
-		expect(candidateStatus('up_to_date').label).toBe('Up to date');
-		expect(candidateStatus('check_failed').label).toBe('Check failed');
+		expect(candidateStatus('up_to_date').label).toBe('Up to Date');
+		expect(candidateStatus('check_failed').label).toBe('Check Failed');
 	});
 
 	it('explains ineligibility in the words of the definition', () => {
@@ -110,10 +110,10 @@ describe('policy summary', () => {
 		expect(
 			summaryText(policy({ ...base, available: 0, lastCheckAt: '2026-09-25T00:00:00Z' }))
 		).toEqual({
-			text: 'Up to date',
+			text: 'Up to Date',
 			tone: 'ok'
 		});
-		expect(summaryText(policy(undefined)).text).toBe('Not checked yet');
+		expect(summaryText(policy(undefined)).text).toBe('Not Checked Yet');
 	});
 });
 
@@ -161,8 +161,8 @@ describe('target summaries', () => {
 			tone: 'warn',
 			label: '1 update available'
 		});
-		expect(summaryState(sum({})).label).toBe('Not checked yet');
-		expect(summaryState(undefined).label).toBe('Not checked yet');
+		expect(summaryState(sum({})).label).toBe('Not Checked Yet');
+		expect(summaryState(undefined).label).toBe('Not Checked Yet');
 		expect(summaryState(sum({ upToDate: 2, lastCheckAt: at })).tone).toBe('ok');
 	});
 
@@ -233,7 +233,7 @@ describe('update counts and coverage (#20)', () => {
 		const list = [{ id, name: 'pihole' }];
 		expect(containerTargetName('pihole', list)).toEqual({ name: 'pihole', found: true });
 		expect(containerTargetName(id, list)).toEqual({ name: 'pihole', found: true });
-		expect(containerTargetName('b'.repeat(64), list).name).toBe('Removed container');
+		expect(containerTargetName('b'.repeat(64), list).name).toBe('Removed Container');
 		expect(containerTargetName('nginx')).toEqual({ name: 'nginx', found: true });
 		expect(containerTargetName('nginx', list).found).toBe(false);
 	});
@@ -243,9 +243,9 @@ describe('update counts and coverage (#20)', () => {
 		expect(inactiveReason({ inactive: true, inactiveReason: 'excluded' })).toBe('excluded');
 		expect(inactiveReason({ inactive: true, inactiveReason: 'missing' })).toBe('missing');
 		expect(inactiveReason({ inactive: true })).toBe('missing');
-		expect(targetState(undefined, 'missing').label).toBe('No longer found');
+		expect(targetState(undefined, 'missing').label).toBe('No Longer Found');
 		expect(targetState(undefined, 'excluded').label).toBe('Excluded');
-		expect(targetState(undefined, null).label).toBe('Not checked yet');
+		expect(targetState(undefined, null).label).toBe('Not Checked Yet');
 	});
 
 	it('says when a newer image was published', () => {

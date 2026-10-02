@@ -174,11 +174,11 @@
 {#snippet actionsCell(b: Backup)}
 	<span class="acts">
 		{#if canBrowse(b)}
-			<Button size="sm" icon={FolderSearch} onclick={() => browse(b)}>Choose files</Button>
+			<Button size="sm" icon={FolderSearch} onclick={() => browse(b)}>Choose Files</Button>
 		{/if}
 		{#if canRestore(b)}
 			<Button size="sm" variant="danger-soft" icon={History} onclick={() => restoreAll(b)}
-				>Restore all</Button
+				>Restore All</Button
 			>
 		{/if}
 	</span>
@@ -198,7 +198,7 @@
 	</span>
 {/snippet}
 {#snippet runJobCell(r: MemberRun)}
-	{#if r.member.jobId}<a href={routes.job(r.member.jobId)}>Open job</a>{/if}
+	{#if r.member.jobId}<a href={routes.job(r.member.jobId)}>Open Job</a>{/if}
 {/snippet}
 
 <Card
@@ -207,7 +207,7 @@
 	padding="none"
 >
 	{#if covering.length}
-		<ul class="coverage" role="list" aria-label="Backup policies covering {subject}">
+		<ul class="coverage" role="list" aria-label="Backup Policies Covering {subject}">
 			{#each covering as p (p.id)}
 				<li>
 					<DatabaseBackup size={16} aria-hidden="true" />
@@ -233,7 +233,7 @@
 					icon={DatabaseBackup}
 					color="teal"
 					level={3}
-					title="No backups of {subject} yet"
+					title="No Backups of {subject} Yet"
 					description={runs.length
 						? 'The recent runs below say how backing it up went.'
 						: 'The first backup appears after the next run of the policy.'}
@@ -241,7 +241,7 @@
 				/>
 				{#if runs.length}
 					<Table
-						label="Recent runs that included {subject}"
+						label="Recent Runs That Included {subject}"
 						rows={runs}
 						columns={runColumns}
 						rowKey={(r) => `${r.setId}-${r.member.item}`}
@@ -253,13 +253,13 @@
 					icon={DatabaseBackup}
 					color="teal"
 					level={3}
-					title="No backups of {subject} yet"
+					title="No Backups of {subject} Yet"
 					description="No backup policy covers {subject}. A policy creates backups on its schedule or when you run it."
 				>
 					{#snippet actions()}
 						{#if canCreatePolicy}<Button
 								href={routes.backupPolicyNew()}
-								variant="primary">Create backup policy</Button
+								variant="primary">Create Backup Policy</Button
 							>{/if}
 					{/snippet}
 				</EmptyState>

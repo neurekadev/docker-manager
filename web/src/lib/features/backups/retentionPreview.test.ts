@@ -70,7 +70,7 @@ describe('RetentionPreviewPanel', () => {
 		await new Promise((r) => setTimeout(r, 500));
 		expect(bodies).toEqual([]);
 
-		await user.click(screen.getByRole('button', { name: 'Preview retention' }));
+		await user.click(screen.getByRole('button', { name: 'Preview Retention' }));
 		expect(await screen.findByText('kept by last6')).toBeInTheDocument();
 		expect(screen.getByText('its stack or volume was deleted')).toBeInTheDocument();
 		expect(screen.queryByText(/kept by deleted/)).toBeNull();

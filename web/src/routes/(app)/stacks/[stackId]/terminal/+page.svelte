@@ -21,7 +21,7 @@
 	const name = $derived(stack.data?.displayName || stack.data?.name || 'Stack');
 
 	usePage(() => ({
-		title: `${name} terminal`,
+		title: `${name} Terminal`,
 		crumbs: [
 			{ label: 'Stacks', href: routes.stacks() },
 			{ label: name, href: routes.stack(stackId) },

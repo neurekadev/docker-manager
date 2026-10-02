@@ -10,7 +10,7 @@
 	const text = $derived(indicatorText(status.state));
 </script>
 
-<span class="live" role="status" aria-label="Live updates" data-state={status.state}>
+<span class="live" role="status" aria-label="Live Updates" data-state={status.state}>
 	{#if text}
 		<span class="dot" aria-hidden="true"></span>
 		<span class="text">{text}</span>

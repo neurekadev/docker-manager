@@ -1,5 +1,5 @@
 <script lang="ts">
-	// "About this Docker Manager" on the settings overview (#4 GET/PATCH /settings): the
+	// "About This Docker Manager" on the settings overview (#4 GET/PATCH /settings): the
 	// display name (renamed in place with settings.manage), the version and
 	// the read-only deployment configuration from the manager's environment
 	// variables.
@@ -60,7 +60,7 @@
 	}
 </script>
 
-<Card title="About this Docker Manager" id="instance">
+<Card title="About This Docker Manager" id="instance">
 	{#snippet actions()}
 		{#if canEdit && !editing}
 			<Button size="sm" variant="ghost" icon={Pencil} onclick={start}>Rename</Button>
@@ -76,7 +76,7 @@
 				maxlength={MAX_INSTANCE_NAME}
 				required
 			/>
-			{#if saveError}<Notice tone="danger" title="Not renamed" live="alert"
+			{#if saveError}<Notice tone="danger" title="Not Renamed" live="alert"
 					>{saveError}</Notice
 				>{/if}
 			<FormFooter>

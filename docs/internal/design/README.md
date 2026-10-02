@@ -172,11 +172,12 @@ adds `maximum-scale=1` to the viewport, which stops that zoom while iOS
 still allows pinch zoom. Other browsers keep the plain viewport (they would
 lose pinch zoom and never zoom on focus). Do not enlarge fields to fix it.
 
-Numbers in tables, KPIs and logs use `.num` (`tabular-nums`). Sentence case
-everywhere; no all-caps labels, no tracked-out eyebrows. A `Card`'s title is
+Numbers in tables, KPIs and logs use `.num` (`tabular-nums`). Names and
+labels are Title Case, sentences sentence case ("Copy rules" below); no
+all-caps labels, no tracked-out eyebrows. A `Card`'s title is
 always the section size; a heading inside a card body is an `h3` with the
 global class `subsection-title` (`<h3 class="subsection-title">Environment
-variables</h3>`). Components use the size tokens, never one-off pixel sizes.
+Variables</h3>`). Components use the size tokens, never one-off pixel sizes.
 
 ## Layout and responsive rules
 
@@ -234,20 +235,20 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 
 | component | key props | notes |
 | --- | --- | --- |
-| `Button` | `variant: primary \| secondary \| ghost \| danger \| danger-soft \| ok-soft`, `size: sm \| md`, `icon`, `iconEnd`, `loading`, `href`, `block`, `ref` | Labels name the result ("Deploy", "Save changes"). `loading` keeps the label, sets `aria-busy`, disables. `href` renders a link. `danger-soft` (red on `--danger-soft`) and `ok-soft` (green on `--ok-soft`) are for Stop and Start only. |
+| `Button` | `variant: primary \| secondary \| ghost \| danger \| danger-soft \| ok-soft`, `size: sm \| md`, `icon`, `iconEnd`, `loading`, `href`, `block`, `ref` | Labels name the result ("Deploy", "Save Changes"). `loading` keeps the label, sets `aria-busy`, disables. `href` renders a link. `danger-soft` (red on `--danger-soft`) and `ok-soft` (green on `--ok-soft`) are for Stop and Start only. |
 | `IconButton` | **`label` (required)**, `icon`, `variant: ghost \| secondary \| danger-soft`, `size`, `pressed`, `badge`, `tooltip`, `tooltipSide`, `href`, `external` | `label` is the accessible name and the tooltip; spread menu/popover trigger props onto it. No tooltip while its popup is open. With `href` it renders a link with the button's look (row actions such as "Open silo-web"; `external` opens a new tab with `noopener`). |
-| `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant: primary \| secondary \| ok-soft \| danger-soft`, `size: sm \| md`, `loading`, `disabled`, `menuDisabled` (defaults to `disabled`), `title` (the main part's tooltip, e.g. why it is off) | The stack header's Deploy; the file editor's Format (`sm`, `secondary`, "More format options"); the lifecycle button (`ok-soft` Start, `danger-soft` Stop: the chevron shares the tone). |
+| `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant: primary \| secondary \| ok-soft \| danger-soft`, `size: sm \| md`, `loading`, `disabled`, `menuDisabled` (defaults to `disabled`), `title` (the main part's tooltip, e.g. why it is off) | The stack header's Deploy; the file editor's Format (`sm`, `secondary`, "More Format Options"); the lifecycle button (`ok-soft` Start, `danger-soft` Stop: the chevron shares the tone). |
 | `Menu` | `items: MenuEntry[]`, `trigger` snippet `(props)`, `label`, `align`, `side`, `open` | Bits UI DropdownMenu: keyboard, typeahead, focus return. |
 | `ContextMenu` | `items`, `label`, `children` snippet `(props)` | Right-click / long-press; always duplicate its items in a visible Menu. |
-| `CopyButton` | `value`, `what` ("request ID"), `text` | Announces "Copied …". |
+| `CopyButton` | `value`, `what` ("request ID"), `text` | Labeled "Copy Request ID" (`titleCase` of `what`); announces "Copied …". |
 
 **Start, Restart and Stop** of a stack or container are one split button,
 `LifecycleButton` (`$lib/features/common`; `running`, `actions:
 { start?, restart?, stop? }` each `{ run, disabled?, reason? }`, `busy`,
 `disabled`, `reason`). The main part is **Stop** (`danger-soft`, Square)
 while anything runs, a partially running stack included, and **Start**
-(`ok-soft`, Play) while nothing does; the menu ("More start and stop
-options") lists Start, Restart (RotateCw) and Stop in that order, only the
+(`ok-soft`, Play) while nothing does; the menu ("More Start and Stop
+Options") lists Start, Restart (RotateCw) and Stop in that order, only the
 held ones, those that do not apply in the state turned off (a reason
 becomes the item's description and the main part's tooltip). With one held
 action it is a plain `Button`. Soft tones keep a page's one primary (Deploy)
@@ -264,7 +265,7 @@ disabled item uses it to say why it is off (only its label and icon dim).
 | --- | --- | --- |
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
 | `Chip` | `label`, `selected` (toggle: `aria-pressed`), `onclick`, `href`, `count`, `size: sm \| md`, `icon`, `hue`, `title`, `disabled` | A pill (`--radius-full`) for tags and filters: a link with `href`, a (toggle) button with `onclick` or `selected`, else a static tag. `hue` adds a colour swatch (e.g. `SERVICE_HEX`), a ring while the toggle is off. 40 px tall on coarse pointers. |
-| `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly failed". |
+| `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly Failed". |
 | `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title. `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
 | `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed`, `href`, `onclick` | Every figure links to its list: with `href` the label is a link whose hit area covers the card (`onclick` runs first, e.g. to preset the list's filters; links in a snippet `secondary` stay clickable). Row of KPI cards: `KpiRow` (`$lib/features/common`; `repeat(auto-fit, minmax(210px, 1fr))`, equal heights, two per row below 768 px with an odd last card spanning the row, so five cards never leave an orphan). Label, value and a text `secondary` stay on one line each (ellipsis, the full text as tooltip). `tone` dots share one style (colour plus its soft ring). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value, 12 px label), so the stack overview's five cards (status, CPU, memory, uptime, last deploy) fit one row on 1440 px screens and phones show two per row. |
 | `IconTile` | `icon`, `color: TileColor`, `size: xs \| sm \| md \| lg` | Decorative (the adjacent text names the thing). `xs` (24 px, 14 px glyph) is the row icon of lists ([Row icons](#row-icons)). |
@@ -337,11 +338,11 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | component | notes |
 | --- | --- |
 | `TextField` | `mono` for identifiers and paths; `bind:value`. |
-| `PasswordField` | Reveal toggle ("Show password"/"Hide password", `aria-pressed`); `autocomplete: current-password \| new-password`; `revealed` (bindable) starts it in plain text, e.g. a stored secret the user just asked to see ("Show address"). |
+| `PasswordField` | Reveal toggle ("Show Password"/"Hide Password", `aria-pressed`); `autocomplete: current-password \| new-password`; `revealed` (bindable) starts it in plain text, e.g. a stored secret the user just asked to see ("Show Address"). |
 | `TextArea`, `Select` (Bits UI listbox in the input's look: chevron trigger, check on the chosen option, typeahead; `onchange(value)`; an option's optional `icon` shows before its label in the list and the trigger, e.g. the notification service picker), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | No native `<select>` anywhere. |
-| `MultiSelect` | Several choices from short lists (the log viewer's Levels): `groups: MultiSelectGroup[]` (optional `label`, `options` with `value`, `label`, optional `count` and `hue` swatch), bindable `value: string[]` (values unique across groups), `summary` (the trigger's text; default `allLabel` or "2 of 6"), `icon`, `onchange`. A `Popover` under a Select-like trigger (tinted while not everything is chosen) listing each option as a switch row (`role="switch"`), "Only" per option (keeps just it in its group), "All" per group and "Select all". |
+| `MultiSelect` | Several choices from short lists (the log viewer's Levels): `groups: MultiSelectGroup[]` (optional `label`, `options` with `value`, `label`, optional `count` and `hue` swatch), bindable `value: string[]` (values unique across groups), `summary` (the trigger's text; default `allLabel` or "2 of 6"), `icon`, `onchange`. A `Popover` under a Select-like trigger (tinted while not everything is chosen) listing each option as a switch row (`role="switch"`), "Only" per option (keeps just it in its group), "All" per group and "Select All". |
 | `SuggestField` | Free text with a themed suggestion listbox (`suggestions: string[]`, combobox pattern: arrows, Enter, Escape, pointer); for values that may be new (a volume name). No `<datalist>`. |
-| `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection; `icon`: a decorative glyph before the label (the kinds of events in a notification channel's "What to send"). |
+| `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection; `icon`: a decorative glyph before the label (the kinds of events in a notification channel's "What to Send"). |
 | `Switch` | `role="switch"`; for settings that apply immediately. |
 | `RadioGroup` | Native radios in a fieldset. |
 | `TriState` | Inherit / Allow / Deny (#17 user overrides; `variant="rule"`: No rule / Allow / Deny) with the effective decision and its source explained. The chosen segment is filled and outlined in its colour (ok for Allow, danger for Deny, neutral otherwise); segments share one width so controls line up. `highRisk` marks Allow (the permission editor marks risk next to the action instead). |
@@ -356,7 +357,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `Dialog` | `open` (bindable), `title`, `description`, `size`, `footer` snippet, `trigger` snippet, `dismissible`, `alert` (Bits UI AlertDialog: `role="alertdialog"`). Focus trapped, Escape closes, focus returns to the opener; full screen < 768 px. Sizes: `sm` 480 px (confirmations, one-field prompts), `md` 640 px (short forms), `lg` 880 px (forms in two columns, previews), `xl` 1160 px (policy and stack editors laid out in columns). |
 | `ConfirmDialog` | `message`, `consequences[]`, **`confirmLabel`** (the action, never "OK"), `tone`, async `onconfirm` (progress on the button, failures shown inline, stays open), `size` (`sm`; `md`/`lg` when it shows a preview). |
 | `DestructiveConfirm` | Type-to-confirm (`confirmText`, usually the resource name), `consequences[]`, `affected: AffectedResource[]`, optional `extra` snippet (e.g. the archive dialog's "migrate stacks first" offer, the stack rename's name field and preview), `canConfirm` (another condition besides the typed text, e.g. a preview without blockers) and `size`. The name to type is shown by `TypeToConfirm`. |
-| `TypeToConfirm` | The typed confirmation (`text`, bindable `value`): the exact text as a single-line code block (long names scroll, never wrap) with a "Copy name" button, then the input (accessible name "Type <text> to confirm"). Every dialog that asks for a typed name uses it (through `DestructiveConfirm` or directly, e.g. restores). |
+| `TypeToConfirm` | The typed confirmation (`text`, bindable `value`): the exact text as a single-line code block (long names scroll, never wrap) with a "Copy Name" button, then the input (accessible name "Type <text> to confirm"). Every dialog that asks for a typed name uses it (through `DestructiveConfirm` or directly, e.g. restores). |
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher, `MultiSelect`. |
 | `Tooltip` | `text`, `trigger` snippet `(props)`. Supplements names; never the only name. |
@@ -368,7 +369,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | component | notes |
 | --- | --- |
 | `toast.success / error / info / warn(title, { body, action, timeout })` + `<Toaster />` (root layout) | Errors stay until dismissed; polite and assertive regions. |
-| `Notice` | Inline or `bar` banner: `tone`, `title`, `live`, `actions` (e.g. the external-change conflict: Compare, Reload from disk, Save as…, Overwrite). |
+| `Notice` | Inline or `bar` banner: `tone`, `title`, `live`, `actions` (e.g. the external-change conflict: Compare, Reload From Disk, Save As…, Overwrite). |
 | `EmptyState` | Invites action: title, description, `actions`. |
 | `ErrorState` | From the API error shape. `title` (optional) says what failed, then the message says what happened; without a title the message leads. The `code` and the request ID (with copy) wait behind a small "Details" toggle. Retry when retryable or a network failure (wraps below the text on phones). `bare`: no border, background or margin, for use inside a `Card`; `compact`: smaller padding. |
 | `DeniedState` | The Restricted user's state (brief copy). |
@@ -470,6 +471,11 @@ viewer's ("Daily at 03:00 (UTC)"); other shapes stay the raw expression.
 Show schedules in words with the expression as tooltip
 (`ScheduleSummary` in `$lib/features/common` does).
 
+`titleCase(words)` (`$lib/ui`, from `format.ts`) makes a label of words
+put together at run time ("request ID" → "Request ID", "sign-in policy" →
+"Sign-In Policy"): it changes plain lowercase words only, so acronyms,
+file names and values stay as they are.
+
 ## Adding a page
 
 1. Create `web/src/routes/(app)/<section>/+page.svelte` (signed-in pages)
@@ -489,15 +495,15 @@ Show schedules in words with the expression as tooltip
    `Card`s with `Table`s. Headers: section pages have no icon tile, object
    pages have the object's tile (`{...resourceIcon(kind)}`; stacks: the
    template's image when they were created from one), create pages repeat the button that opens them as
-   their title ("Create update policy", "Build image"). Loading: `Skeleton` in an `aria-busy` region.
+   their title ("Create Update Policy", "Build Image"). Loading: `Skeleton` in an `aria-busy` region.
    Failure: `ErrorState` with `onretry={() => query.refetch()}`. Nothing
    yet: `EmptyState` with the action. Forbidden: hide the control (the
    server answers 403/404 anyway).
 4. Lists filter by `environmentSelection.id` (null = all environments).
    A section list (containers, images, volumes, networks, stacks) is one
    `ListCard` (`$lib/features/resources`): the card title "All
-   containers" with the count ("3 of 40 containers"), the search, then the
-   filters built into its header, and "Clear filters" while any is set;
+   Containers" with the count ("3 of 40 containers"), the search, then the
+   filters built into its header, and "Clear Filters" while any is set;
    no matches show `NoMatches` with the same action. Filters are
    `ListFilter` definitions in a pure module (`filters.ts`, stacks:
    `$lib/features/stacks/filters.ts`): one per attribute the list shows
@@ -548,7 +554,20 @@ Show schedules in words with the expression as tooltip
   Volumes and files are kept."
 - Empty states invite action: "No stacks on homelab yet. Create a stack or
   import an existing Compose project."
-- Sentence case; plain verbs; no "Submit", "OK" or "Oops"; name things as
+- Title Case for names and labels (#219): navigation, page, card, section
+  and dialog titles, tabs, column headers, field and option labels, menu
+  items, buttons, badges and status labels, empty-state titles ("Image
+  Updates", "Last Used", "Add Connection"). Capitalize every word except
+  articles (a, an, the), coordinating conjunctions (and, but, or, nor) and
+  short prepositions (as, at, by, for, in, of, on, per, to, via, with),
+  unless the word is first or last. Product names, acronyms and literal
+  values keep their casing (Docker Manager, GHCR, RAID, SMART, API, URL,
+  `docker-compose.yml`, `pull: always`, image references, cron
+  expressions).
+- Sentence case for sentences: descriptions, help text, hints,
+  placeholders, tooltips that are sentences, toasts, errors,
+  confirmations and empty-state bodies.
+- Plain verbs; no "Submit", "OK" or "Oops"; name things as
   the user sees them ("environment", not "agent session").
 
 ## Accessibility floor

@@ -106,7 +106,7 @@
 			? [
 					{
 						id: 'environment',
-						header: 'Applies to',
+						header: 'Applies To',
 						cell: envCell,
 						sortValue: (s: Schedule) => scheduleScope(s, envName),
 						width: '160px',
@@ -124,13 +124,13 @@
 		},
 		{
 			id: 'next',
-			header: 'Next run',
+			header: 'Next Run',
 			cell: nextCell,
 			sortValue: (s) => (s.enabled && s.nextRun ? Date.parse(s.nextRun.utc) : null),
 			width: '230px',
 			stack: 'meta'
 		},
-		{ id: 'last', header: 'Last run', cell: lastCell, width: '190px', stack: 'meta' },
+		{ id: 'last', header: 'Last Run', cell: lastCell, width: '190px', stack: 'meta' },
 		{
 			id: 'actions',
 			header: 'Actions',
@@ -208,7 +208,7 @@
 			{#snippet actions()}
 				{#if can(accessOf(perms.data), 'settings.read')}
 					<Button icon={SlidersHorizontal} href={routes.scheduleDefaults()}
-						>Change defaults</Button
+						>Change Defaults</Button
 					>
 				{/if}
 			{/snippet}
@@ -222,13 +222,13 @@
 			/>
 		{:else}
 			<ListCard
-				title="All schedules"
+				title="All Schedules"
 				id="schedules"
 				summary={schedules.data
 					? listSummary(rows.length, all.length, filtered, 'schedule', 'schedules')
 					: undefined}
-				label="Filter schedules"
-				searchLabel="Search schedules"
+				label="Filter Schedules"
+				searchLabel="Search Schedules"
 				placeholder="Search schedules"
 				filters={defs}
 				store={filters}

@@ -6,7 +6,7 @@ import TabNav from './TabNav.svelte';
 
 const items = [
 	{ href: '/profile', label: 'Account' },
-	{ href: '/profile/tokens', label: 'API tokens' }
+	{ href: '/profile/tokens', label: 'API Tokens' }
 ];
 
 function size(el: HTMLElement, scrollWidth: number, clientWidth: number, scrollLeft = 0) {
@@ -22,9 +22,9 @@ function size(el: HTMLElement, scrollWidth: number, clientWidth: number, scrollL
 describe('TabNav', () => {
 	it('marks the current tab', () => {
 		render(TabNav, {
-			props: { items, current: '/profile/tokens/new', label: 'Profile sections' }
+			props: { items, current: '/profile/tokens/new', label: 'Profile Sections' }
 		});
-		expect(screen.getByRole('link', { name: 'API tokens' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'API Tokens' })).toHaveAttribute(
 			'aria-current',
 			'page'
 		);
@@ -32,8 +32,8 @@ describe('TabNav', () => {
 	});
 
 	it('fades the edges where tabs are cut off', async () => {
-		render(TabNav, { props: { items, current: '/profile', label: 'Profile sections' } });
-		const nav = screen.getByRole('navigation', { name: 'Profile sections' });
+		render(TabNav, { props: { items, current: '/profile', label: 'Profile Sections' } });
+		const nav = screen.getByRole('navigation', { name: 'Profile Sections' });
 		size(nav, 600, 300);
 		await fireEvent.scroll(nav);
 		expect(nav).toHaveClass('fade-end');

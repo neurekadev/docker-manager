@@ -1,8 +1,8 @@
 // Notification channel dialog (#142): friendly fields per service (secrets
 // in password fields) become one Shoutrrr URL; switching the service
 // swaps the fields; editing keeps the stored address masked until "Show
-// address" reads it back, and saves without it when it is unchanged.
-// "What to send" is a grid: a checkbox per kind of event (mixed while some
+// Address" reads it back, and saves without it when it is unchanged.
+// "What to Send" is a grid: a checkbox per kind of event (mixed while some
 // of its outcomes are ticked) and one per outcome.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
@@ -91,29 +91,29 @@ describe('ChannelDialog (#142)', () => {
 		const calls = stubApi();
 		show({ open: true });
 		expect(await screen.findByRole('heading', { name: 'Destination' })).toBeInTheDocument();
-		expect(screen.getByRole('heading', { name: 'What to send' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'What to Send' })).toBeInTheDocument();
 		for (const label of [
-			'Disk health',
+			'Disk Health',
 			'RAID',
 			'Temperature',
-			'Disk space',
+			'Disk Space',
 			'Memory',
-			'Environment offline',
+			'Environment Offline',
 			'Backups',
 			'Restores',
 			'Prune',
-			'Image updates',
-			'Other jobs',
-			'Disk health: Warning',
-			'Environment offline: Back online',
-			'Image updates: Applied',
+			'Image Updates',
+			'Other Jobs',
+			'Disk Health: Warning',
+			'Environment Offline: Back Online',
+			'Image Updates: Applied',
 			'Restores: Success',
-			'Other jobs: Resolved'
+			'Other Jobs: Resolved'
 		])
 			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
 		// A row whose label does not say all it covers explains it in an (i).
 		const others = screen
-			.getByRole('checkbox', { name: 'Other jobs' })
+			.getByRole('checkbox', { name: 'Other Jobs' })
 			.closest('.event-kind') as HTMLElement;
 		expect(
 			within(others).getByRole('img', { name: /an API token started/ })
@@ -147,7 +147,7 @@ describe('ChannelDialog (#142)', () => {
 		const webhook = screen.getByLabelText(/^Webhook URL/);
 		expect(webhook).toHaveAttribute('type', 'password');
 		await user.type(webhook, 'https://discord.com/api/webhooks/123456789012345678/tok-123');
-		await user.click(screen.getByRole('button', { name: 'Add channel' }));
+		await user.click(screen.getByRole('button', { name: 'Add Channel' }));
 
 		await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
 		const post = calls.find((c) => c.method === 'POST')!;
@@ -161,19 +161,19 @@ describe('ChannelDialog (#142)', () => {
 			environmentIds: []
 		});
 		await waitFor(() => expect(toast.items.map((t) => t.title)).toContain('Added Ops'));
-		expect(toast.items.find((t) => t.title === 'Added Ops')?.action?.label).toBe('Send test');
+		expect(toast.items.find((t) => t.title === 'Added Ops')?.action?.label).toBe('Send Test');
 	});
 
 	it('says what is missing and sends nothing', async () => {
 		const user = setup();
 		const calls = stubApi();
 		show({ open: true });
-		await user.click(await screen.findByRole('button', { name: 'Add channel' }));
+		await user.click(await screen.findByRole('button', { name: 'Add Channel' }));
 		expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
 		expect(screen.getByText('Choose a service.')).toBeInTheDocument();
 		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Mail');
 		await choose(user, screen.getByRole('combobox', { name: /^Service/ }), 'Email (SMTP)');
-		await user.click(screen.getByRole('button', { name: 'Add channel' }));
+		await user.click(screen.getByRole('button', { name: 'Add Channel' }));
 		expect(await screen.findByText('Enter the SMTP server.')).toBeInTheDocument();
 		expect(calls).toEqual([]);
 	});
@@ -187,32 +187,32 @@ describe('ChannelDialog (#142)', () => {
 			await screen.findByRole('combobox', { name: /^Service/ }),
 			'Email (SMTP)'
 		);
-		expect(screen.getByRole('textbox', { name: /^SMTP server/ })).toBeInTheDocument();
+		expect(screen.getByRole('textbox', { name: /^SMTP Server/ })).toBeInTheDocument();
 		expect(screen.getByRole('textbox', { name: /^Port/ })).toHaveValue('587');
 		expect(screen.getByLabelText(/^Password/)).toHaveAttribute('type', 'password');
 		expect(screen.getByRole('combobox', { name: /^Encryption/ })).toHaveTextContent('Auto');
 		await choose(user, screen.getByRole('combobox', { name: /^Service/ }), 'Telegram');
-		expect(screen.queryByRole('textbox', { name: /^SMTP server/ })).toBeNull();
-		expect(screen.getByLabelText(/^Bot token/)).toHaveAttribute('type', 'password');
+		expect(screen.queryByRole('textbox', { name: /^SMTP Server/ })).toBeNull();
+		expect(screen.getByLabelText(/^Bot Token/)).toHaveAttribute('type', 'password');
 		expect(screen.getByRole('textbox', { name: /^Chats/ })).toBeInTheDocument();
 	});
 
-	it('keeps the stored address masked until Show address, and saves without it when unchanged', async () => {
+	it('keeps the stored address masked until Show Address, and saves without it when unchanged', async () => {
 		const user = setup();
 		const calls = stubApi();
 		show({ open: true, channel });
 		expect(await screen.findByText('The address is stored encrypted')).toBeInTheDocument();
 		expect(screen.queryByLabelText(/^Webhook URL/)).toBeNull();
 		// The channel's events: every update outcome, only failed jobs' failures.
-		expect(screen.getByRole('checkbox', { name: 'Image updates' })).toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other jobs' })).toBePartiallyChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other jobs: Failure' })).toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other jobs: Resolved' })).not.toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Image Updates' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other Jobs' })).toBePartiallyChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other Jobs: Failure' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Other Jobs: Resolved' })).not.toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBePartiallyChecked();
 		expect(calls).toEqual([]);
 
-		await user.click(screen.getByRole('button', { name: 'Show address' }));
+		await user.click(screen.getByRole('button', { name: 'Show Address' }));
 		const webhook = await screen.findByLabelText(/^Webhook URL/);
 		expect(webhook).toHaveValue('https://discord.com/api/webhooks/123456789012345678/tok-123');
 		// Asked for: shown in plain text, no second click on the eye.
@@ -222,7 +222,7 @@ describe('ChannelDialog (#142)', () => {
 		]);
 
 		await user.click(screen.getByRole('checkbox', { name: 'RAID' }));
-		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
 		const patch = calls.find((c) => c.method === 'PATCH')!;
 		expect(patch.path).toBe('/api/v1/notification-channels/c-1');
@@ -240,15 +240,15 @@ describe('ChannelDialog (#142)', () => {
 		await waitFor(() => expect(toast.items.map((t) => t.title)).toContain('Saved Ops'));
 	});
 
-	it('sends a changed address after Show address', async () => {
+	it('sends a changed address after Show Address', async () => {
 		const user = setup();
 		const calls = stubApi();
 		show({ open: true, channel });
-		await user.click(await screen.findByRole('button', { name: 'Show address' }));
+		await user.click(await screen.findByRole('button', { name: 'Show Address' }));
 		const webhook = await screen.findByLabelText(/^Webhook URL/);
 		await user.clear(webhook);
 		await user.type(webhook, 'https://discord.com/api/webhooks/42/new-token');
-		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
 		expect(
 			(calls.find((c) => c.method === 'PATCH')!.body as { address?: string }).address
@@ -276,18 +276,18 @@ describe('ChannelDialog (#142)', () => {
 		expect(archived).toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'prod' })).not.toBeChecked();
 		expect(screen.getByRole('combobox', { name: /^Environments/ })).toHaveTextContent(
-			'Some environments'
+			'Some Environments'
 		);
 
 		// Unticking the last one blocks the save; it never means every environment.
 		await user.click(archived);
-		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		expect(await screen.findByText('Choose at least one environment.')).toBeInTheDocument();
 		expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
 
 		// Kept as it is, the archived environment is sent back unchanged.
 		await user.click(archived);
-		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
 		expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({
 			allEnvironments: false,
@@ -328,7 +328,7 @@ describe('ChannelDialog (#142)', () => {
 		);
 		await user.click(screen.getByRole('checkbox', { name: 'Prune' }));
 		await user.click(screen.getByRole('checkbox', { name: 'Prune: Success' }));
-		await user.click(screen.getByRole('button', { name: 'Add channel' }));
+		await user.click(screen.getByRole('button', { name: 'Add Channel' }));
 		await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
 		const events = (calls.find((c) => c.method === 'POST')!.body as { events: unknown[] })
 			.events;
@@ -344,11 +344,11 @@ describe('ChannelDialog (#142)', () => {
 		const user = setup();
 		const calls = stubApi();
 		show({ open: true, channel });
-		await user.click(await screen.findByRole('checkbox', { name: 'Image updates' }));
-		await user.click(screen.getByRole('checkbox', { name: 'Other jobs' }));
+		await user.click(await screen.findByRole('checkbox', { name: 'Image Updates' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Other Jobs' }));
 		// Mixed: the click ticks every outcome; a second one clears them.
-		await user.click(screen.getByRole('checkbox', { name: 'Other jobs' }));
-		await user.click(screen.getByRole('button', { name: 'Save changes' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Other Jobs' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		expect(await screen.findByText('Choose at least one event to send.')).toBeInTheDocument();
 		expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
 	});

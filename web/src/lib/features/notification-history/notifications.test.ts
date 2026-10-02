@@ -76,7 +76,7 @@ describe('Notifications tab', () => {
 			['Images', '7 images · 4.1 GiB'],
 			['Volumes', '1 volume'],
 			['Networks', '2 networks'],
-			['Build cache', '14 entries · 96 MB']
+			['Build Cache', '14 entries · 96 MB']
 		]) {
 			expect(within(item).getByText(name).tagName).toBe('DT');
 			expect(within(item).getByText(value).tagName).toBe('DD');
@@ -99,7 +99,7 @@ describe('Notifications tab', () => {
 		expect(within(update).getByText('worker')).toBeInTheDocument();
 		expect(within(update).getByText('homelab')).toBeInTheDocument();
 		expect(screen.getAllByText('3 notifications').length).toBeGreaterThan(0);
-		expect(screen.queryByRole('button', { name: 'Load more notifications' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Load More Notifications' })).toBeNull();
 	});
 
 	it('asks the server for the stored filters and hides the environment for one', async () => {
@@ -142,12 +142,12 @@ describe('Notifications tab', () => {
 		);
 		mount({ environmentId: null, now });
 		await screen.findByRole('link', { name: 'Backup Nightly on homelab succeeded' });
-		await user.click(screen.getByRole('button', { name: 'Load more notifications' }));
+		await user.click(screen.getByRole('button', { name: 'Load More Notifications' }));
 		expect(
 			await screen.findByRole('link', { name: 'Restore of data on homelab succeeded' })
 		).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Sun, Sep 20' })).toBeInTheDocument();
 		await waitFor(() => expect(requests.at(-1)?.get('cursor')).toBe('c2'));
-		expect(screen.queryByRole('button', { name: 'Load more notifications' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Load More Notifications' })).toBeNull();
 	});
 });

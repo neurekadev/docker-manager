@@ -16,7 +16,7 @@
 
 	// The same trail as the volume's other tabs: Volumes / env / name / Backups.
 	usePage(() => ({
-		title: `${name} backups`,
+		title: `${name} Backups`,
 		crumbs: [
 			{ label: 'Volumes', href: routes.volumes() },
 			{ label: envName },

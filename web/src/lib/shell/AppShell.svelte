@@ -24,7 +24,7 @@
 		recentJobsQuery
 	} from '$lib/api/queries';
 	import { activeAlertsQuery } from '$lib/features/alerts/queries';
-	import { jobKindLabel } from '$lib/features/jobs/labels';
+	import { jobKindPhrase } from '$lib/features/jobs/labels';
 	import MoveBanner from '$lib/features/managermove/MoveBanner.svelte';
 	import { liveStatus } from '$lib/live/status.svelte';
 	import { bannerDelay, bannerText } from './live-banner';
@@ -101,7 +101,7 @@
 	});
 	$effect(() => notices.listen());
 	const recentJobs = createQuery(() => ({ ...recentJobsQuery(20), enabled: signedIn }));
-	const feedJobNotices = jobNotices(() => user.id, jobKindLabel);
+	const feedJobNotices = jobNotices(() => user.id, jobKindPhrase);
 	$effect(() => {
 		if (recentJobs.data) feedJobNotices(recentJobs.data.items);
 	});
@@ -189,7 +189,7 @@
 	{/if}
 {/snippet}
 
-<a class="skip" href="#main">Skip to content</a>
+<a class="skip" href="#main">Skip to Content</a>
 
 <div class="shell" class:rail class:drawer-mode={drawerMode}>
 	{#if !drawerMode}
@@ -204,10 +204,10 @@
 		<header class="topbar">
 			<IconButton
 				label={drawerMode
-					? 'Open navigation'
+					? 'Open Navigation'
 					: rail
-						? 'Expand sidebar'
-						: 'Collapse sidebar'}
+						? 'Expand Sidebar'
+						: 'Collapse Sidebar'}
 				icon={PanelLeft}
 				onclick={toggleSidebar}
 				tooltipSide="bottom"

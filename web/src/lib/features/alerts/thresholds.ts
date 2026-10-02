@@ -43,8 +43,8 @@ export const THRESHOLD_METRICS: ThresholdMetric[] = [
 	},
 	{
 		metric: 'diskSpace',
-		label: 'Disk space (% used)',
-		short: 'Disk space',
+		label: 'Disk Space (% Used)',
+		short: 'Disk Space',
 		unit: '%',
 		max: 100,
 		warning: 'diskSpaceWarning',
@@ -52,7 +52,7 @@ export const THRESHOLD_METRICS: ThresholdMetric[] = [
 	},
 	{
 		metric: 'memory',
-		label: 'Memory (% used)',
+		label: 'Memory (% Used)',
 		short: 'Memory',
 		unit: '%',
 		max: 100,

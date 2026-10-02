@@ -52,7 +52,7 @@
 
 <Dialog
 	bind:open
-	title="Create archive"
+	title="Create Archive"
 	description="Packs {what} into one file in this folder."
 	size="sm"
 	dismissible={!busy}
@@ -67,12 +67,12 @@
 				{ value: 'tar.gz', label: 'tar.gz', description: 'Keeps Unix permissions.' }
 			]}
 		/>
-		<TextField label="Archive name" mono bind:value={name} {error} autocomplete="off" />
+		<TextField label="Archive Name" mono bind:value={name} {error} autocomplete="off" />
 	</form>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>
 		<Button variant="primary" type="submit" form="archive-form" loading={busy}
-			>Create archive</Button
+			>Create Archive</Button
 		>
 	{/snippet}
 </Dialog>

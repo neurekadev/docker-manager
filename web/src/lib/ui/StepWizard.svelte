@@ -123,7 +123,7 @@
 {/snippet}
 
 <div class="wizard">
-	<ol class="steps" role="list" aria-label="{label} steps">
+	<ol class="steps" role="list" aria-label="{label} Steps">
 		{#each steps as s, i (s.id)}
 			<li
 				class:done={i < current}

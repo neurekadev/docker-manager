@@ -143,8 +143,8 @@
 		sub={s.origin === 'scheduled'
 			? 'Scheduled'
 			: s.origin === 'api_token'
-				? 'API token'
-				: 'Started by hand'}
+				? 'API Token'
+				: 'Started by Hand'}
 	/>
 {/snippet}
 {#snippet policyCell(s: Row)}
@@ -163,7 +163,7 @@
 				max={100}
 				role="progressbar"
 				tone="neutral"
-				label="Progress of the set started {formatDateTime(s.startedAt)}"
+				label="Progress of the Set Started {formatDateTime(s.startedAt)}"
 			/>
 		</span>
 	{:else}
@@ -184,7 +184,7 @@
 				variant="secondary"
 				icon={RotateCcw}
 				loading={retrying === s.id}
-				onclick={() => retry(s)}>Retry missing</Button
+				onclick={() => retry(s)}>Retry Missing</Button
 			>
 		{/if}
 		<Button size="sm" variant="ghost" onclick={() => details(s)}>Details</Button>
@@ -201,7 +201,7 @@
 
 <Drawer
 	bind:open={drawerOpen}
-	title={selected ? `Run of ${formatDateTime(selected.startedAt)}` : 'Backup run'}
+	title={selected ? `Run of ${formatDateTime(selected.startedAt)}` : 'Backup Run'}
 	size="640px"
 >
 	{#if selected}
@@ -222,12 +222,12 @@
 				<Button
 					icon={RotateCcw}
 					loading={retrying === selected.id}
-					onclick={() => selected && retry(selected)}>Retry missing</Button
+					onclick={() => selected && retry(selected)}>Retry Missing</Button
 				>
 			{/if}
 			{#if selected.policyId && showPolicy}
 				<Button variant="ghost" href={routes.backupPolicy(selected.policyId)}
-					>Open policy</Button
+					>Open Policy</Button
 				>
 			{/if}
 		{/if}

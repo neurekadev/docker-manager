@@ -4,7 +4,7 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 
 Guide: `docs/internal/architecture/manager-move.md`. Packages:
 `internal/manager/managermove` (the move, `manager.move`, the signed and
-encrypted handoff, redirects, waiting mode, arrival, Move complete) and
+encrypted handoff, redirects, waiting mode, arrival, Move Complete) and
 `internal/manager/movelock` (the lock). The new server's files are
 rendered next to the install commands (`agents.MoveFiles`, the policy
 check's documented socket exception).
@@ -87,7 +87,7 @@ check's documented socket exception).
   (`agents.Options.Generation`); any other manager-issued identity must
   carry it too. The environment next to the manager is learned from the
   `manager.identity` answer (`ObserveColocation`), never guessed.
-- "Move complete" decides "needs a fix" from the redirects that were not
+- "Move Complete" decides "needs a fix" from the redirects that were not
   sent and the agent not connecting since the arrival, never from the
   address an agent reports; the old server's agent's fix is the HTTPS
   public URL, never the move's plain-HTTP address.
@@ -114,7 +114,7 @@ check's documented socket exception).
 - **Web UI** (`web/src/lib/features/managermove`, `docs/internal/web.md`):
   the new server's `.env` (and the one-command setup built from it,
   `setupScript`) is shown once and kept only in the page's memory; lost
-  or expired files are replaced with "Create new setup files", never by
+  or expired files are replaced with "Create New Setup Files", never by
   cancelling; a locked manager shows the shell's `MoveBanner` (the owner
   reads the move, everyone the session's lock, both refreshed live, and
   the first 409 `manager_moved`, heard through `onApiFailure`), never a

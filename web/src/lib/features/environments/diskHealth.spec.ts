@@ -334,7 +334,7 @@ describe('RAID', () => {
 				health: 'DEGRADED',
 				members: []
 			})
-		).toBe('ZFS pool');
+		).toBe('ZFS Pool');
 		expect(raidBadge(md({ state: 'degraded' }))).toEqual({
 			status: 'degraded',
 			label: 'Degraded'
@@ -426,10 +426,10 @@ describe('details (#206)', () => {
 		);
 		expect(raidBitmap(md({ bitmap: true }))).toBe('Yes');
 		expect(memberRole({ name: 'sda1', slot: 0, state: 'active', writeMostly: true })).toBe(
-			'Active, write-mostly'
+			'Active, Write-Mostly'
 		);
 		expect(memberRole({ name: 'sdb1', slot: 1, state: 'replacement' })).toBe(
-			'Replacing a member'
+			'Replacing a Member'
 		);
 	});
 
@@ -450,8 +450,8 @@ describe('details (#206)', () => {
 		expect(attributeRaw(a)).toBe('36');
 		expect(attributeRaw({ ...a, rawText: '36 (Min/Max 20/49)' })).toBe('36 (Min/Max 20/49)');
 		expect(attributeRaw({ id: 1, name: 'X' })).toBe('—');
-		expect(attributeType({ ...a, prefailure: true })).toBe('Pre-fail');
-		expect(attributeType(a)).toBe('Old age');
+		expect(attributeType({ ...a, prefailure: true })).toBe('Pre-Fail');
+		expect(attributeType(a)).toBe('Old Age');
 	});
 
 	it('marks each health-relevant value OK, warning or danger, as the agent judges it (#210)', () => {
@@ -460,12 +460,12 @@ describe('details (#206)', () => {
 		expect(attributeCheck(temp)).toBeNull();
 		expect(attributeCheck({ ...temp, whenFailed: 'past' })).toEqual({
 			tone: 'warn',
-			label: 'Failed in the past'
+			label: 'Failed in the Past'
 		});
 		expect(attributeCheck({ id: 5, name: 'Reallocated_Sector_Ct', whenFailed: 'now' })).toEqual(
 			{
 				tone: 'danger',
-				label: 'Failing now'
+				label: 'Failing Now'
 			}
 		);
 		expect(attributeCheck({ id: 5, name: 'Reallocated_Sector_Ct', raw: 8 })).toEqual({
@@ -500,10 +500,10 @@ describe('details (#206)', () => {
 		const nvme = disk({ protocol: 'nvme', availableSpareThreshold: 10 });
 		const check = (key: string, value: number, d = nvme) => valueCheck({ key, value }, d);
 		expect(check('critical_warning', 0)?.tone).toBe('ok');
-		expect(check('critical_warning', 2)).toEqual({ tone: 'warn', label: 'Too hot' });
+		expect(check('critical_warning', 2)).toEqual({ tone: 'warn', label: 'Too Hot' });
 		expect(check('critical_warning', 4)).toEqual({ tone: 'danger', label: 'Critical' });
 		expect(check('available_spare', 100)?.tone).toBe('ok');
-		expect(check('available_spare', 5)).toEqual({ tone: 'warn', label: 'Below the minimum' });
+		expect(check('available_spare', 5)).toEqual({ tone: 'warn', label: 'Below the Minimum' });
 		expect(check('available_spare', 5, disk())).toBeNull();
 		expect(check('percentage_used', 89)?.tone).toBe('ok');
 		expect(check('percentage_used', 90)).toEqual({ tone: 'warn', label: 'Worn' });
@@ -518,11 +518,11 @@ describe('details (#206)', () => {
 
 	it('labels and formats the other health values', () => {
 		expect(healthValue({ key: 'data_units_written', value: 2 })).toEqual({
-			label: 'Data written',
+			label: 'Data Written',
 			text: formatBytes(1_024_000)
 		});
 		expect(healthValue({ key: 'power_on_hours', value: 30 })).toEqual({
-			label: 'Powered on',
+			label: 'Powered On',
 			text: '1 d 6 h'
 		});
 		expect(healthValue({ key: 'critical_warning', value: 0 }).text).toBe('None');
@@ -530,15 +530,15 @@ describe('details (#206)', () => {
 		expect(healthValue({ key: 'controller_busy_time', value: 90 }).text).toBe('1 h 30 min');
 		expect(healthValue({ key: 'temperature', value: 38 }).text).toBe(formatTemperature(38));
 		expect(healthValue({ key: 'unsafe_shutdowns', value: 1234 })).toEqual({
-			label: 'Unsafe shutdowns',
+			label: 'Unsafe Shutdowns',
 			text: '1,234'
 		});
 		expect(healthValue({ key: 'read.total_errors_corrected', value: 5 })).toEqual({
-			label: 'Read: total errors corrected',
+			label: 'Read: Total Errors Corrected',
 			text: '5'
 		});
 		expect(healthValue({ key: 'accumulated_start_stop_cycles', value: 7 }).label).toBe(
-			'Accumulated start stop cycles'
+			'Accumulated Start Stop Cycles'
 		);
 	});
 });
@@ -610,12 +610,12 @@ describe('the disk’s own limits (#212)', () => {
 		});
 		expect(valueCheck({ key: 'temperature', value: 84 }, nvme)).toEqual({
 			tone: 'warn',
-			label: 'Too hot'
+			label: 'Too Hot'
 		});
 		expect(valueCheck({ key: 'warning_temp_time', value: 0 }, nvme)?.tone).toBe('ok');
 		expect(valueCheck({ key: 'critical_comp_time', value: 3 }, nvme)).toEqual({
 			tone: 'warn',
-			label: 'Ran hot'
+			label: 'Ran Hot'
 		});
 	});
 });

@@ -34,8 +34,8 @@ describe('alert thresholds', () => {
 	it('has a row per metric with its unit and limit', () => {
 		expect(THRESHOLD_METRICS.map((m) => [m.label, m.max])).toEqual([
 			['Temperature (°C)', 150],
-			['Disk space (% used)', 100],
-			['Memory (% used)', 100]
+			['Disk Space (% Used)', 100],
+			['Memory (% Used)', 100]
 		]);
 		expect(THRESHOLD_KEYS).toEqual([
 			'temperatureWarning',

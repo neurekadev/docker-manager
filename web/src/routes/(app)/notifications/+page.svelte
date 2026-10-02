@@ -57,7 +57,7 @@
 			title="Notifications"
 			description="What Docker Manager did and what it found: finished backups, prunes and updates, and the problems that need a look."
 		/>
-		<Tabs items={tabs} value={tab} label="Notifications sections" onchange={selectTab}>
+		<Tabs items={tabs} value={tab} label="Notifications Sections" onchange={selectTab}>
 			{#snippet panel(t)}
 				{#if t === 'alerts'}
 					<AlertsView environmentId={environmentSelection.id} owner={access.owner} />

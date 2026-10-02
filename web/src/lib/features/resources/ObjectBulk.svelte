@@ -41,9 +41,16 @@
 		volume: { one: 'volume', many: 'volumes' },
 		network: { one: 'network', many: 'networks' }
 	};
+	/** The nouns in a button label (Title Case). */
+	const LABEL_NOUN = {
+		image: { one: 'Image', many: 'Images' },
+		volume: { one: 'Volume', many: 'Volumes' },
+		network: { one: 'Network', many: 'Networks' }
+	};
 	const kind = $derived(selected.kind);
 	const n = $derived(plan.run.length);
 	const noun = $derived(n === 1 ? NOUN[kind].one : NOUN[kind].many);
+	const Noun = $derived(n === 1 ? LABEL_NOUN[kind].one : LABEL_NOUN[kind].many);
 
 	/** Images are named by their first tag (untagged: the short ID). */
 	function name(item: Item): string {
@@ -122,7 +129,7 @@
 	consequences={CONSEQUENCES[kind]}
 	{plan}
 	{name}
-	confirmLabel={kind === 'volume' ? `Remove ${n} ${noun} and their data` : `Remove ${n} ${noun}`}
+	confirmLabel={kind === 'volume' ? `Remove ${n} ${Noun} and Their Data` : `Remove ${n} ${Noun}`}
 	danger
 	confirmText="remove {n} {noun}"
 	onconfirm={confirm}

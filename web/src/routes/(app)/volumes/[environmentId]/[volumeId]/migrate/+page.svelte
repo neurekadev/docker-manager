@@ -208,7 +208,7 @@
 			compact
 		>
 			{#snippet actions()}
-				<Button variant="secondary" href={routes.environments()}>Go to environments</Button>
+				<Button variant="secondary" href={routes.environments()}>Go to Environments</Button>
 			{/snippet}
 		</EmptyState>
 	</Card>
@@ -233,7 +233,7 @@
 					)} at the copy, then remove the source when you no longer need it.
 					{#snippet actions()}
 						<Button variant="secondary" href={routes.volume(runTarget, runCopy)}
-							>Open the copy</Button
+							>Open the Copy</Button
 						>
 					{/snippet}
 				</Notice>
@@ -243,12 +243,12 @@
 {:else}
 	<Card>
 		<StepWizard
-			label="Volume migration"
+			label="Volume Migration"
 			{steps}
 			bind:current
 			{onnext}
 			onfinish={start}
-			finishLabel="Migrate volume"
+			finishLabel="Migrate Volume"
 			canAdvance={current === 0
 				? !!target && !nameError
 				: !!preview && preview.allowed && !previewing}
@@ -257,12 +257,12 @@
 				{#if s.id === 'target'}
 					<div class="fields">
 						<Select
-							label="Destination environment"
+							label="Destination Environment"
 							bind:value={target}
 							options={targets.map((e) => ({ value: e.id, label: e.name }))}
 						/>
 						<TextField
-							label="Name on the destination"
+							label="Name on the Destination"
 							mono
 							bind:value={newName}
 							placeholder={name}
@@ -297,7 +297,7 @@
 						{/if}
 						{#if onlyRunningBlocks || ack}
 							<Checkbox
-								label="Copy while the containers keep running"
+								label="Copy While the Containers Keep Running"
 								description="The copy is crash-consistent only: like pulling the power cord, files being written may be incomplete. Stopping the containers first is safer."
 								bind:checked={ack}
 								onchange={(e) =>
@@ -310,7 +310,7 @@
 							/>
 						{/if}
 						{#if preview.warnings.length}
-							<Notice tone="warn" title="Check before you start" live="none">
+							<Notice tone="warn" title="Check Before You Start" live="none">
 								<ul class="bullets">
 									{#each preview.warnings as w, i (i)}<li>
 											{w.message}
@@ -343,7 +343,7 @@
 								</dd>
 							</div>
 							<div>
-								<dt>Expected time</dt>
+								<dt>Expected Time</dt>
 								<dd>
 									{formatDuration(preview.downtime.estimatedSeconds)}
 									<span class="muted">({preview.downtime.basis})</span>

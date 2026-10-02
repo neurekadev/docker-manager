@@ -149,7 +149,7 @@
 	<div class="canvas" style:height bind:this={el} aria-hidden="true"></div>
 	<p class="sr-only">{summary}</p>
 	{#if gaps.length}
-		<ul class="gaps" role="list" aria-label="{title}: time without samples">
+		<ul class="gaps" role="list" aria-label="{title}: Time Without Samples">
 			{#each gaps.slice(-3) as g (g.from)}
 				<li>
 					<span class="swatch" aria-hidden="true"></span>No samples {formatTimeRange(

@@ -10,7 +10,7 @@
 	import { pwa } from './register.svelte';
 </script>
 
-<div role="status" aria-live="polite" aria-label="App update" data-testid="update-prompt">
+<div role="status" aria-live="polite" aria-label="App Update" data-testid="update-prompt">
 	{#if pwa.updateAvailable}
 		<div class="card">
 			<p>A new version of Docker Manager is available.</p>
@@ -32,7 +32,7 @@
 					icon={RefreshCw}
 					onclick={() => pwa.applyUpdate()}
 					disabled={criticalWork.active}
-					loading={pwa.updating}>Reload to update</Button
+					loading={pwa.updating}>Reload to Update</Button
 				>
 			</div>
 		</div>

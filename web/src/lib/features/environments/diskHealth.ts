@@ -1,5 +1,5 @@
 // Disk health and RAID of an environment (#143): pure view models for the
-// System tab's "Disk health" and "RAID" cards. The manager sends the
+// System tab's "Disk Health" and "RAID" cards. The manager sends the
 // agent's SMART read of every disk (a disk in standby keeps its previous
 // values, marked sleeping) and the software RAID and ZFS pool state; this
 // module turns them into badges, issues in words, notices and the check
@@ -156,6 +156,41 @@ export function attributeName(name: string): string {
 	return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : 'An attribute';
 }
 
+/** Words a Title Case label keeps lowercase unless first or last. */
+const MINOR_WORDS = new Set([
+	'a',
+	'an',
+	'the',
+	'and',
+	'but',
+	'or',
+	'nor',
+	'as',
+	'at',
+	'by',
+	'for',
+	'in',
+	'of',
+	'on',
+	'per',
+	'to',
+	'via',
+	'with'
+]);
+
+/** A health value key as a Title Case label: "total_errors_corrected" → "Total Errors Corrected". */
+function attributeTitle(name: string): string {
+	const words = name.replaceAll('_', ' ').trim().toLowerCase().split(/\s+/).filter(Boolean);
+	if (!words.length) return 'An Attribute';
+	return words
+		.map((w, i) =>
+			i > 0 && i < words.length - 1 && MINOR_WORDS.has(w)
+				? w
+				: w[0].toUpperCase() + w.slice(1)
+		)
+		.join(' ');
+}
+
 /** The issues cell: the issues joined, "None" or "—" (never read). */
 export function issuesText(d: DiskDevice): string {
 	const issues = diskIssues(d);
@@ -263,7 +298,7 @@ export function selfAssessmentCheck(d: DiskDevice): SmartCheck | null {
 	if (d.passed === undefined) return null;
 	if (d.passed) return { tone: 'ok', label: 'Passed' };
 	if (d.criticalWarning === NVME_WARN_TEMPERATURE)
-		return { tone: 'warn', label: 'Failed: too hot' };
+		return { tone: 'warn', label: 'Failed: Too Hot' };
 	return { tone: 'danger', label: 'Failed' };
 }
 
@@ -319,8 +354,8 @@ const ATA_COUNTED: Record<number, string> = {
  * without a threshold: power-on hours, temperature).
  */
 export function attributeCheck(a: DiskAttributeRow): SmartCheck | null {
-	if (a.whenFailed === 'now') return { tone: 'danger', label: 'Failing now' };
-	if (a.whenFailed === 'past') return { tone: 'warn', label: 'Failed in the past' };
+	if (a.whenFailed === 'now') return { tone: 'danger', label: 'Failing Now' };
+	if (a.whenFailed === 'past') return { tone: 'warn', label: 'Failed in the Past' };
 	const counted = ATA_COUNTED[a.id];
 	if (counted && a.raw !== undefined && a.raw > 0)
 		return { tone: 'warn', label: count(a.raw, counted) };
@@ -338,33 +373,33 @@ export function valueCheck(v: DiskValue, d: DiskDevice): SmartCheck | null {
 	switch (v.key) {
 		case 'critical_warning':
 			if (v.value === 0) return OK;
-			if (v.value === NVME_WARN_TEMPERATURE) return { tone: 'warn', label: 'Too hot' };
+			if (v.value === NVME_WARN_TEMPERATURE) return { tone: 'warn', label: 'Too Hot' };
 			return { tone: 'danger', label: 'Critical' };
 		case 'available_spare':
 			if (d.availableSpareThreshold === undefined) return null;
 			return v.value < d.availableSpareThreshold
-				? { tone: 'warn', label: 'Below the minimum' }
+				? { tone: 'warn', label: 'Below the Minimum' }
 				: OK;
 		case 'percentage_used':
 			return v.value >= WORN ? { tone: 'warn', label: 'Worn' } : OK;
 		case 'media_errors':
-			return v.value > 0 ? { tone: 'warn', label: 'Errors found' } : OK;
+			return v.value > 0 ? { tone: 'warn', label: 'Errors Found' } : OK;
 		case 'temperature': {
 			const c = temperatureCheck({ ...d, temperatureC: v.value });
-			return c && { tone: c.tone, label: c.tone === 'ok' ? 'OK' : 'Too hot' };
+			return c && { tone: c.tone, label: c.tone === 'ok' ? 'OK' : 'Too Hot' };
 		}
 		case 'warning_temp_time':
 		case 'critical_comp_time':
-			return v.value > 0 ? { tone: 'warn', label: 'Ran hot' } : OK;
+			return v.value > 0 ? { tone: 'warn', label: 'Ran Hot' } : OK;
 	}
 	if (v.key.endsWith('.total_uncorrected_errors'))
-		return v.value > 0 ? { tone: 'warn', label: 'Errors found' } : OK;
+		return v.value > 0 ? { tone: 'warn', label: 'Errors Found' } : OK;
 	return null;
 }
 
 /** An ATA attribute's type as smartctl names it. */
 export function attributeType(a: DiskAttributeRow): string {
-	return a.prefailure ? 'Pre-fail' : 'Old age';
+	return a.prefailure ? 'Pre-Fail' : 'Old Age';
 }
 
 /** An ATA attribute's raw value: smartctl's text when it says more ("36 (Min/Max 20/49)"). */
@@ -383,31 +418,31 @@ const NVME_DATA_UNIT = 512_000;
 /** Labels and formats of the health values smartctl reports, by key. */
 const VALUES: Record<string, { label: string; format?: (v: number) => string }> = {
 	critical_warning: {
-		label: 'Critical warning',
+		label: 'Critical Warning',
 		format: (v) => (v ? `0x${v.toString(16).padStart(2, '0')}` : 'None')
 	},
 	temperature: { label: 'Temperature', format: formatTemperature },
-	available_spare: { label: 'Available spare', format: formatPercent },
-	available_spare_threshold: { label: 'Available spare threshold', format: formatPercent },
-	percentage_used: { label: 'Percentage used', format: formatPercent },
-	data_units_read: { label: 'Data read', format: (v) => formatBytes(v * NVME_DATA_UNIT) },
-	data_units_written: { label: 'Data written', format: (v) => formatBytes(v * NVME_DATA_UNIT) },
-	host_reads: { label: 'Host read commands' },
-	host_writes: { label: 'Host write commands' },
-	controller_busy_time: { label: 'Controller busy time', format: minutes },
-	power_cycles: { label: 'Power cycles' },
-	power_cycle_count: { label: 'Power cycles' },
-	power_on_hours: { label: 'Powered on', format: formatHours },
-	unsafe_shutdowns: { label: 'Unsafe shutdowns' },
-	media_errors: { label: 'Media and data integrity errors' },
-	num_err_log_entries: { label: 'Error log entries' },
-	warning_temp_time: { label: 'Time above the warning temperature', format: minutes },
-	critical_comp_time: { label: 'Time above the critical temperature', format: minutes }
+	available_spare: { label: 'Available Spare', format: formatPercent },
+	available_spare_threshold: { label: 'Available Spare Threshold', format: formatPercent },
+	percentage_used: { label: 'Percentage Used', format: formatPercent },
+	data_units_read: { label: 'Data Read', format: (v) => formatBytes(v * NVME_DATA_UNIT) },
+	data_units_written: { label: 'Data Written', format: (v) => formatBytes(v * NVME_DATA_UNIT) },
+	host_reads: { label: 'Host Read Commands' },
+	host_writes: { label: 'Host Write Commands' },
+	controller_busy_time: { label: 'Controller Busy Time', format: minutes },
+	power_cycles: { label: 'Power Cycles' },
+	power_cycle_count: { label: 'Power Cycles' },
+	power_on_hours: { label: 'Powered On', format: formatHours },
+	unsafe_shutdowns: { label: 'Unsafe Shutdowns' },
+	media_errors: { label: 'Media and Data Integrity Errors' },
+	num_err_log_entries: { label: 'Error Log Entries' },
+	warning_temp_time: { label: 'Time Above the Warning Temperature', format: minutes },
+	critical_comp_time: { label: 'Time Above the Critical Temperature', format: minutes }
 };
 
 /**
  * A health value as shown: its label and value in words. Nested SCSI
- * counters name their operation first ("Read: total errors corrected").
+ * counters name their operation first ("Read: Total Errors Corrected").
  */
 export function healthValue(v: DiskValue): { label: string; text: string } {
 	const spec = VALUES[v.key];
@@ -415,8 +450,8 @@ export function healthValue(v: DiskValue): { label: string; text: string } {
 	const dot = v.key.indexOf('.');
 	const label =
 		dot > 0
-			? `${attributeName(v.key.slice(0, dot))}: ${attributeName(v.key.slice(dot + 1)).toLowerCase()}`
-			: attributeName(v.key);
+			? `${attributeTitle(v.key.slice(0, dot))}: ${attributeTitle(v.key.slice(dot + 1))}`
+			: attributeTitle(v.key);
 	return { label, text: wholeNumber(v.value) };
 }
 
@@ -435,7 +470,7 @@ export interface DiskNotice {
 	replacesList: boolean;
 }
 
-/** The notice the Disk health card shows for a report, or null. */
+/** The notice the Disk Health card shows for a report, or null. */
 export function diskNotice(h: DiskHealth): DiskNotice | null {
 	switch (h.status) {
 		case 'agent_outdated':
@@ -466,7 +501,7 @@ export function diskNotice(h: DiskHealth): DiskNotice | null {
 					' in its compose.yaml and deploy it again.'
 				],
 				href: DISK_ACCESS_DOCS,
-				linkLabel: 'How to give the agent access',
+				linkLabel: 'How to Give the Agent Access',
 				replacesList: true
 			};
 		case 'not_installed':
@@ -503,7 +538,7 @@ export function diskNotice(h: DiskHealth): DiskNotice | null {
 }
 
 /**
- * Whether "Check disks now" applies: the agent can read the disks. Without
+ * Whether "Check Disks Now" applies: the agent can read the disks. Without
  * access a check changes nothing (the fix restarts the agent, which reads
  * them at once).
  */
@@ -584,14 +619,14 @@ const MEMBER_ROLE: Record<RaidMember['state'], string> = {
 	active: 'Active',
 	spare: 'Spare',
 	failed: 'Failed',
-	replacement: 'Replacing a member',
+	replacement: 'Replacing a Member',
 	journal: 'Journal'
 };
 
-/** A member's role in words: "Active", "Spare", "Failed", "Active, write-mostly". */
+/** A member's role in words: "Active", "Spare", "Failed", "Active, Write-Mostly". */
 export function memberRole(m: RaidMember): string {
 	const role = MEMBER_ROLE[m.state] ?? 'Unknown';
-	return m.writeMostly ? `${role}, write-mostly` : role;
+	return m.writeMostly ? `${role}, Write-Mostly` : role;
 }
 
 /** md's raid5/6 parity algorithms by number (mdadm's names). */
@@ -624,9 +659,9 @@ export function raidBitmap(a: RaidArray): string {
 	return a.bitmapChunkBytes ? `Yes, ${formatBytes(a.bitmapChunkBytes)} chunks` : 'Yes';
 }
 
-/** The array's kind: "RAID 1\", "RAID 10", "Linear", "ZFS pool". */
+/** The array's kind: "RAID 1\", "RAID 10", "Linear", "ZFS Pool". */
 export function raidLevel(a: RaidArray): string {
-	if (a.kind === 'zfs') return 'ZFS pool';
+	if (a.kind === 'zfs') return 'ZFS Pool';
 	const m = a.level?.match(/^raid(\d+)$/);
 	if (m) return `RAID ${m[1]}`;
 	if (!a.level) return 'Software RAID';
@@ -718,7 +753,7 @@ export function noRaidText(r: RaidHealth | undefined): string {
 	return r?.status === 'ok' && r.arrays.length === 0 ? 'No RAID arrays found' : '';
 }
 
-/** The toast after "Check RAID now": "Checked 2 arrays on homelab". */
+/** The toast after "Check RAID Now": "Checked 2 arrays on homelab". */
 export function raidCheckedToast(r: RaidHealth, environment: string): string {
 	if (!r.arrays.length) return `No RAID arrays found on ${environment}`;
 	return `Checked ${count(r.arrays.length, 'array')} on ${environment}`;

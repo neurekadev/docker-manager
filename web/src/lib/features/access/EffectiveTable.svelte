@@ -23,13 +23,13 @@
 
 	const SOURCE: Record<string, string> = {
 		owner: 'Owner',
-		user_rule: 'User override',
-		group_rule: 'Group rule',
-		default_deny: 'No rule',
-		token_scope: 'Token scope',
-		unknown_capability: 'Unknown action',
-		owner_only: 'Owner only',
-		inactive_account: 'Account disabled'
+		user_rule: 'User Override',
+		group_rule: 'Group Rule',
+		default_deny: 'No Rule',
+		token_scope: 'Token Scope',
+		unknown_capability: 'Unknown Action',
+		owner_only: 'Owner Only',
+		inactive_account: 'Account Disabled'
 	};
 
 	type Row = Effective & { key: string };
@@ -46,7 +46,7 @@
 			stack: 'title'
 		},
 		{ id: 'decision', header: 'Decision', cell: decisionCell, width: '120px', stack: 'status' },
-		{ id: 'source', header: 'Decided by', cell: sourceCell, width: '140px' },
+		{ id: 'source', header: 'Decided By', cell: sourceCell, width: '140px' },
 		{ id: 'reason', header: 'Why', cell: reasonCell }
 	];
 </script>

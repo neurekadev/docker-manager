@@ -119,7 +119,7 @@
 
 <Dialog
 	bind:open
-	title="Save {title} as a template"
+	title="Save {title} as a Template"
 	description="Copies the stack's files (compose.yaml, .env and the files next to them) from its host into a template. The stack itself does not change."
 	size="lg"
 	dismissible={!saving}
@@ -134,16 +134,16 @@
 	>
 		{#if canCreate && writable.length}
 			<RadioGroup
-				label="Save into"
+				label="Save Into"
 				bind:value={mode}
 				options={[
-					{ value: 'new', label: 'A new template' },
-					{ value: 'replace', label: "An existing template's draft (replaces it)" }
+					{ value: 'new', label: 'A New Template' },
+					{ value: 'replace', label: "An Existing Template's Draft (Replaces It)" }
 				]}
 			/>
 		{/if}
 		{#if mode === 'new'}
-			<TextField label="Template name" bind:value={name} required maxlength={100} />
+			<TextField label="Template Name" bind:value={name} required maxlength={100} />
 		{:else}
 			<Select
 				label="Template"
@@ -157,7 +157,7 @@
 		{/if}
 
 		<fieldset class="entries">
-			<legend>Files to include</legend>
+			<legend>Files to Include</legend>
 			{#if listing.isPending}
 				<Skeleton lines={4} />
 			{:else if listing.isError}
@@ -192,7 +192,7 @@
 			type="submit"
 			form="save-as-template"
 			loading={saving}
-			disabled={!ready}>Save as template</Button
+			disabled={!ready}>Save as Template</Button
 		>
 	{/snippet}
 </Dialog>

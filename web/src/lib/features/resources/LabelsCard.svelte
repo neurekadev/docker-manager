@@ -56,7 +56,7 @@
 				summary="{compose.length} Compose {compose.length === 1 ? 'label' : 'labels'}"
 				hint={COMPOSE_LABELS_INFO}
 			>
-				{@render list(compose, `${label}: from the Compose file`)}
+				{@render list(compose, `${label}: From the Compose File`)}
 			</Disclosure>
 		</div>
 	{/if}
@@ -67,7 +67,7 @@
 					? 'label'
 					: 'labels'}"
 			>
-				{@render list(groups.system, `${label}: set by Docker and Compose`)}
+				{@render list(groups.system, `${label}: Set by Docker and Compose`)}
 			</Disclosure>
 		</div>
 	{/if}

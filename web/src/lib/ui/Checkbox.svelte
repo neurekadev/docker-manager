@@ -2,7 +2,7 @@
 	// Checkbox (#22): a native input (form semantics, keyboard, screen
 	// readers) with Docker Manager styling; `indeterminate` shows the mixed state
 	// (aria-checked="mixed" via the DOM property). `icon` puts a decorative
-	// glyph before the label ("What to send": the kind of event's icon).
+	// glyph before the label ("What to Send": the kind of event's icon).
 	import type { HTMLInputAttributes } from 'svelte/elements';
 	import type { IconComponent } from '$lib/design/icons';
 

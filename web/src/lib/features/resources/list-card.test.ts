@@ -1,5 +1,5 @@
 // ListCard (#22): the list header with the search and filters built in,
-// "Clear filters" while any is set, and the state kept per list.
+// "Clear Filters" while any is set, and the state kept per list.
 import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -31,15 +31,15 @@ const listed = () =>
 describe('ListCard', () => {
 	it('titles the card and builds the search, the selects and the switches into its header', () => {
 		render(ListCardHarness, { props: { rows, storage: memoryStorage() } });
-		const card = screen.getByRole('region', { name: 'All things' });
+		const card = screen.getByRole('region', { name: 'All Things' });
 		expect(within(card).getByRole('status')).toHaveTextContent('3 things');
-		const search = within(card).getByRole('search', { name: 'Filter things' });
-		expect(within(search).getByRole('searchbox', { name: 'Search things' })).toHaveAttribute(
+		const search = within(card).getByRole('search', { name: 'Filter Things' });
+		expect(within(search).getByRole('searchbox', { name: 'Search Things' })).toHaveAttribute(
 			'placeholder',
 			'Search by name'
 		);
 		expect(within(search).getByRole('combobox', { name: 'Status' })).toHaveTextContent(
-			'All statuses'
+			'All Statuses'
 		);
 		expect(within(search).getByRole('combobox', { name: 'Driver' })).toBeInTheDocument();
 		expect(within(search).getByRole('switch', { name: 'Stopped' })).toHaveAttribute(
@@ -47,7 +47,7 @@ describe('ListCard', () => {
 			'false'
 		);
 		expect(document.querySelector('select')).toBeNull();
-		expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Clear Filters' })).not.toBeInTheDocument();
 	});
 
 	it('hides a filter built from the rows while it offers one choice', () => {
@@ -64,19 +64,19 @@ describe('ListCard', () => {
 
 		await choose(user, screen.getByRole('combobox', { name: 'Status' }), 'Running');
 		expect(listed()).toEqual(['web', 'media']);
-		await user.type(screen.getByRole('searchbox', { name: 'Search things' }), 'WE');
+		await user.type(screen.getByRole('searchbox', { name: 'Search Things' }), 'WE');
 		expect(listed()).toEqual(['web']);
 		expect(screen.getByRole('status')).toHaveTextContent('1 of 3 things');
 		expect(storage.data.get(`${LIST_FILTERS_PREFIX}things`)).toBe(
 			JSON.stringify({ q: 'WE', values: { status: 'running' } })
 		);
 
-		await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+		await user.click(screen.getByRole('button', { name: 'Clear Filters' }));
 		expect(listed()).toEqual(['web', 'db', 'media']);
-		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveValue('');
-		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveFocus();
-		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All statuses');
-		expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+		expect(screen.getByRole('searchbox', { name: 'Search Things' })).toHaveValue('');
+		expect(screen.getByRole('searchbox', { name: 'Search Things' })).toHaveFocus();
+		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All Statuses');
+		expect(screen.queryByRole('button', { name: 'Clear Filters' })).not.toBeInTheDocument();
 		expect(storage.data.size).toBe(0);
 	});
 
@@ -101,15 +101,15 @@ describe('ListCard', () => {
 	it('offers the same clear action when nothing matches', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		render(ListCardHarness, { props: { rows, storage: memoryStorage() } });
-		await user.type(screen.getByRole('searchbox', { name: 'Search things' }), 'nothing');
+		await user.type(screen.getByRole('searchbox', { name: 'Search Things' }), 'nothing');
 		expect(
 			screen.getByRole('heading', { name: 'No things match the search and filters.' })
 		).toBeInTheDocument();
-		const clears = screen.getAllByRole('button', { name: 'Clear filters' });
+		const clears = screen.getAllByRole('button', { name: 'Clear Filters' });
 		expect(clears).toHaveLength(2);
 		await user.click(clears[1]);
 		expect(listed()).toHaveLength(3);
-		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveValue('');
+		expect(screen.getByRole('searchbox', { name: 'Search Things' })).toHaveValue('');
 	});
 
 	it('restores the stored search and filters of this list when it comes back', () => {
@@ -122,13 +122,13 @@ describe('ListCard', () => {
 		});
 		render(ListCardHarness, { props: { rows, storage } });
 		expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveTextContent('nfs');
-		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All statuses');
+		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All Statuses');
 		expect(screen.getByRole('switch', { name: 'Stopped' })).toHaveAttribute(
 			'aria-checked',
 			'false'
 		);
-		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveValue('');
+		expect(screen.getByRole('searchbox', { name: 'Search Things' })).toHaveValue('');
 		expect(listed()).toEqual(['media']);
-		expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Clear Filters' })).toBeInTheDocument();
 	});
 });

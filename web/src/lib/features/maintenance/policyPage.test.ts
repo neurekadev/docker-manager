@@ -1,7 +1,7 @@
 // The maintenance policy page's running prunes (docs/internal/web.md, "Job
 // progress after reload"): every environment's running prune job of the
 // policy has its own progress bar, found again in the running list after
-// a reload, and Run now shows one bar per job it started at once.
+// a reload, and Run Now shows one bar per job it started at once.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -132,11 +132,11 @@ describe('maintenance policy page: running prunes', () => {
 		// A one-off prune on Silo is not this policy's.
 		expect(screen.getAllByRole('progressbar')).toHaveLength(2);
 		expect(
-			screen.getByRole('region', { name: 'Running prunes of Nightly' })
+			screen.getByRole('region', { name: 'Running Prunes of Nightly' })
 		).toBeInTheDocument();
 	});
 
-	it('shows one bar per environment job Run now started', async () => {
+	it('shows one bar per environment job Run Now started', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		started = [
 			job('0190-5', { state: 'queued', origin: 'manual' }),
@@ -145,7 +145,7 @@ describe('maintenance policy page: running prunes', () => {
 		details = Object.fromEntries(started.map((j) => [j.id, j]));
 		openPage();
 
-		await user.click(await screen.findByRole('button', { name: 'Run now' }));
+		await user.click(await screen.findByRole('button', { name: 'Run Now' }));
 		await user.click(await screen.findByRole('button', { name: 'Run Nightly' }));
 
 		await waitFor(() => expect(screen.getAllByRole('progressbar')).toHaveLength(2));

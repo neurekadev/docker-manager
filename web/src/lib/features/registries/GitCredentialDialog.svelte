@@ -107,7 +107,7 @@
 
 <Dialog
 	bind:open
-	title={credential ? `Edit ${credential.name}` : 'Add a Git credential'}
+	title={credential ? `Edit ${credential.name}` : 'Add a Git Credential'}
 	description="For builds from private repositories over HTTPS. Shared by the whole instance; builds get the token only while they run."
 	size="lg"
 	dismissible={!busy}
@@ -139,7 +139,7 @@
 		{/if}
 		<div class="full">
 			<TextField
-				label="Repositories below"
+				label="Repositories Below"
 				mono
 				bind:value={pathPrefix}
 				placeholder="acme"
@@ -156,19 +156,19 @@
 		/>
 		{#if credential}
 			<div class="full">
-				<Notice tone="info" title="{credential.host}, stored token" live="none">
+				<Notice tone="info" title="{credential.host}, Stored Token" live="none">
 					{#if credential.secret?.set}Fingerprint <span
 							class="mono"
 							title="Version {credential.secret.version}"
 							>{maskFingerprint(credential.secret.fingerprint)}</span
-						>. The token is write-only: use Rotate token to replace it.{:else}No token
-						is stored. Use Rotate token to add one.{/if}
+						>. The token is write-only: use Rotate Token to replace it.{:else}No token
+						is stored. Use Rotate Token to add one.{/if}
 				</Notice>
 			</div>
 		{/if}
 		{#if !credential}
 			<PasswordField
-				label="Access token"
+				label="Access Token"
 				autocomplete="new-password"
 				required
 				bind:value={secret}
@@ -178,7 +178,7 @@
 		{/if}
 		<div class="full">
 			<Checkbox
-				label="Allow plain HTTP"
+				label="Allow Plain HTTP"
 				description="Send the token to http:// repositories (trusted networks only)."
 				bind:checked={plainHttp}
 			/>
@@ -194,7 +194,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>
 		<Button type="submit" form="git-form" variant="primary" loading={busy} disabled={!valid}
-			>{credential ? 'Save changes' : 'Add credential'}</Button
+			>{credential ? 'Save Changes' : 'Add Credential'}</Button
 		>
 	{/snippet}
 </Dialog>

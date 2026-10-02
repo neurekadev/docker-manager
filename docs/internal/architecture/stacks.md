@@ -289,7 +289,7 @@ information, each URL once, labels of at most 60 characters) and names the
 field of the first problem (`422` on `body.links[1].url`). Only the full
 view carries them. URLs may carry query strings: they are never logged or
 audited (the audit diff has the number of links). The web shows them under
-the header's meta row (`LinkList`) and edits them in "Edit details"
+the header's meta row (`LinkList`) and edits them in "Edit Details"
 (`LinksEditor`, the same rules inline).
 
 ## Discovery and import
@@ -472,13 +472,13 @@ The finish hook records the copy's files as the observed revision
 (`external`, not applied), reports no images and leaves the stack
 `undeployed` for its first deploy, which reuses the project's volumes.
 
-The web UI's stack list has one **Import project** dialog
+The web UI's stack list has one **Import Project** dialog
 (`ImportStackDialog`, `routes.importStack()`): the discovered projects of an
 environment, each with one Import button that adopts in place or imports by
 copy (with the job's progress in the row) and otherwise explains how to add
-an import mount. A containerless project shows **No containers** instead of
+an import mount. A containerless project shows **No Containers** instead of
 its running count and imports without a stop confirmation; every row lists
-the project's volumes (`volumesLine`: the first three, "+N more"). A **Hide managed stacks** switch (on by default,
+the project's volumes (`volumesLine`: the first three, "+N more"). A **Hide Managed Stacks** switch (on by default,
 `importCandidates`) leaves out projects Docker Manager already manages,
 except those imported from the open dialog. Imports with an explicit source
 remain an API feature.

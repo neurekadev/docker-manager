@@ -9,15 +9,15 @@ folder on its server and runs exactly what the files say.
 
 ## Create a stack
 
-1. Open **Stacks** and press **Create stack**.
+1. Open **Stacks** and press **Create Stack**.
 2. Pick the **Environment** (only when you have more than one).
 3. Enter a **Name**, for example `photos`: up to 63 lowercase letters,
    digits, `-` and `_`, starting with a letter or digit.
-4. Write or paste your **Compose file**, and a **.env file** if you use one.
-5. Press **Validate**, then **Create and deploy**.
+4. Write or paste your **Compose File**, and a **.env File** if you use one.
+5. Press **Validate**, then **Create and Deploy**.
 
-To only save the stack, turn off **Deploy after creating** first. To start
-from a saved app, use **Create stack ▾ → Create stack from template** (see
+To only save the stack, turn off **Deploy After Creating** first. To start
+from a saved app, use **Create Stack ▾ → Create Stack From Template** (see
 [Templates](/templates)).
 
 Docker Manager never overwrites anything: if a folder or Compose project
@@ -54,47 +54,47 @@ The next button shows **Stop** while the stack runs and **Start** when it's
 stopped. Its menu has **Start**, **Restart** and **Stop**. **Stop** asks
 first and keeps the containers.
 
-**More stack actions → Delete** removes the stack from Docker Manager and
+**More Stack Actions → Delete** removes the stack from Docker Manager and
 the server. Type its name to confirm. Its volumes are kept unless you tick
-**Also remove the stack’s volumes**. Its folder is always kept.
+**Also Remove the Stack’s Volumes**. Its folder is always kept.
 
 ## Edit the files
 
 Open **Files**, change `compose.yaml` or `.env` and press **Save**
 (<kbd>Ctrl</kbd> <kbd>S</kbd>). Docker Manager checks the file first and
 refuses a change that would break the stack. Saving does **not** deploy: the
-stack shows **Undeployed changes** until you press **Deploy**.
+stack shows **Undeployed Changes** until you press **Deploy**.
 
 ## Revisions
 
 Every saved change to the Compose files is a **revision**. The
 **Revisions** tab shows who made each one and whether it was deployed.
-Pick two and press **Show changes** to compare them.
+Pick two and press **Show Changes** to compare them.
 
-- With undeployed changes, choose **Deploy these changes** or **Restore
-  deployed revision** to undo them.
+- With undeployed changes, choose **Deploy These Changes** or **Restore
+  Deployed Revision** to undo them.
 - To go back to an older version, open its menu and choose **Restore to
-  disk**, then **Deploy**.
+  Disk**, then **Deploy**.
 
 ## Import a project
 
 Docker Manager can take over Compose projects you already run, with their
 names, volumes and data.
 
-1. Open **Stacks** and press **Import project**.
+1. Open **Stacks** and press **Import Project**.
 2. Pick the **Environment** (only when you have more than one). The list
    shows the projects Docker Manager doesn't manage yet.
 3. Press **Import** next to a project.
 
 If the project's files are in a folder Docker Manager manages, it is taken
 over where it is and nothing restarts. Otherwise its folder is copied. If
-the project runs, Docker Manager asks you to **Stop and import**: it stops
+the project runs, Docker Manager asks you to **Stop and Import**: it stops
 the project, copies and checks its folder, and starts it again from the
 copy. If the copy fails, the project starts again from its original folder.
 Your original folder is never changed.
 
 To copy a project, the agent must be able to read its folder. If a row
-says **Why and how to fix it**, mount the folder into the agent below
+says **Why and How to Fix It**, mount the folder into the agent below
 `/import` (read-only is enough), then run `docker compose up -d`:
 
 ```yaml title="compose.yaml"
@@ -123,7 +123,7 @@ Good to know:
 
 - Projects without containers (never started, or taken down) are found by
   their Compose file in a folder Docker Manager manages or below `/import`,
-  and show **No containers**. Importing one adds it as **Not deployed**.
+  and show **No Containers**. Importing one adds it as **Not Deployed**.
 - Copying a project is refused when its running containers don't match its
   files. Redeploy the project in the old tool first.
 - After the import, stop the old tool from managing the project.
@@ -141,7 +141,7 @@ policies stay with it.
 
 If `compose.yaml` sets `name:` at the top, change it there first, then
 rename the stack to exactly that name. To change only the name shown in
-lists, use **More stack actions → Edit details**. There you can also add a
+lists, use **More Stack Actions → Edit Details**. There you can also add a
 description and up to 10 **Links**, for example to the app's website.
 
 ## Docker Manager's own stack

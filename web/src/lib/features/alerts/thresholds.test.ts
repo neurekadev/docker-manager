@@ -83,12 +83,12 @@ describe('Alert thresholds card', () => {
 		const user = setup();
 		stub();
 		show();
-		const memory = await screen.findByRole('spinbutton', { name: 'Memory warning (% used)' });
+		const memory = await screen.findByRole('spinbutton', { name: 'Memory Warning (% Used)' });
 		expect(memory).toHaveValue(90);
-		expect(screen.getByRole('spinbutton', { name: 'Temperature critical (°C)' })).toHaveValue(
+		expect(screen.getByRole('spinbutton', { name: 'Temperature Critical (°C)' })).toHaveValue(
 			90
 		);
-		const save = screen.getByRole('button', { name: 'Save thresholds' });
+		const save = screen.getByRole('button', { name: 'Save Thresholds' });
 		expect(save).toBeDisabled();
 
 		await user.clear(memory);
@@ -111,14 +111,14 @@ describe('Alert thresholds card', () => {
 		stub();
 		show();
 		const warning = await screen.findByRole('spinbutton', {
-			name: 'Disk space warning (% used)'
+			name: 'Disk Space Warning (% Used)'
 		});
 		await user.clear(warning);
 		await user.type(warning, '96');
 		expect(await screen.findByText('Set it below the critical level.')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Save thresholds' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Save Thresholds' })).toBeDisabled();
 
-		const temperature = screen.getByRole('spinbutton', { name: 'Temperature critical (°C)' });
+		const temperature = screen.getByRole('spinbutton', { name: 'Temperature Critical (°C)' });
 		await user.clear(temperature);
 		await user.type(temperature, '200');
 		expect(await screen.findByText('Enter a whole number from 0 to 150.')).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe('Alert thresholds card', () => {
 		await user.clear(warning);
 		await user.type(warning, '85');
 		const temperatureWarning = screen.getByRole('spinbutton', {
-			name: 'Temperature warning (°C)'
+			name: 'Temperature Warning (°C)'
 		});
 		await user.clear(temperatureWarning);
 		await user.type(temperatureWarning, '50');
@@ -137,7 +137,7 @@ describe('Alert thresholds card', () => {
 		expect(
 			await screen.findByText(/Change or remove the override of homelab first/)
 		).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Save thresholds' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Save Thresholds' })).toBeDisabled();
 		expect(puts).toEqual([]);
 	});
 
@@ -145,19 +145,19 @@ describe('Alert thresholds card', () => {
 		const user = setup();
 		stub();
 		show();
-		const table = await screen.findByRole('table', { name: 'Environment overrides' });
+		const table = await screen.findByRole('table', { name: 'Environment Overrides' });
 		const row = within(table).getByText('homelab').closest('tr')!;
 		expect(row).toHaveTextContent('70 °C / Default');
 		expect(within(row).getAllByText('Default')).toHaveLength(2);
 
-		await user.click(screen.getByRole('button', { name: 'Add override' }));
-		const dialog = await screen.findByRole('dialog', { name: 'Override thresholds' });
+		await user.click(screen.getByRole('button', { name: 'Add Override' }));
+		const dialog = await screen.findByRole('dialog', { name: 'Override Thresholds' });
 		expect(dialog).toHaveTextContent(
 			'Leave a level empty to use the default; 0 turns it off there.'
 		);
 		// The default as placeholder.
 		expect(
-			within(dialog).getByRole('spinbutton', { name: 'Temperature warning (°C)' })
+			within(dialog).getByRole('spinbutton', { name: 'Temperature Warning (°C)' })
 		).toHaveAttribute('placeholder', '80');
 		const env = within(dialog).getByRole('combobox', { name: /^Environment/ });
 		await user.click(env);
@@ -167,10 +167,10 @@ describe('Alert thresholds card', () => {
 		expect(screen.queryByRole('option', { name: 'old-lab' })).toBeNull();
 		await user.click(screen.getByRole('option', { name: 'edge' }));
 		await user.type(
-			within(dialog).getByRole('spinbutton', { name: 'Memory critical (% used)' }),
+			within(dialog).getByRole('spinbutton', { name: 'Memory Critical (% Used)' }),
 			'99'
 		);
-		await user.click(within(dialog).getByRole('button', { name: 'Add override' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Add Override' }));
 		await waitFor(() => expect(puts).toHaveLength(1));
 		expect(puts[0].ifMatch).toBe('"4"');
 		expect(puts[0].body).toEqual({
@@ -189,9 +189,9 @@ describe('Alert thresholds card', () => {
 		const user = setup();
 		stub();
 		show();
-		await user.click(await screen.findByRole('button', { name: 'Add override' }));
-		const dialog = await screen.findByRole('dialog', { name: 'Override thresholds' });
-		await user.click(within(dialog).getByRole('button', { name: 'Add override' }));
+		await user.click(await screen.findByRole('button', { name: 'Add Override' }));
+		const dialog = await screen.findByRole('dialog', { name: 'Override Thresholds' });
+		await user.click(within(dialog).getByRole('button', { name: 'Add Override' }));
 		expect(await within(dialog).findByText('Choose an environment.')).toBeInTheDocument();
 		expect(puts).toEqual([]);
 	});
@@ -200,7 +200,7 @@ describe('Alert thresholds card', () => {
 		const user = setup();
 		stub();
 		show();
-		await screen.findByRole('table', { name: 'Environment overrides' });
+		await screen.findByRole('table', { name: 'Environment Overrides' });
 		await user.click(screen.getByRole('button', { name: 'Actions for homelab' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
 			'Edit',
@@ -210,7 +210,7 @@ describe('Alert thresholds card', () => {
 		const confirm = await screen.findByRole('alertdialog', {
 			name: 'Remove the override of homelab?'
 		});
-		await user.click(within(confirm).getByRole('button', { name: 'Remove override' }));
+		await user.click(within(confirm).getByRole('button', { name: 'Remove Override' }));
 		await waitFor(() => expect(puts).toHaveLength(1));
 		expect(puts[0].body).toEqual({ thresholds: settings.thresholds, overrides: [] });
 		await waitFor(() =>
@@ -256,19 +256,19 @@ describe('Alert thresholds card', () => {
 			})
 		);
 		show();
-		await screen.findByRole('table', { name: 'Environment overrides' });
+		await screen.findByRole('table', { name: 'Environment Overrides' });
 		await user.click(screen.getByRole('button', { name: 'Actions for homelab' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
 		const confirm = await screen.findByRole('alertdialog', {
 			name: 'Remove the override of homelab?'
 		});
-		await user.click(within(confirm).getByRole('button', { name: 'Remove override' }));
+		await user.click(within(confirm).getByRole('button', { name: 'Remove Override' }));
 		await waitFor(() => expect(puts).toHaveLength(1));
 		expect(puts[0].ifMatch).toBe('"4"');
 		// The failure refetched the settings: the retry from the same dialog
 		// carries the current revision.
 		await waitFor(() => expect(gets).toBe(2));
-		const retry = within(confirm).getByRole('button', { name: 'Remove override' });
+		const retry = within(confirm).getByRole('button', { name: 'Remove Override' });
 		await waitFor(() => expect(retry).toBeEnabled());
 		await user.click(retry);
 		await waitFor(() => expect(puts).toHaveLength(2));

@@ -71,7 +71,7 @@ func TestScheduledJobFailureRaisesAndTheNextSuccessResolves(t *testing.T) {
 // A failed job of an area reaches the channels by that area's
 // subscription: failures, and warnings where the area has them; its
 // resolution goes with the outcome its failure was sent with, to the
-// channels that were told. Other jobs stay "Other jobs".
+// channels that were told. Other jobs stay "Other Jobs".
 func TestFailedJobsAreSentByTheirArea(t *testing.T) {
 	f := newFixture(t)
 	failures := f.channelWith("backup failures", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}})
@@ -93,7 +93,7 @@ func TestFailedJobsAreSentByTheirArea(t *testing.T) {
 	deploy := domain.Job{ID: ids.New(), Kind: "stack.deploy", Origin: domain.OriginAPIToken, EnvironmentID: "env-1",
 		State: domain.JobFailed, Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}}
 	f.finish(deploy)
-	if got := f.dispatch(); len(got) != 1 || got[0].channel != others.ID || got[0].msg.Label != "Other jobs · Failure" {
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != others.ID || got[0].msg.Label != "Other Jobs · Failure" {
 		t.Fatalf("%+v", got)
 	}
 
@@ -406,7 +406,7 @@ func TestAFailedUpdateCheckSaysWhichServicesAndWhy(t *testing.T) {
 	if got := Detail(a); got != want {
 		t.Fatalf("%q", got)
 	}
-	if v, _ := field(Fields(a, "homelab"), "What to do"); v != "Check the registry connection's username and token." {
+	if v, _ := field(Fields(a, "homelab"), "What to Do"); v != "Check the registry connection's username and token." {
 		t.Fatalf("%q", v)
 	}
 	if strings.Contains(string(output(t, a)), "REGISTRY-CANARY") {

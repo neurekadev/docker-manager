@@ -61,7 +61,7 @@ export function setState(s: BackupSet['state']): Presentation {
 const MEMBER_STATE: Record<SetMember['state'], Presentation> = {
 	pending: { tone: 'info', label: 'Running' },
 	complete: { tone: 'ok', label: 'Complete' },
-	partial: { tone: 'warn', label: 'Some files unreadable' },
+	partial: { tone: 'warn', label: 'Some Files Unreadable' },
 	failed: { tone: 'danger', label: 'Failed' },
 	missing: { tone: 'danger', label: 'Missing' },
 	// Removed before its turn (a temporary volume, a deleted stack): not a failure.
@@ -92,25 +92,25 @@ export function memberReason(
 }
 
 export const KIND_LABEL: Record<NonNullable<Backup['kind']>, string> = {
-	manager_state: 'Manager state',
+	manager_state: 'Manager State',
 	stack: 'Stack',
 	volume: 'Volume'
 };
 
 export const CONSISTENCY_LABEL: Record<NonNullable<Backup['consistency']>, string> = {
-	live: 'Live (crash-consistent)',
-	shutdown: 'Containers stopped',
-	snapshot: 'Consistent database snapshot'
+	live: 'Live (Crash-Consistent)',
+	shutdown: 'Containers Stopped',
+	snapshot: 'Consistent Database Snapshot'
 };
 
-/** A member's or backup's name: stack name, volume or "Manager state". */
+/** A member's or backup's name: stack name, volume or "Manager State". */
 export function itemName(m: {
 	kind?: SetMember['kind'];
 	stackName?: string;
 	volume?: string;
 	item?: string;
 }): string {
-	if (m.kind === 'manager_state') return 'Manager state';
+	if (m.kind === 'manager_state') return 'Manager State';
 	return m.stackName || m.volume || m.item || 'Backup';
 }
 
@@ -175,17 +175,17 @@ export type RetentionPreset = 'recommended' | 'last30' | 'everything' | 'custom'
 export const RETENTION_PRESETS: { value: RetentionPreset; label: string; description: string }[] = [
 	{
 		value: 'recommended',
-		label: '7 daily, 4 weekly, 12 monthly (recommended)',
+		label: '7 Daily, 4 Weekly, 12 Monthly (Recommended)',
 		description: 'A week of daily backups, a month of weekly ones and a year of monthly ones.'
 	},
 	{
 		value: 'last30',
-		label: 'Keep the last 30',
+		label: 'Keep the Last 30',
 		description: 'The 30 newest backups of each stack and volume.'
 	},
 	{
 		value: 'everything',
-		label: 'Keep everything',
+		label: 'Keep Everything',
 		description: 'Nothing is forgotten: the repository keeps growing.'
 	},
 	{ value: 'custom', label: 'Custom', description: 'Set each rule yourself.' }
@@ -297,7 +297,7 @@ export function incompleteMembers(s: BackupSet): SetMember[] {
 export const SOURCE_STATE: Record<string, Presentation> = {
 	included: { tone: 'ok', label: 'Included' },
 	excluded: { tone: 'neutral', label: 'Excluded' },
-	requires_opt_in: { tone: 'warn', label: 'Needs opt-in' },
+	requires_opt_in: { tone: 'warn', label: 'Needs Opt-In' },
 	blocked: { tone: 'danger', label: 'Blocked' },
 	missing: { tone: 'danger', label: 'Missing' }
 };
@@ -380,7 +380,7 @@ export function retentionGroups(
 			const id = rest.join('/');
 			const name =
 				d.item === 'manager' || kind === 'manager'
-					? 'Manager state'
+					? 'Manager State'
 					: kind === 'stack'
 						? `Stack ${stackName?.(id) ?? id}`
 						: kind === 'volume'
@@ -688,9 +688,9 @@ export function ratioText(ratio: number): string {
 	return ratio > 0 && Number.isFinite(ratio) ? `${formatNumber(ratio)}x` : '—';
 }
 
-/** "Volume media", "Stack shop", "Manager state". */
+/** "Volume media", "Stack shop", "Manager State". */
 export function activityItemName(it: ActivityItem): string {
-	if (it.kind === 'manager_state') return 'Manager state';
+	if (it.kind === 'manager_state') return 'Manager State';
 	if (it.kind === 'stack') return `Stack ${it.stackName || it.stackId || it.item}`;
 	return `Volume ${it.volume || it.item}`;
 }
@@ -781,16 +781,16 @@ export function membersByEnvironment(s: BackupSet): [string, SetMember[]][] {
 export const SNAPSHOT_CLASS: Record<ResticSnapshot['class'], Presentation> = {
 	stack: { tone: 'info', label: 'Stack' },
 	volume: { tone: 'info', label: 'Volume' },
-	manager_state: { tone: 'info', label: 'Manager state' },
-	set_manifest: { tone: 'neutral', label: 'Set manifest' },
-	host_manifest: { tone: 'neutral', label: 'Host manifest' },
-	foreign: { tone: 'warn', label: 'Not from Docker Manager' }
+	manager_state: { tone: 'info', label: 'Manager State' },
+	set_manifest: { tone: 'neutral', label: 'Set Manifest' },
+	host_manifest: { tone: 'neutral', label: 'Host Manifest' },
+	foreign: { tone: 'warn', label: 'Not From Docker Manager' }
 };
 
 /** What a snapshot holds: the backup's name, its item, or its class. */
 export function snapshotName(s: ResticSnapshot): string {
 	if (s.name) return s.name;
-	if (s.class === 'manager_state') return 'Manager state';
+	if (s.class === 'manager_state') return 'Manager State';
 	if (s.item?.startsWith('volume/')) return s.item.slice('volume/'.length);
 	if (s.item?.startsWith('stack/'))
 		return `Stack ${s.item.slice('stack/'.length, 'stack/'.length + 8)}`;
@@ -939,7 +939,7 @@ export function coverageSummary(
 		};
 	}
 	const leftOut = (p.excludeStacks ?? []).length + (p.excludeVolumes ?? []).length;
-	const value = p.scope === 'all' ? 'All environments' : environmentName(p.environmentId ?? '');
+	const value = p.scope === 'all' ? 'All Environments' : environmentName(p.environmentId ?? '');
 	const secondary = p.includeManagerState
 		? leftOut
 			? `Manager state too; ${leftOut} left out`
@@ -1066,17 +1066,17 @@ export function groupBackupsByRun(backups: Backup[]): BackupRun[] {
 export const VERIFY_READ_OPTIONS: { value: string; label: string; description: string }[] = [
 	{
 		value: '',
-		label: 'Check structure only',
+		label: 'Check Structure Only',
 		description: 'Quick. Checks that the index and every backup are intact.'
 	},
 	{
 		value: '5%',
-		label: 'Also read 5% of the data',
+		label: 'Also Read 5% of the Data',
 		description: 'Reads a different part each time, so damaged data is found over time.'
 	},
 	{
 		value: '100%',
-		label: 'Read all data',
+		label: 'Read All Data',
 		description: 'Reads everything stored. Slow, and S3 providers may charge for downloads.'
 	}
 ];
@@ -1087,7 +1087,7 @@ export function verifyReadOptions(current: string | undefined): typeof VERIFY_RE
 	if (VERIFY_READ_OPTIONS.some((o) => o.value === c)) return VERIFY_READ_OPTIONS;
 	return [
 		...VERIFY_READ_OPTIONS,
-		{ value: c, label: `Also read ${c} of the data`, description: 'The amount saved earlier.' }
+		{ value: c, label: `Also Read ${c} of the Data`, description: 'The amount saved earlier.' }
 	];
 }
 
@@ -1127,9 +1127,9 @@ export function connectionTestText(t: Pick<ConnectionTest, 'at' | 'ok'>, now = n
 	return `Last checked ${formatRelative(t.at, now)}: ${t.ok ? 'working' : 'failed'}`;
 }
 
-/** What a location holds: "Manager state", "Environment prod". */
+/** What a location holds: "Manager State", "Environment prod". */
 export function scopeName(scope: string, environmentName: (id: string) => string): string {
-	if (scope === 'manager' || scope === 'docker-manager') return 'Manager state';
+	if (scope === 'manager' || scope === 'docker-manager') return 'Manager State';
 	const m = scope.match(/^(?:env:|docker-manager-env-)(.+)$/);
 	return m ? `Environment ${environmentName(m[1])}` : scope;
 }
@@ -1137,7 +1137,7 @@ export function scopeName(scope: string, environmentName: (id: string) => string
 /** A restore target by name ("Volume shop_db"); its host path is for the tooltip. */
 export function restoreTargetName(t: { kind: string; name?: string; path: string }): string {
 	const base = t.path.replace(/\/+$/, '').split('/').pop() || t.path;
-	if (t.kind === 'project') return t.name ? `Files of stack ${t.name}` : 'Stack files';
+	if (t.kind === 'project') return t.name ? `Files of Stack ${t.name}` : 'Stack Files';
 	if (t.kind === 'volume') return `Volume ${t.name || base}`;
 	if (t.kind === 'file') return `File ${base}`;
 	return t.name || base;

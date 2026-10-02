@@ -52,7 +52,7 @@
 
 <Dialog
 	bind:open
-	title="Add a template source"
+	title="Add a Template Source"
 	description="Browse and use the public templates of another Docker Manager. Enter its address; it must use HTTPS."
 	size="md"
 	dismissible={!saving}
@@ -82,7 +82,7 @@
 			type="submit"
 			form="add-registry"
 			loading={saving}
-			disabled={!url.trim()}>Add template source</Button
+			disabled={!url.trim()}>Add Template Source</Button
 		>
 	{/snippet}
 </Dialog>

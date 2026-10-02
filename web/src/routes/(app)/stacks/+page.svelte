@@ -2,14 +2,14 @@
 	// Stacks (#22, #7): the Compose stacks of the selected environment, or
 	// of every visible one with an environment column (hidden while the
 	// caller sees one environment). Status is the live Engine state Docker
-	// Manager last observed; "Undeployed changes" and the update dot say
+	// Manager last observed; "Undeployed Changes" and the update dot say
 	// what needs attention. Searched by name or description and filtered by
 	// status, changes and environment (ListCard, kept per list and browser
 	// tab). The whole row opens the stack; its menu deploys, restarts, stops
 	// (after a confirmation) or opens the logs, each with its capability.
 	// Each row shows the stack tile, or the image of the template the stack
 	// was created from. Create and import are shown only with stack.create /
-	// stack.import (the server still decides). The Create stack button's
+	// stack.import (the server still decides). The Create Stack button's
 	// menu creates a stack from a template. A stack's running job (started
 	// here, on its page or elsewhere) shows in its Status cell, found in the
 	// running list (one match for the whole list), so it stays after a
@@ -186,7 +186,7 @@
 		cols.push(
 			{
 				id: 'services',
-				header: 'Services running',
+				header: 'Services Running',
 				cell: servicesCell,
 				sortValue: (s) => serviceCounts(s).servicesRunning,
 				numeric: true,
@@ -195,7 +195,7 @@
 			{ id: 'attention', header: 'Changes', cell: attentionCell, width: '220px' },
 			{
 				id: 'deployed',
-				header: 'Last deploy',
+				header: 'Last Deploy',
 				cell: deployedCell,
 				sortValue: (s) => s.appliedRevision?.at ?? '',
 				width: '140px'
@@ -238,7 +238,7 @@
 				else
 					toast.error(failed, {
 						body: stackJobGuidance(j.error),
-						action: { label: 'Open job', onclick: () => void goto(routes.job(j.id)) }
+						action: { label: 'Open Job', onclick: () => void goto(routes.job(j.id)) }
 					});
 			}
 		});
@@ -351,7 +351,7 @@
 	<span class="chips">
 		{#if s.undeployedChanges}
 			<a class="chip" href={routes.stack(s.id, 'revisions')}
-				><Badge tone="warn" dot>Undeployed changes</Badge></a
+				><Badge tone="warn" dot>Undeployed Changes</Badge></a
 			>
 		{/if}
 		<UpdateStatusBadge status={updateStates.get(s.id)} />
@@ -372,7 +372,7 @@
 					{...props}
 					size="sm"
 					variant="ghost"
-					label="More actions for {stackTitle(s)}"
+					label="More Actions for {stackTitle(s)}"
 					icon={EllipsisVertical}
 				/>{/snippet}
 		</Menu>
@@ -389,18 +389,18 @@
 		{#snippet actions()}
 			{#if canImport}
 				<Button icon={FolderSearch} onclick={() => (importDialog.open = true)}
-					>Import project</Button
+					>Import Project</Button
 				>
 			{/if}
 			{#if canCreate}
 				<SplitButton
-					label="Create stack"
+					label="Create Stack"
 					icon={Plus}
-					menuLabel="More ways to create a stack"
+					menuLabel="More Ways to Create a Stack"
 					onclick={() => (createDialog.open = true)}
 					items={[
 						{
-							label: 'Create stack from template',
+							label: 'Create Stack From Template',
 							icon: LayoutTemplate,
 							onSelect: () => (templateDialog.open = true)
 						}
@@ -418,13 +418,13 @@
 		/>
 	{:else}
 		<ListCard
-			title="All stacks"
+			title="All Stacks"
 			id="stacks"
 			summary={stacks.data
 				? listSummary(rows.length, all.length, filtered, 'stack', 'stacks')
 				: undefined}
-			label="Filter stacks"
-			searchLabel="Search stacks"
+			label="Filter Stacks"
+			searchLabel="Search Stacks"
 			placeholder="Search stacks"
 			filters={defs}
 			store={filters}
@@ -463,13 +463,13 @@
 										{#if canCreate}<Button
 												variant="primary"
 												onclick={() => (createDialog.open = true)}
-												>Create stack</Button
+												>Create Stack</Button
 											><Button onclick={() => (templateDialog.open = true)}
-												>Create from template</Button
+												>Create From Template</Button
 											>{/if}
 										{#if canImport}<Button
 												onclick={() => (importDialog.open = true)}
-												>Import project</Button
+												>Import Project</Button
 											>{/if}
 									{/snippet}
 								</EmptyState>

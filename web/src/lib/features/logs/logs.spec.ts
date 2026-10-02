@@ -176,7 +176,7 @@ describe('levels', () => {
 });
 
 describe('search', () => {
-	it('matches plain text case-insensitively, trimmed, unless Match case', () => {
+	it('matches plain text case-insensitively, trimmed, unless Match Case', () => {
 		expect(plainSearch('')).toBeNull();
 		expect(plainSearch('   ')).toBeNull();
 		const m = plain(' get ');
@@ -281,12 +281,12 @@ describe('line filters', () => {
 			stderr: 2
 		});
 		const every: LogLevel[] = ['error', 'warning', 'info', 'debug', 'verbose', 'other'];
-		expect(levelSummary(every, ['stdout', 'stderr'])).toBe('All levels');
+		expect(levelSummary(every, ['stdout', 'stderr'])).toBe('All Levels');
 		expect(levelSummary(['warning', 'error'], ['stdout', 'stderr'])).toBe('Error, Warning');
 		expect(levelSummary(['error', 'warning', 'info'], ['stdout', 'stderr'])).toBe('3 levels');
-		expect(levelSummary(every, ['stderr'])).toBe('All levels · stderr');
-		expect(levelSummary([], ['stdout'])).toBe('Nothing selected');
-		expect(levelSummary(['error'], [])).toBe('Nothing selected');
+		expect(levelSummary(every, ['stderr'])).toBe('All Levels · stderr');
+		expect(levelSummary([], ['stdout'])).toBe('Nothing Selected');
+		expect(levelSummary(['error'], [])).toBe('Nothing Selected');
 	});
 
 	it('starts with one service from ?service= and ignores an unknown one', () => {
@@ -303,10 +303,10 @@ describe('line filters', () => {
 		const services = ['silo-web', 'silo-db', 'silo-cache'];
 		expect(hiddenServices(services, ['silo-db'])).toEqual(['silo-web', 'silo-cache']);
 		expect(hiddenServices(services, services)).toEqual([]);
-		expect(serviceSummary(services, services)).toBe('All services');
+		expect(serviceSummary(services, services)).toBe('All Services');
 		expect(serviceSummary(services, ['silo-cache', 'silo-web'])).toBe('silo-web, silo-cache');
 		expect(serviceSummary([...services, 'silo-worker'], services)).toBe('3 services');
-		expect(serviceSummary(services, [])).toBe('Nothing selected');
+		expect(serviceSummary(services, [])).toBe('Nothing Selected');
 	});
 
 	it('counts the lines of each service', () => {

@@ -2,9 +2,9 @@
 	// Alert thresholds (Settings → Notifications, owner only): the warning
 	// and critical levels of temperature, disk space and memory alerts for
 	// every environment, checked in words as they are typed ("Save
-	// thresholds" only while something changed and everything is right),
+	// Thresholds" only while something changed and everything is right),
 	// and below them each environment's override (Edit, Remove; "Add
-	// override" opens OverrideDialog). Every change replaces the whole
+	// Override" opens OverrideDialog). Every change replaces the whole
 	// settings with If-Match; there is no live event, the response is the
 	// new state.
 	import { untrack } from 'svelte';
@@ -51,7 +51,7 @@
 	const envs = createQuery(() => environmentsQuery());
 	const environments = $derived(envs.data ?? []);
 	const nameOf = (id: string) =>
-		environments.find((e) => e.id === id)?.name ?? 'Removed environment';
+		environments.find((e) => e.id === id)?.name ?? 'Removed Environment';
 
 	/** The levels as typed, and as saved (to see what changed). */
 	let form = $state<ThresholdForm | null>(null);
@@ -153,7 +153,7 @@
 		];
 	}
 
-	/** Active environments without an override (what "Add override" can choose). */
+	/** Active environments without an override (what "Add Override" can choose). */
 	const addable = $derived(
 		environments.filter(
 			(e) =>
@@ -226,7 +226,7 @@
 {/snippet}
 
 <Card
-	title="Alert thresholds"
+	title="Alert Thresholds"
 	id="alert-thresholds"
 	subtitle="Alerts when a host runs hot or low on disk space or memory for 5 minutes. 0 turns a level off."
 >
@@ -242,7 +242,7 @@
 			>
 				{#if form}
 					<ThresholdGrid
-						label="Default levels"
+						label="Default Levels"
 						{form}
 						{errors}
 						onchange={(k, v) => {
@@ -259,26 +259,26 @@
 				{/if}
 				<div class="save">
 					<Button type="submit" variant="primary" disabled={!canSave} loading={saving}
-						>Save thresholds</Button
+						>Save Thresholds</Button
 					>
 				</div>
 			</form>
 
 			<section class="overrides" aria-labelledby="threshold-overrides">
 				<div class="overrides-head">
-					<h3 id="threshold-overrides" class="subsection-title">Environment overrides</h3>
+					<h3 id="threshold-overrides" class="subsection-title">Environment Overrides</h3>
 					<Button
 						size="sm"
 						icon={Plus}
 						disabled={addable === 0}
 						title={addable === 0 ? 'Every environment has an override.' : undefined}
-						onclick={add}>Add override</Button
+						onclick={add}>Add Override</Button
 					>
 				</div>
 				{#if d.overrides.length}
 					<div class="table">
 						<Table
-							label="Environment overrides"
+							label="Environment Overrides"
 							rows={d.overrides}
 							{columns}
 							rowKey={(o) => o.environmentId}
@@ -301,7 +301,7 @@
 					bind:open={removeOpen}
 					title="Remove the override of {nameOf(removing.environmentId)}?"
 					message="{nameOf(removing.environmentId)} uses the default levels again."
-					confirmLabel="Remove override"
+					confirmLabel="Remove Override"
 					tone="danger"
 					onconfirm={() => remove(d)}
 				/>

@@ -397,19 +397,19 @@ and volume file watching is #15.
 
 Each environment reports the health of its disks (SMART) and of its RAID
 arrays (#143, [ADR 0005](../adr/0005-disk-health.md)); the System tab shows
-them with "Check disks now" and "Check RAID now".
+them with "Check Disks Now" and "Check RAID Now".
 
 **Agent** (`internal/agent/health`, served as `host.health`):
 
 - **SMART** through the image's pinned `smartctl`
   (`internal/agent/smartctl`, `DOCKER_AGENT_SMARTCTL_BINARY`): `smartctl
   --scan-open --json` lists the devices at start, every 6 h and on "Check
-  disks now"; each device is read with `smartctl --json -a -n standby,3 -d
+  Disks Now"; each device is read with `smartctl --json -a -n standby,3 -d
   <type> <name>` (ATA devices with `-l devstat,5 -l devstat,7` too: the
   device statistics pages with the temperature limit and SSD wear, #212;
   at most 4 at once, 30 s each) at start, every
   `DOCKER_AGENT_SMART_INTERVAL` (default 30 min, 5 min–24 h) and on "Check
-  disks now". A disk in standby is not woken (exit status 3 plus the
+  Disks Now". A disk in standby is not woken (exit status 3 plus the
   standby message): it keeps its previous values (not its temperature,
   which changes while it sleeps, #212) with state `sleeping`,
   except that `failing` and `warning`, derived from the kept values, stay
@@ -539,8 +539,8 @@ them with "Check disks now" and "Check RAID now".
 **Manager** (`internal/manager/observe/health.go`): asks every online
 environment whose agent serves `host.health` about once a minute, 5 s after
 it comes online (or its agent's capabilities change) and every 5 s while
-the agent reads its disks (at most 10 minutes from the last "Check disks
-now" or the start of the read). An answer sampled before the kept report
+the agent reads its disks (at most 10 minutes from the last "Check Disks
+Now" or the start of the read). An answer sampled before the kept report
 (a poll that arrives after a check's answer) is dropped, unless the kept
 report arrived more than 20 s (the request timeout) earlier. An agent answering
 `unsupported_request` is skipped for 5 minutes. An answer that does not

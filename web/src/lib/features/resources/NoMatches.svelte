@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The empty state of a list whose search or filters match nothing
-	// (inside ListCard's table), with the same "Clear filters" action.
+	// (inside ListCard's table), with the same "Clear Filters" action.
 	import type { IconComponent } from '$lib/design/icons';
 	import { Button, EmptyState } from '$lib/ui';
 
@@ -24,6 +24,6 @@
 	compact
 >
 	{#snippet actions()}
-		<Button variant="secondary" onclick={onclear}>Clear filters</Button>
+		<Button variant="secondary" onclick={onclear}>Clear Filters</Button>
 	{/snippet}
 </EmptyState>

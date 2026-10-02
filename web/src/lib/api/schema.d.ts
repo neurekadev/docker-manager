@@ -11969,7 +11969,7 @@ export interface components {
             invalidReason?: string;
             /** @example prune */
             kind: string;
-            /** @example Docker prune */
+            /** @example Docker Prune */
             kindLabel: string;
             nextRun?: components["schemas"]["ScheduleRunTime"];
             policyId: string;
@@ -42517,7 +42517,7 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "invalidReason": "example",
                      *           "kind": "prune",
-                     *           "kindLabel": "Docker prune",
+                     *           "kindLabel": "Docker Prune",
                      *           "nextRun": {
                      *             "at": "2026-09-25T12:00:00Z",
                      *             "dst": "none",

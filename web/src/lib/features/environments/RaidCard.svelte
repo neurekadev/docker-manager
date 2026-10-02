@@ -5,11 +5,11 @@
 	// state, the member disks (failed ones in red) and a running rebuild or
 	// check with its progress and the kernel's finish estimate. The info
 	// button opens the array's details (RaidDetailsDialog, #206). "Check
-	// RAID now" reads the state again (never a scrub).
+	// RAID Now" reads the state again (never a scrub).
 	// An array with a firing alert (#159) has a mark beside its name that
 	// opens Alerts. Every array shows the RAID tile
 	// (RESOURCE_ICONS).
-	// Shown only when the host has arrays (the Disk health card says "No
+	// Shown only when the host has arrays (the Disk Health card says "No
 	// RAID arrays found" otherwise) or the state could not be read.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import Info from '@lucide/svelte/icons/info';
@@ -212,7 +212,7 @@
 			{/if}
 			{#if showCheck}
 				<Button size="sm" icon={RefreshCw} loading={busy} onclick={check}
-					>Check RAID now</Button
+					>Check RAID Now</Button
 				>
 			{/if}
 		</div>
@@ -225,7 +225,7 @@
 		</div>
 	{/if}
 	{#if rows.length}
-		<Table label="RAID arrays of {env.name}" {rows} {columns} rowKey={arrayKey} />
+		<Table label="RAID Arrays of {env.name}" {rows} {columns} rowKey={arrayKey} />
 	{/if}
 </Card>
 {#if selected}

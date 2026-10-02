@@ -2,8 +2,8 @@
 	// Template detail (template registry): the page header (the template's
 	// icon, visibility, newest version, number of versions, last change, its
 	// links below them),
-	// "Create stack" as the primary action once a version is published and
-	// "Publish version", then the tabs Overview · Files · Versions ·
+	// "Create Stack" as the primary action once a version is published and
+	// "Publish Version", then the tabs Overview · Files · Versions ·
 	// Settings. Tabs and actions follow the template's DTO actions (hidden,
 	// never disabled).
 	import { createQuery } from '@tanstack/svelte-query';
@@ -104,7 +104,7 @@
 		level={1}
 	>
 		{#snippet actions()}<Button variant="primary" href={routes.templates()}
-				>Open templates</Button
+				>Open Templates</Button
 			>{/snippet}
 	</EmptyState>
 {:else if template.isError}
@@ -131,19 +131,19 @@
 			{#snippet actions()}
 				{#if canCreateStack}
 					<Button variant="primary" icon={Plus} href={routes.stackFromTemplate(t.id)}
-						>Create stack</Button
+						>Create Stack</Button
 					>
 				{/if}
 				{#if can('template.publish')}
 					<Button
 						variant={canCreateStack ? 'secondary' : 'primary'}
 						icon={Upload}
-						onclick={() => (publishing = true)}>Publish version</Button
+						onclick={() => (publishing = true)}>Publish Version</Button
 					>
 				{/if}
 			{/snippet}
 		</PageHeader>
-		<TabNav label="Template sections" current={page.url.pathname} items={tabs} />
+		<TabNav label="Template Sections" current={page.url.pathname} items={tabs} />
 		{@render children()}
 	</Page>
 	{#if can('template.publish')}

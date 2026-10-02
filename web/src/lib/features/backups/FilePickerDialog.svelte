@@ -65,12 +65,12 @@
 <Dialog
 	bind:open
 	size="xl"
-	title="Choose what to restore"
+	title="Choose What to Restore"
 	description="Backup of {formatDateTime(
 		backup.snapshotTime
 	)}. Tick files and folders: a ticked folder is restored whole and made identical to the backup. Everything you leave unticked stays as it is."
 >
-	<div class="tree" role="region" aria-label="Files in the backup">
+	<div class="tree" role="region" aria-label="Files in the Backup">
 		<div class="head" aria-hidden="true">
 			<span></span><span></span><span></span><span>Name</span><span class="r">Size</span><span
 				class="r time">Modified</span
@@ -140,7 +140,7 @@
 			onclick={() => {
 				open = false;
 				onnext([...selection]);
-			}}>Review restore</Button
+			}}>Review Restore</Button
 		>
 	{/snippet}
 </Dialog>

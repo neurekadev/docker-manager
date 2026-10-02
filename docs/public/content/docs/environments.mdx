@@ -22,13 +22,13 @@ until it reconnects.
 - **Agents**: the agent, its version and when it was last seen.
 - **Jobs**: the latest jobs on this server.
 
-**Edit** changes the environment's **Name** and its **Service address**:
+**Edit** changes the environment's **Name** and its **Service Address**:
 the host name or IP address you browse to. With an address, published ports
 become links.
 
 ## Archive an environment
 
-To stop managing a server, choose **More actions → Archive environment**.
+To stop managing a server, choose **More Actions → Archive Environment**.
 Docker Manager first shows what depends on it. Archiving:
 
 - disconnects the agent for good,
@@ -43,26 +43,26 @@ another server first. Archived environments are on the **Archived** tab.
 
 ## Re-attach an environment
 
-**Re-attach** connects a server again that Docker Manager already knows:
+**Re-Attach** connects a server again that Docker Manager already knows:
 after you archived it, removed its agent or recovered Docker Manager from a
 backup.
 
-1. Open the environment and press **Re-attach** (also on its **Agents**
+1. Open the environment and press **Re-Attach** (also on its **Agents**
    tab).
-2. Press **Create install command** and run the command on that server. For
-   the agent next to the manager, use the **On the Docker Manager host**
+2. Press **Create Install Command** and run the command on that server. For
+   the agent next to the manager, use the **On the Docker Manager Host**
    tab.
 
 ## Manage the agent
 
 On the **Agents** tab, the agent's menu has:
 
-- **Remove agent**: the agent can no longer connect. Type the environment's
+- **Remove Agent**: the agent can no longer connect. Type the environment's
   name to confirm. Nothing on the server changes.
-- **Rotate credential**: gives the agent a new secret, if you think the old
+- **Rotate Credential**: gives the agent a new secret, if you think the old
   one leaked.
 
 Upgrade the manager first, then the agents. An agent one release behind
-the manager still works and shows **Upgrade recommended**. An older agent,
+the manager still works and shows **Upgrade Recommended**. An older agent,
 or one newer than the manager, is refused until you
 [upgrade](/quickstart#upgrade) it.

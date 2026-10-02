@@ -77,7 +77,7 @@ async function openFile(path: string, content: string) {
 }
 
 async function choose(user: ReturnType<typeof userEvent.setup>, item: string) {
-	await user.click(screen.getByRole('button', { name: 'More format options' }));
+	await user.click(screen.getByRole('button', { name: 'More Format Options' }));
 	await user.click(await screen.findByRole('menuitem', { name: item }));
 	await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
 }
@@ -89,14 +89,14 @@ describe('EditorPane Format', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const session = await openFile('data.json', '{\n  "a": [1, 2],\n  "b": "x y"\n}\n');
 
-		await user.click(screen.getByRole('button', { name: 'More format options' }));
+		await user.click(screen.getByRole('button', { name: 'More Format Options' }));
 		const items = await screen.findAllByRole('menuitem');
 		expect(items.map((i) => i.textContent?.trim())).toEqual(['Minify', 'Beautify']);
 		expect(items[0]).not.toHaveAttribute('aria-disabled', 'true');
 		await user.click(items[0]);
 
 		await waitFor(() => expect(session.current?.buffer).toBe('{"a":[1,2],"b":"x y"}\n'));
-		expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+		expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
 
 		await choose(user, 'Beautify');
 		await waitFor(() =>
@@ -120,7 +120,7 @@ describe('EditorPane Format', () => {
 			'services:\n    web:\n        image: nginx\n'
 		);
 
-		await user.click(screen.getByRole('button', { name: 'More format options' }));
+		await user.click(screen.getByRole('button', { name: 'More Format Options' }));
 		const minify = await screen.findByRole('menuitem', { name: 'Minify' });
 		expect(minify).toHaveAttribute('aria-disabled', 'true');
 		expect(minify).not.toHaveAccessibleDescription();
@@ -146,6 +146,6 @@ describe('EditorPane Format', () => {
 			/^This isn't valid JSON: .* Fix it and minify again\.$/
 		);
 		expect(session.current?.buffer).toBe('{"a": }');
-		expect(screen.queryByText('Unsaved changes')).toBeNull();
+		expect(screen.queryByText('Unsaved Changes')).toBeNull();
 	});
 });

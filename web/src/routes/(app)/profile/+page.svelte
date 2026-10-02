@@ -223,7 +223,7 @@
 		},
 		{
 			id: 'used',
-			header: 'Last used',
+			header: 'Last Used',
 			cell: pkUsedCell,
 			width: '150px',
 			sortValue: (p) => p.lastUsedAt ?? ''
@@ -252,9 +252,9 @@
 		>{:else}<span class="muted">Never</span>{/if}
 {/snippet}
 {#snippet pkBackupCell(p: Passkey)}
-	{#if p.backedUp}<Badge tone="ok">Backed up</Badge>{:else if p.backupEligible}<Badge
-			>Can sync</Badge
-		>{:else}<Badge>This device only</Badge>{/if}
+	{#if p.backedUp}<Badge tone="ok">Backed Up</Badge>{:else if p.backupEligible}<Badge
+			>Can Sync</Badge
+		>{:else}<Badge>This Device Only</Badge>{/if}
 {/snippet}
 {#snippet pkActions(p: Passkey)}
 	<span class="acts">
@@ -291,9 +291,9 @@
 					{ label: 'Name', value: displayName(me) },
 					{ label: 'Username', value: me.username, mono: true },
 					{ label: 'Email', value: me.email },
-					{ label: 'Signs in with', value: factorsText(me.factors) },
+					{ label: 'Signs In With', value: factorsText(me.factors) },
 					{
-						label: 'Sign-in policy',
+						label: 'Sign-In Policy',
 						value: session.data
 							? FACTOR_POLICY[session.data.requiredFactors]
 							: undefined
@@ -319,7 +319,7 @@
 							readonly
 						/>
 						<PasswordField
-							label="Current password"
+							label="Current Password"
 							autocomplete="current-password"
 							bind:value={current}
 							required
@@ -329,7 +329,7 @@
 					<div class="gap"></div>
 					<Fields columns={2}>
 						<PasswordField
-							label="New password"
+							label="New Password"
 							autocomplete="new-password"
 							bind:value={next}
 							required
@@ -337,7 +337,7 @@
 							error={fieldErrors(pwError)['body.newPassword']}
 						/>
 						<PasswordField
-							label="Repeat the new password"
+							label="Repeat the New Password"
 							autocomplete="new-password"
 							bind:value={repeat}
 							required
@@ -348,7 +348,7 @@
 					<Fields>
 						<Checkbox
 							bind:checked={revokeTokens}
-							label="Also revoke my API tokens"
+							label="Also Revoke My API Tokens"
 							description="For example when the password may have leaked."
 						/>
 					</Fields>
@@ -364,7 +364,7 @@
 							type="submit"
 							variant="primary"
 							loading={pwBusy}
-							disabled={!next || !!mismatch || !repeat}>Change password</Button
+							disabled={!next || !!mismatch || !repeat}>Change Password</Button
 						>
 					</FormFooter>
 				</form>
@@ -372,7 +372,7 @@
 		{/if}
 
 		<Card
-			title="Authenticator app"
+			title="Authenticator App"
 			subtitle="A 6-digit code from an app like 1Password, Aegis or Google Authenticator (TOTP), asked after your password."
 		>
 			{#snippet actions()}
@@ -381,13 +381,13 @@
 			{/snippet}
 			{#if me.factors.totp}
 				<Button variant="danger-soft" onclick={() => (totpOffOpen = true)}
-					>Turn off authenticator app</Button
+					>Turn Off Authenticator App</Button
 				>
 			{:else if totpSetup}
 				<TotpSetup ondone={() => (totpSetup = false)} />
 			{:else}
 				<Button variant="primary" onclick={() => (totpSetup = true)}
-					>Set up authenticator app</Button
+					>Set Up Authenticator App</Button
 				>
 			{/if}
 		</Card>
@@ -403,7 +403,7 @@
 						<p class="none muted">No passkeys yet.</p>
 					{:else}
 						<Table
-							label="Your passkeys"
+							label="Your Passkeys"
 							{rows}
 							columns={pkColumns}
 							rowKey={(p) => p.id}
@@ -415,13 +415,13 @@
 			<div class="add">
 				{#if passkeysSupported()}
 					<TextField
-						label="Name of the new passkey"
+						label="Name of the New Passkey"
 						bind:value={pkName}
 						placeholder="Work laptop"
 						description="Optional."
 					/>
 					<Button icon={Fingerprint} loading={pkBusy} onclick={addPasskey}
-						>Add passkey</Button
+						>Add Passkey</Button
 					>
 				{:else}
 					<p class="muted">
@@ -436,7 +436,7 @@
 		</Card>
 
 		<Card
-			title="Recovery codes"
+			title="Recovery Codes"
 			subtitle="One-time codes that finish a password sign-in when your authenticator app or passkey is lost."
 		>
 			{#snippet actions()}
@@ -451,7 +451,7 @@
 			</p>
 			<div class="act">
 				<Button icon={KeySquare} onclick={() => (codesOpen = true)}
-					>Generate new codes</Button
+					>Generate New Codes</Button
 				>
 			</div>
 		</Card>
@@ -463,7 +463,7 @@
 				'Password sign-ins no longer ask for a code.',
 				'Your other sessions end.'
 			]}
-			confirmLabel="Turn off authenticator app"
+			confirmLabel="Turn Off Authenticator App"
 			tone="danger"
 			onconfirm={totpOff}
 		/>
@@ -474,7 +474,7 @@
 				'It can no longer sign you in. Remove it from the device too.',
 				'Your other sessions end.'
 			]}
-			confirmLabel="Remove passkey"
+			confirmLabel="Remove Passkey"
 			tone="danger"
 			onconfirm={() => (removing ? removePasskey(removing) : undefined)}
 		/>
@@ -485,12 +485,12 @@
 				'Your current recovery codes stop working.',
 				'The new codes are shown once: store them somewhere safe.'
 			]}
-			confirmLabel="Generate new codes"
+			confirmLabel="Generate New Codes"
 			onconfirm={rotateCodes}
 		/>
 		<Dialog
 			open={!!newCodes}
-			title="Your new recovery codes"
+			title="Your New Recovery Codes"
 			dismissible={false}
 			onclose={() => (newCodes = null)}
 		>
@@ -511,11 +511,11 @@
 		</Dialog>
 		<Dialog
 			open={!!renaming}
-			title="Rename {renaming?.name ?? 'passkey'}"
+			title="Rename {renaming?.name ?? 'Passkey'}"
 			onclose={() => (renaming = null)}
 		>
 			<TextField label="Name" bind:value={newName} required />
-			{#if renameError}<Notice tone="danger" title="Not renamed" live="alert"
+			{#if renameError}<Notice tone="danger" title="Not Renamed" live="alert"
 					>{renameError}</Notice
 				>{/if}
 			{#snippet footer()}
@@ -523,7 +523,7 @@
 				<Button
 					variant="primary"
 					disabled={!newName.trim()}
-					onclick={() => renaming && renamePasskey(renaming)}>Rename passkey</Button
+					onclick={() => renaming && renamePasskey(renaming)}>Rename Passkey</Button
 				>
 			{/snippet}
 		</Dialog>

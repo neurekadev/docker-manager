@@ -198,20 +198,20 @@ describe('container addresses and uptime', () => {
 
 describe('detail pages in words (#22 polish)', () => {
 	it('words restart policies, with the retries when known', () => {
-		expect(restartPolicyLabel(undefined)).toBe('Never restart');
-		expect(restartPolicyLabel('no')).toBe('Never restart');
-		expect(restartPolicyLabel('unless-stopped')).toBe('Unless stopped');
+		expect(restartPolicyLabel(undefined)).toBe('Never Restart');
+		expect(restartPolicyLabel('no')).toBe('Never Restart');
+		expect(restartPolicyLabel('unless-stopped')).toBe('Unless Stopped');
 		expect(restartPolicyLabel('always')).toBe('Always');
-		expect(restartPolicyLabel('on-failure')).toBe('On failure');
-		expect(restartPolicyLabel('on-failure', 0)).toBe('On failure');
-		expect(restartPolicyLabel('on-failure', 5)).toBe('On failure (up to 5 retries)');
-		expect(restartPolicyLabel('on-failure', 1)).toBe('On failure (up to 1 retry)');
-		expect(restartPolicyLabel('on-failure:3')).toBe('On failure (up to 3 retries)');
+		expect(restartPolicyLabel('on-failure')).toBe('On Failure');
+		expect(restartPolicyLabel('on-failure', 0)).toBe('On Failure');
+		expect(restartPolicyLabel('on-failure', 5)).toBe('On Failure (Up to 5 Retries)');
+		expect(restartPolicyLabel('on-failure', 1)).toBe('On Failure (Up to 1 Retry)');
+		expect(restartPolicyLabel('on-failure:3')).toBe('On Failure (Up to 3 Retries)');
 		// The form offers the words, never the raw value in parentheses.
 		expect(RESTART_OPTIONS.map((o) => o.label)).toEqual([
-			'Never restart',
-			'On failure',
-			'Unless stopped',
+			'Never Restart',
+			'On Failure',
+			'Unless Stopped',
 			'Always'
 		]);
 	});
@@ -220,8 +220,8 @@ describe('detail pages in words (#22 polish)', () => {
 		expect(healthLabel('healthy')).toBe('Healthy');
 		expect(healthLabel('unhealthy')).toBe('Unhealthy');
 		expect(healthLabel('starting')).toBe('Starting');
-		expect(healthLabel('none')).toBe('No health check');
-		expect(healthLabel(undefined)).toBe('No health check');
+		expect(healthLabel('none')).toBe('No Health Check');
+		expect(healthLabel(undefined)).toBe('No Health Check');
 		expect(healthCommand(['CMD-SHELL', 'curl -f http://localhost/'])).toBe(
 			'curl -f http://localhost/'
 		);

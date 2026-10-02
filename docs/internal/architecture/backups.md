@@ -122,7 +122,7 @@ the agent's smartctl runner for disk health, see
   scheduled run is skipped while a `backup.run` or `manager.backup` job of
   the policy is not finished (scheduler overlap), and a new manual run is
   refused with 409 `backup_run_active` (a retry and an idempotent replay
-  are not). The UI spins the policy's **Back up now** button while
+  are not). The UI spins the policy's **Back Up Now** button while
   `/backup-activity` lists a job of the policy.
 - **Cancelling a run** (`POST /jobs/{jobId}/cancellations` on its
   `backup.run` or `manager.backup` job) does not wait for the snapshot
@@ -272,7 +272,7 @@ toggle (default off). **Bind sources outside the project directory**
 (`../data`, `/srv/x`) are shown in the preview as `requires_opt_in`; they are
 included only when the stack's selection lists them in `externalPaths` **and** they lie
 below the agent's `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`. A policy's `externalBinds`
-switch (default off; UI: **Back up allowed folders outside stacks**) fills
+switch (default off; UI: **Back Up Allowed Folders Outside Stacks**) fills
 each selected stack's `externalPaths` with its recorded outside bind sources
 (`StackBind.External`, `externalBindSources`: clean absolute paths, at most
 64) in `scopeSelections`; system paths and
@@ -412,7 +412,7 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   `stack.files.read` / `volume.files.read` on the item (the manager state:
   the owner), and `cancellable` when the caller holds `job.cancel` on the
   job and no cancellation was requested yet. The overview and the policy
-  page poll it while something runs and show it in a "Running now" card
+  page poll it while something runs and show it in a "Running Now" card
   (`RunningBackups`): one fixed-height line per job (policy, where, stacks
   and volumes, the item with its file and byte counts, a bar, the time
   left, **Cancel** with a confirmation) and one line with the file restic
@@ -425,8 +425,8 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   bind two services mount and volumes without a path) open by themselves
   when something needs the user. Keyed `each` blocks never key by source
   text (a repeated key throws and nothing renders). An agent that does
-  not answer the 2-minute request reads as `timeout`. "Apply retention
-  now" shows `RetentionPreviewPanel` by repository and environment name,
+  not answer the 2-minute request reads as `timeout`. "Apply Retention
+  Now" shows `RetentionPreviewPanel` by repository and environment name,
   one row per stack or volume (removed/kept counts, the backups with the
   rules keeping them), and confirms only once the preview is loaded and
   removes something ("Remove N backups").
@@ -460,7 +460,7 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   `from`, at every whole UTC hour (ranges up to 8 days) or day in between
   and at `to` (clamped to now); each point is the sum over the readable
   locations of their latest sample at or before it (carried forward;
-  `null` before the first). The overview's **Storage over time** card
+  `null` before the first). The overview's **Storage Over Time** card
   draws stored (solid) and before compression (dashed; never below
   stored), the last 30 days by default (7 days, 90 days, a year), with a
   sentence on the change and the figures as a table.
@@ -520,9 +520,9 @@ KPIs, running backups, the policies as its main table, recent runs,
 storage and storage over time), **Backups** (every backup grouped by run, with Restore per run)
 and **Repositories**. `/backups/policies` redirects to the overview;
 restic's raw snapshots (`/backups/snapshots?repository=`) open from a
-repository page. The header's primary action is "Create backup policy"
+repository page. The header's primary action is "Create Backup Policy"
 on every tab. Policy pages follow the shared policy layout (status
-sentence, Back up now / Edit / overflow, KPIs, what it covers, schedule
+sentence, Back Up Now / Edit / overflow, KPIs, what it covers, schedule
 with next runs, recent runs); creating a policy is a wizard, editing one
 screen. The policy list returns every policy shown in full with the
 detail's `recentSets` (the newest 5) and `schedule.nextRun`, looked up in
@@ -538,8 +538,8 @@ Migrate; `$lib/features/backups/BackupsTab.svelte`, listed with
 the stack backups holding the volume); it names the policies that cover
 the stack or volume (`policyCovers`) with their next run and, without
 backups yet, those policies' recent runs that included it
-(`memberRuns`). *Restore all* restores the whole
-backup (a volume's page: only that volume); *Choose files* opens a lazily
+(`memberRuns`). *Restore All* restores the whole
+backup (a volume's page: only that volume); *Choose Files* opens a lazily
 listed file tree (`FilePickerDialog`, one directory per request, at most
 500 entries each, tri-state ticks; `selection.ts` keeps no path inside a
 ticked one and splits a ticked folder when something inside is unticked).

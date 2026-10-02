@@ -3,7 +3,7 @@
 	// service logs merged by time, each service in its hue (the service hue
 	// identity), the Services filter, Follow (live stream with cursor
 	// resume), timestamps, line wrap, a search that shows only the matching
-	// lines as you type (highlighted; Match case, regular expressions), the
+	// lines as you type (highlighted; Match Case, regular expressions), the
 	// Levels filter (each line's level and output stream, with counts),
 	// clear view, download and pop-out. Unwrapped lines render in a
 	// fixed-height window, so thousands of lines stay fast (wrapped lines
@@ -289,7 +289,7 @@
 </script>
 
 <section class="viewer" class:dense aria-label={label}>
-	<div class="toolbar" role="toolbar" aria-label="Log controls">
+	<div class="toolbar" role="toolbar" aria-label="Log Controls">
 		{#if stackId && services.length > 1}
 			<MultiSelect
 				label="Services"
@@ -302,9 +302,9 @@
 				onchange={pickServices}
 			/>
 		{/if}
-		<div class="search" role="search" aria-label="Search logs">
+		<div class="search" role="search" aria-label="Search Logs">
 			<TextField
-				label="Search logs"
+				label="Search Logs"
 				hideLabel
 				type="search"
 				placeholder={regex ? 'Search with a regular expression' : 'Search logs'}
@@ -318,24 +318,24 @@
 			<IconButton
 				icon={CaseSensitive}
 				size="sm"
-				label="Match case"
+				label="Match Case"
 				pressed={caseSensitive}
 				onclick={() => (caseSensitive = !caseSensitive)}
 			/>
 			<IconButton
 				icon={Regex}
 				size="sm"
-				label="Use regular expression"
+				label="Use Regular Expression"
 				pressed={regex}
 				onclick={() => (regex = !regex)}
 			/>
 			<span class="count num" class:invalid={!!refused} aria-live="polite"
-				>{#if refused === 'invalid'}Invalid expression{:else if refused === 'slow'}<span
+				>{#if refused === 'invalid'}Invalid Expression{:else if refused === 'slow'}<span
 						title="Searching took too long and was stopped. Simplify the expression, for example avoid repeats inside repeats such as (a+)+."
-						>Too slow to search</span
+						>Too Slow to Search</span
 					>{:else if refused === 'failed'}<span
-						title="This expression could not be searched. Change it, or turn off Use regular expression to search plain text."
-						>Search unavailable</span
+						title="This expression could not be searched. Change it, or turn off Use Regular Expression to search plain text."
+						>Search Unavailable</span
 					>{:else if matcher}{shown.length}
 					{shown.length === 1 ? 'match' : 'matches'}{/if}</span
 			>
@@ -344,7 +344,7 @@
 			<MultiSelect
 				label="Levels"
 				hideLabel
-				title="Levels and output"
+				title="Levels and Output"
 				icon={ListFilter}
 				groups={levelGroups}
 				summary={levelSummary(levels, streams)}
@@ -354,7 +354,7 @@
 				<IconButton
 					icon={TextWrap}
 					size="sm"
-					label="Wrap lines"
+					label="Wrap Lines"
 					pressed={wrap}
 					onclick={() => (wrap = !wrap)}
 				/>
@@ -375,11 +375,11 @@
 			</div>
 		</div>
 		<div class="actions">
-			<IconButton icon={Eraser} size="sm" label="Clear view" onclick={() => feed.clear()} />
+			<IconButton icon={Eraser} size="sm" label="Clear View" onclick={() => feed.clear()} />
 			<IconButton
 				icon={Download}
 				size="sm"
-				label="Download shown lines"
+				label="Download Shown Lines"
 				disabled={shown.length === 0}
 				onclick={download}
 			/>
@@ -387,7 +387,7 @@
 				<IconButton
 					icon={ExternalLink}
 					size="sm"
-					label="Open in a new window"
+					label="Open in a New Window"
 					onclick={onpopout}
 				/>
 			{/if}
@@ -434,7 +434,7 @@
 		onscroll={onScroll}
 		role="log"
 		aria-live="off"
-		aria-label="{label} lines"
+		aria-label="{label} Lines"
 		tabindex="0"
 	>
 		{#if shown.length === 0}
@@ -445,12 +445,12 @@
 					<EmptyState
 						compact
 						icon={ScrollText}
-						title="Every service is hidden"
+						title="Every Service Is Hidden"
 						description="Choose a service in Services to show its lines."
 					>
 						{#snippet actions()}
 							<Button size="sm" onclick={() => pickServices(names)}
-								>Show all services</Button
+								>Show All Services</Button
 							>
 						{/snippet}
 					</EmptyState>
@@ -458,23 +458,23 @@
 					<EmptyState
 						compact
 						icon={ScrollText}
-						title="No lines match “{query.trim()}”"
+						title="No Lines Match “{query.trim()}”"
 						description="Change the search to see more lines."
 					>
 						{#snippet actions()}
-							<Button size="sm" onclick={() => (query = '')}>Clear search</Button>
+							<Button size="sm" onclick={() => (query = '')}>Clear Search</Button>
 						{/snippet}
 					</EmptyState>
 				{:else if searched.length > 0 && narrowed}
 					<EmptyState
 						compact
 						icon={ScrollText}
-						title="No lines at the chosen levels"
+						title="No Lines at the Chosen Levels"
 						description="Choose more in Levels to see more lines."
 					>
 						{#snippet actions()}
 							<Button size="sm" onclick={() => (picked = EVERY)}
-								>Show all levels</Button
+								>Show All Levels</Button
 							>
 						{/snippet}
 					</EmptyState>
@@ -482,12 +482,12 @@
 					<EmptyState
 						compact
 						icon={ScrollText}
-						title="No lines from the selected services"
+						title="No Lines From the Selected Services"
 						description="Choose more in Services to see more lines."
 					>
 						{#snippet actions()}
 							<Button size="sm" onclick={() => pickServices(names)}
-								>Show all services</Button
+								>Show All Services</Button
 							>
 						{/snippet}
 					</EmptyState>
@@ -495,7 +495,7 @@
 					<EmptyState
 						compact
 						icon={ScrollText}
-						title="No log lines yet"
+						title="No Log Lines Yet"
 						description={feed.following
 							? 'New lines appear here as soon as they are written.'
 							: 'Turn on Follow to stream new lines.'}
@@ -541,7 +541,7 @@
 		</span>
 		{#if feed.following && !atBottom && shown.length}
 			<Button size="sm" variant="ghost" icon={ArrowDownToLine} onclick={toBottom}
-				>Jump to latest</Button
+				>Jump to Latest</Button
 			>
 		{/if}
 	</footer>

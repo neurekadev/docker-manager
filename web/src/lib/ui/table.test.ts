@@ -45,7 +45,7 @@ describe('Table', () => {
 		render(TableHarness, { props: { rows, selectable: true } });
 		await user.click(screen.getByRole('checkbox', { name: 'Select silo-api' }));
 		expect(screen.getByTestId('selected')).toHaveTextContent('silo-api');
-		const all = screen.getByRole('checkbox', { name: 'Select all rows' }) as HTMLInputElement;
+		const all = screen.getByRole('checkbox', { name: 'Select All Rows' }) as HTMLInputElement;
 		expect(all.indeterminate).toBe(true);
 		await user.click(all);
 		expect(screen.getByTestId('selected')).toHaveTextContent('silo-api,silo-web,silo-db');

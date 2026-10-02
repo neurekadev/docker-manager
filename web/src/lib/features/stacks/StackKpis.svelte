@@ -79,7 +79,7 @@
 		href="#services"
 	/>
 	<KpiCard
-		label="CPU usage"
+		label="CPU Usage"
 		value={formatPercent(usage?.cpuNow)}
 		icon={Cpu}
 		color="cyan"
@@ -97,7 +97,7 @@
 	</KpiCard>
 	{#if mem !== null && memTotal}
 		<KpiCard
-			label="Memory usage"
+			label="Memory Usage"
 			value={formatBytes(mem)}
 			unit="/ {formatBytes(memTotal)}"
 			icon={MemoryStick}
@@ -114,7 +114,7 @@
 		</KpiCard>
 	{:else}
 		<KpiCard
-			label="Memory usage"
+			label="Memory Usage"
 			value={formatBytes(mem)}
 			icon={MemoryStick}
 			color="indigo"
@@ -129,7 +129,7 @@
 		secondary={since ? `Since ${formatDateTime(since)}` : 'No container is running'}
 	/>
 	<KpiCard
-		label="Last deploy"
+		label="Last Deploy"
 		value={applied?.at ? formatRelative(applied.at, now) : 'Never'}
 		icon={Rocket}
 		color="violet"

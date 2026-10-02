@@ -35,10 +35,10 @@
 
 	type Affected = Schema<'AffectedContainer'>;
 	const stopColumns: Column<Affected>[] = [
-		{ id: 'order', header: 'Stop order', cell: orderCell, width: '100px', stack: 'meta' },
+		{ id: 'order', header: 'Stop Order', cell: orderCell, width: '100px', stack: 'meta' },
 		{ id: 'name', header: 'Container', cell: nameCell, stack: 'title' },
 		{ id: 'now', header: 'Now', cell: nowCell, width: '120px', stack: 'status' },
-		{ id: 'during', header: 'During the backup', cell: duringCell }
+		{ id: 'during', header: 'During the Backup', cell: duringCell }
 	];
 
 	const title = (i: ScopeItem) => scopeItemTitle(i, stackName);
@@ -108,7 +108,7 @@
 	{#if preview.manager}
 		<section class="env">
 			<div class="env-head">
-				<h3>Manager state</h3>
+				<h3>Manager State</h3>
 				<span class="muted small num">
 					Database {formatBytes(preview.manager.databaseBytes)} · metrics {preview.manager
 						.metricsIncluded
@@ -126,7 +126,7 @@
 			<div class="env-head">
 				<h3>{env.environmentName ?? 'Environment'}</h3>
 				{#if env.errorClass}
-					<Badge tone="danger">Preview unavailable: {errorText(env.errorClass)}</Badge>
+					<Badge tone="danger">Preview Unavailable: {errorText(env.errorClass)}</Badge>
 				{:else if items.length}
 					<span class="muted small num"
 						>{items.length}
@@ -135,7 +135,7 @@
 				{/if}
 			</div>
 			{#if showShutdown && preview.shutdown && env.downtime}
-				<Notice tone="warn" title="Downtime during backups" live="none"
+				<Notice tone="warn" title="Downtime During Backups" live="none"
 					>{env.downtime}</Notice
 				>
 			{/if}
@@ -173,7 +173,7 @@
 													>{/if}
 												{#if s.state === 'requires_opt_in' && onOptIn && item.stackId}
 													<Checkbox
-														label="Include this path"
+														label="Include This Path"
 														checked={optedIn?.(item.stackId, s.path) ??
 															false}
 														onchange={(e) =>
@@ -202,7 +202,7 @@
 										</p>{/each}
 									{#if showShutdown && preview.shutdown && item.affectedContainers?.length}
 										<Table
-											label="Containers stopped for {title(item)}"
+											label="Containers Stopped for {title(item)}"
 											rows={[...item.affectedContainers].sort(
 												(a, b) => (a.stopOrder || 99) - (b.stopOrder || 99)
 											)}

@@ -417,7 +417,7 @@
 					type="checkbox"
 					class="row-check"
 					tabindex="-1"
-					aria-label="Select all entries"
+					aria-label="Select All Entries"
 					checked={keys.length > 0 && headerState === keys.length}
 					indeterminate={headerState > 0 && headerState < keys.length}
 					onchange={toggleAll}
@@ -521,7 +521,7 @@
 									class="entry-icon folder"
 									aria-hidden="true"
 								/>
-								<span class="label" aria-label="Parent folder">..</span>
+								<span class="label" aria-label="Parent Folder">..</span>
 							{/if}
 						</div>
 						<div class="cell size num" role="gridcell">

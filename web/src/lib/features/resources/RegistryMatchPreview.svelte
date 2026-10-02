@@ -70,7 +70,7 @@
 				on the host.
 			</Notice>
 		{:else if m?.selection === 'anonymous'}
-			<Notice tone="info" title="Pulls anonymously" live="none">
+			<Notice tone="info" title="Pulls Anonymously" live="none">
 				No registry connection matches {m.host}/{m.repository}, so only public images work.
 				{#if m.host === 'docker.io'}Docker Hub limits anonymous pulls per IP address; add a
 					connection in Registries to pull with your account.{/if}
@@ -87,10 +87,10 @@
 		{/if}
 		{#if m && (m.selection === 'ambiguous' || (m.candidates.length > 1 && selected))}
 			<Select
-				label="Registry connection"
+				label="Registry Connection"
 				bind:value={selected}
 				options={[
-					{ value: '', label: 'Choose a connection' },
+					{ value: '', label: 'Choose a Connection' },
 					...m.candidates.map((c) => ({
 						value: c.connection.id,
 						label: `${c.connection.name} (${c.binding === 'none' ? 'every environment' : `bound to this ${c.binding}`})`

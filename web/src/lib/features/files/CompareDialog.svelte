@@ -25,7 +25,7 @@
 	{#if diff?.tooLarge}
 		<p class="note">
 			The two versions differ in too many lines to compare here. Save your edits under another
-			name with Save as…, then compare the files.
+			name with Save As…, then compare the files.
 		</p>
 	{:else if diff && rows.length === 0}
 		<p class="note">Your edits and the version on disk are identical.</p>

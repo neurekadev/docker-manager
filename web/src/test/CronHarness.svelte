@@ -12,6 +12,6 @@
 </script>
 
 <QueryClientProvider {client}>
-	<CronField label="Check schedule" bind:cron bind:timeZone debounce={0} timeZones={['UTC']} />
+	<CronField label="Check Schedule" bind:cron bind:timeZone debounce={0} timeZones={['UTC']} />
 	<p data-testid="cron">{cron}</p>
 </QueryClientProvider>

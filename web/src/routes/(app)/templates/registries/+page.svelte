@@ -43,8 +43,8 @@
 	} from '$lib/ui';
 
 	usePage({
-		title: 'Template sources',
-		crumbs: [{ label: 'Templates', href: routes.templates() }, { label: 'Template sources' }]
+		title: 'Template Sources',
+		crumbs: [{ label: 'Templates', href: routes.templates() }, { label: 'Template Sources' }]
 	});
 
 	const registries = createQuery(() => templateRegistriesQuery());
@@ -102,7 +102,7 @@
 			},
 			{
 				id: 'synced',
-				header: 'Last sync',
+				header: 'Last Sync',
 				cell: syncedCell,
 				sortValue: (r) => r.syncedAt ?? '',
 				width: '160px'
@@ -133,10 +133,10 @@
 {#snippet statusCell(r: TemplateRegistryInfo)}
 	{#if r.status === 'error'}
 		<span class="status">
-			<Badge tone="warn" dot>Sync failed</Badge>
+			<Badge tone="warn" dot>Sync Failed</Badge>
 			{#if r.errorMessage}<span class="muted small">{r.errorMessage}</span>{/if}
 		</span>
-	{:else}<Badge tone="ok" dot>Up to date</Badge>{/if}
+	{:else}<Badge tone="ok" dot>Up to Date</Badge>{/if}
 {/snippet}
 {#snippet countCell(r: TemplateRegistryInfo)}<span class="num">{r.templates}</span>{/snippet}
 {#snippet syncedCell(r: TemplateRegistryInfo)}
@@ -147,7 +147,7 @@
 	<span class="row-actions">
 		<IconButton
 			icon={RefreshCw}
-			label="Sync {r.name} now"
+			label="Sync {r.name} Now"
 			disabled={syncing === r.instanceId}
 			onclick={() => void sync(r)}
 		/>
@@ -164,13 +164,13 @@
 
 <Page>
 	<PageHeader
-		title="Template sources"
+		title="Template Sources"
 		description="Other Docker Managers whose public templates you can use. They sync every 30 minutes."
 	>
 		{#snippet actions()}
 			{#if owner}
 				<Button variant="primary" icon={Plus} onclick={() => (adding = true)}
-					>Add template source</Button
+					>Add Template Source</Button
 				>
 			{/if}
 		{/snippet}
@@ -190,7 +190,7 @@
 				<div class="loading" aria-busy="true"><Skeleton lines={3} height="20px" /></div>
 			{:else}
 				<Table
-					label="Template sources"
+					label="Template Sources"
 					rows={remote}
 					{columns}
 					rowKey={(r) => r.instanceId}
@@ -209,7 +209,7 @@
 						>
 							{#snippet actions()}
 								{#if owner}<Button variant="primary" onclick={() => (adding = true)}
-										>Add template source</Button
+										>Add Template Source</Button
 									>{/if}
 							{/snippet}
 						</EmptyState>
@@ -230,7 +230,7 @@
 					'Stacks created from its templates keep working.',
 					'They show their template icon again if you add the source back.'
 				]}
-				confirmLabel="Remove template source"
+				confirmLabel="Remove Template Source"
 				tone="danger"
 				onconfirm={remove}
 			/>

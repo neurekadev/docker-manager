@@ -5,12 +5,12 @@
 	// server and kept per list and browser tab like the other lists. The
 	// environment switcher scopes the list; ?environment= (links from an
 	// environment page) sets the environment filter once, ?kind= (a policy
-	// run's "Open jobs") the kind filter, ?policyId= the policy filter
+	// run's "Open Jobs") the kind filter, ?policyId= the policy filter
 	// (named from the schedules, else by its kind) and ?state=active (the
 	// top bar's running jobs) the state filter. Rows lead with the
 	// target's name. The count says how many jobs match when the server
 	// knows ("50 of 1,234 jobs"); the search covers the loaded jobs only and
-	// says so; "Load more" follows the cursor (also from the no-matches
+	// says so; "Load More Jobs" follows the cursor (also from the no-matches
 	// state). The list refreshes live on job events.
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -89,7 +89,7 @@
 	const schedules = createQuery(() => ({ ...schedulesQuery(), enabled: !!policyId }));
 	const policyName = $derived(
 		(schedules.data ?? []).find((s) => s.policyId === policyId)?.policyName ||
-			(filters.get('kind') ? policyPage(filters.get('kind')).label : 'Selected policy')
+			(filters.get('kind') ? policyPage(filters.get('kind')).label : 'Selected Policy')
 	);
 	const defs = $derived(
 		jobFilters({
@@ -143,11 +143,11 @@
 			/>
 		{:else}
 			<ListCard
-				title="All jobs"
+				title="All Jobs"
 				id="jobs"
 				{summary}
-				label="Filter jobs"
-				searchLabel="Search jobs"
+				label="Filter Jobs"
+				searchLabel="Search Jobs"
 				placeholder="Search jobs"
 				filters={defs}
 				store={filters}
@@ -179,10 +179,10 @@
 											variant="secondary"
 											loading={jobs.isFetchingNextPage}
 											onclick={() => jobs.fetchNextPage()}
-											>Load more jobs</Button
+											>Load More Jobs</Button
 										>
 										<Button variant="ghost" onclick={() => filters.clear()}
-											>Clear filters</Button
+											>Clear Filters</Button
 										>
 									{/snippet}
 								</EmptyState>
@@ -207,7 +207,7 @@
 						<div class="more">
 							<Button
 								loading={jobs.isFetchingNextPage}
-								onclick={() => jobs.fetchNextPage()}>Load more jobs</Button
+								onclick={() => jobs.fetchNextPage()}>Load More Jobs</Button
 							>
 						</div>
 					{/if}

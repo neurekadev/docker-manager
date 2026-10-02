@@ -24,7 +24,7 @@
 
 	// The same trail as the volume's other tabs: Volumes / env / name / Files.
 	usePage(() => ({
-		title: `${volumeId} files`,
+		title: `${volumeId} Files`,
 		crumbs: [
 			{ label: 'Volumes', href: routes.volumes() },
 			{ label: env?.name ?? environmentId },
@@ -49,7 +49,7 @@
 				title="This volume doesn't exist"
 				description="It was removed, or you can't see it. Open the volumes list to find it."
 			>
-				{#snippet actions()}<Button href={routes.volumes()}>Open volumes</Button>{/snippet}
+				{#snippet actions()}<Button href={routes.volumes()}>Open Volumes</Button>{/snippet}
 			</EmptyState>
 		{:else}
 			<ErrorState
@@ -74,7 +74,7 @@
 				capabilities={volume.data.actions}
 				environmentOnline={env?.online ?? true}
 				environmentName={env?.name ?? 'The environment'}
-				label="Files of volume {volumeId}"
+				label="Files of Volume {volumeId}"
 			/>
 		{/key}
 	{/if}

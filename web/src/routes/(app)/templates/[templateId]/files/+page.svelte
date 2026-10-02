@@ -16,7 +16,7 @@
 	const t = $derived(template.data);
 
 	usePage(() => ({
-		title: `${t?.name ?? 'Template'} files`,
+		title: `${t?.name ?? 'Template'} Files`,
 		crumbs: [
 			{ label: 'Templates', href: routes.templates() },
 			{ label: t?.name ?? 'Template', href: routes.template(id) },
@@ -32,8 +32,8 @@
 				scope={{ kind: 'template', templateId: t.id }}
 				rootLabel={t.name}
 				capabilities={t.actions}
-				label="Files of the template {t.name}"
-				title="Draft files"
+				label="Files of the Template {t.name}"
+				title="Draft Files"
 			/>
 		{/key}
 	</div>

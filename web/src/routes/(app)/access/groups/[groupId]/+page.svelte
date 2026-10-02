@@ -287,7 +287,7 @@
 	function menuFor(g: Group): MenuEntry[] {
 		const items: MenuEntry[] = [
 			{
-				label: 'Rename group',
+				label: 'Rename Group',
 				icon: Pencil,
 				onSelect: () => {
 					newName = g.name;
@@ -298,14 +298,14 @@
 		];
 		if (!g.default)
 			items.push({
-				label: 'Make default for new users',
+				label: 'Make Default for New Users',
 				icon: Star,
 				onSelect: () => (defaultOpen = true)
 			});
 		if (!g.default && g.memberCount === 0) {
 			items.push({ separator: true });
 			items.push({
-				label: 'Delete group',
+				label: 'Delete Group',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleteOpen = true)
@@ -349,9 +349,9 @@
 					]}
 				>
 					{#snippet status()}
-						{#if g.default}<Badge tone="accent">Default for new users</Badge>{/if}
-						{#if g.grantsAccess}<Badge tone="ok" dot>Grants access</Badge>{:else}<Badge
-								dot>No access</Badge
+						{#if g.default}<Badge tone="accent">Default for New Users</Badge>{/if}
+						{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge>{:else}<Badge
+								dot>No Access</Badge
 							>{/if}
 					{/snippet}
 					{#snippet actions()}
@@ -359,7 +359,7 @@
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="Group actions"
+									label="Group Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -375,7 +375,7 @@
 				>
 					{#snippet actions()}
 						{#if anyCandidate}
-							<Button size="sm" icon={UserPlus} onclick={openAdd}>Add members</Button>
+							<Button size="sm" icon={UserPlus} onclick={openAdd}>Add Members</Button>
 						{/if}
 					{/snippet}
 					<QueryView query={users} errorTitle="The members could not be loaded.">
@@ -443,19 +443,19 @@
 
 				<Dialog
 					bind:open={addOpen}
-					title="Add members to {g.name}"
+					title="Add Members to {g.name}"
 					description="Every account belongs to exactly one group: the ones you pick move here from their current group, and their access changes at once."
 				>
 					{#if memberCandidates(users.data, g.id).length > 6}
 						<TextField
-							label="Find a user"
+							label="Find a User"
 							hideLabel
 							type="search"
 							placeholder="Find a user"
 							bind:value={addSearch}
 						/>
 					{/if}
-					<ul class="pick" role="list" aria-label="Users in other groups">
+					<ul class="pick" role="list" aria-label="Users in Other Groups">
 						{#each candidates as u (u.id)}
 							<li>
 								<Checkbox
@@ -488,14 +488,14 @@
 							disabled={!picked.length}
 							onclick={() => addMembers(g)}
 							>{picked.length > 1
-								? `Add ${picked.length} members`
-								: 'Add member'}</Button
+								? `Add ${picked.length} Members`
+								: 'Add Member'}</Button
 						>
 					{/snippet}
 				</Dialog>
 				<Dialog bind:open={renameOpen} title="Rename {g.name}" size="sm">
 					<TextField label="Name" bind:value={newName} required />
-					{#if renameError}<Notice tone="danger" title="Not renamed" live="alert"
+					{#if renameError}<Notice tone="danger" title="Not Renamed" live="alert"
 							>{renameError}</Notice
 						>{/if}
 					{#snippet footer()}
@@ -503,7 +503,7 @@
 						<Button
 							variant="primary"
 							disabled={!newName.trim() || newName.trim() === g.name}
-							onclick={() => rename(g)}>Rename group</Button
+							onclick={() => rename(g)}>Rename Group</Button
 						>
 					{/snippet}
 				</Dialog>
@@ -517,13 +517,13 @@
 							: `${g.name} grants no access, so new users start with none.`,
 						'Existing members of other groups are not moved.'
 					]}
-					confirmLabel="Make default"
+					confirmLabel="Make Default"
 					tone={g.grantsAccess ? 'danger' : 'default'}
 					onconfirm={() => makeDefault(g)}
 				/>
 				<DestructiveConfirm
 					bind:open={deleteOpen}
-					title="Delete group {g.name}"
+					title="Delete Group {g.name}"
 					consequences={[
 						'The group and its rules are removed.',
 						'It has no members, so nobody’s access changes.',
@@ -534,7 +534,7 @@
 							: [])
 					]}
 					confirmText={g.name}
-					confirmLabel="Delete group"
+					confirmLabel="Delete Group"
 					onconfirm={() => remove(g)}
 				/>
 			{/if}

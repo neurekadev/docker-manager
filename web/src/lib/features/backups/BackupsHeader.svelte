@@ -38,17 +38,17 @@
 		{@render outerActions?.()}
 		{#if canCreatePolicy && ready}
 			<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
-				>Create backup policy</Button
+				>Create Backup Policy</Button
 			>
 		{:else if canAddRepository && repos.isSuccess && !ready}
 			<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
-				>Add backup repository</Button
+				>Add Backup Repository</Button
 			>
 		{/if}
 	{/snippet}
 </PageHeader>
 <TabNav
-	label="Backups sections"
+	label="Backups Sections"
 	current={page.url.pathname}
 	items={[
 		{ href: routes.backups(), label: 'Overview' },

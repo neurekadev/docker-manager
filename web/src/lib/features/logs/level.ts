@@ -19,8 +19,8 @@ export const LOG_LEVELS: readonly { value: LogLevel; label: string; hue: string 
 ];
 
 export const LOG_STREAMS: readonly { value: LogStream; label: string; short: string }[] = [
-	{ value: 'stdout', label: 'Standard output', short: 'stdout' },
-	{ value: 'stderr', label: 'Standard error', short: 'stderr' }
+	{ value: 'stdout', label: 'Standard Output', short: 'stdout' },
+	{ value: 'stderr', label: 'Standard Error', short: 'stderr' }
 ];
 
 const WORDS: Record<string, LogLevel> = {

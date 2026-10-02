@@ -4,7 +4,7 @@
 	// build runs as a job on the environment's agent (BuildKit, no Docker
 	// CLI) and the page moves to the build's live log. Optionally saved as a
 	// build definition to build again later. ?from=<build ID> (a build's
-	// "Build again") prefills the form from that build of ?environment=;
+	// "Build Again") prefills the form from that build of ?environment=;
 	// its build argument values are not kept and must be entered again.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -45,8 +45,8 @@
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({
-		title: 'Build image',
-		crumbs: [{ label: 'Builds', href: routes.builds() }, { label: 'Build image' }],
+		title: 'Build Image',
+		crumbs: [{ label: 'Builds', href: routes.builds() }, { label: 'Build Image' }],
 		environmentScoped: true
 	});
 
@@ -164,11 +164,11 @@
 {:else}
 	<Page narrow>
 		<PageHeader
-			title="Build image"
+			title="Build Image"
 			description="From a Git repository, on the environment's own Docker Engine."
 		/>
 		{#if argsMissing}
-			<Notice tone="info" title="Enter the build argument values again" live="none">
+			<Notice tone="info" title="Enter the Build Argument Values Again" live="none">
 				This form starts from an earlier build. Docker Manager keeps the names of its build
 				arguments, never their values: fill them in under Advanced.
 			</Notice>
@@ -199,16 +199,16 @@
 				/>
 			</Card>
 			{#if canSave}
-				<Card title="Save for later">
+				<Card title="Save for Later">
 					<div class="save">
 						<Checkbox
-							label="Save as a build definition"
+							label="Save as a Build Definition"
 							description="Run the same build again from Definitions."
 							bind:checked={save}
 						/>
 						{#if save}
 							<TextField
-								label="Definition name"
+								label="Definition Name"
 								required
 								bind:value={saveName}
 								placeholder="silo-web"
@@ -226,7 +226,7 @@
 			<div class="submit">
 				<Button variant="ghost" href={routes.builds()}>Cancel</Button>
 				<Button type="submit" variant="primary" icon={Play} loading={busy} disabled={!valid}
-					>Build image</Button
+					>Build Image</Button
 				>
 			</div>
 		</form>

@@ -21,14 +21,14 @@ export type AlertView = 'active' | 'dismissed' | 'resolved';
 export const DISMISS = 'alert.dismiss';
 
 const KIND_LABELS: Record<AlertKind, string> = {
-	disk_health: 'Disk health',
+	disk_health: 'Disk Health',
 	raid: 'RAID',
 	temperature: 'Temperature',
-	disk_space: 'Disk space',
+	disk_space: 'Disk Space',
 	memory: 'Memory',
-	environment_offline: 'Environment offline',
-	updates: 'Updates available',
-	job_failed: 'Failed job'
+	environment_offline: 'Environment Offline',
+	updates: 'Updates Available',
+	job_failed: 'Failed Job'
 };
 
 /**
@@ -134,10 +134,10 @@ const RESOLUTION_LABELS: Record<NonNullable<Alert['resolution']>, string> = {
 	resolved: 'Resolved',
 	removed: 'Removed',
 	expired: 'Expired',
-	archived: 'Environment archived'
+	archived: 'Environment Archived'
 };
 
-/** Why a resolved alert stopped: "Resolved", "Removed", "Expired", "Environment archived". */
+/** Why a resolved alert stopped: "Resolved", "Removed", "Expired", "Environment Archived". */
 export function resolutionLabel(a: Pick<Alert, 'resolution'>): string {
 	return RESOLUTION_LABELS[a.resolution ?? 'resolved'] ?? 'Resolved';
 }

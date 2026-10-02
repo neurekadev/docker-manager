@@ -3,7 +3,7 @@
 The owner moves Docker Manager, with every app on its own server, to a
 new server. For the user it is three things: paste one generated
 `compose.yaml` and `.env` on the new server and start it, press **Move
-everything**, point DNS at the new server. Docker Manager does the rest:
+Everything**, point DNS at the new server. Docker Manager does the rest:
 the apps move first (an environment migration, [migrations.md](migrations.md),
 "Environment migration"; the reverse proxy moves with the apps behind
 it), then the manager hands itself over to the new server (a **live
@@ -28,7 +28,7 @@ HTTPS URL and rotates both credentials (see "Back to HTTPS").
 
 ## The flow
 
-1. **Set up the new server** (old manager, owner, step-up:
+1. **Set Up the New Server** (old manager, owner, step-up:
    `create-manager-move`). The owner enters this server's address
    (prefilled from the service address of the environment next to the
    manager, `get-manager-move-defaults`) and the new server's, each an IP
@@ -64,7 +64,7 @@ HTTPS URL and rotates both credentials (see "Back to HTTPS").
    the new server; a proxy route that sends Docker Manager's address to
    this server's IP must be pointed at the new server's IP; progress can
    be followed at `statusUrl` (`http://<new server>:<port>`) meanwhile.
-3. **Move everything** (`create-manager-move-run`, owner, step-up; the
+3. **Move Everything** (`create-manager-move-run`, owner, step-up; the
    `manager.move` job, see below): runs the environment migration of
    every stack to the new environment, waits for it, then marks the move
    **ready**. The waiting manager, which has been checking in since it
@@ -75,11 +75,11 @@ HTTPS URL and rotates both credentials (see "Back to HTTPS").
    it, restarts as the instance and confirms. If the migration does not
    complete, nothing is handed over: the move goes back to open, the old
    manager keeps running and the owner fixes and retries (**Move
-   everything** again moves what is left).
+   Everything** again moves what is left).
 4. **Point DNS at the new server.** The new manager's status page at
    `http://<new server>:8080` says so (`GET /api/v1/move/status`, phase
    `complete`); once the usual address leads to it the owner signs in as
-   always and sees **Move complete** (`get-manager-move` on the new
+   always and sees **Move Complete** (`get-manager-move` on the new
    manager), with removing the old server's stopped copies and archiving
    the old environment one click away.
 
@@ -87,7 +87,7 @@ HTTPS URL and rotates both credentials (see "Back to HTTPS").
 
 The files are shown once and the enrollment token lives 24 hours. When
 the owner lost them (a reload) or the token expired before the new server
-was set up, **Create new setup files** (`create-manager-move-setup-files`,
+was set up, **Create New Setup Files** (`create-manager-move-setup-files`,
 owner, step-up, `managermove.NewSetupFiles`) returns them again, in the
 creation's shape:
 
@@ -124,7 +124,7 @@ token expired.
 
 ## Live updates
 
-The old manager's wizard, the shell's banner and Move complete follow the
+The old manager's wizard, the shell's banner and Move Complete follow the
 live stream ([live-sync.md](live-sync.md)) instead of polling. The move
 service (`managermove/live.go`) publishes on the bus:
 
@@ -254,7 +254,7 @@ because an authenticated manager sent it; `docs/internal/configuration.md`,
 "Manager address after a move"), raises its generation to the one given
 and reconnects there; the waiting manager refuses it with 503 until it
 runs the instance. An agent that did not get the redirect is listed in
-Move complete with its fix.
+Move Complete with its fix.
 
 ## Back to HTTPS (new manager)
 
@@ -300,7 +300,7 @@ migration, redirects, times, the sealed code). States:
 
 | State | Meaning | API | Jobs, schedules | Agents |
 | --- | --- | --- | --- | --- |
-| `open` | created: waiting for the new server, then for Move everything | normal | normal | normal |
+| `open` | created: waiting for the new server, then for Move Everything | normal | normal | normal |
 | `moving` | `manager.move` moves the apps | normal | normal | normal |
 | `ready` | the apps moved; the waiting manager's next request gets the handoff | normal | normal | normal |
 | `draining` | the waiting manager asked for the handoff | read-only | no new job; running jobs finish; queued jobs wait (they travel in the copy) | connected |
@@ -361,7 +361,7 @@ runs:
 2. `ready` — the move becomes `ready`.
 
 A `manager.move` that does not succeed puts the move back to `open` (its
-finish hook); the next Move everything starts a new migration, which
+finish hook); the next Move Everything starts a new migration, which
 moves what is left. `get-manager-move` shows the latest run's state,
 error and recovery and the migration's progress (`stacksMoved` of
 `stacksTotal`, `currentStack`).
@@ -500,7 +500,7 @@ whether the old manager confirmed (or the owner acknowledged it), and:
 | `GET /api/v1/manager/move/defaults` (`get-manager-move-defaults`) | owner (`manager.move`) | this server's address prefill and the environment next to the manager |
 | `POST /api/v1/manager/moves` (`create-manager-move`) | owner, step-up | 201: the move, `composeYaml`, `env` (once), `statusUrl`; audited `manager.move.create` |
 | `POST /api/v1/manager/move/setup-files` (`create-manager-move-setup-files`) | owner, step-up | open or ready move: the files again (same shape, `agentEnrolled`), a new code, a new token unless the agent enrolled; audited `manager.move.setup_files` |
-| `GET /api/v1/manager/move` (`get-manager-move`) | owner | the open or in-progress move (new server, source environment, progress, `jobsRunning`, redirects), else the arrived move (Move complete); 404 none |
+| `GET /api/v1/manager/move` (`get-manager-move`) | owner | the open or in-progress move (new server, source environment, progress, `jobsRunning`, redirects), else the arrived move (Move Complete); 404 none |
 | `POST /api/v1/manager/move/runs` (`create-manager-move-run`) | owner, step-up | 202 + `manager.move`; audited `manager.move.run` |
 | `POST /api/v1/manager/move/cancellations` (`create-manager-move-cancellation`) | owner, step-up | body `resumeHere`, `instanceName`; audited `manager.move.cancel` |
 | `POST /api/v1/manager/move/acknowledgements` (`create-manager-move-acknowledgement`) | owner, step-up | new manager: the old manager never confirmed; audited `manager.move.acknowledge` |
@@ -521,12 +521,12 @@ availability. API tokens never reach them.
 | Lock | `internal/manager/movelock` (levels open, read-only, agents refused, waiting), set by `managermove` from the current move and at start (`managermove.LockLevel`) and by `app.decideWaiting`; consulted by `api.Register` (`moveGuard` with `allowedWhileMoved`, `waitingGuard` with `allowedWhileWaiting`), `jobs.Engine` (`Enqueue`, `DispatchPending`), `scheduler.Service` (`Tick`), `alerts.Service` (reconcile and dispatch pause) and `agents` (handler 503, hub 1012) |
 | Creation, files | `managermove/service.go` (`CreateMove`, `Defaults`, `Current`, `Cancel`, `endMove`), `setupfiles.go` (`NewSetupFiles`), `render.go` (addresses), `agents.MoveFiles` |
 | Live updates | `managermove/live.go` (`publish`, `published`, `followBus`, `announceStaleCheckIn`), `events.ManagerMoveUpdated`, `events.ManagerMoveLockChanged`, topic `manager` |
-| Move everything | `managermove/movejob.go` (`manager.move`, `jobspec.ManagerMove`) |
+| Move Everything | `managermove/movejob.go` (`manager.move`, `jobspec.ManagerMove`) |
 | Signatures, encryption | `managermove/auth.go`, `crypt.go`, `seal.go` (the key part) |
 | Check-in, handoff, redirects, confirm | `managermove/handoff.go`, `redirect.go`, `package.go` |
 | Waiting mode | `managermove/waiting.go` (`runWaiting`, `WaitStatus`, verify and stage) |
 | Arrival | `app.(*Manager).finishMove` → `managermove.FinishArrival`, `StartConfirming` (`finish.go`) |
-| Move complete | `managermove/complete.go` |
+| Move Complete | `managermove/complete.go` |
 | Co-location | `app`'s `manager.identity` reconciler → `managermove.ObserveColocation` |
 | Back to HTTPS | `managermove/secure.go` (`secureDue`, `secureStep`, `observePublicRequest`), `agents.Service.RotateCredential`; agent: `runtime/redirect.go` (`replaceRedirect`), `state.Store.ReplaceManagerRedirect` |
-| Web UI | `web/src/lib/features/managermove` (`docs/internal/web.md`): Settings, Move to a new server (`ManagerMoveWizard`: the files and the one command to paste, Create new setup files, waiting for the restart after a resume), the new server's status page `/moving` (`WaitingStatus`, reached through the root layout's `MoveGate`, which starts the live stream only when not waiting), Move complete (`MoveCompleteCard`), the shell's banner of a locked manager |
+| Web UI | `web/src/lib/features/managermove` (`docs/internal/web.md`): Settings, Move to a New Server (`ManagerMoveWizard`: the files and the one command to paste, Create New Setup Files, waiting for the restart after a resume), the new server's status page `/moving` (`WaitingStatus`, reached through the root layout's `MoveGate`, which starts the live stream only when not waiting), Move Complete (`MoveCompleteCard`), the shell's banner of a locked manager |

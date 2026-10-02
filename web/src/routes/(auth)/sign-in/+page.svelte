@@ -260,11 +260,11 @@
 	}
 </script>
 
-<svelte:head><title>Sign in · Docker Manager</title></svelte:head>
+<svelte:head><title>Sign In · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<AuthHeader
-		title="Sign in"
+		title="Sign In"
 		lead={step === 'second'
 			? "Confirm it's you with your second factor."
 			: step === 'recovery'
@@ -309,7 +309,7 @@
 			/>
 			{#if stayOffered}
 				<Checkbox
-					label="Stay signed in"
+					label="Stay Signed In"
 					description="Keep this device signed in for longer. Don't use this on a shared computer."
 					bind:checked={stay}
 					onchange={(e) => rememberStaySignedIn(e.currentTarget.checked)}
@@ -322,7 +322,7 @@
 				loading={busy === 'password'}
 				disabled={!!busy}
 			>
-				Sign in
+				Sign In
 			</Button>
 		</form>
 		{#if passkeysSupported()}
@@ -332,7 +332,7 @@
 				block
 				loading={busy === 'passkey'}
 				disabled={!!busy}
-				onclick={passkey}>Sign in with a passkey</Button
+				onclick={passkey}>Sign In with a Passkey</Button
 			>
 		{/if}
 		<p class="help">
@@ -348,12 +348,12 @@
 				disabled={!!busy}
 				onclick={passkey}
 			>
-				Use a passkey
+				Use a Passkey
 			</Button>
 		{:else if method === 'totp'}
 			<form onsubmit={submitCode} novalidate>
 				<TextField
-					label="Authenticator code"
+					label="Authenticator Code"
 					name="code"
 					bind:value={code}
 					error={untilFilled(invalid.code, code)}
@@ -378,14 +378,14 @@
 		<div class="links">
 			{#if method === 'passkey' && methods.includes('totp')}
 				<button type="button" class="link" onclick={() => switchTo('totp')}
-					>Use authenticator code instead</button
+					>Use Authenticator Code Instead</button
 				>
 			{:else if method === 'totp' && methods.includes('passkey')}
 				<button
 					type="button"
 					class="link"
 					disabled={!!busy}
-					onclick={() => switchTo('passkey')}>Use a passkey instead</button
+					onclick={() => switchTo('passkey')}>Use a Passkey Instead</button
 				>
 			{/if}
 			{#if factors.includes('recovery_code')}
@@ -397,7 +397,7 @@
 						(step = 'recovery'),
 						(message = null),
 						(invalid = {})
-					)}>Use a recovery code</button
+					)}>Use a Recovery Code</button
 				>
 			{/if}
 			<button
@@ -408,13 +408,13 @@
 					(step = 'password'),
 					(message = null),
 					(invalid = {})
-				)}>Start over</button
+				)}>Start Over</button
 			>
 		</div>
 	{:else}
 		<form onsubmit={submitRecovery} novalidate>
 			<TextField
-				label="Recovery code"
+				label="Recovery Code"
 				name="recovery"
 				bind:value={recovery}
 				error={untilFilled(invalid.recovery, recovery)}
@@ -432,7 +432,7 @@
 				loading={busy === 'recovery'}
 				disabled={!!busy}
 			>
-				Use recovery code
+				Use Recovery Code
 			</Button>
 		</form>
 		<div class="links">

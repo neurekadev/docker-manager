@@ -47,14 +47,14 @@ describe('the filter model', () => {
 	const status: ListFilter<{ name: string; s: string }> = {
 		id: 'status',
 		label: 'Status',
-		all: 'All statuses',
+		all: 'All Statuses',
 		options: [{ value: 'running', label: 'Running' }],
 		match: (r, v) => r.s === v
 	};
 	const project: ListFilter<{ name: string; s: string }> = {
 		id: 'project',
 		label: 'Project',
-		all: 'All projects',
+		all: 'All Projects',
 		dynamic: true,
 		options: [],
 		match: (r, v) => r.name.startsWith(v)
@@ -91,7 +91,7 @@ describe('the filter model', () => {
 
 	it('lists "all" first and keeps a stored value that is no longer offered', () => {
 		expect(selectOptions(status, '')).toEqual([
-			{ value: '', label: 'All statuses' },
+			{ value: '', label: 'All Statuses' },
 			{ value: 'running', label: 'Running' }
 		]);
 		expect(selectOptions(project, 'gone').at(-1)).toEqual({ value: 'gone', label: 'gone' });

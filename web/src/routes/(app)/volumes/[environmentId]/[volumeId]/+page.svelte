@@ -50,7 +50,7 @@
 			{#if v.view === 'full'}<Facts items={facts} label="Details of {v.name}" />
 			{:else}<p class="muted">Its details need the volume read permission.</p>{/if}
 		</Card>
-		<Card title="Used by">
+		<Card title="Used By">
 			{#if v.usedBy?.length}
 				<ul class="list" role="list">
 					{#each [...v.usedBy].sort((a, b) => a.name.localeCompare(b.name)) as c (c.id)}

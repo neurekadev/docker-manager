@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Settings → Move to a new server (owner only): move Docker Manager and
+	// Settings → Move to a New Server (owner only): move Docker Manager and
 	// the apps next to it to another server (ManagerMoveWizard;
 	// docs/internal/architecture/manager-move.md). On a manager that arrived
 	// by a move it shows Move complete until everything is done.
@@ -14,8 +14,8 @@
 	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
 
 	usePage({
-		title: 'Move to a new server',
-		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Move to a new server' }]
+		title: 'Move to a New Server',
+		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'Move to a New Server' }]
 	});
 
 	const perms = createQuery(() => myPermissionsQuery());
@@ -24,7 +24,7 @@
 
 <Page>
 	<SettingsHeader
-		title="Move to a new server"
+		title="Move to a New Server"
 		description="Move Docker Manager and the apps on its server to another server."
 	/>
 	{#if !perms.data}

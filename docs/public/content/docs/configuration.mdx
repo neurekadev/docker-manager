@@ -49,8 +49,8 @@ Durations are written like `30m`, `8h` or `720h`; switches are `true` or
 | --- | --- | --- |
 | `DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` | `8h` | Sign out after this long without activity (`5m` to `168h`). |
 | `DOCKER_MANAGER_SESSION_LIFETIME` | `24h` | Sign out this long after signing in, whatever you do (`15m` to `720h`). |
-| `DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT` | `720h` (30 days) | The idle timeout for devices with **Stay signed in** (`1h` to `8760h`). |
-| `DOCKER_MANAGER_SESSION_STAY_LIFETIME` | `8760h` (1 year) | The lifetime for devices with **Stay signed in** (`24h` to `17520h`). |
+| `DOCKER_MANAGER_SESSION_STAY_IDLE_TIMEOUT` | `720h` (30 days) | The idle timeout for devices with **Stay Signed In** (`1h` to `8760h`). |
+| `DOCKER_MANAGER_SESSION_STAY_LIFETIME` | `8760h` (1 year) | The lifetime for devices with **Stay Signed In** (`24h` to `17520h`). |
 
 ### File Manager
 
@@ -121,7 +121,7 @@ Leave these as they are unless you know you need them.
 | --- | --- | --- |
 | `DOCKER_AGENT_MANAGER_URL` | (required) | Your Docker Manager address. On the manager's own server, keep `http://docker-manager:8080`. After Docker Manager moved to a new server, the agent uses the new address it was given until you change this setting. |
 | `DOCKER_AGENT_MANAGER_ALLOW_HTTP` | `false` | Must be `true` for an `http://` address. Only for the agent next to the manager. |
-| `DOCKER_AGENT_ENROLLMENT_TOKEN` | (none) | The one-time code from **Add environment**. Remove it once the server is connected. `DOCKER_AGENT_ENROLLMENT_TOKEN_FILE` reads it from a file instead. |
+| `DOCKER_AGENT_ENROLLMENT_TOKEN` | (none) | The one-time code from **Add Environment**. Remove it once the server is connected. `DOCKER_AGENT_ENROLLMENT_TOKEN_FILE` reads it from a file instead. |
 | `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none (up to 63 characters). |
 | `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your [own certificate authority](#your-own-certificate-authority). |
 | `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are, separated by commas (see [Import a project](/stacks#import-a-project)). |
@@ -199,8 +199,8 @@ Docker Manager can report its own health (jobs, agent connections, database
 size) to Prometheus.
 
 1. Set `DOCKER_MANAGER_METRICS_ENABLED: "true"` on the manager.
-2. Create an [API token](/api-tokens) that may only **Scrape internal
-   metrics**.
+2. Create an [API token](/api-tokens) that may only **Scrape Internal
+   Metrics**.
 3. **Settings → Diagnostics** shows the address to scrape with that token.
 
 ## Your data

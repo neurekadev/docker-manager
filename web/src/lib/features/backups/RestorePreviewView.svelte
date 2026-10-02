@@ -28,12 +28,12 @@
 		},
 		{ id: 'files', header: 'Files', cell: filesCell, numeric: true, width: '110px' },
 		{ id: 'changes', header: 'Changes', cell: changesCell, width: '250px' },
-		{ id: 'space', header: 'Free space', cell: spaceCell, numeric: true, width: '120px' }
+		{ id: 'space', header: 'Free Space', cell: spaceCell, numeric: true, width: '120px' }
 	];
 	const containerColumns: Column<Affected>[] = [
 		{ id: 'name', header: 'Container', cell: cName, stack: 'title' },
 		{ id: 'now', header: 'Now', cell: cNow, width: '120px', stack: 'status' },
-		{ id: 'during', header: 'During the restore', cell: cDuring }
+		{ id: 'during', header: 'During the Restore', cell: cDuring }
 	];
 </script>
 
@@ -70,7 +70,7 @@
 
 <div class="preview">
 	{#if preview.blocked?.length}
-		<Notice tone="danger" title="This restore can't run as chosen" live="alert">
+		<Notice tone="danger" title="This Restore Can't Run as Chosen" live="alert">
 			<ul class="plain" role="list">
 				{#each preview.blocked as b (b)}<li>{b}</li>{/each}
 			</ul>
@@ -83,16 +83,16 @@
 			>{w}</Notice
 		>{/each}
 	<Table
-		label="Restore targets"
+		label="Restore Targets"
 		rows={preview.targets}
 		columns={targetColumns}
 		rowKey={(t) => t.path}
 		manualSort
 	/>
 	{#if preview.affectedContainers.length}
-		<h3>Containers using this data</h3>
+		<h3>Containers Using This Data</h3>
 		<Table
-			label="Containers using the restored data"
+			label="Containers Using the Restored Data"
 			rows={preview.affectedContainers}
 			columns={containerColumns}
 			rowKey={(c) => c.name}

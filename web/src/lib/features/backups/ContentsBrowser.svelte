@@ -139,14 +139,14 @@
 				</a>
 			{/if}
 			{#if onrestorefile}
-				<Button size="sm" onclick={() => onrestorefile(n.path)}>Restore file</Button>
+				<Button size="sm" onclick={() => onrestorefile(n.path)}>Restore File</Button>
 			{/if}
 		</span>
 	{/if}
 {/snippet}
 
 <div class="browser">
-	<nav class="crumbs" aria-label="Path in the backup">
+	<nav class="crumbs" aria-label="Path in the Backup">
 		{#each pathCrumbs(path || root) as c, i (c.path)}
 			{#if i > 0}<span class="sep" aria-hidden="true">/</span>{/if}
 			<button
@@ -155,12 +155,12 @@
 				onclick={() => (path = c.path)}
 				aria-current={c.path === (path || root) ? 'location' : undefined}
 			>
-				{c.name === '/' ? 'Backup root' : c.name}
+				{c.name === '/' ? 'Backup Root' : c.name}
 			</button>
 		{/each}
 		{#if (path || root) !== '/'}
 			<IconButton
-				label="Up one directory"
+				label="Up One Directory"
 				icon={CornerLeftUp}
 				size="sm"
 				onclick={() => (path = parentPath(path || root))}
@@ -168,7 +168,7 @@
 		{/if}
 		<span class="spacer"></span>
 		<Chip
-			label="Show permissions"
+			label="Show Permissions"
 			size="sm"
 			selected={showPermissions}
 			onclick={() => (showPermissions = !showPermissions)}

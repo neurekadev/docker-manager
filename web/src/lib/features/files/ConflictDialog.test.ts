@@ -1,4 +1,4 @@
-// Conflict prompts (#15): per item, "Apply to all" off by default, cancel
+// Conflict prompts (#15): per item, "Apply to All" off by default, cancel
 // aborts the operation.
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
@@ -36,11 +36,11 @@ describe('ConflictDialog', () => {
 			screen.getByRole('alertdialog', { name: 'Copy 3 items to config' })
 		).toBeInTheDocument();
 		expect(screen.getByText('Conflict 1 of 3')).toBeInTheDocument();
-		const all = screen.getByRole('checkbox', { name: 'Apply to all 3 remaining conflicts' });
+		const all = screen.getByRole('checkbox', { name: 'Apply to All 3 Remaining Conflicts' });
 		expect(all).not.toBeChecked();
 		await user.click(screen.getByRole('button', { name: 'Replace' }));
 		expect(screen.getByText('Conflict 2 of 3')).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'Keep both (b (1).yaml)' }));
+		await user.click(screen.getByRole('button', { name: 'Keep Both (b (1).yaml)' }));
 		expect(screen.getByText('Conflict 3 of 3')).toBeInTheDocument();
 		// A root-level destination names the root.
 		expect(screen.getByText('silo')).toBeInTheDocument();
@@ -56,7 +56,7 @@ describe('ConflictDialog', () => {
 	it('applies one decision to the rest when asked, and cancel aborts', async () => {
 		const { user, results } = setup();
 		await user.click(
-			screen.getByRole('checkbox', { name: 'Apply to all 3 remaining conflicts' })
+			screen.getByRole('checkbox', { name: 'Apply to All 3 Remaining Conflicts' })
 		);
 		await user.click(screen.getByRole('button', { name: 'Skip' }));
 		expect([...results[0]!.values()]).toEqual(['skip', 'skip', 'skip']);
@@ -73,14 +73,14 @@ describe('ConflictDialog', () => {
 		});
 		expect(screen.getByText(/pasted into its own folder/)).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
-		await user.click(screen.getByRole('button', { name: /^Keep both/ }));
+		await user.click(screen.getByRole('button', { name: /^Keep Both/ }));
 		expect([...results[0]!]).toEqual([['a.yaml', 'keep_both']]);
 	});
 
 	it('asks once for a whole extraction', async () => {
 		const { user, results } = setup({ single: true, title: 'Extract backup.zip' });
 		expect(screen.getByText('3 entries already exist at the destination.')).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'Replace all' }));
+		await user.click(screen.getByRole('button', { name: 'Replace All' }));
 		expect([...results[0]!.values()]).toEqual(['overwrite', 'overwrite', 'overwrite']);
 	});
 });

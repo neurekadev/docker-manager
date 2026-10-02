@@ -273,7 +273,7 @@ describe('EnvironmentMigrationWizard', () => {
 		expect(
 			screen.getByText('Offline environments cannot be chosen: the check needs them online.')
 		).toBeInTheDocument();
-		const next = screen.getByRole('button', { name: 'Check migration' });
+		const next = screen.getByRole('button', { name: 'Check Migration' });
 		await waitFor(() => expect(next).toBeEnabled());
 		await user.click(next);
 
@@ -288,7 +288,7 @@ describe('EnvironmentMigrationWizard', () => {
 		expect(
 			screen.getByText(/Docker Manager's own stack\. It moves when you move Docker Manager\./)
 		).toBeInTheDocument();
-		expect(screen.getByText('Longest downtime')).toBeInTheDocument();
+		expect(screen.getByText('Longest Downtime')).toBeInTheDocument();
 		expect(screen.getByText('The stacks of a group stop together.')).toBeInTheDocument();
 	});
 
@@ -318,9 +318,9 @@ describe('EnvironmentMigrationWizard', () => {
 		const rows = within(screen.getByRole('region', { name: 'Stacks' }));
 		const proxy = rows.getByRole('link', { name: 'proxy' }).closest('li') as HTMLElement;
 		expect(within(proxy).getByText('Moved')).toBeInTheDocument();
-		expect(within(proxy).getByText('Old copy kept')).toBeInTheDocument();
+		expect(within(proxy).getByText('Old Copy Kept')).toBeInTheDocument();
 		const app = rows.getByRole('link', { name: 'app' }).closest('li') as HTMLElement;
-		expect(within(app).getByText('Did not move')).toBeInTheDocument();
+		expect(within(app).getByText('Did Not Move')).toBeInTheDocument();
 
 		expect(screen.getByText('1 stack runs on nas now.')).toBeInTheDocument();
 		expect(
@@ -329,11 +329,11 @@ describe('EnvironmentMigrationWizard', () => {
 			)
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('button', { name: 'Remove old copies from homelab' })
+			screen.getByRole('button', { name: 'Remove Old Copies From homelab' })
 		).toBeInTheDocument();
 		expect(screen.getByText(/1 stack is still on homelab\./)).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Migrate the rest' })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Start a new migration' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Migrate the Rest' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Start a New Migration' })).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
 		await waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Back to homelab' })).toBeEnabled()
@@ -349,7 +349,7 @@ describe('EnvironmentMigrationWizard', () => {
 		stacks = [stack('st-1', 'proxy', 'env-2'), stack('st-2', 'app')];
 		wizard();
 
-		await user.click(await screen.findByRole('button', { name: 'Start a new migration' }));
+		await user.click(await screen.findByRole('button', { name: 'Start a New Migration' }));
 
 		const heading = await screen.findByRole('heading', { level: 2, name: 'Destination' });
 		await waitFor(() => expect(heading).toHaveFocus());
@@ -365,7 +365,7 @@ describe('EnvironmentMigrationWizard', () => {
 		wizard();
 
 		await user.click(
-			await screen.findByRole('button', { name: 'Remove old copies from homelab' })
+			await screen.findByRole('button', { name: 'Remove Old Copies From homelab' })
 		);
 		const dialog = await screen.findByRole('alertdialog', {
 			name: 'Remove the old copies from homelab?'
@@ -374,19 +374,19 @@ describe('EnvironmentMigrationWizard', () => {
 			within(dialog).getByRole('textbox', { name: 'Type homelab to confirm' }),
 			'homelab'
 		);
-		await user.click(within(dialog).getByRole('button', { name: 'Remove old copies' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Remove Old Copies' }));
 
 		expect(await screen.findByText('Removed 1 old copy from homelab')).toBeInTheDocument();
 		expect(removals).toEqual(['st-1/m-1']);
 		expect(
-			within(screen.getByRole('region', { name: 'Removing old copies' })).getAllByText(
-				/Remove the old copy of proxy/
+			within(screen.getByRole('region', { name: 'Removing Old Copies' })).getAllByText(
+				/Remove the Old Copy of proxy/
 			).length
 		).toBeGreaterThan(0);
 		// The record now says the copy is gone.
-		expect(await screen.findByText('Old copy removed')).toBeInTheDocument();
+		expect(await screen.findByText('Old Copy Removed')).toBeInTheDocument();
 		expect(screen.getByText('Its old copy was removed from homelab.')).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Remove old copies from homelab' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Remove Old Copies From homelab' })).toBeNull();
 	});
 
 	it('starts a new migration when the latest one left nothing to do', async () => {
@@ -398,7 +398,7 @@ describe('EnvironmentMigrationWizard', () => {
 		expect(
 			await screen.findByRole('heading', { level: 2, name: 'Destination' })
 		).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Start a new migration' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Start a New Migration' })).toBeNull();
 	});
 
 	it('says why Next is off', async () => {
@@ -406,7 +406,7 @@ describe('EnvironmentMigrationWizard', () => {
 		stacks = [stack('st-2', 'app')];
 		wizard();
 
-		const next = await screen.findByRole('button', { name: 'Check migration' });
+		const next = await screen.findByRole('button', { name: 'Check Migration' });
 		await waitFor(() => expect(next).toBeEnabled());
 		await user.click(screen.getByRole('checkbox', { name: 'app' }));
 		expect(next).toBeDisabled();
@@ -423,6 +423,6 @@ describe('EnvironmentMigrationWizard', () => {
 				name: 'Moving an environment needs a second environment.'
 			})
 		).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Add environment' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Add Environment' })).toBeInTheDocument();
 	});
 });

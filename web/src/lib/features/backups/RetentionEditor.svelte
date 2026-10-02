@@ -39,7 +39,7 @@
 		{ key: 'weekly', label: 'Weekly', hint: 'One per week' },
 		{ key: 'monthly', label: 'Monthly', hint: 'One per month' },
 		{ key: 'yearly', label: 'Yearly', hint: 'One per year' },
-		{ key: 'withinDays', label: 'Everything from the last', hint: 'Days' }
+		{ key: 'withinDays', label: 'Everything From the Last', hint: 'Days' }
 	];
 
 	function choose(p: string) {
@@ -81,7 +81,7 @@
 		</FieldGroup>
 	{/if}
 	<Switch
-		label="Remove backups of deleted stacks and volumes"
+		label="Remove Backups of Deleted Stacks and Volumes"
 		description="Off by default. The rules keep the last backups of a stack or volume forever once it is deleted. On: they are removed once the newest one is older than the days below. Nothing counts as deleted while its server is offline."
 		checked={!!value.expireDeletedDays}
 		onchange={(v) => {
@@ -91,7 +91,7 @@
 	/>
 	{#if value.expireDeletedDays}
 		<TextField
-			label="Remove them after"
+			label="Remove Them After"
 			type="number"
 			min="1"
 			description="Days since their newest backup."
@@ -104,7 +104,7 @@
 		/>
 	{/if}
 	<Switch
-		label="Apply retention after every backup"
+		label="Apply Retention After Every Backup"
 		description="Off: apply it from the policy page when you want."
 		checked={!!value.afterBackup}
 		onchange={(v) => {

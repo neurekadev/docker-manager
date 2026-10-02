@@ -176,15 +176,15 @@
 	let deleteOpen = $state(false);
 
 	usePage(() => ({
-		title: policy.data?.name ?? 'Update policy',
+		title: policy.data?.name ?? 'Update Policy',
 		crumbs: [
 			{ label: 'Updates', href: routes.updates() },
-			{ label: policy.data?.name ?? 'Update policy' }
+			{ label: policy.data?.name ?? 'Update Policy' }
 		]
 	}));
 
 	function scopeLabel(p: EnvironmentUpdatePolicy): string {
-		return p.scope === 'all' ? 'All environments' : environmentName(envs.data, p.environmentId);
+		return p.scope === 'all' ? 'All Environments' : environmentName(envs.data, p.environmentId);
 	}
 
 	function stackName(stackId: string): string {
@@ -287,7 +287,7 @@
 		manage
 			? [
 					{
-						label: 'Delete policy',
+						label: 'Delete Policy',
 						icon: Trash2,
 						tone: 'danger',
 						onSelect: () => (deleteOpen = true)
@@ -312,7 +312,7 @@
 	const targetColumns: Column<Target>[] = $derived([
 		{
 			id: 'target',
-			header: 'Stack or container',
+			header: 'Stack or Container',
 			cell: targetCell,
 			sortValue: (t) => (t.type === 'stack' ? stackName(t.id) : t.id),
 			maxWidth: '320px',
@@ -344,7 +344,7 @@
 	const previewColumns: Column<PreviewRow>[] = [
 		{
 			id: 'target',
-			header: 'Stack or container',
+			header: 'Stack or Container',
 			cell: previewTargetCell,
 			maxWidth: '260px',
 			stack: 'title'
@@ -425,20 +425,20 @@
 			>
 				{#snippet actions()}
 					<Button variant="primary" icon={Eye} loading={previewing} onclick={loadPreview}
-						>Preview updates</Button
+						>Preview Updates</Button
 					>
 					<Button icon={RefreshCw} loading={checking || checksRunning} onclick={check}
-						>Check now</Button
+						>Check Now</Button
 					>
 					{#if manage}
 						<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
 					{/if}
 					{#if menu.length}
-						<Menu items={menu} label="More actions for {p.name}">
+						<Menu items={menu} label="More Actions for {p.name}">
 							{#snippet trigger(props)}
 								<IconButton
 									{...props}
-									label="More actions"
+									label="More Actions"
 									icon={Ellipsis}
 									variant="secondary"
 								/>
@@ -452,7 +452,7 @@
 				jobs={policyRuns}
 				nameOf={stackNames(stacks.data)}
 				onfinish={runFinished}
-				label="Running checks and updates of {p.name}"
+				label="Running Checks and Updates of {p.name}"
 			/>
 
 			{#if error}
@@ -463,7 +463,7 @@
 
 			<KpiRow>
 				<KpiCard
-					label="Last check"
+					label="Last Check"
 					value={totals.lastCheckAt ? formatRelative(totals.lastCheckAt) : 'Never'}
 					secondary={totals.lastCheckAt
 						? formatDateTime(totals.lastCheckAt)
@@ -472,7 +472,7 @@
 					color="slate"
 				/>
 				<KpiCard
-					label="Next run"
+					label="Next Run"
 					value={nextRun?.nextRun ? formatRelative(nextRun.nextRun.utc) : 'Not scheduled'}
 					secondary={nextRun?.nextRun
 						? `${nextRun.kind === 'update_run' ? 'Update' : 'Check'}, ${formatDateTime(nextRun.nextRun.utc)}`
@@ -493,7 +493,7 @@
 					color="violet"
 				/>
 				<KpiCard
-					label="Updates available"
+					label="Updates Available"
 					value={String(totals.withUpdates)}
 					secondary={updates}
 					icon={totals.failing ? TriangleAlert : PackageCheck}
@@ -503,7 +503,7 @@
 			</KpiRow>
 
 			<Card
-				title="What it covers"
+				title="What It Covers"
 				subtitle="Stacks and standalone containers Docker Manager manages in {p.scope ===
 				'all'
 					? 'every environment'
@@ -522,7 +522,7 @@
 					/>
 				{:else}
 					<Table
-						label="What {p.name} covers"
+						label="What {p.name} Covers"
 						rows={all as Target[]}
 						columns={targetColumns}
 						rowKey={(t) => t.policyId}
@@ -544,10 +544,10 @@
 					columns={2}
 					items={[
 						{ label: 'Checks', render: checkSched },
-						{ label: 'Automatic updates', render: runSched },
-						{ label: 'Update window', value: windowText(p.window) },
+						{ label: 'Automatic Updates', render: runSched },
+						{ label: 'Update Window', value: windowText(p.window) },
 						{
-							label: 'Health wait',
+							label: 'Health Wait',
 							value: p.waitTimeoutSeconds ? `${p.waitTimeoutSeconds} s` : 'Default'
 						}
 					]}
@@ -571,11 +571,11 @@
 				/>
 			{/snippet}
 
-			<Card title="Recent runs" padding="none">
+			<Card title="Recent Runs" padding="none">
 				{#if policyJobs.isPending}
 					<div class="inset"><Skeleton lines={3} height="20px" /></div>
 				{:else}
-					<RunsTable {runs} label="Recent runs of {p.name}">
+					<RunsTable {runs} label="Recent Runs of {p.name}">
 						{#snippet empty()}<EmptyState
 								icon={Clock}
 								color="slate"
@@ -590,7 +590,7 @@
 
 			<Dialog
 				bind:open={previewOpen}
-				title="Update preview"
+				title="Update Preview"
 				description="What updating {p.name} would change now. Applying pulls the new images and recreates the services that changed, dependencies first."
 				size="xl"
 				dismissible={!applying}
@@ -600,7 +600,7 @@
 						<Notice
 							tone="warn"
 							icon={TriangleAlert}
-							title="Undeployed source changes"
+							title="Undeployed Source Changes"
 							live="none"
 						>
 							Deploy the changes of {drifted
@@ -612,7 +612,7 @@
 					</div>
 				{/if}
 				<Table
-					label="Update preview of {p.name}"
+					label="Update Preview of {p.name}"
 					rows={previewRows}
 					columns={previewColumns}
 					rowKey={(r) => r.key}
@@ -642,7 +642,7 @@
 						disabled={!previewRows.some(
 							(r) => r.item.eligible && r.item.status === 'update_available'
 						)}
-						onclick={apply}>Apply updates</Button
+						onclick={apply}>Apply Updates</Button
 					>
 				{/snippet}
 			</Dialog>
@@ -653,14 +653,14 @@
 
 			<DestructiveConfirm
 				bind:open={deleteOpen}
-				title="Delete update policy {p.name}"
+				title="Delete Update Policy {p.name}"
 				consequences={[
 					'Removes the policy with its candidates, quarantine lists and update history.',
 					'Nothing in its scope is checked or updated afterwards.',
 					'Containers, images and your Compose files are not touched; the audit log and job history stay.'
 				]}
 				confirmText={p.name}
-				confirmLabel="Delete policy"
+				confirmLabel="Delete Policy"
 				onconfirm={remove}
 			/>
 		{/snippet}

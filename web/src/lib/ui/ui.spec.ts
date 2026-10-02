@@ -12,7 +12,8 @@ import {
 	formatRelative,
 	formatUptime,
 	secondsSince,
-	shortId
+	shortId,
+	titleCase
 } from './format';
 import { statusInfo } from './status';
 import { placeTooltip } from './tooltip';
@@ -227,13 +228,23 @@ describe('formatting', () => {
 	});
 });
 
+describe('titleCase', () => {
+	it('capitalizes words, keeps minor words, acronyms and file names', () => {
+		expect(titleCase('request ID')).toBe('Request ID');
+		expect(titleCase('files in the stack')).toBe('Files in the Stack');
+		expect(titleCase('sign-in policy')).toBe('Sign-In Policy');
+		expect(titleCase('compose.yaml')).toBe('compose.yaml');
+		expect(titleCase('what to send to')).toBe('What to Send To');
+	});
+});
+
 describe('status vocabulary', () => {
 	it('maps API states to tone and plain text', () => {
 		expect(statusInfo('running')).toEqual({ tone: 'ok', label: 'Running', pulse: false });
 		expect(statusInfo('offline').tone).toBe('offline');
 		expect(statusInfo('restarting').pulse).toBe(true);
-		expect(statusInfo('partial').label).toBe('Partially running');
-		expect(statusInfo('partial', 'job').label).toBe('Partly failed');
+		expect(statusInfo('partial').label).toBe('Partially Running');
+		expect(statusInfo('partial', 'job').label).toBe('Partly Failed');
 		expect(statusInfo('running', 'job').pulse).toBe(true);
 		// Alert severities (#159).
 		expect(
@@ -245,7 +256,7 @@ describe('status vocabulary', () => {
 		]);
 		expect(statusInfo('some_new_state')).toEqual({
 			tone: 'neutral',
-			label: 'Some new state',
+			label: 'Some New State',
 			pulse: false
 		});
 	});

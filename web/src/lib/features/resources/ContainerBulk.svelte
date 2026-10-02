@@ -66,6 +66,7 @@
 
 	const n = $derived(plan.run.length);
 	const noun = $derived(n === 1 ? 'container' : 'containers');
+	const Noun = $derived(n === 1 ? 'Container' : 'Containers');
 
 	async function confirm() {
 		const v = verb;
@@ -107,7 +108,7 @@
 	consequences={CONSEQUENCES[verb]}
 	{plan}
 	name={(c) => c.name}
-	confirmLabel="{LABEL[verb]} {n} {noun}"
+	confirmLabel="{LABEL[verb]} {n} {Noun}"
 	danger={verb === 'stop' || verb === 'remove'}
 	confirmText={verb === 'remove' ? `remove ${n} ${noun}` : undefined}
 	onconfirm={confirm}

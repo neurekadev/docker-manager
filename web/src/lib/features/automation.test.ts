@@ -37,9 +37,9 @@ describe('RuleEditor (#14)', () => {
 		let rule: MaintenanceRule = { category: 'named_volumes', enabled: false, minAgeHours: 720 };
 		const onchange = vi.fn((r: MaintenanceRule) => (rule = r));
 		const { rerender } = render(RuleEditor, { props: { rule, onchange } });
-		const toggle = screen.getByRole('switch', { name: 'Named volumes' });
+		const toggle = screen.getByRole('switch', { name: 'Named Volumes' });
 		expect(toggle).toBeDisabled();
-		expect(screen.getByText('Deletes data')).toBeInTheDocument();
+		expect(screen.getByText('Deletes Data')).toBeInTheDocument();
 		await user.click(
 			screen.getByRole('checkbox', {
 				name: /^I understand that removing volumes deletes the data in them/
@@ -49,8 +49,8 @@ describe('RuleEditor (#14)', () => {
 			expect.objectContaining({ volumeOptIn: true, enabled: false })
 		);
 		await rerender({ rule, onchange });
-		expect(screen.getByRole('switch', { name: 'Named volumes' })).toBeEnabled();
-		await user.click(screen.getByRole('switch', { name: 'Named volumes' }));
+		expect(screen.getByRole('switch', { name: 'Named Volumes' })).toBeEnabled();
+		await user.click(screen.getByRole('switch', { name: 'Named Volumes' }));
 		expect(onchange).toHaveBeenLastCalledWith(
 			expect.objectContaining({ enabled: true, volumeOptIn: true })
 		);
@@ -87,12 +87,12 @@ describe('RuleEditor (#14)', () => {
 		const more = screen.getByRole('button', { name: 'Options' });
 		expect(more).toHaveAttribute('aria-expanded', 'false');
 		await user.click(more);
-		expect(screen.getByRole('button', { name: 'Hide options' })).toHaveAttribute(
+		expect(screen.getByRole('button', { name: 'Hide Options' })).toHaveAttribute(
 			'aria-expanded',
 			'true'
 		);
-		expect(screen.getByLabelText('Only remove objects older than')).toHaveValue(30);
-		expect(screen.getByRole('group', { name: 'Container states' })).toBeInTheDocument();
+		expect(screen.getByLabelText('Only Remove Objects Older Than')).toHaveValue(30);
+		expect(screen.getByRole('group', { name: 'Container States' })).toBeInTheDocument();
 	});
 });
 
@@ -123,10 +123,10 @@ describe('CoverageList (#10, #20)', () => {
 		const { rerender } = render(CoverageList, {
 			props: { label: 'Stacks covered', items, excluded: ['s1', 'other'], onchange }
 		});
-		await user.click(screen.getByRole('button', { name: 'Include all' }));
+		await user.click(screen.getByRole('button', { name: 'Include All' }));
 		expect(onchange).toHaveBeenLastCalledWith(['other']);
 		await rerender({ label: 'Stacks covered', items, excluded: [], onchange });
-		expect(screen.queryByRole('button', { name: 'Include all' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Include All' })).not.toBeInTheDocument();
 	});
 
 	it('shows a locked item unchecked and disabled, with its reason, never included', async () => {
@@ -144,15 +144,15 @@ describe('CoverageList (#10, #20)', () => {
 		expect(box).toBeDisabled();
 		expect(within(group).getByRole('img', { name: reason })).toBeInTheDocument();
 		expect(group).toHaveTextContent('3 of 4 included');
-		// Nothing the user left out: no Include all for the locked item.
-		expect(screen.queryByRole('button', { name: 'Include all' })).not.toBeInTheDocument();
+		// Nothing the user left out: no Include All for the locked item.
+		expect(screen.queryByRole('button', { name: 'Include All' })).not.toBeInTheDocument();
 		await rerender({
 			label: 'Volumes covered',
 			items: locked,
 			excluded: ['s1', 'cache'],
 			onchange
 		});
-		await user.click(screen.getByRole('button', { name: 'Include all' }));
+		await user.click(screen.getByRole('button', { name: 'Include All' }));
 		expect(onchange).toHaveBeenLastCalledWith(['cache']);
 	});
 });
@@ -188,8 +188,8 @@ describe('CandidatesTable (#20)', () => {
 		});
 		const table = screen.getByRole('table', { name: 'Candidates' });
 		const web = within(table).getByRole('row', { name: /silo-web/ });
-		expect(web).toHaveTextContent('Update available');
-		expect(web).toHaveTextContent('Tag can change meaning');
+		expect(web).toHaveTextContent('Update Available');
+		expect(web).toHaveTextContent('Tag Can Change Meaning');
 		expect(web).toHaveTextContent('111111111111');
 		expect(web).toHaveTextContent('222222222222');
 		expect(web).toHaveTextContent('published 3 days ago');
@@ -326,16 +326,16 @@ describe('ScopePreviewView (#10)', () => {
 		const onOptIn = vi.fn();
 		render(ScopePreviewView, { props: { preview, onOptIn, optedIn: () => false } });
 		expect(screen.getByText('/stacks/silo')).toBeInTheDocument();
-		expect(screen.getByText('Needs opt-in')).toBeInTheDocument();
+		expect(screen.getByText('Needs Opt-In')).toBeInTheDocument();
 		expect(screen.getByText('Excluded')).toBeInTheDocument();
-		await user.click(screen.getByRole('checkbox', { name: 'Include this path' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Include This Path' }));
 		expect(onOptIn).toHaveBeenCalledWith('s1', '/srv/media', true);
 	});
 
 	it('shows the shutdown order, the downtime and the containers that keep running', () => {
 		render(ScopePreviewView, { props: { preview } });
 		expect(screen.getByText('About 2 minutes for silo')).toBeInTheDocument();
-		const table = screen.getByRole('table', { name: 'Containers stopped for silo' });
+		const table = screen.getByRole('table', { name: 'Containers Stopped for silo' });
 		const rows = within(table).getAllByRole('row').slice(1);
 		expect(rows.map((r) => r.textContent)).toEqual([
 			expect.stringContaining('silo-web'),
@@ -466,11 +466,11 @@ describe('StepUpDialog (#16, #186)', () => {
 		const done = open(
 			account({ password: true, totp: true, passkeys: 0, recoveryCodesRemaining: 10 })
 		);
-		const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
+		const dialog = await screen.findByRole('dialog', { name: "Confirm It's You" });
 		expect(within(dialog).queryByLabelText('Password')).toBeNull();
 		const confirm = within(dialog).getByRole('button', { name: 'Confirm' });
 		expect(confirm).toBeDisabled();
-		await user.type(within(dialog).getByLabelText('Authenticator code'), '123 456');
+		await user.type(within(dialog).getByLabelText('Authenticator Code'), '123 456');
 		await user.click(confirm);
 		expect(await done).toBe(true);
 		expect(bodies).toEqual([{ totpCode: '123456' }]);
@@ -483,9 +483,9 @@ describe('StepUpDialog (#16, #186)', () => {
 		const done = open(
 			account({ password: true, totp: true, passkeys: 0, recoveryCodesRemaining: 10 })
 		);
-		const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
-		await user.click(within(dialog).getByRole('button', { name: 'Use your password instead' }));
-		expect(within(dialog).queryByLabelText('Authenticator code')).toBeNull();
+		const dialog = await screen.findByRole('dialog', { name: "Confirm It's You" });
+		await user.click(within(dialog).getByRole('button', { name: 'Use Your Password Instead' }));
+		expect(within(dialog).queryByLabelText('Authenticator Code')).toBeNull();
 		await user.type(within(dialog).getByLabelText('Password'), 'correct horse');
 		await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
 		expect(await done).toBe(true);
@@ -500,8 +500,8 @@ describe('StepUpDialog (#16, #186)', () => {
 		const done = open(
 			account({ password: true, totp: false, passkeys: 0, recoveryCodesRemaining: 0 })
 		);
-		const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
-		expect(within(dialog).queryByLabelText('Authenticator code')).toBeNull();
+		const dialog = await screen.findByRole('dialog', { name: "Confirm It's You" });
+		expect(within(dialog).queryByLabelText('Authenticator Code')).toBeNull();
 		await user.type(within(dialog).getByLabelText('Password'), 'correct horse');
 		await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
 		expect(await done).toBe(true);
@@ -528,17 +528,17 @@ describe('StepUpDialog (#16, #186)', () => {
 			const done = open(
 				account({ password: true, totp: true, passkeys: 1, recoveryCodesRemaining: 10 })
 			);
-			const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" });
+			const dialog = await screen.findByRole('dialog', { name: "Confirm It's You" });
 			await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
 			expect(within(dialog).queryByLabelText('Password')).toBeNull();
 			expect(
-				within(dialog).getByRole('button', { name: 'Use your password instead' })
+				within(dialog).getByRole('button', { name: 'Use Your Password Instead' })
 			).toBeInTheDocument();
 			await user.click(
-				within(dialog).getByRole('button', { name: 'Use authenticator code instead' })
+				within(dialog).getByRole('button', { name: 'Use Authenticator Code Instead' })
 			);
 			expect(storage.getItem('docker-manager:verify-with')).toBe('totp');
-			await user.type(within(dialog).getByLabelText('Authenticator code'), '654321');
+			await user.type(within(dialog).getByLabelText('Authenticator Code'), '654321');
 			await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
 			expect(await done).toBe(true);
 			expect(bodies).toEqual([{ totpCode: '654321' }]);
@@ -552,7 +552,7 @@ describe('StepUpDialog (#16, #186)', () => {
 		const done = open(
 			account({ password: true, totp: false, passkeys: 0, recoveryCodesRemaining: 0 })
 		);
-		await screen.findByRole('dialog', { name: "Confirm it's you" });
+		await screen.findByRole('dialog', { name: "Confirm It's You" });
 		await user.keyboard('{Escape}');
 		expect(await done).toBe(false);
 	});

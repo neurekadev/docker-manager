@@ -63,10 +63,10 @@
 
 	function menu(p: BackupPolicy): MenuEntry[] {
 		const items: MenuEntry[] = [
-			{ label: 'Open policy', icon: ExternalLink, href: routes.backupPolicy(p.id) }
+			{ label: 'Open Policy', icon: ExternalLink, href: routes.backupPolicy(p.id) }
 		];
 		if (has(p, 'backup_policy.manage'))
-			items.push({ label: 'Edit policy', icon: Pencil, href: routes.backupPolicyEdit(p.id) });
+			items.push({ label: 'Edit Policy', icon: Pencil, href: routes.backupPolicyEdit(p.id) });
 		return items;
 	}
 
@@ -79,7 +79,7 @@
 			maxWidth: '360px',
 			stack: 'title'
 		},
-		{ id: 'last', header: 'Last run', cell: lastCell, width: '170px', stack: 'status' },
+		{ id: 'last', header: 'Last Run', cell: lastCell, width: '170px', stack: 'status' },
 		{ id: 'schedule', header: 'Schedule', cell: scheduleCell, width: '220px', stack: 'meta' },
 		{
 			id: 'retention',
@@ -132,7 +132,7 @@
 				variant="secondary"
 				icon={Play}
 				loading={starting === p.id || running.has(p.id)}
-				onclick={() => run(p)}>{running.has(p.id) ? 'Backing up…' : 'Back up now'}</Button
+				onclick={() => run(p)}>{running.has(p.id) ? 'Backing Up…' : 'Back Up Now'}</Button
 			>
 		{/if}
 		<Menu items={menu(p)} label="Actions for {p.name}" align="end">
@@ -144,7 +144,7 @@
 {/snippet}
 
 <Table
-	label="Backup policies"
+	label="Backup Policies"
 	rows={policies}
 	{columns}
 	rowKey={(p) => p.id}

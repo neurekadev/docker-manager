@@ -154,7 +154,7 @@ func newScheduleRun(r domain.ScheduleRun) ScheduleRun {
 type Schedule struct {
 	ID            string           `json:"id"`
 	Kind          string           `json:"kind" example:"prune"`
-	KindLabel     string           `json:"kindLabel" example:"Docker prune"`
+	KindLabel     string           `json:"kindLabel" example:"Docker Prune"`
 	PolicyID      string           `json:"policyId"`
 	PolicyName    string           `json:"policyName"`
 	EnvironmentID string           `json:"environmentId,omitempty"`

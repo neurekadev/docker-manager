@@ -45,7 +45,7 @@ export interface ExecSession {
 export type Shell = 'auto' | 'bash' | 'sh' | 'zsh';
 
 export const SHELLS: readonly { value: Shell; label: string }[] = [
-	{ value: 'auto', label: 'Detect automatically' },
+	{ value: 'auto', label: 'Detect Automatically' },
 	{ value: 'bash', label: 'Bash' },
 	{ value: 'sh', label: 'sh' },
 	{ value: 'zsh', label: 'Zsh' }

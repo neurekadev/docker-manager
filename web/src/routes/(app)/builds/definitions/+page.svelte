@@ -3,7 +3,7 @@
 	// (or all), built again on demand. One ListCard (search, and the
 	// environment filter with several environments). A definition's name
 	// opens it in the edit dialog (?edit=<id>, routes.buildDefinitionEdit);
-	// "New definition" in the header opens the create dialog (?create=1).
+	// "New Definition" in the header opens the create dialog (?create=1).
 	// Build opens the build with its live log.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -47,7 +47,7 @@
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({
-		title: 'Build definitions',
+		title: 'Build Definitions',
 		crumbs: [{ label: 'Builds', href: routes.builds() }, { label: 'Definitions' }],
 		environmentScoped: true
 	});
@@ -133,7 +133,7 @@
 		if (editable(d)) out.push({ label: 'Edit', href: routes.buildDefinitionEdit(d.id) });
 		if (d.lastBuildId)
 			out.push({
-				label: 'Open the last build',
+				label: 'Open the Last Build',
 				href: routes.build(d.environmentId, d.lastBuildId)
 			});
 		if (can(d.actions, 'build_definition.manage'))
@@ -264,7 +264,7 @@
 		bind:open={deleteOpen}
 		title="Delete {deleting.name}?"
 		consequences={['The saved build is deleted; its past builds and their images stay.']}
-		confirmLabel="Delete definition"
+		confirmLabel="Delete Definition"
 		tone="danger"
 		onconfirm={remove}
 	/>
@@ -302,13 +302,13 @@
 				</Notice>
 			{/if}
 			<ListCard
-				title="All definitions"
+				title="All Definitions"
 				id="build-definitions"
 				summary={list.data
 					? listSummary(rows.length, all.length, filtered, 'definition', 'definitions')
 					: undefined}
-				label="Filter build definitions"
-				searchLabel="Search definitions"
+				label="Filter Build Definitions"
+				searchLabel="Search Definitions"
 				placeholder="Search definitions"
 				filters={defs}
 				store={filters}
@@ -317,7 +317,7 @@
 					<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 				{:else}
 					<Table
-						label="Build definitions"
+						label="Build Definitions"
 						{rows}
 						{columns}
 						rowKey={(d) => d.id}
@@ -334,7 +334,7 @@
 								<EmptyState
 									{...resourceIcon('buildDefinition')}
 									title="No saved builds yet."
-									description="Save a Git build as a definition to build it again without filling in the form. Use New definition above, or save one when you build an image."
+									description="Save a Git build as a definition to build it again without filling in the form. Use New Definition above, or save one when you build an image."
 									level={3}
 									compact
 								/>

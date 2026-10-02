@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The levels of the alert thresholds as a compact grid: a row per
-	// metric (Temperature (°C), Disk space (% used), Memory (% used)) and
+	// metric (Temperature (°C), Disk Space (% Used), Memory (% Used)) and
 	// the columns Warning and Critical, one number field each, with its
 	// error in words below it. The defaults card and the override dialog
 	// share it; the dialog's empty fields show the default as placeholder.
@@ -13,7 +13,7 @@
 	} from './thresholds';
 
 	interface Props {
-		/** The group's accessible name ("Default levels"). */
+		/** The group's accessible name ("Default Levels"). */
 		label: string;
 		form: ThresholdForm;
 		errors?: ThresholdErrors;
@@ -28,8 +28,8 @@
 
 	const UNIT_WORDS: Record<string, string> = {
 		temperature: '°C',
-		diskSpace: '% used',
-		memory: '% used'
+		diskSpace: '% Used',
+		memory: '% Used'
 	};
 </script>
 
@@ -39,7 +39,7 @@
 	<span class="head" aria-hidden="true">Critical</span>
 	{#each THRESHOLD_METRICS as m (m.metric)}
 		<span class="row" aria-hidden="true">{m.label}</span>
-		{#each [{ key: m.warning, level: 'warning' }, { key: m.critical, level: 'critical' }] as f (f.key)}
+		{#each [{ key: m.warning, level: 'Warning' }, { key: m.critical, level: 'Critical' }] as f (f.key)}
 			<div class="cell">
 				<TextField
 					label="{m.short} {f.level} ({UNIT_WORDS[m.metric]})"

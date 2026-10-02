@@ -26,14 +26,14 @@ function history(stored: (number | null)[], uncompressed: (number | null)[]): St
 describe('storage ranges (#10)', () => {
 	it('offers 7 days to a year, the last 30 days by default', () => {
 		expect(STORAGE_RANGES.map((r) => r.label)).toEqual([
-			'Last 7 days',
-			'Last 30 days',
-			'Last 90 days',
-			'Last year'
+			'Last 7 Days',
+			'Last 30 Days',
+			'Last 90 Days',
+			'Last Year'
 		]);
 		expect(DEFAULT_STORAGE_RANGE).toBe('30d');
-		expect(storageRangeLabel('90d')).toBe('Last 90 days');
-		expect(storageRangeLabel('bogus')).toBe('Last 30 days');
+		expect(storageRangeLabel('90d')).toBe('Last 90 Days');
+		expect(storageRangeLabel('bogus')).toBe('Last 30 Days');
 	});
 
 	it('starts a range the chosen number of days before now', () => {
@@ -76,13 +76,13 @@ describe('storageSummary (#10)', () => {
 	});
 
 	it('states the latest figure and how it changed in the range', () => {
-		expect(storageSummary(series([2 * GB, 3.5 * GB]), 'Last 30 days')).toBe(
+		expect(storageSummary(series([2 * GB, 3.5 * GB]), 'Last 30 Days')).toBe(
 			'3.5 GB stored now, up 1.5 GB in the last 30 days.'
 		);
-		expect(storageSummary(series([3 * GB, 2 * GB]), 'Last year')).toBe(
+		expect(storageSummary(series([3 * GB, 2 * GB]), 'Last Year')).toBe(
 			'2 GB stored now, down 1 GB in the last year.'
 		);
-		expect(storageSummary(series([GB]), 'Last 7 days')).toBe(
+		expect(storageSummary(series([GB]), 'Last 7 Days')).toBe(
 			'1 GB stored now, no change in the last 7 days.'
 		);
 	});

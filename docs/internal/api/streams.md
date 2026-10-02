@@ -158,7 +158,7 @@ tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
 `settings` or `permissions` with `kind` the resource type; the move of
 Docker Manager to a new server → `invalidate` topic `manager`: kind
 `manager_move` (the move's ID; the owner only: its state, the new
-server's agent and check-in, Move everything's progress, the
+server's agent and check-in, Move Everything's progress, the
 confirmation) and kind `manager_move_lock` (`resourceId` `instance`,
 every signed-in user: the move lock of `GET /auth/session` changed);
 alerts raised, changed, dismissed or resolved (#159) → `invalidate` topic
@@ -567,7 +567,7 @@ manager in waiting mode once its check-in (`GET /manager/move/check-in`)
 reports the move ready, signed with the move code
 (`Authorization: DMM <moveId>:<unix time>:<nonce>:<HMAC-SHA256>`, never a
 session, an API token or the code itself; plain HTTP is accepted). Until
-Move everything made the move ready it answers 409
+Move Everything made the move ready it answers 409
 `manager_move_not_ready` with `Retry-After` and the progress in
 `X-Docker-Manager-Move-State` (`open`, `moving`),
 `X-Docker-Manager-Move-Stacks` (`<moved>/<total>`) and

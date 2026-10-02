@@ -227,3 +227,44 @@ export function shortId(id: string, n = 12): string {
 	const s = id.replace(/^sha256:/, '');
 	return s.length > n ? s.slice(0, n) : s;
 }
+
+/** Words a Title Case label keeps lowercase unless first or last (#219). */
+const MINOR_WORDS = new Set([
+	'a',
+	'an',
+	'the',
+	'and',
+	'but',
+	'or',
+	'nor',
+	'as',
+	'at',
+	'by',
+	'for',
+	'in',
+	'of',
+	'on',
+	'per',
+	'to',
+	'via',
+	'with'
+]);
+
+/**
+ * Words joined into a label in Title Case (#219): "request ID" → "Request
+ * ID", "sign-in policy" → "Sign-In Policy". Only plain lowercase words
+ * change; acronyms, file names and values ("compose.yaml", ".env") stay.
+ */
+export function titleCase(s: string): string {
+	const words = s.split(' ');
+	return words
+		.map((w, i) => {
+			if (!/^[a-z][a-z-]*$/.test(w)) return w;
+			if (i > 0 && i < words.length - 1 && MINOR_WORDS.has(w)) return w;
+			return w
+				.split('-')
+				.map((p) => (p ? p[0].toUpperCase() + p.slice(1) : p))
+				.join('-');
+		})
+		.join(' ');
+}

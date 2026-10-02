@@ -2,7 +2,7 @@
 	// Network detail (#6): driver, subnets and flags, the attached
 	// containers (by name, with their address on it; older agents do not
 	// report it, then from the containers list), its stack and labels (system labels folded). Removal is the
-	// last entry of the "More actions" menu; its dialog shows the server's
+	// last entry of the "More Actions" menu; its dialog shows the server's
 	// preview (it refuses predefined, in-use, stack-managed and Docker
 	// Manager's own networks with the reason). Its running jobs come from
 	// the running list, also after a reload.
@@ -181,7 +181,7 @@
 			level={1}
 		>
 			{#snippet actions()}<Button variant="secondary" href={routes.networks()}
-					>Back to networks</Button
+					>Back to Networks</Button
 				>{/snippet}
 		</EmptyState>
 	{:else if q.isError}
@@ -201,12 +201,12 @@
 			{/snippet}
 			{#snippet actions()}
 				{#if overflow.length}
-					<Menu items={overflow} label="More actions for {n.name}" align="end">
+					<Menu items={overflow} label="More Actions for {n.name}" align="end">
 						{#snippet trigger(props)}
 							<IconButton
 								{...props}
 								icon={Ellipsis}
-								label="More actions"
+								label="More Actions"
 								variant="secondary"
 							/>
 						{/snippet}
@@ -224,14 +224,14 @@
 				{sentence(n.protection.reason)} Docker Manager never removes it.
 			</Notice>
 		{/if}
-		<ActiveJobs {jobs} variant="inline" label="Running jobs of {name}" />
+		<ActiveJobs {jobs} variant="inline" label="Running Jobs of {name}" />
 
 		<Columns>
 			<Card title="Details">
 				{#if n.view === 'full'}<Facts items={facts} label="Details of {n.name}" />
 				{:else}<p class="muted">Its details need the network read permission.</p>{/if}
 			</Card>
-			<Card title="Attached containers">
+			<Card title="Attached Containers">
 				{#if attached.length}
 					<ul class="list" role="list">
 						{#each attached as c (c.id)}

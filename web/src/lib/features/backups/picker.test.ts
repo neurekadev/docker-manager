@@ -75,7 +75,7 @@ describe('FilePickerDialog (#10)', () => {
 		});
 		expect(await screen.findByRole('checkbox', { name: 'a.jpg' })).not.toBeChecked();
 		expect(listed).toEqual(['/vol/up/_data']);
-		const review = screen.getByRole('button', { name: 'Review restore' });
+		const review = screen.getByRole('button', { name: 'Review Restore' });
 		expect(review).toBeDisabled();
 
 		await user.click(screen.getByRole('checkbox', { name: 'thumbs' }));

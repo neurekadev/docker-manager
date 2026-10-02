@@ -10,7 +10,7 @@ describe('StackJobStatus', () => {
 		});
 		const link = screen.getByRole('link', { name: 'Deploying' });
 		expect(link).toHaveAttribute('href', routes.job('job-7'));
-		expect(link).toHaveAttribute('title', 'Deploy stack: open the job');
+		expect(link).toHaveAttribute('title', 'Deploy Stack: open the job');
 		expect(link).toHaveAttribute('aria-busy', 'true');
 	});
 });

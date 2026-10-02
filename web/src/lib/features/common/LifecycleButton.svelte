@@ -48,7 +48,7 @@
 		disabled = false,
 		reason,
 		size = 'md',
-		menuLabel = 'More start and stop options'
+		menuLabel = 'More Start and Stop Options'
 	}: Props = $props();
 
 	const LOOK: Record<LifecycleVerb, { icon: IconComponent; variant: SplitButtonVariant }> = {

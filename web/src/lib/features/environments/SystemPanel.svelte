@@ -48,9 +48,9 @@
 	const transport = $derived(system.transport);
 	const compat = $derived(agent ? COMPATIBILITY[agent.compatibility] : undefined);
 	const rootLabel: Record<string, string> = {
-		stacks: 'Stacks volume',
-		volumes: 'Docker volumes',
-		bind: 'Additional folder'
+		stacks: 'Stacks Volume',
+		volumes: 'Docker Volumes',
+		bind: 'Additional Folder'
 	};
 	const watchLabel: Record<string, string> = {
 		inotify: 'Changes appear within seconds',
@@ -70,7 +70,7 @@
 			{#each system.diagnostics as d (d.code)}
 				<Notice
 					tone="warn"
-					title={d.area === 'storage' ? 'Storage check' : 'Docker check'}
+					title={d.area === 'storage' ? 'Storage Check' : 'Docker Check'}
 					live="none"
 				>
 					{d.message}
@@ -91,9 +91,9 @@
 		<Card title="Host">
 			{#if host}
 				<dl class="facts">
-					<dt>Host name</dt>
+					<dt>Host Name</dt>
 					<dd class="mono">{host.hostname}</dd>
-					<dt>Operating system</dt>
+					<dt>Operating System</dt>
 					<dd>{host.operatingSystem ?? host.os}</dd>
 					<dt>Architecture</dt>
 					<dd>{host.os}/{host.arch}</dd>
@@ -116,7 +116,7 @@
 				<dl class="facts">
 					<dt>Version</dt>
 					<dd class="num">{engine.version}</dd>
-					{#if engine.storageDriver}<dt>Storage driver</dt>
+					{#if engine.storageDriver}<dt>Storage Driver</dt>
 						<dd>{engine.storageDriver}</dd>{/if}
 					{#if engine.cgroupVersion}<dt>Cgroups</dt>
 						<dd>v{engine.cgroupVersion}</dd>{/if}
@@ -126,7 +126,7 @@
 						{#if engine.dockerDesktop}<Badge
 								tone="danger"
 								title="Docker Desktop is not supported"
-								>Docker Desktop: unsupported</Badge
+								>Docker Desktop: Unsupported</Badge
 							>{/if}
 					</dd>
 					{#if system.docker}
@@ -157,7 +157,7 @@
 					<dd class="flags">
 						<StatusBadge
 							status={agent.connected ? 'online' : 'offline'}
-							label={agent.connected ? 'Connected' : 'Not connected'}
+							label={agent.connected ? 'Connected' : 'Not Connected'}
 						/>
 						{#if !agent.connected && env.lastSeenAt}<span class="muted"
 								>last seen {@render when(env.lastSeenAt)}</span
@@ -170,18 +170,18 @@
 					<dt>Platform</dt>
 					<dd>{agent.os}/{agent.arch}</dd>
 					{#if transport}
-						<dt>Docker Manager address</dt>
+						<dt>Docker Manager Address</dt>
 						<dd class="flags">
 							<span class="mono">{transport.managerUrl}</span>
-							{#if transport.plainHttp}<Badge tone="warn" dot>Not encrypted</Badge
+							{#if transport.plainHttp}<Badge tone="warn" dot>Not Encrypted</Badge
 								>{/if}
 							{#if transport.customCa}<Badge tone="info"
-									>Own certificate authority</Badge
+									>Own Certificate Authority</Badge
 								>{/if}
 						</dd>
 					{/if}
 					{#if system.clockSkewSeconds !== undefined}
-						<dt>Clock difference</dt>
+						<dt>Clock Difference</dt>
 						<dd class="num">
 							{formatNumber(system.clockSkewSeconds)} s
 							<span class="muted">(corrected in the charts)</span>
@@ -212,7 +212,7 @@
 			<dl class="facts">
 				<dt>Added</dt>
 				<dd>{formatDateTime(env.createdAt)}</dd>
-				{#if env.serviceAddress}<dt>Service address</dt>
+				{#if env.serviceAddress}<dt>Service Address</dt>
 					<dd class="mono">{env.serviceAddress}</dd>{/if}
 			</dl>
 			<div class="advanced">
@@ -254,7 +254,7 @@
 								>
 							</dd>
 						{/if}
-						{#if system.reportedAt}<dt>Capabilities reported</dt>
+						{#if system.reportedAt}<dt>Capabilities Reported</dt>
 							<dd>{@render when(system.reportedAt)}</dd>{/if}
 						<dt>Served</dt>
 						<dd>

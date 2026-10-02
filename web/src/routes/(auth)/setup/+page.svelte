@@ -77,11 +77,11 @@
 	}
 </script>
 
-<svelte:head><title>Set up Docker Manager</title></svelte:head>
+<svelte:head><title>Set Up Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<AuthHeader
-		title="Set up Docker Manager"
+		title="Set Up Docker Manager"
 		lead="Create the owner account. The owner can do everything and invites everyone else."
 	/>
 
@@ -92,7 +92,7 @@
 			<Notice
 				tone="danger"
 				icon={ShieldAlert}
-				title="Finish setup on Docker Manager's public URL"
+				title="Finish Setup on Docker Manager's Public URL"
 				live="alert"
 			>
 				<p>
@@ -110,7 +110,7 @@
 			<Notice
 				tone="danger"
 				icon={ShieldAlert}
-				title="Finish setup on Docker Manager's public URL"
+				title="Finish Setup on Docker Manager's Public URL"
 				live="alert"
 			>
 				{error.message}
@@ -134,7 +134,7 @@
 					error={fieldOrMissing('username')}
 				/>
 				<TextField
-					label="Display name"
+					label="Display Name"
 					description="Optional. Shown in the UI and the audit log."
 					bind:value={displayName}
 					autocomplete="name"
@@ -158,7 +158,7 @@
 					error={fieldOrMissing('password')}
 				/>
 				<PasswordField
-					label="Repeat the password"
+					label="Repeat the Password"
 					autocomplete="new-password"
 					name="confirm"
 					bind:value={confirm}
@@ -166,14 +166,14 @@
 					error={mismatch}
 				/>
 				<Button type="submit" variant="primary" block loading={busy} disabled={insecure}>
-					Create owner account
+					Create Owner Account
 				</Button>
 			</fieldset>
 		</form>
 		<div class="import">
 			<p class="hint">Recovering an existing Docker Manager from its backups?</p>
 			<Button href={routes.setupImport()} icon={DatabaseBackup} block disabled={insecure}
-				>Import from backup</Button
+				>Import From Backup</Button
 			>
 		</div>
 	{/if}

@@ -104,7 +104,7 @@ store: `internal/manager/store/templates.go`.
 - Web (`$lib/features/templates`, guide "Web UI"): registries of other
   instances are "template sources" in copy; versions read "Version 1.2.0"
   as a label and "1.2.0" as a value; the publication filter is "Status"
-  ("Ready to use", "Draft only"), never a word near "Public". "What it
-  runs" parses the version definition in the browser (`template.use`) and
+  ("Ready to Use", "Draft Only"), never a word near "Public". "What It
+  Runs" parses the version definition in the browser (`template.use`) and
   shows service names, images, ports and `.env` names only, never a value;
   archive digests stay under "Details".

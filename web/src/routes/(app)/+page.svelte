@@ -137,7 +137,7 @@
 			{#snippet actions()}
 				{#if canEnroll}
 					<Button variant="primary" icon={Plus} href={routes.addEnvironment()}
-						>Add environment</Button
+						>Add Environment</Button
 					>
 				{/if}
 			{/snippet}
@@ -162,7 +162,7 @@
 							</div>{/each}
 					{:else}
 						<KpiCard
-							label="Environments online"
+							label="Environments Online"
 							value="{totals.online} / {rows.length}"
 							icon={Server}
 							color="blue"
@@ -173,7 +173,7 @@
 							href={routes.environments()}
 						/>
 						<KpiCard
-							label="Containers running"
+							label="Containers Running"
 							value={totals.counted
 								? `${totals.running} / ${totals.containers}`
 								: '—'}
@@ -185,7 +185,7 @@
 							href={routes.containers()}
 						/>
 						<KpiCard
-							label="CPU in use"
+							label="CPU in Use"
 							value={formatPercent(totals.cpuAverage)}
 							icon={Cpu}
 							color="cyan"
@@ -198,7 +198,7 @@
 						/>
 						{#if totals.memTotal > 0}
 							<KpiCard
-								label="Memory in use"
+								label="Memory in Use"
 								value={formatBytes(totals.memUsed)}
 								unit="/ {formatBytes(totals.memTotal)}"
 								icon={MemoryStick}
@@ -209,7 +209,7 @@
 									<Meter
 										value={totals.memUsed}
 										max={totals.memTotal}
-										label="Memory in use"
+										label="Memory in Use"
 										valueText="{formatBytes(totals.memUsed)} of {formatBytes(
 											totals.memTotal
 										)}"
@@ -218,7 +218,7 @@
 							</KpiCard>
 						{:else}
 							<KpiCard
-								label="Memory in use"
+								label="Memory in Use"
 								value="—"
 								icon={MemoryStick}
 								color="indigo"
@@ -227,7 +227,7 @@
 							/>
 						{/if}
 						<KpiCard
-							label="Failed jobs"
+							label="Failed Jobs"
 							value={String(totals.failures)}
 							icon={TriangleAlert}
 							color={totals.failures ? 'rose' : 'slate'}
@@ -247,7 +247,7 @@
 			<section class="section" aria-labelledby="environments-title">
 				<div class="section-head">
 					<h2 id="environments-title">Environments</h2>
-					<a href={routes.environments()} class="more">View all environments</a>
+					<a href={routes.environments()} class="more">View All Environments</a>
 				</div>
 				{#if overview.isPending}
 					<div class="grid" aria-busy="true">
@@ -268,7 +268,7 @@
 								{#if canEnroll}<Button
 										variant="primary"
 										icon={Plus}
-										href={routes.addEnvironment()}>Add environment</Button
+										href={routes.addEnvironment()}>Add Environment</Button
 									>{/if}
 							{/snippet}
 						</EmptyState>

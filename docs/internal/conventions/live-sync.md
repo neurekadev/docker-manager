@@ -58,7 +58,7 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   (owner, the move's ID) on every change and `manager_move.lock_changed`
   (everyone, no ID) when the session's lock changes (`managermove/live.go`,
   `published`); what the move's view shows from elsewhere (the new
-  server's agent, Move everything's job) is followed on the bus
+  server's agent, Move Everything's job) is followed on the bus
   (`followBus`), never polled. Web keys: `liveKeys.managerMove(...)` and
   `liveKeys.session` (topic `manager`).
 - **Agents:** `files.watch`, `rescan` and `metrics.live` reach only agents

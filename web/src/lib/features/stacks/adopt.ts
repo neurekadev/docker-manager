@@ -49,12 +49,12 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		failure: `${t} was not restarted`
 	}),
 	'stack.pull': (t) => ({
-		title: `Pull images of ${t}`,
+		title: `Pull Images of ${t}`,
 		success: `Pulled images of ${t}`,
 		failure: `The images of ${t} were not pulled`
 	}),
 	'stack.build': (t) => ({
-		title: `Build images of ${t}`,
+		title: `Build Images of ${t}`,
 		success: `Built images of ${t}`,
 		failure: `The images of ${t} were not built`
 	}),
@@ -64,7 +64,7 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		failure: `${t} was not updated`
 	}),
 	'stack.down': (t) => ({
-		title: `Take down ${t}`,
+		title: `Take Down ${t}`,
 		success: `Took down ${t}`,
 		failure: `${t} was not taken down`
 	}),
@@ -84,7 +84,7 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		failure: `${t} was not migrated`
 	}),
 	'stack.remove_source': (t) => ({
-		title: `Remove ${t} from the old environment`,
+		title: `Remove ${t} From the Old Environment`,
 		success: `Removed ${t} from the old environment`,
 		failure: `${t} was not removed from the old environment`
 	}),

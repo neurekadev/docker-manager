@@ -5,7 +5,7 @@
 	// space, the longest downtime, the order (stacks that share a network or
 	// volume form a group that stops together and moves one after the
 	// other), networks created first, what is not moved and why, warnings
-	// and each stack's details. The headline and "Check again" stay with
+	// and each stack's details. The headline and "Check Again" stay with
 	// the caller.
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import MigrationFindings from '$lib/features/stacks/MigrationFindings.svelte';
@@ -55,7 +55,7 @@
 <div class="findings">
 	{#if problemCount(preview)}
 		<section aria-labelledby="blockers-title">
-			<h3 id="blockers-title" class="subsection-title">To fix before moving</h3>
+			<h3 id="blockers-title" class="subsection-title">To Fix Before Moving</h3>
 			<div class="blockers">
 				{#if preview.blockers.length}
 					<MigrationFindings list={preview.blockers} tone="danger" />
@@ -72,7 +72,7 @@
 
 	<dl class="facts">
 		<div>
-			<dt>Data to copy</dt>
+			<dt>Data to Copy</dt>
 			<dd class="num">
 				{formatBytes(preview.data.totalBytes)}{preview.data.truncated ? ' or more' : ''}
 			</dd>
@@ -87,7 +87,7 @@
 							preview.data.destinationVolumesFree
 						)
 					)}
-					{#if space === 'short'}<Badge tone="danger" dot>Not enough</Badge>{:else}<Badge
+					{#if space === 'short'}<Badge tone="danger" dot>Not Enough</Badge>{:else}<Badge
 							tone="ok"
 							dot>Enough</Badge
 						>{/if}
@@ -95,7 +95,7 @@
 			</dd>
 		</div>
 		<div>
-			<dt>Longest downtime</dt>
+			<dt>Longest Downtime</dt>
 			<dd>{downtimeText(preview.downtime.estimatedSeconds)}</dd>
 			<dd class="basis">{sentence(preview.downtime.basis)}</dd>
 		</div>
@@ -133,7 +133,7 @@
 
 	{#if preview.networks.length}
 		<section aria-labelledby="networks-title">
-			<h3 id="networks-title" class="subsection-title">Created first on {destName}</h3>
+			<h3 id="networks-title" class="subsection-title">Created First on {destName}</h3>
 			<ul class="plain" role="list">
 				{#each preview.networks as n (n.name)}
 					<li>
@@ -148,7 +148,7 @@
 	{/if}
 
 	<section aria-labelledby="skipped-title">
-		<h3 id="skipped-title" class="subsection-title">Not moved</h3>
+		<h3 id="skipped-title" class="subsection-title">Not Moved</h3>
 		{#if skipped.length}
 			<ul class="plain" role="list">
 				{#each skipped as r (r.stackId)}
@@ -222,7 +222,7 @@
 							{/if}
 							{#if m.preview.access.changes.length}
 								<div>
-									<h4 class="stack-name">Access changes</h4>
+									<h4 class="stack-name">Access Changes</h4>
 									<ul class="plain" role="list">
 										{#each m.preview.access.changes as c (c.userId)}
 											<li>

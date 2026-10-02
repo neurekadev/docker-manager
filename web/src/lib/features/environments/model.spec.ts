@@ -40,8 +40,8 @@ describe('environment model', () => {
 		expect(seriesValues(m, 'memory.used_bytes')).toEqual([]);
 		expect(seriesValues(undefined, 'cpu.percent')).toEqual([]);
 		expect(diskMounts(m)).toEqual(['docker', 'stacks']);
-		expect(mountLabel('docker')).toBe('Docker data');
-		expect(mountLabel('bind-2')).toBe('Bind mount 2');
+		expect(mountLabel('docker')).toBe('Docker Data');
+		expect(mountLabel('bind-2')).toBe('Bind Mount 2');
 		expect(rangeSeconds('24h')).toBe(86400);
 		expect(rangeSeconds('bogus')).toBe(3600);
 	});
@@ -64,7 +64,7 @@ describe('environment model', () => {
 		expect(memoryLines(zfs)).toEqual([
 			{ name: 'Used', values: [1, 2], color: METRIC_COLORS.memoryUsed },
 			{ name: 'ZFS ARC', values: [null, 5], color: METRIC_COLORS.memoryZfsArc, fill: 0.5 },
-			{ name: 'Cache / buffers', values: [3, 4], color: METRIC_COLORS.memoryCache }
+			{ name: 'Cache / Buffers', values: [3, 4], color: METRIC_COLORS.memoryCache }
 		]);
 		// Swap that was turned off: no Swap chart.
 		expect(swapTotal(zfs)).toBe(0);

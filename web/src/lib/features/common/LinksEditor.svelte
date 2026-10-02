@@ -74,7 +74,7 @@
 				{@const k = keyOf(row, i)}
 				<li class="row">
 					<TextField
-						label="Label of link {i + 1}"
+						label="Label of Link {i + 1}"
 						hideLabel
 						bind:value={row.label}
 						placeholder="Documentation"
@@ -86,7 +86,7 @@
 						onblur={() => (touched[`${k}:label`] = true)}
 					/>
 					<TextField
-						label="URL of link {i + 1}"
+						label="URL of Link {i + 1}"
 						hideLabel
 						inputmode="url"
 						bind:value={row.url}
@@ -101,7 +101,7 @@
 					/>
 					<div class="remove">
 						<IconButton
-							label="Remove link {i + 1}"
+							label="Remove Link {i + 1}"
 							icon={X}
 							{disabled}
 							onclick={() => rows.splice(i, 1)}
@@ -115,7 +115,7 @@
 	{#if rows.length < MAX_LINKS}
 		<div>
 			<Button size="sm" icon={Plus} {disabled} onclick={() => rows.push(newLinkRow())}
-				>Add link</Button
+				>Add Link</Button
 			>
 		</div>
 	{/if}

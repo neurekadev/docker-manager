@@ -203,14 +203,14 @@ describe('StackHeader', () => {
 			'title',
 			'/var/lib/docker/volumes/docker-manager_stacks/_data/silo'
 		);
-		expect(screen.getByRole('button', { name: 'Copy host path' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Copy Host Path' })).toBeInTheDocument();
 
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled();
-		expect(screen.getByRole('button', { name: /^More deploy options/ })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /^More Deploy Options/ })).toBeInTheDocument();
 		// Start, Restart and Stop are one split button: Stop while it runs.
 		expect(screen.getByRole('button', { name: 'Stop' })).toHaveClass('danger-soft');
 		expect(screen.queryByRole('button', { name: 'Restart' })).not.toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 		const lifecycle = await screen.findByRole('menu');
 		const entries = within(lifecycle).getAllByRole('menuitem');
 		expect(entries.map((i) => i.textContent?.trim())).toEqual(['Start', 'Restart', 'Stop']);
@@ -223,28 +223,28 @@ describe('StackHeader', () => {
 		expect(screen.queryByRole('button', { name: /^Update/ })).not.toBeInTheDocument();
 		expect(
 			await screen.findByRole('button', {
-				name: 'More deploy options (newer images are available)'
+				name: 'More Deploy Options (newer images are available)'
 			})
 		).toBeInTheDocument();
 
-		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
-		const menu = await screen.findByRole('menu', { name: 'More stack actions' });
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More Stack Actions' });
 		expect(
 			within(menu)
 				.getAllByRole('menuitem')
 				.map((i) => i.textContent?.trim())
-		).toEqual(['Migrate', 'Edit details', 'Delete']);
+		).toEqual(['Migrate', 'Edit Details', 'Delete']);
 	});
 
-	it('offers neither Take down nor Rename in the overflow menu', async () => {
+	it('offers neither Take Down nor Rename in the overflow menu', async () => {
 		const user = setup();
 		header(stack({ actions: [...ALL, 'stack.rename'] }));
-		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
-		const menu = await screen.findByRole('menu', { name: 'More stack actions' });
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More Stack Actions' });
 		const labels = within(menu)
 			.getAllByRole('menuitem')
 			.map((i) => i.textContent?.trim());
-		expect(labels).not.toContain('Take down');
+		expect(labels).not.toContain('Take Down');
 		expect(labels).not.toContain('Rename');
 		// Rename is the pencil right of the name.
 		expect(screen.getByRole('button', { name: 'Rename Silo' })).toBeEnabled();
@@ -264,7 +264,7 @@ describe('StackHeader', () => {
 			})
 		);
 		expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
-		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 		const start = await screen.findByRole('menuitem', { name: 'Start' });
 		expect(start).not.toHaveAttribute('aria-disabled', 'true');
 		await user.click(start);
@@ -295,7 +295,7 @@ describe('StackHeader', () => {
 		expect(stop).toHaveAttribute('title', reason);
 		expect(screen.getByText(reason)).toHaveClass('sr-only');
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled();
-		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 		expect(await screen.findByRole('menuitem', { name: 'Restart' })).toHaveAttribute(
 			'aria-disabled',
 			'true'
@@ -318,14 +318,14 @@ describe('StackHeader', () => {
 			'Restart',
 			'Stop',
 			'Start',
-			'More start and stop options',
-			'More stack actions',
+			'More Start and Stop Options',
+			'More Stack Actions',
 			'Rename Silo'
 		])
 			expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /Update/ })).not.toBeInTheDocument();
 		// No host path for a minimal view.
-		expect(screen.queryByRole('button', { name: 'Copy host path' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Copy Host Path' })).not.toBeInTheDocument();
 	});
 
 	it('offers Start for a stopped stack and disables actions while the environment is offline', () => {
@@ -339,7 +339,7 @@ describe('StackHeader', () => {
 		const start = screen.getByRole('button', { name: 'Start' });
 		expect(start).toBeDisabled();
 		expect(start).toHaveClass('ok-soft');
-		expect(screen.getByRole('button', { name: 'More start and stop options' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'More Start and Stop Options' })).toBeDisabled();
 		expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeDisabled();
 		expect(screen.getByText('Read-only while homelab is offline')).toBeInTheDocument();
@@ -371,13 +371,13 @@ describe('StackHeader', () => {
 	it('deletes only after typing the project name, keeping volumes and files', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		expect(
 			within(dialog).getByText('Keeps its volumes and the project directory on the host.')
 		).toBeInTheDocument();
-		const confirm = within(dialog).getByRole('button', { name: 'Delete stack' });
+		const confirm = within(dialog).getByRole('button', { name: 'Delete Stack' });
 		expect(confirm).toBeDisabled();
 		await user.type(within(dialog).getByRole('textbox'), 'silo');
 		expect(confirm).toBeEnabled();
@@ -392,11 +392,11 @@ describe('StackHeader', () => {
 	it('removes the stack’s own volumes only when the box is ticked', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		const box = within(dialog).getByRole('checkbox', {
-			name: /Also remove the stack’s volumes/
+			name: /Also Remove the Stack’s Volumes/
 		});
 		expect(box).not.toBeChecked();
 		await user.click(box);
@@ -404,7 +404,7 @@ describe('StackHeader', () => {
 			within(dialog).getByText(/Removes the volumes the stack owns and all data in them/)
 		).toBeInTheDocument();
 		await user.type(within(dialog).getByRole('textbox'), 'silo');
-		await user.click(within(dialog).getByRole('button', { name: 'Delete stack and volumes' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Delete Stack and Volumes' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Delete Silo'));
 		expect(seen.find((s) => s.method === 'DELETE')?.search).toBe('?removeVolumes=true');
 	});
@@ -425,7 +425,7 @@ describe('StackHeader', () => {
 	it('restarts at once from the lifecycle menu, without a confirmation', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Restart' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Restart Silo'));
 		expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -442,13 +442,13 @@ describe('StackHeader', () => {
 		expect(screen.queryByRole('button', { name: /^Update/ })).not.toBeInTheDocument();
 		await user.click(
 			await screen.findByRole('button', {
-				name: 'More deploy options (newer images are available)'
+				name: 'More Deploy Options (newer images are available)'
 			})
 		);
 		const item = await screen.findByRole('menuitem', { name: 'Pull & Deploy' });
 		expect(item).not.toHaveAccessibleDescription();
 		await user.click(item);
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and deploy Silo'));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and Deploy Silo'));
 		expect(tray.jobs[0]).toMatchObject({ failure: 'Silo was not pulled and deployed' });
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
@@ -467,14 +467,14 @@ describe('StackHeader', () => {
 			}
 		});
 		expect(screen.getByRole('heading', { level: 1, name: 'Silo' })).toBeInTheDocument();
-		for (const name of ['Deploy', 'Stop', 'More stack actions', 'Rename Silo'])
+		for (const name of ['Deploy', 'Stop', 'More Stack Actions', 'Rename Silo'])
 			expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
 	});
 
 	it('removes orphaned containers only from the deploy menu, after a confirmation', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(await screen.findByRole('button', { name: /^More deploy options/ }));
+		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
 		const menu = await screen.findByRole('menu');
 		expect(
 			within(menu)
@@ -486,8 +486,8 @@ describe('StackHeader', () => {
 			name: 'Deploy Silo and remove orphaned containers?'
 		});
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(within(dialog).getByRole('button', { name: 'Deploy and remove orphans' }));
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Deploy Silo and remove orphans'));
+		await user.click(within(dialog).getByRole('button', { name: 'Deploy and Remove Orphans' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Deploy Silo and Remove Orphans'));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
 			body: { removeOrphans: true }
@@ -504,26 +504,26 @@ describe('StackHeader inline rename', () => {
 		header(renamable());
 		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
 		// The heading shows the display name; the field edits the project name.
-		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		const field = screen.getByRole('textbox', { name: 'Stack Name' });
 		expect(field).toHaveValue('silo');
 		expect(field).toHaveFocus();
 		expect(screen.getByText(/the display name Silo stays/)).toBeInTheDocument();
 		await user.clear(field);
 		await user.type(field, 'store{Escape}');
-		expect(screen.queryByRole('textbox', { name: 'Stack name' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('textbox', { name: 'Stack Name' })).not.toBeInTheDocument();
 		expect(screen.getByRole('heading', { level: 1, name: 'Silo' })).toBeVisible();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
 		// The cancel button does the same.
 		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
-		await user.click(screen.getByRole('button', { name: 'Cancel rename' }));
-		expect(screen.queryByRole('textbox', { name: 'Stack name' })).not.toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Cancel Rename' }));
+		expect(screen.queryByRole('textbox', { name: 'Stack Name' })).not.toBeInTheDocument();
 	});
 
 	it('checks the name inline before anything is sent', async () => {
 		const user = setup();
 		header(renamable());
 		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
-		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		const field = screen.getByRole('textbox', { name: 'Stack Name' });
 		// Unchanged.
 		await user.type(field, '{Enter}');
 		expect(await screen.findByText('The stack already has this name.')).toBeInTheDocument();
@@ -538,7 +538,7 @@ describe('StackHeader inline rename', () => {
 		const user = setup();
 		const tray = header(renamable());
 		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
-		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		const field = screen.getByRole('textbox', { name: 'Stack Name' });
 		await user.clear(field);
 		await user.type(field, 'store{Enter}');
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Rename silo to store'));
@@ -551,17 +551,17 @@ describe('StackHeader inline rename', () => {
 			success: 'Renamed silo to store',
 			failure: 'silo was not renamed'
 		});
-		expect(screen.queryByRole('textbox', { name: 'Stack name' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('textbox', { name: 'Stack Name' })).not.toBeInTheDocument();
 	});
 
 	it('submits with the check button too', async () => {
 		const user = setup();
 		const tray = header(renamable());
 		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
-		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		const field = screen.getByRole('textbox', { name: 'Stack Name' });
 		await user.clear(field);
 		await user.type(field, 'store');
-		await user.click(screen.getByRole('button', { name: 'Rename stack' }));
+		await user.click(screen.getByRole('button', { name: 'Rename Stack' }));
 		await waitFor(() => expect(tray.jobs[0]?.kind).toBe('stack.rename'));
 	});
 
@@ -570,7 +570,7 @@ describe('StackHeader inline rename', () => {
 		previewExtra = { declaredName: 'shop' };
 		header(renamable());
 		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
-		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		const field = screen.getByRole('textbox', { name: 'Stack Name' });
 		await user.clear(field);
 		await user.type(field, 'store{Enter}');
 		expect(await screen.findByText(/Its Compose file sets name: shop/)).toBeInTheDocument();
@@ -630,13 +630,13 @@ describe('StackHeader inline rename', () => {
 			expect(b).toBeDisabled();
 			expect(b).toHaveAttribute('title', reason);
 		}
-		expect(screen.getByRole('button', { name: /^More deploy options/ })).toBeDisabled();
-		expect(screen.getByRole('button', { name: 'More start and stop options' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: /^More Deploy Options/ })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'More Start and Stop Options' })).toBeDisabled();
 		const pencil = screen.getByRole('button', { name: 'Rename Silo' });
 		expect(pencil).toBeDisabled();
 		expect(pencil).toHaveAttribute('title', reason);
-		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
-		const menu = await screen.findByRole('menu', { name: 'More stack actions' });
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More Stack Actions' });
 		expect(within(menu).getByText(reason)).toBeInTheDocument();
 		for (const item of within(menu).getAllByRole('menuitem'))
 			expect(item).toHaveAttribute('aria-disabled', 'true');
@@ -701,7 +701,7 @@ describe('ServicesTable', () => {
 		expect(screen.getByRole('link', { name: 'Open web' })).toHaveAttribute('target', '_blank');
 		// Terminals need container.exec on the stack.
 		expect(
-			screen.queryByRole('link', { name: 'Open a terminal in web' })
+			screen.queryByRole('link', { name: 'Open a Terminal in web' })
 		).not.toBeInTheDocument();
 		expect(screen.getByText('Web frontend')).toBeInTheDocument();
 		unmount();
@@ -712,13 +712,13 @@ describe('ServicesTable', () => {
 		expect(screen.queryByRole('link', { name: '8080:80' })).not.toBeInTheDocument();
 		expect(screen.getByText('8080:80')).toBeInTheDocument();
 		expect(screen.queryByRole('link', { name: 'Open web' })).not.toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Open a terminal in web' })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: 'Open a Terminal in web' })).toHaveAttribute(
 			'href',
 			'/stacks/st-1/terminal?container=silo-web-1'
 		);
 		// No terminal into a stopped service.
 		expect(
-			screen.queryByRole('link', { name: 'Open a terminal in worker' })
+			screen.queryByRole('link', { name: 'Open a Terminal in worker' })
 		).not.toBeInTheDocument();
 	});
 
@@ -745,14 +745,14 @@ describe('ServicesTable', () => {
 		const user = setup();
 		const onoperate = vi.fn();
 		render(ServicesTable, { props: { stack: stack(), services, usage: null, onoperate } });
-		await user.click(screen.getByRole('button', { name: 'More actions for web' }));
+		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
 			'Restart web',
 			'Stop web'
 		]);
 		await user.click(screen.getByRole('menuitem', { name: 'Stop web' }));
 		expect(onoperate).toHaveBeenCalledWith('web', 'stop');
-		await user.click(screen.getByRole('button', { name: 'More actions for worker' }));
+		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Start worker' }));
 		expect(onoperate).toHaveBeenCalledWith('worker', 'start');
 	});
@@ -803,8 +803,8 @@ describe('ServicesTable', () => {
 				'Ports'
 			].map(at)
 		).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-		expect(at('Restart policy')).toBe(-1);
-		expect(at('Image update')).toBe(-1);
+		expect(at('Restart Policy')).toBe(-1);
+		expect(at('Image Update')).toBe(-1);
 		expect(screen.getByText('2d 1h 0m')).toBeInTheDocument();
 		expect(screen.getByText('12.5%')).toBeInTheDocument();
 		expect(screen.getByText('64 MB')).toBeInTheDocument();
@@ -902,7 +902,7 @@ describe('ServicesTable', () => {
 			}
 		] as StackServiceStatus[];
 		render(ServicesTable, { props: { stack: stack(), services: live, usage: null } });
-		expect(screen.getByRole('link', { name: `Anonymous volume ${anon}` })).toHaveAttribute(
+		expect(screen.getByRole('link', { name: `Anonymous Volume ${anon}` })).toHaveAttribute(
 			'href',
 			routes.volume('env-1', anon)
 		);
@@ -924,7 +924,7 @@ describe('ServicesTable', () => {
 			'href',
 			routes.container('env-1', 'silo-web-1')
 		);
-		await user.click(screen.getByRole('button', { name: 'More actions for web' }));
+		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect(await screen.findByRole('menuitem', { name: 'Logs of web' })).toHaveAttribute(
 			'href',
 			routes.stackLogs('st-1', 'web')
@@ -936,7 +936,7 @@ describe('ServicesTable', () => {
 		const ondeploy = vi.fn();
 		render(ServicesTable, { props: { stack: stack(), services: [], usage: null, ondeploy } });
 		expect(
-			screen.getByRole('heading', { name: 'No services running yet' })
+			screen.getByRole('heading', { name: 'No Services Running Yet' })
 		).toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: 'Deploy' }));
 		expect(ondeploy).toHaveBeenCalled();
@@ -959,7 +959,7 @@ describe('ServicesTable', () => {
 				onoperate: vi.fn()
 			}
 		});
-		await user.click(screen.getByRole('button', { name: 'More actions for web' }));
+		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect(await screen.findByRole('menuitem', { name: 'Restart web' })).toHaveAttribute(
 			'aria-disabled',
 			'true'
@@ -969,7 +969,7 @@ describe('ServicesTable', () => {
 			'true'
 		);
 		await user.keyboard('{Escape}');
-		await user.click(screen.getByRole('button', { name: 'More actions for worker' }));
+		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
 		expect(await screen.findByRole('menuitem', { name: 'Start worker' })).not.toHaveAttribute(
 			'aria-disabled',
 			'true'
@@ -1046,19 +1046,19 @@ describe('DiffView', () => {
 				before,
 				after,
 				beforeLabel: 'Revision 2',
-				afterLabel: 'On disk'
+				afterLabel: 'On Disk'
 			}
 		});
 		const region = screen.getByRole('region', { name: 'Changes in compose.yaml' });
 		expect(
-			within(region).getByText('1 lines added, 1 lines removed (Revision 2 to On disk)')
+			within(region).getByText('1 lines added, 1 lines removed (Revision 2 to On Disk)')
 		).toBeInTheDocument();
 		expect(within(region).getByText('Removed:')).toBeInTheDocument();
 		expect(within(region).getByText('Added:')).toBeInTheDocument();
-		await user.click(within(region).getByRole('button', { name: 'Show 2 unchanged lines' }));
+		await user.click(within(region).getByRole('button', { name: 'Show 2 Unchanged Lines' }));
 		expect(within(region).getByText('line 1')).toBeInTheDocument();
 		expect(
-			within(region).getByRole('button', { name: 'Hide unchanged lines' })
+			within(region).getByRole('button', { name: 'Hide Unchanged Lines' })
 		).toBeInTheDocument();
 	});
 });

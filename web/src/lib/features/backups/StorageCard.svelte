@@ -24,7 +24,7 @@
 			<Meter
 				value={totals.sizeBytes}
 				max={Math.max(totals.uncompressedBytes, totals.sizeBytes)}
-				label="Stored size of the backed-up data"
+				label="Stored Size of the Backed-Up Data"
 				valueText="{formatBytes(totals.sizeBytes)} stored for {formatBytes(
 					totals.uncompressedBytes
 				)} of data"
@@ -34,20 +34,20 @@
 			/>
 			<dl class="stats">
 				<div>
-					<dt>Unique data backed up</dt>
+					<dt>Unique Data Backed Up</dt>
 					<dd class="num">{formatBytes(totals.uncompressedBytes)}</dd>
 				</div>
 				<div>
-					<dt>Saved by compression</dt>
+					<dt>Saved by Compression</dt>
 					<dd class="num">{formatBytes(totals.freedBytes)}</dd>
 				</div>
 				<div>
-					<dt>Compression ratio</dt>
+					<dt>Compression Ratio</dt>
 					<dd class="num">{ratioText(totals.ratio)}</dd>
 				</div>
 			</dl>
 			{#if totals.repositories.length > 1}
-				<ul class="repos" role="list" aria-label="Storage per repository">
+				<ul class="repos" role="list" aria-label="Storage per Repository">
 					{#each totals.repositories as r (r.id)}
 						<li>
 							<span class="name" title={r.name}>{r.name}</span>

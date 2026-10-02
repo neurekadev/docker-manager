@@ -74,7 +74,7 @@
 
 <Dialog
 	bind:open
-	title="Invite a user"
+	title="Invite a User"
 	description="Creates a link that registers one account. The account joins {defaultGroupName ??
 		'the default group'}."
 	dismissible={!issued}
@@ -108,7 +108,7 @@
 						error={fields['body.email']}
 					/>
 					<TextField
-						label="Expires after (hours)"
+						label="Expires After (Hours)"
 						type="number"
 						min="1"
 						bind:value={hours}
@@ -128,7 +128,7 @@
 		{#if !issued}
 			<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
 			<Button variant="primary" type="submit" form="invite-form" loading={busy}
-				>Create invite link</Button
+				>Create Invite Link</Button
 			>
 		{/if}
 	{/snippet}

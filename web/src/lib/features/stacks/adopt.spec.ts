@@ -41,9 +41,9 @@ describe('stackJobCopy', () => {
 
 	it('names other kinds by their label', () => {
 		expect(stackJobCopy('stack.import', 'Silo')).toEqual({
-			title: 'Import project: Silo',
-			success: 'Import project: Silo finished',
-			failure: 'Import project: Silo did not succeed'
+			title: 'Import Project: Silo',
+			success: 'Import Project: Silo finished',
+			failure: 'Import Project: Silo did not succeed'
 		});
 	});
 });

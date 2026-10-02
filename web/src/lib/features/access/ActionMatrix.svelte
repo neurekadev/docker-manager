@@ -98,7 +98,7 @@
 	const isOpen = (type: string) => !!filter || (toggled.get(type) ?? openAtFirst.has(type));
 
 	const allowWord = $derived(mode === 'token' ? 'Grant' : 'Allow');
-	const clearWord = $derived(mode === 'user' ? 'Inherit all' : 'Clear');
+	const clearWord = $derived(mode === 'user' ? 'Inherit All' : 'Clear');
 
 	function value(c: Capability): TriValue {
 		return effectAt(rules, c.key, node.scope) ?? 'inherit';
@@ -125,12 +125,6 @@
 	}
 
 	const sectionActions = (g: CapabilityGroup) => [...g.common, ...g.advanced];
-	// "Containers" → "containers" inside a sentence; names stay ("Docker
-	// Manager", "API tokens", "Git credentials").
-	const inSentence = (label: string) =>
-		/^(Docker|Git)\b/.test(label) || !/^[A-Z][a-z]+( [a-z(].*)?$/.test(label)
-			? label
-			: label[0].toLowerCase() + label.slice(1);
 
 	function summary(g: CapabilityGroup): string {
 		const all = sectionActions(g);
@@ -152,7 +146,7 @@
 	<li class="row">
 		<div class="what">
 			<span class="name">{c.label}</span>
-			{#if c.risk === 'high'}<Badge tone="warn">High risk</Badge>{/if}
+			{#if c.risk === 'high'}<Badge tone="warn">High Risk</Badge>{/if}
 			<p class="desc">{c.description}</p>
 		</div>
 		<div class="control">
@@ -195,7 +189,7 @@
 		{#if mode !== 'user' && !readonly && available.length}
 			<div class="preset">
 				<Select
-					label="Start from"
+					label="Start From"
 					placeholder="Choose a starting point"
 					options={[
 						...PRESETS.map((p) => ({ value: p.id, label: p.label })),
@@ -211,7 +205,7 @@
 		{/if}
 		<div class="filter">
 			<TextField
-				label="Filter actions"
+				label="Filter Actions"
 				hideLabel
 				placeholder="Filter actions"
 				type="search"
@@ -251,16 +245,16 @@
 							<Button
 								size="sm"
 								variant="ghost"
-								aria-label="{allowWord} all {inSentence(g.label)}"
+								aria-label="{allowWord} All {g.label}"
 								onclick={() =>
 									onchange(
 										setMany(rules, sectionActions(g), node.scope, 'allow')
-									)}>{allowWord} all</Button
+									)}>{allowWord} All</Button
 							>
 							<Button
 								size="sm"
 								variant="ghost"
-								aria-label="{clearWord} {inSentence(g.label)}"
+								aria-label="{clearWord} {g.label}"
 								onclick={() =>
 									onchange(setMany(rules, sectionActions(g), node.scope, null))}
 								>{clearWord}</Button

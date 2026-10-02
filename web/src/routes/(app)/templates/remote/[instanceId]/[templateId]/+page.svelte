@@ -1,10 +1,10 @@
 <script lang="ts">
 	// A template of a template source (another Docker Manager), read-only:
-	// the page header with its links and "Create stack" (template.use),
+	// the page header with its links and "Create Stack" (template.use),
 	// what its newest
 	// version runs (services, images, ports and .env names, downloaded from
 	// its source with template.use; values never shown), and its published
-	// versions with their notes and "Duplicate as a new template". Its files
+	// versions with their notes and "Duplicate as a New Template". Its files
 	// stay on its source until a stack is created from it.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
@@ -81,7 +81,7 @@
 
 {#snippet duplicateAction()}
 	<Button size="sm" icon={Copy} onclick={() => (duplicating = true)}
-		>Duplicate as a new template</Button
+		>Duplicate as a New Template</Button
 	>
 {/snippet}
 
@@ -98,7 +98,7 @@
 		level={1}
 	>
 		{#snippet actions()}<Button variant="primary" href={routes.templates()}
-				>Open templates</Button
+				>Open Templates</Button
 			>{/snippet}
 	</EmptyState>
 {:else if item.isError}
@@ -123,7 +123,7 @@
 						variant="primary"
 						icon={Plus}
 						href={routes.stackFromTemplate(t.templateId, null, t.instanceId)}
-						>Create stack</Button
+						>Create Stack</Button
 					>
 				{/if}
 			{/snippet}
@@ -137,7 +137,7 @@
 							size="sm"
 							label={tag}
 							href={routes.templates(tag)}
-							title="Show templates tagged {tag}"
+							title="Show Templates Tagged {tag}"
 						/>
 					</li>
 				{/each}
@@ -146,7 +146,7 @@
 
 		{#if latest && canUse}
 			<Card
-				title="What it runs"
+				title="What It Runs"
 				subtitle="{versionTitle(
 					latest.label
 				)}: its services and the settings its .env asks for."

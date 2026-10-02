@@ -34,8 +34,8 @@ describe('schedules model (#13)', () => {
 	});
 
 	it('annotates DST gaps and repeats', () => {
-		expect(dstLabel({ dst: 'repeated' })).toBe('Clocks move back');
-		expect(dstLabel({ dst: 'gap' })).toBe('Clocks move forward');
+		expect(dstLabel({ dst: 'repeated' })).toBe('Clocks Move Back');
+		expect(dstLabel({ dst: 'gap' })).toBe('Clocks Move Forward');
 		expect(dstLabel({ dst: 'none' })).toBeNull();
 	});
 
@@ -136,7 +136,7 @@ describe('schedule filters (#13)', () => {
 			scheduleFilters(rows, { envs })
 				.find((f) => f.id === 'environment')
 				?.options?.map((o) => o.label)
-		).toEqual(['Manager or all environments', 'homelab', 'nas']);
+		).toEqual(['Manager or All Environments', 'homelab', 'nas']);
 	});
 
 	it('searches the policy, kind, time zone and environment', () => {
@@ -150,7 +150,7 @@ describe('schedule filters (#13)', () => {
 	it('names where a schedule applies and which names need it', () => {
 		const envName = (id: string) => names.get(id);
 		expect(scheduleScope({ kind: 'backup', environmentId: 'e1' }, envName)).toBe('homelab');
-		expect(scheduleScope({ kind: 'update_check' }, envName)).toBe('All environments');
+		expect(scheduleScope({ kind: 'update_check' }, envName)).toBe('All Environments');
 		expect(scheduleScope({ kind: 'backup' }, envName)).toBe('Manager');
 		expect([
 			...sharedNames([
