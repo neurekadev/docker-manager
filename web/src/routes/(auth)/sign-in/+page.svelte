@@ -6,8 +6,11 @@
 	// the forms check on submit and say what is missing next to the field.
 	// "Stay signed in" (when the sign-in policy offers it) applies to the
 	// password and the passkey sign-in alike; the browser remembers the last
-	// choice (stay.ts). The second step keeps the choice of the first.
-	import { tick } from 'svelte';
+	// choice (stay.ts). The second step keeps the choice of the first and
+	// asks for one factor at a time (verify.ts, #186): a passkey first, its
+	// browser prompt opening at once, with a switch to the authenticator
+	// code that the browser remembers.
+	import { tick, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Fingerprint from '@lucide/svelte/icons/fingerprint';
@@ -19,6 +22,12 @@
 		passkeysSupported,
 		requestOptions
 	} from '$lib/auth/webauthn';
+	import {
+		initialMethod,
+		rememberMethod,
+		secondFactorMethods,
+		type VerifyMethod
+	} from '$lib/auth/verify';
 	import AuthHeader from '$lib/features/auth/AuthHeader.svelte';
 	import { readStaySignedIn, rememberStaySignedIn } from '$lib/features/auth/stay';
 	import { isValid, requiredErrors, submitted, untilFilled } from '$lib/features/auth/validate';
@@ -44,6 +53,10 @@
 	let busy = $state<string | null>(null);
 	let message = $state<string | null>(null);
 	let factors = $state<string[]>([]);
+	let method = $state<VerifyMethod | null>(null);
+	/** The passkey prompt in progress: aborted when the user moves on. */
+	let ceremony: AbortController | null = null;
+	const methods = $derived(secondFactorMethods(factors, passkeysSupported()));
 	let stay = $state(readStaySignedIn());
 	const stayOffered = $derived(!!flow.setup.data?.staySignedInAllowed);
 	/** The choice sent with a sign-in: only when the policy offers it. */
@@ -83,10 +96,35 @@
 	$effect(() => {
 		const s = flow.session.data;
 		if (s?.state === 'second_factor_required' && step === 'password') {
-			factors = s.factors;
-			step = 'second';
+			const pending = s.factors;
+			untrack(() => toSecondStep(pending));
 		}
 	});
+
+	/** Shows the second step with its default (or remembered) factor. */
+	function toSecondStep(next: string[]) {
+		factors = next;
+		step = 'second';
+		message = null;
+		method = initialMethod(secondFactorMethods(next, passkeysSupported()));
+		if (method === 'passkey') void passkey();
+	}
+
+	/** Ends a passkey prompt in progress; its late result is ignored. */
+	function stopPasskey() {
+		ceremony?.abort();
+		ceremony = null;
+		if (busy === 'passkey') busy = null;
+	}
+
+	function switchTo(m: VerifyMethod) {
+		stopPasskey();
+		method = m;
+		message = null;
+		invalid = {};
+		rememberMethod(m);
+		if (m === 'passkey') void passkey();
+	}
 
 	function explain(e: unknown, what: 'password' | 'code' | 'passkey' | 'recovery'): string {
 		const v = errorView(e);
@@ -110,9 +148,7 @@
 
 	async function after(s: Session) {
 		if (s.state === 'second_factor_required') {
-			factors = s.factors;
-			step = 'second';
-			message = null;
+			toSecondStep(s.factors);
 			return;
 		}
 		await flow.proceed(s);
@@ -138,7 +174,7 @@
 			message = explain(err, 'password');
 			if (errorView(err).code === 'no_pending_flow') step = 'password';
 		} finally {
-			busy = null;
+			if (busy === 'password') busy = null;
 			password = '';
 		}
 	}
@@ -162,7 +198,7 @@
 			message = explain(err, 'code');
 			if (errorView(err).code === 'no_pending_flow') step = 'password';
 		} finally {
-			busy = null;
+			if (busy === 'code') busy = null;
 			code = '';
 		}
 	}
@@ -186,11 +222,14 @@
 			message = explain(err, 'recovery');
 			if (errorView(err).code === 'no_pending_flow') step = 'password';
 		} finally {
-			busy = null;
+			if (busy === 'recovery') busy = null;
 		}
 	}
 
 	async function passkey() {
+		ceremony?.abort();
+		const abort = new AbortController();
+		ceremony = abort;
 		busy = 'passkey';
 		message = null;
 		try {
@@ -200,9 +239,10 @@
 				})
 			);
 			const cred = (await navigator.credentials.get({
-				publicKey: requestOptions(options)
+				publicKey: requestOptions(options),
+				signal: abort.signal
 			})) as PublicKeyCredential | null;
-			if (!cred) return;
+			if (!cred || abort.signal.aborted) return;
 			const s = await unwrap(
 				api.POST('/api/v1/auth/passkeys/authentication-verifications', {
 					body: { credential: credentialToJSON(cred), staySignedIn }
@@ -210,9 +250,12 @@
 			);
 			await after(s);
 		} catch (err) {
-			if (!isCancelled(err)) message = explain(err, 'passkey');
+			if (!isCancelled(err) && !abort.signal.aborted) message = explain(err, 'passkey');
 		} finally {
-			busy = null;
+			if (ceremony === abort) {
+				ceremony = null;
+				busy = null;
+			}
 		}
 	}
 </script>
@@ -296,7 +339,18 @@
 			Forgot your password? Ask the owner of this Docker Manager for a reset link.
 		</p>
 	{:else if step === 'second'}
-		{#if factors.includes('totp')}
+		{#if method === 'passkey'}
+			<Button
+				icon={Fingerprint}
+				block
+				variant="primary"
+				loading={busy === 'passkey'}
+				disabled={!!busy}
+				onclick={passkey}
+			>
+				Use a passkey
+			</Button>
+		{:else if method === 'totp'}
 			<form onsubmit={submitCode} novalidate>
 				<TextField
 					label="Authenticator code"
@@ -321,32 +375,40 @@
 				</Button>
 			</form>
 		{/if}
-		{#if factors.includes('passkey') && passkeysSupported()}
-			<Button
-				icon={Fingerprint}
-				block
-				variant={factors.includes('totp') ? 'secondary' : 'primary'}
-				loading={busy === 'passkey'}
-				disabled={!!busy}
-				onclick={passkey}
-			>
-				Use a passkey
-			</Button>
-		{/if}
 		<div class="links">
+			{#if method === 'passkey' && methods.includes('totp')}
+				<button type="button" class="link" onclick={() => switchTo('totp')}
+					>Use authenticator code instead</button
+				>
+			{:else if method === 'totp' && methods.includes('passkey')}
+				<button
+					type="button"
+					class="link"
+					disabled={!!busy}
+					onclick={() => switchTo('passkey')}>Use a passkey instead</button
+				>
+			{/if}
 			{#if factors.includes('recovery_code')}
 				<button
 					type="button"
 					class="link"
-					onclick={() => ((step = 'recovery'), (message = null), (invalid = {}))}
-					>Use a recovery code</button
+					onclick={() => (
+						stopPasskey(),
+						(step = 'recovery'),
+						(message = null),
+						(invalid = {})
+					)}>Use a recovery code</button
 				>
 			{/if}
 			<button
 				type="button"
 				class="link"
-				onclick={() => ((step = 'password'), (message = null), (invalid = {}))}
-				>Start over</button
+				onclick={() => (
+					stopPasskey(),
+					(step = 'password'),
+					(message = null),
+					(invalid = {})
+				)}>Start over</button
 			>
 		</div>
 	{:else}

@@ -437,7 +437,7 @@ func (s *Service) finishStepUpPasskey(ctx context.Context, cur *current, respons
 		return err
 	}
 	_, cred, err := s.kit.RP.FinishLogin(sd, response, wu, nil)
-	if err != nil { // StepUp counts the failure
+	if err != nil { // stepUpWithPasskey counts the failure
 		s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "passkey")
 		return domain.ErrInvalidCredentials
 	}

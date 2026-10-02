@@ -18619,6 +18619,7 @@
             "description": "A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up."
           },
           "password": {
+            "description": "Confirms on its own; used when neither credential nor totpCode is sent.",
             "examples": [
               "correct-horse-battery-staple"
             ],
@@ -18626,7 +18627,7 @@
             "type": "string"
           },
           "totpCode": {
-            "description": "Required with password when TOTP is enabled.",
+            "description": "The authenticator code: confirms on its own when TOTP is enabled (the password is then not checked).",
             "maxLength": 16,
             "type": "string"
           }
@@ -25483,7 +25484,7 @@
     },
     "/api/v1/auth/step-ups": {
       "post": {
-        "description": "Proves the caller's identity again before sensitive changes (security settings, invitations, password, factor removal and resets, which answer 403 step_up_required otherwise): the password plus a TOTP code when TOTP is enabled, or a passkey assertion from authentication options requested with purpose step_up. Valid for 10 minutes; renews the session token.",
+        "description": "Proves the caller's identity again before sensitive changes (security settings, invitations, password, factor removal and resets, which answer 403 step_up_required otherwise) with exactly one factor, the first one sent: a passkey assertion from authentication options requested with purpose step_up, else a TOTP code (TOTP enabled), else the password. 422 when none is sent. Valid for 10 minutes; renews the session token.",
         "operationId": "create-auth-step-up",
         "requestBody": {
           "content": {

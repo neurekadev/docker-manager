@@ -788,3 +788,48 @@ func TestBothFactorsPolicy(t *testing.T) {
 		t.Fatalf("passkey alone under both: %d %s", r.status, r.body)
 	}
 }
+
+// TestStepUpUsesOneFactor: a step-up takes exactly one factor, whichever
+// the request carries: a passkey, a TOTP code alone, or the password,
+// which stays a fallback for accounts with a second factor.
+func TestStepUpUsesOneFactor(t *testing.T) {
+	e := newEnv(t)
+	owner, _ := e.setupOwner()
+	stepUp := "/api/v1/auth/step-ups"
+	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, stepUp, map[string]string{})
+
+	alice, alicePW, _ := e.newUser(owner, "alice")
+	secret, _ := alice.enrollTOTP()
+	e.clk.Advance(30 * time.Second)
+	alice.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, stepUp, map[string]string{"totpCode": "000000x"})
+	// The code is checked on its own: a right password does not help.
+	alice.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, stepUp, map[string]string{"password": alicePW, "totpCode": "000000x"})
+	var st struct {
+		RecentAuthUntil *time.Time `json:"recentAuthUntil"`
+	}
+	e.clk.Advance(auth.StepUpWindow + time.Second)
+	alice.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"totpCode": e.totpCode(secret)}).json(t, &st)
+	if st.RecentAuthUntil == nil || !st.RecentAuthUntil.After(e.clk.Now()) {
+		t.Fatalf("TOTP step-up not recorded: %+v", st)
+	}
+	e.clk.Advance(auth.StepUpWindow + time.Second)
+	alice.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"password": alicePW}).json(t, &st)
+	if st.RecentAuthUntil == nil || !st.RecentAuthUntil.After(e.clk.Now()) {
+		t.Fatalf("password fallback not recorded: %+v", st)
+	}
+
+	// Passkey and TOTP: any one of them, or the password.
+	bob, bobPW, _ := e.newUser(owner, "bob")
+	dev := newDevice(publicOrigin, publicHost)
+	if reg := bob.registerPasskey(dev, "laptop"); reg.status != http.StatusCreated {
+		t.Fatalf("passkey %d %s", reg.status, reg.body)
+	}
+	bobSecret, _ := bob.enrollTOTP()
+	if r := bob.assertPasskey(dev, "step_up", stepUp); r.status != http.StatusOK {
+		t.Fatalf("passkey step-up: %d %s", r.status, r.body)
+	}
+	e.clk.Advance(30 * time.Second)
+	bob.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"totpCode": e.totpCode(bobSecret)})
+	bob.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"password": bobPW})
+	bob.fail(http.StatusUnauthorized, "invalid_credentials", http.MethodPost, stepUp, map[string]string{"password": e.secrets.New(canary.Password, "nope")})
+}

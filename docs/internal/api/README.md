@@ -57,7 +57,8 @@ administration); public operations have none.
   factor removal, Recovery Key flows) additionally require a recent
   re-authentication (`POST /api/v1/auth/step-ups`, valid 10 minutes; a
   fresh sign-in counts); the route answers `403 step_up_required`
-  otherwise (#16).
+  otherwise (#16). A step-up takes exactly one factor, the first one sent
+  (#186): a passkey assertion, else a TOTP code, else the password.
 - Session and permission changes invalidate open streams (#23).
 
 ### `bearerToken` — scripts and integrations (#31)

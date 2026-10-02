@@ -322,57 +322,92 @@ func (s *Service) SignOut(ctx context.Context) error {
 	return nil
 }
 
-// StepUp re-authenticates the caller for sensitive changes: a passkey
-// assertion (options with purpose step_up), or the password plus a TOTP
-// code when TOTP is enabled.
+// StepUp re-authenticates the caller for sensitive changes with exactly
+// one factor, whichever the request carries: a passkey assertion (options
+// with purpose step_up), else a TOTP code, else the password. No step-up
+// asks for two factors (the session already proved the sign-in); the
+// password is a fallback every account with one may use.
 func (s *Service) StepUp(ctx context.Context, req domain.StepUp) (domain.SessionState, error) {
 	cur, err := s.session(ctx, true)
 	if err != nil {
 		return domain.SessionState{}, err
 	}
-	att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
+	var proven factorSet
+	switch {
+	case len(req.PasskeyResponse) > 0:
+		proven, err = fPasskey, s.stepUpWithPasskey(ctx, cur, req.PasskeyResponse)
+	case strings.TrimSpace(req.TOTPCode) != "":
+		proven, err = fTOTP, s.stepUpWithTOTP(ctx, cur, req.TOTPCode)
+	case req.Password != "":
+		proven, err = fPassword, s.stepUpWithPassword(ctx, cur, req.Password)
+	default:
+		err = &domain.FieldError{Field: "password", Message: "a password, an authenticator code or a passkey assertion is required"}
+	}
 	if err != nil {
 		return domain.SessionState{}, err
-	}
-	defer att.release()
-	var proven factorSet
-	if len(req.PasskeyResponse) > 0 {
-		if err := s.finishStepUpPasskey(ctx, cur, req.PasskeyResponse); err != nil {
-			if errors.Is(err, domain.ErrInvalidCredentials) {
-				att.fail()
-			}
-			return domain.SessionState{}, err
-		}
-		proven = fPasskey
-	} else {
-		_, creds, err := store.GetUserWithCredentials(ctx, s.db, cur.user.ID)
-		if err != nil {
-			return domain.SessionState{}, err
-		}
-		ok, _, err := s.kit.Passwords.Verify(ctx, req.Password, creds.PasswordHash)
-		if err != nil {
-			return domain.SessionState{}, err
-		}
-		if !ok {
-			att.fail()
-			s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "invalid_credentials")
-			return domain.SessionState{}, domain.ErrInvalidCredentials
-		}
-		proven = fPassword
-		att.release() // the TOTP code counts on its own
-		if cur.user.TOTPEnabled {
-			if err := s.verifyTOTP(ctx, cur.user, creds, req.TOTPCode); err != nil {
-				s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "totp")
-				return domain.SessionState{}, err
-			}
-			proven |= fTOTP
-		}
 	}
 	if err := s.rotate(ctx, cur, cur.stage, cur.user.SessionEpoch, cur.proven|proven); err != nil {
 		return domain.SessionState{}, err
 	}
 	s.record(ctx, "auth.step_up", OutcomeSuccess, cur.user.ID, "user", cur.user.ID, "")
 	return s.state(ctx)
+}
+
+// stepUpWithPasskey verifies a step-up passkey assertion; a failed one
+// counts against the account's limit.
+func (s *Service) stepUpWithPasskey(ctx context.Context, cur *current, response []byte) error {
+	att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
+	if err != nil {
+		return err
+	}
+	defer att.release()
+	if err := s.finishStepUpPasskey(ctx, cur, response); err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			att.fail()
+		}
+		return err
+	}
+	return nil
+}
+
+// stepUpWithTOTP verifies a step-up TOTP code (verifyTOTP counts the
+// failures; an account without TOTP always fails).
+func (s *Service) stepUpWithTOTP(ctx context.Context, cur *current, code string) error {
+	_, creds, err := store.GetUserWithCredentials(ctx, s.db, cur.user.ID)
+	if err != nil {
+		return err
+	}
+	if err := s.verifyTOTP(ctx, cur.user, creds, code); err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "totp")
+		}
+		return err
+	}
+	return nil
+}
+
+// stepUpWithPassword verifies the account's password; a wrong one (or an
+// account without a password) counts against the account's limit.
+func (s *Service) stepUpWithPassword(ctx context.Context, cur *current, pw string) error {
+	att, err := s.begin(ctx, s.accountLimit(userKey(cur.user.ID)))
+	if err != nil {
+		return err
+	}
+	defer att.release()
+	_, creds, err := store.GetUserWithCredentials(ctx, s.db, cur.user.ID)
+	if err != nil {
+		return err
+	}
+	ok, _, err := s.kit.Passwords.Verify(ctx, pw, creds.PasswordHash)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		att.fail()
+		s.record(ctx, "auth.step_up", OutcomeFailure, cur.user.ID, "user", cur.user.ID, "invalid_credentials")
+		return domain.ErrInvalidCredentials
+	}
+	return nil
 }
 
 // passwordPolicy returns the instance password policy.

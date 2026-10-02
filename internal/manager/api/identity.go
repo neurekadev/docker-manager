@@ -342,8 +342,8 @@ type createSessionInput struct {
 
 type stepUpInput struct {
 	Body struct {
-		Password   string          `json:"password,omitempty" example:"correct-horse-battery-staple" maxLength:"1024"`
-		TOTPCode   string          `json:"totpCode,omitempty" maxLength:"16" doc:"Required with password when TOTP is enabled."`
+		Password   string          `json:"password,omitempty" example:"correct-horse-battery-staple" maxLength:"1024" doc:"Confirms on its own; used when neither credential nor totpCode is sent."`
+		TOTPCode   string          `json:"totpCode,omitempty" maxLength:"16" doc:"The authenticator code: confirms on its own when TOTP is enabled (the password is then not checked)."`
 		Credential json.RawMessage `json:"credential,omitempty" doc:"A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up."`
 	}
 }
