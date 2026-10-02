@@ -196,7 +196,10 @@ there is no native `<select>`. Tooltips: `$lib/ui/TooltipLayer.svelte`,
 mounted once in the root layout, shows every `title` attribute as a
 themed tooltip (on hover after 400 ms and on keyboard focus; the title
 moves to `data-dy-title` while shown so the native one never appears,
-and the element is described by the tooltip). `Tooltip.svelte` stays for
+and the element is described by the tooltip unless its accessible name
+is the same text). Info tips (`data-dy-info`: `InfoTip`, `Disclosure`'s
+hint) also open on a tap, since touch has no hover; a second tap or a tap
+elsewhere hides them. `Tooltip.svelte` stays for
 controls that want an explicit trigger (`IconButton`).
 
 The permission editor of #17 (the design's "PermissionTree") is

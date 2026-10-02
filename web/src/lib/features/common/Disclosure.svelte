@@ -3,7 +3,8 @@
 	// and screen readers for free): explanations, less common options.
 	// `hint` adds an (i) to the summary that explains the group: a themed
 	// title tooltip (never a focusable control inside <summary>) that is
-	// also part of the summary's accessible name.
+	// also part of the summary's accessible name; as an info tip
+	// (`data-dy-info`) a tap shows it instead of toggling the group.
 	import type { Snippet } from 'svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Info from '@lucide/svelte/icons/info';
@@ -22,7 +23,8 @@
 				class="hint"
 				role="img"
 				aria-label={hint}
-				title={hint}><Info size={13} strokeWidth={1.75} aria-hidden="true" /></span
+				title={hint}
+				data-dy-info><Info size={13} strokeWidth={1.75} aria-hidden="true" /></span
 			>{/if}</summary
 	>
 	<div class="body">{@render children()}</div>

@@ -1,20 +1,16 @@
 <script lang="ts">
 	// An (i) beside a label or control that explains it (#22): the
-	// explanation is both the tooltip (hover, keyboard focus) and the
-	// accessible name, so it never depends on hovering.
+	// explanation is both the tooltip and the accessible name, so it never
+	// depends on hovering. The tooltip is TooltipLayer's info tip
+	// (`data-dy-info`): hover, keyboard focus, and a tap on touch screens.
 	import Info from '@lucide/svelte/icons/info';
-	import Tooltip from './Tooltip.svelte';
 
 	let { text }: { text: string } = $props();
 </script>
 
-<Tooltip {text} delay={150}>
-	{#snippet trigger(props)}
-		<span {...props} class="info-tip" role="img" tabindex="0" aria-label={text}>
-			<Info size={14} strokeWidth={1.75} aria-hidden="true" />
-		</span>
-	{/snippet}
-</Tooltip>
+<span class="info-tip" role="img" tabindex="0" aria-label={text} title={text} data-dy-info>
+	<Info size={14} strokeWidth={1.75} aria-hidden="true" />
+</span>
 
 <style>
 	.info-tip {
