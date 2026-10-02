@@ -55,9 +55,9 @@ A failed scheduled or API token job is sent as the kind of its area
 backup retention, verification and imports (of policies and of Docker
 Manager's own backup) as `backup`, update checks as `updates`;
 `job_failed` holds the rest (in practice jobs API tokens start, such as
-deploys). Such a job's resolution is sent with the outcome its failure
-was sent with (`failure`, or `warning` for `backup`) to the channels
-that were told, never as the area's `success`.
+deploys). Such a job's resolution goes to every channel that was told,
+with an outcome that channel was told and still sends (`failure`, or
+`warning` for `backup`), never as the area's `success`.
 
 A new channel subscribes to every outcome of every kind. The migration
 `20261001090000_notification_events` turned an old channel's kinds into

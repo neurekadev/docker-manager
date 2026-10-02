@@ -103,9 +103,9 @@ func (a Alert) Outcome(event string) NotificationOutcome {
 // is sent as the kind of its job's area (JobEventKind) when it has one:
 // failed is a failure; partly failed or interrupted a warning where the
 // area has warnings (backups), else a failure. Its resolution (the next
-// run succeeded) has the outcome its failure was sent with, so a channel
-// that was told about the failure and still sends that outcome gets it
-// (the area has no "resolved"; the message still says it is resolved and
+// run succeeded) has the outcome of the alert's severity; a told channel
+// that does not send it gets the resolution with an outcome it was told
+// (alerts.write) (the area has no "resolved"; the message still says it is resolved and
 // looks like one, AlertDelivery.Tone). Any other alert: its kind and
 // Outcome.
 func (a Alert) SentAs(event string) (NotificationEventKind, NotificationOutcome) {

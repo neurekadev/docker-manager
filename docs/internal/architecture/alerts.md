@@ -216,10 +216,12 @@ after the commit.
   `job_failed` (in practice jobs API tokens start, such as deploys).
   Firing: failed is `failure`; partly failed or interrupted is `warning`
   where the area has warnings (`backup`), else `failure`. The area has
-  no `resolved`: the resolution is sent with the outcome its failure was
-  sent with (from the alert's severity when it resolves), so it reaches
-  the told channels (`resolve`, raise.go) that still send that outcome,
-  checked again by the dispatcher (`Wants`); never the area's `success`,
+  no `resolved`: the resolution goes to each told channel (`resolve`,
+  raise.go) with the outcome the alert has when it resolves, or, when
+  the channel does not send that one, with an outcome it was told before
+  (a failure lowered to a warning by a later partly failed run still
+  resolves to a channel that sends failures only; `write`), checked again
+  by the dispatcher (`Wants`); never the area's `success`,
   which would need run successes switched on. Its status line says
   "Resolved" (`deliveryLabel`) and its tone is green (`Tone` of a
   `resolved` event). `job_failed` keeps its own outcomes. The migration

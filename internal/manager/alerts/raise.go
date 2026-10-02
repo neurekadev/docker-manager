@@ -92,7 +92,8 @@ func sameView(a, b domain.Alert) bool {
 
 // resolve ends a firing alert. Only AlertResolvedFixed is announced, to
 // the channels that were told about the alert (a message of it was sent)
-// and send resolved problems; a message of the alert not sent yet is
+// and send resolved problems (a failed job sent as its area's kind: to
+// every told channel, with an outcome it was told); a message of the alert not sent yet is
 // dropped instead, with its resolution (nothing to report).
 func resolve(ctx context.Context, db bun.IDB, a domain.Alert, resolution string, now time.Time) (*domain.Alert, error) {
 	if a.State != domain.AlertFiring {
@@ -110,13 +111,16 @@ func resolve(ctx context.Context, db bun.IDB, a domain.Alert, resolution string,
 	if err != nil {
 		return nil, err
 	}
-	told := map[string]bool{}
+	// told: the channels that were sent a message of this alert, with the
+	// outcomes they were sent (a failed job sent as its area's kind: its
+	// resolution goes out with one of them, see write).
+	told := map[string][]domain.NotificationOutcome{}
 	var drop []domain.AlertDelivery
 	for _, d := range ds {
 		switch {
 		case d.Event == domain.AlertEventResolved:
 		case d.State == domain.DeliverySent:
-			told[d.ChannelID] = true
+			told[d.ChannelID] = append(told[d.ChannelID], d.Outcome)
 		case d.State == domain.DeliveryPending:
 			d.State, d.UpdatedAt = domain.DeliveryDropped, now
 			drop = append(drop, d)
@@ -165,6 +169,9 @@ type snapshot struct {
 	outcome                 domain.NotificationOutcome
 	title, body, link       string
 	fields                  []domain.NotificationField
+	// toldOutcomes: a channel that does not send outcome may get the
+	// message with an outcome it was told before (only's), which it sends.
+	toldOutcomes bool
 }
 
 // enqueueTo adds a message of a to every channel that wants its outcome
@@ -173,11 +180,18 @@ type snapshot struct {
 // a failed job: its notification says it (with its own subscription).
 // Another failed job of an area (a backup verification, an update check)
 // is sent as its area's kind (domain.Alert.SentAs).
-func enqueueTo(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time, only map[string]bool) error {
+func enqueueTo(ctx context.Context, db bun.IDB, a domain.Alert, event string, now time.Time,
+	only map[string][]domain.NotificationOutcome) error {
 	if a.Kind == domain.NotifyJobFailed && domain.NotificationKindOfJob(a.JobKind) != "" {
 		return nil
 	}
-	return write(ctx, db, alertSnapshot(a, event), now, only, func() []domain.NotificationField {
+	m := alertSnapshot(a, event)
+	// A failed job sent as its area's kind has no "resolved" outcome: its
+	// resolution goes to each told channel with an outcome it was sent
+	// (the alert's severity may have changed since: a later run that only
+	// partly failed lowers a failure to a warning).
+	m.toldOutcomes = event == domain.AlertEventResolved && m.kind != a.Kind
+	return write(ctx, db, m, now, only, func() []domain.NotificationField {
 		return alertFields(a, environmentName(ctx, db, a.EnvironmentID), event)
 	})
 }
@@ -195,22 +209,36 @@ func alertSnapshot(a domain.Alert, event string) snapshot {
 }
 
 // write adds the message m to every channel that wants it (only: to
-// those channels only). A message is never due before the channel's
+// those channels only; with m.toldOutcomes, a channel that does not send
+// m's outcome gets it with the first of its told outcomes it sends). A message is never due before the channel's
 // earlier ones (a channel waiting out a failed send keeps its order), so
 // the dispatcher finds due channels by due time alone. fields is called
 // only when some channel wants the message.
-func write(ctx context.Context, db bun.IDB, m snapshot, now time.Time, only map[string]bool,
+func write(ctx context.Context, db bun.IDB, m snapshot, now time.Time, only map[string][]domain.NotificationOutcome,
 	fields func() []domain.NotificationField) error {
 	channels, err := store.ListNotificationChannels(ctx, db, "", 0)
 	if err != nil {
 		return err
 	}
 	var targets []string
+	outcomes := map[string]domain.NotificationOutcome{}
 	for _, c := range channels {
-		if (only != nil && !only[c.ID]) || !c.Wants(m.kind, m.outcome, m.environmentID) {
+		told, ok := only[c.ID]
+		if only != nil && !ok {
+			continue
+		}
+		outcome, wanted := m.outcome, c.Wants(m.kind, m.outcome, m.environmentID)
+		for _, o := range told {
+			if wanted || !m.toldOutcomes {
+				break
+			}
+			outcome, wanted = o, c.Wants(m.kind, o, m.environmentID)
+		}
+		if !wanted {
 			continue
 		}
 		targets = append(targets, c.ID)
+		outcomes[c.ID] = outcome
 	}
 	if len(targets) == 0 {
 		return nil
@@ -227,7 +255,9 @@ func write(ctx context.Context, db bun.IDB, m snapshot, now time.Time, only map[
 		if l, ok := latest[id]; ok && l.After(due) {
 			due = l
 		}
-		ds = append(ds, newDelivery(m, id, now, due))
+		d := newDelivery(m, id, now, due)
+		d.Outcome = outcomes[id]
+		ds = append(ds, d)
 	}
 	return store.InsertAlertDeliveries(ctx, db, ds)
 }

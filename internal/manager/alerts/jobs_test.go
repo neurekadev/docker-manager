@@ -127,6 +127,31 @@ func TestFailedJobsAreSentByTheirArea(t *testing.T) {
 	}
 }
 
+// TestAreaResolutionReachesEveryToldChannel: a failure lowered to a
+// warning by a later run that only partly failed still resolves to the
+// channel that was told about the failure and sends no warnings (the
+// resolution goes out with the outcome it was told).
+func TestAreaResolutionReachesEveryToldChannel(t *testing.T) {
+	f := newFixture(t)
+	failures := f.channelWith("backup failures", domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}})
+	f.finish(backupJob(domain.JobFailed, domain.OriginScheduled))
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID {
+		t.Fatalf("failure: %+v", got)
+	}
+	f.finish(backupJob(domain.JobPartial, domain.OriginScheduled))
+	if a := f.one(); a.Severity != domain.AlertWarning {
+		t.Fatalf("a partly failed run lowers the alert: %+v", a)
+	}
+	if got := f.dispatch(); len(got) != 0 {
+		t.Fatalf("a lowered alert is not sent again: %+v", got)
+	}
+	f.finish(backupJob(domain.JobSucceeded, domain.OriginScheduled))
+	if got := f.dispatch(); len(got) != 1 || got[0].channel != failures.ID || got[0].msg.Label != "Backups · Resolved" ||
+		got[0].msg.Tone != domain.ToneSuccess {
+		t.Fatalf("resolution: %+v", got)
+	}
+}
+
 func TestManualJobFailuresStayBrowserNotices(t *testing.T) {
 	f := newFixture(t)
 	f.finish(backupJob(domain.JobFailed, domain.OriginManual))
