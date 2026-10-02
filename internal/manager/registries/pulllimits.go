@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/manager/regclient"
 	"github.com/neurekadev/docker-manager/internal/manager/store"
@@ -79,17 +81,21 @@ func (s *Service) observeRateLimit(ctx context.Context, rl regclient.RateLimit) 
 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), limitWriteTimeout)
 	defer cancel()
-	if connID != "" {
-		current, err := s.currentCredential(ctx, connID, version)
-		if err != nil {
-			s.opts.Logger.Warn("could not record a registry pull limit", "registry", rl.Host, "registry_connection_id", connID, "error", err)
+	// One transaction (BEGIN IMMEDIATE on the single connection): the
+	// credential check and the write are serialized with Rotate and Delete,
+	// so a stale answer can never be written after its rows were removed.
+	applied := false
+	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if connID != "" {
+			current, err := currentCredential(ctx, tx, connID, version)
+			if err != nil || !current {
+				return err
+			}
 		}
-		if !current {
-			s.forgetWrite(key, rl.At)
-			return
-		}
-	}
-	applied, err := store.RecordRegistryPullLimit(ctx, s.db, pullLimitOf(rl, connID))
+		var err error
+		applied, err = store.RecordRegistryPullLimit(ctx, tx, pullLimitOf(rl, connID))
+		return err
+	})
 	if err != nil {
 		s.opts.Logger.Warn("could not record a registry pull limit", "registry", rl.Host, "registry_connection_id", connID, "error", err)
 	}
@@ -102,8 +108,8 @@ func (s *Service) observeRateLimit(ctx context.Context, rl regclient.RateLimit) 
 
 // currentCredential reports whether a connection exists, is active and its
 // secret version is version.
-func (s *Service) currentCredential(ctx context.Context, connID string, version int) (bool, error) {
-	c, err := store.GetRegistryConnection(ctx, s.db, connID)
+func currentCredential(ctx context.Context, db bun.IDB, connID string, version int) (bool, error) {
+	c, err := store.GetRegistryConnection(ctx, db, connID)
 	if errors.Is(err, domain.ErrRegistryConnectionNotFound) {
 		return false, nil
 	}

@@ -189,8 +189,9 @@ last answer was a 429 and `limited_until` has not passed.
   memory, so it never holds back the next one.
 - An answer to a connection's credential is stored only while the
   connection exists, is active and its secret version equals the version
-  in the credential key: a check in flight across a rotation or deletion
-  never brings the connection's rows back.
+  in the credential key, checked in the same transaction as the write
+  (serialized with Rotate and Delete): a check in flight across a rotation
+  or deletion never brings the connection's rows back.
 - Deleting a connection or rotating its credential (maybe another account)
   deletes its rows; anonymous rows stay.
 - The numbers are what the registry reported to the manager's checks:
