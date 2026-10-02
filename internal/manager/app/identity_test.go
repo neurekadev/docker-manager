@@ -794,7 +794,7 @@ func TestBothFactorsPolicy(t *testing.T) {
 // which stays a fallback for accounts with a second factor.
 func TestStepUpUsesOneFactor(t *testing.T) {
 	e := newEnv(t)
-	owner, _ := e.setupOwner()
+	owner, ownerPW := e.setupOwner()
 	stepUp := "/api/v1/auth/step-ups"
 	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, stepUp, map[string]string{})
 
@@ -818,7 +818,9 @@ func TestStepUpUsesOneFactor(t *testing.T) {
 		t.Fatalf("password fallback not recorded: %+v", st)
 	}
 
-	// Passkey and TOTP: any one of them, or the password.
+	// Passkey and TOTP: any one of them, or the password. The clock moved
+	// past the owner's step-up window, so inviting needs a new one.
+	owner.must(http.StatusOK, http.MethodPost, stepUp, map[string]string{"password": ownerPW})
 	bob, bobPW, _ := e.newUser(owner, "bob")
 	dev := newDevice(publicOrigin, publicHost)
 	if reg := bob.registerPasskey(dev, "laptop"); reg.status != http.StatusCreated {

@@ -106,7 +106,8 @@ export class RegexSearch {
 	#send() {
 		const lines = this.#lines;
 		if (this.#results.size > lines.length * 2) {
-			// Forget the lines that left the buffer.
+			// Forget the lines that left the buffer (a throwaway lookup, never rendered).
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity
 			const kept = new Set(lines.map((l) => l.seq));
 			for (const seq of [...this.#results.keys()])
 				if (!kept.has(seq)) this.#results.delete(seq);
