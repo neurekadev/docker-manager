@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -98,12 +99,16 @@ type Enrollments interface {
 	RevokeEnrollment(ctx context.Context, id string) (domain.Enrollment, error)
 	GetAgent(ctx context.Context, id string) (domain.Agent, error)
 	GetEnvironment(ctx context.Context, id string) (domain.Environment, error)
+	// RotateCredential gives an agent a new credential (new manager, after
+	// a move: credentials that crossed the network in plain HTTP).
+	RotateCredential(ctx context.Context, agentID string) (domain.CredentialRotation, error)
 }
 
 // AgentHub reaches connected agents (*agents.Hub).
 type AgentHub interface {
 	Online(environmentID string) bool
 	EnvironmentServes(environmentID, name string) bool
+	EnvironmentHasFeature(environmentID, feature string) bool
 	RequestEnvironment(ctx context.Context, environmentID, name string, input any, timeout time.Duration) (json.RawMessage, error)
 }
 
@@ -207,6 +212,10 @@ type Service struct {
 	// staleAnnounced is the stale check-in last announced (live.go).
 	staleMu        sync.Mutex
 	staleAnnounced time.Time
+
+	// publicReached: a request reached this manager over HTTPS at its
+	// public URL since it started (secure.go).
+	publicReached atomic.Bool
 }
 
 // New creates the service and registers manager.move with the job engine
@@ -644,6 +653,7 @@ func (s *Service) Current(ctx context.Context) (View, error) {
 	if !found {
 		return View{}, domain.ErrManagerMoveNotFound
 	}
+	s.observePublicRequest(ctx)
 	c, err := s.complete(ctx, a)
 	if err != nil {
 		return View{}, err
@@ -916,6 +926,7 @@ func (s *Service) Run(ctx context.Context) {
 			s.log.Error("could not expire the manager move", "error", err)
 		}
 		s.confirmDue(ctx)
+		s.secureDue(ctx)
 		s.announceStaleCheckIn(ctx)
 		wait := s.nextWake(ctx)
 		t := s.opts.Clock.NewTimer(wait)

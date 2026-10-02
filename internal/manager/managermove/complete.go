@@ -29,7 +29,8 @@ type RedirectStatus struct {
 	// Connected: the agent is online here or connected since the arrival.
 	Connected bool
 	// NeedsFix: it did not get the new address and has not connected
-	// since: its DOCKER_AGENT_MANAGER_URL must be changed by hand (URL).
+	// since: its DOCKER_AGENT_MANAGER_URL must be changed by hand (URL; for
+	// the old server's agent the HTTPS public URL when there is one).
 	NeedsFix bool
 }
 
@@ -59,6 +60,11 @@ func (s *Service) complete(ctx context.Context, a domain.ManagerMove) (Complete,
 		}
 		st.Connected = connected
 		st.NeedsFix = !r.Sent && !connected
+		if public := s.securePublicOrigin(); st.NeedsFix && r.Role == domain.RedirectOldServer && public != "" {
+			// The fix by hand is the HTTPS public URL, never the move's
+			// plain-HTTP address.
+			st.URL = public
+		}
 		out.Redirects = append(out.Redirects, st)
 	}
 	if a.SourceEnvironmentID == "" {

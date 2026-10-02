@@ -74,7 +74,9 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:
-  `stacks.IsDefinitionFile`.
+  `stacks.DefinitionPaths` (observed revision, creation names, every
+  Compose and env file; clean project-relative paths), which
+  `StackFileRoot` hands to the file manager, and `stacks.IsDefinitionFile`.
 - Stop/start containers of a stack (backups #10, updates #20, migrations
   #35, container actions #9) with `internal/agent/lifecycle`
   (`GraphFromContainers` + `EngineRuntime`, `Stop`/`Start`/`Restart`/`Resume`),

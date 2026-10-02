@@ -491,7 +491,9 @@ type (
 	// new address (http or https origin; http allowed without
 	// DOCKER_AGENT_MANAGER_ALLOW_HTTP because the current, authenticated
 	// manager sends it) and the generation the new manager runs (at least
-	// the current one + 1).
+	// the current one + 1). At the current generation (agents announcing
+	// FeatureManagerRedirectSecure) the manager the agent follows gives it
+	// another address of its own: https, or the agent's configured origin.
 	ManagerRedirectInput struct {
 		URL        string `json:"url"`
 		Generation int64  `json:"generation"`

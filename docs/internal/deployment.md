@@ -50,6 +50,10 @@ them in plain words (Quickstart, "Put HTTPS in front of it").
 | Body size ≥ the manager's maximum upload/archive size (`DOCKER_MANAGER_FILES_MAX_UPLOAD_MB`, #15) | uploads, archives, restores, editor saves | Caddy: `request_body max_size`; nginx: `client_max_body_size`, `proxy_request_buffering off` |
 | Proxy address trusted by the manager | forwarded headers are honored only from `DOCKER_MANAGER_TRUSTED_PROXIES` | below |
 
+The manager itself sends `Strict-Transport-Security: max-age=31536000` on
+requests that reached it over HTTPS when the public URL is https (#180), so
+the proxy does not have to; a proxy that sets its own value overrides it.
+
 ### Trusted proxies
 
 The manager honors `X-Forwarded-For`, `X-Forwarded-Proto`,
@@ -326,7 +330,8 @@ finish).
   refused, no composition rules or forced rotation) and the required
   factors: `none`, `totp`, `passkey`, `either` or `both`. Changing the
   required factors signs everyone out; users then get a limited enrollment
-  session with a grace period (default 72 h) to add the factors. After the
+  session with a grace period (default 72 h) to add the factors, after
+  proving the factors they already have. After the
   grace period only an owner factor or password reset helps. The owner has
   no deadline and is never locked out.
 - **Sessions** end after 8 h of inactivity and 24 h at most

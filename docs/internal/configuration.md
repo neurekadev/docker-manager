@@ -163,7 +163,12 @@ manager sent it) and flagged like any plain-HTTP agent; an HTTPS address
 keeps `DOCKER_AGENT_MANAGER_CA_FILE`. The startup log names the address
 and `manager_url_source: move`.
 
-To stop using it, set `DOCKER_AGENT_MANAGER_URL` to the address you want
+A plain-HTTP address does not stay: once the new manager serves its
+public HTTPS URL, it sends that URL in a `manager.redirect` at the same
+generation (stored the same way; the configured origin forgets the
+redirect instead) and rotates the agent's credential
+(`docs/internal/architecture/manager-move.md`, "Back to HTTPS").
+To stop using it yourself, set `DOCKER_AGENT_MANAGER_URL` to the address you want
 (for example the public HTTPS origin once DNS points at the new server)
 and recreate the agent container: a value other than the one the redirect
 replaced wins, and the agent forgets the redirect (it keeps the manager

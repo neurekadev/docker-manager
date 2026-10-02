@@ -19,7 +19,12 @@ The new server has **no HTTPS** during the move: the reverse proxy (the
 apps. So the two servers talk over plain HTTP on the owner's network, and
 the handoff is encrypted and authenticated end to end by the move code
 (see "Pairing and transport"); the code itself never crosses the
-network.
+network. Agent sessions are not covered by that: the new server's agent
+enrolls with the old manager over plain HTTP (its enrollment token and the
+credential minted for it cross the network in clear), and the agent next
+to the old manager is redirected to the new server's plain-HTTP address.
+Once the move arrived, the new manager moves that agent to the public
+HTTPS URL and rotates both credentials (see "Back to HTTPS").
 
 ## The flow
 
@@ -218,7 +223,10 @@ ignored with a warning.
   Plain HTTP is therefore allowed for `DOCKER_MANAGER_MOVE_FROM` and on
   the old manager's move routes (no secure-origin check); an attacker on
   the network sees neither the state nor the code, and cannot replay or
-  alter a request.
+  alter a move request. This covers the move's own requests only, not the
+  agent sessions that run over plain HTTP during the move (bearer
+  credentials an attacker on that network can read; see "Back to
+  HTTPS").
 - The code is valid until the move is confirmed or cancelled (a large
   migration may take hours), at most 7 days (`CodeLifetime`); from the
   handoff on it no longer expires. New setup files replace it with a new
@@ -240,12 +248,49 @@ connected agent it can place, in parallel, each bounded by 5 s:
 The outcome of each (sent, or `offline`, `unsupported`, `timeout`,
 `refused`) is recorded on the move before the copy is taken, so it
 travels to the new manager. The agent keeps the address in its state (it
-replaces `DOCKER_AGENT_MANAGER_URL` from then on; plain HTTP allowed
+replaces `DOCKER_AGENT_MANAGER_URL` from then on, until the new manager
+gives it the public URL, see "Back to HTTPS"; plain HTTP allowed
 because an authenticated manager sent it; `docs/internal/configuration.md`,
 "Manager address after a move"), raises its generation to the one given
 and reconnects there; the waiting manager refuses it with 503 until it
 runs the instance. An agent that did not get the redirect is listed in
 Move complete with its fix.
+
+## Back to HTTPS (new manager)
+
+The plain-HTTP agent sessions of a move are temporary. After the arrival,
+when `DOCKER_MANAGER_PUBLIC_URL` is https, the move service's Run loop
+(`managermove/secure.go`, `secureDue`; woken when an environment comes
+online and by the first request at the public URL) takes these steps for
+the agents of the arrived move's redirects that are connected:
+
+- **The agent next to the old manager** still dials the move's
+  `http://<new server>:<port>` (its capabilities' `transport.managerUrl`
+  equals the redirect's `url`). Once a request reached this manager over
+  HTTPS at the public URL (`observePublicRequest`: the owner's dashboard
+  reads the arrived move, `requestinfo.CheckSecureOrigin` passes, so DNS
+  and the reverse proxy lead here; kept in memory, learned again after a
+  restart), it is sent `manager.redirect {url: <public origin>,
+  generation: this manager's}`: the same generation the agent already
+  follows, which agents announcing `manager.redirect.secure`
+  (`protocol.FeatureManagerRedirectSecure`) accept for an https origin or
+  their configured origin only (the latter forgets the stored redirect;
+  `docs/internal/protocol/agent-v1.md`, "Manager redirect"). Older agents
+  keep the move's address. Sent once (`returnedAt` on the redirect).
+- **Credentials that crossed in clear are rotated** through the agents'
+  rotation (`agents.Service.RotateCredential`: a pending credential
+  delivered over the live session, completed by the agent's confirmation
+  or its next connection, audited `agent.credential_rotate`) once the
+  agent's session no longer crosses the network in clear: https, or the
+  new server's Docker network (`NewServerManagerURL`). That is the new
+  server's agent (it enrolled over `http://<old server>`) right after it
+  connects, and the agent next to the old manager (when its redirect was
+  sent) once it is back over HTTPS. Requested once (`rotatedAt`).
+
+Nothing else changes: an agent whose redirect was not sent never used the
+move's plain-HTTP address, and the enrollment token the new server's agent
+used is spent. A plain-http public URL (localhost development) skips all
+of it.
 
 ## Old manager: move states
 
@@ -417,8 +462,10 @@ whether the old manager confirmed (or the owner acknowledged it), and:
 - `redirects`: the agents the old manager could place, with `sent`,
   `connected` (online here or connected since the arrival) and
   `needsFix` (not sent and not connected since: set
-  `DOCKER_AGENT_MANAGER_URL` to `url` by hand; on the new server removing
-  the move lines from `.env` does it). The rule never looks at the address
+  `DOCKER_AGENT_MANAGER_URL` to `url` by hand, for the old server's agent
+  the public URL when it is https instead of the move's plain-HTTP
+  address; on the new server removing the move lines from `.env` does
+  it). The rule never looks at the address
   an agent reports (the new server's agent reports
   `http://docker-manager:8080`, which reaches this manager).
 - `oldEnvironment`: the old server's environment with the stacks still
@@ -434,6 +481,10 @@ whether the old manager confirmed (or the owner acknowledged it), and:
   it); seven days at most; one move at a time. The secret key only leaves
   the old manager inside the encrypted package, sealed once more under the
   code.
+- The agent sessions of a move run over plain HTTP on the owner's
+  network; after it the new manager moves the agent next to the old
+  manager to the public HTTPS URL and rotates the credentials that crossed
+  in clear ("Back to HTTPS").
 - Only the owner creates, runs or cancels a move; a new manager accepts a
   move only on an empty data directory.
 - Audit: `manager.move.create`, `manager.move.setup_files`,
@@ -477,4 +528,5 @@ availability. API tokens never reach them.
 | Arrival | `app.(*Manager).finishMove` → `managermove.FinishArrival`, `StartConfirming` (`finish.go`) |
 | Move complete | `managermove/complete.go` |
 | Co-location | `app`'s `manager.identity` reconciler → `managermove.ObserveColocation` |
+| Back to HTTPS | `managermove/secure.go` (`secureDue`, `secureStep`, `observePublicRequest`), `agents.Service.RotateCredential`; agent: `runtime/redirect.go` (`replaceRedirect`), `state.Store.ReplaceManagerRedirect` |
 | Web UI | `web/src/lib/features/managermove` (`docs/internal/web.md`): Settings, Move to a new server (`ManagerMoveWizard`: the files and the one command to paste, Create new setup files, waiting for the restart after a resume), the new server's status page `/moving` (`WaitingStatus`, reached through the root layout's `MoveGate`, which starts the live stream only when not waiting), Move complete (`MoveCompleteCard`), the shell's banner of a locked manager |

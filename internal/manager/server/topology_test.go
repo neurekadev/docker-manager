@@ -267,14 +267,15 @@ func TestAgentRateLimitPerClientIP(t *testing.T) {
 	if c := get("[2001:db8:1::99]:1"); c != http.StatusTooManyRequests {
 		t.Fatalf("same /64: %d", c)
 	}
-	// Table full, nothing idle: a new client is refused (fail closed)...
-	if c := get("192.0.2.200:1"); c != http.StatusTooManyRequests {
+	// Table full: a new client still gets a bucket (a flood of new
+	// addresses never locks clients out); the least recently seen client
+	// (203.0.113.5) is forgotten instead...
+	if c := get("192.0.2.200:1"); c != http.StatusNoContent {
 		t.Fatalf("full table: %d", c)
 	}
-	// ...until idle buckets have refilled and can be evicted.
-	tp.clk.Advance(time.Minute)
-	if c := get("192.0.2.200:1"); c != http.StatusNoContent {
-		t.Fatalf("after eviction: %d", c)
+	// ...while the busy /64 keeps its exhausted bucket.
+	if c := get("[2001:db8:1::5]:1"); c != http.StatusTooManyRequests {
+		t.Fatalf("recently seen /64 lost its bucket: %d", c)
 	}
 	// Public API routes are not affected by the agent limiter.
 	for range 10 {

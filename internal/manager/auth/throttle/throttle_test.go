@@ -2,6 +2,7 @@ package throttle
 
 import (
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,65 +17,105 @@ func TestFailuresConsumeAndRefill(t *testing.T) {
 		t.Fatal("account keys are not normalized")
 	}
 	for i := range 3 {
-		if !l.Allow(k) {
+		if !l.Take(k) {
 			t.Fatalf("attempt %d refused", i)
 		}
-		l.Fail(k)
 	}
-	if l.Allow(k) {
+	if l.Take(k) {
 		t.Fatal("fourth attempt allowed within the burst window")
 	}
 	if ra := l.RetryAfter(k); ra <= 0 || ra > time.Minute {
 		t.Fatalf("retry after %v", ra)
 	}
 	clk.Advance(time.Minute)
-	if !l.Allow(k) || l.RetryAfter(k) != 0 {
+	if l.RetryAfter(k) != 0 || !l.Take(k) {
 		t.Fatal("token not refilled after one period")
 	}
-	l.Fail(k)
-	if l.Allow(k) {
+	if l.Take(k) {
 		t.Fatal("refilled token not consumed")
 	}
 	l.Reset(k)
-	if !l.Allow(k) {
+	if !l.Take(k) {
 		t.Fatal("reset did not clear the bucket")
 	}
 	// Other keys are independent.
-	if !l.Allow(AccountKey("bob")) {
+	if !l.Take(AccountKey("bob")) {
 		t.Fatal("unrelated key limited")
 	}
 }
 
-func TestAllowDoesNotConsume(t *testing.T) {
-	l := New(Limit{Every: time.Hour, Burst: 1}, testutil.FakeClock(), 10)
+// TestRefundRestoresSuccessfulAttempts: a successful attempt gives its
+// token back (only failures count), never above the burst.
+func TestRefundRestoresSuccessfulAttempts(t *testing.T) {
+	l := New(Limit{Every: time.Hour, Burst: 2}, testutil.FakeClock(), 10)
 	for range 5 {
-		if !l.Allow("k") {
-			t.Fatal("Allow consumed a token")
+		if !l.Take("k") {
+			t.Fatal("a refunded attempt was counted")
 		}
+		l.Refund("k")
 	}
-	if !l.Take("k") || l.Take("k") {
-		t.Fatal("Take must consume exactly the available token")
+	l.Refund("k") // at the burst already
+	if !l.Take("k") || !l.Take("k") || l.Take("k") {
+		t.Fatal("refund must restore exactly the burst, not more")
+	}
+	l.Refund("unknown") // never seen: nothing to restore, no bucket created
+	if l.RetryAfter("unknown") != 0 {
+		t.Fatal("refund of an unknown key")
 	}
 }
 
-// TestTableBoundFailsClosed: when every tracked key is still limited, new
-// keys are refused instead of growing the table without bound; idle
-// buckets are evicted to make room.
-func TestTableBoundFailsClosed(t *testing.T) {
-	clk := testutil.FakeClock()
-	l := New(Limit{Every: time.Minute, Burst: 1}, clk, 2)
-	l.Fail("a")
-	l.Fail("b")
-	if l.Allow("c") || l.Take("c") || l.RetryAfter("c") == 0 {
-		t.Fatal("full table admitted a new key")
+// TestConcurrentTakesStayWithinTheBurst: the token is taken before the
+// (slow) credential check, so parallel attempts cannot all pass while the
+// first ones are still being verified.
+func TestConcurrentTakesStayWithinTheBurst(t *testing.T) {
+	l := New(Limit{Every: time.Hour, Burst: 5}, testutil.FakeClock(), 10)
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		allowed int
+	)
+	for range 200 {
+		wg.Go(func() {
+			if l.Take("k") {
+				mu.Lock()
+				allowed++
+				mu.Unlock()
+			}
+		})
 	}
-	clk.Advance(time.Minute) // a and b are full again: evictable
-	if !l.Allow("c") {
-		t.Fatal("idle buckets were not evicted")
+	wg.Wait()
+	if allowed != 5 {
+		t.Fatalf("%d of 200 concurrent attempts allowed, want the burst (5)", allowed)
 	}
-	l.Fail("c")
-	if l.Allow("c") {
-		t.Fatal("c not limited after its failure")
+}
+
+// TestFullTableEvictsLeastRecentlyUsed: when the table is full a new key
+// still gets a bucket (never fail closed); the least recently used bucket
+// is forgotten.
+func TestFullTableEvictsLeastRecentlyUsed(t *testing.T) {
+	l := New(Limit{Every: time.Hour, Burst: 1}, testutil.FakeClock(), 2)
+	l.Take("a")
+	l.Take("b")
+	l.Take("a") // a is now the most recently used
+	if !l.Take("c") {
+		t.Fatal("full table refused a new key")
+	}
+	if l.Take("a") {
+		t.Fatal("the recently used bucket a was evicted")
+	}
+	if !l.Take("b") {
+		t.Fatal("the least recently used bucket b was kept")
+	}
+}
+
+func TestAccountClientKey(t *testing.T) {
+	a := netip.MustParseAddr("192.0.2.1")
+	if AccountClientKey(" Alice ", a) != AccountClientKey("alice", a) {
+		t.Fatal("account client keys are not normalized")
+	}
+	if AccountClientKey("alice", a) == AccountClientKey("alice", netip.MustParseAddr("192.0.2.2")) ||
+		AccountClientKey("alice", a) == AccountKey("alice") {
+		t.Fatal("account client keys must differ per client and from the account key")
 	}
 }
 

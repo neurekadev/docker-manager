@@ -374,16 +374,26 @@ func (s *Service) Root(ctx context.Context, stackID string) (domain.StackRoot, e
 	if err != nil {
 		return domain.StackRoot{}, err
 	}
-	r := domain.StackRoot{StackID: st.ID, EnvironmentID: st.EnvironmentID, ProjectName: st.Name, Root: st.Root,
-		RootPath: st.RootPath, Dir: st.Dir}
-	if st.Observed != nil {
-		if rev, _, err := store.GetStackRevision(ctx, s.db, st.ID, st.Observed.ID); err == nil {
-			for _, f := range rev.Files {
-				r.DefinitionFiles = append(r.DefinitionFiles, f.Path)
-			}
-		}
+	return domain.StackRoot{StackID: st.ID, EnvironmentID: st.EnvironmentID, ProjectName: st.Name, Root: st.Root,
+		RootPath: st.RootPath, Dir: st.Dir, DefinitionFiles: s.observedFiles(ctx, st)}, nil
+}
+
+// observedFiles are the project-relative paths of the files of the
+// stack's newest observed revision (none when it has none or it cannot be
+// read).
+func (s *Service) observedFiles(ctx context.Context, st domain.Stack) []string {
+	if st.Observed == nil {
+		return nil
 	}
-	return r, nil
+	rev, _, err := store.GetStackRevision(ctx, s.db, st.ID, st.Observed.ID)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(rev.Files))
+	for _, f := range rev.Files {
+		out = append(out, f.Path)
+	}
+	return out
 }
 
 // servicesFrom converts validated or deployed services.

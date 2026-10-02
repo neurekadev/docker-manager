@@ -27,16 +27,31 @@
 //   - re-checks the target right before every mutation (write/upload
 //     compare the current entry, then rename a fully written temporary
 //     file into place; chmod/chown use the opened handle, fchmod/fchown);
-//   - validates every archive entry (zip-slip, tar-slip, symlink and
-//     hardlink targets, special files, setuid bits) and counts the bytes it
-//     actually writes against size, ratio and entry limits.
+//   - validates every archive entry (zip-slip, tar-slip, symlink targets
+//     relative to where the link lands, hardlink targets, special files,
+//     setuid bits) and counts the bytes it actually writes against size,
+//     ratio and entry limits;
+//   - in the scope kinds of Options.NoFollow (the agent's stack scopes)
+//     follows no symlink at all, not even inside the root: every path is
+//     resolved one component at a time through opened directory handles
+//     (Lstat in the parent's handle, the opened directory confirmed with
+//     os.SameFile), a symlink on the way is refused, and a final symlink
+//     is never opened for content (it is still listed, renamed and
+//     deleted as a link). In-root links could otherwise give a Compose
+//     source a second name (d -> . makes d/.env the stack's .env) and
+//     bypass the manager's stack.definition.* checks, which go by path.
 //
 // Residual risks (documented in docs/internal/api/files.md): files are replaced by
 // rename, so a concurrent writer outside Docker Manager can still change a file
 // between the precondition check and the rename (the window is a few
 // syscalls); bind mounts inside a volume are traversed like directories
 // (os.Root does not stop at mount points); os.Root on Linux does not use
-// openat2 RESOLVE_BENEATH but an equivalent per-component walk.
+// openat2 RESOLVE_BENEATH but an equivalent per-component walk; in
+// NoFollow scopes a move checks its source and destination directories
+// without following links, but the rename itself addresses both by path
+// (os.Root has no rename between two directory handles), so a directory
+// swapped for a symlink in between by another process is followed inside
+// the root.
 //
 // Errors are *protocol.Error values that name root-relative paths only.
 // File contents and names are never logged.
@@ -155,6 +170,13 @@ type Options struct {
 	// other open views refresh (the agent relays it as fs_invalidation,
 	// #23). Must not block.
 	Invalidate func(protocol.FSInvalidationPayload)
+	// NoFollow lists the scope kinds in which no symlink is followed, not
+	// even inside the root (the agent's stack scopes,
+	// protocol.FeatureStackFilesNoFollow): a path through a symlinked
+	// directory is refused (forbidden_path), and a final symlink is never
+	// opened for content; listing, renaming and deleting the link itself
+	// still work.
+	NoFollow []string
 }
 
 // Service serves scoped file operations.
@@ -306,9 +328,126 @@ type scopeRoot struct {
 	scope protocol.FileScope
 	// key identifies the root directory for per-file locks.
 	key string
+	// noFollow: no symlink is followed in this scope (Options.NoFollow).
+	noFollow bool
 }
 
 func (r *scopeRoot) Close() { _ = r.root.Close() }
+
+// linkRefused is the error for a symlink on a path of a NoFollow scope.
+func linkRefused(rel string) error {
+	return fail(protocol.CodeForbiddenPath, "%s: symbolic links are not followed here", rel)
+}
+
+// isLink reports whether an Lstat result is a symlink.
+func isLink(fi fs.FileInfo) bool { return fi.Mode()&fs.ModeSymlink != 0 }
+
+// openDir opens the directory rel. In NoFollow scopes it walks rel one
+// component at a time through opened handles: each component is Lstat'ed
+// in its parent, refused when it is a symlink, and opened only as the same
+// directory (a swap in between is a conflict); with create, missing
+// directories are made (0755). Elsewhere os.Root resolves rel (following
+// symlinks that stay inside the root).
+func (r *scopeRoot) openDir(rel string, create bool) (*os.Root, error) {
+	if !r.noFollow {
+		if create {
+			if err := r.root.MkdirAll(rel, 0o755); err != nil {
+				return nil, classify(err, rel)
+			}
+		}
+		d, err := r.root.OpenRoot(rel)
+		if err != nil {
+			return nil, classify(err, rel)
+		}
+		return d, nil
+	}
+	cur, err := r.root.OpenRoot(".")
+	if err != nil {
+		return nil, classify(err, ".")
+	}
+	if rel == "." {
+		return cur, nil
+	}
+	at := "."
+	for _, name := range strings.Split(rel, "/") {
+		at = join(at, name)
+		fi, err := cur.Lstat(name)
+		if create && errors.Is(err, fs.ErrNotExist) {
+			if err = cur.Mkdir(name, 0o755); err == nil || errors.Is(err, fs.ErrExist) {
+				fi, err = cur.Lstat(name)
+			}
+		}
+		switch {
+		case err != nil:
+			_ = cur.Close()
+			return nil, classify(err, at)
+		case isLink(fi):
+			_ = cur.Close()
+			return nil, linkRefused(at)
+		case !fi.IsDir():
+			_ = cur.Close()
+			return nil, fail(protocol.CodeNotDirectory, "%s is not a directory", at)
+		}
+		next, err := cur.OpenRoot(name)
+		_ = cur.Close()
+		if err != nil {
+			return nil, classify(err, at)
+		}
+		if st, err := next.Stat("."); err != nil || !os.SameFile(st, fi) {
+			_ = next.Close()
+			return nil, fail(protocol.CodeConflict, "%s changed during the operation", at)
+		}
+		cur = next
+	}
+	return cur, nil
+}
+
+// mkdirAll makes the directory rel and its missing parents (openDir with
+// create).
+func (r *scopeRoot) mkdirAll(rel string) error {
+	d, err := r.openDir(rel, true)
+	if err != nil {
+		return err
+	}
+	_ = d.Close()
+	return nil
+}
+
+// at returns the directory handle and name that address rel: in NoFollow
+// scopes rel's parent, opened without following symlinks (openDir), and
+// rel's last component; elsewhere the root and rel itself. done releases
+// the handle.
+func (r *scopeRoot) at(rel string) (dir *os.Root, name string, done func(), err error) {
+	if !r.noFollow || rel == "." {
+		return r.root, rel, func() {}, nil
+	}
+	d, err := r.openDir(path.Dir(rel), false)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return d, path.Base(rel), func() { _ = d.Close() }, nil
+}
+
+// checkPath refuses, in NoFollow scopes, a path with a symlink on the way
+// to its last component (and at it, with final): for operations that then
+// address the entry through the root by path. A missing component is
+// not_found.
+func (r *scopeRoot) checkPath(rel string, final bool) error {
+	if !r.noFollow || rel == "." {
+		return nil
+	}
+	d, name, done, err := r.at(rel)
+	if err != nil {
+		return err
+	}
+	defer done()
+	if final {
+		if fi, err := d.Lstat(name); err == nil && isLink(fi) {
+			return linkRefused(rel)
+		}
+	}
+	return nil
+}
 
 // open resolves and opens a scope's root directory.
 func (s *Service) open(ctx context.Context, scope protocol.FileScope) (*scopeRoot, error) {
@@ -326,7 +465,7 @@ func (s *Service) open(ctx context.Context, scope protocol.FileScope) (*scopeRoo
 	if err != nil {
 		return nil, fail(protocol.CodeNotFound, "cannot open the %s's directory", scope.Kind)
 	}
-	return &scopeRoot{root: root, scope: scope, key: resolved}, nil
+	return &scopeRoot{root: root, scope: scope, key: resolved, noFollow: slices.Contains(s.opts.NoFollow, scope.Kind)}, nil
 }
 
 // ScopeDir resolves a scope to its verified, symlink-free root directory
@@ -466,9 +605,24 @@ func (c ctxReader) Read(p []byte) (int, error) {
 
 // openRegular opens rel for reading content: it must be a regular file
 // with a single hard link, and the opened handle must be the entry that
-// was checked (no swap in between).
-func openRegular(r *os.Root, rel string) (*os.File, fs.FileInfo, error) {
-	f, err := r.Open(rel)
+// was checked (no swap in between). In NoFollow scopes neither a
+// directory on the way nor rel itself may be a symlink.
+func openRegular(r *scopeRoot, rel string) (*os.File, fs.FileInfo, error) {
+	dir, name, done, err := r.at(rel)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer done()
+	var lfi fs.FileInfo
+	if r.noFollow {
+		if lfi, err = dir.Lstat(name); err != nil {
+			return nil, nil, classify(err, rel)
+		}
+		if isLink(lfi) {
+			return nil, nil, linkRefused(rel)
+		}
+	}
+	f, err := dir.Open(name)
 	if err != nil {
 		return nil, nil, classify(err, rel)
 	}
@@ -478,6 +632,9 @@ func openRegular(r *os.Root, rel string) (*os.File, fs.FileInfo, error) {
 		return nil, nil, classify(err, rel)
 	}
 	switch {
+	case lfi != nil && !os.SameFile(fi, lfi):
+		_ = f.Close()
+		return nil, nil, fail(protocol.CodeConflict, "%s changed during the operation", rel)
 	case fi.IsDir():
 		_ = f.Close()
 		return nil, nil, fail(protocol.CodeIsDirectory, "%s is a directory", rel)
@@ -521,7 +678,12 @@ func (s *Service) Stat(ctx context.Context, in protocol.FilesStatInput) (protoco
 }
 
 func (s *Service) stat(ctx context.Context, r *scopeRoot, rel string, etag bool) (protocol.FileEntry, error) {
-	fi, err := r.root.Lstat(rel)
+	dir, name, done, err := r.at(rel)
+	if err != nil {
+		return protocol.FileEntry{}, err
+	}
+	defer done()
+	fi, err := dir.Lstat(name)
 	if err != nil {
 		return protocol.FileEntry{}, classify(err, rel)
 	}
@@ -531,7 +693,7 @@ func (s *Service) stat(ctx context.Context, r *scopeRoot, rel string, etag bool)
 		linkInfo(r.root, rel, &e)
 	case protocol.FileTypeFile:
 		if etag && fi.Size() <= protocol.MaxETagSize {
-			f, ofi, err := openChecked(r.root, rel, fi, os.O_RDONLY)
+			f, ofi, err := openChecked(dir, name, fi, os.O_RDONLY)
 			if err != nil {
 				return protocol.FileEntry{}, err
 			}

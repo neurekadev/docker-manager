@@ -508,3 +508,221 @@ func TestScopeResolutionRefusals(t *testing.T) {
 		t.Errorf("unverified storage: %v", err)
 	}
 }
+
+// stackSymlink creates a symlink inside the stack's project directory,
+// skipping the test where the platform cannot create symlinks.
+func (f *fixture) stackSymlink(target, rel string) {
+	f.t.Helper()
+	if err := os.Symlink(filepath.FromSlash(target), filepath.Join(f.stack, filepath.FromSlash(rel))); err != nil {
+		if runtime.GOOS == "windows" {
+			f.t.Skipf("symlinks unavailable on this Windows host: %v", err)
+		}
+		f.t.Fatal(err)
+	}
+}
+
+// zipMember is one member of zipOf: a symlink (link: content is the
+// target) or a regular file.
+type zipMember struct {
+	name, content string
+	link          bool
+}
+
+// zipOf builds a zip of the members, in order.
+func zipOf(t *testing.T, members ...zipMember) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	zw := zip.NewWriter(&b)
+	for _, m := range members {
+		h := &zip.FileHeader{Name: m.name, Method: zip.Store}
+		mode := os.FileMode(0o644)
+		if m.link {
+			mode = os.ModeSymlink | 0o777
+		}
+		h.SetMode(mode)
+		w, err := zw.CreateHeader(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(m.content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// TestStackScopesFollowNoSymlinks (#180): in a stack's project directory
+// no symlink is followed, even inside it, so a link cannot give a
+// definition file a second name (d -> . makes d/.env the stack's .env,
+// x -> .env makes x one): every operation through a symlinked directory
+// is refused, a final symlink is never opened for content, and the link
+// itself can still be listed, inspected and deleted.
+func TestStackScopesFollowNoSymlinks(t *testing.T) {
+	f := newFixture(t)
+	const secret = "TOKEN=stack-definition-secret\n"
+	for rel, content := range map[string]string{".env": secret, "compose.yaml": "services: {}\n", "sub/ok.txt": "ok\n"} {
+		p := filepath.Join(f.stack, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.stackSymlink(".", "d")
+	f.stackSymlink(".env", "x")
+	f.stackSymlink("..", "sub/up")
+	s := f.stk
+	stackFile := func(rel string) string {
+		b, err := os.ReadFile(filepath.Join(f.stack, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		return string(b)
+	}
+	stackHas := func(rel string) bool {
+		_, err := os.Lstat(filepath.Join(f.stack, filepath.FromSlash(rel)))
+		return err == nil
+	}
+
+	// Content reads through a symlinked directory or of a final symlink.
+	for _, p := range []string{"d/.env", "x", "sub/up/.env", "d/sub/ok.txt"} {
+		if out, err := f.svc.Read(f.ctx, protocol.FilesReadInput{Scope: s, Path: p}); code(err) != protocol.CodeForbiddenPath {
+			t.Errorf("read %s: %q %v, want forbidden_path", p, out.Data, err)
+		}
+		if b, err := f.download(protocol.FilesDownloadInput{Scope: s, Paths: []string{p}, Format: protocol.FormatRaw}); err == nil {
+			t.Errorf("raw download %s: %q", p, b)
+		}
+	}
+	if out, err := f.svc.Read(f.ctx, protocol.FilesReadInput{Scope: s, Path: "sub/ok.txt"}); err != nil || string(out.Data) != "ok\n" {
+		t.Errorf("read sub/ok.txt: %q %v", out.Data, err)
+	}
+	// Metadata (and an ETag derived from the content) never comes through
+	// a symlinked directory; the link itself is shown as a link.
+	if e, err := f.svc.Stat(f.ctx, protocol.FilesStatInput{Scope: s, Path: "d/.env", ETag: true}); code(err) != protocol.CodeForbiddenPath {
+		t.Errorf("stat d/.env: %+v %v", e, err)
+	}
+	if e, err := f.svc.Stat(f.ctx, protocol.FilesStatInput{Scope: s, Path: "x", ETag: true}); err != nil || e.Type != protocol.FileTypeSymlink || e.ETag != "" {
+		t.Errorf("stat x: %+v %v", e, err)
+	}
+	if _, err := f.svc.List(f.ctx, protocol.FilesListInput{Scope: s, Path: "d"}); code(err) != protocol.CodeForbiddenPath {
+		t.Errorf("list d: %v", err)
+	}
+	out, err := f.svc.List(f.ctx, protocol.FilesListInput{Scope: s, Path: ".", Hidden: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := map[string]string{}
+	for _, e := range out.Entries {
+		listed[e.Name] = e.Type
+	}
+	if listed["d"] != protocol.FileTypeSymlink || listed["x"] != protocol.FileTypeSymlink {
+		t.Errorf("listing %v: the links must be listed as links", listed)
+	}
+	// Archives never hold a definition file's content under another name.
+	for _, paths := range [][]string{{"d"}, {"x"}, {"sub"}, {"d/.env"}} {
+		if b, err := f.download(protocol.FilesDownloadInput{Scope: s, Paths: paths, Format: protocol.FormatZip}); err == nil && bytes.Contains(b, []byte(secret)) {
+			t.Errorf("zip of %v holds .env", paths)
+		}
+	}
+	if _, err := f.svc.Preview(f.ctx, protocol.FilesPreviewInput{Scope: s, Operation: protocol.FileOpDelete, Paths: []string{"d/compose.yaml"}}); code(err) != protocol.CodeForbiddenPath {
+		t.Errorf("delete preview through d: %v", err)
+	}
+
+	// Writes through a symlinked directory or onto a final symlink.
+	if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: s, Path: "d/.env", Data: []byte("EVIL=1\n"), Overwrite: true}); code(err) != protocol.CodeForbiddenPath {
+		t.Errorf("write d/.env: %v", err)
+	}
+	if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: s, Path: "x", Data: []byte("EVIL=1\n"), Overwrite: true}); err == nil {
+		t.Error("write x replaced or wrote through the link")
+	}
+	if _, err := f.svc.Mkdir(f.ctx, protocol.FilesMkdirInput{Scope: s, Path: "d/new", Type: protocol.FileTypeDir}); code(err) != protocol.CodeForbiddenPath {
+		t.Errorf("mkdir d/new: %v", err)
+	}
+	if _, err := f.upload(protocol.FilesUploadInput{Scope: s, Dir: "d", Name: "compose.yaml", Size: 4, Conflict: protocol.ConflictOverwrite}, []byte("evil")); err == nil {
+		t.Error("upload into d succeeded")
+	}
+	// Jobs: nothing is read, moved, deleted or changed through d.
+	for _, job := range []struct {
+		kind domain.JobKind
+		in   protocol.FilesJobInput
+		item string
+	}{
+		{jobspec.FilesCopy, protocol.FilesJobInput{Paths: []string{"d/.env"}, Destination: "sub"}, "d/.env"},
+		{jobspec.FilesCopy, protocol.FilesJobInput{Paths: []string{"sub/ok.txt"}, Destination: "d", Name: "compose.yaml", Conflict: protocol.ConflictOverwrite}, "sub/ok.txt"},
+		{jobspec.FilesMove, protocol.FilesJobInput{Paths: []string{"d/.env"}, Destination: "sub"}, "d/.env"},
+		{jobspec.FilesMove, protocol.FilesJobInput{Paths: []string{"sub/ok.txt"}, Destination: "d", Name: ".env", Conflict: protocol.ConflictOverwrite}, "sub/ok.txt"},
+		{jobspec.FilesDelete, protocol.FilesJobInput{Paths: []string{"d/compose.yaml"}}, "d/compose.yaml"},
+		{jobspec.FilesMetadata, protocol.FilesJobInput{Paths: []string{"d/.env"}, Chmod: &protocol.ChmodSpec{Mode: 0o600}}, "d/.env"},
+	} {
+		job.in.Scope = s
+		res := f.runJob(job.kind, job.in)
+		if !f.itemFailed(res, job.item) && res.Outcome != "failed" {
+			t.Errorf("%s %+v: %+v, want it refused", job.kind, job.in, res)
+		}
+	}
+	res := f.runJob(jobspec.FilesArchive, protocol.FilesJobInput{Scope: s, Paths: []string{"d/.env"}, Destination: "a.zip", Format: protocol.FormatZip})
+	if res.Outcome != "failed" || stackHas("a.zip") {
+		t.Errorf("archive of d/.env: %+v", res)
+	}
+	if stackFile(".env") != secret || stackFile("compose.yaml") != "services: {}\n" || stackHas("sub/.env") || stackHas("new") {
+		t.Fatal("an operation through a symlink reached the stack's definition")
+	}
+	// Deleting a link removes the link, never its target.
+	res = f.runJob(jobspec.FilesDelete, protocol.FilesJobInput{Scope: s, Paths: []string{"x", "d"}})
+	if res.Outcome != "succeeded" || stackHas("x") || stackHas("d") || stackFile(".env") != secret {
+		t.Errorf("delete the links: %+v", res)
+	}
+
+	// Extraction: a link the archive creates is never followed by later
+	// members, and a link target is judged from where the link lands.
+	f.stackSymlink(".", "d")
+	arc := zipOf(t,
+		zipMember{name: "l", content: ".", link: true},
+		zipMember{name: "l/compose.yaml", content: "services: {evil: {}}\n"},
+		zipMember{name: "up", content: "../.env", link: true},
+		zipMember{name: "out", content: "../../x", link: true},
+	)
+	if err := os.WriteFile(filepath.Join(f.stack, "a.zip"), arc, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res = f.runJob(jobspec.FilesExtract, protocol.FilesJobInput{Scope: s, Paths: []string{"a.zip"}, Destination: "tmp"})
+	if !f.itemFailed(res, "l/compose.yaml") || stackHas("tmp/compose.yaml") || stackFile("compose.yaml") != "services: {}\n" {
+		t.Errorf("extract through an extracted link: %+v", res)
+	}
+	if fi, err := os.Lstat(filepath.Join(f.stack, "tmp", "up")); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("tmp/up -> ../.env stays inside the root and is extracted as a link: %v", err)
+	}
+	if stackHas("tmp/out") {
+		t.Error("tmp/out -> ../../x leaves the root and must be refused")
+	}
+	if _, err := f.svc.Read(f.ctx, protocol.FilesReadInput{Scope: s, Path: "tmp/up"}); code(err) != protocol.CodeForbiddenPath {
+		t.Errorf("read tmp/up: %v", err)
+	}
+	// Extracting into a symlinked directory is refused before anything is
+	// written.
+	res = f.runJob(jobspec.FilesExtract, protocol.FilesJobInput{Scope: s, Paths: []string{"a.zip"}, Destination: "d/tmp2"})
+	if res.Outcome != "failed" || stackHas("tmp2") {
+		t.Errorf("extract into d/tmp2: %+v", res)
+	}
+	if strings.Contains(f.logs.String(), "stack-definition-secret") {
+		t.Fatal("the definition's content reached the agent log")
+	}
+}
+
+// TestVolumeScopesStillFollowInsideLinks: volumes keep following symlinks
+// that stay inside the root (only stack scopes refuse them).
+func TestVolumeScopesStillFollowInsideLinks(t *testing.T) {
+	f := newFixture(t)
+	f.write("sub/a.txt", "a")
+	f.symlink("sub", "d")
+	if out, err := f.svc.Read(f.ctx, protocol.FilesReadInput{Scope: f.vol, Path: "d/a.txt"}); err != nil || string(out.Data) != "a" {
+		t.Fatalf("read d/a.txt in a volume: %q %v", out.Data, err)
+	}
+	if _, err := f.svc.List(f.ctx, protocol.FilesListInput{Scope: f.vol, Path: "d"}); err != nil {
+		t.Fatalf("list d in a volume: %v", err)
+	}
+}

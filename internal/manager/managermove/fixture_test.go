@@ -83,6 +83,7 @@ type fakeEnrollments struct {
 	agents  map[string]domain.Agent
 	specs   []domain.EnrollmentSpec
 	revoked []string
+	rotated []string
 }
 
 func (e *fakeEnrollments) CreateEnrollment(_ context.Context, r domain.EnrollmentSpec) (domain.CreatedEnrollment, error) {
@@ -133,6 +134,14 @@ func (e *fakeEnrollments) GetEnvironment(ctx context.Context, id string) (domain
 	return store.GetEnvironment(ctx, e.f.db, id)
 }
 
+func (e *fakeEnrollments) RotateCredential(_ context.Context, agentID string) (domain.CredentialRotation, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.rotated = append(e.rotated, agentID)
+	return domain.CredentialRotation{AgentID: agentID, CredentialID: "cred-" + agentID, State: domain.RotationPending,
+		RequestedAt: e.f.clk.Now().UTC()}, nil
+}
+
 // fakeHub is the agent hub: which environments are online, which serve
 // manager.redirect, and the redirects it received.
 type fakeHub struct {
@@ -141,11 +150,19 @@ type fakeHub struct {
 	noRequest map[string]bool
 	failWith  map[string]error
 	redirects map[string]protocol.ManagerRedirectInput
+	// oldAgent: environments whose agent lacks FeatureManagerRedirectSecure.
+	oldAgent map[string]bool
 }
 
 func newFakeHub() *fakeHub {
 	return &fakeHub{online: map[string]bool{}, noRequest: map[string]bool{}, failWith: map[string]error{},
-		redirects: map[string]protocol.ManagerRedirectInput{}}
+		redirects: map[string]protocol.ManagerRedirectInput{}, oldAgent: map[string]bool{}}
+}
+
+func (h *fakeHub) EnvironmentHasFeature(env, feature string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.online[env] && feature == protocol.FeatureManagerRedirectSecure && !h.oldAgent[env]
 }
 
 func (h *fakeHub) Online(env string) bool {

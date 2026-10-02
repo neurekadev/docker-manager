@@ -380,12 +380,18 @@ before it refuses agents ([manager-move.md](../architecture/manager-move.md),
 1. **Validates**: `url` is an http or https origin (scheme and host with
    an optional port; no credentials, path other than `/`, query or
    fragment; at most 2048 characters; `config.ParseRedirectURL`);
-   `generation` is at least 1 and higher than the one the agent follows.
-   Malformed JSON: `invalid_frame`; a bad `url` or `generation` < 1:
-   `invalid_argument`; a generation that is not higher: `conflict`
-   (the same `url` and `generation` again, e.g. a lost answer, is answered
-   like the first time). A refused redirect changes nothing and the
-   session stays.
+   `generation` is at least 1 and higher than the one the agent follows,
+   or equal to it for an `https` origin or the agent's
+   `DOCKER_AGENT_MANAGER_URL` origin (the manager it follows gives it
+   another address of its own: after a move, the new manager's public
+   HTTPS URL instead of the plain-HTTP address the move gave; the
+   configured origin forgets the stored redirect). Agents that accept
+   this announce the feature `manager.redirect.secure`; the manager sends
+   such a redirect only to them. Malformed JSON: `invalid_frame`; a bad
+   `url` or `generation` < 1: `invalid_argument`; a lower generation, or
+   an equal one with another plain-`http` address: `conflict` (the same
+   `url` and `generation` again, e.g. a lost answer, is answered like the
+   first time). A refused redirect changes nothing and the session stays.
 2. **Persists** the address (as an origin, lower-case host), the
    `DOCKER_AGENT_MANAGER_URL` origin it replaces and the new generation in
    `manager.json` in one atomic write (0600) **before** answering. A
@@ -529,7 +535,18 @@ get `limits` (`FileLimits`: the manager's `DOCKER_MANAGER_FILES_*`
 upload, download, extraction and entry limits) in `files.upload` and
 `files.download` inputs, extract previews and `files.archive` /
 `files.extract` job inputs, and apply them instead of their built-in
-defaults; other agents keep the defaults.
+defaults; other agents keep the defaults. And `files.stack_no_follow`
+(`protocol.FeatureStackFilesNoFollow`, #15): those agents follow no
+symlink in `stack` scopes (see [Scoped files](#scoped-files-15)), so a
+path names exactly one file; for other agents' stacks the manager
+requires `stack.definition.read` for every content read and
+`stack.definition.write` for every change, as any path may reach a
+definition file through an in-root symlink. Nothing on the wire changes.
+And `manager.redirect.secure`
+(`protocol.FeatureManagerRedirectSecure`): only those agents get a
+`manager.redirect` at the generation they follow (an https origin or
+their configured origin, see "Manager redirect"); other agents keep the
+plain-HTTP address a manager move gave them.
 Optional fields an agent adds to
 its own request outputs need no feature: agents are not newer than the
 manager, the manager decodes a response's `output` without refusing
@@ -817,6 +834,11 @@ shared `internal/fsroot` operations), the manager side
   (`protocol.CleanRelativePath`); every access goes through an `os.Root`
   opened on the scope directory, so symlinks are followed only while they
   stay inside and absolute or escaping targets fail with `forbidden_path`.
+  In `stack` scopes no symlink is followed at all (agents announcing
+  `files.stack_no_follow`): a path through a symlinked directory fails with
+  `forbidden_path`, a final symlink is never opened for content (reads,
+  raw downloads and writes onto it are refused), and the link itself is
+  still listed, stat'ed, renamed, copied as a link and deleted.
 - **Content access** (read, download, archive, copy, chmod/chown) is refused
   for regular files with more than one hard link, devices, FIFOs and
   sockets (`unsupported_file`). Recursive operations never follow symlinks.
@@ -858,8 +880,9 @@ shared `internal/fsroot` operations), the manager side
   `files.delete`, `files.metadata` take `FilesJobInput`; items report
   per-path outcomes (at most 200, then a summary). Extraction validates
   every entry (no `../`, absolute or drive names, symlinks only when they
-  resolve inside, hard links only to earlier members, no devices, no
-  setuid bits, nothing below a refused link) and limits entries, bytes
+  resolve inside the root from where they land, hard links only to
+  earlier members, no devices, no setuid bits, nothing below a refused
+  link, in `stack` scopes nothing below any link) and limits entries, bytes
   actually written and the expansion ratio (see **Limits**).
 - Docker Manager's own changes are published as `fs_invalidation` of the
   changed paths (the watcher of #23 reports external ones).
@@ -1212,7 +1235,7 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `unauthorized` | credential no longer valid |
 | `forbidden_path` | a path escapes its scope root or is not allowed |
 | `not_found` | the Engine object or file does not exist |
-| `conflict` | the object changed (for example an expected file revision); `manager.identity` from a manager with a lower generation (before close 4421); `manager.redirect` whose generation is not higher than the agent's |
+| `conflict` | the object changed (for example an expected file revision); `manager.identity` from a manager with a lower generation (before close 4421); `manager.redirect` whose generation is lower than the agent's, or equal with another plain-`http` address |
 | `deadline_exceeded` | the deadline passed before or during the work |
 | `busy` | a conflicting operation is running on the agent |
 | `stream_limit` | too many open streams |

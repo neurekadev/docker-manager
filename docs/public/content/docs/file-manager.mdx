@@ -48,3 +48,14 @@ Your reverse proxy must allow uploads this large too. To change the limits,
 see [Configuration](/configuration#file-manager). Docker Manager's own
 volumes, and volumes with a driver other than `local`, have no **Files**
 tab.
+
+## Good to know
+
+- In a stack, the Compose files and env files the stack uses, wherever
+  they are, need the **View Compose definition** and **Edit Compose
+  definition** permissions. This also applies when you download, copy,
+  move, delete or extract into a folder that holds one.
+- Until a server's agent is upgraded, opening or changing any file of its
+  stacks needs these permissions too.
+- In a stack's folder, symbolic links are listed but never followed: open
+  the file or folder they point to instead.

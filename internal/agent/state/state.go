@@ -399,6 +399,31 @@ func (s *Store) SaveManagerRedirect(generation int64, r ManagerRedirect) error {
 	return writeJSON(s.dir, ManagerFile, m)
 }
 
+// ReplaceManagerRedirect records a manager.redirect at the generation the
+// agent already follows: the manager it follows gives it another address
+// of its own (after a move, its HTTPS public address instead of the
+// plain-HTTP one the move gave). r nil forgets the redirect (the agent
+// dials DOCKER_AGENT_MANAGER_URL again). generation must equal the
+// recorded one, else ErrGenerationNotNewer and nothing is written; an
+// unreadable or corrupt record is an error (the caller decides nothing
+// from it). Which addresses qualify is the runtime's rule.
+func (s *Store) ReplaceManagerRedirect(generation int64, r *ManagerRedirect) error {
+	if r != nil && (r.URL == "" || r.Replaces == "") {
+		return errors.New("state: invalid manager redirect")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.readManager()
+	if err != nil {
+		return err
+	}
+	if generation < 1 || generation != m.Generation {
+		return fmt.Errorf("%w (generation %d; this agent follows %d)", ErrGenerationNotNewer, generation, m.Generation)
+	}
+	m.Redirect = r
+	return writeJSON(s.dir, ManagerFile, m)
+}
+
 // ClearManagerRedirect forgets the redirect (the agent dials
 // DOCKER_AGENT_MANAGER_URL again) and keeps the generation. A corrupt
 // record is left for the next generation write to replace.

@@ -13,6 +13,11 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   transaction use `(*audit.Log).RecordTx(ctx, tx, ev)` (never `Record`: the
   single SQLite connection would deadlock). Scheduled work uses
   `audit.ServiceActor()`.
+- Anonymous failures (anonymous actor, a client IP, outcome not success)
+  are budgeted per client and in total per minute and summarized beyond it
+  (`audit/anonymous.go`, guide "HTTP operations"); never work around the
+  budget, and keep recording an actor for internal work
+  (`audit.ServiceActor()`), which is never budgeted.
 - Never pass secret values, tokens, file contents, `.env` values or error
   messages; the redaction layer is a safety net, not a licence. Record error
   classes (stable codes), not messages.

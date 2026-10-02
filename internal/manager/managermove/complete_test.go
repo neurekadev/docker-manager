@@ -11,8 +11,8 @@ import (
 
 // TestMoveComplete: an agent that got the new address never needs a fix
 // (whatever address it reports, e.g. http://docker-manager:8080); one
-// that did not get it needs the fix until it connected here since the
-// move; the old server's environment shows its stacks left and the moved
+// that did not get it needs the fix (the HTTPS public URL) until it
+// connected here since the move; the old server's environment shows its stacks left and the moved
 // stacks' stopped copies until it is archived.
 func TestMoveComplete(t *testing.T) {
 	f := newFixture(t, testutil.FakeClock(), nil)
@@ -53,7 +53,8 @@ func TestMoveComplete(t *testing.T) {
 	if r := c.Redirects[0]; !r.Sent || r.NeedsFix {
 		t.Errorf("redirected agent %+v", r)
 	}
-	if r := c.Redirects[1]; r.Sent || r.Connected || !r.NeedsFix || r.URL != "http://192.168.1.20:8080" {
+	// The fix by hand is the HTTPS public URL, not the move's plain-HTTP address.
+	if r := c.Redirects[1]; r.Sent || r.Connected || !r.NeedsFix || r.URL != publicURL {
 		t.Errorf("offline agent %+v", r)
 	}
 	if r := c.Redirects[2]; !r.Connected || r.NeedsFix {

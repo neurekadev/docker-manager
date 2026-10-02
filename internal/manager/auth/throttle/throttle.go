@@ -1,23 +1,24 @@
 // Package throttle limits authentication attempts per client IP and per
-// account with golang.org/x/time/rate token buckets (#16, #18).
+// account with token buckets (#16, #18).
 //
 // Credential checks (sign-in, second factors, step-up, invitation and
-// reset redemption) call Allow before doing any work and Fail after a
-// failed attempt, so only failures consume tokens: a legitimate user who
-// types the right password is never slowed down, and an attacker gets at
-// most Burst guesses, then Rate per second. Keys come from
-// requestinfo.ClientIP (never from forwarding headers) and from the
-// normalized account name as typed, whether or not it exists, so the
-// limiter itself does not reveal which accounts exist.
+// reset redemption) Take a token from every bucket they count against
+// before doing any work, and Refund it when the attempt succeeds. Only
+// failures keep their token, so a legitimate user who types the right
+// password is never slowed down, and because the token is taken up front,
+// concurrent attempts cannot all pass a check before the first failure is
+// counted: an attacker gets at most Burst guesses, then one per Every.
+// Keys come from requestinfo.ClientIP (never from forwarding headers) and
+// from the normalized account name as typed, whether or not it exists, so
+// the limiter itself does not reveal which accounts exist.
 package throttle
 
 import (
+	"container/list"
 	"net/netip"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/time/rate"
 
 	"github.com/neurekadev/docker-manager/internal/clock"
 )
@@ -36,11 +37,20 @@ type Limiter struct {
 	maxEntries int
 
 	mu      sync.Mutex
-	buckets map[string]*rate.Limiter
+	buckets map[string]*list.Element // of *bucket
+	lru     *list.List               // least recently used first
 }
 
-// New returns a limiter. maxEntries bounds memory; when the table is full
-// and no bucket is idle (full again), new keys are refused (fail closed).
+type bucket struct {
+	key    string
+	tokens float64
+	at     time.Time
+}
+
+// New returns a limiter. maxEntries bounds memory; when the table is full,
+// the least recently used bucket is forgotten to make room, so a flood of
+// new keys never locks out other clients (forgetting a bucket only gives
+// its key a full burst again).
 func New(limit Limit, clk clock.Clock, maxEntries int) *Limiter {
 	if clk == nil {
 		clk = clock.Real()
@@ -51,91 +61,85 @@ func New(limit Limit, clk clock.Clock, maxEntries int) *Limiter {
 	if limit.Burst <= 0 {
 		limit.Burst = 1
 	}
-	return &Limiter{limit: limit, clk: clk, maxEntries: maxEntries, buckets: map[string]*rate.Limiter{}}
+	if limit.Every <= 0 {
+		limit.Every = time.Second
+	}
+	return &Limiter{limit: limit, clk: clk, maxEntries: maxEntries, buckets: map[string]*list.Element{}, lru: list.New()}
 }
 
-func (l *Limiter) bucket(key string, now time.Time) (*rate.Limiter, bool) {
-	if b, ok := l.buckets[key]; ok {
-		return b, true
-	}
-	if !l.hasRoom(now) {
-		return nil, false
-	}
-	b := rate.NewLimiter(rate.Every(l.limit.Every), l.limit.Burst)
-	l.buckets[key] = b
-	return b, true
-}
-
-// hasRoom reports whether a new key fits, evicting idle buckets (full
-// again, so forgetting them changes nothing) when the table is full.
-func (l *Limiter) hasRoom(now time.Time) bool {
-	if len(l.buckets) < l.maxEntries {
-		return true
-	}
-	for k, b := range l.buckets {
-		if b.TokensAt(now) >= float64(l.limit.Burst) {
-			delete(l.buckets, k)
+// bucket returns key's bucket refilled to now, creating (and evicting for)
+// it when needed. The caller holds l.mu.
+func (l *Limiter) bucket(key string, now time.Time) *bucket {
+	if e, ok := l.buckets[key]; ok {
+		l.lru.MoveToBack(e)
+		b := e.Value.(*bucket)
+		if d := now.Sub(b.at); d > 0 {
+			b.tokens = min(float64(l.limit.Burst), b.tokens+float64(d)/float64(l.limit.Every))
+			b.at = now
 		}
+		return b
 	}
-	return len(l.buckets) < l.maxEntries
+	for len(l.buckets) >= l.maxEntries {
+		oldest := l.lru.Front()
+		l.lru.Remove(oldest)
+		delete(l.buckets, oldest.Value.(*bucket).key)
+	}
+	b := &bucket{key: key, tokens: float64(l.limit.Burst), at: now}
+	l.buckets[key] = l.lru.PushBack(b)
+	return b
 }
 
-// Allow reports whether key may attempt now (at least one token left). It
-// does not consume a token.
-func (l *Limiter) Allow(key string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.clk.Now()
-	if b, ok := l.buckets[key]; ok {
-		return b.TokensAt(now) >= 1
-	}
-	return l.hasRoom(now)
-}
-
-// Fail consumes one token for key (a failed attempt).
-func (l *Limiter) Fail(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.clk.Now()
-	if b, ok := l.bucket(key, now); ok {
-		b.AllowN(now, 1)
-	}
-}
-
-// Take consumes one token if available (for flows where every attempt
-// counts, e.g. creating ceremony state), reporting whether it did.
+// Take consumes one token for key if one is available, reporting whether
+// it did. Credential checks call it before verifying anything.
 func (l *Limiter) Take(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	now := l.clk.Now()
-	b, ok := l.bucket(key, now)
-	return ok && b.AllowN(now, 1)
+	b := l.bucket(key, l.clk.Now())
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
+}
+
+// Refund gives back a token Take consumed (the attempt succeeded, or ended
+// before any credential was checked). The bucket never exceeds Burst; a
+// bucket forgotten meanwhile is not recreated.
+func (l *Limiter) Refund(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, ok := l.buckets[key]; !ok {
+		return
+	}
+	b := l.bucket(key, l.clk.Now())
+	b.tokens = min(float64(l.limit.Burst), b.tokens+1)
 }
 
 // RetryAfter is how long until key has a token again (0 if it has one).
 func (l *Limiter) RetryAfter(key string) time.Duration {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	now := l.clk.Now()
-	b, ok := l.buckets[key]
+	e, ok := l.buckets[key]
 	if !ok {
-		if !l.hasRoom(now) {
-			return l.limit.Every
-		}
 		return 0
 	}
-	missing := 1 - b.TokensAt(now)
-	if missing <= 0 {
-		return 0
+	b := e.Value.(*bucket)
+	tokens := min(float64(l.limit.Burst), b.tokens+float64(l.clk.Now().Sub(b.at))/float64(l.limit.Every))
+	if missing := 1 - tokens; missing > 0 {
+		return time.Duration(missing * float64(l.limit.Every))
 	}
-	return time.Duration(missing * float64(l.limit.Every))
+	return 0
 }
 
-// Reset forgets key (e.g. the account after a successful sign-in).
+// Reset forgets key (e.g. the account and client after a successful
+// sign-in).
 func (l *Limiter) Reset(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	delete(l.buckets, key)
+	if e, ok := l.buckets[key]; ok {
+		l.lru.Remove(e)
+		delete(l.buckets, key)
+	}
 }
 
 // IPKey groups a client address: IPv4 by address, IPv6 by /64 (one
@@ -156,4 +160,11 @@ func IPKey(a netip.Addr) string {
 // AccountKey is the bucket of an account name as typed (trimmed, case-folded).
 func AccountKey(name string) string {
 	return "account:" + strings.ToLower(strings.TrimSpace(name))
+}
+
+// AccountClientKey is the bucket of an account name as typed from one
+// client (IPKey grouping): the strict sign-in limit, so failures from one
+// client never lock the account out for everyone else.
+func AccountClientKey(name string, client netip.Addr) string {
+	return AccountKey(name) + "|" + IPKey(client)
 }

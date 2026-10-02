@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -399,8 +400,35 @@ func (s *Service) RecordFileSave(ctx context.Context, stackID, relPath string, a
 // stack's definition (a Compose, override or env file), so the file manager
 // (#15) also requires stack.definition.read/write for it.
 func IsDefinitionFile(st domain.Stack, known []string, relPath string) bool {
-	return slices.Contains(known, relPath) || slices.Contains(definitionNames, relPath) ||
-		slices.Contains(st.ConfigFiles, relPath) || slices.Contains(st.EnvFiles, relPath)
+	rel, ok := cleanProjectPath(relPath)
+	return ok && slices.Contains(DefinitionPaths(st, known), rel)
+}
+
+// DefinitionPaths are the paths of a stack's definition relative to its
+// project directory: the known files (the newest observed revision's),
+// the names a stack is created with, every Compose file and every env
+// file, cleaned and slash-separated like file manager paths. Paths outside
+// the project directory (absolute or climbing out) are left out: the file
+// manager cannot address them.
+func DefinitionPaths(st domain.Stack, known []string) []string {
+	var out []string
+	for _, group := range [][]string{known, definitionNames, st.ConfigFiles, st.EnvFiles} {
+		for _, p := range group {
+			if rel, ok := cleanProjectPath(p); ok && rel != "." && !slices.Contains(out, rel) {
+				out = append(out, rel)
+			}
+		}
+	}
+	return out
+}
+
+// cleanProjectPath cleans a project-relative path ("./config/app.env" is
+// "config/app.env") and refuses absolute and climbing ones.
+func cleanProjectPath(p string) (string, bool) {
+	if p == "" || strings.HasPrefix(p, "/") {
+		return "", false
+	}
+	return protocol.CleanRelativePath(path.Clean(p))
 }
 
 // Reconciler re-reads every stack of an environment after its agent

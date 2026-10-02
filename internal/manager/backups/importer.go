@@ -427,6 +427,11 @@ func (s *Service) TestImport(ctx context.Context, src ImportSource) (ImportConne
 		p := s3probe.Probe(ctx, s.opts.HTTPClient, s3probe.Target{Endpoint: d.Endpoint, Bucket: d.Bucket, Prefix: d.Prefix, Region: d.Region,
 			PathStyle: d.PathStyle, AccessKeyID: sec.creds.AccessKeyID, SecretAccessKey: sec.creds.SecretAccessKey}, s.opts.Clock.Now)
 		out.CanRead, out.CanWrite, out.CanDelete, out.ObjectLock = p.CanRead, p.CanWrite, p.CanDelete, p.ObjectLock
+		if p.Class == s3probe.ClassAddressNotAllowed {
+			// restic is not run against a refused address either.
+			problem("S3 access: " + p.Message + " (" + p.Class + "). Docker Manager does not connect to loopback, link-local or multicast addresses.")
+			return out, nil
+		}
 		if p.Class != "" && (p.CanRead == nil || !*p.CanRead) {
 			problem("S3 access: " + p.Message + " (" + p.Class + "). The import needs read access; new backups need write and delete.")
 		} else if p.Class != "" {

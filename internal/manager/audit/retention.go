@@ -31,8 +31,15 @@ type PurgeResult struct {
 const maxBatchesPerPurge = 100
 
 // Purge applies retention now. It runs as the manager service identity.
+// It also writes the summaries of anonymous failures whose window ended
+// with no record after it (anonymous.go).
 func (l *Log) Purge(ctx context.Context) (PurgeResult, error) {
 	var res PurgeResult
+	if err := l.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		return l.writeAnonSummaries(ctx, tx)
+	}); err != nil {
+		return res, err
+	}
 	for res.Batches < maxBatchesPerPurge {
 		done := true
 		err := l.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {

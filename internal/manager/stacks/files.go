@@ -33,7 +33,9 @@ var (
 
 // StackFileRoot resolves a stack's project directory to its absolute host
 // path (identical inside the agent, #28): below the stacks volume's
-// mountpoint the agent reported, or below the registered root.
+// mountpoint the agent reported, or below the registered root. It carries
+// the stack's definition files (DefinitionPaths), which the file manager
+// guards with stack.definition.* (#15, #17).
 func (s *Service) StackFileRoot(ctx context.Context, stackID string) (files.StackRoot, error) {
 	st, err := store.GetStack(ctx, s.db, stackID)
 	if errors.Is(err, domain.ErrStackNotFound) {
@@ -48,7 +50,8 @@ func (s *Service) StackFileRoot(ctx context.Context, stackID string) (files.Stac
 			return files.StackRoot{}, err
 		}
 	}
-	return files.StackRoot{EnvironmentID: st.EnvironmentID, Dir: path.Join(root, st.Dir)}, nil
+	return files.StackRoot{EnvironmentID: st.EnvironmentID, Dir: path.Join(root, st.Dir),
+		DefinitionFiles: DefinitionPaths(st, s.observedFiles(ctx, st))}, nil
 }
 
 // HostPath is the stack's project directory on the host (#22: the stack

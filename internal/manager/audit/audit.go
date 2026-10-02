@@ -92,6 +92,7 @@ type Log struct {
 	logger *slog.Logger
 	mirror *slog.Logger
 	opts   Options
+	anon   anonGate
 }
 
 // New returns a Log.
@@ -124,9 +125,13 @@ func New(o Options) (*Log, error) {
 // category/outcome/actor kind or a malformed action key).
 var ErrInvalidEvent = errors.New("audit: invalid event")
 
-// Record appends ev in its own transaction.
+// Record appends ev in its own transaction, after the summaries of
+// anonymous failures whose window ended (anonymous.go).
 func (l *Log) Record(ctx context.Context, ev domain.AuditEvent) error {
 	return l.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := l.writeAnonSummaries(ctx, tx); err != nil {
+			return err
+		}
 		return l.RecordTx(ctx, tx, ev)
 	})
 }
@@ -134,11 +139,20 @@ func (l *Log) Record(ctx context.Context, ev domain.AuditEvent) error {
 // RecordTx appends ev inside the caller's transaction. The manager's
 // database has a single connection: never call Record (or anything else
 // using the root DB) while holding a transaction; use RecordTx with it.
+// An anonymous failure over its budget is only counted (anonymous.go).
 func (l *Log) RecordTx(ctx context.Context, db bun.IDB, ev domain.AuditEvent) error {
 	rec, err := l.normalize(ctx, ev)
 	if err != nil {
 		return err
 	}
+	if anonymousFailure(&rec) && !l.anon.admit(&rec, l.clock.Now()) {
+		return nil
+	}
+	return l.appendRecord(ctx, db, rec)
+}
+
+// appendRecord chains rec to the head and stores it.
+func (l *Log) appendRecord(ctx context.Context, db bun.IDB, rec domain.AuditRecord) error {
 	chain, err := store.GetAuditChain(ctx, db)
 	if err != nil {
 		return err

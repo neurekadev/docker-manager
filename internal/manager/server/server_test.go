@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"net/url"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -134,6 +136,30 @@ func TestSecurityHeadersAndCSP(t *testing.T) {
 	}
 	if strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
 		t.Error("CSP allows inline scripts")
+	}
+}
+
+// TestHSTSOnlyOverHTTPS: Strict-Transport-Security is sent on HTTPS
+// requests when the public URL is https, never over plain http or for an
+// http public URL (localhost development).
+func TestHSTSOnlyOverHTTPS(t *testing.T) {
+	proxy := []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")} // httptest's RemoteAddr
+	for _, c := range []struct {
+		name, publicURL, proto, want string
+	}{
+		{"https public URL over https", "https://docker.example.com", "https", HSTSHeader},
+		{"https public URL over http", "https://docker.example.com", "http", ""},
+		{"http public URL", "http://localhost:8080", "https", ""},
+	} {
+		u, _ := url.Parse(c.publicURL)
+		s, err := New(Options{Logger: testutil.Logger(t), Clock: testutil.FakeClock(), UI: testUI, PublicURL: u, TrustedProxies: proxy})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := request(t, s.Handler, http.MethodGet, "/", map[string]string{"X-Forwarded-Proto": c.proto})
+		if got := rec.Header().Get("Strict-Transport-Security"); got != c.want {
+			t.Errorf("%s: Strict-Transport-Security %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

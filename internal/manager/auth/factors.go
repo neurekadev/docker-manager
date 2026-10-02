@@ -70,7 +70,11 @@ type evaluation struct {
 //   - Otherwise, if some alternative can be completed with enrolled
 //     factors: a pending sign-in asking for them.
 //   - Otherwise, if some alternative lacks only factors the account has
-//     not enrolled: a limited enrollment session.
+//     not enrolled: a limited enrollment session, but only once every
+//     second factor the account did enroll (TOTP, passkey) is proven;
+//     until then pending, asking for them. Otherwise a password alone
+//     would skip an enrolled factor whenever the policy asks for one the
+//     account lacks, and the enrollment session could add the attacker's.
 //   - Otherwise: pending, asking for the enrolled factors still missing.
 func evaluate(policy domain.RequiredFactors, enrolled, proven factorSet, recovery bool) evaluation {
 	alts := alternatives(policy, enrolled.has(fTOTP))
@@ -101,6 +105,9 @@ func evaluate(policy domain.RequiredFactors, enrolled, proven factorSet, recover
 		}
 	}
 	if missing != 0 {
+		if unproven := enrolled &^ p & (fTOTP | fPasskey); unproven != 0 {
+			return evaluation{stage: domain.StageSecondFactor, next: unproven}
+		}
 		return evaluation{stage: domain.StageEnrollment, missing: missing}
 	}
 	for _, a := range alts {

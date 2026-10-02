@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -213,5 +214,64 @@ func TestManagerRedirectAfterRestart(t *testing.T) {
 	}
 	if h := readHealth(t, dir); h.ManagerURL != "https://docker.example.org" || h.ManagerURLSource != ManagerURLFromConfig {
 		t.Fatalf("health %+v", h)
+	}
+}
+
+// TestManagerRedirectBackToHTTPS (manager moves): after a move, the
+// manager the agent follows sends its HTTPS public address at the same
+// generation; the agent dials it from then on (also after a restart). At
+// that generation a plain-HTTP address is refused, and the configured
+// origin forgets the stored redirect. The agent announces the feature.
+func TestManagerRedirectBackToHTTPS(t *testing.T) {
+	dir := t.TempDir()
+	cfg := testConfig(dir)
+	cfg.ManagerURL, cfg.PlainHTTP = &url.URL{Scheme: "http", Host: "docker-manager:8080"}, true
+	a, logs := redirectAgent(t, cfg)
+	if p, _ := a.CapabilitiesPayload(); !slices.Contains(p.Features, protocol.FeatureManagerRedirectSecure) {
+		t.Fatalf("features %v lack %s", p.Features, protocol.FeatureManagerRedirectSecure)
+	}
+	follow(t, a, "http://192.0.2.20:8080", 2)
+
+	// The plain-HTTP address of another server at the same generation:
+	// refused, nothing changes.
+	_, err := redirect(t, a, "http://192.0.2.30:8080", 2)
+	var he *session.HandlerError
+	if !errors.As(err, &he) || he.Code != protocol.CodeConflict {
+		t.Fatalf("plain http at the same generation: %v", err)
+	}
+	if u := sessionURL(a); u != "ws://192.0.2.20:8080"+protocol.SessionPath {
+		t.Fatalf("refused redirect changed the address: %s", u)
+	}
+
+	follow(t, a, "https://docker.example.com", 2)
+	ms := managerState(t, a)
+	if ms.Generation != 2 || ms.Redirect == nil || ms.Redirect.URL != "https://docker.example.com" || ms.Redirect.Replaces != "http://docker-manager:8080" {
+		t.Fatalf("manager state %+v %+v", ms, ms.Redirect)
+	}
+	if u := sessionURL(a); u != "wss://docker.example.com"+protocol.SessionPath {
+		t.Fatalf("next dial %s", u)
+	}
+	if ti := a.currentTransport().Info(); ti.PlainHTTP || ti.ManagerURL != "https://docker.example.com" {
+		t.Fatalf("transport %+v", ti)
+	}
+	if !strings.Contains(logs.String(), "gave its secure address") {
+		t.Fatalf("log: %s", logs.String())
+	}
+	b, _ := redirectAgent(t, cfg)
+	if u := sessionURL(b); u != "wss://docker.example.com"+protocol.SessionPath {
+		t.Fatalf("restart dials %s", u)
+	}
+	// A lower generation still conflicts, whatever the address.
+	if _, err := redirect(t, a, "https://docker.example.org", 1); !errors.As(err, &he) || he.Code != protocol.CodeConflict {
+		t.Fatalf("lower generation: %v", err)
+	}
+
+	// The configured origin at the same generation forgets the redirect.
+	follow(t, a, "http://docker-manager:8080", 2)
+	if ms := managerState(t, a); ms.Generation != 2 || ms.Redirect != nil {
+		t.Fatalf("after the configured origin %+v %+v", ms, ms.Redirect)
+	}
+	if tr := a.currentTransport(); tr.Redirected() || sessionURL(a) != "ws://docker-manager:8080"+protocol.SessionPath {
+		t.Fatalf("dials %s (redirected %v)", sessionURL(a), tr.Redirected())
 	}
 }

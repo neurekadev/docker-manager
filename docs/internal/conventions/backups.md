@@ -51,6 +51,14 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
 - Stop/restart containers for backups/restores only through
   `internal/agent/lifecycle`, registering the `start_containers`
   compensation before stopping anything.
+- The manager's own HTTP requests to an S3 endpoint use
+  `s3probe.NewClient` (a nil client in `s3probe.Probe`/`ListDirs`): its
+  dialer refuses loopback, link-local, metadata, unspecified and multicast
+  addresses at connect time (after DNS), it follows no redirects and uses
+  no environment proxy; the refusal is the class `address_not_allowed`.
+  Never probe an endpoint with another client in production, never block
+  private ranges (LAN/Docker MinIO), and run no restic in a connection
+  test after a refused address.
 - Snapshot contents hold secrets: authorize browsing with
   `backups.ContentsCapabilities` (stack.definition.read / volume.files.read,
   manager state owner-only).

@@ -101,3 +101,7 @@ Good to know:
 - Volumes with a special driver, such as NFS, arrive empty.
 - Backups made before the move can be restored to the moved stack only if
   they are in S3 storage.
+- During a move of Docker Manager, the agents of both servers use plain
+  HTTP on your network. Once you sign in at your usual address on the new
+  server, the old server's agent switches to that HTTPS address and both
+  agents get new credentials on their own.

@@ -175,13 +175,18 @@ func (s *syncJobs) Subscribe(string) (<-chan struct{}, func()) {
 	return ch, func() {}
 }
 
-type stackRoots struct{ dir string }
+// stackRoots resolves the one stack; defs are its declared definition
+// files.
+type stackRoots struct {
+	dir  string
+	defs []string
+}
 
-func (s stackRoots) StackFileRoot(_ context.Context, id string) (files.StackRoot, error) {
+func (s *stackRoots) StackFileRoot(_ context.Context, id string) (files.StackRoot, error) {
 	if id != stackID {
 		return files.StackRoot{}, domain.ErrFileScopeNotFound
 	}
-	return files.StackRoot{EnvironmentID: envID, Dir: s.dir}, nil
+	return files.StackRoot{EnvironmentID: envID, Dir: s.dir, DefinitionFiles: s.defs}, nil
 }
 
 type observer struct {
@@ -291,6 +296,7 @@ type env struct {
 	vol    string // the volume "data" root
 	stack  string // the stack project directory
 	loop   *agentLoop
+	roots  *stackRoots
 	jobs   *syncJobs
 	obs    *observer
 	audit  *memAudit
@@ -336,13 +342,15 @@ func newEnvWith(t *testing.T, limits domain.FileLimits, featured bool) *env {
 	for k, h := range asvc.Streams() {
 		hs[k] = muxtest.Handler(h)
 	}
-	e.loop = &agentLoop{reqs: asvc.Requests(), pipe: muxtest.New(t, hs), features: map[string]bool{protocol.FeatureFileLimits: featured}}
+	e.loop = &agentLoop{reqs: asvc.Requests(), pipe: muxtest.New(t, hs), features: map[string]bool{protocol.FeatureFileLimits: featured,
+		protocol.FeatureStackFilesNoFollow: true}}
+	e.roots = &stackRoots{dir: sl(e.stack)}
 	e.pol = authztest.New().Owner("owner")
 	e.jobs = &syncJobs{execs: map[domain.JobKind]jobexec.Executor{}, auth: e.pol, jobs: map[string]domain.Job{}}
 	for _, x := range asvc.Executors() {
 		e.jobs.execs[x.Kind] = x
 	}
-	svc := files.New(files.Options{Agents: e.loop, Jobs: e.jobs, Stacks: stackRoots{dir: sl(e.stack)}, Observer: e.obs, Logger: logger,
+	svc := files.New(files.Options{Agents: e.loop, Jobs: e.jobs, Stacks: e.roots, Observer: e.obs, Logger: logger,
 		Limits: limits})
 	t.Cleanup(svc.Close)
 	mux := http.NewServeMux()
@@ -935,4 +943,106 @@ func TestManagerLimitsReachTheAgent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStackFilesNestedDefinitionsAndOlderAgents (#180): every Compose and
+// env file a stack declares needs stack.definition.* wherever it is, also
+// through a directory an operation covers (read, download, copy, archive
+// of a parent; delete, move, recursive chmod of a parent; uploads, copies
+// and extractions landing on or above one); jobs that change them tell
+// #7. On an agent that may follow in-root symlinks (no
+// FeatureStackFilesNoFollow) every content read needs
+// stack.definition.read and every change stack.definition.write.
+func TestStackFilesNestedDefinitionsAndOlderAgents(t *testing.T) {
+	e := newEnv(t, 1<<20)
+	e.roots.defs = []string{"deploy/compose.prod.yml", "config/app.env", "compose.yaml"}
+	e.write(e.stack, "deploy/compose.prod.yml", "services: {}\n")
+	e.write(e.stack, "deploy/readme.txt", "read me")
+	e.write(e.stack, "config/app.env", "TOKEN=1\n")
+	e.write(e.stack, "config/other.txt", "other")
+	e.write(e.stack, "html/index.html", "<p>hi</p>")
+	files := "@stack:" + stackID
+	var rules []string
+	for _, c := range []string{"read", "write", "download", "copy", "move", "delete", "archive", "extract", "chmod"} {
+		rules = append(rules, "allow stack.files."+c+" "+files)
+	}
+	e.pol.Member("dev", "g-dev").Group("g-dev", rules...)
+	with := func(extra ...string) []string { return append(slices.Clone(rules), extra...) }
+	chmod := map[string]string{"mode": "0755"}
+	for _, c := range []struct {
+		method, path string
+		body         any
+		headers      []string
+	}{
+		{http.MethodGet, "/content?path=config/app.env", nil, nil},
+		{http.MethodGet, "/content?path=deploy/compose.prod.yml", nil, nil},
+		{http.MethodPut, "/content?path=config/app.env", map[string]string{"content": "x"}, []string{"If-Match", "*"}},
+		{http.MethodPost, "/entries", map[string]any{"path": "config/app.env", "type": "file"}, nil},
+		{http.MethodGet, "/downloads?path=config", nil, nil},
+		{http.MethodGet, "/downloads?path=deploy&path=html", nil, nil},
+		{http.MethodPost, "/deletions", map[string]any{"paths": []string{"config"}}, nil},
+		{http.MethodPost, "/moves", map[string]any{"paths": []string{"deploy"}, "destination": "html"}, nil},
+		{http.MethodPost, "/moves", map[string]any{"paths": []string{"html/index.html"}, "destination": "config", "name": "app.env"}, nil},
+		{http.MethodPost, "/copies", map[string]any{"paths": []string{"config"}, "destination": "html"}, nil},
+		{http.MethodPost, "/copies", map[string]any{"paths": []string{"html"}, "destination": ".", "name": "deploy", "conflict": "overwrite"}, nil},
+		{http.MethodPost, "/uploads?path=config&name=app.env", []byte("x"), []string{"If-None-Match", "*"}},
+		{http.MethodPost, "/archives", map[string]any{"paths": []string{"deploy"}, "destination": "out.zip"}, nil},
+		{http.MethodPost, "/extractions", map[string]any{"path": "site.zip", "destination": "config"}, nil},
+		{http.MethodPatch, "/metadata", map[string]any{"paths": []string{"config"}, "recursive": true, "chmod": chmod}, nil},
+	} {
+		if r := e.do("dev", c.method, e.stkURL+c.path, c.body, c.headers...); r.status != http.StatusForbidden ||
+			!strings.Contains(string(r.body), "stack.definition.") {
+			t.Errorf("%s %s without stack.definition.*: %d %s", c.method, c.path, r.status, r.body)
+		}
+	}
+	// Files beside them, and the directories themselves, need nothing more.
+	must(t, e.do("dev", http.MethodGet, e.stkURL+"/content?path=config/other.txt", nil), 200)
+	must(t, e.do("dev", http.MethodGet, e.stkURL+"/downloads?path=html", nil), 200)
+	must(t, e.do("dev", http.MethodPost, e.stkURL+"/moves", map[string]any{"paths": []string{"config/other.txt"}, "destination": "html"}), 202)
+	must(t, e.do("dev", http.MethodPost, e.stkURL+"/deletions", map[string]any{"paths": []string{"deploy/readme.txt"}}), 202)
+	must(t, e.do("dev", http.MethodPatch, e.stkURL+"/metadata", map[string]any{"paths": []string{"config"}, "chmod": chmod}), 202)
+	if got := e.obs.all(); len(got) != 0 {
+		t.Fatalf("changes beside the definition reported: %v", got)
+	}
+	// With the capabilities the same operations pass, and a job that
+	// changes a declared file tells #7.
+	e.pol.Group("g-dev", with("allow stack.definition.read "+files, "allow stack.definition.write "+files)...)
+	must(t, e.do("dev", http.MethodGet, e.stkURL+"/content?path=config/app.env", nil), 200)
+	must(t, e.do("dev", http.MethodGet, e.stkURL+"/downloads?path=config", nil), 200)
+	must(t, e.do("dev", http.MethodPost, e.stkURL+"/deletions", map[string]any{"paths": []string{"config"}}), 202)
+	if got := e.obs.waitFor(e.ctx, 1); len(got) != 1 || !slices.Equal(got[0], []string{"config"}) {
+		t.Fatalf("revision hook calls %v, want [[config]]", got)
+	}
+
+	// An agent without FeatureStackFilesNoFollow may follow an in-root
+	// symlink to a definition file from any path: every content read and
+	// every change needs the definition capabilities (listings do not).
+	e.loop.features[protocol.FeatureStackFilesNoFollow] = false
+	e.pol.Group("g-dev", rules...)
+	must(t, e.do("dev", http.MethodGet, e.stkURL, nil), 200)
+	for _, c := range []struct {
+		method, path string
+		body         any
+		headers      []string
+	}{
+		{http.MethodGet, "/content?path=html/index.html", nil, nil},
+		{http.MethodGet, "/downloads?path=html", nil, nil},
+		{http.MethodPut, "/content?path=html/index.html", map[string]string{"content": "x"}, []string{"If-Match", "*"}},
+		{http.MethodPost, "/deletions", map[string]any{"paths": []string{"html/index.html"}}, nil},
+		{http.MethodPost, "/copies", map[string]any{"paths": []string{"html/index.html"}, "destination": "html", "conflict": "keep_both"}, nil},
+	} {
+		if r := e.do("dev", c.method, e.stkURL+c.path, c.body, c.headers...); r.status != http.StatusForbidden ||
+			!strings.Contains(string(r.body), "stack.definition.") {
+			t.Errorf("%s %s on an older agent: %d %s", c.method, c.path, r.status, r.body)
+		}
+	}
+	e.pol.Group("g-dev", with("allow stack.definition.read "+files)...)
+	must(t, e.do("dev", http.MethodGet, e.stkURL+"/content?path=html/index.html", nil), 200)
+	if r := e.do("dev", http.MethodPost, e.stkURL+"/deletions", map[string]any{"paths": []string{"html/index.html"}}); r.status != http.StatusForbidden {
+		t.Errorf("delete on an older agent without stack.definition.write: %d %s", r.status, r.body)
+	}
+	// Volumes are unaffected.
+	e.write(e.vol, "v.txt", "v")
+	e.pol.Group("g-dev", with("allow volume.files.read @volume:"+envID+"/data")...)
+	must(t, e.do("dev", http.MethodGet, e.volURL+"/content?path=v.txt", nil), 200)
 }

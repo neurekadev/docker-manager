@@ -33,9 +33,11 @@ import (
 // /api/v1/stacks/{stackId}/files… and
 // /api/v1/environments/{environmentId}/volumes/{volumeId}/files…
 // (docs/internal/api/files.md). Capabilities are per root type (stack.files.*,
-// volume.files.*, #17); a stack's Compose sources (compose.yaml, override
-// files, .env at the project root) additionally need
-// stack.definition.read / stack.definition.write.
+// volume.files.*, #17); a stack's definition files (FileRoot.IsDefinition:
+// Compose sources at the project root and every Compose and env file the
+// stack declares, wherever they are) additionally need
+// stack.definition.read / stack.definition.write for every operation
+// that reads or changes them, directly or as part of a directory.
 
 const tagFiles = "Files"
 
@@ -89,6 +91,42 @@ func fileLimitsOrDefault(l domain.FileLimits) domain.FileLimits {
 type FileRoot struct {
 	Scope         protocol.FileScope
 	EnvironmentID string
+	// Definition are a stack's declared definition files (the newest
+	// observed revision's, every Compose file and every env file):
+	// root-relative, clean, slash-separated.
+	Definition []string
+	// NoFollow: the stack's agent follows no symlink in the stack
+	// (protocol.FeatureStackFilesNoFollow), so a path names exactly one
+	// file. Without it any path may reach a definition file through an
+	// in-root symlink: every content read then needs
+	// stack.definition.read and every change stack.definition.write.
+	NoFollow bool
+}
+
+// IsDefinition reports whether a root-relative path is one of a stack's
+// definition files: declared (Definition) or a Compose source name at the
+// project root (IsDefinitionFile, which covers files the stack has not
+// declared yet). Always false outside stack scopes.
+func (r FileRoot) IsDefinition(rel string) bool {
+	return r.Scope.Kind == protocol.ScopeStack && (IsDefinitionFile(rel) || slices.Contains(r.Definition, rel))
+}
+
+// HoldsDefinition reports whether an operation on the whole tree at rel
+// reaches a definition file: rel is one, the project root, or a directory
+// holding a declared one.
+func (r FileRoot) HoldsDefinition(rel string) bool {
+	if r.Scope.Kind != protocol.ScopeStack {
+		return false
+	}
+	if rel == "." || r.IsDefinition(rel) {
+		return true
+	}
+	for _, d := range r.Definition {
+		if strings.HasPrefix(d, rel+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // ByteStream is a download in progress: read it to the end, then
@@ -125,11 +163,12 @@ type FilesService interface {
 // definitionRE matches Compose source file names at a project root.
 var definitionRE = regexp.MustCompile(`^(docker-)?compose(\.[^/]+)?\.ya?ml$`)
 
-// IsDefinitionFile reports whether a root-relative path is one of a
-// stack's Compose sources: compose.yaml/.yml, docker-compose.*, override
-// files (compose.<name>.yaml) and .env at the project root. They need the
-// stack.definition.* capabilities in addition to the file capabilities
-// (#17), and saving them records a stack revision (#7).
+// IsDefinitionFile reports whether a root-relative path is a Compose
+// source name at a project root: compose.yaml/.yml, docker-compose.*,
+// override files (compose.<name>.yaml) and .env. With the files a stack
+// declares (FileRoot.IsDefinition) they need the stack.definition.*
+// capabilities in addition to the file capabilities (#17), and saving
+// them records a stack revision (#7).
 func IsDefinitionFile(rel string) bool {
 	if strings.Contains(rel, "/") {
 		return false
@@ -625,17 +664,49 @@ func (f *fileCtx) require(verbs ...string) error {
 	return nil
 }
 
-// requireDefinition checks stack.definition.read/write for operations on
-// a stack's Compose sources.
-func (f *fileCtx) requireDefinition(read, write bool) error {
+// defUse is a path an operation reads or changes: one entry, or (tree)
+// everything below it as well.
+type defUse struct {
+	path string
+	tree bool
+}
+
+func entryUse(p string) defUse { return defUse{path: p} }
+
+func treeUses(ps ...string) []defUse {
+	out := make([]defUse, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, defUse{path: p, tree: true})
+	}
+	return out
+}
+
+// requireDefinition checks stack.definition.read/write for an operation
+// that reads the content of the paths in reads and changes the paths in
+// writes: needed when one of them is or (tree) holds a definition file.
+// On an agent that may follow in-root symlinks (FileRoot.NoFollow unset)
+// any path may alias one, so any content read and any change need them.
+func (f *fileCtx) requireDefinition(reads, writes []defUse) error {
 	if f.kind != protocol.ScopeStack {
 		return nil
 	}
-	if read && !f.c.Can("stack.definition.read", f.res).Allowed {
-		return Forbidden("not permitted: stack.definition.read (compose.yaml, override files and .env)")
+	touches := func(uses []defUse) bool {
+		if len(uses) > 0 && !f.root.NoFollow {
+			return true
+		}
+		for _, u := range uses {
+			if u.path == "." || f.root.IsDefinition(u.path) || (u.tree && f.root.HoldsDefinition(u.path)) {
+				return true
+			}
+		}
+		return false
 	}
-	if write && !f.c.Can("stack.definition.write", f.res).Allowed {
-		return Forbidden("not permitted: stack.definition.write (compose.yaml, override files and .env)")
+	const what = " (the stack's Compose files, override files and env files)"
+	if touches(reads) && !f.c.Can("stack.definition.read", f.res).Allowed {
+		return Forbidden("not permitted: stack.definition.read" + what)
+	}
+	if touches(writes) && !f.c.Can("stack.definition.write", f.res).Allowed {
+		return Forbidden("not permitted: stack.definition.write" + what)
 	}
 	return nil
 }
@@ -716,17 +787,6 @@ func cleanPaths(ps []string, field string, maxItems int) ([]string, error) {
 		}
 	}
 	return out, nil
-}
-
-// touchesDefinition reports whether any path is a Compose source or the
-// root itself (whose download/archive/copy includes them).
-func touchesDefinition(paths ...string) bool {
-	for _, p := range paths {
-		if p == "." || IsDefinitionFile(p) {
-			return true
-		}
-	}
-	return false
 }
 
 // fileErr maps a file service error. field names the path input the
@@ -905,7 +965,7 @@ func (h *filesAPI) getContent(ctx context.Context, ref fileScopeRef, in *FilesCo
 	if err != nil {
 		return nil, err
 	}
-	if err := f.requireDefinition(IsDefinitionFile(rel), false); err != nil {
+	if err := f.requireDefinition([]defUse{entryUse(rel)}, nil); err != nil {
 		return nil, err
 	}
 	out, err := h.svc.Read(ctx, f.root, protocol.FilesReadInput{Path: rel, Offset: in.Offset, Length: h.svc.Limits(f.root).Edit})
@@ -934,7 +994,7 @@ func (h *filesAPI) replaceContent(ctx context.Context, ref fileScopeRef, in *Fil
 	if err != nil {
 		return nil, err
 	}
-	if err := f.requireDefinition(false, IsDefinitionFile(rel)); err != nil {
+	if err := f.requireDefinition(nil, []defUse{entryUse(rel)}); err != nil {
 		return nil, err
 	}
 	data, err := decodeContent(in.Body.Content, in.Body.ContentBase64, "body.content", h.svc.Limits(f.root).Edit)
@@ -992,7 +1052,7 @@ func (h *filesAPI) createEntry(ctx context.Context, ref fileScopeRef, in *FilesC
 	if rel == "." {
 		return nil, Invalid("invalid path", Field("body.path", "the root already exists"))
 	}
-	if err := f.requireDefinition(false, IsDefinitionFile(rel)); err != nil {
+	if err := f.requireDefinition(nil, []defUse{entryUse(rel)}); err != nil {
 		return nil, err
 	}
 	if in.Body.Type != protocol.FileTypeFile && in.Body.Type != protocol.FileTypeDir {
@@ -1082,24 +1142,26 @@ func (h *filesAPI) transfer(kind domain.JobKind, verb string) func(context.Conte
 			return nil, err
 		}
 		// Copying reads the sources (and a copy of compose.yaml is readable
-		// with files.read); moving changes them; landing a Compose source
-		// name in the root writes one.
+		// with files.read); moving changes them; landing a tree where a
+		// definition file is (or may be) writes one.
 		name := in.Body.Name
 		if name != "" && (len(paths) != 1 || !protocol.ValidFileName(name)) {
 			return nil, Invalid("invalid name", Field("body.name", "a single path component, with exactly one source"))
 		}
-		read := kind == jobspec.FilesCopy && touchesDefinition(paths...)
-		write := kind == jobspec.FilesMove && touchesDefinition(paths...)
-		if dest == "." {
-			for _, p := range paths {
-				target := path.Base(p)
-				if name != "" {
-					target = name
-				}
-				write = write || IsDefinitionFile(target)
-			}
+		var reads, writes []defUse
+		if kind == jobspec.FilesCopy {
+			reads = treeUses(paths...)
+		} else {
+			writes = treeUses(paths...)
 		}
-		if err := f.requireDefinition(read, write); err != nil {
+		for _, p := range paths {
+			target := path.Base(p)
+			if name != "" {
+				target = name
+			}
+			writes = append(writes, treeUses(joinRel(dest, target))...)
+		}
+		if err := f.requireDefinition(reads, writes); err != nil {
 			return nil, err
 		}
 		if !protocol.ValidConflict(in.Body.Conflict) {
@@ -1125,7 +1187,7 @@ func (h *filesAPI) deletion(ctx context.Context, ref fileScopeRef, in *FilesDele
 	if slices.Contains(paths, ".") {
 		return nil, Invalid("the root cannot be deleted", Field("body.paths", "delete its entries instead"))
 	}
-	if err := f.requireDefinition(false, touchesDefinition(paths...)); err != nil {
+	if err := f.requireDefinition(nil, treeUses(paths...)); err != nil {
 		return nil, err
 	}
 	return h.startJob(ctx, f, jobspec.FilesDelete, protocol.FilesJobInput{Paths: paths}, in.IdempotencyKey)
@@ -1147,7 +1209,7 @@ func (h *filesAPI) archive(ctx context.Context, ref fileScopeRef, in *FilesArchi
 	if err != nil || dest == "." {
 		return nil, Invalid("invalid destination", Field("body.destination", "the archive file to create"))
 	}
-	if err := f.requireDefinition(touchesDefinition(paths...), IsDefinitionFile(dest)); err != nil {
+	if err := f.requireDefinition(treeUses(paths...), []defUse{entryUse(dest)}); err != nil {
 		return nil, err
 	}
 	format := in.Body.Format
@@ -1177,8 +1239,9 @@ func (h *filesAPI) extraction(ctx context.Context, ref fileScopeRef, in *FilesEx
 	if err != nil {
 		return nil, err
 	}
-	// Extracting into the project root may write Compose sources.
-	if err := f.requireDefinition(false, dest == "."); err != nil {
+	// The archive's entries are unknown here: extracting into a directory
+	// that is or holds a definition file (the root always) may write one.
+	if err := f.requireDefinition([]defUse{entryUse(src)}, treeUses(dest)); err != nil {
 		return nil, err
 	}
 	if !protocol.ValidConflict(in.Body.Conflict) {
@@ -1243,7 +1306,11 @@ func (h *filesAPI) metadata(ctx context.Context, ref fileScopeRef, in *FilesMeta
 	if job.Paths, err = cleanPaths(b.Paths, "body.paths", MaxFilesPerJob); err != nil {
 		return nil, err
 	}
-	if err := f.requireDefinition(false, touchesDefinition(job.Paths...)); err != nil {
+	uses := make([]defUse, 0, len(job.Paths))
+	for _, p := range job.Paths {
+		uses = append(uses, defUse{path: p, tree: b.Recursive})
+	}
+	if err := f.requireDefinition(nil, uses); err != nil {
 		return nil, err
 	}
 	return h.startJob(ctx, f, jobspec.FilesMetadata, job, in.IdempotencyKey)
@@ -1275,7 +1342,7 @@ func (h *filesAPI) upload(ctx context.Context, ref fileScopeRef, in *FilesUpload
 		return nil, Invalid("invalid file name", Field("query.name", "a single path component without / or control characters"))
 	}
 	rel := joinRel(dir, in.Name)
-	if err := f.requireDefinition(false, IsDefinitionFile(rel) || (dir == "." && in.Conflict == protocol.ConflictKeepBoth && IsDefinitionFile(in.Name))); err != nil {
+	if err := f.requireDefinition(nil, []defUse{entryUse(rel)}); err != nil {
 		return nil, err
 	}
 	if ct, _, _ := mime.ParseMediaType(ctxHeader(ctx, "Content-Type")); ct != "" && ct != "application/octet-stream" {
@@ -1426,7 +1493,7 @@ func (h *filesAPI) download(ctx context.Context, ref fileScopeRef, in *FilesDown
 	if err != nil {
 		return nil, err
 	}
-	if err := f.requireDefinition(touchesDefinition(paths...), false); err != nil {
+	if err := f.requireDefinition(treeUses(paths...), nil); err != nil {
 		return nil, err
 	}
 	audit.SetDetail(ctx, "paths", paths)
@@ -1548,7 +1615,10 @@ func registerFiles(a huma.API, deps Deps) {
 	for _, sc := range scopes {
 		kind := sc.idName
 		what := "the stack's project directory"
-		defNote := " Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write."
+		defNote := " The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, " +
+			"also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. " +
+			"Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs " +
+			"stack.definition.read and every change stack.definition.write."
 		switch kind {
 		case "volume":
 			what = "the volume"

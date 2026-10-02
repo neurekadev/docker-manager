@@ -105,7 +105,7 @@ func New(opts Options) (*Server, error) {
 	var h http.Handler = mux
 	h = routeBoundaries(newAgentGuard(opts.AgentLimits, opts.Clock), h)
 	h = noStore(h)
-	h = securityHeaders(contentSecurityPolicy(ui.scriptHashes), h)
+	h = securityHeaders(contentSecurityPolicy(ui.scriptHashes), opts.PublicURL != nil && opts.PublicURL.Scheme == "https", h)
 	h = recoverPanics(h)
 	h = accessLog(opts.Clock, h)
 	h = withRequestID(opts.Logger, h)

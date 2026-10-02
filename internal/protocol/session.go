@@ -95,6 +95,14 @@ const (
 	ReqManagerRedirect = "manager.redirect"
 )
 
+// FeatureManagerRedirectSecure is the capabilities feature of agents that
+// accept a manager.redirect at the generation they already follow when it
+// names an https origin or their DOCKER_AGENT_MANAGER_URL origin (which
+// forgets the stored redirect): after a move the new manager moves the
+// agents it reached over plain HTTP to its HTTPS public address
+// (docs/internal/architecture/manager-move.md, "Back to HTTPS").
+const FeatureManagerRedirectSecure = "manager.redirect.secure"
+
 // Job-linked migration requests (#35): the manager's stack.migrate and
 // volume.migrate jobs stop and restart the source stack and commit or clean
 // up what they wrote on the destination (docs/internal/architecture/migrations.md).

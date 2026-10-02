@@ -15,6 +15,17 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 ## Security defaults
 
 - Containers run as UID 0 (decided, #25/#28); do not add non-root users.
+- Every response carries the baseline headers of `server.securityHeaders`
+  (CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, COOP) and,
+  on HTTPS requests when `DOCKER_MANAGER_PUBLIC_URL` is https,
+  `Strict-Transport-Security: max-age=31536000` (#180).
+- Credential checks (passwords, TOTP, recovery, invitation and reset
+  codes, passkey assertions) are throttled through the auth service's
+  attempt: `begin` takes the tokens before anything is verified, `fail`
+  keeps them spent, the deferred `release` refunds them. Never check a
+  limiter and count the failure afterwards: concurrent requests would all
+  pass the check (#180). Limiter tables (`auth/throttle`) evict their
+  least recently used bucket when full; they never refuse new clients.
 - All `/api/v1` and `/agent/v1` responses are `no-store` (the one exception:
   template icons requested with their current `?v=<sha256>`, which are
   immutable); never cache API data in the service worker.
