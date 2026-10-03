@@ -5,7 +5,7 @@
 	// Credentials and the key are never shown.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Plus from '@lucide/svelte/icons/plus';
-	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import { myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -18,7 +18,6 @@
 		formatRelative,
 		type Column
 	} from '$lib/ui';
-	import { environmentName } from '$lib/features/common/data';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import Page from '$lib/features/common/Page.svelte';
@@ -38,9 +37,7 @@
 	});
 
 	const perms = createQuery(() => myPermissionsQuery());
-	const envs = createQuery(() => environmentsQuery());
 	const repos = createQuery(() => repositoriesQuery());
-	const envName = (id: string) => environmentName(envs.data, id);
 
 	const columns: Column<BackupRepository>[] = [
 		{
