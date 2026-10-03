@@ -18,7 +18,7 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'container.restart': 'Restart Container',
 	'container.start': 'Start Container',
 	'container.stop': 'Stop Container',
-	'container.unpause': 'Resume Container',
+	'container.unpause': 'Unpause Container',
 	'container.update': 'Update Container Settings',
 	'environment.migrate': 'Migrate Environment',
 	'files.archive': 'Archive Files',

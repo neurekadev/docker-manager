@@ -245,7 +245,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   stack-managed containers and objects in use are reported, never
   dropped silently); `runBulk` (`bulk-run.ts`) sends one request per
   object through the single-object helpers (`runContainerAction`,
-  `object-actions.ts`) and shows one summary toast. Detail pages: removal
+  `object-actions.ts`) and shows one summary toast. A container's header
+  shows, after its `LifecycleButton`, **Pause** (running) or **Unpause**
+  (paused) and **Settings** (cog; restart policy and limits) as buttons,
+  never in the menu; on phones Settings shows only its cog
+  (`Button iconOnPhones`) so the header stays one row. Detail pages: removal
   is the last entry of the header's "More Actions" menu after a separator
   and absent for Docker Manager's own objects (the notice says why); no
   removal-preview card on the page (the removal dialog shows the

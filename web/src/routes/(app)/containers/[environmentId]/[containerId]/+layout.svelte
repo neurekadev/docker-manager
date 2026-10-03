@@ -2,7 +2,8 @@
 	// Container detail (#6): header with status (and the image's update
 	// state, #20), image and lifecycle actions (LifecycleButton: Stop while
 	// it runs, is paused or restarts, Start otherwise; its menu has Start,
-	// Restart and Stop as the state allows), what Docker Manager refuses
+	// Restart and Stop as the state allows), Pause or Unpause right of it
+	// and Settings (restart policy and limits), what Docker Manager refuses
 	// on this container and why (#32 protection, managed stacks), its
 	// running jobs (from the running list: they come back after a reload),
 	// and the tabs: Overview here, Logs and Terminal (#8) as
@@ -17,6 +18,7 @@
 	import Pause from '@lucide/svelte/icons/pause';
 	import Play from '@lucide/svelte/icons/play';
 	import Server from '@lucide/svelte/icons/server';
+	import Settings from '@lucide/svelte/icons/settings';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import { ApiRequestError } from '$lib/api/client';
 	import { containerQuery } from '$lib/api/queries';
@@ -147,18 +149,11 @@
 		return out;
 	});
 
+	const editable = $derived(!!c && c.view === 'full' && can(c.actions, 'container.update'));
+
 	const overflow = $derived.by<MenuEntry[]>(() => {
 		if (!c) return [];
 		const out: MenuEntry[] = [];
-		if (has('pause'))
-			out.push({ label: 'Pause', icon: Pause, onSelect: () => host?.request(c, 'pause') });
-		if (has('unpause'))
-			out.push({ label: 'Unpause', icon: Play, onSelect: () => host?.request(c, 'unpause') });
-		if (c.view === 'full' && can(c.actions, 'container.update'))
-			out.push({
-				label: 'Change Restart Policy and Limits…',
-				onSelect: () => (editOpen = true)
-			});
 		if (c.imageId && c.view === 'full')
 			out.push({ label: 'Open Image', href: routes.image(env, c.imageId) });
 		// Docker Manager's own containers are never removed: no entry (the notice says why).
@@ -236,6 +231,16 @@
 			{#snippet actions()}
 				{#if c.state !== 'removing'}
 					<LifecycleButton {running} actions={lifecycle} />
+				{/if}
+				{#if has('pause')}
+					<Button icon={Pause} onclick={() => host?.request(c, 'pause')}>Pause</Button>
+				{:else if has('unpause')}
+					<Button icon={Play} onclick={() => host?.request(c, 'unpause')}>Unpause</Button>
+				{/if}
+				{#if editable}
+					<Button icon={Settings} iconOnPhones onclick={() => (editOpen = true)}
+						>Settings</Button
+					>
 				{/if}
 				{#if overflow.length}
 					<Menu items={overflow} label="More Actions for {c.name}" align="end">

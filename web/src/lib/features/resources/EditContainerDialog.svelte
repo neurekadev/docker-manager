@@ -134,7 +134,7 @@
 	const cause = $derived(failure?.cause ?? null);
 </script>
 
-<Dialog bind:open title="Change {container.name}" size="md">
+<Dialog bind:open title="Settings for {container.name}" size="md">
 	<div class="form">
 		<Select label="Restart Policy" bind:value={restart} options={[...RESTART_OPTIONS]} />
 		<div class="grid">
