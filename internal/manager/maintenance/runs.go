@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/uptrace/bun"
 
@@ -282,9 +283,22 @@ type EnvironmentPreview struct {
 	Err           error
 }
 
+// Environments returns the environments the setup covers now.
+func (s *Service) Environments(ctx context.Context) ([]domain.Environment, error) {
+	st, err := s.Setup(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.ScopeEnvironments(ctx, st)
+}
+
+// previewParallel bounds the agents a preview asks at once.
+const previewParallel = 8
+
 // Preview asks each environment the setup covers what a run would remove
-// now. An environment that cannot answer reports its error; the others
-// are previewed all the same. Nothing is stored or removed.
+// now, several at once (each answers within PreviewTimeout). An
+// environment that cannot answer reports its error; the others are
+// previewed all the same. Nothing is stored or removed.
 func (s *Service) Preview(ctx context.Context) ([]EnvironmentPreview, error) {
 	st, err := s.Setup(ctx)
 	if err != nil {
@@ -294,18 +308,28 @@ func (s *Service) Preview(ctx context.Context) ([]EnvironmentPreview, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]EnvironmentPreview, 0, len(envs))
-	for _, env := range envs {
-		p, err := s.preview(ctx, setupTarget(st, env.ID), false)
-		out = append(out, EnvironmentPreview{EnvironmentID: env.ID, Preview: p, Err: err})
+	out := make([]EnvironmentPreview, len(envs))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, previewParallel)
+	for i, env := range envs {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			p, err := s.preview(ctx, setupTarget(st, env.ID), false)
+			out[i] = EnvironmentPreview{EnvironmentID: env.ID, Preview: p, Err: err}
+		})
 	}
+	wg.Wait()
 	return out, nil
 }
 
 // Run starts a manual run of the setup for principal p (the caller has
 // confirmed it): one prune job per environment it covers. The jobs are
 // durable and manager-owned: whether the UI follows them or not is
-// presentation only. A second run while one is active is refused.
+// presentation only. A second run while one is active is refused. Every
+// request is built before the first is enqueued, and when an enqueue
+// fails the jobs already queued are cancelled: a run starts everywhere or
+// nowhere.
 func (s *Service) Run(ctx context.Context, principal authz.Principal, key string) ([]domain.Job, error) {
 	st, err := s.Setup(ctx)
 	if err != nil {
@@ -331,19 +355,28 @@ func (s *Service) Run(ctx context.Context, principal authz.Principal, key string
 	if active != "" {
 		return nil, &domain.MaintenanceRunActiveError{JobID: active}
 	}
-	out := make([]domain.Job, 0, len(envs))
+	reqs := make([]jobs.Request, 0, len(envs))
 	for _, env := range envs {
 		req, err := s.request(ctx, setupTarget(st, env.ID))
 		if err != nil {
-			return out, err
+			return nil, err
 		}
 		req.Principal = principal
 		if key != "" {
 			req.IdempotencyKey = key + "/" + env.ID
 		}
+		reqs = append(reqs, req)
+	}
+	out := make([]domain.Job, 0, len(reqs))
+	for _, req := range reqs {
 		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
 		if err != nil {
-			return out, err
+			for _, j := range out {
+				if _, cerr := s.opts.Jobs.Cancel(ctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+					s.log.Warn("could not cancel a prune run of a failed start", "job_id", j.ID, "error", cerr)
+				}
+			}
+			return nil, err
 		}
 		out = append(out, job)
 	}

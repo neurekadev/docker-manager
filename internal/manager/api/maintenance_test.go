@@ -68,6 +68,10 @@ func preview(env string) (protocol.PrunePreviewOutput, error) {
 		Items: []protocol.PruneItem{{Category: domain.PruneStoppedContainers, ID: "c1", Name: "old", Decision: protocol.PruneRemove, Bytes: 10}}}}}, nil
 }
 
+func (f *fakeMaintenance) Environments(context.Context) ([]domain.Environment, error) {
+	return []domain.Environment{{ID: "env-1", Name: "Silo"}, {ID: "env-2", Name: "Rack"}}, nil
+}
+
 func (f *fakeMaintenance) Preview(context.Context) ([]maintenance.EnvironmentPreview, error) {
 	var out []maintenance.EnvironmentPreview
 	for _, env := range []string{"env-1", "env-2"} {
@@ -151,6 +155,8 @@ func TestMaintenanceRoutesAuthorization(t *testing.T) {
 		Member("rex", "runners").Group("runners", "allow maintenance.run @all").
 		Member("max", "managers").Group("managers", "allow maintenance_policy.manage @all").
 		Member("eve", "one").Group("one", "allow maintenance.run @env:env-1", "allow maintenance.preview @env:env-1").
+		Member("dan", "most").Group("most", "allow maintenance_policy.read @all", "allow maintenance.run @all",
+		"allow maintenance.preview @all", "deny maintenance.run @env:env-2", "deny maintenance.preview @env:env-2").
 		Member("rita", "nobody")
 	h, _ := maintenanceHandler(t, pol)
 	calls := maintenanceRoutes(t)
@@ -166,6 +172,14 @@ func TestMaintenanceRoutesAuthorization(t *testing.T) {
 	}
 	authztest.AssertOnly(t, h, "eve", nil, calls)
 	authztest.AssertOnly(t, h, "rita", nil, calls)
+	// Denied in one covered environment: no preview (it would show its
+	// objects) and no run there.
+	allowed, denied := authztest.Split(calls, "maintenance_policy.read")
+	authztest.AssertOnly(t, h, "dan", allowed, denied)
+	if r := authztest.Do(t, h, "dan", authztest.Call{Method: http.MethodPost, Path: "/api/v1/maintenance-settings/previews"}); r.Status != http.StatusForbidden ||
+		!strings.Contains(string(r.Body), "Rack") {
+		t.Errorf("preview denied in one environment: %d %s", r.Status, r.Body)
+	}
 
 	// The caller's actions say what they may do.
 	actions := func(user string) []string {

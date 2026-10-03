@@ -37,6 +37,7 @@ const (
 type MaintenanceService interface {
 	Setup(ctx context.Context) (domain.MaintenanceSetup, error)
 	UpdateSetup(ctx context.Context, revision int64, p domain.MaintenanceSetupPatch) (before, after domain.MaintenanceSetup, err error)
+	Environments(ctx context.Context) ([]domain.Environment, error)
 	Preview(ctx context.Context) ([]maintenance.EnvironmentPreview, error)
 	Run(ctx context.Context, p authz.Principal, idempotencyKey string) ([]domain.Job, error)
 	PreviewManual(ctx context.Context, envID string, rules []domain.MaintenanceRule) (protocol.PrunePreviewOutput, error)
@@ -304,21 +305,49 @@ type maintenanceAPI struct {
 // setup loads the setup and the caller's view of it; capability must be
 // granted on the instance (403 otherwise).
 func (h *maintenanceAPI) setup(ctx context.Context, capability Capability) (MaintenanceService, authz.Principal, domain.MaintenanceSetup, authz.View, error) {
+	svc, _, p, st, v, err := h.checked(ctx, capability)
+	return svc, p, st, v, err
+}
+
+func (h *maintenanceAPI) checked(ctx context.Context, capability Capability) (MaintenanceService, authz.Checker, authz.Principal, domain.MaintenanceSetup, authz.View, error) {
 	if h.svc == nil {
-		return nil, authz.Principal{}, domain.MaintenanceSetup{}, authz.View{}, Unavailable(CodeUnavailable, "maintenance is not available")
+		return nil, nil, authz.Principal{}, domain.MaintenanceSetup{}, authz.View{}, Unavailable(CodeUnavailable, "maintenance is not available")
 	}
 	c, p, err := CheckerFor(ctx, h.authz)
 	if err != nil {
-		return nil, p, domain.MaintenanceSetup{}, authz.View{}, err
+		return nil, nil, p, domain.MaintenanceSetup{}, authz.View{}, err
 	}
 	st, err := h.svc.Setup(ctx)
 	if err != nil {
-		return nil, p, st, authz.View{}, Internal(err)
+		return nil, nil, p, st, authz.View{}, Internal(err)
 	}
 	if !c.Can(string(capability), setupResource(st)).Allowed {
-		return nil, p, st, authz.View{}, Forbidden("requires " + string(capability) + " on all environments")
+		return nil, nil, p, st, authz.View{}, Forbidden("requires " + string(capability) + " on all environments")
 	}
-	return h.svc, p, st, authz.ViewOf(c, setupResource(st)), nil
+	return h.svc, c, p, st, authz.ViewOf(c, setupResource(st)), nil
+}
+
+// covering loads the setup like setup, and also refuses when a rule keeps
+// the caller from capability in one of the environments the setup covers
+// (a deny rule on the environment): a preview shows their objects and a
+// run prunes them.
+func (h *maintenanceAPI) covering(ctx context.Context, capability Capability) (MaintenanceService, authz.Principal, error) {
+	svc, c, p, st, _, err := h.checked(ctx, capability)
+	if err != nil {
+		return nil, p, err
+	}
+	envs, err := svc.Environments(ctx)
+	if err != nil {
+		return nil, p, Internal(err)
+	}
+	for _, env := range envs {
+		in := authz.Resource{Type: catalog.TypeMaintenancePolicy, ID: st.ID, EnvironmentID: env.ID, Parents: []authz.ResourceRef{}}
+		if !c.Can(string(capability), in).Allowed {
+			return nil, p, Forbidden("not permitted: " + string(capability) + " in environment " + env.Name +
+				"; leave it out of maintenance or ask for access there")
+		}
+	}
+	return svc, p, nil
 }
 
 // flatSetup is the audit diff form of the setup (rules by category).
@@ -425,7 +454,7 @@ func (h *maintenanceAPI) update(ctx context.Context, in *updateMaintenanceSettin
 }
 
 func (h *maintenanceAPI) preview(ctx context.Context, _ *struct{}) (*maintenancePreviewOutput, error) {
-	svc, _, _, _, err := h.setup(ctx, CapMaintenancePreview)
+	svc, _, err := h.covering(ctx, CapMaintenancePreview)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +485,7 @@ func (h *maintenanceAPI) preview(ctx context.Context, _ *struct{}) (*maintenance
 }
 
 func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenanceInput) (*maintenanceJobsOutput, error) {
-	svc, principal, _, _, err := h.setup(ctx, CapMaintenanceRun)
+	svc, principal, err := h.covering(ctx, CapMaintenanceRun)
 	if err != nil {
 		return nil, err
 	}

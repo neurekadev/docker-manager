@@ -16,8 +16,10 @@ func init() {
 	//     prune jobs and schedules carry.
 	//   - An all-environments policy becomes the setup as it is. Otherwise
 	//     the only policy of one environment does, leaving every other
-	//     environment out, so what runs stays the same. Otherwise (none,
-	//     or several) the setup starts disabled with the default rules.
+	//     current environment out, so what runs on them stays the same
+	//     (like every setup, it covers environments added later until they
+	//     are left out). Otherwise (none, or several) the setup starts
+	//     disabled with the default rules.
 	//   - Permission rules on one environment or one policy of
 	//     maintenance_policy.read and .manage go (they are instance-only
 	//     now; widening them would grant more), as do rules and token
