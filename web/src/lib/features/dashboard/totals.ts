@@ -7,6 +7,7 @@
 // sample (and the busiest one is named), memory is summed bytes.
 import type { Job, Schema, Stack, UpdatePolicy } from '$lib/api/client';
 import { routes } from '$lib/routes';
+import { NOT_RUNNING } from '$lib/features/resources/filters';
 
 type Env = Schema<'OverviewEnvironment'>;
 
@@ -17,7 +18,6 @@ export interface DashboardTotals {
 	counted: number;
 	containers: number;
 	running: number;
-	paused: number;
 	cpuAverage: number | null;
 	cpuBusiest: { name: string; value: number } | null;
 	memUsed: number;
@@ -38,7 +38,6 @@ export function dashboardTotals(
 	let counted = 0;
 	let containers = 0;
 	let running = 0;
-	let paused = 0;
 	let cpuSum = 0;
 	let cpuN = 0;
 	let busiest: { name: string; value: number } | null = null;
@@ -50,7 +49,6 @@ export function dashboardTotals(
 			counted++;
 			containers += Math.max(0, e.docker.containers);
 			running += Math.max(0, e.docker.containersRunning);
-			paused += Math.max(0, e.docker.containersPaused);
 		}
 		// Offline environments keep their last sample: exclude it from "in use now".
 		const u = e.online ? e.usage : undefined;
@@ -75,7 +73,6 @@ export function dashboardTotals(
 		counted,
 		containers,
 		running,
-		paused,
 		cpuAverage: cpuN ? cpuSum / cpuN : null,
 		cpuBusiest: cpuN > 1 ? busiest : null,
 		memUsed,
@@ -155,9 +152,7 @@ export interface HealthAlerts {
  * loaded or no access).
  */
 export function attentionItems(
-	t: Pick<DashboardTotals, 'offline' | 'failures' | 'counted' | 'containers' | 'running'> & {
-		paused?: number;
-	},
+	t: Pick<DashboardTotals, 'offline' | 'failures' | 'counted' | 'containers' | 'running'>,
 	pending: { undeployed?: number; updates?: number } = {},
 	health: HealthAlerts = {}
 ): AttentionItem[] {
@@ -200,9 +195,9 @@ export function attentionItems(
 			label: `${plural(stopped, 'container is', 'containers are')} not running`,
 			href: routes.containers(),
 			tone: 'warn',
-			// Stopped containers show as "exited"; paused ones have their own
-			// status, so a mix opens the whole list.
-			filters: t.paused ? undefined : { list: 'containers', values: { status: 'exited' } }
+			// Every state but running (exited, created, paused, restarting,
+			// dead), as the agent counts them.
+			filters: { list: 'containers', values: { status: NOT_RUNNING } }
 		});
 	if (pending.undeployed)
 		out.push({

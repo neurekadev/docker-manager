@@ -260,6 +260,8 @@ type EngineInventory struct {
 	Rootless             bool   `json:"rootless,omitempty"`
 	DockerDesktop        bool   `json:"dockerDesktop,omitempty"`
 	// Counts of Docker objects. A count the agent could not read is -1.
+	// Containers split by state: running, paused, and stopped (every other
+	// state: exited, created, restarting, dead, removing).
 	Containers        int `json:"containers"`
 	ContainersRunning int `json:"containersRunning"`
 	ContainersPaused  int `json:"containersPaused"`

@@ -214,9 +214,11 @@ describe('container filters (#6)', () => {
 		expect(run({}, 'silo_default')).toEqual(['web']);
 	});
 
-	it('filters by status (unhealthy is its own choice), stack and available updates', () => {
+	it('filters by status (unhealthy and not running are their own choices), stack and available updates', () => {
 		expect(run({ status: 'running' })).toEqual(['web', 'pihole', 'docker-agent']);
 		expect(run({ status: 'unhealthy' })).toEqual(['pihole']);
+		expect(run({ status: 'exited' })).toEqual(['db']);
+		expect(run({ status: 'not_running' })).toEqual(['db']);
 		expect(run({ stack: 'silo' })).toEqual(['web', 'db']);
 		expect(run({ stack: '-' })).toEqual(['pihole', 'docker-agent']);
 		expect(run({ updates: 'on' })).toEqual(['web']);
