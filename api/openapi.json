@@ -740,6 +740,7 @@
               "disk_space",
               "memory",
               "environment_offline",
+              "backup",
               "updates",
               "job_failed"
             ],
@@ -22705,6 +22706,7 @@
                 "disk_space",
                 "memory",
                 "environment_offline",
+                "backup",
                 "updates",
                 "job_failed"
               ],

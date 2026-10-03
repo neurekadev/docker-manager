@@ -28,7 +28,9 @@ Migrations `20260930120000_create_alerts`,
 `20261002120000_restore_notifications` (kind `restore`; recorded
 restores and their messages moved to it; `notifications` and
 `alert_deliveries` rebuilt together, as deliveries reference
-notifications):
+notifications) and `20261002210000_backup_alerts` (alert kind `backup`;
+`alerts` and `alert_deliveries` rebuilt together; down drops the backup
+alerts and their messages):
 
 - `alerts`: one row per problem. `dedupe_key` identifies it and is unique
   among firing rows (partial index `alerts_firing_key`); `kind`

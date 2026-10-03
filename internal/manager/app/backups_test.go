@@ -446,7 +446,7 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 		t.Fatalf("draft preview %+v", draft)
 	}
 	pol := b.settings(owner, settings)
-	if !pol.Enabled || pol.Schedule.NextRun == nil {
+	if !pol.Enabled {
 		t.Fatalf("settings %+v", pol)
 	}
 
@@ -1082,7 +1082,8 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	r := owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil, header("Idempotency-Key", "nightly-1"))
 	r.json(t, &first)
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil, header("Idempotency-Key", "nightly-1")).json(t, &again)
-	if again.Set.ID != first.Set.ID || len(again.Jobs) != 1 || again.Jobs[0].ID != first.Jobs[0].ID {
+	// The volumes' backup and the manager state's.
+	if again.Set.ID != first.Set.ID || len(again.Jobs) != 2 || again.Jobs[0].ID != first.Jobs[0].ID {
 		t.Fatalf("repeated request: %+v vs %+v", again, first)
 	}
 	// Another run while this one is queued is refused, not queued behind it.

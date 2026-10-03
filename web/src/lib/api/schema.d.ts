@@ -5751,7 +5751,7 @@ export interface components {
              * @example disk_health
              * @enum {string}
              */
-            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "updates" | "job_failed";
+            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "updates" | "job_failed";
             /**
              * @description Path of the page in Docker Manager the alert is about.
              * @example /environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system
@@ -14547,7 +14547,7 @@ export interface operations {
                 /** @description active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert. */
                 state?: "active" | "dismissed" | "firing" | "resolved";
                 /** @description Only alerts of this kind. */
-                kind?: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "updates" | "job_failed";
+                kind?: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "updates" | "job_failed";
                 /** @description Only alerts of this environment. */
                 environmentId?: string;
             };

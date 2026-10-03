@@ -198,7 +198,7 @@ func TestAFailedBackupIsExplainedAndSentOnce(t *testing.T) {
 	}
 	got = f.dispatch()
 	if len(got) != 1 || got[0].channel != all.ID || got[0].msg.Tone != domain.ToneWarning ||
-		got[0].msg.Title != "Backup finished with warnings" || got[0].msg.Label != "Backups · Warning" ||
+		got[0].msg.Title != "Backups finished with warnings" || got[0].msg.Label != "Backups · Warning" ||
 		!strings.Contains(got[0].msg.Body, "2 of 2 items backed up (4 GiB read) in 3 min 12 s. Some files in db could not be read") {
 		t.Fatalf("%+v (failures %s)", got, failures.ID)
 	}

@@ -85,6 +85,14 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if got := b.runJob(js[0].ID); got.State != domain.JobSucceeded {
 		t.Fatalf("backup: %s %s", got.State, got.ErrorMessage)
 	}
+	// The run's manager state, so the run finishes and the next one starts.
+	ms, _ := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"manager.backup"}})
+	if len(ms) != 1 {
+		t.Fatalf("manager state backups: %d", len(ms))
+	}
+	if got := b.runJob(ms[0].ID); got.State != domain.JobSucceeded {
+		t.Fatalf("manager state backup: %s %s", got.State, got.ErrorMessage)
+	}
 	// Rules of another user: two name the environment, one the stack.
 	sam, _, _ := b.newUser(owner, "sam")
 	samRules := "/api/v1/users/" + b.userID("sam") + "/permissions"

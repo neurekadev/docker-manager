@@ -181,6 +181,12 @@ func (h *backupsAPI) newSettings(ctx context.Context, svc BackupService, c authz
 		ExternalBinds: st.ExternalBinds, IncludeMetrics: st.IncludeMetrics, Shutdown: st.Shutdown,
 		Retention: newBackupRetention(st.Retention), RecentSets: []BackupSetSummary{}, Actions: Actions(v), Revision: st.Revision,
 		UpdatedAt: st.UpdatedAt}
+	// Running and retention are backup capabilities, not the setup's own.
+	for _, cp := range []Capability{CapBackupRun, CapBackupRetention} {
+		if c.Can(string(cp), backupSetupResource(st)).Allowed {
+			out.Actions = append(out.Actions, string(cp))
+		}
+	}
 	if sets, err := svc.RecentSets(ctx, []string{st.ID}, recentSets); err == nil {
 		backups := setMemberBackups(ctx, svc, c, sets[st.ID])
 		for _, s := range sets[st.ID] {

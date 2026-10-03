@@ -27,14 +27,15 @@ const KIND_LABELS: Record<AlertKind, string> = {
 	disk_space: 'Disk Space',
 	memory: 'Memory',
 	environment_offline: 'Environment Offline',
+	backup: 'Backups Paused',
 	updates: 'Updates Available',
 	job_failed: 'Failed Job'
 };
 
 /**
  * The kinds alerts are raised with, in the notification channels' order
- * (backups, restores and prunes are notifications, never alerts), with
- * their labels.
+ * (restores and prunes are notifications, never alerts; backups are
+ * notifications, and an alert while they are paused), with their labels.
  */
 export const ALERT_KINDS: { kind: AlertKind; label: string }[] = EVENT_KINDS.flatMap((k) =>
 	k.kind in KIND_LABELS
