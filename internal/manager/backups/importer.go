@@ -319,6 +319,18 @@ func repositoryRefOf(sets []backup.Manifest, id string) backup.RepositoryRef {
 	return backup.RepositoryRef{ID: id}
 }
 
+// otherRepositoryNote explains a location in a repository other than the
+// one imported from: an S3 repository is checked after the import, a
+// local folder of an earlier version is not imported at all.
+func otherRepositoryNote(rr backup.RepositoryRef) string {
+	if rr.Destination.Kind != "" && rr.Destination.Kind != backup.KindS3 {
+		return "Kept in a local folder (" + rr.Name + "), which Docker Manager no longer supports: " +
+			"it is not imported; restore its data with restic."
+	}
+	return "Kept in another repository (" + rr.Name + "): its credentials are restored with the manager state; " +
+		"it is checked after the import."
+}
+
 // listImportScopes lists the scope directories at the destination.
 func (s *Service) listImportScopes(ctx context.Context, src ImportSource, sec importSecrets) []string {
 	d := src.Destination
@@ -352,8 +364,7 @@ func (s *Service) importHosts(ctx context.Context, src ImportSource, sec importS
 			if l.RepositoryID == repoID {
 				il.Reachable, il.Repository = true, src.Destination.Repository(l.Scope)
 			} else {
-				il.Note = "Kept in another repository (" + rr.Name + "): its credentials are restored with the manager state; " +
-					"it is checked after the import."
+				il.Note = otherRepositoryNote(rr)
 			}
 			out = append(out, il)
 		}

@@ -73,6 +73,7 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 			set("set-mixed", "disk", "s3-old"),
 			policy("p-disk", "", "disk", `{"env-b":"disk","env-c":"s3-new"}`),
 			policy("p-s3", "env-a", "s3-new", `{}`),
+			policy("p-override", "env-d", "s3-new", `{"env-d":"disk"}`),
 			rule("backup_policy", "p-disk"),
 			rule("backup_repository", "s3-old"),
 		))
@@ -87,6 +88,16 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 		}
 		if err := db.QueryRowContext(ctx, `SELECT enabled FROM backup_policies WHERE id = 'p-s3'`).Scan(&enabled); err != nil || enabled != 1 {
 			t.Fatalf("the S3 policy changed: enabled %d %v", enabled, err)
+		}
+		// A local repository for one environment only: that environment
+		// would go elsewhere, so the policy is turned off too.
+		if err := db.QueryRowContext(ctx, `SELECT repository_id, environment_repos, enabled, revision FROM backup_policies
+			WHERE id = 'p-override'`).Scan(&repoID, &envRepos, &enabled, &revision); err != nil {
+			t.Fatal(err)
+		}
+		if repoID != "s3-new" || envRepos != `{}` || enabled != 0 || revision != 3 {
+			t.Fatalf("policy with a local override: repository %s, environments %s, enabled %d, revision %d", repoID, envRepos,
+				enabled, revision)
 		}
 		expect(t, ctx, db, `SELECT id FROM backup_repositories ORDER BY id`, "s3-new", "s3-old")
 		expect(t, ctx, db, `SELECT id FROM backup_snapshots ORDER BY id`, "sn-s3")

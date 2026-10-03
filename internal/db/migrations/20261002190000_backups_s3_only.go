@@ -19,12 +19,13 @@ func init() {
 	// are removed the way removing one in the app does; the restic data in
 	// their directories is not touched:
 	//
-	//   - per-environment repository choices of a local repository go (the
-	//     policy's repository is used there);
-	//   - a policy writing to a local repository moves to the oldest S3
-	//     repository and is disabled, so nothing runs before someone looks
-	//     at it; with no S3 repository it is deleted (its sets and
-	//     backups of other repositories stay in the index);
+	//   - a policy writing to a local repository, also for one environment
+	//     only, is disabled so nothing runs before someone looks at it:
+	//     per-environment choices of a local repository go (the policy's
+	//     repository would be used there), a policy's own local repository
+	//     moves to the oldest S3 repository; with no S3 repository such a
+	//     policy is deleted (its sets and backups of other repositories
+	//     stay in the index);
 	//   - permission rules on the removed repositories, their backups and
 	//     the deleted policies go;
 	//   - the storage of a removed repository stops counting (a zero
@@ -35,15 +36,15 @@ func init() {
 	// not worth it. Nothing to undo.
 	Migrations.MustRegister(
 		Tx(Exec(
-			`UPDATE backup_policies
-			 SET environment_repos = (SELECT json_group_object(key, value) FROM json_each(backup_policies.environment_repos)
-				WHERE value NOT IN `+localRepos+`)
-			 WHERE EXISTS (SELECT 1 FROM json_each(backup_policies.environment_repos) WHERE value IN `+localRepos+`)`,
 			// SQLite's clock only because a migration has no injected clock.
 			`UPDATE backup_policies
-			 SET repository_id = `+firstS3Repo+`, enabled = 0, revision = revision + 1,
-				updated_at = strftime('%Y-%m-%d %H:%M:%f+00:00', 'now')
-			 WHERE repository_id IN `+localRepos+` AND `+firstS3Repo+` IS NOT NULL`,
+			 SET environment_repos = (SELECT json_group_object(key, value) FROM json_each(backup_policies.environment_repos)
+				WHERE value NOT IN `+localRepos+`),
+				repository_id = CASE WHEN repository_id IN `+localRepos+` THEN coalesce(`+firstS3Repo+`, repository_id)
+					ELSE repository_id END,
+				enabled = 0, revision = revision + 1, updated_at = strftime('%Y-%m-%d %H:%M:%f+00:00', 'now')
+			 WHERE repository_id IN `+localRepos+`
+				OR EXISTS (SELECT 1 FROM json_each(backup_policies.environment_repos) WHERE value IN `+localRepos+`)`,
 			`DELETE FROM backup_policies WHERE repository_id IN `+localRepos,
 			`UPDATE groups SET permissions_revision = permissions_revision + 1
 			 WHERE id IN (SELECT group_id FROM group_permission_rules WHERE `+droppedRuleScope+`)`,

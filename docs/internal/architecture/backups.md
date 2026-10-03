@@ -24,8 +24,9 @@ the agent's smartctl runner for disk health, see
   never to a user. Migration `20261002190000_backups_s3_only` removed the
   local repositories of earlier versions like a removal in the app (index,
   sets held only by them, locations, permission rules; storage stops
-  counting); a policy writing to one moved to the oldest S3 repository,
-  disabled, or was deleted when there was none. Their restic data stays on
+  counting); a policy writing to one (also for one environment only) was
+  disabled, its own repository moved to the oldest S3 repository, or it
+  was deleted when there was none. Their restic data stays on
   disk; the `executor` and `path` columns stay, empty.
 - Below it every **scope** has its own restic repository (a
   **location**): `docker-manager` for the manager state,
