@@ -333,12 +333,7 @@
 	/>
 {:else}
 	<Page>
-		<PageHeader
-			title="Volumes"
-			description="Persistent data on {scope.single
-				? scope.targets[0]?.name
-				: 'your environments'}, and the containers that use it."
-		>
+		<PageHeader title="Volumes">
 			{#snippet actions()}
 				<PruneButton target="volumes" {scope} />
 				{#if creatable.length}
@@ -408,7 +403,7 @@
 									title="No volumes on {scope.single
 										? scope.targets[0]?.name
 										: 'your environments'} yet."
-									description="Create a volume for data that must outlive its containers, or let a stack create its own."
+									description="Create a volume, or let a stack create its own."
 									level={3}
 									compact
 								>

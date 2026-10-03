@@ -374,25 +374,10 @@ type groupRow struct {
 
 	ID        string    `bun:"id,pk"`
 	Name      string    `bun:"name,notnull"`
+	Position  int       `bun:"position,notnull"`
 	Revision  int64     `bun:"revision,notnull"`
 	CreatedAt time.Time `bun:"created_at,notnull"`
 	UpdatedAt time.Time `bun:"updated_at,notnull"`
-}
-
-type defaultGroupRow struct {
-	bun.BaseModel `bun:"table:default_group"`
-
-	Singleton int    `bun:"singleton,pk"`
-	GroupID   string `bun:"group_id,notnull"`
-}
-
-// DefaultGroupID returns the current default group (always exactly one).
-func DefaultGroupID(ctx context.Context, db bun.IDB) (string, error) {
-	var row defaultGroupRow
-	if err := db.NewSelect().Model(&row).Where("singleton = 1").Scan(ctx); err != nil {
-		return "", fmt.Errorf("store: read default group: %w", err)
-	}
-	return row.GroupID, nil
 }
 
 // GetGroup returns a group.
@@ -405,11 +390,7 @@ func GetGroup(ctx context.Context, db bun.IDB, id string) (domain.Group, error) 
 	if err != nil {
 		return domain.Group{}, fmt.Errorf("store: read group: %w", err)
 	}
-	def, err := DefaultGroupID(ctx, db)
-	if err != nil {
-		return domain.Group{}, err
-	}
-	return domain.Group{ID: row.ID, Name: row.Name, Default: row.ID == def, Revision: row.Revision,
+	return domain.Group{ID: row.ID, Name: row.Name, Position: row.Position, Revision: row.Revision,
 		CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC()}, nil
 }
 

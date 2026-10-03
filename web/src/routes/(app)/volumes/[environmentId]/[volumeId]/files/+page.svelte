@@ -47,7 +47,7 @@
 			<EmptyState
 				icon={HardDrive}
 				title="This volume doesn't exist"
-				description="It was removed, or you can't see it. Open the volumes list to find it."
+				description="It may have been removed, or you don't have access to it."
 			>
 				{#snippet actions()}<Button href={routes.volumes()}>Open Volumes</Button>{/snippet}
 			</EmptyState>
@@ -64,7 +64,7 @@
 			title="{volumeId} can't be browsed here"
 			description={volume.data.protection
 				? "It holds Docker Manager's own data, which the file manager never opens."
-				: `Its driver (${volume.data.driver}) isn't a local volume: only local volumes support the file manager in this version.`}
+				: `Only local volumes can be browsed. Its driver is ${volume.data.driver}.`}
 		/>
 	{:else if volume.data}
 		{#key `${environmentId}/${volumeId}`}

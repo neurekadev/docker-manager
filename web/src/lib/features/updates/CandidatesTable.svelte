@@ -83,8 +83,7 @@
 	<div class="notes">
 		{#if reason}<span>{reason}</span>{/if}
 		{#if c.nonVersionTag && c.status === 'update_available'}<span class="warn"
-				>{c.reasonMessage ??
-					'This tag can point to a different version at any time, for example a new major release.'}</span
+				>{c.reasonMessage ?? 'This tag can point to a different version at any time.'}</span
 			>{/if}
 		{#if err}<span class="danger">{err}</span>{/if}
 		{#if c.retryAfterSeconds}<span class="muted"

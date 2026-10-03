@@ -12,6 +12,7 @@
 	import { usePage } from '$lib/shell/page.svelte';
 	import { Badge, Button, Card, CopyButton, DeniedState, Notice } from '$lib/ui';
 	import { can } from '$lib/features/common/access';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
 
@@ -41,31 +42,33 @@
 </script>
 
 <Page>
-	<SettingsHeader
-		title="Diagnostics"
-		description="Material for troubleshooting and monitoring Docker Manager itself."
-	/>
+	<SettingsHeader title="Diagnostics" />
 	{#if perms.data && !access.owner && !can(access, 'system.metrics.read')}
 		<DeniedState level={2} title="Diagnostics are for the owner." />
 	{:else}
 		{#if access.owner}
-			<Card
-				title="Support Bundle"
-				subtitle="A zip to attach to a bug report or read yourself."
-			>
-				<ul class="plain" role="list">
-					<li>Versions of the manager, the API, the agent protocol and every agent</li>
-					<li>The effective configuration, redacted</li>
-					<li>Support-matrix checks per environment and agent connection status</li>
-					<li>
-						Audit chain verification, job queue summary, database and snapshot status
-					</li>
-					<li>The manager's recent log lines</li>
-				</ul>
+			<Card title="Support Bundle" subtitle="A zip to attach to a bug report.">
+				<div class="inside">
+					<Disclosure summary="What’s Inside">
+						<ul class="plain" role="list">
+							<li>
+								Versions of the manager, the API, the agent protocol and every agent
+							</li>
+							<li>The effective configuration, redacted</li>
+							<li>
+								Support-matrix checks per environment and agent connection status
+							</li>
+							<li>
+								Audit chain verification, job queue summary, database and snapshot
+								status
+							</li>
+							<li>The manager's recent log lines</li>
+						</ul>
+					</Disclosure>
+				</div>
 				<Notice tone="info" title="No Secrets Inside" live="none">
-					Passwords, tokens, keys, credentials, the Recovery Key, authenticator app (TOTP)
-					secrets, Compose and .env contents and job inputs are never included.
-					Downloading it is recorded in the audit log.
+					Secrets, credentials, the Recovery Key, Compose and .env contents and job inputs
+					are never included. Downloads are recorded in the audit log.
 				</Notice>
 				<div class="act">
 					<Button variant="primary" icon={Download} href="/api/v1/support-bundle"
@@ -76,7 +79,7 @@
 		{/if}
 		<Card
 			title="Internal Metrics"
-			subtitle="Docker Manager's own metrics in Prometheus format: job queue, agent sessions, streams, database sizes."
+			subtitle="Docker Manager's own metrics in Prometheus format."
 		>
 			<p class="line">
 				<span class="mono url">{metricsUrl}</span>
@@ -104,10 +107,13 @@
 </Page>
 
 <style>
+	.inside {
+		margin-bottom: var(--space-4);
+	}
+
 	.plain {
 		display: grid;
 		gap: var(--space-1);
-		margin-bottom: var(--space-4);
 		padding-left: var(--space-5);
 		list-style: disc;
 	}

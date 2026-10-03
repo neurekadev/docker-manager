@@ -260,8 +260,7 @@
 		{/if}
 		{#if j.cancelRequested && jobActive(j.state)}
 			<Notice tone="info" title="Cancellation Requested" live="status">
-				The job stops at its next safe point; cleanup steps (such as restarting stopped
-				containers) still run.
+				It stops at the next safe point; cleanup steps still run.
 			</Notice>
 		{/if}
 

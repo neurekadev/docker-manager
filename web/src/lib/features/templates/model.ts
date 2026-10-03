@@ -79,14 +79,17 @@ export function nextVersionLabel(last: string | undefined): string {
 	return `${m[1]}${n}${m[3]}`;
 }
 
-/** Normalizes typed tags: lowercase, dashes for spaces, unique, sorted. */
-export function parseTags(input: string): string[] {
-	const out = new Set<string>();
-	for (const raw of input.split(/[,\n]/)) {
-		const t = raw.trim().toLowerCase().replace(/\s+/g, '-');
-		if (t) out.add(t);
-	}
-	return [...out].sort();
+/** Most tags of a template (the server's limit). */
+export const MAX_TAGS = 16;
+
+/** A typed tag as the server stores it: trimmed, lowercase. */
+export const normalizeTag = (raw: string) => raw.trim().toLowerCase();
+
+/** Whether two tag lists hold the same tags (the server sorts them). */
+export function sameTags(a: readonly string[], b: readonly string[] | undefined): boolean {
+	const x = [...a].sort();
+	const y = [...(b ?? [])].sort();
+	return x.length === y.length && x.every((t, i) => t === y[i]);
 }
 
 /** Why a tag is refused ('' when valid). */

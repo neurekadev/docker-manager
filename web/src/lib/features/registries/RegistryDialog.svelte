@@ -142,7 +142,7 @@
 <Dialog
 	bind:open
 	title={connection ? `Edit ${connection.name}` : 'Add a Registry Connection'}
-	description="Docker Manager uses it for pulls, deploys and update checks of matching images. It is shared by the whole instance, not a personal login."
+	description="Shared by the whole instance, not a personal login."
 	size="lg"
 	dismissible={!busy}
 >
@@ -170,7 +170,7 @@
 					required
 					bind:value={host}
 					placeholder="ghcr.io"
-					description="docker.io for Docker Hub (its aliases are the same registry); host:port for self-hosted registries."
+					description="docker.io for Docker Hub; host:port for self-hosted registries."
 					error={fieldError(failure, 'body.host')}
 				/>
 				<RadioGroup
@@ -202,7 +202,7 @@
 					autocomplete="new-password"
 					required
 					bind:value={secret}
-					description="Shown only while you type it. Docker Manager stores it sealed and never displays it again; you'll see its fingerprint."
+					description="Write-only: never shown again."
 					error={fieldError(failure, 'body.secret')}
 				/>
 			{:else}
@@ -225,7 +225,8 @@
 				mono
 				bind:value={pattern}
 				placeholder="acme/*"
-				description="Optional. An exact repository or namespace/*; empty matches every repository on the host."
+				optional
+				description="A repository or namespace/*; empty matches all."
 				error={fieldError(failure, 'body.repositoryPattern')}
 			/>
 			<Select
@@ -236,7 +237,7 @@
 					{ value: 'environment', label: 'One Environment' },
 					{ value: 'stack', label: 'One Stack' }
 				]}
-				description="A bound connection wins over a general one for the same image."
+				info="A bound connection wins over a general one for the same image."
 			/>
 			{#if binding === 'environment'}
 				<Select
@@ -261,7 +262,7 @@
 				label="Priority"
 				inputmode="numeric"
 				bind:value={priority}
-				description="Breaks ties between equally specific connections: higher wins. From -1000 to 1000."
+				description="Higher wins between equally specific connections. From -1000 to 1000."
 				error={Number.isInteger(prio)
 					? fieldError(failure, 'body.priority')
 					: 'Enter a whole number.'}

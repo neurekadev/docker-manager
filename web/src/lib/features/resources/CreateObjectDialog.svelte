@@ -159,9 +159,10 @@
 			mono
 			bind:value={driver}
 			placeholder={kind === 'volume' ? 'local' : 'bridge'}
+			optional
 			description={kind === 'volume'
-				? 'Optional. Only local volumes support files, watching and backups in Docker Manager.'
-				: 'Optional. Default bridge.'}
+				? 'Only local volumes support files, watching and backups.'
+				: undefined}
 		/>
 		{#if kind === 'network'}
 			<div class="checks">
@@ -182,7 +183,8 @@
 			mono
 			rows={2}
 			bind:value={optionsText}
-			description="Optional. One key=value per line."
+			optional
+			description="One key=value per line."
 			error={opts.invalid.length ? `Line ${opts.invalid.join(', ')}: use key=value.` : null}
 		/>
 		<TextArea
@@ -190,7 +192,8 @@
 			mono
 			rows={2}
 			bind:value={labelsText}
-			description="Optional. One key=value per line; docker-manager.* (except the *.exclude labels) and com.docker.compose.* are reserved."
+			optional
+			description="One key=value per line."
 			error={labels.invalid.length
 				? `Line ${labels.invalid.join(', ')}: use key=value.`
 				: fieldError(failure?.cause, 'body.labels')}

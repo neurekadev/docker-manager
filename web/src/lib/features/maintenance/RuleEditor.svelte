@@ -78,7 +78,7 @@
 	{#if volume}
 		<div class="optin">
 			<Checkbox
-				label="I understand that removing volumes deletes the data in them"
+				label="I Understand That Removing Volumes Deletes the Data in Them"
 				description="Needed before this rule can be turned on. Volumes of Docker Manager stacks, saved containers and backups are always kept."
 				checked={!!rule.volumeOptIn}
 				{disabled}
@@ -146,7 +146,7 @@
 				<Fields columns={2}>
 					<Switch
 						label="All Unused Records"
-						description="Off: only dangling records (not shared, not internal)."
+						description="Off: dangling records only."
 						checked={!!rule.buildCacheAll}
 						{disabled}
 						onchange={(v) => set({ buildCacheAll: v })}
@@ -159,7 +159,8 @@
 						value={rule.keepStorageBytes
 							? String(rule.keepStorageBytes / 1024 ** 3)
 							: ''}
-						description="Optional. Empty: no cap."
+						optional
+						description="Empty: no cap."
 						{disabled}
 						onchange={(e) =>
 							set({
@@ -175,7 +176,8 @@
 				<Fields columns={2}>
 					<TextArea
 						label="Only Objects with These Labels"
-						description="Optional. One per line, key or key=value; all must match."
+						optional
+						description="One per line, key or key=value; all must match."
 						value={listToLines(rule.includeLabels)}
 						mono
 						rows={2}
@@ -184,7 +186,8 @@
 					/>
 					<TextArea
 						label="Never Objects with These Labels"
-						description="Optional. One per line; any match keeps the object."
+						optional
+						description="One per line; any match keeps the object."
 						value={listToLines(rule.excludeLabels)}
 						mono
 						rows={2}
@@ -195,7 +198,8 @@
 			{/if}
 			<TextArea
 				label="Never Remove"
-				description="Optional. Names or IDs (at least 12 characters), one per line."
+				optional
+				description="Names or IDs (at least 12 characters), one per line."
 				value={listToLines(rule.exclude)}
 				mono
 				rows={2}

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
+import Card from './Card.svelte';
 import Checkbox from './Checkbox.svelte';
 import MultiSelect from './MultiSelect.svelte';
 import PasswordField from './PasswordField.svelte';
@@ -11,6 +12,7 @@ import Switch from './Switch.svelte';
 import Tabs from './Tabs.svelte';
 import TextField from './TextField.svelte';
 import TriState from './TriState.svelte';
+import FieldGroup from '../features/common/FieldGroup.svelte';
 import { createRawSnippet } from 'svelte';
 import { choose } from '../../test/select';
 import CronHarness from '../../test/CronHarness.svelte';
@@ -108,6 +110,115 @@ describe('fields', () => {
 		expect(screen.getByRole('combobox', { name: 'Environment' })).toHaveTextContent(
 			'Choose an environment'
 		);
+	});
+});
+
+describe('info tips and optional fields', () => {
+	const body = createRawSnippet(() => ({ render: () => '<p>Body</p>' }));
+	const tipFor = (text: string) => screen.getByRole('img', { name: text });
+
+	it('field: the (i) follows the label, describes the control and stays out of its name', () => {
+		render(TextField, {
+			props: {
+				label: 'Stack Name',
+				description: 'The Compose project name.',
+				info: 'Lowercase letters, digits, dashes and underscores.'
+			}
+		});
+		const input = screen.getByRole('textbox', { name: 'Stack Name' });
+		expect(tipFor('Lowercase letters, digits, dashes and underscores.')).toHaveAttribute(
+			'tabindex',
+			'0'
+		);
+		expect(input).toHaveAccessibleDescription(
+			'The Compose project name. Lowercase letters, digits, dashes and underscores.'
+		);
+		expect(screen.getByLabelText('Stack Name')).toBe(input);
+	});
+
+	it('field: optional shows "Optional" beside the label and no description', () => {
+		render(TextField, { props: { label: 'Display Name', optional: true } });
+		const input = screen.getByLabelText('Display Name');
+		expect(input).toHaveAccessibleName('Display Name');
+		expect(input).not.toHaveAttribute('aria-describedby');
+		expect(input).not.toBeRequired();
+		expect(screen.getByText('Optional')).toHaveAttribute('aria-hidden', 'true');
+	});
+
+	it('field: no (i) and no "Optional" unless asked for', () => {
+		render(TextField, { props: { label: 'Stack Name' } });
+		expect(screen.queryByRole('img')).not.toBeInTheDocument();
+		expect(screen.queryByText('Optional')).not.toBeInTheDocument();
+	});
+
+	it('select: the (i) describes the trigger', () => {
+		render(Select, {
+			props: {
+				label: 'Pull Policy',
+				info: 'Always Pull fetches the image on every deploy.',
+				options: [{ value: 'always', label: 'Always Pull' }]
+			}
+		});
+		const trigger = screen.getByRole('combobox', { name: 'Pull Policy' });
+		expect(tipFor('Always Pull fetches the image on every deploy.')).toBeInTheDocument();
+		expect(trigger).toHaveAccessibleDescription(
+			'Always Pull fetches the image on every deploy.'
+		);
+	});
+
+	it('switch: the (i) describes the switch and stays out of its name', () => {
+		render(Switch, {
+			props: { label: 'Follow', description: 'Live.', info: 'Scrolls with new log lines.' }
+		});
+		const sw = screen.getByRole('switch', { name: 'Follow' });
+		expect(tipFor('Scrolls with new log lines.')).toBeInTheDocument();
+		expect(sw).toHaveAccessibleDescription('Live. Scrolls with new log lines.');
+	});
+
+	it('checkbox: the (i) sits outside the label and describes the box', () => {
+		render(Checkbox, {
+			props: { label: 'Include Volumes', info: "Backs up the stack's named volumes too." }
+		});
+		const box = screen.getByRole('checkbox', { name: 'Include Volumes' });
+		const tip = tipFor("Backs up the stack's named volumes too.");
+		expect(tip.closest('label')).toBeNull();
+		expect(box).toHaveAccessibleDescription("Backs up the stack's named volumes too.");
+	});
+
+	it('card: the (i) follows the title and leaves the heading and region names alone', () => {
+		render(Card, {
+			props: {
+				title: 'Services',
+				id: 'services',
+				info: 'Each service of the stack with its state.',
+				children: body
+			}
+		});
+		expect(screen.getByRole('heading', { level: 2, name: 'Services' })).toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Services' })).toBeInTheDocument();
+		expect(tipFor('Each service of the stack with its state.')).toBeInTheDocument();
+	});
+
+	it('field group: the (i) describes the group and stays out of its name', () => {
+		render(FieldGroup, {
+			props: { legend: 'Update Window', info: 'No day checked: every day.', children: body }
+		});
+		const group = screen.getByRole('group', { name: 'Update Window' });
+		expect(tipFor('No day checked: every day.')).toBeInTheDocument();
+		expect(group).toHaveAccessibleDescription('No day checked: every day.');
+	});
+
+	it('field group: a hint stays visible and describes the group too', () => {
+		render(FieldGroup, {
+			props: {
+				legend: 'Running Containers',
+				hint: 'Live backups are crash-consistent.',
+				children: body
+			}
+		});
+		const group = screen.getByRole('group', { name: 'Running Containers' });
+		expect(screen.getByText('Live backups are crash-consistent.')).toBeInTheDocument();
+		expect(group).toHaveAccessibleDescription('Live backups are crash-consistent.');
 	});
 });
 
@@ -222,12 +333,18 @@ describe('toggles', () => {
 		});
 		const group = screen.getByRole('radiogroup', { name: 'Restart Containers on homelab' });
 		expect(group).toHaveAccessibleDescription('Inherits Allow from group Operators');
+		// Inherit hides the effective decision, so it is said on screen.
+		expect(screen.getByText('Inherits Allow from group Operators')).not.toHaveClass('sr-only');
 		expect(group).toHaveAttribute('data-effective', 'allow');
 		await user.click(screen.getByRole('radio', { name: 'Deny' }));
 		expect(change).toHaveBeenCalledWith('deny');
 		expect(group).toHaveAttribute('data-effective', 'deny');
 		expect(group).toHaveAccessibleDescription(
 			'Denied for this user, whatever the group grants'
+		);
+		// An explicit choice shows itself: its explanation is for screen readers only.
+		expect(screen.getByText('Denied for this user, whatever the group grants')).toHaveClass(
+			'sr-only'
 		);
 		expect(screen.getByText('High Risk')).toBeInTheDocument();
 	});

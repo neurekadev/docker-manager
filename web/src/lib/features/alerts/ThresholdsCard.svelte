@@ -228,7 +228,7 @@
 <Card
 	title="Alert Thresholds"
 	id="alert-thresholds"
-	subtitle="Alerts when a host runs hot or low on disk space or memory for 5 minutes. 0 turns a level off."
+	subtitle="Alerts after 5 minutes at or above a level; 0 turns a level off."
 >
 	<QueryView query={settings} errorTitle="The alert thresholds could not be loaded.">
 		{#snippet children(d)}

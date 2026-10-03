@@ -51,7 +51,7 @@
 			{#if e.status === 'archived'}
 				<EmptyState
 					title="{e.name} is archived."
-					description="Archived environments keep their stacks but run nothing. Re-attach it first."
+					description="Re-attach it to migrate its stacks."
 					level={2}
 					compact
 				>

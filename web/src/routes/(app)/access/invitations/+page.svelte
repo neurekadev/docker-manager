@@ -30,7 +30,6 @@
 	import { displayName, invitationStatus } from '$lib/features/access/model';
 	import {
 		accessKeys,
-		groupsQuery,
 		invitationsQuery,
 		usersQuery,
 		type Invitation
@@ -46,8 +45,6 @@
 	const owner = $derived(!!perms.data?.owner);
 	const invitations = createQuery(() => ({ ...invitationsQuery(), enabled: owner }));
 	const users = createQuery(() => ({ ...usersQuery(), enabled: owner }));
-	const groups = createQuery(() => ({ ...groupsQuery(), enabled: owner }));
-	const defaultGroup = $derived(groups.data?.find((g) => g.default));
 	let inviteOpen = $state(false);
 	let revoking = $state<Invitation | null>(null);
 	let revokeOpen = $state(false);
@@ -150,11 +147,7 @@
 
 <Page>
 	{#if perms.data && !owner}
-		<DeniedState
-			level={1}
-			title="Only the owner invites users."
-			description="Invitations are issued by the owner of this Docker Manager."
-		/>
+		<DeniedState level={1} title="Only the owner invites users." />
 	{:else}
 		<AccessHeader>
 			{#snippet actions()}
@@ -177,8 +170,7 @@
 							<EmptyState
 								icon={resourceIcon('invitation').icon}
 								title="No invitations yet."
-								description="Invite someone to create their own account. They join {defaultGroup?.name ??
-									'the default group'}."
+								description="Invite someone to create their own account."
 								level={3}
 								compact
 							>
@@ -195,7 +187,7 @@
 				{/snippet}
 			</QueryView>
 		</Card>
-		<InviteDialog bind:open={inviteOpen} defaultGroupName={defaultGroup?.name} />
+		<InviteDialog bind:open={inviteOpen} />
 		<ConfirmDialog
 			bind:open={revokeOpen}
 			title="Revoke this invitation?"

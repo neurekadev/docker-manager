@@ -13,8 +13,8 @@ import (
 	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
-// Authorization persistence (#17): groups, the default group, and the
-// group and user permission rules. internal/manager/permissions owns every
+// Authorization persistence (#17): groups, memberships and the group and
+// user permission rules. internal/manager/permissions owns every
 // state change; these functions map rows and enforce compare-and-set
 // updates on the permission documents' revisions.
 
@@ -140,24 +140,87 @@ func ReplaceUserPermissions(ctx context.Context, db bun.IDB, userID string, expe
 }
 
 // PermissionSubject loads what evaluation needs about a user: account
-// state, group and both rule sets. A missing user is returned with
-// Exists false (deny everything), not as an error.
+// state, its override rules and its groups' rules (highest priority
+// first). A missing user is returned with Exists false (deny everything),
+// not as an error.
 func PermissionSubject(ctx context.Context, db bun.IDB, userID string) (domain.PermissionSubject, error) {
 	out := domain.PermissionSubject{UserID: userID}
 	var row userRow
-	err := db.NewSelect().Model(&row).Column("id", "is_owner", "status", "group_id").Where("id = ?", userID).Scan(ctx)
+	err := db.NewSelect().Model(&row).Column("id", "is_owner", "status").Where("id = ?", userID).Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, nil
 	}
 	if err != nil {
 		return out, fmt.Errorf("store: read user for authorization: %w", err)
 	}
-	out.Exists, out.Owner, out.Active, out.GroupID = true, row.IsOwner == 1, row.Status == string(domain.UserActive), row.GroupID
+	out.Exists, out.Owner, out.Active = true, row.IsOwner == 1, row.Status == string(domain.UserActive)
 	if out.UserRules, err = userRules.load(ctx, db, userID); err != nil {
 		return out, err
 	}
-	if out.GroupRules, err = groupRules.load(ctx, db, row.GroupID); err != nil {
+	m, err := userGroups(ctx, db, []string{userID})
+	if err != nil {
 		return out, err
+	}
+	if out.Groups, err = GroupRuleSets(ctx, db, m[userID]); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GroupRuleSets returns the named groups with their names and rules, in
+// the given order; groups that do not exist are left out. Two queries
+// whatever the number of groups (it is on the authorization path).
+func GroupRuleSets(ctx context.Context, db bun.IDB, groupIDs []string) ([]domain.GroupRules, error) {
+	out := make([]domain.GroupRules, 0, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return out, nil
+	}
+	var names []struct {
+		ID   string `bun:"id"`
+		Name string `bun:"name"`
+	}
+	if err := db.NewRaw(`SELECT id, name FROM groups WHERE id IN (?)`, bun.List(groupIDs)).Scan(ctx, &names); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: read groups: %w", err)
+	}
+	var rows []ruleRow
+	if err := db.NewRaw(`SELECT group_id AS subject, capability, scope_kind, environment_id, resource_type, resource_id, effect, position
+		FROM group_permission_rules WHERE group_id IN (?) ORDER BY group_id, position`, bun.List(groupIDs)).Scan(ctx, &rows); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: read group_permission_rules: %w", err)
+	}
+	nameOf := make(map[string]string, len(names))
+	for _, n := range names {
+		nameOf[n.ID] = n.Name
+	}
+	rulesOf := map[string][]domain.PermissionRule{}
+	for _, r := range rows {
+		rulesOf[r.Subject] = append(rulesOf[r.Subject], r.toDomain())
+	}
+	for _, id := range groupIDs {
+		name, ok := nameOf[id]
+		if !ok {
+			continue
+		}
+		rules := rulesOf[id]
+		if rules == nil {
+			rules = []domain.PermissionRule{}
+		}
+		out = append(out, domain.GroupRules{GroupID: id, Name: name, Rules: rules})
+	}
+	return out, nil
+}
+
+// SortGroups orders group IDs by the groups' priority, the highest first
+// (groups that do not exist are left out).
+func SortGroups(ctx context.Context, db bun.IDB, groupIDs []string) ([]string, error) {
+	out := []string{}
+	if len(groupIDs) == 0 {
+		return out, nil
+	}
+	if err := db.NewRaw(`SELECT id FROM groups WHERE id IN (?) ORDER BY position, id`, bun.List(groupIDs)).Scan(ctx, &out); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: order groups: %w", err)
 	}
 	return out, nil
 }
@@ -165,35 +228,34 @@ func PermissionSubject(ctx context.Context, db bun.IDB, userID string) (domain.P
 type groupInfoRow struct {
 	ID                  string    `bun:"id"`
 	Name                string    `bun:"name"`
+	Position            int       `bun:"position"`
 	Revision            int64     `bun:"revision"`
 	PermissionsRevision int64     `bun:"permissions_revision"`
 	CreatedAt           time.Time `bun:"created_at"`
 	UpdatedAt           time.Time `bun:"updated_at"`
-	IsDefault           int       `bun:"is_default"`
 	Members             int       `bun:"members"`
 	Rules               int       `bun:"rules"`
 	Allows              int       `bun:"allows"`
 }
 
-const groupInfoSelect = `SELECT g.id, g.name, g.revision, g.permissions_revision, g.created_at, g.updated_at,
-	(SELECT count(*) FROM default_group d WHERE d.group_id = g.id) AS is_default,
-	(SELECT count(*) FROM users u WHERE u.group_id = g.id AND u.is_owner = 0) AS members,
+const groupInfoSelect = `SELECT g.id, g.name, g.position, g.revision, g.permissions_revision, g.created_at, g.updated_at,
+	(SELECT count(*) FROM user_groups m WHERE m.group_id = g.id) AS members,
 	(SELECT count(*) FROM group_permission_rules r WHERE r.group_id = g.id) AS rules,
 	(SELECT count(*) FROM group_permission_rules r WHERE r.group_id = g.id AND r.effect = 'allow') AS allows
 	FROM groups g`
 
 func (r groupInfoRow) toDomain() domain.GroupInfo {
 	return domain.GroupInfo{
-		Group: domain.Group{ID: r.ID, Name: r.Name, Default: r.IsDefault == 1, Revision: r.Revision,
+		Group: domain.Group{ID: r.ID, Name: r.Name, Position: r.Position, Revision: r.Revision,
 			CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()},
 		PermissionsRevision: r.PermissionsRevision, MemberCount: r.Members, RuleCount: r.Rules, AllowCount: r.Allows,
 	}
 }
 
-// ListGroups returns every group in creation (ID) order.
+// ListGroups returns every group in priority order (the highest first).
 func ListGroups(ctx context.Context, db bun.IDB) ([]domain.GroupInfo, error) {
 	var rows []groupInfoRow
-	if err := db.NewRaw(groupInfoSelect+` ORDER BY g.id`).Scan(ctx, &rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := db.NewRaw(groupInfoSelect+` ORDER BY g.position, g.id`).Scan(ctx, &rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("store: list groups: %w", err)
 	}
 	out := make([]domain.GroupInfo, 0, len(rows))
@@ -215,9 +277,18 @@ func GetGroupInfo(ctx context.Context, db bun.IDB, id string) (domain.GroupInfo,
 	return rows[0].toDomain(), nil
 }
 
-// CreateGroup inserts a group without rules.
+// CreateGroup inserts a group without rules, last in the order (the
+// lowest priority).
 func CreateGroup(ctx context.Context, db bun.IDB, id, name string, now time.Time) (domain.GroupInfo, error) {
-	row := groupRow{ID: id, Name: name, Revision: 1, CreatedAt: now.UTC(), UpdatedAt: now.UTC()}
+	var last sql.NullInt64
+	if err := db.NewRaw(`SELECT max(position) FROM groups`).Scan(ctx, &last); err != nil {
+		return domain.GroupInfo{}, fmt.Errorf("store: read group order: %w", err)
+	}
+	pos := 0
+	if last.Valid {
+		pos = int(last.Int64) + 1
+	}
+	row := groupRow{ID: id, Name: name, Position: pos, Revision: 1, CreatedAt: now.UTC(), UpdatedAt: now.UTC()}
 	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
 		if uniqueViolation(err, "groups.name") {
 			return domain.GroupInfo{}, domain.ErrGroupNameTaken
@@ -246,61 +317,67 @@ func RenameGroup(ctx context.Context, db bun.IDB, id string, expect int64, name 
 	return GetGroupInfo(ctx, db, id)
 }
 
-// DeleteGroup deletes a group that is not the default and has no members
-// other than the owner (the database refuses the default and any member),
-// if its revision is still expect. The owner's account belongs to a group
-// (users.group_id is NOT NULL) but group rules never apply to it (owner
-// bypass), so it never blocks a deletion: when the owner is in the group,
-// the account moves to the default group first and DeleteGroup returns
-// the owner's ID and the default group's ID. The caller runs it in a
-// transaction, so the move and the deletion commit or fail together.
-func DeleteGroup(ctx context.Context, db bun.IDB, id string, expect int64, now time.Time) (movedOwner, toGroup string, err error) {
+// DeleteGroup deletes a group without members (the database refuses one
+// with members), if its revision is still expect.
+func DeleteGroup(ctx context.Context, db bun.IDB, id string, expect int64) error {
 	g, err := GetGroupInfo(ctx, db, id)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 	switch {
-	case g.Default:
-		return "", "", domain.ErrGroupIsDefault
 	case g.MemberCount > 0:
-		return "", "", domain.ErrGroupNotEmpty
+		return domain.ErrGroupNotEmpty
 	case g.Revision != expect:
-		return "", "", domain.ErrRevisionConflict
-	}
-	var owner []string
-	if err := db.NewSelect().Model((*userRow)(nil)).Column("id").Where("group_id = ?", id).Where("is_owner = 1").
-		Scan(ctx, &owner); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", "", fmt.Errorf("store: read the owner's group: %w", err)
-	}
-	if len(owner) == 1 {
-		if toGroup, err = DefaultGroupID(ctx, db); err != nil {
-			return "", "", err
-		}
-		if err := mustUpdate(updateUser(ctx, db, owner[0], now, "", nil, set("group_id = ?", toGroup))); err != nil {
-			return "", "", err
-		}
-		movedOwner = owner[0]
+		return domain.ErrRevisionConflict
 	}
 	res, err := db.NewDelete().Model((*groupRow)(nil)).Where("id = ?", id).Where("revision = ?", expect).Exec(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-			return "", "", domain.ErrGroupNotEmpty
+			return domain.ErrGroupNotEmpty
 		}
-		return "", "", fmt.Errorf("store: delete group: %w", err)
+		return fmt.Errorf("store: delete group: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n != 1 {
-		return "", "", domain.ErrRevisionConflict
+		return domain.ErrRevisionConflict
 	}
-	return movedOwner, toGroup, nil
+	return nil
 }
 
-// SetDefaultGroup makes id the default group for new users.
-func SetDefaultGroup(ctx context.Context, db bun.IDB, id string) error {
-	if _, err := GetGroupInfo(ctx, db, id); err != nil {
+// GroupOrder returns every group's ID in priority order (the highest
+// first).
+func GroupOrder(ctx context.Context, db bun.IDB) ([]string, error) {
+	out := []string{}
+	if err := db.NewRaw(`SELECT id FROM groups ORDER BY position, id`).Scan(ctx, &out); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: read group order: %w", err)
+	}
+	return out, nil
+}
+
+// ReorderGroups sets the groups' priority order (the highest first).
+// order must name every group exactly once (domain.ErrGroupOrderStale
+// otherwise). The caller runs it in a transaction.
+func ReorderGroups(ctx context.Context, db bun.IDB, order []string, now time.Time) error {
+	all, err := GroupOrder(ctx, db)
+	if err != nil {
 		return err
 	}
-	if _, err := db.NewUpdate().Model((*defaultGroupRow)(nil)).Set("group_id = ?", id).Where("singleton = 1").Exec(ctx); err != nil {
-		return fmt.Errorf("store: set default group: %w", err)
+	seen := map[string]bool{}
+	for _, id := range order {
+		seen[id] = true
+	}
+	if len(seen) != len(order) || len(order) != len(all) {
+		return domain.ErrGroupOrderStale
+	}
+	for _, id := range all {
+		if !seen[id] {
+			return domain.ErrGroupOrderStale
+		}
+	}
+	for i, id := range order {
+		if _, err := db.NewRaw(`UPDATE groups SET position = ?, updated_at = ? WHERE id = ? AND position <> ?`, i, now.UTC(), id, i).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("store: reorder groups: %w", err)
+		}
 	}
 	return nil
 }
@@ -308,7 +385,7 @@ func SetDefaultGroup(ctx context.Context, db bun.IDB, id string) error {
 // GroupMembers returns the IDs of a group's users.
 func GroupMembers(ctx context.Context, db bun.IDB, groupID string) ([]string, error) {
 	var ids []string
-	if err := db.NewSelect().Model((*userRow)(nil)).Column("id").Where("group_id = ?", groupID).Order("id").Scan(ctx, &ids); err != nil &&
+	if err := db.NewRaw(`SELECT user_id FROM user_groups WHERE group_id = ? ORDER BY user_id`, groupID).Scan(ctx, &ids); err != nil &&
 		!errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("store: list group members: %w", err)
 	}

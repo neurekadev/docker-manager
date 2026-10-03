@@ -152,9 +152,7 @@ describe('Alert thresholds card', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Add Override' }));
 		const dialog = await screen.findByRole('dialog', { name: 'Override Thresholds' });
-		expect(dialog).toHaveTextContent(
-			'Leave a level empty to use the default; 0 turns it off there.'
-		);
+		expect(dialog).toHaveTextContent('Empty uses the default; 0 turns a level off.');
 		// The default as placeholder.
 		expect(
 			within(dialog).getByRole('spinbutton', { name: 'Temperature Warning (°C)' })

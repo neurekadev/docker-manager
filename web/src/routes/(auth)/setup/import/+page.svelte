@@ -18,6 +18,7 @@
 	import {
 		Badge,
 		Checkbox,
+		InfoTip,
 		Notice,
 		RadioGroup,
 		Skeleton,
@@ -42,7 +43,6 @@
 	} from '$lib/features/backups/importModel';
 	import {
 		KIND_LABEL,
-		RECOVERY_KEY_WARNING,
 		itemName,
 		looksLikeRecoveryKey,
 		setState
@@ -198,7 +198,7 @@
 <div class="stack">
 	<AuthHeader
 		title="Import From Backup"
-		lead="Recover a Docker Manager from its backups on this new, empty manager. You need the backup location, its access keys if it is S3, and your Recovery Key; not the old manager."
+		lead="You need the backup location, its access keys for S3, and your Recovery Key."
 	>
 		{#snippet before()}
 			<a class="back" href={routes.setup()}
@@ -236,7 +236,7 @@
 					<Fields>
 						<DestinationFields
 							bind:value={dest}
-							localDescription="The folder with the backups, as mounted into this Docker Manager's container in one of its backup folders. It may be a new path."
+							localDescription="The backup folder as mounted into this Docker Manager's container. It may be a new path."
 						/>
 						<TextArea
 							label="Recovery Key"
@@ -246,7 +246,7 @@
 							autocomplete="off"
 							spellcheck="false"
 							placeholder="DYRK-XXXX-XXXX-…"
-							description="The key you saved when backups were set up (the newest one after a rotation). Never stored or logged."
+							description="The newest key you saved for backups. Never stored or logged."
 						/>
 						<Disclosure summary="The key was rotated recently">
 							<TextArea
@@ -256,10 +256,10 @@
 								bind:value={previousKey}
 								autocomplete="off"
 								spellcheck="false"
-								description="Optional. Needed for repositories the rotation had not reached yet, or for sets saved before it."
+								optional
+								description="For sets and repositories from before the rotation."
 							/>
 						</Disclosure>
-						<p class="muted small">{RECOVERY_KEY_WARNING}</p>
 					</Fields>
 				{:else if s.id === 'test' && test}
 					<Fields>
@@ -327,7 +327,12 @@
 						{/if}
 						{#if selectedSet}
 							<div class="members">
-								<p class="head">What This Set Holds</p>
+								<p class="head">
+									What This Set Holds
+									<InfoTip
+										text="Stacks and volumes on hosts are restored later from their own backups. “Not reachable yet” means the host repository becomes usable once that host is re-attached."
+									/>
+								</p>
 								<ul role="list">
 									{#each selectedSet.members as m, i (`${m.scope}-${m.item}-${i}`)}
 										{@const l = located(m.located)}
@@ -361,11 +366,6 @@
 										{bundleText(selectedSet.keyBundle)}
 									</Notice>
 								{/if}
-								<p class="muted small">
-									Stacks and volumes on hosts are restored later from their own
-									backups; “not reachable yet” means the host repository becomes
-									usable once that host is re-attached.
-								</p>
 							</div>
 						{/if}
 					</Fields>
@@ -386,8 +386,8 @@
 										Every API token from the backup is revoked; create new ones.
 									</li>
 									<li>
-										Every environment waits to be re-attached: enroll its agent
-										again (intent “reattach”).
+										Every environment waits to be re-attached: open it and press
+										Re-Attach to enroll its agent again.
 									</li>
 								</ul>
 							</Notice>
@@ -406,9 +406,8 @@
 									waiting to be re-attached.
 								</li>
 								<li>
-									On each host, enroll its agent again with an enrollment of
-									intent “reattach” from the environment page. Its stacks,
-									policies and backups come back with it.
+									Open each environment and press Re-Attach to enroll its agent
+									again. Its stacks, policies and backups come back with it.
 								</li>
 								<li>
 									Mount host backup directories at the same paths as before, then

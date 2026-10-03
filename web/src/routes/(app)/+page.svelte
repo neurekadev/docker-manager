@@ -130,10 +130,7 @@
 	<DeniedState level={1} />
 {:else}
 	<Page>
-		<PageHeader
-			title="Dashboard"
-			description="Every environment you can reach, with what runs on it."
-		>
+		<PageHeader title="Dashboard">
 			{#snippet actions()}
 				{#if canEnroll}
 					<Button variant="primary" icon={Plus} href={routes.addEnvironment()}
@@ -261,7 +258,7 @@
 							icon={Server}
 							color="blue"
 							title="No environments yet."
-							description="Add an environment: run the Docker Agent on a Docker host and connect it."
+							description="Run the Docker Agent on a Docker host to add it."
 							level={3}
 						>
 							{#snippet actions()}

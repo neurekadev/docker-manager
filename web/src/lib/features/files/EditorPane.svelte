@@ -461,20 +461,16 @@
 				<span>Saved</span>
 			{/if}
 			{#if readOnly && tab.status === 'ready'}<span>Read-Only</span>{/if}
-			{#if definition && stack}
-				{#if stack.undeployed && !isDirty(tab)}
-					<span class="hint">Saved changes aren't deployed yet.</span>
-					{#if stack.deploy}
-						<Button
-							size="sm"
-							variant="ghost"
-							icon={Rocket}
-							loading={deploying}
-							onclick={deploy}>Deploy {stack.name}</Button
-						>
-					{/if}
-				{:else}
-					<span class="hint">Saving doesn't deploy {stack.name}.</span>
+			{#if definition && stack && stack.undeployed && !isDirty(tab)}
+				<span class="hint">Saved changes aren't deployed yet.</span>
+				{#if stack.deploy}
+					<Button
+						size="sm"
+						variant="ghost"
+						icon={Rocket}
+						loading={deploying}
+						onclick={deploy}>Deploy {stack.name}</Button
+					>
 				{/if}
 			{/if}
 		</footer>

@@ -27,8 +27,8 @@
 	<h1 id="error-title">{notFound ? 'Page Not Found' : 'This page failed to load'}</h1>
 	<p class="desc">
 		{notFound
-			? 'There is nothing at this address. Check the link, or go back.'
-			: 'Reload the page. If it keeps happening, the Docker Manager logs have the details.'}
+			? 'Check the link, or go back.'
+			: 'If it keeps happening, check the Docker Manager logs.'}
 	</p>
 	<div class="actions">
 		{#if !notFound}

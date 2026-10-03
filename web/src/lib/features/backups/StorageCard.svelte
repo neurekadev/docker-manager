@@ -12,7 +12,7 @@
 	let { totals }: { totals: StorageTotals | undefined } = $props();
 </script>
 
-<Card title="Storage" subtitle="Updated after every backup and prune.">
+<Card title="Storage">
 	{#if totals}
 		<div class="storage">
 			<p class="headline">

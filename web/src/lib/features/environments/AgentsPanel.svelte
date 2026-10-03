@@ -208,8 +208,6 @@
 		{#if detached}
 			<div class="pad">
 				<Notice tone="info" title="No agent is attached." live="none">
-					{env.name} stays offline until you re-attach it by enrolling an agent on its Docker
-					Engine.
 					{#snippet actions()}
 						<Button size="sm" href={routes.addEnvironment(env.id)}>Re-Attach</Button>
 					{/snippet}
@@ -220,7 +218,7 @@
 			{#snippet empty()}
 				<EmptyState
 					title="No agent is attached."
-					description="Re-attach {env.name} by enrolling an agent on its Docker Engine."
+					description="Re-attach {env.name} with a new agent."
 					level={3}
 					compact
 				>

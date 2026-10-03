@@ -103,6 +103,7 @@ describe('DeniedState and offline banner', () => {
 		const s = screen.getByRole('status');
 		expect(s).toHaveTextContent('edge is offline');
 		expect(s).toHaveTextContent('Its agent disconnected 3 hours ago.');
+		expect(s).toHaveTextContent('Showing the last known state.');
 		expect(s).toHaveTextContent('Actions on edge are unavailable until it reconnects.');
 	});
 });

@@ -145,6 +145,9 @@ describe('ActionMatrix', () => {
 			within(region).getByRole('radiogroup', { name: 'Open terminal for All Resources' })
 		).not.toHaveTextContent('High Risk');
 		expect(within(region).getAllByText('High Risk')).toHaveLength(1);
+		// The action's explanation is an (i) beside its name, not a line under it.
+		expect(within(region).getByRole('img', { name: 'Restart a container.' })).toBeVisible();
+		expect(within(region).queryByText('Restart a container.')).toBeNull();
 		expect(within(region).getByText('1 less common action')).toBeInTheDocument();
 		expect(
 			within(region).queryByRole('radiogroup', { name: 'Pause for All Resources' })
@@ -281,8 +284,7 @@ describe('ActionMatrix', () => {
 				node: all,
 				mode: 'user',
 				rules: [],
-				groupRules,
-				groupName: 'Operators',
+				groups: [{ name: 'Operators', rules: groupRules }],
 				onchange
 			}
 		});
@@ -301,6 +303,48 @@ describe('ActionMatrix', () => {
 		]);
 	});
 
+	it('explains which of several groups a user inherits from (#233)', async () => {
+		const user = setup();
+		render(ActionMatrix, {
+			props: {
+				catalog,
+				node: all,
+				mode: 'user',
+				rules: [],
+				groups: [
+					{
+						name: 'Viewers',
+						rules: [
+							{
+								capability: 'container.logs.read',
+								scope: { kind: 'instance' },
+								effect: 'allow'
+							}
+						]
+					},
+					{
+						name: 'Limited',
+						rules: [
+							{
+								capability: 'container.restart',
+								scope: { kind: 'instance' },
+								effect: 'deny'
+							}
+						]
+					}
+				],
+				onchange: vi.fn()
+			}
+		});
+		await user.click(screen.getByRole('button', { name: /^Containers/ }));
+		expect(
+			screen.getByRole('radiogroup', { name: 'Restart for All Resources' })
+		).toHaveAccessibleDescription(/Inherits Deny from group Limited, rule for everywhere/);
+		expect(
+			screen.getByRole('radiogroup', { name: 'Start for All Resources' })
+		).toHaveAccessibleDescription(/Inherits Deny from its groups \(no rule\)/);
+	});
+
 	it('shows the environment rule a stack inherits though its scope names no environment', async () => {
 		const user = setup();
 		render(ActionMatrix, {
@@ -315,14 +359,18 @@ describe('ActionMatrix', () => {
 				},
 				mode: 'user',
 				rules: [],
-				groupRules: [
+				groups: [
 					{
-						capability: 'stack.deploy',
-						scope: { kind: 'environment', environmentId: 'e1' },
-						effect: 'allow'
+						name: 'Operators',
+						rules: [
+							{
+								capability: 'stack.deploy',
+								scope: { kind: 'environment', environmentId: 'e1' },
+								effect: 'allow'
+							}
+						]
 					}
 				],
-				groupName: 'Operators',
 				environmentName: () => 'homelab',
 				onchange: vi.fn()
 			}

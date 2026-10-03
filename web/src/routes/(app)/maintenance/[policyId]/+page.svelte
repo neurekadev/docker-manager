@@ -350,11 +350,6 @@
 			</KpiRow>
 
 			<Card title="What It Covers">
-				{#if on.length === 0}
-					<p class="muted lead">
-						Every rule is off: this policy removes nothing until you turn one on.
-					</p>
-				{/if}
 				<ul class="rules" role="list">
 					{#each normalizeRules(p.rules) as r (r.category)}
 						<li>
@@ -393,7 +388,7 @@
 						</ul>
 					{/if}
 				{:else}
-					<p class="muted">No schedule: this policy runs only when you start it.</p>
+					<p class="muted">No schedule.</p>
 				{/if}
 			</Card>
 
@@ -405,7 +400,7 @@
 						{#snippet empty()}<EmptyState
 								icon={resourceIcon('maintenancePolicy').icon}
 								title="No runs yet."
-								description="Runs appear here, started by hand or on the schedule."
+								description="Run it now, or turn its schedule on."
 								level={3}
 								compact
 							/>{/snippet}
@@ -416,7 +411,7 @@
 			<Dialog
 				bind:open={previewOpen}
 				title="Preview of {p.name}"
-				description="What a run would remove now. A run checks every object again right before removing it."
+				description="What a run would remove now."
 				size="xl"
 			>
 				{#if previewError}
@@ -511,10 +506,6 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2);
-	}
-
-	.lead {
-		margin-bottom: var(--space-3);
 	}
 
 	.sub {

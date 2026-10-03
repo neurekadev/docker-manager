@@ -153,7 +153,7 @@
 <Page>
 	<SettingsHeader
 		title="Schedule Defaults"
-		description="What new backup, update and maintenance schedules start with. Existing policies keep their own."
+		description="New policies start with these. Existing policies keep theirs."
 	/>
 	{#if perms.data && !canRead}
 		<DeniedState
@@ -164,10 +164,7 @@
 	{:else}
 		<QueryView query={defaults} errorTitle="The schedule defaults could not be loaded.">
 			{#snippet children(d)}
-				<Card
-					title="Default Time Zone"
-					subtitle="New policies use it unless you choose another zone for them."
-				>
+				<Card title="Default Time Zone">
 					<div class="zone">
 						<Combobox label="Time Zone" options={zones} bind:value={zone} />
 						{#if canEdit}
@@ -198,7 +195,6 @@
 				<Dialog
 					open={!!editing}
 					title="Default for {editing?.label ?? ''}"
-					description="New policies of this kind start with it."
 					onclose={() => (editing = null)}
 				>
 					{#if editing}

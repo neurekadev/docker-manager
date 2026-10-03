@@ -140,7 +140,7 @@
 				placeholder="silo-web"
 				error={fieldError(failure, 'body.name')}
 			/>
-			<TextField label="Description" bind:value={description} description="Optional." />
+			<TextField label="Description" bind:value={description} optional />
 		</div>
 		<BuildSourceForm bind:form {errors} {serverError} />
 		{#if failure && !fieldError(failure, 'body.name')}

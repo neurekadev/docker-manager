@@ -134,8 +134,7 @@
 				<img src={imageUrl} alt={basename(path)} />
 			{/if}
 			<p class="muted">
-				{basename(path)} is not a text file ({formatBytes(tab.entry?.size ?? 0)}). Download
-				it to open it with another program.
+				{basename(path)} is not a text file ({formatBytes(tab.entry?.size ?? 0)}).
 			</p>
 			<Button icon={Download} onclick={() => ondownload(path)}>Download</Button>
 		</div>

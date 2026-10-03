@@ -66,8 +66,7 @@
 		</Notice>
 	{:else if !schedule.enabled}
 		<Notice tone="info" title="Disabled" live="none">
-			Nothing runs on this schedule until the policy is enabled. The next times below are a
-			preview.
+			Nothing runs until the policy is enabled.
 		</Notice>
 	{/if}
 
@@ -131,7 +130,7 @@
 				</div>
 			{/if}
 		{:else}
-			<p class="muted">No runs yet. They appear here, including missed and skipped ones.</p>
+			<p class="muted">No runs yet.</p>
 		{/if}
 	</section>
 

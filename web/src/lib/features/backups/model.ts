@@ -38,7 +38,7 @@ export const RECOVERY_KEY_WARNING =
 	'A restore on a new Docker Manager needs this Recovery Key. If the manager key store and your copy are both lost, the data can’t be restored: nobody, including Docker Manager, can decrypt the backups without it.';
 
 export const RECOVERY_KEY_SCOPE =
-	'One Recovery Key opens every Docker Manager backup repository of this instance: the manager and every environment, local and S3.';
+	'One Recovery Key opens every backup repository of this Docker Manager.';
 
 interface Presentation {
 	tone: BadgeTone;
@@ -172,23 +172,19 @@ const RULE_KEYS = Object.keys(NO_RULES) as (keyof typeof NO_RULES)[];
 /** The retention choices of the policy form; Custom reveals every rule. */
 export type RetentionPreset = 'recommended' | 'last30' | 'everything' | 'custom';
 
-export const RETENTION_PRESETS: { value: RetentionPreset; label: string; description: string }[] = [
-	{
-		value: 'recommended',
-		label: '7 Daily, 4 Weekly, 12 Monthly (Recommended)',
-		description: 'A week of daily backups, a month of weekly ones and a year of monthly ones.'
-	},
-	{
-		value: 'last30',
-		label: 'Keep the Last 30',
-		description: 'The 30 newest backups of each stack and volume.'
-	},
+export const RETENTION_PRESETS: {
+	value: RetentionPreset;
+	label: string;
+	description?: string;
+}[] = [
+	{ value: 'recommended', label: '7 Daily, 4 Weekly, 12 Monthly (Recommended)' },
+	{ value: 'last30', label: 'Keep the Last 30', description: 'Per stack and volume.' },
 	{
 		value: 'everything',
 		label: 'Keep Everything',
-		description: 'Nothing is forgotten: the repository keeps growing.'
+		description: 'The repository keeps growing.'
 	},
-	{ value: 'custom', label: 'Custom', description: 'Set each rule yourself.' }
+	{ value: 'custom', label: 'Custom' }
 ];
 
 const PRESET_RULES: Record<Exclude<RetentionPreset, 'custom'>, Partial<BackupRetention>> = {
@@ -1067,12 +1063,12 @@ export const VERIFY_READ_OPTIONS: { value: string; label: string; description: s
 	{
 		value: '',
 		label: 'Check Structure Only',
-		description: 'Quick. Checks that the index and every backup are intact.'
+		description: 'Quick: checks the index and every backup.'
 	},
 	{
 		value: '5%',
 		label: 'Also Read 5% of the Data',
-		description: 'Reads a different part each time, so damaged data is found over time.'
+		description: 'A different part each time.'
 	},
 	{
 		value: '100%',
@@ -1101,8 +1097,7 @@ export function verifyReadText(subset: string | undefined): string {
 
 /** The verification schedule in one sentence. */
 export function verificationText(v: Schema<'BackupVerification'> | undefined): string {
-	if (!v?.enabled)
-		return 'Verification is off. Run it any time with Verify on one of its backups.';
+	if (!v?.enabled) return 'Verification is off. Run Verify on one of its backups.';
 	return `Verifies ${scheduleWords(v.cron, v.timeZone)} and ${verifyReadText(v.readDataSubset)}.`;
 }
 
@@ -1153,28 +1148,25 @@ export const COMPRESSION_OPTIONS: { value: CompressionMode; label: string; descr
 		{
 			value: 'auto',
 			label: 'Automatic',
-			description: 'Recommended. Compresses what is worth compressing, quickly.'
+			description: 'Recommended.'
 		},
 		{
 			value: 'max',
 			label: 'Maximum',
-			description:
-				'Smallest backups. Uses more CPU while backing up and removing old backups.'
+			description: 'Smallest backups, more CPU.'
 		},
 		{
 			value: 'off',
 			label: 'Off',
-			description: 'For data that is already compressed, such as videos, photos or archives.'
+			description: 'For already compressed data, such as videos or archives.'
 		}
 	];
 
 /** Shown with the choice when editing: what a change affects. */
-export const COMPRESSION_CHANGE_NOTE =
-	'A change applies to data backed up from then on; existing backups stay as they are.';
+export const COMPRESSION_CHANGE_NOTE = 'Applies to new backups only.';
 
 /** Shown with the choice when adding a repository. */
-export const COMPRESSION_NEW_NOTE =
-	'You can change it later; a change applies only to data backed up from then on.';
+export const COMPRESSION_NEW_NOTE = 'You can change it later.';
 
 /** "Automatic", "Maximum", "Off" (a missing mode is Automatic). */
 export function compressionText(mode: string | undefined): string {

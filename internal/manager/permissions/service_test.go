@@ -72,7 +72,7 @@ type fixture struct {
 	svc   *permissions.Service
 	guard *guard
 	inval *invalidations
-	def   string // the default (Restricted) group
+	def   string // a group without rules, created by the fixture
 	owner string
 }
 
@@ -85,9 +85,11 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.def, err = store.DefaultGroupID(f.ctx, f.db); err != nil {
+	g, err := store.CreateGroup(f.ctx, f.db, ids.New(), "Base", testutil.Epoch)
+	if err != nil {
 		t.Fatal(err)
 	}
+	f.def = g.ID
 	f.owner = f.user("owner", f.def, true)
 	f.guard.owner = f.owner
 	return f
@@ -156,22 +158,26 @@ func container(env, name string, parents ...authz.ResourceRef) authz.Resource {
 	return authz.Resource{Type: catalog.TypeContainer, ID: name, EnvironmentID: env, Parents: parents}
 }
 
-func TestRestrictedDefaultAndGroupDocuments(t *testing.T) {
+// TestNewUsersAreDeniedAndGroupDocuments: a user in no group (a new
+// account) or in a group without rules is denied everything; the owner is
+// allowed everything.
+func TestNewUsersAreDeniedAndGroupDocuments(t *testing.T) {
 	f := newFixture(t)
 	gs, err := f.svc.ListGroups(f.ctx)
-	if err != nil || len(gs) != 1 || !gs[0].Default || gs[0].Name != domain.RestrictedGroupName || gs[0].RuleCount != 0 || gs[0].MemberCount != 0 {
+	if err != nil || len(gs) != 1 || gs[0].RuleCount != 0 || gs[0].MemberCount != 0 {
 		t.Fatalf("groups %+v %v", gs, err)
 	}
-	rita := f.user("rita", f.def, false)
-	if f.can(rita, "container.metrics.read", container("e1", "web")) || f.can(rita, "environment.read", authz.EnvironmentResource("e1")) {
-		t.Fatal("a Restricted user is granted something")
+	for _, rita := range []string{f.user("rita", "", false), f.user("sam", f.def, false)} {
+		if f.can(rita, "container.metrics.read", container("e1", "web")) || f.can(rita, "environment.read", authz.EnvironmentResource("e1")) {
+			t.Fatal("a user without rules is granted something")
+		}
 	}
 	if !f.can(f.owner, "container.exec", container("e1", "web")) {
 		t.Fatal("owner bypass")
 	}
 
 	ops, err := f.svc.CreateGroup(f.ctx, "  Ops ")
-	if err != nil || ops.Name != "Ops" || ops.Default || ops.PermissionsRevision != 1 {
+	if err != nil || ops.Name != "Ops" || ops.PermissionsRevision != 1 {
 		t.Fatalf("create %+v %v", ops, err)
 	}
 	if _, err := f.svc.CreateGroup(f.ctx, "ops"); !errors.Is(err, domain.ErrGroupNameTaken) {
@@ -208,14 +214,14 @@ func TestRestrictedDefaultAndGroupDocuments(t *testing.T) {
 		t.Fatalf("missing group: %v", err)
 	}
 	// Moving sam to the Restricted group removes the access at once.
-	if _, err := store.PatchUser(f.ctx, f.db, sam, 1, domain.UserPatch{GroupID: &f.def}, testutil.Epoch); err != nil {
+	if _, err := store.PatchUser(f.ctx, f.db, sam, 1, domain.UserPatch{GroupIDs: &[]string{f.def}}, testutil.Epoch); err != nil {
 		t.Fatal(err)
 	}
 	if f.can(sam, "container.restart", container("e1", "web")) {
 		t.Fatal("old group's rules still apply after a move")
 	}
 	// Disabled accounts are denied everything.
-	if _, err := store.PatchUser(f.ctx, f.db, sam, 2, domain.UserPatch{GroupID: &ops.ID}, testutil.Epoch); err != nil {
+	if _, err := store.PatchUser(f.ctx, f.db, sam, 2, domain.UserPatch{GroupIDs: &[]string{ops.ID}}, testutil.Epoch); err != nil {
 		t.Fatal(err)
 	}
 	disabled := domain.UserDisabled
@@ -254,7 +260,7 @@ func TestUserOverridesAndResetToInherit(t *testing.T) {
 			found = !e.Allowed && e.Source == "user_rule" && e.Rule != nil && e.Rule.Effect == domain.PermissionDeny && e.Reason != ""
 		}
 	}
-	if !found || eff.GroupID != ops.ID {
+	if !found || !slices.Equal(eff.GroupIDs, []string{ops.ID}) {
 		t.Fatalf("effective %+v", eff)
 	}
 	// Reset to inherit.
@@ -275,49 +281,31 @@ func TestUserOverridesAndResetToInherit(t *testing.T) {
 func TestGroupInvariantsAndStepUp(t *testing.T) {
 	f := newFixture(t)
 	ops, _ := f.svc.CreateGroup(f.ctx, "Ops")
-	if err := f.svc.DeleteGroup(f.ctx, f.def, 1); !errors.Is(err, domain.ErrGroupIsDefault) {
-		t.Fatalf("delete default: %v", err)
-	}
 	renamed, err := f.svc.RenameGroup(f.ctx, f.def, 1, "Newcomers")
-	if err != nil || renamed.Name != "Newcomers" || !renamed.Default || renamed.Revision != 2 {
-		t.Fatalf("rename default: %+v %v", renamed, err)
+	if err != nil || renamed.Name != "Newcomers" || renamed.Revision != 2 {
+		t.Fatalf("rename: %+v %v", renamed, err)
 	}
 	if _, err := f.svc.RenameGroup(f.ctx, f.def, 1, "Again"); !errors.Is(err, domain.ErrRevisionConflict) {
 		t.Fatalf("stale rename: %v", err)
 	}
 	f.setGroup(ops.ID, "allow stack.read @all")
-	g, err := f.svc.SelectDefaultGroup(f.ctx, ops.ID)
-	if err != nil || !g.Default || g.AllowCount != 1 {
-		t.Fatalf("select default: %+v %v", g, err)
-	}
-	if def, _ := store.DefaultGroupID(f.ctx, f.db); def != ops.ID {
-		t.Fatalf("default %s", def)
-	}
-	// A member keeps the old default from being deleted; the owner's
-	// account, also in it, does not count.
+	// A member keeps a group from being deleted; the owner is in no group.
 	rita := f.user("rita", f.def, false)
 	old, _ := f.svc.GetGroup(f.ctx, f.def)
 	if old.MemberCount != 1 {
-		t.Fatalf("members %d, want 1 (the owner is not counted)", old.MemberCount)
+		t.Fatalf("members %d, want 1 (the owner is in no group)", old.MemberCount)
 	}
 	if err := f.svc.DeleteGroup(f.ctx, f.def, old.Revision); !errors.Is(err, domain.ErrGroupNotEmpty) {
 		t.Fatalf("delete non-empty: %v", err)
 	}
-	if u, _ := store.GetUser(f.ctx, f.db, f.owner); u.GroupID != f.def {
-		t.Fatalf("a refused deletion moved the owner to %s", u.GroupID)
-	}
 	r, _ := store.GetUser(f.ctx, f.db, rita)
-	if _, err := store.PatchUser(f.ctx, f.db, rita, r.Revision, domain.UserPatch{GroupID: &ops.ID}, testutil.Epoch); err != nil {
+	if _, err := store.PatchUser(f.ctx, f.db, rita, r.Revision, domain.UserPatch{GroupIDs: &[]string{ops.ID}}, testutil.Epoch); err != nil {
 		t.Fatal(err)
 	}
-	// With only the owner left, the group is deleted and the owner moves
-	// to the default group; nobody's access changes.
+	// Empty, the group is deleted; nobody's access changes.
 	f.inval.take()
 	if err := f.svc.DeleteGroup(f.ctx, f.def, old.Revision); err != nil {
-		t.Fatalf("delete with only the owner: %v", err)
-	}
-	if u, _ := store.GetUser(f.ctx, f.db, f.owner); u.GroupID != ops.ID {
-		t.Fatalf("owner in %s, want the default group %s", u.GroupID, ops.ID)
+		t.Fatalf("delete an empty group: %v", err)
 	}
 	if got := f.inval.take(); len(got) != 0 {
 		t.Fatalf("invalidated %v", got)
@@ -341,15 +329,16 @@ func TestGroupInvariantsAndStepUp(t *testing.T) {
 	// Every change needs a recent step-up; reads do not.
 	f.guard.stale = true
 	for name, err := range map[string]error{
-		"create": func() error { _, err := f.svc.CreateGroup(f.ctx, "X"); return err }(),
-		"rename": func() error { _, err := f.svc.RenameGroup(f.ctx, ops.ID, 1, "X"); return err }(),
-		"delete": f.svc.DeleteGroup(f.ctx, ops.ID, 1),
-		"default": func() error {
-			_, err := f.svc.SelectDefaultGroup(f.ctx, f.def)
+		"create":      func() error { _, err := f.svc.CreateGroup(f.ctx, "X"); return err }(),
+		"rename":      func() error { _, err := f.svc.RenameGroup(f.ctx, ops.ID, 1, "X"); return err }(),
+		"delete":      f.svc.DeleteGroup(f.ctx, ops.ID, 1),
+		"group rules": func() error { _, err := f.svc.ReplaceGroupPermissions(f.ctx, ops.ID, 2, nil); return err }(),
+		"group order": func() error {
+			order, _ := f.svc.GroupOrder(f.ctx)
+			_, err := f.svc.ReorderGroups(f.ctx, order, order)
 			return err
 		}(),
-		"group rules": func() error { _, err := f.svc.ReplaceGroupPermissions(f.ctx, ops.ID, 2, nil); return err }(),
-		"user rules":  func() error { _, err := f.svc.ReplaceUserPermissions(f.ctx, f.owner, 1, nil); return err }(),
+		"user rules": func() error { _, err := f.svc.ReplaceUserPermissions(f.ctx, f.owner, 1, nil); return err }(),
 	} {
 		if !errors.Is(err, domain.ErrStepUpRequired) {
 			t.Errorf("%s without step-up: %v", name, err)
@@ -500,19 +489,20 @@ func TestPreviewAndEffective(t *testing.T) {
 		t.Fatalf("stored preview %+v", p)
 	}
 	// Previewing a move to Ops: exact environment beats all.
-	p = check(permissions.PreviewRequest{UserID: sam, GroupID: ops.ID})
+	inOps := &[]string{ops.ID}
+	p = check(permissions.PreviewRequest{UserID: sam, GroupIDs: inOps})
 	if !p.Checks[0].Allowed || p.Checks[1].Allowed || p.Checks[1].Rule == nil || p.Checks[1].Rule.Scope.EnvironmentID != "e2" ||
-		p.Effective.GroupID != ops.ID || len(p.Effective.Entries) != 2 {
+		p.Checks[1].GroupID != ops.ID || !slices.Equal(p.Effective.GroupIDs, []string{ops.ID}) || len(p.Effective.Entries) != 2 {
 		t.Fatalf("move preview %+v", p)
 	}
 	// Unsaved user overrides and an API token scope.
 	over := rules(t, "deny container.restart @container:e1/web")
-	p = check(permissions.PreviewRequest{UserID: sam, GroupID: ops.ID, UserRules: &over})
+	p = check(permissions.PreviewRequest{UserID: sam, GroupIDs: inOps, UserRules: &over})
 	if p.Checks[0].Allowed || p.Checks[0].Source != "user_rule" {
 		t.Fatalf("override preview %+v", p)
 	}
 	scope := rules(t, "allow container.restart @env:e2")
-	p = check(permissions.PreviewRequest{UserID: sam, GroupID: ops.ID, TokenScope: &scope})
+	p = check(permissions.PreviewRequest{UserID: sam, GroupIDs: inOps, TokenScope: &scope})
 	if p.Checks[0].Allowed || p.Checks[0].Source != "token_scope" || p.Checks[1].Allowed {
 		t.Fatalf("token preview %+v", p)
 	}
@@ -522,9 +512,30 @@ func TestPreviewAndEffective(t *testing.T) {
 		t.Fatalf("deny in a token scope: %v", err)
 	}
 	// A group's typical member; nothing was stored.
-	p = check(permissions.PreviewRequest{GroupID: ops.ID})
+	p = check(permissions.PreviewRequest{GroupIDs: inOps})
 	if !p.Checks[0].Allowed {
 		t.Fatalf("group preview %+v", p)
+	}
+	// Several groups decide in priority order: a higher group with
+	// unsaved rules first.
+	blocked, _ := f.svc.CreateGroup(f.ctx, "Blocked")
+	order, _ := f.svc.GroupOrder(f.ctx)
+	if _, err := f.svc.ReorderGroups(f.ctx, order, []string{blocked.ID, ops.ID, f.def}); err != nil {
+		t.Fatal(err)
+	}
+	unsaved := rules(t, "deny container.restart @env:e1")
+	both := &[]string{ops.ID, blocked.ID}
+	p = check(permissions.PreviewRequest{UserID: sam, GroupIDs: both, RulesGroupID: blocked.ID, GroupRules: &unsaved})
+	if p.Checks[0].Allowed || p.Checks[0].GroupID != blocked.ID || !slices.Equal(p.Effective.GroupIDs, []string{blocked.ID, ops.ID}) {
+		t.Fatalf("several groups preview %+v", p)
+	}
+	var fe *domain.FieldError
+	if _, err := f.svc.Preview(f.ctx, permissions.PreviewRequest{UserID: sam, GroupIDs: both, GroupRules: &unsaved}); !errors.As(err, &fe) ||
+		fe.Field != "rulesGroupId" {
+		t.Fatalf("ambiguous group rules: %v", err)
+	}
+	if _, err := f.svc.Preview(f.ctx, permissions.PreviewRequest{GroupIDs: &[]string{"missing"}}); !errors.Is(err, domain.ErrGroupNotFound) {
+		t.Fatalf("unknown group: %v", err)
 	}
 	if doc, _ := f.svc.UserPermissions(f.ctx, sam); len(doc.Rules) != 0 {
 		t.Fatal("preview stored rules")
@@ -586,5 +597,55 @@ func TestQueuedJobRecheckedAtDispatch(t *testing.T) {
 	}
 	if got, _ := eng.Get(f.ctx, sched.ID); got.State != domain.JobDispatched {
 		t.Fatalf("scheduled job %+v", got)
+	}
+}
+
+// TestReorderGroups: the order decides for members of several groups; a
+// reorder is compare-and-set on the order, names every group once and
+// ends the streams of members of several groups only.
+func TestReorderGroups(t *testing.T) {
+	f := newFixture(t)
+	admins, _ := f.svc.CreateGroup(f.ctx, "Admins")
+	limited, _ := f.svc.CreateGroup(f.ctx, "Limited")
+	f.setGroup(admins.ID, "allow container.restart @all")
+	f.setGroup(limited.ID, "deny container.restart @container:e1/web")
+	both := f.user("both", admins.ID, false)
+	r, _ := store.GetUser(f.ctx, f.db, both)
+	if _, err := store.PatchUser(f.ctx, f.db, both, r.Revision, domain.UserPatch{GroupIDs: &[]string{admins.ID, limited.ID}}, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	f.user("one", limited.ID, false)
+	web := container("e1", "web")
+	if !f.can(both, "container.restart", web) {
+		t.Fatal("the higher group (Admins) does not decide")
+	}
+	order, err := f.svc.GroupOrder(f.ctx)
+	if err != nil || !slices.Equal(order, []string{f.def, admins.ID, limited.ID}) {
+		t.Fatalf("order %v %v", order, err)
+	}
+	f.inval.take()
+	want := []string{limited.ID, f.def, admins.ID}
+	gs, err := f.svc.ReorderGroups(f.ctx, order, want)
+	if err != nil || len(gs) != 3 || gs[0].ID != limited.ID {
+		t.Fatalf("reorder %+v %v", gs, err)
+	}
+	if f.can(both, "container.restart", web) || !f.can(both, "container.restart", container("e1", "db")) {
+		t.Fatal("after the reorder Limited does not decide first")
+	}
+	if got := f.inval.take(); !slices.Equal(got, []string{both}) {
+		t.Fatalf("invalidated %v, want the member of several groups only", got)
+	}
+	if _, err := f.svc.ReorderGroups(f.ctx, order, want); !errors.Is(err, domain.ErrRevisionConflict) {
+		t.Fatalf("stale order: %v", err)
+	}
+	if _, err := f.svc.ReorderGroups(f.ctx, want, want[:2]); !errors.Is(err, domain.ErrGroupOrderStale) {
+		t.Fatalf("incomplete order: %v", err)
+	}
+	// The same order again changes nothing.
+	if _, err := f.svc.ReorderGroups(f.ctx, want, want); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.inval.take(); len(got) != 0 {
+		t.Fatalf("an unchanged order invalidated %v", got)
 	}
 }

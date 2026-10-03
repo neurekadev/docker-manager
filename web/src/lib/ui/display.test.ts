@@ -33,6 +33,15 @@ describe('Chip', () => {
 		expect(screen.queryByRole('button')).toBeNull();
 		expect(screen.queryByRole('link')).toBeNull();
 	});
+
+	it('offers an × button on a removable tag', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const onremove = vi.fn();
+		render(Chip, { props: { label: 'cloud', onremove } });
+		await user.click(screen.getByRole('button', { name: 'Remove cloud' }));
+		expect(onremove).toHaveBeenCalledTimes(1);
+		expect(screen.getByText('cloud')).toBeInTheDocument();
+	});
 });
 
 describe('KpiCard', () => {

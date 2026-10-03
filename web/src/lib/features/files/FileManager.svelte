@@ -1094,7 +1094,7 @@
 								<EmptyState
 									compact
 									title="{basename(dir)} Doesn't Exist Anymore"
-									description="It was moved or deleted. Go back to {rootLabel}."
+									description="It was moved or deleted."
 								>
 									{#snippet actions()}
 										<Button onclick={() => navigate('.')}
@@ -1165,9 +1165,6 @@
 											<EmptyState
 												compact
 												title="No Names Contain “{filters.q}”"
-												description="Clear the filter to see every entry of {where(
-													dir
-												)}."
 											>
 												{#snippet actions()}
 													<Button

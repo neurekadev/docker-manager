@@ -382,7 +382,7 @@ const USER_SET_LABELS = [
 
 /** Why a volume's Compose labels count although the volume does not carry them. */
 export const COMPOSE_LABELS_INFO =
-	"Declared on this volume in its stack's Compose file after the volume was created. Docker keeps the labels a volume was created with, so they are not on the volume, but Docker Manager honors them for backups and maintenance since the last deploy.";
+	"Declared in the stack's Compose file after the volume was created. Docker can't add them to an existing volume; Docker Manager honors them for backups and maintenance.";
 
 /** Whether a label was set by Docker, Compose, an image build or Docker Manager. */
 export function isSystemLabel(key: string): boolean {

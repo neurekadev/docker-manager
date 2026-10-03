@@ -162,7 +162,7 @@
 		>{formatRelative(r.at)}</time
 	>{/snippet}
 
-<Card title="Jobs" padding="none" id="jobs" subtitle="Newest first">
+<Card title="Jobs" padding="none" id="jobs">
 	{#snippet actions()}
 		<Switch bind:checked={hideChecks} label="Hide Update Checks" />
 	{/snippet}
@@ -194,7 +194,7 @@
 						: `No jobs for ${title} yet.`}
 					description={listed.hidden
 						? 'Turn off “Hide Update Checks” to see them.'
-						: 'Deploys, restarts, updates and backups of this stack show up here.'}
+						: 'Deploys, updates and backups show up here.'}
 					level={3}
 					compact
 				/>
@@ -210,12 +210,7 @@
 </Card>
 
 {#if canAudit}
-	<Card
-		title="Audit Log"
-		padding="none"
-		id="audit"
-		subtitle="Every recorded action touching this stack"
-	>
+	<Card title="Audit Log" padding="none" id="audit">
 		{#if audit.isPending}
 			<div class="pad" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 		{:else if audit.isError}

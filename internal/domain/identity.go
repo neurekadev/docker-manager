@@ -27,8 +27,10 @@ type User struct {
 	DisplayName string
 	Email       string
 	Owner       bool
-	GroupID     string
-	Status      UserStatus
+	// GroupIDs are the account's permission groups (#17), highest
+	// priority first. The owner is in none (group rules never apply to it).
+	GroupIDs []string
+	Status   UserStatus
 	// WebAuthnHandle is the random WebAuthn user handle.
 	WebAuthnHandle []byte
 	// SessionEpoch changes whenever the account's sessions must end
@@ -62,11 +64,14 @@ type UserCredentials struct {
 
 // NewUser is the input of user creation.
 type NewUser struct {
-	ID                 string
-	Username           string
-	DisplayName        string
-	Email              string
-	Owner              bool
+	ID          string
+	Username    string
+	DisplayName string
+	Email       string
+	Owner       bool
+	// GroupID is a group the account joins; empty means none (invited
+	// accounts: no group, so no access until the owner adds them to a
+	// group or grants them overrides). Ignored for the owner.
 	GroupID            string
 	PasswordHash       string
 	WebAuthnHandle     []byte
@@ -79,23 +84,21 @@ type NewUser struct {
 type UserPatch struct {
 	DisplayName *string
 	Email       *string
-	GroupID     *string
-	Status      *UserStatus
+	// GroupIDs replaces the account's group memberships (any order).
+	GroupIDs *[]string
+	Status   *UserStatus
 }
 
-// Group is a permission group (#17). Exactly one group is the default for
-// new users; it cannot be deleted while it is the default.
+// Group is a permission group (#17). Groups are ordered: Position 0 is the
+// highest priority (the first group with a matching rule decides).
 type Group struct {
 	ID        string
 	Name      string
-	Default   bool
+	Position  int
 	Revision  int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
-
-// RestrictedGroupName is the initial default group: no grants.
-const RestrictedGroupName = "Restricted"
 
 // Passkey is a registered WebAuthn credential.
 type Passkey struct {

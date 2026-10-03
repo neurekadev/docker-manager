@@ -3,14 +3,19 @@
 	// no shadow. With a title it renders a header row (title + actions) that
 	// wraps the actions below the title when they do not fit. The title is
 	// always the section size (16 px); headings inside the body use the
-	// global `.subsection-title` class (14 px semibold).
+	// global `.subsection-title` class (14 px semibold). `info` puts an (i)
+	// beside the title for an explanation needed only now and then; a
+	// subtitle stays for facts the card always shows.
 	import type { Snippet } from 'svelte';
+	import InfoTip from './InfoTip.svelte';
 
 	interface Props {
 		title?: string;
 		/** Heading level of the title (2 by default: sections of a page). */
 		level?: 2 | 3;
 		subtitle?: string;
+		/** An explanation behind an (i) beside the title (InfoTip). */
+		info?: string;
 		actions?: Snippet;
 		/** none: children touch the edges (tables). */
 		padding?: 'none' | 'md';
@@ -27,6 +32,7 @@
 		title,
 		level = 2,
 		subtitle,
+		info,
 		actions,
 		padding = 'md',
 		children,
@@ -40,13 +46,16 @@
 		<header class="head" class:stretch={stretchActions}>
 			<div class="titles">
 				{#if title}
-					<svelte:element
-						this={`h${level}`}
-						class="title"
-						id={id ? `${id}-title` : undefined}
-					>
-						{title}
-					</svelte:element>
+					<span class="title-row">
+						<svelte:element
+							this={`h${level}`}
+							class="title"
+							id={id ? `${id}-title` : undefined}
+						>
+							{title}
+						</svelte:element>
+						{#if info}<InfoTip text={info} />{/if}
+					</span>
 				{/if}
 				{#if subtitle}<span class="subtitle">{subtitle}</span>{/if}
 			</div>
@@ -84,6 +93,13 @@
 		flex-wrap: wrap;
 		align-items: baseline;
 		gap: 2px var(--space-3);
+		min-width: 0;
+	}
+
+	.title-row {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
 		min-width: 0;
 	}
 

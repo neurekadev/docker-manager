@@ -15,14 +15,7 @@
 	let { what, icon, onclear, level = 3 }: Props = $props();
 </script>
 
-<EmptyState
-	{icon}
-	color="slate"
-	title="No {what} match the search and filters."
-	description="Change them, or clear them to see all {what}."
-	{level}
-	compact
->
+<EmptyState {icon} color="slate" title="No {what} match the search and filters." {level} compact>
 	{#snippet actions()}
 		<Button variant="secondary" onclick={onclear}>Clear Filters</Button>
 	{/snippet}

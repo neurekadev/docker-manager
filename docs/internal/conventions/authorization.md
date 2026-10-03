@@ -3,7 +3,8 @@
 Binding conventions (split out of CLAUDE.md). Read this file when your change touches this area.
 
 Guide: `docs/internal/architecture/authorization.md`. Owner bypass, then the most
-specific user rule, then the most specific group rule, then deny.
+specific user rule, then the user's groups in priority order (the first
+group with a matching rule decides with its most specific rule), then deny.
 
 - **Declare a capability:** add a `catalog.Capability` to
   `internal/manager/authz/catalog/entries.go` (key `<type>.<action>`, type,
@@ -61,7 +62,12 @@ specific user rule, then the most specific group rule, then deny.
 - Permission/group changes are owner-only, need step-up, are revisioned,
   audited with diffs and end the affected users' streams
   (`auth.Service.AccessChanged`); session tokens are not rotated.
-- The owner is in a group only because `users.group_id` is `NOT NULL`:
-  group member counts exclude the owner, and the owner never blocks a group
-  deletion (`store.DeleteGroup` moves it to the default group in the same
-  transaction). Never make group rules or counts depend on the owner.
+- Users are in any number of groups (`user_groups`; `domain.User.GroupIDs`
+  and `PermissionSubject.Groups` in priority order, highest first); groups
+  are ordered by `groups.position` (`store.ReorderGroups`, `PUT
+  /group-order`). The owner is in no group. There is no default group: new
+  instances start without groups and new accounts join none (deny by
+  default until a group or override grants something); never add a group
+  or rule that grants new accounts anything implicitly. Precedence cases across groups
+  go in the corpus with `groups: [[…], […]]` (highest first);
+  `authztest.Policy.Memberships(user, groups...)` sets several.

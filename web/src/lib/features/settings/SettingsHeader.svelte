@@ -13,12 +13,13 @@
 	let {
 		title,
 		description,
+		info,
 		actions
-	}: { title: string; description?: string; actions?: Snippet } = $props();
+	}: { title: string; description?: string; info?: string; actions?: Snippet } = $props();
 
 	const perms = createQuery(() => myPermissionsQuery());
 	const tabs = $derived(settingsTabs(accessOf(perms.data)));
 </script>
 
-<PageHeader {title} {description} {actions} />
+<PageHeader {title} {description} {info} {actions} />
 <TabNav label="Settings Sections" current={page.url.pathname} items={tabs} />

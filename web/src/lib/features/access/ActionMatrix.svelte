@@ -11,18 +11,28 @@
 	import { untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import { Badge, Button, Checkbox, Select, TextField, TriState, type TriValue } from '$lib/ui';
+	import {
+		Badge,
+		Button,
+		Checkbox,
+		InfoTip,
+		Select,
+		TextField,
+		TriState,
+		type TriValue
+	} from '$lib/ui';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import {
 		capabilitiesAt,
 		effectAt,
 		groupCapabilities,
-		inheritedDecision,
+		inheritedFromGroups,
 		scopeConsequence,
 		setRule,
 		type Capability,
 		type CapabilityGroup,
 		type Catalog,
+		type InheritedGroup,
 		type Rule,
 		type ScopeNode
 	} from './permissions';
@@ -40,9 +50,8 @@
 		node: ScopeNode;
 		mode: 'group' | 'user' | 'token';
 		rules: Rule[];
-		/** User mode: the group's rules, for what is inherited. */
-		groupRules?: Rule[];
-		groupName?: string;
+		/** User mode: the user's groups, highest priority first, for what is inherited. */
+		groups?: InheritedGroup[];
 		/** Token mode: capabilities the caller holds. */
 		held?: ReadonlySet<string>;
 		readonly?: boolean;
@@ -55,8 +64,7 @@
 		node,
 		mode,
 		rules,
-		groupRules = [],
-		groupName,
+		groups: userGroups = [],
 		held,
 		readonly = false,
 		environmentName,
@@ -109,19 +117,24 @@
 	}
 
 	function inherited(c: Capability) {
-		return inheritedDecision(groupRules, c.key, node.scope, node.environmentId);
+		return inheritedFromGroups(userGroups, c.key, node.scope, node.environmentId);
 	}
 
 	function inheritedText(c: Capability): string {
 		const d = inherited(c);
-		if (d.at === 'none') return `group ${groupName ?? ''} (no rule)`.replace('  ', ' ');
+		if (d.at === 'none')
+			return userGroups.length === 1
+				? `group ${userGroups[0].name} (no rule)`
+				: userGroups.length
+					? 'its groups (no rule)'
+					: 'no group';
 		const where =
 			d.at === 'instance'
 				? 'everywhere'
 				: d.at === 'environment'
 					? 'this environment'
 					: 'this resource';
-		return `group ${groupName ?? ''}, rule for ${where}`.replace('  ', ' ');
+		return `group ${d.group}, rule for ${where}`;
 	}
 
 	const sectionActions = (g: CapabilityGroup) => [...g.common, ...g.advanced];
@@ -146,8 +159,8 @@
 	<li class="row">
 		<div class="what">
 			<span class="name">{c.label}</span>
+			{#if c.description}<InfoTip text={c.description} />{/if}
 			{#if c.risk === 'high'}<Badge tone="warn">High Risk</Badge>{/if}
-			<p class="desc">{c.description}</p>
 		</div>
 		<div class="control">
 			{#if mode === 'token'}
@@ -198,7 +211,7 @@
 					value={preset ?? ''}
 					description={presetInfo
 						? presetInfo.description
-						: 'Sets every action below at once. Nothing is saved until you save.'}
+						: 'Sets every action below at once.'}
 					onchange={startFrom}
 				/>
 			</div>
@@ -422,13 +435,6 @@
 	.name {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
-	}
-
-	.desc {
-		width: 100%;
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		line-height: var(--leading-caption);
 	}
 
 	.control {

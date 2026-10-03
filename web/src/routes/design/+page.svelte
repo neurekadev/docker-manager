@@ -42,6 +42,8 @@
 	import { byRank, nameFilter } from '$lib/features/environments/containers';
 	import { rankByPeak } from '$lib/features/environments/temperatures';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
+	import ChoiceGrid from '$lib/features/common/ChoiceGrid.svelte';
+	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import LifecycleButton from '$lib/features/common/LifecycleButton.svelte';
 	import { mountLineChart, mountTerminal, mountYamlEditor, type Mounted } from '$lib/lazy';
@@ -57,6 +59,7 @@
 		DeniedState,
 		DestructiveConfirm,
 		Dialog,
+		DragHandle,
 		Drawer,
 		EmptyState,
 		ErrorState,
@@ -77,6 +80,7 @@
 		SecretReveal,
 		Select,
 		Skeleton,
+		Sortable,
 		Sparkline,
 		SplitButton,
 		StatusBadge,
@@ -84,14 +88,15 @@
 		Switch,
 		TabNav,
 		Table,
+		TagInput,
 		TextArea,
 		TextField,
 		Tooltip,
-		InfoTip,
 		TriState,
 		Uptime,
 		formatBytes,
 		formatPercent,
+		moveItem,
 		toast,
 		type Column,
 		type MenuEntry
@@ -284,6 +289,11 @@
 	let follow = $state(true);
 	let backups = $state(true);
 	let tri = $state<'inherit' | 'allow' | 'deny'>('inherit');
+	let tags = $state(['cloud', 'files', 'Media_Server']);
+	const tagCheck = (t: string) =>
+		/^[a-z0-9][a-z0-9-]*$/.test(t) ? '' : `${t}: use lowercase letters, digits and dashes.`;
+	let order = $state(['Documentation', 'Website', 'Repository']);
+	const orderSort = new Sortable({ onmove: (from, to) => (order = moveItem(order, from, to)) });
 	let wizardStep = $state(0);
 
 	// Job progress with a scripted stream (partial failure).
@@ -544,7 +554,12 @@
 				secondary="Revision a1b2c3d"
 			/>
 		</KpiRow>
-		<Card title="Services" padding="none" id="services">
+		<Card
+			title="Services"
+			info="Each service of the stack with its state, image and ports."
+			padding="none"
+			id="services"
+		>
 			<Table
 				label="Services of Silo"
 				rows={demoServices}
@@ -648,7 +663,6 @@
 			<Tooltip text="Tooltips name controls; they never replace the name.">
 				{#snippet trigger(props)}<Button {...props}>Hover or Focus Me</Button>{/snippet}
 			</Tooltip>
-			<span>Explained Label <InfoTip text="An (i) explains the label beside it." /></span>
 		</div>
 		<div class="row">
 			{#each ['running', 'healthy', 'stopped', 'exited', 'paused', 'restarting', 'unhealthy', 'offline', 'queued', 'blocked', 'failed'] as s (s)}
@@ -699,6 +713,7 @@
 				/>
 				<Select
 					label="Pull Policy"
+					info="Always Pull fetches the image on every deploy, even when it is already on the host."
 					bind:value={policy}
 					options={[
 						{ value: 'missing', label: 'Pull Missing Images' },
@@ -707,6 +722,7 @@
 				/>
 				<Combobox
 					label="Registry Connection"
+					optional
 					bind:value={registry}
 					placeholder="Search connections"
 					options={[
@@ -748,17 +764,38 @@
 						}
 					]}
 				/>
-				<TextArea label="Notes" bind:value={notes} description="Optional." />
-				<Switch
-					bind:checked={follow}
-					label="Follow"
-					description="Scroll with new log lines."
+				<TagInput
+					label="Tags"
+					bind:values={tags}
+					validate={tagCheck}
+					max={16}
+					description="Space, Enter or a comma ends a tag."
+					placeholder="cloud"
 				/>
+				<div class="sortable-demo">
+					<h3 class="subsection-title">Drag to Reorder</h3>
+					<ul aria-label="Links in Order">
+						{#each order as item, i (item)}
+							<li {@attach orderSort.item(i)}>
+								<DragHandle sortable={orderSort} index={i} name={item} />
+								<span>{item}</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+				<TextArea label="Notes" bind:value={notes} optional />
+				<Switch bind:checked={follow} label="Follow" info="Scrolls with new log lines." />
 				<Checkbox
 					bind:checked={backups}
 					label="Include Volumes"
 					description="Back up the stack's named volumes too."
 				/>
+				<FieldGroup legend="Backup Days" info="No day checked: every day.">
+					<ChoiceGrid min="120px">
+						<Checkbox label="Monday" checked />
+						<Checkbox label="Saturday" info="Most backups run on weekends." />
+					</ChoiceGrid>
+				</FieldGroup>
 				<RadioGroup
 					label="Restart Policy"
 					value="unless-stopped"
@@ -1149,6 +1186,24 @@
 		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 		gap: var(--space-5);
 		align-items: start;
+	}
+
+	.sortable-demo ul {
+		display: grid;
+		gap: var(--space-2);
+		margin: var(--space-2) 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.sortable-demo li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding-right: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		background: var(--surface-panel);
 	}
 
 	.states {

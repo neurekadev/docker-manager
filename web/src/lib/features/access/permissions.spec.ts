@@ -7,6 +7,7 @@ import {
 	groupCapabilities,
 	heldCapabilities,
 	inheritedDecision,
+	inheritedFromGroups,
 	ruleCounts,
 	scopeConsequence,
 	scopeKey,
@@ -22,11 +23,13 @@ import {
 	expiryFromDays,
 	factorsText,
 	groupMembers,
+	groupNames,
 	invitationStatus,
 	memberCandidates,
 	membersText,
 	secondaryName,
-	tokenStatus
+	tokenStatus,
+	withGroup
 } from './model';
 import { nodesFromRules, resourceNode, serviceNodes } from './tree';
 
@@ -194,7 +197,7 @@ describe('scopes and capabilities (#17)', () => {
 			/service containers, current and future/
 		);
 		expect(scopeConsequence({ scope: C, type: 'container', label: 'web' })).toBe(
-			'Rules here apply to web only.'
+			'Applies to web only.'
 		);
 	});
 });
@@ -271,6 +274,39 @@ describe('rules', () => {
 			at: 'resource'
 		});
 		expect(inheritedDecision(group, 'container.exec', C)).toEqual({
+			effect: 'deny',
+			at: 'none'
+		});
+	});
+
+	it('inherits from the first group, in priority order, with a rule that applies (#233)', () => {
+		const admins = {
+			name: 'Admins',
+			rules: [{ capability: 'container.restart', effect: 'allow', scope: I }] as Rule[]
+		};
+		const limited = {
+			name: 'Limited',
+			rules: [{ capability: 'container.restart', effect: 'deny', scope: C }] as Rule[]
+		};
+		const viewers = {
+			name: 'Viewers',
+			rules: [{ capability: 'container.logs.read', effect: 'allow', scope: I }] as Rule[]
+		};
+		expect(inheritedFromGroups([admins, limited], 'container.restart', C)).toEqual({
+			effect: 'allow',
+			at: 'instance',
+			group: 'Admins'
+		});
+		expect(inheritedFromGroups([viewers, limited, admins], 'container.restart', C)).toEqual({
+			effect: 'deny',
+			at: 'resource',
+			group: 'Limited'
+		});
+		expect(inheritedFromGroups([viewers], 'container.restart', C)).toEqual({
+			effect: 'deny',
+			at: 'none'
+		});
+		expect(inheritedFromGroups([], 'container.restart', C)).toEqual({
 			effect: 'deny',
 			at: 'none'
 		});
@@ -416,23 +452,33 @@ describe('accounts and tokens', () => {
 		expect(secondaryName({ displayName: 'Ada Lovelace', username: 'ada' })).toBe('ada');
 		expect(secondaryName({ displayName: '', username: 'ada' })).toBeUndefined();
 		const users = [
-			{ id: 'o', groupId: 'g1', owner: true },
-			{ id: 'a', groupId: 'g1', owner: false },
-			{ id: 'b', groupId: 'g2', owner: false }
+			{ id: 'o', groupIds: [], owner: true },
+			{ id: 'a', groupIds: ['g1'], owner: false },
+			{ id: 'b', groupIds: ['g2', 'g1'], owner: false },
+			{ id: 'c', groupIds: ['g2'], owner: false }
 		];
-		expect(groupMembers(users, 'g1').map((u) => u.id)).toEqual(['a']);
+		expect(groupMembers(users, 'g1').map((u) => u.id)).toEqual(['a', 'b']);
+		const groups = [
+			{ id: 'g2', name: 'Viewers' },
+			{ id: 'g1', name: 'Operators' }
+		];
+		expect(groupNames(['g1', 'g2'], groups)).toBe('Viewers, Operators');
+		expect(groupNames([], groups)).toBe('No Group');
+		expect(withGroup(['g1'], 'g2', true)).toEqual(['g1', 'g2']);
+		expect(withGroup(['g1', 'g2'], 'g2', true)).toEqual(['g1', 'g2']);
+		expect(withGroup(['g1', 'g2'], 'g1', false)).toEqual(['g2']);
 		expect(groupMembers(undefined, 'g1')).toEqual([]);
 		expect(membersText(1)).toBe('1 member');
 		expect(membersText(0)).toBe('0 members');
 		const people = [
-			{ groupId: 'g1', owner: true, displayName: 'Owner', username: 'own' },
-			{ groupId: 'g1', owner: false, displayName: 'Ada', username: 'ada' },
-			{ groupId: 'g2', owner: false, displayName: 'Zoe', username: 'zoe' },
-			{ groupId: 'g2', owner: false, displayName: '', username: 'bob', email: 'b@lab.test' }
+			{ groupIds: [], owner: true, displayName: 'Owner', username: 'own' },
+			{ groupIds: ['g1'], owner: false, displayName: 'Ada', username: 'ada' },
+			{ groupIds: ['g2', 'g1'], owner: false, displayName: 'Zoe', username: 'zoe' },
+			{ groupIds: [], owner: false, displayName: '', username: 'bob', email: 'b@lab.test' }
 		];
-		expect(memberCandidates(people, 'g1').map((u) => u.username)).toEqual(['bob', 'zoe']);
+		expect(memberCandidates(people, 'g1').map((u) => u.username)).toEqual(['bob']);
 		expect(memberCandidates(people, 'g1', 'LAB').map((u) => u.username)).toEqual(['bob']);
-		expect(memberCandidates(people, 'g2').map((u) => u.username)).toEqual(['ada']);
+		expect(memberCandidates(people, 'g2').map((u) => u.username)).toEqual(['ada', 'bob']);
 		expect(accountStatus({ status: 'disabled', owner: false }).label).toBe('Disabled');
 		expect(
 			accountStatus({ status: 'active', owner: false, enrollmentDeadline: 'x' }).label

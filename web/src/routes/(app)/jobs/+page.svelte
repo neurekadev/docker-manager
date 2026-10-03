@@ -130,10 +130,7 @@
 	<DeniedState level={1} />
 {:else}
 	<Page>
-		<PageHeader
-			title="Jobs"
-			description="Everything Docker Manager did or is doing: deploys, pulls, updates, backups, prunes and file operations."
-		/>
+		<PageHeader title="Jobs" />
 
 		{#if jobs.isError}
 			<ErrorState
@@ -170,7 +167,7 @@
 									description="{jobsSearchedText(
 										all.length,
 										total
-									)} Load more to search older ones, or clear the search and filters."
+									)} Load more to search older ones."
 									level={3}
 									compact
 								>
@@ -196,7 +193,7 @@
 								<EmptyState
 									{...resourceIcon('job')}
 									title="No jobs yet."
-									description="Deploy a stack, pull an image or run a prune: every long operation shows up here with its progress."
+									description="Deploys, pulls, prunes and other long operations show up here."
 									level={3}
 									compact
 								/>

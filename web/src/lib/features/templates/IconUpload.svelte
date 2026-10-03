@@ -56,10 +56,7 @@
 <div class="icon">
 	<TemplateIcon url={template.icon?.url} size="lg" />
 	<div class="body">
-		<p class="muted">
-			PNG, JPEG, GIF, WebP or SVG, up to 256 KiB and 1024 × 1024 pixels. A square image with
-			some transparent margin looks best.
-		</p>
+		<p class="muted">PNG, JPEG, GIF, WebP or SVG, up to 256 KiB and 1024 × 1024 pixels.</p>
 		<div class="buttons">
 			<input
 				bind:this={input}

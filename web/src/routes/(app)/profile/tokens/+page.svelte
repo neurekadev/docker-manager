@@ -31,7 +31,7 @@
 <Page>
 	<ProfileHeader
 		title="API Tokens"
-		description="Tokens let scripts call the Docker Manager API as you, with only the actions you grant them. A token never exceeds your current permissions."
+		description="Tokens let scripts call the API as you, with only the actions you grant."
 	>
 		{#snippet actions()}
 			{#if can(access, 'api_tokens.create')}
@@ -52,7 +52,7 @@
 						title="No API tokens yet."
 						description={can(access, 'api_tokens.create')
 							? 'Create one for a script or an integration, with just the actions it needs.'
-							: 'Creating tokens needs the Create API tokens permission; ask the owner of this Docker Manager.'}
+							: 'Ask the owner for the Create API Tokens permission.'}
 						level={3}
 						compact
 					>

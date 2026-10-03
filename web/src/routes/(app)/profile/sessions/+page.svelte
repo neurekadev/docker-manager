@@ -37,15 +37,8 @@
 </script>
 
 <Page>
-	<ProfileHeader
-		title="Sessions"
-		description="The devices signed in to Docker Manager with your account. Sign out any you don't recognise or no longer use."
-	/>
-	<Card
-		title="Signed-In Devices"
-		subtitle="Each browser you signed in with appears here, with its address and last activity."
-		padding="none"
-	>
+	<ProfileHeader title="Sessions" />
+	<Card title="Signed-In Devices" padding="none">
 		{#snippet actions()}
 			{#if others > 0}
 				<Button size="sm" icon={LogOut} onclick={() => (confirmOpen = true)}

@@ -26,6 +26,10 @@
 		options: SelectOption[];
 		value?: string;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		hideLabel?: boolean;
 		placeholder?: string;
@@ -43,6 +47,8 @@
 		label,
 		options,
 		value = $bindable(''),
+		info,
+		optional = false,
 		description,
 		error,
 		hideLabel = false,
@@ -61,7 +67,7 @@
 	);
 </script>
 
-<Field {label} {description} {error} {hideLabel} {required} {id}>
+<Field {label} {description} {info} {optional} {error} {hideLabel} {required} {id}>
 	{#snippet children(c)}
 		<Select.Root
 			type="single"

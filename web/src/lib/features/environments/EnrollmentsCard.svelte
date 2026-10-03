@@ -104,12 +104,7 @@
 {/snippet}
 
 {#if rows.length}
-	<Card
-		title="Waiting for an Agent"
-		subtitle="Install commands that no host has used yet"
-		padding="none"
-		id="enrollments"
-	>
+	<Card title="Waiting for an Agent" padding="none" id="enrollments">
 		<Table
 			label="Install Commands Waiting for an Agent"
 			{rows}

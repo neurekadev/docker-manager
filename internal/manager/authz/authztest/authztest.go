@@ -37,7 +37,7 @@ type Policy struct {
 	mu       sync.Mutex
 	cat      *catalog.Catalog
 	owner    string
-	member   map[string]string
+	member   map[string][]string
 	groups   map[string][]policy.Rule
 	users    map[string][]policy.Rule
 	tokens   map[string]tokenScope
@@ -57,7 +57,7 @@ var _ interface {
 
 // New returns an empty policy: everyone is denied (Restricted).
 func New() *Policy {
-	return &Policy{cat: catalog.Default(), member: map[string]string{}, groups: map[string][]policy.Rule{},
+	return &Policy{cat: catalog.Default(), member: map[string][]string{}, groups: map[string][]policy.Rule{},
 		users: map[string][]policy.Rule{}, tokens: map[string]tokenScope{}, disabled: map[string]bool{}}
 }
 
@@ -83,11 +83,14 @@ func (p *Policy) Owner(user string) *Policy {
 	return p
 }
 
-// Member puts user in group (exactly one group per user).
-func (p *Policy) Member(user, group string) *Policy {
+// Member puts user in group only.
+func (p *Policy) Member(user, group string) *Policy { return p.Memberships(user, group) }
+
+// Memberships puts user in groups, the highest priority first.
+func (p *Policy) Memberships(user string, groups ...string) *Policy {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.member[user] = group
+	p.member[user] = append([]string{}, groups...)
 	return p
 }
 
@@ -141,7 +144,10 @@ func (p *Policy) Subject(pr authz.Principal) policy.Subject {
 		return policy.Subject{Inactive: true}
 	}
 	s := policy.Subject{Owner: pr.UserID == p.owner && p.owner != "", Inactive: p.disabled[pr.UserID],
-		UserRules: append([]policy.Rule{}, p.users[pr.UserID]...), GroupRules: append([]policy.Rule{}, p.groups[p.member[pr.UserID]]...)}
+		UserRules: append([]policy.Rule{}, p.users[pr.UserID]...)}
+	for _, g := range p.member[pr.UserID] {
+		s.Groups = append(s.Groups, policy.Group{ID: g, Name: g, Rules: append([]policy.Rule{}, p.groups[g]...)})
+	}
 	if pr.Kind == authz.KindAPIToken {
 		s.Token = []policy.Rule{}
 		if ts, ok := p.tokens[pr.TokenID]; ok && ts.user == pr.UserID {

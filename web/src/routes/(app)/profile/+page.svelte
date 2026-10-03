@@ -279,10 +279,7 @@
 {/snippet}
 
 <Page>
-	<ProfileHeader
-		title="Profile"
-		description="Your account and how you sign in to Docker Manager."
-	/>
+	<ProfileHeader title="Profile" />
 	{#if me}
 		<Card title="Account">
 			<Facts
@@ -304,10 +301,7 @@
 		</Card>
 
 		{#if me.factors.password}
-			<Card
-				title="Password"
-				subtitle="Your other sessions end when it changes; this one continues."
-			>
+			<Card title="Password" subtitle="Changing it signs out your other sessions.">
 				<form onsubmit={changePassword} novalidate>
 					<!-- Two columns everywhere, so every password field has the same width. -->
 					<Fields columns={2}>
@@ -333,7 +327,7 @@
 							autocomplete="new-password"
 							bind:value={next}
 							required
-							description="Long passphrases are welcome; common and breached passwords are refused."
+							description="Common and breached passwords are refused."
 							error={fieldErrors(pwError)['body.newPassword']}
 						/>
 						<PasswordField
@@ -346,11 +340,7 @@
 					</Fields>
 					<div class="gap"></div>
 					<Fields>
-						<Checkbox
-							bind:checked={revokeTokens}
-							label="Also Revoke My API Tokens"
-							description="For example when the password may have leaked."
-						/>
+						<Checkbox bind:checked={revokeTokens} label="Also Revoke My API Tokens" />
 					</Fields>
 					{#if pwError && !Object.keys(fieldErrors(pwError)).length}
 						<Notice tone="danger" title="The password was not changed" live="alert">
@@ -371,10 +361,7 @@
 			</Card>
 		{/if}
 
-		<Card
-			title="Authenticator App"
-			subtitle="A 6-digit code from an app like 1Password, Aegis or Google Authenticator (TOTP), asked after your password."
-		>
+		<Card title="Authenticator App" subtitle="A 6-digit code asked after your password.">
 			{#snippet actions()}
 				{#if me.factors.totp}<Badge tone="ok" dot>On</Badge>{:else}<Badge dot>Off</Badge
 					>{/if}
@@ -394,7 +381,7 @@
 
 		<Card
 			title="Passkeys"
-			subtitle="Sign in with your device's fingerprint, face or PIN instead of a password."
+			info="Sign in with your device's fingerprint, face or PIN instead of a password."
 			padding="none"
 		>
 			<QueryView query={passkeys} errorTitle="Your passkeys could not be loaded.">
@@ -418,7 +405,7 @@
 						label="Name of the New Passkey"
 						bind:value={pkName}
 						placeholder="Work laptop"
-						description="Optional."
+						optional
 					/>
 					<Button icon={Fingerprint} loading={pkBusy} onclick={addPasskey}
 						>Add Passkey</Button
@@ -437,18 +424,16 @@
 
 		<Card
 			title="Recovery Codes"
-			subtitle="One-time codes that finish a password sign-in when your authenticator app or passkey is lost."
+			subtitle="One-time codes for when your authenticator app or passkey is lost."
 		>
 			{#snippet actions()}
 				{#if codes.data}<Badge tone={codes.data.remaining > 2 ? 'ok' : 'warn'}
 						>{codes.data.remaining} left</Badge
 					>{/if}
 			{/snippet}
-			<p class="muted">
-				{codes.data?.generatedAt
-					? `Generated ${formatDateTime(codes.data.generatedAt)}. `
-					: ''}New codes replace the old ones; each works once.
-			</p>
+			{#if codes.data?.generatedAt}
+				<p class="muted">Generated {formatDateTime(codes.data.generatedAt)}.</p>
+			{/if}
 			<div class="act">
 				<Button icon={KeySquare} onclick={() => (codesOpen = true)}
 					>Generate New Codes</Button
@@ -499,7 +484,7 @@
 					secret={newCodes}
 					label="recovery codes"
 					filename="docker-manager-recovery-codes.txt"
-					description="Each code works once. Keep them apart from your password, for example printed in a drawer."
+					description="Each code works once. Store them apart from your password."
 					confirmLabel="Done"
 					onconfirm={() => {
 						newCodes = null;

@@ -18,7 +18,7 @@
 		/** Opens the create dialog on the definitions tab (default: links there). */
 		onnewdefinition?: () => void;
 		environmentId?: string;
-		description: string;
+		description?: string;
 		/** Secondary actions before the others (the build cache prune). */
 		extra?: Snippet;
 	}

@@ -76,7 +76,7 @@
 						label: `${t.versions} ${t.versions === 1 ? 'version' : 'versions'}`
 					}
 				]
-			: [{ icon: History, label: 'Draft only, no version yet' }];
+			: [{ icon: History, label: 'No version yet' }];
 		if (t.updatedAt)
 			out.push({
 				icon: Clock,
@@ -100,7 +100,7 @@
 		icon={LayoutTemplate}
 		color="violet"
 		title="This template does not exist or you can't see it."
-		description="It may have been deleted, or your access changed. Templates you can see are listed under Templates."
+		description="It may have been deleted, or your access changed."
 		level={1}
 	>
 		{#snippet actions()}<Button variant="primary" href={routes.templates()}

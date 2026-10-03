@@ -213,7 +213,7 @@
 		{#if full && canDeploy && backup.kind === 'stack' && !volume}
 			<Switch
 				label="Deploy {subject} Afterwards"
-				description="Deploys the restored definition with the services that were running before. Off: the stack shows undeployed changes until you deploy it."
+				description="Off: the stack shows undeployed changes until you deploy it."
 				bind:checked={redeploy}
 			/>
 		{/if}
@@ -240,10 +240,7 @@
 			/>
 		{/key}
 		{#if !result}
-			<p class="muted">
-				You can close this window: the restore goes on, and the containers that were running
-				start again when it ends.
-			</p>
+			<p class="muted">You can close this window; the restore goes on.</p>
 		{/if}
 	{/if}
 	{#snippet footer()}

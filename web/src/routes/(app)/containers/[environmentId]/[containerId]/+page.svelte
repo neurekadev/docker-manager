@@ -303,7 +303,7 @@
 	{/if}
 
 	{#if metricsAllowed}
-		<Card title="Usage">
+		<Card title="Usage" info="Averages per interval. Gaps mean no samples were taken.">
 			{#snippet actions()}
 				<div class="range">
 					<Select
@@ -331,7 +331,6 @@
 					<Skeleton height="180px" /><Skeleton height="180px" />
 				</div>
 			{:else if metrics.data}
-				<p class="hint">Averages per interval. Gaps mean no samples were taken.</p>
 				<div class="charts">
 					<TimeSeriesChart
 						title="CPU"
@@ -424,11 +423,13 @@
 		{/if}
 
 		<Columns ratio="equal">
-			<Card title="Environment Variables">
+			<Card
+				title="Environment Variables"
+				info={d.recreate.envKeys?.length
+					? 'Names only. Values are stored sealed and never shown.'
+					: undefined}
+			>
 				{#if d.recreate.envKeys?.length}
-					<p class="hint">
-						Names only: Docker Manager stores the values sealed and never shows them.
-					</p>
 					<ul class="chips" role="list">
 						{#each d.recreate.envKeys as k (k)}<li>
 								<Chip label={k} title={k} size="sm" />
@@ -438,7 +439,7 @@
 					<p class="muted">
 						{c.managed
 							? 'No variables are set.'
-							: 'Docker Manager never reads environment variables from Docker (they often hold secrets). It shows their names for containers it created.'}
+							: 'Docker Manager shows variable names only for containers it created.'}
 					</p>
 				{/if}
 			</Card>
@@ -475,12 +476,6 @@
 
 	.note {
 		margin-left: var(--space-2);
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-	}
-
-	.hint {
-		margin-bottom: var(--space-3);
 		color: var(--text-muted);
 		font-size: var(--text-caption);
 	}

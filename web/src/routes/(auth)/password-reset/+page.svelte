@@ -74,10 +74,7 @@
 <svelte:head><title>Set a New Password · Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<AuthHeader
-		title="Set a New Password"
-		lead="This signs you out everywhere. Sign in with the new password afterwards."
-	/>
+	<AuthHeader title="Set a New Password" lead="This signs you out everywhere." />
 
 	{#if error?.code === 'invalid_code'}
 		<Notice tone="danger" title="This reset link does not work" live="alert">
@@ -104,7 +101,7 @@
 		<PasswordField
 			label="New Password"
 			autocomplete="new-password"
-			description="Use a long passphrase; common and breached passwords are refused."
+			description="Common and breached passwords are refused."
 			name="password"
 			bind:value={password}
 			required
@@ -118,11 +115,7 @@
 			required
 			error={mismatch}
 		/>
-		<Checkbox
-			bind:checked={revokeTokens}
-			label="Also Revoke My API Tokens"
-			description="Choose this if someone else may have used your account."
-		/>
+		<Checkbox bind:checked={revokeTokens} label="Also Revoke My API Tokens" />
 		<Button type="submit" variant="primary" block loading={busy}>Set New Password</Button>
 	</form>
 </div>

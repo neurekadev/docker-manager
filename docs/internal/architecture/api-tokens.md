@@ -39,7 +39,7 @@ grants ∩ the user's current effective permissions** (#17).
   stack/service), as in the effective-permission view. Afterwards nothing
   about the user's permissions is copied: `permissions.Service` loads the
   token's scope and the user's rules on every check (`policy.Subject.Token`),
-  so narrowing a group, a user deny, a group move, disabling or deleting the
+  so narrowing a group, a user deny, a group membership or order change, disabling or deleting the
   user applies to the next request, and `AccessChanged` ends the token's
   open streams (`permissions_changed`).
 - **Security settings** (owner, `PATCH /api/v1/settings/security`):

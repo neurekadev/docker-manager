@@ -113,22 +113,21 @@
 		{#if hiddenAnonymous}
 			<p class="muted small">
 				{hiddenAnonymous}
-				{hiddenAnonymous === 1 ? 'anonymous volume is' : 'anonymous volumes are'} not backed up
-				(turn on anonymous volumes to include them).
+				{hiddenAnonymous === 1 ? 'anonymous volume is' : 'anonymous volumes are'} not backed up.
 			</p>
 		{/if}
 		{#if hiddenBuildx}
 			<p class="muted small">
 				{hiddenBuildx}
 				{hiddenBuildx === 1 ? 'buildx builder volume is' : 'buildx builder volumes are'} not backed
-				up (turn on buildx builder volumes to include them).
+				up.
 			</p>
 		{/if}
 		{#if temporary}
 			<p class="muted small">
 				{temporary}
-				{temporary === 1 ? 'volume is' : 'volumes are'} not backed up: only temporary containers
-				of Docker Manager or Compose use {temporary === 1 ? 'it' : 'them'}.
+				{temporary === 1 ? 'volume' : 'volumes'} used only by temporary containers
+				{temporary === 1 ? 'is' : 'are'} not backed up.
 			</p>
 		{/if}
 	{/if}

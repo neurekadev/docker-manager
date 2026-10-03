@@ -249,7 +249,7 @@
 <Dialog
 	bind:open
 	title={editing ? `Edit ${p?.name}` : 'Create Update Policy'}
-	description="Follows the digests behind the tags of every stack and Docker Manager-managed container in scope. Your Compose files and tags never change."
+	description="Your Compose files and tags never change."
 	size="xl"
 	dismissible={!busy}
 >
@@ -283,8 +283,7 @@
 									>all environments</strong
 								>{:else}the environment <strong class="strong"
 									>{environmentName(envs.data, p.environmentId)}</strong
-								>{/if}. The scope can't change; create another policy for a
-							different one.
+								>{/if}. The scope can't change.
 						</p>
 					{:else}
 						{#if allowAll}
@@ -298,12 +297,7 @@
 										label: 'All Environments',
 										description: 'Environments added later are covered too.'
 									},
-									{
-										value: 'environment',
-										label: 'One Environment',
-										description:
-											'Only the stacks and containers of one environment.'
-									}
+									{ value: 'environment', label: 'One Environment' }
 								]}
 							/>
 						{/if}
@@ -319,10 +313,7 @@
 							/>
 						{/if}
 					{/if}
-					<FieldGroup
-						legend="Stacks"
-						hint="Every managed stack in scope is included. Uncheck a stack to leave it out."
-					>
+					<FieldGroup legend="Stacks" hint="Uncheck a stack to leave it out.">
 						{#if stacks.isPending}
 							<Skeleton lines={3} height="20px" />
 						{:else if !visibleStacks.length}
@@ -349,7 +340,8 @@
 					</FieldGroup>
 					<FieldGroup
 						legend="Standalone Containers"
-						hint="Containers Docker Manager created and can recreate from their saved specification."
+						hint="Containers Docker Manager created. Uncheck one to leave it out."
+						info="A container labelled docker-manager.update.exclude=true is always left out."
 					>
 						{#if containersLoading}
 							<Skeleton lines={2} height="20px" />
@@ -378,23 +370,15 @@
 							/>
 						{/if}
 					</FieldGroup>
-					<p class="muted small">
-						A container labelled <code>docker-manager.update.exclude=true</code> is always
-						left out.
-					</p>
 				</Fields>
 			</section>
 
 			<section class="col" aria-labelledby="upd-when">
 				<h3 id="upd-when" class="section">When It Runs</h3>
 				<Fields>
-					<FieldGroup
-						legend="Checks"
-						hint="A check compares the digest behind each tag with what runs on the host. It never pulls or changes anything."
-					>
+					<FieldGroup legend="Checks" hint="Checks never pull or change anything.">
 						<Switch
 							label="Check Automatically"
-							description="Off: checks run only when you start them."
 							bind:checked={checkEnabled}
 							onchange={() => (touched = true)}
 						/>
@@ -407,13 +391,9 @@
 							/>
 						{/if}
 					</FieldGroup>
-					<FieldGroup
-						legend="Updates"
-						hint="An update pulls the new image and recreates the services that changed, dependencies first."
-					>
+					<FieldGroup legend="Updates">
 						<Switch
 							label="Update Automatically"
-							description="Off: updates run only when you apply them from the preview."
 							bind:checked={runEnabled}
 							onchange={() => (touched = true)}
 						/>
@@ -445,7 +425,7 @@
 					>
 						<Switch
 							label="Only Update Inside a Window"
-							description="Scheduled updates outside the window are skipped; manual updates run any time."
+							description="Applies to scheduled updates only."
 							bind:checked={windowOn}
 							onchange={() => (touched = true)}
 						/>
@@ -476,14 +456,15 @@
 										mono
 										inputmode="numeric"
 										placeholder="05:00"
-										description="Before the start time: the window spans midnight."
+										info="Before the start time: the window spans midnight."
 									/>
 								</Fields>
 							</FieldGroup>
 						{/if}
 						<TextField
 							label="Health Wait"
-							description="Optional. Seconds to wait for recreated containers to become healthy before the update counts as failed."
+							optional
+							description="Seconds to wait for recreated containers to become healthy."
 							bind:value={waitTimeout}
 							inputmode="numeric"
 							error={waitError ?? fields['body.waitTimeoutSeconds']}
@@ -529,10 +510,6 @@
 
 	.error {
 		margin-bottom: var(--space-4);
-	}
-
-	.small {
-		font-size: var(--text-caption);
 	}
 
 	.strong {

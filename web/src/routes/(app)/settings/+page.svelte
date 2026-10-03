@@ -49,10 +49,7 @@
 </script>
 
 <Page>
-	<SettingsHeader
-		title="Settings"
-		description="How this Docker Manager is set up. The tabs lead to the other settings."
-	/>
+	<SettingsHeader title="Settings" />
 
 	{#if can(access, 'settings.read') && instance.data}
 		<InstanceCard
@@ -87,9 +84,11 @@
 	{/if}
 
 	{#if can(access, 'settings.read')}
-		<Card title="Maintenance Defaults">
+		<Card
+			title="Maintenance Defaults"
+			info="The cleanup rules new maintenance policies start with."
+		>
 			<p class="more">
-				<span class="muted">The cleanup rules new maintenance policies start with.</span>
 				<Button size="sm" icon={Wrench} href={routes.maintenanceDefaults()}
 					>Open Maintenance Defaults</Button
 				>

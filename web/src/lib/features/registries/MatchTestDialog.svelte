@@ -48,7 +48,7 @@
 	);
 
 	const SELECTION: Record<string, { title: string; body: string }> = {
-		connection: { title: '', body: 'Pulls, deploys and update checks use this connection.' },
+		connection: { title: '', body: '' },
 		anonymous: {
 			title: 'No connection matches',
 			body: 'Pulls and checks are anonymous, so only public images work.'

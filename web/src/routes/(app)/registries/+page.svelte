@@ -31,7 +31,6 @@
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
-	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
@@ -253,18 +252,9 @@
 {:else}
 	<Card
 		title="Connections"
-		subtitle="For each image Docker Manager picks the most specific matching connection."
+		info="The most specific connection wins: one bound to the stack or environment first, then the longest repository match, then the higher priority. Signing in to Docker Hub raises its pull limit but doesn't remove it."
 		padding="none"
 	>
-		<div class="how">
-			<Disclosure summary="How a Connection Is Chosen">
-				<p class="muted">
-					A connection bound to the image's stack or environment comes first, then the
-					longest repository match, then the higher priority. Signing in to Docker Hub
-					raises its pull limit but doesn't remove it.
-				</p>
-			</Disclosure>
-		</div>
 		{#if list.isPending}
 			<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
 		{:else}
@@ -279,7 +269,7 @@
 					<EmptyState
 						{...resourceIcon('registry')}
 						title="No registry connections yet."
-						description="Public images need none. Add one to pull private images, or to pull from Docker Hub with your account."
+						description="Public images need none. Add one for private images or a Docker Hub account."
 						level={3}
 						compact
 					/>
@@ -290,7 +280,8 @@
 	{#if anonymous.length}
 		<Card
 			title="Anonymous Access"
-			subtitle="Images checked without a connection. The registry counts these pulls per IP address."
+			subtitle="Images checked without a connection."
+			info="The registry counts these pulls per IP address."
 			padding="none"
 		>
 			<Table
@@ -305,10 +296,6 @@
 {/if}
 
 <style>
-	.how {
-		padding: 0 var(--space-5) var(--space-3);
-	}
-
 	.status {
 		display: flex;
 		flex-direction: column;

@@ -283,14 +283,13 @@
 {#if !can('stack.definition.read')}
 	<Card>
 		<p class="muted">
-			Revisions hold the Compose and .env files. Ask the owner for access to read the
-			definition of {title}.
+			You can't read the files of {title}. Ask the owner for access.
 		</p>
 	</Card>
 {:else}
 	{#if offerDeploy !== null}
 		<Notice tone="info" title="Revision {offerDeploy} is on disk now.">
-			It differs from the deployed revision; nothing was deployed. Deploy it to apply it.
+			Nothing was deployed yet.
 			{#snippet actions()}
 				{#if can('stack.deploy')}<Button size="sm" variant="primary" onclick={deployNow}
 						>Deploy Now</Button
@@ -301,7 +300,7 @@
 		</Notice>
 	{/if}
 
-	<Card title="Changes" id="changes" level={2}>
+	<Card title="Changes" id="changes" level={2} info="Opening files is recorded in the audit log.">
 		{#snippet actions()}
 			{#if list.length > 1}
 				<div class="pick">
@@ -317,15 +316,10 @@
 		{#if revisions.isPending}
 			<div aria-busy="true"><Skeleton lines={3} /></div>
 		{:else if groups.length < 2 && !stack.undeployedChanges}
-			<p class="muted">
-				Only one version of the files so far. Changes show up here after the next edit.
-			</p>
+			<p class="muted">Only one version so far. Changes show up after the next edit.</p>
 		{:else if !showing}
 			<div class="intro">
-				<p>
-					Pick two revisions to compare.
-					<span class="muted">Opening files is recorded in the audit log.</span>
-				</p>
+				<p>Pick two revisions to compare.</p>
 				<Button
 					icon={GitCompare}
 					onclick={() => (showing = true)}
@@ -333,9 +327,7 @@
 				>
 			</div>
 		{:else if omitted}
-			<p class="muted">
-				One of these revisions is too large to show (over 96 KiB), so it cannot be compared.
-			</p>
+			<p class="muted">One of these revisions is over 96 KiB and cannot be compared.</p>
 		{:else if fromRev.isError || toRev.isError}
 			<ErrorState
 				error={fromRev.error ?? toRev.error}
@@ -351,10 +343,7 @@
 		{:else}
 			{#if pendingDiff}
 				<div class="intro pending">
-					<p>
-						The files on disk differ from what is deployed.
-						<span class="muted">Opening files is recorded in the audit log.</span>
-					</p>
+					<p>The files on disk differ from what is deployed.</p>
 					<div class="intro-actions">
 						{#if can('stack.definition.write') && applied && !applied.contentOmitted}
 							<Button icon={RotateCcw} disabled={offline} onclick={restoreDeployed}

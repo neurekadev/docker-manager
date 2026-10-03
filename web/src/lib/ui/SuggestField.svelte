@@ -12,6 +12,10 @@
 		/** Known values offered while they match the text (case-insensitive). */
 		suggestions: readonly string[];
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		hideLabel?: boolean;
 		placeholder?: string;
@@ -25,6 +29,8 @@
 		label,
 		value = $bindable(''),
 		suggestions,
+		info,
+		optional = false,
 		description,
 		error,
 		hideLabel = false,
@@ -70,7 +76,7 @@
 	}
 </script>
 
-<Field {label} {description} {error} {hideLabel} {required}>
+<Field {label} {description} {info} {optional} {error} {hideLabel} {required}>
 	{#snippet children(c)}
 		<div class="wrap">
 			<input

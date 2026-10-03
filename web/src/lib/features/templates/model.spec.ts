@@ -9,9 +9,10 @@ import {
 	contentsSummary,
 	envKeys,
 	nextVersionLabel,
-	parseTags,
+	normalizeTag,
 	portText,
 	projectNameFor,
+	sameTags,
 	tagCounts,
 	tagProblem,
 	templateFilters,
@@ -71,8 +72,11 @@ describe('templates model', () => {
 		expect(nextVersionLabel('beta')).toBe('beta.1');
 	});
 
-	it('parses and checks tags', () => {
-		expect(parseTags(' Web, reverse proxy,web\nDB ')).toEqual(['db', 'reverse-proxy', 'web']);
+	it('normalizes, compares and checks tags', () => {
+		expect(normalizeTag(' Reverse-Proxy ')).toBe('reverse-proxy');
+		expect(sameTags(['web', 'db'], ['db', 'web'])).toBe(true);
+		expect(sameTags(['web'], ['web', 'db'])).toBe(false);
+		expect(sameTags([], undefined)).toBe(true);
 		expect(tagProblem('web')).toBe('');
 		expect(tagProblem('-web')).not.toBe('');
 		expect(tagProblem('a'.repeat(33))).not.toBe('');

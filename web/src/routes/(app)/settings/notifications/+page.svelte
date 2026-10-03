@@ -183,10 +183,7 @@
 {/snippet}
 
 <Page>
-	<SettingsHeader
-		title="Notifications"
-		description="Where Docker Manager sends messages: chat, email, push or a webhook of your own."
-	>
+	<SettingsHeader title="Notifications">
 		{#snippet actions()}
 			{#if owner}
 				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
@@ -213,7 +210,7 @@
 							<EmptyState
 								{...resourceIcon('notificationChannel')}
 								title="No notification channels yet."
-								description="Add a channel to get messages in Discord, Slack, Teams, Telegram, email, ntfy or any other service."
+								description="Add a channel to get messages in Discord, Slack, email and more."
 								level={3}
 								compact
 							>

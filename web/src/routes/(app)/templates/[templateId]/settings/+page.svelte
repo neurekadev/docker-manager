@@ -21,7 +21,7 @@
 	} from '$lib/features/common/links';
 	import { deleteTemplate, patchTemplate } from '$lib/features/templates/actions';
 	import IconUpload from '$lib/features/templates/IconUpload.svelte';
-	import { parseTags, tagProblem } from '$lib/features/templates/model';
+	import { MAX_TAGS, normalizeTag, sameTags, tagProblem } from '$lib/features/templates/model';
 	import { templateKeys, templateQuery, type Template } from '$lib/features/templates/queries';
 	import VisibilityDialog from '$lib/features/templates/VisibilityDialog.svelte';
 	import { routes } from '$lib/routes';
@@ -31,6 +31,7 @@
 		Card,
 		DestructiveConfirm,
 		Notice,
+		TagInput,
 		TextArea,
 		TextField,
 		errorView,
@@ -56,7 +57,7 @@
 	let loadedRevision = -1;
 	let name = $state('');
 	let description = $state('');
-	let tagText = $state('');
+	let tags = $state<string[]>([]);
 	let links = $state<LinkRow[]>([]);
 	let showLinkProblems = $state(false);
 	let linkServerProblems = $state<{ rows: LinkRowProblem[]; list: string | null } | null>(null);
@@ -70,19 +71,18 @@
 		loadedRevision = cur.revision ?? 0;
 		name = cur.name;
 		description = cur.description ?? '';
-		tagText = (cur.tags ?? []).join(', ');
+		tags = [...(cur.tags ?? [])];
 		links = linkRows(cur.links);
 		showLinkProblems = false;
 		linkServerProblems = null;
 	}
 
-	const tags = $derived(parseTags(tagText));
 	const tagError = $derived(tags.map(tagProblem).find((p) => p) || null);
 	const dirty = $derived(
 		!!t &&
 			(name.trim() !== t.name ||
 				description.trim() !== (t.description ?? '') ||
-				tags.join(',') !== (t.tags ?? []).join(',') ||
+				!sameTags(tags, t.tags) ||
 				!sameLinks(cleanLinks(links), t.links))
 	);
 	let saving = $state(false);
@@ -154,11 +154,13 @@
 		>
 			<TextField label="Name" bind:value={name} required maxlength={100} />
 			<TextArea label="Description" bind:value={description} maxlength={1024} />
-			<TextField
+			<TagInput
 				label="Tags"
-				bind:value={tagText}
-				description="Separate tags with commas. People browse and filter templates by them."
-				error={tagError}
+				bind:values={tags}
+				normalize={normalizeTag}
+				validate={tagProblem}
+				max={MAX_TAGS}
+				disabled={saving}
 			/>
 			<LinksEditor
 				bind:rows={links}
@@ -197,18 +199,15 @@
 			<div class="body">
 				{#if t.visibility === 'public'}
 					<p>
-						<strong>Public.</strong> Its published versions are listed on this Docker Manager's
-						public page. Anyone with its address can download every file of them, including
-						.env.
+						<strong>Public.</strong> Anyone with this Docker Manager's address can download
+						its published versions, including .env.
 					</p>
 					<div class="row">
 						<Button onclick={() => (visibilityOpen = true)}>Make Private</Button>
 					</div>
 				{:else}
 					<p>
-						<strong>Private.</strong> Only people on this Docker Manager with access to it
-						can use it. Make it public to share it with other Docker Managers, which add this
-						one as a template source.
+						<strong>Private.</strong> Only people on this Docker Manager can use it.
 					</p>
 					<div class="row">
 						<Button onclick={() => (visibilityOpen = true)}>Make Public</Button>
@@ -222,10 +221,7 @@
 {#snippet deleteCard()}
 	<Card title="Delete Template" id="delete">
 		<div class="body">
-			<p>
-				Deletes the draft, the icon and every version. Stacks created from it keep working
-				with their own files.
-			</p>
+			<p>Deletes the draft, the icon and every version.</p>
 			<div class="row">
 				<Button variant="danger" onclick={() => (deleteOpen = true)}>Delete Template</Button
 				>

@@ -1,14 +1,25 @@
 <script lang="ts">
 	// Links editor (stack details, template details): a repeatable list of
-	// Label (optional) and URL rows, a remove button on each and "Add link"
-	// (at most 10). The server's rules are checked inline (`linkProblems`):
-	// a field shows its problem once it was left or the form was submitted
-	// (`showAll`); the server's answer to the last save (`serverProblems`,
-	// from `serverLinkProblems`) shows until that row changes. The parent
-	// saves `cleanLinks(rows)`; rows come from `linkRows`.
+	// Label (optional) and URL rows, a grip handle to reorder them (drag,
+	// or arrow keys on the handle: Sortable), a remove button on each and
+	// "Add Link" (at most 10). The server's rules are checked inline
+	// (`linkProblems`): a field shows its problem once it was left or the
+	// form was submitted (`showAll`); the server's answer to the last save
+	// (`serverProblems`, from `serverLinkProblems`) shows until that row
+	// changes and follows its row when rows move. The parent saves
+	// `cleanLinks(rows)` in the order shown; rows come from `linkRows`.
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
-	import { Button, IconButton, TextField } from '$lib/ui';
+	import { untrack } from 'svelte';
+	import {
+		Button,
+		DragHandle,
+		IconButton,
+		InfoTip,
+		Sortable,
+		TextField,
+		moveItem
+	} from '$lib/ui';
 	import {
 		MAX_LINKS,
 		linkProblems,
@@ -38,16 +49,22 @@
 	// Fields the user left, and rows changed since the server answered.
 	let touched = $state<Record<string, boolean>>({});
 	let edited = $state<Record<number, boolean>>({});
+	// The rows' keys when the server answered: its problems name positions.
+	let serverKeys = $state.raw<number[]>([]);
 	$effect.pre(() => {
 		void serverProblems;
 		edited = {};
+		serverKeys = untrack(() => rows.map(keyOf));
 	});
+
+	const sort = new Sortable({ onmove: (from, to) => (rows = moveItem(rows, from, to)) });
 
 	const problems = $derived(linkProblems(rows));
 
 	function problem(i: number, field: 'label' | 'url'): string | null {
 		const k = keyOf(rows[i], i);
-		const server = edited[k] ? undefined : serverProblems?.rows[i]?.[field];
+		const at = serverKeys.indexOf(k);
+		const server = edited[k] || at < 0 ? undefined : serverProblems?.rows[at]?.[field];
 		if (server) return server;
 		if (!showAll && !touched[`${k}:${field}`]) return null;
 		return problems.rows[i]?.[field] ?? null;
@@ -58,21 +75,31 @@
 	);
 </script>
 
-<fieldset class="links" aria-describedby="links-{uid}-desc">
-	<legend>Links</legend>
-	<p class="desc" id="links-{uid}-desc">
-		Optional. Pages such as the documentation, website or repository, shown on the page. Each
-		opens in a new tab.
-	</p>
+<fieldset class="links" aria-labelledby="links-{uid}-legend" aria-describedby="links-{uid}-info">
+	<legend
+		><span id="links-{uid}-legend">Links</span><InfoTip
+			id="links-{uid}-info"
+			text="Pages such as the documentation, website or repository, shown on the page."
+		/></legend
+	>
 	{#if rows.length}
 		<div class="head" aria-hidden="true">
+			<span></span>
 			<span>Label</span>
 			<span>URL</span>
 		</div>
 		<ul class="rows">
 			{#each rows as row, i (keyOf(row, i))}
 				{@const k = keyOf(row, i)}
-				<li class="row">
+				<li class="row" {@attach sort.item(i)}>
+					<div class="grip">
+						<DragHandle
+							sortable={sort}
+							index={i}
+							name="Link {i + 1}"
+							disabled={disabled || rows.length < 2}
+						/>
+					</div>
 					<TextField
 						label="Label of Link {i + 1}"
 						hideLabel
@@ -132,22 +159,19 @@
 	}
 
 	legend {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
 		padding: 0;
 		margin-bottom: var(--space-1);
 		color: var(--text-default);
 		font-weight: var(--weight-medium);
 	}
 
-	.desc {
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		line-height: var(--leading-caption);
-	}
-
 	.head,
 	.row {
 		display: grid;
-		grid-template-columns: minmax(120px, 2fr) minmax(0, 3fr) auto;
+		grid-template-columns: auto minmax(120px, 2fr) minmax(0, 3fr) auto;
 		align-items: start;
 		gap: var(--space-2);
 	}
@@ -156,6 +180,10 @@
 		color: var(--text-muted);
 		font-size: var(--text-caption);
 		line-height: var(--leading-caption);
+	}
+
+	.row {
+		border-radius: var(--radius-sm);
 	}
 
 	.rows {
@@ -177,17 +205,22 @@
 			display: none;
 		}
 
-		/* Label and URL stack; the remove button stays beside the label. */
+		/* Label and URL stack between the grip and the remove button. */
 		.row {
-			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-columns: auto minmax(0, 1fr) auto;
 		}
 
 		.row > :global(*) {
+			grid-column: 2;
+		}
+
+		.row > .grip {
 			grid-column: 1;
+			grid-row: 1;
 		}
 
 		.row > .remove {
-			grid-column: 2;
+			grid-column: 3;
 			grid-row: 1;
 		}
 	}

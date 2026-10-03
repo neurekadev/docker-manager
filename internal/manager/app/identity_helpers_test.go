@@ -225,10 +225,10 @@ func (c *client) fail(status int, code, method, path string, body any, opts ...r
 type sessionBody struct {
 	State string `json:"state"`
 	User  *struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-		Owner    bool   `json:"owner"`
-		GroupID  string `json:"groupId"`
+		ID       string   `json:"id"`
+		Username string   `json:"username"`
+		Owner    bool     `json:"owner"`
+		GroupIDs []string `json:"groupIds"`
 		Factors  struct {
 			TOTP     bool `json:"totp"`
 			Passkeys int  `json:"passkeys"`

@@ -25,6 +25,9 @@ type seed struct {
 	now time.Time
 }
 
+// seedGroup is the group whose rules seedEverything sets.
+const seedGroup = "group-1"
+
 func newSeed(t *testing.T) *seed {
 	t.Helper()
 	ctx := testutil.Context(t)
@@ -115,8 +118,9 @@ func (s *seed) seedEverything() {
 	s.must(store.InsertBuildDefinition(s.ctx, s.db, &domain.BuildDefinition{ID: "bd-1", EnvironmentID: "nas", Name: "web image",
 		Source:   domain.BuildSource{GitURL: "https://git.example/app.git", Ref: "main", Tags: []string{"app:dev"}, GitCredentialID: "git-1"},
 		Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
-	group, err := store.DefaultGroupID(s.ctx, s.db)
+	g, err := store.CreateGroup(s.ctx, s.db, seedGroup, "Operators", s.now)
 	s.must(err)
+	group := g.ID
 	doc, err := store.GroupPermissions(s.ctx, s.db, group)
 	s.must(err)
 	_, err = store.ReplaceGroupPermissions(s.ctx, s.db, group, doc.Revision, []domain.PermissionRule{
@@ -223,7 +227,7 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 func TestEnvironmentRulesRemoval(t *testing.T) {
 	s := newSeed(t)
 	s.seedEverything()
-	group, _ := store.DefaultGroupID(s.ctx, s.db)
+	group := seedGroup
 	before, _ := store.GroupPermissions(s.ctx, s.db, group)
 	listed, err := store.EnvironmentRules(s.ctx, s.db, "nas")
 	s.must(err)

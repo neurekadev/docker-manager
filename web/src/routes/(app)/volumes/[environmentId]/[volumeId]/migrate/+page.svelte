@@ -92,12 +92,11 @@
 		{
 			id: 'target',
 			label: 'Destination',
-			description: 'Where the copy goes. The source volume stays as it is.'
+			description: 'The source volume stays as it is.'
 		},
 		{
 			id: 'preview',
-			label: 'Check',
-			description: 'What Docker Manager found before anything is copied.'
+			label: 'Check'
 		}
 	];
 
@@ -228,9 +227,8 @@
 				</Notice>
 			{:else if ended}
 				<Notice tone="info" title="{runCopy} is on {scope.name(runTarget)}" live="status">
-					The source volume on {scope.name(env)} is unchanged. Point containers on {scope.name(
-						runTarget
-					)} at the copy, then remove the source when you no longer need it.
+					The source volume on {scope.name(env)} is unchanged. Remove it when you no longer
+					need it.
 					{#snippet actions()}
 						<Button variant="secondary" href={routes.volume(runTarget, runCopy)}
 							>Open the Copy</Button
@@ -266,7 +264,7 @@
 							mono
 							bind:value={newName}
 							placeholder={name}
-							description="Optional. Default: the same name."
+							optional
 							error={nameError}
 						/>
 					</div>
@@ -298,7 +296,7 @@
 						{#if onlyRunningBlocks || ack}
 							<Checkbox
 								label="Copy While the Containers Keep Running"
-								description="The copy is crash-consistent only: like pulling the power cord, files being written may be incomplete. Stopping the containers first is safer."
+								description="Files being written may be incomplete. Stopping the containers first is safer."
 								bind:checked={ack}
 								onchange={(e) =>
 									void loadPreview(e.currentTarget.checked).catch(

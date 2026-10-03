@@ -165,7 +165,7 @@
 <Page>
 	<PageHeader
 		title="Template Sources"
-		description="Other Docker Managers whose public templates you can use. They sync every 30 minutes."
+		info="Other Docker Managers whose public templates you can use. They sync every 30 minutes."
 	>
 		{#snippet actions()}
 			{#if owner}

@@ -2,6 +2,7 @@ package permissions
 
 import (
 	"context"
+	"slices"
 	"sort"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
@@ -14,10 +15,11 @@ import (
 // scope named by any of its rules, with the decision there and the rule
 // that made it (the editor's "reason").
 type Effective struct {
-	UserID  string
-	Owner   bool
-	GroupID string
-	Entries []EffectiveEntry
+	UserID string
+	Owner  bool
+	// GroupIDs are the principal's groups, highest priority first.
+	GroupIDs []string
+	Entries  []EffectiveEntry
 }
 
 // EffectiveEntry is the decision for one capability at one scope.
@@ -28,8 +30,10 @@ type EffectiveEntry struct {
 	// Source: owner, user_rule, group_rule, default_deny, token_scope, ...
 	Source string
 	// Rule is the deciding rule (user_rule and group_rule sources).
-	Rule   *domain.PermissionRule
-	Reason string
+	Rule *domain.PermissionRule
+	// GroupID is the group of the deciding rule (group_rule source).
+	GroupID string
+	Reason  string
 }
 
 // CheckResult is the decision for one requested check.
@@ -39,17 +43,21 @@ type CheckResult struct {
 	Allowed    bool
 	Source     string
 	Rule       *domain.PermissionRule
+	GroupID    string
 	Reason     string
 }
 
-func (s *Service) effective(ctx context.Context, userID, groupID string, subj policy.Subject) Effective {
-	out := Effective{UserID: userID, GroupID: groupID, Owner: subj.Owner}
+func (s *Service) effective(ctx context.Context, userID string, subj policy.Subject) Effective {
+	out := Effective{UserID: userID, GroupIDs: []string{}, Owner: subj.Owner}
+	for _, g := range subj.Groups {
+		out.GroupIDs = append(out.GroupIDs, g.ID)
+	}
 	if subj.Owner && subj.Token == nil {
 		return out
 	}
 	c := s.checker(ctx, subj)
 	seen := map[string]bool{}
-	for _, r := range append(append(append([]policy.Rule{}, subj.UserRules...), subj.GroupRules...), subj.Token...) {
+	for _, r := range append(append(append([]policy.Rule{}, subj.UserRules...), subj.GroupRules()...), subj.Token...) {
 		k := r.Capability + "#" + r.Scope.Key()
 		if seen[k] {
 			continue
@@ -61,7 +69,8 @@ func (s *Service) effective(ctx context.Context, userID, groupID string, subj po
 		}
 		dr := fromPolicyRule(r)
 		d := c.Decide(r.Capability, s.probeFor(ctx, cp, dr.Scope))
-		e := EffectiveEntry{Capability: r.Capability, Scope: dr.Scope, Allowed: d.Allowed, Source: string(d.Source), Reason: d.Reason}
+		e := EffectiveEntry{Capability: r.Capability, Scope: dr.Scope, Allowed: d.Allowed, Source: string(d.Source), GroupID: d.GroupID,
+			Reason: d.Reason}
 		if d.Rule != nil {
 			rule := fromPolicyRule(*d.Rule)
 			e.Rule = &rule
@@ -97,7 +106,7 @@ func (s *Service) check(c *policy.Checker, checks []authz.Resource, caps []strin
 			res.Allowed, res.Reason, res.Source = d.Allowed, d.Reason, "job_targets"
 		} else {
 			d := c.Decide(caps[i], r)
-			res.Allowed, res.Source, res.Reason = d.Allowed, string(d.Source), d.Reason
+			res.Allowed, res.Source, res.GroupID, res.Reason = d.Allowed, string(d.Source), d.GroupID, d.Reason
 			if d.Rule != nil {
 				rule := fromPolicyRule(*d.Rule)
 				res.Rule = &rule
@@ -114,11 +123,7 @@ func (s *Service) Mine(ctx context.Context, p authz.Principal) (Effective, error
 	if err != nil {
 		return Effective{}, err
 	}
-	ps, err := store.PermissionSubject(ctx, s.db, p.UserID)
-	if err != nil {
-		return Effective{}, err
-	}
-	return s.effective(ctx, p.UserID, ps.GroupID, subj), nil
+	return s.effective(ctx, p.UserID, subj), nil
 }
 
 // UserEffective returns a user's effective permissions (owner).
@@ -133,19 +138,23 @@ func (s *Service) UserEffective(ctx context.Context, userID string) (Effective, 
 	if !ps.Exists {
 		return Effective{}, domain.ErrUserNotFound
 	}
-	return s.effective(ctx, userID, ps.GroupID, subjectFrom(ps)), nil
+	return s.effective(ctx, userID, subjectFrom(ps)), nil
 }
 
 // PreviewRequest is an owner-only "view as" evaluation (no impersonated
-// session): a user (or a group's typical member), optionally with unsaved
+// session): a user (or a member of some groups), optionally with unsaved
 // edits applied.
 type PreviewRequest struct {
-	// UserID previews that user; empty previews a member of GroupID
+	// UserID previews that user; empty previews a member of GroupIDs
 	// without user overrides.
 	UserID string
-	// GroupID previews the user as a member of this group (a group move).
-	GroupID string
-	// GroupRules, when set, replace the (previewed) group's rules.
+	// GroupIDs, when set, previews the user (or the member) in exactly
+	// these groups (any order: they are evaluated in priority order).
+	GroupIDs *[]string
+	// RulesGroupID is the group whose rules GroupRules replace; empty
+	// means the only previewed group.
+	RulesGroupID string
+	// GroupRules, when set, replace RulesGroupID's rules.
 	GroupRules *[]domain.PermissionRule
 	// UserRules, when set, replace the user's override rules.
 	UserRules *[]domain.PermissionRule
@@ -183,30 +192,44 @@ func (s *Service) Preview(ctx context.Context, req PreviewRequest) (Preview, err
 		if !ps.Exists {
 			return Preview{}, domain.ErrUserNotFound
 		}
-	case req.GroupID != "":
+	case req.GroupIDs != nil:
 		ps = domain.PermissionSubject{Exists: true, Active: true}
 	default:
-		return Preview{}, &domain.FieldError{Field: "userId", Message: "name a user or a group to preview"}
+		return Preview{}, &domain.FieldError{Field: "userId", Message: "name a user or groups to preview"}
 	}
-	if req.GroupID != "" && req.GroupID != ps.GroupID {
-		doc, err := store.GroupPermissions(ctx, s.db, req.GroupID)
+	if req.GroupIDs != nil {
+		for _, id := range *req.GroupIDs {
+			if _, err := store.GetGroupInfo(ctx, s.db, id); err != nil {
+				return Preview{}, err
+			}
+		}
+		ordered, err := store.SortGroups(ctx, s.db, *req.GroupIDs)
 		if err != nil {
 			return Preview{}, err
 		}
-		ps.GroupID, ps.GroupRules = req.GroupID, doc.Rules
-	}
-	for _, edit := range []struct {
-		field string
-		rules *[]domain.PermissionRule
-		dst   *[]domain.PermissionRule
-	}{{"groupRules", req.GroupRules, &ps.GroupRules}, {"userRules", req.UserRules, &ps.UserRules}} {
-		if edit.rules == nil {
-			continue
-		}
-		if err := s.validate(edit.field, *edit.rules); err != nil {
+		if ps.Groups, err = store.GroupRuleSets(ctx, s.db, ordered); err != nil {
 			return Preview{}, err
 		}
-		*edit.dst = *edit.rules
+	}
+	if req.GroupRules != nil {
+		target := req.RulesGroupID
+		if target == "" && len(ps.Groups) == 1 {
+			target = ps.Groups[0].GroupID
+		}
+		i := slices.IndexFunc(ps.Groups, func(g domain.GroupRules) bool { return g.GroupID == target })
+		if i < 0 {
+			return Preview{}, &domain.FieldError{Field: "rulesGroupId", Message: "name one of the previewed groups whose rules groupRules replace"}
+		}
+		if err := s.validate("groupRules", *req.GroupRules); err != nil {
+			return Preview{}, err
+		}
+		ps.Groups[i].Rules = *req.GroupRules
+	}
+	if req.UserRules != nil {
+		if err := s.validate("userRules", *req.UserRules); err != nil {
+			return Preview{}, err
+		}
+		ps.UserRules = *req.UserRules
 	}
 	subj := subjectFrom(ps)
 	if req.TokenScope != nil {
@@ -221,7 +244,7 @@ func (s *Service) Preview(ctx context.Context, req PreviewRequest) (Preview, err
 			subj.Token = append(subj.Token, toPolicyRule(r))
 		}
 	}
-	out := Preview{Effective: s.effective(ctx, req.UserID, ps.GroupID, subj)}
+	out := Preview{Effective: s.effective(ctx, req.UserID, subj)}
 	c := s.checker(ctx, subj)
 	resources := make([]authz.Resource, len(req.Checks))
 	caps := make([]string, len(req.Checks))

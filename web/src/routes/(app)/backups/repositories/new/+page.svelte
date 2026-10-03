@@ -136,18 +136,13 @@
 		{
 			id: 'destination',
 			label: 'Destination',
-			description:
-				'Where the encrypted backups are stored. Save and continue saves the repository; you can finish setup later from its page.'
+			description: 'Save and Continue saves the repository; you can finish setup later.'
 		},
-		{
-			id: 'key',
-			label: 'Recovery Key',
-			description: 'The key that decrypts every backup of this Docker Manager.'
-		},
+		{ id: 'key', label: 'Recovery Key' },
 		{
 			id: 'confirm',
 			label: 'Confirm the Key',
-			description: 'Prove you saved it. Nothing is written before.'
+			description: 'Re-enter the key to prove you saved it.'
 		},
 		{
 			id: 'test',
@@ -245,14 +240,14 @@
 <Page narrow>
 	<PageHeader
 		title="Add Backup Repository"
-		description="A local directory or an S3 bucket where Docker Manager stores encrypted backups of the manager and each environment."
+		description="Where Docker Manager stores encrypted backups."
 	/>
 	{#if perms.isPending}
 		<Skeleton lines={6} height="36px" />
 	{:else if !perms.data?.owner}
 		<DeniedState
 			title="Only the owner adds backup repositories."
-			description="Repositories and the Recovery Key are administered by the owner of this Docker Manager."
+			description="Ask the owner of this Docker Manager to add one."
 			level={2}
 		/>
 	{:else}
@@ -324,7 +319,7 @@
 								title="This Repository Uses Your Existing Recovery Key"
 								live="none"
 							>
-								{RECOVERY_KEY_SCOPE} Its fingerprint is
+								Its fingerprint is
 								<span class="mono"
 									>{created?.keyState.fingerprint ??
 										created?.keyState.pendingFingerprint}</span

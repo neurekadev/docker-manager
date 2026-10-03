@@ -3,6 +3,7 @@ package permissions
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -147,21 +148,16 @@ func (s *Service) RenameGroup(ctx context.Context, id string, revision int64, na
 	return g, nil
 }
 
-// DeleteGroup deletes a group (owner, step-up, revision). The current
-// default group cannot be deleted (choose another default first), and a
-// group with members cannot be deleted (move them first): Docker Manager
-// never moves users implicitly, so deleting a group never changes anyone's
-// access. The owner's account is not a member in that sense (group rules
-// never apply to it): when it is in the group, it moves to the default
-// group in the same transaction, recorded as a target and
-// ownerMovedToGroupId in the request's audit record.
+// DeleteGroup deletes a group (owner, step-up, revision). A group with
+// members cannot be deleted (remove them first): Docker Manager
+// never changes memberships implicitly, so deleting a group never changes
+// anyone's access.
 func (s *Service) DeleteGroup(ctx context.Context, id string, revision int64) error {
 	if _, err := s.owner(ctx, true); err != nil {
 		return err
 	}
 	var g domain.GroupInfo
 	var doc domain.PermissionDocument
-	var movedOwner, toGroup string
 	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		var err error
 		if g, err = store.GetGroupInfo(ctx, tx, id); err != nil {
@@ -170,47 +166,79 @@ func (s *Service) DeleteGroup(ctx context.Context, id string, revision int64) er
 		if doc, err = store.GroupPermissions(ctx, tx, id); err != nil {
 			return err
 		}
-		movedOwner, toGroup, err = store.DeleteGroup(ctx, tx, id, revision, s.clk.Now())
-		return err
+		return store.DeleteGroup(ctx, tx, id, revision)
 	})
 	if err != nil {
 		return err
 	}
 	audit.SetDetail(ctx, "name", g.Name)
 	audit.SetDiff(ctx, map[string]any{"name": g.Name, "rules": ruleTexts(doc.Rules)}, nil)
-	if movedOwner != "" {
-		audit.AddTarget(ctx, domain.AuditTarget{Type: "user", ID: movedOwner})
-		audit.SetDetail(ctx, "ownerMovedToGroupId", toGroup)
-	}
 	return nil
 }
 
-// SelectDefaultGroup makes a group the default for new users (owner,
-// step-up). It returns the group and whether it grants anything (the
-// caller warns: new users will get access).
-func (s *Service) SelectDefaultGroup(ctx context.Context, id string) (domain.GroupInfo, error) {
-	if _, err := s.owner(ctx, true); err != nil {
-		return domain.GroupInfo{}, err
+// GroupOrder returns every group's ID in priority order, the highest
+// first (owner).
+func (s *Service) GroupOrder(ctx context.Context) ([]string, error) {
+	if _, err := s.owner(ctx, false); err != nil {
+		return nil, err
 	}
-	var prev string
-	var g domain.GroupInfo
+	return store.GroupOrder(ctx, s.db)
+}
+
+// ReorderGroups sets the groups' priority order, the highest first (owner,
+// step-up). expect is the order the caller saw (compare-and-set:
+// domain.ErrRevisionConflict when it changed); order must name every
+// group once (domain.ErrGroupOrderStale). Users in several of the moved
+// groups may decide differently now: their open requests and streams end.
+func (s *Service) ReorderGroups(ctx context.Context, expect, order []string) ([]domain.GroupInfo, error) {
+	if _, err := s.owner(ctx, true); err != nil {
+		return nil, err
+	}
+	var before []string
+	affected := map[string]bool{}
+	var groups []domain.GroupInfo
 	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		var err error
-		if prev, err = store.DefaultGroupID(ctx, tx); err != nil {
+		if before, err = store.GroupOrder(ctx, tx); err != nil {
 			return err
 		}
-		if err := store.SetDefaultGroup(ctx, tx, id); err != nil {
+		if !slices.Equal(before, expect) {
+			return domain.ErrRevisionConflict
+		}
+		if err := store.ReorderGroups(ctx, tx, order, s.clk.Now()); err != nil {
 			return err
 		}
-		g, err = store.GetGroupInfo(ctx, tx, id)
+		// Only members of several groups can decide differently.
+		count := map[string]int{}
+		for _, g := range order {
+			members, err := store.GroupMembers(ctx, tx, g)
+			if err != nil {
+				return err
+			}
+			for _, m := range members {
+				if count[m]++; count[m] == 2 {
+					affected[m] = true
+				}
+			}
+		}
+		groups, err = store.ListGroups(ctx, tx)
 		return err
 	})
 	if err != nil {
-		return domain.GroupInfo{}, err
+		return nil, err
 	}
-	audit.SetDiff(ctx, map[string]string{"defaultGroupId": prev}, map[string]string{"defaultGroupId": id})
-	audit.SetDetail(ctx, "grantsAccess", g.AllowCount > 0)
-	return g, nil
+	if slices.Equal(before, order) {
+		return groups, nil
+	}
+	audit.SetDiff(ctx, map[string]any{"groupOrder": before}, map[string]any{"groupOrder": order})
+	users := make([]string, 0, len(affected))
+	for u := range affected {
+		users = append(users, u)
+	}
+	slices.Sort(users)
+	audit.SetDetail(ctx, "affectedUsers", len(users))
+	s.invalidate(ctx, users)
+	return groups, nil
 }
 
 // GroupPermissions returns a group's rule document (owner).

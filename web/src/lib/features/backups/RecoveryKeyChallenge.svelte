@@ -76,7 +76,7 @@
 		/>
 		<Checkbox
 			bind:checked={backedUp}
-			label="I saved the Recovery Key outside Docker Manager"
+			label="I Saved the Recovery Key Outside Docker Manager"
 			description="For example in a password manager and on paper in a safe place."
 		/>
 		<Notice tone="info" title="What This Check Proves" live="none">

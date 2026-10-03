@@ -162,7 +162,8 @@
 				mono
 				bind:value={platform}
 				placeholder="linux/arm64"
-				description="Optional. Default: the environment's own platform."
+				optional
+				description="Default: the environment's platform."
 				error={fieldError(failure?.cause, 'body.platform')}
 			/>
 			<RegistryMatchPreview

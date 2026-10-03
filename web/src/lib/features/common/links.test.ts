@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/svelte';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import LinksEditorHarness from '../../../test/LinksEditorHarness.svelte';
 import LinkList from './LinkList.svelte';
@@ -43,7 +43,17 @@ describe('LinksEditor', () => {
 		render(LinksEditorHarness, {
 			props: { initial: [{ label: 'Docs', url: 'https://docs.example.com' }] }
 		});
-		expect(screen.getByRole('group', { name: 'Links' })).toBeInTheDocument();
+		const group = screen.getByRole('group', { name: 'Links' });
+		// What the links are for sits behind an (i), outside the group's name.
+		expect(
+			screen.getByRole('img', {
+				name: 'Pages such as the documentation, website or repository, shown on the page.'
+			})
+		).toBeInTheDocument();
+		expect(group).toHaveAccessibleDescription(
+			'Pages such as the documentation, website or repository, shown on the page.'
+		);
+		expect(screen.queryByText(/^Optional\./)).not.toBeInTheDocument();
 		expect(screen.getByLabelText('Label of Link 1')).toHaveValue('Docs');
 
 		await user.click(screen.getByRole('button', { name: 'Add Link' }));
@@ -108,6 +118,89 @@ describe('LinksEditor', () => {
 		expect(screen.getByLabelText('URL of Link 1')).toHaveAccessibleDescription(
 			'Must not contain a user name or password.'
 		);
+	});
+
+	it('reorders rows with the keyboard on the grip, the row’s state moving with it', async () => {
+		const user = setup();
+		render(LinksEditorHarness, {
+			props: {
+				initial: [
+					{ label: 'Docs', url: 'https://docs.example.com' },
+					{ label: 'Code', url: 'https://git.example.com' }
+				]
+			}
+		});
+		// A problem shown on the second row (the field was left).
+		const url2 = screen.getByLabelText('URL of Link 2');
+		await user.clear(url2);
+		await user.type(url2, 'ftp://git.example.com');
+		await user.tab();
+		expect(url2).toHaveAttribute('aria-invalid', 'true');
+
+		screen.getByRole('button', { name: 'Reorder Link 2' }).focus();
+		await user.keyboard('{ArrowUp}');
+		expect(saved()).toEqual([
+			{ label: 'Code', url: 'ftp://git.example.com' },
+			{ label: 'Docs', url: 'https://docs.example.com' }
+		]);
+		expect(screen.getByLabelText('Label of Link 1')).toHaveValue('Code');
+		expect(screen.getByLabelText('URL of Link 1')).toHaveAttribute('aria-invalid', 'true');
+		expect(screen.getByLabelText('URL of Link 2')).not.toHaveAttribute('aria-invalid');
+		expect(screen.getByRole('status')).toHaveTextContent('Moved Link 2 to position 1 of 2.');
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Reorder Link 1' })).toHaveFocus()
+		);
+
+		// Already first: ArrowUp changes nothing; End moves it last.
+		await user.keyboard('{ArrowUp}');
+		expect(screen.getByLabelText('Label of Link 1')).toHaveValue('Code');
+		await user.keyboard('{End}');
+		expect(screen.getByLabelText('Label of Link 2')).toHaveValue('Code');
+	});
+
+	it('reorders rows by dragging the grip', async () => {
+		render(LinksEditorHarness, {
+			props: {
+				initial: [
+					{ label: 'Docs', url: 'https://docs.example.com' },
+					{ label: 'Code', url: 'https://git.example.com' }
+				]
+			}
+		});
+		const group = screen.getByRole('group', { name: 'Links' });
+		// Rows 40 px tall, 8 px apart (jsdom has no layout).
+		within(group)
+			.getAllByRole('listitem')
+			.forEach((li, i) => {
+				const top = i * 48;
+				vi.spyOn(li, 'getBoundingClientRect').mockReturnValue({
+					top,
+					bottom: top + 40,
+					height: 40,
+					left: 0,
+					right: 600,
+					width: 600,
+					x: 0,
+					y: top,
+					toJSON: () => ({})
+				} as DOMRect);
+			});
+		const grip = screen.getByRole('button', { name: 'Reorder Link 1' });
+		await fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientY: 20 });
+		await fireEvent.pointerMove(grip, { pointerId: 1, clientY: 80 });
+		await fireEvent.pointerUp(grip, { pointerId: 1, clientY: 80 });
+		expect(saved()).toEqual([
+			{ label: 'Code', url: 'https://git.example.com' },
+			{ label: 'Docs', url: 'https://docs.example.com' }
+		]);
+
+		// Escape cancels a drag.
+		const grip2 = screen.getByRole('button', { name: 'Reorder Link 1' });
+		await fireEvent.pointerDown(grip2, { button: 0, pointerId: 2, clientY: 20 });
+		await fireEvent.pointerMove(grip2, { pointerId: 2, clientY: 80 });
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		await fireEvent.pointerUp(grip2, { pointerId: 2, clientY: 80 });
+		expect(screen.getByLabelText('Label of Link 1')).toHaveValue('Code');
 	});
 
 	it('offers "Add Link" only below 10 links', () => {

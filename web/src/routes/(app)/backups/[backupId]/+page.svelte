@@ -166,20 +166,15 @@
 			</PageHeader>
 
 			{#if b.state === 'partial'}
-				<Notice tone="warn" title="Some files could not be read" live="none">
+				<Notice tone="warn" title="Some Files Could Not Be Read" live="none">
 					This backup is usable but incomplete; its job lists the files that were skipped.
 					{#if b.jobId}<a href={routes.job(b.jobId)}>Open the Job</a>{/if}
 				</Notice>
 			{/if}
 			{#if b.kind === 'manager_state'}
-				<Notice
-					tone="info"
-					title="Manager state restores happen on a new Docker Manager"
-					live="none"
-				>
-					To recover the manager, set up a fresh Docker Manager and choose Import From
-					Backup during setup, with this repository and your Recovery Key. A running
-					manager is never overwritten.
+				<Notice tone="info" title="Restore on a New Docker Manager" live="none">
+					Set up a fresh Docker Manager and choose Import From Backup, with this
+					repository and your Recovery Key. A running manager is never overwritten.
 				</Notice>
 			{/if}
 			<ActiveJobs
@@ -234,7 +229,7 @@
 			{#if b.set && st}
 				<Card
 					title="Backup Run"
-					subtitle="Everything backed up by the same run. Hosts are backed up one after another, so each backup has its own time."
+					info="Hosts are backed up one after another, so each backup has its own time."
 				>
 					{#snippet actions()}<Badge tone={st.tone} dot>{st.label}</Badge>{/snippet}
 					<SetMembers
@@ -257,7 +252,7 @@
 			<Dialog
 				bind:open={verifyOpen}
 				title="Verify {repo?.name ?? 'the repository'}"
-				description="Checks the whole repository location that holds this backup: every backup stored there, not only this one. Damage makes the check fail."
+				description="Checks every backup in the repository location that holds this one, not only this backup."
 			>
 				<RadioGroup
 					label="How Much to Check"

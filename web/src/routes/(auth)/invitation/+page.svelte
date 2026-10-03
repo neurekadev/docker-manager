@@ -76,10 +76,7 @@
 <svelte:head><title>Accept Invitation · Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<AuthHeader
-		title="Join Docker Manager"
-		lead="Create your account. The owner decides what you can see and do."
-	/>
+	<AuthHeader title="Join Docker Manager" lead="Create your account." />
 
 	{#if error?.code === 'invalid_code'}
 		<Notice tone="danger" title="This invite link does not work" live="alert">
@@ -118,7 +115,7 @@
 		/>
 		<TextField
 			label="Display Name"
-			description="Optional."
+			optional
 			bind:value={displayName}
 			autocomplete="name"
 			error={field('displayName')}
@@ -134,7 +131,7 @@
 		<PasswordField
 			label="Password"
 			autocomplete="new-password"
-			description="Use a long passphrase; common and breached passwords are refused."
+			description="Common and breached passwords are refused."
 			name="password"
 			bind:value={password}
 			error={field('password')}

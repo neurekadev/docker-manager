@@ -69,7 +69,6 @@ func (c *client) putRules(path string, shorthand ...string) response {
 type groupBody struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
-	Default      bool   `json:"default"`
 	MemberCount  int    `json:"memberCount"`
 	RuleCount    int    `json:"ruleCount"`
 	GrantsAccess bool   `json:"grantsAccess"`
@@ -105,7 +104,7 @@ func (c *client) createGroup(name string) groupBody {
 func (c *client) moveUser(userID, groupID string) response {
 	c.e.t.Helper()
 	cur := c.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+userID, nil)
-	return c.do(http.MethodPatch, "/api/v1/users/"+userID, map[string]string{"groupId": groupID}, header("If-Match", cur.header.Get("ETag")))
+	return c.do(http.MethodPatch, "/api/v1/users/"+userID, map[string]any{"groupIds": []string{groupID}}, header("If-Match", cur.header.Get("ETag")))
 }
 
 type envItem struct {
@@ -160,10 +159,10 @@ func (c *client) myPermissions() myPermissions {
 	return out
 }
 
-// TestRestrictedUserSeesNoResources (#17 Done-when 1): the initial default
-// group Restricted has no grants; a new account sees no environments,
-// agents, jobs, audit records or permissions, and the owner-only
-// permission administration is refused.
+// TestRestrictedUserSeesNoResources (#17 Done-when 1, #233): a new
+// instance has no groups and a new account is in none: it sees no
+// environments, agents, jobs, audit records or permissions, and the
+// owner-only permission administration is refused.
 func TestRestrictedUserSeesNoResources(t *testing.T) {
 	e := newEnv(t)
 	owner, _ := e.setupOwner()
@@ -171,13 +170,12 @@ func TestRestrictedUserSeesNoResources(t *testing.T) {
 	e.seedEnvironment("e1", "NAS")
 	job := e.restartJob(ownerID, "e1", "web")
 
-	gs := owner.groups()
-	if len(gs) != 1 || gs[0].Name != domain.RestrictedGroupName || !gs[0].Default || gs[0].RuleCount != 0 || gs[0].GrantsAccess {
-		t.Fatalf("groups %+v", gs)
+	if gs := owner.groups(); len(gs) != 0 {
+		t.Fatalf("a new instance has groups %+v", gs)
 	}
 	user, _, s := e.newUser(owner, "rita")
-	if s.User.GroupID != gs[0].ID {
-		t.Fatalf("new user in group %s, want the default %s", s.User.GroupID, gs[0].ID)
+	if s.User.GroupIDs == nil || len(s.User.GroupIDs) != 0 {
+		t.Fatalf("new user in groups %v, want none", s.User.GroupIDs)
 	}
 	if envs := user.environments(); len(envs) != 0 {
 		t.Fatalf("environments %+v", envs)
@@ -227,7 +225,8 @@ func TestRestrictedUserSeesNoResources(t *testing.T) {
 	if cat.Version != catalog.Version || len(cat.Capabilities) != len(catalog.Default().Keys()) {
 		t.Fatalf("catalog v%d with %d capabilities", cat.Version, len(cat.Capabilities))
 	}
-	for _, p := range []string{"/api/v1/groups", "/api/v1/groups/" + gs[0].ID, "/api/v1/groups/" + gs[0].ID + "/permissions",
+	other := owner.createGroup("Other")
+	for _, p := range []string{"/api/v1/groups", "/api/v1/groups/" + other.ID, "/api/v1/groups/" + other.ID + "/permissions",
 		"/api/v1/users/" + ownerID + "/permissions", "/api/v1/users/" + ownerID + "/effective-permissions"} {
 		user.fail(http.StatusForbidden, "forbidden", http.MethodGet, p, nil)
 	}
@@ -254,7 +253,7 @@ func TestMetricsAndRestartOnlyThroughRealRoutes(t *testing.T) {
 	owner.putRules("/api/v1/groups/"+metrics.ID+"/permissions",
 		"allow environment.metrics.read @env:e1", "allow container.metrics.read @container:e1/web")
 	mia, _, ms := e.newUser(owner, "mia")
-	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ms.User.ID, map[string]string{"groupId": metrics.ID},
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ms.User.ID, map[string]any{"groupIds": []string{metrics.ID}},
 		header("If-Match", owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ms.User.ID, nil).header.Get("ETag")))
 
 	envs := mia.environments()
@@ -277,7 +276,7 @@ func TestMetricsAndRestartOnlyThroughRealRoutes(t *testing.T) {
 		t.Fatalf("my permissions %+v", mp)
 	}
 
-	// Restart-only as a user override (the user stays in Restricted).
+	// Restart-only as a user override (the user stays in no group).
 	sam, _, ss := e.newUser(owner, "sam")
 	owner.putRules("/api/v1/users/"+ss.User.ID+"/permissions", "allow container.restart @container:e1/web")
 	if ids := sam.jobIDs(); !slices.Equal(ids, []string{webJob.ID}) {
@@ -450,61 +449,39 @@ func TestUserOverridesInheritanceAndPreview(t *testing.T) {
 		map[string]any{"rules": apiRules(t, "deny container.exec @all")}, header("If-Match", ownerDoc.header.Get("ETag")))
 }
 
-// TestGroupChangesPreserveInvariantsAndUpdateAccess (#17 Done-when 4):
-// renaming, switching the default group, moving users and deleting
-// non-default groups keep exactly one default group, need a recent
+// TestGroupChangesUpdateAccess (#17, #233): creating, renaming,
+// deleting and reordering groups and changing memberships need a recent
 // step-up, are audited with diffs, and change access immediately: the
-// affected users' open streams are closed.
-func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
+// affected users' open streams are closed. New accounts are in no group.
+func TestGroupChangesUpdateAccess(t *testing.T) {
 	e := newEnv(t)
 	owner, pw := e.setupOwner()
 	ownerID := e.userID("owner")
 	e.seedEnvironment("e1", "NAS")
 	e.seedEnvironment("e2", "Cloud")
 	streams := e.streamServer()
-	defaults := func() []string {
-		var out []string
-		for _, g := range owner.groups() {
-			if g.Default {
-				out = append(out, g.Name)
-			}
-		}
-		return out
-	}
 
-	restricted := owner.groupNamed(domain.RestrictedGroupName)
+	restricted := owner.createGroup("Restricted")
 	r := owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil)
 	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/groups/"+restricted.ID, map[string]string{"name": "Newcomers"}, header("If-Match", r.header.Get("ETag")))
-	if d := defaults(); !slices.Equal(d, []string{"Newcomers"}) {
-		t.Fatalf("defaults after rename %v", d)
+	if g := owner.groupNamed("Newcomers"); g.ID != restricted.ID {
+		t.Fatalf("renamed group %+v", g)
 	}
 	viewers := owner.createGroup("Viewers")
 	owner.fail(http.StatusConflict, "group_name_taken", http.MethodPost, "/api/v1/groups", map[string]string{"name": "viewers"})
 	owner.putRules("/api/v1/groups/"+viewers.ID+"/permissions", "allow environment.read @all")
-	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil)
-	owner.fail(http.StatusConflict, "default_group_protected", http.MethodDelete, "/api/v1/groups/"+restricted.ID, nil, header("If-Match", r.header.Get("ETag")))
 
-	// A user of the old default group, with an open stream.
+	// New users are in no group and see nothing until they join one.
 	rita, _, rs := e.newUser(owner, "rita")
-	if len(rita.environments()) != 0 {
-		t.Fatal("new user sees environments")
-	}
-
-	// Switching the default warns that it grants access; new users join it.
-	var sel struct {
-		Group   groupBody `json:"group"`
-		Warning string    `json:"warning"`
-	}
-	owner.must(http.StatusOK, http.MethodPost, "/api/v1/groups/"+viewers.ID+"/default-selection", nil).json(t, &sel)
-	if !sel.Group.Default || sel.Warning == "" || !slices.Equal(defaults(), []string{"Viewers"}) {
-		t.Fatalf("default selection %+v, defaults %v", sel, defaults())
+	if len(rs.User.GroupIDs) != 0 || len(rita.environments()) != 0 {
+		t.Fatalf("new user in %v sees environments", rs.User.GroupIDs)
 	}
 	vic, _, vs := e.newUser(owner, "vic")
-	if vs.User.GroupID != viewers.ID || len(vic.environments()) != 2 {
-		t.Fatalf("new user in %s sees %+v", vs.User.GroupID, vic.environments())
+	if r := owner.moveUser(vs.User.ID, viewers.ID); r.status != http.StatusOK {
+		t.Fatalf("add vic: %d %s", r.status, r.body)
 	}
-	if len(rita.environments()) != 0 {
-		t.Fatal("switching the default moved existing users")
+	if len(vic.environments()) != 2 {
+		t.Fatalf("vic in Viewers sees %+v", vic.environments())
 	}
 
 	// Moving rita ends her open streams and grants the new group at once.
@@ -532,7 +509,7 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	if envs := rita.environments(); len(envs) != 0 {
 		t.Fatalf("after the user deny %+v", envs)
 	}
-	// Editing the owner's own group never cuts the owner's request.
+	// Editing a group never cuts the owner's request.
 	owner.putRules("/api/v1/groups/"+restricted.ID+"/permissions", "allow stack.read @all")
 
 	// A group with members cannot be deleted; users are never moved
@@ -545,30 +522,61 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	if r := owner.moveUser(rs.User.ID, viewers.ID); r.status != http.StatusOK {
 		t.Fatalf("move: %d %s", r.status, r.body)
 	}
-	// The owner, still in the old default group, is not counted and does
-	// not block the deletion: the owner's account moves to the default.
+	// The owner is in no group, so the emptied group is deleted.
 	var g groupBody
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil).json(t, &g)
 	if g.MemberCount != 0 {
-		t.Fatalf("old default with only the owner: %+v", g)
+		t.Fatalf("emptied group: %+v", g)
 	}
 	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil)
 	owner.must(http.StatusNoContent, http.MethodDelete, "/api/v1/groups/"+restricted.ID, nil, header("If-Match", r.header.Get("ETag")))
-	if gs := owner.groups(); len(gs) != 1 || gs[0].ID != viewers.ID || !gs[0].Default || gs[0].MemberCount != 2 {
+	if gs := owner.groups(); len(gs) != 1 || gs[0].ID != viewers.ID || gs[0].MemberCount != 2 {
 		t.Fatalf("groups after delete %+v", gs)
 	}
 	var acct struct {
-		GroupID string `json:"groupId"`
+		GroupIDs []string `json:"groupIds"`
 	}
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ownerID, nil).json(t, &acct)
-	if acct.GroupID != viewers.ID {
-		t.Fatalf("owner in %s after the delete, want %s", acct.GroupID, viewers.ID)
+	if acct.GroupIDs == nil || len(acct.GroupIDs) != 0 {
+		t.Fatalf("owner in %v, want no group", acct.GroupIDs)
 	}
+	owner.fail(http.StatusConflict, "owner_protected", http.MethodPatch, "/api/v1/users/"+ownerID, map[string]any{"groupIds": []string{viewers.ID}},
+		header("If-Match", owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ownerID, nil).header.Get("ETag")))
+
+	// Several groups: the first group with a matching rule decides, and
+	// the owner reorders the groups by the order's ETag.
+	blocked := owner.createGroup("Blocked")
+	owner.putRules("/api/v1/groups/"+blocked.ID+"/permissions", "deny environment.read @env:e1")
+	cur := owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+vs.User.ID, nil)
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+vs.User.ID, map[string]any{"groupIds": []string{viewers.ID, blocked.ID}},
+		header("If-Match", cur.header.Get("ETag")))
+	if envs := vic.environments(); len(envs) != 1 {
+		t.Fatalf("with Viewers first %+v", envs)
+	}
+	list := owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups", nil)
+	owner.fail(http.StatusPreconditionRequired, "precondition_required", http.MethodPut, "/api/v1/group-order", map[string]any{"groupIds": []string{blocked.ID, viewers.ID}})
+	done = vic.openStream(streams.URL + "/api/v1/test/stream")
+	owner.must(http.StatusOK, http.MethodPut, "/api/v1/group-order", map[string]any{"groupIds": []string{blocked.ID, viewers.ID}},
+		header("If-Match", list.header.Get("ETag")))
+	waitClosed(t, done, "group order change (vic)")
+	if envs := vic.environments(); len(envs) != 0 {
+		t.Fatalf("with Blocked first %+v", envs)
+	}
+	owner.fail(http.StatusPreconditionFailed, "precondition_failed", http.MethodPut, "/api/v1/group-order", map[string]any{"groupIds": []string{viewers.ID, blocked.ID}},
+		header("If-Match", list.header.Get("ETag")))
+	if gs := owner.groups(); len(gs) != 2 || gs[0].ID != blocked.ID {
+		t.Fatalf("groups after the reorder %+v", gs)
+	}
+	cur = owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+vs.User.ID, nil)
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+vs.User.ID, map[string]any{"groupIds": []string{viewers.ID}},
+		header("If-Match", cur.header.Get("ETag")))
+	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+blocked.ID, nil)
+	owner.must(http.StatusNoContent, http.MethodDelete, "/api/v1/groups/"+blocked.ID, nil, header("If-Match", r.header.Get("ETag")))
 
 	// Every permission or group change needs a recent step-up.
 	e.clk.Advance(auth.StepUpWindow + time.Second)
 	path := "/api/v1/groups/" + viewers.ID + "/permissions"
-	cur := owner.must(http.StatusOK, http.MethodGet, path, nil)
+	cur = owner.must(http.StatusOK, http.MethodGet, path, nil)
 	owner.fail(http.StatusForbidden, "step_up_required", http.MethodPut, path, map[string]any{"rules": []any{}}, header("If-Match", cur.header.Get("ETag")))
 	owner.fail(http.StatusForbidden, "step_up_required", http.MethodPost, "/api/v1/groups", map[string]string{"name": "Late"})
 	other := owner.createGroupAfterStepUp(pw)
@@ -604,7 +612,7 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	moves := 0
 	for _, it := range page.Items {
 		d := string(mustJSON(t, it.Details))
-		if strings.Contains(d, `"event":"user.group_change"`) && strings.Contains(d, `"diff":{"after":{"groupId":`) {
+		if strings.Contains(d, `"event":"user.group_change"`) && strings.Contains(d, `"diff":{"after":{"groupIds":`) {
 			moves++
 		}
 	}

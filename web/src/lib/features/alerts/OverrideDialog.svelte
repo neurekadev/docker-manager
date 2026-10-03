@@ -131,7 +131,7 @@
 <Dialog
 	bind:open
 	title="Override Thresholds"
-	description="Leave a level empty to use the default; 0 turns it off there."
+	description="Empty uses the default; 0 turns a level off."
 	size="md"
 	dismissible={!busy}
 >

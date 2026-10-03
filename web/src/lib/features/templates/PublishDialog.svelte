@@ -72,7 +72,7 @@
 <Dialog
 	bind:open
 	title="Publish a Version of {template.name}"
-	description="The draft's files are frozen as they are now. You can keep editing the draft; stacks are created from published versions."
+	description="Freezes the draft's files as they are now."
 	size="md"
 	dismissible={!saving}
 >
@@ -92,12 +92,7 @@
 			description="For example 1.2.0. Letters, digits and . + _ - only."
 			error={labelError}
 		/>
-		<TextArea
-			label="What Changed"
-			bind:value={notes}
-			maxlength={4096}
-			description="Optional. Shown to people who create stacks from this version."
-		/>
+		<TextArea label="What Changed" bind:value={notes} maxlength={4096} optional />
 		{#if isPublic}
 			<Notice tone="warn" title="This template is public" live="none">
 				Anyone with this Docker Manager's address can download every file of the version,

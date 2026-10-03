@@ -60,7 +60,11 @@
 	}
 </script>
 
-<Card title="About This Docker Manager" id="instance">
+<Card
+	title="About This Docker Manager"
+	id="instance"
+	info="Set by environment variables. Change them where Docker Manager is deployed, then restart it."
+>
 	{#snippet actions()}
 		{#if canEdit && !editing}
 			<Button size="sm" variant="ghost" icon={Pencil} onclick={start}>Rename</Button>
@@ -70,7 +74,7 @@
 		<form onsubmit={save} novalidate>
 			<TextField
 				label="Name"
-				description="Shown in the settings and at the bottom of notification messages. 1 to {MAX_INSTANCE_NAME} characters."
+				description="Shown in notification messages."
 				bind:value={name}
 				error={fieldError}
 				maxlength={MAX_INSTANCE_NAME}
@@ -92,10 +96,6 @@
 	<div class="facts">
 		<Facts items={facts} />
 	</div>
-	<p class="muted note">
-		The deployment settings come from the manager's environment variables. Change them where
-		Docker Manager is deployed and restart the manager.
-	</p>
 </Card>
 
 <style>
@@ -110,11 +110,5 @@
 
 	.facts {
 		margin-top: var(--space-4);
-	}
-
-	.note {
-		margin: var(--space-4) 0 0;
-		font-size: var(--text-caption);
-		line-height: var(--leading-caption);
 	}
 </style>

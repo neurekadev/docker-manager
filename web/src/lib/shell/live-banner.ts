@@ -24,11 +24,11 @@ export function bannerText(tooManyStreams: boolean): { title: string; body: stri
 	return tooManyStreams
 		? {
 				title: 'Too many Docker Manager tabs are open',
-				body: 'Live updates stopped in this tab. Close tabs you no longer need; this tab reconnects on its own.'
+				body: 'Live updates stopped here. Close tabs you no longer need.'
 			}
 		: {
 				title: 'Live updates are disconnected',
-				body: 'Pages may be out of date. Docker Manager keeps trying to reconnect; nothing you do is queued.'
+				body: 'Pages may be out of date until it reconnects.'
 			};
 }
 

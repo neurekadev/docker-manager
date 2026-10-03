@@ -327,10 +327,7 @@
 {/snippet}
 
 <Page>
-	<SettingsHeader
-		title="Audit Log"
-		description="Every sign-in, permission change and operation, with who did it and the result. Records cannot be changed or deleted."
-	>
+	<SettingsHeader title="Audit Log" description="Records cannot be changed or deleted.">
 		{#snippet actions()}
 			{#if can(access, 'audit.export')}
 				<Button icon={Download} href={auditExportHref(settled, 'csv')}>Export CSV</Button>
@@ -345,7 +342,7 @@
 		<DeniedState
 			level={2}
 			title="You can't read the audit log."
-			description="It shows activity on every resource, so the owner grants it separately (View Audit Log)."
+			description="Ask the owner for the View Audit Log permission."
 		/>
 	{:else}
 		<ListCard
@@ -384,27 +381,30 @@
 						<TextField
 							label="From"
 							type="datetime-local"
-							description="Optional. Replaces the time range above."
+							optional
+							description="Replaces the When filter."
 							bind:value={() => store.get('from'), (v) => store.set('from', v)}
 						/>
 						<TextField
 							label="Until"
 							type="datetime-local"
-							description="Optional."
+							optional
 							bind:value={() => store.get('until'), (v) => store.set('until', v)}
 						/>
 						<TextField
 							label="Action Keys"
 							mono
 							placeholder="stack.deploy, auth.sign_in"
-							description="Optional. Exact keys as shown in a record's details, comma-separated."
+							optional
+							description="Comma-separated, as in a record's details."
 							bind:value={() => store.get('action'), (v) => store.set('action', v)}
 						/>
 						<TextField
 							label="Resource"
 							mono
 							placeholder="stack:0190a6e0-…"
-							description="Optional. Type and ID as shown in a record's details."
+							optional
+							description="Type and ID, as in a record's details."
 							bind:value={
 								() => store.get('resource'), (v) => store.set('resource', v)
 							}

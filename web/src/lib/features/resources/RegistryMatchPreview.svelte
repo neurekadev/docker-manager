@@ -66,14 +66,13 @@
 					? `, matched by ${m.selected.repositoryPattern}`
 					: ''}{m.selected.secret?.fingerprint
 					? `, credential ${m.selected.secret.fingerprint}`
-					: ''}. Only the pull on this environment gets the credential; nothing is stored
-				on the host.
+					: ''}. Only this pull gets the credential; nothing is stored on the host.
 			</Notice>
 		{:else if m?.selection === 'anonymous'}
 			<Notice tone="info" title="Pulls Anonymously" live="none">
-				No registry connection matches {m.host}/{m.repository}, so only public images work.
-				{#if m.host === 'docker.io'}Docker Hub limits anonymous pulls per IP address; add a
-					connection in Registries to pull with your account.{/if}
+				No registry connection matches {m.host}/{m.repository}: public images only.
+				{#if m.host === 'docker.io'}Add a connection in Registries to avoid Docker Hub's
+					pull limit.{/if}
 			</Notice>
 		{:else if m?.selection === 'ambiguous'}
 			<Notice tone="warn" title="Several registry connections match equally" live="none">

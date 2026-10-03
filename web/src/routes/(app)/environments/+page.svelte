@@ -265,7 +265,7 @@
 						<EmptyState
 							{...resourceIcon('environment')}
 							title="No environments yet."
-							description="Add an environment: run the Docker Agent on a Docker host and connect it with a one-time command."
+							description="Run the Docker Agent on a Docker host to add it."
 							level={3}
 							compact
 						>
@@ -288,7 +288,7 @@
 	<DeniedState level={1} />
 {:else}
 	<Page>
-		<PageHeader title="Environments" description="The Docker hosts Docker Manager looks after.">
+		<PageHeader title="Environments">
 			{#snippet actions()}
 				{#if canEnroll}
 					<Button variant="primary" icon={Plus} href={routes.addEnvironment()}
@@ -336,7 +336,6 @@
 											<EmptyState
 												icon={Archive}
 												title="No archived environments."
-												description="Archiving hides an environment from operations and keeps its stacks, history and backups. Re-attach it later with a new agent."
 												level={3}
 												compact
 											/>

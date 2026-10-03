@@ -135,10 +135,7 @@
 </script>
 
 <Page>
-	<SettingsHeader
-		title="Sign-In Policy"
-		description="How everyone signs in to this Docker Manager, and whether scripts may use API tokens."
-	/>
+	<SettingsHeader title="Sign-In Policy" />
 	{#if perms.data && !owner}
 		<DeniedState level={2} title="Only the owner changes the sign-in policy." />
 	{:else}
@@ -147,12 +144,12 @@
 				{#if form && loaded}
 					<Card
 						title="Passwords"
-						subtitle="Common and breached passwords are always refused. There are no composition rules and no forced changes."
+						subtitle="Common and breached passwords are always refused."
 					>
 						<Fields columns={2}>
 							<Switch
 								label="Strict Passwords"
-								description="Enforce the minimum length below (otherwise at least 8 characters)."
+								description="Otherwise the minimum is 8 characters."
 								bind:checked={form.strictPasswords}
 							/>
 							<TextField
@@ -162,14 +159,13 @@
 								value={String(form.minPasswordLength)}
 								onchange={(e) =>
 									form && (form.minPasswordLength = num(e.currentTarget.value))}
-								description="Long passphrases are welcome."
 								error={fields['body.minPasswordLength']}
 							/>
 						</Fields>
 					</Card>
 					<Card
 						title="Required Sign-In"
-						subtitle="What every account must use. Accounts without it get a limited session to add it."
+						subtitle="Accounts without it get a limited session to add it."
 					>
 						<Fields>
 							<RadioGroup
@@ -193,7 +189,7 @@
 									onchange={(e) =>
 										form &&
 										(form.enrollmentGraceHours = num(e.currentTarget.value))}
-									description="How long accounts may still sign in to enroll after the policy changes or their factors are reset."
+									description="After a policy change or a factor reset."
 									error={fields['body.enrollmentGraceHours']}
 								/>
 							</Fields>
@@ -201,12 +197,12 @@
 					</Card>
 					<Card
 						title="Staying Signed In"
-						subtitle="By default a browser is signed out after 8 hours without activity, 24 hours at most, and when it closes."
+						info="By default a browser is signed out after 8 hours without activity, 24 hours at most, and when it closes."
 					>
 						<Fields columns={2}>
 							<Switch
 								label="Allow Stay Signed In"
-								description="People can keep a device signed in for longer: by default 30 days without activity, a year at most. Off moves those devices back to the normal limits."
+								description="Lets people keep a device signed in for up to 30 days without activity, a year at most."
 								bind:checked={form.allowStaySignedIn}
 							/>
 						</Fields>
@@ -236,12 +232,12 @@
 					</Card>
 					<Card
 						title="API Tokens"
-						subtitle="Tokens act with at most their user's current permissions and never count as a sign-in factor."
+						info="Tokens act with at most their user's current permissions and never count as a sign-in factor."
 					>
 						<Fields columns={2}>
 							<Switch
 								label="Allow API Tokens"
-								description="Off stops every token at once (they work again when turned back on; revoke them to end them)."
+								description="Off pauses every token until you turn it back on."
 								bind:checked={form.apiTokensEnabled}
 							/>
 							<TextField
@@ -257,7 +253,7 @@
 							/>
 							<Switch
 								label="Allow Tokens Without Expiry"
-								description="Off by default. Tokens that never expire must be revoked by hand."
+								description="Such tokens work until revoked."
 								bind:checked={form.apiTokensNonExpiring}
 							/>
 						</Fields>

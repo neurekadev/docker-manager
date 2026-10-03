@@ -92,7 +92,7 @@
 			<EmptyState
 				icon={Layers}
 				title="This stack doesn't exist"
-				description="It was deleted, or you can't see it. Open the stacks list to find it."
+				description="It was deleted, or you can't see it."
 			>
 				{#snippet actions()}<Button href={routes.stacks()}>Open Stacks</Button>{/snippet}
 			</EmptyState>

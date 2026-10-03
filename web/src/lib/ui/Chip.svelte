@@ -3,7 +3,9 @@
 	// link, with `onclick` or `selected` a button (`selected` makes it a
 	// toggle: aria-pressed), otherwise a static tag. `count` adds a number
 	// after the label; `hue` a colour swatch (e.g. the service colour from
-	// $lib/design/hue).
+	// $lib/design/hue). `onremove` makes a static tag removable: an ×
+	// button after the label (`TagInput`); `invalid` outlines it in danger.
+	import X from '@lucide/svelte/icons/x';
 	import type { IconComponent } from '$lib/design/icons';
 
 	interface Props {
@@ -19,6 +21,12 @@
 		hue?: string;
 		title?: string;
 		disabled?: boolean;
+		/** A static tag with an × button that calls this. */
+		onremove?: () => void;
+		/** The × button's accessible name (default "Remove <label>"). */
+		removeLabel?: string;
+		/** Marks a tag that is refused (danger outline). */
+		invalid?: boolean;
 	}
 
 	let {
@@ -31,7 +39,10 @@
 		icon: Icon,
 		hue,
 		title,
-		disabled = false
+		disabled = false,
+		onremove,
+		removeLabel,
+		invalid = false
 	}: Props = $props();
 
 	const style = $derived(hue ? `--chip-hue: ${hue}` : undefined);
@@ -65,7 +76,18 @@
 		{disabled}>{@render content()}</button
 	>
 {:else}
-	<span class="chip {size}" {title} {style}>{@render content()}</span>
+	<span class="chip {size}" class:removable={!!onremove} class:invalid {title} {style}
+		>{@render content()}{#if onremove}<button
+				type="button"
+				class="remove"
+				aria-label={removeLabel ?? `Remove ${label}`}
+				{disabled}
+				onclick={(e) => {
+					e.stopPropagation();
+					onremove();
+				}}><X size={size === 'sm' ? 12 : 14} strokeWidth={2} aria-hidden="true" /></button
+			>{/if}</span
+	>
 {/if}
 
 <style>
@@ -127,6 +149,58 @@
 		color: var(--text-muted);
 	}
 
+	.chip.invalid {
+		border-color: var(--danger);
+		color: var(--danger);
+	}
+
+	.chip.removable {
+		padding-right: 3px;
+		gap: 4px;
+	}
+
+	.chip.sm.removable {
+		padding-right: 2px;
+	}
+
+	.remove {
+		display: inline-grid;
+		flex-shrink: 0;
+		place-items: center;
+		width: 20px;
+		height: 20px;
+		padding: 0;
+		border: 0;
+		border-radius: var(--radius-full);
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.sm .remove {
+		width: 18px;
+		height: 18px;
+	}
+
+	.remove:hover:not(:disabled) {
+		background: var(--surface-hover);
+		color: var(--text-strong);
+	}
+
+	.remove:hover:not(:disabled) :global(svg) {
+		color: var(--text-strong);
+	}
+
+	.remove:focus-visible {
+		outline: var(--focus-ring);
+		outline-offset: 0;
+	}
+
+	.remove:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
 	.label {
 		min-width: 0;
 		overflow: hidden;
@@ -157,6 +231,17 @@
 		.chip.interactive {
 			height: auto;
 			min-height: var(--touch-target);
+		}
+
+		/* A larger hit area for the × without a taller chip. */
+		.remove {
+			position: relative;
+		}
+
+		.remove::after {
+			content: '';
+			position: absolute;
+			inset: -10px -8px;
 		}
 	}
 </style>

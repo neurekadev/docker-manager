@@ -136,8 +136,7 @@
 {#if !full}
 	<Card>
 		<p class="muted">
-			You can see that {title} exists and use the actions above, but not its services and usage.
-			Ask the owner for access to view the stack.
+			You can't see the services and usage of {title}. Ask the owner for access.
 		</p>
 	</Card>
 {:else}

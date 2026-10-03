@@ -22,10 +22,7 @@
 	import Fields from '$lib/features/common/Fields.svelte';
 	import { accessKeys } from './queries';
 
-	let {
-		open = $bindable(false),
-		defaultGroupName
-	}: { open?: boolean; defaultGroupName?: string } = $props();
+	let { open = $bindable(false) }: { open?: boolean } = $props();
 
 	const qc = useQueryClient();
 	let email = $state('');
@@ -75,8 +72,7 @@
 <Dialog
 	bind:open
 	title="Invite a User"
-	description="Creates a link that registers one account. The account joins {defaultGroupName ??
-		'the default group'}."
+	description="The new account has no access until you add it to a group or give it overrides."
 	dismissible={!issued}
 >
 	{#if issued}
@@ -84,11 +80,11 @@
 			secret={issued.url}
 			label="invite link"
 			filename="docker-manager-invite-link.txt"
-			description="Send this link to the person you invite: it opens a form to create their account. It works once and expires {formatDateTime(
+			description="Send this link to the person you invite. It works once and expires {formatDateTime(
 				issued.expiresAt
 			)}{issued.invitation.email
 				? `, only for ${issued.invitation.email}`
-				: ''}. Docker Manager doesn't email the link and cannot show it again."
+				: ''}. Docker Manager doesn't email it."
 			acknowledgeLabel="I copied or sent the invite link"
 			confirmLabel="Done"
 			onconfirm={() => {
@@ -104,7 +100,8 @@
 						label="Email"
 						type="email"
 						bind:value={email}
-						description="Optional. Only this address can use the link; nothing is sent to it."
+						optional
+						description="Only this address can use the link."
 						error={fields['body.email']}
 					/>
 					<TextField
@@ -112,7 +109,8 @@
 						type="number"
 						min="1"
 						bind:value={hours}
-						description="Optional. Empty: the default of the sign-in policy."
+						optional
+						description="Defaults to the sign-in policy."
 						error={fields['body.expiresInHours']}
 					/>
 				</Disclosure>

@@ -284,22 +284,10 @@
 	}
 
 	const steps = [
-		{
-			id: 'destination',
-			label: 'Destination',
-			description: 'Name the policy and choose where its backups go.'
-		},
-		{
-			id: 'scope',
-			label: 'What to Back Up',
-			description: 'The manager state, stacks and volumes, and whether containers stop.'
-		},
-		{ id: 'schedule', label: 'Schedule', description: 'When backups run automatically.' },
-		{
-			id: 'retention',
-			label: 'Retention',
-			description: 'Which old backups are forgotten. Creating saves the policy.'
-		}
+		{ id: 'destination', label: 'Destination' },
+		{ id: 'scope', label: 'What to Back Up' },
+		{ id: 'schedule', label: 'Schedule' },
+		{ id: 'retention', label: 'Retention', description: 'Which old backups are removed.' }
 	];
 
 	const destinationOk = $derived(
@@ -410,9 +398,7 @@
 			]}
 			bind:value={scopeMode}
 			disabled={!!policy}
-			description={policy
-				? 'Fixed once the policy exists. Create another policy for other environments.'
-				: undefined}
+			description={policy ? 'Fixed once the policy exists.' : undefined}
 		/>
 		{#if scopeMode === 'environment'}
 			<Select
@@ -440,9 +426,8 @@
 				options={repoOptions}
 				bind:value={repositoryId}
 				placeholder="Choose a repository"
-				description={primary
-					? repoDescription(primary)
-					: 'Backups of the manager state go here; environments can use their own.'}
+				description={primary ? repoDescription(primary) : undefined}
+				info="Backups of the manager state go here; environments can use their own."
 				required
 			/>
 		{/if}
@@ -451,26 +436,18 @@
 				{r.name} is not listed: its Recovery Key is not confirmed yet.
 			</p>
 		{/each}
-		{#if !policy}
-			<p class="muted small">
-				Nothing is saved until the last step. New policies start with their schedule off.
-			</p>
-		{/if}
 	</Fields>
 {/snippet}
 
 {#snippet scopeSection()}
 	<Fields>
 		{#if owner}
-			<FieldGroup
-				legend="Manager"
-				hint="The manager's database and settings, needed to recover Docker Manager itself."
-			>
+			<FieldGroup legend="Manager" hint="Needed to recover Docker Manager itself.">
 				<Switch label="Back Up the Manager State" bind:checked={includeManager} />
 				{#if includeManager}
 					<Switch
 						label="Include the Metrics Database"
-						description="Off by default: charts history is large and can be rebuilt."
+						description="Charts history is large and can be rebuilt."
 						bind:checked={includeMetrics}
 					/>
 				{/if}
@@ -478,7 +455,7 @@
 		{/if}
 		<FieldGroup
 			legend="Stacks"
-			hint="Every managed stack in scope is backed up: its project directory and its volumes. Uncheck a stack to leave it out; stacks created later are included too."
+			hint="Uncheck a stack to leave it out. New stacks are included."
 		>
 			{#if stacks.isPending}
 				<Skeleton lines={3} height="20px" />
@@ -505,24 +482,21 @@
 			{/each}
 			<Switch
 				label="Back Up Allowed Folders Outside Stacks"
-				description="Off by default. On: folders a stack mounts from outside its own folder (such as /srv/media) are backed up too, but only those the server allows (see Backups in the documentation)."
+				description="Folders a stack mounts from outside its own folder, such as /srv/media, if the server allows them."
 				bind:checked={externalBinds}
 				onchange={() => (touched = true)}
 			/>
 		</FieldGroup>
-		<FieldGroup
-			legend="Volumes"
-			hint="The volumes of included stacks and every standalone volume are backed up. Uncheck a volume to leave it out."
-		>
+		<FieldGroup legend="Volumes" hint="Uncheck a volume to leave it out.">
 			<Switch
 				label="Back Up Anonymous Volumes"
-				description="Off by default: anonymous volumes usually hold caches and scratch data that containers recreate. On: those of included stacks and standalone ones are backed up too."
+				description="They usually hold caches and scratch data that containers recreate."
 				bind:checked={anonymousVolumes}
 				onchange={() => (touched = true)}
 			/>
 			<Switch
 				label="Back Up buildx Builder Volumes"
-				description="Off by default: they hold the build cache of buildx builders, which is rebuilt when needed. Volumes with the label docker-manager.backup.exclude=true, or used by a container with it, are never backed up."
+				description="Build cache, rebuilt when needed."
 				bind:checked={buildxVolumes}
 				onchange={() => (touched = true)}
 			/>
@@ -553,7 +527,7 @@
 		>
 			<Switch
 				label="Stop Containers During Backups"
-				description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. Docker Manager's own containers never stop."
+				description="Containers using the data stop during the backup and start again afterwards."
 				bind:checked={shutdown}
 				onchange={() => (touched = true)}
 			/>
@@ -561,7 +535,7 @@
 				<Notice
 					tone="warn"
 					icon={TriangleAlert}
-					title="Services are down while their data is backed up"
+					title="Services Are Down While Their Data Is Backed Up"
 					live="none"
 				>
 					Preview which containers stop and in which order.
@@ -571,7 +545,7 @@
 		{#if involvedEnvs.length}
 			<FieldGroup
 				legend="Repositories per Environment"
-				hint="A local repository only holds data of its own host; S3 repositories hold everything."
+				info="A local repository only holds data of its own host; S3 repositories hold everything."
 			>
 				{#each involvedEnvs as envId (envId)}
 					<Select
@@ -593,9 +567,6 @@
 						? 'Preview What Gets Backed Up and Stopped'
 						: 'Preview What Gets Backed Up'}</Button
 			>
-			<span class="muted small"
-				>Each environment's agent resolves the sources; nothing is stored.</span
-			>
 		</div>
 		{#if scopeError}<Notice tone="danger" title="The preview could not be computed" live="alert"
 				>{scopeError}</Notice
@@ -603,9 +574,7 @@
 		{#if scope}
 			{#if scopeStale}
 				<Notice tone="info" title="Out of Date" live="polite">
-					This preview doesn't include your latest changes. Press <strong
-						>Preview Again</strong
-					> to update it.
+					Press <strong>Preview Again</strong> to include your latest changes.
 				</Notice>
 			{/if}
 			<div class:stale={scopeStale}>
@@ -626,7 +595,7 @@
 	<Fields>
 		<Switch
 			label="Back Up Automatically"
-			description="Off: backups run only when you start them. Turning it on needs every repository's Recovery Key confirmed."
+			description="Needs every repository's Recovery Key confirmed."
 			bind:checked={enabled}
 			onchange={() => (touched = true)}
 		/>
@@ -644,9 +613,7 @@
 		{#if !editing}
 			<Checkbox
 				label="Run the First Backup After Creating"
-				description={shutdown
-					? 'Checks that everything can be read and stored. The affected containers stop while it runs.'
-					: 'Checks that everything can be read and stored.'}
+				description={shutdown ? 'The affected containers stop while it runs.' : undefined}
 				bind:checked={runFirst}
 			/>
 		{/if}

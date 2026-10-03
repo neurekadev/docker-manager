@@ -96,7 +96,7 @@ administration); public operations have none.
 Authorization (#17, [authorization](../architecture/authorization.md)):
 the instance owner may use every route; everyone else gets exactly what
 their group rules and user overrides grant (`403`/`404`, lists filtered),
-and a new account in the initial **Restricted** group sees nothing.
+and a new account, in no group and without overrides, sees nothing.
 
 ### Public routes
 

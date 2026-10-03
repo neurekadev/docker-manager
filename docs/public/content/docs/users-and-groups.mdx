@@ -20,20 +20,26 @@ chooses a username and password, and presses **Create Account**. The
 
 ## Groups
 
-Every person belongs to one **group**, and the group's
-[permissions](/permissions) decide what its members may do. New
-accounts join the group marked **Default for New Users**: at first
-**Restricted**, which gives no access.
+A person can be in several **groups**, and the groups'
+[permissions](/permissions) decide what they may do. A new account is in
+no group and can't do anything until you add it to a group or give it
+[overrides](/permissions#rules-for-one-person). Docker Manager starts
+without groups: create the ones you need.
 
-- **Create Group** makes a new group.
-- **Add Members** on a group's page moves people into it.
-- A group's menu can **Rename Group**, **Make Default for New Users** or
-  **Delete Group** (only an empty group that is not the default).
+- **Create Group** makes a new group. It starts at the bottom of the list.
+- Drag a group by its handle to change its priority. Groups higher in
+  the list win: for someone in several groups, the highest group with a
+  rule for an action decides.
+- **Add Members** on a group's page adds people to it; the remove button
+  next to a member takes them out of that group only.
+- A group's menu can **Rename Group** or **Delete Group** (only an empty
+  group).
 
 ## Manage a person
 
-Open a person under **Access** to **Move User** to another group, see
-their **Sessions**, or use **Account Actions**:
+Open a person under **Access** to see their **Groups** (in priority
+order), **Add to Group** or remove them from one, see their **Sessions**,
+or use **Account Actions**:
 
 - **Disable Account** signs them out and revokes their API tokens.
   **Enable Account** lets them back in.

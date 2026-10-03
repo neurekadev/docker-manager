@@ -4,7 +4,15 @@
 // 'permissions': any change refreshes these keys (and a permissions change
 // of the caller clears the cache, #23).
 import { queryOptions } from '@tanstack/svelte-query';
-import { api, unwrap, type Account, type ApiClient, type Schema } from '$lib/api/client';
+import {
+	ApiRequestError,
+	api,
+	unwrap,
+	type Account,
+	type ApiClient,
+	type ApiError,
+	type Schema
+} from '$lib/api/client';
 import { liveKeys } from '$lib/live/keys';
 import { fetchAllPages } from '$lib/features/common/data';
 import type { Catalog } from './permissions';
@@ -99,6 +107,34 @@ export function groupsQuery(client: ApiClient = api) {
 			(await unwrap(client.GET('/api/v1/groups', { signal }))).items,
 		staleTime: 15_000
 	});
+}
+
+/**
+ * Saves the groups' priority order (#233, highest first) if the server's
+ * order is still `before` (the order the owner reordered): the order's
+ * ETag comes from the list, so a change in between fails with 412
+ * precondition_failed. Resolves to the groups in their new order.
+ */
+export async function saveGroupOrder(
+	before: readonly string[],
+	order: readonly string[],
+	client: ApiClient = api
+): Promise<Group[]> {
+	const call = client.GET('/api/v1/groups');
+	const current = (await unwrap(call)).items.map((g) => g.id);
+	const etag = (await call).response.headers.get('ETag') ?? '';
+	if (current.join() !== before.join())
+		throw new ApiRequestError('The groups changed meanwhile.', 412, {
+			code: 'precondition_failed',
+			message: 'The groups changed meanwhile.'
+		} as ApiError);
+	const saved = await unwrap(
+		client.PUT('/api/v1/group-order', {
+			params: { header: { 'If-Match': etag } },
+			body: { groupIds: [...order] }
+		})
+	);
+	return saved.items;
 }
 
 export function groupRulesQuery(id: string, client: ApiClient = api) {

@@ -14,7 +14,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
   so never build a tooltip by hand; an (i) that explains something is
   `InfoTip` (or `Disclosure`'s `hint` in a summary): an info tip that a
-  tap opens too, since phones have no hover; confirmations use `ConfirmDialog` /
+  tap opens too, since phones have no hover; titles and labels take it
+  through `info` (`Card`, `PageHeader`, the Field-based controls,
+  `Switch`, `Checkbox`, `FieldGroup`), never as a hand-built span;
+  optional fields set `optional` (a muted "Optional" after the label),
+  never "Optional." in their description; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
   for high impact), only for damaging actions (stop, take down, delete,
   remove; start, restart and deploy run at once); Start, Restart and Stop
@@ -22,7 +26,14 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   (`$lib/features/common`: Stop while anything runs, Start otherwise),
   never separate buttons, and row menus list them in the order Start,
   Restart, Stop; status is `StatusBadge` (dot + text); tags and filter pills
-  are `Chip`; schedules show in words (`describeCron`, `ScheduleSummary`)
+  are `Chip`; lists of short values (template tags, network aliases) are
+  entered with `TagInput` (removable chips; Space, Enter, a comma or Tab
+  ends one, a paste splits), never as comma-separated text; a list whose
+  order people choose is reordered by dragging a grip handle with the
+  shared helper (`Sortable` + `DragHandle`: pointer events, so touch
+  works; ArrowUp/ArrowDown and Home/End on the handle as the keyboard
+  alternative, announced politely), never with HTML5 drag and drop or a
+  hand-made drag; schedules show in words (`describeCron`, `ScheduleSummary`)
   with the cron expression as tooltip; long names, images and paths in
   tables use `Column.maxWidth` + `truncate`, wide lists pin their actions
   column (`pin: 'end'`); headings inside a card are
@@ -66,9 +77,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
 - **Links** of stacks and templates: show them with `LinkList`
   (`$lib/features/common`: external links in a new tab with `rel="noopener
   noreferrer"`, the label or else the host, in `PageHeader`'s `below`
-  row) and edit them with `LinksEditor` (rows from `linkRows`, saved as
-  `cleanLinks`; `links.ts` checks the server's rules inline and
-  `serverLinkProblems` places the server's field errors on the rows).
+  row) and edit them with `LinksEditor` (rows from `linkRows`, reordered
+  by their grip handle and saved in that order as `cleanLinks`; `links.ts`
+  checks the server's rules inline and `serverLinkProblems` places the
+  server's field errors on the rows, which follow a row when it moves).
   Never build a link list or a link check by hand.
 - **Pages:** signed-in pages in `web/src/routes/(app)/<section>/` (replace
   the `SectionPlaceholder`), public ones in `(auth)`. URLs only from
@@ -164,8 +176,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   users get `DeniedState`. The server still decides.
 - **Copy:** buttons name the result and the toast repeats it ("Deployed
   Silo"); errors say what happened and what to do, no apology; empty states
-  invite action; no all-caps labels. **Names and labels are Title Case**
-  (#219): navigation, page titles and crumbs, card, section and dialog
+  invite action; no all-caps labels. Keep it lean (#233; design guide,
+  "Copy rules"): no description that restates a title, label, column or
+  placeholder; occasional explanations go behind `info`; what prevents
+  data loss, secret exposure or a misread result stays visible. **Names
+  and labels are Title Case** (#219): navigation, page titles and crumbs, card, section and dialog
   titles, tabs, column headers, field, checkbox, switch and option labels,
   menu items, buttons, badges and status labels, empty-state titles, filter
   labels, job kind labels and short label maps ("Image Updates", "Last

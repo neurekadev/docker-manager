@@ -27,8 +27,8 @@
 	bind:open
 	title={policy ? `Edit ${policy.name}` : 'Create Backup Policy'}
 	description={policy
-		? 'Changes apply from the next run. Saving never starts a backup.'
-		: 'Choose what to back up, when and for how long. Nothing runs until you start it or turn its schedule on.'}
+		? 'Changes apply from the next run.'
+		: 'Nothing runs until you start it or turn its schedule on.'}
 	size="xl"
 >
 	<PolicyWizard {policy} {owner} ondone={done} oncancel={() => (open = false)} />

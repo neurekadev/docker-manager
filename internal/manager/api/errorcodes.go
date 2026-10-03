@@ -61,7 +61,6 @@ func ErrorCodes() []ErrorCode {
 		{CodeEnrollmentTargetUnavailable, http.StatusConflict, false, "Agent enrollment: the agent to replace or the environment to re-attach is no longer in a state that allows it; create a new enrollment.", 3},
 		{CodeAgentRevoked, http.StatusConflict, false, "The agent was removed or replaced; its credential cannot be rotated.", 3},
 		{CodeGroupNameTaken, http.StatusConflict, false, "Another permission group already uses this name.", 17},
-		{CodeDefaultGroupProtected, http.StatusConflict, false, "The default group cannot be deleted; make another group the default first.", 17},
 		{CodeGroupNotEmpty, http.StatusConflict, false, "The group still has members; move them to another group first (users are never moved implicitly).", 17},
 		{CodeRegistryNameTaken, http.StatusConflict, false, "Another registry connection already uses this name.", 19},
 		{CodeNotificationChannelNameTaken, http.StatusConflict, false, "Another notification channel already uses this name.", 142},

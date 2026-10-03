@@ -56,11 +56,10 @@ type PermissionDocument struct {
 type GroupInfo struct {
 	Group
 	PermissionsRevision int64
-	// MemberCount counts the group's accounts except the owner, whom group
-	// rules never govern.
+	// MemberCount counts the group's accounts (the owner, whom group rules
+	// never govern, is in no group).
 	MemberCount int
-	// RuleCount and AllowCount summarize its rules (the default-group
-	// warning: a default group with allow rules grants access to new users).
+	// RuleCount and AllowCount summarize its rules.
 	RuleCount  int
 	AllowCount int
 }
@@ -71,15 +70,32 @@ type GroupPatch struct {
 }
 
 // PermissionSubject is everything evaluation needs about one user: the
-// account state, its group and both rule sets.
+// account state, its override rules and its groups' rules.
 type PermissionSubject struct {
-	UserID     string
-	Exists     bool
-	Owner      bool
-	Active     bool
-	GroupID    string
-	UserRules  []PermissionRule
-	GroupRules []PermissionRule
+	UserID    string
+	Exists    bool
+	Owner     bool
+	Active    bool
+	UserRules []PermissionRule
+	// Groups are the account's groups with their rules, highest priority
+	// first.
+	Groups []GroupRules
+}
+
+// GroupIDs returns the IDs of s's groups, highest priority first.
+func (s PermissionSubject) GroupIDs() []string {
+	out := make([]string, 0, len(s.Groups))
+	for _, g := range s.Groups {
+		out = append(out, g.GroupID)
+	}
+	return out
+}
+
+// GroupRules are one group's rules in a PermissionSubject.
+type GroupRules struct {
+	GroupID string
+	Name    string
+	Rules   []PermissionRule
 }
 
 // PermissionChange is the before/after of a permission document (audit
@@ -94,8 +110,8 @@ type PermissionChange struct {
 // Authorization errors.
 var (
 	ErrGroupNameTaken     = errors.New("group name taken")
-	ErrGroupIsDefault     = errors.New("the default group cannot be deleted")
 	ErrGroupNotEmpty      = errors.New("the group still has members")
+	ErrGroupOrderStale    = errors.New("the group order names other groups than exist")
 	ErrPermissionConflict = errors.New("permission document changed")
 )
 

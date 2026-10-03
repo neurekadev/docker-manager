@@ -332,12 +332,7 @@
 	/>
 {:else}
 	<Page>
-		<PageHeader
-			title="Containers"
-			description="Every container on {scope.single
-				? scope.targets[0]?.name
-				: 'your environments'}, running or not."
-		>
+		<PageHeader title="Containers">
 			{#snippet actions()}
 				<PruneButton target="containers" {scope} />
 				{#if creatable.length}
@@ -420,7 +415,7 @@
 									title="No containers on {scope.single
 										? scope.targets[0]?.name
 										: 'your environments'} yet."
-									description="Create a container from an image, or deploy a Compose stack for anything with several services."
+									description="Create one from an image, or deploy a Compose stack."
 									level={3}
 									compact
 								>

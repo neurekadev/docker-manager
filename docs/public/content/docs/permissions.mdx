@@ -4,7 +4,9 @@ description: Decide what each group and person may see and do.
 ---
 
 Permissions are rules on a group: for each action, **Allow** or **Deny**.
-Without a rule, an action is denied. Only the owner manages permissions.
+Without a rule, an action is denied, so a new account can't do anything
+until you add it to a group or give it overrides. The owner can always do
+everything and is the only one who manages permissions.
 
 ## Give permissions
 
@@ -26,13 +28,18 @@ The presets:
   anything.
 - **Admin**: can do everything in that place.
 
-The most specific rule decides: a rule on one stack wins over its
-environment, which wins over **All Resources**.
+Within a group, the most specific rule decides: a rule on one stack wins
+over its environment, which wins over **All Resources**.
+
+For someone in several groups, the groups are checked from the top of the
+**Groups** list: the first group with a rule for the action decides, even
+if a lower group has a more specific rule. Drag the groups to change their
+order.
 
 ## Rules for one person
 
 Open a person under **Access** to set **Overrides**: rules for just them,
-which win over their group's rules. **Effective Access** shows what they
+which win over the rules of all their groups. **Effective Access** shows what they
 may do in the end. **View as This User** checks their access again,
 including overrides you haven't saved yet.
 

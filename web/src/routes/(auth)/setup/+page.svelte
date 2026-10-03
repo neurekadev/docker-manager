@@ -80,10 +80,7 @@
 <svelte:head><title>Set Up Docker Manager</title></svelte:head>
 
 <div class="stack">
-	<AuthHeader
-		title="Set Up Docker Manager"
-		lead="Create the owner account. The owner can do everything and invites everyone else."
-	/>
+	<AuthHeader title="Set Up Docker Manager" lead="Create the owner account." />
 
 	{#if !flow.ready}
 		<Skeleton lines={5} height="36px" />
@@ -135,7 +132,7 @@
 				/>
 				<TextField
 					label="Display Name"
-					description="Optional. Shown in the UI and the audit log."
+					optional
 					bind:value={displayName}
 					autocomplete="name"
 					error={field('displayName')}
@@ -143,7 +140,7 @@
 				<TextField
 					label="Email"
 					type="email"
-					description="Optional. Docker Manager sends nothing to this address."
+					optional
 					bind:value={email}
 					autocomplete="email"
 					error={field('email')}
@@ -151,7 +148,7 @@
 				<PasswordField
 					label="Password"
 					autocomplete="new-password"
-					description="At least 15 characters. Long passphrases are welcome; common and breached passwords are refused."
+					description="At least 15 characters. Common and breached passwords are refused."
 					name="password"
 					bind:value={password}
 					required

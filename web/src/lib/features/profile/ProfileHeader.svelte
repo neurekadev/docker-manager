@@ -10,9 +10,10 @@
 	let {
 		title,
 		description,
+		info,
 		actions
-	}: { title: string; description?: string; actions?: Snippet } = $props();
+	}: { title: string; description?: string; info?: string; actions?: Snippet } = $props();
 </script>
 
-<PageHeader {title} {description} {actions} />
+<PageHeader {title} {description} {info} {actions} />
 <TabNav label="Profile Sections" current={page.url.pathname} items={profileTabs()} />

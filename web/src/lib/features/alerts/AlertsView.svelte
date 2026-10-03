@@ -255,15 +255,11 @@
 	{/if}
 {/snippet}
 
-<div class="intro">
-	<p>
-		Problems Docker Manager found: disks and RAID arrays, hosts running hot or low on disk space
-		or memory, offline environments, failed scheduled jobs and available updates.
-	</p>
-	{#if dismissible.length}
+{#if dismissible.length}
+	<div class="intro">
 		<Button icon={CheckCheck} onclick={() => (confirmOpen = true)}>Dismiss All</Button>
-	{/if}
-</div>
+	</div>
+{/if}
 
 {#if alerts.isError}
 	<ErrorState
@@ -299,7 +295,7 @@
 							<EmptyState
 								{...resourceIcon('alert')}
 								title="No dismissed alerts."
-								description="A dismissed alert stays here while its problem lasts and opens again if it gets worse."
+								description="Dismissed alerts stay here while the problem lasts."
 								level={3}
 								compact
 							/>
@@ -315,7 +311,7 @@
 							<EmptyState
 								{...resourceIcon('alert')}
 								title="No active alerts."
-								description="Disks and RAID arrays with problems, hosts running hot or low on disk space or memory, environments that go offline, failed scheduled jobs and available updates raise alerts here.{owner
+								description="Problems Docker Manager finds show up here.{owner
 									? ' Add a notification channel to have them sent to you.'
 									: ''}"
 								level={3}
@@ -364,17 +360,8 @@
 
 	.intro {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
+		justify-content: flex-end;
 		margin-bottom: var(--space-4);
-	}
-
-	.intro p {
-		flex: 1 1 320px;
-		margin: 0;
-		color: var(--text-muted);
 	}
 
 	.alert {

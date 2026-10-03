@@ -100,8 +100,7 @@ same change.
 | `enrollment_target_unavailable` | 409 | no | Agent enrollment: the agent to replace or the environment to re-attach is no longer in a state that allows it; create a new enrollment. | #3 |
 | `agent_revoked` | 409 | no | The agent was removed or replaced; its credential cannot be rotated. | #3 |
 | `group_name_taken` | 409 | no | Another permission group already uses this name. | #17 |
-| `default_group_protected` | 409 | no | The default group cannot be deleted; make another group the default first. | #17 |
-| `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly; the owner does not count and moves to the default group). | #17 |
+| `group_not_empty` | 409 | no | The group still has members; remove them from it first (memberships never change implicitly; the owner is in no group). | #17 |
 | `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
 | `notification_channel_name_taken` | 409 | no | Another notification channel already uses this name. | #142 |
 | `alert_not_firing` | 409 | no | The alert is resolved; only firing alerts can be dismissed. | #159 |

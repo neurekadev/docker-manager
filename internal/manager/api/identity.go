@@ -101,7 +101,7 @@ type Account struct {
 	DisplayName        string         `json:"displayName"`
 	Email              string         `json:"email,omitempty"`
 	Owner              bool           `json:"owner" doc:"The instance owner: a protected principal that cannot be disabled, deleted or have its grants removed."`
-	GroupID            string         `json:"groupId" doc:"The account's permission group (#17). New accounts join the default group (initially Restricted, no grants)."`
+	GroupIDs           []string       `json:"groupIds" doc:"The account's permission groups (#17), highest priority first. New accounts are in none: they are denied everything until the owner adds them to a group or grants them overrides. The owner is in none and may do everything."`
 	Status             string         `json:"status" enum:"active,disabled"`
 	Factors            AccountFactors `json:"factors"`
 	EnrollmentDeadline *time.Time     `json:"enrollmentDeadline,omitempty" doc:"Until when the account may still sign in to enroll factors the policy requires."`
@@ -114,11 +114,18 @@ type Account struct {
 
 func newAccount(a domain.Account) Account {
 	return Account{
-		ID: a.ID, Username: a.Username, DisplayName: a.DisplayName, Email: a.Email, Owner: a.Owner, GroupID: a.GroupID,
+		ID: a.ID, Username: a.Username, DisplayName: a.DisplayName, Email: a.Email, Owner: a.Owner, GroupIDs: groupIDs(a.GroupIDs),
 		Status: string(a.Status), Revision: a.Revision, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
 		DisabledAt: a.DisabledAt, LastSignInAt: a.LastSignInAt, EnrollmentDeadline: a.EnrollmentDeadline,
 		Factors: AccountFactors{Password: a.HasPassword, TOTP: a.TOTPEnabled, Passkeys: a.PasskeyCount, RecoveryCodesRemaining: a.RecoveryCodesRemaining},
 	}
+}
+
+func groupIDs(ids []string) []string {
+	if ids == nil {
+		return []string{}
+	}
+	return ids
 }
 
 // Session describes the caller's browser session.
@@ -288,7 +295,7 @@ func identityError(err error) error {
 	case errors.Is(err, domain.ErrPasskeyVerification):
 		return Invalid("the passkey could not be verified", Field("body.credential", "verification failed"))
 	case errors.Is(err, domain.ErrGroupNotFound):
-		return Invalid("unknown group", Field("body.groupId", "no such group"))
+		return Invalid("unknown group", Field("body.groupIds", "no such group"))
 	case errors.Is(err, domain.ErrUserNotFound):
 		return NotFound("user not found")
 	case errors.Is(err, domain.ErrInvitationNotFound):
@@ -487,10 +494,10 @@ type patchUserInput struct {
 	UserID string `path:"userId" maxLength:"64"`
 	IfMatchParam
 	Body struct {
-		DisplayName *string `json:"displayName,omitempty" example:"Ada Lovelace" maxLength:"128"`
-		Email       *string `json:"email,omitempty" maxLength:"254"`
-		GroupID     *string `json:"groupId,omitempty" maxLength:"64" doc:"Move the account to exactly one group (#17)."`
-		Status      *string `json:"status,omitempty" enum:"active,disabled" doc:"disabled ends every session and stream of the account at once."`
+		DisplayName *string   `json:"displayName,omitempty" example:"Ada Lovelace" maxLength:"128"`
+		Email       *string   `json:"email,omitempty" maxLength:"254"`
+		GroupIDs    *[]string `json:"groupIds,omitempty" maxItems:"256" doc:"Replace the account's groups (#17, any order; they are evaluated in the groups' priority order). Empty: in no group."`
+		Status      *string   `json:"status,omitempty" enum:"active,disabled" doc:"disabled ends every session and stream of the account at once."`
 	}
 }
 

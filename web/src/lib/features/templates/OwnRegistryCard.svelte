@@ -14,13 +14,16 @@
 	const shared = $derived(templates.filter((t) => t.visibility === 'public' && t.latest).length);
 </script>
 
-<Card title="Share Your Templates" id="own-registry">
+<Card
+	title="Share Your Templates"
+	id="own-registry"
+	info="Other Docker Managers add this address as a template source."
+>
 	<div class="body">
 		<p class="muted">
 			{shared === 0
 				? 'No template is shared yet: make a template public and publish a version to share it.'
 				: `Shares ${shared} public ${shared === 1 ? 'template' : 'templates'}.`}
-			Other Docker Managers add this address as a template source to browse and use them.
 		</p>
 		<div class="row">
 			<div class="url">

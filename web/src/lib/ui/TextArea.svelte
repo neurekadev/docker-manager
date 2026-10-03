@@ -7,6 +7,10 @@
 		label: string;
 		value?: string;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		mono?: boolean;
 	}
@@ -14,6 +18,8 @@
 	let {
 		label,
 		value = $bindable(''),
+		info,
+		optional = false,
 		description,
 		error,
 		mono = false,
@@ -24,7 +30,7 @@
 	}: Props = $props();
 </script>
 
-<Field {label} {description} {error} required={!!required} id={id ?? undefined}>
+<Field {label} {description} {info} {optional} {error} required={!!required} id={id ?? undefined}>
 	{#snippet children(c)}
 		<textarea
 			bind:value

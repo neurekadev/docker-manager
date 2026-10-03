@@ -91,8 +91,11 @@ func (s *Service) subjectOf(ctx context.Context, p authz.Principal) (policy.Subj
 }
 
 func subjectFrom(ps domain.PermissionSubject) policy.Subject {
-	return policy.Subject{Owner: ps.Exists && ps.Owner, Inactive: !ps.Exists || !ps.Active,
-		UserRules: toPolicyRules(ps.UserRules), GroupRules: toPolicyRules(ps.GroupRules)}
+	out := policy.Subject{Owner: ps.Exists && ps.Owner, Inactive: !ps.Exists || !ps.Active, UserRules: toPolicyRules(ps.UserRules)}
+	for _, g := range ps.Groups {
+		out.Groups = append(out.Groups, policy.Group{ID: g.GroupID, Name: g.Name, Rules: toPolicyRules(g.Rules)})
+	}
+	return out
 }
 
 // checker compiles subj with the service's resource graph.

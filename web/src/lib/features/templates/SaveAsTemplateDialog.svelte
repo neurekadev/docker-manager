@@ -120,7 +120,7 @@
 <Dialog
 	bind:open
 	title="Save {title} as a Template"
-	description="Copies the stack's files (compose.yaml, .env and the files next to them) from its host into a template. The stack itself does not change."
+	description="Copies the stack's files into a template. The stack doesn't change."
 	size="lg"
 	dismissible={!saving}
 >
@@ -166,8 +166,7 @@
 				</Notice>
 			{:else}
 				<p class="muted">
-					Leave out data folders such as databases or uploads: a template holds up to 32
-					MB.
+					Leave out data folders: a template holds up to 32 MB by default.
 				</p>
 				{#each entries as e (e.path)}
 					<Checkbox

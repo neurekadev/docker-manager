@@ -70,8 +70,7 @@
 		<ul class="points" role="list">
 			<li>Docker Manager generates a new Recovery Key and shows it once.</li>
 			<li>
-				It becomes current when you re-enter it. Each repository location then moves to it
-				the next time it is used; verification jobs start at once.
+				It becomes current when you re-enter it; each repository location then moves to it.
 			</li>
 			<li>
 				Until every location moved, restoring older data may need the previous key too. Keep

@@ -161,17 +161,17 @@ export function scopeConsequence(
 ): string {
 	switch (node.scope.kind) {
 		case 'instance':
-			return 'Rules here apply to every resource of their type in every environment, including ones added later. Actions Docker Manager adds in the future are never included automatically.';
+			return 'Applies to every environment, including ones added later. Future actions are never included automatically.';
 		case 'environment':
-			return `Rules here apply to every resource of their type on ${environmentName ?? 'this environment'}, including ones created later.`;
+			return `Applies to everything on ${environmentName ?? 'this environment'}, including ones created later.`;
 	}
 	switch (node.type) {
 		case 'stack':
-			return `Rules here apply to ${node.label}. Container actions chosen here also cover its service containers, current and future (recreated ones too).`;
+			return `Applies to ${node.label}. Container actions also cover its service containers, current and future.`;
 		case 'service':
-			return `Rules here apply to the containers of the service ${node.label}, current and future.`;
+			return `Applies to the containers of ${node.label}, current and future.`;
 		default:
-			return `Rules here apply to ${node.label} only.`;
+			return `Applies to ${node.label} only.`;
 	}
 }
 
@@ -222,6 +222,31 @@ export function inheritedDecision(
 	}
 	const inst = effectAt(groupRules, capability, INSTANCE);
 	if (inst) return { effect: inst, at: 'instance' };
+	return { effect: 'deny', at: 'none' };
+}
+
+/** One of a user's groups for what the user inherits: its name and rules. */
+export interface InheritedGroup {
+	name: string;
+	rules: Rule[];
+}
+
+/**
+ * The decision a user inherits at a scope from their groups when they have
+ * no override (#233): the first group, in priority order, with a rule for
+ * the capability that applies there decides with its most specific rule;
+ * without one, deny. `group` names the deciding group.
+ */
+export function inheritedFromGroups(
+	groups: readonly InheritedGroup[],
+	capability: string,
+	scope: Scope,
+	environmentId?: string
+): { effect: Effect; at: 'resource' | 'environment' | 'instance' | 'none'; group?: string } {
+	for (const g of groups) {
+		const d = inheritedDecision(g.rules, capability, scope, environmentId);
+		if (d.at !== 'none') return { ...d, group: g.name };
+	}
 	return { effect: 'deny', at: 'none' };
 }
 

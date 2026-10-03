@@ -10,6 +10,7 @@
 		Button,
 		Dialog,
 		Notice,
+		TagInput,
 		TextArea,
 		TextField,
 		errorView,
@@ -17,7 +18,7 @@
 		toast
 	} from '$lib/ui';
 	import { createTemplate } from './actions';
-	import { parseTags, tagProblem } from './model';
+	import { MAX_TAGS, normalizeTag, tagProblem } from './model';
 	import { templateKeys } from './queries';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
@@ -25,16 +26,16 @@
 
 	let name = $state('');
 	let description = $state('');
-	let tagText = $state('');
+	let tags = $state<string[]>([]);
 	let saving = $state(false);
 	let error = $state<unknown>(null);
 
-	const tags = $derived(parseTags(tagText));
 	const tagError = $derived(tags.map(tagProblem).find((p) => p) || null);
 
 	$effect(() => {
 		if (!open) {
-			name = description = tagText = '';
+			name = description = '';
+			tags = [];
 			error = null;
 		}
 	});
@@ -66,7 +67,7 @@
 <Dialog
 	bind:open
 	title="New Template"
-	description="A template is a complete Compose project you can create stacks from. It starts private, with a starter compose.yaml you edit next."
+	description="It starts private, with a starter compose.yaml you edit next."
 	size="md"
 	dismissible={!saving}
 >
@@ -89,17 +90,15 @@
 					: null)}
 			placeholder="Nextcloud"
 		/>
-		<TextArea
-			label="Description"
-			bind:value={description}
-			maxlength={1024}
-			description="Optional. Shown when people browse templates."
-		/>
-		<TextField
+		<TextArea label="Description" bind:value={description} maxlength={1024} optional />
+		<TagInput
 			label="Tags"
-			bind:value={tagText}
-			description="Optional. Separate tags with commas, for example: cloud, files."
-			error={tagError}
+			bind:values={tags}
+			normalize={normalizeTag}
+			validate={tagProblem}
+			max={MAX_TAGS}
+			optional
+			placeholder="cloud"
 		/>
 		{#if view && !fieldError(error, 'body.name') && view.code !== 'template_name_taken'}
 			<Notice tone="danger" live="alert" title="The template was not created">

@@ -442,12 +442,7 @@
 				{#if waiting || (regex && matcher && regexSearch.busy && searched.length === 0)}
 					<div aria-busy="true"><Skeleton lines={5} /></div>
 				{:else if feed.lines.length > 0 && !allShown && !shownServices.length}
-					<EmptyState
-						compact
-						icon={ScrollText}
-						title="Every Service Is Hidden"
-						description="Choose a service in Services to show its lines."
-					>
+					<EmptyState compact icon={ScrollText} title="Every Service Is Hidden">
 						{#snippet actions()}
 							<Button size="sm" onclick={() => pickServices(names)}
 								>Show All Services</Button
@@ -455,23 +450,13 @@
 						{/snippet}
 					</EmptyState>
 				{:else if matcher && bySource.length > 0 && searched.length === 0}
-					<EmptyState
-						compact
-						icon={ScrollText}
-						title="No Lines Match “{query.trim()}”"
-						description="Change the search to see more lines."
-					>
+					<EmptyState compact icon={ScrollText} title="No Lines Match “{query.trim()}”">
 						{#snippet actions()}
 							<Button size="sm" onclick={() => (query = '')}>Clear Search</Button>
 						{/snippet}
 					</EmptyState>
 				{:else if searched.length > 0 && narrowed}
-					<EmptyState
-						compact
-						icon={ScrollText}
-						title="No Lines at the Chosen Levels"
-						description="Choose more in Levels to see more lines."
-					>
+					<EmptyState compact icon={ScrollText} title="No Lines at the Chosen Levels">
 						{#snippet actions()}
 							<Button size="sm" onclick={() => (picked = EVERY)}
 								>Show All Levels</Button
@@ -483,7 +468,6 @@
 						compact
 						icon={ScrollText}
 						title="No Lines From the Selected Services"
-						description="Choose more in Services to see more lines."
 					>
 						{#snippet actions()}
 							<Button size="sm" onclick={() => pickServices(names)}
@@ -497,7 +481,7 @@
 						icon={ScrollText}
 						title="No Log Lines Yet"
 						description={feed.following
-							? 'New lines appear here as soon as they are written.'
+							? undefined
 							: 'Turn on Follow to stream new lines.'}
 					/>
 				{/if}
@@ -537,7 +521,7 @@
 			{feed.lines.length === 1 ? 'line' : 'lines'}{feed.trimmed ? ' (the newest 5000)' : ''}
 		</span>
 		<span role="status">
-			{#if !feed.following}Paused: turn on Follow to continue{:else if liveCount > 0}Live{:else if waiting}Connecting…{/if}
+			{#if !feed.following}Paused{:else if liveCount > 0}Live{:else if waiting}Connecting…{/if}
 		</span>
 		{#if feed.following && !atBottom && shown.length}
 			<Button size="sm" variant="ghost" icon={ArrowDownToLine} onclick={toBottom}

@@ -28,6 +28,7 @@
 		Dialog,
 		EmptyState,
 		ErrorState,
+		InfoTip,
 		Notice,
 		Select,
 		Skeleton,
@@ -236,8 +237,8 @@
 	bind:open
 	title={picked ? `Create Stack From ${picked.name}` : 'Create Stack From Template'}
 	description={picked
-		? 'Copies every file of the chosen version into a new project directory. Nothing existing is overwritten; your .env is saved before anything runs.'
-		: 'Choose the template to create the stack from. Only templates with a published version you may use are listed.'}
+		? undefined
+		: 'Only templates with a published version you may use are listed.'}
 	size="xl"
 	dismissible={!creating}
 >
@@ -356,17 +357,13 @@
 					bind:value={name}
 					mono
 					required
-					description="The Compose project name and its directory: lower-case letters, digits, dashes and underscores."
+					description="Lower-case letters, digits, dashes and underscores."
 					error={nameConflict ?? nameMsg}
 					oninput={() => (nameConflict = null)}
 					onblur={() => (touched = true)}
 				/>
-				<TextField label="Display Name" bind:value={displayName} description="Optional." />
-				<Checkbox
-					bind:checked={deployAfter}
-					label="Deploy After Creating"
-					description="Starts a deploy right away; otherwise deploy it from the stack page."
-				/>
+				<TextField label="Display Name" bind:value={displayName} optional />
+				<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
 				{#if failure}
 					{@const v = errorView(failure)}
 					{#if v.code === 'invalid_definition'}
@@ -392,10 +389,7 @@
 				{:else}
 					<div class="editor">
 						<span class="editor-label"
-							>.env <span class="muted"
-								>Your values for this stack. Saved to the stack before anything
-								runs.</span
-							></span
+							>.env <InfoTip text="Saved to the stack before anything runs." /></span
 						>
 						<CodeEditor
 							value={envFile}
@@ -414,9 +408,7 @@
 						<div class="editor">
 							<span class="editor-label"
 								>{composeFile.path}
-								<span class="muted"
-									>From the template; edit it later in the stack's files.</span
-								></span
+								<InfoTip text="Edit it later in the stack's files." /></span
 							>
 							<CodeEditor
 								value={composeFile.content}
@@ -504,14 +496,11 @@
 	}
 
 	.editor-label {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		color: var(--text-default);
 		font-weight: var(--weight-medium);
-	}
-
-	.editor-label .muted {
-		margin-left: var(--space-2);
-		font-weight: var(--weight-regular);
-		font-size: var(--text-caption);
 	}
 
 	.issues {

@@ -213,7 +213,7 @@
 	<Card
 		title="All Backups"
 		subtitle={backups.data
-			? `${matching.length} ${matching.length === 1 ? 'backup' : 'backups'} from ${runs.length} ${runs.length === 1 ? 'run' : 'runs'}; restore one from its run or its page.`
+			? `${matching.length} ${matching.length === 1 ? 'backup' : 'backups'} from ${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`
 			: undefined}
 		padding="none"
 		stretchActions

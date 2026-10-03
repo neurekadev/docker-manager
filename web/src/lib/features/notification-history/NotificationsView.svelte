@@ -139,11 +139,6 @@
 	</li>
 {/snippet}
 
-<p class="intro">
-	Finished backups, restores, prunes and image updates of the last 90 days. Open one to see its
-	job.
-</p>
-
 {#if list.isError}
 	<ErrorState
 		error={list.error}
@@ -169,7 +164,7 @@
 					<EmptyState
 						{...resourceIcon('notification')}
 						title="No loaded notifications match the search."
-						description="Load more to search older ones, or clear the search and filters."
+						description="Load more to search older ones."
 						level={3}
 						compact
 					>
@@ -225,11 +220,6 @@
 {/if}
 
 <style>
-	.intro {
-		margin: 0 0 var(--space-4);
-		color: var(--text-muted);
-	}
-
 	.pad {
 		padding: var(--space-5);
 	}

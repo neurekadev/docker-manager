@@ -1,11 +1,11 @@
 <script lang="ts">
-	// One user (#16, #17): account and status (disable, sessions, factor
-	// and password resets, delete), their signed-in devices, the group,
-	// user overrides (Inherit / Allow / Deny per action and scope, reset to
-	// inherit), the effective access with its reasons and a "view as"
-	// preview of unsaved changes.
+	// One user (#16, #17, #233): account and status (disable, sessions,
+	// factor and password resets, delete), their signed-in devices, their
+	// groups in priority order (add, remove), user overrides (Inherit /
+	// Allow / Deny per action and scope, reset to inherit), the effective
+	// access with its reasons and a "view as" preview of unsaved changes.
 	import { untrack } from 'svelte';
-	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import { createQueries, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
@@ -15,6 +15,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import UserCheck from '@lucide/svelte/icons/user-check';
 	import UserX from '@lucide/svelte/icons/user-x';
+	import X from '@lucide/svelte/icons/x';
 	import { api, unwrap, unwrapEmpty, type Account, type Schema } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { withStepUp } from '$lib/auth/stepup.svelte';
@@ -49,8 +50,14 @@
 	import PermissionEditor from '$lib/features/access/PermissionEditor.svelte';
 	import RulesSaveBar from '$lib/features/access/RulesSaveBar.svelte';
 	import SessionsTable from '$lib/features/access/SessionsTable.svelte';
-	import { accountStatus, displayName, factorsText } from '$lib/features/access/model';
-	import { diffRules, type Rule } from '$lib/features/access/permissions';
+	import {
+		accountStatus,
+		displayName,
+		factorsText,
+		groupNames,
+		withGroup
+	} from '$lib/features/access/model';
+	import { diffRules, type InheritedGroup, type Rule } from '$lib/features/access/permissions';
 	import {
 		accessKeys,
 		catalogQuery,
@@ -68,12 +75,26 @@
 	const catalog = createQuery(() => catalogQuery());
 	const doc = createQuery(() => ({ ...userRulesQuery(id), refetchOnWindowFocus: false }));
 	const effective = createQuery(() => effectiveQuery(id));
-	const groupDoc = createQuery(() => groupRulesQuery(user.data?.groupId ?? ''));
+	// The user's groups come in priority order, highest first.
+	const groupDocs = createQueries(() => ({
+		queries: (user.data?.groupIds ?? []).map((gid) => groupRulesQuery(gid))
+	}));
 	const envs = createQuery(() => environmentsQuery());
 	const envName = (e: string) => environmentName(envs.data, e);
 
 	const name = $derived(user.data ? displayName(user.data) : 'User');
-	const group = $derived(groups.data?.find((g) => g.id === user.data?.groupId));
+	const memberOf = $derived(
+		(user.data?.groupIds ?? []).flatMap((gid) => groups.data?.find((g) => g.id === gid) ?? [])
+	);
+	const inheritedGroups = $derived<InheritedGroup[]>(
+		(user.data?.groupIds ?? []).map((gid, i) => ({
+			name: groups.data?.find((g) => g.id === gid)?.name ?? 'a group',
+			rules: groupDocs[i]?.data?.rules ?? []
+		}))
+	);
+	const addable = $derived(
+		(groups.data ?? []).filter((g) => !(user.data?.groupIds ?? []).includes(g.id))
+	);
 	usePage(() => ({
 		title: name,
 		crumbs: [{ label: 'Access', href: routes.access() }, { label: name }]
@@ -102,17 +123,20 @@
 
 	let preview = $state<Schema<'PermissionPreview'> | null>(null);
 	let previewing = $state(false);
-	let moveTo = $state('');
+	let addTo = $state('');
+	// The group being joined or left (confirm 'join' / 'leave').
+	let changing = $state('');
 	let confirm = $state<
-		null | 'disable' | 'enable' | 'sessions' | 'factors' | 'password' | 'move'
+		null | 'disable' | 'enable' | 'sessions' | 'factors' | 'password' | 'join' | 'leave'
 	>(null);
 	let confirmOpen = $state(false);
 	let deleteOpen = $state(false);
 	let revokeTokens = $state(false);
 	let resetLink = $state<Schema<'IssuedCode'> | null>(null);
 
-	function ask(kind: typeof confirm) {
+	function ask(kind: typeof confirm, groupId = '') {
 		confirm = kind;
+		changing = groupId;
 		revokeTokens = false;
 		confirmOpen = true;
 	}
@@ -145,10 +169,18 @@
 					await patch(u, { status: 'active' });
 					toast.success(`Enabled ${displayName(u)}`);
 					break;
-				case 'move': {
-					await patch(u, { groupId: moveTo });
-					const g = groups.data?.find((x) => x.id === moveTo);
-					toast.success(`Moved ${displayName(u)} to ${g?.name ?? 'the group'}`);
+				case 'join':
+				case 'leave': {
+					await patch(u, {
+						groupIds: withGroup(u.groupIds, changing, confirm === 'join')
+					});
+					const g = groups.data?.find((x) => x.id === changing)?.name ?? 'the group';
+					toast.success(
+						confirm === 'join'
+							? `Added ${displayName(u)} to ${g}`
+							: `Removed ${displayName(u)} from ${g}`
+					);
+					if (confirm === 'join') addTo = '';
 					break;
 				}
 				case 'sessions':
@@ -276,7 +308,9 @@
 
 	const CONFIRM = $derived.by(() => {
 		const n = name;
-		const g = groups.data?.find((x) => x.id === moveTo);
+		const g = groups.data?.find((x) => x.id === changing);
+		const ids = user.data?.groupIds ?? [];
+		const after = (join: boolean) => withGroup(ids, changing, join);
 		return {
 			disable: {
 				title: `Disable ${n}?`,
@@ -314,11 +348,21 @@
 					'Redeeming it ends all of their sessions.'
 				]
 			},
-			move: {
-				title: `Move ${n} to ${g?.name ?? 'another group'}?`,
-				label: 'Move User',
+			join: {
+				title: `Add ${n} to ${g?.name ?? 'the group'}?`,
+				label: 'Add to Group',
 				lines: [
-					`Their access becomes that of ${g?.name ?? 'the group'} plus their own overrides, at once.`,
+					`Their access becomes that of ${groupNames(after(true), groups.data)}, in this priority order, plus their own overrides, at once.`,
+					'Their open pages and streams restart.'
+				]
+			},
+			leave: {
+				title: `Remove ${n} from ${g?.name ?? 'the group'}?`,
+				label: 'Remove from Group',
+				lines: [
+					after(false).length
+						? `Their access becomes that of ${groupNames(after(false), groups.data)} plus their own overrides, at once.`
+						: 'They are in no group then: only their own overrides grant access.',
 					'Their open pages and streams restart.'
 				]
 			}
@@ -338,9 +382,6 @@
 			<PageHeader
 				title={displayName(u)}
 				{...resourceIcon('user')}
-				description={u.owner
-					? 'The owner of this Docker Manager: every permission, always.'
-					: `Member of ${group?.name ?? 'a group'}.`}
 				meta={[{ label: u.username, mono: true }, ...(u.email ? [{ label: u.email }] : [])]}
 			>
 				{#snippet status()}
@@ -396,39 +437,54 @@
 			{:else}
 				<Card
 					title="Sessions"
-					subtitle="The devices {displayName(
-						u
-					)} is signed in on. Signing one out ends it and its open pages at once."
+					subtitle="Signing a device out ends it and its open pages at once."
 					padding="none"
 				>
 					<SessionsTable userId={u.id} label="Signed-In Devices of {displayName(u)}" />
 				</Card>
 
 				<Card
-					title="Group"
-					subtitle="Every user belongs to exactly one group; its rules are the starting point of their access."
+					title="Groups"
+					info="In priority order: the highest group with a rule for an action decides. Change the order under Groups."
 				>
-					<div class="move">
-						<Select
-							label="Group"
-							options={(groups.data ?? []).map((g) => ({
-								value: g.id,
-								label: g.default ? `${g.name} (Default)` : g.name
-							}))}
-							value={moveTo || u.groupId}
-							onchange={(v) => (moveTo = v)}
-						/>
-						<Button
-							disabled={!moveTo || moveTo === u.groupId}
-							onclick={() => ask('move')}>Move User</Button
-						>
-					</div>
+					{#if memberOf.length}
+						<ol class="memberships" aria-label="Groups of {displayName(u)}">
+							{#each memberOf as g, i (g.id)}
+								<li>
+									<span class="rank" title="Priority {i + 1}">{i + 1}</span>
+									<a href={routes.accessGroup(g.id)}>{g.name}</a>
+									<IconButton
+										label="Remove {displayName(u)} from {g.name}"
+										icon={X}
+										size="sm"
+										onclick={() => ask('leave', g.id)}
+									/>
+								</li>
+							{/each}
+						</ol>
+					{:else}
+						<p class="muted">In no group: only their own overrides grant access.</p>
+					{/if}
+					{#if addable.length}
+						<div class="add">
+							<Select
+								label="Add to Group"
+								hideLabel
+								placeholder="Add to a group"
+								options={addable.map((g) => ({ value: g.id, label: g.name }))}
+								value={addTo}
+								onchange={(v) => (addTo = v)}
+							/>
+							<Button disabled={!addTo} onclick={() => ask('join', addTo)}
+								>Add to Group</Button
+							>
+						</div>
+					{/if}
 				</Card>
 
 				<Card
 					title="Overrides"
-					subtitle="Allow or Deny here beats every rule of {group?.name ??
-						'the group'}. Inherit uses the group's decision."
+					info="Allow or Deny here beats every group rule. Inherit uses the decision of their groups."
 				>
 					{#snippet actions()}
 						{#if base.length}
@@ -455,8 +511,7 @@
 											catalog={cat}
 											mode="user"
 											{rules}
-											groupRules={groupDoc.data?.rules ?? []}
-											groupName={group?.name}
+											groups={inheritedGroups}
 											onchange={(r) => (draft = r)}
 										/>
 									{/if}
@@ -466,12 +521,7 @@
 					</QueryView>
 				</Card>
 
-				<Card
-					title="Effective Access"
-					subtitle="What {displayName(
-						u
-					)} can do now, and why. Anything not listed is denied."
-				>
+				<Card title="Effective Access" subtitle="Anything not listed is denied.">
 					{#snippet actions()}
 						<Button size="sm" loading={previewing} onclick={runPreview}
 							>{dirty ? 'Preview with Unsaved Changes' : 'View as This User'}</Button
@@ -485,8 +535,7 @@
 								: 'Access as Evaluated Now'}
 							live="status"
 						>
-							{preview.effective.entries.length} decisions. Nothing is saved and no session
-							is used.
+							{preview.effective.entries.length} decisions. Nothing is saved.
 							{#snippet actions()}<Button
 									size="sm"
 									variant="ghost"
@@ -547,7 +596,6 @@
 						<Checkbox
 							bind:checked={revokeTokens}
 							label="Also Revoke Their API Tokens"
-							description="For example when the account may be compromised."
 						/>
 					{/if}
 				</ConfirmDialog>
@@ -577,9 +625,7 @@
 						filename="docker-manager-password-reset.txt"
 						description="Send it to {displayName(
 							u
-						)}. It works once and expires {formatDateTime(
-							resetLink.expiresAt
-						)}. Docker Manager cannot show it again."
+						)}. It works once and expires {formatDateTime(resetLink.expiresAt)}."
 						confirmLabel="Done"
 						onconfirm={() => {
 							resetLink = null;
@@ -593,15 +639,47 @@
 </Page>
 
 <style>
-	.move {
+	.memberships {
+		display: grid;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-4);
+		padding: 0;
+		list-style: none;
+	}
+
+	.memberships li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		min-height: var(--control-height);
+	}
+
+	.memberships a {
+		color: var(--text-strong);
+		font-weight: 500;
+	}
+
+	.memberships :global(button) {
+		margin-left: auto;
+	}
+
+	.rank {
+		min-width: 1.25rem;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		font-variant-numeric: tabular-nums;
+		text-align: center;
+	}
+
+	.add {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: flex-end;
 		gap: var(--space-3);
 	}
 
-	.move > :global(:first-child) {
-		flex: 0 1 360px;
+	.add > :global(:first-child) {
+		flex: 0 1 320px;
 	}
 
 	.spaced {

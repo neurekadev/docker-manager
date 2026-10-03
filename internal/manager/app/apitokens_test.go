@@ -265,15 +265,15 @@ func TestAPITokenNarrowedByGrantChanges(t *testing.T) {
 	if !can("container.restart", web) {
 		t.Fatal("token not restored with the grant")
 	}
-	// Moving rita to Restricted empties it.
-	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ritaID, map[string]string{"groupId": owner.groupNamed("Restricted").ID},
+	// Taking rita out of every group empties it.
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ritaID, map[string]any{"groupIds": []string{}},
 		header("If-Match", owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ritaID, nil).header.Get("ETag")))
 	var page struct {
 		Items []envItem `json:"items"`
 	}
 	b.must(http.StatusOK, http.MethodGet, "/api/v1/environments", nil).json(t, &page)
 	if len(page.Items) != 0 || can("environment.manage", authz.EnvironmentResource("e1")) {
-		t.Fatalf("token of a Restricted user still sees %+v", page.Items)
+		t.Fatalf("token of a user without groups still sees %+v", page.Items)
 	}
 	e.assertNoTokenValues()
 }
