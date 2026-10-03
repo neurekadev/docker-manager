@@ -2,7 +2,7 @@
 // chooses one regular file or several ticked files and folders, and lists
 // a folder only when it opens.
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
@@ -151,11 +151,13 @@ describe('FilePicker: several items', () => {
 		expect(await screen.findByRole('checkbox', { name: 'app.ini' })).toBeChecked();
 		expect(screen.getByRole('checkbox', { name: 'site.ini' })).toBeChecked();
 		await user.click(screen.getByRole('checkbox', { name: 'app.ini' }));
-		expect(screen.getByRole('checkbox', { name: 'All of conf' })).toHaveProperty(
-			'indeterminate',
-			true
+		expect(await screen.findByText('1 item selected')).toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.getByRole('checkbox', { name: 'All of conf' })).toHaveProperty(
+				'indeterminate',
+				true
+			)
 		);
-		expect(screen.getByText('1 item selected')).toBeInTheDocument();
 
 		await user.click(place(/web Project Files/));
 		await user.click(await screen.findByRole('checkbox', { name: 'compose.yaml' }));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	foldersBetween,
 	normalize,
 	parentOf,
 	pickerCrumbs,
@@ -77,6 +78,17 @@ describe('file picker selection', () => {
 
 	it('leaves the selection alone when a listing is not loaded', () => {
 		expect(toggle(['/v'], '/v/docs/readme.md', children)).toEqual(['/v']);
+	});
+
+	it('names the folders a split needs listed', () => {
+		expect(foldersBetween('/v', '/v/thumbs/sub/x.png')).toEqual([
+			'/v',
+			'/v/thumbs',
+			'/v/thumbs/sub'
+		]);
+		expect(foldersBetween('/v', '/v/a.jpg')).toEqual(['/v']);
+		expect(foldersBetween('/', '/a/b')).toEqual(['/', '/a']);
+		expect(foldersBetween('/v', '/v')).toEqual([]);
 	});
 
 	it('counts and words the selection', () => {

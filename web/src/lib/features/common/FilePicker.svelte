@@ -25,16 +25,18 @@
 	import { actionError } from '$lib/features/common/errors';
 	import { entryIcon } from '$lib/features/files/icons';
 	import {
+		foldersBetween,
+		normalize,
 		parentOf,
 		pickerCrumbs,
 		pickerEntries,
-		normalize,
 		pickerStart,
 		placeOf,
 		selectedIn,
 		selectionText,
 		tickState,
 		toggle,
+		within,
 		type PickerEntry,
 		type PickerListing,
 		type PickerPlace,
@@ -110,19 +112,25 @@
 	const here = $derived(crumbs[crumbs.length - 1].name);
 	const atTop = $derived(!place || dir === place.path);
 
-	const contents = createQuery(() => ({
-		...source.query(dir),
-		enabled: open && !!dir,
+	const listingOptions = (d: string) => ({
+		...source.query(d),
 		staleTime: 5 * 60_000,
 		retry: false
-	}));
+	});
+	const contents = createQuery(() => ({ ...listingOptions(dir), enabled: open && !!dir }));
 	const entries = $derived(pickerEntries(contents.data?.entries ?? [], filter));
+	// Decided from the cached listing of the preset's own folder: right
+	// after a reopen the query may still hold the previous folder's.
 	$effect(() => {
-		if (!preselect || (dir === parentOf(preselect) && !contents.isSuccess)) return;
-		const n =
-			dir === parentOf(preselect)
-				? contents.data?.entries.find((e) => e.path === preselect)
-				: undefined;
+		void contents.data;
+		if (!preselect) return;
+		if (dir !== parentOf(preselect)) {
+			preselect = '';
+			return;
+		}
+		const l = qc.getQueryData<PickerListing>(source.query(dir).queryKey);
+		if (!l) return;
+		const n = l.entries.find((e) => e.path === preselect);
 		if (n && canChoose(n)) selection = [n.path];
 		preselect = '';
 	});
@@ -152,9 +160,10 @@
 		onpick(paths);
 	}
 
-	// Several items: tick or untick, splitting a ticked folder by the
-	// listings already loaded; a folder listed only in part is never split
-	// (its unlisted entries would leave the selection).
+	// Several items: tick or untick, splitting a ticked folder by its
+	// listings (loaded first when the cache dropped them); a folder listed
+	// only in part is never split (its unlisted entries would leave the
+	// selection).
 	function children(d: string): string[] | undefined {
 		const l = qc.getQueryData<PickerListing>(source.query(d).queryKey);
 		return l && !l.truncated ? l.entries.map((e) => e.path) : undefined;
@@ -168,13 +177,21 @@
 	let redraw = $state(0);
 
 	async function flip(path: string, focusId?: string) {
-		const next = toggle(selection, path, children);
-		const unchanged =
-			next.length === selection.length && next.every((p, i) => p === selection[i]);
-		refused =
-			unchanged && tickState(selection, path) === 'checked' && !selection.includes(path)
+		const ancestor = selection.find((s) => s !== path && within(path, s));
+		const dirs = ancestor ? foldersBetween(ancestor, path) : [];
+		if (dirs.length)
+			await Promise.allSettled(dirs.map((d) => qc.ensureQueryData(listingOptions(d))));
+		const before = selection;
+		const next = toggle(before, path, children);
+		const unchanged = next.length === before.length && next.every((p, i) => p === before[i]);
+		const partial = dirs.some(
+			(d) => qc.getQueryData<PickerListing>(source.query(d).queryKey)?.truncated
+		);
+		refused = !(unchanged && ancestor)
+			? ''
+			: partial
 				? 'This folder is listed only in part, so it is chosen whole. Untick the folder to leave it out.'
-				: '';
+				: "This folder's contents could not be listed, so it is chosen whole. Untick the folder to leave it out.";
 		selection = next;
 		if (refused && focusId) {
 			redraw++;

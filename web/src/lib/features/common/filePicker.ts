@@ -97,6 +97,17 @@ export function toggle(
 	return normalize([...selection.filter((s) => s !== ancestor), ...added]);
 }
 
+/** The folders from `ancestor` down to the parent of `path`: what splitting `ancestor` needs listed. */
+export function foldersBetween(ancestor: string, path: string): string[] {
+	const out: string[] = [];
+	if (path === ancestor) return out;
+	for (let d = parentOf(path); within(d, ancestor); d = parentOf(d)) {
+		out.unshift(d);
+		if (d === ancestor || d === '/') break;
+	}
+	return out;
+}
+
 /** The place holding `path` (the deepest one), if any. */
 export function placeOf<P extends { path: string }>(
 	places: readonly P[],
