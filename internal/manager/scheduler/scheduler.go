@@ -575,7 +575,7 @@ func (s *Service) process(ctx context.Context, r domain.ScheduleRun, now time.Ti
 	}
 	due := Due{Kind: sc.Kind, PolicyID: sc.PolicyID, ScheduledFor: r.ScheduledFor, CatchUp: r.CatchUp, Key: r.IdempotencyKey}
 
-	existing, err := s.existingJobs(ctx, r.IdempotencyKey)
+	existing, err := s.existingJobs(ctx, r.IdempotencyKey, k.maxJobs())
 	if err != nil {
 		return err
 	}
@@ -617,9 +617,9 @@ func (s *Service) process(ctx context.Context, r domain.ScheduleRun, now time.Ti
 	if len(reqs) == 0 && len(existing) == 0 {
 		return s.finishRun(ctx, k, sc, r, domain.RunSkipped, "nothing_to_run", "skipped: the policy selected nothing to run")
 	}
-	if len(reqs) > MaxJobsPerRun {
+	if len(reqs) > k.maxJobs() {
 		return s.finishRun(ctx, k, sc, r, domain.RunFailed, domain.ErrorInternal,
-			fmt.Sprintf("the policy produced %d jobs; at most %d are allowed per run", len(reqs), MaxJobsPerRun))
+			fmt.Sprintf("the policy produced %d jobs; at most %d are allowed per run", len(reqs), k.maxJobs()))
 	}
 	linked := existing
 	failure := ""
@@ -658,9 +658,9 @@ func (s *Service) process(ctx context.Context, r domain.ScheduleRun, now time.Ti
 }
 
 // existingJobs finds jobs a previous attempt enqueued for the run.
-func (s *Service) existingJobs(ctx context.Context, key string) ([]domain.Job, error) {
+func (s *Service) existingJobs(ctx context.Context, key string, limit int) ([]domain.Job, error) {
 	var out []domain.Job
-	for i := range MaxJobsPerRun {
+	for i := range limit {
 		j, ok, err := store.FindJobByIdempotencyKey(ctx, s.db, &domain.Job{IdempotencyKey: jobKey(key, i)})
 		if err != nil {
 			return nil, err

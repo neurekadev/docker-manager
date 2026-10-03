@@ -196,8 +196,8 @@ func (r runSource) Validate(ctx context.Context, policyID string) error {
 }
 
 // Jobs plans the run from the latest check: nothing to update skips the
-// run; undeployed source changes refuse it (an update never deploys an
-// edit).
+// run; undeployed source changes refuse a record's run and leave the stack
+// out of the setup's (an update never deploys an edit).
 func (r runSource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request, error) {
 	if config, ok, err := r.s.setupOf(ctx, due.PolicyID); err != nil {
 		return nil, err
@@ -212,10 +212,9 @@ func (r runSource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request,
 			if err != nil {
 				return nil, err
 			}
-			if pl.drift {
-				return nil, scheduler.Reject(RejectSourceDrift, "a stack has undeployed changes: deploy it before updating")
-			}
-			if len(pl.items) == 0 {
+			// A stack with undeployed changes waits until it is deployed;
+			// the other targets go ahead.
+			if pl.drift || len(pl.items) == 0 {
 				continue
 			}
 			req, err := r.s.request(ctx, pl)

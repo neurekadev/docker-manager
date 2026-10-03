@@ -43,7 +43,9 @@ stay) and deleted the `update_policy.manage` rules below the instance.
 
 **Target records** (`update_policies` rows with a `parent_id`) are
 reconciled (`Service.reconcile`) whenever the setup's targets are listed,
-checked, previewed or run (manual or scheduled):
+checked, previewed or run (manual or scheduled). An environment that is
+offline, or whose containers cannot be listed right now (logged), keeps
+its container records as they are; the other environments go on:
 
 - A record is **named after its target** in plain words: "Automatic updates
   for zerobyte" (the stack's display name, else its Compose project name,
@@ -193,9 +195,10 @@ and **source drift** (undeployed changes), whether now is inside the
 window, and a fingerprint. `POST .../runs` takes an `Idempotency-Key`,
 optional `candidates` (IDs or service names) and the preview's
 `previewFingerprint` (`409 update_preview_stale` when anything changed
-since). Runs are refused with `409 update_source_drift` while the
-definition on disk differs from the applied revision (an update never
-deploys an edit) and `409 no_update_candidates` when nothing is
+since). A record's run is refused with `409 update_source_drift` while
+the definition on disk differs from the applied revision (an update never
+deploys an edit); a run of the setup leaves such a stack out and updates
+the others. `409 no_update_candidates` when nothing is
 `update_available`.
 
 Only candidates whose **last check succeeded** are applied: after a failed
@@ -261,8 +264,12 @@ revision is unchanged).
 `RunSource` (`update_run`); each lists the setup's schedule ("Automatic
 Updates", no environment). Validate refuses a disabled schedule and (runs)
 the window; `Jobs` reconciles the targets and plans from the latest check
-(nothing to do skips the run, drift refuses it). One run may enqueue up to
-`scheduler.MaxJobsPerRun` (256) jobs. Scheduled jobs run as the manager
+(nothing to do skips the run; a stack with undeployed changes is left out
+until it is deployed). One run may enqueue up to
+`scheduler.MaxUpdateJobsPerRun` (4096) jobs (the kinds' `MaxJobs`; other
+kinds keep `MaxJobsPerRun`, 256); manual checks and runs of the setup
+keep the same bound (422 beyond it). A start that fails part way cancels
+what it queued, 16 at a time, each within 10 s and all within 30 s. Scheduled jobs run as the manager
 service identity; manual ones carry the setup's ID for overlap
 prevention. A record created by hand (no setup; tests) has schedules of
 its own.
@@ -280,7 +287,10 @@ its own.
 The setup's routes need their capability on all environments (an
 instance grant), and its checks, previews and runs are refused (403,
 naming the environment) while a rule denies the capability in one of the
-covered environments. Target records accept grants on an environment, a
+covered environments; `GET /update-settings/targets` leaves out the
+targets of an environment where a rule denies `update_policy.read`. The
+stack page's Updates card is hidden from callers who may not read the
+setup. Target records accept grants on an environment, a
 stack or a container. Target jobs carry the setup's ID and are authorized
 again by the job engine against their stack or container target.
 
