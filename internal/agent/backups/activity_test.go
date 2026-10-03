@@ -79,7 +79,7 @@ func TestBackupRunReportsActivityWhenAsked(t *testing.T) {
 			t.Errorf("current file %q is not relative to the volume", f)
 		}
 	}
-	if out.Stats == nil || out.Stats.SizeBytes <= 0 || out.Stats.UncompressedBytes != 2*out.Stats.SizeBytes ||
+	if out.Stats == nil || out.Stats.SizeBytes <= 0 || out.Stats.SizeBytes != out.Stats.UncompressedBytes/2 ||
 		out.Stats.CompressionRatio != 2 || out.Stats.Snapshots == 0 {
 		t.Errorf("stats = %+v", out.Stats)
 	}

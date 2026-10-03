@@ -28,10 +28,10 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 			verify_time_zone, revision, created_at, updated_at) VALUES ('` + id + `', '` + id + `', '` + id + `', '` + kind + `', '` +
 			executor + `', '` + path + `', '', '` + bucket + `', 'ready', '0 5 * * 0', 'UTC', 1, '` + created + `', ` + at + `)`
 	}
-	policy := func(id, repo, envRepos string) string {
-		return `INSERT INTO backup_policies (id, name, name_key, repository_id, environment_repos, cron, time_zone, enabled, revision,
-			created_at, updated_at) VALUES ('` + id + `', '` + id + `', '` + id + `', '` + repo + `', '` + envRepos + `', '0 2 * * *', 'UTC', 1, 2, ` +
-			at + `, ` + at + `)`
+	policy := func(id, env, repo, envRepos string) string {
+		return `INSERT INTO backup_policies (id, name, name_key, environment_id, repository_id, environment_repos, cron, time_zone, enabled,
+			revision, created_at, updated_at) VALUES ('` + id + `', '` + id + `', '` + id + `', '` + env + `', '` + repo + `', '` + envRepos +
+			`', '0 2 * * *', 'UTC', 1, 2, ` + at + `, ` + at + `)`
 	}
 	snapshot := func(id, repo string) string {
 		return `INSERT INTO backup_snapshots (id, repository_id, scope, kind, item, restic_snapshot_id, snapshot_time, state, created_at)
@@ -71,8 +71,8 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 			repo("s3-old", "s3", "2026-02-01"),
 			snapshot("sn-s3", "s3-old"),
 			set("set-mixed", "disk", "s3-old"),
-			policy("p-disk", "disk", `{"env-b":"disk","env-c":"s3-new"}`),
-			policy("p-s3", "s3-new", `{}`),
+			policy("p-disk", "", "disk", `{"env-b":"disk","env-c":"s3-new"}`),
+			policy("p-s3", "env-a", "s3-new", `{}`),
 			rule("backup_policy", "p-disk"),
 			rule("backup_repository", "s3-old"),
 		))
@@ -98,7 +98,7 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 
 	t.Run("without one", func(t *testing.T) {
 		ctx := testutil.Context(t)
-		db := backupsDB(t, ctx, append(common, policy("p-disk", "disk", `{}`), rule("backup_policy", "p-disk")))
+		db := backupsDB(t, ctx, append(common, policy("p-disk", "", "disk", `{}`), rule("backup_policy", "p-disk")))
 		expect(t, ctx, db, `SELECT id FROM backup_policies`)
 		expect(t, ctx, db, `SELECT id FROM backup_repositories`)
 		expect(t, ctx, db, `SELECT resource_id FROM group_permission_rules`)
