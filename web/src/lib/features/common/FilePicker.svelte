@@ -136,6 +136,7 @@
 		dir = path;
 		filter = '';
 		active = '';
+		refused = '';
 	}
 
 	function up() {
@@ -158,8 +159,24 @@
 		return l && !l.truncated ? l.entries.map((e) => e.path) : undefined;
 	}
 
-	function flip(path: string) {
-		selection = toggle(selection, path, children);
+	// Why the last untick changed nothing (its folder can't be split).
+	let refused = $state('');
+
+	/** `box`: the clicked checkbox, set back to the selection when nothing changed. */
+	function flip(path: string, box?: HTMLInputElement) {
+		const next = toggle(selection, path, children);
+		const unchanged =
+			next.length === selection.length && next.every((p, i) => p === selection[i]);
+		refused =
+			unchanged && tickState(selection, path) === 'checked' && !selection.includes(path)
+				? 'This folder is listed only in part, so it is chosen whole. Untick the folder to leave it out.'
+				: '';
+		selection = next;
+		if (box) {
+			const state = tickState(next, path);
+			box.checked = state === 'checked';
+			box.indeterminate = state === 'mixed';
+		}
 	}
 
 	// One file: the list is a listbox; moving onto a file selects it.
@@ -320,7 +337,7 @@
 						checked={all === 'checked'}
 						indeterminate={all === 'mixed'}
 						disabled={!dir}
-						onchange={() => flip(dir)}
+						onchange={(e) => flip(dir, e.currentTarget)}
 					/>
 				{/if}
 				<span></span><span aria-hidden="true">Name</span><span class="r" aria-hidden="true"
@@ -339,7 +356,7 @@
 									hideLabel
 									checked={state === 'checked'}
 									indeterminate={state === 'mixed'}
-									onchange={() => flip(n.path)}
+									onchange={(e) => flip(n.path, e.currentTarget)}
 								/>
 								{@render cells(n)}
 							</li>
@@ -382,6 +399,9 @@
 			{/if}
 			{#if contents.data?.truncated}
 				<p class="status">{truncatedHint}</p>
+			{/if}
+			{#if refused}
+				<p class="status warn" role="status">{refused}</p>
 			{/if}
 		</div>
 	</div>
@@ -642,6 +662,10 @@
 
 	.status.error {
 		color: var(--danger);
+	}
+
+	.status.warn {
+		color: var(--warn);
 	}
 
 	.summary {
