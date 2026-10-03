@@ -40,8 +40,9 @@ const settings: BackupSettings = {
 	updatedAt: '2026-09-27T00:00:00Z'
 };
 
-/** Stubs the API; returns the writes (method and body) in order. */
-function stubApi() {
+/** Stubs the API; returns the writes (method and body) in order. A write
+ * answers `reject` when given. */
+function stubApi(reject?: () => Response) {
 	const writes: { method: string; path: string; body: unknown; ifMatch: string | null }[] = [];
 	vi.stubGlobal(
 		'fetch',
@@ -64,7 +65,7 @@ function stubApi() {
 					body,
 					ifMatch: input.headers.get('If-Match')
 				});
-				return json({ ...settings, ...(body as object), revision: 4 });
+				return reject?.() ?? json({ ...settings, ...(body as object), revision: 4 });
 			}
 			switch (url.pathname) {
 				case '/api/v1/environments':
@@ -159,5 +160,35 @@ describe('BackupSettingsDialog (#246)', () => {
 		expect(await screen.findByText(/Choose a Primary repository/)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 		expect(writes).toEqual([]);
+	});
+
+	it('saves with backups off and an emptied schedule, keeping the saved one', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const writes = stubApi();
+		renderDialog({ settings: { ...settings, schedule: { cron: '', timeZone: 'UTC' } } });
+		await screen.findByRole('heading', { name: 'Where and When', level: 3 });
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+		await vi.waitFor(() => expect(writes).toHaveLength(1));
+		expect(writes[0].body).not.toHaveProperty('schedule');
+	});
+
+	it('shows a schedule error the server returns while the schedule is hidden', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		stubApi(() =>
+			json(
+				{
+					code: 'validation_failed',
+					message: 'invalid request',
+					requestId: 'r',
+					retryable: false,
+					details: [{ field: 'body.schedule.cron', message: 'Use five fields.' }]
+				},
+				422
+			)
+		);
+		renderDialog({ settings });
+		await screen.findByRole('heading', { name: 'Where and When', level: 3 });
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent('Use five fields.');
 	});
 });

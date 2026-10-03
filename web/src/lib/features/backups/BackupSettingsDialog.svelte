@@ -94,6 +94,19 @@
 		return m;
 	});
 	const fields = $derived(fieldErrors(error));
+	// Field errors shown next to their field (the schedule's by the schedule
+	// field, only while on); any other one shows in the notice.
+	const inline = $derived([
+		'body.primaryRepositoryId',
+		'body.secondaryRepositoryId',
+		...(enabled ? ['body.schedule.cron', 'body.schedule.timeZone'] : [])
+	]);
+	const unshown = $derived(
+		Object.entries(fields)
+			.filter(([f]) => !inline.includes(f))
+			.map(([, message]) => message)
+	);
+	const showError = $derived(!!error && (Object.keys(fields).length === 0 || unshown.length > 0));
 	const problem = $derived(
 		enabled && !primary
 			? 'Choose a Primary repository before turning backups on.'
@@ -101,7 +114,7 @@
 				? 'The Secondary repository must differ from the Primary one.'
 				: enabled && ((primary && !ready(primary)) || (secondary && !ready(secondary)))
 					? 'Confirm the Recovery Key of the chosen repositories before turning backups on.'
-					: !cron.trim()
+					: enabled && !cron.trim()
 						? 'Choose when backups run.'
 						: null
 	);
@@ -119,7 +132,8 @@
 			externalBinds,
 			includeMetrics,
 			shutdown,
-			schedule: { cron, timeZone: zone },
+			// An emptied schedule (only possible while off) keeps the saved one.
+			...(cron.trim() ? { schedule: { cron, timeZone: zone } } : {}),
 			retention
 		};
 	}
@@ -208,13 +222,14 @@
 	dismissible={!busy}
 >
 	<form id="backup-settings-form" onsubmit={submit} oninput={changed} novalidate>
-		{#if error && Object.keys(fields).length === 0}
+		{#if showError}
 			<div class="error">
 				<Notice tone="danger" title="The settings were not saved" live="alert">
 					{actionError(error, {
 						recovery_key_not_confirmed:
 							'Confirm the Recovery Key of the chosen repositories before turning backups on.'
 					})}
+					{unshown.join(' ')}
 				</Notice>
 			</div>
 		{/if}
