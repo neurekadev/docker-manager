@@ -111,10 +111,14 @@ describe('BackupSettingsDialog (#246)', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const writes = stubApi();
 		renderDialog({ settings });
-		for (const section of ['Repositories', 'What to Back Up', 'Schedule', 'Retention'])
+		for (const section of ['What to Back Up', 'Where and When'])
 			expect(
 				await screen.findByRole('heading', { name: section, level: 3 })
 			).toBeInTheDocument();
+		for (const group of ['Repositories', 'Schedule', 'Retention'])
+			expect(screen.getByRole('group', { name: group })).toBeInTheDocument();
+		// The schedule shows only while backups run automatically.
+		expect(screen.queryByRole('group', { name: 'Backup Schedule' })).toBeNull();
 		// Rules no preset matches open as Custom with their fields.
 		expect(screen.getByRole('radio', { name: /^Custom/ })).toBeChecked();
 		expect(screen.getByRole('spinbutton', { name: /^Daily/ })).toHaveValue(7);
@@ -127,6 +131,7 @@ describe('BackupSettingsDialog (#246)', () => {
 			/^NAS/
 		);
 		await user.click(screen.getByRole('switch', { name: /Back Up Automatically/ }));
+		expect(screen.getByRole('group', { name: 'Backup Schedule' })).toBeInTheDocument();
 		expect(writes).toEqual([]);
 		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await vi.waitFor(() => expect(writes).toHaveLength(1));
@@ -149,7 +154,7 @@ describe('BackupSettingsDialog (#246)', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const writes = stubApi();
 		renderDialog({ settings: { ...settings, primaryRepositoryId: '' } });
-		await screen.findByRole('heading', { name: 'Repositories', level: 3 });
+		await screen.findByRole('heading', { name: 'Where and When', level: 3 });
 		await user.click(screen.getByRole('switch', { name: /Back Up Automatically/ }));
 		expect(await screen.findByText(/Choose a Primary repository/)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();

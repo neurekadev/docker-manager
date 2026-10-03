@@ -1,12 +1,14 @@
 <script lang="ts">
-	// Edit the backup settings (#10, #246) in a dialog: where backups go (a
-	// Primary repository and an optional Secondary one, each run backs up to
-	// both), the environments covered (every one unless left out, also ones
-	// added later), what to back up (every managed stack and volume,
-	// included until unchecked; anonymous and buildx volumes only when
-	// turned on; container shutdown, off by default, previewed), the
-	// schedule (#13) and retention. The manager state is always backed up.
-	// Nothing is saved before Save Changes. Render it only while open
+	// Edit the backup settings (#10, #246) in a dialog, laid out like the
+	// update settings: what to back up on the left (the environments
+	// covered, every one unless left out, also ones added later; every
+	// managed stack and volume, included until unchecked; anonymous and
+	// buildx volumes only when turned on; container shutdown, off by
+	// default), where and when on the right (a Primary repository and an
+	// optional Secondary one, each run backs up to both; Back Up
+	// Automatically, #13, its schedule shown only while on; retention),
+	// and the scope preview below both. The manager state is always backed
+	// up. Nothing is saved before Save Changes. Render it only while open
 	// ({#if}): each opening starts from `settings`.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -17,7 +19,6 @@
 	import { Button, CronField, Dialog, Notice, Select, Skeleton, Switch, toast } from '$lib/ui';
 	import CoverageList from '$lib/features/common/CoverageList.svelte';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
-	import Fields from '$lib/features/common/Fields.svelte';
 	import { ifMatch, stacksQuery } from '$lib/features/common/data';
 	import { actionError, fieldErrors } from '$lib/features/common/errors';
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
@@ -202,247 +203,249 @@
 <Dialog
 	bind:open
 	title="Edit Backups"
-	description="Every run backs up the manager state and every covered stack and volume to the Primary repository, then to the Secondary one."
+	description="Every run backs up to the Primary repository, then to the Secondary one."
 	size="xl"
 	dismissible={!busy}
 >
 	<form id="backup-settings-form" onsubmit={submit} oninput={changed} novalidate>
 		{#if error && Object.keys(fields).length === 0}
-			<Notice tone="danger" title="The settings were not saved" live="alert">
-				{actionError(error, {
-					recovery_key_not_confirmed:
-						'Confirm the Recovery Key of the chosen repositories before turning backups on.'
-				})}
-			</Notice>
+			<div class="error">
+				<Notice tone="danger" title="The settings were not saved" live="alert">
+					{actionError(error, {
+						recovery_key_not_confirmed:
+							'Confirm the Recovery Key of the chosen repositories before turning backups on.'
+					})}
+				</Notice>
+			</div>
 		{/if}
 		<div class="editor">
-			<div class="column">
-				<section aria-labelledby="backups-where">
-					<h3 class="subsection-title" id="backups-where">Repositories</h3>
-					<Fields>
-						{#if repos.isPending}
-							<Skeleton lines={2} height="36px" />
-						{:else if !allRepos.length}
-							<Notice tone="warn" title="No Repository Yet" live="none">
-								Add a backup repository and confirm its Recovery Key first.
-								{#snippet actions()}<Button
-										size="sm"
-										href={routes.backupRepositoryNew()}>Add Repository</Button
-									>{/snippet}
-							</Notice>
-						{:else}
-							<Select
-								label="Primary Repository"
-								options={repoOptions}
-								bind:value={primary}
-								placeholder="Choose a repository"
-								description={primaryRepo
-									? repositoryLocation(primaryRepo)
-									: undefined}
-								info="Every backup goes here first."
-								error={fields['body.primaryRepositoryId']}
-								onchange={changed}
+			<section class="column" aria-labelledby="backups-what">
+				<h3 class="subsection-title" id="backups-what">What to Back Up</h3>
+				<FieldGroup
+					legend="Environments"
+					hint="Uncheck an environment to leave it out. Environments added later are covered."
+				>
+					{#if envs.isPending}
+						<Skeleton lines={2} height="20px" />
+					{:else if !activeEnvs.length}
+						<p class="muted">No environments yet.</p>
+					{:else}
+						<CoverageList
+							label="Environments Covered"
+							min="180px"
+							items={activeEnvs.map((e) => ({
+								key: e.id,
+								label: e.name,
+								description: e.online ? undefined : 'Offline'
+							}))}
+							excluded={excludeEnvironments}
+							onchange={(v) => {
+								excludeEnvironments = v;
+								changed();
+							}}
+						/>
+					{/if}
+				</FieldGroup>
+				<FieldGroup
+					legend="Manager"
+					hint="Always backed up: needed to recover Docker Manager."
+				>
+					<Switch
+						label="Include the Metrics Database"
+						description="Charts history is large and can be rebuilt."
+						bind:checked={includeMetrics}
+						onchange={changed}
+					/>
+				</FieldGroup>
+				<FieldGroup
+					legend="Stacks"
+					hint="Uncheck a stack to leave it out. New stacks are included."
+				>
+					{#if stacks.isPending}
+						<Skeleton lines={3} height="20px" />
+					{:else if stacksList.length === 0}
+						<p class="muted">No stacks you can back up.</p>
+					{/if}
+					{#each coveredEnvs.filter((e) => stacksByEnv[e.id]?.length) as e (e.id)}
+						<div class="env-group">
+							<p class="env">{e.name}</p>
+							<CoverageList
+								label="Stacks on {e.name}"
+								min="200px"
+								items={stacksByEnv[e.id].map((s) => ({
+									key: s.id,
+									label: s.displayName || s.name
+								}))}
+								excluded={excludeStacks}
+								onchange={(v) => {
+									excludeStacks = v;
+									changed();
+								}}
 							/>
-							<Select
-								label="Secondary Repository"
-								options={[
-									{ value: '', label: 'None' },
-									...repoOptions.filter((o) => o.value !== primary)
-								]}
-								bind:value={secondary}
-								description={secondaryRepo
-									? repositoryLocation(secondaryRepo)
-									: 'A second, independent copy of every backup.'}
-								error={fields['body.secondaryRepositoryId']}
-								onchange={changed}
-							/>
-						{/if}
-					</Fields>
-				</section>
-				<section aria-labelledby="backups-what">
-					<h3 class="subsection-title" id="backups-what">What to Back Up</h3>
-					<Fields>
-						<FieldGroup
-							legend="Environments"
-							hint="Uncheck an environment to leave it out. Environments added later are covered."
-						>
-							{#if envs.isPending}
-								<Skeleton lines={2} height="20px" />
-							{:else if !activeEnvs.length}
-								<p class="muted">No environments yet.</p>
-							{:else}
-								<CoverageList
-									label="Environments Covered"
-									min="180px"
-									items={activeEnvs.map((e) => ({
-										key: e.id,
-										label: e.name,
-										description: e.online ? undefined : 'Offline'
-									}))}
-									excluded={excludeEnvironments}
-									onchange={(v) => {
-										excludeEnvironments = v;
-										changed();
-									}}
-								/>
-							{/if}
-						</FieldGroup>
-						<FieldGroup
-							legend="Manager"
-							hint="Always backed up: needed to recover Docker Manager."
-						>
-							<Switch
-								label="Include the Metrics Database"
-								description="Charts history is large and can be rebuilt."
-								bind:checked={includeMetrics}
-								onchange={changed}
-							/>
-						</FieldGroup>
-						<FieldGroup
-							legend="Stacks"
-							hint="Uncheck a stack to leave it out. New stacks are included."
-						>
-							{#if stacks.isPending}
-								<Skeleton lines={3} height="20px" />
-							{:else if stacksList.length === 0}
-								<p class="muted">No stacks you can back up.</p>
-							{/if}
-							{#each coveredEnvs.filter((e) => stacksByEnv[e.id]?.length) as e (e.id)}
-								<div class="env-group">
-									<p class="env">{e.name}</p>
-									<CoverageList
-										label="Stacks on {e.name}"
-										min="200px"
-										items={stacksByEnv[e.id].map((s) => ({
-											key: s.id,
-											label: s.displayName || s.name
-										}))}
-										excluded={excludeStacks}
-										onchange={(v) => {
-											excludeStacks = v;
-											changed();
-										}}
-									/>
-								</div>
-							{/each}
-							<Switch
-								label="Back Up Allowed Folders Outside Stacks"
-								description="Folders a stack mounts from outside its own folder, such as /srv/media, if the server allows them."
-								bind:checked={externalBinds}
-								onchange={changed}
-							/>
-						</FieldGroup>
-						<FieldGroup legend="Volumes" hint="Uncheck a volume to leave it out.">
-							<Switch
-								label="Back Up Anonymous Volumes"
-								description="They usually hold caches and scratch data that containers recreate."
-								bind:checked={anonymousVolumes}
-								onchange={changed}
-							/>
-							<Switch
-								label="Back Up buildx Builder Volumes"
-								description="Build cache, rebuilt when needed."
-								bind:checked={buildxVolumes}
-								onchange={changed}
-							/>
-							{#each coveredEnvs.filter((e) => e.online) as e (e.id)}
-								<VolumeCoverage
-									environmentId={e.id}
-									environmentName={e.name}
-									excluded={excludeVolumes}
-									excludedStacks={excludeStacks}
-									anonymous={anonymousVolumes}
-									buildx={buildxVolumes}
-									onchange={(v) => {
-										excludeVolumes = v;
-										changed();
-									}}
-								/>
-							{/each}
-							{#each coveredEnvs.filter((e) => !e.online) as e (e.id)}
-								<p class="muted small">
-									{e.name} is offline: its volumes can't be listed. Saved exclusions
-									are kept.
-								</p>
-							{/each}
-						</FieldGroup>
-						<FieldGroup
-							legend="Running Containers"
-							hint="Live backups are crash-consistent: fine for most data; databases are safe this way only if they survive a power loss."
-						>
-							<Switch
-								label="Stop Containers During Backups"
-								description="Containers using the data stop during each copy and start again afterwards."
-								bind:checked={shutdown}
-								onchange={changed}
-							/>
-							{#if shutdown}
-								<Notice
-									tone="warn"
-									icon={TriangleAlert}
-									title="Services Are Down While Their Data Is Backed Up"
-									live="none"
-								>
-									With a Secondary repository, they stop once for each copy.
-									Preview which containers stop and in which order.
-								</Notice>
-							{/if}
-						</FieldGroup>
-						<div class="preview-bar">
-							<Button onclick={previewScope} loading={scopeLoading}
-								>{scope && scopeStale
-									? 'Preview Again'
-									: shutdown
-										? 'Preview What Gets Backed Up and Stopped'
-										: 'Preview What Gets Backed Up'}</Button
-							>
 						</div>
-						{#if scopeError}<Notice
-								tone="danger"
-								title="The preview could not be computed"
-								live="alert">{scopeError}</Notice
-							>{/if}
-						{#if scope}
-							{#if scopeStale}
-								<Notice tone="info" title="Out of Date" live="polite">
-									Press <strong>Preview Again</strong> to include your latest changes.
-								</Notice>
-							{/if}
-							<div class:stale={scopeStale}>
-								<ScopePreviewView
-									preview={scope}
-									showShutdown={shutdown && !scopeStale}
-									stackName={(id) => {
-										const s = stacks.data?.find((x) => x.id === id);
-										return s?.displayName || s?.name;
-									}}
-								/>
-							</div>
-						{/if}
-					</Fields>
-				</section>
-			</div>
-			<div class="column">
-				<section aria-labelledby="backups-when">
-					<h3 class="subsection-title" id="backups-when">Schedule</h3>
-					<Fields>
-						<Switch
-							label="Back Up Automatically"
-							description="Needs the Primary and Secondary repositories' Recovery Key confirmed."
-							bind:checked={enabled}
+					{/each}
+					<Switch
+						label="Back Up Allowed Folders Outside Stacks"
+						description="Folders a stack mounts from outside its own folder, such as /srv/media, if the server allows them."
+						bind:checked={externalBinds}
+						onchange={changed}
+					/>
+				</FieldGroup>
+				<FieldGroup legend="Volumes" hint="Uncheck a volume to leave it out.">
+					<Switch
+						label="Back Up Anonymous Volumes"
+						description="They usually hold caches and scratch data that containers recreate."
+						bind:checked={anonymousVolumes}
+						onchange={changed}
+					/>
+					<Switch
+						label="Back Up buildx Builder Volumes"
+						description="Build cache, rebuilt when needed."
+						bind:checked={buildxVolumes}
+						onchange={changed}
+					/>
+					{#each coveredEnvs.filter((e) => e.online) as e (e.id)}
+						<VolumeCoverage
+							environmentId={e.id}
+							environmentName={e.name}
+							excluded={excludeVolumes}
+							excludedStacks={excludeStacks}
+							anonymous={anonymousVolumes}
+							buildx={buildxVolumes}
+							onchange={(v) => {
+								excludeVolumes = v;
+								changed();
+							}}
+						/>
+					{/each}
+					{#each coveredEnvs.filter((e) => !e.online) as e (e.id)}
+						<p class="muted small">
+							{e.name} is offline: its volumes can't be listed. Saved exclusions are kept.
+						</p>
+					{/each}
+				</FieldGroup>
+				<FieldGroup
+					legend="Running Containers"
+					hint="Live backups are crash-consistent: fine for most data; databases are safe this way only if they survive a power loss."
+				>
+					<Switch
+						label="Stop Containers During Backups"
+						description="Containers using the data stop during each copy and start again afterwards."
+						bind:checked={shutdown}
+						onchange={changed}
+					/>
+					{#if shutdown}
+						<Notice
+							tone="warn"
+							icon={TriangleAlert}
+							title="Services Are Down While Their Data Is Backed Up"
+							live="none"
+						>
+							With a Secondary repository, they stop once for each copy. Preview which
+							containers stop and in which order.
+						</Notice>
+					{/if}
+				</FieldGroup>
+			</section>
+			<section class="column" aria-labelledby="backups-where">
+				<h3 class="subsection-title" id="backups-where">Where and When</h3>
+				<FieldGroup legend="Repositories">
+					{#if repos.isPending}
+						<Skeleton lines={2} height="36px" />
+					{:else if !allRepos.length}
+						<Notice tone="warn" title="No Repository Yet" live="none">
+							Add a backup repository and confirm its Recovery Key first.
+							{#snippet actions()}<Button
+									size="sm"
+									href={routes.backupRepositoryNew()}>Add Repository</Button
+								>{/snippet}
+						</Notice>
+					{:else}
+						<Select
+							label="Primary Repository"
+							options={repoOptions}
+							bind:value={primary}
+							placeholder="Choose a repository"
+							description={primaryRepo ? repositoryLocation(primaryRepo) : undefined}
+							info="Every backup goes here first."
+							error={fields['body.primaryRepositoryId']}
 							onchange={changed}
 						/>
-						<CronField label="Schedule" kind="backup" bind:cron bind:timeZone={zone} />
-					</Fields>
-				</section>
-				<section aria-labelledby="backups-keep">
-					<h3 class="subsection-title" id="backups-keep">Retention</h3>
+						<Select
+							label="Secondary Repository"
+							options={[
+								{ value: '', label: 'None' },
+								...repoOptions.filter((o) => o.value !== primary)
+							]}
+							bind:value={secondary}
+							description={secondaryRepo
+								? repositoryLocation(secondaryRepo)
+								: 'A second, independent copy of every backup.'}
+							error={fields['body.secondaryRepositoryId']}
+							onchange={changed}
+						/>
+					{/if}
+				</FieldGroup>
+				<FieldGroup
+					legend="Schedule"
+					info="Runs missed while Docker Manager was down are made up by one run when it is back."
+				>
+					<Switch
+						label="Back Up Automatically"
+						bind:checked={enabled}
+						onchange={changed}
+					/>
+					{#if enabled}
+						<CronField
+							label="Backup Schedule"
+							kind="backup"
+							bind:cron
+							bind:timeZone={zone}
+						/>
+					{/if}
+				</FieldGroup>
+				<FieldGroup legend="Retention">
 					<RetentionEditor bind:value={retention} preview onchange={changed} />
-				</section>
+				</FieldGroup>
+			</section>
+		</div>
+		<div class="scope">
+			<div class="preview-bar">
+				<Button onclick={previewScope} loading={scopeLoading}
+					>{scope && scopeStale
+						? 'Preview Again'
+						: shutdown
+							? 'Preview What Gets Backed Up and Stopped'
+							: 'Preview What Gets Backed Up'}</Button
+				>
 			</div>
+			{#if scopeError}<Notice
+					tone="danger"
+					title="The preview could not be computed"
+					live="alert">{scopeError}</Notice
+				>{/if}
+			{#if scope}
+				{#if scopeStale}
+					<Notice tone="info" title="Out of Date" live="polite">
+						Press <strong>Preview Again</strong> to include your latest changes.
+					</Notice>
+				{/if}
+				<div class:stale={scopeStale}>
+					<ScopePreviewView
+						preview={scope}
+						showShutdown={shutdown && !scopeStale}
+						stackName={(id) => {
+							const s = stacks.data?.find((x) => x.id === id);
+							return s?.displayName || s?.name;
+						}}
+					/>
+				</div>
+			{/if}
 		</div>
 		{#if problem && touched}
-			<Notice tone="warn" title="Not Ready to Save" live="polite">{problem}</Notice>
+			<div class="problem">
+				<Notice tone="warn" title="Not Ready to Save" live="polite">{problem}</Notice>
+			</div>
 		{/if}
 	</form>
 	{#snippet footer()}
@@ -478,6 +481,14 @@
 		opacity: 0.55;
 	}
 
+	.error {
+		margin-bottom: var(--space-4);
+	}
+
+	.problem {
+		margin-top: var(--space-4);
+	}
+
 	.preview-bar {
 		display: flex;
 		flex-wrap: wrap;
@@ -492,15 +503,19 @@
 		gap: var(--space-6);
 	}
 
-	.column,
-	section {
+	.column {
 		display: grid;
 		gap: var(--space-4);
 		min-width: 0;
 	}
 
-	.column {
-		gap: var(--space-6);
+	/* The preview spans both columns, below them. */
+	.scope {
+		display: grid;
+		gap: var(--space-4);
+		margin-top: var(--space-6);
+		padding-top: var(--space-5);
+		border-top: 1px solid var(--border-subtle);
 	}
 
 	@media (max-width: 1023px) {
