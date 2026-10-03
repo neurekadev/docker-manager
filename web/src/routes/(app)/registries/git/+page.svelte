@@ -174,7 +174,7 @@
 {:else}
 	<Card
 		title="Credentials"
-		subtitle="Builds from private HTTPS repositories use the credential whose host and path match."
+		info="Builds from private HTTPS repositories use the credential whose host and path match."
 		padding="none"
 	>
 		{#if list.isPending}
@@ -191,7 +191,7 @@
 					<EmptyState
 						{...resourceIcon('gitCredential')}
 						title="No Git credentials yet."
-						description="Public repositories need none. Add one to build images from a private repository."
+						description="Public repositories need none. Add one to build from a private repository."
 						level={3}
 						compact
 					/>

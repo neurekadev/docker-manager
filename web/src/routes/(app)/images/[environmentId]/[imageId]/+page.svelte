@@ -180,15 +180,7 @@
 			onretry={() => q.refetch()}
 		/>
 	{:else if im}
-		<PageHeader
-			{title}
-			truncate
-			description={im.repoTags.length > 1
-				? `Also tagged ${im.repoTags.slice(1, 3).join(', ')}${im.repoTags.length > 3 ? ` and ${im.repoTags.length - 3} more` : ''}.`
-				: undefined}
-			{...resourceIcon('image')}
-			{meta}
-		>
+		<PageHeader {title} truncate {...resourceIcon('image')} {meta}>
 			{#snippet status()}
 				{#if im.inUse}<Badge tone="ok" dot>In Use</Badge>{:else}<Badge>Unused</Badge>{/if}
 				{#if im.protection}<ProtectionBadge
@@ -265,10 +257,7 @@
 							</li>{/each}
 					</ul>
 				{:else}
-					<p class="muted">
-						Untagged: a newer image took its tag. Unused untagged images are safe to
-						remove.
-					</p>
+					<p class="muted">Untagged: a newer image took its tag.</p>
 				{/if}
 			</Card>
 			<Card title="Used By">

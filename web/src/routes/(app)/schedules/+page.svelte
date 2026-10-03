@@ -201,10 +201,7 @@
 	<DeniedState level={1} />
 {:else}
 	<Page>
-		<PageHeader
-			title="Schedules"
-			description="Every scheduled policy in one place. Times are shown in each policy's own time zone."
-		>
+		<PageHeader title="Schedules" info="Times are in each policy's own time zone.">
 			{#snippet actions()}
 				{#if can(accessOf(perms.data), 'settings.read')}
 					<Button icon={SlidersHorizontal} href={routes.scheduleDefaults()}
@@ -254,7 +251,7 @@
 								<EmptyState
 									{...resourceIcon('schedule')}
 									title="No scheduled policies yet."
-									description="Backups, update checks and prunes run on schedules. Create a policy and choose when it runs; new policies start disabled."
+									description="Create a backup, update or maintenance policy and turn its schedule on."
 									level={3}
 									compact
 								/>

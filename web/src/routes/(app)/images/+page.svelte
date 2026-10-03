@@ -228,12 +228,7 @@
 	/>
 {:else}
 	<Page>
-		<PageHeader
-			title="Images"
-			description="Images on {scope.single
-				? scope.targets[0]?.name
-				: 'your environments'}, with the containers that use them."
-		>
+		<PageHeader title="Images">
 			{#snippet actions()}
 				<PruneButton target="images" {scope} />
 				{#if pullable.length}
@@ -335,12 +330,9 @@
 							summary="{groups.untagged.length} untagged {groups.untagged.length === 1
 								? 'image'
 								: 'images'}, {formatBytes(untaggedSize)}"
+							hint="Older versions whose tag moved to a newer image. Unused ones are safe to remove."
 							open={!groups.tagged.length}
 						>
-							<p class="hint">
-								Older versions whose tag moved to a newer image. Unused ones are
-								safe to remove.
-							</p>
 							<Table
 								label="Untagged Images"
 								rows={groups.untagged}
@@ -404,12 +396,6 @@
 	/* The untagged table spans the card like the main one. */
 	.untagged :global(.scroll) {
 		margin: 0 calc(-1 * var(--space-4));
-	}
-
-	.hint {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-caption);
 	}
 
 	.loading {

@@ -14,7 +14,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
   so never build a tooltip by hand; an (i) that explains something is
   `InfoTip` (or `Disclosure`'s `hint` in a summary): an info tip that a
-  tap opens too, since phones have no hover; confirmations use `ConfirmDialog` /
+  tap opens too, since phones have no hover; titles and labels take it
+  through `info` (`Card`, `PageHeader`, the Field-based controls,
+  `Switch`, `Checkbox`, `FieldGroup`), never as a hand-built span;
+  optional fields set `optional` (a muted "Optional" after the label),
+  never "Optional." in their description; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
   for high impact), only for damaging actions (stop, take down, delete,
   remove; start, restart and deploy run at once); Start, Restart and Stop
@@ -172,8 +176,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   users get `DeniedState`. The server still decides.
 - **Copy:** buttons name the result and the toast repeats it ("Deployed
   Silo"); errors say what happened and what to do, no apology; empty states
-  invite action; no all-caps labels. **Names and labels are Title Case**
-  (#219): navigation, page titles and crumbs, card, section and dialog
+  invite action; no all-caps labels. Keep it lean (#233; design guide,
+  "Copy rules"): no description that restates a title, label, column or
+  placeholder; occasional explanations go behind `info`; what prevents
+  data loss, secret exposure or a misread result stays visible. **Names
+  and labels are Title Case** (#219): navigation, page titles and crumbs, card, section and dialog
   titles, tabs, column headers, field, checkbox, switch and option labels,
   menu items, buttons, badges and status labels, empty-state titles, filter
   labels, job kind labels and short label maps ("Image Updates", "Last

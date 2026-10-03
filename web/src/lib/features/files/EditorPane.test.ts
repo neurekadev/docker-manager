@@ -92,13 +92,13 @@ describe('EditorPane', () => {
 		await waitFor(() => expect(screen.queryByText(/changed on disk/)).toBeNull());
 	});
 
-	it('says calmly that saving a Compose file does not deploy', async () => {
+	it('offers no deploy while the Compose file matches the deployed revision', async () => {
 		const { api } = fakeFiles();
 		const session = new EditorSession(api);
 		session.open('compose.yaml');
 		render(EditorHarness, { props: { files: api, session } });
 		await waitFor(() => expect(session.current?.status).toBe('ready'));
-		expect(screen.getByText("Saving doesn't deploy Silo.")).toBeInTheDocument();
+		expect(screen.queryByText(/deployed yet/)).toBeNull();
 		expect(screen.queryByRole('button', { name: /Deploy/ })).toBeNull();
 		expect(screen.getByRole('button', { name: 'Wrap Long Lines' })).toHaveAttribute(
 			'aria-pressed',

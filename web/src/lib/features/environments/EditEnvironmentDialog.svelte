@@ -70,11 +70,7 @@
 	}
 </script>
 
-<Dialog
-	bind:open
-	title="Edit {env.name}"
-	description="The name and address are Docker Manager's; nothing on the host changes."
->
+<Dialog bind:open title="Edit {env.name}" description="Nothing on the host changes.">
 	<form id="edit-environment" class="form" onsubmit={save}>
 		<TextField
 			label="Name"
@@ -82,7 +78,6 @@
 			required
 			maxlength={64}
 			autocomplete="off"
-			description="Shown everywhere in Docker Manager. The Engine host name stays as it is."
 			error={fieldError(error, 'body.name')}
 		/>
 		<TextField
@@ -92,7 +87,8 @@
 			maxlength={253}
 			autocomplete="off"
 			placeholder="192.168.1.10 or nas.home.arpa"
-			description="Optional. The host name or IP address you browse to; published ports become links. Leave empty to remove the links."
+			optional
+			description="Turns published ports into links."
 			error={fieldError(error, 'body.serviceAddress')}
 		/>
 		{#if conflict}

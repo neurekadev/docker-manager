@@ -5,7 +5,9 @@
 <script lang="ts">
 	// Tri-state permission control (#17 user overrides): Inherit / Allow /
 	// Deny as a segmented radio group. With Inherit selected it states the
-	// effective value and where it comes from, so the effect is never hidden.
+	// effective value and where it comes from, so the effect is never hidden;
+	// an explicit Allow or Deny shows itself, so its explanation is for
+	// screen readers only (the group's description).
 	interface Props {
 		/** Names the capability and scope, e.g. "Restart containers on homelab". */
 		label: string;
@@ -80,7 +82,9 @@
 			</label>
 		{/each}
 	</div>
-	{#if explanation}<span class="why" id="tri-{uid}-why">{explanation}</span>{/if}
+	{#if explanation}<span class="why" class:sr-only={value !== 'inherit'} id="tri-{uid}-why"
+			>{explanation}</span
+		>{/if}
 </div>
 
 <style>

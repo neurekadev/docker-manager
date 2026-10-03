@@ -108,7 +108,7 @@
 <Dialog
 	bind:open
 	title={credential ? `Edit ${credential.name}` : 'Add a Git Credential'}
-	description="For builds from private repositories over HTTPS. Shared by the whole instance; builds get the token only while they run."
+	description="Shared by the whole instance; builds get the token only while they run."
 	size="lg"
 	dismissible={!busy}
 >
@@ -143,7 +143,8 @@
 				mono
 				bind:value={pathPrefix}
 				placeholder="acme"
-				description="Optional. Only repositories under this path get the token; empty: every repository on the host."
+				optional
+				description="Empty: every repository on the host."
 			/>
 		</div>
 		<TextField
@@ -152,7 +153,7 @@
 			required
 			bind:value={username}
 			autocomplete="off"
-			description="For GitHub and GitLab tokens any name works, e.g. x-access-token or oauth2."
+			info="For GitHub and GitLab tokens any name works, e.g. x-access-token or oauth2."
 		/>
 		{#if credential}
 			<div class="full">

@@ -23,10 +23,7 @@
 </script>
 
 <Page>
-	<SettingsHeader
-		title="Move to a New Server"
-		description="Move Docker Manager and the apps on its server to another server."
-	/>
+	<SettingsHeader title="Move to a New Server" />
 	{#if !perms.data}
 		<Card><Skeleton lines={4} /></Card>
 	{:else if !access.owner}

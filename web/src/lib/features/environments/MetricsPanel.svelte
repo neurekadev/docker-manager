@@ -57,7 +57,11 @@
 	const rangeOptions = METRIC_RANGES.map((r) => ({ value: r.id, label: `Last ${r.label}` }));
 </script>
 
-<Card title="Metrics" id="metrics">
+<Card
+	title="Metrics"
+	id="metrics"
+	info="Longer ranges show averages. Shaded spans have no data: the environment was offline or not reporting."
+>
 	{#snippet actions()}
 		<div class="range">
 			<Select label="Range" hideLabel options={rangeOptions} bind:value={range} />
@@ -76,14 +80,12 @@
 			{#each [0, 1, 2, 3] as i (i)}<Skeleton height="200px" radius="md" />{/each}
 		</div>
 	{:else}
-		<p class="meta muted">
-			{m.resolution === 'raw' ? '' : 'Longer ranges show averages. '}Shaded spans have no
-			data: the environment was offline or not reporting.
-		</p>
 		{#if m.skewCorrected}
-			<Notice tone="info" title="Some timestamps were corrected" live="none">
-				The host's clock is off, so Docker Manager moved its samples to the right time.
-			</Notice>
+			<div class="skew">
+				<Notice tone="info" title="Some timestamps were corrected" live="none">
+					The host's clock is off; its samples were moved to the right time.
+				</Notice>
+			</div>
 		{/if}
 		<div class="grid">
 			<TimeSeriesChart
@@ -252,9 +254,8 @@
 		width: 170px;
 	}
 
-	.meta {
+	.skew {
 		margin-bottom: var(--space-4);
-		font-size: var(--text-caption);
 	}
 
 	.grid {

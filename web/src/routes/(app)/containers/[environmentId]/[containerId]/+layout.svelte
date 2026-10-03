@@ -273,8 +273,7 @@
 				title="Part of the Stack {c.stack.project}"
 				live="none"
 			>
-				Change this container through its stack: settings changes and removal here are
-				refused.
+				Change or remove it through its stack.
 				{#if c.stack.stackId}<a href={routes.stack(c.stack.stackId)}>Open the stack</a
 					>.{/if}
 			</Notice>

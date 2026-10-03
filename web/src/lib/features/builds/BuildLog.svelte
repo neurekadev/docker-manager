@@ -51,10 +51,7 @@
 	</div>
 {/if}
 {#if gone}
-	<p class="empty muted">
-		The log of this build is no longer kept (old job records are cleaned up). Its result and
-		commit are above.
-	</p>
+	<p class="empty muted">This build's log is no longer kept.</p>
 {:else if w.error && !w.job}
 	<p class="empty muted">The log could not be loaded: {errorMessage(w.error)}</p>
 {:else if w.log.length === 0}

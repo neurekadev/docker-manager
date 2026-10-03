@@ -14,6 +14,10 @@
 		value?: string;
 		placeholder?: string;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		/** Shown when nothing matches. */
 		emptyText?: string;
@@ -25,6 +29,8 @@
 		options,
 		value = $bindable(''),
 		placeholder,
+		info,
+		optional = false,
 		description,
 		error,
 		emptyText = 'No matches',
@@ -40,7 +46,7 @@
 	const selectedLabel = $derived(options.find((o) => o.value === value)?.label ?? '');
 </script>
 
-<Field {label} {description} {error}>
+<Field {label} {description} {info} {optional} {error}>
 	{#snippet children(c)}
 		<Combobox.Root
 			type="single"

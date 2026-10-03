@@ -66,7 +66,6 @@
 	import {
 		RECOVERY_KEY_SCOPE,
 		compressionText,
-		connectionTestText,
 		ratioText,
 		repositoryLocation,
 		repositoryStatusLine,
@@ -312,11 +311,9 @@
 			<PageHeader
 				title={r.name}
 				{...resourceIcon('backupRepository')}
-				description={r.state !== 'ready'
-					? 'Waiting for the owner to confirm the Recovery Key: nothing is stored here yet.'
-					: health.data
-						? repositoryStatusLine(health.data, r.storage?.sizeBytes)
-						: undefined}
+				description={r.state === 'ready' && health.data
+					? repositoryStatusLine(health.data, r.storage?.sizeBytes)
+					: undefined}
 				meta={[
 					{ label: r.kind === 's3' ? 'S3 Storage' : 'Local Directory' },
 					{
@@ -356,7 +353,7 @@
 			{#if r.state === 'awaiting_confirmation'}
 				<Card
 					title="Confirm the Recovery Key"
-					subtitle="Nothing is written to this repository and no policy can use it until the owner re-enters the key."
+					subtitle="Nothing is stored here until the owner re-enters the key."
 				>
 					{#if owner}
 						<RecoveryKeyChallenge
@@ -468,7 +465,7 @@
 								<p>{verificationText(r.verification)}</p>
 								<p class="muted small note">
 									{r.lastTest
-										? `Connection: ${connectionTestText(r.lastTest).toLowerCase()}.`
+										? `Connection ${r.lastTest.ok ? 'works' : 'failed'}, last checked ${formatRelative(r.lastTest.at)}.`
 										: 'The connection has not been tested yet.'}
 								</p>
 							</Card>
@@ -505,7 +502,7 @@
 						{#if health.data}
 							<Card
 								title="Locations"
-								subtitle="Docker Manager keeps one restic repository per scope below this destination: the manager state and each environment."
+								info="One restic repository per scope: the manager state and each environment."
 								padding="none"
 							>
 								{#snippet actions()}
@@ -597,12 +594,13 @@
 				<Fields>
 					<TextField label="Name" bind:value={editName} required />
 					{#if r.kind === 's3'}
-						<TextField label="Region" description="Optional." bind:value={editRegion} />
+						<TextField label="Region" optional bind:value={editRegion} />
 						<Switch label="Path-Style Addressing" bind:checked={editPathStyle} />
 						<TextField
 							label="New Access Key ID"
 							mono
-							description="Optional. Replaces the stored key pair (both fields)."
+							optional
+							description="Replaces the stored key pair."
 							bind:value={editAccessKey}
 							autocomplete="off"
 						/>
@@ -653,11 +651,7 @@
 				description="Checks every location of {r.name} for damage."
 			>
 				<Fields>
-					<Switch
-						label="Verify Automatically"
-						description="Off: verify by hand with Verify on one of its backups."
-						bind:checked={vEnabled}
-					/>
+					<Switch label="Verify Automatically" bind:checked={vEnabled} />
 					{#if vEnabled}
 						<CronField
 							label="Schedule"

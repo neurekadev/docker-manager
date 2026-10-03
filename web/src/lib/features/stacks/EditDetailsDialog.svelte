@@ -84,13 +84,7 @@
 	}
 </script>
 
-<Dialog
-	bind:open
-	title="Edit Details of {stackTitle(initial)}"
-	description="Details are stored in Docker Manager. Compose files are never changed."
-	size="md"
-	dismissible={!saving}
->
+<Dialog bind:open title="Edit Details of {stackTitle(initial)}" size="md" dismissible={!saving}>
 	<form
 		class="form"
 		id="stack-details"
@@ -102,9 +96,10 @@
 		<TextField
 			label="Display Name"
 			bind:value={displayName}
-			description="Optional. Shown instead of the project name {initial.name}."
+			optional
+			description="Shown instead of {initial.name}."
 		/>
-		<TextArea label="Description" bind:value={description} description="Optional." />
+		<TextArea label="Description" bind:value={description} optional />
 		<LinksEditor
 			bind:rows={links}
 			showAll={showLinkProblems}

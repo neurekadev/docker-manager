@@ -294,14 +294,12 @@
 		     stays away from this page), and the agent's version once. -->
 		{#if archived}
 			<Notice tone="info" title="{e.name} is archived" live="none">
-				Archived {e.archivedAt ? formatRelative(e.archivedAt) : ''}: hidden from operations;
-				its stacks, history and backups are kept. Re-attach it by running an agent on the
-				same host.
+				Archived {e.archivedAt ? formatRelative(e.archivedAt) : ''}. Its stacks, history and
+				backups are kept.
 			</Notice>
 		{:else if detached}
 			<Notice tone="offline" title="{e.name} has no agent" live="none">
-				Its agent was removed, so it stays offline. Re-attach it by running an agent on the
-				same host.
+				Its agent was removed. Re-attach it to bring it back online.
 			</Notice>
 		{:else if !e.online}
 			<OfflineEnvironment name={e.name} since={e.connectionChangedAt} />
@@ -419,9 +417,7 @@
 												: '—'}
 											icon={Timer}
 											color="green"
-											secondary={e.online
-												? 'Since the host started'
-												: 'Offline'}
+											secondary={e.online ? undefined : 'Offline'}
 										/>
 									{/if}
 								</KpiRow>
@@ -546,7 +542,7 @@
 							<a
 								class="small"
 								href="{routes.jobs()}?environment={encodeURIComponent(e.id)}"
-								>All Jobs with Filters</a
+								>View All Jobs</a
 							>
 						{/snippet}
 						{#if jobs.isPending}
@@ -566,7 +562,7 @@
 								{#snippet empty()}
 									<EmptyState
 										title="No jobs on {e.name} yet."
-										description="Deploys, pulls, prunes and backups on this environment show up here."
+										description="Deploys, pulls, prunes and backups show up here."
 										level={3}
 										compact
 									/>

@@ -209,7 +209,7 @@ describe('marks and notices', () => {
 		expect(compose.closest('details')).toHaveAttribute('open');
 		expect(screen.getByText('None on the volume itself.')).toBeInTheDocument();
 		expect(
-			screen.getByRole('img', { name: /Docker keeps the labels a volume was created with/ })
+			screen.getByRole('img', { name: /Docker can't add them to an existing volume/ })
 		).toBeInTheDocument();
 		expect(screen.getByText('1 system label')).toBeInTheDocument();
 	});

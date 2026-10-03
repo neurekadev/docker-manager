@@ -7,6 +7,10 @@
 		label: string;
 		value?: string;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		hideLabel?: boolean;
 		mono?: boolean;
@@ -16,6 +20,8 @@
 	let {
 		label,
 		value = $bindable(''),
+		info,
+		optional = false,
 		description,
 		error,
 		hideLabel = false,
@@ -28,7 +34,16 @@
 	}: Props = $props();
 </script>
 
-<Field {label} {description} {error} {hideLabel} required={!!required} id={id ?? undefined}>
+<Field
+	{label}
+	{description}
+	{info}
+	{optional}
+	{error}
+	{hideLabel}
+	required={!!required}
+	id={id ?? undefined}
+>
 	{#snippet children(c)}
 		<input
 			bind:this={ref}

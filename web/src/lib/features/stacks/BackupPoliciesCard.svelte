@@ -35,7 +35,7 @@
 	const hidden = $derived((policies.data ?? []).some((p) => p.view === 'minimal'));
 </script>
 
-<Card title="Backups" id="backups" subtitle="System backup policies that include this stack">
+<Card title="Backups" id="backups">
 	{#snippet actions()}
 		<Button size="sm" href={routes.backups()}>Open Backups</Button>
 	{/snippet}

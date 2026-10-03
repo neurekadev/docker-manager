@@ -10,15 +10,23 @@
 <script lang="ts">
 	// Field (#22): label, optional description, the control and its error.
 	// Required fields carry `required` on the control (no visual asterisk);
-	// optional ones say "Optional." in their description.
+	// optional ones set `optional`: a muted "Optional" after the label (the
+	// description never says it). `info` puts an (i) after the label for an
+	// explanation needed only now and then (InfoTip); keep `description`
+	// for what the user needs to fill the field in.
 	// The control receives id, aria-describedby and aria-invalid through the
 	// snippet argument; errors say what is wrong and how to fix it.
 	import type { Snippet } from 'svelte';
+	import InfoTip from './InfoTip.svelte';
 	import './field.css';
 
 	interface Props {
 		label: string;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		required?: boolean;
 		/** Keep the label for screen readers only. */
@@ -32,6 +40,8 @@
 	let {
 		label,
 		description,
+		info,
+		optional = false,
 		error,
 		required = false,
 		hideLabel = false,
@@ -42,7 +52,11 @@
 	const uid = $props.id();
 	const controlId = $derived(id ?? `f-${uid}`);
 	const describedBy = $derived(
-		[description ? `${controlId}-desc` : '', error ? `${controlId}-err` : '']
+		[
+			description ? `${controlId}-desc` : '',
+			info ? `${controlId}-info` : '',
+			error ? `${controlId}-err` : ''
+		]
 			.filter(Boolean)
 			.join(' ') || undefined
 	);
@@ -50,9 +64,13 @@
 
 <div class="field" data-required={required || undefined}>
 	<div class="label-row" class:sr-only={hideLabel}>
-		<label for={controlId}>
-			{label}
-		</label>
+		<span class="label-start">
+			<label for={controlId}>
+				{label}
+			</label>
+			{#if optional}<span class="optional" aria-hidden="true">Optional</span>{/if}
+			{#if info}<InfoTip id="{controlId}-info" text={info} />{/if}
+		</span>
 		{#if aside}{@render aside()}{/if}
 	</div>
 	{#if description}<p class="desc" id="{controlId}-desc">{description}</p>{/if}
@@ -73,6 +91,19 @@
 		align-items: baseline;
 		justify-content: space-between;
 		gap: var(--space-2);
+	}
+
+	.label-start {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+
+	.optional {
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 	}
 
 	label {

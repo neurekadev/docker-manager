@@ -136,41 +136,36 @@
 
 <Dialog bind:open title="Change {container.name}" size="md">
 	<div class="form">
-		<Select
-			label="Restart Policy"
-			bind:value={restart}
-			description="When Docker starts the container again on its own."
-			options={[...RESTART_OPTIONS]}
-		/>
+		<Select label="Restart Policy" bind:value={restart} options={[...RESTART_OPTIONS]} />
 		<div class="grid">
 			<TextField
 				label="CPU Limit"
 				inputmode="decimal"
 				bind:value={cpus}
-				description="CPUs, e.g. 1.5. Optional."
+				placeholder="1.5"
+				optional
 				error={invalid.cpus ?? fieldError(cause, 'body.resources.cpus')}
 			/>
 			<TextField
 				label="Memory Limit (MB)"
 				inputmode="numeric"
 				bind:value={memory}
-				description="Optional."
+				optional
 				error={invalid.memory ?? fieldError(cause, 'body.resources.memoryBytes')}
 			/>
 			<TextField
 				label="Process Limit"
 				inputmode="numeric"
 				bind:value={pids}
-				description="-1 for unlimited. Optional."
+				optional
+				description="-1 for unlimited."
 				error={invalid.pids ?? fieldError(cause, 'body.resources.pidsLimit')}
 			/>
 		</div>
 		{#if recreate.length}
 			<Notice tone="info" title="Other Settings Need a New Container" live="none">
-				Changing the {recreate.join(', ')} of a container needs a new one. Create a container
-				with the new settings (and remove this one), or
-				<a href={routes.stacks()}>use a Compose stack</a>
-				to change them with a deploy.
+				Changing the {recreate.join(', ')} needs a new container or a
+				<a href={routes.stacks()}>Compose stack</a>.
 			</Notice>
 		{/if}
 		{#if shown}

@@ -213,10 +213,7 @@
 					<Smartphone size={18} strokeWidth={1.75} aria-hidden="true" /> Authenticator App
 				</h2>
 				{#if !totp}
-					<p class="muted">
-						Use an app such as your password manager or an authenticator app to create
-						sign-in codes.
-					</p>
+					<p class="muted">Use your password manager or an authenticator app.</p>
 					<Button variant="primary" loading={busy === 'totp'} onclick={startTotp}
 						>Set Up an Authenticator App</Button
 					>
@@ -271,7 +268,8 @@
 					</p>
 					<TextField
 						label="Passkey Name"
-						description="Optional, e.g. “Work laptop”."
+						placeholder="Work laptop"
+						optional
 						bind:value={passkeyName}
 					/>
 					<Button

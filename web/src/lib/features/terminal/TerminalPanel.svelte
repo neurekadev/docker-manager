@@ -23,7 +23,7 @@
 	import Unplug from '@lucide/svelte/icons/unplug';
 	import { api, ApiRequestError, unwrap } from '$lib/api/client';
 	import type { TerminalHandle } from '$lib/lazy';
-	import { Badge, Button, Notice, Select, TerminalView } from '$lib/ui';
+	import { Badge, Button, InfoTip, Notice, Select, TerminalView } from '$lib/ui';
 	import {
 		canReconnect,
 		ExecTerminal,
@@ -228,7 +228,7 @@
 	{#if target?.unavailable && !open}
 		<div class="note">
 			<Notice tone="info" live="none" title="{target.label} isn't running">
-				Start it to open a terminal. Terminals run inside the container, never on the host.
+				Start it to open a terminal.
 			</Notice>
 		</div>
 	{/if}
@@ -276,9 +276,11 @@
 	</div>
 
 	<footer class="status">
-		<Badge tone={statusTone} dot>{statusText}</Badge>
+		<span class="state">
+			<Badge tone={statusTone} dot>{statusText}</Badge>
+			<InfoTip text="Closes after 30 minutes without activity." />
+		</span>
 		{#if session.command && open}<span class="mono muted">{session.command}</span>{/if}
-		<span class="muted">Closes after 30 minutes without activity.</span>
 	</footer>
 </section>
 
@@ -341,6 +343,12 @@
 		gap: var(--space-2);
 		color: var(--text-muted);
 		pointer-events: none;
+	}
+
+	.state {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 	}
 
 	.status {

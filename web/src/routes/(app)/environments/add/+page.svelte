@@ -196,8 +196,8 @@
 		<PageHeader
 			{title}
 			description={reattachId
-				? 'Run the Docker Agent on the same host again. Once it connects, the environment comes back with its stacks and policies.'
-				: 'Connect a Docker host by running the Docker Agent on it.'}
+				? 'Bring the environment back with its stacks and policies.'
+				: undefined}
 		/>
 
 		{#if reattachId && reattach.isError}
@@ -229,15 +229,16 @@
 											Re-attaches <strong>{reattach.data?.name ?? '…'}</strong
 											>{reattach.data?.archivedAt
 												? `, archived ${formatRelative(reattach.data.archivedAt)}`
-												: ''}. Run the agent on the same host it used
-											before; another host is refused.
+												: ''}. Run the agent on the same host; another host
+											is refused.
 										</p>
 									{:else}
 										<div class="field">
 											<TextField
 												label="Environment Name"
 												bind:value={name}
-												description="Optional. Without one, the host's name is used. You can rename it later."
+												optional
+												description="Defaults to the host's name."
 												maxlength={64}
 												autocomplete="off"
 												error={fieldError(error, 'body.environmentName')}
@@ -250,14 +251,13 @@
 												label="Command Expires After"
 												options={TOKEN_LIFETIMES}
 												bind:value={lifetime}
-												description="The command works once. An unused one stops working when it expires."
 											/>
 										</div>
 										{#if !reattachId}
 											<Checkbox
 												bind:checked={duplicate}
-												label="This host is a clone of a connected host"
-												description="Only for a cloned virtual machine that Docker Manager would otherwise mistake for another environment."
+												label="This Host Is a Clone of a Connected Host"
+												description="Only for a cloned virtual machine."
 											/>
 										{/if}
 									</Disclosure>
@@ -291,9 +291,7 @@
 					<Card>
 						<section class="step" aria-labelledby="step-2">
 							{@render stepHead(2, 'Run This Command', connected)}
-							{#if !created}
-								<p class="muted">The command appears here once you create it.</p>
-							{:else}
+							{#if created}
 								{#if showSecrets && pending}
 									<Tabs
 										items={commandTabs}
@@ -355,16 +353,16 @@
 
 								{#if showSecrets && pending}
 									<p class="muted note">
-										The agent connects out to <span class="mono"
+										Connects out to <span class="mono"
 											>{created.managerUrl}</span
-										>; the host needs no open ports.
+										>; no open ports needed.
 									</p>
 									<Disclosure summary="Connect by Hand with the Token">
 										<SecretReveal
 											secret={created.token}
 											label="enrollment token"
 											filename="docker-manager-enrollment-token.txt"
-											description="For setting up the agent yourself. The commands above already contain it. It works once."
+											description="For a manual setup. The commands above already contain it."
 											confirmLabel="Hide Token and Commands"
 											onconfirm={() => (showSecrets = false)}
 										/>
@@ -407,10 +405,6 @@
 										>Back to Environments</Button
 									>
 								</div>
-							{:else}
-								<p class="muted">
-									The host appears here as soon as its agent connects.
-								</p>
 							{/if}
 						</section>
 					</Card>

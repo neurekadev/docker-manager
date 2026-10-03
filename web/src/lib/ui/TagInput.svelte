@@ -21,6 +21,10 @@
 		/** Most tags. */
 		max?: number;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		hideLabel?: boolean;
 		disabled?: boolean;
@@ -36,6 +40,8 @@
 		normalize = (s: string) => s.trim(),
 		validate,
 		max = Infinity,
+		info,
+		optional = false,
 		description,
 		error,
 		hideLabel = false,
@@ -106,7 +112,7 @@
 	}
 </script>
 
-<Field {label} {description} error={shownError} {hideLabel} {id}>
+<Field {label} {description} {info} {optional} error={shownError} {hideLabel} {id}>
 	{#snippet children(c)}
 		<!-- A click anywhere in the box focuses the input (the input stays the keyboard target). -->
 		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

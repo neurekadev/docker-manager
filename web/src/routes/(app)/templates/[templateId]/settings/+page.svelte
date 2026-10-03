@@ -160,7 +160,6 @@
 				normalize={normalizeTag}
 				validate={tagProblem}
 				max={MAX_TAGS}
-				description="People browse and filter templates by them."
 				disabled={saving}
 			/>
 			<LinksEditor
@@ -200,18 +199,15 @@
 			<div class="body">
 				{#if t.visibility === 'public'}
 					<p>
-						<strong>Public.</strong> Its published versions are listed on this Docker Manager's
-						public page. Anyone with its address can download every file of them, including
-						.env.
+						<strong>Public.</strong> Anyone with this Docker Manager's address can download
+						its published versions, including .env.
 					</p>
 					<div class="row">
 						<Button onclick={() => (visibilityOpen = true)}>Make Private</Button>
 					</div>
 				{:else}
 					<p>
-						<strong>Private.</strong> Only people on this Docker Manager with access to it
-						can use it. Make it public to share it with other Docker Managers, which add this
-						one as a template source.
+						<strong>Private.</strong> Only people on this Docker Manager can use it.
 					</p>
 					<div class="row">
 						<Button onclick={() => (visibilityOpen = true)}>Make Public</Button>
@@ -225,10 +221,7 @@
 {#snippet deleteCard()}
 	<Card title="Delete Template" id="delete">
 		<div class="body">
-			<p>
-				Deletes the draft, the icon and every version. Stacks created from it keep working
-				with their own files.
-			</p>
+			<p>Deletes the draft, the icon and every version.</p>
 			<div class="row">
 				<Button variant="danger" onclick={() => (deleteOpen = true)}>Delete Template</Button
 				>

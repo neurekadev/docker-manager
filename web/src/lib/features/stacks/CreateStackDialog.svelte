@@ -22,6 +22,7 @@
 		Dialog,
 		EmptyState,
 		ErrorState,
+		InfoTip,
 		Notice,
 		Select,
 		Skeleton,
@@ -182,13 +183,7 @@
 	}
 </script>
 
-<Dialog
-	bind:open
-	title="Create Stack"
-	description="Write or paste a Compose file. Docker Manager saves it as a new stack and never overwrites anything."
-	size="xl"
-	dismissible={!busy}
->
+<Dialog bind:open title="Create Stack" size="xl" dismissible={!busy}>
 	{#if envs.isPending || perms.isPending}
 		<div aria-busy="true"><Skeleton lines={6} /></div>
 	{:else if envs.isError}
@@ -202,7 +197,7 @@
 			icon={Layers}
 			color="blue"
 			title="No environments yet."
-			description="Stacks run on an environment. Add one first: run the Docker Agent on a Docker host and enroll it."
+			description="Add one first: run the Docker Agent on a Docker host and enroll it."
 			level={3}
 		>
 			{#snippet actions()}<Button variant="primary" href={routes.environments()}
@@ -243,22 +238,15 @@
 					bind:value={name}
 					mono
 					required
-					description="Lower-case letters, digits, dashes and underscores. Also names its folder and containers."
+					description="Lower-case letters, digits, dashes and underscores."
+					info="Also names its folder and containers."
 					error={nameConflict ?? nameMsg}
 					oninput={() => (nameConflict = null)}
 					onblur={() => (touched = true)}
 				/>
-				<TextField label="Display Name" bind:value={displayName} description="Optional." />
-				<TextField
-					label="Description"
-					bind:value={description}
-					description="Optional. Shown in Docker Manager only."
-				/>
-				<Checkbox
-					bind:checked={deployAfter}
-					label="Deploy After Creating"
-					description="Starts the stack right after creating it."
-				/>
+				<TextField label="Display Name" bind:value={displayName} optional />
+				<TextField label="Description" bind:value={description} optional />
+				<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
 				{#if validation}<ValidationResult {validation} />{/if}
 				{#if failure}
 					{@const v = errorView(failure)}
@@ -287,7 +275,11 @@
 					/>
 				</div>
 				<div class="editor">
-					<span class="editor-label">.env File</span>
+					<span class="editor-label"
+						>.env File <span class="editor-optional">Optional</span><InfoTip
+							text="May hold passwords; they never show in logs."
+						/></span
+					>
 					<CodeEditor
 						value={envFile}
 						label=".env"
@@ -297,9 +289,6 @@
 							edited();
 						}}
 					/>
-					<span class="editor-help"
-						>Optional. May hold passwords; Docker Manager never shows them in logs.</span
-					>
 				</div>
 			</div>
 		</form>
@@ -348,13 +337,17 @@
 	}
 
 	.editor-label {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		color: var(--text-default);
 		font-weight: var(--weight-medium);
 	}
 
-	.editor-help {
+	.editor-optional {
 		color: var(--text-muted);
 		font-size: var(--text-caption);
+		font-weight: var(--weight-regular);
 		line-height: var(--leading-caption);
 	}
 

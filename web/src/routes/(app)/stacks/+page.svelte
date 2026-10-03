@@ -380,12 +380,7 @@
 {/snippet}
 
 <Page>
-	<PageHeader
-		title="Stacks"
-		description={envName && !single.current
-			? `Your Compose apps on ${envName}.`
-			: 'Your Compose apps: deploy, update and edit them here.'}
-	>
+	<PageHeader title="Stacks">
 		{#snippet actions()}
 			{#if canImport}
 				<Button icon={FolderSearch} onclick={() => (importDialog.open = true)}

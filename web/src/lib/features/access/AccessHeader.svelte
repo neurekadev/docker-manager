@@ -9,11 +9,7 @@
 	let { actions }: { actions?: Snippet } = $props();
 </script>
 
-<PageHeader
-	title="Access"
-	description="Who can sign in and what they can do. New accounts join through invitations and start in the default group."
-	{actions}
-/>
+<PageHeader title="Access" {actions} />
 <TabNav
 	label="Access Sections"
 	current={page.url.pathname}

@@ -21,7 +21,7 @@
 <Card
 	title="Updates"
 	id="updates"
-	subtitle="Image checks and automatic updates come from the environment's update policy."
+	info="Image checks and automatic updates come from the environment's update policy."
 >
 	{#snippet actions()}<Button size="sm" href={routes.updates()}>Open Update Policies</Button
 		>{/snippet}
@@ -43,11 +43,9 @@
 				<Badge tone="ok" dot>Covered</Badge>
 			{/if}
 		</div>
-		<p class="muted">
-			{excluded
-				? 'This stack is left out of the policy. Edit the policy to include it again.'
-				: 'Checks and automatic updates follow this policy’s schedules.'}
-		</p>
+		{#if excluded}
+			<p class="muted">Edit the policy to include this stack again.</p>
+		{/if}
 	{:else}
 		<EmptyState
 			icon={PackageCheck}

@@ -118,14 +118,9 @@
 				{@const n = preview.migration.stacks}
 				<div class="offer">
 					<Notice tone="info" title="Keep operating its stacks?" live="none">
-						{n === 1 ? 'One stack runs' : `${n} stacks run`} on {env.name}. To keep
-						operating {n === 1 ? 'it' : 'them'}, migrate {n === 1 ? 'it' : 'them'} with {n ===
-						1
-							? 'its'
-							: 'their'} volumes to another environment first. Archived, {n === 1
-							? 'it is'
-							: 'they are'} kept but cannot be deployed until
-						{env.name} is re-attached.
+						Migrate {n === 1 ? 'its stack' : `its ${n} stacks`} with their volumes to another
+						environment first. Archived, {n === 1 ? 'it is' : 'they are'} kept but can't be
+						deployed until {env.name} is re-attached.
 					</Notice>
 					<Button size="sm" onclick={migrateFirst}
 						>Migrate {n === 1 ? 'the Stack' : `${n} Stacks`} First</Button

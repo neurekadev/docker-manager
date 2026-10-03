@@ -11,7 +11,15 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
 	import { untrack } from 'svelte';
-	import { Button, DragHandle, IconButton, Sortable, TextField, moveItem } from '$lib/ui';
+	import {
+		Button,
+		DragHandle,
+		IconButton,
+		InfoTip,
+		Sortable,
+		TextField,
+		moveItem
+	} from '$lib/ui';
 	import {
 		MAX_LINKS,
 		linkProblems,
@@ -67,12 +75,13 @@
 	);
 </script>
 
-<fieldset class="links" aria-describedby="links-{uid}-desc">
-	<legend>Links</legend>
-	<p class="desc" id="links-{uid}-desc">
-		Optional. Pages such as the documentation, website or repository, shown on the page. Each
-		opens in a new tab.
-	</p>
+<fieldset class="links" aria-labelledby="links-{uid}-legend" aria-describedby="links-{uid}-info">
+	<legend
+		><span id="links-{uid}-legend">Links</span><InfoTip
+			id="links-{uid}-info"
+			text="Pages such as the documentation, website or repository, shown on the page."
+		/></legend
+	>
 	{#if rows.length}
 		<div class="head" aria-hidden="true">
 			<span></span>
@@ -150,16 +159,13 @@
 	}
 
 	legend {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
 		padding: 0;
 		margin-bottom: var(--space-1);
 		color: var(--text-default);
 		font-weight: var(--weight-medium);
-	}
-
-	.desc {
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		line-height: var(--leading-caption);
 	}
 
 	.head,

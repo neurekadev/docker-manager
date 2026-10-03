@@ -58,10 +58,7 @@
 </script>
 
 <Page>
-	<PageHeader
-		title="Templates"
-		description="Ready-made Compose projects to create stacks from, yours and those of other Docker Managers."
-	>
+	<PageHeader title="Templates">
 		{#snippet actions()}
 			<Button icon={Archive} href={routes.templateRegistries()}>Template Sources</Button>
 			{#if canCreate}
@@ -80,8 +77,7 @@
 				? `${failing[0].name} could not be synced`
 				: `${failing.length} template sources could not be synced`}
 		>
-			Their templates may be out of date. See the reason and sync again under Template
-			Sources.
+			Their templates may be out of date.
 			{#snippet actions()}
 				<Button size="sm" href={routes.templateRegistries()}>Open Template Sources</Button>
 			{/snippet}
@@ -135,7 +131,7 @@
 					color="violet"
 					title="No templates yet."
 					description={canCreate
-						? 'Create a template, or add another Docker Manager as a template source to use its public templates.'
+						? 'Create a template or add a template source.'
 						: 'Templates you are given access to appear here.'}
 					level={3}
 					compact

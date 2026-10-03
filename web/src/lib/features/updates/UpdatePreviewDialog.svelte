@@ -136,12 +136,7 @@
 	}
 </script>
 
-<Dialog
-	bind:open
-	title="Update Preview"
-	description="What updating {name} does now, from the latest check."
-	size="lg"
->
+<Dialog bind:open title="Update Preview" size="lg">
 	{#if job}
 		{#key job.id}
 			<JobProgress
@@ -162,19 +157,18 @@
 			{#if preview.sourceDrift}
 				<Notice tone="danger" title="Undeployed Changes Block Updates" live="none">
 					The Compose files on disk differ from the deployed revision. Deploy the stack
-					first, then check again: an update never applies definition changes you have not
-					deployed.
+					first, then check again.
 				</Notice>
 			{/if}
 			{#if !preview.inWindow && policy.window}
 				<Notice tone="info" title="Outside the Update Window" live="none">
-					Scheduled updates only run inside the window; this manual update runs now.
+					This manual update runs now.
 				</Notice>
 			{/if}
 
 			{#if count === 0}
 				<Notice tone="info" title="Nothing to Update" live="none">
-					No service has a newer digest behind its tag. Run a check to look again.
+					No service has a newer image. Run a check to look again.
 				</Notice>
 			{:else}
 				<section>
@@ -242,9 +236,8 @@
 			{#if preview.sharedTag.length}
 				<Notice tone="warn" title="The Pull Moves Shared Tags" live="none">
 					<p>
-						Other containers on this environment use the same tags. They keep running
-						their current image and pick up the new one the next time they are
-						recreated:
+						Other containers use the same tags. They keep their current image until they
+						are next recreated:
 					</p>
 					<ul class="plain" role="list">
 						{#each preview.sharedTag as s (`${s.stackId ?? ''}${s.container ?? ''}${s.service ?? ''}${s.reference}`)}

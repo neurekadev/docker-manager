@@ -285,7 +285,6 @@
 			canDefine={creatable.length > 0}
 			onnewdefinition={() => (createDialog.open = true)}
 			environmentId={scope.single ? scope.targets[0]?.id : undefined}
-			description="Saved builds you can build again with one click."
 		>
 			{#snippet extra()}<PruneButton target="build_cache" {scope} />{/snippet}
 		</BuildsHeader>
@@ -334,7 +333,7 @@
 								<EmptyState
 									{...resourceIcon('buildDefinition')}
 									title="No saved builds yet."
-									description="Save a Git build as a definition to build it again without filling in the form. Use New Definition above, or save one when you build an image."
+									description="Save a build to run it again without filling in the form."
 									level={3}
 									compact
 								/>

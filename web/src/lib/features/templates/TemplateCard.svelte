@@ -64,7 +64,7 @@
 			<Badge tone="neutral">Private</Badge>
 		{/if}
 	</div>
-	<p class="desc" class:muted={!description}>{description || 'No description.'}</p>
+	<p class="desc">{description ?? ''}</p>
 	<footer>
 		{#if tags.length}
 			<ul class="tags" class:above={!!tagAction} aria-label="Tags">

@@ -56,8 +56,8 @@ type PermissionDocument struct {
 type GroupInfo struct {
 	Group
 	PermissionsRevision int64
-	// MemberCount counts the group's accounts except the owner, whom group
-	// rules never govern.
+	// MemberCount counts the group's accounts (the owner, whom group rules
+	// never govern, is in no group).
 	MemberCount int
 	// RuleCount and AllowCount summarize its rules (the default-group
 	// warning: a default group with allow rules grants access to new users).

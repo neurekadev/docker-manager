@@ -64,7 +64,7 @@
 <Dialog
 	bind:open
 	title="Duplicate {source.name}"
-	description="Creates a private template from a published version. You can change its files, then publish your own versions."
+	description="Creates a private template from a published version."
 	size="md"
 	dismissible={!saving}
 >

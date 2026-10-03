@@ -161,17 +161,17 @@ export function scopeConsequence(
 ): string {
 	switch (node.scope.kind) {
 		case 'instance':
-			return 'Rules here apply to every resource of their type in every environment, including ones added later. Actions Docker Manager adds in the future are never included automatically.';
+			return 'Applies to every environment, including ones added later. Future actions are never included automatically.';
 		case 'environment':
-			return `Rules here apply to every resource of their type on ${environmentName ?? 'this environment'}, including ones created later.`;
+			return `Applies to everything on ${environmentName ?? 'this environment'}, including ones created later.`;
 	}
 	switch (node.type) {
 		case 'stack':
-			return `Rules here apply to ${node.label}. Container actions chosen here also cover its service containers, current and future (recreated ones too).`;
+			return `Applies to ${node.label}. Container actions also cover its service containers, current and future.`;
 		case 'service':
-			return `Rules here apply to the containers of the service ${node.label}, current and future.`;
+			return `Applies to the containers of ${node.label}, current and future.`;
 		default:
-			return `Rules here apply to ${node.label} only.`;
+			return `Applies to ${node.label} only.`;
 	}
 }
 

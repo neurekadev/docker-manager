@@ -313,10 +313,7 @@
 			</PageHeader>
 
 			{#if policyActivity.length}
-				<Card
-					title="Running Now"
-					subtitle="Progress and the file each backup reads, updated every second."
-				>
+				<Card title="Running Now">
 					<RunningBackups
 						jobs={policyActivity}
 						policyName={() => p.name}
@@ -467,13 +464,13 @@
 							<p class="muted">The next runs could not be calculated.</p>
 						{/if}
 					{:else}
-						<p>The schedule is off: backups run only when you start them.</p>
+						<p>Off: backups run only when you start them.</p>
 						{#if p.schedule?.cron}
 							<p
 								class="muted small"
 								title="{p.schedule.cron} ({p.schedule.timeZone})"
 							>
-								Turned on, it would back up {scheduleWords(
+								Saved schedule: {scheduleWords(
 									p.schedule.cron,
 									p.schedule.timeZone
 								)}.
@@ -502,7 +499,7 @@
 					<EmptyState
 						{...resourceIcon('backupPolicy')}
 						title="Not run yet."
-						description="Back up now to create the first backups, or turn the schedule on."
+						description="Back up now, or turn the schedule on."
 						level={3}
 						compact
 					/>

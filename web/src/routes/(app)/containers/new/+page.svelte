@@ -14,7 +14,6 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Download from '@lucide/svelte/icons/download';
-	import Layers from '@lucide/svelte/icons/layers';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { api, unwrap, type Job } from '$lib/api/client';
@@ -342,17 +341,8 @@
 	<Page narrow>
 		<PageHeader
 			title="Create Container"
-			description="One container from an image that is already on the environment."
+			info="For several services, builds or shared networks, use a Compose stack."
 		/>
-		<Notice
-			tone="info"
-			icon={Layers}
-			title="Several services, builds or shared networks?"
-			live="none"
-		>
-			Use a <a href={routes.stacks()}>Compose stack</a>: it keeps the whole setup in one file
-			you can edit, deploy and back up. This form covers the common options only.
-		</Notice>
 
 		<ActiveJobs {jobs} onfinish={finished} />
 		{#if started}
@@ -388,9 +378,6 @@
 							bind:value={image}
 							suggestions={imageSuggestions}
 							placeholder="repository:tag"
-							description="An image on {scope.name(
-								env
-							)}: pick one or type a reference or image ID."
 							error={fieldError(failure?.cause, 'body.image')}
 						/>
 						<TextField
@@ -411,8 +398,7 @@
 								title="{image.trim()} is not on {scope.name(env)}"
 								live="status"
 							>
-								Creating a container never downloads images. Pull it first, then
-								create the container.
+								Creating a container never pulls images. Pull it first.
 								{#snippet actions()}
 									{#if pullable.some((e) => e.id === env)}
 										<Button
@@ -434,7 +420,7 @@
 						rows={4}
 						bind:value={envText}
 						placeholder={ENV_PLACEHOLDER}
-						description="One KEY=value per line. Docker Manager stores the values sealed and never shows them again; the container page lists the names only."
+						description="One KEY=value per line. Values are stored sealed and never shown again."
 						error={errors.env}
 					/>
 				</Card>
@@ -486,7 +472,10 @@
 					>
 				</Card>
 
-				<Card title="Volumes and Host Paths">
+				<Card
+					title="Volumes and Host Paths"
+					info="A volume that doesn't exist yet is created. Docker Manager's own volumes and the Docker socket can't be mounted."
+				>
 					{#each mounts as m, i (i)}
 						<div class="row mounts">
 							<Select
@@ -530,10 +519,6 @@
 						</div>
 					{/each}
 					{#if errors.mounts}<p class="err" role="alert">{errors.mounts}</p>{/if}
-					<p class="hint">
-						Docker Manager's own volumes and the Docker socket cannot be mounted. A
-						volume that doesn't exist yet is created.
-					</p>
 					<Button
 						variant="secondary"
 						size="sm"
@@ -548,7 +533,10 @@
 					>
 				</Card>
 
-				<Card title="Networks">
+				<Card
+					title="Networks"
+					info="Without a network the container joins Docker's default bridge."
+				>
 					{#each nets as n, i (i)}
 						<div class="row nets">
 							<Select label="Network" bind:value={n.name} options={networkOptions} />
@@ -556,7 +544,7 @@
 								label="Aliases"
 								bind:values={n.aliases}
 								placeholder="backend"
-								description="Optional."
+								optional
 							/>
 							<IconButton
 								icon={Trash2}
@@ -565,9 +553,6 @@
 							/>
 						</div>
 					{/each}
-					<p class="hint">
-						Without a network the container joins Docker's default bridge.
-					</p>
 					<Button
 						variant="secondary"
 						size="sm"
@@ -581,21 +566,21 @@
 						<Select
 							label="Restart Policy"
 							bind:value={restart}
-							description="When Docker starts the container again on its own."
 							options={[...RESTART_OPTIONS]}
 						/>
 						<TextField
 							label="CPU Limit"
 							inputmode="decimal"
 							bind:value={cpus}
-							description="CPUs. Optional."
+							placeholder="1.5"
+							optional
 							error={errors.cpus}
 						/>
 						<TextField
 							label="Memory Limit (MB)"
 							inputmode="numeric"
 							bind:value={memory}
-							description="Optional."
+							optional
 							error={errors.memory}
 						/>
 					</div>
@@ -614,28 +599,30 @@
 									mono
 									bind:value={command}
 									placeholder={CMD_PLACEHOLDER}
-									description="Optional. Default: the image's command."
+									optional
+									description="Default: the image's command."
 									error={errors.command}
 								/>
 								<TextField
 									label="Entrypoint"
 									mono
 									bind:value={entrypoint}
-									description="Optional. Default: the image's entrypoint."
+									optional
+									description="Default: the image's entrypoint."
 									error={errors.entrypoint}
 								/>
 								<TextField
 									label="Working Directory"
 									mono
 									bind:value={workingDir}
-									description="Optional."
+									optional
 								/>
 								<TextField
 									label="User"
 									mono
 									bind:value={user}
 									placeholder="1000:1000"
-									description="Optional."
+									optional
 								/>
 							</div>
 							<h3 class="subsection-title">Health Check</h3>
@@ -645,20 +632,21 @@
 									mono
 									bind:value={healthCmd}
 									placeholder="curl -f http://localhost/"
-									description="Optional. Runs in the container; exit code 0 is healthy."
+									optional
+									description="Exit code 0 is healthy."
 									error={errors.health}
 								/>
 								<TextField
 									label="Check Every (Seconds)"
 									inputmode="numeric"
 									bind:value={healthInterval}
-									description="Optional."
+									optional
 								/>
 								<TextField
 									label="Retries"
 									inputmode="numeric"
 									bind:value={healthRetries}
-									description="Optional."
+									optional
 								/>
 							</div>
 							<TextArea
@@ -667,7 +655,7 @@
 								rows={3}
 								bind:value={labelText}
 								placeholder="traefik.enable=true"
-								description="One key=value per line. Labels of Docker Manager and Compose are reserved."
+								description="One key=value per line."
 								error={errors.labels ?? fieldError(failure?.cause, 'body.labels')}
 							/>
 						</div>
@@ -744,12 +732,6 @@
 
 	.missing {
 		margin-top: var(--space-4);
-	}
-
-	.hint {
-		margin: 0 0 var(--space-3);
-		color: var(--text-muted);
-		font-size: var(--text-caption);
 	}
 
 	.err {

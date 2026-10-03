@@ -190,7 +190,7 @@
 			<p class="muted empty">
 				{disk.state === 'error' || !disk.readAt
 					? 'No SMART values were read from this disk.'
-					: 'The disk reported no detailed SMART values. Agents older than this view don’t send them; update the agent if it is older.'}
+					: 'No detailed SMART values reported. Older agents don’t send them; update the agent.'}
 			</p>
 		{/if}
 	</div>

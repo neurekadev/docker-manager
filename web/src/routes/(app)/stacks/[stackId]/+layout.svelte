@@ -158,7 +158,7 @@
 		icon={Layers}
 		color="blue"
 		title="This stack does not exist or you can't see it."
-		description="It may have been deleted or moved, or your access changed. Stacks you can see are listed under Stacks."
+		description="It may have been deleted, or your access changed."
 		level={1}
 	>
 		{#snippet actions()}<Button variant="primary" href={routes.stacks()}>Open Stacks</Button

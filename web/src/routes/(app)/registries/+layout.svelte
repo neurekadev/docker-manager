@@ -29,13 +29,13 @@
 	<DeniedState
 		level={1}
 		title="You don't have access to registry credentials."
-		description="The owner of this Docker Manager manages them. Pulls and builds use them without anyone seeing the secrets."
+		description="The owner of this Docker Manager manages them."
 	/>
 {:else}
 	<Page>
 		<PageHeader
 			title="Registries"
-			description="Credentials Docker Manager uses to pull private images and build from private repositories. Secrets are entered once and never shown again."
+			info="Credentials for private images and repositories. Secrets are never shown again."
 		>
 			{#snippet actions()}
 				{#if onGit}

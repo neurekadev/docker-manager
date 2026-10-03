@@ -50,10 +50,7 @@
 	];
 </script>
 
-<Card
-	title="Storage Over Time"
-	subtitle="Stored after deduplication and compression, and the same data before compression."
->
+<Card title="Storage Over Time" info="Stored: after deduplication and compression.">
 	{#snippet actions()}
 		<div class="range">
 			<Select label="Range" hideLabel options={rangeOptions} bind:value={range} />

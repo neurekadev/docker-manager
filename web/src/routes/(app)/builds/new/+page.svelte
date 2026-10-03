@@ -163,14 +163,10 @@
 	/>
 {:else}
 	<Page narrow>
-		<PageHeader
-			title="Build Image"
-			description="From a Git repository, on the environment's own Docker Engine."
-		/>
+		<PageHeader title="Build Image" />
 		{#if argsMissing}
 			<Notice tone="info" title="Enter the Build Argument Values Again" live="none">
-				This form starts from an earlier build. Docker Manager keeps the names of its build
-				arguments, never their values: fill them in under Advanced.
+				Their values are never kept. Fill them in under Advanced.
 			</Notice>
 		{/if}
 		<form
@@ -187,7 +183,6 @@
 							label="Environment"
 							bind:value={env}
 							options={allowed.map((e) => ({ value: e.id, label: e.name }))}
-							description="The image is built and stored there."
 						/>
 					</div>
 				{/if}
@@ -201,11 +196,7 @@
 			{#if canSave}
 				<Card title="Save for Later">
 					<div class="save">
-						<Checkbox
-							label="Save as a Build Definition"
-							description="Run the same build again from Definitions."
-							bind:checked={save}
-						/>
+						<Checkbox label="Save as a Build Definition" bind:checked={save} />
 						{#if save}
 							<TextField
 								label="Definition Name"

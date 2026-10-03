@@ -232,7 +232,7 @@
 				title="Read-Only in Docker Manager"
 				live="none"
 			>
-				{access.reason} Containers can still use it; Docker Manager lists it and can remove it.
+				{access.reason}
 			</Notice>
 		{/if}
 		<ActiveJobs {jobs} variant="inline" label="Running Jobs of {name}" />

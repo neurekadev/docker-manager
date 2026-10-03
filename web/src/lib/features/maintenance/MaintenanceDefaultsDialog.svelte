@@ -81,7 +81,7 @@
 <Dialog
 	bind:open
 	title="Maintenance Defaults"
-	description="The rules every new maintenance policy starts with. Existing policies keep their own rules. Docker Manager ships every rule off with a 30-day age; volume rules also need their own opt-in."
+	description="The rules new maintenance policies start with. Existing policies keep theirs."
 	size="xl"
 	dismissible={!busy}
 >

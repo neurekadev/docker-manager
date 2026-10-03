@@ -18,8 +18,7 @@
 		{#key ctx.id}<MigrationWizard {stack} tray={ctx.tray} />{/key}
 	{:else}
 		<p class="muted">
-			You can't migrate {title}. Ask the owner of this Docker Manager for the permission to
-			migrate stacks.
+			You can't migrate {title}. Ask the owner for the permission.
 		</p>
 		<Button href={routes.stack(ctx.id)}>Back to {title}</Button>
 	{/if}

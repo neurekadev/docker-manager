@@ -66,9 +66,7 @@
 
 <Card
 	title="Move Complete"
-	subtitle={move.sourceUrl
-		? `Docker Manager moved here from ${move.sourceUrl}. A few things are left to do.`
-		: 'Docker Manager moved here. A few things are left to do.'}
+	subtitle={move.sourceUrl ? `Moved here from ${move.sourceUrl}.` : undefined}
 >
 	<ul class="items" role="list" aria-label="Left to Do After the Move">
 		{#each items as it (it.id)}

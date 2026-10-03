@@ -121,7 +121,7 @@ describe('MoveCompleteCard', () => {
 
 		expect(screen.getByRole('heading', { name: 'Move Complete' })).toBeInTheDocument();
 		expect(
-			screen.getByText(/Docker Manager moved here from http:\/\/192\.168\.1\.10:8080\./)
+			screen.getByText(/Moved here from http:\/\/192\.168\.1\.10:8080\./)
 		).toBeInTheDocument();
 		expect(screen.getByText(/The old server confirmed the move/)).toBeInTheDocument();
 		expect(screen.getByText(/old-box did not get the new address/)).toBeInTheDocument();

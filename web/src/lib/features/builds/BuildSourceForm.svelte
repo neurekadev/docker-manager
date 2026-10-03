@@ -65,7 +65,7 @@
 			required
 			bind:value={form.gitUrl}
 			placeholder="https://github.com/acme/app.git"
-			description="HTTPS only. Docker Manager builds the exact commit the ref points to."
+			description="HTTPS only."
 			error={errors.gitUrl ?? serverError('gitUrl')}
 			autocomplete="off"
 			spellcheck="false"
@@ -76,7 +76,8 @@
 		mono
 		bind:value={form.ref}
 		placeholder="main"
-		description="Branch, tag or commit. Optional; default: the repository's default branch."
+		optional
+		description="Branch, tag or commit. Default: the default branch."
 		error={serverError('ref')}
 	/>
 	{#if credentials && creds.data}
@@ -84,7 +85,7 @@
 			label="Git Credential"
 			bind:value={form.gitCredentialId}
 			description={matching.length
-				? 'For private repositories. Default: the credential that matches the repository.'
+				? 'For private repositories.'
 				: `No credential matches ${host || 'this host'}: public repositories only.`}
 			options={[
 				{ value: '', label: 'Matching Credential (or None)' },
@@ -103,7 +104,7 @@
 			rows={2}
 			bind:value={form.tags}
 			placeholder="registry.example.com/acme/app:1.4"
-			description="One name:tag per line. The built image gets every name."
+			description="One name:tag per line."
 			error={errors.tags ?? serverError('tags')}
 		/>
 	</div>
@@ -115,7 +116,8 @@
 					mono
 					bind:value={form.contextPath}
 					placeholder="services/api"
-					description="Optional. Default: the repository root."
+					optional
+					description="Default: the repository root."
 					error={serverError('contextPath')}
 				/>
 				<TextField
@@ -123,14 +125,16 @@
 					mono
 					bind:value={form.dockerfile}
 					placeholder="Dockerfile"
-					description="Relative to the context. Optional."
+					optional
+					description="Relative to the context."
 					error={errors.dockerfile ?? serverError('dockerfile')}
 				/>
 				<TextField
 					label="Target Stage"
 					mono
 					bind:value={form.target}
-					description="Optional. Default: the last stage."
+					optional
+					description="Default: the last stage."
 					error={serverError('target')}
 				/>
 				<TextField
@@ -138,7 +142,8 @@
 					mono
 					bind:value={form.platform}
 					placeholder="linux/amd64"
-					description="Optional. Default: the environment's platform."
+					optional
+					description="Default: the environment's platform."
 					error={serverError('platform')}
 				/>
 				<div class="wide">
@@ -148,7 +153,8 @@
 						rows={3}
 						bind:value={form.buildArgs}
 						placeholder="NODE_VERSION=22"
-						description="Optional. One KEY=value per line."
+						optional
+						description="One KEY=value per line."
 						error={errors.buildArgs ?? serverError('buildArgs')}
 					/>
 					<div class="warn">
@@ -164,16 +170,8 @@
 					</div>
 				</div>
 				<div class="checks wide">
-					<Checkbox
-						label="Build Without Cache"
-						description="Runs every step again (slower)."
-						bind:checked={form.noCache}
-					/>
-					<Checkbox
-						label="Pull Newer Base Images"
-						description="Checks the registry for newer FROM images first."
-						bind:checked={form.pull}
-					/>
+					<Checkbox label="Build Without Cache" bind:checked={form.noCache} />
+					<Checkbox label="Pull Newer Base Images" bind:checked={form.pull} />
 				</div>
 			</div>
 		</Disclosure>

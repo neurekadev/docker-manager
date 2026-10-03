@@ -230,18 +230,11 @@
 			}}
 		>
 			<p class="text">
-				The new credential replaces the stored one{target.item.status === 'revoked'
+				Replaces the stored credential{target.item.status === 'revoked'
 					? ' and re-activates the connection'
-					: ''}. Jobs already running keep what they got; jobs that start afterwards use
-				the new one.
+					: ''}. Jobs that start afterwards use the new one.
 			</p>
-			<TextField
-				label="Username"
-				mono
-				bind:value={username}
-				autocomplete="off"
-				description="Change it only if the new credential belongs to another account."
-			/>
+			<TextField label="Username" mono bind:value={username} autocomplete="off" />
 			<PasswordField
 				label={secretLabel}
 				autocomplete="new-password"
@@ -318,7 +311,7 @@
 					bind:value={reference}
 					placeholder={testPlaceholder}
 					description="An image on {target.item
-						.host} this connection may read. Docker Manager asks the registry for its digest; nothing is pulled."
+						.host} this connection may read. Nothing is pulled."
 					error={fieldError(failure, 'body.imageReference')}
 				/>
 			{:else}
@@ -331,7 +324,7 @@
 					target.item.pathPrefix
 						? target.item.pathPrefix
 						: 'org'}/app.git"
-					description="Docker Manager lists the repository's refs with the token; nothing is cloned."
+					description="Nothing is cloned."
 					error={fieldError(failure, 'body.repositoryUrl')}
 				/>
 				<TextField
@@ -339,7 +332,8 @@
 					mono
 					bind:value={ref}
 					placeholder="main"
-					description="Optional. Also resolve this branch or tag."
+					optional
+					description="Also resolve this branch or tag."
 				/>
 			{/if}
 			{#if failure && !fieldError(failure, 'body.imageReference') && !fieldError(failure, 'body.repositoryUrl')}

@@ -32,7 +32,8 @@
 
 <PageHeader
 	title="Backups"
-	description="Encrypted backups of the manager, stacks and volumes, to local disks or S3. Every backup opens with your Recovery Key."
+	description="Encrypted backups of the manager, stacks and volumes."
+	info="Every backup opens with your Recovery Key."
 >
 	{#snippet actions()}
 		{@render outerActions?.()}

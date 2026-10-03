@@ -268,7 +268,7 @@
 		lead={step === 'second'
 			? "Confirm it's you with your second factor."
 			: step === 'recovery'
-				? 'Enter one of your recovery codes. Each code works once.'
+				? 'Each code works once.'
 				: undefined}
 	/>
 
@@ -310,7 +310,7 @@
 			{#if stayOffered}
 				<Checkbox
 					label="Stay Signed In"
-					description="Keep this device signed in for longer. Don't use this on a shared computer."
+					description="Don't use on a shared computer."
 					bind:checked={stay}
 					onchange={(e) => rememberStaySignedIn(e.currentTarget.checked)}
 				/>
@@ -335,9 +335,7 @@
 				onclick={passkey}>Sign In with a Passkey</Button
 			>
 		{/if}
-		<p class="help">
-			Forgot your password? Ask the owner of this Docker Manager for a reset link.
-		</p>
+		<p class="help">Forgot your password? Ask the owner for a reset link.</p>
 	{:else if step === 'second'}
 		{#if method === 'passkey'}
 			<Button

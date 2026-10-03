@@ -263,12 +263,7 @@
 	/>
 {:else}
 	<Page>
-		<PageHeader
-			title="Networks"
-			description="How containers on {scope.single
-				? scope.targets[0]?.name
-				: 'your environments'} reach each other."
-		>
+		<PageHeader title="Networks">
 			{#snippet actions()}
 				<PruneButton target="networks" {scope} />
 				{#if creatable.length}
@@ -335,7 +330,7 @@
 								<EmptyState
 									{...resourceIcon('network')}
 									title="No networks to show."
-									description="Create a network to connect standalone containers, or let a stack create its own."
+									description="Create a network, or let a stack create its own."
 									level={3}
 									compact
 								>

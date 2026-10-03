@@ -201,11 +201,7 @@
 	{#if r.member.jobId}<a href={routes.job(r.member.jobId)}>Open Job</a>{/if}
 {/snippet}
 
-<Card
-	title="Backups"
-	subtitle="Restoring stops the containers that use the data and starts the ones that were running again afterwards."
-	padding="none"
->
+<Card title="Backups" padding="none">
 	{#if covering.length}
 		<ul class="coverage" role="list" aria-label="Backup Policies Covering {subject}">
 			{#each covering as p (p.id)}
@@ -254,7 +250,7 @@
 					color="teal"
 					level={3}
 					title="No Backups of {subject} Yet"
-					description="No backup policy covers {subject}. A policy creates backups on its schedule or when you run it."
+					description="No backup policy covers {subject}. Create one to back it up."
 				>
 					{#snippet actions()}
 						{#if canCreatePolicy}<Button

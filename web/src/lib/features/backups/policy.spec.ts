@@ -391,7 +391,7 @@ describe('repositories and verification', () => {
 
 	it('says the verification schedule in one sentence', () => {
 		expect(verificationText({ cron: '0 5 * * 0', timeZone: 'UTC', enabled: false })).toBe(
-			'Verification is off. Run it any time with Verify on one of its backups.'
+			'Verification is off. Run Verify on one of its backups.'
 		);
 		expect(verificationText(undefined)).toMatch(/^Verification is off/);
 		expect(

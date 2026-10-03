@@ -149,7 +149,8 @@
 				mono
 				bind:value={tag}
 				placeholder="latest"
-				description="Optional. An existing tag with this name moves to this image."
+				optional
+				description="An existing tag with this name moves to this image."
 				error={fieldError(tagFailure?.cause, 'body.tag')}
 			/>
 			{#if tagFailure && !tagFailure.refusal.code?.startsWith('validation')}

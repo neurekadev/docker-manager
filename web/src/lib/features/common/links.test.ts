@@ -43,7 +43,17 @@ describe('LinksEditor', () => {
 		render(LinksEditorHarness, {
 			props: { initial: [{ label: 'Docs', url: 'https://docs.example.com' }] }
 		});
-		expect(screen.getByRole('group', { name: 'Links' })).toBeInTheDocument();
+		const group = screen.getByRole('group', { name: 'Links' });
+		// What the links are for sits behind an (i), outside the group's name.
+		expect(
+			screen.getByRole('img', {
+				name: 'Pages such as the documentation, website or repository, shown on the page.'
+			})
+		).toBeInTheDocument();
+		expect(group).toHaveAccessibleDescription(
+			'Pages such as the documentation, website or repository, shown on the page.'
+		);
+		expect(screen.queryByText(/^Optional\./)).not.toBeInTheDocument();
 		expect(screen.getByLabelText('Label of Link 1')).toHaveValue('Docs');
 
 		await user.click(screen.getByRole('button', { name: 'Add Link' }));

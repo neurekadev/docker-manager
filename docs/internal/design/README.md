@@ -266,12 +266,12 @@ disabled item uses it to say why it is off (only its label and icon dim).
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
 | `Chip` | `label`, `selected` (toggle: `aria-pressed`), `onclick`, `href`, `count`, `size: sm \| md`, `icon`, `hue`, `title`, `disabled`, `onremove`, `removeLabel`, `invalid` | A pill (`--radius-full`) for tags and filters: a link with `href`, a (toggle) button with `onclick` or `selected`, else a static tag. `hue` adds a colour swatch (e.g. `SERVICE_HEX`), a ring while the toggle is off. `onremove` gives a static tag an × button ("Remove cloud", or `removeLabel`; `TagInput`'s chips), `invalid` a danger outline. 40 px tall on coarse pointers. |
 | `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly Failed". |
-| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title, and so does a `subtitle` that does not fit beside it (the title is never squeezed). `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
+| `Card` | `title`, `level`, `subtitle`, `info`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title, and so does a `subtitle` that does not fit beside it (the title is never squeezed). `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
 | `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed`, `href`, `onclick` | Every figure links to its list: with `href` the label is a link whose hit area covers the card (`onclick` runs first, e.g. to preset the list's filters; links in a snippet `secondary` stay clickable). Row of KPI cards: `KpiRow` (`$lib/features/common`; `repeat(auto-fit, minmax(210px, 1fr))`, equal heights, two per row below 768 px with an odd last card spanning the row; where the row is too narrow for all its cards in one line they split evenly by the row's own width: four as two and two, five as three and two, six as three and three; so a card never sits beside empty space). Label, value and a text `secondary` stay on one line each (ellipsis, the full text as tooltip), except in the narrow layout below; a `unit` that does not fit beside the value goes below it instead of cutting the value. `tone` dots share one style (colour plus its soft ring). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value, 12 px label), so the stack overview's five cards (status, CPU, memory, uptime, last deploy) fit one row on 1440 px screens. At 200 px or less (two per row on phones) it switches to the narrow layout: a 28 px tile beside the label, the value, unit and secondary line across the card's width, label, value and secondary wrapping at spaces instead of being cut. |
 | `IconTile` | `icon`, `color: TileColor`, `size: xs \| sm \| md \| lg` | Decorative (the adjacent text names the thing). `xs` (24 px, 14 px glyph) is the row icon of lists ([Row icons](#row-icons)). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. The empty track is `--border-strong`, visible on cards. |
 | `Uptime` | `since` (ISO start; absent: "—"), `prefix` | Live duration ticking once a second (`formatUptime`: "5m 03s", "3h 12m 08s", "4d 3h 12m"), tabular numerals, `<time>` with the absolute start as title. Other live values read the shared `clock.now` (one interval, only while a component reads it). |
-| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` / `below` / `titleAction` / `titleEditor` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `below` is a row under the meta row: a stack's or template's links (`LinkList`, `$lib/features/common`), passed only when there are any. `titleAction` sits right after the title (a stack's rename pencil, an `IconButton size="sm"`); `titleEditor` replaces the visible title while it is edited in place (the h1 stays, `sr-only`; the stack's inline rename). A long title without spaces breaks rather than widening the page. `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it (below 768 px the status moves below the title instead). Below 768 px the meta row wraps with spacing instead of dividers. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
+| `PageHeader` | `title` (h1), `description`, `info`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` / `below` / `titleAction` / `titleEditor` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `below` is a row under the meta row: a stack's or template's links (`LinkList`, `$lib/features/common`), passed only when there are any. `titleAction` sits right after the title (a stack's rename pencil, an `IconButton size="sm"`); `titleEditor` replaces the visible title while it is edited in place (the h1 stays, `sr-only`; the stack's inline rename). A long title without spaces breaks rather than widening the page. `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it (below 768 px the status moves below the title instead). Below 768 px the meta row wraps with spacing instead of dividers. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
 | `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, head, hidden; the status columns share the title's line while both fit and move below it otherwise, meta values wrap), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). Without rows and without `empty` it shows one row "Nothing here yet." The scroll box is `position: relative` (hidden `.sr-only` texts in cells cannot widen the page) and clips the last row's hover to a card's rounded corners. |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
 | `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, an edge fades out where more tabs are cut off, and `after` gets its own line. |
@@ -339,7 +339,18 @@ icon, so a list is recognisable at a glance:
 
 All fields render label, description and error through `Field` (the control
 gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
-`required`; optional ones say "Optional." in their description.
+`required`; optional ones set `optional`: a muted "Optional" after the
+label (`aria-hidden`: the missing `required` already says it), and their
+description never starts with "Optional.". `info` puts an `InfoTip` after
+the label (outside the label, so the control's name stays the label; the
+tip is in its `aria-describedby`): for explanations needed only now and
+then. `description` stays for what the user needs to fill the field in.
+`TextField`, `TextArea`, `Select`, `PasswordField`, `SuggestField`,
+`Combobox` and `TagInput` pass both on; `Switch`, `Checkbox` and
+`FieldGroup` (`$lib/features/common`) take `info` the same way. A legend
+with an (i) names its fieldset through `aria-labelledby` on a span inside
+the legend (so the group's name stays the legend's text) and lists the tip
+in `aria-describedby` (`FieldGroup`, `LinksEditor`).
 
 | component | notes |
 | --- | --- |
@@ -353,7 +364,7 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection; `icon`: a decorative glyph before the label (the kinds of events in a notification channel's "What to Send"). |
 | `Switch` | `role="switch"`; for settings that apply immediately. |
 | `RadioGroup` | Native radios in a fieldset. |
-| `TriState` | Inherit / Allow / Deny (#17 user overrides; `variant="rule"`: No rule / Allow / Deny) with the effective decision and its source explained. The chosen segment is filled and outlined in its colour (ok for Allow, danger for Deny, neutral otherwise); segments share one width so controls line up. `highRisk` marks Allow (the permission editor marks risk next to the action instead). |
+| `TriState` | Inherit / Allow / Deny (#17 user overrides; `variant="rule"`: No rule / Allow / Deny) with the effective decision and its source explained. The chosen segment is filled and outlined in its colour (ok for Allow, danger for Deny, neutral otherwise); segments share one width so controls line up. `highRisk` marks Allow (the permission editor marks risk next to the action instead). The explanation shows on screen only for Inherit; an explicit Allow or Deny keeps it for screen readers (`sr-only`). |
 | `CronField` | `label` (the fieldset's legend), `bind:cron`, `bind:timeZone`, `kind`. A "Repeats" select (Hourly at a minute, Daily at a time, Weekly on a day at a time, Custom) writes the cron expression; the raw field shows only for Custom, and an expression the presets cannot edit opens as Custom. IANA time zone; next runs and DST notes from `POST /api/v1/schedules/previews` (the one parser, #13), debounced; server validation shown inline. Helpers in `cron.ts`: `describeCron`, `parseCronPreset`, `buildCron`. |
 
 Map server validation errors with `fieldError(err, 'body.name')`.
@@ -369,7 +380,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher, `MultiSelect`. |
 | `Tooltip` | `text`, `trigger` snippet `(props)`. Supplements names; never the only name. |
-| `InfoTip` | `text`. An (i) beside a label or control that explains it: the text is its tooltip and its accessible name (focusable). It is a `TooltipLayer` info tip, so a tap shows it on touch screens. Inside a `<summary>` use `Disclosure`'s `hint` instead (a `title`, never a control in a summary; also an info tip). |
+| `InfoTip` | `text`, `id` (a control lists it in `aria-describedby`). An (i) beside a label or control that explains it: the text is its tooltip and its accessible name (focusable). It is a `TooltipLayer` info tip, so a tap shows it on touch screens. Inside a `<summary>` use `Disclosure`'s `hint` instead (a `title`, never a control in a summary; also an info tip). |
 | `TooltipLayer` | Mounted once in the root layout: every `title` attribute shows as the same themed tooltip (`.dy-tooltip`, `global.css`) after 400 ms of hover or on keyboard focus, above the element (below when there is no room), multi-line titles keep their lines. Touch shows nothing, except on an info tip (`data-dy-info`: `InfoTip`, `Disclosure`'s hint): it opens after 150 ms of hover, on click, and a tap toggles it (a tap elsewhere hides it); its click never toggles the `<summary>` or `<label>` around it. Use plain `title` for hints; never a native tooltip. |
 
 ### Feedback and states
@@ -580,6 +591,12 @@ file names and values stay as they are.
   confirmations and empty-state bodies.
 - Plain verbs; no "Submit", "OK" or "Oops"; name things as
   the user sees them ("environment", not "agent session").
+- Lean (#233): say a thing once, where it is needed. No page description
+  that restates the title, no card subtitle that restates the title or
+  the columns, no switch description that only says what Off means, no
+  field description that repeats the placeholder. Explanations needed only
+  now and then go behind an (i) (`info`); what keeps users from losing
+  data, exposing a secret or misreading a result stays visible.
 
 ## Accessibility floor
 

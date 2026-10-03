@@ -44,6 +44,7 @@
 		DestructiveConfirm,
 		EmptyState,
 		ErrorState,
+		InfoTip,
 		JobProgress,
 		Notice,
 		Select,
@@ -242,24 +243,14 @@
 	const ended = $derived(!!finished || restored);
 
 	const steps: WizardStep[] = [
-		{
-			id: 'destination',
-			label: 'Destination',
-			description: 'Where the stacks and their data go, and which stacks move.'
-		},
+		{ id: 'destination', label: 'Destination' },
 		{
 			id: 'check',
 			label: 'Check',
-			description:
-				'Checked before anything stops. Fix any problems it finds; warnings are accepted by starting.'
+			description: 'Nothing stops until you start. Fix any problems it finds.'
 		},
-		{ id: 'confirm', label: 'Confirm', description: 'What happens when the migration starts.' },
-		{
-			id: 'move',
-			label: 'Move',
-			description:
-				'The stacks move group by group; each starts on the destination once its files and data are copied and checked.'
-		}
+		{ id: 'confirm', label: 'Confirm' },
+		{ id: 'move', label: 'Move' }
 	];
 
 	const selection = (): EnvironmentMigrationSelection => ({
@@ -541,12 +532,14 @@
 				options={destOptions}
 				bind:value={target}
 				placeholder="Choose an environment"
-				description={anyOffline
-					? 'Offline environments cannot be chosen: the check needs them online.'
-					: undefined}
+				description={anyOffline ? "Offline environments can't be chosen." : undefined}
 			/>
 			<fieldset class="stacks">
-				<legend class="subsection-title">Stacks</legend>
+				<legend class="subsection-title legend"
+					>Stacks <InfoTip
+						text="Each stack keeps its name, history and policies."
+					/></legend
+				>
 				<p class="muted">{chosen.length} of {count(movable, 'stack')} selected.</p>
 				{#each choices as c (c.id)}
 					<Checkbox
@@ -563,10 +556,6 @@
 					/>
 				{/each}
 			</fieldset>
-			<p class="muted">
-				Each stack keeps its name, history and details; its update and backup policies
-				follow it.
-			</p>
 		</div>
 	{:else if s.id === 'check'}
 		{#if !preview}
@@ -639,9 +628,8 @@
 					automatically.
 				</li>
 				<li>
-					If a stack fails to move, the migration stops: that stack and the rest of its
-					group run on {sourceName} again, stacks moved before stay on {destName}, and the
-					other stacks stay running on {sourceName}. Migrate again to move the rest.
+					If a stack fails to move, the migration stops: its group runs on {sourceName} again
+					and stacks already moved stay on {destName}. Migrate again to move the rest.
 				</li>
 			</ul>
 			{#if warnings}
@@ -659,8 +647,7 @@
 		<div class="move">
 			{#if restored && rec}
 				<p class="muted">
-					This migration ended {formatRelative(rec.finishedAt ?? rec.updatedAt)}. What it
-					left to do is below.
+					This migration ended {formatRelative(rec.finishedAt ?? rec.updatedAt)}.
 				</p>
 			{/if}
 			{#key jobId}
@@ -723,10 +710,7 @@
 									the cause above, then migrate the rest.
 								</p>
 							{:else if everyStackMoved(rec) && !movable}
-								<p class="muted">
-									Every stack moved. Archive {sourceName} from its page once you no
-									longer need it.
-								</p>
+								<p class="muted">Every stack moved.</p>
 							{:else}
 								<p class="muted">
 									{sourceName} still has {count(movable, 'stack')} you can migrate.
@@ -787,7 +771,7 @@
 		icon={ArrowRightLeft}
 		color="blue"
 		title="Moving an environment needs a second environment."
-		description="{sourceName} is the only one. Add another first: run the Docker Agent on another Docker host and enroll it."
+		description="Add another environment first."
 		level={3}
 		compact
 	>
@@ -801,7 +785,7 @@
 		icon={ArrowRightLeft}
 		color="blue"
 		title="No stacks on {sourceName} to migrate."
-		description="Stacks you create or import on {sourceName} can be moved from here."
+		description="Create or import a stack on {sourceName} first."
 		level={3}
 		compact
 	>
@@ -857,6 +841,12 @@
 
 	.subsection-title {
 		margin-bottom: var(--space-2);
+	}
+
+	.legend {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 	}
 
 	.plain {

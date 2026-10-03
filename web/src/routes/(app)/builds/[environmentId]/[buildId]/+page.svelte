@@ -258,12 +258,7 @@
 			onretry={() => q.refetch()}
 		/>
 	{:else if b}
-		<PageHeader
-			{title}
-			description="Built from {repoLabel(b.gitUrl)}"
-			{...resourceIcon('build')}
-			{meta}
-		>
+		<PageHeader {title} {...resourceIcon('build')} {meta}>
 			{#snippet status()}<StatusBadge status={b.status} kind="job" />{/snippet}
 			{#snippet actions()}
 				{#if canBuild && !running}

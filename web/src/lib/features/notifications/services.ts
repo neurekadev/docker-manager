@@ -32,6 +32,10 @@ export interface ServiceField {
 	required?: boolean;
 	placeholder?: string;
 	description?: string;
+	/** An (i) after the label: detail not needed every time. */
+	info?: string;
+	/** Shows the muted "Optional" marker after the label. */
+	optional?: boolean;
 	mono?: boolean;
 	/** The value a new channel starts with. */
 	initial?: string;
@@ -432,16 +436,15 @@ const email: ServiceSpec = {
 				{ value: 'implicit', label: 'Implicit TLS' },
 				{ value: 'none', label: 'None' }
 			],
-			description:
-				'Auto uses implicit TLS on port 465 and STARTTLS elsewhere when the server offers it.'
+			info: 'Auto uses implicit TLS on port 465 and STARTTLS elsewhere when the server offers it.'
 		},
 		{
 			key: 'username',
 			label: 'Username',
 			kind: 'text',
-			description: 'Optional. Leave empty for a server that needs no login.'
+			optional: true
 		},
-		{ key: 'password', label: 'Password', kind: 'secret', description: 'Optional.' },
+		{ key: 'password', label: 'Password', kind: 'secret', optional: true },
 		{
 			key: 'from',
 			label: 'From',
@@ -457,7 +460,7 @@ const email: ServiceSpec = {
 			kind: 'text',
 			initial: EMAIL_FROM_NAME,
 			placeholder: EMAIL_FROM_NAME,
-			description: `The sender name mail programs show. Leave empty for ${EMAIL_FROM_NAME}.`
+			optional: true
 		},
 		{
 			key: 'to',
@@ -565,13 +568,13 @@ const ntfy: ServiceSpec = {
 			key: 'username',
 			label: 'Username',
 			kind: 'text',
-			description: 'Optional. For a server with access control.'
+			optional: true
 		},
 		{
 			key: 'password',
 			label: 'Password or Access Token',
 			kind: 'secret',
-			description: 'Optional.'
+			optional: true
 		},
 		CONNECTION
 	],
@@ -620,8 +623,7 @@ const gotify: ServiceSpec = {
 			required: true,
 			mono: true,
 			placeholder: 'gotify.example.com',
-			description:
-				'Host with :port and path if Gotify runs under one (gotify.example.com/gotify).'
+			description: 'Add :port and a path if needed.'
 		},
 		{ key: 'token', label: 'Application Token', kind: 'secret', required: true, mono: true },
 		CONNECTION
@@ -668,8 +670,8 @@ const pushover: ServiceSpec = {
 			key: 'devices',
 			label: 'Devices',
 			kind: 'text',
-			description:
-				'Optional. Device names separated by commas; empty sends to all your devices.'
+			optional: true,
+			description: 'Comma-separated; empty sends to all devices.'
 		}
 	],
 	build(v) {
@@ -724,8 +726,8 @@ const matrix: ServiceSpec = {
 			kind: 'text',
 			mono: true,
 			placeholder: '#ops:example.com',
-			description:
-				'Optional. Room aliases or IDs separated by commas; empty sends to every joined room.'
+			optional: true,
+			description: 'Comma-separated; empty sends to every joined room.'
 		},
 		CONNECTION
 	],

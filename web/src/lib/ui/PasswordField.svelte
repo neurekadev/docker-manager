@@ -12,6 +12,10 @@
 		label: string;
 		value?: string;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
+		/** Shows a muted "Optional" after the label. */
+		optional?: boolean;
 		error?: string | null;
 		autocomplete?: 'current-password' | 'new-password' | 'off';
 		ref?: HTMLInputElement | null;
@@ -22,6 +26,8 @@
 	let {
 		label,
 		value = $bindable(''),
+		info,
+		optional = false,
 		description,
 		error,
 		autocomplete = 'current-password',
@@ -33,7 +39,7 @@
 	}: Props = $props();
 </script>
 
-<Field {label} {description} {error} required={!!required} id={id ?? undefined}>
+<Field {label} {description} {info} {optional} {error} required={!!required} id={id ?? undefined}>
 	{#snippet children(c)}
 		<div class="wrap">
 			<input

@@ -3,8 +3,11 @@
 	// readers) with Docker Manager styling; `indeterminate` shows the mixed state
 	// (aria-checked="mixed" via the DOM property). `icon` puts a decorative
 	// glyph before the label ("What to Send": the kind of event's icon).
+	// `info` puts an (i) after the label (InfoTip), outside the label so it
+	// stays out of the checkbox's name.
 	import type { HTMLInputAttributes } from 'svelte/elements';
 	import type { IconComponent } from '$lib/design/icons';
+	import InfoTip from './InfoTip.svelte';
 
 	interface Props extends Omit<HTMLInputAttributes, 'type' | 'checked'> {
 		checked?: boolean;
@@ -15,6 +18,8 @@
 		/** Keep the label for screen readers only (table row selection). */
 		hideLabel?: boolean;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
 	}
 
 	let {
@@ -24,6 +29,7 @@
 		icon: Icon,
 		hideLabel = false,
 		description,
+		info,
 		id,
 		disabled,
 		...rest
@@ -37,30 +43,55 @@
 	});
 </script>
 
-<label class="check" class:disabled for={inputId}>
-	<input
-		bind:this={el}
-		bind:checked
-		id={inputId}
-		type="checkbox"
-		{disabled}
-		aria-describedby={description ? `${inputId}-desc` : undefined}
-		{...rest}
-	/>
-	<span class="text" class:sr-only={hideLabel}>
-		<span class="label"
-			>{#if Icon}<Icon
-					class="label-icon"
-					size={14}
-					strokeWidth={1.75}
-					aria-hidden="true"
-				/>{/if}{label}</span
-		>
-		{#if description}<span class="desc" id="{inputId}-desc">{description}</span>{/if}
+{#snippet box()}
+	<label class="check" class:disabled for={inputId}>
+		<input
+			bind:this={el}
+			bind:checked
+			id={inputId}
+			type="checkbox"
+			{disabled}
+			aria-describedby={[description ? `${inputId}-desc` : '', info ? `${inputId}-info` : '']
+				.filter(Boolean)
+				.join(' ') || undefined}
+			{...rest}
+		/>
+		<span class="text" class:sr-only={hideLabel}>
+			<span class="label"
+				>{#if Icon}<Icon
+						class="label-icon"
+						size={14}
+						strokeWidth={1.75}
+						aria-hidden="true"
+					/>{/if}{label}</span
+			>
+			{#if description}<span class="desc" id="{inputId}-desc">{description}</span>{/if}
+		</span>
+	</label>
+{/snippet}
+
+{#if info}
+	<span class="check-row">
+		{@render box()}
+		<span class="tip"><InfoTip id="{inputId}-info" text={info} /></span>
 	</span>
-</label>
+{:else}
+	{@render box()}
+{/if}
 
 <style>
+	.check-row {
+		display: inline-flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+	}
+
+	.tip {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--leading-body);
+	}
+
 	.check {
 		display: inline-flex;
 		align-items: flex-start;

@@ -176,7 +176,7 @@
 		{/if}
 	</div>
 	{#if preset === 'custom'}
-		<Field label="Cron Expression" {description} error={cronError}>
+		<Field label="Cron Expression" info={description} error={cronError}>
 			{#snippet children(c)}
 				<input
 					id={c.id}

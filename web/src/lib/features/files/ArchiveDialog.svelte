@@ -63,7 +63,7 @@
 			value={format}
 			onchange={setFormat}
 			options={[
-				{ value: 'zip', label: 'ZIP', description: 'Opens anywhere.' },
+				{ value: 'zip', label: 'ZIP' },
 				{ value: 'tar.gz', label: 'tar.gz', description: 'Keeps Unix permissions.' }
 			]}
 		/>

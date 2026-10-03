@@ -147,9 +147,7 @@
 		{#if latest && canUse}
 			<Card
 				title="What It Runs"
-				subtitle="{versionTitle(
-					latest.label
-				)}: its services and the settings its .env asks for."
+				subtitle={versionTitle(latest.label)}
 				padding="none"
 				id="services"
 			>

@@ -77,9 +77,9 @@
 	<div class="page">
 		<PageHeader
 			title="{idx.name} Templates"
-			description="Complete Compose projects shared by this Docker Manager. {idx.templates
-				.length} {idx.templates.length === 1 ? 'template' : 'templates'}{idx.templates
-				.length
+			description="{idx.templates.length} {idx.templates.length === 1
+				? 'template'
+				: 'templates'}{idx.templates.length
 				? `, updated ${formatRelative(idx.updatedAt)}`
 				: ''}."
 		/>
@@ -162,10 +162,9 @@
 					<div class="add" id="add">
 						<h2 id="add-title" class="subsection-title">Use These Templates</h2>
 						<p class="muted">
-							In your Docker Manager, open <strong
+							In your Docker Manager, add this address under <strong
 								>Templates → Template Sources</strong
-							>, choose
-							<strong>Add Template Source</strong> and paste this address:
+							>:
 						</p>
 						<div class="url">
 							<code title={registryUrl}>{registryUrl}</code>

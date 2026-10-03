@@ -161,9 +161,7 @@
 <Dialog
 	bind:open
 	title="Change Permissions"
-	description="{entries.length === 1
-		? entries[0].name
-		: `${entries.length} items`}: modes and owners use the host's numeric IDs."
+	description={entries.length === 1 ? entries[0].name : `${entries.length} items`}
 	size="md"
 	dismissible={!busy}
 >
@@ -214,7 +212,7 @@
 								<Switch
 									bind:checked={separateDirs}
 									label="Use Another Mode for Folders"
-									description={hasFiles || recursive
+									info={hasFiles || recursive
 										? 'Folders usually need execute to be opened.'
 										: undefined}
 								/>
@@ -262,13 +260,12 @@
 			<Switch
 				bind:checked={recursive}
 				label="Apply to Everything Inside the Selected Folders"
-				description="Symbolic links are never followed."
+				info="Symbolic links are never followed."
 			/>
 		{/if}
 		<p class="impact" aria-live="polite">
 			{#if impactError}{impactError}{:else if impact}{impactText()}{:else}Counting what
 				changes…{/if}
-			Setuid, setgid and sticky bits can't be set.
 		</p>
 		{#if error}<p class="field-error" role="alert">{error}</p>{/if}
 	</form>

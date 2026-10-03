@@ -206,12 +206,7 @@
 	>{/snippet}
 
 <Page>
-	<PageHeader
-		title="Raw Snapshots"
-		description={onlyRepo
-			? `What restic itself holds in ${onlyRepo.name}, read live. Backups lists the same backups by run.`
-			: 'What restic itself holds in your repositories, read live. Backups lists the same backups by run.'}
-	/>
+	<PageHeader title="Raw Snapshots" description="The snapshots restic holds, read live." />
 
 	{#each failed as f (f.name)}
 		<Notice tone="warn" title="The snapshots of {f.name} could not be listed.">
@@ -236,7 +231,7 @@
 		title="Snapshots"
 		subtitle={loading
 			? 'Reading the repositories…'
-			: `${rows.length} restic ${rows.length === 1 ? 'snapshot' : 'snapshots'}, read live from the repositories`}
+			: `${rows.length} restic ${rows.length === 1 ? 'snapshot' : 'snapshots'}`}
 		padding="none"
 	>
 		{#snippet actions()}

@@ -236,10 +236,7 @@
 {/snippet}
 
 <Page>
-	<PageHeader
-		title="Updates"
-		description="Checks for newer images of the tags you use and updates your stacks and containers when you choose."
-	>
+	<PageHeader title="Updates">
 		{#snippet actions()}{#if canManage}<Button
 					variant="primary"
 					icon={Plus}
@@ -260,7 +257,7 @@
 				<EmptyState
 					{...resourceIcon('updatePolicy')}
 					title="No update policies yet."
-					description="A policy looks for newer images of your stacks and the containers Docker Manager created, on one environment or all of them, and can apply them on a schedule."
+					description="Create a policy to check your stacks and containers for newer images."
 					level={2}
 				>
 					{#snippet actions()}
@@ -313,11 +310,7 @@
 				/>
 			</KpiRow>
 
-			<Card
-				title="Needs Attention"
-				subtitle="Stacks and containers with a newer image or a failed check or update."
-				padding="none"
-			>
+			<Card title="Needs Attention" padding="none">
 				<Table
 					label="Stacks and containers that need attention"
 					rows={attention}
@@ -330,7 +323,7 @@
 							color="green"
 							title="Nothing needs attention."
 							description={totals.unchecked
-								? 'Some stacks or containers were never checked. Check their policy to see if they have updates.'
+								? 'Some stacks or containers were never checked. Check their policy.'
 								: 'Every covered stack and container runs the newest image of its tag.'}
 							level={3}
 							compact
@@ -338,11 +331,7 @@
 				</Table>
 			</Card>
 
-			<Card
-				title="Policies"
-				subtitle="One policy covers all environments, or one per environment."
-				padding="none"
-			>
+			<Card title="Policies" padding="none">
 				<Table
 					label="Update Policies"
 					rows={visiblePolicies}

@@ -145,6 +145,9 @@ describe('ActionMatrix', () => {
 			within(region).getByRole('radiogroup', { name: 'Open terminal for All Resources' })
 		).not.toHaveTextContent('High Risk');
 		expect(within(region).getAllByText('High Risk')).toHaveLength(1);
+		// The action's explanation is an (i) beside its name, not a line under it.
+		expect(within(region).getByRole('img', { name: 'Restart a container.' })).toBeVisible();
+		expect(within(region).queryByText('Restart a container.')).toBeNull();
 		expect(within(region).getByText('1 less common action')).toBeInTheDocument();
 		expect(
 			within(region).queryByRole('radiogroup', { name: 'Pause for All Resources' })

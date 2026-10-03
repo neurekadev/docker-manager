@@ -18,18 +18,12 @@
 	{#if connectivity.state === 'offline'}
 		<div class="card">
 			<WifiOff size={18} strokeWidth={1.75} aria-hidden="true" />
-			<span>
-				Offline. Docker Manager cannot reach the network; live data is unavailable and no
-				changes are sent.
-			</span>
+			<span>Offline. Live data is unavailable and changes are not sent.</span>
 		</div>
 	{:else if connectivity.state === 'manager-unreachable'}
 		<div class="card">
 			<ServerOff size={18} strokeWidth={1.75} aria-hidden="true" />
-			<span>
-				Manager unreachable. Live data is unavailable and no changes are sent until it
-				responds.
-			</span>
+			<span>Manager unreachable. Changes are not sent until it responds.</span>
 		</div>
 	{/if}
 </div>

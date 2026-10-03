@@ -62,10 +62,7 @@
 		<p class="summary" aria-live="polite">{retentionText(value)}.</p>
 	</div>
 	{#if preset === 'custom'}
-		<FieldGroup
-			legend="Rules"
-			hint="0 turns a rule off; with every rule at 0 every backup is kept. Rules combine: a backup kept by any rule stays."
-		>
+		<FieldGroup legend="Rules" hint="0 turns a rule off. A backup kept by any rule stays.">
 			<div class="grid">
 				{#each RULES as r (r.key)}
 					<TextField
@@ -82,7 +79,8 @@
 	{/if}
 	<Switch
 		label="Remove Backups of Deleted Stacks and Volumes"
-		description="Off by default. The rules keep the last backups of a stack or volume forever once it is deleted. On: they are removed once the newest one is older than the days below. Nothing counts as deleted while its server is offline."
+		description="Otherwise the last backups of a deleted stack or volume are kept forever."
+		info="Nothing counts as deleted while its server is offline."
 		checked={!!value.expireDeletedDays}
 		onchange={(v) => {
 			value = { ...value, expireDeletedDays: v ? DEFAULT_EXPIRE_DELETED_DAYS : 0 };
@@ -105,7 +103,6 @@
 	{/if}
 	<Switch
 		label="Apply Retention After Every Backup"
-		description="Off: apply it from the policy page when you want."
 		checked={!!value.afterBackup}
 		onchange={(v) => {
 			value = { ...value, afterBackup: v };

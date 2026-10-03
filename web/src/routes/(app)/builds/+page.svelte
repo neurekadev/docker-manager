@@ -165,9 +165,6 @@
 			{canBuild}
 			{canDefine}
 			environmentId={scope.single ? scope.targets[0]?.id : undefined}
-			description="Images built from Git repositories on {scope.single
-				? scope.targets[0]?.name
-				: 'your environments'}."
 		>
 			{#snippet extra()}<PruneButton target="build_cache" {scope} />{/snippet}
 		</BuildsHeader>
@@ -217,7 +214,7 @@
 								<EmptyState
 									{...resourceIcon('build')}
 									title="No builds yet."
-									description="Build an image from a Git repository on one of your environments. Compose services with a build section build when their stack deploys."
+									description="Build an image from a Git repository."
 									level={3}
 									compact
 								>

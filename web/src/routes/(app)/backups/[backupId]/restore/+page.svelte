@@ -145,14 +145,12 @@
 		out.push({
 			value: 'volume',
 			label: b.kind === 'stack' ? 'Volumes of the Stack' : 'The Volume',
-			description:
-				'Named volumes only. The stack definition is not changed. A missing volume is created.'
+			description: 'Named volumes only; the stack definition is not changed.'
 		});
 		out.push({
 			value: 'file',
 			label: 'One File',
-			description:
-				'Put one file back in place. To get a copy instead, download it from the backup.'
+			description: 'Put one file back in place.'
 		});
 		return out;
 	}
@@ -183,12 +181,8 @@
 			label: 'What to Restore',
 			description: 'Restores go to where the data lives now.'
 		},
-		{
-			id: 'preview',
-			label: 'Review',
-			description: 'Exactly what is written and which containers stop.'
-		},
-		{ id: 'restore', label: 'Restore', description: 'Confirm, then follow the restore.' }
+		{ id: 'preview', label: 'Review' },
+		{ id: 'restore', label: 'Restore' }
 	];
 
 	async function onnext(step: { id: string }) {
@@ -287,10 +281,7 @@
 							stacks and volumes from their backups.
 						</li>
 					</ol>
-					<p class="muted">
-						A full system restore is exactly this: the manager first, then each host's
-						data. Sessions and API tokens of the backup are never revived.
-					</p>
+					<p class="muted">Sessions and API tokens of the backup are never revived.</p>
 				</Card>
 			{:else if !has(b, 'backup.restore')}
 				<DeniedState
@@ -351,7 +342,7 @@
 											mono
 											bind:value={filePath}
 											placeholder="/…/compose.yaml"
-											description="Pick it below or paste its absolute path inside the backup."
+											description="Pick it below or paste its path."
 										/>
 										{#if has(b, 'backup.contents.read')}
 											<div class="browser">
@@ -364,8 +355,8 @@
 										{/if}
 									{/if}
 									<Switch
-										label="Stop the containers that use this data while restoring"
-										description="Recommended. They stop in reverse dependency order and only the ones that were running start again. Off: a restore under running containers is refused."
+										label="Stop Containers While Restoring"
+										description="Recommended. Off: a restore under running containers is refused."
 										bind:checked={shutdown}
 										onchange={() => (preview = null)}
 									/>

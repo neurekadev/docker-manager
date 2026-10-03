@@ -5,10 +5,11 @@
 	// (`data-dy-info`): hover, keyboard focus, and a tap on touch screens.
 	import Info from '@lucide/svelte/icons/info';
 
-	let { text }: { text: string } = $props();
+	// `id` lets a control list the tip in its aria-describedby.
+	let { text, id }: { text: string; id?: string } = $props();
 </script>
 
-<span class="info-tip" role="img" tabindex="0" aria-label={text} title={text} data-dy-info>
+<span class="info-tip" {id} role="img" tabindex="0" aria-label={text} title={text} data-dy-info>
 	<Info size={14} strokeWidth={1.75} aria-hidden="true" />
 </span>
 

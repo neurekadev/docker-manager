@@ -342,7 +342,10 @@ describe('StackHeader', () => {
 		expect(screen.getByRole('button', { name: 'More Start and Stop Options' })).toBeDisabled();
 		expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeDisabled();
-		expect(screen.getByText('Read-only while homelab is offline')).toBeInTheDocument();
+		expect(screen.getByText('Read-Only')).toHaveAttribute(
+			'title',
+			'Read-only while homelab is offline'
+		);
 	});
 
 	it('stops only after the confirmation that lists what happens, and tracks the job', async () => {

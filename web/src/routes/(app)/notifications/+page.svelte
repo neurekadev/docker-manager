@@ -55,7 +55,7 @@
 	<Page>
 		<PageHeader
 			title="Notifications"
-			description="What Docker Manager did and what it found: finished backups, prunes and updates, and the problems that need a look."
+			info="Notifications and resolved alerts are kept for 90 days."
 		/>
 		<Tabs items={tabs} value={tab} label="Notifications Sections" onchange={selectTab}>
 			{#snippet panel(t)}

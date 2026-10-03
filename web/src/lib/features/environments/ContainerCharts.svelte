@@ -43,13 +43,7 @@
 {#if !isDenied(history.error)}
 	<section class="containers" aria-label="Containers">
 		<div class="head">
-			<div>
-				<h3 class="subsection-title">Containers</h3>
-				<p class="meta muted">
-					Each container in its own colour. Hover to compare them; filter by name to
-					highlight some.
-				</p>
-			</div>
+			<h3 class="subsection-title">Containers</h3>
 			{#if charts.cpu.length}
 				<div class="filter">
 					<TextField

@@ -197,7 +197,7 @@ describe('scopes and capabilities (#17)', () => {
 			/service containers, current and future/
 		);
 		expect(scopeConsequence({ scope: C, type: 'container', label: 'web' })).toBe(
-			'Rules here apply to web only.'
+			'Applies to web only.'
 		);
 	});
 });

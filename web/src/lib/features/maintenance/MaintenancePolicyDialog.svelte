@@ -170,7 +170,7 @@
 <Dialog
 	bind:open
 	title={editing ? `Edit ${p?.name}` : 'Create Maintenance Policy'}
-	description="Turn on the rules you want. Docker Manager's own objects, stack resources, saved containers and backups are always kept."
+	description="Docker Manager's own objects, stack resources, saved containers and backups are always kept."
 	size="xl"
 	dismissible={!busy}
 >
@@ -227,18 +227,17 @@
 				</Fields>
 				<TextField
 					label="Description"
-					description="Optional."
+					optional
 					bind:value={description}
 					error={fields['body.description']}
 				/>
 			</Fields>
 			<FieldGroup
 				legend="Schedule"
-				hint="Runs missed while Docker Manager was down are skipped, never run late."
+				info="Runs missed while Docker Manager was down are skipped, never run late."
 			>
 				<Switch
 					label="Run Automatically"
-					description="Off: the policy runs only when you start it."
 					bind:checked={enabled}
 					onchange={() => (touched = true)}
 				/>
@@ -252,10 +251,6 @@
 			<h3 class="section">Rules</h3>
 			<Badge tone={on ? 'accent' : 'neutral'}>{on} of {rules.length} on</Badge>
 		</div>
-		<p class="muted small rules-hint">
-			The rules turned on together are this policy's cleanup, from the least to the most
-			destructive.
-		</p>
 		<RuleList
 			{rules}
 			columns={2}
@@ -300,11 +295,7 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
-		margin-top: var(--space-6);
-	}
-
-	.rules-hint {
-		margin: var(--space-1) 0 var(--space-3);
+		margin: var(--space-6) 0 var(--space-3);
 	}
 
 	.section {

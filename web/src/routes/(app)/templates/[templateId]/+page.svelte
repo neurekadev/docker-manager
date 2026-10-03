@@ -56,8 +56,7 @@
 
 {#if t && t.view !== 'full'}
 	<Notice tone="info" live="none" title="You have limited access to this template">
-		Its versions, files and details are shown to people with access to it. Ask the owner of this
-		Docker Manager if you need it.
+		Ask the owner for access to see its versions and files.
 	</Notice>
 {:else if t}
 	<Columns ratio="equal">
@@ -104,8 +103,7 @@
 			</Card>
 		{:else}
 			<Notice tone="info" title="Not Published Yet" live="none">
-				Stacks are created from published versions. Edit the draft's files, then publish its
-				first version.
+				Edit the draft's files, then publish its first version.
 				{#snippet actions()}
 					{#if can('template.files.read')}
 						<Button size="sm" icon={FolderOpen} href={routes.template(t.id, 'files')}
@@ -122,10 +120,7 @@
 				items={[
 					{
 						label: 'Visibility',
-						value:
-							t.visibility === 'public'
-								? 'Public: other Docker Managers can use its published versions'
-								: 'Private: only this Docker Manager'
+						value: t.visibility === 'public' ? 'Public' : 'Private'
 					},
 					{ label: 'Tags', render: tagList },
 					{
@@ -145,18 +140,13 @@
 	{#if latest}
 		<Card
 			title="What It Runs"
-			subtitle="{versionTitle(
-				latest.label
-			)}: its services and the settings its .env asks for."
+			subtitle={versionTitle(latest.label)}
 			padding="none"
 			id="services"
 		>
 			{#if !canUse}
 				<p class="muted pad">
-					People who may create stacks from this template see its services here. Its
-					Compose files: {composeFiles(latest.definition)
-						.map((f) => f.path)
-						.join(', ')}.
+					Only people who may create stacks from this template see its services.
 				</p>
 			{:else if definition.isError}
 				<div class="pad">

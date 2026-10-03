@@ -116,10 +116,7 @@
 </script>
 
 <Page narrow={!!created}>
-	<PageHeader
-		title="Create API Token"
-		description="Grant only what the script needs. You can revoke the token at any time."
-	/>
+	<PageHeader title="Create API Token" />
 	{#if perms.data && !can(access, 'api_tokens.create')}
 		<DeniedState
 			level={2}
@@ -182,18 +179,18 @@
 						<Checkbox
 							bind:checked={neverExpires}
 							label="Never Expires"
-							description="Allowed by the sign-in policy. Revoke it when you no longer need it."
+							description="Revoke it when you no longer need it."
 						/>
 					{/if}
 					{#if maxDays}<p class="muted small">
-							This Docker Manager allows at most {maxDays} days.
+							At most {maxDays} days.
 						</p>{/if}
 				</div>
 			</Fields>
 		</Card>
 		<Card
 			title="What the Token May Do"
-			subtitle="Only actions you hold now are offered. The token never exceeds your current permissions: if yours shrink, so does the token."
+			subtitle="Only actions you hold are offered. If your permissions shrink, so does the token."
 		>
 			<QueryView query={catalog} errorTitle="The permission catalog could not be loaded.">
 				{#snippet children(cat)}

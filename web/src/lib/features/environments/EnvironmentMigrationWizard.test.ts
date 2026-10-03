@@ -270,9 +270,7 @@ describe('EnvironmentMigrationWizard', () => {
 		expect(screen.getByRole('checkbox', { name: 'proxy' })).toBeChecked();
 
 		// The only online destination is chosen; the offline one says why.
-		expect(
-			screen.getByText('Offline environments cannot be chosen: the check needs them online.')
-		).toBeInTheDocument();
+		expect(screen.getByText("Offline environments can't be chosen.")).toBeInTheDocument();
 		const next = screen.getByRole('button', { name: 'Check Migration' });
 		await waitFor(() => expect(next).toBeEnabled());
 		await user.click(next);

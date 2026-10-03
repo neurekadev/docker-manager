@@ -66,13 +66,12 @@ export const FACTOR_POLICY: Record<RequiredFactors, string> = {
 	both: 'Authenticator App and Passkey'
 };
 
-/** What choosing a factor policy means for the people who sign in. */
-export const FACTOR_DETAIL: Record<RequiredFactors, string> = {
-	none: 'A password (plus a code from an authenticator app for accounts that set one up) or a passkey.',
-	totp: 'Every password sign-in also needs a 6-digit code from an authenticator app.',
-	passkey: 'Everyone signs in with a passkey (with user verification).',
-	either: 'A password plus an authenticator code, or a passkey.',
-	both: 'A password, an authenticator code and a passkey.'
+/**
+ * What a factor policy means beyond its label, for the policies whose
+ * label does not say it all.
+ */
+export const FACTOR_DETAIL: Partial<Record<RequiredFactors, string>> = {
+	none: 'Accounts with an authenticator app also enter its code.'
 };
 
 /**

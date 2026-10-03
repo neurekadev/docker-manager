@@ -387,7 +387,7 @@
 				bind:value={thisAddr}
 				required
 				autocomplete="off"
-				description="This server's IP address or host name on your network. The new server connects to it."
+				description="IP address or host name. The new server connects to it."
 				error={submitted && !thisAddr.trim()
 					? "Enter this server's address."
 					: fieldError(createError, 'body.thisServerAddress')}
@@ -398,7 +398,7 @@
 				required
 				autocomplete="off"
 				placeholder="192.168.1.20"
-				description="The new server's IP address or host name on your network."
+				description="IP address or host name."
 				error={submitted && !newAddr.trim()
 					? "Enter the new server's address."
 					: fieldError(createError, 'body.newServerAddress')}
@@ -407,7 +407,8 @@
 				label="Name for the New Server"
 				bind:value={newName}
 				autocomplete="off"
-				description="Optional. How the new server shows in Docker Manager. Leave it empty to use its address."
+				optional
+				description="Defaults to its address."
 				error={fieldError(createError, 'body.newEnvironmentName')}
 			/>
 		</div>

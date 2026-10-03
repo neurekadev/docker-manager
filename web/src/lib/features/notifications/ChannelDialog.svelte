@@ -277,7 +277,6 @@
 <Dialog
 	bind:open
 	title={channel ? `Edit ${channel.name}` : 'Add Notification Channel'}
-	description="Docker Manager sends messages about the events you choose to this destination."
 	size="xl"
 	dismissible={!busy}
 >
@@ -318,6 +317,8 @@
 							options={f.options ?? []}
 							bind:value={() => values[f.key] ?? '', (v) => (values[f.key] = v)}
 							description={f.description}
+							info={f.info}
+							optional={f.optional}
 						/>
 					{:else if f.kind === 'secret'}
 						<PasswordField
@@ -327,6 +328,8 @@
 							autocomplete="off"
 							placeholder={f.placeholder}
 							description={f.description}
+							info={f.info}
+							optional={f.optional}
 							bind:value={() => values[f.key] ?? '', (v) => (values[f.key] = v)}
 							error={submitted ? problems[f.key] : undefined}
 						/>
@@ -340,6 +343,8 @@
 							inputmode={f.inputmode}
 							placeholder={f.placeholder}
 							description={f.description}
+							info={f.info}
+							optional={f.optional}
 							bind:value={() => values[f.key] ?? '', (v) => (values[f.key] = v)}
 							error={submitted ? problems[f.key] : undefined}
 						/>
@@ -424,7 +429,7 @@
 					bind:value={() => envMode, (v) => (envMode = v as 'all' | 'some')}
 					description={envMode === 'all'
 						? 'Includes environments you add later.'
-						: 'Only events of the environments you choose.'}
+						: undefined}
 				/>
 				{#if envMode === 'some'}
 					<fieldset
@@ -448,9 +453,7 @@
 			<div class="enabled">
 				<Switch
 					label="Enabled"
-					description={enabled
-						? 'Messages are sent to this channel.'
-						: 'Nothing is sent until you turn it on; you can still send a test.'}
+					description={enabled ? undefined : 'You can still send a test.'}
 					bind:checked={enabled}
 				/>
 			</div>

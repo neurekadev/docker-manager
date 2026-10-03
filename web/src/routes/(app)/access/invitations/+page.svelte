@@ -150,11 +150,7 @@
 
 <Page>
 	{#if perms.data && !owner}
-		<DeniedState
-			level={1}
-			title="Only the owner invites users."
-			description="Invitations are issued by the owner of this Docker Manager."
-		/>
+		<DeniedState level={1} title="Only the owner invites users." />
 	{:else}
 		<AccessHeader>
 			{#snippet actions()}

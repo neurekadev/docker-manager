@@ -62,10 +62,7 @@
 		{:else if error}
 			<p class="error" role="alert">{error}</p>
 		{/if}
-		<p class="note">
-			Files that already exist are listed before anything is written. Links that leave this
-			root and oversized archives are refused.
-		</p>
+		<p class="note">Files that already exist are listed before anything is written.</p>
 	</form>
 	{#snippet footer()}
 		<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>

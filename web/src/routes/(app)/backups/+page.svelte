@@ -172,8 +172,7 @@
 					<div class="step">
 						<h3>Add a Backup Repository</h3>
 						<p class="muted">
-							A local disk on a host or an S3 bucket. Save the Recovery Key it shows:
-							every backup opens with it.
+							A local disk or an S3 bucket. Save the Recovery Key it shows.
 						</p>
 						{#if readyRepos.length > 0}
 							<span class="state"
@@ -196,11 +195,7 @@
 					<span class="marker" aria-hidden="true">2</span>
 					<div class="step">
 						<h3>Create a Backup Policy</h3>
-						<p class="muted">
-							Covers all environments or one: every managed stack and volume is
-							included until you leave it out. Choose when it runs and how long
-							backups are kept.
-						</p>
+						<p class="muted">Choose what to back up, when and for how long.</p>
 						{#if canCreatePolicy}
 							<div>
 								<Button
@@ -259,19 +254,12 @@
 		</KpiRow>
 
 		{#if running.length}
-			<Card
-				title="Running Now"
-				subtitle="Backups with the file each one reads, and retentions, updated every second."
-			>
+			<Card title="Running Now">
 				<RunningBackups jobs={running} {policyName} environmentName={envName} />
 			</Card>
 		{/if}
 
-		<Card
-			title="Policies"
-			subtitle="What is backed up, how the last run went and when the next one starts."
-			padding="none"
-		>
+		<Card title="Policies" padding="none">
 			{#if policyList.length}
 				<PolicyTable
 					policies={policyList}
@@ -291,11 +279,7 @@
 			{/if}
 		</Card>
 
-		<Card
-			title="Recent Runs"
-			subtitle="Each run of a policy, with the backups it holds."
-			padding="none"
-		>
+		<Card title="Recent Runs" padding="none">
 			{#snippet actions()}
 				<Button size="sm" variant="ghost" href={routes.backupList()}>All Backups</Button>
 			{/snippet}

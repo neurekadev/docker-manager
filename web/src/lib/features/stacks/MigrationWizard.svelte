@@ -36,6 +36,7 @@
 		DestructiveConfirm,
 		EmptyState,
 		ErrorState,
+		InfoTip,
 		JobProgress,
 		Notice,
 		RadioGroup,
@@ -179,25 +180,13 @@
 	});
 
 	const steps: WizardStep[] = [
-		{
-			id: 'destination',
-			label: 'Destination',
-			description: 'Where the stack and its data go.'
-		},
-		{
-			id: 'check',
-			label: 'Check',
-			description:
-				'Checked before anything stops. Fix any problems it finds; warnings are accepted by starting.'
-		},
-		{ id: 'confirm', label: 'Confirm', description: 'What happens when the migration starts.' },
-		{
-			id: 'move',
-			label: 'Move',
-			description:
-				'The stack stops here, its files and data are copied and checked, then it starts on the destination.'
-		}
+		{ id: 'destination', label: 'Destination' },
+		{ id: 'check', label: 'Check', description: 'Nothing stops during the check.' },
+		{ id: 'confirm', label: 'Confirm' },
+		{ id: 'move', label: 'Move' }
 	];
+	const KEEPS =
+		'The stack keeps its name, history and details; its update and backup policies follow it.';
 
 	function selection(): MigrationSelection {
 		return {
@@ -457,6 +446,7 @@
 			<p>
 				{title} moves from {sourceEnv?.name ?? 'the current environment'} to
 				<span class="strong">{only.name}</span>, the only other environment.
+				<InfoTip text={KEEPS} />
 			</p>
 			{#if !only.online}
 				<Notice tone="offline" title="{only.name} is offline.">
@@ -470,14 +460,14 @@
 				options={targets.map((e: Environment) => ({
 					value: e.id,
 					label: e.name,
-					description: e.online ? 'Online' : 'Offline: it must be online for the check'
+					description: e.online ? undefined : 'Offline'
 				}))}
 			/>
-			<p class="muted">From {sourceEnv?.name ?? 'the current environment'}.</p>
+			<p class="muted">
+				From {sourceEnv?.name ?? 'the current environment'}.
+				<InfoTip text={KEEPS} />
+			</p>
 		{/if}
-		<p class="muted">
-			The stack keeps its name, history and details; its update and backup policies follow it.
-		</p>
 	{:else if s.id === 'check' && preview}
 		{@const head = checkHeadline(preview)}
 		{@const space = spaceCheck(preview.data)}
@@ -555,8 +545,7 @@
 						/>
 					</div>
 					<p class="muted hint">
-						Untick a volume to start it empty on {envName(target)} instead of copying its
-						data.
+						Untick a volume to start it empty on {envName(target)}.
 					</p>
 				</section>
 			{/if}
@@ -700,9 +689,7 @@
 			/>
 			{#if finished?.state === 'succeeded'}
 				<Notice tone="info" title="{title} runs on {destName} now.">
-					Its containers, volumes and files on {envName(source)} are stopped and kept. Remove
-					them once you are sure, or start them again. To move the stack back later, migrate
-					it back.
+					Its containers, volumes and files on {envName(source)} are stopped and kept.
 					{#snippet actions()}
 						<Button size="sm" icon={Play} onclick={() => (restarting = true)}
 							>Start Again on {envName(source)}</Button

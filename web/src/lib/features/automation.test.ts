@@ -42,7 +42,7 @@ describe('RuleEditor (#14)', () => {
 		expect(screen.getByText('Deletes Data')).toBeInTheDocument();
 		await user.click(
 			screen.getByRole('checkbox', {
-				name: /^I understand that removing volumes deletes the data in them/
+				name: /^I Understand That Removing Volumes Deletes the Data in Them/
 			})
 		);
 		expect(onchange).toHaveBeenLastCalledWith(
@@ -70,7 +70,7 @@ describe('RuleEditor (#14)', () => {
 				onchange
 			}
 		});
-		await user.click(screen.getByRole('checkbox', { name: /deletes the data/ }));
+		await user.click(screen.getByRole('checkbox', { name: /Deletes the Data/ }));
 		expect(onchange).toHaveBeenLastCalledWith(
 			expect.objectContaining({ volumeOptIn: false, enabled: false })
 		);
@@ -237,7 +237,7 @@ describe('RecoveryKeyChallenge (#10)', () => {
 		expect(submit).toBeDisabled();
 		await user.click(
 			screen.getByRole('checkbox', {
-				name: /^I saved the Recovery Key outside Docker Manager/
+				name: /^I Saved the Recovery Key Outside Docker Manager/
 			})
 		);
 		expect(submit).toBeEnabled();
@@ -266,7 +266,7 @@ describe('RecoveryKeyChallenge (#10)', () => {
 		);
 		render(RecoveryKeyChallenge, { props: { repositoryId: 'r1', onconfirmed: vi.fn() } });
 		await user.type(screen.getByLabelText('Recovery Key'), KEY);
-		await user.click(screen.getByRole('checkbox', { name: /I saved the Recovery Key/ }));
+		await user.click(screen.getByRole('checkbox', { name: /I Saved the Recovery Key/ }));
 		await user.click(screen.getByRole('button', { name: 'Confirm Recovery Key' }));
 		expect(await screen.findByRole('alert')).toHaveTextContent(
 			'not this Docker Manager’s Recovery Key'

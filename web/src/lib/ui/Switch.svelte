@@ -1,12 +1,17 @@
 <script lang="ts">
 	// Switch (#22: the log viewer's Follow toggle, policy enable). A button
 	// with role="switch" and aria-checked; Space and Enter toggle it. Use for
-	// settings that apply immediately; use Checkbox inside forms.
+	// settings that apply immediately; use Checkbox inside forms. `info` puts
+	// an (i) after the label (InfoTip), outside the switch's name.
+	import InfoTip from './InfoTip.svelte';
+
 	interface Props {
 		checked?: boolean;
 		label: string;
 		hideLabel?: boolean;
 		description?: string;
+		/** An explanation behind an (i) after the label. */
+		info?: string;
 		disabled?: boolean;
 		onchange?: (checked: boolean) => void;
 	}
@@ -16,6 +21,7 @@
 		label,
 		hideLabel = false,
 		description,
+		info,
 		disabled = false,
 		onchange
 	}: Props = $props();
@@ -33,7 +39,9 @@
 		role="switch"
 		aria-checked={checked}
 		aria-labelledby="sw-{uid}-label"
-		aria-describedby={description ? `sw-${uid}-desc` : undefined}
+		aria-describedby={[description ? `sw-${uid}-desc` : '', info ? `sw-${uid}-info` : '']
+			.filter(Boolean)
+			.join(' ') || undefined}
 		class="switch"
 		{disabled}
 		onclick={toggle}
@@ -41,12 +49,21 @@
 		<span class="thumb" aria-hidden="true"></span>
 	</button>
 	<span class="text" class:sr-only={hideLabel}>
-		<span id="sw-{uid}-label" class="label">{label}</span>
+		<span class="label-row">
+			<span id="sw-{uid}-label" class="label">{label}</span>
+			{#if info}<InfoTip id="sw-{uid}-info" text={info} />{/if}
+		</span>
 		{#if description}<span id="sw-{uid}-desc" class="desc">{description}</span>{/if}
 	</span>
 </div>
 
 <style>
+	.label-row {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
 	.switch-row {
 		display: inline-flex;
 		align-items: flex-start;

@@ -502,14 +502,7 @@
 				/>
 			</KpiRow>
 
-			<Card
-				title="What It Covers"
-				subtitle="Stacks and standalone containers Docker Manager manages in {p.scope ===
-				'all'
-					? 'every environment'
-					: scopeLabel(p)}. Excluded ones are listed too."
-				padding="none"
-			>
+			<Card title="What It Covers" padding="none">
 				{#if targets.isPending}
 					<div class="inset"><Skeleton lines={3} height="20px" /></div>
 				{:else if targets.isError}
@@ -580,7 +573,7 @@
 								icon={Clock}
 								color="slate"
 								title="No runs yet."
-								description="Checks and updates of this policy appear here, manual and scheduled."
+								description="Checks and updates of this policy appear here."
 								level={3}
 								compact
 							/>{/snippet}
@@ -591,7 +584,7 @@
 			<Dialog
 				bind:open={previewOpen}
 				title="Update Preview"
-				description="What updating {p.name} would change now. Applying pulls the new images and recreates the services that changed, dependencies first."
+				description="Applying pulls the new images and recreates the services that changed, dependencies first."
 				size="xl"
 				dismissible={!applying}
 			>
@@ -627,9 +620,7 @@
 							compact
 						/>{/snippet}
 				</Table>
-				<p class="muted small">
-					Hover an image for its digests. Only images whose digest changed are pulled.
-				</p>
+				<p class="muted small">Only images whose digest changed are pulled.</p>
 				{#snippet footer()}
 					<Button
 						variant="ghost"

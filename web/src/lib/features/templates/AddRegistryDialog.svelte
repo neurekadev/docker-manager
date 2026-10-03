@@ -50,13 +50,7 @@
 	}
 </script>
 
-<Dialog
-	bind:open
-	title="Add a Template Source"
-	description="Browse and use the public templates of another Docker Manager. Enter its address; it must use HTTPS."
-	size="md"
-	dismissible={!saving}
->
+<Dialog bind:open title="Add a Template Source" size="md" dismissible={!saving}>
 	<form
 		id="add-registry"
 		class="form"
@@ -70,7 +64,7 @@
 			bind:value={url}
 			required
 			placeholder="https://docker.example.com"
-			description="The other Docker Manager's address, or its /registry page."
+			description="Its address or /registry page. HTTPS only."
 			{error}
 			oninput={() => (error = null)}
 		/>

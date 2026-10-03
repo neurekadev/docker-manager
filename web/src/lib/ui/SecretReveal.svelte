@@ -65,8 +65,7 @@
 			title="Docker Manager shows this {label} only once"
 			live="none"
 		>
-			{description ??
-				`Store it somewhere safe before you continue. It cannot be shown again.`}
+			{description ?? 'Store it somewhere safe before you continue.'}
 		</Notice>
 		<div class="secret-box">
 			<pre class="secret" aria-label={label}>{text}</pre>

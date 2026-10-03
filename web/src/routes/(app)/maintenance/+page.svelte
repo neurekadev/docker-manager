@@ -140,10 +140,7 @@
 {/snippet}
 
 <Page>
-	<PageHeader
-		title="Maintenance"
-		description="Clean up Docker objects you no longer need, with a preview of everything first."
-	>
+	<PageHeader title="Maintenance" description="Clean up unused Docker objects.">
 		{#snippet actions()}
 			{#if can(access, 'settings.read')}
 				<Button icon={SlidersHorizontal} onclick={() => (defaultsDialog.open = true)}
@@ -164,7 +161,7 @@
 				<EmptyState
 					{...resourceIcon('maintenancePolicy')}
 					title="No maintenance policies yet."
-					description="A policy removes stopped containers, unused images and other leftovers on a schedule. You see a preview first, and nothing runs until you turn it on."
+					description="Create a policy to remove stopped containers, unused images and other leftovers. Nothing runs until you turn it on."
 					level={2}
 				>
 					{#snippet actions()}

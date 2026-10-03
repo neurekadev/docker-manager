@@ -23,7 +23,7 @@
 		executors,
 		errors = {},
 		credentialsOptional = false,
-		localDescription = 'An absolute directory on that host, outside every directory it backs up. Local folders must be allowed by the administrator; see Configuration in the documentation.'
+		localDescription = 'An absolute path outside what it backs up, in a folder the host allows for backups.'
 	}: Props = $props();
 </script>
 
@@ -35,14 +35,12 @@
 			{
 				value: 'local',
 				label: 'Local Directory',
-				description:
-					'A disk or mount of the manager or of one environment. Recovery needs that disk.'
+				description: 'On the manager or one environment. Recovery needs that disk.'
 			},
 			{
 				value: 's3',
 				label: 'S3-Compatible Storage',
-				description:
-					'AWS S3, MinIO, Backblaze B2, Wasabi and others. Recovery needs the bucket and a key pair.'
+				description: 'AWS S3, MinIO, Backblaze B2, Wasabi and others.'
 			}
 		]}
 	/>
@@ -50,7 +48,7 @@
 		{#if executors}
 			<Select
 				label="Written By"
-				description="Local repositories live on one host; each environment backs up to its own."
+				info="Local repositories live on one host; each environment backs up to its own."
 				options={executors}
 				bind:value={value.executor}
 				error={errors['body.executor']}
@@ -77,7 +75,7 @@
 			/>
 			<TextField
 				label="Region"
-				description="Optional."
+				optional
 				bind:value={value.region}
 				placeholder="eu-central-1"
 				error={errors['body.region']}
@@ -92,7 +90,8 @@
 			<TextField
 				label="Prefix"
 				mono
-				description="Optional. A folder inside the bucket."
+				optional
+				description="A folder inside the bucket."
 				bind:value={value.prefix}
 				placeholder="docker-manager"
 				error={errors['body.prefix']}
@@ -103,8 +102,9 @@
 				bind:value={value.accessKeyId}
 				autocomplete="off"
 				required={!credentialsOptional}
+				optional={credentialsOptional}
 				description={credentialsOptional
-					? 'Optional. Leave empty to keep the stored key pair.'
+					? 'Leave empty to keep the stored key pair.'
 					: undefined}
 				error={errors['body.accessKeyId']}
 			/>
@@ -119,7 +119,7 @@
 		</Fields>
 		<Switch
 			label="Path-Style Addressing"
-			description="On for MinIO and most self-hosted S3; off for AWS virtual-hosted buckets."
+			info="On for MinIO and most self-hosted S3; off for AWS virtual-hosted buckets."
 			bind:checked={value.pathStyle}
 		/>
 	{/if}

@@ -398,7 +398,9 @@
 	{#snippet media()}<StackIcon {stack} size="lg" />{/snippet}
 	{#snippet status()}
 		<StatusBadge status={stackStatus(stack)} />
-		{#if offline}<Badge tone="offline" dot>Read-only while {envName} is offline</Badge>{/if}
+		{#if offline}<Badge tone="offline" dot title="Read-only while {envName} is offline"
+				>Read-Only</Badge
+			>{/if}
 		{#if stack.protection}<ProtectionBadge protection={stack.protection} />{/if}
 		{#if restoring}<Badge tone="warn" dot>Restoring From a Backup</Badge>{/if}
 		{#if renaming}<Badge tone="warn" dot>{renamingReason}</Badge>{/if}

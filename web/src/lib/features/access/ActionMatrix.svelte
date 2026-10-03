@@ -11,7 +11,16 @@
 	import { untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import { Badge, Button, Checkbox, Select, TextField, TriState, type TriValue } from '$lib/ui';
+	import {
+		Badge,
+		Button,
+		Checkbox,
+		InfoTip,
+		Select,
+		TextField,
+		TriState,
+		type TriValue
+	} from '$lib/ui';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import {
 		capabilitiesAt,
@@ -150,8 +159,8 @@
 	<li class="row">
 		<div class="what">
 			<span class="name">{c.label}</span>
+			{#if c.description}<InfoTip text={c.description} />{/if}
 			{#if c.risk === 'high'}<Badge tone="warn">High Risk</Badge>{/if}
-			<p class="desc">{c.description}</p>
 		</div>
 		<div class="control">
 			{#if mode === 'token'}
@@ -202,7 +211,7 @@
 					value={preset ?? ''}
 					description={presetInfo
 						? presetInfo.description
-						: 'Sets every action below at once. Nothing is saved until you save.'}
+						: 'Sets every action below at once.'}
 					onchange={startFrom}
 				/>
 			</div>
@@ -426,13 +435,6 @@
 	.name {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);
-	}
-
-	.desc {
-		width: 100%;
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		line-height: var(--leading-caption);
 	}
 
 	.control {

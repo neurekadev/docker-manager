@@ -24,10 +24,7 @@
 </script>
 
 <Page>
-	<SettingsHeader
-		title="All API Tokens"
-		description="Every user's tokens. Revoke any of them; values are never shown."
-	/>
+	<SettingsHeader title="All API Tokens" info="Token values are never shown." />
 	{#if perms.data && !owner}
 		<DeniedState level={2} title="Only the owner sees every token." />
 	{:else}

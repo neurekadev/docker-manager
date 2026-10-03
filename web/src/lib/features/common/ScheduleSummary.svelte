@@ -2,7 +2,7 @@
 	// A saved schedule (#13) at a glance: enabled or off, the schedule in
 	// words ("Daily at 03:00", with the zone when it is not the viewer's;
 	// the cron expression and zone are its tooltip), and the next run (or
-	// why it cannot run).
+	// why it cannot run). Off says it all for a schedule that is turned off.
 	import Badge from '$lib/ui/Badge.svelte';
 	import { describeCron } from '$lib/ui/cron';
 	import { formatDateTime } from '$lib/ui/format';
@@ -35,8 +35,6 @@
 		<span class="note danger">{invalidReason}</span>
 	{:else if enabled && next}
 		<span class="note num">Next {formatDateTime(next, timeZone)}</span>
-	{:else if !compact && !enabled}
-		<span class="note muted">Runs only when you start it</span>
 	{/if}
 </span>
 

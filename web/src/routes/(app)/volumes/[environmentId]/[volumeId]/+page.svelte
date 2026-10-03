@@ -1,7 +1,7 @@
 <script lang="ts">
-	// Volume overview (#6): driver and options, what Docker Manager can do
-	// with its files, the containers using it, its stack and labels (system
-	// labels folded). What removing it would do is shown by the removal
+	// Volume overview (#6): driver and options, the containers using it,
+	// its stack and labels (system labels folded); whether Docker Manager
+	// can open its files is the layout's Read-Only badge and notice. What removing it would do is shown by the removal
 	// dialog (the server's preview), not here.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
@@ -12,7 +12,6 @@
 	import Facts, { type Fact } from '$lib/features/resources/Facts.svelte';
 	import LabelsCard from '$lib/features/resources/LabelsCard.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
-	import { volumeAccess } from '$lib/features/resources/model';
 
 	const env = $derived(page.params.environmentId ?? '');
 	const name = $derived(page.params.volumeId ?? '');
@@ -24,12 +23,6 @@
 			? [
 					{ label: 'Driver', value: v.driver, mono: true },
 					{ label: 'Scope', value: v.scope },
-					{
-						label: 'Files',
-						value: volumeAccess(v).local
-							? 'You can browse, watch and back up its files.'
-							: volumeAccess(v).reason
-					},
 					{
 						label: 'Created',
 						value: v.createdAt ? formatDateTime(v.createdAt) : undefined

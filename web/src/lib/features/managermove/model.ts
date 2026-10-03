@@ -186,8 +186,7 @@ export const MOVE_STEPS = [
 	{
 		id: 'server',
 		label: 'New Server',
-		description:
-			'Docker Manager creates the setup files for the new server. You start them there.'
+		description: 'Create the setup files and start them on the new server.'
 	},
 	{
 		id: 'check',
@@ -196,9 +195,7 @@ export const MOVE_STEPS = [
 	},
 	{
 		id: 'move',
-		label: 'Move',
-		description:
-			'Your apps move first. Then Docker Manager hands itself over to the new server.'
+		label: 'Move'
 	}
 ] as const;
 

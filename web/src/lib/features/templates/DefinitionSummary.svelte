@@ -84,11 +84,12 @@
 	{#if keys.length}
 		<section class="env pad" aria-labelledby="{uid}-env-keys">
 			<h3 class="subsection-title" id="{uid}-env-keys">Settings in .env</h3>
-			<p class="muted small">
-				{unset === 0
-					? 'Each has a value; you can change them when you create a stack.'
-					: `${unset} ${unset === 1 ? 'has' : 'have'} no value yet: fill ${unset === 1 ? 'it' : 'them'} in when you create a stack.`}
-			</p>
+			{#if unset > 0}
+				<p class="muted small">
+					{unset}
+					{unset === 1 ? 'needs' : 'need'} a value when you create a stack.
+				</p>
+			{/if}
 			<ul class="keys" aria-label="Settings in .env">
 				{#each keys as k (k.name)}
 					<li>

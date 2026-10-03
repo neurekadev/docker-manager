@@ -24,10 +24,13 @@
 	import type { TileColor } from '$lib/design/hue';
 	import CopyButton from './CopyButton.svelte';
 	import IconTile from './IconTile.svelte';
+	import InfoTip from './InfoTip.svelte';
 
 	interface Props {
 		title: string;
 		description?: string;
+		/** An explanation behind an (i) after the title (InfoTip). */
+		info?: string;
 		icon?: IconComponent;
 		color?: TileColor;
 		meta?: MetaItem[];
@@ -51,6 +54,7 @@
 	let {
 		title,
 		description,
+		info,
 		icon,
 		color = 'blue',
 		meta = [],
@@ -73,6 +77,7 @@
 				{@render titleEditor()}
 			{:else}
 				<h1 class:truncate title={truncate ? title : undefined}>{title}</h1>
+				{#if info}<InfoTip text={info} />{/if}
 				{#if titleAction}{@render titleAction()}{/if}
 			{/if}
 			{#if status}{@render status()}{/if}
