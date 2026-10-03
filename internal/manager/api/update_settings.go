@@ -250,17 +250,29 @@ func candidateSummary(candidates []domain.UpdateCandidate) UpdatePolicySummary {
 }
 
 func (h *updateSettingsAPI) targets(ctx context.Context, _ *struct{}) (*updateTargetsOutput, error) {
-	if _, _, _, err := h.setup(ctx, string(CapUpdatePolicyRead)); err != nil {
+	c, _, st, _, err := h.checked(ctx, string(CapUpdatePolicyRead))
+	if err != nil {
 		return nil, err
 	}
 	children, err := h.svc.Targets(ctx)
 	if err != nil {
 		return nil, Internal(err)
 	}
+	// A rule denying update_policy.read in an environment hides its targets.
+	readable := map[string]bool{}
 	out := &updateTargetsOutput{}
 	out.Body.Items = []UpdateSettingsTarget{}
 	for _, t := range children {
 		child := t.Policy
+		ok, seen := readable[child.EnvironmentID]
+		if !seen {
+			ok = c.Can(string(CapUpdatePolicyRead), authz.Resource{Type: catalog.TypeUpdatePolicy, ID: st.ID,
+				EnvironmentID: child.EnvironmentID, Parents: []authz.ResourceRef{}}).Allowed
+			readable[child.EnvironmentID] = ok
+		}
+		if !ok {
+			continue
+		}
 		candidates, err := h.svc.Candidates(ctx, child.ID)
 		if err != nil {
 			return nil, Internal(err)

@@ -55,6 +55,16 @@ type Kind struct {
 	// a non-terminal job of these kinds (scheduled or manual, linked by
 	// the job's policy ID) does not start another scheduled run.
 	JobKinds []domain.JobKind
+	// MaxJobs bounds the jobs one run enqueues; 0 means MaxJobsPerRun.
+	MaxJobs int
+}
+
+// maxJobs is the bound of the jobs one run of the kind enqueues.
+func (k Kind) maxJobs() int {
+	if k.MaxJobs > 0 {
+		return k.MaxJobs
+	}
+	return MaxJobsPerRun
 }
 
 var kindKeyRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
@@ -104,10 +114,10 @@ func BuiltinKinds() []Kind {
 			JobKinds: []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup}},
 		{Key: KindUpdateCheck, Label: "Image Update Checks", Noun: "Image update checks", Suggested: "0 3 * * *",
 			CatchUp: domain.CatchUpOnce, PolicyType: catalog.TypeUpdatePolicy, ReadCapability: "update_policy.read",
-			JobKinds: []domain.JobKind{jobspec.UpdateCheck}},
+			JobKinds: []domain.JobKind{jobspec.UpdateCheck}, MaxJobs: MaxUpdateJobsPerRun},
 		{Key: KindUpdateRun, Label: "Image Update Runs", Noun: "Image update runs", Suggested: "0 4 * * *",
 			CatchUp: domain.CatchUpSkip, PolicyType: catalog.TypeUpdatePolicy, ReadCapability: "update_policy.read",
-			JobKinds: []domain.JobKind{jobspec.UpdateRun}},
+			JobKinds: []domain.JobKind{jobspec.UpdateRun}, MaxJobs: MaxUpdateJobsPerRun},
 		{Key: KindPrune, Label: "Docker Prune", Noun: "Docker prune", Suggested: "0 3 * * 0", CatchUp: domain.CatchUpSkip,
 			PolicyType: catalog.TypeMaintenancePolicy, ReadCapability: "maintenance_policy.read",
 			JobKinds: []domain.JobKind{jobspec.PruneRun}},
@@ -168,7 +178,7 @@ type PolicySource interface {
 	// other error is a failure of the source (recorded as failed at due
 	// time, retried at dispatch).
 	Validate(ctx context.Context, policyID string) error
-	// Jobs builds the job requests of a due run (1 to MaxJobsPerRun, in a
+	// Jobs builds the job requests of a due run (1 to the kind's MaxJobs, in a
 	// deterministic order). The scheduler sets Principal (the manager
 	// service identity), PolicyID and IdempotencyKey (<Due.Key>#<index>)
 	// and enqueues them through the job engine. Return Reject(...) to
@@ -176,9 +186,14 @@ type PolicySource interface {
 	Jobs(ctx context.Context, due Due) ([]jobs.Request, error)
 }
 
-// MaxJobsPerRun bounds the jobs one run enqueues (an updates check of
-// every stack and container of the instance is one run).
+// MaxJobsPerRun bounds the jobs one run enqueues (one per environment of
+// a backup or prune run; manual runs keep the same bound).
 const MaxJobsPerRun = 256
+
+// MaxUpdateJobsPerRun bounds one run of the updates setup: a check or an
+// update of every stack and container of the instance is one run (manual
+// runs keep the same bound).
+const MaxUpdateJobsPerRun = 4096
 
 // Rejection refuses a due run or a dispatch with a user-facing reason.
 type Rejection struct {

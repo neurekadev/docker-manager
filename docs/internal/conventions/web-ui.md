@@ -327,6 +327,15 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `thresholds.ts` like the server: whole numbers, 0 off, warning below
   critical), overrides in a table with `OverrideDialog`; every save PUTs
   the whole settings with If-Match.
+- **File picker:** choosing files or folders from a listing (a backup's
+  contents today) goes through the shared `FilePicker`
+  (`$lib/features/common/FilePicker.svelte`, pure logic in
+  `filePicker.ts`): a dialog like a desktop "Open" dialog with the places
+  on the left, crumbs, a filter and the folder's entries, never above a
+  place; one file (a listbox: arrows, Enter, Backspace) or `multiple`
+  (tri-state ticks, a ticked folder chosen whole). A feature supplies its
+  places and a `PickerSource` (one query per folder, absolute paths);
+  never build another tree or inline browser to pick paths.
 - **Files, logs, terminals** (`docs/internal/web.md`): reuse
   `$lib/features/files/FileManager.svelte` (stack, volume or template
   scope),

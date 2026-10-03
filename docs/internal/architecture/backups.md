@@ -24,8 +24,9 @@ the agent's smartctl runner for disk health, see
   never to a user. Migration `20261002190000_backups_s3_only` removed the
   local repositories of earlier versions like a removal in the app (index,
   sets held only by them, locations, permission rules; storage stops
-  counting); a policy writing to one moved to the oldest S3 repository,
-  disabled, or was deleted when there was none. Their restic data stays on
+  counting); a policy writing to one (also for one environment only) was
+  disabled, its own repository moved to the oldest S3 repository, or it
+  was deleted when there was none. Their restic data stays on
   disk; the `executor` and `path` columns stay, empty.
 - Below it every **scope** has its own restic repository (a
   **location**): `docker-manager` for the manager state,
@@ -581,14 +582,22 @@ stored in); it says whether the backups cover the stack or volume
 (`settingsCover`) and when they run next and, without backups yet, the
 recent runs that included it (`memberRuns`). A stack's Policies tab shows
 Covered or Excluded (`BackupCoverageCard`). *Restore All* restores the whole
-backup (a volume's page: only that volume); *Choose Files* opens a lazily
-listed file tree (`FilePickerDialog`, one directory per request, at most
-500 entries each, tri-state ticks; `selection.ts` keeps no path inside a
-ticked one and splits a ticked folder when something inside is unticked).
+backup (a volume's page: only that volume); *Choose Files* opens the
+shared file picker (`$lib/features/common/FilePicker.svelte`,
+`multiple`) on the backup's
+places (`backupPlaces` in `$lib/features/backups/picker.ts`: the project
+directory and the volumes), one folder per request (`backupSource`, at
+most 500 entries each), with tri-state ticks (`filePicker.ts` keeps no
+path inside a ticked one and splits a ticked folder when something inside
+is unticked).
 Every restore is previewed and confirmed with a danger button that says
 what is replaced (a full restore also needs the name typed); the stack
 header hides Deploy and the lifecycle button's Start and Restart while a
-restore of the stack has not ended.
+restore of the stack has not ended. A backup's restore page
+(`/backups/{id}/restore`) restores the stack's definition and files,
+volumes or one file; for one file, *Choose File* opens
+the same picker in its one-file mode, which returns only regular files,
+as the `file` scope needs; the path can also be pasted.
 
 ## Fresh-manager import (#24)
 
