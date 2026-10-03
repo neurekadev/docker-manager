@@ -248,7 +248,8 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `object-actions.ts`) and shows one summary toast. A container's header
   shows, after its `LifecycleButton`, **Pause** (running) or **Unpause**
   (paused) and **Settings** (cog; restart policy and limits) as buttons,
-  never in the menu. Detail pages: removal
+  never in the menu; on phones Settings shows only its cog
+  (`Button iconOnPhones`) so the header stays one row. Detail pages: removal
   is the last entry of the header's "More Actions" menu after a separator
   and absent for Docker Manager's own objects (the notice says why); no
   removal-preview card on the page (the removal dialog shows the

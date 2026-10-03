@@ -7,7 +7,9 @@
 <script lang="ts">
 	// Button (#22). Labels name the result ("Deploy", "Save Changes"), never
 	// "Submit". With href it renders a link styled as a button. loading keeps
-	// the label, swaps the icon for a spinner and sets aria-busy.
+	// the label, swaps the icon for a spinner and sets aria-busy. iconOnPhones
+	// shows only the icon below 768 px (a page header with many actions); the
+	// label stays the accessible name.
 	import type { Snippet } from 'svelte';
 	import type { HTMLButtonAttributes } from 'svelte/elements';
 	import type { IconComponent } from '$lib/design/icons';
@@ -21,6 +23,7 @@
 		loading?: boolean;
 		href?: string;
 		block?: boolean;
+		iconOnPhones?: boolean;
 		ref?: HTMLElement | null;
 		children?: Snippet;
 	}
@@ -33,6 +36,7 @@
 		loading = false,
 		href,
 		block = false,
+		iconOnPhones = false,
 		type = 'button',
 		disabled = false,
 		ref = $bindable(null),
@@ -60,6 +64,7 @@
 		{href}
 		class="btn {variant} {size} {cls}"
 		class:block
+		class:icon-phones={iconOnPhones && (Icon || loading)}
 		aria-busy={loading || undefined}
 		{...rest as Record<string, unknown>}
 	>
@@ -71,6 +76,7 @@
 		{type}
 		class="btn {variant} {size} {cls}"
 		class:block
+		class:icon-phones={iconOnPhones && (Icon || loading)}
 		disabled={disabled || loading}
 		aria-busy={loading || undefined}
 		{...rest}
@@ -120,6 +126,23 @@
 	.label {
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	@media (max-width: 767px) {
+		.icon-phones {
+			width: var(--control-height);
+			padding: 0;
+		}
+		.icon-phones.sm {
+			width: var(--control-height-sm);
+		}
+		.icon-phones .label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+		}
 	}
 
 	.primary {

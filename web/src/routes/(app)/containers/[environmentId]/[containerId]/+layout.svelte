@@ -238,7 +238,9 @@
 					<Button icon={Play} onclick={() => host?.request(c, 'unpause')}>Unpause</Button>
 				{/if}
 				{#if editable}
-					<Button icon={Settings} onclick={() => (editOpen = true)}>Settings</Button>
+					<Button icon={Settings} iconOnPhones onclick={() => (editOpen = true)}
+						>Settings</Button
+					>
 				{/if}
 				{#if overflow.length}
 					<Menu items={overflow} label="More Actions for {c.name}" align="end">

@@ -25,6 +25,17 @@ describe('Button', () => {
 		expect(screen.getByTestId('spinner')).toBeInTheDocument();
 	});
 
+	it('keeps its label as the accessible name when it shows only the icon on phones', () => {
+		render(Button, { props: { icon: Box, iconOnPhones: true, children: text('Settings') } });
+		const b = screen.getByRole('button', { name: 'Settings' });
+		expect(b).toHaveClass('icon-phones');
+	});
+
+	it('does not collapse a button without an icon', () => {
+		render(Button, { props: { iconOnPhones: true, children: text('Settings') } });
+		expect(screen.getByRole('button', { name: 'Settings' })).not.toHaveClass('icon-phones');
+	});
+
 	it('renders links styled as buttons', () => {
 		render(Button, { props: { href: '/stacks', children: text('Open Stacks') } });
 		expect(screen.getByRole('link', { name: 'Open Stacks' })).toHaveAttribute(
