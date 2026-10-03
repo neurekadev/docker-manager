@@ -834,7 +834,7 @@ export function settingsSentence(
 	const when = st.enabled
 		? scheduleWords(st.schedule.cron, st.schedule.timeZone)
 		: 'when you start them';
-	const where = o.secondary ? `to ${o.primary}, then to ${o.secondary}` : `to ${o.primary}`;
+	const where = o.secondary ? `to ${o.primary}, then to ${o.secondary},` : `to ${o.primary}`;
 	const what = (st.excludeEnvironments ?? []).length
 		? 'Backs up the covered environments'
 		: 'Backs up every environment';
