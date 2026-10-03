@@ -269,7 +269,7 @@ until it is deployed). One run may enqueue up to
 `scheduler.MaxUpdateJobsPerRun` (4096) jobs (the kinds' `MaxJobs`; other
 kinds keep `MaxJobsPerRun`, 256); manual checks and runs of the setup
 keep the same bound (422 beyond it). A start that fails part way cancels
-what it queued, 16 at a time. Scheduled jobs run as the manager
+what it queued, 16 at a time, each within 10 s and all within 30 s. Scheduled jobs run as the manager
 service identity; manual ones carry the setup's ID for overlap
 prevention. A record created by hand (no setup; tests) has schedules of
 its own.

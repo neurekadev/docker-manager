@@ -562,8 +562,11 @@ func tooMany(reqs []jobs.Request) error {
 }
 
 // rollbackTimeout bounds cancelling one job of a start that failed part
-// way.
-const rollbackTimeout = 10 * time.Second
+// way, and rollbackDeadline the whole rollback.
+const (
+	rollbackTimeout  = 10 * time.Second
+	rollbackDeadline = 30 * time.Second
+)
 
 // rollbackParallel bounds the cancels of a rollback that run at once.
 const rollbackParallel = 16
@@ -581,30 +584,44 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 			err = domain.ErrJobIdempotencyConflict
 		}
 		if err != nil {
-			// The request may be cancelled already: cancel what was
-			// queued regardless, rollbackParallel at a time, each within
-			// a bound of its own (one slow cancel does not skip the
-			// others).
-			base := context.WithoutCancel(ctx)
-			var wg sync.WaitGroup
-			slots := make(chan struct{}, rollbackParallel)
-			for _, j := range out {
-				slots <- struct{}{}
-				wg.Go(func() {
-					defer func() { <-slots }()
-					cctx, cancel := context.WithTimeout(base, rollbackTimeout)
-					defer cancel()
-					if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
-						s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
-					}
-				})
-			}
-			wg.Wait()
+			s.rollback(ctx, out)
 			return nil, err
 		}
 		out = append(out, job)
 	}
 	return out, nil
+}
+
+// rollback cancels the jobs of a start that failed part way, also when
+// the request was cancelled already: rollbackParallel at a time, each
+// within rollbackTimeout (one slow cancel does not skip the others), and
+// none started after rollbackDeadline (the jobs left are logged).
+func (s *Service) rollback(ctx context.Context, queued []domain.Job) {
+	all, stop := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeadline)
+	defer stop()
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, rollbackParallel)
+	left := 0
+	for _, j := range queued {
+		slots <- struct{}{}
+		if all.Err() != nil {
+			<-slots
+			left++
+			continue
+		}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			cctx, cancel := context.WithTimeout(all, rollbackTimeout)
+			defer cancel()
+			if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+				s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
+			}
+		})
+	}
+	wg.Wait()
+	if left > 0 {
+		s.log.Warn("the rollback of a failed start ran out of time; jobs stay queued", "jobs", left)
+	}
 }
 
 // jobKey is the idempotency key of the i-th job of a request with key
