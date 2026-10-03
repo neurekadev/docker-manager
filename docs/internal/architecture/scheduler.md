@@ -219,7 +219,9 @@ type PolicySource interface {
 	// Revalidate when due and at dispatch; scheduler.Reject(class, reason)
 	// refuses the run, any other error is a source failure.
 	Validate(ctx context.Context, policyID string) error
-	// The run's jobs (1..32, deterministic order); Reject(...) refuses it,
+	// The run's jobs (1 to the kind's MaxJobs: MaxJobsPerRun, 256, or
+	// MaxUpdateJobsPerRun, 4096, for update checks and runs;
+	// deterministic order); Reject(...) refuses it,
 	// none skips it. Principal, PolicyID and IdempotencyKey are set by the
 	// scheduler. May be called again for the same due.Key after a crash:
 	// keep per-run bookkeeping idempotent on due.Key.

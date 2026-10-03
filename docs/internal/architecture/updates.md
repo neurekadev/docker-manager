@@ -265,9 +265,11 @@ revision is unchanged).
 Updates", no environment). Validate refuses a disabled schedule and (runs)
 the window; `Jobs` reconciles the targets and plans from the latest check
 (nothing to do skips the run; a stack with undeployed changes is left out
-until it is deployed). One run may enqueue up to `scheduler.MaxJobsPerRun`
-(4096) jobs; manual checks and runs of the setup keep the same bound
-(422 beyond it). Scheduled jobs run as the manager
+until it is deployed). One run may enqueue up to
+`scheduler.MaxUpdateJobsPerRun` (4096) jobs (the kinds' `MaxJobs`; other
+kinds keep `MaxJobsPerRun`, 256); manual checks and runs of the setup
+keep the same bound (422 beyond it). A start that fails part way cancels
+what it queued, 16 at a time. Scheduled jobs run as the manager
 service identity; manual ones carry the setup's ID for overlap
 prevention. A record created by hand (no setup; tests) has schedules of
 its own.

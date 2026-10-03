@@ -554,9 +554,9 @@ func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key
 // tooMany refuses a manual start beyond the scheduler's bound of one run,
 // so manual and scheduled runs agree.
 func tooMany(reqs []jobs.Request) error {
-	if len(reqs) > scheduler.MaxJobsPerRun {
+	if len(reqs) > scheduler.MaxUpdateJobsPerRun {
 		return &domain.FieldError{Field: "excludeEnvironments",
-			Message: fmt.Sprintf("%d targets; one run handles at most %d: leave some out", len(reqs), scheduler.MaxJobsPerRun)}
+			Message: fmt.Sprintf("%d targets; one run handles at most %d: leave some out", len(reqs), scheduler.MaxUpdateJobsPerRun)}
 	}
 	return nil
 }
@@ -564,6 +564,9 @@ func tooMany(reqs []jobs.Request) error {
 // rollbackTimeout bounds cancelling one job of a start that failed part
 // way.
 const rollbackTimeout = 10 * time.Second
+
+// rollbackParallel bounds the cancels of a rollback that run at once.
+const rollbackParallel = 16
 
 // enqueueAll enqueues reqs for principal (job keys key#i) all or none:
 // when one fails, the jobs already queued are cancelled (also when the
@@ -579,13 +582,16 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 		}
 		if err != nil {
 			// The request may be cancelled already: cancel what was
-			// queued regardless, all at once, each within a bound of its
-			// own (so the rollback takes about one bound, and one slow
-			// cancel does not skip the others).
+			// queued regardless, rollbackParallel at a time, each within
+			// a bound of its own (one slow cancel does not skip the
+			// others).
 			base := context.WithoutCancel(ctx)
 			var wg sync.WaitGroup
+			slots := make(chan struct{}, rollbackParallel)
 			for _, j := range out {
+				slots <- struct{}{}
 				wg.Go(func() {
+					defer func() { <-slots }()
 					cctx, cancel := context.WithTimeout(base, rollbackTimeout)
 					defer cancel()
 					if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
