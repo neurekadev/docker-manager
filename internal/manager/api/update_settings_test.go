@@ -192,7 +192,9 @@ func TestUpdateSettingsRoutes(t *testing.T) {
 	if c := svc.changes[len(svc.changes)-1]; c.ExcludeStacks != nil || c.Run != nil || c.Window == nil || c.ClearWindow {
 		t.Fatalf("change passed on %+v", c)
 	}
-	if r := patch(`"2"`, map[string]any{"clearWindow": true}); r.Status != http.StatusOK || json.Unmarshal(r.Body, &s) != nil || s.Window != nil {
+	var cleared UpdateSettings
+	if r := patch(`"2"`, map[string]any{"clearWindow": true}); r.Status != http.StatusOK || json.Unmarshal(r.Body, &cleared) != nil ||
+		cleared.Window != nil {
 		t.Fatalf("clear the window: %d %s", r.Status, r.Body)
 	}
 
