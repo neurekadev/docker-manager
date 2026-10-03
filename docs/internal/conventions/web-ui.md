@@ -221,7 +221,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   on every row (every volume "local") is hidden (`sameEverywhere`), and
   untagged images fold into a section at the end (`splitUntagged`).
   Phones show the name, status and one key figure (other columns
-  `stack: 'hidden'`; the row menu `stack: 'head'`). Rows are selectable:
+  `stack: 'hidden'`; the row menu and other icon-only row actions
+  `stack: 'head'`; the status, a start time or badges beside the
+  name `stack: 'status'`, which moves below a long name). Rows are selectable:
   `ContainerBulk` / `ObjectBulk` show the selection bar (`BulkBar`) and
   confirm with what runs and what is left out and why (`BulkConfirm`;
   pure plans and the summary in `bulk.ts`: Docker Manager's own objects,

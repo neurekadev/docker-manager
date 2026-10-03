@@ -251,7 +251,7 @@
 			header: 'Actions',
 			hideHeader: true,
 			cell: actionsCell,
-			stack: 'actions',
+			stack: 'head',
 			align: 'end',
 			width: '112px',
 			pin: 'end'
@@ -490,6 +490,14 @@
 		font-size: var(--text-caption);
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* The phone's row card wraps the reference instead of cutting it. */
+	@media (max-width: 767px) {
+		.image {
+			white-space: normal;
+			overflow-wrap: anywhere;
+		}
 	}
 
 	.image.link {

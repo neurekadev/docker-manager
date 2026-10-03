@@ -76,16 +76,22 @@
 		min-height: 52px;
 	}
 
+	/* The subtitle stays beside the title while both fit and moves below
+	   it otherwise, so a narrow card never squeezes the title into a
+	   column of single words. */
 	.titles {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: baseline;
-		gap: var(--space-3);
+		gap: 2px var(--space-3);
 		min-width: 0;
 	}
 
 	.title {
+		min-width: 0;
 		font-size: var(--text-section);
 		line-height: var(--leading-section);
+		overflow-wrap: anywhere;
 	}
 
 	.subtitle {

@@ -70,12 +70,13 @@
 	const q = createQuery(() => containerQuery(env, name));
 	const c = $derived(q.data);
 
+	// The address may hold the Engine ID: the crumb shows the name once loaded.
 	usePage(() => ({
-		title: name,
+		title: c?.name ?? name,
 		crumbs: [
 			{ label: 'Containers', href: routes.containers() },
 			{ label: envName },
-			{ label: name }
+			{ label: c?.name ?? name }
 		]
 	}));
 

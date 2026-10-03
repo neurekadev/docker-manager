@@ -102,7 +102,7 @@
 				cell: actionsCell,
 				width: '96px',
 				pin: 'end',
-				stack: 'actions'
+				stack: 'head'
 			});
 		return cols;
 	});

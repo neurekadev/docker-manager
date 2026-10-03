@@ -261,6 +261,13 @@
 		white-space: nowrap;
 	}
 
+	/* The phone's row card has the room to say it all (and no tooltip). */
+	@media (max-width: 767px) {
+		.sends {
+			white-space: normal;
+		}
+	}
+
 	.sub,
 	.muted {
 		color: var(--text-muted);

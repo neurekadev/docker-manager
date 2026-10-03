@@ -87,9 +87,11 @@
 		min-width: 0;
 	}
 
+	/* Levels have at most three digits: narrow fields leave the metric
+	   names room for one line ("Disk Space (% Used)"). */
 	@media (max-width: 767px) {
 		.grid {
-			grid-template-columns: minmax(0, 1fr) repeat(2, minmax(4.5rem, 6rem));
+			grid-template-columns: minmax(0, 1fr) repeat(2, 4.5rem);
 		}
 
 		.row {

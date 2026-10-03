@@ -119,7 +119,7 @@
 			cell: createdCell,
 			sortValue: (b) => b.createdAt,
 			width: '130px',
-			stack: 'head'
+			stack: 'status'
 		}
 	]);
 </script>

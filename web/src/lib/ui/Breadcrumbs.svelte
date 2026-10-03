@@ -81,10 +81,18 @@
 		text-overflow: ellipsis;
 	}
 
-	/* Phones: only the parent and the current page fit the top bar. */
+	/* Phones: only the parent and the current page fit the top bar. The
+	   current page shortens; the parent keeps its width up to 40 % of the
+	   screen (it was cut to a single letter beside a long name), which the
+	   phone's top bar always has room for. */
 	@media (max-width: 767px) {
 		li:not(:nth-last-child(-n + 2)) {
 			display: none;
+		}
+
+		li:nth-last-child(2) {
+			flex-shrink: 0;
+			max-width: 40vw;
 		}
 	}
 </style>

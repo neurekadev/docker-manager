@@ -43,10 +43,13 @@ export interface Column<T> {
 	/** Visually hide the header text (it still labels the column). */
 	hideHeader?: boolean;
 	/**
-	 * Role in stacked mode (<768 px): title and status on the first line,
-	 * meta as label/value pairs, actions at the end, hidden omitted.
-	 * `head`: at the end of the first line (a compact row action such as
-	 * the "⋯" menu, so it does not take a line of its own). Default: meta.
+	 * Role in stacked mode (<768 px): title and status on the first line
+	 * (the status moves below a title too long to share the line; a
+	 * column of badges or a time can be a status too), meta as label/value
+	 * pairs that wrap long values, actions at the end, hidden omitted.
+	 * `head`: at the end of the first line, fixed (a compact row action
+	 * such as the "⋯" menu or a few icon buttons, so they do not take a
+	 * line of their own). Default: meta.
 	 */
 	stack?: 'title' | 'status' | 'meta' | 'actions' | 'head' | 'hidden';
 }

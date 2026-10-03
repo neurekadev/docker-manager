@@ -147,14 +147,20 @@
 							onchange={(e) => toggleRow(key, e.currentTarget.checked)}
 						/>
 					{/if}
-					<div class="card-title">
-						{#each byRole('title') as col (col.id)}{@render cellContent(
-								col,
-								row
-							)}{/each}
+					<div class="card-lead">
+						<div class="card-title">
+							{#each byRole('title') as col (col.id)}{@render cellContent(
+									col,
+									row
+								)}{/each}
+						</div>
+						{#each byRole('status') as col (col.id)}<div class="card-status">
+								{@render cellContent(col, row)}
+							</div>{/each}
 					</div>
-					{#each byRole('status') as col (col.id)}{@render cellContent(col, row)}{/each}
-					{#each byRole('head') as col (col.id)}{@render cellContent(col, row)}{/each}
+					{#each byRole('head') as col (col.id)}<div class="card-end">
+							{@render cellContent(col, row)}
+						</div>{/each}
 				</div>
 				{#if byRole('meta').length}
 					<dl class="card-meta">
@@ -338,6 +344,11 @@
 		text-align: right;
 	}
 
+	/* A figure and its unit stay on one line ("136.17 MB", not "MB" below). */
+	td.num {
+		white-space: nowrap;
+	}
+
 	th.select,
 	td.select {
 		width: 44px;
@@ -449,15 +460,38 @@
 		background: var(--surface-panel);
 	}
 
+	/* First line: the selection box, the title with its status and the
+	   compact 'head' parts (a row menu) at the end. The status stays beside
+	   a short title and moves below a long one, so the title keeps the
+	   card's width instead of being cut to a few letters. */
 	.card-head {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: var(--space-3);
 	}
 
-	.card-title {
+	.card-lead {
+		display: flex;
 		flex: 1;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2) var(--space-3);
 		min-width: 0;
+	}
+
+	.card-title {
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.card-status,
+	.card-end {
+		display: flex;
+		flex: none;
+		align-items: center;
+		gap: var(--space-2);
+		max-width: 100%;
 	}
 
 	.card-meta {
@@ -467,16 +501,21 @@
 		margin: var(--space-3) 0 0;
 	}
 
+	.card-meta > div {
+		min-width: 0;
+	}
+
 	.card-meta dt {
 		color: var(--text-muted);
 		font-size: var(--text-caption);
 	}
 
+	/* Long values (image references, paths, summaries) wrap rather than
+	   being cut: a phone has no tooltip to show the rest. */
 	.card-meta dd {
 		margin: 0;
 		color: var(--text-default);
-		overflow: hidden;
-		text-overflow: ellipsis;
+		overflow-wrap: anywhere;
 	}
 
 	.card.none {

@@ -156,8 +156,11 @@
 		line-height: var(--leading-body);
 	}
 
+	/* A unit that does not fit beside the value goes below it rather than
+	   cutting the value ("188.84… / 30.3 GB"). */
 	.value-row {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: baseline;
 		column-gap: 6px;
 		min-width: 0;
@@ -269,6 +272,57 @@
 
 		.spark {
 			max-width: none;
+		}
+	}
+
+	/* Narrow card (two per row on a phone): beside the tile the value
+	   would keep a few letters ("1…"), so the tile shrinks to the label's
+	   line and the value, unit and secondary line take the card's width.
+	   Texts wrap rather than being cut: a phone has no tooltip. */
+	@container (max-width: 200px) {
+		.kpi {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr);
+			align-content: center;
+			align-items: center;
+			gap: 2px var(--space-2);
+			padding: var(--space-3);
+		}
+
+		.kpi :global(.tile) {
+			width: 28px;
+			height: 28px;
+		}
+
+		.kpi :global(.tile svg) {
+			width: 16px;
+			height: 16px;
+		}
+
+		.text {
+			display: contents;
+		}
+
+		.label,
+		.secondary {
+			white-space: normal;
+			overflow-wrap: anywhere;
+		}
+
+		/* "10 minutes ago" breaks at its spaces on the smallest phones. */
+		.value {
+			white-space: normal;
+		}
+
+		.value-row,
+		.secondary,
+		.bar,
+		.spark {
+			grid-column: 1 / -1;
+		}
+
+		.value-row {
+			margin-top: var(--space-1);
 		}
 	}
 </style>

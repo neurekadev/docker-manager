@@ -431,7 +431,7 @@
 					</p>
 					<ul class="chips" role="list">
 						{#each d.recreate.envKeys as k (k)}<li>
-								<Chip label={k} size="sm" />
+								<Chip label={k} title={k} size="sm" />
 							</li>{/each}
 					</ul>
 				{:else}
@@ -492,6 +492,12 @@
 		margin: 0;
 		padding: 0;
 		list-style: none;
+	}
+
+	/* A long tag is cut at the card's edge (its full text is the tooltip). */
+	.chips li {
+		min-width: 0;
+		max-width: 100%;
 	}
 
 	@media (max-width: 1023px) {

@@ -115,10 +115,14 @@
 		flex-wrap: wrap;
 	}
 
+	/* A long name without spaces (an image reference) breaks rather than
+	   widening the page. */
 	h1 {
+		min-width: 0;
 		font-size: var(--text-title);
 		line-height: var(--leading-title);
 		letter-spacing: -0.01em;
+		overflow-wrap: anywhere;
 	}
 
 	/* The status stays beside a cut title. */
@@ -193,8 +197,22 @@
 			line-height: var(--leading-title-sm);
 		}
 
+		/* The status and marks move below a cut title instead of squeezing
+		   it (a container's three badges left it no width at all). */
+		.title-row.truncate {
+			flex-wrap: wrap;
+		}
+
+		/* The meta row wraps on phones: spacing instead of dividers, which
+		   would start the wrapped lines. */
 		.meta {
-			gap: var(--space-1) 0;
+			gap: var(--space-1) var(--space-4);
+		}
+
+		.meta li,
+		.meta li:first-child {
+			padding: 0;
+			border-left: 0;
 		}
 	}
 </style>
