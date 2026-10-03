@@ -36,6 +36,7 @@ describe('job labels (#26 catalog)', () => {
 		expect(kinds.length).toBeGreaterThan(30);
 		for (const k of kinds) expect(JOB_KIND_LABELS[k], k).toBeTruthy();
 		expect(jobKindLabel('stack.deploy')).toBe('Deploy Stack');
+		expect(jobKindLabel('container.unpause')).toBe('Unpause Container');
 		expect(jobKindLabel('future.thing_done')).toBe('Future Thing Done');
 		expect(jobKindLabel(undefined)).toBe('Job');
 		expect(jobKindPhrase('update.check')).toBe('Check for updates');
