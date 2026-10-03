@@ -66,7 +66,17 @@ func TestSetupCoversEverythingButWhatItLeavesOut(t *testing.T) {
 	if err := h.svc.CheckSource().Validate(h.ctx, st.ID); !errors.As(err, &rej) || rej.Class != scheduler.RejectPolicyDisabled {
 		t.Fatalf("check while disabled: %v", err)
 	}
-	if _, err := h.svc.CheckSetup(h.ctx, authz.Service(), "first"); err != nil {
+	// A refused environment refuses the whole check.
+	denied := errors.New("denied")
+	if _, err := h.svc.CheckSetup(h.ctx, authz.Service(), "refused", func(e domain.Environment) error {
+		if e.ID == "other-env" {
+			return denied
+		}
+		return nil
+	}); !errors.Is(err, denied) {
+		t.Fatalf("refused environment: %v", err)
+	}
+	if _, err := h.svc.CheckSetup(h.ctx, authz.Service(), "first", nil); err != nil {
 		t.Fatal(err)
 	}
 	children := h.targets()

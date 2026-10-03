@@ -97,7 +97,11 @@ returns every target's plan with one fingerprint, and
 `POST /update-settings/runs {fingerprint}` enqueues an `update.run` per
 target with something to apply (409 `update_preview_stale` when the plan
 changed since the preview). Every request is built before the first is
-enqueued; when an enqueue fails, the jobs already queued are cancelled.
+enqueued; when an enqueue fails, the jobs already queued are cancelled
+(also when the request itself was cancelled) and the request's key is
+refused afterwards (409: replaying it would report the cancelled jobs).
+The caller's grant is checked on the very environments the action covers
+(`updates.Permit`, applied by the reconciliation).
 
 ## Eligibility (`eligible.Check`)
 

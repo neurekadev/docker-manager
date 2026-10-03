@@ -307,6 +307,10 @@ func (h *updatesAPI) targetName(ctx context.Context, p domain.UpdatePolicy) stri
 // --- errors ---
 
 func updateError(err error) error {
+	var ae *Error
+	if errors.As(err, &ae) {
+		return ae
+	}
 	var ue *domain.UpdateError
 	var se *updates.ScheduleError
 	var fe *domain.FieldError

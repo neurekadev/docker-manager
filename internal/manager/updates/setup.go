@@ -147,13 +147,18 @@ func (s *Service) Targets(ctx context.Context) ([]ManagedTarget, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.reconcile(ctx, st)
+	return s.reconcile(ctx, st, nil)
 }
 
+// Permit refuses (with its error) an environment the caller may not act
+// on; nil permits every one.
+type Permit func(domain.Environment) error
+
 // syncSetup reconciles the target records of the setup and returns the
-// active ones.
-func (s *Service) syncSetup(ctx context.Context, st domain.UpdateSetup) ([]domain.UpdatePolicy, error) {
-	all, err := s.reconcile(ctx, st)
+// active ones. permit refuses every one when it refuses one of the
+// covered environments.
+func (s *Service) syncSetup(ctx context.Context, st domain.UpdateSetup, permit Permit) ([]domain.UpdatePolicy, error) {
+	all, err := s.reconcile(ctx, st, permit)
 	if err != nil {
 		return nil, err
 	}
@@ -176,11 +181,22 @@ func targetKey(env string, typ domain.UpdateTargetType, id string) string {
 // without erasing its history), schedules, window, wait timeout and the
 // record's name, which follows the target's current name ("Automatic
 // updates for zerobyte"; records that earlier versions named after their
-// ID are renamed here, so no migration is needed).
-func (s *Service) reconcile(ctx context.Context, p domain.UpdateSetup) ([]ManagedTarget, error) {
+// ID are renamed here, so no migration is needed). permit, when set,
+// checks every covered environment first: a refusal ends the
+// reconciliation with its error, so callers act only on environments the
+// caller was checked for.
+func (s *Service) reconcile(ctx context.Context, p domain.UpdateSetup, permit Permit) ([]ManagedTarget, error) {
 	envs, err := store.ListEnvironments(ctx, s.db, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
 	if err != nil {
 		return nil, err
+	}
+	envs = slices.DeleteFunc(envs, func(e domain.Environment) bool { return slices.Contains(p.ExcludeEnvironments, e.ID) })
+	if permit != nil {
+		for _, env := range envs {
+			if err := permit(env); err != nil {
+				return nil, err
+			}
+		}
 	}
 	children, err := store.UpdatePoliciesForParent(ctx, s.db, p.ID)
 	if err != nil {
@@ -195,9 +211,6 @@ func (s *Service) reconcile(ctx context.Context, p domain.UpdateSetup) ([]Manage
 	// labels are the targets' names as users know them.
 	labels := map[string]string{}
 	for _, env := range envs {
-		if slices.Contains(p.ExcludeEnvironments, env.ID) {
-			continue
-		}
 		stacks, err := s.opts.Stacks.List(ctx, domain.StackFilter{EnvironmentID: env.ID})
 		if err != nil {
 			return nil, err
@@ -460,8 +473,8 @@ type SetupPreview struct {
 	Targets     []TargetPreview
 }
 
-func (s *Service) previewSetup(ctx context.Context, p domain.UpdateSetup) (SetupPreview, error) {
-	children, err := s.syncSetup(ctx, p)
+func (s *Service) previewSetup(ctx context.Context, p domain.UpdateSetup, permit Permit) (SetupPreview, error) {
+	children, err := s.syncSetup(ctx, p, permit)
 	if err != nil {
 		return SetupPreview{}, err
 	}
@@ -479,23 +492,24 @@ func (s *Service) previewSetup(ctx context.Context, p domain.UpdateSetup) (Setup
 	return out, nil
 }
 
-// PreviewSetup previews every covered target without pulling images.
-func (s *Service) PreviewSetup(ctx context.Context) (SetupPreview, error) {
+// PreviewSetup previews every covered target without pulling images
+// (permit: see reconcile).
+func (s *Service) PreviewSetup(ctx context.Context, permit Permit) (SetupPreview, error) {
 	p, err := s.Setup(ctx)
 	if err != nil {
 		return SetupPreview{}, err
 	}
-	return s.previewSetup(ctx, p)
+	return s.previewSetup(ctx, p, permit)
 }
 
 // CheckSetup enqueues a registry check for every currently covered stack
-// and Docker Manager-managed standalone container.
-func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key string) ([]domain.Job, error) {
+// and Docker Manager-managed standalone container (permit: see reconcile).
+func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key string, permit Permit) ([]domain.Job, error) {
 	p, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	children, err := s.syncSetup(ctx, p)
+	children, err := s.syncSetup(ctx, p, permit)
 	if err != nil {
 		return nil, err
 	}
@@ -509,15 +523,21 @@ func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key
 }
 
 // enqueueAll enqueues reqs for principal (job keys key#i) all or none:
-// when one fails, the jobs already queued are cancelled.
+// when one fails, the jobs already queued are cancelled (also when the
+// request was cancelled), and the key of such a start is refused
+// afterwards (replaying it would report the cancelled jobs).
 func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key string, reqs []jobs.Request) ([]domain.Job, error) {
 	out := make([]domain.Job, 0, len(reqs))
 	for i, req := range reqs {
 		req.Principal, req.IdempotencyKey = principal, jobKey(key, i)
-		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
+		job, created, err := s.opts.Jobs.Enqueue(ctx, req)
+		if err == nil && !created && job.State.Terminal() {
+			err = domain.ErrJobIdempotencyConflict
+		}
 		if err != nil {
+			cctx := context.WithoutCancel(ctx)
 			for _, j := range out {
-				if _, cerr := s.opts.Jobs.Cancel(ctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+				if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
 					s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
 				}
 			}
@@ -526,19 +546,6 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 		out = append(out, job)
 	}
 	return out, nil
-}
-
-// Environments returns the environments the setup covers now.
-func (s *Service) Environments(ctx context.Context) ([]domain.Environment, error) {
-	st, err := s.Setup(ctx)
-	if err != nil {
-		return nil, err
-	}
-	envs, err := store.ListEnvironments(ctx, s.db, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
-	if err != nil {
-		return nil, err
-	}
-	return slices.DeleteFunc(envs, func(e domain.Environment) bool { return slices.Contains(st.ExcludeEnvironments, e.ID) }), nil
 }
 
 // jobKey is the idempotency key of the i-th job of a request with key
@@ -551,13 +558,13 @@ func jobKey(key string, i int) string {
 }
 
 // RunSetup enqueues every runnable target after confirming the
-// fingerprint returned by PreviewSetup.
-func (s *Service) RunSetup(ctx context.Context, principal authz.Principal, expected, key string) ([]domain.Job, error) {
+// fingerprint returned by PreviewSetup (permit: see reconcile).
+func (s *Service) RunSetup(ctx context.Context, principal authz.Principal, expected, key string, permit Permit) ([]domain.Job, error) {
 	p, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	preview, err := s.previewSetup(ctx, p)
+	preview, err := s.previewSetup(ctx, p, permit)
 	if err != nil {
 		return nil, err
 	}

@@ -24,12 +24,11 @@ import (
 // *updates.Service).
 type updateSetupService interface {
 	Setup(context.Context) (domain.UpdateSetup, error)
-	Environments(context.Context) ([]domain.Environment, error)
 	UpdateSetup(context.Context, int64, updates.SetupChange) (domain.UpdateSetup, domain.UpdateSetup, error)
 	Targets(context.Context) ([]updates.ManagedTarget, error)
-	CheckSetup(context.Context, authz.Principal, string) ([]domain.Job, error)
-	PreviewSetup(context.Context) (updates.SetupPreview, error)
-	RunSetup(context.Context, authz.Principal, string, string) ([]domain.Job, error)
+	CheckSetup(context.Context, authz.Principal, string, updates.Permit) ([]domain.Job, error)
+	PreviewSetup(context.Context, updates.Permit) (updates.SetupPreview, error)
+	RunSetup(context.Context, authz.Principal, string, string, updates.Permit) ([]domain.Job, error)
 	Candidates(context.Context, string) ([]domain.UpdateCandidate, error)
 }
 
@@ -174,27 +173,25 @@ func (h *updateSettingsAPI) checked(ctx context.Context, capability string) (aut
 	return c, p, st, authz.ViewOf(c, updateSetupResource(st)), nil
 }
 
-// covering loads the setup like setup, and also refuses when a rule keeps
-// the caller from capability in one of the environments the setup covers
-// (a deny rule on the environment): checks, previews and runs act on
-// (and show) their stacks and containers.
-func (h *updateSettingsAPI) covering(ctx context.Context, capability string) (authz.Principal, error) {
+// covering loads the setup like setup, and returns the check of every
+// environment the setup covers: the service refuses a check, preview or
+// run when a rule keeps the caller from capability in one of them (a deny
+// rule on the environment), checking the very environments it acts on
+// (and shows the stacks and containers of).
+func (h *updateSettingsAPI) covering(ctx context.Context, capability string) (authz.Principal, updates.Permit, error) {
 	c, p, st, _, err := h.checked(ctx, capability)
 	if err != nil {
-		return p, err
+		return p, nil, err
 	}
-	envs, err := h.svc.Environments(ctx)
-	if err != nil {
-		return p, Internal(err)
-	}
-	for _, env := range envs {
+	permit := func(env domain.Environment) error {
 		in := authz.Resource{Type: catalog.TypeUpdatePolicy, ID: st.ID, EnvironmentID: env.ID, Parents: []authz.ResourceRef{}}
 		if !c.Can(capability, in).Allowed {
-			return p, Forbidden("not permitted: " + capability + " in environment " + env.Name +
+			return Forbidden("not permitted: " + capability + " in environment " + env.Name +
 				"; leave it out of the update settings or ask for access there")
 		}
+		return nil
 	}
-	return p, nil
+	return p, permit, nil
 }
 
 func (h *updateSettingsAPI) get(ctx context.Context, _ *struct{}) (*updateSettingsOutput, error) {
@@ -285,22 +282,23 @@ func jobBatch(jobs []domain.Job) *updateSettingsJobsOutput {
 }
 
 func (h *updateSettingsAPI) check(ctx context.Context, in *updateSettingsCheckInput) (*updateSettingsJobsOutput, error) {
-	pr, err := h.covering(ctx, string(CapUpdateCheck))
+	pr, permit, err := h.covering(ctx, string(CapUpdateCheck))
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := h.svc.CheckSetup(ctx, pr, in.IdempotencyKey)
+	jobs, err := h.svc.CheckSetup(ctx, pr, in.IdempotencyKey, permit)
 	if err != nil {
-		return nil, JobErrorFor(err)
+		return nil, updateError(err)
 	}
 	return jobBatch(jobs), nil
 }
 
 func (h *updateSettingsAPI) preview(ctx context.Context, _ *struct{}) (*updateSettingsPreviewOutput, error) {
-	if _, err := h.covering(ctx, string(CapUpdateCheck)); err != nil {
+	_, permit, err := h.covering(ctx, string(CapUpdateCheck))
+	if err != nil {
 		return nil, err
 	}
-	preview, err := h.svc.PreviewSetup(ctx)
+	preview, err := h.svc.PreviewSetup(ctx, permit)
 	if err != nil {
 		return nil, updateError(err)
 	}
@@ -319,11 +317,11 @@ func (h *updateSettingsAPI) preview(ctx context.Context, _ *struct{}) (*updateSe
 }
 
 func (h *updateSettingsAPI) run(ctx context.Context, in *updateSettingsRunInput) (*updateSettingsJobsOutput, error) {
-	pr, err := h.covering(ctx, string(CapUpdateRun))
+	pr, permit, err := h.covering(ctx, string(CapUpdateRun))
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := h.svc.RunSetup(ctx, pr, in.Body.Fingerprint, in.IdempotencyKey)
+	jobs, err := h.svc.RunSetup(ctx, pr, in.Body.Fingerprint, in.IdempotencyKey, permit)
 	if err != nil {
 		return nil, updateError(err)
 	}

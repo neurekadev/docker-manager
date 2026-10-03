@@ -144,7 +144,7 @@ func (c checkSource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Reques
 	if config, ok, err := c.s.setupOf(ctx, due.PolicyID); err != nil {
 		return nil, err
 	} else if ok {
-		children, err := c.s.syncSetup(ctx, config)
+		children, err := c.s.syncSetup(ctx, config, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +202,7 @@ func (r runSource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request,
 	if config, ok, err := r.s.setupOf(ctx, due.PolicyID); err != nil {
 		return nil, err
 	} else if ok {
-		children, err := r.s.syncSetup(ctx, config)
+		children, err := r.s.syncSetup(ctx, config, nil)
 		if err != nil {
 			return nil, err
 		}

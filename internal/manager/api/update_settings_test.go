@@ -31,8 +31,16 @@ func (f *fakeUpdateSettings) Setup(context.Context) (domain.UpdateSetup, error) 
 	return f.setup, nil
 }
 
-func (f *fakeUpdateSettings) Environments(context.Context) ([]domain.Environment, error) {
-	return []domain.Environment{{ID: "env-1", Name: "Silo"}, {ID: "env-2", Name: "Rack"}}, nil
+// permitCovered checks the environments the setup covers with permit.
+func permitCovered(permit updates.Permit) error {
+	for _, env := range []domain.Environment{{ID: "env-1", Name: "Silo"}, {ID: "env-2", Name: "Rack"}} {
+		if permit != nil {
+			if err := permit(env); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (f *fakeUpdateSettings) UpdateSetup(_ context.Context, rev int64, c updates.SetupChange) (domain.UpdateSetup, domain.UpdateSetup, error) {
@@ -69,16 +77,25 @@ func (f *fakeUpdateSettings) Targets(context.Context) ([]updates.ManagedTarget, 
 	}, nil
 }
 
-func (f *fakeUpdateSettings) CheckSetup(context.Context, authz.Principal, string) ([]domain.Job, error) {
+func (f *fakeUpdateSettings) CheckSetup(_ context.Context, _ authz.Principal, _ string, permit updates.Permit) ([]domain.Job, error) {
+	if err := permitCovered(permit); err != nil {
+		return nil, err
+	}
 	return []domain.Job{{ID: "job-c1", Kind: "update.check", State: domain.JobQueued, PolicyID: "set-1"}}, nil
 }
 
-func (f *fakeUpdateSettings) PreviewSetup(context.Context) (updates.SetupPreview, error) {
+func (f *fakeUpdateSettings) PreviewSetup(_ context.Context, permit updates.Permit) (updates.SetupPreview, error) {
+	if err := permitCovered(permit); err != nil {
+		return updates.SetupPreview{}, err
+	}
 	return updates.SetupPreview{Fingerprint: "fp-all", Targets: []updates.TargetPreview{{Policy: domain.UpdatePolicy{ID: "pol-1",
 		EnvironmentID: "env-1", TargetType: domain.UpdateTargetStack, TargetID: "st-1"}}}}, nil
 }
 
-func (f *fakeUpdateSettings) RunSetup(_ context.Context, _ authz.Principal, fingerprint, _ string) ([]domain.Job, error) {
+func (f *fakeUpdateSettings) RunSetup(_ context.Context, _ authz.Principal, fingerprint, _ string, permit updates.Permit) ([]domain.Job, error) {
+	if err := permitCovered(permit); err != nil {
+		return nil, err
+	}
 	if fingerprint != "fp-all" {
 		return nil, &domain.UpdateError{Code: domain.UpdateErrPreviewStale, Message: "the update plan changed; preview again"}
 	}
