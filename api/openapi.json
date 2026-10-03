@@ -16304,9 +16304,6 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "confirm"
-        ],
         "type": "object"
       },
       "RunManualPruneInputBody": {

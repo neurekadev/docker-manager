@@ -11820,7 +11820,7 @@ export interface components {
              * @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise).
              * @example true
              */
-            confirm: boolean;
+            confirm?: boolean;
         };
         RunManualPruneInputBody: {
             /**

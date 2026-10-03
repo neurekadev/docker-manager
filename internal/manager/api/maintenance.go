@@ -364,7 +364,7 @@ type maintenancePreviewOutput struct {
 type runMaintenanceInput struct {
 	IdempotencyKeyParam
 	Body struct {
-		Confirm bool `json:"confirm" example:"true" doc:"Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
+		Confirm bool `json:"confirm,omitempty" example:"true" doc:"Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
 	}
 }
 
