@@ -168,8 +168,8 @@ describe('FilePicker: several items', () => {
 	});
 
 	it('never splits a ticked folder that is listed only in part', async () => {
+		// The preset folder's parent opens first.
 		const { user } = setup({ multiple: true, value: ['/vol/db/big'] });
-		await user.click(place('Volume db'));
 		await user.click(await screen.findByRole('button', { name: 'big' }));
 		const one = await screen.findByRole('checkbox', { name: '1.dat' });
 		expect(one).toBeChecked();
