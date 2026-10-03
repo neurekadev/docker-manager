@@ -30,8 +30,11 @@ const listings: Record<string, PickerEntry[]> = {
 		entry('/stacks/web/conf/app.ini', 'file'),
 		entry('/stacks/web/conf/site.ini', 'file')
 	],
-	'/vol/db': [entry('/vol/db/pg', 'dir')]
+	'/vol/db': [entry('/vol/db/pg', 'dir'), entry('/vol/db/big', 'dir')],
+	'/vol/db/big': [entry('/vol/db/big/1.dat', 'file'), entry('/vol/db/big/2.dat', 'file')]
 };
+// Listed only in part (more entries than the source returns).
+const partial = new Set(['/vol/db/big']);
 
 const places = [
 	{ path: '/stacks/web', label: 'web Project Files', icon: Layers },
@@ -48,7 +51,7 @@ function setup(props: Partial<ComponentProps<typeof FilePicker>> = {}) {
 			queryKey: ['picker-test', dir],
 			queryFn: async () => {
 				listed.push(dir);
-				return { entries: listings[dir] ?? [], truncated: false };
+				return { entries: listings[dir] ?? [], truncated: partial.has(dir) };
 			}
 		})
 	};
@@ -119,6 +122,16 @@ describe('FilePicker: one file', () => {
 		await user.type(screen.getByRole('searchbox', { name: 'Filter This Folder' }), 'zz');
 		expect(screen.getByText('Nothing here matches the filter.')).toBeInTheDocument();
 	});
+
+	it('never preselects a chosen path that is not a regular file', async () => {
+		setup({ value: [' /stacks/web/conf '] });
+		expect(await screen.findByRole('option', { name: /conf/ })).toHaveAttribute(
+			'aria-selected',
+			'false'
+		);
+		expect(screen.getByRole('button', { name: 'Choose File' })).toBeDisabled();
+		expect(screen.getByText('No file selected')).toBeInTheDocument();
+	});
 });
 
 describe('FilePicker: several items', () => {
@@ -152,6 +165,17 @@ describe('FilePicker: several items', () => {
 			'/stacks/web/compose.yaml',
 			'/stacks/web/conf/site.ini'
 		]);
+	});
+
+	it('never splits a ticked folder that is listed only in part', async () => {
+		const { user } = setup({ multiple: true, value: ['/vol/db/big'] });
+		await user.click(place('Volume db'));
+		await user.click(await screen.findByRole('button', { name: 'big' }));
+		const one = await screen.findByRole('checkbox', { name: '1.dat' });
+		expect(one).toBeChecked();
+		await user.click(one);
+		expect(screen.getByRole('checkbox', { name: '1.dat' })).toBeChecked();
+		expect(screen.getByText('1 item selected')).toBeInTheDocument();
 	});
 
 	it('starts with the given paths ticked and clears them', async () => {

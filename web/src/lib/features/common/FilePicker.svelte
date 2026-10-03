@@ -86,12 +86,17 @@
 	let list = $state<HTMLElement | null>(null);
 
 	// Every open starts on the chosen path's folder (or the first place).
+	// One file: the chosen path is selected only once its folder's listing
+	// shows it can be chosen (a pasted path may be a folder or missing).
 	let wasOpen = false;
+	let preselect = $state('');
 	$effect(() => {
 		if (open && !wasOpen) {
-			dir = pickerStart(places, value);
-			selection = multiple ? normalize(value) : value.slice(0, 1).filter(Boolean);
-			active = multiple ? '' : (selection[0] ?? '');
+			const chosen = value.map((v) => v.trim()).filter(Boolean);
+			dir = pickerStart(places, chosen);
+			selection = multiple ? normalize(chosen) : [];
+			preselect = multiple ? '' : (chosen[0] ?? '');
+			active = preselect;
 			filter = '';
 		}
 		wasOpen = open;
@@ -111,6 +116,15 @@
 		retry: false
 	}));
 	const entries = $derived(pickerEntries(contents.data?.entries ?? [], filter));
+	$effect(() => {
+		if (!preselect || (dir === parentOf(preselect) && !contents.isSuccess)) return;
+		const n =
+			dir === parentOf(preselect)
+				? contents.data?.entries.find((e) => e.path === preselect)
+				: undefined;
+		if (n && canChoose(n)) selection = [n.path];
+		preselect = '';
+	});
 	const activeIndex = $derived(entries.findIndex((e) => e.path === active));
 	const picked = $derived(selection[0] ?? '');
 
@@ -137,9 +151,11 @@
 	}
 
 	// Several items: tick or untick, splitting a ticked folder by the
-	// listings already loaded.
+	// listings already loaded; a folder listed only in part is never split
+	// (its unlisted entries would leave the selection).
 	function children(d: string): string[] | undefined {
-		return qc.getQueryData<PickerListing>(source.query(d).queryKey)?.entries.map((e) => e.path);
+		const l = qc.getQueryData<PickerListing>(source.query(d).queryKey);
+		return l && !l.truncated ? l.entries.map((e) => e.path) : undefined;
 	}
 
 	function flip(path: string) {
