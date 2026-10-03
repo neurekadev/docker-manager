@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -595,18 +596,19 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 // rollback cancels the jobs of a start that failed part way, also when
 // the request was cancelled already: rollbackParallel at a time, each
 // within rollbackTimeout (one slow cancel does not skip the others), and
-// none started after rollbackDeadline (the jobs left are logged).
+// none started after rollbackDeadline. The jobs it could not cancel are
+// logged (best effort: an all-or-none start in the job engine is #247).
 func (s *Service) rollback(ctx context.Context, queued []domain.Job) {
 	all, stop := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeadline)
 	defer stop()
 	var wg sync.WaitGroup
+	var left atomic.Int64
 	slots := make(chan struct{}, rollbackParallel)
-	left := 0
 	for _, j := range queued {
 		slots <- struct{}{}
 		if all.Err() != nil {
 			<-slots
-			left++
+			left.Add(1)
 			continue
 		}
 		wg.Go(func() {
@@ -614,13 +616,14 @@ func (s *Service) rollback(ctx context.Context, queued []domain.Job) {
 			cctx, cancel := context.WithTimeout(all, rollbackTimeout)
 			defer cancel()
 			if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+				left.Add(1)
 				s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
 			}
 		})
 	}
 	wg.Wait()
-	if left > 0 {
-		s.log.Warn("the rollback of a failed start ran out of time; jobs stay queued", "jobs", left)
+	if n := left.Load(); n > 0 {
+		s.log.Warn("the rollback of a failed start left jobs queued", "jobs", n)
 	}
 }
 
