@@ -174,8 +174,10 @@ describe('FilePicker: several items', () => {
 		const one = await screen.findByRole('checkbox', { name: '1.dat' });
 		expect(one).toBeChecked();
 		await user.click(one);
+		expect(
+			await screen.findByText(/listed only in part, so it is chosen whole/)
+		).toBeInTheDocument();
 		expect(screen.getByRole('checkbox', { name: '1.dat' })).toBeChecked();
-		expect(screen.getByText(/listed only in part, so it is chosen whole/)).toBeInTheDocument();
 		expect(screen.getByText('1 item selected')).toBeInTheDocument();
 	});
 

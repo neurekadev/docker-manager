@@ -8,6 +8,7 @@
 	// chosen whole, filePicker.ts), the header ticks the open folder and
 	// each place shows how many items it holds. The source lists folders
 	// (filePicker.ts, PickerSource).
+	import { tick } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import CornerLeftUp from '@lucide/svelte/icons/corner-left-up';
 	import {
@@ -159,11 +160,14 @@
 		return l && !l.truncated ? l.entries.map((e) => e.path) : undefined;
 	}
 
-	// Why the last untick changed nothing (its folder can't be split).
+	// Why the last untick changed nothing (its folder can't be split). The
+	// clicked box already cleared itself (Checkbox binds `checked`), so the
+	// boxes are drawn again from the selection and the clicked one keeps
+	// focus.
 	let refused = $state('');
+	let redraw = $state(0);
 
-	/** `box`: the clicked checkbox, set back to the selection when nothing changed. */
-	function flip(path: string, box?: HTMLInputElement) {
+	async function flip(path: string, focusId?: string) {
 		const next = toggle(selection, path, children);
 		const unchanged =
 			next.length === selection.length && next.every((p, i) => p === selection[i]);
@@ -172,11 +176,15 @@
 				? 'This folder is listed only in part, so it is chosen whole. Untick the folder to leave it out.'
 				: '';
 		selection = next;
-		if (box) {
-			const state = tickState(next, path);
-			box.checked = state === 'checked';
-			box.indeterminate = state === 'mixed';
+		if (refused && focusId) {
+			redraw++;
+			await tick();
+			document.getElementById(focusId)?.focus();
 		}
+	}
+
+	function boxId(path: string): string {
+		return `${uid}-tick-${encodeURIComponent(path)}`;
 	}
 
 	// One file: the list is a listbox; moving onto a file selects it.
@@ -231,7 +239,7 @@
 		if (e.key !== 'ArrowDown' && e.key !== 'Enter') return;
 		e.preventDefault();
 		if (e.key === 'Enter' && entries.length === 1) {
-			if (multiple && entries[0].type !== 'dir') flip(entries[0].path);
+			if (multiple && entries[0].type !== 'dir') void flip(entries[0].path);
 			else activate(entries[0]);
 		} else if (!multiple) {
 			list?.focus();
@@ -252,7 +260,7 @@
 	{#if multiple && n.type === 'dir'}
 		<button type="button" class="name open" onclick={() => go(n.path)}>{n.name}</button>
 	{:else if multiple}
-		<button type="button" class="name mono" tabindex="-1" onclick={() => flip(n.path)}
+		<button type="button" class="name mono" tabindex="-1" onclick={() => void flip(n.path)}
 			>{n.name}</button
 		>
 	{:else}
@@ -331,14 +339,17 @@
 			<div class="head" class:ticks={multiple}>
 				{#if multiple}
 					{@const all = tickState(selection, dir)}
-					<Checkbox
-						label="All of {here}"
-						hideLabel
-						checked={all === 'checked'}
-						indeterminate={all === 'mixed'}
-						disabled={!dir}
-						onchange={(e) => flip(dir, e.currentTarget)}
-					/>
+					{#key redraw}
+						<Checkbox
+							id={boxId(dir)}
+							label="All of {here}"
+							hideLabel
+							checked={all === 'checked'}
+							indeterminate={all === 'mixed'}
+							disabled={!dir}
+							onchange={() => void flip(dir, boxId(dir))}
+						/>
+					{/key}
 				{/if}
 				<span></span><span aria-hidden="true">Name</span><span class="r" aria-hidden="true"
 					>Size</span
@@ -351,13 +362,16 @@
 						{#each entries as n (n.path)}
 							{@const state = tickState(selection, n.path)}
 							<li class="row ticks" class:checked={state !== 'unchecked'}>
-								<Checkbox
-									label={n.name}
-									hideLabel
-									checked={state === 'checked'}
-									indeterminate={state === 'mixed'}
-									onchange={(e) => flip(n.path, e.currentTarget)}
-								/>
+								{#key redraw}
+									<Checkbox
+										id={boxId(n.path)}
+										label={n.name}
+										hideLabel
+										checked={state === 'checked'}
+										indeterminate={state === 'mixed'}
+										onchange={() => void flip(n.path, boxId(n.path))}
+									/>
+								{/key}
 								{@render cells(n)}
 							</li>
 						{/each}
