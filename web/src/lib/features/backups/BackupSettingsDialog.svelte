@@ -94,13 +94,9 @@
 		return m;
 	});
 	const fields = $derived(fieldErrors(error));
-	// Field errors shown next to their field (the schedule's by the schedule
-	// field, only while on); any other one shows in the notice.
-	const inline = $derived([
-		'body.primaryRepositoryId',
-		'body.secondaryRepositoryId',
-		...(enabled ? ['body.schedule.cron', 'body.schedule.timeZone'] : [])
-	]);
+	// Field errors shown next to their field; any other one shows in the
+	// notice, the schedule's too (the schedule field shows only its preview's).
+	const inline = ['body.primaryRepositoryId', 'body.secondaryRepositoryId'];
 	const unshown = $derived(
 		Object.entries(fields)
 			.filter(([f]) => !inline.includes(f))

@@ -172,23 +172,27 @@ describe('BackupSettingsDialog (#246)', () => {
 		expect(writes[0].body).not.toHaveProperty('schedule');
 	});
 
-	it('shows a schedule error the server returns while the schedule is hidden', async () => {
-		const user = userEvent.setup({ pointerEventsCheck: 0 });
-		stubApi(() =>
-			json(
-				{
-					code: 'validation_failed',
-					message: 'invalid request',
-					requestId: 'r',
-					retryable: false,
-					details: [{ field: 'body.schedule.cron', message: 'Use five fields.' }]
-				},
-				422
-			)
-		);
-		renderDialog({ settings });
-		await screen.findByRole('heading', { name: 'Where and When', level: 3 });
-		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-		expect(await screen.findByRole('alert')).toHaveTextContent('Use five fields.');
-	});
+	// The schedule field shows only its preview's errors, never the server's.
+	it.each([false, true])(
+		'shows a schedule error the server returns (on: %s)',
+		async (enabled) => {
+			const user = userEvent.setup({ pointerEventsCheck: 0 });
+			stubApi(() =>
+				json(
+					{
+						code: 'validation_failed',
+						message: 'invalid request',
+						requestId: 'r',
+						retryable: false,
+						details: [{ field: 'body.schedule.cron', message: 'Use five fields.' }]
+					},
+					422
+				)
+			);
+			renderDialog({ settings: { ...settings, enabled } });
+			await screen.findByRole('heading', { name: 'Where and When', level: 3 });
+			await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+			expect(await screen.findByRole('alert')).toHaveTextContent('Use five fields.');
+		}
+	);
 });
