@@ -21,6 +21,12 @@ import { dropIndex, keyTarget, movedMessage, shiftOf } from './sortable';
 export interface SortableOptions {
 	/** Moves the item at `from` to `to`, e.g. `rows = moveItem(rows, from, to)`. */
 	onmove: (from: number, to: number) => void;
+	/**
+	 * Whether a move may start now (default always). While false, drags and
+	 * keys do nothing and nothing is announced, but the handles stay
+	 * enabled so focus stays on them (e.g. while the last move is saved).
+	 */
+	canMove?: () => boolean;
 }
 
 interface Drag {
@@ -48,6 +54,7 @@ export class Sortable {
 	dragging = $state<number | null>(null);
 
 	#onmove: SortableOptions['onmove'];
+	#canMove: () => boolean;
 	// Element registries, not view state.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#items = new Map<number, HTMLElement>();
@@ -58,6 +65,7 @@ export class Sortable {
 
 	constructor(options: SortableOptions) {
 		this.#onmove = options.onmove;
+		this.#canMove = options.canMove ?? (() => true);
 	}
 
 	/** Attach to each item (row) of the list: `{@attach sort.item(i)}`. */
@@ -112,11 +120,18 @@ export class Sortable {
 		const to = keyTarget(e.key, index, this.#length);
 		if (to === null) return;
 		e.preventDefault();
+		if (!this.#canMove()) return;
 		void this.#commit(index, to, name);
 	}
 
 	#start(e: PointerEvent, index: number, name: string, handle: HTMLElement) {
-		if (e.button !== 0 || this.#drag || (handle as HTMLButtonElement).disabled) return;
+		if (
+			e.button !== 0 ||
+			this.#drag ||
+			(handle as HTMLButtonElement).disabled ||
+			!this.#canMove()
+		)
+			return;
 		const n = this.#length;
 		const els = Array.from({ length: n }, (_, i) => this.#items.get(i));
 		if (n < 2 || els.some((el) => !el)) return;

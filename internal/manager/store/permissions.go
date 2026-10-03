@@ -168,21 +168,43 @@ func PermissionSubject(ctx context.Context, db bun.IDB, userID string) (domain.P
 }
 
 // GroupRuleSets returns the named groups with their names and rules, in
-// the given order; groups that do not exist are left out.
+// the given order; groups that do not exist are left out. Two queries
+// whatever the number of groups (it is on the authorization path).
 func GroupRuleSets(ctx context.Context, db bun.IDB, groupIDs []string) ([]domain.GroupRules, error) {
 	out := make([]domain.GroupRules, 0, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return out, nil
+	}
+	var names []struct {
+		ID   string `bun:"id"`
+		Name string `bun:"name"`
+	}
+	if err := db.NewRaw(`SELECT id, name FROM groups WHERE id IN (?)`, bun.List(groupIDs)).Scan(ctx, &names); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: read groups: %w", err)
+	}
+	var rows []ruleRow
+	if err := db.NewRaw(`SELECT group_id AS subject, capability, scope_kind, environment_id, resource_type, resource_id, effect, position
+		FROM group_permission_rules WHERE group_id IN (?) ORDER BY group_id, position`, bun.List(groupIDs)).Scan(ctx, &rows); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: read group_permission_rules: %w", err)
+	}
+	nameOf := make(map[string]string, len(names))
+	for _, n := range names {
+		nameOf[n.ID] = n.Name
+	}
+	rulesOf := map[string][]domain.PermissionRule{}
+	for _, r := range rows {
+		rulesOf[r.Subject] = append(rulesOf[r.Subject], r.toDomain())
+	}
 	for _, id := range groupIDs {
-		var name string
-		err := db.NewRaw(`SELECT name FROM groups WHERE id = ?`, id).Scan(ctx, &name)
-		if errors.Is(err, sql.ErrNoRows) {
+		name, ok := nameOf[id]
+		if !ok {
 			continue
 		}
-		if err != nil {
-			return nil, fmt.Errorf("store: read group: %w", err)
-		}
-		rules, err := groupRules.load(ctx, db, id)
-		if err != nil {
-			return nil, err
+		rules := rulesOf[id]
+		if rules == nil {
+			rules = []domain.PermissionRule{}
 		}
 		out = append(out, domain.GroupRules{GroupID: id, Name: name, Rules: rules})
 	}

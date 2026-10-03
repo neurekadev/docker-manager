@@ -210,3 +210,33 @@ func TestReorderGroups(t *testing.T) {
 		t.Fatalf("a new group at %d", c.Position)
 	}
 }
+
+// TestGroupRuleSets: the groups come back in the order asked for, each with
+// its own rules in document order; missing groups are left out.
+func TestGroupRuleSets(t *testing.T) {
+	f := newGroupFixture(t)
+	a, b := f.group("A"), f.group("B")
+	rule := func(capability string) domain.PermissionRule {
+		return domain.PermissionRule{Capability: capability, Effect: domain.PermissionAllow,
+			Scope: domain.PermissionScope{Kind: domain.ScopeKindInstance}}
+	}
+	if _, err := store.ReplaceGroupPermissions(f.ctx, f.db, a.ID, 1, []domain.PermissionRule{rule("stack.read"), rule("volume.read")},
+		testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ReplaceGroupPermissions(f.ctx, f.db, b.ID, 1, []domain.PermissionRule{rule("image.read")}, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	sets, err := store.GroupRuleSets(f.ctx, f.db, []string{b.ID, "missing", a.ID, f.def})
+	if err != nil || len(sets) != 3 {
+		t.Fatalf("sets %+v %v", sets, err)
+	}
+	if sets[0].Name != "B" || len(sets[0].Rules) != 1 || sets[1].Name != "A" || len(sets[1].Rules) != 2 ||
+		sets[1].Rules[0].Capability != "stack.read" || sets[1].Rules[1].Capability != "volume.read" ||
+		sets[2].GroupID != f.def || sets[2].Rules == nil || len(sets[2].Rules) != 0 {
+		t.Fatalf("sets %+v", sets)
+	}
+	if sets, err := store.GroupRuleSets(f.ctx, f.db, nil); err != nil || len(sets) != 0 {
+		t.Fatalf("no groups: %+v %v", sets, err)
+	}
+}
