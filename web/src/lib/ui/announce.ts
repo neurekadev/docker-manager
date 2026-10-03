@@ -4,6 +4,9 @@
 
 let region: HTMLElement | null = null;
 
+// Written as a code point: the literal character trips no-irregular-whitespace.
+const NO_BREAK_SPACE = String.fromCharCode(0xa0);
+
 /** Announces `message` politely (role="status"). */
 export function announce(message: string): void {
 	if (typeof document === 'undefined') return;
@@ -15,6 +18,7 @@ export function announce(message: string): void {
 		region.setAttribute('data-announcer', '');
 		document.body.append(region);
 	}
-	// The same words again still change the text, so they are read again.
-	region.textContent = region.textContent === message ? `${message} ` : message;
+	// The same words again still change the text (a trailing no-break
+	// space), so they are read again.
+	region.textContent = region.textContent === message ? `${message}${NO_BREAK_SPACE}` : message;
 }

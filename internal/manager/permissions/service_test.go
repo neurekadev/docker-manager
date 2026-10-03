@@ -167,7 +167,7 @@ func TestNewUsersAreDeniedAndGroupDocuments(t *testing.T) {
 	if err != nil || len(gs) != 1 || gs[0].RuleCount != 0 || gs[0].MemberCount != 0 {
 		t.Fatalf("groups %+v %v", gs, err)
 	}
-	for _, rita := range []string{f.user("rita", "", false), f.user("sam", f.def, false)} {
+	for _, rita := range []string{f.user("rita", "", false), f.user("tom", f.def, false)} {
 		if f.can(rita, "container.metrics.read", container("e1", "web")) || f.can(rita, "environment.read", authz.EnvironmentResource("e1")) {
 			t.Fatal("a user without rules is granted something")
 		}

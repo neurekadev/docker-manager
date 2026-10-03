@@ -11681,7 +11681,12 @@ export interface components {
             timeoutSeconds?: number;
         };
         ReorderGroupsInputBody: {
-            /** @description Every group's ID once, the highest priority first. */
+            /**
+             * @description Every group's ID once, the highest priority first.
+             * @example [
+             *       "0190a6e0-0000-7000-8000-00000000000a"
+             *     ]
+             */
             groupIds: string[];
         };
         ReplaceDocumentBody: {
@@ -34358,7 +34363,7 @@ export interface operations {
                 /**
                  * @example {
                  *       "groupIds": [
-                 *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *         "0190a6e0-0000-7000-8000-00000000000a"
                  *       ]
                  *     }
                  */
