@@ -109,7 +109,6 @@ const DEPENDENT_NOUNS: Record<Dependent['kind'], [string, string]> = {
 	managed_container: ['managed container', 'managed containers'],
 	update_policy: ['update policy', 'update policies'],
 	backup_policy: ['backup policy', 'backup policies'],
-	maintenance_policy: ['prune policy', 'prune policies'],
 	backup_repository: ['backup repository', 'backup repositories'],
 	backup_set: ['backup set', 'backup sets'],
 	registry_connection: ['registry connection', 'registry connections'],

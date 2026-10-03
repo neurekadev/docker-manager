@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -37,17 +36,18 @@ func (e envs) GetEnvironment(ctx context.Context, id string) (domain.Environment
 type requester struct {
 	mu     sync.Mutex
 	inputs []protocol.PruneInput
-	err    error
+	// errs are the errors of environments that do not answer.
+	errs map[string]error
 }
 
-func (r *requester) RequestEnvironment(_ context.Context, _, name string, input any, _ time.Duration) (json.RawMessage, error) {
+func (r *requester) RequestEnvironment(_ context.Context, env, name string, input any, _ time.Duration) (json.RawMessage, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if name != protocol.ReqMaintenancePreview {
 		return nil, errors.New("unexpected request " + name)
 	}
-	if r.err != nil {
-		return nil, r.err
+	if err := r.errs[env]; err != nil {
+		return nil, err
 	}
 	r.inputs = append(r.inputs, input.(protocol.PruneInput))
 	return json.Marshal(protocol.PrunePreviewOutput{Categories: []protocol.PruneCategoryPlan{}})
@@ -80,7 +80,6 @@ type fixture struct {
 	req   *requester
 	svc   *Service
 	user  authz.Principal
-	n     int
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -133,14 +132,26 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-func (f *fixture) create(t *testing.T, env string, rules ...domain.MaintenanceRule) domain.MaintenancePolicy {
+func (f *fixture) update(t *testing.T, patch domain.MaintenanceSetupPatch) domain.MaintenanceSetup {
 	t.Helper()
-	f.n++
-	p, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: env, Name: "policy " + strconv.Itoa(f.n), Rules: rules})
+	st, err := f.svc.Setup(f.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return p
+	_, after, err := f.svc.UpdateSetup(f.ctx, st.Revision, patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return after
+}
+
+func (f *fixture) patch(patch domain.MaintenanceSetupPatch) error {
+	st, err := f.svc.Setup(f.ctx)
+	if err != nil {
+		return err
+	}
+	_, _, err = f.svc.UpdateSetup(f.ctx, st.Revision, patch)
+	return err
 }
 
 func fieldOf(err error) string {
@@ -151,73 +162,84 @@ func fieldOf(err error) string {
 	return ""
 }
 
-// TestDefaultsAreSafe: suggestions prefill new policies with every rule
-// and the schedule disabled; such a policy never runs.
-func TestDefaultsAreSafe(t *testing.T) {
+func class(err error) string {
+	var rej *scheduler.Rejection
+	if errors.As(err, &rej) {
+		return rej.Class
+	}
+	return "error: " + fmt.Sprint(err)
+}
+
+var on = true
+
+// TestSetupStartsSafe: maintenance starts disabled with the suggestions
+// (every rule off, 30 days) and never runs like that.
+func TestSetupStartsSafe(t *testing.T) {
 	f := newFixture(t)
-	d, err := f.svc.Defaults(f.ctx)
+	st, err := f.svc.Setup(f.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Rules) != 7 || d.Revision != 1 {
-		t.Fatalf("defaults %+v", d)
+	if st.ID == "" || st.Enabled || st.Cron != "0 3 * * 0" || st.TimeZone != "UTC" || len(st.ExcludeEnvironments) != 0 || st.LastRun != nil ||
+		len(st.Rules) != 7 {
+		t.Fatalf("setup %+v", st)
 	}
-	for i, r := range d.Rules {
+	for i, r := range st.Rules {
 		if r.Category != domain.PruneCategories()[i] || r.Enabled || r.MinAge != 30*24*time.Hour || r.VolumeOptIn || r.BuildCacheAll {
 			t.Fatalf("suggested rule %+v", r)
 		}
 	}
-	p := f.create(t, "env-1")
-	if p.ScheduleEnabled || p.Cron != "0 3 * * 0" || p.TimeZone != "UTC" || len(domain.EnabledRules(p.Rules)) != 0 || len(p.Rules) != 7 {
-		t.Fatalf("new policy %+v", p)
-	}
-	if _, err := f.svc.Run(f.ctx, f.user, p, ""); !errors.Is(err, domain.ErrMaintenancePolicyEmpty) {
-		t.Fatalf("run of a new policy: %v", err)
+	if _, err := f.svc.Run(f.ctx, f.user, ""); !errors.Is(err, domain.ErrMaintenanceEmpty) {
+		t.Fatalf("run without rules: %v", err)
 	}
 	src := f.svc.PolicySource()
-	var rej *scheduler.Rejection
-	if _, err := src.Jobs(f.ctx, scheduler.Due{PolicyID: p.ID}); !errors.As(err, &rej) || rej.Class != scheduler.RejectPolicyDisabled {
-		t.Fatalf("scheduled run of a new policy: %v", err)
+	if _, err := src.Jobs(f.ctx, scheduler.Due{PolicyID: st.ID}); class(err) != scheduler.RejectPolicyDisabled {
+		t.Fatalf("scheduled run while disabled: %v", err)
 	}
 	scheds, err := src.Schedules(f.ctx)
-	if err != nil || len(scheds) != 1 || scheds[0].Enabled {
+	if err != nil || len(scheds) != 1 || scheds[0].Enabled || scheds[0].PolicyID != st.ID || scheds[0].EnvironmentID != "" ||
+		scheds[0].Name != ScheduleName {
 		t.Fatalf("schedules %+v %v", scheds, err)
-	}
-	// Changing the defaults prefills later policies only.
-	_, after, err := f.svc.UpdateDefaults(f.ctx, 1, []domain.MaintenanceRule{{Category: domain.PruneStoppedContainers, Enabled: true, MinAge: time.Hour}})
-	if err != nil || after.Revision != 2 {
-		t.Fatalf("update defaults: %+v %v", after, err)
-	}
-	if again, _ := f.svc.Get(f.ctx, p.ID); len(domain.EnabledRules(again.Rules)) != 0 {
-		t.Fatal("changing the defaults changed an existing policy")
-	}
-	if p2 := f.create(t, "env-2"); len(domain.EnabledRules(p2.Rules)) != 1 || p2.Rules[0].MinAge != time.Hour {
-		t.Fatalf("policy after the defaults changed: %+v", p2.Rules)
-	}
-	if _, _, err := f.svc.UpdateDefaults(f.ctx, 1, nil); !errors.Is(err, domain.ErrRevisionMismatch) {
-		t.Fatalf("stale defaults update: %v", err)
 	}
 }
 
-func TestAllEnvironmentsPolicyFansOutWithoutOverlap(t *testing.T) {
+// TestSetupCoversEveryEnvironmentButTheLeftOut: previews and runs reach
+// every active environment except the ones left out; unknown IDs are
+// dropped when saved; leaving every environment out refuses runs.
+func TestSetupCoversEveryEnvironmentButTheLeftOut(t *testing.T) {
 	f := newFixture(t)
 	rule := domain.MaintenanceRule{Category: domain.PruneDanglingImages, Enabled: true, MinAge: time.Hour}
-	p := f.create(t, "", rule)
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: "overlap", Rules: []domain.MaintenanceRule{rule}}); !errors.Is(err, domain.ErrMaintenanceScopeOverlap) {
-		t.Fatalf("overlapping policy: %v", err)
-	}
-	previews, err := f.svc.PreviewEnvironments(f.ctx, p)
-	if err != nil || len(previews) != 2 {
+	st := f.update(t, domain.MaintenanceSetupPatch{Enabled: &on, Rules: []domain.MaintenanceRule{rule}})
+	previews, err := f.svc.Preview(f.ctx)
+	if err != nil || len(previews) != 2 || previews[0].EnvironmentID == previews[1].EnvironmentID {
 		t.Fatalf("previews %+v: %v", previews, err)
 	}
-	on := true
-	_, p, err = f.svc.Update(f.ctx, p.ID, p.Revision, domain.MaintenancePolicyPatch{ScheduleEnabled: &on})
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqs, err := f.svc.PolicySource().Jobs(f.ctx, scheduler.Due{PolicyID: p.ID})
+	reqs, err := f.svc.PolicySource().Jobs(f.ctx, scheduler.Due{PolicyID: st.ID})
 	if err != nil || len(reqs) != 2 || reqs[0].EnvironmentID == reqs[1].EnvironmentID {
 		t.Fatalf("scheduled requests %+v: %v", reqs, err)
+	}
+
+	st = f.update(t, domain.MaintenanceSetupPatch{ExcludeEnvironments: &[]string{"env-2", "env-gone", "env-2"}})
+	if !slices.Equal(st.ExcludeEnvironments, []string{"env-2"}) {
+		t.Fatalf("left out %v", st.ExcludeEnvironments)
+	}
+	if again, _ := f.svc.Setup(f.ctx); !slices.Equal(again.ExcludeEnvironments, []string{"env-2"}) || !again.Excludes("env-2") {
+		t.Fatalf("stored left out %v", again.ExcludeEnvironments)
+	}
+	reqs, err = f.svc.PolicySource().Jobs(f.ctx, scheduler.Due{PolicyID: st.ID})
+	if err != nil || len(reqs) != 1 || reqs[0].EnvironmentID != "env-1" {
+		t.Fatalf("requests with env-2 left out %+v: %v", reqs, err)
+	}
+	if previews, err := f.svc.Preview(f.ctx); err != nil || len(previews) != 1 || previews[0].EnvironmentID != "env-1" {
+		t.Fatalf("previews with env-2 left out %+v: %v", previews, err)
+	}
+
+	f.update(t, domain.MaintenanceSetupPatch{ExcludeEnvironments: &[]string{"env-1", "env-2"}})
+	if _, err := f.svc.Run(f.ctx, f.user, ""); !errors.Is(err, domain.ErrMaintenanceNoEnvironments) {
+		t.Fatalf("run with every environment left out: %v", err)
+	}
+	if c := class(f.svc.PolicySource().Validate(f.ctx, st.ID)); c != RejectNoEnvironments {
+		t.Fatalf("scheduled run with every environment left out: %s", c)
 	}
 }
 
@@ -226,29 +248,19 @@ func TestAllEnvironmentsPolicyFansOutWithoutOverlap(t *testing.T) {
 func TestVolumeRulesNeedTheirOwnOptIn(t *testing.T) {
 	f := newFixture(t)
 	named := domain.MaintenanceRule{Category: domain.PruneNamedVolumes, Enabled: true, MinAge: time.Hour}
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: "v", Rules: []domain.MaintenanceRule{named}}); fieldOf(err) != "rules.named_volumes.volumeOptIn" {
+	if err := f.patch(domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{named}}); fieldOf(err) != "rules.named_volumes.volumeOptIn" {
 		t.Fatalf("named without opt-in: %v", err)
 	}
 	named.VolumeOptIn = true
-	p := f.create(t, "env-1", named)
-	for _, r := range p.Rules {
+	st := f.update(t, domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{named}})
+	for _, r := range st.Rules {
 		if r.Category == domain.PruneAnonymousVolumes && r.Enabled {
 			t.Fatal("anonymous volumes enabled by the named opt-in")
 		}
 	}
 	anon := domain.MaintenanceRule{Category: domain.PruneAnonymousVolumes, Enabled: true, MinAge: time.Hour}
-	if _, _, err := f.svc.Update(f.ctx, p.ID, p.Revision, domain.MaintenancePolicyPatch{Rules: []domain.MaintenanceRule{anon}}); fieldOf(err) != "rules.anonymous_volumes.volumeOptIn" {
+	if err := f.patch(domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{anon}}); fieldOf(err) != "rules.anonymous_volumes.volumeOptIn" {
 		t.Fatalf("anonymous without opt-in: %v", err)
-	}
-	if _, _, err := f.svc.UpdateDefaults(f.ctx, 1, []domain.MaintenanceRule{anon}); fieldOf(err) != "rules.anonymous_volumes.volumeOptIn" {
-		t.Fatalf("defaults without opt-in: %v", err)
-	}
-	// A disabled volume rule needs no opt-in; previews evaluate without it.
-	if _, err := f.svc.Preview(f.ctx, p, []domain.MaintenanceRule{anon}, false); err != nil {
-		t.Fatalf("preview: %v", err)
-	}
-	if in := f.req.inputs[len(f.req.inputs)-1]; len(in.Rules) != 2 {
-		t.Fatalf("preview rules %+v", in.Rules)
 	}
 }
 
@@ -263,25 +275,24 @@ func TestRuleValidation(t *testing.T) {
 		"rules.dangling_images.buildCacheAll":      {{Category: domain.PruneDanglingImages, BuildCacheAll: true}},
 		"rules.unused_images.excludeLabels":        {{Category: domain.PruneUnusedImages, ExcludeLabels: []string{"=x"}}},
 	} {
-		_, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: "x", Rules: rules})
-		if fieldOf(err) != want {
+		if err := f.patch(domain.MaintenanceSetupPatch{Rules: rules}); fieldOf(err) != want {
 			t.Errorf("%v: %v, want field %s", rules, err, want)
 		}
 	}
 	dup := []domain.MaintenanceRule{{Category: domain.PruneBuildCache}, {Category: domain.PruneBuildCache}}
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: "x", Rules: dup}); fieldOf(err) != "rules" {
+	if err := f.patch(domain.MaintenanceSetupPatch{Rules: dup}); fieldOf(err) != "rules" {
 		t.Errorf("duplicate: %v", err)
 	}
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-old", Name: "x"}); !errors.Is(err, domain.ErrEnvironmentArchived) {
-		t.Errorf("archived environment: %v", err)
-	}
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: "x", Cron: "61 * * * *"}); !errors.Is(err, domain.ErrScheduleInvalid) {
+	bad := "61 * * * *"
+	if err := f.patch(domain.MaintenanceSetupPatch{Cron: &bad}); !errors.Is(err, domain.ErrScheduleInvalid) {
 		t.Errorf("invalid cron: %v", err)
 	}
-	f.create(t, "env-1")
-	p, _ := f.svc.List(f.ctx, "env-1", "", 0)
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: p[0].Name}); !errors.Is(err, domain.ErrMaintenanceScopeOverlap) {
-		t.Errorf("overlapping scope: %v", err)
+	st, _ := f.svc.Setup(f.ctx)
+	if _, _, err := f.svc.UpdateSetup(f.ctx, st.Revision+1, domain.MaintenanceSetupPatch{Enabled: &on}); !errors.Is(err, domain.ErrRevisionMismatch) {
+		t.Errorf("stale revision: %v", err)
+	}
+	if again, _ := f.svc.Setup(f.ctx); again.Revision != st.Revision || again.Enabled {
+		t.Errorf("a refused change was saved: %+v", again)
 	}
 }
 
@@ -289,23 +300,24 @@ func TestRuleValidation(t *testing.T) {
 // rules and every protection the manager knows.
 func TestRunInputCarriesRulesAndProtections(t *testing.T) {
 	f := newFixture(t)
-	p := f.create(t, "env-1", domain.MaintenanceRule{Category: domain.PruneUnusedImages, Enabled: true, MinAge: 48 * time.Hour,
-		ExcludeLabels: []string{"keep"}})
-	j, err := f.svc.Run(f.ctx, f.user, p, "k1")
-	if err != nil {
-		t.Fatal(err)
+	st := f.update(t, domain.MaintenanceSetupPatch{ExcludeEnvironments: &[]string{"env-2"}, Rules: []domain.MaintenanceRule{{
+		Category: domain.PruneUnusedImages, Enabled: true, MinAge: 48 * time.Hour, ExcludeLabels: []string{"keep"}}}})
+	js, err := f.svc.Run(f.ctx, f.user, "k1")
+	if err != nil || len(js) != 1 {
+		t.Fatalf("run: %+v %v", js, err)
 	}
-	if j.Kind != jobspec.PruneRun || j.PolicyID != p.ID || j.EnvironmentID != "env-1" || j.Origin != domain.OriginManual ||
-		len(j.Targets) != 1 || j.Targets[0].Type != domain.TargetMaintenancePolicy || j.Targets[0].ID != p.ID {
+	j := js[0]
+	if j.Kind != jobspec.PruneRun || j.PolicyID != st.ID || j.EnvironmentID != "env-1" || j.Origin != domain.OriginManual ||
+		j.IdempotencyKey != "k1/env-1" || len(j.Targets) != 1 || j.Targets[0].Type != domain.TargetMaintenancePolicy || j.Targets[0].ID != st.ID {
 		t.Fatalf("job %+v", j)
 	}
 	var in protocol.PruneInput
 	if err := json.Unmarshal(j.Input, &in); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.Rules) != 1 || in.Rules[0].Category != domain.PruneUnusedImages || in.Rules[0].MinAgeSeconds != 48*3600 ||
+	if in.PolicyID != st.ID || len(in.Rules) != 1 || in.Rules[0].Category != domain.PruneUnusedImages || in.Rules[0].MinAgeSeconds != 48*3600 ||
 		!slices.Equal(in.Rules[0].ExcludeLabels, []string{"keep"}) {
-		t.Fatalf("rules %+v", in.Rules)
+		t.Fatalf("input %+v", in)
 	}
 	refs := func(rs []protocol.ProtectedRef) []string {
 		var out []string
@@ -334,141 +346,117 @@ func TestRunInputCarriesRulesAndProtections(t *testing.T) {
 	}
 }
 
-// TestRunIdempotencyAndOverlap: a repeated key returns the same run; a
-// second run of the policy while one is active is refused; a key used for
-// another policy conflicts.
-func TestRunIdempotencyAndOverlap(t *testing.T) {
+// TestRunOverlap: a run starts one job per environment; another run while
+// one is active is refused.
+func TestRunOverlap(t *testing.T) {
 	f := newFixture(t)
-	rule := domain.MaintenanceRule{Category: domain.PruneStoppedContainers, Enabled: true, MinAge: time.Hour}
-	p := f.create(t, "env-1", rule)
-	j1, err := f.svc.Run(f.ctx, f.user, p, "k1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if again, err := f.svc.Run(f.ctx, f.user, p, "k1"); err != nil || again.ID != j1.ID {
-		t.Fatalf("replay: %+v %v", again, err)
+	f.update(t, domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{{Category: domain.PruneStoppedContainers, Enabled: true,
+		MinAge: time.Hour}}})
+	js, err := f.svc.Run(f.ctx, f.user, "")
+	if err != nil || len(js) != 2 {
+		t.Fatalf("run: %+v %v", js, err)
 	}
 	var active *domain.MaintenanceRunActiveError
-	if _, err := f.svc.Run(f.ctx, f.user, p, "k2"); !errors.As(err, &active) || active.JobID != j1.ID {
+	if _, err := f.svc.Run(f.ctx, f.user, "k2"); !errors.As(err, &active) || (active.JobID != js[0].ID && active.JobID != js[1].ID) {
 		t.Fatalf("overlap: %v", err)
-	}
-	other := f.create(t, "env-2", rule)
-	if _, err := f.svc.Run(f.ctx, f.user, other, "k1"); !errors.Is(err, domain.ErrJobIdempotencyConflict) {
-		t.Fatalf("key reused for another policy: %v", err)
-	}
-	// The same key of another user is another run.
-	if _, err := f.svc.Run(f.ctx, authz.Principal{Kind: authz.KindUser, UserID: "u-2"}, other, "k1"); err != nil {
-		t.Fatalf("another user's key: %v", err)
 	}
 }
 
-// TestPolicySourceRevalidates: when due and at dispatch, a disabled,
-// emptied, deleted or archived policy is rejected; a valid one yields one
-// prune.run request.
+// TestPolicySourceRevalidates: when due and at dispatch, a disabled or
+// emptied setup, or a schedule of another policy ID, is rejected; a valid
+// one yields one prune.run request per environment.
 func TestPolicySourceRevalidates(t *testing.T) {
 	f := newFixture(t)
 	src := f.svc.PolicySource()
 	rule := domain.MaintenanceRule{Category: domain.PruneDanglingImages, Enabled: true, MinAge: time.Hour}
-	p := f.create(t, "env-1", rule)
-	class := func(err error) string {
-		var rej *scheduler.Rejection
-		if errors.As(err, &rej) {
-			return rej.Class
-		}
-		return "error: " + fmt.Sprint(err)
-	}
-	if c := class(src.Validate(f.ctx, p.ID)); c != scheduler.RejectPolicyDisabled {
+	st := f.update(t, domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{rule}})
+	if c := class(src.Validate(f.ctx, st.ID)); c != scheduler.RejectPolicyDisabled {
 		t.Fatalf("disabled: %s", c)
 	}
-	on := true
-	_, p, err := f.svc.Update(f.ctx, p.ID, p.Revision, domain.MaintenancePolicyPatch{ScheduleEnabled: &on})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := src.Validate(f.ctx, p.ID); err != nil {
+	st = f.update(t, domain.MaintenanceSetupPatch{Enabled: &on})
+	if err := src.Validate(f.ctx, st.ID); err != nil {
 		t.Fatalf("valid: %v", err)
 	}
-	reqs, err := src.Jobs(f.ctx, scheduler.Due{PolicyID: p.ID})
-	if err != nil || len(reqs) != 1 || reqs[0].Kind != jobspec.PruneRun || reqs[0].EnvironmentID != "env-1" ||
-		reqs[0].Targets[0].ID != p.ID || reqs[0].PolicyID != p.ID {
+	reqs, err := src.Jobs(f.ctx, scheduler.Due{PolicyID: st.ID})
+	if err != nil || len(reqs) != 2 || reqs[0].Kind != jobspec.PruneRun || reqs[0].Targets[0].ID != st.ID || reqs[0].PolicyID != st.ID {
 		t.Fatalf("jobs %+v %v", reqs, err)
+	}
+	if c := class(src.Validate(f.ctx, "old-policy")); c != scheduler.RejectPolicyNotFound {
+		t.Fatalf("another policy ID: %s", c)
 	}
 	off := rule
 	off.Enabled = false
-	_, p, err = f.svc.Update(f.ctx, p.ID, p.Revision, domain.MaintenancePolicyPatch{Rules: []domain.MaintenanceRule{off}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c := class(src.Validate(f.ctx, p.ID)); c != RejectNoRules {
+	f.update(t, domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{off}})
+	if c := class(src.Validate(f.ctx, st.ID)); c != RejectNoRules {
 		t.Fatalf("no rules: %s", c)
-	}
-	if err := f.svc.Delete(f.ctx, p.ID, p.Revision); err != nil {
-		t.Fatal(err)
-	}
-	if c := class(src.Validate(f.ctx, p.ID)); c != scheduler.RejectPolicyNotFound {
-		t.Fatalf("deleted: %s", c)
-	}
-	// An environment archived after the policy was created.
-	p2 := f.create(t, "env-2", rule)
-	_, p2, _ = f.svc.Update(f.ctx, p2.ID, p2.Revision, domain.MaintenancePolicyPatch{ScheduleEnabled: &on})
-	if _, err := f.db.NewUpdate().Table("environments").Set("status = ?", string(domain.EnvironmentArchived)).Where("id = ?", "env-2").Exec(f.ctx); err != nil {
-		t.Fatal(err)
-	}
-	if c := class(src.Validate(f.ctx, p2.ID)); c != RejectEnvironmentArchived {
-		t.Fatalf("archived: %s", c)
 	}
 }
 
 // TestFinishHookRecordsTheLatestRun: the summary of the latest run is kept
-// on the policy; malformed output is tolerated.
+// on the setup; malformed output is tolerated.
 func TestFinishHookRecordsTheLatestRun(t *testing.T) {
 	f := newFixture(t)
-	p := f.create(t, "env-1")
+	st, _ := f.svc.Setup(f.ctx)
 	done := f.clk.Now()
 	out, _ := json.Marshal(protocol.PruneRunOutput{Removed: 3, Skipped: 1, Failed: 1, Deferred: 2, BytesReclaimed: 99})
-	j := domain.Job{ID: "job-1", Kind: jobspec.PruneRun, PolicyID: p.ID, State: domain.JobPartial, Origin: domain.OriginScheduled,
+	j := domain.Job{ID: "job-1", Kind: jobspec.PruneRun, PolicyID: st.ID, State: domain.JobPartial, Origin: domain.OriginScheduled,
 		FinishedAt: &done, ResultOutput: out}
 	if err := f.svc.onRunFinished(f.ctx, f.db, j); err != nil {
 		t.Fatal(err)
 	}
-	got, _ := f.svc.Get(f.ctx, p.ID)
+	got, _ := f.svc.Setup(f.ctx)
 	if r := got.LastRun; r == nil || r.JobID != "job-1" || r.State != domain.JobPartial || r.Removed != 3 || r.Skipped != 1 || r.Failed != 1 ||
 		r.Deferred != 2 || r.BytesReclaimed != 99 || r.Origin != domain.OriginScheduled || !r.FinishedAt.Equal(done) {
 		t.Fatalf("last run %+v", got.LastRun)
 	}
-	if got.Revision != p.Revision {
-		t.Fatal("recording a run changed the policy revision")
+	if got.Revision != st.Revision {
+		t.Fatal("recording a run changed the setup's revision")
 	}
 	j.ID, j.ResultOutput, j.State = "job-2", []byte("{not json"), domain.JobCancelled
 	if err := f.svc.onRunFinished(f.ctx, f.db, j); err != nil {
 		t.Fatal(err)
 	}
-	got, _ = f.svc.Get(f.ctx, p.ID)
+	got, _ = f.svc.Setup(f.ctx)
 	if r := got.LastRun; r.JobID != "job-2" || r.State != domain.JobCancelled || r.Removed != 0 {
 		t.Fatalf("malformed output: %+v", r)
 	}
-	// Jobs without a policy (or of a deleted one) are ignored.
-	if err := f.svc.onRunFinished(f.ctx, f.db, domain.Job{ID: "x", Kind: jobspec.PruneRun, State: domain.JobSucceeded}); err != nil {
-		t.Fatal(err)
+	// Jobs without a policy (one-off prunes) or of another policy are ignored.
+	for _, other := range []domain.Job{{ID: "x", Kind: jobspec.PruneRun, State: domain.JobSucceeded},
+		{ID: "y", Kind: jobspec.PruneRun, PolicyID: "old-policy", State: domain.JobSucceeded}} {
+		if err := f.svc.onRunFinished(f.ctx, f.db, other); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, _ = f.svc.Setup(f.ctx); got.LastRun.JobID != "job-2" {
+		t.Fatalf("another job recorded: %+v", got.LastRun)
 	}
 }
 
-// TestPreviewMapsAgentErrors: an offline environment and agent failures
-// become stable Docker error codes.
-func TestPreviewMapsAgentErrors(t *testing.T) {
+// TestPreviewReportsEachEnvironment: an environment whose agent cannot
+// answer reports a stable Docker error; the others are previewed.
+func TestPreviewReportsEachEnvironment(t *testing.T) {
 	f := newFixture(t)
-	p := f.create(t, "env-1")
-	f.req.err = jobs.ErrAgentOffline
-	var de *domain.DockerError
-	if _, err := f.svc.Preview(f.ctx, p, nil, true); !errors.As(err, &de) || de.Code != domain.DockerEnvironmentOffline {
-		t.Fatalf("offline: %v", err)
+	f.req.errs = map[string]error{"env-2": jobs.ErrAgentOffline}
+	previews, err := f.svc.Preview(f.ctx)
+	if err != nil || len(previews) != 2 {
+		t.Fatalf("previews %+v: %v", previews, err)
 	}
-	f.req.err = nil
-	if _, err := f.svc.Preview(f.ctx, p, nil, true); err != nil {
-		t.Fatal(err)
+	for _, p := range previews {
+		var de *domain.DockerError
+		switch p.EnvironmentID {
+		case "env-1":
+			if p.Err != nil {
+				t.Fatalf("env-1: %v", p.Err)
+			}
+		case "env-2":
+			if !errors.As(p.Err, &de) || de.Code != domain.DockerEnvironmentOffline {
+				t.Fatalf("env-2 offline: %v", p.Err)
+			}
+		}
 	}
-	if in := f.req.inputs[len(f.req.inputs)-1]; len(in.Rules) != 7 {
-		t.Fatalf("includeDisabled previews every rule: %+v", in.Rules)
+	// A preview evaluates the enabled rules only.
+	if in := f.req.inputs[len(f.req.inputs)-1]; len(in.Rules) != 0 {
+		t.Fatalf("preview rules %+v", in.Rules)
 	}
 }
 

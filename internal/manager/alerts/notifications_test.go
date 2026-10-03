@@ -112,12 +112,22 @@ func TestAPruneReportsWhatItReclaimedPerKindOfObject(t *testing.T) {
 	if _, ok := field(m.Fields, "Volumes"); ok {
 		t.Error("a kind of object nothing was removed of is listed")
 	}
-	// A prune that removed nothing says so.
+	// A one-off prune names no policy.
+	if _, ok := n.Facts["policy"]; ok {
+		t.Errorf("a one-off prune names a policy: %+v", n.Facts)
+	}
+	// A prune that removed nothing says so. Maintenance's run links the
+	// Maintenance page.
 	empty := f.run("prune.run", domain.JobSucceeded, domain.OriginScheduled)
+	empty.PolicyID = "mp-1"
 	empty.ResultOutput = output(t, protocol.PruneRunOutput{})
 	f.finish(empty)
-	if n := f.notifications()[0]; n.Title != "Prune found nothing to remove" || NotificationDetail(n) != "There was nothing unused to remove." {
+	n = f.notifications()[0]
+	if n.Title != "Prune found nothing to remove" || NotificationDetail(n) != "There was nothing unused to remove." {
 		t.Fatalf("%+v", n)
+	}
+	if pf := fieldNamed(NotificationFields(n, "homelab"), "Policy"); pf.Value != "Maintenance" || pf.Link != "/maintenance" {
+		t.Fatalf("policy field %+v", pf)
 	}
 }
 

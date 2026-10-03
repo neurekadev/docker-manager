@@ -78,8 +78,6 @@ func (s *seed) seedEverything() {
 		u.Check, u.Run, u.Revision, u.CreatedAt, u.UpdatedAt = sched, sched, 1, s.now, s.now
 		s.must(store.InsertEnvironmentUpdatePolicy(s.ctx, s.db, u))
 	}
-	s.must(store.InsertMaintenancePolicy(s.ctx, s.db, &domain.MaintenancePolicy{ID: "mp-nas", EnvironmentID: "nas", Name: "Weekly prune",
-		Cron: "0 3 * * 0", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
 	// A local repository on the NAS agent, an S3 repository holding the
 	// NAS scope, and one only the manager uses.
 	for _, r := range []domain.BackupRepository{
@@ -176,7 +174,6 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 		domain.DependentStack:              {"st-shop"},
 		domain.DependentUpdatePolicy:       {"up-shop"},
 		domain.DependentBackupPolicy:       {"bp-nightly"},
-		domain.DependentMaintenancePolicy:  {"mp-nas"},
 		domain.DependentBackupRepository:   {"repo-local", "repo-s3"},
 		domain.DependentBackupSet:          {"set-1"},
 		domain.DependentRegistryConnection: {"reg-env", "reg-stack"},
@@ -206,7 +203,7 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 		t.Errorf("permission rules %d, want 2", n)
 	}
 	wantEffects := map[string]string{domain.DependentStack: domain.OnArchiveKept, domain.DependentUpdatePolicy: domain.OnArchivePaused,
-		domain.DependentBackupPolicy: domain.OnArchivePaused, domain.DependentMaintenancePolicy: domain.OnArchivePaused,
+		domain.DependentBackupPolicy:     domain.OnArchivePaused,
 		domain.DependentBackupRepository: domain.OnArchiveKept, domain.DependentBackupSet: domain.OnArchiveKept,
 		domain.DependentPermissionRule: domain.OnArchiveRemoved, domain.DependentJob: domain.OnArchiveInterrupted}
 	for k, e := range wantEffects {

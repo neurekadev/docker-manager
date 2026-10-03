@@ -223,7 +223,7 @@ the candidate digest in `update_quarantine` (audited as
 `update.quarantine`), marks the candidate `quarantined` and the job's
 recovery text explains manual recovery: pin the previous digest
 (`image: repo@sha256:<previous>`) in the user's own definition and deploy
-it. The previous image stays on the host until an enabled prune policy
+it. The previous image stays on the host until maintenance
 removes it (#14). A quarantined digest is never applied automatically; a
 newer digest of the tag is a new candidate.
 

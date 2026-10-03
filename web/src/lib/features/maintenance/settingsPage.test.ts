@@ -1,7 +1,8 @@
-// The maintenance policy page's running prunes (docs/internal/web.md, "Job
-// progress after reload"): every environment's running prune job of the
-// policy has its own progress bar, found again in the running list after
-// a reload, and Run Now shows one bar per job it started at once.
+// The Maintenance page's running prunes (docs/internal/web.md, "Job progress
+// after reload"): every environment's running prune job of maintenance has
+// its own progress bar, found again in the running list after a reload,
+// and Run Now shows one bar per job it started at once. Its preview shows
+// each environment, also one that could not answer.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -9,12 +10,12 @@ import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import type { Job } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
-import PolicyPage from '../../../routes/(app)/maintenance/[policyId]/+page.svelte';
+import MaintenancePage from '../../../routes/(app)/maintenance/+page.svelte';
 
 const nav = vi.hoisted(() => ({
 	page: {
-		params: { policyId: 'pol-1' } as Record<string, string>,
-		url: new URL('http://localhost/maintenance/pol-1')
+		params: {} as Record<string, string>,
+		url: new URL('http://localhost/maintenance')
 	},
 	goto: vi.fn()
 }));
@@ -45,16 +46,23 @@ function job(id: string, p: Partial<Job> = {}): Job {
 	} as Job;
 }
 
-const policy = {
+const settings = {
 	id: 'pol-1',
-	name: 'Nightly',
-	scope: 'all',
-	environmentId: '',
 	enabled: true,
-	view: 'full',
-	revision: 2,
+	schedule: {
+		cron: '0 3 * * 0',
+		timeZone: 'UTC',
+		enabled: true,
+		catchUp: 'skip',
+		recentRuns: []
+	},
+	rules: [{ category: 'dangling_images', enabled: true, minAgeHours: 24 }],
+	suggestedRules: [],
+	categories: [],
+	excludeEnvironments: [],
 	actions: ['maintenance.run', 'maintenance.preview'],
-	rules: [{ category: 'dangling_images', enabled: true, minAgeHours: 24 }]
+	revision: 2,
+	updatedAt: '2026-09-28T10:00:00Z'
 };
 
 const environments = [
@@ -78,9 +86,30 @@ beforeEach(() => {
 				status,
 				headers: { 'Content-Type': 'application/json' }
 			});
-		if (url.pathname === '/api/v1/maintenance-policies/pol-1') return json(200, policy);
-		if (url.pathname === '/api/v1/maintenance-policies/pol-1/environment-runs')
-			return json(202, { jobs: started });
+		if (url.pathname === '/api/v1/maintenance-settings') return json(200, settings);
+		if (url.pathname === '/api/v1/maintenance-settings/runs')
+			return json(200, { jobs: started });
+		if (url.pathname === '/api/v1/maintenance-settings/previews')
+			return json(200, {
+				items: [
+					{
+						environmentId: 'env-1',
+						preview: {
+							environmentId: 'env-1',
+							at: '2026-09-28T10:00:00Z',
+							remove: 0,
+							bytes: 0,
+							categories: [],
+							notes: []
+						}
+					},
+					{
+						environmentId: 'env-2',
+						errorClass: 'environment_offline',
+						errorMessage: 'the environment is offline'
+					}
+				]
+			});
 		if (url.pathname === '/api/v1/environments')
 			return json(200, { items: environments, total: environments.length });
 		if (url.pathname === '/api/v1/jobs') {
@@ -107,14 +136,14 @@ function openPage() {
 	render(QueryHarness, {
 		props: {
 			client,
-			component: PolicyPage as unknown as Component<Record<string, unknown>>,
+			component: MaintenancePage as unknown as Component<Record<string, unknown>>,
 			props: {}
 		}
 	});
 }
 
-describe('maintenance policy page: running prunes', () => {
-	it("shows a bar for every environment's running prune of the policy after a reload", async () => {
+describe('Maintenance page', () => {
+	it("shows a bar for every environment's running prune of maintenance after a reload", async () => {
 		running = [
 			job('0190-3', { policyId: undefined }),
 			job('0190-2', { environmentId: 'env-2' }),
@@ -124,16 +153,14 @@ describe('maintenance policy page: running prunes', () => {
 		openPage();
 
 		expect(
-			await screen.findByRole('progressbar', { name: 'Prune Nightly on Silo progress' })
+			await screen.findByRole('progressbar', { name: 'Prune Silo progress' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Prune Nightly on Rack progress' })
+			screen.getByRole('progressbar', { name: 'Prune Rack progress' })
 		).toBeInTheDocument();
-		// A one-off prune on Silo is not this policy's.
+		// A one-off prune on Silo is not maintenance's.
 		expect(screen.getAllByRole('progressbar')).toHaveLength(2);
-		expect(
-			screen.getByRole('region', { name: 'Running Prunes of Nightly' })
-		).toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Running Prunes' })).toBeInTheDocument();
 	});
 
 	it('shows one bar per environment job Run Now started', async () => {
@@ -146,14 +173,27 @@ describe('maintenance policy page: running prunes', () => {
 		openPage();
 
 		await user.click(await screen.findByRole('button', { name: 'Run Now' }));
-		await user.click(await screen.findByRole('button', { name: 'Run Nightly' }));
+		await user.click(await screen.findByRole('button', { name: 'Run Maintenance' }));
 
 		await waitFor(() => expect(screen.getAllByRole('progressbar')).toHaveLength(2));
 		expect(
-			screen.getByRole('progressbar', { name: 'Prune Nightly on Silo progress' })
+			screen.getByRole('progressbar', { name: 'Prune Silo progress' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Prune Nightly on Rack progress' })
+			screen.getByRole('progressbar', { name: 'Prune Rack progress' })
 		).toBeInTheDocument();
+	});
+
+	it('previews every environment and says which one could not answer', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		openPage();
+
+		await user.click(await screen.findByRole('button', { name: 'Preview' }));
+
+		const rack = await screen.findByRole('region', { name: 'Rack' });
+		expect(rack).toHaveTextContent('the environment is offline');
+		expect(screen.getByRole('region', { name: 'Silo' })).not.toHaveTextContent(
+			'the environment is offline'
+		);
 	});
 });

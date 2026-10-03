@@ -120,16 +120,29 @@ func (s *Service) protections(ctx context.Context, env string) (protocol.PrunePr
 	return p, nil
 }
 
-// input builds the agent input of a policy's rules (enabled ones, or all
+// target is what one prune of one environment runs: the policy ID the
+// agent input and the job carry (the setup's, or a one-off prune's
+// synthetic one) and the rules.
+type target struct {
+	policyID      string
+	environmentID string
+	rules         []domain.MaintenanceRule
+}
+
+func setupTarget(st domain.MaintenanceSetup, env string) target {
+	return target{policyID: st.ID, environmentID: env, rules: st.Rules}
+}
+
+// input builds the agent input of a target's rules (enabled ones, or all
 // with allRules for previews of disabled rules).
-func (s *Service) input(ctx context.Context, pol domain.MaintenancePolicy, rules []domain.MaintenanceRule, allRules bool) (protocol.PruneInput, error) {
-	in := protocol.PruneInput{PolicyID: pol.ID, Rules: []protocol.PruneRule{}}
-	for _, r := range rules {
+func (s *Service) input(ctx context.Context, t target, allRules bool) (protocol.PruneInput, error) {
+	in := protocol.PruneInput{PolicyID: t.policyID, Rules: []protocol.PruneRule{}}
+	for _, r := range t.rules {
 		if r.Enabled || allRules {
 			in.Rules = append(in.Rules, toProtocol(r))
 		}
 	}
-	prot, err := s.protections(ctx, pol.EnvironmentID)
+	prot, err := s.protections(ctx, t.environmentID)
 	if err != nil {
 		return in, err
 	}
@@ -137,20 +150,15 @@ func (s *Service) input(ctx context.Context, pol domain.MaintenancePolicy, rules
 	return in, in.Validate()
 }
 
-// Preview asks the environment's agent what a run of the policy would
-// remove now. rules (optional) previews unsaved rule changes merged onto
-// the policy's; allRules evaluates disabled rules too. Nothing is stored
-// or removed.
-func (s *Service) Preview(ctx context.Context, pol domain.MaintenancePolicy, rules []domain.MaintenanceRule, allRules bool) (protocol.PrunePreviewOutput, error) {
+// preview asks the environment's agent what a prune of t would remove now.
+// Nothing is stored or removed.
+func (s *Service) preview(ctx context.Context, t target, allRules bool) (protocol.PrunePreviewOutput, error) {
 	var out protocol.PrunePreviewOutput
-	if err := ValidateRules(rules, false); err != nil {
-		return out, err
-	}
-	in, err := s.input(ctx, pol, domain.CompleteRules(rules, pol.Rules), allRules)
+	in, err := s.input(ctx, t, allRules)
 	if err != nil {
 		return out, err
 	}
-	raw, err := s.opts.Agents.RequestEnvironment(ctx, pol.EnvironmentID, protocol.ReqMaintenancePreview, in, s.opts.PreviewTimeout)
+	raw, err := s.opts.Agents.RequestEnvironment(ctx, t.environmentID, protocol.ReqMaintenancePreview, in, s.opts.PreviewTimeout)
 	if err != nil {
 		return out, agentErr(err)
 	}
@@ -191,69 +199,24 @@ func agentErr(err error) error {
 	return err
 }
 
-func (s *Service) request(ctx context.Context, pol domain.MaintenancePolicy) (jobs.Request, error) {
-	in, err := s.input(ctx, pol, pol.Rules, false)
+func (s *Service) request(ctx context.Context, t target) (jobs.Request, error) {
+	in, err := s.input(ctx, t, false)
 	if err != nil {
 		return jobs.Request{}, err
 	}
-	return jobs.Request{Kind: jobspec.PruneRun, PolicyID: pol.ID, EnvironmentID: pol.EnvironmentID,
-		Targets: []domain.JobTarget{{Type: domain.TargetMaintenancePolicy, ID: pol.ID}}, Input: in}, nil
-}
-
-// Run starts a manual run of the policy for principal p (the caller has
-// confirmed it). The job is durable and manager-owned: whether the UI
-// follows it in the foreground or not is presentation only. A repeated
-// idempotency key returns the run it started; a second run while one is
-// active is refused.
-func (s *Service) Run(ctx context.Context, p authz.Principal, pol domain.MaintenancePolicy, key string) (domain.Job, error) {
-	if pol.EnvironmentID == "" {
-		return domain.Job{}, fieldErr("environmentId", "use the environment-runs endpoint for All Environments")
-	}
-	if key != "" {
-		existing, found, err := store.FindJobByIdempotencyKey(ctx, s.opts.DB, &domain.Job{IdempotencyKey: key, InitiatorUserID: p.UserID,
-			InitiatorTokenID: p.TokenID})
-		if err != nil {
-			return domain.Job{}, err
-		}
-		if found {
-			if existing.Kind == jobspec.PruneRun && existing.PolicyID == pol.ID {
-				return existing, nil
-			}
-			return domain.Job{}, domain.ErrJobIdempotencyConflict
-		}
-	}
-	if _, err := s.activeEnvironment(ctx, pol.EnvironmentID); err != nil {
-		return domain.Job{}, err
-	}
-	if len(domain.EnabledRules(pol.Rules)) == 0 {
-		return domain.Job{}, domain.ErrMaintenancePolicyEmpty
-	}
-	active, err := store.ActivePolicyJob(ctx, s.opts.DB, pol.ID, []domain.JobKind{jobspec.PruneRun}, nil)
-	if err != nil {
-		return domain.Job{}, err
-	}
-	if active != "" {
-		return domain.Job{}, &domain.MaintenanceRunActiveError{JobID: active}
-	}
-	req, err := s.request(ctx, pol)
-	if err != nil {
-		return domain.Job{}, err
-	}
-	req.Principal, req.IdempotencyKey = p, key
-	j, _, err := s.opts.Jobs.Enqueue(ctx, req)
-	return j, err
+	return jobs.Request{Kind: jobspec.PruneRun, PolicyID: t.policyID, EnvironmentID: t.environmentID,
+		Targets: []domain.JobTarget{{Type: domain.TargetMaintenancePolicy, ID: t.policyID}}, Input: in}, nil
 }
 
 // ManualPolicyPrefix starts the synthetic policy ID of a one-off prune's
 // agent input: agents require a policy ID, the job itself has none.
 const ManualPolicyPrefix = "manual-"
 
-// manualPolicy is the transient policy of a one-off prune of an
-// environment (a resource page's "Prune"): the given rules, no schedule,
-// nothing stored.
-func manualPolicy(env string, rules []domain.MaintenanceRule) domain.MaintenancePolicy {
-	return domain.MaintenancePolicy{ID: ManualPolicyPrefix + ids.New(), EnvironmentID: env,
-		Rules: domain.CompleteRules(rules, nil)}
+// manualTarget is the transient target of a one-off prune of an
+// environment (a resource page's "Prune"): the given rules, nothing
+// stored.
+func manualTarget(env string, rules []domain.MaintenanceRule) target {
+	return target{policyID: ManualPolicyPrefix + ids.New(), environmentID: env, rules: domain.CompleteRules(rules, nil)}
 }
 
 // checkManual validates the rules of a one-off prune (at least one enabled;
@@ -275,8 +238,7 @@ func (s *Service) PreviewManual(ctx context.Context, env string, rules []domain.
 	if err := s.checkManual(ctx, env, rules, false); err != nil {
 		return protocol.PrunePreviewOutput{}, err
 	}
-	pol := manualPolicy(env, rules)
-	return s.Preview(ctx, pol, nil, false)
+	return s.preview(ctx, manualTarget(env, rules), false)
 }
 
 // RunManual starts a one-off prune of an environment with the given rules
@@ -302,8 +264,7 @@ func (s *Service) RunManual(ctx context.Context, p authz.Principal, env string, 
 	if err := s.checkManual(ctx, env, rules, true); err != nil {
 		return domain.Job{}, err
 	}
-	pol := manualPolicy(env, rules)
-	in, err := s.input(ctx, pol, pol.Rules, false)
+	in, err := s.input(ctx, manualTarget(env, rules), false)
 	if err != nil {
 		return domain.Job{}, err
 	}
@@ -312,38 +273,58 @@ func (s *Service) RunManual(ctx context.Context, p authz.Principal, env string, 
 	return j, err
 }
 
-// PreviewEnvironments previews each currently active environment in scope.
-func (s *Service) PreviewEnvironments(ctx context.Context, pol domain.MaintenancePolicy) (map[string]protocol.PrunePreviewOutput, error) {
-	envs, err := s.ScopeEnvironments(ctx, pol.EnvironmentID)
+// EnvironmentPreview is the preview of one environment the setup covers:
+// what a run would remove there now, or why it could not be computed
+// (Err: an offline agent, a timeout).
+type EnvironmentPreview struct {
+	EnvironmentID string
+	Preview       protocol.PrunePreviewOutput
+	Err           error
+}
+
+// Preview asks each environment the setup covers what a run would remove
+// now. An environment that cannot answer reports its error; the others
+// are previewed all the same. Nothing is stored or removed.
+func (s *Service) Preview(ctx context.Context) ([]EnvironmentPreview, error) {
+	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]protocol.PrunePreviewOutput, len(envs))
+	envs, err := s.ScopeEnvironments(ctx, st)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]EnvironmentPreview, 0, len(envs))
 	for _, env := range envs {
-		target := pol
-		target.EnvironmentID = env.ID
-		preview, err := s.Preview(ctx, target, nil, false)
-		if err != nil {
-			return nil, err
-		}
-		out[env.ID] = preview
+		p, err := s.preview(ctx, setupTarget(st, env.ID), false)
+		out = append(out, EnvironmentPreview{EnvironmentID: env.ID, Preview: p, Err: err})
 	}
 	return out, nil
 }
 
-// RunEnvironments starts one prune job per active environment in scope.
-func (s *Service) RunEnvironments(ctx context.Context, principal authz.Principal, pol domain.MaintenancePolicy, key string) ([]domain.Job, error) {
-	if len(domain.EnabledRules(pol.Rules)) == 0 {
-		return nil, domain.ErrMaintenancePolicyEmpty
-	}
-	envs, err := s.ScopeEnvironments(ctx, pol.EnvironmentID)
+// Run starts a manual run of the setup for principal p (the caller has
+// confirmed it): one prune job per environment it covers. The jobs are
+// durable and manager-owned: whether the UI follows them or not is
+// presentation only. A second run while one is active is refused.
+func (s *Service) Run(ctx context.Context, principal authz.Principal, key string) ([]domain.Job, error) {
+	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if len(envs) > scheduler.MaxJobsPerRun {
-		return nil, fieldErr("environmentId", "too many environments for one run")
+	if len(domain.EnabledRules(st.Rules)) == 0 {
+		return nil, domain.ErrMaintenanceEmpty
 	}
-	active, err := store.ActivePolicyJob(ctx, s.opts.DB, pol.ID, []domain.JobKind{jobspec.PruneRun}, nil)
+	envs, err := s.ScopeEnvironments(ctx, st)
+	if err != nil {
+		return nil, err
+	}
+	if len(envs) == 0 {
+		return nil, domain.ErrMaintenanceNoEnvironments
+	}
+	if len(envs) > scheduler.MaxJobsPerRun {
+		return nil, fieldErr("excludeEnvironments", "too many environments for one run")
+	}
+	active, err := store.ActivePolicyJob(ctx, s.opts.DB, st.ID, []domain.JobKind{jobspec.PruneRun}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -352,13 +333,14 @@ func (s *Service) RunEnvironments(ctx context.Context, principal authz.Principal
 	}
 	out := make([]domain.Job, 0, len(envs))
 	for _, env := range envs {
-		target := pol
-		target.EnvironmentID = env.ID
-		req, err := s.request(ctx, target)
+		req, err := s.request(ctx, setupTarget(st, env.ID))
 		if err != nil {
 			return out, err
 		}
-		req.Principal, req.IdempotencyKey = principal, key+"/"+env.ID
+		req.Principal = principal
+		if key != "" {
+			req.IdempotencyKey = key + "/" + env.ID
+		}
 		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
 		if err != nil {
 			return out, err
@@ -368,68 +350,61 @@ func (s *Service) RunEnvironments(ctx context.Context, principal authz.Principal
 	return out, nil
 }
 
-// PolicySource returns the scheduler.PolicySource of prune policies
-// (register with scheduler.Service.Register(scheduler.KindPrune, ...)).
+// PolicySource returns the scheduler.PolicySource of the maintenance
+// setup (register with scheduler.Service.Register(scheduler.KindPrune, ...)).
 func (s *Service) PolicySource() scheduler.PolicySource { return policySource{s} }
 
 type policySource struct{ s *Service }
 
+// ScheduleName is the name of the maintenance schedule.
+const ScheduleName = "Maintenance"
+
 func (ps policySource) Schedules(ctx context.Context) ([]scheduler.PolicySchedule, error) {
-	pols, err := ps.s.List(ctx, "", "", 0)
+	st, err := ps.s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]scheduler.PolicySchedule, 0, len(pols))
-	for _, p := range pols {
-		out = append(out, scheduler.PolicySchedule{PolicyID: p.ID, Name: p.Name, EnvironmentID: p.EnvironmentID, Cron: p.Cron,
-			TimeZone: p.TimeZone, Enabled: p.ScheduleEnabled})
-	}
-	return out, nil
+	return []scheduler.PolicySchedule{{PolicyID: st.ID, Name: ScheduleName, Cron: st.Cron, TimeZone: st.TimeZone,
+		Enabled: st.Enabled}}, nil
 }
 
 // Rejection classes of scheduled prune runs besides the scheduler's.
 const (
-	RejectNoRules             = "no_rules_enabled"
-	RejectEnvironmentArchived = "environment_archived"
+	RejectNoRules        = "no_rules_enabled"
+	RejectNoEnvironments = "no_environments"
 )
 
 func (ps policySource) Validate(ctx context.Context, policyID string) error {
-	_, err := ps.valid(ctx, policyID)
+	_, _, err := ps.valid(ctx, policyID)
 	return err
 }
 
-func (ps policySource) valid(ctx context.Context, policyID string) (domain.MaintenancePolicy, error) {
-	pol, err := ps.s.Get(ctx, policyID)
-	if errors.Is(err, domain.ErrMaintenancePolicyNotFound) {
-		return pol, scheduler.Reject(scheduler.RejectPolicyNotFound, "the maintenance policy was deleted")
-	}
+func (ps policySource) valid(ctx context.Context, policyID string) (domain.MaintenanceSetup, []domain.Environment, error) {
+	st, err := ps.s.Setup(ctx)
 	if err != nil {
-		return pol, err
+		return st, nil, err
 	}
-	if !pol.ScheduleEnabled {
-		return pol, scheduler.Reject(scheduler.RejectPolicyDisabled, "the policy's schedule is disabled")
+	if st.ID != policyID {
+		return st, nil, scheduler.Reject(scheduler.RejectPolicyNotFound, "the maintenance schedule no longer exists")
 	}
-	if _, err := ps.s.ScopeEnvironments(ctx, pol.EnvironmentID); err != nil {
-		if errors.Is(err, domain.ErrEnvironmentNotFound) {
-			return pol, scheduler.Reject(scheduler.RejectTargetNotFound, "the policy's environment no longer exists")
-		}
-		if errors.Is(err, domain.ErrEnvironmentArchived) {
-			return pol, scheduler.Reject(RejectEnvironmentArchived, "the policy's environment is archived")
-		}
-		return pol, err
+	if !st.Enabled {
+		return st, nil, scheduler.Reject(scheduler.RejectPolicyDisabled, "maintenance is disabled")
 	}
-	if len(domain.EnabledRules(pol.Rules)) == 0 {
-		return pol, scheduler.Reject(RejectNoRules, "the policy has no enabled rule")
+	if len(domain.EnabledRules(st.Rules)) == 0 {
+		return st, nil, scheduler.Reject(RejectNoRules, "maintenance has no enabled rule")
 	}
-	return pol, nil
+	envs, err := ps.s.ScopeEnvironments(ctx, st)
+	if err != nil {
+		return st, nil, err
+	}
+	if len(envs) == 0 {
+		return st, nil, scheduler.Reject(RejectNoEnvironments, "maintenance leaves every environment out")
+	}
+	return st, envs, nil
 }
 
 func (ps policySource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request, error) {
-	pol, err := ps.valid(ctx, due.PolicyID)
-	if err != nil {
-		return nil, err
-	}
-	envs, err := ps.s.ScopeEnvironments(ctx, pol.EnvironmentID)
+	st, envs, err := ps.valid(ctx, due.PolicyID)
 	if err != nil {
 		return nil, err
 	}
@@ -438,9 +413,7 @@ func (ps policySource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Requ
 	}
 	out := make([]jobs.Request, 0, len(envs))
 	for _, env := range envs {
-		target := pol
-		target.EnvironmentID = env.ID
-		req, err := ps.s.request(ctx, target)
+		req, err := ps.s.request(ctx, setupTarget(st, env.ID))
 		if err != nil {
 			return nil, err
 		}
@@ -449,7 +422,7 @@ func (ps policySource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Requ
 	return out, nil
 }
 
-// onRunFinished records the latest run's summary on its policy (inside the
+// onRunFinished records the latest run's summary on the setup (inside the
 // job's terminal transaction; malformed output is tolerated).
 func (s *Service) onRunFinished(ctx context.Context, db bun.IDB, j domain.Job) error {
 	if j.PolicyID == "" {

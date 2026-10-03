@@ -1,18 +1,15 @@
 <script lang="ts">
 	// Settings overview: about this Docker Manager (its name, version and
-	// deployment configuration) and the settings that have no tab of their
-	// own (maintenance defaults). The tabs above lead to the rest (every
+	// deployment configuration). The tabs above lead to the rest (every
 	// user's API tokens, sign-in policy, schedule defaults, audit log,
 	// diagnostics), so they are not repeated here as cards. The caller's own
 	// account and API tokens are the Profile (user menu), not Settings.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Info from '@lucide/svelte/icons/info';
-	import Wrench from '@lucide/svelte/icons/wrench';
 	import { healthQuery, myPermissionsQuery } from '$lib/api/queries';
-	import { routes } from '$lib/routes';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
-	import { Button, Card, ErrorState, Skeleton, toast } from '$lib/ui';
+	import { Card, ErrorState, Skeleton, toast } from '$lib/ui';
 	import { can } from '$lib/features/common/access';
 	import Page from '$lib/features/common/Page.svelte';
 	import InstanceCard from '$lib/features/settings/InstanceCard.svelte';
@@ -82,30 +79,9 @@
 			{/if}
 		</Card>
 	{/if}
-
-	{#if can(access, 'settings.read')}
-		<Card
-			title="Maintenance Defaults"
-			info="The cleanup rules new maintenance policies start with."
-		>
-			<p class="more">
-				<Button size="sm" icon={Wrench} href={routes.maintenanceDefaults()}
-					>Open Maintenance Defaults</Button
-				>
-			</p>
-		</Card>
-	{/if}
 </Page>
 
 <style>
-	.more {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
-	}
-
 	.about {
 		display: flex;
 		align-items: center;

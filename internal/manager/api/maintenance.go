@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -14,14 +12,15 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/audit"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
+	"github.com/neurekadev/docker-manager/internal/manager/maintenance"
 	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
-// Docker maintenance (#14): prune policies per environment, their previews
-// and runs, and the instance's suggested default rules. The flows live in
-// internal/manager/maintenance; the agent computes and revalidates the
-// candidates (internal/agent/prune).
+// Docker maintenance (#14, #238): the one instance-wide maintenance setup,
+// its previews and runs across the environments it covers, and one-off
+// prunes of one environment. The flows live in internal/manager/maintenance;
+// the agent computes and revalidates the candidates (internal/agent/prune).
 
 const tagMaintenance = "Maintenance"
 
@@ -36,51 +35,16 @@ const (
 // MaintenanceService is the maintenance service as seen by the API
 // (implemented by *maintenance.Service).
 type MaintenanceService interface {
-	Defaults(ctx context.Context) (domain.MaintenanceDefaults, error)
-	UpdateDefaults(ctx context.Context, revision int64, rules []domain.MaintenanceRule) (before, after domain.MaintenanceDefaults, err error)
-	Create(ctx context.Context, c domain.MaintenancePolicyCreate) (domain.MaintenancePolicy, error)
-	Get(ctx context.Context, id string) (domain.MaintenancePolicy, error)
-	List(ctx context.Context, envID, afterID string, limit int) ([]domain.MaintenancePolicy, error)
-	Update(ctx context.Context, id string, revision int64, p domain.MaintenancePolicyPatch) (before, after domain.MaintenancePolicy, err error)
-	Delete(ctx context.Context, id string, revision int64) error
-	Preview(ctx context.Context, pol domain.MaintenancePolicy, rules []domain.MaintenanceRule, allRules bool) (protocol.PrunePreviewOutput, error)
-	Run(ctx context.Context, p authz.Principal, pol domain.MaintenancePolicy, idempotencyKey string) (domain.Job, error)
+	Setup(ctx context.Context) (domain.MaintenanceSetup, error)
+	UpdateSetup(ctx context.Context, revision int64, p domain.MaintenanceSetupPatch) (before, after domain.MaintenanceSetup, err error)
+	Preview(ctx context.Context) ([]maintenance.EnvironmentPreview, error)
+	Run(ctx context.Context, p authz.Principal, idempotencyKey string) ([]domain.Job, error)
 	PreviewManual(ctx context.Context, envID string, rules []domain.MaintenanceRule) (protocol.PrunePreviewOutput, error)
 	RunManual(ctx context.Context, p authz.Principal, envID string, rules []domain.MaintenanceRule, idempotencyKey string) (domain.Job, error)
 	ScheduleStatus(ctx context.Context, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error)
 }
 
-type maintenanceEnvironmentService interface {
-	PreviewEnvironments(ctx context.Context, pol domain.MaintenancePolicy) (map[string]protocol.PrunePreviewOutput, error)
-	RunEnvironments(ctx context.Context, principal authz.Principal, pol domain.MaintenancePolicy, key string) ([]domain.Job, error)
-}
-
-type maintenanceEnvironmentPreviewInput struct {
-	PolicyID string `path:"policyId" maxLength:"64"`
-}
-type maintenanceEnvironmentRunInput struct {
-	PolicyID string `path:"policyId" maxLength:"64"`
-	IdempotencyKeyParam
-	Body struct {
-		Confirm bool `json:"confirm" example:"true"`
-	}
-}
-type maintenanceEnvironmentPreviewItem struct {
-	EnvironmentID string       `json:"environmentId"`
-	Preview       PrunePreview `json:"preview"`
-}
-type maintenanceEnvironmentPreviewOutput struct {
-	Body struct {
-		Items []maintenanceEnvironmentPreviewItem `json:"items"`
-	}
-}
-type maintenanceEnvironmentJobsOutput struct {
-	Body struct {
-		Jobs []Job `json:"jobs"`
-	}
-}
-
-// MaintenanceRule is one category rule of a policy.
+// MaintenanceRule is one category rule of maintenance or of a one-off prune.
 type MaintenanceRule struct {
 	Category string `json:"category" enum:"stopped_containers,dangling_images,unused_images,unused_networks,anonymous_volumes,named_volumes,build_cache"`
 	Enabled  bool   `json:"enabled" doc:"The rule takes part in runs. Every rule starts disabled."`
@@ -169,30 +133,18 @@ func categoryInfo() []PruneCategoryInfo {
 	return out
 }
 
-// MaintenanceDefaults are the instance's suggested rules for new policies.
-type MaintenanceDefaults struct {
-	Rules      []MaintenanceRule   `json:"rules" doc:"One rule per category. New policies start with these rules; changing them never changes existing policies."`
-	Categories []PruneCategoryInfo `json:"categories"`
-	Revision   int64               `json:"revision"`
-	UpdatedAt  time.Time           `json:"updatedAt"`
-}
-
-func newMaintenanceDefaults(d domain.MaintenanceDefaults) MaintenanceDefaults {
-	return MaintenanceDefaults{Rules: newMaintenanceRules(d.Rules), Categories: categoryInfo(), Revision: d.Revision, UpdatedAt: d.UpdatedAt}
-}
-
-// MaintenanceSchedule is a policy's own schedule (#13) and its state.
+// MaintenanceSchedule is the maintenance schedule (#13) and its state.
 type MaintenanceSchedule struct {
 	Cron          string           `json:"cron" example:"0 3 * * 0"`
 	TimeZone      string           `json:"timeZone" example:"Europe/Berlin"`
-	Enabled       bool             `json:"enabled" doc:"Automatic runs; start disabled."`
+	Enabled       bool             `json:"enabled" doc:"Scheduled runs (the setup's enabled flag); start disabled."`
 	CatchUp       string           `json:"catchUp" enum:"skip" doc:"Prune runs missed while the manager was down are recorded, never run late."`
 	InvalidReason string           `json:"invalidReason,omitempty"`
 	NextRun       *ScheduleRunTime `json:"nextRun,omitempty"`
 	RecentRuns    []ScheduleRun    `json:"recentRuns" doc:"Newest first: enqueued, missed, skipped (previous run active), rejected and failed scheduled runs."`
 }
 
-// MaintenanceRunSummary is the latest finished run of a policy.
+// MaintenanceRunSummary is the latest finished prune job of maintenance.
 type MaintenanceRunSummary struct {
 	JobID          string    `json:"jobId"`
 	State          string    `json:"state"`
@@ -205,47 +157,35 @@ type MaintenanceRunSummary struct {
 	BytesReclaimed int64     `json:"bytesReclaimed" doc:"Approximate."`
 }
 
-// MaintenancePolicy is a prune policy. Shaping (#17):
-// maintenance_policy.read shows it in full, other capabilities on it only
-// id, name, environment and enabled.
-type MaintenancePolicy struct {
-	ID            string                 `json:"id"`
-	Scope         string                 `json:"scope" enum:"all,environment"`
-	EnvironmentID string                 `json:"environmentId"`
-	Name          string                 `json:"name"`
-	Enabled       bool                   `json:"enabled" doc:"Automatic (scheduled) runs are enabled."`
-	View          string                 `json:"view" enum:"minimal,full"`
-	Actions       []string               `json:"actions"`
-	Description   string                 `json:"description,omitempty"`
-	Schedule      *MaintenanceSchedule   `json:"schedule,omitempty" doc:"Full view."`
-	Rules         []MaintenanceRule      `json:"rules,omitempty" doc:"Full view: one rule per category. The enabled ones together are the policy's system cleanup."`
-	LastRun       *MaintenanceRunSummary `json:"lastRun,omitempty"`
-	Revision      int64                  `json:"revision,omitempty"`
-	CreatedAt     time.Time              `json:"createdAt,omitzero"`
-	UpdatedAt     time.Time              `json:"updatedAt,omitzero"`
+// MaintenanceSettings is the one maintenance setup: it covers every
+// environment except the ones left out.
+type MaintenanceSettings struct {
+	ID                  string                 `json:"id" doc:"The policy ID of the setup's prune jobs and schedule (a job's policyId)."`
+	Enabled             bool                   `json:"enabled" doc:"Runs on the schedule. Starts disabled; Run Now works either way."`
+	Schedule            MaintenanceSchedule    `json:"schedule"`
+	Rules               []MaintenanceRule      `json:"rules" doc:"One rule per category. The enabled ones together are the system cleanup."`
+	SuggestedRules      []MaintenanceRule      `json:"suggestedRules" doc:"Docker Manager's shipped suggestions, one per category (every rule off, 30 days)."`
+	Categories          []PruneCategoryInfo    `json:"categories"`
+	ExcludeEnvironments []string               `json:"excludeEnvironments" doc:"IDs of the environments left out; every other environment is covered, also ones added later."`
+	LastRun             *MaintenanceRunSummary `json:"lastRun,omitempty" doc:"The latest finished prune job (one environment's)."`
+	Actions             []string               `json:"actions" doc:"What the caller may do: maintenance_policy.manage, maintenance.preview, maintenance.run."`
+	Revision            int64                  `json:"revision"`
+	UpdatedAt           time.Time              `json:"updatedAt"`
 }
 
-func policyResource(p domain.MaintenancePolicy) authz.Resource {
-	return authz.Resource{Type: catalog.TypeMaintenancePolicy, ID: p.ID, EnvironmentID: p.EnvironmentID, Parents: []authz.ResourceRef{}}
+// setupResource is the setup as an authorization resource: instance-wide,
+// so only instance grants apply to it.
+func setupResource(st domain.MaintenanceSetup) authz.Resource {
+	return authz.Resource{Type: catalog.TypeMaintenancePolicy, ID: st.ID, Parents: []authz.ResourceRef{}}
 }
 
-func (h *maintenanceAPI) newPolicy(ctx context.Context, p domain.MaintenancePolicy, v authz.View) MaintenancePolicy {
-	scope := "environment"
-	if p.EnvironmentID == "" {
-		scope = "all"
-	}
-	out := MaintenancePolicy{ID: p.ID, Scope: scope, EnvironmentID: p.EnvironmentID, Name: p.Name, Enabled: p.ScheduleEnabled, View: v.Level.String(),
-		Actions: Actions(v)}
-	if v.Has(string(CapMaintenancePolicyManage)) {
-		out.Revision = p.Revision
-	}
-	if !v.Full() {
-		return out
-	}
-	out.Description, out.Rules, out.Revision = p.Description, newMaintenanceRules(p.Rules), p.Revision
-	out.CreatedAt, out.UpdatedAt = p.CreatedAt, p.UpdatedAt
-	sched := &MaintenanceSchedule{Cron: p.Cron, TimeZone: p.TimeZone, Enabled: p.ScheduleEnabled, CatchUp: "skip", RecentRuns: []ScheduleRun{}}
-	if sc, runs, ok, err := h.svc.ScheduleStatus(ctx, p.ID, 10); err == nil && ok {
+func (h *maintenanceAPI) newSettings(ctx context.Context, st domain.MaintenanceSetup, v authz.View) MaintenanceSettings {
+	out := MaintenanceSettings{ID: st.ID, Enabled: st.Enabled, Rules: newMaintenanceRules(st.Rules),
+		SuggestedRules: newMaintenanceRules(domain.SuggestedMaintenanceRules()), Categories: categoryInfo(),
+		ExcludeEnvironments: append([]string{}, st.ExcludeEnvironments...), Actions: Actions(v), Revision: st.Revision,
+		UpdatedAt: st.UpdatedAt}
+	sched := MaintenanceSchedule{Cron: st.Cron, TimeZone: st.TimeZone, Enabled: st.Enabled, CatchUp: "skip", RecentRuns: []ScheduleRun{}}
+	if sc, runs, ok, err := h.svc.ScheduleStatus(ctx, st.ID, 10); err == nil && ok {
 		sched.InvalidReason = sc.InvalidReason
 		if h.sched != nil {
 			if r, ok := h.sched.NextRun(sc); ok {
@@ -258,7 +198,7 @@ func (h *maintenanceAPI) newPolicy(ctx context.Context, p domain.MaintenancePoli
 		}
 	}
 	out.Schedule = sched
-	if r := p.LastRun; r != nil {
+	if r := st.LastRun; r != nil {
 		out.LastRun = &MaintenanceRunSummary{JobID: r.JobID, State: string(r.State), Origin: string(r.Origin), FinishedAt: r.FinishedAt,
 			Removed: r.Removed, Skipped: r.Skipped, Failed: r.Failed, Deferred: r.Deferred, BytesReclaimed: r.BytesReclaimed}
 	}
@@ -288,9 +228,8 @@ type PruneCategoryPreview struct {
 	Truncated    bool            `json:"truncated"`
 }
 
-// PrunePreview is what a run of a policy would remove now.
+// PrunePreview is what a prune of one environment would remove now.
 type PrunePreview struct {
-	PolicyID      string                 `json:"policyId"`
 	EnvironmentID string                 `json:"environmentId"`
 	At            time.Time              `json:"at"`
 	Remove        int                    `json:"remove"`
@@ -306,8 +245,8 @@ var previewNotes = []string{
 	"One run removes at most 300 candidates; the rest waits for the next run.",
 }
 
-func newPrunePreview(pol domain.MaintenancePolicy, p protocol.PrunePreviewOutput) PrunePreview {
-	out := PrunePreview{PolicyID: pol.ID, EnvironmentID: pol.EnvironmentID, At: p.At, Categories: []PruneCategoryPreview{}, Notes: previewNotes}
+func newPrunePreview(env string, p protocol.PrunePreviewOutput) PrunePreview {
+	out := PrunePreview{EnvironmentID: env, At: p.At, Categories: []PruneCategoryPreview{}, Notes: previewNotes}
 	for _, c := range p.Categories {
 		cp := PruneCategoryPreview{Category: c.Category, Remove: c.Remove, Protected: c.Protected, Excluded: c.Excluded, Retained: c.Retained,
 			Bytes: c.Bytes, UnknownSizes: c.UnknownSizes, Truncated: c.Truncated, Items: []PruneItemView{}}
@@ -332,14 +271,10 @@ func maintenanceError(err error) error {
 	var active *domain.MaintenanceRunActiveError
 	var de *domain.DockerError
 	switch {
-	case errors.Is(err, domain.ErrMaintenancePolicyNotFound):
-		return NotFound("maintenance policy not found")
-	case errors.Is(err, domain.ErrMaintenancePolicyNameTaken):
-		return Conflict(CodeMaintenancePolicyNameTaken, "another maintenance policy in this environment already uses this name")
-	case errors.Is(err, domain.ErrMaintenanceScopeOverlap):
-		return Conflict("maintenance_scope_overlap", "a maintenance policy already covers this environment")
-	case errors.Is(err, domain.ErrMaintenancePolicyEmpty):
-		return Conflict(CodeMaintenancePolicyEmpty, "the policy has no enabled rule; enable at least one rule before running it")
+	case errors.Is(err, domain.ErrMaintenanceEmpty):
+		return Conflict(CodeMaintenanceEmpty, "every maintenance rule is off; turn on at least one rule before running it")
+	case errors.Is(err, domain.ErrMaintenanceNoEnvironments):
+		return Conflict(CodeMaintenanceNoEnvironments, "maintenance leaves every environment out")
 	case errors.As(err, &active):
 		return Conflict(CodeMaintenanceRunActive, active.Error()+"; follow it with GET /api/v1/jobs/"+active.JobID)
 	case errors.Is(err, domain.ErrEnvironmentNotFound):
@@ -347,7 +282,7 @@ func maintenanceError(err error) error {
 	case errors.Is(err, domain.ErrEnvironmentArchived):
 		return Conflict(CodeEnvironmentArchived, "the environment is archived")
 	case errors.As(err, &fe):
-		return Invalid("invalid maintenance policy", Field("body."+fe.Field, fe.Message))
+		return Invalid("invalid maintenance settings", Field("body."+fe.Field, fe.Message))
 	case errors.As(err, &ie):
 		details := make([]ErrorDetail, 0, len(ie.Problems))
 		for _, p := range ie.Problems {
@@ -366,127 +301,86 @@ type maintenanceAPI struct {
 	authz authz.Authorizer
 }
 
-func (h *maintenanceAPI) service() (MaintenanceService, error) {
+// setup loads the setup and the caller's view of it; capability must be
+// granted on the instance (403 otherwise).
+func (h *maintenanceAPI) setup(ctx context.Context, capability Capability) (MaintenanceService, authz.Principal, domain.MaintenanceSetup, authz.View, error) {
 	if h.svc == nil {
-		return nil, Unavailable(CodeUnavailable, "maintenance policies are not available")
-	}
-	return h.svc, nil
-}
-
-// policy loads a policy visible to the caller (404 otherwise).
-func (h *maintenanceAPI) policy(ctx context.Context, id string) (MaintenanceService, authz.Checker, authz.Principal, domain.MaintenancePolicy, authz.View, error) {
-	svc, err := h.service()
-	if err != nil {
-		return nil, nil, authz.Principal{}, domain.MaintenancePolicy{}, authz.View{}, err
+		return nil, authz.Principal{}, domain.MaintenanceSetup{}, authz.View{}, Unavailable(CodeUnavailable, "maintenance is not available")
 	}
 	c, p, err := CheckerFor(ctx, h.authz)
 	if err != nil {
-		return nil, nil, p, domain.MaintenancePolicy{}, authz.View{}, err
+		return nil, p, domain.MaintenanceSetup{}, authz.View{}, err
 	}
-	pol, err := svc.Get(ctx, id)
+	st, err := h.svc.Setup(ctx)
 	if err != nil {
-		return nil, nil, p, pol, authz.View{}, maintenanceError(err)
+		return nil, p, st, authz.View{}, Internal(err)
 	}
-	v := authz.ViewOf(c, policyResource(pol))
-	if !v.Visible() {
-		return nil, nil, p, pol, v, NotFound("maintenance policy not found")
+	if !c.Can(string(capability), setupResource(st)).Allowed {
+		return nil, p, st, authz.View{}, Forbidden("requires " + string(capability) + " on all environments")
 	}
-	return svc, c, p, pol, v, nil
+	return h.svc, p, st, authz.ViewOf(c, setupResource(st)), nil
 }
 
-func policyETag(p MaintenancePolicy) ETagHeader {
-	if p.Revision == 0 {
-		return ETagHeader{}
-	}
-	return ETagHeader{ETag: RevisionETag(p.Revision)}
-}
-
-// flatPolicy is the audit diff form of a policy (rules by category).
-func flatPolicy(p domain.MaintenancePolicy) map[string]any {
-	m := map[string]any{"name": p.Name, "description": p.Description, "cron": p.Cron, "timeZone": p.TimeZone, "scheduleEnabled": p.ScheduleEnabled}
-	for _, r := range p.Rules {
+// flatSetup is the audit diff form of the setup (rules by category).
+func flatSetup(st domain.MaintenanceSetup) map[string]any {
+	m := map[string]any{"enabled": st.Enabled, "cron": st.Cron, "timeZone": st.TimeZone, "excludeEnvironments": st.ExcludeEnvironments}
+	for _, r := range st.Rules {
 		m["rules."+r.Category] = newMaintenanceRule(r)
 	}
 	return m
 }
 
-type maintenanceScheduleInput struct {
-	Cron     *string `json:"cron,omitempty" minLength:"1" maxLength:"256" doc:"Five-field cron expression (default: the prune default of the schedule defaults)."`
-	TimeZone *string `json:"timeZone,omitempty" minLength:"1" maxLength:"64" doc:"IANA time zone (default: the instance's default zone)."`
-	Enabled  *bool   `json:"enabled,omitempty" doc:"Automatic runs (default false)."`
-}
-
-type listMaintenancePoliciesInput struct {
-	PageParams
-	EnvironmentID string `query:"environmentId" maxLength:"64" doc:"Only policies of this environment."`
-}
-
-type maintenancePolicyOutput struct {
+type maintenanceSettingsOutput struct {
 	ETagHeader
-	Body MaintenancePolicy
+	Body MaintenanceSettings
 }
 
-type maintenancePolicyListOutput struct{ Body Page[MaintenancePolicy] }
-
-type createMaintenancePolicyInput struct {
+type updateMaintenanceSettingsInput struct {
+	IfMatchParam
 	Body struct {
-		Scope         string                    `json:"scope,omitempty" enum:"all,environment"`
-		EnvironmentID string                    `json:"environmentId,omitempty" maxLength:"64"`
-		Name          string                    `json:"name" minLength:"1" maxLength:"100" example:"Weekly cleanup"`
-		Description   string                    `json:"description,omitempty" maxLength:"1000"`
-		Schedule      *maintenanceScheduleInput `json:"schedule,omitempty"`
-		Rules         []MaintenanceRule         `json:"rules,omitempty" maxItems:"7" doc:"Rules to set; categories not given start with the maintenance defaults (all disabled unless the defaults were changed)."`
+		Enabled  *bool `json:"enabled,omitempty" doc:"Run on the schedule."`
+		Schedule *struct {
+			Cron     *string `json:"cron,omitempty" minLength:"1" maxLength:"256" doc:"Five-field cron expression."`
+			TimeZone *string `json:"timeZone,omitempty" minLength:"1" maxLength:"64" doc:"IANA time zone."`
+		} `json:"schedule,omitempty"`
+		Rules               []MaintenanceRule `json:"rules,omitempty" maxItems:"7" doc:"Each rule given replaces the rule of its category (send the whole rule). Enabling a volume rule needs volumeOptIn."`
+		ExcludeEnvironments *[]string         `json:"excludeEnvironments,omitempty" maxItems:"256" doc:"The environments to leave out (replaces the list); IDs of environments that do not exist are dropped."`
 	}
 }
 
-type maintenancePolicyIDInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Maintenance policy ID."`
+type maintenancePreviewItem struct {
+	EnvironmentID string        `json:"environmentId"`
+	Preview       *PrunePreview `json:"preview,omitempty"`
+	ErrorClass    string        `json:"errorClass,omitempty" doc:"Why this environment could not be previewed: the error code (environment_offline, timeout, ...)."`
+	ErrorMessage  string        `json:"errorMessage,omitempty" doc:"The error's message (not stable)."`
 }
 
-type updateMaintenancePolicyInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Maintenance policy ID."`
-	IfMatchParam
+type maintenancePreviewOutput struct {
 	Body struct {
-		Name        *string                   `json:"name,omitempty" minLength:"1" maxLength:"100"`
-		Description *string                   `json:"description,omitempty" maxLength:"1000"`
-		Schedule    *maintenanceScheduleInput `json:"schedule,omitempty"`
-		Rules       []MaintenanceRule         `json:"rules,omitempty" maxItems:"7" doc:"Each rule given replaces the rule of its category (send the whole rule)."`
+		Items []maintenancePreviewItem `json:"items" doc:"One item per environment maintenance covers."`
 	}
 }
 
-type deleteMaintenancePolicyInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Maintenance policy ID."`
-	IfMatchParam
+type runMaintenanceInput struct {
+	IdempotencyKeyParam
+	Body struct {
+		Confirm bool `json:"confirm" example:"true" doc:"Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
+	}
 }
 
-type previewMaintenancePolicyInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Maintenance policy ID."`
-	Body     *struct {
-		Rules           []MaintenanceRule `json:"rules,omitempty" maxItems:"7" doc:"Preview these rules (merged by category onto the saved ones) instead of the saved rules; nothing is saved."`
-		IncludeDisabled bool              `json:"includeDisabled,omitempty" doc:"Evaluate disabled rules too (previewing enables nothing)."`
+type maintenanceJobsOutput struct {
+	Body struct {
+		Jobs []Job `json:"jobs"`
 	}
 }
 
 type prunePreviewOutput struct{ Body PrunePreview }
 
-type runMaintenancePolicyInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Maintenance policy ID."`
-	IdempotencyKeyParam
-	Body *struct {
-		Confirm    bool `json:"confirm,omitempty" example:"true" doc:"Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
-		Background bool `json:"background,omitempty" doc:"Presentation preference only: the run is the same durable job either way, and leaving the UI never cancels it."`
-	}
-}
-
-// manualPruneRules are the rules of a one-off prune: only the categories
-// given take part (enabled ones), nothing is saved.
-type manualPruneRules struct {
-	Rules []MaintenanceRule `json:"rules" minItems:"1" maxItems:"7" doc:"The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled."`
-}
-
 type previewManualPruneInput struct {
 	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
-	Body          manualPruneRules
+	Body          struct {
+		Rules []MaintenanceRule `json:"rules" minItems:"1" maxItems:"7" doc:"The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled."`
+	}
 }
 
 type runManualPruneInput struct {
@@ -498,274 +392,90 @@ type runManualPruneInput struct {
 	}
 }
 
-type maintenanceDefaultsOutput struct {
-	ETagHeader
-	Body MaintenanceDefaults
+func (h *maintenanceAPI) get(ctx context.Context, _ *struct{}) (*maintenanceSettingsOutput, error) {
+	_, _, st, v, err := h.setup(ctx, CapMaintenancePolicyRead)
+	if err != nil {
+		return nil, err
+	}
+	return &maintenanceSettingsOutput{ETagHeader: ETagHeader{ETag: RevisionETag(st.Revision)}, Body: h.newSettings(ctx, st, v)}, nil
 }
 
-type updateMaintenanceDefaultsInput struct {
-	IfMatchParam
-	Body struct {
-		Rules []MaintenanceRule `json:"rules" minItems:"1" maxItems:"7" doc:"Each rule given replaces the default of its category."`
-	}
-}
-
-func (h *maintenanceAPI) list(ctx context.Context, in *listMaintenancePoliciesInput) (*maintenancePolicyListOutput, error) {
-	svc, err := h.service()
+func (h *maintenanceAPI) update(ctx context.Context, in *updateMaintenanceSettingsInput) (*maintenanceSettingsOutput, error) {
+	svc, _, st, v, err := h.setup(ctx, CapMaintenancePolicyManage)
 	if err != nil {
 		return nil, err
 	}
-	c, _, err := CheckerFor(ctx, h.authz)
-	if err != nil {
+	if err := in.CheckIfMatch(RevisionETag(st.Revision)); err != nil {
 		return nil, err
 	}
-	fp := QueryFingerprint("maintenance-policies", in.EnvironmentID)
-	var after agentCursor
-	if in.Cursor != "" {
-		if err := DecodeCursorFor(in.Cursor, fp, &after); err != nil {
-			return nil, err
-		}
-	}
-	items, next, err := ScanPage(ctx, Scan[domain.MaintenancePolicy]{
-		Limit: in.PageLimit(), After: after.ID,
-		Fetch: func(ctx context.Context, afterID string, n int) ([]domain.MaintenancePolicy, error) {
-			return svc.List(ctx, in.EnvironmentID, afterID, n)
-		},
-		Position: func(p domain.MaintenancePolicy) string { return p.ID },
-		Visible:  func(p domain.MaintenancePolicy) bool { return authz.ViewOf(c, policyResource(p)).Visible() },
-	})
-	if err != nil {
-		return nil, Internal(err)
-	}
-	out := make([]MaintenancePolicy, 0, len(items))
-	for _, p := range items {
-		out = append(out, h.newPolicy(ctx, p, authz.ViewOf(c, policyResource(p))))
-	}
-	cursor, err := nextCursor(fp, next)
-	if err != nil {
-		return nil, err
-	}
-	return &maintenancePolicyListOutput{Body: NewPage(out, cursor, nil)}, nil
-}
-
-func (h *maintenanceAPI) create(ctx context.Context, in *createMaintenancePolicyInput) (*maintenancePolicyOutput, error) {
-	svc, err := h.service()
-	if err != nil {
-		return nil, err
-	}
-	c, _, err := CheckerFor(ctx, h.authz)
-	if err != nil {
-		return nil, err
-	}
-	env := in.Body.EnvironmentID
-	if in.Body.Scope == "all" && env != "" {
-		return nil, Invalid("invalid maintenance scope", Field("body.environmentId", "leave empty for all environments"))
-	}
-	if in.Body.Scope == "environment" && env == "" {
-		return nil, Invalid("invalid maintenance scope", Field("body.environmentId", "choose an environment"))
-	}
-	if in.Body.Scope != "" && in.Body.Scope != "all" && in.Body.Scope != "environment" {
-		return nil, Invalid("invalid maintenance scope", Field("body.scope", "choose all or environment"))
-	}
-	if env == "" {
-		if !c.Can("maintenance_policy.manage_all", authz.Instance()).Allowed {
-			return nil, Forbidden("only the owner can manage maintenance across all environments")
-		}
-	} else if !authz.ViewOf(c, authz.EnvironmentResource(env)).Visible() {
-		return nil, NotFound("environment not found")
-	}
-	if env != "" && !c.Can(string(CapMaintenancePolicyManage), authz.InEnvironment(catalog.TypeMaintenancePolicy, env)).Allowed {
-		return nil, Forbidden("not permitted: maintenance_policy.manage in this environment")
-	}
-	cr := domain.MaintenancePolicyCreate{EnvironmentID: env, Name: in.Body.Name, Description: in.Body.Description, Rules: pruneRulesOf(in.Body.Rules)}
+	patch := domain.MaintenanceSetupPatch{Enabled: in.Body.Enabled, Rules: pruneRulesOf(in.Body.Rules), ExcludeEnvironments: in.Body.ExcludeEnvironments}
 	if s := in.Body.Schedule; s != nil {
-		if s.Cron != nil {
-			cr.Cron = *s.Cron
-		}
-		if s.TimeZone != nil {
-			cr.TimeZone = *s.TimeZone
-		}
-		if s.Enabled != nil {
-			cr.ScheduleEnabled = *s.Enabled
-		}
+		patch.Cron, patch.TimeZone = s.Cron, s.TimeZone
 	}
-	p, err := svc.Create(ctx, cr)
-	if err != nil {
-		return nil, maintenanceError(err)
-	}
-	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeMaintenancePolicy, ID: p.ID, EnvironmentID: p.EnvironmentID})
-	audit.SetDiff(ctx, nil, flatPolicy(p))
-	body := h.newPolicy(ctx, p, authz.ViewOf(c, policyResource(p)))
-	return &maintenancePolicyOutput{ETagHeader: policyETag(body), Body: body}, nil
-}
-
-func (h *maintenanceAPI) get(ctx context.Context, in *maintenancePolicyIDInput) (*maintenancePolicyOutput, error) {
-	_, _, _, p, v, err := h.policy(ctx, in.PolicyID)
-	if err != nil {
-		return nil, err
-	}
-	body := h.newPolicy(ctx, p, v)
-	return &maintenancePolicyOutput{ETagHeader: policyETag(body), Body: body}, nil
-}
-
-func (h *maintenanceAPI) update(ctx context.Context, in *updateMaintenancePolicyInput) (*maintenancePolicyOutput, error) {
-	svc, c, _, p, v, err := h.policy(ctx, in.PolicyID)
-	if err != nil {
-		return nil, err
-	}
-	if !v.Has(string(CapMaintenancePolicyManage)) {
-		return nil, Forbidden("not permitted to manage this maintenance policy")
-	}
-	if err := in.CheckIfMatch(RevisionETag(p.Revision)); err != nil {
-		return nil, err
-	}
-	patch := domain.MaintenancePolicyPatch{Name: in.Body.Name, Description: in.Body.Description, Rules: pruneRulesOf(in.Body.Rules)}
-	if s := in.Body.Schedule; s != nil {
-		patch.Cron, patch.TimeZone, patch.ScheduleEnabled = s.Cron, s.TimeZone, s.Enabled
-	}
-	before, after, err := svc.Update(ctx, p.ID, p.Revision, patch)
+	before, after, err := svc.UpdateSetup(ctx, st.Revision, patch)
 	if errors.Is(err, domain.ErrRevisionMismatch) {
-		cur, gerr := svc.Get(ctx, p.ID)
-		if gerr != nil {
-			return nil, maintenanceError(gerr)
-		}
-		return nil, stale(cur.Revision)
+		return nil, stale(before.Revision)
 	}
 	if err != nil {
 		return nil, maintenanceError(err)
 	}
-	audit.SetDiff(ctx, flatPolicy(before), flatPolicy(after))
-	body := h.newPolicy(ctx, after, authz.ViewOf(c, policyResource(after)))
-	return &maintenancePolicyOutput{ETagHeader: policyETag(body), Body: body}, nil
+	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeMaintenancePolicy, ID: after.ID})
+	audit.SetDiff(ctx, flatSetup(before), flatSetup(after))
+	return &maintenanceSettingsOutput{ETagHeader: ETagHeader{ETag: RevisionETag(after.Revision)}, Body: h.newSettings(ctx, after, v)}, nil
 }
 
-func (h *maintenanceAPI) remove(ctx context.Context, in *deleteMaintenancePolicyInput) (*struct{}, error) {
-	svc, _, _, p, v, err := h.policy(ctx, in.PolicyID)
+func (h *maintenanceAPI) preview(ctx context.Context, _ *struct{}) (*maintenancePreviewOutput, error) {
+	svc, _, _, _, err := h.setup(ctx, CapMaintenancePreview)
 	if err != nil {
 		return nil, err
 	}
-	if !v.Has(string(CapMaintenancePolicyManage)) {
-		return nil, Forbidden("not permitted to manage this maintenance policy")
+	previews, err := svc.Preview(ctx)
+	if err != nil {
+		return nil, maintenanceError(err)
 	}
-	if err := in.CheckIfMatch(RevisionETag(p.Revision)); err != nil {
-		return nil, err
-	}
-	if err := svc.Delete(ctx, p.ID, p.Revision); err != nil {
-		if errors.Is(err, domain.ErrRevisionMismatch) {
-			cur, gerr := svc.Get(ctx, p.ID)
-			if gerr != nil {
-				return nil, maintenanceError(gerr)
+	out := &maintenancePreviewOutput{}
+	out.Body.Items = make([]maintenancePreviewItem, 0, len(previews))
+	candidates := 0
+	for _, p := range previews {
+		item := maintenancePreviewItem{EnvironmentID: p.EnvironmentID}
+		if p.Err != nil {
+			item.ErrorClass, item.ErrorMessage = CodeInternal, "the preview failed"
+			var e *Error
+			if errors.As(maintenanceError(p.Err), &e) && e.Code != CodeInternal {
+				item.ErrorClass, item.ErrorMessage = e.Code, e.Message
 			}
-			return nil, stale(cur.Revision)
+		} else {
+			pv := newPrunePreview(p.EnvironmentID, p.Preview)
+			item.Preview = &pv
+			candidates += pv.Remove
 		}
-		return nil, maintenanceError(err)
+		out.Body.Items = append(out.Body.Items, item)
 	}
-	audit.SetDetail(ctx, "name", p.Name)
-	return nil, nil
-}
-
-func (h *maintenanceAPI) preview(ctx context.Context, in *previewMaintenancePolicyInput) (*prunePreviewOutput, error) {
-	svc, c, _, p, _, err := h.policy(ctx, in.PolicyID)
-	if err != nil {
-		return nil, err
-	}
-	if p.EnvironmentID == "" {
-		return nil, Conflict("maintenance_global_preview", "use environment-previews to preview this All Environments policy")
-	}
-	if !c.Can(string(CapMaintenancePreview), policyResource(p)).Allowed {
-		return nil, Forbidden("not permitted to preview this maintenance policy (maintenance.preview)")
-	}
-	var rules []domain.MaintenanceRule
-	all := false
-	if in.Body != nil {
-		rules, all = pruneRulesOf(in.Body.Rules), in.Body.IncludeDisabled
-	}
-	out, err := svc.Preview(ctx, p, rules, all)
-	if err != nil {
-		return nil, maintenanceError(err)
-	}
-	res := newPrunePreview(p, out)
-	audit.SetDetail(ctx, "candidates", res.Remove)
-	return &prunePreviewOutput{Body: res}, nil
-}
-
-func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenancePolicyInput) (*JobAccepted, error) {
-	svc, c, pr, p, _, err := h.policy(ctx, in.PolicyID)
-	if err != nil {
-		return nil, err
-	}
-	if !c.Can(string(CapMaintenanceRun), policyResource(p)).Allowed {
-		return nil, Forbidden("not permitted to run this maintenance policy (maintenance.run)")
-	}
-	if in.Body == nil || !in.Body.Confirm {
-		return nil, Conflict(CodePruneConfirmationRequired,
-			"a prune run deletes the policy's candidates and cannot be undone; review a preview and repeat the request with confirm: true")
-	}
-	if p.EnvironmentID == "" {
-		return nil, Conflict("maintenance_global_run", "use environment-runs to run this All Environments policy")
-	}
-	job, err := svc.Run(ctx, pr, p, in.IdempotencyKey)
-	if err != nil {
-		return nil, maintenanceError(err)
-	}
-	audit.SetDetail(ctx, "background", in.Body.Background)
-	audit.SetDetail(ctx, "job_id", job.ID)
-	return Accepted(job), nil
-}
-
-func (h *maintenanceAPI) previewEnvironments(ctx context.Context, in *maintenanceEnvironmentPreviewInput) (*maintenanceEnvironmentPreviewOutput, error) {
-	svc, c, _, p, _, err := h.policy(ctx, in.PolicyID)
-	if err != nil {
-		return nil, err
-	}
-	if !c.Can(string(CapMaintenancePreview), policyResource(p)).Allowed {
-		return nil, Forbidden("not permitted to preview this maintenance policy")
-	}
-	batch, ok := svc.(maintenanceEnvironmentService)
-	if !ok {
-		return nil, Unavailable(CodeUnavailable, "environment maintenance preview is not available")
-	}
-	previews, err := batch.PreviewEnvironments(ctx, p)
-	if err != nil {
-		return nil, maintenanceError(err)
-	}
-	out := &maintenanceEnvironmentPreviewOutput{}
-	out.Body.Items = []maintenanceEnvironmentPreviewItem{}
-	for env, preview := range previews {
-		target := p
-		target.EnvironmentID = env
-		out.Body.Items = append(out.Body.Items, maintenanceEnvironmentPreviewItem{EnvironmentID: env, Preview: newPrunePreview(target, preview)})
-	}
-	slices.SortFunc(out.Body.Items, func(a, b maintenanceEnvironmentPreviewItem) int {
-		return strings.Compare(a.EnvironmentID, b.EnvironmentID)
-	})
+	audit.SetDetail(ctx, "candidates", candidates)
 	return out, nil
 }
 
-func (h *maintenanceAPI) runEnvironments(ctx context.Context, in *maintenanceEnvironmentRunInput) (*maintenanceEnvironmentJobsOutput, error) {
-	svc, c, principal, p, _, err := h.policy(ctx, in.PolicyID)
+func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenanceInput) (*maintenanceJobsOutput, error) {
+	svc, principal, _, _, err := h.setup(ctx, CapMaintenanceRun)
 	if err != nil {
 		return nil, err
 	}
-	if !c.Can(string(CapMaintenanceRun), policyResource(p)).Allowed {
-		return nil, Forbidden("not permitted to run this maintenance policy")
-	}
 	if !in.Body.Confirm {
-		return nil, Conflict(CodePruneConfirmationRequired, "review a preview and repeat with confirm: true")
+		return nil, Conflict(CodePruneConfirmationRequired,
+			"a prune run deletes its candidates and cannot be undone; review a preview and repeat the request with confirm: true")
 	}
-	batch, ok := svc.(maintenanceEnvironmentService)
-	if !ok {
-		return nil, Unavailable(CodeUnavailable, "environment maintenance runs are not available")
-	}
-	jobs, err := batch.RunEnvironments(ctx, principal, p, in.IdempotencyKey)
+	jobs, err := svc.Run(ctx, principal, in.IdempotencyKey)
 	if err != nil {
 		return nil, maintenanceError(err)
 	}
-	out := &maintenanceEnvironmentJobsOutput{}
+	out := &maintenanceJobsOutput{}
 	out.Body.Jobs = make([]Job, 0, len(jobs))
+	ids := make([]string, 0, len(jobs))
 	for _, job := range jobs {
 		out.Body.Jobs = append(out.Body.Jobs, NewJob(job))
+		ids = append(ids, job.ID)
 	}
+	audit.SetDetail(ctx, "job_ids", ids)
 	return out, nil
 }
 
@@ -784,8 +494,10 @@ func (h *maintenanceAPI) manualScope(ctx context.Context, env string, capability
 	if !c.Can(string(capability), res).Allowed {
 		return nil, p, Forbidden("not permitted: " + string(capability) + " in this environment")
 	}
-	svc, err := h.service()
-	return svc, p, err
+	if h.svc == nil {
+		return nil, p, Unavailable(CodeUnavailable, "maintenance is not available")
+	}
+	return h.svc, p, nil
 }
 
 func (h *maintenanceAPI) previewManual(ctx context.Context, in *previewManualPruneInput) (*prunePreviewOutput, error) {
@@ -797,7 +509,7 @@ func (h *maintenanceAPI) previewManual(ctx context.Context, in *previewManualPru
 	if err != nil {
 		return nil, maintenanceError(err)
 	}
-	res := newPrunePreview(domain.MaintenancePolicy{EnvironmentID: in.EnvironmentID}, out)
+	res := newPrunePreview(in.EnvironmentID, out)
 	audit.SetDetail(ctx, "candidates", res.Remove)
 	return &prunePreviewOutput{Body: res}, nil
 }
@@ -825,167 +537,60 @@ func (h *maintenanceAPI) runManual(ctx context.Context, in *runManualPruneInput)
 	return Accepted(job), nil
 }
 
-func (h *maintenanceAPI) defaults(ctx context.Context, _ *struct{}) (*maintenanceDefaultsOutput, error) {
-	svc, err := h.service()
-	if err != nil {
-		return nil, err
-	}
-	c, _, err := CheckerFor(ctx, h.authz)
-	if err != nil {
-		return nil, err
-	}
-	if !c.Can(string(CapSettingsRead), authz.Instance()).Allowed {
-		return nil, Forbidden("requires settings.read")
-	}
-	d, err := svc.Defaults(ctx)
-	if err != nil {
-		return nil, Internal(err)
-	}
-	return &maintenanceDefaultsOutput{ETagHeader: ETagHeader{ETag: RevisionETag(d.Revision)}, Body: newMaintenanceDefaults(d)}, nil
-}
-
-func (h *maintenanceAPI) updateDefaults(ctx context.Context, in *updateMaintenanceDefaultsInput) (*maintenanceDefaultsOutput, error) {
-	svc, err := h.service()
-	if err != nil {
-		return nil, err
-	}
-	c, _, err := CheckerFor(ctx, h.authz)
-	if err != nil {
-		return nil, err
-	}
-	if !c.Can(string(CapSettingsManage), authz.Instance()).Allowed {
-		return nil, Forbidden("requires settings.manage")
-	}
-	cur, err := svc.Defaults(ctx)
-	if err != nil {
-		return nil, Internal(err)
-	}
-	if err := in.CheckIfMatch(RevisionETag(cur.Revision)); err != nil {
-		return nil, err
-	}
-	before, after, err := svc.UpdateDefaults(ctx, cur.Revision, pruneRulesOf(in.Body.Rules))
-	if errors.Is(err, domain.ErrRevisionMismatch) {
-		return nil, stale(before.Revision)
-	}
-	if err != nil {
-		return nil, maintenanceError(err)
-	}
-	flat := func(d domain.MaintenanceDefaults) map[string]any {
-		m := map[string]any{}
-		for _, r := range d.Rules {
-			m[r.Category] = newMaintenanceRule(r)
-		}
-		return m
-	}
-	audit.SetDiff(ctx, flat(before), flat(after))
-	return &maintenanceDefaultsOutput{ETagHeader: ETagHeader{ETag: RevisionETag(after.Revision)}, Body: newMaintenanceDefaults(after)}, nil
-}
-
 func registerMaintenance(a huma.API, deps Deps) {
 	h := &maintenanceAPI{svc: deps.Maintenance, sched: deps.Schedules, authz: authz.OrDenyAll(deps.Authorizer)}
-	path := BasePath + "/maintenance-policies"
-	policyErrs := []int{http.StatusForbidden, http.StatusNotFound}
+	path := BasePath + "/maintenance-settings"
 
 	Register(a, Operation{
 		Operation: huma.Operation{
-			OperationID: "get-maintenance-defaults", Method: http.MethodGet, Path: BasePath + "/maintenance-defaults",
-			Summary:     "Get the suggested prune rules",
-			Description: "The rules new maintenance policies start with (one per category: all disabled, 30 days) and each category's Engine limitations.",
-			Tags:        []string{tagMaintenance}, Errors: []int{http.StatusForbidden},
+			OperationID: "get-maintenance-settings", Method: http.MethodGet, Path: path,
+			Summary: "Get the maintenance settings",
+			Description: "The one maintenance setup: whether it runs on its schedule, its rules (one per category: stopped " +
+				"containers, dangling and all unused images, unused networks, anonymous and named volumes, build cache), the " +
+				"environments it leaves out, the schedule's state and the latest run's result. It covers every other environment, " +
+				"also ones added later.",
+			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden},
 		},
-		Capability: CapSettingsRead, Scope: ScopeInstance,
-	}, h.defaults)
-
-	Register(a, Operation{
-		Operation: huma.Operation{
-			OperationID: "update-maintenance-defaults", Method: http.MethodPatch, Path: BasePath + "/maintenance-defaults",
-			Summary:     "Change the suggested prune rules",
-			Description: "Each rule given replaces the default of its category; existing policies keep their rules. Enabling a volume rule needs volumeOptIn. Requires If-Match.",
-			Tags:        []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusPreconditionFailed, http.StatusPreconditionRequired,
-				http.StatusUnprocessableEntity},
-		},
-		Capability: CapSettingsManage, Scope: ScopeInstance,
-	}, h.updateDefaults)
-
-	Register(a, Operation{
-		Operation: huma.Operation{
-			OperationID: "list-maintenance-policies", Method: http.MethodGet, Path: path,
-			Summary: "List maintenance policies", Description: "Prune policies, filtered per item (#17); optionally of one environment.",
-			Tags: []string{tagMaintenance}, Errors: []int{http.StatusUnprocessableEntity},
-		},
-		Capability: CapMaintenancePolicyRead, Scope: ScopeResource,
-	}, h.list)
-
-	Register(a, Operation{
-		Operation: huma.Operation{
-			OperationID: "create-maintenance-policy", Method: http.MethodPost, Path: path,
-			Summary: "Create a maintenance policy", DefaultStatus: http.StatusCreated,
-			Description: "A prune policy of one environment with one rule per category (stopped containers, dangling and all unused images, " +
-				"unused networks, anonymous and named volumes, build cache). Rules not given start with the maintenance defaults; the " +
-				"schedule starts with the prune default of the schedule defaults and stays disabled unless enabled. Enabling a volume rule " +
-				"needs volumeOptIn. 409 maintenance_policy_name_taken.",
-			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity},
-		},
-		Capability: CapMaintenancePolicyManage, Scope: ScopeEnvironment,
-	}, h.create)
-
-	Register(a, Operation{
-		Operation: huma.Operation{
-			OperationID: "get-maintenance-policy", Method: http.MethodGet, Path: path + "/{policyId}",
-			Summary: "Get a maintenance policy", Description: "With its schedule (next run, recent scheduled runs) and the latest run's result.",
-			Tags: []string{tagMaintenance}, Errors: []int{http.StatusNotFound},
-		},
-		Capability: CapMaintenancePolicyRead, Scope: ScopeResource,
+		Capability: CapMaintenancePolicyRead, Scope: ScopeInstance,
 	}, h.get)
 
 	Register(a, Operation{
 		Operation: huma.Operation{
-			OperationID: "update-maintenance-policy", Method: http.MethodPatch, Path: path + "/{policyId}",
-			Summary: "Update a maintenance policy",
-			Description: "Each rule given replaces its category's rule. Waiting runs of the policy are cancelled when its rules change " +
-				"(they carry the old rules). Requires If-Match.",
-			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
-				http.StatusPreconditionFailed, http.StatusPreconditionRequired, http.StatusUnprocessableEntity},
+			OperationID: "update-maintenance-settings", Method: http.MethodPatch, Path: path,
+			Summary: "Change the maintenance settings",
+			Description: "Each rule given replaces its category's rule; enabling a volume rule needs volumeOptIn. Waiting runs " +
+				"are cancelled when the rules or the environments left out change (they carry the old ones). Requires If-Match.",
+			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusPreconditionFailed, http.StatusPreconditionRequired,
+				http.StatusUnprocessableEntity},
 		},
-		Capability: CapMaintenancePolicyManage, Scope: ScopeResource,
+		Capability: CapMaintenancePolicyManage, Scope: ScopeInstance,
 	}, h.update)
 
 	Register(a, Operation{
 		Operation: huma.Operation{
-			OperationID: "delete-maintenance-policy", Method: http.MethodDelete, Path: path + "/{policyId}",
-			Summary: "Delete a maintenance policy", DefaultStatus: http.StatusNoContent,
-			Description: "Its schedule and waiting runs go with it; a run already in progress finishes. Requires If-Match.",
-			Tags:        []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusPreconditionFailed, http.StatusPreconditionRequired},
+			OperationID: "create-maintenance-preview", Method: http.MethodPost, Path: path + "/previews",
+			Summary: "Preview maintenance",
+			Description: "Asks the agent of every environment maintenance covers which objects a run would remove now: candidate " +
+				"IDs with reasons, protected, excluded and retained objects, and approximate reclaimed bytes. An environment that " +
+				"cannot answer (environment_offline, a timeout) reports its error; the others are previewed. Nothing is removed.",
+			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden},
 		},
-		Capability: CapMaintenancePolicyManage, Scope: ScopeResource,
-	}, h.remove)
-
-	Register(a, Operation{
-		Operation: huma.Operation{
-			OperationID: "create-maintenance-policy-preview", Method: http.MethodPost, Path: path + "/{policyId}/previews",
-			Summary: "Preview a maintenance policy",
-			Description: "Asks the environment's agent which objects a run would remove now: candidate IDs with reasons, protected, " +
-				"excluded and retained objects, and approximate reclaimed bytes. Optionally previews unsaved rules. Nothing is removed " +
-				"or saved. 503 environment_offline when the agent is not connected.",
-			Tags: []string{tagMaintenance}, Errors: append(slices.Clone(policyErrs), http.StatusUnprocessableEntity, http.StatusServiceUnavailable,
-				http.StatusGatewayTimeout),
-		},
-		Capability: CapMaintenancePreview, Scope: ScopeResource,
+		Capability: CapMaintenancePreview, Scope: ScopeInstance,
 	}, h.preview)
 
 	Register(a, Operation{
 		Operation: huma.Operation{
-			OperationID: "create-maintenance-policy-run", Method: http.MethodPost, Path: path + "/{policyId}/runs",
-			Summary: "Run a maintenance policy",
-			Description: "Starts a prune.run job (202 + job) with the policy's enabled rules: candidates are recomputed and each is " +
-				"revalidated right before its targeted removal; progress, skipped reasons, errors and bytes reclaimed are job items " +
-				"and output (GET /api/v1/jobs/{id}, events stream). Needs confirm: true (409 prune_confirmation_required). background is " +
-				"a presentation preference only: foreground and background runs are the same durable job and leaving the UI never " +
-				"cancels it; cancel with POST /jobs/{id}/cancellations (between items). 409 maintenance_run_active while another run " +
-				"of the policy is not finished, maintenance_policy_empty without enabled rules.",
-			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity},
+			OperationID: "create-maintenance-run", Method: http.MethodPost, Path: path + "/runs",
+			Summary: "Run maintenance",
+			Description: "Starts one prune.run job per environment maintenance covers with the enabled rules: candidates are " +
+				"recomputed and each is revalidated right before its targeted removal; progress, skipped reasons, errors and bytes " +
+				"reclaimed are job items and output. Needs confirm: true (409 prune_confirmation_required). Leaving the UI never " +
+				"cancels the jobs; cancel with POST /jobs/{id}/cancellations (between items). 409 maintenance_run_active while " +
+				"another run is not finished, maintenance_empty without enabled rules, maintenance_no_environments when every " +
+				"environment is left out.",
+			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
 		},
-		Capability: CapMaintenanceRun, Scope: ScopeResource, Idempotency: IdempotencyJob,
+		Capability: CapMaintenanceRun, Scope: ScopeInstance, Idempotency: IdempotencyStored,
 	}, h.run)
 
 	envPath := BasePath + "/environments/{environmentId}"
@@ -994,7 +599,7 @@ func registerMaintenance(a huma.API, deps Deps) {
 			OperationID: "create-prune-preview", Method: http.MethodPost, Path: envPath + "/prune-previews",
 			Summary: "Preview a one-off prune",
 			Description: "Asks the environment's agent which objects a prune with these rules would remove now, with the same " +
-				"protections as policies (#32, stacks, saved specifications, backups). Nothing is removed or saved. 503 " +
+				"protections as maintenance (#32, stacks, saved specifications, backups). Nothing is removed or saved. 503 " +
 				"environment_offline when the agent is not connected.",
 			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
 				http.StatusUnprocessableEntity, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
@@ -1006,23 +611,12 @@ func registerMaintenance(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "create-prune", Method: http.MethodPost, Path: envPath + "/prunes",
 			Summary: "Run a one-off prune",
-			Description: "Starts a prune.run job (202 + job) with these rules only, without a policy: candidates are recomputed and " +
-				"each is revalidated right before its targeted removal. Needs confirm: true (409 prune_confirmation_required); " +
-				"enabling a volume rule needs volumeOptIn.",
+			Description: "Starts a prune.run job (202 + job) with these rules only, without the maintenance setup: candidates are " +
+				"recomputed and each is revalidated right before its targeted removal. Needs confirm: true (409 " +
+				"prune_confirmation_required); enabling a volume rule needs volumeOptIn.",
 			Tags: []string{tagMaintenance}, DefaultStatus: http.StatusAccepted, Errors: []int{http.StatusForbidden, http.StatusNotFound,
 				http.StatusConflict, http.StatusUnprocessableEntity},
 		},
 		Capability: CapMaintenanceRun, Scope: ScopeEnvironment, Idempotency: IdempotencyJob,
 	}, h.runManual)
-
-	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "preview-maintenance-environments", Method: http.MethodPost, Path: path + "/{policyId}/environment-previews",
-		Summary: "Preview a maintenance policy across its environments", Tags: []string{tagMaintenance},
-		Errors: policyErrs,
-	}, Capability: CapMaintenancePreview, Scope: ScopeResource}, h.previewEnvironments)
-	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "run-maintenance-environments", Method: http.MethodPost, Path: path + "/{policyId}/environment-runs",
-		Summary: "Run a maintenance policy across its environments", Tags: []string{tagMaintenance},
-		Errors: policyErrs,
-	}, Capability: CapMaintenanceRun, Scope: ScopeResource, Idempotency: IdempotencyStored}, h.runEnvironments)
 }

@@ -143,10 +143,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	updatePolicy: [routes.updatePolicy('up-1')],
 	updatePolicyEdit: [routes.updatePolicyEdit('up-1')],
 	maintenance: [routes.maintenance()],
-	maintenanceNew: [routes.maintenanceNew()],
-	maintenancePolicy: [routes.maintenancePolicy('mp-1')],
-	maintenanceEdit: [routes.maintenanceEdit('mp-1')],
-	maintenanceDefaults: [routes.maintenanceDefaults()],
+	maintenanceEdit: [routes.maintenanceEdit()],
 	jobs: [
 		routes.jobs(),
 		routes.jobs('update.check'),

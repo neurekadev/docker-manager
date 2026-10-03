@@ -203,8 +203,8 @@ to its neighbour's table), lists are full-width tables, and a KPI row or
 card grid fills a row rather than one card sitting half-width beside empty
 space. The document is the page's scroll container and reserves the
 scrollbar's space (`scrollbar-gutter: stable`), so pages do not shift
-sideways between short and long ones. Create and edit forms of stacks and policies (backups, updates,
-maintenance, the maintenance defaults) are dialogs over the list or detail
+sideways between short and long ones. Create and edit forms of stacks, policies and settings (backups, updates,
+maintenance) are dialogs over the list or detail
 page, laid out in columns (`Dialog size="xl"`), opened by a query
 parameter (`?create=1`, `?edit=1`, `?defaults=1`; `urlDialog` in
 `$lib/features/common`) so links and routes (`routes.updatePolicyNew()`)
@@ -302,8 +302,8 @@ disabled item uses it to say why it is off (only its label and icon dim).
 
 Every resource list (stacks, containers, images, volumes, networks,
 builds and saved builds, registries and Git credentials, template
-sources, backup policies, runs, repositories and snapshots, update and
-maintenance policies, jobs, schedules, environments, users, groups,
+sources, backup policies, runs, repositories and snapshots, update
+policies, jobs, schedules, environments, users, groups,
 invitations, API tokens, passkeys, notification channels, alerts, notifications, a host's disks and RAID arrays) starts each row's name with the type's
 icon, so a list is recognisable at a glance:
 

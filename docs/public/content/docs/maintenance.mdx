@@ -17,23 +17,25 @@ pages each have a prune button: **Prune Containers**, **Prune Images**,
    back.
 3. Press **Remove … Objects** to confirm.
 
-## Maintenance policies
+## Clean up on a schedule
 
-A **maintenance policy** cleans up on a schedule. Each server can have one.
+**Maintenance** cleans up every server on one schedule, with one set of
+rules.
 
-1. Open **Maintenance** and press **Create Maintenance Policy**.
-2. Enter a **Name** and choose the **Environments**.
+1. Open **Maintenance** and press **Edit**.
+2. Under **Environments**, uncheck a server to leave it out. Servers you
+   add later are covered too.
 3. Turn on the rules you want: **Stopped Containers**, **Dangling Images**
    or **All Unused Images**, **Unused Networks**, **Build Cache**, and
    **Anonymous Volumes** or **Named Volumes**. Removing volumes deletes
    their data, so you must confirm it.
 4. For each rule, you can keep objects younger than some days, or list
    objects to **Never Remove**.
-5. Turn on **Run Automatically** and pick the schedule.
+5. Turn on **Enabled**, pick the schedule and press **Save Changes**.
 
-On a policy's page, **Preview** shows what a run would remove right now and
-**Run Now** runs it. **Maintenance → Default Rules** sets the rules new
-policies start with.
+**Preview** shows what a run would remove on each server right now, and
+**Run Now** runs it. Every rule starts off, and nothing runs on its own
+until you turn on **Enabled**.
 
 <Callout type="warn">
   A removal can't be undone.

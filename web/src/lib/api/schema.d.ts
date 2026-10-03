@@ -1970,7 +1970,7 @@ export interface paths {
         put?: never;
         /**
          * Preview a one-off prune
-         * @description Asks the environment's agent which objects a prune with these rules would remove now, with the same protections as policies (#32, stacks, saved specifications, backups). Nothing is removed or saved. 503 environment_offline when the agent is not connected.
+         * @description Asks the environment's agent which objects a prune with these rules would remove now, with the same protections as maintenance (#32, stacks, saved specifications, backups). Nothing is removed or saved. 503 environment_offline when the agent is not connected.
          */
         post: operations["create-prune-preview"];
         delete?: never;
@@ -1990,7 +1990,7 @@ export interface paths {
         put?: never;
         /**
          * Run a one-off prune
-         * @description Starts a prune.run job (202 + job) with these rules only, without a policy: candidates are recomputed and each is revalidated right before its targeted removal. Needs confirm: true (409 prune_confirmation_required); enabling a volume rule needs volumeOptIn.
+         * @description Starts a prune.run job (202 + job) with these rules only, without the maintenance setup: candidates are recomputed and each is revalidated right before its targeted removal. Needs confirm: true (409 prune_confirmation_required); enabling a volume rule needs volumeOptIn.
          */
         post: operations["create-prune"];
         delete?: never;
@@ -2820,7 +2820,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/maintenance-defaults": {
+    "/api/v1/maintenance-settings": {
         parameters: {
             query?: never;
             header?: never;
@@ -2828,109 +2828,23 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get the suggested prune rules
-         * @description The rules new maintenance policies start with (one per category: all disabled, 30 days) and each category's Engine limitations.
+         * Get the maintenance settings
+         * @description The one maintenance setup: whether it runs on its schedule, its rules (one per category: stopped containers, dangling and all unused images, unused networks, anonymous and named volumes, build cache), the environments it leaves out, the schedule's state and the latest run's result. It covers every other environment, also ones added later.
          */
-        get: operations["get-maintenance-defaults"];
+        get: operations["get-maintenance-settings"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /**
-         * Change the suggested prune rules
-         * @description Each rule given replaces the default of its category; existing policies keep their rules. Enabling a volume rule needs volumeOptIn. Requires If-Match.
+         * Change the maintenance settings
+         * @description Each rule given replaces its category's rule; enabling a volume rule needs volumeOptIn. Waiting runs are cancelled when the rules or the environments left out change (they carry the old ones). Requires If-Match.
          */
-        patch: operations["update-maintenance-defaults"];
+        patch: operations["update-maintenance-settings"];
         trace?: never;
     };
-    "/api/v1/maintenance-policies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List maintenance policies
-         * @description Prune policies, filtered per item (#17); optionally of one environment.
-         */
-        get: operations["list-maintenance-policies"];
-        put?: never;
-        /**
-         * Create a maintenance policy
-         * @description A prune policy of one environment with one rule per category (stopped containers, dangling and all unused images, unused networks, anonymous and named volumes, build cache). Rules not given start with the maintenance defaults; the schedule starts with the prune default of the schedule defaults and stays disabled unless enabled. Enabling a volume rule needs volumeOptIn. 409 maintenance_policy_name_taken.
-         */
-        post: operations["create-maintenance-policy"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/maintenance-policies/{policyId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a maintenance policy
-         * @description With its schedule (next run, recent scheduled runs) and the latest run's result.
-         */
-        get: operations["get-maintenance-policy"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a maintenance policy
-         * @description Its schedule and waiting runs go with it; a run already in progress finishes. Requires If-Match.
-         */
-        delete: operations["delete-maintenance-policy"];
-        options?: never;
-        head?: never;
-        /**
-         * Update a maintenance policy
-         * @description Each rule given replaces its category's rule. Waiting runs of the policy are cancelled when its rules change (they carry the old rules). Requires If-Match.
-         */
-        patch: operations["update-maintenance-policy"];
-        trace?: never;
-    };
-    "/api/v1/maintenance-policies/{policyId}/environment-previews": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Preview a maintenance policy across its environments */
-        post: operations["preview-maintenance-environments"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/maintenance-policies/{policyId}/environment-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Run a maintenance policy across its environments */
-        post: operations["run-maintenance-environments"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/maintenance-policies/{policyId}/previews": {
+    "/api/v1/maintenance-settings/previews": {
         parameters: {
             query?: never;
             header?: never;
@@ -2940,17 +2854,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Preview a maintenance policy
-         * @description Asks the environment's agent which objects a run would remove now: candidate IDs with reasons, protected, excluded and retained objects, and approximate reclaimed bytes. Optionally previews unsaved rules. Nothing is removed or saved. 503 environment_offline when the agent is not connected.
+         * Preview maintenance
+         * @description Asks the agent of every environment maintenance covers which objects a run would remove now: candidate IDs with reasons, protected, excluded and retained objects, and approximate reclaimed bytes. An environment that cannot answer (environment_offline, a timeout) reports its error; the others are previewed. Nothing is removed.
          */
-        post: operations["create-maintenance-policy-preview"];
+        post: operations["create-maintenance-preview"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/maintenance-policies/{policyId}/runs": {
+    "/api/v1/maintenance-settings/runs": {
         parameters: {
             query?: never;
             header?: never;
@@ -2960,10 +2874,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Run a maintenance policy
-         * @description Starts a prune.run job (202 + job) with the policy's enabled rules: candidates are recomputed and each is revalidated right before its targeted removal; progress, skipped reasons, errors and bytes reclaimed are job items and output (GET /api/v1/jobs/{id}, events stream). Needs confirm: true (409 prune_confirmation_required). background is a presentation preference only: foreground and background runs are the same durable job and leaving the UI never cancels it; cancel with POST /jobs/{id}/cancellations (between items). 409 maintenance_run_active while another run of the policy is not finished, maintenance_policy_empty without enabled rules.
+         * Run maintenance
+         * @description Starts one prune.run job per environment maintenance covers with the enabled rules: candidates are recomputed and each is revalidated right before its targeted removal; progress, skipped reasons, errors and bytes reclaimed are job items and output. Needs confirm: true (409 prune_confirmation_required). Leaving the UI never cancels the jobs; cancel with POST /jobs/{id}/cancellations (between items). 409 maintenance_run_active while another run is not finished, maintenance_empty without enabled rules, maintenance_no_environments when every environment is left out.
          */
-        post: operations["create-maintenance-policy-run"];
+        post: operations["create-maintenance-run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3827,7 +3741,7 @@ export interface paths {
         };
         /**
          * Get the instance settings
-         * @description The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, file manager limits, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.
+         * @description The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, file manager limits, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only) and schedule defaults GET /api/v1/schedule-defaults.
          */
         get: operations["get-settings"];
         put?: never;
@@ -7544,17 +7458,6 @@ export interface components {
              */
             url: string;
         };
-        CreateMaintenancePolicyInputBody: {
-            description?: string;
-            environmentId?: string;
-            /** @example Weekly cleanup */
-            name: string;
-            /** @description Rules to set; categories not given start with the maintenance defaults (all disabled unless the defaults were changed). */
-            rules?: components["schemas"]["MaintenanceRule"][];
-            schedule?: components["schemas"]["MaintenanceScheduleInput"];
-            /** @enum {string} */
-            scope?: "all" | "environment";
-        };
         CreateManagerMoveInputBody: {
             /**
              * @description The new server's environment name (default: its address).
@@ -9572,52 +9475,20 @@ export interface components {
             /** @enum {string} */
             stream: "stdout" | "stderr";
         };
-        MaintenanceDefaults: {
-            categories: components["schemas"]["PruneCategoryInfo"][];
-            /** Format: int64 */
-            revision: number;
-            /** @description One rule per category. New policies start with these rules; changing them never changes existing policies. */
-            rules: components["schemas"]["MaintenanceRule"][];
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        MaintenanceEnvironmentJobsOutputBody: {
+        MaintenanceJobsOutputBody: {
             jobs: components["schemas"]["Job"][];
         };
-        MaintenanceEnvironmentPreviewItem: {
+        MaintenancePreviewItem: {
             environmentId: string;
-            preview: components["schemas"]["PrunePreview"];
+            /** @description Why this environment could not be previewed: the error code (environment_offline, timeout, ...). */
+            errorClass?: string;
+            /** @description The error's message (not stable). */
+            errorMessage?: string;
+            preview?: components["schemas"]["PrunePreview"];
         };
-        MaintenanceEnvironmentPreviewOutputBody: {
-            items: components["schemas"]["MaintenanceEnvironmentPreviewItem"][];
-        };
-        MaintenanceEnvironmentRunInputBody: {
-            /** @example true */
-            confirm: boolean;
-        };
-        MaintenancePolicy: {
-            actions: string[];
-            /** Format: date-time */
-            createdAt?: string;
-            description?: string;
-            /** @description Automatic (scheduled) runs are enabled. */
-            enabled: boolean;
-            environmentId: string;
-            id: string;
-            lastRun?: components["schemas"]["MaintenanceRunSummary"];
-            name: string;
-            /** Format: int64 */
-            revision?: number;
-            /** @description Full view: one rule per category. The enabled ones together are the policy's system cleanup. */
-            rules?: components["schemas"]["MaintenanceRule"][];
-            /** @description Full view. */
-            schedule?: components["schemas"]["MaintenanceSchedule"];
-            /** @enum {string} */
-            scope: "all" | "environment";
-            /** Format: date-time */
-            updatedAt?: string;
-            /** @enum {string} */
-            view: "minimal" | "full";
+        MaintenancePreviewOutputBody: {
+            /** @description One item per environment maintenance covers. */
+            items: components["schemas"]["MaintenancePreviewItem"][];
         };
         MaintenanceRule: {
             /** @description build_cache only: all unused records instead of dangling ones (not shared with images, not internal). */
@@ -9680,7 +9551,7 @@ export interface components {
             catchUp: "skip";
             /** @example 0 3 * * 0 */
             cron: string;
-            /** @description Automatic runs; start disabled. */
+            /** @description Scheduled runs (the setup's enabled flag); start disabled. */
             enabled: boolean;
             invalidReason?: string;
             nextRun?: components["schemas"]["ScheduleRunTime"];
@@ -9689,13 +9560,27 @@ export interface components {
             /** @example Europe/Berlin */
             timeZone: string;
         };
-        MaintenanceScheduleInput: {
-            /** @description Five-field cron expression (default: the prune default of the schedule defaults). */
-            cron?: string;
-            /** @description Automatic runs (default false). */
-            enabled?: boolean;
-            /** @description IANA time zone (default: the instance's default zone). */
-            timeZone?: string;
+        MaintenanceSettings: {
+            /** @description What the caller may do: maintenance_policy.manage, maintenance.preview, maintenance.run. */
+            actions: string[];
+            categories: components["schemas"]["PruneCategoryInfo"][];
+            /** @description Runs on the schedule. Starts disabled; Run Now works either way. */
+            enabled: boolean;
+            /** @description IDs of the environments left out; every other environment is covered, also ones added later. */
+            excludeEnvironments: string[];
+            /** @description The policy ID of the setup's prune jobs and schedule (a job's policyId). */
+            id: string;
+            /** @description The latest finished prune job (one environment's). */
+            lastRun?: components["schemas"]["MaintenanceRunSummary"];
+            /** Format: int64 */
+            revision: number;
+            /** @description One rule per category. The enabled ones together are the system cleanup. */
+            rules: components["schemas"]["MaintenanceRule"][];
+            schedule: components["schemas"]["MaintenanceSchedule"];
+            /** @description Docker Manager's shipped suggestions, one per category (every rule off, 30 days). */
+            suggestedRules: components["schemas"]["MaintenanceRule"][];
+            /** Format: date-time */
+            updatedAt: string;
         };
         ManagerMove: {
             /** Format: date-time */
@@ -9928,10 +9813,6 @@ export interface components {
             metricsIncluded: boolean;
             notes: string[];
             repositoryId: string;
-        };
-        ManualPruneRules: {
-            /** @description The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled. */
-            rules: components["schemas"]["MaintenanceRule"][];
         };
         MetadataStackInputBody: {
             /** @description Needs <root>.files.chmod. */
@@ -10613,17 +10494,6 @@ export interface components {
              */
             total?: number;
         };
-        PageMaintenancePolicy: {
-            /** @description Items on this page (possibly empty, also when nextCursor is present). */
-            items: components["schemas"]["MaintenancePolicy"][];
-            /** @description Opaque cursor for the next page; absent on the last page. */
-            nextCursor?: string;
-            /**
-             * Format: int64
-             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
-             */
-            total?: number;
-        };
         PageNetwork: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Network"][];
@@ -11049,11 +10919,9 @@ export interface components {
             /** @description Unsaved user overrides to preview. */
             userRules?: components["schemas"]["PermissionRule"][];
         };
-        PreviewMaintenancePolicyInputBody: {
-            /** @description Evaluate disabled rules too (previewing enables nothing). */
-            includeDisabled?: boolean;
-            /** @description Preview these rules (merged by category onto the saved ones) instead of the saved rules; nothing is saved. */
-            rules?: components["schemas"]["MaintenanceRule"][];
+        PreviewManualPruneInputBody: {
+            /** @description The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled. */
+            rules: components["schemas"]["MaintenanceRule"][];
         };
         PreviewStackInputBody: {
             /**
@@ -11193,7 +11061,6 @@ export interface components {
             categories: components["schemas"]["PruneCategoryPreview"][];
             environmentId: string;
             notes: string[];
-            policyId: string;
             /** Format: int64 */
             remove: number;
         };
@@ -11649,7 +11516,7 @@ export interface components {
             count: number;
             items: components["schemas"]["RemovalDependent"][];
             /** @enum {string} */
-            kind: "stack" | "managed_container" | "update_policy" | "backup_policy" | "maintenance_policy" | "backup_repository" | "backup_set" | "registry_connection" | "build_definition" | "permission_rule" | "schedule" | "job";
+            kind: "stack" | "managed_container" | "update_policy" | "backup_policy" | "backup_repository" | "backup_set" | "registry_connection" | "build_definition" | "permission_rule" | "schedule" | "job";
             /**
              * @description kept: kept and hidden with the environment, working again after a re-attach; paused: kept, scheduled runs are refused until a re-attach; removed: deleted with an audit record (permission rules scoped to the environment); interrupted: unfinished jobs end by the offline rules once the agent is disconnected.
              * @enum {string}
@@ -11948,14 +11815,12 @@ export interface components {
             /** @example ci-bot */
             username?: string;
         };
-        RunMaintenancePolicyInputBody: {
-            /** @description Presentation preference only: the run is the same durable job either way, and leaving the UI never cancels it. */
-            background?: boolean;
+        RunMaintenanceInputBody: {
             /**
              * @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise).
              * @example true
              */
-            confirm?: boolean;
+            confirm: boolean;
         };
         RunManualPruneInputBody: {
             /**
@@ -12118,6 +11983,12 @@ export interface components {
             local: string;
             /** Format: date-time */
             utc: string;
+        };
+        ScheduleStruct: {
+            /** @description Five-field cron expression. */
+            cron?: string;
+            /** @description IANA time zone. */
+            timeZone?: string;
         };
         ScopePreview: {
             environments: components["schemas"]["EnvironmentPreview"][];
@@ -13438,16 +13309,14 @@ export interface components {
             sourceHashBefore?: string;
             toDigest?: string;
         };
-        UpdateMaintenanceDefaultsInputBody: {
-            /** @description Each rule given replaces the default of its category. */
-            rules: components["schemas"]["MaintenanceRule"][];
-        };
-        UpdateMaintenancePolicyInputBody: {
-            description?: string;
-            name?: string;
-            /** @description Each rule given replaces the rule of its category (send the whole rule). */
+        UpdateMaintenanceSettingsInputBody: {
+            /** @description Run on the schedule. */
+            enabled?: boolean;
+            /** @description The environments to leave out (replaces the list); IDs of environments that do not exist are dropped. */
+            excludeEnvironments?: string[];
+            /** @description Each rule given replaces the rule of its category (send the whole rule). Enabling a volume rule needs volumeOptIn. */
             rules?: components["schemas"]["MaintenanceRule"][];
-            schedule?: components["schemas"]["MaintenanceScheduleInput"];
+            schedule?: components["schemas"]["ScheduleStruct"];
         };
         UpdateNotificationChannelInputBody: {
             /** @description A new Shoutrrr URL (needs a recent step-up; resets the last result). */
@@ -29324,7 +29193,7 @@ export interface operations {
                  *       ]
                  *     }
                  */
-                "application/json": components["schemas"]["ManualPruneRules"];
+                "application/json": components["schemas"]["PreviewManualPruneInputBody"];
             };
         };
         responses: {
@@ -29364,7 +29233,6 @@ export interface operations {
                      *       "notes": [
                      *         "example"
                      *       ],
-                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "remove": 1
                      *     }
                      */
@@ -36266,7 +36134,7 @@ export interface operations {
             };
         };
     };
-    "get-maintenance-defaults": {
+    "get-maintenance-settings": {
         parameters: {
             query?: never;
             header?: never;
@@ -36284,6 +36152,9 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
                      *       "categories": [
                      *         {
                      *           "category": "example",
@@ -36296,8 +36167,81 @@ export interface operations {
                      *           ]
                      *         }
                      *       ],
+                     *       "enabled": false,
+                     *       "excludeEnvironments": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastRun": {
+                     *         "bytesReclaimed": 1,
+                     *         "deferred": 1,
+                     *         "failed": 1,
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "origin": "manual",
+                     *         "removed": 1,
+                     *         "skipped": 1,
+                     *         "state": "example"
+                     *       },
                      *       "revision": 1,
                      *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "schedule": {
+                     *         "catchUp": "skip",
+                     *         "cron": "0 3 * * 0",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "suggestedRules": [
                      *         {
                      *           "buildCacheAll": false,
                      *           "category": "stopped_containers",
@@ -36322,7 +36266,7 @@ export interface operations {
                      *       "updatedAt": "2026-09-25T12:00:00Z"
                      *     }
                      */
-                    "application/json": components["schemas"]["MaintenanceDefaults"];
+                    "application/json": components["schemas"]["MaintenanceSettings"];
                 };
             };
             /** @description Unauthorized */
@@ -36354,7 +36298,7 @@ export interface operations {
             };
         };
     };
-    "update-maintenance-defaults": {
+    "update-maintenance-settings": {
         parameters: {
             query?: never;
             header?: {
@@ -36377,7 +36321,7 @@ export interface operations {
                  *       ]
                  *     }
                  */
-                "application/json": components["schemas"]["UpdateMaintenanceDefaultsInputBody"];
+                "application/json": components["schemas"]["UpdateMaintenanceSettingsInputBody"];
             };
         };
         responses: {
@@ -36390,6 +36334,9 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
                      *       "categories": [
                      *         {
                      *           "category": "example",
@@ -36402,8 +36349,81 @@ export interface operations {
                      *           ]
                      *         }
                      *       ],
+                     *       "enabled": false,
+                     *       "excludeEnvironments": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastRun": {
+                     *         "bytesReclaimed": 1,
+                     *         "deferred": 1,
+                     *         "failed": 1,
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "origin": "manual",
+                     *         "removed": 1,
+                     *         "skipped": 1,
+                     *         "state": "example"
+                     *       },
                      *       "revision": 1,
                      *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "schedule": {
+                     *         "catchUp": "skip",
+                     *         "cron": "0 3 * * 0",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "suggestedRules": [
                      *         {
                      *           "buildCacheAll": false,
                      *           "category": "stopped_containers",
@@ -36428,7 +36448,7 @@ export interface operations {
                      *       "updatedAt": "2026-09-25T12:00:00Z"
                      *     }
                      */
-                    "application/json": components["schemas"]["MaintenanceDefaults"];
+                    "application/json": components["schemas"]["MaintenanceSettings"];
                 };
             };
             /** @description Unauthorized */
@@ -36487,16 +36507,9 @@ export interface operations {
             };
         };
     };
-    "list-maintenance-policies": {
+    "create-maintenance-preview": {
         parameters: {
-            query?: {
-                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
-                cursor?: string;
-                /** @description Maximum number of items to return. */
-                limit?: number;
-                /** @description Only policies of this environment. */
-                environmentId?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -36513,754 +36526,9 @@ export interface operations {
                      * @example {
                      *       "items": [
                      *         {
-                     *           "actions": [
-                     *             "example"
-                     *           ],
-                     *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "description": "example",
-                     *           "enabled": false,
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "lastRun": {
-                     *             "bytesReclaimed": 1,
-                     *             "deferred": 1,
-                     *             "failed": 1,
-                     *             "finishedAt": "2026-09-25T12:00:00Z",
-                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "origin": "manual",
-                     *             "removed": 1,
-                     *             "skipped": 1,
-                     *             "state": "example"
-                     *           },
-                     *           "name": "web",
-                     *           "revision": 1,
-                     *           "rules": [
-                     *             {
-                     *               "buildCacheAll": false,
-                     *               "category": "stopped_containers",
-                     *               "containerStates": [
-                     *                 "example"
-                     *               ],
-                     *               "enabled": false,
-                     *               "exclude": [
-                     *                 "example"
-                     *               ],
-                     *               "excludeLabels": [
-                     *                 "example"
-                     *               ],
-                     *               "includeLabels": [
-                     *                 "example"
-                     *               ],
-                     *               "keepStorageBytes": 1,
-                     *               "minAgeHours": 720,
-                     *               "volumeOptIn": false
-                     *             }
-                     *           ],
-                     *           "schedule": {
-                     *             "catchUp": "skip",
-                     *             "cron": "0 3 * * 0",
-                     *             "enabled": false,
-                     *             "invalidReason": "example",
-                     *             "nextRun": {
-                     *               "at": "2026-09-25T12:00:00Z",
-                     *               "dst": "none",
-                     *               "dstNote": "example",
-                     *               "local": "2026-03-08T02:30",
-                     *               "utc": "2026-09-25T12:00:00Z"
-                     *             },
-                     *             "recentRuns": [
-                     *               {
-                     *                 "catchUp": false,
-                     *                 "errorClass": "example",
-                     *                 "jobs": [
-                     *                   {
-                     *                     "blockedReason": "example",
-                     *                     "errorClass": "example",
-                     *                     "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                     "kind": "example",
-                     *                     "state": "example"
-                     *                   }
-                     *                 ],
-                     *                 "missedCount": 1,
-                     *                 "missedFrom": "2026-09-25T12:00:00Z",
-                     *                 "outcome": "pending",
-                     *                 "reason": "example",
-                     *                 "result": "example",
-                     *                 "scheduledFor": "2026-09-25T12:00:00Z"
-                     *               }
-                     *             ],
-                     *             "timeZone": "Europe/Berlin"
-                     *           },
-                     *           "scope": "all",
-                     *           "updatedAt": "2026-09-25T12:00:00Z",
-                     *           "view": "minimal"
-                     *         }
-                     *       ],
-                     *       "nextCursor": "example",
-                     *       "total": 1
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PageMaintenancePolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-maintenance-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "Weekly cleanup",
-                 *       "rules": [
-                 *         {
-                 *           "category": "stopped_containers",
-                 *           "enabled": false,
-                 *           "minAgeHours": 720
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["CreateMaintenancePolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "description": "example",
-                     *       "enabled": false,
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "lastRun": {
-                     *         "bytesReclaimed": 1,
-                     *         "deferred": 1,
-                     *         "failed": 1,
-                     *         "finishedAt": "2026-09-25T12:00:00Z",
-                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "origin": "manual",
-                     *         "removed": 1,
-                     *         "skipped": 1,
-                     *         "state": "example"
-                     *       },
-                     *       "name": "web",
-                     *       "revision": 1,
-                     *       "rules": [
-                     *         {
-                     *           "buildCacheAll": false,
-                     *           "category": "stopped_containers",
-                     *           "containerStates": [
-                     *             "example"
-                     *           ],
-                     *           "enabled": false,
-                     *           "exclude": [
-                     *             "example"
-                     *           ],
-                     *           "excludeLabels": [
-                     *             "example"
-                     *           ],
-                     *           "includeLabels": [
-                     *             "example"
-                     *           ],
-                     *           "keepStorageBytes": 1,
-                     *           "minAgeHours": 720,
-                     *           "volumeOptIn": false
-                     *         }
-                     *       ],
-                     *       "schedule": {
-                     *         "catchUp": "skip",
-                     *         "cron": "0 3 * * 0",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "Europe/Berlin"
-                     *       },
-                     *       "scope": "all",
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["MaintenancePolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "get-maintenance-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Maintenance policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "description": "example",
-                     *       "enabled": false,
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "lastRun": {
-                     *         "bytesReclaimed": 1,
-                     *         "deferred": 1,
-                     *         "failed": 1,
-                     *         "finishedAt": "2026-09-25T12:00:00Z",
-                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "origin": "manual",
-                     *         "removed": 1,
-                     *         "skipped": 1,
-                     *         "state": "example"
-                     *       },
-                     *       "name": "web",
-                     *       "revision": 1,
-                     *       "rules": [
-                     *         {
-                     *           "buildCacheAll": false,
-                     *           "category": "stopped_containers",
-                     *           "containerStates": [
-                     *             "example"
-                     *           ],
-                     *           "enabled": false,
-                     *           "exclude": [
-                     *             "example"
-                     *           ],
-                     *           "excludeLabels": [
-                     *             "example"
-                     *           ],
-                     *           "includeLabels": [
-                     *             "example"
-                     *           ],
-                     *           "keepStorageBytes": 1,
-                     *           "minAgeHours": 720,
-                     *           "volumeOptIn": false
-                     *         }
-                     *       ],
-                     *       "schedule": {
-                     *         "catchUp": "skip",
-                     *         "cron": "0 3 * * 0",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "Europe/Berlin"
-                     *       },
-                     *       "scope": "all",
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["MaintenancePolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "delete-maintenance-policy": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
-                "If-Match"?: string;
-            };
-            path: {
-                /** @description Maintenance policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Required */
-            428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "update-maintenance-policy": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
-                "If-Match"?: string;
-            };
-            path: {
-                /** @description Maintenance policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "rules": [
-                 *         {
-                 *           "category": "stopped_containers",
-                 *           "enabled": false,
-                 *           "minAgeHours": 720
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateMaintenancePolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "description": "example",
-                     *       "enabled": false,
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "lastRun": {
-                     *         "bytesReclaimed": 1,
-                     *         "deferred": 1,
-                     *         "failed": 1,
-                     *         "finishedAt": "2026-09-25T12:00:00Z",
-                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "origin": "manual",
-                     *         "removed": 1,
-                     *         "skipped": 1,
-                     *         "state": "example"
-                     *       },
-                     *       "name": "web",
-                     *       "revision": 1,
-                     *       "rules": [
-                     *         {
-                     *           "buildCacheAll": false,
-                     *           "category": "stopped_containers",
-                     *           "containerStates": [
-                     *             "example"
-                     *           ],
-                     *           "enabled": false,
-                     *           "exclude": [
-                     *             "example"
-                     *           ],
-                     *           "excludeLabels": [
-                     *             "example"
-                     *           ],
-                     *           "includeLabels": [
-                     *             "example"
-                     *           ],
-                     *           "keepStorageBytes": 1,
-                     *           "minAgeHours": 720,
-                     *           "volumeOptIn": false
-                     *         }
-                     *       ],
-                     *       "schedule": {
-                     *         "catchUp": "skip",
-                     *         "cron": "0 3 * * 0",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "Europe/Berlin"
-                     *       },
-                     *       "scope": "all",
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["MaintenancePolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Required */
-            428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "preview-maintenance-environments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "items": [
-                     *         {
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "errorClass": "example",
+                     *           "errorMessage": "example",
                      *           "preview": {
                      *             "at": "2026-09-25T12:00:00Z",
                      *             "bytes": 1,
@@ -37290,14 +36558,13 @@ export interface operations {
                      *             "notes": [
                      *               "example"
                      *             ],
-                     *             "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "remove": 1
                      *           }
                      *         }
                      *       ]
                      *     }
                      */
-                    "application/json": components["schemas"]["MaintenanceEnvironmentPreviewOutputBody"];
+                    "application/json": components["schemas"]["MaintenancePreviewOutputBody"];
                 };
             };
             /** @description Unauthorized */
@@ -37318,24 +36585,6 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Error"];
                 };
             };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
             /** @description Internal Server Error */
             500: {
                 headers: {
@@ -37347,16 +36596,14 @@ export interface operations {
             };
         };
     };
-    "run-maintenance-environments": {
+    "create-maintenance-run": {
         parameters: {
             query?: never;
             header?: {
                 /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
                 "Idempotency-Key"?: string;
             };
-            path: {
-                policyId: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -37366,7 +36613,7 @@ export interface operations {
                  *       "confirm": true
                  *     }
                  */
-                "application/json": components["schemas"]["MaintenanceEnvironmentRunInputBody"];
+                "application/json": components["schemas"]["RunMaintenanceInputBody"];
             };
         };
         responses: {
@@ -37440,7 +36687,7 @@ export interface operations {
                      *       ]
                      *     }
                      */
-                    "application/json": components["schemas"]["MaintenanceEnvironmentJobsOutputBody"];
+                    "application/json": components["schemas"]["MaintenanceJobsOutputBody"];
                 };
             };
             /** @description Unauthorized */
@@ -37454,300 +36701,6 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-maintenance-policy-preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Maintenance policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "rules": [
-                 *         {
-                 *           "category": "stopped_containers",
-                 *           "enabled": false,
-                 *           "minAgeHours": 720
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["PreviewMaintenancePolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "at": "2026-09-25T12:00:00Z",
-                     *       "bytes": 1,
-                     *       "categories": [
-                     *         {
-                     *           "bytes": 1,
-                     *           "category": "dangling_images",
-                     *           "excluded": 1,
-                     *           "items": [
-                     *             {
-                     *               "bytes": 1,
-                     *               "decision": "remove",
-                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "name": "web",
-                     *               "reason": "example",
-                     *               "since": "2026-09-25T12:00:00Z"
-                     *             }
-                     *           ],
-                     *           "protected": 1,
-                     *           "remove": 1,
-                     *           "retained": 1,
-                     *           "truncated": false,
-                     *           "unknownSizes": 1
-                     *         }
-                     *       ],
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "notes": [
-                     *         "example"
-                     *       ],
-                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "remove": 1
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PrunePreview"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Gateway Timeout */
-            504: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-maintenance-policy-run": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
-                "Idempotency-Key"?: string;
-            };
-            path: {
-                /** @description Maintenance policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "confirm": true
-                 *     }
-                 */
-                "application/json": components["schemas"]["RunMaintenancePolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    Location?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "attempt": 1,
-                     *       "blockedBy": {
-                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "reason": "lock"
-                     *       },
-                     *       "cancelRequested": false,
-                     *       "cancellable": false,
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "error": {
-                     *         "class": "agent_offline",
-                     *         "message": "example",
-                     *         "recovery": "example"
-                     *       },
-                     *       "executor": "agent",
-                     *       "finishedAt": "2026-09-25T12:00:00Z",
-                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
-                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "items": [
-                     *         {
-                     *           "message": "example",
-                     *           "name": "web",
-                     *           "status": "succeeded"
-                     *         }
-                     *       ],
-                     *       "kind": "stack.deploy",
-                     *       "locks": [
-                     *         {
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "mode": "shared",
-                     *           "name": "web",
-                     *           "scope": "host"
-                     *         }
-                     *       ],
-                     *       "locksHeld": false,
-                     *       "origin": "manual",
-                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "progress": {
-                     *         "message": "example",
-                     *         "percent": 1,
-                     *         "step": "example"
-                     *       },
-                     *       "retryOf": "example",
-                     *       "retryable": false,
-                     *       "startedAt": "2026-09-25T12:00:00Z",
-                     *       "state": "queued",
-                     *       "targets": [
-                     *         {
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "type": "stack"
-                     *         }
-                     *       ],
-                     *       "updatedAt": "2026-09-25T12:00:00Z"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["Job"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -446,7 +446,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
-    notes: Display name plus a read-only deployment summary; sign-in policy, schedule and maintenance defaults are separate resources.
+    notes: Display name plus a read-only deployment summary; sign-in policy and schedule defaults are separate resources.
   - method: PATCH
     path: /api/v1/settings
     operationId: update-settings
@@ -2231,97 +2231,41 @@ routes:
     kind: json
     status: implemented
   - method: GET
-    path: /api/v1/maintenance-defaults
-    operationId: get-maintenance-defaults
-    capability: settings.read
+    path: /api/v1/maintenance-settings
+    operationId: get-maintenance-settings
+    capability: maintenance_policy.read
     scope: instance
-    owner: 14
+    owner: 238
     kind: json
     status: implemented
-    notes: Suggested prune rules for new policies and each category's Engine limitations.
+    notes: The one maintenance setup (rules, schedule, environments left out) and each category's Engine limitations.
   - method: PATCH
-    path: /api/v1/maintenance-defaults
-    operationId: update-maintenance-defaults
-    capability: settings.manage
+    path: /api/v1/maintenance-settings
+    operationId: update-maintenance-settings
+    capability: maintenance_policy.manage
     scope: instance
-    owner: 14
+    owner: 238
     kind: json
     status: implemented
     notes: If-Match.
-  - method: GET
-    path: /api/v1/maintenance-policies
-    operationId: list-maintenance-policies
-    capability: maintenance_policy.read
-    scope: resource
-    owner: 14
-    kind: json
-    status: implemented
   - method: POST
-    path: /api/v1/maintenance-policies
-    operationId: create-maintenance-policy
-    capability: maintenance_policy.manage
-    scope: environment
-    owner: 14
-    kind: json
-    status: implemented
-  - method: GET
-    path: "/api/v1/maintenance-policies/{policyId}"
-    operationId: get-maintenance-policy
-    capability: maintenance_policy.read
-    scope: resource
-    owner: 14
-    kind: json
-    status: implemented
-  - method: PATCH
-    path: "/api/v1/maintenance-policies/{policyId}"
-    operationId: update-maintenance-policy
-    capability: maintenance_policy.manage
-    scope: resource
-    owner: 14
-    kind: json
-    status: implemented
-    notes: If-Match.
-  - method: DELETE
-    path: "/api/v1/maintenance-policies/{policyId}"
-    operationId: delete-maintenance-policy
-    capability: maintenance_policy.manage
-    scope: resource
-    owner: 14
-    kind: json
-    status: implemented
-  - method: POST
-    path: "/api/v1/maintenance-policies/{policyId}/previews"
-    operationId: create-maintenance-policy-preview
+    path: /api/v1/maintenance-settings/previews
+    operationId: create-maintenance-preview
     capability: maintenance.preview
-    scope: resource
-    owner: 14
+    scope: instance
+    owner: 238
     kind: json
     status: implemented
+    notes: One preview (or error) per covered environment.
   - method: POST
-    path: "/api/v1/maintenance-policies/{policyId}/runs"
-    operationId: create-maintenance-policy-run
+    path: /api/v1/maintenance-settings/runs
+    operationId: create-maintenance-run
     capability: maintenance.run
-    scope: resource
-    owner: 14
+    scope: instance
+    owner: 238
     kind: json
     status: implemented
-    notes: 202 + job; Idempotency-Key; background preference.
-  - method: POST
-    path: "/api/v1/maintenance-policies/{policyId}/environment-previews"
-    operationId: preview-maintenance-environments
-    capability: maintenance.preview
-    scope: resource
-    owner: 14
-    kind: json
-    status: implemented
-  - method: POST
-    path: "/api/v1/maintenance-policies/{policyId}/environment-runs"
-    operationId: run-maintenance-environments
-    capability: maintenance.run
-    scope: resource
-    owner: 14
-    kind: json
-    status: implemented
+    notes: One prune.run job per covered environment; Idempotency-Key; confirm.
   - method: POST
     path: "/api/v1/environments/{environmentId}/prune-previews"
     operationId: create-prune-preview
@@ -2339,7 +2283,7 @@ routes:
     owner: 14
     kind: json
     status: implemented
-    notes: 202 + job; Idempotency-Key; confirm; one-off rules without a policy.
+    notes: 202 + job; Idempotency-Key; confirm; one-off rules without the maintenance setup.
   - method: GET
     path: /api/v1/backup-repositories
     operationId: list-backup-repositories

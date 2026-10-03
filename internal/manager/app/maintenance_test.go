@@ -14,7 +14,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
-// Docker maintenance (#14) through the real manager, a real agent session
+// Docker maintenance (#14, #238) through the real manager, a real agent session
 // and the agent's prune executor over a fake Engine.
 
 type maintRule struct {
@@ -24,12 +24,17 @@ type maintRule struct {
 	VolumeOptIn bool   `json:"volumeOptIn,omitempty"`
 }
 
-type maintPolicy struct {
-	ID       string      `json:"id"`
-	Enabled  bool        `json:"enabled"`
-	Revision int64       `json:"revision"`
-	Rules    []maintRule `json:"rules"`
-	Schedule struct {
+type maintSettings struct {
+	ID         string      `json:"id"`
+	Enabled    bool        `json:"enabled"`
+	Revision   int64       `json:"revision"`
+	Rules      []maintRule `json:"rules"`
+	Categories []struct {
+		Category    string   `json:"category"`
+		Limitations []string `json:"limitations"`
+	} `json:"categories"`
+	ExcludeEnvironments []string `json:"excludeEnvironments"`
+	Schedule            struct {
 		Cron     string `json:"cron"`
 		TimeZone string `json:"timeZone"`
 		Enabled  bool   `json:"enabled"`
@@ -56,6 +61,15 @@ type maintPreview struct {
 	} `json:"categories"`
 }
 
+// maintPreviews is the preview of every covered environment.
+type maintPreviews struct {
+	Items []struct {
+		EnvironmentID string        `json:"environmentId"`
+		Preview       *maintPreview `json:"preview"`
+		ErrorClass    string        `json:"errorClass"`
+	} `json:"items"`
+}
+
 func (p maintPreview) decisions() []string {
 	var out []string
 	for _, c := range p.Categories {
@@ -67,7 +81,36 @@ func (p maintPreview) decisions() []string {
 	return out
 }
 
+// onlyPreview is the preview of the one environment of a test.
+func onlyPreview(t *testing.T, r response) maintPreview {
+	t.Helper()
+	var pv maintPreviews
+	r.json(t, &pv)
+	if len(pv.Items) != 1 || pv.Items[0].Preview == nil {
+		t.Fatalf("previews %s", r.body)
+	}
+	return *pv.Items[0].Preview
+}
+
+// runJobs are the IDs of the jobs a maintenance run started.
+func runJobs(t *testing.T, r response) []string {
+	t.Helper()
+	var out struct {
+		Jobs []struct {
+			ID string `json:"id"`
+		} `json:"jobs"`
+	}
+	r.json(t, &out)
+	var ids []string
+	for _, j := range out.Jobs {
+		ids = append(ids, j.ID)
+	}
+	return ids
+}
+
 func etag(rev int64) reqOpt { return header("If-Match", `"`+itoa(int(rev))+`"`) }
+
+const maintPath = "/api/v1/maintenance-settings"
 
 // maintenanceHost is an Engine with old candidates of four categories,
 // used objects and a stopped Docker Agent container.
@@ -91,77 +134,56 @@ func maintenanceHost(e *env) *enginefake.Engine {
 	return fe
 }
 
-// TestMaintenancePolicyLifecycle covers #14 end to end: safe defaults (no
-// rule enabled, schedule disabled, nothing pruned on first install), the
-// separate volume opt-in, an accurate preview, confirmation, one durable
-// job for foreground and background presentations, overlap refusal,
-// Docker Manager's own objects surviving, the latest result on the policy, a
+// TestMaintenanceLifecycle covers #14 and #238 end to end: safe defaults
+// (no rule enabled, maintenance disabled, nothing pruned on first
+// install), the separate volume opt-in, an accurate preview, confirmation,
+// a repeated request returning the same jobs, overlap refusal, Docker
+// Manager's own objects surviving, the latest result on the settings, a
 // scheduled run as the service identity, and an offline agent.
-func TestMaintenancePolicyLifecycle(t *testing.T) {
+func TestMaintenanceLifecycle(t *testing.T) {
 	e := newEnv(t)
 	fe := maintenanceHost(e)
 	a := e.connectAgent("Maint", fe)
 	owner, _ := e.setupOwner()
 	ctx := testutil.Context(t)
 
-	// Suggested defaults: every rule disabled, 30 days.
-	var defaults struct {
-		Rules      []maintRule `json:"rules"`
-		Categories []struct {
-			Category    string   `json:"category"`
-			Limitations []string `json:"limitations"`
-		} `json:"categories"`
+	// Maintenance starts disabled with every rule off, 30 days.
+	var st maintSettings
+	owner.must(http.StatusOK, http.MethodGet, maintPath, nil).json(t, &st)
+	if st.ID == "" || st.Enabled || st.Schedule.Enabled || st.Schedule.Cron != "0 3 * * 0" || st.Schedule.TimeZone != "UTC" ||
+		st.Schedule.CatchUp != "skip" || len(st.Rules) != 7 || len(st.Categories) != 7 || len(st.ExcludeEnvironments) != 0 {
+		t.Fatalf("settings %+v", st)
 	}
-	owner.must(http.StatusOK, http.MethodGet, "/api/v1/maintenance-defaults", nil).json(t, &defaults)
-	if len(defaults.Rules) != 7 || len(defaults.Categories) != 7 {
-		t.Fatalf("defaults %+v", defaults)
-	}
-	for _, r := range defaults.Rules {
+	for _, r := range st.Rules {
 		if r.Enabled || r.MinAgeHours != 720 {
-			t.Fatalf("default rule %+v", r)
+			t.Fatalf("rule %+v", r)
 		}
 	}
-
-	// A new policy starts with every rule and its schedule disabled.
-	var pol maintPolicy
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/maintenance-policies",
-		map[string]any{"environmentId": a.env, "name": "Weekly cleanup"}).json(t, &pol)
-	if pol.Enabled || pol.Schedule.Enabled || pol.Schedule.Cron != "0 3 * * 0" || pol.Schedule.TimeZone != "UTC" || pol.Schedule.CatchUp != "skip" {
-		t.Fatalf("new policy %+v", pol)
+	if pv := onlyPreview(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/previews", nil)); pv.Remove != 0 || len(pv.Categories) != 0 {
+		t.Fatalf("preview without rules: %+v", pv)
 	}
-	for _, r := range pol.Rules {
-		if r.Enabled {
-			t.Fatalf("rule enabled by default: %+v", r)
-		}
-	}
-	base := "/api/v1/maintenance-policies/" + pol.ID
-	var pv maintPreview
-	owner.must(http.StatusOK, http.MethodPost, base+"/previews", nil).json(t, &pv)
-	if pv.Remove != 0 || len(pv.Categories) != 0 {
-		t.Fatalf("preview of a new policy: %+v", pv)
-	}
-	owner.fail(http.StatusConflict, "maintenance_policy_empty", http.MethodPost, base+"/runs", map[string]any{"confirm": true})
+	owner.fail(http.StatusConflict, "maintenance_empty", http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true})
 
 	// Volume rules need their own explicit opt-in.
-	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, base,
-		map[string]any{"rules": []maintRule{{Category: "named_volumes", Enabled: true, MinAgeHours: 720}}}, etag(pol.Revision))
-	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, base,
+	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, maintPath,
+		map[string]any{"rules": []maintRule{{Category: "named_volumes", Enabled: true, MinAgeHours: 720}}}, etag(st.Revision))
+	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, maintPath,
 		map[string]any{"rules": []maintRule{{Category: "anonymous_volumes", Enabled: true, MinAgeHours: 720},
-			{Category: "named_volumes", Enabled: true, MinAgeHours: 720, VolumeOptIn: true}}}, etag(pol.Revision))
-	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"rules": []maintRule{
+			{Category: "named_volumes", Enabled: true, MinAgeHours: 720, VolumeOptIn: true}}}, etag(st.Revision))
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"rules": []maintRule{
 		{Category: "stopped_containers", Enabled: true, MinAgeHours: 720},
 		{Category: "unused_images", Enabled: true, MinAgeHours: 720},
 		{Category: "unused_networks", Enabled: true, MinAgeHours: 720},
 		{Category: "named_volumes", Enabled: true, MinAgeHours: 720, VolumeOptIn: true},
-	}}, etag(pol.Revision)).json(t, &pol)
-	for _, r := range pol.Rules {
+	}}, etag(st.Revision)).json(t, &st)
+	for _, r := range st.Rules {
 		if r.Category == "anonymous_volumes" && r.Enabled {
 			t.Fatal("the named-volume opt-in enabled anonymous volumes")
 		}
 	}
 
 	// Preview: candidates with reasons, Docker Manager's container protected.
-	owner.must(http.StatusOK, http.MethodPost, base+"/previews", nil).json(t, &pv)
+	pv := onlyPreview(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/previews", nil))
 	want := []string{
 		"named_volumes remove olddata",
 		"stopped_containers protected docker-agent-old",
@@ -177,21 +199,25 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 		t.Fatal("the preview removed something")
 	}
 
-	// Manual runs need confirmation.
-	owner.fail(http.StatusConflict, "prune_confirmation_required", http.MethodPost, base+"/runs", map[string]any{"background": true})
-	// Background and foreground are presentations of the same durable job:
-	// a repeated request (same key) returns it whatever the preference.
-	job := jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, base+"/runs", map[string]any{"confirm": true, "background": true},
+	// Manual runs need confirmation; a repeated request (same key) returns
+	// the jobs it started.
+	owner.fail(http.StatusConflict, "prune_confirmation_required", http.MethodPost, maintPath+"/runs", map[string]any{})
+	jobs := runJobs(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true},
 		header("Idempotency-Key", "prune-1")))
-	if again := jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, base+"/runs", map[string]any{"confirm": true, "background": false},
-		header("Idempotency-Key", "prune-1"))); again != job {
-		t.Fatalf("foreground retry started job %s, want %s", again, job)
+	if len(jobs) != 1 {
+		t.Fatalf("jobs %v", jobs)
+	}
+	if again := runJobs(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true},
+		header("Idempotency-Key", "prune-1"))); !slices.Equal(again, jobs) {
+		t.Fatalf("retry started %v, want %v", again, jobs)
 	}
 	// Another run while this one is not finished is refused.
-	owner.fail(http.StatusConflict, "maintenance_run_active", http.MethodPost, base+"/runs", map[string]any{"confirm": true})
+	owner.fail(http.StatusConflict, "maintenance_run_active", http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true})
 
+	job := jobs[0]
 	j := e.runJob(job)
-	if j.State != domain.JobSucceeded || j.Kind != jobspec.PruneRun || j.Origin != domain.OriginManual || j.PolicyID != pol.ID {
+	if j.State != domain.JobSucceeded || j.Kind != jobspec.PruneRun || j.Origin != domain.OriginManual || j.PolicyID != st.ID ||
+		j.EnvironmentID != a.env {
 		t.Fatalf("job %+v", j)
 	}
 	if len(j.Items) != 4 {
@@ -208,10 +234,10 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 			t.Fatal("app:old survived")
 		}
 	}
-	owner.must(http.StatusOK, http.MethodGet, base, nil).json(t, &pol)
-	if pol.LastRun == nil || pol.LastRun.JobID != job || pol.LastRun.State != "succeeded" || pol.LastRun.Removed != 4 ||
-		pol.LastRun.BytesReclaimed < 4096 || pol.LastRun.Origin != "manual" {
-		t.Fatalf("last run %+v", pol.LastRun)
+	owner.must(http.StatusOK, http.MethodGet, maintPath, nil).json(t, &st)
+	if st.LastRun == nil || st.LastRun.JobID != job || st.LastRun.State != "succeeded" || st.LastRun.Removed != 4 ||
+		st.LastRun.BytesReclaimed < 4096 || st.LastRun.Origin != "manual" {
+		t.Fatalf("last run %+v", st.LastRun)
 	}
 	// The job is readable through /jobs with its items (audited with it).
 	var jb struct {
@@ -230,20 +256,28 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 	fe.SetContainerState("later-job", "exited")
 	fe.SetContainerTimes("later-job", e.clk.Now().Add(-40*24*time.Hour), e.clk.Now().Add(-40*24*time.Hour))
 
-	// Offline agent: no preview. (The agent goes offline before the clock
-	// jumps below, which would otherwise end its session at random.)
+	// Offline agent: its environment reports why it has no preview. (The
+	// agent goes offline before the clock jumps below, which would
+	// otherwise end its session at random.)
 	a.stop()
-	owner.fail(http.StatusServiceUnavailable, "environment_offline", http.MethodPost, base+"/previews", nil)
+	var offline maintPreviews
+	owner.must(http.StatusOK, http.MethodPost, maintPath+"/previews", nil).json(t, &offline)
+	if len(offline.Items) != 1 || offline.Items[0].Preview != nil || offline.Items[0].ErrorClass != "environment_offline" {
+		t.Fatalf("offline preview %+v", offline)
+	}
 
-	// Scheduled runs: the manager's service identity, never the policy
-	// creator, always a background job; they wait for an offline agent up
-	// to the offline deadline and fail without touching anything.
-	// The hourly run is due two minutes ahead (not at the next full hour,
-	// up to an hour away, which would outlive the owner's idle session
-	// depending on where the clock starts).
+	// Scheduled runs: the manager's service identity, never a user, always
+	// a background job; they wait for an offline agent up to the offline
+	// deadline and fail without touching anything. The hourly run is due
+	// two minutes ahead (not at the next full hour, up to an hour away,
+	// which would outlive the owner's idle session depending on where the
+	// clock starts).
 	minute := (e.clk.Now().Minute() + 2) % 60
-	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"schedule": map[string]any{"cron": itoa(minute) + " * * * *", "timeZone": "UTC",
-		"enabled": true}}, etag(pol.Revision)).json(t, &pol)
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"enabled": true,
+		"schedule": map[string]any{"cron": itoa(minute) + " * * * *", "timeZone": "UTC"}}, etag(st.Revision)).json(t, &st)
+	if !st.Enabled || !st.Schedule.Enabled {
+		t.Fatalf("enabled settings %+v", st)
+	}
 	sched := e.m.Scheduler()
 	if err := sched.Tick(ctx); err != nil {
 		t.Fatal(err)
@@ -260,7 +294,7 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	js, err := e.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{jobspec.PruneRun},
-		Target: &domain.JobTarget{Type: domain.TargetMaintenancePolicy, ID: pol.ID}})
+		Target: &domain.JobTarget{Type: domain.TargetMaintenancePolicy, ID: st.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +304,7 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 			scheduled = &js[i]
 		}
 	}
-	if scheduled == nil || scheduled.InitiatorUserID != "" || scheduled.PolicyID != pol.ID || scheduled.IdempotencyKey == "" {
+	if scheduled == nil || scheduled.InitiatorUserID != "" || scheduled.PolicyID != st.ID || scheduled.IdempotencyKey == "" {
 		t.Fatalf("scheduled jobs: %+v", js)
 	}
 	if err := e.m.Jobs().DispatchPending(ctx); err != nil {
@@ -281,12 +315,12 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 	}
 	// A manual run while the scheduled one waits is refused; so is the
 	// next scheduled instant (overlap).
-	owner.fail(http.StatusConflict, "maintenance_run_active", http.MethodPost, base+"/runs", map[string]any{"confirm": true})
+	owner.fail(http.StatusConflict, "maintenance_run_active", http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true})
 	e.clk.Advance(time.Hour)
 	if err := sched.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
-	_, runs, ok, err := sched.Status(ctx, "prune", pol.ID, 5)
+	_, runs, ok, err := sched.Status(ctx, "prune", st.ID, 5)
 	if err != nil || !ok || len(runs) < 2 || runs[0].Outcome != domain.RunSkipped || runs[1].Outcome != domain.RunEnqueued {
 		t.Fatalf("schedule runs %+v (%v)", runs, err)
 	}
@@ -301,7 +335,7 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 		t.Fatal("an offline run removed something")
 	}
 	// (Two hours passed: the owner's session expired; read the service.)
-	got, err := e.m.Maintenance().Get(ctx, pol.ID)
+	got, err := e.m.Maintenance().Setup(ctx)
 	if err != nil || got.LastRun == nil || got.LastRun.JobID != scheduled.ID || got.LastRun.State != domain.JobFailed ||
 		got.LastRun.Origin != domain.OriginScheduled {
 		t.Fatalf("last run %+v (%v)", got.LastRun, err)
@@ -309,35 +343,39 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 }
 
 // TestMaintenanceEditCancelsWaitingRuns: a run that has not started when
-// the policy's rules change (or the policy is deleted) is cancelled: it
-// carries the old rules.
+// the rules or the environments left out change is cancelled: it carries
+// the old ones. Turning the schedule on keeps it.
 func TestMaintenanceEditCancelsWaitingRuns(t *testing.T) {
 	e := newEnv(t)
 	fe := maintenanceHost(e)
 	a := e.connectAgent("Maint", fe)
 	owner, _ := e.setupOwner()
 	ctx := testutil.Context(t)
-	var pol maintPolicy
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/maintenance-policies", map[string]any{"environmentId": a.env, "name": "p",
-		"rules": []maintRule{{Category: "stopped_containers", Enabled: true, MinAgeHours: 1}}}).json(t, &pol)
-	base := "/api/v1/maintenance-policies/" + pol.ID
+	var st maintSettings
+	owner.must(http.StatusOK, http.MethodGet, maintPath, nil).json(t, &st)
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"rules": []maintRule{{Category: "stopped_containers",
+		Enabled: true, MinAgeHours: 1}}}, etag(st.Revision)).json(t, &st)
 	a.stop()
-	job := jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, base+"/runs", map[string]any{"confirm": true}))
-	// A name change keeps the waiting run.
-	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"name": "renamed"}, etag(pol.Revision)).json(t, &pol)
+	job := runJobs(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true}))[0]
+	// Turning it on keeps the waiting run.
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"enabled": true}, etag(st.Revision)).json(t, &st)
 	if j, _ := e.m.Jobs().Get(ctx, job); j.State.Terminal() {
-		t.Fatalf("rename cancelled the run: %+v", j)
+		t.Fatalf("turning it on cancelled the run: %+v", j)
 	}
-	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"rules": []maintRule{{Category: "stopped_containers", Enabled: true,
-		MinAgeHours: 2000}}}, etag(pol.Revision)).json(t, &pol)
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"rules": []maintRule{{Category: "stopped_containers", Enabled: true,
+		MinAgeHours: 2000}}}, etag(st.Revision)).json(t, &st)
 	if j, _ := e.m.Jobs().Get(ctx, job); j.State != domain.JobCancelled {
 		t.Fatalf("the waiting run survived a rule change: %+v", j)
 	}
-	job2 := jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, base+"/runs", map[string]any{"confirm": true}))
-	owner.must(http.StatusNoContent, http.MethodDelete, base, nil, etag(pol.Revision))
-	if j, _ := e.m.Jobs().Get(ctx, job2); j.State != domain.JobCancelled {
-		t.Fatalf("the waiting run survived the deletion: %+v", j)
+	job2 := runJobs(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true}))[0]
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"excludeEnvironments": []string{a.env}}, etag(st.Revision)).json(t, &st)
+	if !slices.Equal(st.ExcludeEnvironments, []string{a.env}) {
+		t.Fatalf("left out %v", st.ExcludeEnvironments)
 	}
+	if j, _ := e.m.Jobs().Get(ctx, job2); j.State != domain.JobCancelled {
+		t.Fatalf("the waiting run survived leaving its environment out: %+v", j)
+	}
+	owner.fail(http.StatusConflict, "maintenance_no_environments", http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true})
 	if !slices.Contains(fe.ContainerNames(), "old-job") {
 		t.Fatal("a cancelled run removed something")
 	}

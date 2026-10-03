@@ -470,12 +470,11 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
-	// Docker maintenance (#14): prune policies, their finish hook (before
-	// recovery), the prune PolicySource of the scheduler and the policy
-	// Locator. Saved container specifications (#6) are wired below.
+	// Docker maintenance (#14, #238): the maintenance setup, its finish hook
+	// (before recovery) and the prune PolicySource of the scheduler. Saved
+	// container specifications (#6) are wired below.
 	if m.maint, err = maintenance.New(maintenance.Options{DB: db, Clock: opts.Clock, Logger: log.With("component", "maintenance"),
-		Jobs: m.jobs, Agents: m.agents.Hub(), Environments: m.agents, Scheduler: m.sched, Stacks: m.stacks,
-		ForgetResource: m.perms.ForgetResource}); err != nil {
+		Jobs: m.jobs, Agents: m.agents.Hub(), Environments: m.agents, Scheduler: m.sched, Stacks: m.stacks}); err != nil {
 		m.jobs.Close()
 		return nil, err
 	}
@@ -492,16 +491,6 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
-	m.perms.RegisterLocator(catalog.TypeMaintenancePolicy, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
-		p, err := m.maint.Get(ctx, ref.ID)
-		if errors.Is(err, domain.ErrMaintenancePolicyNotFound) {
-			return permissions.Location{}, nil
-		}
-		if err != nil {
-			return permissions.Location{}, err
-		}
-		return permissions.Location{Found: true, EnvironmentID: p.EnvironmentID, Parents: []authz.ResourceRef{}}, nil
-	}))
 	// Environment migration (#35): the stack.migrate/volume.migrate manager
 	// executors (registered before recovery) relay data between agents;
 	// their finish hooks keep the migration records.

@@ -1,32 +1,46 @@
-# Docker maintenance: prune policies (#14)
+# Docker maintenance (#14, #238)
 
-Users define prune policies for one environment or all environments, with one rule per resource
-category, preview exactly what a run would remove, and run them manually
-or on their own cron schedule (#13). Docker Manager never calls the Engine's
+One instance-wide maintenance setup covers every environment except the
+ones it leaves out, with one rule per resource category. Users preview
+exactly what a run would remove, and run it manually or on its cron
+schedule (#13). Docker Manager never calls the Engine's
 broad prune endpoints: the agent lists the objects, filters them with the
 rules and every protection, and removes each candidate with a targeted
 call after revalidating it.
 
 | Package | Role |
 | --- | --- |
-| `internal/domain` (`maintenance.go`) | Policies, rules, categories, the shipped suggestions (`SuggestedMaintenanceRules`), defaults, run summaries. |
-| `internal/manager/maintenance` | CRUD, validation (volume opt-in), the instance's default rules, previews (agent request), manual runs, the scheduler's `PolicySource`, the `prune.run` finish hook, protections the manager knows. |
-| `internal/manager/store` (`maintenance.go`) | `maintenance_policies`, `maintenance_defaults` (migration `20260925233517_create_maintenance_policies`). |
-| `internal/manager/api` (`maintenance.go`) | `/api/v1/maintenance-policies` (CRUD, `/previews`, `/runs`), `/api/v1/maintenance-defaults` and the one-off `/api/v1/environments/{id}/prune-previews` and `/prunes`. |
+| `internal/domain` (`maintenance.go`) | The setup (`MaintenanceSetup`), rules, categories, the shipped suggestions (`SuggestedMaintenanceRules`), run summaries. |
+| `internal/manager/maintenance` | The setup and its validation (volume opt-in), previews (agent requests), manual runs, one-off prunes, the scheduler's `PolicySource`, the `prune.run` finish hook, protections the manager knows. |
+| `internal/manager/store` (`maintenance.go`) | `maintenance_settings`, one row (migration `20261002170000_maintenance_settings`, which replaced the earlier policies and default rules). |
+| `internal/manager/api` (`maintenance.go`) | `/api/v1/maintenance-settings` (GET, PATCH, `/previews`, `/runs`) and the one-off `/api/v1/environments/{id}/prune-previews` and `/prunes`. |
 | `internal/protocol` (`maintenance.go`) | `PruneInput` (the `maintenance.preview` request and the `prune.run` job input), preview and run output. |
 | `internal/agent/prune` | Planning (candidates and decisions), the `maintenance.preview` handler and the `prune.run` executor (revalidation, targeted removals, per-item results, cancellation between items). |
 | `internal/agent/engine` (`prune.go`) | Adapter additions: `ListBuildCache`, `RemoveBuildCache` (one record ID, never the whole cache), `VolumeUsage`; `ContainerFilter.Size`, `Container.SizeRw` and `Container.Networks`. |
 
-## Policies and rules
+## The setup and its rules
 
-A policy covers one environment or all environments. Overlapping scopes
-are rejected (`maintenance_scope_overlap`). An all-environments preview and
-run resolves every current active environment and reports a result per
-environment. Each policy has a name, its own schedule
-(`cron`, `timeZone`, `enabled`, prefilled from the prune default of the
-schedule defaults, `0 3 * * 0`) and exactly one rule per category. The
-enabled rules together are the policy's "system cleanup": an explicit
-combination, never a Docker system prune.
+There is exactly one setup (`maintenance_settings`, `singleton = 1`); the
+migration creates it, so it always exists. Its `id` is the policy ID its
+prune jobs, their target (`maintenance_policy:<id>`) and its schedule
+carry. It has an `enabled` flag (scheduled runs), a schedule (`cron`,
+`timeZone`; a new instance starts with the prune default of the schedule
+defaults, `0 3 * * 0`), exactly one rule per category and the environments
+it leaves out (`excludeEnvironments`). It covers every active environment
+(offline ones included) except those, also environments added later; a
+preview and a run resolve them when they happen and report a result per
+environment. IDs of environments that no longer exist are dropped when
+the setup is saved (and ignored before that). The enabled rules together
+are the "system cleanup": an explicit combination, never a Docker system
+prune.
+
+The migration turned the earlier policies into the setup: an
+all-environments policy as it was; otherwise the only policy of one
+environment, with every other environment left out (what ran stays the
+same); otherwise (none, or several) a disabled setup with the earlier
+default rules. It deleted the permission rules on one environment or one
+policy of `maintenance_policy.read`/`.manage` (instance-only now) and the
+rules and token scopes on one maintenance policy.
 
 | Category | Candidates | Age measured from | Filters |
 | --- | --- | --- | --- |
@@ -45,14 +59,21 @@ never means "any age"), `includeLabels` (all must match), `excludeLabels`
 Configurations the Engine cannot honor exactly are rejected: build cache
 records have no labels (422), and options of other categories are refused.
 
-**Safe defaults.** The shipped suggestions (`GET /maintenance-defaults`)
-are: every rule disabled, 30 days, stopped means exited or dead, dangling
-build cache only; every schedule disabled. Nothing is pruned on first
-install: no policy exists, a new policy has no enabled rule (a run is
-refused with `maintenance_policy_empty`, a scheduled run is rejected
-`no_rules_enabled`), and its schedule is off. The owner (with
-`settings.manage`) can change the suggestions; existing policies keep their
-rules.
+**Safe defaults.** Categories without a saved rule take the shipped
+suggestions (`suggestedRules` of `GET /maintenance-settings`): every rule
+disabled, 30 days, stopped means exited or dead, dangling build cache only.
+Nothing is pruned on first install: the setup starts disabled with no
+enabled rule (a run is refused with `maintenance_empty`, a scheduled run is
+rejected `policy_disabled` or `no_rules_enabled`). A run with every
+environment left out is refused with `maintenance_no_environments`
+(scheduled: `no_environments`).
+
+**Authorization.** The settings need instance grants:
+`maintenance_policy.read` and `maintenance_policy.manage` are
+instance-only; the setup's previews and runs need `maintenance.preview` /
+`maintenance.run` on all environments. Those two can also be granted on one
+environment, for its one-off prunes. The setup is never one resource of a
+rule (`maintenance_policy` is not scopable).
 
 **Exclude label.** An object carrying the user-set label
 `docker-manager.maintenance.exclude=true` (`protocol.LabelMaintenanceExclude`,
@@ -66,7 +87,8 @@ the volume was created; `volumeItem` reads `volumelabels.Effective`).
 Build cache records carry no labels.
 
 **Volume opt-in.** Enabling `anonymous_volumes` or `named_volumes` needs
-`volumeOptIn: true` on that rule (policies and defaults; 422 otherwise).
+`volumeOptIn: true` on that rule (the setup and one-off prunes; 422
+otherwise).
 Each volume rule needs its own; previews evaluate volume rules without it.
 
 ## Protection
@@ -103,37 +125,38 @@ unused).
 
 ## Previews
 
-`POST /maintenance-policies/{id}/previews` sends the policy's enabled rules
-(or unsaved `rules`, or all rules with `includeDisabled`) and the
-protections to the agent (`maintenance.preview`, 3-minute timeout: volume
-sizes are computed by the Engine). The answer lists per category the
+`POST /maintenance-settings/previews` sends the enabled rules and the
+protections to the agent of every covered environment (`maintenance.preview`,
+3-minute timeout each: volume sizes are computed by the Engine) and returns
+one item per environment: its preview, or why it has none (`errorClass`,
+`errorMessage`: `environment_offline`, a timeout, ...) while the others are
+previewed all the same. The answer lists per category the
 candidates in removal order, then protected, excluded and retained objects
 (at most 200 items per category), counts and approximate bytes (image sizes
 count shared layers; build cache shared with images frees less; `-1` is
 unknown). The plan simulates the run: an image, network or volume used only
 by a container the same run removes is a candidate. Nothing is stored or
-removed. An offline environment answers `503 environment_offline`.
+removed.
 
 ## Runs
 
-`POST /maintenance-policies/{id}/runs {confirm: true, background}` with an
-optional `Idempotency-Key` enqueues a `prune.run` job (202 + job):
+`POST /maintenance-settings/runs {confirm: true}` with an optional
+`Idempotency-Key` enqueues one `prune.run` job per covered environment
+(`{jobs}`; a repeated key replays the response, `IdempotencyStored`, and
+the jobs' own keys are `<key>/<environmentId>`):
 
 - **Confirmation**: without `confirm: true` → `409
   prune_confirmation_required`.
-- **Foreground/background** is a presentation preference only: both are
-  the same durable manager-owned job, independent of the requesting session;
-  leaving the UI never cancels it. A repeated key returns the same job
-  whatever the preference (`TestMaintenancePolicyLifecycle`). The web UI
-  no longer offers the choice (it changed nothing users could see); the
-  policy page shows the run's progress and lists recent runs from
+- **Durable**: the jobs are manager-owned, independent of the requesting
+  session; leaving the UI never cancels them. The Maintenance page shows
+  each running job's progress and lists recent runs from
   `GET /jobs?kind=prune.run&policyId=<id>`.
-- **Overlap**: a second manual run while one of the policy is queued or
+- **Overlap**: a second manual run while a job of the setup is queued or
   running → `409 maintenance_run_active` (with the job ID); scheduled runs
   are skipped by the scheduler for the same reason.
 - **Input**: the enabled rules and the protections at enqueue time. A
-  queued run that has not started is cancelled when the policy's rules
-  change or the policy is deleted (it carries the old rules).
+  queued run that has not started is cancelled when the rules or the
+  environments left out change (it carries the old ones).
 - **Locks** (#26): shared `*` locks on stacks, containers, images,
   networks and volumes of the environment: prunes run together, but a prune
   waits for (and holds back) deploys, builds, updates, pulls, migrations,
@@ -167,14 +190,15 @@ continues with the pending items only. An offline agent leaves the job
 it fails without having touched anything.
 
 The job's audit record (`job.finished`, #30) carries the item list. The
-finish hook stores the latest run's summary on the policy (`lastRun`:
-state, origin, removed, skipped, failed, deferred, bytes reclaimed).
+finish hook stores the latest finished job's summary on the setup
+(`lastRun`: state, origin, removed, skipped, failed, deferred, bytes
+reclaimed; the job of the environment that finished last).
 
 ## One-off prunes
 
 The Containers, Images, Volumes, Networks and Builds pages have a
 "Prune" button (`web/src/lib/features/maintenance/PruneButton.svelte`)
-for a single prune of one environment without a policy:
+for a single prune of one environment without the setup:
 
 - `POST /environments/{id}/prune-previews {rules}` and
   `POST /environments/{id}/prunes {rules, confirm: true}` (202 + job,
@@ -183,10 +207,10 @@ for a single prune of one environment without a policy:
   volume rule needs its `volumeOptIn` (previews evaluate volume rules
   without it). Nothing is saved.
 - Authorization: `maintenance.preview` / `maintenance.run` on the
-  environment (instance or environment rules; a grant on a policy is not
-  enough). The job is a `prune.run` without policy and without targets, so
-  the job engine authorizes it on the environment, too.
-- The agent input carries the same protections as a policy run and a
+  environment (instance or environment rules). The job is a `prune.run`
+  without policy and without targets, so the job engine authorizes it on
+  the environment, too.
+- The agent input carries the same protections as maintenance's runs and a
   synthetic policy ID (`manual-<uuid>`, `maintenance.ManualPolicyPrefix`):
   agents require one, and N-1 agents must keep accepting the input. The
   finish hook ignores jobs without a policy.
@@ -202,10 +226,12 @@ for a single prune of one environment without a policy:
 ## Scheduling (#13)
 
 `maintenance.Service.PolicySource()` is registered for the `prune` kind:
-`Schedules` lists every policy's saved schedule; `Validate` (when due and at
-dispatch) rejects deleted (`policy_not_found`), disabled
-(`policy_disabled`), emptied (`no_rules_enabled`) policies and missing or
-archived environments; `Jobs` builds the same request as a manual run.
+`Schedules` lists the setup's schedule (named "Maintenance", no
+environment); `Validate` (when due and at dispatch) rejects a schedule of
+another policy ID (`policy_not_found`), a disabled setup
+(`policy_disabled`), one without enabled rules (`no_rules_enabled`) or
+leaving every environment out (`no_environments`); `Jobs` builds the same
+requests as a manual run (at most `MaxJobsPerRun` environments).
 Scheduled runs run as the manager's service identity (origin `scheduled`),
 always in the background. Missed runs (manager down) are recorded and
 skipped (catch-up policy `skip`): a prune never starts at an unexpected

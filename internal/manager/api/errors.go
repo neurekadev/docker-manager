@@ -180,11 +180,11 @@ const (
 	CodeBuildDefinitionNameTaken = "build_definition_name_taken"
 
 	// Docker maintenance (#14).
-	CodeMaintenancePolicyNameTaken = "maintenance_policy_name_taken"
-	CodeMaintenancePolicyEmpty     = "maintenance_policy_empty"
-	CodeMaintenanceRunActive       = "maintenance_run_active"
-	CodeBackupRunActive            = "backup_run_active"
-	CodePruneConfirmationRequired  = "prune_confirmation_required"
+	CodeMaintenanceEmpty          = "maintenance_empty"
+	CodeMaintenanceNoEnvironments = "maintenance_no_environments"
+	CodeMaintenanceRunActive      = "maintenance_run_active"
+	CodeBackupRunActive           = "backup_run_active"
+	CodePruneConfirmationRequired = "prune_confirmation_required"
 )
 
 // CodeForStatus returns the default code for an HTTP status.

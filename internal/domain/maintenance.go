@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// Docker maintenance policies (#14): per-environment prune policies with
-// one rule per resource category. A policy that enables several rules is
-// the "system cleanup": an explicit combination of rules, never a broad
-// Docker system prune.
+// Docker maintenance (#14, #238): one instance-wide setup with one prune
+// rule per resource category. Its enabled rules together are the "system
+// cleanup": an explicit combination of rules, never a broad Docker system
+// prune.
 
 // Prune categories, in execution order.
 const (
@@ -35,7 +35,7 @@ func IsVolumeCategory(c string) bool { return c == PruneAnonymousVolumes || c ==
 // SuggestedMinAge is the shipped age threshold of every rule.
 const SuggestedMinAge = 30 * 24 * time.Hour
 
-// MaintenanceRule is one category rule of a policy.
+// MaintenanceRule is one category rule of maintenance (or of a one-off prune).
 type MaintenanceRule struct {
 	Category string
 	// Enabled: the rule takes part in runs (every rule starts disabled).
@@ -59,8 +59,8 @@ type MaintenanceRule struct {
 
 // SuggestedMaintenanceRules are Docker Manager's shipped suggestions: every rule
 // disabled, a 30-day threshold, stopped (exited or dead) containers only,
-// dangling build cache only. Suggestions prefill new policies; they never
-// authorize a run.
+// dangling build cache only. Suggestions are the setup's first rules; they
+// never authorize a run.
 func SuggestedMaintenanceRules() []MaintenanceRule {
 	out := make([]MaintenanceRule, 0, len(pruneCategories))
 	for _, c := range pruneCategories {
@@ -102,7 +102,7 @@ func EnabledRules(rules []MaintenanceRule) []MaintenanceRule {
 	return out
 }
 
-// MaintenanceRunSummary is the outcome of a policy's latest finished run.
+// MaintenanceRunSummary is the outcome of the latest finished maintenance run.
 type MaintenanceRunSummary struct {
 	JobID          string
 	State          JobState
@@ -115,68 +115,51 @@ type MaintenanceRunSummary struct {
 	BytesReclaimed int64
 }
 
-// MaintenancePolicy is a prune policy of one environment.
-type MaintenancePolicy struct {
-	ID            string
-	EnvironmentID string
-	Name          string
-	Description   string
-	// Cron, TimeZone and ScheduleEnabled are the policy's own schedule
-	// (#13); automatic runs start disabled.
-	Cron            string
-	TimeZone        string
-	ScheduleEnabled bool
+// MaintenanceSetup is the one maintenance setup of the instance (#238): it
+// covers every environment except the ones left out.
+type MaintenanceSetup struct {
+	// ID is the policy ID its prune jobs and schedule carry.
+	ID string
+	// Enabled: scheduled runs (#13) on Cron in TimeZone; starts disabled.
+	Enabled  bool
+	Cron     string
+	TimeZone string
 	// Rules has one rule per category, in category order.
-	Rules     []MaintenanceRule
-	LastRun   *MaintenanceRunSummary
-	Revision  int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Rules []MaintenanceRule
+	// ExcludeEnvironments are the environments left out (IDs).
+	ExcludeEnvironments []string
+	LastRun             *MaintenanceRunSummary
+	Revision            int64
+	UpdatedAt           time.Time
 }
 
-// MaintenancePolicyCreate creates a policy; empty schedule fields take the
-// instance defaults, missing rules the maintenance defaults.
-type MaintenancePolicyCreate struct {
-	EnvironmentID   string
-	Name            string
-	Description     string
-	Cron            string
-	TimeZone        string
-	ScheduleEnabled bool
-	Rules           []MaintenanceRule
+// Excludes reports whether the setup leaves the environment out.
+func (s MaintenanceSetup) Excludes(environmentID string) bool {
+	return slices.Contains(s.ExcludeEnvironments, environmentID)
 }
 
-// MaintenancePolicyPatch changes a policy; each given rule replaces the
+// MaintenanceSetupPatch changes the setup; each given rule replaces the
 // rule of its category.
-type MaintenancePolicyPatch struct {
-	Name            *string
-	Description     *string
-	Cron            *string
-	TimeZone        *string
-	ScheduleEnabled *bool
-	Rules           []MaintenanceRule
-}
-
-// MaintenanceDefaults are the instance's suggested rules for new policies.
-type MaintenanceDefaults struct {
-	Rules     []MaintenanceRule
-	Revision  int64
-	UpdatedAt time.Time
+type MaintenanceSetupPatch struct {
+	Enabled             *bool
+	Cron                *string
+	TimeZone            *string
+	Rules               []MaintenanceRule
+	ExcludeEnvironments *[]string
 }
 
 // Maintenance errors.
 var (
-	ErrMaintenancePolicyNotFound  = errors.New("maintenance policy not found")
-	ErrMaintenancePolicyNameTaken = errors.New("maintenance policy name taken")
-	ErrMaintenanceScopeOverlap    = errors.New("a maintenance policy already covers this environment")
-	// ErrMaintenancePolicyEmpty: a run needs at least one enabled rule.
-	ErrMaintenancePolicyEmpty = errors.New("the maintenance policy has no enabled rule")
+	// ErrMaintenanceEmpty: a run needs at least one enabled rule.
+	ErrMaintenanceEmpty = errors.New("maintenance has no enabled rule")
+	// ErrMaintenanceNoEnvironments: every environment is left out.
+	ErrMaintenanceNoEnvironments = errors.New("maintenance covers no environment")
 )
 
-// MaintenanceRunActiveError refuses a manual run while another run of the
-// same policy is not finished.
+// MaintenanceRunActiveError refuses a manual run while another run of
+// maintenance is not finished.
 type MaintenanceRunActiveError struct{ JobID string }
 
 func (e *MaintenanceRunActiveError) Error() string {
-	return "a run of this policy is still active (job " + e.JobID + ")"
+	return "a maintenance run is still active (job " + e.JobID + ")"
 }

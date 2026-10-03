@@ -3,9 +3,9 @@ import {
 	CATEGORIES,
 	PRUNE_TARGETS,
 	ageText,
+	coveredEnvironmentsText,
 	enabledRules,
 	joinAge,
-	lastRunTotals,
 	manualPruneProblem,
 	maintenanceStatusText,
 	manualPruneRules,
@@ -156,7 +156,7 @@ describe('one-off prunes', () => {
 	});
 });
 
-describe('policy summaries', () => {
+describe('maintenance summaries', () => {
 	const rule = (category: MaintenanceRule['category'], enabled: boolean): MaintenanceRule => ({
 		category,
 		enabled,
@@ -199,7 +199,7 @@ describe('policy summaries', () => {
 		);
 	});
 
-	it('says when a policy runs and what its last run did', () => {
+	it('says when maintenance runs and what its last run did', () => {
 		const schedule = {
 			cron: '0 3 * * 0',
 			timeZone: 'UTC',
@@ -207,16 +207,20 @@ describe('policy summaries', () => {
 			catchUp: 'skip' as const,
 			recentRuns: []
 		};
-		expect(maintenanceStatusText({ rules: [] })).toBe(
-			'Every rule is off: this policy removes nothing.'
+		expect(maintenanceStatusText({ rules: [], schedule, enabled: true })).toBe(
+			'Every rule is off: maintenance removes nothing.'
 		);
 		expect(
-			maintenanceStatusText({ rules: [rule('stopped_containers', true)], schedule }, 'UTC')
+			maintenanceStatusText(
+				{ rules: [rule('stopped_containers', true)], schedule, enabled: true },
+				'UTC'
+			)
 		).toBe('Runs weekly on Sunday at 03:00. Not run yet.');
 		expect(
 			maintenanceStatusText({
 				rules: [rule('stopped_containers', true)],
 				schedule: { ...schedule, enabled: false },
+				enabled: false,
 				lastRun: {
 					bytesReclaimed: 0,
 					deferred: 0,
@@ -232,26 +236,22 @@ describe('policy summaries', () => {
 		).toBe('Runs only when you start it. Last run: removed 2, 0 B reclaimed.');
 	});
 
-	it('adds up the last runs and keeps the newest', () => {
-		const run = (finishedAt: string, removed: number, bytes: number, failed = 0) => ({
-			bytesReclaimed: bytes,
-			deferred: 0,
-			failed,
-			finishedAt,
-			jobId: 'j',
-			origin: 'manual' as const,
-			removed,
-			skipped: 0,
-			state: 'succeeded'
-		});
-		const out = lastRunTotals([
-			{ lastRun: run('2026-09-20T00:00:00Z', 3, 100) },
-			{ lastRun: run('2026-09-25T00:00:00Z', 2, 50, 1) },
-			{}
-		]);
-		expect(out.removed).toBe(5);
-		expect(out.bytes).toBe(150);
-		expect(out.failed).toBe(1);
-		expect(out.latest?.finishedAt).toBe('2026-09-25T00:00:00Z');
+	it('names the environments it covers', () => {
+		const envs = [
+			{ id: 'e1', status: 'active' },
+			{ id: 'e2', status: 'active' },
+			{ id: 'e3', status: 'archived' }
+		];
+		expect(coveredEnvironmentsText({ excludeEnvironments: [] }, envs)).toBe('All Environments');
+		expect(coveredEnvironmentsText({ excludeEnvironments: ['e2'] }, envs)).toBe(
+			'1 of 2 Environments'
+		);
+		// An archived environment left out changes nothing.
+		expect(coveredEnvironmentsText({ excludeEnvironments: ['e3'] }, envs)).toBe(
+			'All Environments'
+		);
+		expect(coveredEnvironmentsText({ excludeEnvironments: ['e2'] })).toBe(
+			'All but 1 Environment'
+		);
 	});
 });

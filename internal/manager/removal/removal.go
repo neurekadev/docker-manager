@@ -78,14 +78,6 @@ func (s *Service) Preview(ctx context.Context, environmentID string) (domain.Env
 		add(domain.EnvironmentDependent{Kind: domain.DependentBackupPolicy, ID: bp.ID, Name: bp.Name, OnArchive: domain.OnArchivePaused,
 			Detail: "this host's stacks and volumes are skipped while it is archived", ResourceType: catalog.TypeBackupPolicy, ResourceID: bp.ID})
 	}
-	maint, err := store.ListMaintenancePolicies(ctx, s.db, env.ID, "", 0)
-	if err != nil {
-		return p, err
-	}
-	for _, m := range maint {
-		add(domain.EnvironmentDependent{Kind: domain.DependentMaintenancePolicy, ID: m.ID, Name: m.Name, OnArchive: domain.OnArchivePaused,
-			Detail: "scheduled prune runs are refused while the host is archived", ResourceType: catalog.TypeMaintenancePolicy, ResourceID: m.ID})
-	}
 	repos, err := s.repositories(ctx, env.ID)
 	if err != nil {
 		return p, err

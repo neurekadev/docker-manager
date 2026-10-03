@@ -121,8 +121,8 @@ const (
 	// TargetBuildDefinition is the saved build a run executes (#33); the
 	// images it tags are covered by it for authorization.
 	TargetBuildDefinition TargetType = "build_definition"
-	// TargetMaintenancePolicy is the prune policy a prune.run executes
-	// (#14): runs are authorized on the policy (maintenance.run).
+	// TargetMaintenancePolicy is the maintenance setup a prune.run executes
+	// (#14, #238): runs are authorized on it (maintenance.run).
 	TargetMaintenancePolicy TargetType = "maintenance_policy"
 	// TargetTemplate is a stack template of the instance (its draft is
 	// the root of template file jobs).

@@ -13,7 +13,6 @@ const (
 	DependentManagedContainer   = "managed_container"
 	DependentUpdatePolicy       = "update_policy"
 	DependentBackupPolicy       = "backup_policy"
-	DependentMaintenancePolicy  = "maintenance_policy"
 	DependentBackupRepository   = "backup_repository"
 	DependentBackupSet          = "backup_set"
 	DependentRegistryConnection = "registry_connection"
@@ -26,7 +25,7 @@ const (
 // DependentKinds lists every kind in preview order.
 func DependentKinds() []string {
 	return []string{DependentStack, DependentManagedContainer, DependentUpdatePolicy, DependentBackupPolicy,
-		DependentMaintenancePolicy, DependentBackupRepository, DependentBackupSet, DependentRegistryConnection,
+		DependentBackupRepository, DependentBackupSet, DependentRegistryConnection,
 		DependentBuildDefinition, DependentPermissionRule, DependentSchedule, DependentJob}
 }
 

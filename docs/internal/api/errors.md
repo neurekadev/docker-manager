@@ -109,12 +109,9 @@ same change.
 | `ambiguous_git_credential` | 409 | no | Several Git credentials match the repository equally well (same host and path prefix length); name one explicitly (`gitCredentialId`). | #33 |
 | `git_credential_revoked` | 409 | no | The Git credential selected for the repository is revoked; Docker Manager never falls back to anonymous access. Set a new token or select another credential. | #33 |
 | `build_definition_name_taken` | 409 | no | Another build definition in this environment already uses this name. | #33 |
-| `maintenance_policy_name_taken` | 409 | no | Another maintenance policy in this environment already uses this name. | #14 |
-| `maintenance_scope_overlap` | 409 | no | A maintenance policy already covers this environment. | #14 |
-| `maintenance_global_preview` | 409 | no | Use environment-previews for an All Environments maintenance policy. | #14 |
-| `maintenance_global_run` | 409 | no | Use environment-runs for an All Environments maintenance policy. | #14 |
-| `maintenance_policy_empty` | 409 | no | The maintenance policy has no enabled rule; enable at least one rule before running it. | #14 |
-| `maintenance_run_active` | 409 | no | A run of the maintenance policy is still queued or running; follow that job instead of starting another run. | #14 |
+| `maintenance_empty` | 409 | no | Every maintenance rule is off; turn on at least one rule before running maintenance. | #238 |
+| `maintenance_no_environments` | 409 | no | Maintenance leaves every environment out. | #238 |
+| `maintenance_run_active` | 409 | no | A maintenance run is still queued or running; follow its jobs instead of starting another run. | #14 |
 | `prune_confirmation_required` | 409 | no | A manual prune run deletes resources and cannot be undone: review a preview and repeat the request with `confirm: true`. | #14 |
 | `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; Docker Manager never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
 | `stack_managed` | 409 | no | The container, volume or network belongs to a Docker Manager-managed stack: change the stack's Compose definition (or use the stack's operations) instead of editing or removing it directly. | #6 |

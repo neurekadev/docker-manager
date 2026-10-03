@@ -54,7 +54,7 @@ describe('job labels (#26 catalog)', () => {
 		const ctr = { type: 'container' as const, id: 'homeassistant' };
 		expect(jobTargetLabel({ targets: [stack] }, names)).toBe('Silo');
 		expect(jobTargetLabel({ targets: [stack] })).toBe('stack');
-		expect(jobTargetLabel({ targets: [policy] })).toBe('prune policy');
+		expect(jobTargetLabel({ targets: [policy] })).toBe('maintenance');
 		expect(jobTargetLabel({ targets: [ctr, policy] })).toBe('homeassistant and 1 more');
 		expect(jobTargetLabel({ targets: [] })).toBe('');
 		expect(targetName('volume', 'pgdata')).toBe('pgdata');
@@ -146,7 +146,7 @@ describe('job labels (#26 catalog)', () => {
 		expect(policyPage('prune.run').href).toBe('/maintenance');
 		expect(policyPage('update.check').href).toBe('/updates');
 		expect(policyPage('backup.run').href).toBe('/backups/policies');
-		expect(policyPage('prune.run', 'mp-1').href).toBe('/maintenance/mp-1');
+		expect(policyPage('prune.run', 'mp-1').href).toBe('/maintenance');
 		expect(policyPage('update.check', 'up-1').href).toBe('/updates/up-1');
 		expect(policyPage('backup.run', 'bp-1').href).toBe('/backups/policies/bp-1');
 		expect(policyPage('backup.verify', 'br-1').href).toBe('/backups/repositories/br-1');

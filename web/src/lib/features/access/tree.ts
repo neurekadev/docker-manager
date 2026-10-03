@@ -14,7 +14,6 @@ import {
 	volumesQuery
 } from '$lib/features/common/data';
 import { backupPoliciesQuery, repositoriesQuery } from '$lib/features/backups/queries';
-import { maintenancePoliciesQuery } from '$lib/features/maintenance/queries';
 import { updatePoliciesQuery } from '$lib/features/updates/queries';
 import { scopeKey, type Rule, type Scope, type ScopeNode } from './permissions';
 
@@ -183,15 +182,6 @@ export const CATEGORIES: Category[] = [
 		nodes: (env) =>
 			nodeQuery(updatePoliciesQuery(env), (p: Named) =>
 				resourceNode('update_policy', p.id, env, p.name)
-			)
-	},
-	{
-		type: 'maintenance_policy',
-		label: 'Maintenance Policies',
-		perEnvironment: true,
-		nodes: (env) =>
-			nodeQuery(maintenancePoliciesQuery(env), (p: Named) =>
-				resourceNode('maintenance_policy', p.id, env, p.name)
 			)
 	},
 	{

@@ -1,17 +1,17 @@
-// Package maintenance is the manager side of Docker maintenance (#14):
-// prune policies per environment (one rule per category, their own cron
-// schedule), the instance's suggested default rules, previews through the
-// environment's agent, manual runs and the scheduler's PolicySource for
-// scheduled runs.
+// Package maintenance is the manager side of Docker maintenance (#14,
+// #238): one instance-wide setup (one rule per category, a cron schedule,
+// environments left out), previews through the environments' agents,
+// manual runs, one-off prunes of one environment and the scheduler's
+// PolicySource for scheduled runs.
 //
-// Runs are prune.run jobs of the #26 engine: the job input carries the
-// policy's enabled rules and every object the manager knows must survive
+// Runs are prune.run jobs of the #26 engine, one per environment: the job
+// input carries the enabled rules and every object the manager knows must survive
 // (the Compose projects and images of Docker Manager stacks, the images, volumes
 // and networks of saved container specifications, backup destinations);
 // the agent adds Docker Manager's own objects (#32), lists the Engine, and
 // revalidates every candidate right before its targeted removal.
 //
-// Safety defaults: every rule and every schedule starts disabled; a volume
+// Safety defaults: every rule and the schedule start disabled; a volume
 // rule needs its own explicit opt-in; a manual run needs confirmation;
 // scheduled runs run as the manager's service identity.
 package maintenance
@@ -23,17 +23,13 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
-	"github.com/neurekadev/docker-manager/internal/ids"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
-	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/manager/jobs"
 	"github.com/neurekadev/docker-manager/internal/manager/resources"
 	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
@@ -61,7 +57,6 @@ type Environments interface {
 
 // Scheduler is the part of the #13 scheduler the service uses.
 type Scheduler interface {
-	Default(ctx context.Context, kind string) (cronExpr, tz string, err error)
 	Notify()
 	Status(ctx context.Context, kind, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error)
 }
@@ -111,8 +106,6 @@ type Options struct {
 	Environments Environments
 	Scheduler    Scheduler
 	Stacks       Stacks
-	// ForgetResource drops the exact permission rules of a deleted policy.
-	ForgetResource func(ctx context.Context, ref authz.ResourceRef) (int, error)
 	// PreviewTimeout bounds a preview request (default 3 minutes: volume
 	// sizes are computed by walking the volumes).
 	PreviewTimeout time.Duration
@@ -160,41 +153,19 @@ func (s *Service) AddReferences(fn References) { s.refs = append(s.refs, fn) }
 
 func (s *Service) now() time.Time { return s.clk.Now().UTC().Truncate(time.Microsecond) }
 
-// Defaults returns the instance's default rules (the shipped suggestions
-// until changed).
-func (s *Service) Defaults(ctx context.Context) (domain.MaintenanceDefaults, error) {
-	d, err := store.GetMaintenanceDefaults(ctx, s.opts.DB)
-	if err != nil {
-		return d, err
-	}
-	d.Rules = domain.CompleteRules(d.Rules, domain.SuggestedMaintenanceRules())
-	return d, nil
+// Setup returns the maintenance setup; categories without a saved rule
+// take the shipped suggestions.
+func (s *Service) Setup(ctx context.Context) (domain.MaintenanceSetup, error) {
+	return setup(ctx, s.opts.DB)
 }
 
-// UpdateDefaults replaces default rules (by category) when the revision
-// matches. Existing policies keep their rules.
-func (s *Service) UpdateDefaults(ctx context.Context, revision int64, rules []domain.MaintenanceRule) (before, after domain.MaintenanceDefaults, err error) {
-	if err := ValidateRules(rules, true); err != nil {
-		return before, after, err
+func setup(ctx context.Context, db bun.IDB) (domain.MaintenanceSetup, error) {
+	st, err := store.GetMaintenanceSetup(ctx, db)
+	if err != nil {
+		return st, err
 	}
-	err = s.opts.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		cur, err := store.GetMaintenanceDefaults(ctx, tx)
-		if err != nil {
-			return err
-		}
-		before = cur
-		before.Rules = domain.CompleteRules(cur.Rules, domain.SuggestedMaintenanceRules())
-		if cur.Revision != revision {
-			return domain.ErrRevisionMismatch
-		}
-		next := domain.CompleteRules(rules, before.Rules)
-		if err := store.UpdateMaintenanceDefaults(ctx, tx, next, revision, s.now()); err != nil {
-			return err
-		}
-		after = domain.MaintenanceDefaults{Rules: next, Revision: revision + 1, UpdatedAt: s.now()}
-		return nil
-	})
-	return before, after, err
+	st.Rules = domain.CompleteRules(st.Rules, domain.SuggestedMaintenanceRules())
+	return st, nil
 }
 
 func fieldErr(field, format string, args ...any) error {
@@ -203,7 +174,7 @@ func fieldErr(field, format string, args ...any) error {
 
 // ValidateRules checks rules (field names "rules.<category>.<member>").
 // requireOptIn refuses enabled volume rules without their explicit opt-in
-// (policies and defaults; previews evaluate them without it).
+// (the setup and one-off prune runs; previews evaluate them without it).
 func ValidateRules(rules []domain.MaintenanceRule, requireOptIn bool) error {
 	seen := map[string]bool{}
 	for _, r := range rules {
@@ -241,16 +212,6 @@ func toProtocol(r domain.MaintenanceRule) protocol.PruneRule {
 		KeepStorageBytes: r.KeepStorageBytes}
 }
 
-func validateName(name, description string) error {
-	if n := strings.TrimSpace(name); n == "" || utf8.RuneCountInString(n) > 100 || n != name {
-		return fieldErr("name", "must be 1 to 100 characters without leading or trailing spaces")
-	}
-	if utf8.RuneCountInString(description) > 1000 {
-		return fieldErr("description", "must be at most 1000 characters")
-	}
-	return nil
-}
-
 func (s *Service) activeEnvironment(ctx context.Context, id string) (domain.Environment, error) {
 	env, err := s.opts.Environments.GetEnvironment(ctx, id)
 	if err != nil {
@@ -262,140 +223,82 @@ func (s *Service) activeEnvironment(ctx context.Context, id string) (domain.Envi
 	return env, nil
 }
 
-// ScopeEnvironments resolves a policy's current active environments.
-func (s *Service) ScopeEnvironments(ctx context.Context, environmentID string) ([]domain.Environment, error) {
-	if environmentID != "" {
-		env, err := s.activeEnvironment(ctx, environmentID)
-		if err != nil {
-			return nil, err
-		}
-		return []domain.Environment{env}, nil
-	}
-	return store.ListEnvironments(ctx, s.opts.DB, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
-}
-
-func (s *Service) scopeAvailable(ctx context.Context, db bun.IDB, environmentID, except string) error {
-	policies, err := store.ListMaintenancePolicies(ctx, db, "", "", 0)
+// ScopeEnvironments resolves the environments the setup covers now: every
+// active environment (offline ones included) it does not leave out.
+func (s *Service) ScopeEnvironments(ctx context.Context, st domain.MaintenanceSetup) ([]domain.Environment, error) {
+	envs, err := store.ListEnvironments(ctx, s.opts.DB, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, p := range policies {
-		if p.ID != except && (environmentID == "" || p.EnvironmentID == "" || p.EnvironmentID == environmentID) {
-			return domain.ErrMaintenanceScopeOverlap
-		}
-	}
-	return nil
+	return slices.DeleteFunc(envs, func(e domain.Environment) bool { return st.Excludes(e.ID) }), nil
 }
 
-// Create stores a new policy. Empty schedule fields take the instance's
-// schedule defaults (#13), missing rules the maintenance defaults; the
-// schedule stays disabled unless the request enables it.
-func (s *Service) Create(ctx context.Context, c domain.MaintenancePolicyCreate) (domain.MaintenancePolicy, error) {
-	if err := validateName(c.Name, c.Description); err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	if err := ValidateRules(c.Rules, true); err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	if _, err := s.ScopeEnvironments(ctx, c.EnvironmentID); err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	cronExpr, tz, err := s.opts.Scheduler.Default(ctx, scheduler.KindPrune)
-	if err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	if c.Cron != "" {
-		cronExpr = c.Cron
-	}
-	if c.TimeZone != "" {
-		tz = c.TimeZone
-	}
-	if err := scheduler.ValidateSpec(cronExpr, tz); err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	defaults, err := s.Defaults(ctx)
-	if err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	now := s.now()
-	p := domain.MaintenancePolicy{ID: ids.New(), EnvironmentID: c.EnvironmentID, Name: c.Name, Description: c.Description, Cron: cronExpr,
-		TimeZone: tz, ScheduleEnabled: c.ScheduleEnabled, Rules: domain.CompleteRules(c.Rules, defaults.Rules), Revision: 1,
-		CreatedAt: now, UpdatedAt: now}
-	if err := ValidateRules(p.Rules, true); err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	if err := s.opts.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.scopeAvailable(ctx, tx, c.EnvironmentID, ""); err != nil {
-			return err
-		}
-		return store.InsertMaintenancePolicy(ctx, tx, &p)
-	}); err != nil {
-		return domain.MaintenancePolicy{}, err
-	}
-	s.opts.Scheduler.Notify()
-	return p, nil
-}
-
-// Get returns a policy.
-func (s *Service) Get(ctx context.Context, id string) (domain.MaintenancePolicy, error) {
-	return store.GetMaintenancePolicy(ctx, s.opts.DB, id)
-}
-
-// List returns policies in ID order (every environment when envID is "").
-func (s *Service) List(ctx context.Context, envID, afterID string, limit int) ([]domain.MaintenancePolicy, error) {
-	return store.ListMaintenancePolicies(ctx, s.opts.DB, envID, afterID, limit)
-}
-
-// Update changes a policy when the revision matches. Queued runs of the
-// policy that have not started are cancelled when its rules change: they
-// carry the old rules.
-func (s *Service) Update(ctx context.Context, id string, revision int64, patch domain.MaintenancePolicyPatch) (before, after domain.MaintenancePolicy, err error) {
-	before, err = s.Get(ctx, id)
-	if err != nil {
-		return before, after, err
-	}
-	if before.Revision != revision {
-		return before, after, domain.ErrRevisionMismatch
-	}
-	after = before
-	after.Rules = slices.Clone(before.Rules)
-	if patch.Name != nil {
-		after.Name = *patch.Name
-	}
-	if patch.Description != nil {
-		after.Description = *patch.Description
-	}
-	if patch.Cron != nil {
-		after.Cron = *patch.Cron
-	}
-	if patch.TimeZone != nil {
-		after.TimeZone = *patch.TimeZone
-	}
-	if patch.ScheduleEnabled != nil {
-		after.ScheduleEnabled = *patch.ScheduleEnabled
-	}
-	if err := validateName(after.Name, after.Description); err != nil {
-		return before, after, err
-	}
+// UpdateSetup changes the setup when the revision matches. Environments
+// left out that no longer exist are dropped. Queued runs that have not
+// started are cancelled when the rules or the environments change: they
+// carry the old ones.
+func (s *Service) UpdateSetup(ctx context.Context, revision int64, patch domain.MaintenanceSetupPatch) (before, after domain.MaintenanceSetup, err error) {
 	if err := ValidateRules(patch.Rules, true); err != nil {
 		return before, after, err
 	}
-	after.Rules = domain.CompleteRules(patch.Rules, before.Rules)
-	if err := scheduler.ValidateSpec(after.Cron, after.TimeZone); err != nil {
-		return before, after, err
-	}
-	if _, err := s.ScopeEnvironments(ctx, after.EnvironmentID); err != nil {
-		return before, after, err
-	}
-	after.Revision, after.UpdatedAt = before.Revision+1, s.now()
-	if err := store.UpdateMaintenancePolicy(ctx, s.opts.DB, &after, revision); err != nil {
+	err = s.opts.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		cur, err := setup(ctx, tx)
+		if err != nil {
+			return err
+		}
+		before = cur
+		if cur.Revision != revision {
+			return domain.ErrRevisionMismatch
+		}
+		after = cur
+		if patch.Enabled != nil {
+			after.Enabled = *patch.Enabled
+		}
+		if patch.Cron != nil {
+			after.Cron = *patch.Cron
+		}
+		if patch.TimeZone != nil {
+			after.TimeZone = *patch.TimeZone
+		}
+		after.Rules = domain.CompleteRules(patch.Rules, cur.Rules)
+		if patch.ExcludeEnvironments != nil {
+			excluded, err := existingEnvironments(ctx, tx, *patch.ExcludeEnvironments)
+			if err != nil {
+				return err
+			}
+			after.ExcludeEnvironments = excluded
+		}
+		if err := scheduler.ValidateSpec(after.Cron, after.TimeZone); err != nil {
+			return err
+		}
+		after.Revision, after.UpdatedAt = cur.Revision+1, s.now()
+		return store.UpdateMaintenanceSetup(ctx, tx, &after, revision)
+	})
+	if err != nil {
 		return before, after, err
 	}
 	s.opts.Scheduler.Notify()
-	if !rulesEqual(before.Rules, after.Rules) {
-		s.cancelWaiting(ctx, id, "its rules changed")
+	if !rulesEqual(before.Rules, after.Rules) || !slices.Equal(before.ExcludeEnvironments, after.ExcludeEnvironments) {
+		s.cancelWaiting(ctx, after.ID, "maintenance changed")
 	}
 	return before, after, nil
+}
+
+// existingEnvironments returns the IDs of environments that exist among
+// ids, sorted and without duplicates.
+func existingEnvironments(ctx context.Context, db bun.IDB, ids []string) ([]string, error) {
+	envs, err := store.ListEnvironments(ctx, db, domain.EnvironmentFilter{})
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for _, e := range envs {
+		if slices.Contains(ids, e.ID) {
+			out = append(out, e.ID)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out), nil
 }
 
 func rulesEqual(a, b []domain.MaintenanceRule) bool {
@@ -404,24 +307,7 @@ func rulesEqual(a, b []domain.MaintenanceRule) bool {
 	return string(ea) == string(eb)
 }
 
-// Delete removes a policy when the revision matches; its waiting runs are
-// cancelled (a started run finishes: cancellation is best effort at item
-// boundaries through /jobs).
-func (s *Service) Delete(ctx context.Context, id string, revision int64) error {
-	if err := store.DeleteMaintenancePolicy(ctx, s.opts.DB, id, revision); err != nil {
-		return err
-	}
-	s.opts.Scheduler.Notify()
-	s.cancelWaiting(ctx, id, "the policy was deleted")
-	if s.opts.ForgetResource != nil {
-		if _, err := s.opts.ForgetResource(ctx, authz.ResourceRef{Type: "maintenance_policy", ID: id}); err != nil {
-			s.log.Warn("could not forget the permission rules of a deleted maintenance policy", "policy_id", id, "error", err)
-		}
-	}
-	return nil
-}
-
-// cancelWaiting cancels queued or blocked runs of a policy (best effort).
+// cancelWaiting cancels queued or blocked runs of the setup (best effort).
 func (s *Service) cancelWaiting(ctx context.Context, policyID, why string) {
 	js, err := s.opts.Jobs.List(ctx, domain.JobFilter{States: []domain.JobState{domain.JobQueued, domain.JobBlocked},
 		Kinds: []domain.JobKind{jobspec.PruneRun}, Target: &domain.JobTarget{Type: domain.TargetMaintenancePolicy, ID: policyID}})
@@ -438,8 +324,8 @@ func (s *Service) cancelWaiting(ctx context.Context, policyID, why string) {
 	}
 }
 
-// ScheduleStatus returns the policy's schedule state and newest runs (ok
-// is false before the scheduler synchronized a new policy).
+// ScheduleStatus returns the setup's schedule state and newest runs (ok is
+// false before the scheduler synchronized it).
 func (s *Service) ScheduleStatus(ctx context.Context, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error) {
 	return s.opts.Scheduler.Status(ctx, scheduler.KindPrune, policyID, runs)
 }
