@@ -93,8 +93,12 @@
 	// shows it can be chosen (a pasted path may be a folder or missing).
 	let wasOpen = false;
 	let preselect = $state('');
+	// Counts opens, so a split still loading from an earlier open is dropped.
+	let session = 0;
 	$effect(() => {
 		if (open && !wasOpen) {
+			session++;
+			splitting = false;
 			const chosen = value.map((v) => v.trim()).filter(Boolean);
 			dir = pickerStart(places, chosen);
 			selection = multiple ? normalize(chosen) : [];
@@ -183,14 +187,16 @@
 		const ancestor = selection.find((s) => s !== path && within(path, s));
 		const dirs = ancestor ? foldersBetween(ancestor, path) : [];
 		if (ancestor && dirs.length) {
+			const started = session;
 			splitting = true;
 			try {
 				await Promise.allSettled(dirs.map((d) => qc.ensureQueryData(listingOptions(d))));
 			} finally {
-				splitting = false;
+				if (started === session) splitting = false;
 			}
-			// Closed or cleared meanwhile: this untick no longer applies.
-			if (!open || !selection.includes(ancestor)) return resync(focusId);
+			// Closed, reopened or cleared meanwhile: this untick no longer applies.
+			if (!open || started !== session || !selection.includes(ancestor))
+				return resync(focusId);
 		}
 		const before = selection;
 		const next = toggle(before, path, children);
