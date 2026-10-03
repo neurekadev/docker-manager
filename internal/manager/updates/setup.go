@@ -19,6 +19,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/ids"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/manager/jobs"
+	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
@@ -226,38 +227,32 @@ func (s *Service) reconcile(ctx context.Context, p domain.UpdateSetup, permit Pe
 			}
 			wanted[key] = true
 		}
-		if !env.Online || s.opts.Resources == nil {
+		// Offline, or its containers cannot be listed now: its container
+		// records stay as they are, and the other environments go on.
+		keep := func() {
 			for key, child := range byTarget {
-				if child.EnvironmentID == env.ID && child.TargetType == domain.UpdateTargetContainer && !child.Inactive {
-					if containerExcluded(p, env.ID, child.TargetID) {
-						continue
-					}
+				if child.EnvironmentID == env.ID && child.TargetType == domain.UpdateTargetContainer && !child.Inactive &&
+					!containerExcluded(p, env.ID, child.TargetID) {
 					wanted[key] = true
 				}
 			}
+		}
+		if !env.Online || s.opts.Resources == nil {
+			keep()
 			continue
 		}
-		containers, err := s.opts.Resources.ListContainers(ctx, env.ID)
+		found, skip, err := s.standaloneTargets(ctx, p, env.ID)
 		if err != nil {
-			return nil, err
+			s.log.Warn("could not list the containers of an environment; its container records stay as they are",
+				"environment_id", env.ID, "error", err)
+			keep()
+			continue
 		}
-		for _, c := range containers {
-			if c.Stack != nil || protocol.LabelValue(c.Labels, protocol.LabelManaged) != protocol.ManagedStandalone ||
-				s.opts.Resources.ContainerProtection(c) != nil {
-				continue
-			}
-			key := targetKey(env.ID, domain.UpdateTargetContainer, c.Name)
-			if protocol.UpdateExcluded(c.Labels) || containerExcluded(p, env.ID, c.Name) {
-				excluded[key] = true
-				continue
-			}
-			m, _, err := s.opts.Resources.ManagedSpec(ctx, env.ID, c.Labels)
-			if err != nil {
-				return nil, err
-			}
-			if m != nil {
-				wanted[key] = true
-			}
+		for _, key := range found {
+			wanted[key] = true
+		}
+		for _, key := range skip {
+			excluded[key] = true
 		}
 	}
 	names := &policyNames{s: s, taken: map[string]map[string]string{}}
@@ -309,6 +304,35 @@ func (s *Service) reconcile(ctx context.Context, p domain.UpdateSetup, permit Pe
 	}
 	slices.SortFunc(out, func(a, b ManagedTarget) int { return strings.Compare(a.Policy.ID, b.Policy.ID) })
 	return out, nil
+}
+
+// standaloneTargets lists the target keys of an online environment's
+// Docker Manager-managed standalone containers: the covered ones and the
+// excluded ones.
+func (s *Service) standaloneTargets(ctx context.Context, p domain.UpdateSetup, envID string) (found, excluded []string, err error) {
+	containers, err := s.opts.Resources.ListContainers(ctx, envID)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, c := range containers {
+		if c.Stack != nil || protocol.LabelValue(c.Labels, protocol.LabelManaged) != protocol.ManagedStandalone ||
+			s.opts.Resources.ContainerProtection(c) != nil {
+			continue
+		}
+		key := targetKey(envID, domain.UpdateTargetContainer, c.Name)
+		if protocol.UpdateExcluded(c.Labels) || containerExcluded(p, envID, c.Name) {
+			excluded = append(excluded, key)
+			continue
+		}
+		m, _, err := s.opts.Resources.ManagedSpec(ctx, envID, c.Labels)
+		if err != nil {
+			return nil, nil, err
+		}
+		if m != nil {
+			found = append(found, key)
+		}
+	}
+	return found, excluded, nil
 }
 
 // containerExcluded reports whether the setup's exclusions name the
@@ -521,7 +545,20 @@ func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key
 		req.PolicyID = p.ID
 		reqs = append(reqs, req)
 	}
+	if err := tooMany(reqs); err != nil {
+		return nil, err
+	}
 	return s.enqueueAll(ctx, principal, key, reqs)
+}
+
+// tooMany refuses a manual start beyond the scheduler's bound of one run,
+// so manual and scheduled runs agree.
+func tooMany(reqs []jobs.Request) error {
+	if len(reqs) > scheduler.MaxJobsPerRun {
+		return &domain.FieldError{Field: "excludeEnvironments",
+			Message: fmt.Sprintf("%d targets; one run handles at most %d: leave some out", len(reqs), scheduler.MaxJobsPerRun)}
+	}
+	return nil
 }
 
 // rollbackTimeout bounds cancelling one job of a start that failed part
@@ -593,10 +630,9 @@ func (s *Service) RunSetup(ctx context.Context, principal authz.Principal, expec
 		if err != nil {
 			return nil, err
 		}
-		if pl.drift {
-			return nil, &domain.UpdateError{Code: domain.UpdateErrSourceDrift, Message: "a stack has undeployed changes; deploy it before updating"}
-		}
-		if len(pl.items) == 0 {
+		// A stack with undeployed changes waits until it is deployed (an
+		// update never deploys an edit); the other targets go ahead.
+		if pl.drift || len(pl.items) == 0 {
 			continue
 		}
 		req, err := s.request(ctx, pl)
@@ -608,6 +644,9 @@ func (s *Service) RunSetup(ctx context.Context, principal authz.Principal, expec
 	}
 	if len(reqs) == 0 {
 		return nil, &domain.UpdateError{Code: domain.UpdateErrNoCandidates, Message: "no checked target has a new digest"}
+	}
+	if err := tooMany(reqs); err != nil {
+		return nil, err
 	}
 	return s.enqueueAll(ctx, principal, key, reqs)
 }

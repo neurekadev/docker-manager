@@ -177,8 +177,9 @@ type PolicySource interface {
 }
 
 // MaxJobsPerRun bounds the jobs one run enqueues (an updates check of
-// every stack and container of the instance is one run).
-const MaxJobsPerRun = 256
+// every stack and container of the instance is one run; manual runs of
+// the setups keep the same bound).
+const MaxJobsPerRun = 4096
 
 // Rejection refuses a due run or a dispatch with a user-facing reason.
 type Rejection struct {

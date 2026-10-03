@@ -208,3 +208,40 @@ func TestSetupTargetNames(t *testing.T) {
 		t.Fatalf("listed records: %+v, %v", listed, err)
 	}
 }
+
+// A run of the setup skips a stack with undeployed changes (an update never
+// deploys an edit) instead of refusing every other target with it; with
+// nothing else to update, nothing runs.
+func TestSetupRunSkipsUndeployedStacks(t *testing.T) {
+	h := newHarness(t)
+	now := h.clk.Now()
+	e := domain.Environment{ID: env, Name: env, Status: domain.EnvironmentActive, Online: true, Revision: 1, CreatedAt: now, UpdatedAt: now}
+	if err := store.InsertEnvironment(h.ctx, h.db, &e); err != nil {
+		t.Fatal(err)
+	}
+	h.publish("acme/web", "1.4", "")
+	h.publish("acme/db", "16", " db")
+	st, _, _ := h.shop()
+	h.publish("acme/web", "1.4", " v2")
+	if _, err := h.svc.CheckSetup(h.ctx, authz.Service(), "check", nil); err != nil {
+		t.Fatal(err)
+	}
+	h.dispatch()
+	h.eng.Wait()
+	st.Observed = &domain.RevisionRef{ID: "rev-2", Seq: 2, Hash: strings.Repeat("e", 64)}
+	h.stacks.put(st)
+	pv, err := h.svc.PreviewSetup(h.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.RunSetup(h.ctx, authz.Service(), pv.Fingerprint, "run", nil); updateCode(err) != domain.UpdateErrNoCandidates {
+		t.Fatalf("run with only an undeployed stack: %v", err)
+	}
+	setup, err := h.svc.Setup(h.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reqs, err := h.svc.RunSource().Jobs(h.ctx, scheduler.Due{PolicyID: setup.ID}); err != nil || len(reqs) != 0 {
+		t.Fatalf("scheduled run with only an undeployed stack: %+v %v", reqs, err)
+	}
+}
