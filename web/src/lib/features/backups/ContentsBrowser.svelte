@@ -10,15 +10,7 @@
 	import File from '@lucide/svelte/icons/file';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Link from '@lucide/svelte/icons/link';
-	import {
-		Button,
-		Chip,
-		IconButton,
-		Table,
-		formatBytes,
-		formatDateTime,
-		type Column
-	} from '$lib/ui';
+	import { Chip, IconButton, Table, formatBytes, formatDateTime, type Column } from '$lib/ui';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { modeText, parentPath, pathCrumbs, type BackupNode } from './model';
 	import { backupContentsQuery } from './queries';
@@ -28,11 +20,9 @@
 		canDownload: boolean;
 		/** Start below this path (e.g. the stack's project directory). */
 		root?: string;
-		/** Restore one file in place (the restore wizard). */
-		onrestorefile?: (path: string) => void;
 	}
 
-	let { backupId, canDownload, root = '/', onrestorefile }: Props = $props();
+	let { backupId, canDownload, root = '/' }: Props = $props();
 	let path = $state('');
 	$effect(() => {
 		if (!path) path = root;
@@ -97,7 +87,7 @@
 			header: 'Actions',
 			hideHeader: true,
 			cell: actionsCell,
-			width: '150px',
+			width: '56px',
 			stack: 'actions'
 		}
 	]);
@@ -126,22 +116,10 @@
 {#snippet mtimeCell(n: BackupNode)}{#if n.mtime}<span class="num">{formatDateTime(n.mtime)}</span
 		>{/if}{/snippet}
 {#snippet actionsCell(n: BackupNode)}
-	{#if n.type === 'file'}
-		<span class="acts">
-			{#if canDownload}
-				<a
-					class="dl"
-					href={downloadHref(n.path)}
-					download={n.name}
-					aria-label="Download {n.name}"
-				>
-					<Download size={16} aria-hidden="true" />
-				</a>
-			{/if}
-			{#if onrestorefile}
-				<Button size="sm" onclick={() => onrestorefile(n.path)}>Restore File</Button>
-			{/if}
-		</span>
+	{#if n.type === 'file' && canDownload}
+		<a class="dl" href={downloadHref(n.path)} download={n.name} aria-label="Download {n.name}">
+			<Download size={16} aria-hidden="true" />
+		</a>
 	{/if}
 {/snippet}
 
@@ -238,12 +216,6 @@
 	}
 
 	.entry {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
-
-	.acts {
 		display: inline-flex;
 		align-items: center;
 		gap: var(--space-2);
