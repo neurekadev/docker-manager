@@ -39,6 +39,18 @@
 	cursor: not-allowed;
 }
 
+/* iOS Safari draws date and time inputs natively: a minimum width that
+ * ignores width: 100% (the field runs past its column) and a centred value.
+ * Drop the native look so they size and align like the other fields. */
+.dy-input:is([type='date'], [type='time'], [type='datetime-local']) {
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.dy-input::-webkit-date-and-time-value {
+	text-align: start;
+}
+
 .dy-input.mono {
 	font-family: var(--font-mono);
 	font-size: 13px;
