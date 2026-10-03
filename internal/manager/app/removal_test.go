@@ -85,17 +85,18 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if got := b.runJob(js[0].ID); got.State != domain.JobSucceeded {
 		t.Fatalf("backup: %s %s", got.State, got.ErrorMessage)
 	}
-	// Every run also backs up the manager state; it finishes so the next
+	// Every run also backs up the manager state; they finish so the next
 	// run starts.
 	runManagerState := func() {
 		t.Helper()
-		ms, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"manager.backup"},
-			States: []domain.JobState{domain.JobQueued}})
-		if err != nil || len(ms) != 1 {
+		ms, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"manager.backup"}})
+		if err != nil || len(ms) == 0 {
 			t.Fatalf("manager state backups: %d %v", len(ms), err)
 		}
-		if got := b.runJob(ms[0].ID); got.State != domain.JobSucceeded {
-			t.Fatalf("manager state backup: %s %s", got.State, got.ErrorMessage)
+		for _, m := range ms {
+			if got := b.runJob(m.ID); got.State != domain.JobSucceeded {
+				t.Fatalf("manager state backup: %s %s", got.State, got.ErrorMessage)
+			}
 		}
 	}
 	runManagerState()
