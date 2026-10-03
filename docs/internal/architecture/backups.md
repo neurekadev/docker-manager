@@ -63,8 +63,10 @@ the agent's smartctl runner for disk health, see
   one patch), and **Environments to Leave Out** (unknown IDs are ignored;
   every other environment is covered, also ones added later). Turning it
   on needs a Primary; every repository it writes to must be `ready` while
-  it is on (`recovery_key_not_confirmed`). The first repository created
-  while there is no Primary becomes it. Enabled without a Primary (its
+  it is on (`recovery_key_not_confirmed`). A repository created while
+  backups are off and have no Primary becomes it (with backups on, the
+  user picks a Primary once its key is confirmed). A patch validates and
+  writes in one transaction. Enabled without a Primary (its
   removal promoted no Secondary), every run is refused (`backup_no_primary`;
   scheduled: rejected `no_primary_repository`) and a critical alert
   `backup/no_primary` fires until a Primary is chosen or backups are turned

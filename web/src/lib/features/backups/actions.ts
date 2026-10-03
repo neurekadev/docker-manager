@@ -2,9 +2,7 @@
 // the stack pages: back up now, retry the members a set missed. Toasts
 // name the result; mutations invalidate by prefix and never retry.
 import type { QueryClient } from '@tanstack/svelte-query';
-import { goto } from '$app/navigation';
 import { api, unwrap, type Job } from '$lib/api/client';
-import { routes } from '$lib/routes';
 import { toast } from '$lib/ui';
 import { newIdempotencyKey } from '$lib/features/common/data';
 import { actionError } from '$lib/features/common/errors';
@@ -35,8 +33,7 @@ export async function backUpNow(qc: QueryClient): Promise<Job[] | null> {
 		);
 		refresh(qc);
 		toast.info('Started a backup', {
-			body: `${out.jobs.length} ${out.jobs.length === 1 ? 'job' : 'jobs'}; progress shows under Running Now.`,
-			action: { label: 'Open Backups', onclick: () => void goto(routes.backups()) }
+			body: `${out.jobs.length} ${out.jobs.length === 1 ? 'job' : 'jobs'}; progress shows under Running Now.`
 		});
 		return out.jobs;
 	} catch (e) {

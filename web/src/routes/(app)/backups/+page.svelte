@@ -52,7 +52,7 @@
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
-	import { BACK_UP_ERRORS } from '$lib/features/backups/actions';
+	import { backUpNow } from '$lib/features/backups/actions';
 	import BackupSettingsDialog from '$lib/features/backups/BackupSettingsDialog.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
 	import { onJobsFinished } from '$lib/features/backups/finished.svelte';
@@ -148,21 +148,12 @@
 	let retentionOpen = $state(false);
 	let retentionState = $state({ ready: false, forget: 0 });
 
+	// Starts a backup (refreshing the runs, backups and jobs) and follows
+	// its jobs.
 	async function backUp() {
 		starting = true;
 		try {
-			const out = await unwrap(
-				api.POST('/api/v1/backup-settings/runs', {
-					params: { header: { 'Idempotency-Key': newIdempotencyKey() } },
-					body: {}
-				})
-			);
-			for (const j of out.jobs) tracked.add(j, jobTitle(j));
-			toast.info('Started a backup', {
-				body: `${out.jobs.length} ${out.jobs.length === 1 ? 'job' : 'jobs'}`
-			});
-		} catch (e) {
-			toast.error('Nothing was backed up', { body: actionError(e, BACK_UP_ERRORS) });
+			for (const j of (await backUpNow(qc)) ?? []) tracked.add(j, jobTitle(j));
 		} finally {
 			starting = false;
 		}

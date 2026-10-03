@@ -83,10 +83,13 @@ func (s *Service) UpdateSetup(ctx context.Context, revision int64, p domain.Back
 		st.Retention = *p.Retention
 	}
 	st.Revision, st.UpdatedAt = revision+1, s.now()
-	if err := s.validateSetup(ctx, s.db, &st); err != nil {
-		return before, after, err
-	}
-	if err := store.UpdateBackupSetup(ctx, s.db, st, revision); err != nil {
+	// One transaction: a repository removed meanwhile is never assigned.
+	if err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		if err := s.validateSetup(ctx, tx, &st); err != nil {
+			return err
+		}
+		return store.UpdateBackupSetup(ctx, tx, st, revision)
+	}); err != nil {
 		return before, after, err
 	}
 	audit.SetDiff(ctx, setupAuditView(before), setupAuditView(st))

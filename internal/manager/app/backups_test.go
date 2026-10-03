@@ -1280,3 +1280,33 @@ func TestBackupCompressionPerRepository(t *testing.T) {
 		})
 	}
 }
+
+// TestANewRepositoryIsPrimaryOnlyWhileBackupsAreOff (#246): the first
+// repository becomes the Primary; with backups on and no Primary (it was
+// removed), a new repository awaiting its key's confirmation does not, so
+// backups stay paused until a ready one is chosen.
+func TestANewRepositoryIsPrimaryOnlyWhileBackupsAreOff(t *testing.T) {
+	b := newBackupEnv(t)
+	owner, _ := b.setupOwner()
+	first := b.createS3Repo(owner, "Offsite")
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+first.Repository.ID+"/recovery-confirmations",
+		map[string]any{"recoveryKey": first.RecoveryKey.Key, "backedUp": true})
+	if st := b.settings(owner, map[string]any{"enabled": true}); st.PrimaryRepositoryID != first.Repository.ID {
+		t.Fatalf("the first repository is not the Primary: %+v", st)
+	}
+	var repo struct {
+		Revision int64 `json:"revision"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories/"+first.Repository.ID, nil).json(t, &repo)
+	owner.must(http.StatusNoContent, http.MethodDelete, "/api/v1/backup-repositories/"+first.Repository.ID, nil, etag(repo.Revision))
+	if st := b.settings(owner, nil); !st.Enabled || st.PrimaryRepositoryID != "" {
+		t.Fatalf("after removing the Primary: %+v", st)
+	}
+	second := b.createS3Repo(owner, "Offsite 2")
+	if second.Repository.State == "ready" {
+		t.Fatalf("a new repository is ready before confirmation: %+v", second.Repository)
+	}
+	if st := b.settings(owner, nil); st.PrimaryRepositoryID != "" {
+		t.Fatalf("an unconfirmed repository became the Primary while backups are on: %+v", st)
+	}
+}

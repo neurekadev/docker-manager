@@ -63,7 +63,9 @@ type CreatedRepository struct {
 // CreateRepository stores a destination. While the instance has no
 // Recovery Key, creating the first repository generates one (owner only);
 // every repository starts awaiting confirmation of the key. While the setup
-// has no Primary repository, the new one becomes it.
+// is off and has no Primary repository, the new one becomes it (with
+// backups on, a Primary must be ready: the user picks it once confirmed,
+// and backups stay paused until then).
 func (s *Service) CreateRepository(ctx context.Context, in domain.BackupRepositoryInput) (CreatedRepository, error) {
 	name, err := validName(in.Name)
 	if err != nil {
@@ -127,7 +129,7 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 			return err
 		}
 		out.Repository, out.Key = r, rec.State
-		if setup, err = store.GetBackupSetup(ctx, tx); err != nil || setup.PrimaryRepositoryID != "" {
+		if setup, err = store.GetBackupSetup(ctx, tx); err != nil || setup.PrimaryRepositoryID != "" || setup.Enabled {
 			return err
 		}
 		rev := setup.Revision
