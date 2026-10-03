@@ -471,8 +471,8 @@ func TestEngineInventory(t *testing.T) {
 	if err := inv.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if inv.EngineID != "ENG" || inv.Hostname != "nas" || inv.CPUs != 8 || inv.Containers != 4 || inv.ContainersRunning != 2 ||
-		inv.ContainersPaused != 1 || inv.ContainersStopped != 1 || inv.Images != 3 || inv.Volumes != -1 || inv.Networks != 4 {
+	if inv.EngineID != "ENG" || inv.Hostname != "nas" || inv.CPUs != 8 || inv.Containers != 4 || inv.ContainersRunning != 1 ||
+		inv.ContainersPaused != 1 || inv.ContainersStopped != 2 || inv.Images != 3 || inv.Volumes != -1 || inv.Networks != 4 {
 		t.Fatalf("%+v", inv)
 	}
 	raw, _ := json.Marshal(inv)

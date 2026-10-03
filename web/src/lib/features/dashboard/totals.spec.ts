@@ -50,7 +50,6 @@ describe('dashboard totals (#5 units)', () => {
 			counted: 3,
 			containers: 13,
 			running: 11,
-			paused: 0,
 			cpuAverage: 12,
 			cpuBusiest: { name: 'homelab', value: 20 },
 			memUsed: 3e9,
@@ -110,7 +109,7 @@ describe('per-environment counts', () => {
 });
 
 describe('needs attention (#22 dashboard)', () => {
-	const calm = { offline: 0, failures: 0, counted: 1, containers: 4, running: 4, paused: 0 };
+	const calm = { offline: 0, failures: 0, counted: 1, containers: 4, running: 4 };
 
 	it('is empty when everything runs', () => {
 		expect(attentionItems(calm, { undeployed: 0, updates: 0 })).toEqual([]);
@@ -119,7 +118,7 @@ describe('needs attention (#22 dashboard)', () => {
 
 	it('lists every problem, most urgent first, each linking to its filtered list', () => {
 		const items = attentionItems(
-			{ offline: 1, failures: 2, counted: 2, containers: 9, running: 6, paused: 0 },
+			{ offline: 1, failures: 2, counted: 2, containers: 9, running: 6 },
 			{ undeployed: 1, updates: 3 }
 		);
 		expect(items.map((i) => [i.label, i.href])).toEqual([
@@ -135,7 +134,7 @@ describe('needs attention (#22 dashboard)', () => {
 		});
 		expect(items.find((i) => i.id === 'stopped-containers')?.filters).toEqual({
 			list: 'containers',
-			values: { status: 'exited' }
+			values: { status: 'not_running' }
 		});
 		expect(items.find((i) => i.id === 'undeployed')?.filters).toEqual({
 			list: 'stacks',
@@ -171,10 +170,10 @@ describe('needs attention (#22 dashboard)', () => {
 		).toEqual([]);
 	});
 
-	it('opens the whole container list when some are paused', () => {
-		const [item] = attentionItems({ ...calm, running: 2, paused: 1 });
+	it('opens the containers filtered to every state but running', () => {
+		const [item] = attentionItems({ ...calm, running: 2 });
 		expect(item.label).toBe('2 containers are not running');
-		expect(item.filters).toBeUndefined();
+		expect(item.filters).toEqual({ list: 'containers', values: { status: 'not_running' } });
 	});
 
 	it('sums pending changes of the shown environments only', () => {

@@ -251,6 +251,9 @@ const withEnv = <T extends { environmentId: string }>(
 
 // Containers.
 
+/** The container status filter value matching every state but running. */
+export const NOT_RUNNING = 'not_running';
+
 export function containerFilters(
 	rows: readonly Container[],
 	ctx: FilterContext
@@ -261,16 +264,26 @@ export function containerFilters(
 				id: 'status',
 				label: 'Status',
 				all: 'All Statuses',
-				options: statusOptions([
-					'running',
-					'unhealthy',
-					'paused',
-					'restarting',
-					'exited',
-					'created',
-					'dead'
-				]),
-				match: (c, v) => (v === 'unhealthy' ? containerStatus(c) === v : c.state === v)
+				// "Not Running" is every state but running (what the
+				// dashboard counts as not running).
+				options: [
+					...statusOptions(['running']),
+					{ value: NOT_RUNNING, label: 'Not Running' },
+					...statusOptions([
+						'unhealthy',
+						'paused',
+						'restarting',
+						'exited',
+						'created',
+						'dead'
+					])
+				],
+				match: (c, v) =>
+					v === NOT_RUNNING
+						? c.state !== 'running'
+						: v === 'unhealthy'
+							? containerStatus(c) === v
+							: c.state === v
 			},
 			stackFilter(rows),
 			switchFilter<Container>(

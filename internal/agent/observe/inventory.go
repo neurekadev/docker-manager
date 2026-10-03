@@ -34,9 +34,11 @@ func Inventory(ctx context.Context, eng EngineAPI, now time.Time) protocol.Engin
 	}
 	if cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true}); err == nil {
 		inv.Containers, inv.ContainersRunning, inv.ContainersPaused, inv.ContainersStopped = len(cs), 0, 0, 0
+		// Only "running" counts as running: a restarting container is
+		// between crashes, so it counts as stopped like created or dead.
 		for _, c := range cs {
 			switch c.State {
-			case "running", "restarting":
+			case "running":
 				inv.ContainersRunning++
 			case "paused":
 				inv.ContainersPaused++

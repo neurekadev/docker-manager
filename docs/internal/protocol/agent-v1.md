@@ -1139,7 +1139,10 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   kernelVersion, storageDriver, cgroupVersion, cpus, memoryBytes, rootless,
   dockerDesktop, containers, containersRunning, containersPaused,
   containersStopped, images, volumes, networks, collectedAt}` (counts the
-  agent could not read are `-1`; never host paths). The manager asks after
+  agent could not read are `-1`; never host paths). `containersRunning`
+  counts only the `running` state; every state but `running` and `paused`
+  (`exited`, `created`, `restarting`, `dead`, `removing`) counts as
+  `containersStopped`. The manager asks after
   every reconnect (a reconciler, before the environment is online), 1 s
   after Docker events or a capabilities change, and every 5 minutes.
 - `host.metrics {epoch?, afterSeq?, maxBatches?}` → `HostMetricsOutput {epoch,
