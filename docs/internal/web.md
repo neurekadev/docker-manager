@@ -175,8 +175,8 @@ order and cells: the image's update state is
 in its tooltip; with a policy the user may check it starts that policy's
 `update.check` job through `check.svelte.ts` and spins until the job
 ends, and while the running list has an `update.check` of that policy
-(`checkingPolicies` in `updates/running.ts`; checks of an
-environment policy do not spin per-target badges); the containers list finds the policy with `policiesByTarget` /
+(`checkingPolicies` in `updates/running.ts`; setup-wide checks carry the
+setup's ID and do not spin per-target badges); the containers list finds the policy with `policiesByTarget` /
 `containerPolicy`, the services table from the image status's
 `policyId`), and the networks are `$lib/features/resources/NetworkList.svelte`
 (each network linked to its page with the addresses on it). The services
@@ -284,7 +284,7 @@ button's accessible label says "newer images are available" when
 confirmation (`RemoveOrphansDialog`, opened through the stack page
 context's `removeOrphans` request) the overview's drift notice ("Remove Old
 Containers…") opens too. There is no separate Update button; schedules and
-automatic updates stay in the update policy.
+automatic updates stay in the update settings.
 
 Start, Restart and Stop are one split button, `LifecycleButton`
 (`$lib/features/common`, pure rules in `lifecycle.ts`), next to Deploy in
@@ -574,7 +574,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 | backup overview and policy pages | not generic job cards: the running backups and retentions of `GET /backup-activity` as one steady line each in "Running Now" (`RunningBackups`); a job leaving that list reports its outcome once (`onJobsFinished`); the activity also feeds the runs table |
 | backup, repository pages | verifications of the repository (`features/backups/jobs.ts`) |
 | restore dialog and wizard | a restore of the backup's stack or volumes opens on its progress |
-| update policy page, Updates, preview dialog | the policy's `update.check`/`update.run`; the Updates list counts them per policy; the preview dialog opens on a running `update.run`; succeeded update jobs clear after 4 s |
+| Updates, preview dialog | every `update.check`/`update.run` of the selected environment; the preview dialog opens on a running `update.run`; succeeded update jobs clear after 4 s |
 | file manager | see "Files, logs and terminals" |
 
 Uploads are the exception: they are browser requests, not jobs, so a

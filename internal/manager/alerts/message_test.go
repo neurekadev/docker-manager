@@ -20,9 +20,8 @@ func TestLinksPointAtTheSource(t *testing.T) {
 		{domain.Alert{Kind: domain.NotifyDiskSpace, EnvironmentID: "env-1"}, "/environments/env-1"},
 		{domain.Alert{Kind: domain.NotifyMemory, EnvironmentID: "env-1"}, "/environments/env-1"},
 		{domain.Alert{Kind: domain.NotifyJobFailed, ResourceID: "job-1"}, "/jobs/job-1"},
-		// The environment policy above the target's record, which has no
-		// page; Updates without one.
-		{domain.Alert{Kind: domain.NotifyUpdates, ResourceID: "rec-1", Facts: map[string]string{"policyId": "pol-1"}}, "/updates/pol-1"},
+		// Updates: the target's record has no page.
+		{domain.Alert{Kind: domain.NotifyUpdates, ResourceID: "rec-1", Facts: map[string]string{"policyId": "pol-1"}}, "/updates"},
 		{domain.Alert{Kind: domain.NotifyUpdates, ResourceID: "rec-1"}, "/updates"},
 		{domain.Alert{Kind: domain.NotifyDiskHealth}, "/notifications?tab=alerts"},
 	} {

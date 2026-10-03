@@ -132,7 +132,7 @@ type UpdateHistoryEntry struct {
 // environment and target.
 type UpdatePolicy struct {
 	ID                 string               `json:"id"`
-	ParentID           string               `json:"parentId,omitempty" doc:"The environment update policy that manages this target (its page); absent for a policy created before environment policies."`
+	ParentID           string               `json:"parentId,omitempty" doc:"The updates setup that manages this target (GET /update-settings); absent for a record created by hand."`
 	EnvironmentID      string               `json:"environmentId"`
 	Name               string               `json:"name"`
 	Target             UpdateTarget         `json:"target"`
@@ -307,6 +307,10 @@ func (h *updatesAPI) targetName(ctx context.Context, p domain.UpdatePolicy) stri
 // --- errors ---
 
 func updateError(err error) error {
+	var ae *Error
+	if errors.As(err, &ae) {
+		return ae
+	}
 	var ue *domain.UpdateError
 	var se *updates.ScheduleError
 	var fe *domain.FieldError
@@ -689,7 +693,7 @@ func (h *updatesAPI) containerImageStatus(ctx context.Context, in *ContainerPath
 }
 
 func registerUpdates(a huma.API, deps Deps) {
-	registerEnvironmentUpdates(a, deps)
+	registerUpdateSettings(a, deps)
 	h := &updatesAPI{svc: deps.Updates, authz: authz.OrDenyAll(deps.Authorizer), stacks: deps.Stacks, docker: newDockerAPI(deps)}
 	base := BasePath + "/update-policies"
 	one := base + "/{policyId}"
@@ -702,8 +706,8 @@ func registerUpdates(a huma.API, deps Deps) {
 		Description: "Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into " +
 			"digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's " +
 			"files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, " +
-			"environment and target. Target records an environment policy no longer covers (excluded, or the stack or container is " +
-			"gone) are omitted too: they remain readable by ID and are listed with their reason by the environment policy's targets.",
+			"environment and target. Target records the updates setup no longer covers (excluded, or the stack or container is " +
+			"gone) are omitted too: they remain readable by ID and are listed with their reason by GET /update-settings/targets.",
 		Tags: []string{tagUpdates}, Errors: read,
 	}, Capability: CapUpdatePolicyRead, Scope: ScopeResource}, h.list)
 

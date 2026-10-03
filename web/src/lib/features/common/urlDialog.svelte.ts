@@ -1,6 +1,6 @@
 // A dialog whose open state lives in a URL query parameter (#22): create
 // and edit forms open as modals over their list or detail page, and links
-// such as routes.updatePolicyNew() (`/updates?create=1`) open them from
+// such as routes.updatesEdit() (`/updates?edit=1`) open them from
 // anywhere. Opening and closing replace the history entry, so Back leaves
 // the page instead of toggling the dialog.
 import { goto } from '$app/navigation';

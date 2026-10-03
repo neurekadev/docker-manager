@@ -1,8 +1,8 @@
-// The update policy page's running checks and updates (#20,
-// docs/internal/web.md "Job progress after reload"): the policy's running
-// jobs come back from the running list after a reload (Check Now stays
-// busy while its checks run), and Check Now shows the jobs it started at
-// once.
+// The Updates page (#20, #240, docs/internal/web.md "Job progress after
+// reload"): running checks and updates come back from the running list
+// after a reload (Check Now stays busy while checks run), Check Now shows
+// the jobs it started at once, and a caller who may not read the settings
+// still sees what needs attention, without the settings' actions.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -10,12 +10,12 @@ import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import type { Job } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
-import PolicyPage from '../../../routes/(app)/updates/[policyId]/+page.svelte';
+import UpdatesPage from '../../../routes/(app)/updates/+page.svelte';
 
 const nav = vi.hoisted(() => ({
 	page: {
-		params: { policyId: 'pol-1' } as Record<string, string>,
-		url: new URL('http://localhost/updates/pol-1')
+		params: {} as Record<string, string>,
+		url: new URL('http://localhost/updates')
 	},
 	goto: vi.fn()
 }));
@@ -30,7 +30,7 @@ function job(id: string, p: Partial<Job> = {}): Job {
 		origin: 'scheduled',
 		executor: 'manager',
 		environmentId: 'env-1',
-		policyId: 'pol-1',
+		policyId: 'set-1',
 		targets: [{ type: 'container', id: 'web' }],
 		attempt: 1,
 		progress: { percent: 30 },
@@ -46,34 +46,50 @@ function job(id: string, p: Partial<Job> = {}): Job {
 	} as Job;
 }
 
-const policy = {
-	id: 'pol-1',
-	name: 'Nightly updates',
-	scope: 'all',
-	enabled: true,
-	revision: 1,
+const settings = {
+	id: 'set-1',
+	excludeEnvironments: [],
 	excludeStacks: [],
 	excludeContainers: [],
 	checkSchedule: { enabled: false, cron: '0 3 * * *', timeZone: 'UTC' },
 	runSchedule: { enabled: false, cron: '0 4 * * *', timeZone: 'UTC' },
 	waitTimeoutSeconds: 0,
-	createdAt: '2026-09-01T10:00:00Z',
+	actions: ['update_policy.read', 'update_policy.manage', 'update.check', 'update.run'],
+	revision: 1,
 	updatedAt: '2026-09-01T10:00:00Z'
+};
+
+// A covered container's record with an update available.
+const record = {
+	id: 'rec-1',
+	parentId: 'set-1',
+	environmentId: 'env-1',
+	name: 'Automatic updates for web',
+	targetName: 'web',
+	target: { type: 'container', id: 'web' },
+	view: 'full',
+	actions: ['update.check'],
+	summary: {
+		available: 1,
+		upToDate: 0,
+		quarantined: 0,
+		ineligible: 0,
+		failed: 0,
+		unchecked: 0,
+		lastCheckAt: '2026-09-28T09:00:00Z'
+	}
 };
 
 let running: Job[] = [];
 let details: Record<string, Job> = {};
 let started: Job[] = [];
-// Target records (GET /update-policies/{id}) by ID.
-let records: Record<string, unknown> = {};
+let canRead = true;
 
 beforeEach(() => {
 	running = [];
 	details = {};
 	started = [];
-	records = {};
-	nav.page.params.policyId = 'pol-1';
-	nav.goto.mockClear();
+	canRead = true;
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -82,11 +98,14 @@ beforeEach(() => {
 				status,
 				headers: { 'Content-Type': 'application/json' }
 			});
-		if (url.pathname === '/api/v1/environment-update-policies/pol-1') return json(200, policy);
-		if (url.pathname === '/api/v1/environment-update-policies/pol-1/targets')
-			return json(200, { items: [] });
-		if (url.pathname === '/api/v1/environment-update-policies/pol-1/checks')
-			return json(202, { jobs: started });
+		const problem = (status: number, code: string) =>
+			json(status, { code, message: code, details: [], requestId: 'r', retryable: false });
+		if (url.pathname.startsWith('/api/v1/update-settings') && !canRead)
+			return problem(403, 'forbidden');
+		if (url.pathname === '/api/v1/update-settings') return json(200, settings);
+		if (url.pathname === '/api/v1/update-settings/targets') return json(200, { items: [] });
+		if (url.pathname === '/api/v1/update-settings/checks') return json(200, { jobs: started });
+		if (url.pathname === '/api/v1/update-policies') return json(200, { items: [record] });
 		if (url.pathname === '/api/v1/jobs') {
 			// The running list asks for the unfinished states; the recent
 			// runs query does not.
@@ -95,15 +114,7 @@ beforeEach(() => {
 		}
 		const id = url.pathname.match(/^\/api\/v1\/jobs\/([^/]+)$/)?.[1];
 		if (id && details[id]) return json(200, details[id]);
-		const rec = url.pathname.match(/^\/api\/v1\/update-policies\/([^/]+)$/)?.[1];
-		if (rec && records[rec]) return json(200, records[rec]);
-		return json(404, {
-			code: 'not_found',
-			message: 'no',
-			details: [],
-			requestId: 'r',
-			retryable: false
-		});
+		return problem(404, 'not_found');
 	});
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -113,57 +124,15 @@ function openPage() {
 	render(QueryHarness, {
 		props: {
 			client,
-			component: PolicyPage as unknown as Component<Record<string, unknown>>,
+			component: UpdatesPage as unknown as Component<Record<string, unknown>>,
 			props: {}
 		}
 	});
 }
 
-// A target's record as GET /update-policies/{id} returns it.
-function record(id: string, parentId?: string) {
-	return {
-		id,
-		parentId,
-		environmentId: 'env-1',
-		name: 'Automatic updates for web',
-		target: { type: 'container', id: 'web' },
-		view: 'full',
-		actions: []
-	};
-}
-
-describe('update policy page: links to a target record (#218)', () => {
-	it('opens the environment policy that manages the record', async () => {
-		nav.page.params.policyId = 'rec-1';
-		records['rec-1'] = record('rec-1', 'pol-1');
-		openPage();
-		await waitFor(() =>
-			expect(nav.goto).toHaveBeenCalledWith('/updates/pol-1', { replaceState: true })
-		);
-		expect(screen.queryByText('This update policy does not exist.')).toBeNull();
-	});
-
-	it('opens Updates for a record without an environment policy', async () => {
-		nav.page.params.policyId = 'rec-2';
-		records['rec-2'] = record('rec-2');
-		openPage();
-		await waitFor(() =>
-			expect(nav.goto).toHaveBeenCalledWith('/updates', { replaceState: true })
-		);
-	});
-
-	it('says the policy does not exist when nothing has the ID', async () => {
-		nav.page.params.policyId = 'gone';
-		openPage();
-		expect(await screen.findByText('This update policy does not exist.')).toBeInTheDocument();
-		expect(nav.goto).not.toHaveBeenCalled();
-	});
-});
-
-describe('update policy page: running checks and updates', () => {
-	it("shows the policy's running checks and updates after a reload", async () => {
+describe('Updates page', () => {
+	it('shows the running checks and updates after a reload', async () => {
 		running = [
-			job('0190-3', { policyId: 'pol-2', targets: [{ type: 'container', id: 'db' }] }),
 			job('0190-2', { kind: 'update.run', targets: [{ type: 'container', id: 'api' }] }),
 			job('0190-1')
 		];
@@ -176,13 +145,11 @@ describe('update policy page: running checks and updates', () => {
 		expect(
 			screen.getByRole('progressbar', { name: 'Apply Updates api progress' })
 		).toBeInTheDocument();
-		// Another policy's check is not this page's.
-		expect(screen.getAllByRole('progressbar')).toHaveLength(2);
 		expect(
-			screen.getByRole('region', { name: 'Running Checks and Updates of Nightly updates' })
+			screen.getByRole('region', { name: 'Running Checks and Updates' })
 		).toBeInTheDocument();
-		// Its checks are running: Check Now waits for them.
-		expect(screen.getByRole('button', { name: /Check Now/ })).toBeDisabled();
+		// Checks are running: Check Now waits for them.
+		expect(await screen.findByRole('button', { name: /Check Now/ })).toBeDisabled();
 	});
 
 	it('shows the checks Check Now started at once', async () => {
@@ -207,5 +174,18 @@ describe('update policy page: running checks and updates', () => {
 		expect(
 			screen.getByRole('progressbar', { name: 'Check for Updates api progress' })
 		).toBeInTheDocument();
+	});
+
+	it('shows what needs attention without the settings to a caller who may not read them', async () => {
+		canRead = false;
+		openPage();
+
+		const table = await screen.findByRole('table', {
+			name: 'Stacks and containers that need attention'
+		});
+		expect(table).toHaveTextContent('web');
+		expect(screen.queryByRole('button', { name: /Check Now/ })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+		expect(screen.queryByText('What It Covers')).toBeNull();
 	});
 });

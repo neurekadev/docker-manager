@@ -49,6 +49,7 @@ import (
 // Jobs is the job engine as the update service uses it (*jobs.Engine).
 type Jobs interface {
 	Enqueue(ctx context.Context, req jobs.Request) (domain.Job, bool, error)
+	Cancel(ctx context.Context, id string) (domain.Job, error)
 	OnFinish(kind domain.JobKind, h jobs.FinishHook)
 	RegisterManagerExecutor(x jobexec.Executor) error
 }
@@ -209,9 +210,9 @@ func (s *Service) Get(ctx context.Context, id string) (domain.UpdatePolicy, erro
 }
 
 // List returns policies in ID order (environment "" = all). Target records
-// an environment policy no longer covers (excluded, or their stack or
+// the updates setup no longer covers (excluded, or their stack or
 // container is gone) are left out: they still exist for their history
-// (Get, the environment policy's targets) but no longer apply.
+// (Get, the setup's targets) but no longer apply.
 func (s *Service) List(ctx context.Context, environmentID, afterID string, limit int) ([]domain.UpdatePolicy, error) {
 	return store.ListCoveredUpdatePolicies(ctx, s.db, environmentID, afterID, limit)
 }

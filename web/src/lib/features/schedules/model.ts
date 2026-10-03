@@ -82,7 +82,7 @@ export function policyHref(kind: string, policyId?: string): string {
 			return policyId ? routes.backupRepository(policyId) : routes.backupRepositories();
 		case 'update_check':
 		case 'update_run':
-			return policyId ? routes.updatePolicy(policyId) : routes.updates();
+			return routes.updates();
 		case 'prune':
 			return routes.maintenance();
 		default:
@@ -95,7 +95,7 @@ const ENVIRONMENT_KINDS = new Set(['update_check', 'update_run', 'prune']);
 
 /**
  * Where a schedule applies: its environment, "All Environments" for
- * update policies over every environment and maintenance, else "Manager" (backups
+ * updates and maintenance, else "Manager" (backups
  * and repository verification run on Docker Manager itself).
  */
 export function scheduleScope(

@@ -105,7 +105,6 @@ func ErrorCodes() []ErrorCode {
 		{CodeMigrationSourceInUse, http.StatusConflict, false, "A Docker Manager stack on the source environment manages the migrated project again (it was imported back); its files are not removed.", 35},
 		{CodeUpdatePolicyTargetUsed, http.StatusConflict, false, "The stack or container already has an update policy (one per target); edit that policy.", 20},
 		{CodeUpdatePolicyNameTaken, http.StatusConflict, false, "Another update policy in the environment already uses this name.", 20},
-		{"update_scope_overlap", http.StatusConflict, false, "An update policy already covers this environment; remove it before creating an overlapping policy.", 20},
 		{CodeUpdateTargetIneligible, http.StatusConflict, false, "The target cannot follow digests: Docker Manager's own project or containers (#32), a container without a saved recreate specification, or a stack member; the message says which.", 20},
 		{CodeNoUpdateCandidates, http.StatusConflict, false, "Nothing to update: no checked candidate with a new host-platform digest (run a check first; quarantined and failed candidates are not applied).", 20},
 		{CodeUpdateSourceDrift, http.StatusConflict, false, "The stack's definition on disk differs from the applied revision (undeployed changes); deploy it first. An update never deploys an edit or writes a file.", 20},

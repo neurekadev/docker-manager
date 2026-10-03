@@ -1,55 +1,35 @@
-// Update policies (#20) for Svelte Query. Policies are live topic
-// 'policies' (resource type update_policy): a policy change or a finished
-// check/run job refreshes these keys.
+// The update settings and the records of their targets (#20, #240) for
+// Svelte Query: live topic 'policies' (resource type update_policy); a
+// settings change or a finished check/run job refreshes these keys.
 import { queryOptions } from '@tanstack/svelte-query';
 import { api, unwrap, type ApiClient, type Schema } from '$lib/api/client';
 import { liveKeys } from '$lib/live/keys';
 import { fetchAllPages } from '$lib/features/common/data';
 import type { UpdateCandidate, UpdatePolicy } from './model';
 
-export type EnvironmentUpdatePolicy = Schema<'EnvironmentUpdatePolicy'>;
-export const environmentUpdateKeys = {
-	list: () => liveKeys.list('policies', 'environment-updates'),
-	detail: (id: string) => liveKeys.item('policies', 'environment-update', id),
-	targets: (id: string) => liveKeys.item('policies', 'environment-update-targets', id)
+export type UpdateSettings = Schema<'UpdateSettings'>;
+export type UpdateSettingsTarget = Schema<'UpdateSettingsTarget'>;
+
+export const updateSettingsKeys = {
+	settings: liveKeys.list('policies', 'update-settings'),
+	targets: liveKeys.list('policies', 'update-targets')
 };
 
-export function environmentUpdatePoliciesQuery(client: ApiClient = api) {
+/** The update settings (update_policy.read on all environments). */
+export function updateSettingsQuery(client: ApiClient = api) {
 	return queryOptions({
-		queryKey: environmentUpdateKeys.list(),
-		queryFn: async ({ signal }): Promise<EnvironmentUpdatePolicy[]> =>
-			(await unwrap(client.GET('/api/v1/environment-update-policies', { signal }))).items
+		queryKey: updateSettingsKeys.settings,
+		queryFn: ({ signal }): Promise<UpdateSettings> =>
+			unwrap(client.GET('/api/v1/update-settings', { signal }))
 	});
 }
 
-export function environmentUpdatePolicyQuery(id: string, client: ApiClient = api) {
+/** Every target record of the update settings, covered or not. */
+export function updateTargetsQuery(client: ApiClient = api) {
 	return queryOptions({
-		queryKey: environmentUpdateKeys.detail(id),
-		queryFn: ({ signal }): Promise<EnvironmentUpdatePolicy> =>
-			unwrap(
-				client.GET('/api/v1/environment-update-policies/{policyId}', {
-					params: { path: { policyId: id } },
-					signal
-				})
-			)
-	});
-}
-
-export type EnvironmentTarget = Schema<'EnvironmentTarget'>;
-
-/** The stacks and containers an environment update policy covers. */
-export function environmentUpdateTargetsQuery(id: string, client: ApiClient = api) {
-	return queryOptions({
-		queryKey: environmentUpdateKeys.targets(id),
-		queryFn: async ({ signal }): Promise<EnvironmentTarget[]> =>
-			(
-				await unwrap(
-					client.GET('/api/v1/environment-update-policies/{policyId}/targets', {
-						params: { path: { policyId: id } },
-						signal
-					})
-				)
-			).items
+		queryKey: updateSettingsKeys.targets,
+		queryFn: async ({ signal }): Promise<UpdateSettingsTarget[]> =>
+			(await unwrap(client.GET('/api/v1/update-settings/targets', { signal }))).items
 	});
 }
 

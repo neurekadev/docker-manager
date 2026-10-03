@@ -139,9 +139,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	backupRepositoryNew: [routes.backupRepositoryNew()],
 	backupRepository: [routes.backupRepository('br-1')],
 	updates: [routes.updates()],
-	updatePolicyNew: [routes.updatePolicyNew()],
-	updatePolicy: [routes.updatePolicy('up-1')],
-	updatePolicyEdit: [routes.updatePolicyEdit('up-1')],
+	updatesEdit: [routes.updatesEdit()],
 	maintenance: [routes.maintenance()],
 	maintenanceEdit: [routes.maintenanceEdit()],
 	jobs: [

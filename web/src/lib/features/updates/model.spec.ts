@@ -3,7 +3,6 @@ import {
 	candidateStatus,
 	containerPolicy,
 	containerTargetName,
-	coveredTargets,
 	daysText,
 	imageLabel,
 	inactiveReason,
@@ -13,7 +12,7 @@ import {
 	policyStatusText,
 	publishedText,
 	reasonLabel,
-	recordPolicyHref,
+	recordRow,
 	recoveryText,
 	runnable,
 	summarizeTargets,
@@ -217,15 +216,20 @@ describe('update counts and coverage (#20)', () => {
 		).toBe('3 images in 2 stacks');
 	});
 
-	it('keeps covered targets once, in the selected environment', () => {
-		const t = (policyId: string, environmentId: string, inactive = false) => ({
-			policyId,
-			environmentId,
-			inactive
+	it("makes a covered target's row from its record", () => {
+		const row = recordRow({
+			id: 'rec-1',
+			environmentId: 'e1',
+			target: { type: 'container', id: 'pihole' }
 		});
-		const lists = [[t('a', 'e1'), t('b', 'e2'), t('c', 'e1', true)], [t('a', 'e1')], undefined];
-		expect(coveredTargets(lists, null).map((x) => x.policyId)).toEqual(['a', 'b']);
-		expect(coveredTargets(lists, 'e2').map((x) => x.policyId)).toEqual(['b']);
+		expect(row).toMatchObject({
+			policyId: 'rec-1',
+			environmentId: 'e1',
+			type: 'container',
+			id: 'pihole',
+			inactive: false
+		});
+		expect(row.candidateSummary.available).toBe(0);
 	});
 
 	it('names containers, never by their Engine ID', () => {
@@ -277,9 +281,8 @@ describe('update counts and coverage (#20)', () => {
 		const rows = withExclusions(
 			[known],
 			{
-				scope: 'all',
 				excludeStacks: ['s1', 's2', 'gone'],
-				excludeContainers: ['e2/pihole']
+				excludeContainers: ['e2/pihole', 'malformed']
 			},
 			(id) => (id === 'gone' ? undefined : 'e1')
 		);
@@ -358,14 +361,5 @@ describe('update badges (#20)', () => {
 		expect(containerPolicy(index, { environmentId: 'e1', name: 'pihole', stack: {} })).toBe(
 			undefined
 		);
-	});
-});
-
-describe('links to a target record (#218)', () => {
-	it('lead to the environment policy that manages it, else Updates', () => {
-		expect(recordPolicyHref({ id: 'rec-1', parentId: 'pol-1' })).toBe('/updates/pol-1');
-		expect(recordPolicyHref({ id: 'rec-1' })).toBe('/updates');
-		// Never back to itself.
-		expect(recordPolicyHref({ id: 'rec-1', parentId: 'rec-1' })).toBe('/updates');
 	});
 });

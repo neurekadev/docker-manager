@@ -42,11 +42,11 @@ type UpdateWindow struct {
 	End   string
 }
 
-// UpdatePolicy opts one target into digest-driven updates.
+// UpdatePolicy is the record of one target of digest-driven updates.
 type UpdatePolicy struct {
 	ID string
-	// ParentID identifies the environment policy that manages this target.
-	// Empty marks a policy created before environment policies existed.
+	// ParentID is the updates setup that manages this target (empty only
+	// for records created by hand, never by the setup).
 	ParentID      string
 	Inactive      bool
 	EnvironmentID string
@@ -69,24 +69,26 @@ type UpdatePolicy struct {
 	UpdatedAt          time.Time
 }
 
-// EnvironmentUpdatePolicy controls automatic updates for one environment,
-// or every environment when EnvironmentID is empty. Targets are discovered
-// when checks and runs are scheduled, so new stacks and containers are covered.
-type EnvironmentUpdatePolicy struct {
-	ID            string
-	EnvironmentID string
-	Name          string
-	ExcludeStacks []string
-	// ExcludeContainers contains container names for a single environment;
-	// global policies use environmentID/containerName pairs.
-	ExcludeContainers  []string
-	Check              UpdateSchedule
-	Run                UpdateSchedule
-	Window             *UpdateWindow
-	WaitTimeoutSeconds int
-	Revision           int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+// UpdateSetup is the one updates setup of the instance (#240): it covers
+// every Docker Manager stack and managed standalone container of every
+// environment except what it leaves out. Targets are discovered when
+// checks and runs happen, so new stacks, containers and environments are
+// covered.
+type UpdateSetup struct {
+	// ID is the policy ID of its schedules and environment-wide jobs, and
+	// the ParentID of its target records.
+	ID string
+	// ExcludeEnvironments, ExcludeStacks (stack IDs) and ExcludeContainers
+	// (environmentID/containerName) are left out.
+	ExcludeEnvironments []string
+	ExcludeStacks       []string
+	ExcludeContainers   []string
+	Check               UpdateSchedule
+	Run                 UpdateSchedule
+	Window              *UpdateWindow
+	WaitTimeoutSeconds  int
+	Revision            int64
+	UpdatedAt           time.Time
 }
 
 // UpdatePolicyPatch changes a policy (nil fields are kept).
@@ -128,15 +130,16 @@ const (
 	CandidateRunFailed UpdateCandidateStatus = "run_failed"
 )
 
-// Why a target record of an environment policy is inactive (no longer
+// Why a target record of the updates setup is inactive (no longer
 // covered). The record stays for its history.
 const (
-	// UpdateTargetExcluded: the policy's exclusions or the container's
-	// docker-manager.update.exclude=true label leave it out.
+	// UpdateTargetExcluded: the setup's exclusions (of the target or its
+	// environment) or the container's docker-manager.update.exclude=true
+	// label leave it out.
 	UpdateTargetExcluded = "excluded"
-	// UpdateTargetMissing: the stack or container no longer exists in the
-	// policy's scope, or no longer qualifies (a container without its
-	// saved specification, Docker Manager's own containers).
+	// UpdateTargetMissing: the stack or container no longer exists, or no
+	// longer qualifies (a container without its saved specification,
+	// Docker Manager's own containers).
 	UpdateTargetMissing = "missing"
 )
 
@@ -295,7 +298,6 @@ var (
 	ErrUpdatePolicyNotFound   = errors.New("update policy not found")
 	ErrUpdatePolicyTargetUsed = errors.New("the target already has an update policy")
 	ErrUpdatePolicyNameTaken  = errors.New("another update policy in this environment already uses this name")
-	ErrUpdateScopeOverlap     = errors.New("an update policy already covers this environment")
 )
 
 // UpdateError is a refused update operation with a stable code.

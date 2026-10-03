@@ -84,7 +84,7 @@ describe('environment model', () => {
 			migration: { stacks: 2, description: '' },
 			dependents: [
 				{ kind: 'stack', onArchive: 'kept', count: 2, items: [] },
-				{ kind: 'update_policy', onArchive: 'paused', count: 1, items: [] },
+				{ kind: 'backup_policy', onArchive: 'paused', count: 1, items: [] },
 				{ kind: 'permission_rule', onArchive: 'removed', count: 3, items: [] },
 				{ kind: 'job', onArchive: 'interrupted', count: 0, items: [] }
 			]
@@ -92,7 +92,7 @@ describe('environment model', () => {
 		expect(removalConsequences(preview)).toEqual([
 			'Hides homelab from every operation. Its history and backups are kept.',
 			'2 stacks: kept, and back after a re-attach.',
-			'1 update policy: kept; scheduled runs pause until a re-attach.',
+			'1 backup policy: kept; scheduled runs pause until a re-attach.',
 			'3 permission rules: removed (audited).',
 			'Nothing on the host changes: containers, volumes and files keep running as they are.'
 		]);

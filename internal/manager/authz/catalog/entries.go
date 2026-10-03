@@ -25,7 +25,7 @@ func resourceTypes() []ResourceType {
 			Parents: []string{TypeStack}, Read: "network.read", Minimal: "id, name, environmentId"},
 		{Key: TypeBuildDefinition, Label: "Build Definitions", Scopable: true, EnvironmentBound: true, Read: "build_definition.read",
 			Minimal: "id, name, environmentId"},
-		{Key: TypeUpdatePolicy, Label: "Update Policies", Scopable: true, EnvironmentBound: true, Read: "update_policy.read",
+		{Key: TypeUpdatePolicy, Label: "Updates", Scopable: true, EnvironmentBound: true, Read: "update_policy.read",
 			Parents: []string{TypeStack, TypeContainer}, Minimal: "id, name, environmentId, target"},
 		// The one maintenance setup (#238): instance-wide, never one
 		// resource of a rule.
@@ -214,13 +214,14 @@ func capabilities() []Capability {
 		adv(normal("build_definition.manage", TypeBuildDefinition, "Manage Build Definitions", "Create, edit and delete build definitions.", buildScope)),
 	)
 
-	// Updates (#20).
-	// Environment policies authorize checks and runs in their environment;
-	// target jobs still accept grants scoped to stacks or containers.
+	// Updates (#20, #240). The settings cover every environment, so they and
+	// checks or runs of everything they cover need instance grants; the
+	// target records (one per stack or container) also accept grants on an
+	// environment, a stack or a container.
 	updateScope := res(TypeUpdatePolicy, TypeStack, TypeContainer)
 	add(
-		normal("update_policy.read", TypeUpdatePolicy, "View Update Policies", "See update policies, candidates and their state.", res(TypeUpdatePolicy)),
-		adv(normal("update_policy.manage", TypeUpdatePolicy, "Manage Update Policies", "Create, edit and delete update policies.", res(TypeUpdatePolicy))),
+		normal("update_policy.read", TypeUpdatePolicy, "View Updates", "See the update settings (on all environments) and the update state of stacks and containers.", res(TypeUpdatePolicy)),
+		adv(normal("update_policy.manage", TypeUpdatePolicy, "Manage Updates", "Change the update settings: schedules, window and what is left out.", instanceOnly)),
 		adv(normal("update.check", TypeUpdatePolicy, "Check for Updates", "Check registries for newer digests of fixed tags.", updateScope)),
 		adv(normal("update.run", TypeUpdatePolicy, "Apply Updates", "Pull updated images and recreate services or containers (no automatic rollback).", updateScope)),
 	)
@@ -316,7 +317,6 @@ func capabilities() []Capability {
 		ownerOnly("template_registry.manage", "Manage Template Registries", "Add, sync and remove other Docker Manager instances' template registries."),
 		ownerOnly("api_tokens.manage", "Manage Other Users' API Tokens", "List and revoke API tokens of every user."),
 		ownerOnly("manager.backup", "Back Up the Manager", "Back up Docker Manager's own state (database, keys)."),
-		ownerOnly("update_policy.manage_all", "Manage Updates Across All Environments", "Create and change an update policy covering current and future environments."),
 		ownerOnly("backup.import", "Import Backup Repositories", "Import an existing repository into a fresh manager (first-run recovery)."),
 		ownerOnly("system.restore", "Restore the Manager", "Restore Docker Manager itself from a manager backup."),
 		ownerOnly("manager.move", "Move the Manager", "Move Docker Manager to a new server: create and cancel move codes; a fresh manager receives the moved state."),
