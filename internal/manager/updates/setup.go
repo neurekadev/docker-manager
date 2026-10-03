@@ -17,35 +17,29 @@ import (
 	"github.com/neurekadev/docker-manager/internal/ids"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/manager/jobs"
-	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
-// NewEnvironmentPolicy is the settings of an all-environments or a single
-// environment update policy. Empty EnvironmentID means all environments.
-type NewEnvironmentPolicy struct {
-	EnvironmentID      string
-	Name               string
-	ExcludeStacks      []string
-	ExcludeContainers  []string
+// SetupChange changes the updates setup (nil fields are kept).
+type SetupChange struct {
+	ExcludeEnvironments *[]string
+	ExcludeStacks       *[]string
+	// ExcludeContainers are environmentID/containerName pairs.
+	ExcludeContainers  *[]string
 	Check              *domain.UpdateSchedule
 	Run                *domain.UpdateSchedule
 	Window             *domain.UpdateWindow
-	WaitTimeoutSeconds int
+	ClearWindow        bool
+	WaitTimeoutSeconds *int
 }
 
-// ListEnvironmentPolicies returns the user-configured update policies.
-func (s *Service) ListEnvironmentPolicies(ctx context.Context) ([]domain.EnvironmentUpdatePolicy, error) {
-	return store.ListEnvironmentUpdatePolicies(ctx, s.db)
+// Setup returns the updates setup.
+func (s *Service) Setup(ctx context.Context) (domain.UpdateSetup, error) {
+	return store.GetUpdateSetup(ctx, s.db)
 }
 
-// GetEnvironmentPolicy returns one user-configured update policy.
-func (s *Service) GetEnvironmentPolicy(ctx context.Context, id string) (domain.EnvironmentUpdatePolicy, error) {
-	return store.GetEnvironmentUpdatePolicy(ctx, s.db, id)
-}
-
-func validExclusions(field string, values []string, global bool) ([]string, error) {
+func validExclusions(field string, values []string) ([]string, error) {
 	if len(values) > 256 {
 		return nil, fieldErr(field, "at most 256 exclusions")
 	}
@@ -54,167 +48,91 @@ func validExclusions(field string, values []string, global bool) ([]string, erro
 		if value == "" || len(value) > 256 || strings.ContainsAny(value, " \t\r\n") {
 			return nil, fieldErr(field, "invalid exclusion %q", value)
 		}
-		if field == "excludeContainers" {
-			if global && !strings.Contains(value, "/") {
-				return nil, fieldErr(field, "global container exclusions must be environmentID/containerName")
-			}
-			if !global && strings.Contains(value, "/") {
-				return nil, fieldErr(field, "single-environment container exclusions use container names")
-			}
+		if field == "excludeContainers" && !strings.Contains(value, "/") {
+			return nil, fieldErr(field, "container exclusions must be environmentID/containerName")
 		}
 	}
 	slices.Sort(out)
 	return slices.Compact(out), nil
 }
 
-func (s *Service) validateEnvironmentPolicy(ctx context.Context, p *domain.EnvironmentUpdatePolicy) error {
-	p.Name = strings.TrimSpace(p.Name)
-	if p.Name == "" || len(p.Name) > 100 {
-		return fieldErr("name", "must be 1 to 100 characters")
-	}
-	if p.EnvironmentID != "" {
-		env, err := s.opts.Environments.GetEnvironment(ctx, p.EnvironmentID)
+// UpdateSetup changes the setup when the revision matches. Environments
+// left out that no longer exist are dropped.
+func (s *Service) UpdateSetup(ctx context.Context, revision int64, c SetupChange) (before, after domain.UpdateSetup, err error) {
+	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		cur, err := store.GetUpdateSetup(ctx, tx)
 		if err != nil {
 			return err
 		}
-		if env.Status == domain.EnvironmentArchived {
-			return fieldErr("environmentId", "archived environments cannot be configured")
+		before = cur
+		if cur.Revision != revision {
+			return domain.ErrRevisionMismatch
 		}
-	}
-	var err error
-	if p.ExcludeStacks, err = validExclusions("excludeStacks", p.ExcludeStacks, p.EnvironmentID == ""); err != nil {
-		return err
-	}
-	if p.ExcludeContainers, err = validExclusions("excludeContainers", p.ExcludeContainers, p.EnvironmentID == ""); err != nil {
-		return err
-	}
-	if p.WaitTimeoutSeconds < 0 || p.WaitTimeoutSeconds > 3600 {
-		return fieldErr("waitTimeoutSeconds", "must be between 0 and 3600")
-	}
-	if err := validWindow(p.Window); err != nil {
-		return err
-	}
-	if err := validSchedule("checkSchedule", p.Check); err != nil {
-		return err
-	}
-	return validSchedule("runSchedule", p.Run)
-}
-
-func (s *Service) scopeAvailable(ctx context.Context, db bun.IDB, env, except string) error {
-	policies, err := store.ListEnvironmentUpdatePolicies(ctx, db)
-	if err != nil {
-		return err
-	}
-	for _, p := range policies {
-		if p.ID != except && (env == "" || p.EnvironmentID == "" || p.EnvironmentID == env) {
-			return domain.ErrUpdateScopeOverlap
+		next := cur
+		if c.ExcludeEnvironments != nil {
+			envs, err := store.ListEnvironments(ctx, tx, domain.EnvironmentFilter{})
+			if err != nil {
+				return err
+			}
+			next.ExcludeEnvironments = []string{}
+			for _, e := range envs {
+				if slices.Contains(*c.ExcludeEnvironments, e.ID) {
+					next.ExcludeEnvironments = append(next.ExcludeEnvironments, e.ID)
+				}
+			}
+			slices.Sort(next.ExcludeEnvironments)
 		}
-	}
-	legacy, err := store.ListUpdatePolicies(ctx, db, "", "", 0)
-	if err != nil {
-		return err
-	}
-	for _, p := range legacy {
-		if p.ParentID == "" && (env == "" || p.EnvironmentID == env) {
-			return domain.ErrUpdateScopeOverlap
-		}
-	}
-	return nil
-}
-
-// CreateEnvironmentPolicy stores one non-overlapping scope. New policies do
-// not check or run automatically until their schedules are enabled.
-func (s *Service) CreateEnvironmentPolicy(ctx context.Context, in NewEnvironmentPolicy) (domain.EnvironmentUpdatePolicy, error) {
-	check, err := s.defaultSchedule(ctx, scheduler.KindUpdateCheck, in.Check)
-	if err != nil {
-		return domain.EnvironmentUpdatePolicy{}, err
-	}
-	run, err := s.defaultSchedule(ctx, scheduler.KindUpdateRun, in.Run)
-	if err != nil {
-		return domain.EnvironmentUpdatePolicy{}, err
-	}
-	p := domain.EnvironmentUpdatePolicy{ID: ids.New(), EnvironmentID: in.EnvironmentID, Name: in.Name,
-		ExcludeStacks: in.ExcludeStacks, ExcludeContainers: in.ExcludeContainers, Check: check, Run: run,
-		Window: in.Window, WaitTimeoutSeconds: in.WaitTimeoutSeconds, Revision: 1}
-	if err := s.validateEnvironmentPolicy(ctx, &p); err != nil {
-		return p, err
-	}
-	p.CreatedAt, p.UpdatedAt = s.now(), s.now()
-	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.scopeAvailable(ctx, tx, p.EnvironmentID, ""); err != nil {
-			return err
-		}
-		return store.InsertEnvironmentUpdatePolicy(ctx, tx, p)
-	})
-	if err == nil {
-		s.notify()
-	}
-	return p, err
-}
-
-// UpdateEnvironmentPolicy replaces the settings of one scope after a
-// revision check. The scope itself is immutable.
-func (s *Service) UpdateEnvironmentPolicy(ctx context.Context, id string, revision int64, in NewEnvironmentPolicy) (domain.EnvironmentUpdatePolicy, error) {
-	p, err := store.GetEnvironmentUpdatePolicy(ctx, s.db, id)
-	if err != nil {
-		return p, err
-	}
-	if p.Revision != revision {
-		return p, domain.ErrRevisionMismatch
-	}
-	if in.EnvironmentID != p.EnvironmentID {
-		return p, fieldErr("environmentId", "create another policy to change scope")
-	}
-	check, err := s.defaultSchedule(ctx, scheduler.KindUpdateCheck, in.Check)
-	if err != nil {
-		return p, err
-	}
-	run, err := s.defaultSchedule(ctx, scheduler.KindUpdateRun, in.Run)
-	if err != nil {
-		return p, err
-	}
-	p.Name, p.ExcludeStacks, p.ExcludeContainers = in.Name, in.ExcludeStacks, in.ExcludeContainers
-	p.Check, p.Run, p.Window, p.WaitTimeoutSeconds = check, run, in.Window, in.WaitTimeoutSeconds
-	if err := s.validateEnvironmentPolicy(ctx, &p); err != nil {
-		return p, err
-	}
-	p.Revision, p.UpdatedAt = revision+1, s.now()
-	if err := store.UpdateEnvironmentUpdatePolicy(ctx, s.db, p, revision); err != nil {
-		return p, err
-	}
-	s.notify()
-	return p, nil
-}
-
-// DeleteEnvironmentPolicy removes the scope and its managed target policies.
-func (s *Service) DeleteEnvironmentPolicy(ctx context.Context, id string, revision int64) error {
-	p, err := store.GetEnvironmentUpdatePolicy(ctx, s.db, id)
-	if err != nil {
-		return err
-	}
-	if p.Revision != revision {
-		return domain.ErrRevisionMismatch
-	}
-	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		children, err := store.UpdatePoliciesForParent(ctx, tx, id)
-		if err != nil {
-			return err
-		}
-		for _, child := range children {
-			if err := store.DeleteUpdatePolicy(ctx, tx, child.ID, child.Revision); err != nil {
+		if c.ExcludeStacks != nil {
+			if next.ExcludeStacks, err = validExclusions("excludeStacks", *c.ExcludeStacks); err != nil {
 				return err
 			}
 		}
-		return store.DeleteEnvironmentUpdatePolicy(ctx, tx, id, revision)
+		if c.ExcludeContainers != nil {
+			if next.ExcludeContainers, err = validExclusions("excludeContainers", *c.ExcludeContainers); err != nil {
+				return err
+			}
+		}
+		if c.Check != nil {
+			next.Check = *c.Check
+		}
+		if c.Run != nil {
+			next.Run = *c.Run
+		}
+		if c.ClearWindow {
+			next.Window = nil
+		}
+		if c.Window != nil {
+			w := *c.Window
+			next.Window = &w
+		}
+		if c.WaitTimeoutSeconds != nil {
+			next.WaitTimeoutSeconds = *c.WaitTimeoutSeconds
+		}
+		if next.WaitTimeoutSeconds < 0 || next.WaitTimeoutSeconds > 3600 {
+			return fieldErr("waitTimeoutSeconds", "must be between 0 and 3600")
+		}
+		if err := validWindow(next.Window); err != nil {
+			return err
+		}
+		if err := validSchedule("checkSchedule", next.Check); err != nil {
+			return err
+		}
+		if err := validSchedule("runSchedule", next.Run); err != nil {
+			return err
+		}
+		next.Revision, next.UpdatedAt = cur.Revision+1, s.now()
+		after = next
+		return store.UpdateUpdateSetup(ctx, tx, next, revision)
 	})
-	if err == nil {
-		s.notify()
+	if err != nil {
+		return before, after, err
 	}
-	return err
+	s.notify()
+	return before, after, nil
 }
 
-// ManagedTarget is a target record of an environment policy and, when it
-// is inactive, why the policy no longer covers it.
+// ManagedTarget is a target record of the setup and, when it is inactive,
+// why the setup no longer covers it.
 type ManagedTarget struct {
 	Policy domain.UpdatePolicy
 	// InactiveReason is domain.UpdateTargetExcluded or
@@ -222,20 +140,20 @@ type ManagedTarget struct {
 	InactiveReason string
 }
 
-// ManagedPolicies returns the target records of an environment policy
-// (inactive ones included, with their reason), after reconciling them.
-func (s *Service) ManagedPolicies(ctx context.Context, id string) ([]ManagedTarget, error) {
-	p, err := s.GetEnvironmentPolicy(ctx, id)
+// Targets returns the target records of the setup (inactive ones included,
+// with their reason), after reconciling them.
+func (s *Service) Targets(ctx context.Context) ([]ManagedTarget, error) {
+	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return s.reconcile(ctx, p)
+	return s.reconcile(ctx, st)
 }
 
-// syncEnvironmentPolicy reconciles the target records of a policy and
-// returns the active ones.
-func (s *Service) syncEnvironmentPolicy(ctx context.Context, p domain.EnvironmentUpdatePolicy) ([]domain.UpdatePolicy, error) {
-	all, err := s.reconcile(ctx, p)
+// syncSetup reconciles the target records of the setup and returns the
+// active ones.
+func (s *Service) syncSetup(ctx context.Context, st domain.UpdateSetup) ([]domain.UpdatePolicy, error) {
+	all, err := s.reconcile(ctx, st)
 	if err != nil {
 		return nil, err
 	}
@@ -253,13 +171,13 @@ func targetKey(env string, typ domain.UpdateTargetType, id string) string {
 	return fmt.Sprintf("%s/%s/%s", env, typ, id)
 }
 
-// reconcile discovers targets and keeps their records in step with a
-// policy: activity (exclusions and vanished targets deactivate a record
+// reconcile discovers targets and keeps their records in step with the
+// setup: activity (exclusions and vanished targets deactivate a record
 // without erasing its history), schedules, window, wait timeout and the
 // record's name, which follows the target's current name ("Automatic
 // updates for zerobyte"; records that earlier versions named after their
 // ID are renamed here, so no migration is needed).
-func (s *Service) reconcile(ctx context.Context, p domain.EnvironmentUpdatePolicy) ([]ManagedTarget, error) {
+func (s *Service) reconcile(ctx context.Context, p domain.UpdateSetup) ([]ManagedTarget, error) {
 	envs, err := store.ListEnvironments(ctx, s.db, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
 	if err != nil {
 		return nil, err
@@ -277,7 +195,7 @@ func (s *Service) reconcile(ctx context.Context, p domain.EnvironmentUpdatePolic
 	// labels are the targets' names as users know them.
 	labels := map[string]string{}
 	for _, env := range envs {
-		if p.EnvironmentID != "" && p.EnvironmentID != env.ID {
+		if slices.Contains(p.ExcludeEnvironments, env.ID) {
 			continue
 		}
 		stacks, err := s.opts.Stacks.List(ctx, domain.StackFilter{EnvironmentID: env.ID})
@@ -378,25 +296,23 @@ func (s *Service) reconcile(ctx context.Context, p domain.EnvironmentUpdatePolic
 	return out, nil
 }
 
-// containerExcluded reports whether the policy's exclusions name the
-// container (environmentID/name for all-environments policies).
-func containerExcluded(p domain.EnvironmentUpdatePolicy, env, name string) bool {
-	if p.EnvironmentID == "" {
-		name = env + "/" + name
-	}
-	return slices.Contains(p.ExcludeContainers, name)
+// containerExcluded reports whether the setup's exclusions name the
+// container (environmentID/name).
+func containerExcluded(p domain.UpdateSetup, env, name string) bool {
+	return slices.Contains(p.ExcludeContainers, env+"/"+name)
 }
 
-// managedTarget explains an inactive record: excluded (by the policy, or
-// by the container's label when it was seen) or missing.
-func managedTarget(p domain.EnvironmentUpdatePolicy, child domain.UpdatePolicy, seenExcluded bool) ManagedTarget {
+// managedTarget explains an inactive record: excluded (by the setup, its
+// environment being left out, or the container's label when it was seen)
+// or missing.
+func managedTarget(p domain.UpdateSetup, child domain.UpdatePolicy, seenExcluded bool) ManagedTarget {
 	t := ManagedTarget{Policy: child}
 	if !child.Inactive {
 		return t
 	}
 	t.InactiveReason = domain.UpdateTargetMissing
 	switch {
-	case seenExcluded,
+	case seenExcluded, slices.Contains(p.ExcludeEnvironments, child.EnvironmentID),
 		child.TargetType == domain.UpdateTargetStack && slices.Contains(p.ExcludeStacks, child.TargetID),
 		child.TargetType == domain.UpdateTargetContainer && containerExcluded(p, child.EnvironmentID, child.TargetID):
 		t.InactiveReason = domain.UpdateTargetExcluded
@@ -531,86 +447,122 @@ func windowsEqual(a, b *domain.UpdateWindow) bool {
 	return a.Start == b.Start && a.End == b.End && slices.Equal(a.Days, b.Days)
 }
 
-// EnvironmentTargetPreview presents one managed target's current candidate
-// plan within an environment policy.
-type EnvironmentTargetPreview struct {
+// TargetPreview presents one covered target's current candidate plan.
+type TargetPreview struct {
 	Policy  domain.UpdatePolicy
 	Preview domain.UpdatePreview
 }
 
-// EnvironmentPreview is the combined plan of an environment policy. Its
-// fingerprint changes if any child's candidates or applied source changes.
-type EnvironmentPreview struct {
+// SetupPreview is the combined plan of the setup. Its fingerprint changes
+// if any target's candidates or applied source changes.
+type SetupPreview struct {
 	Fingerprint string
-	Targets     []EnvironmentTargetPreview
+	Targets     []TargetPreview
 }
 
-func (s *Service) previewEnvironment(ctx context.Context, p domain.EnvironmentUpdatePolicy) (EnvironmentPreview, error) {
-	children, err := s.syncEnvironmentPolicy(ctx, p)
+func (s *Service) previewSetup(ctx context.Context, p domain.UpdateSetup) (SetupPreview, error) {
+	children, err := s.syncSetup(ctx, p)
 	if err != nil {
-		return EnvironmentPreview{}, err
+		return SetupPreview{}, err
 	}
-	out := EnvironmentPreview{Targets: make([]EnvironmentTargetPreview, 0, len(children))}
+	out := SetupPreview{Targets: make([]TargetPreview, 0, len(children))}
 	h := sha256.New()
 	for _, child := range children {
 		preview, err := s.Preview(ctx, child.ID, nil)
 		if err != nil {
 			return out, err
 		}
-		out.Targets = append(out.Targets, EnvironmentTargetPreview{Policy: child, Preview: preview})
+		out.Targets = append(out.Targets, TargetPreview{Policy: child, Preview: preview})
 		_, _ = fmt.Fprintf(h, "%s:%s\n", child.ID, preview.Fingerprint)
 	}
 	out.Fingerprint = hex.EncodeToString(h.Sum(nil))
 	return out, nil
 }
 
-// PreviewEnvironment previews every active target without pulling images.
-func (s *Service) PreviewEnvironment(ctx context.Context, id string) (EnvironmentPreview, error) {
-	p, err := s.GetEnvironmentPolicy(ctx, id)
+// PreviewSetup previews every covered target without pulling images.
+func (s *Service) PreviewSetup(ctx context.Context) (SetupPreview, error) {
+	p, err := s.Setup(ctx)
 	if err != nil {
-		return EnvironmentPreview{}, err
+		return SetupPreview{}, err
 	}
-	return s.previewEnvironment(ctx, p)
+	return s.previewSetup(ctx, p)
 }
 
-// CheckEnvironment enqueues a registry check for every currently covered
-// stack and Docker Manager-managed standalone container.
-func (s *Service) CheckEnvironment(ctx context.Context, principal authz.Principal, id, key string) ([]domain.Job, error) {
-	p, err := s.GetEnvironmentPolicy(ctx, id)
+// CheckSetup enqueues a registry check for every currently covered stack
+// and Docker Manager-managed standalone container.
+func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key string) ([]domain.Job, error) {
+	p, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	children, err := s.syncEnvironmentPolicy(ctx, p)
+	children, err := s.syncSetup(ctx, p)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]domain.Job, 0, len(children))
-	for i, child := range children {
+	reqs := make([]jobs.Request, 0, len(children))
+	for _, child := range children {
 		req := checkRequest(child)
 		req.PolicyID = p.ID
-		req.Principal, req.IdempotencyKey = principal, fmt.Sprintf("%s#%d", key, i)
+		reqs = append(reqs, req)
+	}
+	return s.enqueueAll(ctx, principal, key, reqs)
+}
+
+// enqueueAll enqueues reqs for principal (job keys key#i) all or none:
+// when one fails, the jobs already queued are cancelled.
+func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key string, reqs []jobs.Request) ([]domain.Job, error) {
+	out := make([]domain.Job, 0, len(reqs))
+	for i, req := range reqs {
+		req.Principal, req.IdempotencyKey = principal, jobKey(key, i)
 		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
 		if err != nil {
-			return out, err
+			for _, j := range out {
+				if _, cerr := s.opts.Jobs.Cancel(ctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+					s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
+				}
+			}
+			return nil, err
 		}
 		out = append(out, job)
 	}
 	return out, nil
 }
 
-// RunEnvironment enqueues every runnable target after confirming the
-// fingerprint returned by PreviewEnvironment.
-func (s *Service) RunEnvironment(ctx context.Context, principal authz.Principal, id, expected, key string) ([]domain.Job, error) {
-	p, err := s.GetEnvironmentPolicy(ctx, id)
+// Environments returns the environments the setup covers now.
+func (s *Service) Environments(ctx context.Context) ([]domain.Environment, error) {
+	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	preview, err := s.previewEnvironment(ctx, p)
+	envs, err := store.ListEnvironments(ctx, s.db, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(envs, func(e domain.Environment) bool { return slices.Contains(st.ExcludeEnvironments, e.ID) }), nil
+}
+
+// jobKey is the idempotency key of the i-th job of a request with key
+// ("" without one).
+func jobKey(key string, i int) string {
+	if key == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s#%d", key, i)
+}
+
+// RunSetup enqueues every runnable target after confirming the
+// fingerprint returned by PreviewSetup.
+func (s *Service) RunSetup(ctx context.Context, principal authz.Principal, expected, key string) ([]domain.Job, error) {
+	p, err := s.Setup(ctx)
+	if err != nil {
+		return nil, err
+	}
+	preview, err := s.previewSetup(ctx, p)
 	if err != nil {
 		return nil, err
 	}
 	if expected == "" || preview.Fingerprint != expected {
-		return nil, &domain.UpdateError{Code: domain.UpdateErrPreviewStale, Message: "the environment update plan changed; preview again"}
+		return nil, &domain.UpdateError{Code: domain.UpdateErrPreviewStale, Message: "the update plan changed; preview again"}
 	}
 	var reqs []jobs.Request
 	for _, target := range preview.Targets {
@@ -634,14 +586,5 @@ func (s *Service) RunEnvironment(ctx context.Context, principal authz.Principal,
 	if len(reqs) == 0 {
 		return nil, &domain.UpdateError{Code: domain.UpdateErrNoCandidates, Message: "no checked target has a new digest"}
 	}
-	out := make([]domain.Job, 0, len(reqs))
-	for i, req := range reqs {
-		req.Principal, req.IdempotencyKey = principal, fmt.Sprintf("%s#%d", key, i)
-		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
-		if err != nil {
-			return out, err
-		}
-		out = append(out, job)
-	}
-	return out, nil
+	return s.enqueueAll(ctx, principal, key, reqs)
 }

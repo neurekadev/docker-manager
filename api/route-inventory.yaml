@@ -2113,78 +2113,54 @@ routes:
     kind: json
     status: implemented
   - method: GET
-    path: /api/v1/environment-update-policies
-    operationId: list-environment-update-policies
-    capability: authenticated
-    scope: none
-    owner: 20
+    path: /api/v1/update-settings
+    operationId: get-update-settings
+    capability: update_policy.read
+    scope: instance
+    owner: 240
     kind: json
     status: implemented
-  - method: POST
-    path: /api/v1/environment-update-policies
-    operationId: create-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
-    kind: json
-    status: implemented
-  - method: GET
-    path: "/api/v1/environment-update-policies/{policyId}"
-    operationId: get-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
-    kind: json
-    status: implemented
+    notes: The one updates setup (schedules, window, health wait, what it leaves out).
   - method: PATCH
-    path: "/api/v1/environment-update-policies/{policyId}"
-    operationId: update-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
-    kind: json
-    status: implemented
-    notes: If-Match.
-  - method: DELETE
-    path: "/api/v1/environment-update-policies/{policyId}"
-    operationId: delete-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
+    path: /api/v1/update-settings
+    operationId: update-update-settings
+    capability: update_policy.manage
+    scope: instance
+    owner: 240
     kind: json
     status: implemented
     notes: If-Match.
   - method: GET
-    path: "/api/v1/environment-update-policies/{policyId}/targets"
-    operationId: list-environment-update-targets
-    capability: authenticated
-    scope: none
-    owner: 20
+    path: /api/v1/update-settings/targets
+    operationId: list-update-targets
+    capability: update_policy.read
+    scope: instance
+    owner: 240
     kind: json
     status: implemented
   - method: POST
-    path: "/api/v1/environment-update-policies/{policyId}/checks"
-    operationId: check-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
+    path: /api/v1/update-settings/checks
+    operationId: create-update-check
+    capability: update.check
+    scope: instance
+    owner: 240
     kind: json
     status: implemented
     notes: Returns one job per covered target.
   - method: POST
-    path: "/api/v1/environment-update-policies/{policyId}/previews"
-    operationId: preview-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
+    path: /api/v1/update-settings/previews
+    operationId: create-update-preview
+    capability: update.check
+    scope: instance
+    owner: 240
     kind: json
     status: implemented
   - method: POST
-    path: "/api/v1/environment-update-policies/{policyId}/runs"
-    operationId: run-environment-update-policy
-    capability: authenticated
-    scope: none
-    owner: 20
+    path: /api/v1/update-settings/runs
+    operationId: create-update-run
+    capability: update.run
+    scope: instance
+    owner: 240
     kind: json
     status: implemented
     notes: Requires the preview fingerprint; returns one job per target.

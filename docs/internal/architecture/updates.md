@@ -1,7 +1,7 @@
-# Digest-driven updates (#20)
+# Digest-driven updates (#20, #240)
 
-An environment update policy covers Docker Manager-managed stacks and standalone
-containers in one environment or all environments, minus explicit exclusions.
+One instance-wide updates setup covers every Docker Manager-managed stack
+and standalone container of every environment, minus what it leaves out.
 Covered targets follow the digest
 behind its **existing explicit tag**. The tag text never changes, and no
 Compose, override or env file is ever written: checks and updates are
@@ -10,27 +10,39 @@ rollback in v1.
 
 | Package | Role |
 | --- | --- |
-| `internal/manager/updates` | Policies (CRUD, validation, target checks), the digest model (candidates), the `update.check` manager executor, previews, runs, quarantine and history (finish hooks), the scheduler sources, the policy Locator. |
+| `internal/manager/updates` | The setup (`setup.go`: validation, target records, setup-wide checks, previews and runs), the digest model (candidates), the `update.check` manager executor, previews, runs, quarantine and history (finish hooks), the scheduler sources, the record Locator. |
 | `internal/manager/updates/eligible` | Eligibility rules shared with the stack image status (#7); corpus `testdata/corpus.yaml`. |
-| `internal/manager/store` (`updates.go`, `environment_updates.go`) | Environment policy configuration, managed target records, candidates, quarantine and history. |
-| `internal/manager/api` (`environment_updates.go`, `updates.go`) | `/api/v1/environment-update-policies...`; target records are read-only through `/api/v1/update-policies...`. Image status is shown for containers and stack services. |
+| `internal/manager/store` (`updates.go`, `update_settings.go`) | The setup (`update_settings`, one row), target records, candidates, quarantine and history. |
+| `internal/manager/api` (`update_settings.go`, `updates.go`) | `/api/v1/update-settings...`; target records are read-only through `/api/v1/update-policies...`. Image status is shown for containers and stack services. |
 | `internal/agent/stacks` (`update.go`) | The `update.run` executor (stacks and standalone containers). |
 | `internal/agent/lifecycle` (`update.go`) | `Update` (stop / recreate / start preserving the prior running state) and `Confirm` (health confirmation). |
 | `internal/agent/compose` | `Adapter.Create`: the Compose SDK's convergence without starting (recreates what diverged, e.g. a changed image ID). |
 | `internal/protocol` (`updates.go`) | `UpdateRunInput`/`UpdateRunOutput`, stages, outcomes and error classes. |
 
-## Policies
+## The setup
 
-Policies are scoped to **All Environments** or a **Single Environment**.
-Overlapping scopes are rejected (`409 update_scope_overlap`). The target
-records are created and refreshed as stacks and containers are discovered;
-users configure the environment policy, not those records. A policy may
-exclude stack IDs and standalone container names (an all-environments policy
-uses `environmentID/containerName`). A container with
-`docker-manager.update.exclude=true` is also omitted.
+There is exactly one setup (`update_settings`, `singleton = 1`, created by
+migration `20261002180000_update_settings`, which turned the earlier
+environment policies into it). Its `id` is the policy ID of its schedules
+and setup-wide jobs and the `parent_id` of every target record. It covers
+every active environment (offline ones too) except `excludeEnvironments`,
+also environments added later; it leaves out the stacks in
+`excludeStacks` and the standalone containers in `excludeContainers`
+(`environmentID/containerName`). A container with
+`docker-manager.update.exclude=true` is also omitted. IDs of environments
+that no longer exist are dropped when the setup is saved. The target
+records are created and refreshed as stacks and containers are
+discovered; users configure the setup, not those records.
+
+The migration kept an all-environments policy as it was; otherwise the
+only policy of one environment, with every other current environment left
+out and its container exclusions prefixed with its environment; otherwise
+(none, or several) a setup with both schedules off. It re-parented every
+target record to the setup (their candidates, quarantine and history
+stay) and deleted the `update_policy.manage` rules below the instance.
 
 **Target records** (`update_policies` rows with a `parent_id`) are
-reconciled (`Service.reconcile`) whenever the policy's targets are listed,
+reconciled (`Service.reconcile`) whenever the setup's targets are listed,
 checked, previewed or run (manual or scheduled):
 
 - A record is **named after its target** in plain words: "Automatic updates
@@ -44,18 +56,16 @@ checked, previewed or run (manual or scheduled):
   and keeps them in sync afterwards). A deleted stack's record keeps its
   last name ("Automatic updates for a removed stack" when it only had an
   ID-based one).
-- A target the policy no longer covers keeps its record, **inactive**, for
-  its history. `GET .../environment-update-policies/{id}/targets` says why
-  in `inactiveReason`: `excluded` (the policy's exclusions or the
-  container's label) or `missing` (the stack or container no longer exists
-  in the scope, or no longer qualifies: no saved specification, Docker
+- A target the setup no longer covers keeps its record, **inactive**, for
+  its history. `GET /update-settings/targets` says why in
+  `inactiveReason`: `excluded` (the setup leaves it or its environment
+  out, or the container's label) or `missing` (the stack or container no
+  longer exists, or no longer qualifies: no saved specification, Docker
   Manager's own). `GET /update-policies` (and so update badges, counts and
   notices) lists only covered records; inactive ones stay readable by ID.
   Its `targetName` is the target's name as users know it, its `parentId`
-  the environment policy that manages it (absent for a policy from before
-  environment policies). A record has no page of its own: links to it
-  open its environment policy (alerts and notifications link the parent;
-  the web's `/updates/{id}` follows an older link to a record there).
+  the setup. A record has no page of its own: alerts and notifications
+  link the Updates page.
 
 Covered targets:
 
@@ -66,20 +76,28 @@ Covered targets:
   members and Docker Manager's own containers are refused
   (`409 update_target_ineligible`): they are never recreated automatically.
 
-Each environment policy has a **check schedule** (`update_check`, default `0 3 * * *`)
-and a **run schedule** (`update_run`, default `0 4 * * *`) from the #13
-instance defaults, each with its own expression, IANA zone and enabled
-flag. **Both start disabled**: nothing is checked or updated automatically
+The setup has a **check schedule** (Check Automatically, `update_check`,
+default `0 3 * * *`) and a **run schedule** (Update Automatically,
+`update_run`, default `0 4 * * *`), each with its own expression, IANA
+zone and enabled flag. **Both start disabled**: nothing is checked or updated automatically
 before the user enables them. An optional **update window** (days of week,
 `HH:MM`-`HH:MM` in the run schedule's zone, may span midnight) restricts
 scheduled runs; the run source refuses runs outside it when due and again
 at dispatch (`outside_update_window`). Manual checks and runs are explicit
 user actions and ignore schedules and the window.
 
-**Migrated stacks (#35).** A moved stack is covered by the destination
-environment's policy on the next check. A policy scoped to its former
-environment no longer covers it. A fresh check establishes the destination's
-image baseline before any update can run.
+**Migrated stacks (#35).** A moved stack stays covered in its destination
+environment (unless the setup leaves that environment out); its record
+moves with it. A fresh check establishes the destination's image baseline
+before any update can run.
+
+**Setup-wide actions.** `POST /update-settings/checks` enqueues one
+`update.check` per covered target, `POST /update-settings/previews`
+returns every target's plan with one fingerprint, and
+`POST /update-settings/runs {fingerprint}` enqueues an `update.run` per
+target with something to apply (409 `update_preview_stale` when the plan
+changed since the preview). Every request is built before the first is
+enqueued; when an enqueue fails, the jobs already queued are cancelled.
 
 ## Eligibility (`eligible.Check`)
 
@@ -107,7 +125,7 @@ finish hook raises, updates or resolves the policy's `updates` alert
 from these candidates (sent again only for a new digest; resolved when
 none is left), and every finished `update.run` records an `updates`
 notification with what it updated ([alerts](alerts.md)); both name and
-link the environment policy above the record. A failed scheduled or API
+link the Updates page and name the setup ("Automatic Updates"). A failed scheduled or API
 token `update.check` is sent under the `updates` kind.
 
 ## Digest model (`update_candidates`)
@@ -236,27 +254,31 @@ revision is unchanged).
 ## Scheduling (#13)
 
 `Service.Register(sched)` installs `CheckSource` (`update_check`) and
-`RunSource` (`update_run`). Validate refuses deleted policies, disabled
-schedules, vanished stacks and (runs) the window; `Jobs` plans from the
-latest check (nothing to do skips the run, drift refuses it). Scheduled
-jobs run as the manager service identity; manual ones carry the policy ID
-for overlap prevention.
+`RunSource` (`update_run`); each lists the setup's schedule ("Automatic
+Updates", no environment). Validate refuses a disabled schedule and (runs)
+the window; `Jobs` reconciles the targets and plans from the latest check
+(nothing to do skips the run, drift refuses it). One run may enqueue up to
+`scheduler.MaxJobsPerRun` (256) jobs. Scheduled jobs run as the manager
+service identity; manual ones carry the setup's ID for overlap
+prevention. A record created by hand (no setup; tests) has schedules of
+its own.
 
 ## Authorization (#17)
 
 | Capability | Opens |
 | --- | --- |
-| `update_policy.read` | the policy in full, its candidates |
-| `update_policy.manage` | create (in the environment), edit, delete |
+| `update_policy.read` | the setup (on all environments); a target record in full, its candidates |
+| `update_policy.manage` | changes of the setup (instance-only) |
 | `update.check` | checks and previews |
 | `update.run` | runs |
 | `stack.update` | `POST /stacks/{id}/pulls`: a `stack.pull` job pulls the stack's images on demand without recreating anything (agents announcing `stack.pull`; 501 `agent_unsupported` otherwise). Its finish hook (`stacks.Service`) marks each applied image whose reference now names another image ID (`StackImage.PulledImageID`, shown by `image-status` as `pulledImageId`) until the next deploy; nothing else about the stack changes. |
 
-Single-environment policy capabilities can be granted in that environment;
-an All Environments policy requires the owner-only
-`update_policy.manage_all` capability. Target jobs carry the environment
-policy ID and are authorized again by the job engine against their stack or
-container target.
+The setup's routes need their capability on all environments (an
+instance grant), and its checks, previews and runs are refused (403,
+naming the environment) while a rule denies the capability in one of the
+covered environments. Target records accept grants on an environment, a
+stack or a container. Target jobs carry the setup's ID and are authorized
+again by the job engine against their stack or container target.
 
 ## Tests
 

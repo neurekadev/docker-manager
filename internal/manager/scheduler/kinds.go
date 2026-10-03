@@ -176,8 +176,9 @@ type PolicySource interface {
 	Jobs(ctx context.Context, due Due) ([]jobs.Request, error)
 }
 
-// MaxJobsPerRun bounds the jobs one run enqueues.
-const MaxJobsPerRun = 32
+// MaxJobsPerRun bounds the jobs one run enqueues (an updates check of
+// every stack and container of the instance is one run).
+const MaxJobsPerRun = 256
 
 // Rejection refuses a due run or a dispatch with a user-facing reason.
 type Rejection struct {

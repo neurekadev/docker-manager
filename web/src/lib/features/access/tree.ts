@@ -177,7 +177,7 @@ export const CATEGORIES: Category[] = [
 	},
 	{
 		type: 'update_policy',
-		label: 'Update Policies',
+		label: 'Updates',
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(updatePoliciesQuery(env), (p: Named) =>

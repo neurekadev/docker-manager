@@ -1,25 +1,16 @@
-// Digest-driven updates (#20): presentation of policies and candidates.
-// Pure functions (tested in model.spec.ts); the API decides eligibility.
+// Digest-driven updates (#20, #240): presentation of the update settings,
+// their target records and candidates. Pure functions (tested in
+// model.spec.ts); the API decides eligibility.
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
 import { describeCron } from '$lib/ui/cron';
 import { formatRelative } from '$lib/ui/format';
-import { routes } from '$lib/routes';
 
 export type UpdatePolicy = Schema<'UpdatePolicy'>;
 export type UpdateCandidate = Schema<'UpdateCandidate'>;
 export type UpdatePreview = Schema<'UpdatePreview'>;
 export type UpdateWindow = Schema<'UpdateWindow'>;
 export type CandidateStatus = UpdateCandidate['status'];
-
-/**
- * Where a link to a target's record leads (notifications and alerts sent
- * before they linked the environment policy named the record, which has
- * no page): the environment policy that manages it, else Updates.
- */
-export function recordPolicyHref(p: Pick<UpdatePolicy, 'id' | 'parentId'>): string {
-	return p.parentId && p.parentId !== p.id ? routes.updatePolicy(p.parentId) : routes.updates();
-}
 
 export interface Presentation {
 	tone: BadgeTone;
@@ -252,12 +243,12 @@ export function updatesText(
 	return `${plural(Math.max(images, n), 'image', 'images')} in ${where}`;
 }
 
-/** Why a target of an environment policy is not covered (null: it is covered). */
+/** Why a target of the update settings is not covered (null: it is covered). */
 export type InactiveReason = 'excluded' | 'missing';
 
 /**
  * The manager says why an inactive target is not covered: excluded (by
- * the policy or the container's label) or missing (a deleted stack, a
+ * the settings, its environment being left out, or the container's label) or missing (a deleted stack, a
  * removed container, one that no longer qualifies); it keeps such records
  * for their history.
  */
@@ -324,7 +315,7 @@ export function imageLabel(c: Pick<UpdateCandidate, 'reference'>): string {
 	);
 }
 
-/** updatesText of environment policy targets (stacks and containers counted apart). */
+/** updatesText of update targets (stacks and containers counted apart). */
 export function targetsUpdateText(
 	targets: readonly { type: string; candidateSummary?: UpdateSummary }[]
 ): string {
@@ -355,22 +346,7 @@ export function containerTargetName(
 	return { name: id, found: !containers };
 }
 
-/**
- * The covered (active) targets of several environment policies, once each,
- * in one environment (null: all).
- */
-export function coveredTargets<
-	T extends { policyId: string; environmentId: string; inactive: boolean }
->(lists: readonly (readonly T[] | undefined)[], environmentId: string | null): T[] {
-	const seen = new Map<string, T>();
-	for (const list of lists)
-		for (const t of list ?? [])
-			if (!t.inactive && (!environmentId || t.environmentId === environmentId))
-				seen.set(t.policyId, t);
-	return [...seen.values()];
-}
-
-interface TargetRow {
+export interface TargetRow {
 	policyId: string;
 	environmentId: string;
 	type: 'stack' | 'container';
@@ -389,20 +365,29 @@ const EMPTY_SUMMARY: UpdateSummary = {
 	unchecked: 0
 };
 
+/** A covered target's row from its record (the records list). */
+export function recordRow(
+	p: Pick<UpdatePolicy, 'id' | 'environmentId' | 'target' | 'summary'>
+): TargetRow {
+	return {
+		policyId: p.id,
+		environmentId: p.environmentId,
+		type: p.target.type,
+		id: p.target.id,
+		inactive: false,
+		candidateSummary: p.summary ?? EMPTY_SUMMARY
+	};
+}
+
 /**
- * A policy's targets plus the stacks and containers it excludes that never
- * got a target record (excluded before the first check), so every
- * exclusion is listed by name. `stackEnvironment` finds a stack's
+ * The settings' targets plus the stacks and containers they leave out
+ * that never got a target record (left out before the first check), so
+ * every exclusion is listed by name. `stackEnvironment` finds a stack's
  * environment.
  */
 export function withExclusions<T extends TargetRow>(
 	targets: readonly T[],
-	p: {
-		scope: 'all' | 'environment';
-		environmentId?: string;
-		excludeStacks: string[];
-		excludeContainers: string[];
-	},
+	p: { excludeStacks: string[]; excludeContainers: string[] },
 	stackEnvironment: (stackId: string) => string | undefined
 ): (T | TargetRow)[] {
 	const has = (type: string, id: string, env?: string) =>
@@ -422,10 +407,8 @@ export function withExclusions<T extends TargetRow>(
 		});
 	}
 	for (const key of p.excludeContainers) {
-		const [env, name] =
-			p.scope === 'all' && key.includes('/')
-				? [key.slice(0, key.indexOf('/')), key.slice(key.indexOf('/') + 1)]
-				: [p.environmentId ?? '', key];
+		const at = key.indexOf('/');
+		const [env, name] = at > 0 ? [key.slice(0, at), key.slice(at + 1)] : ['', key];
 		if (!env || has('container', name, env)) continue;
 		extra.push({
 			policyId: `excluded:container:${env}/${name}`,
@@ -441,8 +424,8 @@ export function withExclusions<T extends TargetRow>(
 }
 
 /**
- * The status sentence of an update policy page: what needs doing, from
- * its covered targets.
+ * The status sentence of the Updates page: what needs doing, from the
+ * covered targets.
  */
 export function policyStatusText(
 	totals: ReturnType<typeof summarizeTargets>,

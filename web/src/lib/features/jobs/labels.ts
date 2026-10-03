@@ -195,11 +195,7 @@ export function jobHeadline(
  */
 export function policyPage(kind: string, policyId?: string): { href: string; label: string } {
 	if (kind.startsWith('prune.')) return { href: routes.maintenance(), label: 'Maintenance' };
-	if (kind.startsWith('update.'))
-		return {
-			href: policyId ? routes.updatePolicy(policyId) : routes.updates(),
-			label: 'Update Policy'
-		};
+	if (kind.startsWith('update.')) return { href: routes.updates(), label: 'Updates' };
 	if (kind === 'backup.verify' || kind === 'manager.verify')
 		return {
 			href: policyId ? routes.backupRepository(policyId) : routes.backupRepositories(),

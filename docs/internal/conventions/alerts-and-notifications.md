@@ -60,9 +60,9 @@ web `web/src/lib/features/notifications`.
   in Title Case) and a filesystem's `MountLabel` ("Docker Data";
   `mountWords` inside sentences). Fields: the
   environment, the target (a stack by its display name), the policy and
-  the repository link to their pages (an update policy: the environment
-  policy above the target's record, `putUpdatePolicy`, never the record,
-  which has no page); short (inline) fields come before lists
+  the repository link to their pages (an update: the Updates page and the
+  setup above the target's record, `putUpdatePolicy`, never the record,
+  which has no page; a prune: the Maintenance page); short (inline) fields come before lists
   (`fieldList.ordered`); services are a list, each linked to its logs (a
   standalone container: its page), with its image digests. Snapshots keep
   paths; `buildMessage` makes them URLs with the public URL (none

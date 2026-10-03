@@ -18,7 +18,7 @@
 //   /notifications[?tab=alerts]         finished backups, prunes and update runs; alerts across every environment (#159)
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
-//   /updates[/{policyId}], /maintenance
+//   /updates, /maintenance
 //   Create and edit forms of stacks and policies are dialogs over their
 //   list or detail page, opened by a query parameter (?create=1, ?edit=1,
 //   ?defaults=1) so links can open them.
@@ -149,9 +149,7 @@ export const routes = {
 	backupRepositoryNew: () => '/backups/repositories/new',
 	backupRepository: (id: string) => `/backups/repositories/${e(id)}`,
 	updates: () => '/updates',
-	updatePolicyNew: () => '/updates?create=1',
-	updatePolicy: (id: string) => `/updates/${e(id)}`,
-	updatePolicyEdit: (id: string) => `/updates/${e(id)}?edit=1`,
+	updatesEdit: () => '/updates?edit=1',
 	maintenance: () => '/maintenance',
 	maintenanceEdit: () => '/maintenance?edit=1',
 	/**

@@ -58,18 +58,6 @@ func (s *Service) Preview(ctx context.Context, environmentID string) (domain.Env
 		add(domain.EnvironmentDependent{Kind: domain.DependentManagedContainer, ID: m.ID, Name: m.Name, OnArchive: domain.OnArchiveKept,
 			Detail: "saved recreate specification kept", ResourceType: catalog.TypeContainer, ResourceID: m.Name})
 	}
-	updates, err := store.ListEnvironmentUpdatePolicies(ctx, s.db)
-	if err != nil {
-		return p, err
-	}
-	for _, u := range updates {
-		if u.EnvironmentID != "" && u.EnvironmentID != env.ID {
-			continue
-		}
-		add(domain.EnvironmentDependent{Kind: domain.DependentUpdatePolicy, ID: u.ID, Name: u.Name, OnArchive: domain.OnArchivePaused,
-			Detail:       "this host is skipped while it is archived",
-			ResourceType: catalog.TypeUpdatePolicy, ResourceID: u.ID})
-	}
 	backupPolicies, err := s.backupPolicies(ctx, env.ID, stackIDs)
 	if err != nil {
 		return p, err

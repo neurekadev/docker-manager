@@ -153,13 +153,13 @@ func GetUpdatePolicy(ctx context.Context, db bun.IDB, id string) (domain.UpdateP
 }
 
 // ListUpdatePolicies returns policies in ID order (environment "" = all),
-// including the inactive target records of environment policies.
+// including the inactive target records of the updates setup.
 func ListUpdatePolicies(ctx context.Context, db bun.IDB, environmentID, afterID string, limit int) ([]domain.UpdatePolicy, error) {
 	return listUpdatePolicies(ctx, db, environmentID, afterID, limit, false)
 }
 
 // ListCoveredUpdatePolicies is ListUpdatePolicies without the target
-// records an environment policy no longer covers (inactive: excluded, or
+// records the updates setup no longer covers (inactive: excluded, or
 // the stack or container is gone); they are kept only for their history.
 func ListCoveredUpdatePolicies(ctx context.Context, db bun.IDB, environmentID, afterID string, limit int) ([]domain.UpdatePolicy, error) {
 	return listUpdatePolicies(ctx, db, environmentID, afterID, limit, true)

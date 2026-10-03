@@ -1,26 +1,23 @@
 <script lang="ts">
-	// Create or edit an environment update policy (#20) in a dialog: what it
-	// covers on the left (scope, fixed after creation; stacks and standalone
-	// containers, all included until unchecked), when it runs on the right
-	// (check and run schedules, #13, both off until turned on, their
-	// schedule fields shown only while on; an optional update window and
-	// the health wait). Saving never runs anything.
-	// Render it only while open ({#if}): each opening starts from `policy`.
+	// Edit the update settings (#20, #240) in a dialog: what they cover on
+	// the left (environments, stacks and standalone containers, all
+	// included until unchecked, also ones added later), when they run on
+	// the right (Check Automatically and Update Automatically, #13, both off
+	// until turned on, their schedule fields shown only while on; an
+	// optional update window and the health wait). Saving never runs
+	// anything. Render it only while open ({#if}): each opening starts
+	// from `settings`.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import { goto } from '$app/navigation';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { api, unwrap } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
-	import { routes } from '$lib/routes';
 	import {
 		Button,
 		Checkbox,
 		CronField,
 		Dialog,
 		Notice,
-		RadioGroup,
-		Select,
 		Skeleton,
 		Switch,
 		TextField,
@@ -38,52 +35,39 @@
 	import { actionError, fieldErrors } from '$lib/features/common/errors';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import Fields from '$lib/features/common/Fields.svelte';
-	import { defaultSchedule, scheduleDefaultsQuery } from '$lib/features/common/schedules';
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
 	import { DAY_OPTIONS, isClock } from './model';
-	import { environmentUpdateKeys, type EnvironmentUpdatePolicy } from './queries';
+	import { updateSettingsKeys, type UpdateSettings } from './queries';
 
 	let {
 		open = $bindable(true),
-		policy: initial,
-		environmentId: suggestedEnvironment,
-		allowAll = true
+		settings
 	}: {
 		open?: boolean;
-		policy?: EnvironmentUpdatePolicy;
-		environmentId?: string | null;
-		allowAll?: boolean;
+		settings: UpdateSettings;
 	} = $props();
 
 	const qc = useQueryClient();
-	// Form state is initialised once from the policy being edited: a live
-	// refetch never overwrites what the user is typing.
-	const p = untrack(() => initial);
-	const editing = !!p;
-	const initialEnvironment = untrack(() => suggestedEnvironment);
-	const initialAllowAll = untrack(() => allowAll);
+	// Form state is initialised once from the settings: a live refetch
+	// never overwrites what the user is typing.
+	const p = untrack(() => settings);
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
-	const defaults = createQuery(() => scheduleDefaultsQuery());
 
-	let scope = $state<'all' | 'environment'>(
-		p?.scope ?? (initialEnvironment || !initialAllowAll ? 'environment' : 'all')
-	);
-	let environmentId = $state(p?.environmentId ?? initialEnvironment ?? '');
-	let name = $state(p?.name ?? '');
-	let excludedStacks = $state<string[]>(p?.excludeStacks ?? []);
-	let excludedContainers = $state<string[]>(p?.excludeContainers ?? []);
-	let checkCron = $state(p?.checkSchedule.cron ?? '');
-	let checkZone = $state(p?.checkSchedule.timeZone ?? '');
-	let checkEnabled = $state(p?.checkSchedule.enabled ?? false);
-	let runCron = $state(p?.runSchedule.cron ?? '');
-	let runZone = $state(p?.runSchedule.timeZone ?? '');
-	let runEnabled = $state(p?.runSchedule.enabled ?? false);
-	let windowOn = $state(!!p?.window);
-	let windowStart = $state(p?.window?.start ?? '02:00');
-	let windowEnd = $state(p?.window?.end ?? '05:00');
-	let windowDays = $state<number[]>(p?.window?.days ?? []);
-	let waitTimeout = $state(p?.waitTimeoutSeconds ? String(p.waitTimeoutSeconds) : '');
+	let excludedEnvironments = $state<string[]>([...p.excludeEnvironments]);
+	let excludedStacks = $state<string[]>([...p.excludeStacks]);
+	let excludedContainers = $state<string[]>([...p.excludeContainers]);
+	let checkCron = $state(p.checkSchedule.cron ?? '');
+	let checkZone = $state(p.checkSchedule.timeZone ?? '');
+	let checkEnabled = $state(p.checkSchedule.enabled);
+	let runCron = $state(p.runSchedule.cron ?? '');
+	let runZone = $state(p.runSchedule.timeZone ?? '');
+	let runEnabled = $state(p.runSchedule.enabled);
+	let windowOn = $state(!!p.window);
+	let windowStart = $state(p.window?.start ?? '02:00');
+	let windowEnd = $state(p.window?.end ?? '05:00');
+	let windowDays = $state<number[]>(p.window?.days ?? []);
+	let waitTimeout = $state(p.waitTimeoutSeconds ? String(p.waitTimeoutSeconds) : '');
 	let busy = $state(false);
 	let touched = $state(false);
 	let error = $state<unknown>(null);
@@ -92,32 +76,13 @@
 	let containerError = $state(false);
 	let loadVersion = 0;
 
-	// New policies start from the instance defaults (or Docker Manager's suggestions).
-	let seeded = false;
-	$effect(() => {
-		if (editing || seeded || defaults.isPending) return;
-		seeded = true;
-		const check = defaultSchedule('update_check', defaults.data);
-		const run = defaultSchedule('update_run', defaults.data);
-		checkCron = check.cron;
-		checkZone = check.timeZone;
-		runCron = run.cron;
-		runZone = run.timeZone;
-	});
+	const activeEnvironments = $derived((envs.data ?? []).filter((e) => e.status !== 'archived'));
+	const covered = (environmentId: string) => !excludedEnvironments.includes(environmentId);
 
+	// Standalone containers Docker Manager can recreate, across the covered
+	// environments (online ones only: offline environments can't be listed).
 	$effect(() => {
-		if (editing || scope !== 'environment' || environmentId) return;
-		const active = (envs.data ?? []).filter((e) => e.status !== 'archived');
-		if (active.length === 1) environmentId = active[0].id;
-	});
-
-	// Standalone containers Docker Manager can recreate, across the environments
-	// in scope (online ones only: offline environments can't be listed).
-	$effect(() => {
-		const selected =
-			scope === 'all'
-				? (envs.data ?? []).filter((e) => e.status !== 'archived' && e.online)
-				: (envs.data ?? []).filter((e) => e.id === environmentId && e.online);
+		const selected = activeEnvironments.filter((e) => e.online && covered(e.id));
 		const version = ++loadVersion;
 		containers = [];
 		containerError = false;
@@ -138,7 +103,7 @@
 				return items
 					.filter((c) => c.managed?.kind === 'standalone' && !c.stack)
 					.map((c) => ({
-						key: scope === 'all' ? `${env.id}/${c.name}` : c.name,
+						key: `${env.id}/${c.name}`,
 						name: c.name,
 						environment: env.name
 					}));
@@ -156,18 +121,11 @@
 	});
 
 	useUnsaved(
-		() => `Update policy ${name || 'draft'}`,
+		() => 'Update settings',
 		() => touched && !busy
 	);
 
-	const envOptions = $derived(
-		(envs.data ?? [])
-			.filter((e) => e.status !== 'archived')
-			.map((e) => ({ value: e.id, label: e.online ? e.name : `${e.name} (offline)` }))
-	);
-	const visibleStacks = $derived(
-		(stacks.data ?? []).filter((s) => scope === 'all' || s.environmentId === environmentId)
-	);
+	const visibleStacks = $derived((stacks.data ?? []).filter((s) => covered(s.environmentId)));
 	const fields = $derived(fieldErrors(error));
 	const windowError = $derived(
 		windowOn && (!isClock(windowStart) || !isClock(windowEnd))
@@ -182,14 +140,7 @@
 			? null
 			: 'Enter whole seconds from 0 to 3600.';
 	});
-	const canSave = $derived(
-		!!name.trim() &&
-			(scope === 'all' || !!environmentId) &&
-			!!checkCron.trim() &&
-			!!runCron.trim() &&
-			!windowError &&
-			!waitError
-	);
+	const canSave = $derived(!!checkCron.trim() && !!runCron.trim() && !windowError && !waitError);
 
 	function toggleDay(d: number, on: boolean) {
 		touched = true;
@@ -201,43 +152,37 @@
 		if (!canSave) return;
 		busy = true;
 		error = null;
-		const body = {
-			scope,
-			environmentId: scope === 'all' ? undefined : environmentId,
-			name: name.trim(),
-			excludeStacks: excludedStacks,
-			excludeContainers: excludedContainers,
-			checkSchedule: { cron: checkCron, timeZone: checkZone, enabled: checkEnabled },
-			runSchedule: { cron: runCron, timeZone: runZone, enabled: runEnabled },
-			window: windowOn ? { start: windowStart, end: windowEnd, days: windowDays } : undefined,
-			waitTimeoutSeconds: waitTimeout.trim() ? Number(waitTimeout) : 0
-		};
 		try {
-			const saved = p
-				? await unwrap(
-						api.PATCH('/api/v1/environment-update-policies/{policyId}', {
-							params: {
-								path: { policyId: p.id },
-								header: { 'If-Match': ifMatch(p.revision) }
-							},
-							body
-						})
-					)
-				: await unwrap(api.POST('/api/v1/environment-update-policies', { body }));
+			const saved = await unwrap(
+				api.PATCH('/api/v1/update-settings', {
+					params: { header: { 'If-Match': ifMatch(p.revision) } },
+					body: {
+						excludeEnvironments: excludedEnvironments,
+						excludeStacks: excludedStacks,
+						excludeContainers: excludedContainers,
+						checkSchedule: {
+							cron: checkCron,
+							timeZone: checkZone,
+							enabled: checkEnabled
+						},
+						runSchedule: { cron: runCron, timeZone: runZone, enabled: runEnabled },
+						...(windowOn
+							? { window: { start: windowStart, end: windowEnd, days: windowDays } }
+							: { clearWindow: true }),
+						waitTimeoutSeconds: waitTimeout.trim() ? Number(waitTimeout) : 0
+					}
+				})
+			);
 			touched = false;
+			qc.setQueryData(updateSettingsKeys.settings, saved);
 			await qc.invalidateQueries({ queryKey: ['policies'] });
-			qc.setQueryData(environmentUpdateKeys.detail(saved.id), saved);
-			if (p) toast.success(`Saved update policy ${saved.name}`);
-			else
-				toast.success(`Created update policy ${saved.name}`, {
-					body:
-						checkEnabled || runEnabled
-							? undefined
-							: 'Its schedules are off: nothing runs until you turn them on.'
-				});
-			// A new policy opens its page (the dialog goes with this one).
-			if (p) open = false;
-			else await goto(routes.updatePolicy(saved.id));
+			toast.success('Saved the update settings', {
+				body:
+					saved.checkSchedule.enabled || saved.runSchedule.enabled
+						? undefined
+						: 'Both schedules are off: nothing runs until you turn them on.'
+			});
+			open = false;
 		} catch (e) {
 			error = e;
 		} finally {
@@ -248,19 +193,15 @@
 
 <Dialog
 	bind:open
-	title={editing ? `Edit ${p?.name}` : 'Create Update Policy'}
+	title="Edit Updates"
 	description="Your Compose files and tags never change."
 	size="xl"
 	dismissible={!busy}
 >
-	<form id="update-policy-form" onsubmit={submit} oninput={() => (touched = true)} novalidate>
+	<form id="update-settings-form" onsubmit={submit} oninput={() => (touched = true)} novalidate>
 		{#if error && Object.keys(fields).length === 0}
 			<div class="error">
-				<Notice
-					tone="danger"
-					title={editing ? 'The policy was not saved' : 'The policy was not created'}
-					live="alert"
-				>
+				<Notice tone="danger" title="The settings were not saved" live="alert">
 					{actionError(error)}
 				</Notice>
 			</div>
@@ -269,55 +210,34 @@
 			<section class="col" aria-labelledby="upd-covers">
 				<h3 id="upd-covers" class="section">What It Covers</h3>
 				<Fields>
-					<TextField
-						label="Name"
-						bind:value={name}
-						required
-						maxlength={100}
-						error={fields['body.name']}
-						placeholder="Image updates"
-					/>
-					{#if editing && p}
-						<p class="muted">
-							Covers {#if p.scope === 'all'}<strong class="strong"
-									>all environments</strong
-								>{:else}the environment <strong class="strong"
-									>{environmentName(envs.data, p.environmentId)}</strong
-								>{/if}. The scope can't change.
-						</p>
-					{:else}
-						{#if allowAll}
-							<RadioGroup
-								label="Environments"
-								bind:value={scope}
-								onchange={() => (touched = true)}
-								options={[
-									{
-										value: 'all',
-										label: 'All Environments',
-										description: 'Environments added later are covered too.'
-									},
-									{ value: 'environment', label: 'One Environment' }
-								]}
+					<FieldGroup
+						legend="Environments"
+						hint="Uncheck an environment to leave it out. Environments added later are covered."
+					>
+						{#if envs.isPending}
+							<Skeleton lines={2} height="20px" />
+						{:else}
+							<CoverageList
+								label="Environments Covered"
+								min="180px"
+								items={activeEnvironments.map((e) => ({
+									key: e.id,
+									label: e.name,
+									description: e.online ? undefined : 'Offline'
+								}))}
+								excluded={excludedEnvironments}
+								onchange={(v) => {
+									excludedEnvironments = v;
+									touched = true;
+								}}
 							/>
 						{/if}
-						{#if scope === 'environment'}
-							<Select
-								label="Environment"
-								options={envOptions}
-								bind:value={environmentId}
-								placeholder="Choose an environment"
-								required
-								error={fields['body.environmentId']}
-								onchange={() => (touched = true)}
-							/>
-						{/if}
-					{/if}
+					</FieldGroup>
 					<FieldGroup legend="Stacks" hint="Uncheck a stack to leave it out.">
 						{#if stacks.isPending}
 							<Skeleton lines={3} height="20px" />
 						{:else if !visibleStacks.length}
-							<p class="muted">No managed stacks in scope.</p>
+							<p class="muted">No managed stacks in the covered environments.</p>
 						{:else}
 							<CoverageList
 								label="Stacks Covered"
@@ -325,10 +245,7 @@
 								items={visibleStacks.map((s) => ({
 									key: s.id,
 									label: s.displayName || s.name,
-									description:
-										scope === 'all'
-											? environmentName(envs.data, s.environmentId)
-											: undefined
+									description: environmentName(envs.data, s.environmentId)
 								}))}
 								excluded={excludedStacks}
 								onchange={(v) => {
@@ -351,7 +268,8 @@
 							</p>
 						{:else if !containers.length}
 							<p class="muted">
-								No Docker Manager-managed standalone containers in scope.
+								No Docker Manager-managed standalone containers in the covered
+								environments.
 							</p>
 						{:else}
 							<CoverageList
@@ -360,7 +278,7 @@
 								items={containers.map((c) => ({
 									key: c.key,
 									label: c.name,
-									description: scope === 'all' ? c.environment : undefined
+									description: c.environment
 								}))}
 								excluded={excludedContainers}
 								onchange={(v) => {
@@ -478,12 +396,12 @@
 		<Button variant="ghost" disabled={busy} onclick={() => (open = false)}>Cancel</Button>
 		<Button
 			type="submit"
-			form="update-policy-form"
+			form="update-settings-form"
 			variant="primary"
 			loading={busy}
 			disabled={!canSave}
 		>
-			{editing ? 'Save Changes' : 'Create Update Policy'}
+			Save Changes
 		</Button>
 	{/snippet}
 </Dialog>
@@ -510,11 +428,6 @@
 
 	.error {
 		margin-bottom: var(--space-4);
-	}
-
-	.strong {
-		color: var(--text-strong);
-		font-weight: var(--weight-medium);
 	}
 
 	@media (max-width: 1023px) {

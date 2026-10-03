@@ -8,11 +8,39 @@ import (
 
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
+	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 	"github.com/neurekadev/docker-manager/internal/manager/updates"
 )
 
-func TestEnvironmentPolicyScopesAndExclusions(t *testing.T) {
+// change applies a change to the updates setup.
+func (h *harness) change(c updates.SetupChange) domain.UpdateSetup {
+	h.t.Helper()
+	st, err := h.svc.Setup(h.ctx)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	_, after, err := h.svc.UpdateSetup(h.ctx, st.Revision, c)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return after
+}
+
+func (h *harness) targets() []updates.ManagedTarget {
+	h.t.Helper()
+	ts, err := h.svc.Targets(h.ctx)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return ts
+}
+
+// The setup starts with both schedules off; it covers every environment's
+// stacks except what it leaves out (a stack, or its whole environment),
+// keeps the records of what it no longer covers, and a scheduled check
+// asks for every covered target.
+func TestSetupCoversEverythingButWhatItLeavesOut(t *testing.T) {
 	h := newHarness(t)
 	now := h.clk.Now()
 	for _, id := range []string{env, "other-env"} {
@@ -26,56 +54,79 @@ func TestEnvironmentPolicyScopesAndExclusions(t *testing.T) {
 	h.deployStack("st-1", "shop", "services:\n  web:\n    image: "+h.ref("acme/web:1")+"\n", nil,
 		[]stackService{{name: "web", image: h.ref("acme/web:1"), running: true}})
 
-	p, err := h.svc.CreateEnvironmentPolicy(h.ctx, updates.NewEnvironmentPolicy{EnvironmentID: env, Name: "updates"})
+	st, err := h.svc.Setup(h.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.svc.CreateEnvironmentPolicy(h.ctx, updates.NewEnvironmentPolicy{Name: "all"}); !errors.Is(err, domain.ErrUpdateScopeOverlap) {
-		t.Fatalf("global policy overlapping a single environment: %v", err)
+	if st.ID == "" || st.Check.Enabled || st.Run.Enabled || st.Check.Cron != "0 3 * * *" || st.Run.Cron != "0 4 * * *" ||
+		len(st.ExcludeEnvironments)+len(st.ExcludeStacks)+len(st.ExcludeContainers) != 0 {
+		t.Fatalf("new setup %+v", st)
 	}
-	if _, err := h.svc.CheckEnvironment(h.ctx, authz.Service(), p.ID, "first"); err != nil {
+	var rej *scheduler.Rejection
+	if err := h.svc.CheckSource().Validate(h.ctx, st.ID); !errors.As(err, &rej) || rej.Class != scheduler.RejectPolicyDisabled {
+		t.Fatalf("check while disabled: %v", err)
+	}
+	if _, err := h.svc.CheckSetup(h.ctx, authz.Service(), "first"); err != nil {
 		t.Fatal(err)
 	}
-	children, err := h.svc.ManagedPolicies(h.ctx, p.ID)
-	if err != nil || len(children) != 1 || children[0].Policy.TargetID != "st-1" || children[0].Policy.Inactive ||
+	children := h.targets()
+	if len(children) != 1 || children[0].Policy.TargetID != "st-1" || children[0].Policy.ParentID != st.ID || children[0].Policy.Inactive ||
 		children[0].InactiveReason != "" || children[0].Policy.Name != "Automatic updates for shop" {
-		t.Fatalf("discovered stack: %+v, %v", children, err)
+		t.Fatalf("discovered stack: %+v", children)
 	}
+
 	window := &domain.UpdateWindow{Start: "01:00", End: "02:00"}
-	p, err = h.svc.UpdateEnvironmentPolicy(h.ctx, p.ID, p.Revision, updates.NewEnvironmentPolicy{
-		EnvironmentID: env, Name: p.Name, ExcludeStacks: []string{"st-1"}, Window: window})
-	if err != nil {
-		t.Fatal(err)
+	h.change(updates.SetupChange{ExcludeStacks: &[]string{"st-1"}, Window: window})
+	children = h.targets()
+	if len(children) != 1 || !children[0].Policy.Inactive || children[0].InactiveReason != domain.UpdateTargetExcluded {
+		t.Fatalf("excluded stack: %+v", children)
 	}
-	if _, err := h.svc.CheckEnvironment(h.ctx, authz.Service(), p.ID, "excluded"); err != nil {
-		t.Fatal(err)
-	}
-	children, err = h.svc.ManagedPolicies(h.ctx, p.ID)
-	if err != nil || len(children) != 1 || !children[0].Policy.Inactive || children[0].InactiveReason != domain.UpdateTargetExcluded {
-		t.Fatalf("excluded stack: %+v, %v", children, err)
-	}
-	// The list of policies leaves out records the policy no longer covers.
+	// The list of records leaves out the ones the setup no longer covers.
 	if listed, err := h.svc.List(h.ctx, env, "", 0); err != nil || len(listed) != 0 {
 		t.Fatalf("excluded record listed: %+v, %v", listed, err)
 	}
-	p, err = h.svc.UpdateEnvironmentPolicy(h.ctx, p.ID, p.Revision, updates.NewEnvironmentPolicy{
-		EnvironmentID: env, Name: p.Name, Window: window})
-	if err != nil {
-		t.Fatal(err)
+
+	// Leaving the environment out leaves its stacks out as well; unknown
+	// environments are dropped.
+	st = h.change(updates.SetupChange{ExcludeStacks: &[]string{}, ExcludeEnvironments: &[]string{env, "gone"}})
+	if !slices.Equal(st.ExcludeEnvironments, []string{env}) {
+		t.Fatalf("environments left out %v", st.ExcludeEnvironments)
 	}
-	if _, err := h.svc.CheckEnvironment(h.ctx, authz.Service(), p.ID, "included"); err != nil {
-		t.Fatal(err)
+	children = h.targets()
+	if len(children) != 1 || !children[0].Policy.Inactive || children[0].InactiveReason != domain.UpdateTargetExcluded {
+		t.Fatalf("stack of a left-out environment: %+v", children)
 	}
-	children, err = h.svc.ManagedPolicies(h.ctx, p.ID)
-	if err != nil || len(children) != 1 || children[0].Policy.Inactive || children[0].Policy.Window == nil ||
-		children[0].Policy.Window.Start != "01:00" {
-		t.Fatalf("reactivated stack with updated window: %+v, %v", children, err)
+
+	on := domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC", Enabled: true}
+	st = h.change(updates.SetupChange{ExcludeEnvironments: &[]string{}, Check: &on})
+	children = h.targets()
+	if len(children) != 1 || children[0].Policy.Inactive || children[0].Policy.Window == nil || children[0].Policy.Window.Start != "01:00" {
+		t.Fatalf("covered again with the window: %+v", children)
 	}
 	if listed, err := h.svc.List(h.ctx, env, "", 0); err != nil || len(listed) != 1 {
 		t.Fatalf("covered record not listed: %+v, %v", listed, err)
 	}
-	if _, err := h.svc.CreateEnvironmentPolicy(h.ctx, updates.NewEnvironmentPolicy{EnvironmentID: "other-env", Name: "other"}); err != nil {
-		t.Fatalf("disjoint environment: %v", err)
+	if err := h.svc.CheckSource().Validate(h.ctx, st.ID); err != nil {
+		t.Fatalf("enabled check: %v", err)
+	}
+	reqs, err := h.svc.CheckSource().Jobs(h.ctx, scheduler.Due{PolicyID: st.ID})
+	if err != nil || len(reqs) != 1 {
+		t.Fatalf("scheduled check: %+v %v", reqs, err)
+	}
+	scheds, err := h.svc.CheckSource().Schedules(h.ctx)
+	if err != nil || !slices.ContainsFunc(scheds, func(s scheduler.PolicySchedule) bool {
+		return s.PolicyID == st.ID && s.Enabled && s.EnvironmentID == "" && s.Name == updates.ScheduleName
+	}) {
+		t.Fatalf("schedules %+v %v", scheds, err)
+	}
+
+	// Container exclusions name their environment; a stale revision is
+	// refused.
+	if _, _, err := h.svc.UpdateSetup(h.ctx, st.Revision, updates.SetupChange{ExcludeContainers: &[]string{"api"}}); err == nil {
+		t.Fatal("container exclusion without its environment accepted")
+	}
+	if _, _, err := h.svc.UpdateSetup(h.ctx, st.Revision-1, updates.SetupChange{}); !errors.Is(err, domain.ErrRevisionMismatch) {
+		t.Fatalf("stale revision: %v", err)
 	}
 }
 
@@ -83,7 +134,7 @@ func TestEnvironmentPolicyScopesAndExclusions(t *testing.T) {
 // follow renames, never contain IDs (records named after their ID by
 // earlier versions are renamed), stay unique in the environment, and
 // explain why they are no longer covered.
-func TestEnvironmentTargetNames(t *testing.T) {
+func TestSetupTargetNames(t *testing.T) {
 	h := newHarness(t)
 	now := h.clk.Now()
 	e := domain.Environment{ID: env, Name: env, Status: domain.EnvironmentActive, Online: true, Revision: 1, CreatedAt: now, UpdatedAt: now}
@@ -93,7 +144,7 @@ func TestEnvironmentTargetNames(t *testing.T) {
 	h.stacks.put(domain.Stack{ID: "st-a", EnvironmentID: env, Name: "zerobyte"})
 	h.stacks.put(domain.Stack{ID: "st-b", EnvironmentID: env, Name: "media", DisplayName: "Media"})
 	h.stacks.put(domain.Stack{ID: "st-c", EnvironmentID: env, Name: "media-2", DisplayName: "Media"})
-	p, err := h.svc.CreateEnvironmentPolicy(h.ctx, updates.NewEnvironmentPolicy{EnvironmentID: env, Name: "updates"})
+	p, err := h.svc.Setup(h.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,12 +157,8 @@ func TestEnvironmentTargetNames(t *testing.T) {
 	}
 	names := func() map[string]updates.ManagedTarget {
 		t.Helper()
-		targets, err := h.svc.ManagedPolicies(h.ctx, p.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
 		out := map[string]updates.ManagedTarget{}
-		for _, target := range targets {
+		for _, target := range h.targets() {
 			if strings.Contains(target.Policy.Name, target.Policy.ID) || strings.Contains(target.Policy.Name, target.Policy.TargetID) &&
 				target.Policy.TargetType == domain.UpdateTargetStack {
 				t.Errorf("name contains an ID: %q", target.Policy.Name)

@@ -11,19 +11,19 @@ never downloads or changes anything.
 To update one stack now, choose **Pull & Deploy** in the menu next to its
 **Deploy** button.
 
-## Update policies
+## Update on a schedule
 
-An **update policy** checks for newer images, and can apply them, on a
-schedule. Each server can have one update policy.
+Docker Manager checks and updates every server with one set of settings.
+Both schedules start off.
 
-1. Open **Updates** and press **Create Update Policy**.
-2. Enter a **Name** and choose the **Environments**.
-3. Choose what it covers: every stack and the containers Docker Manager
-   created. Untick what to leave out.
-4. Turn on the schedules you want:
+1. Open **Updates** and press **Edit**.
+2. Choose what it covers: every server, stack and container Docker Manager
+   created is included, also ones you add later. Untick what to leave out.
+3. Turn on the schedules you want:
    - **Check Automatically**: when to look for newer images.
    - **Update Automatically**: when to apply what the last check found.
      Containers then restart without asking.
+4. Press **Save Changes**.
 
 Under **Update Window and Health Wait** you can limit scheduled updates to
 certain days and hours, and set how long to wait for an updated container
@@ -36,8 +36,8 @@ a failed check or update. **Preview Update** in a row shows the services
 that would be recreated and the new image versions; press **Update …
 Services** to run it.
 
-On a policy's page, **Check Now** checks right away, and **Preview Updates
-→ Apply Updates** updates everything the policy found.
+**Check Now** checks everything right away, and **Preview Updates →
+Apply Updates** updates everything the last check found.
 
 In the container list and a stack's services, an icon next to each image
 shows **Update available**, **Up to date** or a failed check. Click it to

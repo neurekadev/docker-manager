@@ -70,14 +70,6 @@ func (s *seed) seedEverything() {
 	s.stack("st-other", "cloud", "other")
 	s.must(store.InsertManagedContainer(s.ctx, s.db, domain.ManagedContainer{ID: ids.New(), EnvironmentID: "nas", Name: "cache",
 		CreateJobID: "job-create", CreatedAt: s.now}, "sealed"))
-	sched := domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC"}
-	for _, u := range []domain.EnvironmentUpdatePolicy{
-		{ID: "up-shop", EnvironmentID: "nas", Name: "NAS updates"},
-		{ID: "up-other", EnvironmentID: "cloud", Name: "Cloud updates"},
-	} {
-		u.Check, u.Run, u.Revision, u.CreatedAt, u.UpdatedAt = sched, sched, 1, s.now, s.now
-		s.must(store.InsertEnvironmentUpdatePolicy(s.ctx, s.db, u))
-	}
 	// A local repository on the NAS agent, an S3 repository holding the
 	// NAS scope, and one only the manager uses.
 	for _, r := range []domain.BackupRepository{
@@ -172,7 +164,6 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 	}
 	want := map[string][]string{
 		domain.DependentStack:              {"st-shop"},
-		domain.DependentUpdatePolicy:       {"up-shop"},
 		domain.DependentBackupPolicy:       {"bp-nightly"},
 		domain.DependentBackupRepository:   {"repo-local", "repo-s3"},
 		domain.DependentBackupSet:          {"set-1"},
@@ -202,7 +193,7 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 	if n := len(got[domain.DependentPermissionRule]); n != 2 {
 		t.Errorf("permission rules %d, want 2", n)
 	}
-	wantEffects := map[string]string{domain.DependentStack: domain.OnArchiveKept, domain.DependentUpdatePolicy: domain.OnArchivePaused,
+	wantEffects := map[string]string{domain.DependentStack: domain.OnArchiveKept,
 		domain.DependentBackupPolicy:     domain.OnArchivePaused,
 		domain.DependentBackupRepository: domain.OnArchiveKept, domain.DependentBackupSet: domain.OnArchiveKept,
 		domain.DependentPermissionRule: domain.OnArchiveRemoved, domain.DependentJob: domain.OnArchiveInterrupted}

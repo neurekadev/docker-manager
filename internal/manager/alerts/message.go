@@ -34,8 +34,7 @@ import (
 
 // Link returns the path of the page an alert is about: the environment's
 // System tab (disks, RAID), the environment (offline, host usage), the
-// job, the environment update policy that manages the target
-// (updatePolicyPath).
+// job, Updates for an update alert (updatePolicyPath).
 func Link(a domain.Alert) string {
 	switch a.Kind {
 	case domain.NotifyDiskHealth, domain.NotifyRAID:
@@ -56,16 +55,10 @@ func Link(a domain.Alert) string {
 	return "/notifications?tab=alerts"
 }
 
-// updatePolicyPath is the page of an environment update policy (the
-// policyId fact of update alerts and notifications: the parent of the
-// target's record, never the record, which has no page), or Updates for
-// a target without one (a policy from before environment policies).
-func updatePolicyPath(id string) string {
-	if id == "" {
-		return "/updates"
-	}
-	return "/updates/" + url.PathEscape(id)
-}
+// updatePolicyPath is the page of update alerts and notifications: the
+// Updates page, where the setup and its targets are (target records have
+// no page).
+func updatePolicyPath(string) string { return "/updates" }
 
 // NotificationLink returns the path of a notification's job.
 func NotificationLink(n domain.Notification) string {

@@ -2,16 +2,12 @@ package app
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
-	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
-	"github.com/neurekadev/docker-manager/internal/manager/store"
-	"github.com/neurekadev/docker-manager/internal/manager/updates"
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
@@ -93,17 +89,6 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if got := b.runJob(js[0].ID); got.State != domain.JobSucceeded {
 		t.Fatalf("backup: %s %s", got.State, got.ErrorMessage)
 	}
-	// An environment update policy (checks enabled).
-	now := b.clk.Now().UTC()
-	up := domain.EnvironmentUpdatePolicy{ID: "0190a6e0-0000-7000-8000-00000000u001", EnvironmentID: env, Name: "App updates",
-		Check: domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC", Enabled: true},
-		Run:   domain.UpdateSchedule{Cron: "0 4 * * *", TimeZone: "UTC"}, Revision: 1, CreatedAt: now, UpdatedAt: now}
-	if err := store.InsertEnvironmentUpdatePolicy(ctx, b.m.DB(), up); err != nil {
-		t.Fatal(err)
-	}
-	if err := b.m.Updates().CheckSource().Validate(ctx, up.ID); err != nil {
-		t.Fatalf("update policy before archiving: %v", err)
-	}
 	// Rules of another user: two name the environment, one the stack.
 	sam, _, _ := b.newUser(owner, "sam")
 	samRules := "/api/v1/users/" + b.userID("sam") + "/permissions"
@@ -117,7 +102,7 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if prev.Action != "archive" || !prev.HostUntouched || prev.Migration.Stacks != 1 || len(prev.Dependents) != len(domain.DependentKinds()) {
 		t.Fatalf("preview %+v", prev)
 	}
-	for kind, atLeast := range map[string]int{domain.DependentStack: 1, domain.DependentBackupPolicy: 1, domain.DependentUpdatePolicy: 1,
+	for kind, atLeast := range map[string]int{domain.DependentStack: 1, domain.DependentBackupPolicy: 1,
 		domain.DependentBackupRepository: 1, domain.DependentBackupSet: 1, domain.DependentPermissionRule: 2, domain.DependentSchedule: 1} {
 		if prev.count(kind) < atLeast {
 			t.Errorf("preview lists %d %s, want >= %d", prev.count(kind), kind, atLeast)
@@ -177,10 +162,6 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	// Hidden from operations: manual work is refused, scheduled work paused.
 	owner.fail(http.StatusConflict, "environment_archived", http.MethodPost,
 		"/api/v1/environments/"+env+"/containers/app-web-1/restart", nil)
-	var rej *scheduler.Rejection
-	if err := b.m.Updates().CheckSource().Validate(ctx, up.ID); !errors.As(err, &rej) || rej.Class != updates.RejectEnvironmentArchived {
-		t.Fatalf("update policy while archived: %v", err)
-	}
 	tick()
 	if n := backupRuns(); n != 1 {
 		t.Fatalf("scheduled backups while archived: %d", n)
@@ -199,9 +180,6 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	st, err := b.m.Stacks().Get(ctx, b.stackID)
 	if err != nil || st.EnvironmentID != env {
 		t.Fatalf("stack after re-attaching %+v %v", st, err)
-	}
-	if err := b.m.Updates().CheckSource().Validate(ctx, up.ID); err != nil {
-		t.Fatalf("update policy after re-attaching: %v", err)
 	}
 	tick()
 	if n := backupRuns(); n != 2 {

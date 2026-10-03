@@ -93,8 +93,7 @@ func putTarget(f map[string]string, t domain.JobTarget) {
 }
 
 // policyPath is the page of a notification's policy ("" without one): an
-// update run's is its environment policy (updatePolicyPath; Updates for
-// a policy from before environment policies).
+// update run's is Updates (updatePolicyPath).
 func policyPath(n domain.Notification) string {
 	id := n.Facts["policyId"]
 	switch {
@@ -433,7 +432,7 @@ func updateNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[str
 		putTarget(f, t)
 	}
 	// The input's policy is the target's record: the notification names
-	// the environment policy that manages it.
+	// the updates setup that manages it.
 	if in.PolicyID != "" {
 		if p, err := store.GetUpdatePolicy(ctx, db, in.PolicyID); err == nil {
 			putUpdatePolicy(ctx, db, p, f)

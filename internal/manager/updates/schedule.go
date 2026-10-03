@@ -10,9 +10,10 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 )
 
-// Scheduled checks and runs (#13): each policy has a check schedule
+// Scheduled checks and runs (#13): the updates setup has a check schedule
 // (update_check) and a run schedule (update_run), both disabled until the
-// user enables them — no automatic check or update happens before.
+// user enables them — no automatic check or update happens before. A
+// target record created by hand (no setup, tests) has its own.
 
 // Rejection classes of scheduled update work.
 const (
@@ -28,7 +29,7 @@ func (s *Service) CheckSource() scheduler.PolicySource { return checkSource{s} }
 func (s *Service) RunSource() scheduler.PolicySource { return runSource{s} }
 
 // Register installs both sources in the scheduler and keeps it for
-// Notify and the defaults of new policies.
+// Notify and the defaults of new records.
 func (s *Service) Register(sched *scheduler.Service) error {
 	s.SetScheduler(sched)
 	if err := sched.Register(scheduler.KindUpdateCheck, s.CheckSource()); err != nil {
@@ -54,44 +55,28 @@ func (s *Service) schedules(ctx context.Context, kind string) ([]scheduler.Polic
 		out = append(out, scheduler.PolicySchedule{PolicyID: p.ID, Name: p.Name, EnvironmentID: p.EnvironmentID,
 			Cron: sc.Cron, TimeZone: sc.TimeZone, Enabled: sc.Enabled})
 	}
-	configs, err := store.ListEnvironmentUpdatePolicies(ctx, s.db)
+	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range configs {
-		sc := p.Check
-		if kind == scheduler.KindUpdateRun {
-			sc = p.Run
-		}
-		out = append(out, scheduler.PolicySchedule{PolicyID: p.ID, Name: p.Name, EnvironmentID: p.EnvironmentID,
-			Cron: sc.Cron, TimeZone: sc.TimeZone, Enabled: sc.Enabled})
+	sc := st.Check
+	if kind == scheduler.KindUpdateRun {
+		sc = st.Run
 	}
-	return out, nil
+	return append(out, scheduler.PolicySchedule{PolicyID: st.ID, Name: ScheduleName, Cron: sc.Cron, TimeZone: sc.TimeZone,
+		Enabled: sc.Enabled}), nil
 }
 
-func (s *Service) environmentPolicy(ctx context.Context, id string) (domain.EnvironmentUpdatePolicy, bool, error) {
-	p, err := store.GetEnvironmentUpdatePolicy(ctx, s.db, id)
-	if errors.Is(err, domain.ErrUpdatePolicyNotFound) {
-		return p, false, nil
-	}
-	return p, err == nil, err
-}
+// ScheduleName is the name of the setup's schedules.
+const ScheduleName = "Automatic Updates"
 
-func (s *Service) environmentTarget(ctx context.Context, p domain.EnvironmentUpdatePolicy) error {
-	if p.EnvironmentID == "" {
-		return nil
-	}
-	env, err := s.opts.Environments.GetEnvironment(ctx, p.EnvironmentID)
-	if errors.Is(err, domain.ErrEnvironmentNotFound) {
-		return scheduler.Reject(scheduler.RejectTargetNotFound, "the environment no longer exists")
-	}
+// setupOf returns the setup when id is its ID.
+func (s *Service) setupOf(ctx context.Context, id string) (domain.UpdateSetup, bool, error) {
+	st, err := s.Setup(ctx)
 	if err != nil {
-		return err
+		return st, false, err
 	}
-	if env.Status == domain.EnvironmentArchived {
-		return scheduler.Reject(RejectEnvironmentArchived, "the environment is archived")
-	}
-	return nil
+	return st, st.ID == id, nil
 }
 
 // policy loads a policy for the scheduler: a deleted one is rejected.
@@ -137,13 +122,13 @@ func (c checkSource) Schedules(ctx context.Context) ([]scheduler.PolicySchedule,
 }
 
 func (c checkSource) Validate(ctx context.Context, policyID string) error {
-	if config, ok, err := c.s.environmentPolicy(ctx, policyID); err != nil {
+	if config, ok, err := c.s.setupOf(ctx, policyID); err != nil {
 		return err
 	} else if ok {
 		if !config.Check.Enabled {
 			return scheduler.Reject(scheduler.RejectPolicyDisabled, "automatic checks are disabled")
 		}
-		return c.s.environmentTarget(ctx, config)
+		return nil
 	}
 	p, err := c.s.policy(ctx, policyID)
 	if err != nil {
@@ -156,10 +141,10 @@ func (c checkSource) Validate(ctx context.Context, policyID string) error {
 }
 
 func (c checkSource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request, error) {
-	if config, ok, err := c.s.environmentPolicy(ctx, due.PolicyID); err != nil {
+	if config, ok, err := c.s.setupOf(ctx, due.PolicyID); err != nil {
 		return nil, err
 	} else if ok {
-		children, err := c.s.syncEnvironmentPolicy(ctx, config)
+		children, err := c.s.syncSetup(ctx, config)
 		if err != nil {
 			return nil, err
 		}
@@ -186,16 +171,16 @@ func (r runSource) Schedules(ctx context.Context) ([]scheduler.PolicySchedule, e
 // the update window (when due and again when the queued job is
 // dispatched, so a run that waited for locks past the window is refused).
 func (r runSource) Validate(ctx context.Context, policyID string) error {
-	if config, ok, err := r.s.environmentPolicy(ctx, policyID); err != nil {
+	if config, ok, err := r.s.setupOf(ctx, policyID); err != nil {
 		return err
 	} else if ok {
 		if !config.Run.Enabled {
 			return scheduler.Reject(scheduler.RejectPolicyDisabled, "automatic updates are disabled")
 		}
 		if !InWindow(domain.UpdatePolicy{Run: config.Run, Window: config.Window}, r.s.clk.Now()) {
-			return scheduler.Reject(RejectOutsideWindow, "outside the policy's update window")
+			return scheduler.Reject(RejectOutsideWindow, "outside the update window")
 		}
-		return r.s.environmentTarget(ctx, config)
+		return nil
 	}
 	p, err := r.s.policy(ctx, policyID)
 	if err != nil {
@@ -214,10 +199,10 @@ func (r runSource) Validate(ctx context.Context, policyID string) error {
 // run; undeployed source changes refuse it (an update never deploys an
 // edit).
 func (r runSource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request, error) {
-	if config, ok, err := r.s.environmentPolicy(ctx, due.PolicyID); err != nil {
+	if config, ok, err := r.s.setupOf(ctx, due.PolicyID); err != nil {
 		return nil, err
 	} else if ok {
-		children, err := r.s.syncEnvironmentPolicy(ctx, config)
+		children, err := r.s.syncSetup(ctx, config)
 		if err != nil {
 			return nil, err
 		}

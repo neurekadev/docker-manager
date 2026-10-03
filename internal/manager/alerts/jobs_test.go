@@ -229,18 +229,17 @@ func (f *fixture) updatePolicy(id string) domain.UpdatePolicy {
 	return p
 }
 
-// environmentPolicy stores env-1's environment update policy and a
-// target's record below it (named after its target, like the
-// reconciliation does).
-func (f *fixture) environmentPolicy(id, name, recordID string) domain.UpdatePolicy {
+// setupRecord stores a target's record below the updates setup (named
+// after its target, like the reconciliation does).
+func (f *fixture) setupRecord(recordID string) domain.UpdatePolicy {
 	f.t.Helper()
 	now := f.clk.Now().UTC()
 	sched := domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC"}
-	if err := store.InsertEnvironmentUpdatePolicy(f.ctx, f.db, domain.EnvironmentUpdatePolicy{ID: id, EnvironmentID: "env-1", Name: name,
-		Check: sched, Run: sched, Revision: 1, CreatedAt: now, UpdatedAt: now}); err != nil {
+	st, err := store.GetUpdateSetup(f.ctx, f.db)
+	if err != nil {
 		f.t.Fatal(err)
 	}
-	p := domain.UpdatePolicy{ID: recordID, ParentID: id, EnvironmentID: "env-1", Name: "Automatic updates for web",
+	p := domain.UpdatePolicy{ID: recordID, ParentID: st.ID, EnvironmentID: "env-1", Name: "Automatic updates for web",
 		TargetType: domain.UpdateTargetContainer, TargetID: "web", Check: sched, Run: sched, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	if err := store.InsertUpdatePolicy(f.ctx, f.db, &p); err != nil {
 		f.t.Fatal(err)
@@ -248,38 +247,37 @@ func (f *fixture) environmentPolicy(id, name, recordID string) domain.UpdatePoli
 	return p
 }
 
-// Update alerts and update run notifications link to the environment
-// policy that manages the target, never to the target's record (it has
+// Update alerts and update run notifications link to Updates, where the
+// setup that manages the target is, never to the target's record (it has
 // no page).
-func TestUpdatesLinkTheEnvironmentPolicy(t *testing.T) {
+func TestUpdatesLinkTheUpdatesPage(t *testing.T) {
 	f := newFixture(t)
 	f.channel("ops", nil, true, nil, true)
-	p := f.environmentPolicy("env-pol", "Nightly updates", "rec-web")
+	p := f.setupRecord("rec-web")
 	f.candidate(p.ID, "web", domain.CandidateAvailable, "sha256:aaa")
 	f.check(p.ID)
 	a := f.one()
-	if a.ResourceID != p.ID || a.Facts["policyId"] != "env-pol" || a.Facts["policy"] != "Nightly updates" || Link(a) != "/updates/env-pol" {
+	if a.ResourceID != p.ID || a.Facts["policyId"] != p.ParentID || a.Facts["policy"] != "Automatic Updates" || Link(a) != "/updates" {
 		t.Fatalf("%+v", a)
 	}
 	got := f.dispatch()
-	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/updates/env-pol" {
+	if len(got) != 1 || got[0].msg.URL != "https://docker.example.com/updates" {
 		t.Fatalf("%+v", got)
 	}
-	if pf := fieldNamed(got[0].msg.Fields, "Policy"); pf.Value != "Nightly updates" || pf.Link != "https://docker.example.com/updates/env-pol" {
+	if pf := fieldNamed(got[0].msg.Fields, "Policy"); pf.Value != "Automatic Updates" || pf.Link != "https://docker.example.com/updates" {
 		t.Fatalf("%+v", pf)
 	}
 	j := f.run("update.run", domain.JobSucceeded, domain.OriginScheduled)
 	j.Input = output(t, map[string]any{"policyId": p.ID, "container": map[string]any{"name": "web"}})
 	f.finish(j)
 	n := f.notifications()[0]
-	if n.Facts["policyId"] != "env-pol" || n.Facts["policy"] != "Nightly updates" {
+	if n.Facts["policyId"] != p.ParentID || n.Facts["policy"] != "Automatic Updates" {
 		t.Fatalf("%+v", n.Facts)
 	}
-	if pf := fieldNamed(NotificationFields(n, "homelab"), "Policy"); pf.Value != "Nightly updates" || pf.Link != "/updates/env-pol" {
+	if pf := fieldNamed(NotificationFields(n, "homelab"), "Policy"); pf.Value != "Automatic Updates" || pf.Link != "/updates" {
 		t.Fatalf("%+v", pf)
 	}
-	// A record from before environment policies: its own name, linked to
-	// Updates.
+	// A record created by hand: its own name, linked to Updates.
 	legacy := domain.Notification{Kind: domain.NotifyUpdates, Facts: map[string]string{"policy": "web updates"}}
 	if pf := fieldNamed(NotificationFields(legacy, ""), "Policy"); pf.Value != "web updates" || pf.Link != "/updates" {
 		t.Fatalf("%+v", pf)

@@ -207,7 +207,7 @@ sideways between short and long ones. Create and edit forms of stacks, policies 
 maintenance) are dialogs over the list or detail
 page, laid out in columns (`Dialog size="xl"`), opened by a query
 parameter (`?create=1`, `?edit=1`, `?defaults=1`; `urlDialog` in
-`$lib/features/common`) so links and routes (`routes.updatePolicyNew()`)
+`$lib/features/common`) so links and routes (`routes.updatesEdit()`)
 open them. Only long single-purpose flows (repository setup, restore,
 token creation) stay pages (`Page narrow`, 1120 px) with a plain
 `PageHeader` (no section tabs); when they run long, their buttons sit in

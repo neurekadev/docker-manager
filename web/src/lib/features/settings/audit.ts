@@ -200,7 +200,7 @@ export const TARGET_TYPES: Record<string, string> = {
 	backup: 'Backup',
 	backup_repository: 'Backup Repository',
 	backup_policy: 'Backup Policy',
-	update_policy: 'Update Policy',
+	update_policy: 'Updates',
 	maintenance_policy: 'Maintenance',
 	build_definition: 'Build Definition',
 	template: 'Stack Template',

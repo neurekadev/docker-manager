@@ -233,11 +233,10 @@ after the commit.
   again only when a new digest appears. Its facts are the target (a stack
   by its display name), the count, the first 10 services in words
   (`services`) and with their digests (`changes`: what runs → the newer
-  image, `encodeChanges`), and the environment policy that manages the
-  target (`policy`, `policyId`: the record's parent, `putUpdatePolicy`;
-  the record itself has no page). Its link and Policy field open that
-  policy; a record without one (from before environment policies) links
-  to Updates.
+  image, `encodeChanges`), and the updates setup that manages the target
+  (`policy` "Automatic Updates", `policyId`: the record's parent,
+  `putUpdatePolicy`; the record itself has no page). Its link and Policy
+  field open the Updates page; a record created by hand names itself.
 
 ## Notifications
 
@@ -256,8 +255,8 @@ warnings or input secrets:
 | --- | --- | --- |
 | backup | policy, repository (names and IDs, for their pages), items backed up / failed / skipped, the names that failed, were skipped or had unreadable files, bytes read, repository size and snapshots | failure: failed, partly failed or interrupted; warning: succeeded with unreadable files or skipped items; success |
 | restore | the stack (by its display name) or volumes, the target (`targetType`, `targetId`), the repository (name and ID), whether to deploy the restored Compose file | failure or success |
-| prune | policy (name and ID), reclaimed bytes, removed / skipped / failed / deferred, and per kind of object (containers, images, volumes, networks, build cache: removed items and their bytes) | failure or success |
-| update | the target (a stack by its display name; `targetType`, `targetId`), the environment policy that manages it (name and ID; the input's `policyId` is the target's record, which has no page; a record from before environment policies: its own name, linked to Updates), per group (updated, unchanged, kept stopped, failed) its count (`<group>Count`) and up to 10 services with their digests (`<group>Changes`: "service TAB from TAB to", 12 digits); the unchanged, kept stopped and failed names in words for the body | failure (failed, partly failed, interrupted) or success |
+| prune | policy ("Maintenance" and the setup's ID for maintenance's runs; none for one-off prunes), reclaimed bytes, removed / skipped / failed / deferred, and per kind of object (containers, images, volumes, networks, build cache: removed items and their bytes) | failure or success |
+| update | the target (a stack by its display name; `targetType`, `targetId`), the updates setup that manages it ("Automatic Updates" and its ID; the input's `policyId` is the target's record, which has no page; a record created by hand: its own name), linked to Updates, per group (updated, unchanged, kept stopped, failed) its count (`<group>Count`) and up to 10 services with their digests (`<group>Changes`: "service TAB from TAB to", 12 digits); the unchanged, kept stopped and failed names in words for the body | failure (failed, partly failed, interrupted) or success |
 
 Every notification also has the job, its kind, state, origin, who started
 it (a manual job's user) and its duration.
@@ -352,11 +351,8 @@ Environment field; a digest's only when every entry names the same one):
 emails prefix their subject with it. The link is the public
 URL plus the page it is about (the
 environment's System tab for disks and RAID, the environment for offline
-and host usage, the job for failed jobs and notifications, the
-environment update policy that manages the target, or `/updates` without
-one; digests link to `/notifications`). The web's `/updates/<id>` page
-follows an older message's link to a target's record to its environment
-policy (`recordPolicyHref`, the record's `parentId`). Never serial numbers, job
+and host usage, the job for failed jobs and notifications, `/updates`
+for updates; digests link to `/notifications`). Never serial numbers, job
 error texts or secrets. `notify` renders the message for each service
 ([notifications.md](notifications.md#delivery)).
 
@@ -407,7 +403,7 @@ Changes reach the live stream as `invalidate` topic `alerts`, kind
 | disk and RAID severity, fingerprints, progress, sleeping, removal | `internal/manager/alerts/health_test.go` |
 | host usage: sustain, margin, peak, overrides, stale samples, validation | `internal/manager/alerts/thresholds_test.go` |
 | offline grace, startup, move lock, archive, reconcile loop | `internal/manager/alerts/offline_test.go` |
-| failed jobs (origin, keys, resolution, expiry, sent by area), updates (new digests, the environment policy's link) | `internal/manager/alerts/jobs_test.go` |
+| failed jobs (origin, keys, resolution, expiry, sent by area), updates (new digests, the link to Updates) | `internal/manager/alerts/jobs_test.go` |
 | notifications (prune breakdown, backup failure words and warnings, restores, updates, canaries), outcome filters, resolutions only to told channels | `internal/manager/alerts/notifications_test.go` |
 | channel filters, backoff, give-up, order, move lock, dropped, digests, canaries | `internal/manager/alerts/dispatch_test.go` |
 | details, fields, error classes in words, tones, digests | `internal/manager/alerts/message_test.go` |
