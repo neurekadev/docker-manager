@@ -523,9 +523,12 @@ func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key
 	return s.enqueueAll(ctx, principal, key, reqs)
 }
 
-// rollbackTimeout bounds cancelling one job of a start that failed
-// part way.
-const rollbackTimeout = 10 * time.Second
+// rollbackTimeout bounds cancelling one job of a start that failed part
+// way; rollbackBudget bounds cancelling all of them.
+const (
+	rollbackTimeout = 10 * time.Second
+	rollbackBudget  = 30 * time.Second
+)
 
 // enqueueAll enqueues reqs for principal (job keys key#i) all or none:
 // when one fails, the jobs already queued are cancelled (also when the
@@ -542,8 +545,10 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 		if err != nil {
 			// The request may be cancelled already: cancel what was
 			// queued regardless, each within a bound of its own so one
-			// slow cancel does not skip the others.
-			base := context.WithoutCancel(ctx)
+			// slow cancel does not skip the others, all within
+			// rollbackBudget.
+			base, stop := context.WithTimeout(context.WithoutCancel(ctx), rollbackBudget)
+			defer stop()
 			for _, j := range out {
 				cctx, cancel := context.WithTimeout(base, rollbackTimeout)
 				_, cerr := s.opts.Jobs.Cancel(cctx, j.ID)
