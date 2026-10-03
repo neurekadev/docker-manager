@@ -1,8 +1,8 @@
 <script lang="ts">
 	// The Backups tab of a stack or volume (#10): which policy covers it and
 	// when that runs next, then its backups, newest first, each restorable
-	// whole or file by file. Browsing opens the file picker (a lazily listed
-	// tree); every restore is previewed and confirmed with a danger button
+	// whole or file by file. Choose Files opens the shared file picker
+	// (several files and folders); every restore is previewed and confirmed with a danger button
 	// that says what is replaced. Without backups yet, the covering
 	// policy's recent runs say whether they included it and how that went.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -26,7 +26,7 @@
 	import { stacksQuery } from '$lib/features/common/data';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
-	import FilePickerDialog from './FilePickerDialog.svelte';
+	import FilePicker from '$lib/features/common/FilePicker.svelte';
 	import RestoreDialog from './RestoreDialog.svelte';
 	import {
 		CONSISTENCY_LABEL,
@@ -39,6 +39,7 @@
 		type CoverageTarget,
 		type MemberRun
 	} from './model';
+	import { backupPlaces, backupSource, PICKER_LIMIT } from './picker';
 	import { backupPoliciesQuery, backupsQuery, type BackupFilter } from './queries';
 	import type { RestorePlan } from './restore';
 
@@ -273,11 +274,21 @@
 </Card>
 
 {#if picking}
-	<FilePickerDialog
+	<FilePicker
 		bind:open={pickerOpen}
-		backup={picking}
-		{volume}
-		onnext={(paths) => {
+		multiple
+		title="Choose What to Restore"
+		description="Backup of {formatDateTime(
+			picking.snapshotTime
+		)}. A ticked folder is made identical to the backup."
+		places={backupPlaces(picking, volume)}
+		source={backupSource(picking.id)}
+		value={restoring?.backup.id === picking.id && restoring.plan.kind === 'paths'
+			? restoring.plan.paths
+			: []}
+		confirmLabel="Review Restore"
+		truncatedHint="Only the first {PICKER_LIMIT} entries are listed. Tick the folder to restore all of it."
+		onpick={(paths) => {
 			if (!picking) return;
 			restoring = { backup: picking, plan: { kind: 'paths', paths } };
 			restoreOpen = true;
