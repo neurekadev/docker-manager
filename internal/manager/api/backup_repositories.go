@@ -212,7 +212,7 @@ type BackupVerification struct {
 type BackupConnectionTest struct {
 	At         time.Time          `json:"at"`
 	OK         bool               `json:"ok"`
-	Result     string             `json:"result" example:"ok" doc:"ok, or an error class: access_denied, bucket_not_found, unreachable, path_not_allowed, path_not_writable, recovery_key_rejected, repository_locked, storage_access_denied, ..."`
+	Result     string             `json:"result" example:"ok" doc:"ok, or an error class: access_denied, bucket_not_found, unreachable, recovery_key_rejected, repository_locked, storage_access_denied, ..."`
 	Message    string             `json:"message,omitempty"`
 	CanRead    *bool              `json:"canRead,omitempty"`
 	CanWrite   *bool              `json:"canWrite,omitempty"`
@@ -236,17 +236,14 @@ type BackupScopeProbe struct {
 // never returned.
 //
 // Shaping (#17): backup_repository.read shows it in full; any other
-// capability on it only id, name, kind and state.
+// capability on it only id, name and state.
 type BackupRepository struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name" example:"Offsite S3"`
-	Kind      string   `json:"kind" enum:"local,s3"`
 	State     string   `json:"state" enum:"awaiting_confirmation,ready" doc:"awaiting_confirmation until the owner re-enters the Recovery Key for it; nothing is initialized before."`
 	View      string   `json:"view" enum:"minimal,full"`
 	Actions   []string `json:"actions"`
-	Executor  string   `json:"executor,omitempty" doc:"Local repositories: manager or the environment ID whose agent owns the path."`
 	Location  string   `json:"location,omitempty" example:"https://s3.example.com/backups/docker-manager" doc:"Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>."`
-	Path      string   `json:"path,omitempty"`
 	Endpoint  string   `json:"endpoint,omitempty"`
 	Bucket    string   `json:"bucket,omitempty"`
 	Prefix    string   `json:"prefix,omitempty"`
@@ -337,29 +334,21 @@ func newBackupConnectionTest(t *domain.BackupConnectionTest) *BackupConnectionTe
 	return out
 }
 
-func recoveryRequirements(r domain.BackupRepository) []string {
-	if r.Kind == backup.KindS3 {
-		return []string{"the Recovery Key", "the endpoint, bucket and prefix", "S3 credentials that can read the bucket (new credentials work)"}
-	}
-	if r.Executor == domain.BackupExecutorManager {
-		return []string{"the Recovery Key", "the directory " + r.Path + " mounted into the new manager at the same path"}
-	}
-	return []string{"the Recovery Key", "the directory " + r.Path + " on the environment's host, mounted into its (re-enrolled) agent at the same path"}
+func recoveryRequirements() []string {
+	return []string{"the Recovery Key", "the endpoint, bucket and prefix", "S3 credentials that can read the bucket (new credentials work)"}
 }
 
 func newBackupRepository(r domain.BackupRepository, v authz.View, locs []domain.BackupLocation) BackupRepository {
-	out := BackupRepository{ID: r.ID, Name: r.Name, Kind: r.Kind, State: r.State, View: v.Level.String(), Actions: Actions(v)}
+	out := BackupRepository{ID: r.ID, Name: r.Name, State: r.State, View: v.Level.String(), Actions: Actions(v)}
 	if !v.Full() {
 		return out
 	}
-	d := backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle,
+	d := backup.Destination{Kind: backup.KindS3, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle,
 		Compression: backups.DestinationCompression(r.Compression)}
-	out.Executor, out.Location, out.Path, out.Endpoint, out.Bucket, out.Prefix = r.Executor, d.Base(), r.Path, r.Endpoint, r.Bucket, r.Prefix
+	out.Location, out.Endpoint, out.Bucket, out.Prefix = d.Base(), r.Endpoint, r.Bucket, r.Prefix
 	out.Region, out.PathStyle, out.Compression, out.ConfirmedAt = r.Region, r.PathStyle, r.Compression, r.ConfirmedAt
-	if r.Kind == backup.KindS3 {
-		out.Credential = &BackupCredentialState{Set: r.CredentialFingerprint != "", Fingerprint: r.CredentialFingerprint}
-	}
-	out.RecoveryRequirements = recoveryRequirements(r)
+	out.Credential = &BackupCredentialState{Set: r.CredentialFingerprint != "", Fingerprint: r.CredentialFingerprint}
+	out.RecoveryRequirements = recoveryRequirements()
 	out.Verification = &BackupVerification{Cron: r.VerifyCron, TimeZone: r.VerifyTimeZone, Enabled: r.VerifyEnabled, ReadDataSubset: r.VerifyReadData}
 	out.LastTest = newBackupConnectionTest(r.LastTest)
 	out.Revision, out.CreatedAt, out.UpdatedAt = r.Revision, r.CreatedAt, r.UpdatedAt
@@ -542,17 +531,14 @@ func (h *backupsAPI) getRepository(ctx context.Context, in *backupRepositoryIDIn
 type createBackupRepositoryInput struct {
 	Body struct {
 		Name            string `json:"name" minLength:"1" maxLength:"100" example:"Offsite S3"`
-		Kind            string `json:"kind" enum:"local,s3"`
-		Executor        string `json:"executor,omitempty" maxLength:"64" doc:"Local repositories: manager, or the environment ID whose agent owns the path."`
-		Path            string `json:"path,omitempty" maxLength:"1024" example:"/backups/docker-manager" doc:"Local repositories: an absolute directory below the executor's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS, outside every backup source."`
-		Endpoint        string `json:"endpoint,omitempty" maxLength:"255" example:"https://s3.eu-central-1.amazonaws.com"`
-		Bucket          string `json:"bucket,omitempty" maxLength:"63"`
+		Endpoint        string `json:"endpoint" minLength:"1" maxLength:"255" example:"https://s3.eu-central-1.amazonaws.com"`
+		Bucket          string `json:"bucket" minLength:"1" maxLength:"63"`
 		Prefix          string `json:"prefix,omitempty" maxLength:"512" example:"docker-manager"`
 		Region          string `json:"region,omitempty" maxLength:"64"`
 		PathStyle       bool   `json:"pathStyle,omitempty" doc:"Path-style bucket addressing (MinIO and most self-hosted S3)."`
-		Compression     string `json:"compression,omitempty" enum:"auto,max,off" doc:"How restic compresses the data written to the repository (local and S3): auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data)."`
-		AccessKeyID     string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true"`
-		SecretAccessKey string `json:"secretAccessKey,omitempty" maxLength:"1024" writeOnly:"true" doc:"Write-only: never returned, logged or audited."`
+		Compression     string `json:"compression,omitempty" enum:"auto,max,off" doc:"How restic compresses the data written to the repository: auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data)."`
+		AccessKeyID     string `json:"accessKeyId" minLength:"1" maxLength:"256" writeOnly:"true"`
+		SecretAccessKey string `json:"secretAccessKey" minLength:"1" maxLength:"1024" writeOnly:"true" doc:"Write-only: never returned, logged or audited."`
 		VerifyCron      string `json:"verifyCron,omitempty" maxLength:"128" doc:"Verification schedule (default: the instance default of backup_verification)."`
 		VerifyTimeZone  string `json:"verifyTimeZone,omitempty" maxLength:"64"`
 		VerifyReadData  string `json:"verifyReadData,omitempty" maxLength:"16" example:"5%"`
@@ -586,8 +572,7 @@ func (h *backupsAPI) createRepository(ctx context.Context, in *createBackupRepos
 			return nil, err
 		}
 	}
-	res, err := svc.CreateRepository(ctx, domain.BackupRepositoryInput{Name: b.Name, Kind: b.Kind, Executor: b.Executor, Path: b.Path,
-		Endpoint: b.Endpoint, Bucket: b.Bucket, Prefix: b.Prefix, Region: b.Region, PathStyle: b.PathStyle, Compression: b.Compression,
+	res, err := svc.CreateRepository(ctx, domain.BackupRepositoryInput{Name: b.Name, Endpoint: b.Endpoint, Bucket: b.Bucket, Prefix: b.Prefix, Region: b.Region, PathStyle: b.PathStyle, Compression: b.Compression,
 		AccessKeyID: b.AccessKeyID, SecretAccessKey: b.SecretAccessKey, VerifyCron: b.VerifyCron, VerifyTimeZone: b.VerifyTimeZone,
 		VerifyReadData: b.VerifyReadData})
 	if err != nil {
@@ -675,7 +660,7 @@ func (h *backupsAPI) deleteRepository(ctx context.Context, in *deleteBackupRepos
 		}
 		return nil, backupError(err)
 	}
-	audit.SetDetail(ctx, "location", backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix}.Base())
+	audit.SetDetail(ctx, "location", backup.Destination{Kind: backup.KindS3, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix}.Base())
 	return &struct{}{}, nil
 }
 
@@ -799,7 +784,7 @@ func (h *backupsAPI) repositoryHealth(ctx context.Context, in *backupRepositoryI
 		return nil, backupError(err)
 	}
 	pending, _ := svc.LocationKeyStatus(ctx)
-	d := backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle,
+	d := backup.Destination{Kind: backup.KindS3, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle,
 		Compression: backups.DestinationCompression(r.Compression)}
 	out := BackupRepositoryHealth{RepositoryID: r.ID, State: r.State, Healthy: len(hl.Problems) == 0, Problems: hl.Problems,
 		LastBackupAt: hl.LastBackupAt, LastVerifiedAt: hl.LastVerifiedAt, Snapshots: hl.Snapshots, SizeBytes: hl.SizeBytes,
@@ -840,7 +825,7 @@ func registerBackupRepositories(a huma.API, h *backupsAPI) {
 		Operation: huma.Operation{
 			OperationID: "create-backup-repository", Method: http.MethodPost, Path: BasePath + "/backup-repositories",
 			Summary: "Add a backup repository", DefaultStatus: http.StatusCreated,
-			Description: "Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix " +
+			Description: "Stores a destination: an S3 bucket/prefix " +
 				"(credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, " +
 				"docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in " +
 				"recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it " +

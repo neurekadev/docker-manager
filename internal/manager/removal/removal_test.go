@@ -70,12 +70,10 @@ func (s *seed) seedEverything() {
 	s.stack("st-other", "cloud", "other")
 	s.must(store.InsertManagedContainer(s.ctx, s.db, domain.ManagedContainer{ID: ids.New(), EnvironmentID: "nas", Name: "cache",
 		CreateJobID: "job-create", CreatedAt: s.now}, "sealed"))
-	// A local repository on the NAS agent, an S3 repository holding the
-	// NAS scope, and one only the manager uses.
+	// A repository holding the NAS scope, and one only the manager uses.
 	for _, r := range []domain.BackupRepository{
-		{ID: "repo-local", Name: "NAS disk", Kind: "local", Executor: "nas", Path: "/backups"},
-		{ID: "repo-s3", Name: "Offsite", Kind: "s3", Endpoint: "https://s3.example", Bucket: "b"},
-		{ID: "repo-mgr", Name: "Manager only", Kind: "local", Executor: domain.BackupExecutorManager, Path: "/mgr"},
+		{ID: "repo-s3", Name: "Offsite", Endpoint: "https://s3.example", Bucket: "b"},
+		{ID: "repo-mgr", Name: "Manager only", Endpoint: "https://s3.example", Bucket: "m"},
 	} {
 		r.State, r.VerifyCron, r.VerifyTimeZone, r.Revision, r.CreatedAt, r.UpdatedAt = domain.BackupRepositoryReady, "0 5 * * 0", "UTC", 1, s.now, s.now
 		s.must(store.InsertBackupRepository(s.ctx, s.db, &r, store.BackupRepositorySealed{}))
@@ -126,7 +124,7 @@ func (s *seed) seedEverything() {
 	for _, sc := range []domain.Schedule{
 		{ID: "sc-up", Kind: "update_check", PolicyID: "up-shop", Name: "Shop updates", EnvironmentID: "nas"},
 		{ID: "sc-bp", Kind: "backup", PolicyID: "bp-nightly", Name: "Nightly"},
-		{ID: "sc-verify", Kind: "backup_verification", PolicyID: "repo-local", Name: "NAS disk"},
+		{ID: "sc-verify", Kind: "backup_verification", PolicyID: "repo-s3", Name: "Offsite"},
 		{ID: "sc-cloud", Kind: "backup", PolicyID: "bp-cloud", Name: "Cloud only"},
 	} {
 		sc.Cron, sc.TimeZone, sc.Cursor, sc.CreatedAt, sc.UpdatedAt = "0 3 * * *", "UTC", s.now, s.now, s.now
@@ -165,7 +163,7 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 	want := map[string][]string{
 		domain.DependentStack:              {"st-shop"},
 		domain.DependentBackupPolicy:       {"bp-nightly"},
-		domain.DependentBackupRepository:   {"repo-local", "repo-s3"},
+		domain.DependentBackupRepository:   {"repo-s3"},
 		domain.DependentBackupSet:          {"set-1"},
 		domain.DependentRegistryConnection: {"reg-env", "reg-stack"},
 		domain.DependentBuildDefinition:    {"bd-1"},

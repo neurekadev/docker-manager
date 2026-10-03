@@ -382,7 +382,6 @@ func (a *Agent) enableBackups() {
 		VolumeLabels:      a.volumeLabels,
 		StateDir:          cfg.StateDir,
 		Restic:            opener,
-		LocalRoots:        cfg.BackupLocalRoots,
 		ExternalAllowlist: cfg.BackupExternalAllowlist,
 		Clock:             a.opts.Clock,
 		Logger:            a.log.With("component", "backups"),

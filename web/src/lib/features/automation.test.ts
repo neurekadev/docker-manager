@@ -215,8 +215,7 @@ describe('RecoveryKeyChallenge (#10)', () => {
 					keyState: { generation: 1, rotationInProgress: false, scope: 'instance' },
 					repository: {
 						id: 'r1',
-						name: 'NAS',
-						kind: 'local',
+						name: 'Offsite',
 						state: 'ready',
 						view: 'full',
 						actions: []

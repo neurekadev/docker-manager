@@ -59,9 +59,6 @@ type Options struct {
 	Guard *protect.Guard
 	// Restic runs restic (default: the pinned binary).
 	Restic restic.Opener
-	// LocalRoots are the directories local repositories on this agent may
-	// live in (DOCKER_AGENT_BACKUP_LOCAL_ROOTS).
-	LocalRoots []string
 	// ExternalAllowlist lists host paths outside project directories that
 	// policies may opt into (DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST).
 	ExternalAllowlist []string
@@ -174,41 +171,7 @@ func (s *Service) location(ref protocol.BackupRepositoryRef, cred *protocol.Repo
 	if cred == nil || cred.RepositoryID != ref.RepositoryID || cred.Password == "" {
 		return restic.Location{}, &session.HandlerError{Code: protocol.CodeUnauthorized, Message: "no credential for the backup repository"}
 	}
-	if ref.Destination.Kind == backup.KindLocal {
-		if err := s.allowedLocal(ref.Destination.Path); err != nil {
-			return restic.Location{}, err
-		}
-	}
 	return ref.Destination.Location(ref.Scope, cred.S3()), nil
-}
-
-// allowedLocal requires a local destination below DOCKER_AGENT_BACKUP_LOCAL_ROOTS
-// and outside Docker's data root and the stack roots (they are sources).
-func (s *Service) allowedLocal(p string) error {
-	op := osPath(p)
-	ok := false
-	for _, root := range s.opts.LocalRoots {
-		if inside(op, osPath(root)) {
-			ok = true
-		}
-	}
-	if !ok {
-		return &session.HandlerError{Code: protocol.CodePathNotAllowed,
-			Message: "the local backup location is outside this agent's backup roots (DOCKER_AGENT_BACKUP_LOCAL_ROOTS)"}
-	}
-	if res := s.storage(); res != nil {
-		for _, r := range res.Roots {
-			root := osPath(r.Path)
-			if inside(op, root) || inside(root, op) {
-				return &session.HandlerError{Code: protocol.CodeRepositoryInsideSource,
-					Message: "the local backup location overlaps a stack root or Docker's volume directory, which are backup sources"}
-			}
-		}
-		if res.DockerRootDir != "" && inside(op, osPath(res.DockerRootDir)) {
-			return &session.HandlerError{Code: protocol.CodeRepositoryInsideSource, Message: "the local backup location is inside Docker's data root"}
-		}
-	}
-	return nil
 }
 
 // open opens the location of a request (no initialization).
@@ -275,7 +238,7 @@ func (s *Service) scopePreview(ctx context.Context, input json.RawMessage) (any,
 	out := protocol.BackupScopePreviewOutput{Items: []protocol.ScopePreviewItem{}}
 	running := 0
 	for _, it := range in.Items {
-		p := s.plan(ctx, it, in.Repository, in.Shutdown)
+		p := s.plan(ctx, it, in.Shutdown)
 		pi := p.preview()
 		if p.err == nil {
 			pi.Bytes, pi.Files, pi.Estimated = estimate(ctx, p.paths, p.excludes, budget)

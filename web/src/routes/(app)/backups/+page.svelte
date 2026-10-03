@@ -172,7 +172,7 @@
 					<div class="step">
 						<h3>Add a Backup Repository</h3>
 						<p class="muted">
-							A local disk or an S3 bucket. Save the Recovery Key it shows.
+							An S3-compatible bucket. Save the Recovery Key it shows.
 						</p>
 						{#if readyRepos.length > 0}
 							<span class="state"

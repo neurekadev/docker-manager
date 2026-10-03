@@ -92,9 +92,7 @@ volumes exclusive; only the stack is authorized with `stack.migrate`,
    record moves to the destination with its candidates reset to
    unchecked, #20;
    backup policies select the stack by ID and back it up where it is now,
-   refusing it with `repository_not_serving_environment` when only a local
-   repository of another executor is configured, #10 — see updates.md and
-   backups.md), releases the compensation and removes the staging
+   #10 — see updates.md and backups.md), releases the compensation and removes the staging
    directory.
 
 The **source stays stopped and untouched**. `POST

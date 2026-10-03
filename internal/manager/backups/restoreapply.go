@@ -553,12 +553,8 @@ func (s *Service) relocate(ctx context.Context, tx bun.IDB, mk *RestoreMarker, o
 		return err
 	}
 	d := mk.Destination
-	if d.Kind != r.Kind {
-		s.log.Warn("the imported destination's kind differs from the restored repository; not relocated", "repository_id", r.ID)
-		return nil
-	}
 	before := destination(r)
-	r.Path, r.Endpoint, r.Bucket, r.Prefix, r.Region, r.PathStyle = d.Path, d.Endpoint, d.Bucket, d.Prefix, d.Region, d.PathStyle
+	r.Endpoint, r.Bucket, r.Prefix, r.Region, r.PathStyle = d.Endpoint, d.Bucket, d.Prefix, d.Region, d.PathStyle
 	var sealed *store.BackupRepositorySealed
 	if mk.SealedCredentials != "" {
 		b, err := s.opts.Keyring.Open(mk.SealedCredentials, sealImportCredentials)
@@ -584,6 +580,21 @@ func (s *Service) relocate(ctx context.Context, tx bun.IDB, mk *RestoreMarker, o
 	}
 	r.Revision, r.UpdatedAt = r.Revision+1, s.now()
 	return store.RelocateBackupRepository(ctx, tx, &r, sealed)
+}
+
+// probeWritable reports whether dir can be written (it is created when
+// missing).
+func probeWritable(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".docker-manager-probe-")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	_ = f.Close()
+	return os.Remove(name)
 }
 
 func (s *Service) adoptKey(ctx context.Context, tx bun.IDB, mk *RestoreMarker, out *RestoreCompletion) error {

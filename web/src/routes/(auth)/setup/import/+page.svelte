@@ -234,10 +234,7 @@
 			{#snippet step(s)}
 				{#if s.id === 'source'}
 					<Fields>
-						<DestinationFields
-							bind:value={dest}
-							localDescription="The backup folder as mounted into this Docker Manager's container. It may be a new path."
-						/>
+						<DestinationFields bind:value={dest} />
 						<TextArea
 							label="Recovery Key"
 							mono

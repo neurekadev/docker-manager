@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -76,8 +75,7 @@ const (
 
 	EnvMigrationBandwidthLimit = "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT"
 	// Backups (#10).
-	EnvBackupLocalRoots = "DOCKER_MANAGER_BACKUP_LOCAL_ROOTS"
-	EnvResticBinary     = "DOCKER_MANAGER_RESTIC_BINARY"
+	EnvResticBinary = "DOCKER_MANAGER_RESTIC_BINARY"
 	// Diagnostics (#34): the Prometheus endpoint of Docker Manager's own
 	// internals (not the host metrics of #5, which are always collected).
 	EnvMetricsEnabled = "DOCKER_MANAGER_METRICS_ENABLED"
@@ -239,10 +237,8 @@ type Config struct {
 	// MigrationBandwidthLimit caps the data environment migrations relay
 	// through the manager, in bytes per second (#35; 0: unlimited).
 	MigrationBandwidthLimit int64
-	// BackupLocalRoots are the directories local backup repositories on
-	// the manager may live in (#10); ResticBinary the pinned restic.
-	BackupLocalRoots []string
-	ResticBinary     string
+	// ResticBinary is the pinned restic (#10).
+	ResticBinary string
 	// MetricsEnabled serves GET /api/v1/system/metrics (#34; default off).
 	MetricsEnabled bool
 	// Move are DOCKER_MANAGER_MOVE_FROM and DOCKER_MANAGER_MOVE_CODE.
@@ -330,7 +326,6 @@ func (c Config) Settings() []Setting {
 		{EnvTemplateRegistryEnabled, strconv.FormatBool(c.TemplateRegistryEnabled)},
 		{EnvTemplateRegistrySyncInterval, c.TemplateRegistrySync.String()},
 		{EnvMigrationBandwidthLimit, strconv.FormatInt(c.MigrationBandwidthLimit, 10) + " B/s (0: unlimited)"},
-		{EnvBackupLocalRoots, strings.Join(c.BackupLocalRoots, ",")},
 		{EnvResticBinary, c.ResticBinary},
 		{EnvMetricsEnabled, strconv.FormatBool(c.MetricsEnabled)},
 		{EnvMoveFrom, moveFrom},
@@ -376,32 +371,6 @@ func (c Config) ResticCacheDir() string { return filepath.Join(c.DataDir, "resti
 
 // ResticTempDir holds restic's temporary files inside the data directory.
 func (c Config) ResticTempDir() string { return filepath.Join(c.DataDir, "tmp") }
-
-// parseRoots parses a comma-separated list of absolute, distinct
-// directories other than "/".
-func parseRoots(raw string) ([]string, error) {
-	var out []string
-	for _, f := range strings.Split(raw, ",") {
-		f = strings.TrimSpace(f)
-		if f == "" {
-			continue
-		}
-		if !strings.HasPrefix(f, "/") || strings.Contains(f, "\\") || strings.Contains("/"+f+"/", "/../") {
-			return nil, fmt.Errorf("%q must be an absolute path without \"..\"", f)
-		}
-		c := path.Clean(f)
-		if c == "/" {
-			return nil, fmt.Errorf("%q: the filesystem root is not allowed", f)
-		}
-		for _, o := range out {
-			if o == c {
-				return nil, fmt.Errorf("%q is listed twice", c)
-			}
-		}
-		out = append(out, c)
-	}
-	return out, nil
-}
 
 // DatabasePath is the SQLite database file inside the data directory.
 func (c Config) DatabasePath() string { return filepath.Join(c.DataDir, DatabaseFileName) }
@@ -505,9 +474,6 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvMigrationBandwidthLimit, err))
 	}
 
-	if cfg.BackupLocalRoots, err = parseRoots(src.String(EnvBackupLocalRoots, "")); err != nil {
-		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupLocalRoots, err))
-	}
 	if cfg.MetricsEnabled, err = src.Bool(EnvMetricsEnabled, false); err != nil {
 		errs = append(errs, err)
 	}

@@ -19,20 +19,16 @@ export function importSource(
 	previousKey: string,
 	extra: Partial<ImportSource> = {}
 ): ImportSource {
-	const base: ImportSource =
-		d.kind === 'local'
-			? { kind: 'local', path: d.path.trim(), recoveryKey: normalizeRecoveryKey(recoveryKey) }
-			: {
-					kind: 's3',
-					endpoint: d.endpoint.trim(),
-					bucket: d.bucket.trim(),
-					prefix: d.prefix.trim() || undefined,
-					region: d.region.trim() || undefined,
-					pathStyle: d.pathStyle,
-					accessKeyId: d.accessKeyId.trim(),
-					secretAccessKey: d.secretAccessKey,
-					recoveryKey: normalizeRecoveryKey(recoveryKey)
-				};
+	const base: ImportSource = {
+		endpoint: d.endpoint.trim(),
+		bucket: d.bucket.trim(),
+		prefix: d.prefix.trim() || undefined,
+		region: d.region.trim() || undefined,
+		pathStyle: d.pathStyle,
+		accessKeyId: d.accessKeyId.trim(),
+		secretAccessKey: d.secretAccessKey,
+		recoveryKey: normalizeRecoveryKey(recoveryKey)
+	};
 	if (previousKey.trim()) base.previousRecoveryKey = normalizeRecoveryKey(previousKey);
 	return { ...base, ...extra };
 }
@@ -86,7 +82,7 @@ export const IMPORT_ERRORS: Record<string, string> = {
 	backup_import_key_rejected:
 		'The Recovery Key opens neither the manager repository nor a host repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered by anyone.',
 	backup_import_not_found:
-		'No Docker Manager repository is at this destination. Check the endpoint, bucket and prefix, or that the directory is mounted into this manager in an allowed backup folder.',
+		'No Docker Manager repository is at this destination. Check the endpoint, bucket and prefix.',
 	backup_import_manifest_corrupt:
 		'The manifest of this backup set is damaged. Choose another set.',
 	backup_import_schema_incompatible:

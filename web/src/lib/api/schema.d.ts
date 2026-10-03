@@ -712,7 +712,7 @@ export interface paths {
         put?: never;
         /**
          * Add a backup repository
-         * @description Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
+         * @description Stores a destination: an S3 bucket/prefix (credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
          */
         post: operations["create-backup-repository"];
         delete?: never;
@@ -835,7 +835,7 @@ export interface paths {
         };
         /**
          * List a repository's restic snapshots
-         * @description Every restic snapshot of every location of the repository, read live from restic (snapshot files only): backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location (200 from a local repository on an agent). A location that cannot be read reports errorClass; the others are listed. backupId links the Docker Manager backup when the caller may see it.
+         * @description Every restic snapshot of every location of the repository, read live from restic (snapshot files only): backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location. A location that cannot be read reports errorClass; the others are listed. backupId links the Docker Manager backup when the caller may see it.
          */
         get: operations["list-backup-repository-snapshots"];
         put?: never;
@@ -6187,7 +6187,7 @@ export interface components {
             objectLock?: boolean;
             ok: boolean;
             /**
-             * @description ok, or an error class: access_denied, bucket_not_found, unreachable, path_not_allowed, path_not_writable, recovery_key_rejected, repository_locked, storage_access_denied, ...
+             * @description ok, or an error class: access_denied, bucket_not_found, unreachable, recovery_key_rejected, repository_locked, storage_access_denied, ...
              * @example ok
              */
             result: string;
@@ -6371,20 +6371,13 @@ export interface components {
             setId: string;
         };
         BackupImportSource: {
-            /** @description S3: the key pair to use now (it may be newly issued); the restored repository keeps it. */
-            accessKeyId?: string;
-            bucket?: string;
+            /** @description The key pair to use now (it may be newly issued); the restored repository keeps it. */
+            accessKeyId: string;
+            bucket: string;
             /** @description Restores: must be true (this manager's empty state is replaced and the manager restarts). */
             confirm?: boolean;
             /** @example https://s3.eu-central-1.amazonaws.com */
-            endpoint?: string;
-            /** @enum {string} */
-            kind: "local" | "s3";
-            /**
-             * @description Local destinations: the directory on this manager (below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS); it may be a new mount path.
-             * @example /backups/docker-manager
-             */
-            path?: string;
+            endpoint: string;
             /** @description Path-style bucket addressing (MinIO and most self-hosted S3). */
             pathStyle?: boolean;
             /** @example docker-manager */
@@ -6395,7 +6388,7 @@ export interface components {
             recoveryKey: string;
             region?: string;
             /** @description Write-only: never returned, logged or audited. */
-            secretAccessKey?: string;
+            secretAccessKey: string;
             /** @description Previews: also open this set's secret-key bundle (the final check). Restores: the set to import (required). */
             setId?: string;
         };
@@ -6471,7 +6464,7 @@ export interface components {
             createdAt?: string;
             enabled: boolean;
             environmentId?: string;
-            /** @description Per-environment repository (local repositories live on each environment's agent). */
+            /** @description Per-environment repository, overriding repositoryId. */
             environmentRepositories?: {
                 [key: string]: string;
             };
@@ -6517,11 +6510,7 @@ export interface components {
             createdAt?: string;
             credential?: components["schemas"]["BackupCredentialState"];
             endpoint?: string;
-            /** @description Local repositories: manager or the environment ID whose agent owns the path. */
-            executor?: string;
             id: string;
-            /** @enum {string} */
-            kind: "local" | "s3";
             lastTest?: components["schemas"]["BackupConnectionTest"];
             /**
              * @description Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>.
@@ -6530,7 +6519,6 @@ export interface components {
             location?: string;
             /** @example Offsite S3 */
             name: string;
-            path?: string;
             pathStyle?: boolean;
             prefix?: string;
             recoveryRequirements?: string[];
@@ -7346,33 +7334,24 @@ export interface components {
             token: string;
         };
         CreateBackupRepositoryInputBody: {
-            accessKeyId?: string;
-            bucket?: string;
+            accessKeyId: string;
+            bucket: string;
             /**
-             * @description How restic compresses the data written to the repository (local and S3): auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data).
+             * @description How restic compresses the data written to the repository: auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data).
              * @enum {string}
              */
             compression?: "auto" | "max" | "off";
             /** @example https://s3.eu-central-1.amazonaws.com */
-            endpoint?: string;
-            /** @description Local repositories: manager, or the environment ID whose agent owns the path. */
-            executor?: string;
-            /** @enum {string} */
-            kind: "local" | "s3";
+            endpoint: string;
             /** @example Offsite S3 */
             name: string;
-            /**
-             * @description Local repositories: an absolute directory below the executor's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS, outside every backup source.
-             * @example /backups/docker-manager
-             */
-            path?: string;
             /** @description Path-style bucket addressing (MinIO and most self-hosted S3). */
             pathStyle?: boolean;
             /** @example docker-manager */
             prefix?: string;
             region?: string;
             /** @description Write-only: never returned, logged or audited. */
-            secretAccessKey?: string;
+            secretAccessKey: string;
             /** @description Verification schedule (default: the instance default of backup_verification). */
             verifyCron?: string;
             /** @example 5% */
@@ -11526,7 +11505,7 @@ export interface components {
             /** @example env:01a0 */
             scope: string;
             snapshots: components["schemas"]["ResticSnapshot"][];
-            /** @description Older snapshots exist beyond the listed ones (at most 1000 per location; 200 from a local repository on an agent). */
+            /** @description Older snapshots exist beyond the listed ones (at most 1000 per location). */
             truncated: boolean;
         };
         ResticSnapshot: {
@@ -18371,9 +18350,7 @@ export interface operations {
                      *             "set": false
                      *           },
                      *           "endpoint": "example",
-                     *           "executor": "example",
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "kind": "local",
                      *           "lastTest": {
                      *             "at": "2026-09-25T12:00:00Z",
                      *             "canDelete": false,
@@ -18399,7 +18376,6 @@ export interface operations {
                      *           },
                      *           "location": "https://s3.example.com/backups/docker-manager",
                      *           "name": "Offsite S3",
-                     *           "path": "config/app.conf",
                      *           "pathStyle": false,
                      *           "prefix": "example",
                      *           "recoveryRequirements": [
@@ -18486,11 +18462,12 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "bucket": "example",
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                 *       "kind": "local",
                  *       "name": "Offsite S3",
-                 *       "path": "/backups/docker-manager",
                  *       "prefix": "docker-manager",
+                 *       "secretAccessKey": "example",
                  *       "verifyReadData": "5%"
                  *     }
                  */
@@ -18541,9 +18518,7 @@ export interface operations {
                      *           "set": false
                      *         },
                      *         "endpoint": "example",
-                     *         "executor": "example",
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "kind": "local",
                      *         "lastTest": {
                      *           "at": "2026-09-25T12:00:00Z",
                      *           "canDelete": false,
@@ -18569,7 +18544,6 @@ export interface operations {
                      *         },
                      *         "location": "https://s3.example.com/backups/docker-manager",
                      *         "name": "Offsite S3",
-                     *         "path": "config/app.conf",
                      *         "pathStyle": false,
                      *         "prefix": "example",
                      *         "recoveryRequirements": [
@@ -18693,9 +18667,7 @@ export interface operations {
                      *         "set": false
                      *       },
                      *       "endpoint": "example",
-                     *       "executor": "example",
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "kind": "local",
                      *       "lastTest": {
                      *         "at": "2026-09-25T12:00:00Z",
                      *         "canDelete": false,
@@ -18721,7 +18693,6 @@ export interface operations {
                      *       },
                      *       "location": "https://s3.example.com/backups/docker-manager",
                      *       "name": "Offsite S3",
-                     *       "path": "config/app.conf",
                      *       "pathStyle": false,
                      *       "prefix": "example",
                      *       "recoveryRequirements": [
@@ -18944,9 +18915,7 @@ export interface operations {
                      *         "set": false
                      *       },
                      *       "endpoint": "example",
-                     *       "executor": "example",
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "kind": "local",
                      *       "lastTest": {
                      *         "at": "2026-09-25T12:00:00Z",
                      *         "canDelete": false,
@@ -18972,7 +18941,6 @@ export interface operations {
                      *       },
                      *       "location": "https://s3.example.com/backups/docker-manager",
                      *       "name": "Offsite S3",
-                     *       "path": "config/app.conf",
                      *       "pathStyle": false,
                      *       "prefix": "example",
                      *       "recoveryRequirements": [
@@ -19536,9 +19504,7 @@ export interface operations {
                      *           "set": false
                      *         },
                      *         "endpoint": "example",
-                     *         "executor": "example",
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "kind": "local",
                      *         "lastTest": {
                      *           "at": "2026-09-25T12:00:00Z",
                      *           "canDelete": false,
@@ -19564,7 +19530,6 @@ export interface operations {
                      *         },
                      *         "location": "https://s3.example.com/backups/docker-manager",
                      *         "name": "Offsite S3",
-                     *         "path": "config/app.conf",
                      *         "pathStyle": false,
                      *         "prefix": "example",
                      *         "recoveryRequirements": [
@@ -40967,11 +40932,12 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "bucket": "example",
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                 *       "kind": "local",
-                 *       "path": "/backups/docker-manager",
                  *       "prefix": "docker-manager",
-                 *       "recoveryKey": "example"
+                 *       "recoveryKey": "example",
+                 *       "secretAccessKey": "example"
                  *     }
                  */
                 "application/json": components["schemas"]["BackupImportSource"];
@@ -41091,11 +41057,12 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "bucket": "example",
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                 *       "kind": "local",
-                 *       "path": "/backups/docker-manager",
                  *       "prefix": "docker-manager",
-                 *       "recoveryKey": "example"
+                 *       "recoveryKey": "example",
+                 *       "secretAccessKey": "example"
                  *     }
                  */
                 "application/json": components["schemas"]["BackupImportSource"];
@@ -41247,11 +41214,12 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "bucket": "example",
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                 *       "kind": "local",
-                 *       "path": "/backups/docker-manager",
                  *       "prefix": "docker-manager",
-                 *       "recoveryKey": "example"
+                 *       "recoveryKey": "example",
+                 *       "secretAccessKey": "example"
                  *     }
                  */
                 "application/json": components["schemas"]["BackupImportSource"];

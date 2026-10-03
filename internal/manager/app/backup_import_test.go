@@ -46,81 +46,6 @@ func (e *env) restartManager() {
 	e.srv = httptest.NewServer(m.Handler()) // closed by newEnv's cleanup
 }
 
-// TestBackupImportFromARemountedLocalRepository: a manager-local
-// repository whose directory is mounted at a new path on the clean
-// manager: the import finds it there, the restored repository points at
-// the new path, and the restored manager backs up to it again.
-func TestBackupImportFromARemountedLocalRepository(t *testing.T) {
-	old := newBackupEnv(t)
-	owner, password := old.setupOwner()
-	oldPath := filepath.ToSlash(filepath.Join(old.root, "manager-backups", "docker-manager"))
-	var repo createdRepo
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", map[string]any{"name": "Local", "kind": "local",
-		"executor": "manager", "path": oldPath}, secretOK).json(t, &repo)
-	key := repo.RecoveryKey.Key
-	old.secrets.Register(canary.RecoveryKey, "recovery key", key)
-	id := repo.Repository.ID
-	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
-		map[string]any{"recoveryKey": key, "backedUp": true})
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Manager", "scope": "all", "repositoryId": id,
-		"includeManagerState": true}).json(t, &pol)
-	if jobs := old.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 1 {
-		t.Fatalf("jobs %v", jobs)
-	}
-
-	fresh := newBackupEnvWith(t, old.store, old.s3)
-	fresh.secrets.Register(canary.RecoveryKey, "recovery key", key)
-	newPath := filepath.ToSlash(filepath.Join(fresh.root, "manager-backups", "remounted"))
-	old.store.Move(oldPath+"/docker-manager", newPath+"/docker-manager")
-	anon := fresh.client()
-	src := map[string]any{"kind": "local", "path": newPath, "recoveryKey": key}
-	anon.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, "/api/v1/setup/backup-imports/connection-tests",
-		map[string]any{"kind": "local", "path": oldPath, "recoveryKey": key})
-	var ct importTest
-	anon.must(http.StatusOK, http.MethodPost, "/api/v1/setup/backup-imports/connection-tests", src).json(t, &ct)
-	if !ct.OK || !ct.Manager.Found || ct.Manager.Key != "current" || ct.Sets != 1 || len(ct.Locations) != 0 {
-		t.Fatalf("connection test %+v", ct)
-	}
-	var pv importPreview
-	anon.must(http.StatusOK, http.MethodPost, "/api/v1/setup/backup-imports/previews", src).json(t, &pv)
-	if len(pv.Sets) != 1 || !pv.Sets[0].Importable {
-		t.Fatalf("preview %+v", pv)
-	}
-	body := map[string]any{"kind": "local", "path": newPath, "recoveryKey": key, "setId": pv.Sets[0].SetID, "confirm": true}
-	j := jobOf(t, anon.must(http.StatusAccepted, http.MethodPost, "/api/v1/setup/backup-imports/restores", body))
-	// The key is never stored: not in the job, and a restart loses it.
-	fresh.secrets.AssertClean(t, "jobs table", fresh.tableDump("jobs"))
-	fresh.restartManager()
-	if got := fresh.runJob(j); got.State != domain.JobFailed || got.ErrorClass != "backup_import_secrets_lost" {
-		t.Fatalf("import after a restart: %s %s", got.State, got.ErrorClass)
-	}
-	anon = fresh.client()
-	j = jobOf(t, anon.must(http.StatusAccepted, http.MethodPost, "/api/v1/setup/backup-imports/restores", body))
-	if got := fresh.runJob(j); got.State != domain.JobSucceeded {
-		t.Fatalf("import: %s %s %s", got.State, got.ErrorClass, got.ErrorMessage)
-	}
-	fresh.restartManager()
-	fresh.secrets.Register(canary.Password, "owner password", password)
-	restored := fresh.client()
-	restored.signIn("owner", password)
-	var got struct {
-		Path string `json:"path"`
-	}
-	restored.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories/"+id, nil).json(t, &got)
-	if got.Path != newPath {
-		t.Fatalf("repository path %q, want %q", got.Path, newPath)
-	}
-	if jobs := fresh.runJobs(restored.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 1 {
-		t.Fatalf("jobs after the import %v", jobs)
-	}
-	if n := len(old.store.Snapshots(newPath + "/docker-manager")); n < 4 {
-		t.Errorf("snapshots at the new path: %d", n)
-	}
-}
-
 func (b *backupEnv) insertStack(envID, id string) {
 	now := b.clk.Now().UTC()
 	st := domain.Stack{ID: id, EnvironmentID: envID, Name: "app", Root: protocol.RootStacks, Dir: "app", Origin: "imported",
@@ -262,7 +187,7 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	fresh.secrets.Register(canary.RecoveryKey, "key2", key2)
 	anon := fresh.client()
 	src := func(extra map[string]any) map[string]any {
-		m := map[string]any{"kind": "s3", "endpoint": old.s3.URL, "bucket": "backups", "prefix": "docker-manager", "pathStyle": true,
+		m := map[string]any{"endpoint": old.s3.URL, "bucket": "backups", "prefix": "docker-manager", "pathStyle": true,
 			"accessKeyId": old.s3.AccessKey, "secretAccessKey": newSecret, "recoveryKey": key2}
 		for k, v := range extra {
 			m[k] = v

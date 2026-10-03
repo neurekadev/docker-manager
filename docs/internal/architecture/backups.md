@@ -18,15 +18,22 @@ the agent's smartctl runner for disk health, see
 
 ## Model
 
-- A **backup repository** is a destination: a local directory on one
-  executor (the manager, or one environment's agent) or an S3
-  bucket/prefix. It belongs to the instance, never to a user.
+- A **backup repository** is a destination: an S3 bucket/prefix (#244:
+  S3-compatible storage only; `backup.KindS3` is the one kind, kept on the
+  wire and in manifests for older agents). It belongs to the instance,
+  never to a user. Migration `20261002190000_backups_s3_only` removed the
+  local repositories of earlier versions like a removal in the app (index,
+  sets held only by them, locations, permission rules; storage stops
+  counting); a policy writing to one (also for one environment only) was
+  disabled, its own repository moved to the oldest S3 repository, or it
+  was deleted when there was none. Their restic data stays on
+  disk; the `executor` and `path` columns stay, empty.
 - Below it every **scope** has its own restic repository (a
   **location**): `docker-manager` for the manager state,
-  `docker-manager-env-<environmentId>` for an environment's data. A local
-  repository serves only its own executor's scope; an S3 repository serves
-  every scope. Ownership, locking and retention stay per location.
-- Every repository (local or S3) has a **compression** mode: `auto`
+  `docker-manager-env-<environmentId>` for an environment's data. Every
+  repository serves every scope. Ownership, locking and retention stay per
+  location.
+- Every repository has a **compression** mode: `auto`
   (default, restic's), `max` or `off` (`domain.BackupCompression*`,
   column `backup_repositories.compression`). It is editable at any time
   and applies to data written afterwards: new backups, and the data a
@@ -95,8 +102,7 @@ the agent's smartctl runner for disk health, see
   destination environment's policy. Existing snapshots retain their source
   location. Docker maintenance (#14) protects covered standalone volumes
   (`Maintenance().SetBackupReferences`); stack volumes are protected as part
-  of Docker Manager stacks, and a local repository mounted into the Docker Agent
-  is Docker Manager's own (#32).
+  of Docker Manager stacks.
 - A **run** of a policy is one **backup set**: a `backup.run` job per
   environment and, with the manager state, a `manager.backup` job queued
   last. Each member (stack, volume, manager state) is its own snapshot with
@@ -280,9 +286,7 @@ Docker's data root never. Path excludes are relative to the project
 directory (or the volume root). Sources resolve through symlinks and must
 stay in their root (a symlinked bind leading out is `blocked`); restic
 stores symlinks inside the tree as links. Docker Manager's own volumes are never
-selected (#32). A local repository inside (or containing) a source is
-refused (`repository_inside_source`), as is a local location outside the
-agent's `DOCKER_AGENT_BACKUP_LOCAL_ROOTS`.
+selected (#32).
 
 The **scope preview** (`POST /backup-policies/{id}/scope-previews`, or
 `POST /backup-policy-scope-previews` with the create body for a policy the
@@ -566,14 +570,13 @@ Recovery Key; not the old volume, database or a running old manager.
 1. **Connection test** (`POST /setup/backup-imports/connection-tests`):
    S3 read/write/delete and Object Lock, whether the key opens the manager
    repository (`docker-manager`), and every host repository the set
-   manifests name or the destination holds (S3 listing or the local
-   directory), each `found`, opened with the `current` or `previous` key,
-   or why not (`note`: local to a host, another repository).
+   manifests name or the destination holds (S3 listing), each `found`, opened with the `current` or `previous` key,
+   or why not (`note`: another repository).
 2. **Preview** (`POST .../previews`): the newest 20 sets from the manifests
    (never from a database), merged with the host manifests: completeness,
    each member's snapshot `located` as `found`, `missing` (its repository
    was read and the snapshot is gone), `unverified` (not reachable from the
-   manager yet: a host-local repository) or `not_backed_up`; the version
+   manager yet: another repository) or `not_backed_up`; the version
    that wrote it and whether this build knows every migration of its
    schema. With `setId`, the set's secret-key bundle is opened too.
 3. **Import** (`POST .../restores`, `confirm: true`, 202 + `backup.import`
@@ -608,8 +611,7 @@ Recovery Key; not the old volume, database or a running old manager.
    keeps its ID, stacks and backups and waits for an enrollment with intent
    `reattach:<environmentId>` (#34), so a restored credential is never
    trusted silently; the imported repository points at the destination and
-   S3 key pair entered for the import (a local repository may now live at a
-   new path); a newer entered Recovery Key becomes current with the
+   S3 key pair entered for the import; a newer entered Recovery Key becomes current with the
    restored one as previous (locations move as jobs use them); the snapshot
    index is reconciled with the manifests (members the snapshot did not
    know yet, and sets written after it); one `system.restore` audit record
@@ -638,7 +640,7 @@ Errors, each with recovery guidance in the message:
 | Code | When | What to do |
 | --- | --- | --- |
 | `backup_import_key_rejected` | the key opens neither the manager repository nor a host one | check it; after a rotation enter the previous key too; a **lost key** cannot be recovered by anyone (restic encryption): set up a new instance |
-| `backup_import_not_found` | no repository at the destination, or no such set | check endpoint/bucket/prefix or the mounted path (below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`) |
+| `backup_import_not_found` | no repository at the destination, or no such set | check endpoint/bucket/prefix |
 | `backup_import_manifest_corrupt` | the set's manifest is truncated or fails its checksum | choose another set; `restic check` the repository |
 | `backup_import_schema_incompatible` | a newer Docker Manager wrote the set | install at least that version |
 | `backup_import_key_rotated` | the set's secret key is sealed under another key (rotated after the set: **partially rotated keys**) | enter the newest key and the previous one |
@@ -649,12 +651,6 @@ Errors, each with recovery guidance in the message:
 
 The connection test and preview report partially rotated keys per location
 (`key: previous`) and missing repositories as problems without failing.
-
-**Host-local repositories** are never reachable by the new manager: they
-show as `unverified` and become usable once their host re-attaches with
-the repository directory mounted at the same path (the path is part of the
-restored repository; mount it there, or recreate the agent's
-`DOCKER_AGENT_BACKUP_LOCAL_ROOTS` accordingly).
 
 **Host-only recovery** (the manager repository is lost): the preview lists
 sets from host manifests (`hostOnly`), which cannot be imported. Set up a
@@ -725,8 +721,7 @@ repository, so its manifest usually carries their results.
   responses, logs, audit and the database); `backup_import_test.go`: the
   recovery proof (a clean manager imports a set across the manager and two
   host repositories with a new S3 secret, every import error, partially
-  rotated keys, revocations, re-attach and a restore; a local repository at
-  a new mount path; the key is never stored and a restart loses it).
+  rotated keys, revocations, re-attach and a restore; the key is never stored and a restart loses it).
 - `internal/manager/backups/restoreapply_test.go`: applying a staged
   restore is repeatable after a crash and keeps the replaced files.
 - All of these use the in-memory restic (`restic/restictest`) or the fake

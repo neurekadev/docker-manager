@@ -169,29 +169,14 @@
 		activeEnvs.filter((e) => scopeMode === 'all' || e.id === environmentId).map((e) => e.id)
 	);
 
-	/** Where a repository lives, as the field's description (the name is the option). */
-	function repoDescription(r: (typeof readyRepos)[number]): string {
-		return `${r.kind === 's3' ? 'S3 storage' : 'Local directory'}: ${repositoryLocation(r, envName)}`;
-	}
-
-	function envRepoOptions(envId: string) {
+	function envRepoOptions() {
 		return [
 			{
 				value: '',
-				label:
-					primary?.kind === 's3'
-						? `Same as the Policy (${primary.name})`
-						: 'Choose a Repository'
+				label: primary ? `Same as the Policy (${primary.name})` : 'Same as the Policy'
 			},
-			...readyRepos
-				.filter((r) => r.kind === 's3' || r.executor === envId)
-				.map((r) => ({ value: r.id, label: r.name }))
+			...readyRepos.map((r) => ({ value: r.id, label: r.name }))
 		];
-	}
-	function needsEnvRepo(envId: string): boolean {
-		const chosen = envRepos[envId];
-		if (chosen) return false;
-		return !primary || (primary.kind === 'local' && primary.executor !== envId);
 	}
 
 	function draft(): PolicyInput {
@@ -293,11 +278,8 @@
 	const destinationOk = $derived(
 		!!name.trim() && !!repositoryId && (scopeMode === 'all' || !!environmentId)
 	);
-	const scopeOk = $derived(involvedEnvs.every((e) => !needsEnvRepo(e)));
 	const scheduleOk = $derived(!!cron.trim());
-	const canAdvance = $derived(
-		current === 0 ? destinationOk : current === 1 ? scopeOk : current === 2 ? scheduleOk : true
-	);
+	const canAdvance = $derived(current === 0 ? destinationOk : current === 2 ? scheduleOk : true);
 
 	async function onnext(step: { id: string }) {
 		error = null;
@@ -349,7 +331,6 @@
 	async function submit() {
 		saveError = null;
 		if (!destinationOk) return (saveError = 'Enter a name and choose a repository.');
-		if (!scopeOk) return (saveError = 'Choose a repository for every environment below.');
 		if (!scheduleOk) return (saveError = 'Choose when backups run.');
 		saving = true;
 		try {
@@ -426,7 +407,7 @@
 				options={repoOptions}
 				bind:value={repositoryId}
 				placeholder="Choose a repository"
-				description={primary ? repoDescription(primary) : undefined}
+				description={primary ? repositoryLocation(primary) : undefined}
 				info="Backups of the manager state go here; environments can use their own."
 				required
 			/>
@@ -545,16 +526,13 @@
 		{#if involvedEnvs.length}
 			<FieldGroup
 				legend="Repositories per Environment"
-				info="A local repository only holds data of its own host; S3 repositories hold everything."
+				info="Back up an environment to another repository than the policy's."
 			>
 				{#each involvedEnvs as envId (envId)}
 					<Select
 						label="Repository for {envName(envId)}"
-						options={envRepoOptions(envId)}
+						options={envRepoOptions()}
 						bind:value={() => envRepos[envId] ?? '', (v) => (envRepos[envId] = v)}
-						error={needsEnvRepo(envId)
-							? `${primary?.name ?? 'The policy’s repository'} can't hold ${envName(envId)}'s data. Choose a repository on ${envName(envId)} or an S3 repository.`
-							: null}
 					/>
 				{/each}
 			</FieldGroup>

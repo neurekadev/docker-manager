@@ -27,7 +27,7 @@ func backupTestDB(t *testing.T) (context.Context, *bun.DB) {
 }
 
 func testRepository(id string) domain.BackupRepository {
-	return domain.BackupRepository{ID: id, Name: "repo " + id, Kind: "local", Executor: "manager", Path: "/backups/" + id,
+	return domain.BackupRepository{ID: id, Name: "repo " + id, Endpoint: "https://s3.example.com", Bucket: "backups", Prefix: id,
 		State: domain.BackupRepositoryReady, VerifyCron: "0 4 * * 0", VerifyTimeZone: "UTC", Revision: 1,
 		CreatedAt: testutil.Epoch, UpdatedAt: testutil.Epoch}
 }

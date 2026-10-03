@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { destinationReady, emptyDestination, isAbsolutePath } from './destination';
+import { destinationReady, emptyDestination } from './destination';
 import {
 	IMPORT_ERRORS,
 	bundleText,
@@ -305,39 +305,20 @@ describe('skipped backups', () => {
 describe('repositories', () => {
 	it('shows where a repository lives without credentials', () => {
 		const s3 = {
-			kind: 's3',
 			bucket: 'b',
 			prefix: '/dy',
 			endpoint: 'https://minio:9000'
 		} as BackupRepository;
 		expect(repositoryLocation(s3)).toBe('s3://b/dy on minio:9000');
-		const local = { kind: 'local', executor: 'e1', path: '/backups' } as BackupRepository;
-		expect(repositoryLocation(local, () => 'homelab')).toBe('homelab:/backups');
-		expect(
-			repositoryLocation({
-				kind: 'local',
-				executor: 'manager',
-				path: '/b'
-			} as BackupRepository)
-		).toBe('manager:/b');
+		expect(repositoryLocation({ bucket: 'b' } as BackupRepository)).toBe('s3://b');
 	});
 
 	it('checks a destination before it is sent', () => {
-		const d = emptyDestination();
-		expect(destinationReady(d)).toBe(false);
-		d.path = '/backups';
-		expect(destinationReady(d)).toBe(true);
-		const s3 = {
-			...emptyDestination(),
-			kind: 's3' as const,
-			endpoint: 'https://s3',
-			bucket: 'b'
-		};
+		expect(destinationReady(emptyDestination())).toBe(false);
+		const s3 = { ...emptyDestination(), endpoint: 'https://s3', bucket: 'b' };
 		expect(destinationReady(s3)).toBe(false);
 		expect(destinationReady(s3, false)).toBe(true);
 		expect(destinationReady({ ...s3, accessKeyId: 'id', secretAccessKey: 'x' })).toBe(true);
-		expect(isAbsolutePath('relative/path')).toBe(false);
-		expect(isAbsolutePath('C:/backups')).toBe(true);
 	});
 });
 
@@ -356,17 +337,29 @@ describe('snapshot browsing', () => {
 });
 
 describe('fresh-manager import (#24)', () => {
-	it('builds the request with only the fields of the destination kind', () => {
-		const local = importSource(
-			{ ...emptyDestination(), path: ' /mnt/b ' },
+	it('builds the request from the destination', () => {
+		const plain = importSource(
+			{
+				...emptyDestination(),
+				endpoint: ' https://s3 ',
+				bucket: 'b',
+				accessKeyId: 'AK',
+				secretAccessKey: 'SK'
+			},
 			KEY.toLowerCase(),
 			''
 		);
-		expect(local).toEqual({ kind: 'local', path: '/mnt/b', recoveryKey: KEY });
+		expect(plain).toEqual({
+			endpoint: 'https://s3',
+			bucket: 'b',
+			pathStyle: true,
+			accessKeyId: 'AK',
+			secretAccessKey: 'SK',
+			recoveryKey: KEY
+		});
 		const s3 = importSource(
 			{
 				...emptyDestination(),
-				kind: 's3',
 				endpoint: 'https://s3',
 				bucket: 'b',
 				accessKeyId: 'AK',
@@ -377,14 +370,12 @@ describe('fresh-manager import (#24)', () => {
 			{ setId: 'set1' }
 		);
 		expect(s3).toMatchObject({
-			kind: 's3',
 			bucket: 'b',
 			accessKeyId: 'AK',
 			secretAccessKey: 'SK',
 			setId: 'set1'
 		});
 		expect(s3.previousRecoveryKey).toBe(KEY);
-		expect('path' in s3).toBe(false);
 	});
 
 	it('explains why a set cannot be imported', () => {

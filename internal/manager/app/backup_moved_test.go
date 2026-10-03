@@ -13,31 +13,24 @@ import (
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
-// TestBackupPolicyFollowsMigratedStack (#35 × #10): a backup policy
-// selects stacks by ID, so after a migration its runs back the stack up in
-// its new environment. When the policy's repository is local to the
-// source's agent, the stack's member is refused with a clear class (the
-// local repository is never handed to the destination's agent) while the
-// rest of the set still runs; adding an environment repository for the
-// destination makes the next run complete. Snapshots taken before the
-// move keep the source's repository and environment.
+// TestBackupPolicyFollowsMigratedStack (#35 × #10): a backup policy on the
+// source environment no longer covers a stack migrated away, while the
+// rest of its scope still runs; a policy on the destination covers it.
+// Snapshots taken before the move keep the source's repository and
+// environment.
 func TestBackupPolicyFollowsMigratedStack(t *testing.T) {
 	b := newBackupEnv(t)
 	owner, _ := b.setupOwner()
-	localRoot := filepath.ToSlash(filepath.Join(b.root, "prod-backups"))
-	h := b.connectHost(hostOpts{name: "prod", stacks: b.stacks, volumes: b.volumes, localRoots: []string{localRoot}})
+	h := b.connectHost(hostOpts{name: "prod", stacks: b.stacks, volumes: b.volumes})
 	b.fe, b.agent = h.fe, h.agent
 	b.seedStack()
 	src := b.agent.env
 	dst := b.connectHost(hostOpts{name: "edge", stacks: filepath.Join(b.root, "edge-stacks"), volumes: filepath.Join(b.root, "edge-volumes")}).agent.env
 
-	var local createdRepo
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", map[string]any{"name": "Prod disk", "kind": "local",
-		"executor": src, "path": localRoot + "/repo"}, secretOK).json(t, &local)
-	key := local.RecoveryKey.Key
-	b.secrets.Register("recovery key", "recovery key", key)
+	prod := b.createS3Repo(owner, "Prod")
+	key := prod.RecoveryKey.Key
 	offsite := b.createS3Repo(owner, "Offsite")
-	for _, id := range []string{local.Repository.ID, offsite.Repository.ID} {
+	for _, id := range []string{prod.Repository.ID, offsite.Repository.ID} {
 		owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 			map[string]any{"recoveryKey": key, "backedUp": true})
 	}
@@ -45,7 +38,7 @@ func TestBackupPolicyFollowsMigratedStack(t *testing.T) {
 		ID string `json:"id"`
 	}
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Prod", "scope": "environment", "environmentId": src,
-		"repositoryId": local.Repository.ID}).json(t, &pol)
+		"repositoryId": prod.Repository.ID}).json(t, &pol)
 	type runBody struct {
 		Set struct {
 			ID      string `json:"id"`
@@ -62,7 +55,7 @@ func TestBackupPolicyFollowsMigratedStack(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"jobs"`
 	}
-	// Before the move: both members on the source, in its local repository.
+	// Before the move: both members on the source, in its repository.
 	var before runBody
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil).json(t, &before)
 	if len(before.Jobs) != 1 {
@@ -130,8 +123,7 @@ func TestBackupPolicyFollowsMigratedStack(t *testing.T) {
 		}
 	}
 	// Every snapshot keeps the environment and repository it was written
-	// to: the stack's first snapshot stays with the source's local
-	// repository.
+	// to: the stack's first snapshot stays with the source's repository.
 	var list struct {
 		Items []struct {
 			EnvironmentID string `json:"environmentId"`
@@ -143,7 +135,7 @@ func TestBackupPolicyFollowsMigratedStack(t *testing.T) {
 	for _, it := range list.Items {
 		envs[it.EnvironmentID] = it.RepositoryID
 	}
-	if envs[src] != local.Repository.ID || envs[dst] != offsite.Repository.ID {
+	if envs[src] != prod.Repository.ID || envs[dst] != offsite.Repository.ID {
 		t.Fatalf("stack snapshots by environment %v", envs)
 	}
 }

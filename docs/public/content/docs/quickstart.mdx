@@ -225,6 +225,14 @@ If you installed Docker Manager before it showed disk health, add
 read the disks (see
 [Monitoring](/monitoring#give-the-agent-access-to-the-disks)).
 
+Backups now go to S3-compatible storage only. If you back up to a local
+folder, [add an S3 repository](/backups#1-add-a-repository) before you
+upgrade. The upgrade removes local-folder repositories and their backups
+from the app; the files stay in the folder. A backup policy that used one,
+even for a single server, is turned off, so check it and turn it on
+again. A policy whose repository was a local folder moves to your oldest
+S3 repository, or is removed when you have none.
+
 Good to know:
 
 - From now on, change Docker Manager's files in the stack's **Files** tab.

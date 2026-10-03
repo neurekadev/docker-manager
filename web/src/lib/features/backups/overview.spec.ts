@@ -42,7 +42,6 @@ const repo = (id: string, locations: ReturnType<typeof loc>[]): BackupRepository
 	({
 		id,
 		name: `Repo ${id}`,
-		kind: 'local',
 		state: 'ready',
 		view: 'full',
 		actions: [],
