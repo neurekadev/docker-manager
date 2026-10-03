@@ -75,10 +75,8 @@ function stubApi(existing: BackupPolicy[] = []) {
 						items: [
 							{
 								id: 'r1',
-								name: 'Local',
-								kind: 'local',
-								state: 'ready',
-								executor: 'e1'
+								name: 'Offsite',
+								state: 'ready'
 							}
 						],
 						nextCursor: null
@@ -152,7 +150,11 @@ describe('PolicyWizard (#10)', () => {
 		await heading('Destination');
 		expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
 		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
-		await choose(user, await screen.findByRole('combobox', { name: /^Repository/ }), /^Local/);
+		await choose(
+			user,
+			await screen.findByRole('combobox', { name: /^Repository/ }),
+			/^Offsite/
+		);
 		await user.click(screen.getByRole('button', { name: 'Next' }));
 		expect(await heading('What to Back Up')).toBeInTheDocument();
 		// Consistency is part of this step now.
@@ -220,7 +222,11 @@ describe('PolicyWizard (#10)', () => {
 		renderWizard({ owner: false, ondone: vi.fn() });
 		await heading('Destination');
 		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
-		await choose(user, await screen.findByRole('combobox', { name: /^Repository/ }), /^Local/);
+		await choose(
+			user,
+			await screen.findByRole('combobox', { name: /^Repository/ }),
+			/^Offsite/
+		);
 		// The existing policies load with the page; Next stays on this step.
 		await screen.findByRole('button', { name: 'Next' });
 		await vi.waitFor(async () => {

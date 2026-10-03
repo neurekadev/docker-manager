@@ -83,7 +83,7 @@ func (m *Manager) startBackups(ctx context.Context) error {
 		DB: m.db, Keyring: m.keyring, Clock: m.opts.Clock, Logger: log.With("component", "backups"), Jobs: m.jobs,
 		Scheduler: m.sched, Agents: m.agents.Hub(), Environments: m.agents, Stacks: m.stacks, Guard: m.identity, Audit: m.audit,
 		InstanceID: m.instance.ID, Restic: opener, DataDir: cfg.DataDir, DatabasePath: cfg.DatabasePath(), MetricsPath: cfg.MetricsPath(),
-		SecretKeyFile: cfg.SecretKeyFile, LocalRoots: cfg.BackupLocalRoots, HTTPClient: m.opts.BackupHTTPClient,
+		SecretKeyFile: cfg.SecretKeyFile, HTTPClient: m.opts.BackupHTTPClient,
 		ForgetResource: m.perms.ForgetResource, Build: buildinfo.Get(),
 		MetricsSnapshot: func(ctx context.Context, dst string) error {
 			if m.metrics == nil {

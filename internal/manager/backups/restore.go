@@ -94,12 +94,8 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 	if sn.Kind == backup.MemberStack {
 		if got, err := s.stack(ctx, sn.StackID); err == nil {
 			st = &got
-			// A stack migrated since (#35) is restored where it is now; the
-			// repository must be reachable from there (S3).
+			// A stack migrated since (#35) is restored where it is now.
 			if got.EnvironmentID != env {
-				if repo.Kind != backup.KindS3 {
-					return restorePlan{}, fieldErr("scope", "the stack moved to another environment and the repository is local to %s", env)
-				}
 				p.environmentID = got.EnvironmentID
 			}
 			ref := protocol.ProjectRef{Root: got.Root, RootPath: got.RootPath, Dir: got.Dir, ProjectName: got.Name,

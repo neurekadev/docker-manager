@@ -66,7 +66,7 @@
 		icon="backupRepository"
 		name={r.name}
 		href={routes.backupRepository(r.id)}
-		sub="{r.kind === 's3' ? 'S3 storage' : 'Local directory'}: {repositoryLocation(r, envName)}"
+		sub={repositoryLocation(r)}
 	/>
 {/snippet}
 {#snippet stateCell(r: BackupRepository)}
@@ -112,7 +112,7 @@
 						<EmptyState
 							{...resourceIcon('backupRepository')}
 							title="No backup repositories yet."
-							description="Add a local directory or an S3 bucket. The first repository creates your Recovery Key."
+							description="Add an S3 bucket. The first repository creates your Recovery Key."
 							level={3}
 							compact
 						>

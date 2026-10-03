@@ -138,9 +138,6 @@ type Options struct {
 	MetricsSnapshot func(ctx context.Context, dst string) error
 	// SecretKeyFile is the manager's secret-protection key file (restores).
 	SecretKeyFile string
-	// LocalRoots are the directories local manager repositories may live
-	// in (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS).
-	LocalRoots []string
 	// Migrations lists the applied migrations of the manager database
 	// (the schema recorded in manager-state snapshots).
 	Migrations func(ctx context.Context) ([]string, error)
@@ -281,7 +278,7 @@ func (s *Service) Wake() { s.poke() }
 
 // destination converts a repository to its backup.Destination.
 func destination(r domain.BackupRepository) backup.Destination {
-	return backup.Destination{Kind: r.Kind, Path: r.Path, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix,
+	return backup.Destination{Kind: backup.KindS3, Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix,
 		Region: r.Region, PathStyle: r.PathStyle, Compression: DestinationCompression(r.Compression)}
 }
 
@@ -303,24 +300,6 @@ func validCompression(mode string) bool {
 	return false
 }
 
-// Serves reports whether repository r can hold scope (a local repository
-// serves only its own executor).
-func Serves(r domain.BackupRepository, scope string) bool {
-	if r.Kind == backup.KindS3 {
-		return true
-	}
-	if scope == backup.ScopeManager {
-		return r.Executor == domain.BackupExecutorManager
-	}
-	env, ok := backup.ScopeEnvironment(scope)
-	return ok && r.Executor == env
-}
-
-// ClassRepositoryNotServing is the error class of set members whose
-// environment the policy's repository cannot serve (a local repository of
-// another executor, typically after the stack migrated, #35).
-const ClassRepositoryNotServing = "repository_not_serving_environment"
-
 // ActionPolicyStackMoved is the audit action recorded for a backup policy
 // whose selected stack migrated to another environment (#35).
 const ActionPolicyStackMoved = "backup_policy.stack_moved"
@@ -328,12 +307,10 @@ const ActionPolicyStackMoved = "backup_policy.stack_moved"
 // StackMoved is the Migrations().OnStackMoved hook (#35), run in the
 // transaction that completes a stack migration. Policies select stacks by
 // ID, so they follow the stack by construction: the next run backs it up in
-// its new environment. Existing snapshots keep their repository, scope and
-// environment (the source's) and stay restorable from there. The hook
-// records, per policy selecting the stack, whether the policy has a
-// repository that can hold the destination's data; without one (a local
-// repository of another executor) the next runs refuse the stack's member
-// with ClassRepositoryNotServing until an environment repository is added.
+// its new environment (every repository holds every environment's data).
+// Existing snapshots keep their repository, scope and environment (the
+// source's) and stay restorable from there. The hook records the move per
+// policy selecting the stack.
 func (s *Service) StackMoved(ctx context.Context, db bun.IDB, stackID, from, to string) error {
 	if from == to {
 		return nil
@@ -347,23 +324,13 @@ func (s *Service) StackMoved(ctx context.Context, db bun.IDB, stackID, from, to 
 			continue
 		}
 		repoID := p.RepositoryFor(to)
-		serves := false
-		if r, err := store.GetBackupRepository(ctx, db, repoID); err == nil {
-			serves = Serves(r, backup.EnvironmentScope(to))
-		} else if !errors.Is(err, domain.ErrBackupRepositoryNotFound) {
-			return err
-		}
-		if !serves {
-			s.log.Warn("a backup policy's stack moved to an environment none of its repositories can hold; its runs refuse the stack "+
-				"until an environment repository is added", "policy_id", p.ID, "stack_id", stackID, "environment_id", to)
-		}
 		if s.opts.Audit == nil {
 			continue
 		}
 		if err := s.opts.Audit.RecordTx(ctx, db, domain.AuditEvent{Category: domain.AuditOperations, Action: ActionPolicyStackMoved,
 			Actor: audit.ServiceActor(), EnvironmentID: to, Outcome: domain.AuditSuccess,
 			Targets: []domain.AuditTarget{{Type: catalog.TypeBackupPolicy, ID: p.ID}, {Type: catalog.TypeStack, ID: stackID}},
-			Details: map[string]any{"fromEnvironmentId": from, "toEnvironmentId": to, "repositoryId": repoID, "repositoryServesEnvironment": serves}}); err != nil {
+			Details: map[string]any{"fromEnvironmentId": from, "toEnvironmentId": to, "repositoryId": repoID}}); err != nil {
 			return err
 		}
 	}

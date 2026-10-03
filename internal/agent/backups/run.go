@@ -120,7 +120,7 @@ func (s *Service) stepPrepare(ctx context.Context, sc *jobexec.StepContext) erro
 	}
 	usable, skipped := 0, 0
 	for _, it := range in.Items {
-		p := s.plan(ctx, it, &in.Repository, false)
+		p := s.plan(ctx, it, false)
 		m := memberOf(in, it)
 		switch {
 		case isGone(p.err):
@@ -209,7 +209,7 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 		if it.Kind != backup.MemberStack || failed[it.Key()] {
 			continue
 		}
-		p := s.plan(ctx, it, &in.Repository, true)
+		p := s.plan(ctx, it, true)
 		if p.err != nil {
 			continue
 		}
@@ -324,7 +324,7 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 		if memberDone(*m) {
 			continue
 		}
-		p := s.plan(ctx, it, &in.Repository, false)
+		p := s.plan(ctx, it, false)
 		if isGone(p.err) {
 			skip(ctx, sc, m, p.err)
 			_ = sc.SetOutput(ctx, out)
@@ -363,7 +363,7 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 			}
 			// Removed while restic read it: nothing was stored, and the
 			// item no longer exists (only a Not Found counts).
-			if again := s.plan(ctx, it, &in.Repository, false); isGone(again.err) {
+			if again := s.plan(ctx, it, false); isGone(again.err) {
 				skip(ctx, sc, m, again.err)
 				_ = sc.SetOutput(ctx, out)
 				continue

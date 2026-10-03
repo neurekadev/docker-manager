@@ -206,8 +206,8 @@ func newEnv(t *testing.T) *env {
 	e.store = restictest.New(func() time.Time { return time.Date(2026, 9, 25, 2, 0, 0, 0, time.UTC) })
 	e.svc = New(Options{Engine: func() engine.Engine { return e.eng }, Loader: func() Loader { return loader{} },
 		Storage: func() *storage.Result { return e.res }, Guard: e.guard, Restic: e.store,
-		LocalRoots: []string{filepath.ToSlash(e.backups)}, ExternalAllowlist: []string{filepath.ToSlash(filepath.Join(dir, "srv"))},
-		Clock: testutil.FakeClock(), Logger: testutil.Logger(t), WaitTimeout: time.Second})
+		ExternalAllowlist: []string{filepath.ToSlash(filepath.Join(dir, "srv"))},
+		Clock:             testutil.FakeClock(), Logger: testutil.Logger(t), WaitTimeout: time.Second})
 	return e
 }
 
@@ -217,7 +217,7 @@ func stackItem(rules protocol.BackupRules) protocol.BackupItem {
 }
 
 func (e *env) repoRef() protocol.BackupRepositoryRef {
-	return protocol.BackupRepositoryRef{RepositoryID: "repo-1", Destination: backup.Destination{Kind: backup.KindLocal, Path: filepath.ToSlash(e.backups)},
+	return protocol.BackupRepositoryRef{RepositoryID: "repo-1", Destination: backup.Destination{Kind: backup.KindS3, Endpoint: "https://s3.example.com", Bucket: "backups"},
 		Scope: backup.EnvironmentScope("env-1"), KeyGeneration: 1, KeyFingerprint: "rk_0000000000000001"}
 }
 
@@ -238,10 +238,9 @@ func sourceState(p itemPlan, kind, match string) (protocol.ScopeSource, bool) {
 func TestScopeCorpus(t *testing.T) {
 	e := newEnv(t)
 	ctx := testutil.Context(t)
-	repo := e.repoRef()
 
 	t.Run("defaults", func(t *testing.T) {
-		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
+		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), false)
 		if p.err != nil {
 			t.Fatal(p.err)
 		}
@@ -274,7 +273,7 @@ func TestScopeCorpus(t *testing.T) {
 
 	t.Run("opt-in and allowlist", func(t *testing.T) {
 		rules := protocol.BackupRules{ExternalPaths: []string{filepath.ToSlash(e.external), filepath.ToSlash(e.outside)}, AnonymousVolumes: true}
-		p := e.svc.plan(ctx, stackItem(rules), &repo, false)
+		p := e.svc.plan(ctx, stackItem(rules), false)
 		if p.err != nil {
 			t.Fatal(p.err)
 		}
@@ -291,7 +290,7 @@ func TestScopeCorpus(t *testing.T) {
 	})
 
 	t.Run("exclusions", func(t *testing.T) {
-		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{PathExcludes: []string{"html", "cache"}, VolumeExclude: []string{"dbdata"}}), &repo, false)
+		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{PathExcludes: []string{"html", "cache"}, VolumeExclude: []string{"dbdata"}}), false)
 		if p.err != nil {
 			t.Fatal(p.err)
 		}
@@ -305,12 +304,12 @@ func TestScopeCorpus(t *testing.T) {
 			t.Errorf("excludes = %v", p.excludes)
 		}
 		// The volume include list limits named volumes.
-		p = e.svc.plan(ctx, stackItem(protocol.BackupRules{VolumeInclude: []string{"other"}}), &repo, false)
+		p = e.svc.plan(ctx, stackItem(protocol.BackupRules{VolumeInclude: []string{"other"}}), false)
 		if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceExcluded {
 			t.Errorf("volume not in include list: %+v", s)
 		}
 		// An excluded anonymous volume stays out even with anonymous volumes on.
-		p = e.svc.plan(ctx, stackItem(protocol.BackupRules{AnonymousVolumes: true, VolumeExclude: []string{e.anon}}), &repo, false)
+		p = e.svc.plan(ctx, stackItem(protocol.BackupRules{AnonymousVolumes: true, VolumeExclude: []string{e.anon}}), false)
 		if s, _ := sourceState(p, protocol.SourceAnonymous, e.anon); s.State != protocol.SourceExcluded || s.Reason != "excluded by the policy" {
 			t.Errorf("excluded anonymous volume: %+v", s)
 		}
@@ -318,38 +317,22 @@ func TestScopeCorpus(t *testing.T) {
 
 	t.Run("invalid rules", func(t *testing.T) {
 		for _, r := range []protocol.BackupRules{{PathExcludes: []string{"../x"}}, {ExternalPaths: []string{"relative"}}, {PathExcludes: []string{"/abs"}}} {
-			if p := e.svc.plan(ctx, stackItem(r), &repo, false); p.err == nil {
+			if p := e.svc.plan(ctx, stackItem(r), false); p.err == nil {
 				t.Errorf("rules %+v accepted", r)
 			}
 		}
 	})
 
-	t.Run("repository inside a source", func(t *testing.T) {
-		nested := repo
-		nested.Destination.Path = filepath.ToSlash(filepath.Join(e.project, "backups"))
-		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &nested, false)
-		if errorClass(p.err) != protocol.CodeRepositoryInsideSource {
-			t.Errorf("nested repository: %v", p.err)
-		}
-		// And the agent refuses it as a location at all when outside its roots.
-		if err := e.svc.allowedLocal(nested.Destination.Path); err == nil {
-			t.Error("a location outside DOCKER_AGENT_BACKUP_LOCAL_ROOTS was allowed")
-		}
-		if err := e.svc.allowedLocal(filepath.ToSlash(e.backups)); err != nil {
-			t.Errorf("allowed root refused: %v", err)
-		}
-	})
-
 	t.Run("docker-manager volume and standalone volume", func(t *testing.T) {
-		p := e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "docker-manager_stacks"}, &repo, false)
+		p := e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "docker-manager_stacks"}, false)
 		if p.err == nil || !strings.Contains(p.err.Error(), "Docker Manager") {
 			t.Errorf("Docker Manager's stacks volume: %v", p.err)
 		}
-		p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "uploads", Rules: protocol.BackupRules{PathExcludes: []string{"thumbs"}}}, &repo, false)
+		p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "uploads", Rules: protocol.BackupRules{PathExcludes: []string{"thumbs"}}}, false)
 		if p.err != nil || len(p.paths) != 1 || !strings.HasSuffix(filepath.ToSlash(p.paths[0]), "uploads/_data") || len(p.excludes) != 1 {
 			t.Errorf("standalone volume: %+v %v", p.paths, p.err)
 		}
-		p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "app_dbdata"}, &repo, false)
+		p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "app_dbdata"}, false)
 		if len(p.conflicts) == 0 {
 			t.Error("containers using a standalone volume are not surfaced")
 		}
@@ -363,7 +346,7 @@ func TestScopeCorpus(t *testing.T) {
 		defer func() { _ = os.Remove(link) }()
 		write(t, filepath.Join(e.project, "compose.override.yaml"), "services:\n  web:\n    volumes:\n      - ./linked:/linked\n")
 		defer func() { _ = os.Remove(filepath.Join(e.project, "compose.override.yaml")) }()
-		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
+		p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), false)
 		if s, ok := sourceState(p, protocol.SourceBind, "linked"); !ok || s.State != protocol.SourceBlocked {
 			t.Errorf("symlinked bind: %+v %v", s, ok)
 		}
@@ -765,8 +748,7 @@ func TestRetentionKeepsFloorAndForgetsOnlyThePolicy(t *testing.T) {
 func TestBackupExcludeLabel(t *testing.T) {
 	e := newEnv(t)
 	ctx := testutil.Context(t)
-	repo := e.repoRef()
-	if p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false); p.err != nil {
+	if p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), false); p.err != nil {
 		t.Fatal(p.err)
 	} else if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceIncluded {
 		t.Fatalf("before the label: %+v", s)
@@ -774,7 +756,7 @@ func TestBackupExcludeLabel(t *testing.T) {
 	e.eng.AddContainer(engine.ContainerSpec{Name: "app-dump-1", Image: "example/dump:1",
 		Labels: map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: "dump", protocol.LabelBackupExclude: "true"},
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "app_dbdata", Target: "/dump"}}}, false)
-	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
+	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), false)
 	if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceExcluded || s.Reason != labeledContainerReason {
 		t.Errorf("volume of a labeled container: %+v", s)
 	}
@@ -783,7 +765,7 @@ func TestBackupExcludeLabel(t *testing.T) {
 	mp := filepath.Join(e.volumes, "cache", "_data")
 	write(t, filepath.Join(mp, "x"), "x")
 	e.eng.SetVolumeMountpoint("cache", filepath.ToSlash(mp))
-	p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "cache"}, &repo, false)
+	p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "cache"}, false)
 	if s, _ := sourceState(p, protocol.SourceVolume, "cache"); s.State != protocol.SourceExcluded || s.Reason != labeledVolumeReason || p.err == nil {
 		t.Errorf("labeled volume: %+v %v", s, p.err)
 	}

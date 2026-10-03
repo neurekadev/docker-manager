@@ -13,9 +13,6 @@
 		unreachable: 'The storage could not be reached.',
 		address_not_allowed:
 			'Docker Manager does not connect to this address (loopback, link-local or multicast).',
-		path_not_allowed:
-			'The host does not allow backups in this directory. Its administrator allows backup folders in the host’s settings (see Configuration in the documentation).',
-		path_not_writable: 'Docker Manager cannot write to the directory.',
 		recovery_key_rejected: 'The Recovery Key does not open a repository found here.',
 		repository_locked: 'A repository here is locked by another restic process.',
 		storage_access_denied: 'The storage refused access.'

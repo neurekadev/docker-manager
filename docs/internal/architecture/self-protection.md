@@ -27,7 +27,7 @@ override in v1; Docker on the host is the escape hatch).
 | Manager data volume | the manager container's volume at `/var/lib/docker-manager` | `manager_data` |
 | Agent state volume | the agent container's volume at `/var/lib/docker-agent` | `agent_state` |
 | Stacks volume (#28) | `DOCKER_AGENT_STACKS_VOLUME` (default `docker-manager_stacks`) | `stacks` |
-| Other volumes of Docker Manager containers | e.g. a local backup repository (#10), the proxy's data; volumes labeled with Docker Manager's project | `docker_manager_volume` |
+| Other volumes of Docker Manager containers | e.g. the proxy's data; volumes labeled with Docker Manager's project | `docker_manager_volume` |
 | Networks | the networks of the containers above (not `bridge`/`host`/`none`) and those labeled with Docker Manager's project | `docker_manager_network` |
 
 Detection works on a host with manager and agent (the Quickstart's

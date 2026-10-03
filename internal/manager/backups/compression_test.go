@@ -15,7 +15,7 @@ import (
 )
 
 func TestDestinationCarriesCompressionExceptAuto(t *testing.T) {
-	r := domain.BackupRepository{ID: "r1", Kind: backup.KindLocal, Executor: "e1", Path: "/backups"}
+	r := domain.BackupRepository{ID: "r1", Endpoint: "https://s3.example.com", Bucket: "backups"}
 	for mode, want := range map[string]string{
 		domain.BackupCompressionAuto: "", domain.BackupCompressionMax: "max", domain.BackupCompressionOff: "off",
 	} {

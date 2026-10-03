@@ -104,9 +104,8 @@ func projectGone(dir string) bool {
 // forbiddenExternal are host paths never backed up as external binds.
 var forbiddenExternal = []string{"/", "/proc", "/sys", "/dev", "/run", "/var/run", "/boot"}
 
-// plan resolves an item's scope. repo is the destination (a local
-// repository on this agent must not lie inside a source).
-func (s *Service) plan(ctx context.Context, it protocol.BackupItem, repo *protocol.BackupRepositoryRef, shutdown bool) itemPlan {
+// plan resolves an item's scope.
+func (s *Service) plan(ctx context.Context, it protocol.BackupItem, shutdown bool) itemPlan {
 	p := itemPlan{item: it}
 	if err := it.Validate(); err != nil {
 		p.err = refuse("invalid_scope", "%s", err.Error())
@@ -129,17 +128,6 @@ func (s *Service) plan(ctx context.Context, it protocol.BackupItem, repo *protoc
 		s.planStack(ctx, eng, &p, shutdown)
 	case backup.MemberVolume:
 		s.planVolume(ctx, eng, &p)
-	}
-	if p.err == nil && repo != nil && repo.Destination.Kind == backup.KindLocal {
-		rp := osPath(repo.Destination.Path)
-		for _, src := range p.paths {
-			if inside(rp, src) || inside(src, rp) {
-				p.err = &backup.Refusal{Class: protocol.CodeRepositoryInsideSource,
-					Message:  fmt.Sprintf("the backup repository %s lies inside (or contains) the source %s", repo.Destination.Path, src),
-					Guidance: "Move the local repository outside every backed-up directory, or exclude that directory."}
-				break
-			}
-		}
 	}
 	if p.err == nil && len(p.paths) == 0 {
 		p.err = refuse("empty_scope", "nothing to back up for %s", it.Key())

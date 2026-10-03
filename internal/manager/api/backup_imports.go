@@ -58,17 +58,16 @@ func importError(err error) error {
 	return backupError(err)
 }
 
-// BackupImportSource is the destination and keys of an import.
+// BackupImportSource is the destination (an S3 bucket) and keys of an
+// import.
 type BackupImportSource struct {
-	Kind                string `json:"kind" enum:"local,s3"`
-	Path                string `json:"path,omitempty" maxLength:"1024" example:"/backups/docker-manager" doc:"Local destinations: the directory on this manager (below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS); it may be a new mount path."`
-	Endpoint            string `json:"endpoint,omitempty" maxLength:"255" example:"https://s3.eu-central-1.amazonaws.com"`
-	Bucket              string `json:"bucket,omitempty" maxLength:"63"`
+	Endpoint            string `json:"endpoint" minLength:"1" maxLength:"255" example:"https://s3.eu-central-1.amazonaws.com"`
+	Bucket              string `json:"bucket" minLength:"1" maxLength:"63"`
 	Prefix              string `json:"prefix,omitempty" maxLength:"512" example:"docker-manager"`
 	Region              string `json:"region,omitempty" maxLength:"64"`
 	PathStyle           bool   `json:"pathStyle,omitempty" doc:"Path-style bucket addressing (MinIO and most self-hosted S3)."`
-	AccessKeyID         string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true" doc:"S3: the key pair to use now (it may be newly issued); the restored repository keeps it."`
-	SecretAccessKey     string `json:"secretAccessKey,omitempty" maxLength:"1024" writeOnly:"true" doc:"Write-only: never returned, logged or audited."`
+	AccessKeyID         string `json:"accessKeyId" minLength:"1" maxLength:"256" writeOnly:"true" doc:"The key pair to use now (it may be newly issued); the restored repository keeps it."`
+	SecretAccessKey     string `json:"secretAccessKey" minLength:"1" maxLength:"1024" writeOnly:"true" doc:"Write-only: never returned, logged or audited."`
 	RecoveryKey         string `json:"recoveryKey" minLength:"1" maxLength:"256" writeOnly:"true" doc:"The saved Recovery Key (the newest one after a rotation). Never returned, logged, stored or audited."`
 	PreviousRecoveryKey string `json:"previousRecoveryKey,omitempty" maxLength:"256" writeOnly:"true" doc:"Only after a rotation that has not reached every repository, or to import a set saved before it: the previous key."`
 	SetID               string `json:"setId,omitempty" maxLength:"64" doc:"Previews: also open this set's secret-key bundle (the final check). Restores: the set to import (required)."`
@@ -77,7 +76,7 @@ type BackupImportSource struct {
 
 func (b BackupImportSource) source() backups.ImportSource {
 	return backups.ImportSource{
-		Destination: backup.Destination{Kind: b.Kind, Path: b.Path, Endpoint: b.Endpoint, Bucket: b.Bucket, Prefix: b.Prefix, Region: b.Region,
+		Destination: backup.Destination{Kind: backup.KindS3, Endpoint: b.Endpoint, Bucket: b.Bucket, Prefix: b.Prefix, Region: b.Region,
 			PathStyle: b.PathStyle},
 		Credentials: backup.S3Credentials{AccessKeyID: b.AccessKeyID, SecretAccessKey: b.SecretAccessKey},
 		RecoveryKey: b.RecoveryKey, PreviousRecoveryKey: b.PreviousRecoveryKey,

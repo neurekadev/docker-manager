@@ -67,7 +67,7 @@ checked.
 - Limitation: there is no setup token (#25 decision): whoever reaches the
   origin first after the first start becomes the owner. Until then the
   public setup import routes also let an anonymous client make the manager
-  test an S3 endpoint URL or a path below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`
+  test an S3 endpoint URL
   (rate limited, HTTPS origin only, refused once an owner exists). Operators
   must complete setup right after the first start or restrict the origin
   at the proxy until then (documented in the public Quickstart,

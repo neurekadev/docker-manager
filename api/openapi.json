@@ -1680,7 +1680,7 @@
             "type": "boolean"
           },
           "result": {
-            "description": "ok, or an error class: access_denied, bucket_not_found, unreachable, path_not_allowed, path_not_writable, recovery_key_rejected, repository_locked, storage_access_denied, ...",
+            "description": "ok, or an error class: access_denied, bucket_not_found, unreachable, recovery_key_rejected, repository_locked, storage_access_denied, ...",
             "examples": [
               "ok"
             ],
@@ -2219,13 +2219,15 @@
         "additionalProperties": false,
         "properties": {
           "accessKeyId": {
-            "description": "S3: the key pair to use now (it may be newly issued); the restored repository keeps it.",
+            "description": "The key pair to use now (it may be newly issued); the restored repository keeps it.",
             "maxLength": 256,
+            "minLength": 1,
             "type": "string",
             "writeOnly": true
           },
           "bucket": {
             "maxLength": 63,
+            "minLength": 1,
             "type": "string"
           },
           "confirm": {
@@ -2237,21 +2239,7 @@
               "https://s3.eu-central-1.amazonaws.com"
             ],
             "maxLength": 255,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "local",
-              "s3"
-            ],
-            "type": "string"
-          },
-          "path": {
-            "description": "Local destinations: the directory on this manager (below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS); it may be a new mount path.",
-            "examples": [
-              "/backups/docker-manager"
-            ],
-            "maxLength": 1024,
+            "minLength": 1,
             "type": "string"
           },
           "pathStyle": {
@@ -2285,6 +2273,7 @@
           "secretAccessKey": {
             "description": "Write-only: never returned, logged or audited.",
             "maxLength": 1024,
+            "minLength": 1,
             "type": "string",
             "writeOnly": true
           },
@@ -2295,7 +2284,10 @@
           }
         },
         "required": [
-          "kind",
+          "endpoint",
+          "bucket",
+          "accessKeyId",
+          "secretAccessKey",
           "recoveryKey"
         ],
         "type": "object"
@@ -2498,7 +2490,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Per-environment repository (local repositories live on each environment's agent).",
+            "description": "Per-environment repository, overriding repositoryId.",
             "type": "object"
           },
           "excludeStacks": {
@@ -2643,18 +2635,7 @@
           "endpoint": {
             "type": "string"
           },
-          "executor": {
-            "description": "Local repositories: manager or the environment ID whose agent owns the path.",
-            "type": "string"
-          },
           "id": {
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "local",
-              "s3"
-            ],
             "type": "string"
           },
           "lastTest": {
@@ -2671,9 +2652,6 @@
             "examples": [
               "Offsite S3"
             ],
-            "type": "string"
-          },
-          "path": {
             "type": "string"
           },
           "pathStyle": {
@@ -2725,7 +2703,6 @@
         "required": [
           "id",
           "name",
-          "kind",
           "state",
           "view",
           "actions"
@@ -4959,15 +4936,17 @@
         "properties": {
           "accessKeyId": {
             "maxLength": 256,
+            "minLength": 1,
             "type": "string",
             "writeOnly": true
           },
           "bucket": {
             "maxLength": 63,
+            "minLength": 1,
             "type": "string"
           },
           "compression": {
-            "description": "How restic compresses the data written to the repository (local and S3): auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data).",
+            "description": "How restic compresses the data written to the repository: auto (default: what is worth compressing), max (smallest, more CPU) or off (already compressed data).",
             "enum": [
               "auto",
               "max",
@@ -4980,18 +4959,7 @@
               "https://s3.eu-central-1.amazonaws.com"
             ],
             "maxLength": 255,
-            "type": "string"
-          },
-          "executor": {
-            "description": "Local repositories: manager, or the environment ID whose agent owns the path.",
-            "maxLength": 64,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "local",
-              "s3"
-            ],
+            "minLength": 1,
             "type": "string"
           },
           "name": {
@@ -5000,14 +4968,6 @@
             ],
             "maxLength": 100,
             "minLength": 1,
-            "type": "string"
-          },
-          "path": {
-            "description": "Local repositories: an absolute directory below the executor's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS, outside every backup source.",
-            "examples": [
-              "/backups/docker-manager"
-            ],
-            "maxLength": 1024,
             "type": "string"
           },
           "pathStyle": {
@@ -5028,6 +4988,7 @@
           "secretAccessKey": {
             "description": "Write-only: never returned, logged or audited.",
             "maxLength": 1024,
+            "minLength": 1,
             "type": "string",
             "writeOnly": true
           },
@@ -5050,7 +5011,10 @@
         },
         "required": [
           "name",
-          "kind"
+          "endpoint",
+          "bucket",
+          "accessKeyId",
+          "secretAccessKey"
         ],
         "type": "object"
       },
@@ -15422,7 +15386,7 @@
             "type": "array"
           },
           "truncated": {
-            "description": "Older snapshots exist beyond the listed ones (at most 1000 per location; 200 from a local repository on an agent).",
+            "description": "Older snapshots exist beyond the listed ones (at most 1000 per location).",
             "type": "boolean"
           }
         },
@@ -28433,9 +28397,7 @@
                         "set": false
                       },
                       "endpoint": "example",
-                      "executor": "example",
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                      "kind": "local",
                       "lastTest": {
                         "at": "2026-09-25T12:00:00Z",
                         "canDelete": false,
@@ -28461,7 +28423,6 @@
                       },
                       "location": "https://s3.example.com/backups/docker-manager",
                       "name": "Offsite S3",
-                      "path": "config/app.conf",
                       "pathStyle": false,
                       "prefix": "example",
                       "recoveryRequirements": [
@@ -28573,17 +28534,18 @@
         "x-docker-manager-scope": "resource"
       },
       "post": {
-        "description": "Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).",
+        "description": "Stores a destination: an S3 bucket/prefix (credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).",
         "operationId": "create-backup-repository",
         "requestBody": {
           "content": {
             "application/json": {
               "example": {
+                "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "bucket": "example",
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                "kind": "local",
                 "name": "Offsite S3",
-                "path": "/backups/docker-manager",
                 "prefix": "docker-manager",
+                "secretAccessKey": "example",
                 "verifyReadData": "5%"
               },
               "schema": {
@@ -28632,9 +28594,7 @@
                       "set": false
                     },
                     "endpoint": "example",
-                    "executor": "example",
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                    "kind": "local",
                     "lastTest": {
                       "at": "2026-09-25T12:00:00Z",
                       "canDelete": false,
@@ -28660,7 +28620,6 @@
                     },
                     "location": "https://s3.example.com/backups/docker-manager",
                     "name": "Offsite S3",
-                    "path": "config/app.conf",
                     "pathStyle": false,
                     "prefix": "example",
                     "recoveryRequirements": [
@@ -29005,9 +28964,7 @@
                     "set": false
                   },
                   "endpoint": "example",
-                  "executor": "example",
                   "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                  "kind": "local",
                   "lastTest": {
                     "at": "2026-09-25T12:00:00Z",
                     "canDelete": false,
@@ -29033,7 +28990,6 @@
                   },
                   "location": "https://s3.example.com/backups/docker-manager",
                   "name": "Offsite S3",
-                  "path": "config/app.conf",
                   "pathStyle": false,
                   "prefix": "example",
                   "recoveryRequirements": [
@@ -29220,9 +29176,7 @@
                     "set": false
                   },
                   "endpoint": "example",
-                  "executor": "example",
                   "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                  "kind": "local",
                   "lastTest": {
                     "at": "2026-09-25T12:00:00Z",
                     "canDelete": false,
@@ -29248,7 +29202,6 @@
                   },
                   "location": "https://s3.example.com/backups/docker-manager",
                   "name": "Offsite S3",
-                  "path": "config/app.conf",
                   "pathStyle": false,
                   "prefix": "example",
                   "recoveryRequirements": [
@@ -30048,9 +30001,7 @@
                       "set": false
                     },
                     "endpoint": "example",
-                    "executor": "example",
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                    "kind": "local",
                     "lastTest": {
                       "at": "2026-09-25T12:00:00Z",
                       "canDelete": false,
@@ -30076,7 +30027,6 @@
                     },
                     "location": "https://s3.example.com/backups/docker-manager",
                     "name": "Offsite S3",
-                    "path": "config/app.conf",
                     "pathStyle": false,
                     "prefix": "example",
                     "recoveryRequirements": [
@@ -30230,7 +30180,7 @@
     },
     "/api/v1/backup-repositories/{repositoryId}/snapshots": {
       "get": {
-        "description": "Every restic snapshot of every location of the repository, read live from restic (snapshot files only): backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location (200 from a local repository on an agent). A location that cannot be read reports errorClass; the others are listed. backupId links the Docker Manager backup when the caller may see it.",
+        "description": "Every restic snapshot of every location of the repository, read live from restic (snapshot files only): backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location. A location that cannot be read reports errorClass; the others are listed. backupId links the Docker Manager backup when the caller may see it.",
         "operationId": "list-backup-repository-snapshots",
         "parameters": [
           {
@@ -63523,11 +63473,12 @@
           "content": {
             "application/json": {
               "example": {
+                "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "bucket": "example",
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                "kind": "local",
-                "path": "/backups/docker-manager",
                 "prefix": "docker-manager",
-                "recoveryKey": "example"
+                "recoveryKey": "example",
+                "secretAccessKey": "example"
               },
               "schema": {
                 "$ref": "#/components/schemas/BackupImportSource"
@@ -63684,11 +63635,12 @@
           "content": {
             "application/json": {
               "example": {
+                "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "bucket": "example",
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                "kind": "local",
-                "path": "/backups/docker-manager",
                 "prefix": "docker-manager",
-                "recoveryKey": "example"
+                "recoveryKey": "example",
+                "secretAccessKey": "example"
               },
               "schema": {
                 "$ref": "#/components/schemas/BackupImportSource"
@@ -63877,11 +63829,12 @@
           "content": {
             "application/json": {
               "example": {
+                "accessKeyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "bucket": "example",
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
-                "kind": "local",
-                "path": "/backups/docker-manager",
                 "prefix": "docker-manager",
-                "recoveryKey": "example"
+                "recoveryKey": "example",
+                "secretAccessKey": "example"
               },
               "schema": {
                 "$ref": "#/components/schemas/BackupImportSource"

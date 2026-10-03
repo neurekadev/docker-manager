@@ -182,8 +182,8 @@ func (s *Service) backupPolicies(ctx context.Context, envID string, stacks map[s
 	return out, nil
 }
 
-// repositories are the local repositories on the environment's agent and
-// every repository holding a location (restic repository) for it.
+// repositories are the repositories holding a location (restic
+// repository) for the environment.
 func (s *Service) repositories(ctx context.Context, envID string) ([]domain.EnvironmentDependent, error) {
 	all, err := store.ListBackupRepositories(ctx, s.db, "", 0)
 	if err != nil {
@@ -192,21 +192,14 @@ func (s *Service) repositories(ctx context.Context, envID string) ([]domain.Envi
 	scope := backup.EnvironmentScope(envID)
 	var out []domain.EnvironmentDependent
 	for _, r := range all {
-		detail := ""
-		if r.Kind == "local" && r.Executor == envID {
-			detail = "local repository on this host (kept; reachable again after a re-attach)"
-		} else {
-			locs, err := store.ListBackupLocations(ctx, s.db, r.ID)
-			if err != nil {
-				return nil, err
-			}
-			if slices.ContainsFunc(locs, func(l domain.BackupLocation) bool { return l.Scope == scope }) {
-				detail = "holds this host's backups (kept)"
-			}
+		locs, err := store.ListBackupLocations(ctx, s.db, r.ID)
+		if err != nil {
+			return nil, err
 		}
-		if detail != "" {
+		if slices.ContainsFunc(locs, func(l domain.BackupLocation) bool { return l.Scope == scope }) {
 			out = append(out, domain.EnvironmentDependent{Kind: domain.DependentBackupRepository, ID: r.ID, Name: r.Name,
-				OnArchive: domain.OnArchiveKept, Detail: detail, ResourceType: catalog.TypeBackupRepository, ResourceID: r.ID})
+				OnArchive: domain.OnArchiveKept, Detail: "holds this host's backups (kept)", ResourceType: catalog.TypeBackupRepository,
+				ResourceID: r.ID})
 		}
 	}
 	return out, nil

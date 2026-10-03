@@ -1,10 +1,6 @@
-// A backup destination being entered (#10, #24): local directory or S3.
+// A backup destination being entered (#10, #24, #244): an S3 bucket.
 
 export interface Destination {
-	kind: 'local' | 's3';
-	/** Local: manager or an environment ID (repository creation only). */
-	executor: string;
-	path: string;
 	endpoint: string;
 	bucket: string;
 	prefix: string;
@@ -16,9 +12,6 @@ export interface Destination {
 
 export function emptyDestination(): Destination {
 	return {
-		kind: 'local',
-		executor: 'manager',
-		path: '',
 		endpoint: '',
 		bucket: '',
 		prefix: '',
@@ -29,14 +22,8 @@ export function emptyDestination(): Destination {
 	};
 }
 
-/** An absolute path on the host (POSIX; a drive letter on Windows test hosts). */
-export function isAbsolutePath(p: string): boolean {
-	return /^(\/|[A-Za-z]:[/\\])/.test(p.trim());
-}
-
 /** The destination is complete enough to send. */
 export function destinationReady(d: Destination, requireCredentials = true): boolean {
-	if (d.kind === 'local') return isAbsolutePath(d.path);
 	return (
 		!!d.endpoint.trim() &&
 		!!d.bucket.trim() &&

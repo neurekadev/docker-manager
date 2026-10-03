@@ -75,7 +75,6 @@ agent.
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED` | `true` | Set to `false` to stop sharing your public templates. |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL` | `30m` | How often template sources are read again (at least `5m`; `0` turns it off). |
 | `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of migrations, for example `50MB` (per second, at least `1KiB`). |
-| `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | (none) | Folders the manager may write backups to, separated by commas (see [Backups](/backups#allow-a-local-folder)). |
 
 ### History and monitoring
 
@@ -125,7 +124,6 @@ Leave these as they are unless you know you need them.
 | `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none (up to 63 characters). |
 | `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your [own certificate authority](#your-own-certificate-authority). |
 | `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are, separated by commas (see [Import a project](/stacks#import-a-project)). |
-| `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to, separated by commas. |
 | `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST` | (none) | Folders outside stack folders that backups may include, separated by commas (see [Backups](/backups#back-up-folders-outside-a-stack)). |
 | `DOCKER_AGENT_WATCH_MAX` | half the server's limit | How many folders the agent watches for live file changes. Beyond it, folders are checked every 30 seconds. |
 | `DOCKER_AGENT_SMART_ENABLED` | `true` | Reads the health of the server's disks (see [Monitoring](/monitoring)). `false` turns it off; RAID arrays are still shown. |

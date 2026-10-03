@@ -132,8 +132,6 @@ type RepositoryRef struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
 	Destination Destination `json:"destination"`
-	// Executor of a local repository: "manager" or the environment ID.
-	Executor string `json:"executor,omitempty"`
 	// KeyFingerprint identifies the Recovery Key the repository used
 	// when the manifest was written; KeyGeneration counts rotations.
 	KeyFingerprint string `json:"keyFingerprint"`

@@ -162,7 +162,7 @@ type BackupPolicy struct {
 	View                    string                  `json:"view" enum:"minimal,full"`
 	Actions                 []string                `json:"actions"`
 	RepositoryID            string                  `json:"repositoryId,omitempty"`
-	EnvironmentRepositories map[string]string       `json:"environmentRepositories,omitempty" doc:"Per-environment repository (local repositories live on each environment's agent)."`
+	EnvironmentRepositories map[string]string       `json:"environmentRepositories,omitempty" doc:"Per-environment repository, overriding repositoryId."`
 	IncludeManagerState     bool                    `json:"includeManagerState"`
 	IncludeMetrics          bool                    `json:"includeMetrics" doc:"Include the metrics database (excluded by default)."`
 	Stacks                  []BackupStackSelection  `json:"stacks"`

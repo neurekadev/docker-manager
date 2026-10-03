@@ -219,17 +219,15 @@ const (
 	CodeDigestMismatch    = "digest_mismatch"
 	// Backup codes (#10): the restic error classes of internal/restic and
 	// the agent's own refusals of a repository location.
-	CodeRepositoryNotFound     = "repository_not_found"
-	CodeRecoveryKeyRejected    = "recovery_key_rejected"
-	CodeRepositoryLocked       = "repository_locked"
-	CodeRepositoryDamaged      = "repository_damaged"
-	CodeStorageAccessDenied    = "storage_access_denied"
-	CodeStorageUnreachable     = "storage_unreachable"
-	CodeSnapshotNotFound       = "snapshot_not_found"
-	CodeResticUnavailable      = "restic_unavailable"
-	CodeResticFailed           = "restic_failed"
-	CodePathNotAllowed         = "path_not_allowed"
-	CodeRepositoryInsideSource = "repository_inside_source"
+	CodeRepositoryNotFound  = "repository_not_found"
+	CodeRecoveryKeyRejected = "recovery_key_rejected"
+	CodeRepositoryLocked    = "repository_locked"
+	CodeRepositoryDamaged   = "repository_damaged"
+	CodeStorageAccessDenied = "storage_access_denied"
+	CodeStorageUnreachable  = "storage_unreachable"
+	CodeSnapshotNotFound    = "snapshot_not_found"
+	CodeResticUnavailable   = "restic_unavailable"
+	CodeResticFailed        = "restic_failed"
 	// Restore refusals (#10): the request names a path the backup does not
 	// hold, a path that cannot be restored in place, or a volume missing
 	// on the host.
@@ -248,8 +246,8 @@ var errorCodes = []string{
 	CodeInvalidArgument, CodeUnsupportedAPIVersion, CodeCancelled, CodeInternal,
 	CodeAlreadyExists, CodeNotDirectory, CodeIsDirectory, CodeUnsupportedFile, CodeUnsupportedVolume, CodeDigestMismatch,
 	CodeRepositoryNotFound, CodeRecoveryKeyRejected, CodeRepositoryLocked, CodeRepositoryDamaged, CodeStorageAccessDenied,
-	CodeStorageUnreachable, CodeSnapshotNotFound, CodeResticUnavailable, CodeResticFailed, CodePathNotAllowed,
-	CodeRepositoryInsideSource, CodeSnapshotPathUnknown, CodePathNotRestorable, CodeTargetMissing,
+	CodeStorageUnreachable, CodeSnapshotNotFound, CodeResticUnavailable, CodeResticFailed,
+	CodeSnapshotPathUnknown, CodePathNotRestorable, CodeTargetMissing,
 	CodeCommandNotFound,
 }
 

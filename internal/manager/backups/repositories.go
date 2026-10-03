@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -70,7 +67,7 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 		return CreatedRepository{}, err
 	}
 	now := s.now()
-	r := domain.BackupRepository{ID: ids.New(), Name: name, Kind: in.Kind, Executor: in.Executor, Path: in.Path, Endpoint: in.Endpoint,
+	r := domain.BackupRepository{ID: ids.New(), Name: name, Endpoint: in.Endpoint,
 		Bucket: in.Bucket, Prefix: in.Prefix, Region: in.Region, PathStyle: in.PathStyle, Compression: in.Compression,
 		State: domain.BackupRepositoryAwaitingConfirmation, VerifyReadData: in.VerifyReadData, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	if r.Compression == "" {
@@ -79,8 +76,8 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 	if !validCompression(r.Compression) {
 		return CreatedRepository{}, fieldErr("compression", "must be auto, max or off")
 	}
-	if err := s.validateDestination(ctx, &r); err != nil {
-		return CreatedRepository{}, err
+	if err := destination(r).Validate(); err != nil {
+		return CreatedRepository{}, fieldErr("endpoint", "%s", err.Error())
 	}
 	if !protocol.ValidReadDataSubset(r.VerifyReadData) {
 		return CreatedRepository{}, fieldErr("verifyReadData", "must be a percentage (5%%), a fraction (1/10) or a size (500M)")
@@ -97,18 +94,14 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 	if err := scheduler.ValidateSpec(r.VerifyCron, r.VerifyTimeZone); err != nil {
 		return CreatedRepository{}, fieldErr("verifySchedule", "%s", err.Error())
 	}
-	var sealed store.BackupRepositorySealed
-	if r.Kind == backup.KindS3 {
-		if in.AccessKeyID == "" || in.SecretAccessKey == "" || len(in.AccessKeyID) > 256 || len(in.SecretAccessKey) > 1024 {
-			return CreatedRepository{}, fieldErr("secretAccessKey", "an S3 repository needs an access key ID and a secret access key")
-		}
-		if sealed, err = s.sealCredentials(r.ID, in.AccessKeyID, in.SecretAccessKey); err != nil {
-			return CreatedRepository{}, err
-		}
-		r.CredentialFingerprint = s.opts.Keyring.Fingerprint([]byte(in.AccessKeyID+"\x00"+in.SecretAccessKey), "backup_repositories/"+r.ID+"/credentials")
-	} else if in.AccessKeyID != "" || in.SecretAccessKey != "" {
-		return CreatedRepository{}, fieldErr("accessKeyId", "a local repository has no credentials")
+	if in.AccessKeyID == "" || in.SecretAccessKey == "" || len(in.AccessKeyID) > 256 || len(in.SecretAccessKey) > 1024 {
+		return CreatedRepository{}, fieldErr("secretAccessKey", "an S3 repository needs an access key ID and a secret access key")
 	}
+	sealed, err := s.sealCredentials(r.ID, in.AccessKeyID, in.SecretAccessKey)
+	if err != nil {
+		return CreatedRepository{}, err
+	}
+	r.CredentialFingerprint = s.opts.Keyring.Fingerprint([]byte(in.AccessKeyID+"\x00"+in.SecretAccessKey), "backup_repositories/"+r.ID+"/credentials")
 	var out CreatedRepository
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		rec, found, err := store.GetBackupKey(ctx, tx)
@@ -136,7 +129,6 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 		return CreatedRepository{}, err
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeBackupRepository, ID: r.ID})
-	audit.SetDetail(ctx, "kind", r.Kind)
 	audit.SetDetail(ctx, "location", destination(r).Base())
 	audit.SetDetail(ctx, "compression", r.Compression)
 	audit.SetDetail(ctx, "keyGenerated", out.RecoveryKey != nil)
@@ -159,68 +151,6 @@ func (s *Service) sealCredentials(id, access, secret string) (store.BackupReposi
 	return store.BackupRepositorySealed{AccessKey: a, SecretKey: b}, nil
 }
 
-// validateDestination checks kind, executor and location.
-func (s *Service) validateDestination(ctx context.Context, r *domain.BackupRepository) error {
-	d := destination(*r)
-	if err := d.Validate(); err != nil {
-		field := "path"
-		if r.Kind == backup.KindS3 {
-			field = "endpoint"
-		}
-		if r.Kind != backup.KindLocal && r.Kind != backup.KindS3 {
-			field = "kind"
-		}
-		return fieldErr(field, "%s", err.Error())
-	}
-	switch r.Kind {
-	case backup.KindS3:
-		if r.Executor != "" {
-			return fieldErr("executor", "an S3 repository is used by every executor")
-		}
-	case backup.KindLocal:
-		switch r.Executor {
-		case "":
-			return fieldErr("executor", "a local repository lives on the manager (\"manager\") or on one environment's agent (its ID)")
-		case domain.BackupExecutorManager:
-			if err := s.checkManagerLocalPath(r.Path); err != nil {
-				return err
-			}
-		default:
-			if s.opts.Environments != nil {
-				if _, err := s.opts.Environments.GetEnvironment(ctx, r.Executor); err != nil {
-					if errors.Is(err, domain.ErrEnvironmentNotFound) {
-						return fieldErr("executor", "unknown environment")
-					}
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// checkManagerLocalPath requires a manager-local repository below an
-// allowlisted root and outside the manager's data directory (a repository
-// must never sit inside its own backup source).
-func (s *Service) checkManagerLocalPath(p string) error {
-	ok := false
-	for _, root := range s.opts.LocalRoots {
-		if backup.Within(p, path.Clean(root)) {
-			ok = true
-		}
-	}
-	if !ok {
-		return fieldErr("path", "must be below one of the manager's backup roots (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS)")
-	}
-	if s.opts.DataDir != "" {
-		data := filepath.ToSlash(filepath.Clean(s.opts.DataDir))
-		if backup.Within(p, data) || backup.Within(data, p) {
-			return fieldErr("path", "must not be inside (or contain) the manager's data directory, which it backs up")
-		}
-	}
-	return nil
-}
-
 // UpdateRepository edits a repository (If-Match revision).
 func (s *Service) UpdateRepository(ctx context.Context, id string, revision int64, p domain.BackupRepositoryPatch) (before, after domain.BackupRepository, err error) {
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
@@ -238,20 +168,14 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, revision int6
 			}
 		}
 		if p.Region != nil {
-			if r.Kind != backup.KindS3 {
-				return fieldErr("region", "only S3 repositories have a region")
-			}
 			r.Region = *p.Region
 		}
 		if p.PathStyle != nil {
-			if r.Kind != backup.KindS3 {
-				return fieldErr("pathStyle", "only S3 repositories have an addressing style")
-			}
 			r.PathStyle = *p.PathStyle
 		}
 		if p.Compression != nil {
-			// Local and S3 repositories alike; only data written from now
-			// on (backups, and what prune repacks) uses the new mode.
+			// Only data written from now on (backups, and what prune
+			// repacks) uses the new mode.
 			if !validCompression(*p.Compression) {
 				return fieldErr("compression", "must be auto, max or off")
 			}
@@ -283,9 +207,6 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, revision int6
 		}
 		var sealed *store.BackupRepositorySealed
 		if p.AccessKeyID != nil || p.SecretAccessKey != nil {
-			if r.Kind != backup.KindS3 {
-				return fieldErr("accessKeyId", "a local repository has no credentials")
-			}
 			if p.AccessKeyID == nil || p.SecretAccessKey == nil || *p.AccessKeyID == "" || *p.SecretAccessKey == "" {
 				return fieldErr("secretAccessKey", "replace both the access key ID and the secret access key")
 			}
@@ -343,7 +264,7 @@ func (s *Service) DeleteRepository(ctx context.Context, id string, revision int6
 	return nil
 }
 
-// credentials returns a repository's S3 key pair ("" for local).
+// credentials returns a repository's S3 key pair.
 func (s *Service) credentials(ctx context.Context, db bun.IDB, id string) (backup.S3Credentials, error) {
 	sealed, err := store.BackupRepositorySecrets(ctx, db, id)
 	if err != nil {
@@ -483,8 +404,8 @@ func (s *Service) CommandSecrets(ctx context.Context, j *domain.Job) ([]protocol
 // --- connection tests and health ---
 
 // TestRepository tests a repository's destination: S3 capabilities and
-// Object Lock (from the manager), the local path on its executor, and
-// which scopes already hold a restic repository the Recovery Key opens.
+// Object Lock (from the manager), and which scopes already hold a restic
+// repository the Recovery Key opens.
 func (s *Service) TestRepository(ctx context.Context, id string) (domain.BackupConnectionTest, error) {
 	r, err := store.GetBackupRepository(ctx, s.db, id)
 	if err != nil {
@@ -500,27 +421,18 @@ func (s *Service) TestRepository(ctx context.Context, id string) (domain.BackupC
 	if err != nil {
 		return t, err
 	}
-	switch {
-	case r.Kind == backup.KindS3:
-		p := s3probe.Probe(ctx, s.opts.HTTPClient, s3probe.Target{Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix,
-			Region: r.Region, PathStyle: r.PathStyle, AccessKeyID: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey}, s.opts.Clock.Now)
-		t.CanRead, t.CanWrite, t.CanDelete, t.ObjectLock = p.CanRead, p.CanWrite, p.CanDelete, p.ObjectLock
-		if p.Class != "" {
-			fail(p.Class, p.Message)
-		}
-		if p.CanDelete != nil && !*p.CanDelete {
-			t.Warnings = append(t.Warnings, "The credentials cannot delete objects: retention (forget and prune) will fail.")
-		}
-		if p.ObjectLock != nil && *p.ObjectLock {
-			t.Warnings = append(t.Warnings, "The bucket enforces Object Lock: restic prune cannot delete locked objects until their "+
-				"retention expires, so retention may fail or reclaim no space.")
-		}
-	case r.Executor == domain.BackupExecutorManager:
-		if err := s.checkManagerLocalPath(r.Path); err != nil {
-			fail("path_not_allowed", err.Error())
-		} else if err := probeWritable(filepath.FromSlash(r.Path)); err != nil {
-			fail("path_not_writable", "the manager cannot write "+r.Path)
-		}
+	p := s3probe.Probe(ctx, s.opts.HTTPClient, s3probe.Target{Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix,
+		Region: r.Region, PathStyle: r.PathStyle, AccessKeyID: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey}, s.opts.Clock.Now)
+	t.CanRead, t.CanWrite, t.CanDelete, t.ObjectLock = p.CanRead, p.CanWrite, p.CanDelete, p.ObjectLock
+	if p.Class != "" {
+		fail(p.Class, p.Message)
+	}
+	if p.CanDelete != nil && !*p.CanDelete {
+		t.Warnings = append(t.Warnings, "The credentials cannot delete objects: retention (forget and prune) will fail.")
+	}
+	if p.ObjectLock != nil && *p.ObjectLock {
+		t.Warnings = append(t.Warnings, "The bucket enforces Object Lock: restic prune cannot delete locked objects until their "+
+			"retention expires, so retention may fail or reclaim no space.")
 	}
 	if t.OK || t.Result == "access_denied" {
 		t.Scopes = s.probeScopes(ctx, r, creds)
@@ -541,20 +453,7 @@ func (s *Service) TestRepository(ctx context.Context, id string) (domain.BackupC
 	return t, nil
 }
 
-func probeWritable(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, ".docker-manager-probe-")
-	if err != nil {
-		return err
-	}
-	name := f.Name()
-	_ = f.Close()
-	return os.Remove(name)
-}
-
-// probeScopes opens the scopes the repository can hold that Docker Manager knows
+// probeScopes opens the scopes of the repository that Docker Manager knows
 // (the manager scope, and every location recorded).
 func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, creds backup.S3Credentials) []domain.BackupScopeProbe {
 	cur, prev, _, _, err := s.currentKeys(ctx, s.db)
@@ -565,31 +464,27 @@ func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, cr
 	var out []domain.BackupScopeProbe
 	for _, scope := range s.knownScopes(ctx, r) {
 		p := domain.BackupScopeProbe{Scope: scope}
-		if env, ok := backup.ScopeEnvironment(scope); ok && r.Kind == backup.KindLocal {
-			p = s.probeAgentScope(ctx, r, env, scope)
-		} else {
-			cctx, cancel := context.WithTimeout(ctx, time.Minute)
-			cfg, err := s.opts.Restic.Open(destination(r).Location(scope, creds), cur).Config(cctx)
-			cancel()
-			switch {
-			case err == nil:
-				p.Exists, p.KeyAccepted, p.ResticRepositoryID = true, true, cfg.ID
-			case restic.IsCode(err, restic.CodeKeyRejected):
-				p.Exists, p.ErrorClass = true, restic.CodeKeyRejected
-				if prev != "" {
-					// A rotation that has not reached this location yet.
-					cctx, cancel := context.WithTimeout(ctx, time.Minute)
-					cfg, perr := s.opts.Restic.Open(destination(r).Location(scope, creds), prev).Config(cctx)
-					cancel()
-					if perr == nil {
-						p.KeyAccepted, p.PreviousKey, p.ErrorClass, p.ResticRepositoryID = true, true, "", cfg.ID
-					}
+		cctx, cancel := context.WithTimeout(ctx, time.Minute)
+		cfg, err := s.opts.Restic.Open(destination(r).Location(scope, creds), cur).Config(cctx)
+		cancel()
+		switch {
+		case err == nil:
+			p.Exists, p.KeyAccepted, p.ResticRepositoryID = true, true, cfg.ID
+		case restic.IsCode(err, restic.CodeKeyRejected):
+			p.Exists, p.ErrorClass = true, restic.CodeKeyRejected
+			if prev != "" {
+				// A rotation that has not reached this location yet.
+				cctx, cancel := context.WithTimeout(ctx, time.Minute)
+				cfg, perr := s.opts.Restic.Open(destination(r).Location(scope, creds), prev).Config(cctx)
+				cancel()
+				if perr == nil {
+					p.KeyAccepted, p.PreviousKey, p.ErrorClass, p.ResticRepositoryID = true, true, "", cfg.ID
 				}
-			default:
-				p.ErrorClass = restic.CodeOf(err)
-				if p.ErrorClass == "" {
-					p.ErrorClass = restic.CodeFailed
-				}
+			}
+		default:
+			p.ErrorClass = restic.CodeOf(err)
+			if p.ErrorClass == "" {
+				p.ErrorClass = restic.CodeFailed
 			}
 		}
 		out = append(out, p)
@@ -598,13 +493,9 @@ func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, cr
 }
 
 // knownScopes are the scopes of a repository Docker Manager knows: the
-// manager scope when it serves it, every recorded location and a local
-// repository's own environment.
+// manager scope and every recorded location.
 func (s *Service) knownScopes(ctx context.Context, r domain.BackupRepository) []string {
-	scopes := []string{}
-	if Serves(r, backup.ScopeManager) {
-		scopes = append(scopes, backup.ScopeManager)
-	}
+	scopes := []string{backup.ScopeManager}
 	if locs, err := store.ListBackupLocations(ctx, s.db, r.ID); err == nil {
 		for _, l := range locs {
 			if !slices.Contains(scopes, l.Scope) {
@@ -612,35 +503,7 @@ func (s *Service) knownScopes(ctx context.Context, r domain.BackupRepository) []
 			}
 		}
 	}
-	if r.Kind == backup.KindLocal && r.Executor != domain.BackupExecutorManager && !slices.Contains(scopes, backup.EnvironmentScope(r.Executor)) {
-		scopes = append(scopes, backup.EnvironmentScope(r.Executor))
-	}
 	return scopes
-}
-
-func (s *Service) probeAgentScope(ctx context.Context, r domain.BackupRepository, env, scope string) domain.BackupScopeProbe {
-	p := domain.BackupScopeProbe{Scope: scope}
-	if s.opts.Agents == nil {
-		p.ErrorClass = "agent_offline"
-		return p
-	}
-	rec, _, _ := store.GetBackupKey(ctx, s.db)
-	cred, err := s.credentialFor(ctx, s.db, r.ID)
-	if err != nil {
-		p.ErrorClass = "recovery_key_not_confirmed"
-		return p
-	}
-	raw, err := s.opts.Agents.RequestEnvironment(ctx, env, protocol.ReqBackupSnapshots,
-		protocol.BackupSnapshotsInput{Repository: repositoryRef(r, scope, rec.State), Credential: cred, Tags: []string{backup.TagManifest}}, time.Minute)
-	if err != nil {
-		p.ErrorClass = agentErrorClass(err)
-		return p
-	}
-	var out protocol.BackupSnapshotsOutput
-	if json.Unmarshal(raw, &out) == nil {
-		p.Exists, p.KeyAccepted, p.ResticRepositoryID = true, true, out.ResticRepositoryID
-	}
-	return p
 }
 
 // agentErrorClass maps an agent request error to a class.

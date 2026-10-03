@@ -5,20 +5,16 @@ description: Back up and restore your stacks, volumes and Docker Manager itself.
 
 Docker Manager backs up your stacks (their folder and volumes), your other
 volumes and its own data. Backups are encrypted and stored in a
-**repository**: S3-compatible storage or a folder on a server. The owner
-adds repositories; people with permission can create backup policies.
+**repository** on S3-compatible storage. The owner adds repositories;
+people with permission can create backup policies.
 
 ## 1. Add a repository
 
 1. Open **Backups** and press **Add Repository**.
-2. Enter a **Name** and choose the **Storage**:
-   - **S3-Compatible Storage**: the **Endpoint**, **Bucket**, **Access Key
-     ID** and **Secret Access Key**. This is the easiest choice, and the
-     only one that holds backups of every server. Storage on your network,
-     such as MinIO, works; the connection test refuses loopback and
-     link-local addresses such as `localhost`.
-   - **Local Directory**: a folder on one server (**Written By**). Allow
-     the folder first (see [Allow a local folder](#allow-a-local-folder)).
+2. Enter a **Name**, the **Endpoint**, **Bucket**, **Access Key ID** and
+   **Secret Access Key**. Any S3-compatible storage works, such as AWS S3,
+   Backblaze B2 or MinIO on your network; the connection test refuses
+   loopback and link-local addresses such as `localhost`.
 3. Choose the **Compression**. **Automatic** suits most data.
 4. Press **Save and Continue**.
 5. The first time, Docker Manager shows your **Recovery Key**. Store it
@@ -69,9 +65,9 @@ it too: backups it already removed stay removed, and the next retention
 frees the rest of the space.
 
 <Callout type="warn" title="Back up Docker Manager itself">
-  Turn on **Back Up the Manager State** in one policy, and store it away
-  from the manager's disk (S3, or a network share). Otherwise a lost disk
-  means a lost Docker Manager.
+  Turn on **Back Up the Manager State** in one policy, and use storage
+  away from the manager's server. Otherwise a lost server means a lost
+  Docker Manager.
 </Callout>
 
 ## What is not backed up
@@ -137,8 +133,6 @@ If you lost the manager, you can bring it back from a backup of the manager
 state. You need the repository's details and your **Recovery Key**.
 
 1. Install Docker Manager again as in the [Quickstart](/quickstart).
-   If the backup is in a local folder, mount and allow that folder on the
-   new manager first (see [Allow a local folder](#allow-a-local-folder)).
 2. On the setup page, press **Import From Backup** instead of creating an
    account.
 3. Enter where the backups are and your **Recovery Key**, and press **Check
@@ -151,32 +145,3 @@ state. You need the repository's details and your **Recovery Key**.
 Then [re-attach](/environments#re-attach-an-environment) each
 environment, and create new [API tokens](/api-tokens): the old ones
 were revoked.
-
-## Allow a local folder
-
-Docker Manager only writes to folders you allow. Mount the folder at the
-same path into the container that writes it, and list it in a setting. For
-example, for `/srv/backups` on the manager's server:
-
-```yaml title="compose.yaml"
-services:
-  docker-manager:
-    environment:
-      # ...keep the existing lines...
-      DOCKER_MANAGER_BACKUP_LOCAL_ROOTS: /srv/backups
-    volumes:
-      # ...keep the existing lines...
-      - /srv/backups:/srv/backups
-
-  docker-agent:
-    environment:
-      # ...keep the existing lines...
-      DOCKER_AGENT_BACKUP_LOCAL_ROOTS: /srv/backups
-    volumes:
-      # ...keep the existing lines...
-      - /srv/backups:/srv/backups
-```
-
-The manager writes the manager state; the agent writes the stacks and
-volumes of its server. Use a separate folder for each repository, for
-example `/srv/backups/manager` and `/srv/backups/apps`.

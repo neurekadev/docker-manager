@@ -315,11 +315,11 @@
 					? repositoryStatusLine(health.data, r.storage?.sizeBytes)
 					: undefined}
 				meta={[
-					{ label: r.kind === 's3' ? 'S3 Storage' : 'Local Directory' },
+					{ label: 'S3 Storage' },
 					{
-						label: repositoryLocation(r, envName),
+						label: repositoryLocation(r),
 						mono: true,
-						title: repositoryLocation(r, envName)
+						title: repositoryLocation(r)
 					}
 				]}
 			>
@@ -490,7 +490,7 @@
 						</ul>
 					{:else}
 						<p class="muted">
-							The Recovery Key and access to {repositoryLocation(r, envName)}.
+							The Recovery Key and access to {repositoryLocation(r)}.
 						</p>
 					{/if}
 				</Card>
@@ -555,7 +555,7 @@
 													}
 												]
 											: []),
-										...(r.kind === 's3' && r.credential
+										...(r.credential
 											? [
 													{
 														label: 'Stored S3 Key Pair Fingerprint',
@@ -593,23 +593,21 @@
 			>
 				<Fields>
 					<TextField label="Name" bind:value={editName} required />
-					{#if r.kind === 's3'}
-						<TextField label="Region" optional bind:value={editRegion} />
-						<Switch label="Path-Style Addressing" bind:checked={editPathStyle} />
-						<TextField
-							label="New Access Key ID"
-							mono
-							optional
-							description="Replaces the stored key pair."
-							bind:value={editAccessKey}
-							autocomplete="off"
-						/>
-						<PasswordField
-							label="New Secret Access Key"
-							bind:value={editSecret}
-							autocomplete="off"
-						/>
-					{/if}
+					<TextField label="Region" optional bind:value={editRegion} />
+					<Switch label="Path-Style Addressing" bind:checked={editPathStyle} />
+					<TextField
+						label="New Access Key ID"
+						mono
+						optional
+						description="Replaces the stored key pair."
+						bind:value={editAccessKey}
+						autocomplete="off"
+					/>
+					<PasswordField
+						label="New Secret Access Key"
+						bind:value={editSecret}
+						autocomplete="off"
+					/>
 					<CompressionField bind:value={editCompression} />
 					{#if saveError}<Notice tone="danger" title="Not Saved" live="alert"
 							>{saveError}</Notice
@@ -627,16 +625,12 @@
 								{
 									name: editName.trim(),
 									compression: editCompression,
-									...(r.kind === 's3'
+									region: editRegion.trim(),
+									pathStyle: editPathStyle,
+									...(editAccessKey.trim()
 										? {
-												region: editRegion.trim(),
-												pathStyle: editPathStyle,
-												...(editAccessKey.trim()
-													? {
-															accessKeyId: editAccessKey.trim(),
-															secretAccessKey: editSecret
-														}
-													: {})
+												accessKeyId: editAccessKey.trim(),
+												secretAccessKey: editSecret
 											}
 										: {})
 								},

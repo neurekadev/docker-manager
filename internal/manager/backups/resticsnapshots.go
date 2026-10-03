@@ -2,7 +2,6 @@ package backups
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -11,7 +10,6 @@ import (
 	"github.com/neurekadev/docker-manager/internal/backup"
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/manager/store"
-	"github.com/neurekadev/docker-manager/internal/protocol"
 	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
@@ -31,7 +29,7 @@ const (
 )
 
 // MaxLocationSnapshots bounds the snapshots listed per location (the
-// newest; the agent path lists at most backup.MaxListedSnapshots).
+// newest).
 const MaxLocationSnapshots = 1000
 
 // snapshotListTimeout covers restic's lock retry (2 min) per location.
@@ -100,15 +98,9 @@ func (s *Service) ResticSnapshots(ctx context.Context, repositoryID string) ([]R
 
 func (s *Service) listLocation(ctx context.Context, r domain.BackupRepository, scope string, known map[string]domain.BackupSnapshot) ResticLocation {
 	loc := ResticLocation{Scope: scope}
-	env, isEnv := backup.ScopeEnvironment(scope)
-	loc.EnvironmentID = env
-	var snaps []restic.Snapshot
-	if isEnv && r.Kind == backup.KindLocal {
-		snaps, loc.ResticRepositoryID, loc.ErrorClass = s.agentSnapshots(ctx, r, env, scope)
-		loc.Truncated = len(snaps) >= backup.MaxListedSnapshots
-	} else {
-		snaps, loc.ResticRepositoryID, loc.ErrorClass = s.managerSnapshots(ctx, r, scope)
-	}
+	loc.EnvironmentID, _ = backup.ScopeEnvironment(scope)
+	snaps, rid, class := s.managerSnapshots(ctx, r, scope)
+	loc.ResticRepositoryID, loc.ErrorClass = rid, class
 	sort.SliceStable(snaps, func(i, j int) bool { return snaps[i].Time.After(snaps[j].Time) })
 	if len(snaps) > MaxLocationSnapshots {
 		snaps, loc.Truncated = snaps[:MaxLocationSnapshots], true
@@ -155,29 +147,6 @@ func (s *Service) managerSnapshots(ctx context.Context, r domain.BackupRepositor
 		id = cfg.ID
 	}
 	return snaps, id, ""
-}
-
-// agentSnapshots asks the agent owning a local repository (the newest
-// backup.MaxListedSnapshots).
-func (s *Service) agentSnapshots(ctx context.Context, r domain.BackupRepository, env, scope string) ([]restic.Snapshot, string, string) {
-	if s.opts.Agents == nil {
-		return nil, "", "agent_offline"
-	}
-	rec, _, _ := store.GetBackupKey(ctx, s.db)
-	cred, err := s.credentialFor(ctx, s.db, r.ID)
-	if err != nil {
-		return nil, "", "recovery_key_not_confirmed"
-	}
-	raw, err := s.opts.Agents.RequestEnvironment(ctx, env, protocol.ReqBackupSnapshots,
-		protocol.BackupSnapshotsInput{Repository: repositoryRef(r, scope, rec.State), Credential: cred}, snapshotListTimeout)
-	if err != nil {
-		return nil, "", agentErrorClass(err)
-	}
-	var out protocol.BackupSnapshotsOutput
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, "", "agent_error"
-	}
-	return out.Snapshots, out.ResticRepositoryID, ""
 }
 
 // classify tells what a snapshot holds from its tags.

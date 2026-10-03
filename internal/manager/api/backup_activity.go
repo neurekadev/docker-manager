@@ -199,7 +199,7 @@ type ResticLocationSnapshots struct {
 	EnvironmentID      string           `json:"environmentId,omitempty"`
 	ResticRepositoryID string           `json:"resticRepositoryId,omitempty"`
 	ErrorClass         string           `json:"errorClass,omitempty" doc:"Why the location could not be listed (agent_offline, repository_locked, storage_unreachable, ...)."`
-	Truncated          bool             `json:"truncated" doc:"Older snapshots exist beyond the listed ones (at most 1000 per location; 200 from a local repository on an agent)."`
+	Truncated          bool             `json:"truncated" doc:"Older snapshots exist beyond the listed ones (at most 1000 per location)."`
 	Snapshots          []ResticSnapshot `json:"snapshots"`
 }
 
@@ -258,8 +258,8 @@ func registerResticSnapshots(a huma.API, h *backupsAPI) {
 			Path:    BasePath + "/backup-repositories/{repositoryId}/snapshots",
 			Summary: "List a repository's restic snapshots",
 			Description: "Every restic snapshot of every location of the repository, read live from restic (snapshot files only): " +
-				"backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location " +
-				"(200 from a local repository on an agent). A location that cannot be read reports errorClass; the others are listed. " +
+				"backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location. " +
+				"A location that cannot be read reports errorClass; the others are listed. " +
 				"backupId links the Docker Manager backup when the caller may see it.",
 			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
 		},

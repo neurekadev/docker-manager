@@ -108,12 +108,12 @@ func PutBackupKey(ctx context.Context, db bun.IDB, rec BackupKeyRecord, expectRe
 type backupRepositoryRow struct {
 	bun.BaseModel `bun:"table:backup_repositories"`
 
-	ID                    string     `bun:"id,pk"`
-	Name                  string     `bun:"name,notnull"`
-	NameKey               string     `bun:"name_key,notnull"`
+	ID      string `bun:"id,pk"`
+	Name    string `bun:"name,notnull"`
+	NameKey string `bun:"name_key,notnull"`
+	// Kind is always "s3" (#244; the executor and path columns of local
+	// repositories stay empty).
 	Kind                  string     `bun:"kind,notnull"`
-	Executor              string     `bun:"executor,notnull"`
-	Path                  string     `bun:"path,notnull"`
 	Endpoint              string     `bun:"endpoint,notnull"`
 	Bucket                string     `bun:"bucket,notnull"`
 	Prefix                string     `bun:"prefix,notnull"`
@@ -149,7 +149,7 @@ func fromBackupRepository(r *domain.BackupRepository, sealed BackupRepositorySea
 		b, _ := json.Marshal(r.LastTest)
 		test = string(b)
 	}
-	return backupRepositoryRow{ID: r.ID, Name: r.Name, NameKey: NameKey(r.Name), Kind: r.Kind, Executor: r.Executor, Path: r.Path,
+	return backupRepositoryRow{ID: r.ID, Name: r.Name, NameKey: NameKey(r.Name), Kind: "s3",
 		Endpoint: r.Endpoint, Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: b2i(r.PathStyle),
 		Compression: compressionOrAuto(r.Compression), AccessKeySealed: sealed.AccessKey, SecretKeySealed: sealed.SecretKey,
 		CredentialFingerprint: r.CredentialFingerprint, State: r.State, ConfirmedAt: utcPtr(r.ConfirmedAt), VerifyCron: r.VerifyCron, VerifyTimeZone: r.VerifyTimeZone,
@@ -158,7 +158,7 @@ func fromBackupRepository(r *domain.BackupRepository, sealed BackupRepositorySea
 }
 
 func (r backupRepositoryRow) toDomain() domain.BackupRepository {
-	out := domain.BackupRepository{ID: r.ID, Name: r.Name, Kind: r.Kind, Executor: r.Executor, Path: r.Path, Endpoint: r.Endpoint,
+	out := domain.BackupRepository{ID: r.ID, Name: r.Name, Endpoint: r.Endpoint,
 		Bucket: r.Bucket, Prefix: r.Prefix, Region: r.Region, PathStyle: r.PathStyle == 1, Compression: r.Compression,
 		CredentialFingerprint: r.CredentialFingerprint, State: r.State, ConfirmedAt: utcPtr(r.ConfirmedAt), VerifyCron: r.VerifyCron,
 		VerifyTimeZone: r.VerifyTimeZone, VerifyEnabled: r.VerifyEnabled == 1, VerifyReadData: r.VerifyReadData, LastTestAt: utcPtr(r.LastTestAt),
@@ -226,13 +226,12 @@ func UpdateBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRep
 	return nil
 }
 
-// RelocateBackupRepository points a repository at a new destination of the
-// same kind (a restored manager whose repository was re-mounted or moved,
-// #24) and, when sealed is set, replaces its credentials. The revision
-// increases.
+// RelocateBackupRepository points a repository at a new destination (a
+// restored manager whose repository moved, #24) and, when sealed is set,
+// replaces its credentials. The revision increases.
 func RelocateBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRepository, sealed *BackupRepositorySealed) error {
 	var s BackupRepositorySealed
-	cols := []string{"path", "endpoint", "bucket", "prefix", "region", "path_style", "revision", "updated_at"}
+	cols := []string{"endpoint", "bucket", "prefix", "region", "path_style", "revision", "updated_at"}
 	if sealed != nil {
 		s = *sealed
 		cols = append(cols, "access_key_sealed", "secret_key_sealed", "credential_fingerprint")

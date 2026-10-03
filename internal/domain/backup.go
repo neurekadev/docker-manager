@@ -19,10 +19,6 @@ const (
 	BackupRepositoryReady = "ready"
 )
 
-// BackupExecutorManager is the executor of local repositories on the manager
-// (other local repositories name their environment).
-const BackupExecutorManager = "manager"
-
 // Backup repository compression modes (restic's --compression; the
 // values match restic.Compression*).
 const (
@@ -31,19 +27,12 @@ const (
 	BackupCompressionOff  = "off"
 )
 
-// BackupRepository is a destination for restic repositories: a local
-// directory on one executor (the manager or one environment's agent) or an
-// S3 bucket/prefix. S3 credentials are sealed; only their fingerprint is
-// readable.
+// BackupRepository is a destination for restic repositories: an S3
+// bucket/prefix (#244: S3-compatible storage only). S3 credentials are
+// sealed; only their fingerprint is readable.
 type BackupRepository struct {
-	ID   string
-	Name string
-	// Kind is "local" or "s3".
-	Kind string
-	// Executor of a local repository: BackupExecutorManager or an
-	// environment ID ("" for S3).
-	Executor  string
-	Path      string
+	ID        string
+	Name      string
 	Endpoint  string
 	Bucket    string
 	Prefix    string
@@ -77,9 +66,6 @@ type BackupRepository struct {
 // BackupRepositoryInput creates a repository.
 type BackupRepositoryInput struct {
 	Name      string
-	Kind      string
-	Executor  string
-	Path      string
 	Endpoint  string
 	Bucket    string
 	Prefix    string
@@ -116,7 +102,7 @@ type BackupConnectionTest struct {
 	// Result is "ok" or an error class (restic.Code*, s3 probe classes).
 	Result  string
 	Message string
-	// Capabilities probed on S3 (nil for local repositories).
+	// Capabilities probed on S3 (nil when the probe did not get that far).
 	CanRead   *bool
 	CanWrite  *bool
 	CanDelete *bool
@@ -291,8 +277,7 @@ type BackupPolicy struct {
 	// only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST.
 	ExternalBinds bool
 	// RepositoryID is the destination of every scope; EnvironmentRepos
-	// overrides it per environment (local repositories live on each
-	// environment's own agent).
+	// overrides it per environment.
 	RepositoryID     string
 	EnvironmentRepos map[string]string
 	IncludeManager   bool

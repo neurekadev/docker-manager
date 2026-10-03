@@ -266,16 +266,13 @@ func TestDestinations(t *testing.T) {
 	if loc.S3 == nil || !loc.S3.PathStyle || loc.Repository != "s3:http://minio:9000/docker-manager/site-a/docker-manager" {
 		t.Errorf("location = %#v", loc)
 	}
-	local := Destination{Kind: KindLocal, Path: "/backups/docker-manager"}
-	if err := local.Validate(); err != nil || local.Repository(ScopeManager) != "/backups/docker-manager/docker-manager" {
-		t.Errorf("local: %v %s", err, local.Repository(ScopeManager))
-	}
 	for _, bad := range []Destination{
-		{Kind: KindLocal, Path: "relative"}, {Kind: KindLocal, Path: "/"}, {Kind: KindLocal, Path: "/a/../b"},
+		// Local directories are no longer destinations (#244).
+		{Kind: "local"},
 		{Kind: KindS3, Endpoint: "ftp://x", Bucket: "bkt"}, {Kind: KindS3, Endpoint: "https://u:p@x", Bucket: "bkt"},
 		{Kind: KindS3, Endpoint: "https://x", Bucket: "B"}, {Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Prefix: "/a"},
 		{Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Prefix: "a/../b"}, {Kind: "nfs"},
-		{Kind: KindLocal, Path: "/backups", Compression: "fastest"}, {Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Compression: "MAX"},
+		{Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Compression: "fastest"}, {Kind: KindS3, Endpoint: "https://x", Bucket: "bkt", Compression: "MAX"},
 	} {
 		if bad.Validate() == nil {
 			t.Errorf("accepted %+v", bad)
@@ -306,7 +303,6 @@ func TestDestinationCompression(t *testing.T) {
 		{"", ""}, {restic.CompressionAuto, ""}, {restic.CompressionMax, restic.CompressionMax}, {restic.CompressionOff, restic.CompressionOff},
 	} {
 		for _, d := range []Destination{
-			{Kind: KindLocal, Path: "/backups", Compression: tc.mode},
 			{Kind: KindS3, Endpoint: "https://s3.example.com", Bucket: "bkt", Compression: tc.mode},
 		} {
 			if err := d.Validate(); err != nil {
@@ -319,11 +315,11 @@ func TestDestinationCompression(t *testing.T) {
 	}
 	// Auto is never written out: older agents and manifests see the
 	// destination they know.
-	b, err := json.Marshal(Destination{Kind: KindLocal, Path: "/backups"})
+	b, err := json.Marshal(Destination{Kind: KindS3, Endpoint: "https://s3.example.com", Bucket: "bkt"})
 	if err != nil || strings.Contains(string(b), "compression") {
 		t.Errorf("auto destination = %s (%v)", b, err)
 	}
-	b, _ = json.Marshal(Destination{Kind: KindLocal, Path: "/backups", Compression: restic.CompressionMax})
+	b, _ = json.Marshal(Destination{Kind: KindS3, Endpoint: "https://s3.example.com", Bucket: "bkt", Compression: restic.CompressionMax})
 	if !strings.Contains(string(b), `"compression":"max"`) {
 		t.Errorf("max destination = %s", b)
 	}

@@ -91,7 +91,6 @@ func newBackupEnvOn(t *testing.T, opener restic.Opener, store *restictest.Store,
 		if s3 != nil {
 			o.BackupHTTPClient = s3.Client()
 		}
-		o.Config.BackupLocalRoots = []string{filepath.ToSlash(filepath.Join(root, "manager-backups"))}
 	}}, with...)...)
 	b := &backupEnv{env: e, store: store, opener: opener, s3: s3, root: root, stacks: filepath.Join(root, "stacks"), volumes: filepath.Join(root, "volumes")}
 	t.Cleanup(func() { scanDatabase(t, e) })
@@ -124,8 +123,6 @@ type hostOpts struct {
 	// reattach enrolls with intent reattach:<environmentId> and reuses fe.
 	reattach string
 	fe       *enginefake.Engine
-	// localRoots are the agent's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS.
-	localRoots []string
 	// features are announced besides restore.selection.
 	features []string
 }
@@ -183,7 +180,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 	agentLog := b.secrets.CaptureLogger(t) // agent logs are checked for canaries too
 	guard := protect.New(protect.Options{StacksVolume: "docker-manager_stacks", Logger: agentLog})
 	svc := agentbackups.New(agentbackups.Options{Engine: func() engine.Engine { return fe }, Loader: func() agentbackups.Loader { return loaderFunc{} },
-		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, LocalRoots: o.localRoots, Clock: e.clk, Logger: agentLog,
+		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, Clock: e.clk, Logger: agentLog,
 		WaitTimeout: time.Second})
 	requests := svc.Requests()
 	resourceRequests := agentresources.New(agentresources.Options{Engine: func() engine.Engine { return fe }, Guard: guard, Logger: agentLog}).Requests()
@@ -302,7 +299,7 @@ func (b *backupEnv) createS3Repo(owner *client, name string) createdRepo {
 	secret := b.secrets.New(canary.S3SecretKey, "s3 secret "+name)
 	var out createdRepo
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", map[string]any{
-		"name": name, "kind": "s3", "endpoint": b.s3.URL, "bucket": "backups", "prefix": "docker-manager", "pathStyle": true,
+		"name": name, "endpoint": b.s3.URL, "bucket": "backups", "prefix": "docker-manager", "pathStyle": true,
 		"accessKeyId": b.s3.AccessKey, "secretAccessKey": secret,
 	}, secretOK).json(b.t, &out)
 	if out.RecoveryKey != nil {
@@ -747,7 +744,7 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 	bot.fail(http.StatusForbidden, "api_token_not_allowed", http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
 	bot.fail(http.StatusForbidden, "api_token_not_allowed", http.MethodPost, "/api/v1/backup-repositories/"+id+"/key-rotations", nil)
-	bot.fail(http.StatusForbidden, "api_token_not_allowed", http.MethodPost, "/api/v1/backup-repositories", map[string]any{"name": "Y", "kind": "s3"})
+	bot.fail(http.StatusForbidden, "api_token_not_allowed", http.MethodPost, "/api/v1/backup-repositories", map[string]any{"name": "Y"})
 
 	// Owner rotation needs a recent step-up and returns the new key once.
 	b.clk.Advance(11 * time.Minute)
@@ -1192,7 +1189,7 @@ func TestBackupCompressionPerRepository(t *testing.T) {
 			env := b.agent.env
 
 			body := func(name, compression string) map[string]any {
-				m := map[string]any{"name": name, "kind": "s3", "endpoint": b.s3.URL, "bucket": "backups", "prefix": "docker-manager",
+				m := map[string]any{"name": name, "endpoint": b.s3.URL, "bucket": "backups", "prefix": "docker-manager",
 					"pathStyle": true, "accessKeyId": b.s3.AccessKey, "secretAccessKey": b.secrets.New(canary.S3SecretKey, "s3 secret "+name)}
 				if compression != "" {
 					m["compression"] = compression

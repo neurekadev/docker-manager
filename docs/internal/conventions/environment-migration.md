@@ -29,9 +29,7 @@ Guide: `docs/internal/architecture/migrations.md`. Manager
   stack: register `Migrations().OnStackMoved(func(ctx, db, stackID, from,
   to) error)` (runs in the completing transaction; use `db`, never another
   service's reads). Wired in `app`: `updates.Service.StackMoved` (policy
-  re-homed, candidates unchecked), `backups.Service.StackMoved` (audit;
-  runs refuse members no repository can hold,
-  `repository_not_serving_environment`).
+  re-homed, candidates unchecked), `backups.Service.StackMoved` (audit).
 - Kinds whose extra targets only take locks set `jobspec.Spec.LockOnly`;
   the engine authorizes the capability on `Spec.AuthorizationTargets`.
 - A manager step that loses a party mid-way returns an error wrapping

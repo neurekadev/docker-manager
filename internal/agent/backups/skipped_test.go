@@ -146,17 +146,16 @@ func TestBackupRunFailsVolumeOnOtherErrors(t *testing.T) {
 func TestStackWithDeletedProjectDirectoryIsGone(t *testing.T) {
 	e := newEnv(t)
 	ctx := testutil.Context(t)
-	repo := e.repoRef()
 	if err := os.RemoveAll(e.project); err != nil {
 		t.Fatal(err)
 	}
-	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), &repo, false)
+	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{}), false)
 	if !isGone(p.err) || !strings.Contains(p.err.Error(), "was removed before its turn") {
 		t.Errorf("deleted project directory: %v", p.err)
 	}
 	nested := stackItem(protocol.BackupRules{})
 	nested.Project.Dir = "unmounted/app"
-	if p := e.svc.plan(ctx, nested, &repo, false); p.err == nil || isGone(p.err) {
+	if p := e.svc.plan(ctx, nested, false); p.err == nil || isGone(p.err) {
 		t.Errorf("project directory below a missing directory: %v", p.err)
 	}
 
@@ -181,7 +180,6 @@ func TestStackWithDeletedProjectDirectoryIsGone(t *testing.T) {
 func TestTemporaryContainersDoNotAddVolumes(t *testing.T) {
 	e := newEnv(t)
 	ctx := testutil.Context(t)
-	repo := e.repoRef()
 	project := func(svc string, extra map[string]string) map[string]string {
 		l := map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: svc}
 		for k, v := range extra {
@@ -213,7 +211,7 @@ func TestTemporaryContainersDoNotAddVolumes(t *testing.T) {
 	if len(helperOnly) != 2 {
 		t.Fatalf("temporary containers' own volumes = %v", helperOnly)
 	}
-	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{AnonymousVolumes: true}), &repo, false)
+	p := e.svc.plan(ctx, stackItem(protocol.BackupRules{AnonymousVolumes: true}), false)
 	if p.err != nil {
 		t.Fatal(p.err)
 	}

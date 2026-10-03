@@ -145,7 +145,7 @@ func TestStackMigrationThroughTheManager(t *testing.T) {
 	if err := store.InsertUpdatePolicy(ctx, e.m.DB(), &upol); err != nil {
 		t.Fatal(err)
 	}
-	repo := domain.BackupRepository{ID: ids.New(), Name: "NAS disk", Kind: "local", Executor: nas.env, Path: "/backups", State: domain.BackupRepositoryReady,
+	repo := domain.BackupRepository{ID: ids.New(), Name: "Offsite", Endpoint: "https://s3.example.com", Bucket: "backups", State: domain.BackupRepositoryReady,
 		VerifyCron: "0 5 * * 0", VerifyTimeZone: "UTC", Revision: 1, CreatedAt: now, UpdatedAt: now}
 	if err := store.InsertBackupRepository(ctx, e.m.DB(), &repo, store.BackupRepositorySealed{}); err != nil {
 		t.Fatal(err)
@@ -233,8 +233,7 @@ func TestStackMigrationThroughTheManager(t *testing.T) {
 	}
 	// The update policy moved with the stack (its scheduled check is no
 	// longer refused as target_not_found); the backup policy follows by
-	// stack ID and the hook recorded that its local repository cannot
-	// hold the destination's data.
+	// stack ID.
 	if got, err := e.m.Updates().Get(ctx, upol.ID); err != nil || got.EnvironmentID != cloud.env || got.TargetID != st.ID || !got.Check.Enabled {
 		t.Fatalf("update policy after the migration %+v %v", got, err)
 	}
@@ -247,7 +246,7 @@ func TestStackMigrationThroughTheManager(t *testing.T) {
 			upMoved = true
 		}
 		if row.Action == "backup_policy.stack_moved" && strings.Contains(row.Targets, bpol.ID) &&
-			strings.Contains(row.Details, `"repositoryServesEnvironment":false`) {
+			strings.Contains(row.Details, `"repositoryId":"`+repo.ID+`"`) {
 			bpMoved = true
 		}
 	}

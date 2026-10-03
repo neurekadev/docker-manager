@@ -1040,9 +1040,8 @@ Key, during a key rotation also the previous key, and the S3 key pair)
 travel only in the command's `secrets.repositories` and are never
 journaled. The `backup.snapshots`, `backup.contents` requests and the
 `backup.file` stream carry the same credential in their input's
-`credential` field for that call only. The agent refuses local
-destinations outside `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` and any repository
-nested inside a backup source; external bind paths need both the policy's
+`credential` field for that call only. Destinations are S3 only
+(`kind: s3`, #244). External bind paths need both the policy's
 opt-in and `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`. A `backup.run` member
 whose volume the Engine no longer knows (Not Found), or whose stack
 project directory was deleted, when its turn comes has `state: skipped`
@@ -1296,8 +1295,6 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `snapshot_not_found` | the snapshot or the path in it does not exist |
 | `restic_unavailable` | the agent image has no restic executable |
 | `restic_failed` | restic failed for another reason |
-| `path_not_allowed` | a local backup location is outside `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` |
-| `repository_inside_source` | a local backup location lies inside a backup source |
 | `snapshot_path_unknown` | a restore names a path the backup does not hold (#10) |
 | `path_not_restorable` | a restore names a path outside the stack's project directory and its volumes, or one that cannot be replaced in place |
 | `target_missing` | a restore of a volume's file names a volume missing on the host |

@@ -81,8 +81,7 @@ const (
 		"previous one (previousRecoveryKey): repositories not used since the rotation still use the previous key. " +
 		"If the Recovery Key is lost, nobody can decrypt these backups, Docker Manager included (restic encrypts them with it): " +
 		"complete setup as a new instance and create new backups."
-	guideNotFound = "Check the endpoint, bucket and prefix (S3) or the path (local). A local repository must be mounted on this " +
-		"manager below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS; its new path may differ from the old one."
+	guideNotFound = "Check the endpoint, bucket and prefix."
 	guideManifest = "The manifest of this set is damaged. Choose another (older) set, or run restic check on the repository with " +
 		"the Recovery Key to find damaged data."
 	guideSchema = "This backup was written by a newer Docker Manager. Install a Docker Manager version at least as new as the one that " +
@@ -124,24 +123,12 @@ func (k importSecrets) keys() []RecoveryKey {
 func (s *Service) importSource(src ImportSource) (importSecrets, error) {
 	d := src.Destination
 	if err := d.Validate(); err != nil {
-		field := "path"
-		if d.Kind == backup.KindS3 {
-			field = "endpoint"
-		}
-		return importSecrets{}, fieldErr(field, "%s", err.Error())
+		return importSecrets{}, fieldErr("endpoint", "%s", err.Error())
 	}
-	var sec importSecrets
-	switch d.Kind {
-	case backup.KindLocal:
-		if err := s.checkManagerLocalPath(d.Path); err != nil {
-			return importSecrets{}, err
-		}
-	case backup.KindS3:
-		if src.Credentials.AccessKeyID == "" || src.Credentials.SecretAccessKey == "" {
-			return importSecrets{}, fieldErr("secretAccessKey", "an S3 destination needs its access key ID and secret access key")
-		}
-		sec.creds = src.Credentials
+	if src.Credentials.AccessKeyID == "" || src.Credentials.SecretAccessKey == "" {
+		return importSecrets{}, fieldErr("secretAccessKey", "an S3 destination needs its access key ID and secret access key")
 	}
+	sec := importSecrets{creds: src.Credentials}
 	cur, err := ParseRecoveryKey(src.RecoveryKey)
 	if err != nil {
 		return importSecrets{}, err
@@ -188,7 +175,7 @@ type ImportConnection struct {
 	KeyFingerprint string
 	Manager        ImportLocation
 	Locations      []ImportLocation
-	// S3 capabilities (nil for local destinations).
+	// S3 capabilities (nil when not tested).
 	CanRead, CanWrite, CanDelete, ObjectLock *bool
 	// Sets counts the backup sets found (manifests in the manager scope).
 	Sets     int
@@ -334,22 +321,9 @@ func repositoryRefOf(sets []backup.Manifest, id string) backup.RepositoryRef {
 
 // listImportScopes lists the scope directories at the destination.
 func (s *Service) listImportScopes(ctx context.Context, src ImportSource, sec importSecrets) []string {
-	var dirs []string
-	switch src.Destination.Kind {
-	case backup.KindS3:
-		d := src.Destination
-		dirs, _ = s3probe.ListDirs(ctx, s.opts.HTTPClient, s3probe.Target{Endpoint: d.Endpoint, Bucket: d.Bucket, Prefix: d.Prefix,
-			Region: d.Region, PathStyle: d.PathStyle, AccessKeyID: sec.creds.AccessKeyID, SecretAccessKey: sec.creds.SecretAccessKey}, s.opts.Clock.Now)
-	case backup.KindLocal:
-		entries, err := os.ReadDir(filepath.FromSlash(src.Destination.Path))
-		if err == nil {
-			for _, e := range entries {
-				if e.IsDir() {
-					dirs = append(dirs, e.Name())
-				}
-			}
-		}
-	}
+	d := src.Destination
+	dirs, _ := s3probe.ListDirs(ctx, s.opts.HTTPClient, s3probe.Target{Endpoint: d.Endpoint, Bucket: d.Bucket, Prefix: d.Prefix,
+		Region: d.Region, PathStyle: d.PathStyle, AccessKeyID: sec.creds.AccessKeyID, SecretAccessKey: sec.creds.SecretAccessKey}, s.opts.Clock.Now)
 	var scopes []string
 	for _, d := range dirs {
 		if sc := backup.ScopeOfDir(d); sc != "" && sc != backup.ScopeManager {
@@ -380,11 +354,8 @@ func (s *Service) importHosts(ctx context.Context, src ImportSource, sec importS
 				envName = l.EnvironmentID
 			}
 			switch {
-			case l.RepositoryID == repoID && src.Destination.Kind == backup.KindS3:
+			case l.RepositoryID == repoID:
 				il.Reachable, il.Repository = true, src.Destination.Repository(l.Scope)
-			case rr.Destination.Kind == backup.KindLocal:
-				il.Note = "Local to the host of environment " + envName + ": it becomes available when that environment's agent " +
-					"re-attaches (enrollment intent reattach:" + l.EnvironmentID + ") with the repository mounted at " + rr.Destination.Path + "."
 			default:
 				il.Note = "Kept in another repository (" + rr.Name + "): its credentials are restored with the manager state; " +
 					"it is checked after the import."

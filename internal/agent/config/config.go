@@ -38,7 +38,6 @@ const (
 	EnvHostProc         = "DOCKER_AGENT_HOST_PROC"
 	EnvHostSys          = "DOCKER_AGENT_HOST_SYS"
 	// Backups (#10).
-	EnvBackupLocalRoots        = "DOCKER_AGENT_BACKUP_LOCAL_ROOTS"
 	EnvBackupExternalAllowlist = "DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST"
 	EnvResticBinary            = "DOCKER_AGENT_RESTIC_BINARY"
 	// EnvWatchMax is the file watcher's kernel watch budget (#23).
@@ -113,10 +112,8 @@ type Config struct {
 	// HostSys is the sysfs mount the hwmon temperature sensors are read
 	// from (#146).
 	HostSys string
-	// BackupLocalRoots are the directories local backup repositories on
-	// this agent may live in; BackupExternalAllowlist the host paths
-	// outside stack project directories that policies may opt into (#10).
-	BackupLocalRoots        []string
+	// BackupExternalAllowlist are the host paths outside stack project
+	// directories that policies may opt into (#10).
 	BackupExternalAllowlist []string
 	// ResticBinary is the pinned restic executable.
 	ResticBinary string
@@ -190,9 +187,6 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvHostSys, cfg.HostSys))
 	}
 
-	if cfg.BackupLocalRoots, err = ParsePathList(src.String(EnvBackupLocalRoots, "")); err != nil {
-		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupLocalRoots, err))
-	}
 	if cfg.BackupExternalAllowlist, err = ParsePathList(src.String(EnvBackupExternalAllowlist, "")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupExternalAllowlist, err))
 	}

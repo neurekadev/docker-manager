@@ -17,8 +17,8 @@ import (
 	"github.com/neurekadev/docker-manager/internal/restic"
 )
 
-// A Docker Manager backup repository is a destination: a local directory on one
-// executor's persistent mount, or an S3 bucket/prefix. Below it, every
+// A Docker Manager backup repository is a destination: an S3 bucket/prefix
+// (#244). Below it, every
 // scope has its own restic repository so ownership, locking and retention
 // stay separate (#10): the manager's state in "docker-manager", each
 // environment's stack and volume data in "docker-manager-env-<environmentId>".
@@ -73,20 +73,16 @@ func ScopeOfDir(dir string) string {
 	return ""
 }
 
-// Destination kinds.
-const (
-	KindLocal = "local"
-	KindS3    = "s3"
-)
+// KindS3 is the kind of every destination (#244: backups go to
+// S3-compatible storage only; the field stays for older agents and
+// manifests).
+const KindS3 = "s3"
 
-// Destination is where a backup repository keeps its restic repositories.
-// It never holds credentials.
+// Destination is where a backup repository keeps its restic repositories:
+// an S3 bucket (and prefix). It never holds credentials.
 type Destination struct {
 	Kind string `json:"kind"`
-	// Path is the absolute directory of a local destination (on the
-	// executor that owns it).
-	Path string `json:"path,omitempty"`
-	// S3: Endpoint is scheme://host[:port]; Prefix may be empty.
+	// Endpoint is scheme://host[:port]; Prefix may be empty.
 	Endpoint  string `json:"endpoint,omitempty"`
 	Bucket    string `json:"bucket,omitempty"`
 	Prefix    string `json:"prefix,omitempty"`
@@ -120,13 +116,6 @@ func (d Destination) Validate() error {
 		return errors.New("compression must be auto, max or off")
 	}
 	switch d.Kind {
-	case KindLocal:
-		if !AbsPath(d.Path) {
-			return errors.New("path must be a clean absolute directory other than /")
-		}
-		if d.Endpoint != "" || d.Bucket != "" || d.Prefix != "" {
-			return errors.New("a local repository has no S3 settings")
-		}
 	case KindS3:
 		u, err := url.Parse(d.Endpoint)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || (u.Path != "" && u.Path != "/") ||
@@ -145,9 +134,6 @@ func (d Destination) Validate() error {
 		if len(d.Region) > 64 {
 			return errors.New("region too long")
 		}
-		if d.Path != "" {
-			return errors.New("an S3 repository has no local path")
-		}
 	default:
 		return fmt.Errorf("unknown repository kind %q", d.Kind)
 	}
@@ -156,28 +142,21 @@ func (d Destination) Validate() error {
 
 // Repository returns the restic repository string of a scope.
 func (d Destination) Repository(scope string) string {
-	dir := ScopeDir(scope)
-	if d.Kind == KindS3 {
-		key := dir
-		if d.Prefix != "" {
-			key = d.Prefix + "/" + dir
-		}
-		return "s3:" + strings.TrimSuffix(d.Endpoint, "/") + "/" + d.Bucket + "/" + key
+	key := ScopeDir(scope)
+	if d.Prefix != "" {
+		key = d.Prefix + "/" + key
 	}
-	return path.Join(d.Path, dir)
+	return "s3:" + strings.TrimSuffix(d.Endpoint, "/") + "/" + d.Bucket + "/" + key
 }
 
 // Base describes the destination without credentials (for display and
 // manifests).
 func (d Destination) Base() string {
-	if d.Kind == KindS3 {
-		b := strings.TrimSuffix(d.Endpoint, "/") + "/" + d.Bucket
-		if d.Prefix != "" {
-			b += "/" + d.Prefix
-		}
-		return b
+	b := strings.TrimSuffix(d.Endpoint, "/") + "/" + d.Bucket
+	if d.Prefix != "" {
+		b += "/" + d.Prefix
 	}
-	return d.Path
+	return b
 }
 
 // S3Credentials are the S3 access key pair of a destination.
@@ -188,12 +167,10 @@ type S3Credentials struct {
 
 // Location returns the restic location of a scope with the credentials.
 func (d Destination) Location(scope string, creds S3Credentials) restic.Location {
-	loc := restic.Location{Repository: d.Repository(scope)}
+	loc := restic.Location{Repository: d.Repository(scope),
+		S3: &restic.S3{AccessKeyID: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey, Region: d.Region, PathStyle: d.PathStyle}}
 	if d.Compression != restic.CompressionAuto {
 		loc.Compression = d.Compression
-	}
-	if d.Kind == KindS3 {
-		loc.S3 = &restic.S3{AccessKeyID: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey, Region: d.Region, PathStyle: d.PathStyle}
 	}
 	return loc
 }

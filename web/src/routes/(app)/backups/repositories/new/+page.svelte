@@ -111,12 +111,6 @@
 			(id) => environmentName(envs.data, id)
 		);
 	const fields = $derived(fieldErrors(error));
-	const executors = $derived([
-		{ value: 'manager', label: 'The Manager' },
-		...(envs.data ?? [])
-			.filter((e) => e.status !== 'archived')
-			.map((e) => ({ value: e.id, label: `Environment ${e.name}` }))
-	]);
 
 	// A generated key that is not confirmed yet must not be reloaded away.
 	$effect(() => {
@@ -167,27 +161,17 @@
 			try {
 				created = await unwrap(
 					api.POST('/api/v1/backup-repositories', {
-						body:
-							dest.kind === 'local'
-								? {
-										name: name.trim(),
-										kind: 'local',
-										executor: dest.executor,
-										path: dest.path.trim(),
-										compression: compression as CompressionMode
-									}
-								: {
-										name: name.trim(),
-										kind: 's3',
-										endpoint: dest.endpoint.trim(),
-										bucket: dest.bucket.trim(),
-										prefix: dest.prefix.trim() || undefined,
-										region: dest.region.trim() || undefined,
-										pathStyle: dest.pathStyle,
-										accessKeyId: dest.accessKeyId.trim(),
-										secretAccessKey: dest.secretAccessKey,
-										compression: compression as CompressionMode
-									}
+						body: {
+							name: name.trim(),
+							endpoint: dest.endpoint.trim(),
+							bucket: dest.bucket.trim(),
+							prefix: dest.prefix.trim() || undefined,
+							region: dest.region.trim() || undefined,
+							pathStyle: dest.pathStyle,
+							accessKeyId: dest.accessKeyId.trim(),
+							secretAccessKey: dest.secretAccessKey,
+							compression: compression as CompressionMode
+						}
 					})
 				);
 				dest.secretAccessKey = '';
@@ -281,10 +265,10 @@
 									label="Name"
 									bind:value={name}
 									required
-									placeholder="NAS backups"
+									placeholder="Offsite backups"
 									error={fields['body.name']}
 								/>
-								<DestinationFields bind:value={dest} {executors} errors={fields} />
+								<DestinationFields bind:value={dest} errors={fields} />
 								<CompressionField
 									bind:value={compression}
 									description={COMPRESSION_NEW_NOTE}

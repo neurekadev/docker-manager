@@ -91,10 +91,6 @@ func (s *Service) managerLocation(ctx context.Context, repositoryID string, init
 	if err != nil {
 		return backup.Opened{}, 0, repo, err
 	}
-	if !Serves(repo, backup.ScopeManager) {
-		return backup.Opened{}, 0, repo, backup.Refuse("repository_not_usable", "this repository cannot hold the manager state",
-			"Use an S3 repository or a local repository on the manager.")
-	}
 	if repo.State != domain.BackupRepositoryReady {
 		return backup.Opened{}, 0, repo, backup.Refuse("recovery_key_not_confirmed", "the Recovery Key of this repository is not confirmed",
 			"Confirm the Recovery Key for the repository, then run the job again.")
@@ -335,9 +331,6 @@ func (s *Service) buildSetManifest(ctx context.Context, setID string, manager *b
 		}
 		ref := backup.RepositoryRef{ID: r.ID, Name: r.Name, Destination: destination(r), KeyFingerprint: key.Fingerprint,
 			KeyGeneration: key.Generation}
-		if r.Kind == backup.KindLocal {
-			ref.Executor = r.Executor
-		}
 		m.Repositories = append(m.Repositories, ref)
 		for k := range scopes {
 			if k[0] != id {

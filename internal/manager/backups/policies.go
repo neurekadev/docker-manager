@@ -268,21 +268,12 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 	if _, err := repo(p.RepositoryID, "repositoryId"); err != nil {
 		return err
 	}
-	if p.IncludeManager {
-		if r := repos[p.RepositoryID]; !Serves(r, backup.ScopeManager) {
-			return fieldErr("repositoryId", "the manager state needs an S3 repository or a local repository on the manager")
-		}
-	}
 	for env, id := range p.EnvironmentRepos {
 		if _, err := s.environment(ctx, env); err != nil {
 			return fieldErr("environmentRepositories", "unknown environment %s", env)
 		}
-		r, err := repo(id, "environmentRepositories")
-		if err != nil {
+		if _, err := repo(id, "environmentRepositories"); err != nil {
 			return err
-		}
-		if !Serves(r, backup.EnvironmentScope(env)) {
-			return fieldErr("environmentRepositories", "repository %s cannot hold environment %s's data (a local repository lives on one executor)", r.Name, env)
 		}
 	}
 	envItems := map[string]int{}
@@ -301,12 +292,8 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 			PathExcludes: sel.PathExcludes, ExternalPaths: sel.ExternalPaths}).Validate(); err != nil {
 			return fieldErr(field, "%s", err.Error())
 		}
-		r, err := repo(p.RepositoryFor(st.EnvironmentID), "repositoryId")
-		if err != nil {
+		if _, err := repo(p.RepositoryFor(st.EnvironmentID), "repositoryId"); err != nil {
 			return err
-		}
-		if !Serves(r, backup.EnvironmentScope(st.EnvironmentID)) {
-			return fieldErr(field, "no repository of this policy can hold environment %s's data; add an environment repository", st.EnvironmentID)
 		}
 		envItems[st.EnvironmentID]++
 	}
@@ -326,12 +313,8 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 		if err := (protocol.BackupRules{PathExcludes: v.PathExcludes}).Validate(); err != nil {
 			return fieldErr(field, "%s", err.Error())
 		}
-		r, err := repo(p.RepositoryFor(v.EnvironmentID), "repositoryId")
-		if err != nil {
+		if _, err := repo(p.RepositoryFor(v.EnvironmentID), "repositoryId"); err != nil {
 			return err
-		}
-		if !Serves(r, backup.EnvironmentScope(v.EnvironmentID)) {
-			return fieldErr(field, "no repository of this policy can hold environment %s's data", v.EnvironmentID)
 		}
 		envItems[v.EnvironmentID]++
 	}
@@ -832,15 +815,6 @@ func (s *Service) PreviewScope(ctx context.Context, id string, draft *domain.Bac
 		ep := EnvironmentPreview{EnvironmentID: e.EnvironmentID, RepositoryID: e.Repository.ID}
 		if env, err := s.environment(ctx, e.EnvironmentID); err == nil {
 			ep.EnvironmentName = env.Name
-		}
-		if !Serves(e.Repository, backup.EnvironmentScope(e.EnvironmentID)) {
-			// A stack migrated here (#35) while the policy names a local
-			// repository of another executor: runs refuse its members.
-			ep.ErrorClass = ClassRepositoryNotServing
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Repository %s cannot hold environment %s's data (a local repository lives on "+
-				"one executor): add an environment repository for it to this policy.", e.Repository.Name, e.EnvironmentID))
-			out.Environments = append(out.Environments, ep)
-			continue
 		}
 		if s.opts.Agents == nil {
 			ep.ErrorClass = "agent_offline"

@@ -80,8 +80,8 @@ type BackupRef struct {
 }
 
 // BackupReferences reports the objects of an environment backups rely on
-// (#10 installs it with SetBackupReferences): local repository volumes and
-// destinations are never prune candidates.
+// (#10 installs it with SetBackupReferences): volumes a backup policy
+// selects are never prune candidates.
 type BackupReferences func(ctx context.Context, environmentID string) ([]BackupRef, error)
 
 // Reference is an object another feature keeps: Kind "project" (a Compose

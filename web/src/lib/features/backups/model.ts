@@ -115,19 +115,9 @@ export function itemName(m: {
 }
 
 /** Where a repository lives, without credentials. */
-export function repositoryLocation(
-	r: BackupRepository,
-	environmentName?: (id: string) => string
-): string {
-	if (r.kind === 's3') {
-		const where = `s3://${r.bucket ?? ''}${r.prefix ? `/${r.prefix.replace(/^\/+/, '')}` : ''}`;
-		return r.endpoint ? `${where} on ${r.endpoint.replace(/^https?:\/\//, '')}` : where;
-	}
-	const host =
-		!r.executor || r.executor === 'manager'
-			? 'manager'
-			: (environmentName?.(r.executor) ?? r.executor);
-	return `${host}:${r.path ?? ''}`;
+export function repositoryLocation(r: BackupRepository): string {
+	const where = `s3://${r.bucket ?? ''}${r.prefix ? `/${r.prefix.replace(/^\/+/, '')}` : ''}`;
+	return r.endpoint ? `${where} on ${r.endpoint.replace(/^https?:\/\//, '')}` : where;
 }
 
 function retentionParts(r: BackupRetention): string[] {
