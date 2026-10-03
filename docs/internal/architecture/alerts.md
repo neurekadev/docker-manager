@@ -33,7 +33,7 @@ notifications):
 - `alerts`: one row per problem. `dedupe_key` identifies it and is unique
   among firing rows (partial index `alerts_firing_key`); `kind`
   (`disk_health`, `raid`, `temperature`, `disk_space`, `memory`,
-  `environment_offline`, `updates`, `job_failed`), `severity` (`info`,
+  `environment_offline`, `updates`, `job_failed`, `backup`), `severity` (`info`,
   `warning`, `critical`), `state` (`firing`, `resolved`), `environment_id`,
   `resource_type` and `resource_id` (what it is about), `job_kind` and
   `targets` (JSON: who may see a job or update alert), `title`, `facts`
@@ -77,7 +77,7 @@ moves to its disk's new path, below), `disk_health/<env>/monitoring`,
 `disk_space/<env>/<mount>`, `memory/<env>`, `environment_offline/<env>`,
 `job_failed/policy/<policy>/<kind>/<first target>` (without a policy
 `job_failed/job/<kind>/<env>/<first target>`), `updates_available/<policy>`
-(the key kept its old name; the kind is `updates`).
+(the key kept its old name; the kind is `updates`), `backup/no_primary`.
 
 ## Raise, update, resolve
 
@@ -130,6 +130,7 @@ after the commit.
 | `environment_offline` | the stored connection state, every reconcile and on connection events | critical | back online; archived (every alert of the environment) `archived`; detached `removed` |
 | `job_failed` | `jobs.Engine.OnFinish` of every kind (`jobspec.Kinds()`), in the job's finishing transaction | `failed` critical, `partial`/`interrupted` warning | the key's next succeeded job (any origin); no new run for 7 days: `expired` |
 | `updates` | `OnFinish` of `update.check` (succeeded or partial), and every reconcile for firing ones | info | no candidate `update_available` left; the policy deleted or inactive: `removed` |
+| `backup` (backups paused, #246) | the backup service's `OnPrimaryMissing` (`Service.BackupsPaused`): at start and after every change of the backup setup or of a repository with a role, when backups are on without a Primary repository | critical; sent as a backup failure, its resolution to the told channels | a Primary is set or backups are turned off |
 
 - **Disks** are keyed by path and smartctl type (disks behind one
   controller share a path) and follow their disk: the fact `diskId` is a
@@ -314,9 +315,8 @@ Updates · Applied", "Backups · Success", "Restores · Failure"; a resolution s
 first, then what happened ("Disk /dev/sda is failing", "RAID md0 is
 degraded", "Docker data disk is almost full", "homelab is offline",
 "Paperless has 2 updates available", "Deploy of Paperless failed",
-"Daily Backups succeeded" (a backup policy's run: its name; "Backup
-succeeded" without a policy, "Docker Manager backup succeeded" for the
-manager's own), "Restore of Paperless succeeded", "Prune reclaimed 3
+"Backups succeeded" (a run of the backup setup, #246; "Backup succeeded"
+without one, "Docker Manager backup succeeded" for the manager's own), "Restore of Paperless succeeded", "Prune reclaimed 3
 GiB", "Update of Paperless succeeded"; a stack by its display name). It names the environment only when the environment is the
 subject (it has a field of its own) and never the instance's name (the
 footer does); resolutions are `Resolved: <title>`. The body is
@@ -352,7 +352,8 @@ emails prefix their subject with it. The link is the public
 URL plus the page it is about (the
 environment's System tab for disks and RAID, the environment for offline
 and host usage, the job for failed jobs and notifications, `/updates`
-for updates; digests link to `/notifications`). Never serial numbers, job
+for updates, `/backups` for paused backups; digests link to
+`/notifications`). Never serial numbers, job
 error texts or secrets. `notify` renders the message for each service
 ([notifications.md](notifications.md#delivery)).
 
@@ -364,7 +365,7 @@ environment for disks and RAID, `environment.metrics.read` for
 temperature, disk space and memory, the environment visible at all for
 offline, `job.read` on the job (its targets, or the kind's capabilities
 on every target) for failed jobs, `update_policy.read` on the policy for
-updates. The same rule filters the `alert.updated` event. A notification
+updates, `backup_policy.read` on the instance for paused backups. The same rule filters the `alert.updated` event. A notification
 is shown with `job.read` on its job (`authz.NotificationVisible`, also for
 `notification.created`).
 
@@ -404,6 +405,7 @@ Changes reach the live stream as `invalidate` topic `alerts`, kind
 | host usage: sustain, margin, peak, overrides, stale samples, validation | `internal/manager/alerts/thresholds_test.go` |
 | offline grace, startup, move lock, archive, reconcile loop | `internal/manager/alerts/offline_test.go` |
 | failed jobs (origin, keys, resolution, expiry, sent by area), updates (new digests, the link to Updates) | `internal/manager/alerts/jobs_test.go` |
+| backups paused (one alert, sent as a failure, resolution to the told channel) | `internal/manager/alerts/backups_test.go` |
 | notifications (prune breakdown, backup failure words and warnings, restores, updates, canaries), outcome filters, resolutions only to told channels | `internal/manager/alerts/notifications_test.go` |
 | channel filters, backoff, give-up, order, move lock, dropped, digests, canaries | `internal/manager/alerts/dispatch_test.go` |
 | details, fields, error classes in words, tones, digests | `internal/manager/alerts/message_test.go` |

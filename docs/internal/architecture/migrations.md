@@ -55,7 +55,7 @@ relay"):
   user-set exclusion labels; never Docker Manager's own labels, under
   either prefix; volumes of earlier versions carry the legacy
   `dev.neureka.docker-manager.migration`, read the same way). The
-  label stays after a successful migration; backup policies (#10) select
+  label stays after a successful migration; backups (#10) select
   such a standalone volume only when its migration succeeded
   (`backups.Service.migrationSucceeded`), so a failed migration's partial
   copy is never backed up.
@@ -90,10 +90,9 @@ volumes exclusive; only the stack is authorized with `stack.migrate`,
 5. **finalize** — records the migration completed (and runs the
    `OnStackMoved` hooks in the same transaction: the stack's update
    record moves to the destination with its candidates reset to
-   unchecked, #20;
-   backup policies select the stack by ID and back it up where it is now,
-   #10 — see updates.md and backups.md), releases the compensation and removes the staging
-   directory.
+   unchecked, #20; the backup setup covers environments, so the stack is
+   backed up where it is now, #10 — see updates.md and backups.md),
+   releases the compensation and removes the staging directory.
 
 The **source stays stopped and untouched**. `POST
 /stacks/{id}/migrations/{migrationId}/source-removals` (after completion,

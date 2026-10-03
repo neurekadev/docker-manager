@@ -490,7 +490,11 @@ never sent), added by the manager at dispatch; other agents back up and
 prune with restic's default. And `backup.expire`
 (`protocol.FeatureBackupExpire`): only those agents get `backup.retention`
 inputs with `expire` (items whose snapshots all go: deleted stacks and
-volumes past the policy's expiry); other agents apply the rules alone.
+volumes past the setup's expiry); other agents apply the rules alone. And
+`backup.retention_any_policy` (`protocol.FeatureBackupAnyPolicy`, #246):
+only those agents get `backup.retention` inputs with `anyPolicy: true`
+(judge every snapshot carrying a policy tag, so earlier backup policies'
+backups expire too); other agents judge the snapshots of `policyId` only.
 And `stack.remove_volumes`
 (`protocol.FeatureStackRemoveVolumes`): only those agents get
 `stack.remove` inputs with `removeVolumes` (and `keepVolumes`); the manager

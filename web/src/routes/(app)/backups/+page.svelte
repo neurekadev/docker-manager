@@ -30,6 +30,7 @@
 		Card,
 		ConfirmDialog,
 		EmptyState,
+		ErrorState,
 		IconButton,
 		KpiCard,
 		Menu,
@@ -295,6 +296,12 @@
 
 	{#if repos.isPending || settings.isPending}
 		<Skeleton lines={4} height="72px" />
+	{:else if settings.isError}
+		<ErrorState
+			error={settings.error}
+			title="The backup settings could not be loaded."
+			onretry={() => settings.refetch()}
+		/>
 	{:else if !setupDone}
 		<Card title="Set Up Backups">
 			<ol class="setup" role="list">

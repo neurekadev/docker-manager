@@ -260,7 +260,7 @@ func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[str
 	if warning {
 		outcome = domain.OutcomeWarning
 	}
-	// The policy's name is the subject ("Daily Backups succeeded").
+	// The setup or policy name is the subject ("Backups succeeded").
 	what := "Backup"
 	switch {
 	case j.Kind == "manager.backup":

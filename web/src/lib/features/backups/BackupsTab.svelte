@@ -62,7 +62,9 @@
 
 	const backups = createQuery(() => backupsQuery(filter));
 	const perms = createQuery(() => myPermissionsQuery());
-	const settings = createQuery(() => backupSettingsQuery());
+	// Callers who may not read the backup settings see the backups without
+	// a coverage line.
+	const settings = createQuery(() => ({ ...backupSettingsQuery(), retry: false }));
 	const repos = createQuery(() => repositoriesQuery());
 	const repoName = (id: string) =>
 		repos.data?.find((r) => r.id === id)?.name ?? 'a removed repository';
@@ -125,6 +127,14 @@
 		},
 		{ id: 'state', header: 'State', cell: stateCell, width: '120px', stack: 'status' },
 		{
+			id: 'repository',
+			header: 'Stored In',
+			cell: repositoryCell,
+			sortValue: (b) => repoName(b.repositoryId),
+			width: '160px',
+			stack: 'meta'
+		},
+		{
 			id: 'size',
 			header: 'Size',
 			cell: sizeCell,
@@ -178,6 +188,7 @@
 			>Partial</Badge
 		>{/if}
 {/snippet}
+{#snippet repositoryCell(b: Backup)}<span class="muted">{repoName(b.repositoryId)}</span>{/snippet}
 {#snippet sizeCell(b: Backup)}<span class="num">{b.bytes ? formatBytes(b.bytes) : '—'}</span
 	>{/snippet}
 {#snippet actionsCell(b: Backup)}
@@ -256,7 +267,9 @@
 					color="teal"
 					level={3}
 					title="No Backups of {subject} Yet"
-					description="Backups leave {subject} out, or have no Primary repository yet."
+					description={st
+						? `Backups leave ${subject} out, or have no Primary repository yet.`
+						: undefined}
 				>
 					{#snippet actions()}
 						{#if canEditBackups}<Button href={routes.backupsEdit()} variant="primary"

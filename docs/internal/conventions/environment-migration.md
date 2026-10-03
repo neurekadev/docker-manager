@@ -25,11 +25,12 @@ Guide: `docs/internal/architecture/migrations.md`. Manager
   (an `os.Root` opened on a verified root, `Sub` for directories below it);
   `WriteTree`/`ExtractTree` never follow symlinks. Tests use
   `migrationtest.Host`/`Env` (in-memory, owners and special bits included).
-- Policies that target a stack (#10 backups, #20 updates) follow a migrated
-  stack: register `Migrations().OnStackMoved(func(ctx, db, stackID, from,
-  to) error)` (runs in the completing transaction; use `db`, never another
-  service's reads). Wired in `app`: `updates.Service.StackMoved` (policy
-  re-homed, candidates unchecked), `backups.Service.StackMoved` (audit).
+- Records that target a stack (#20 updates) follow a migrated stack:
+  register `Migrations().OnStackMoved(func(ctx, db, stackID, from, to)
+  error)` (runs in the completing transaction; use `db`, never another
+  service's reads). Wired in `app`: `updates.Service.StackMoved` (record
+  re-homed, candidates unchecked). The backup and maintenance setups cover
+  environments and need no hook.
 - Kinds whose extra targets only take locks set `jobspec.Spec.LockOnly`;
   the engine authorizes the capability on `Spec.AuthorizationTargets`.
 - A manager step that loses a party mid-way returns an error wrapping

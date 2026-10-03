@@ -66,7 +66,7 @@ Europe/Berlin while the runner evaluates every 5 minutes).
 
 | Kind | Suggested default | Missed runs | Policy type / read capability | Job kinds |
 | --- | --- | --- | --- | --- |
-| `backup` | `0 * * * *` (hourly) | catch up once | `backup_policy` / `backup_policy.read` | `backup.run`, `manager.backup` |
+| `backup` | `0 * * * *` (hourly) | catch up once | `backup_policy` (the one backup setup, #246) / `backup_policy.read` | `backup.run`, `manager.backup` |
 | `update_check` | `0 3 * * *` | catch up once | `update_policy` / `update_policy.read` | `update.check` |
 | `update_run` | `0 4 * * *` | skip | `update_policy` / `update_policy.read` | `update.run` |
 | `prune` | `0 3 * * 0` | skip | `maintenance_policy` / `maintenance_policy.read` | `prune.run` |
