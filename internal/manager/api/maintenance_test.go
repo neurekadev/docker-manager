@@ -68,11 +68,22 @@ func preview(env string) (protocol.PrunePreviewOutput, error) {
 		Items: []protocol.PruneItem{{Category: domain.PruneStoppedContainers, ID: "c1", Name: "old", Decision: protocol.PruneRemove, Bytes: 10}}}}}, nil
 }
 
-func (f *fakeMaintenance) Environments(context.Context) ([]domain.Environment, error) {
-	return []domain.Environment{{ID: "env-1", Name: "Silo"}, {ID: "env-2", Name: "Rack"}}, nil
+// covered are the environments maintenance covers, checked with permit.
+func covered(permit maintenance.Permit) error {
+	for _, env := range []domain.Environment{{ID: "env-1", Name: "Silo"}, {ID: "env-2", Name: "Rack"}} {
+		if permit != nil {
+			if err := permit(env); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
-func (f *fakeMaintenance) Preview(context.Context) ([]maintenance.EnvironmentPreview, error) {
+func (f *fakeMaintenance) Preview(_ context.Context, permit maintenance.Permit) ([]maintenance.EnvironmentPreview, error) {
+	if err := covered(permit); err != nil {
+		return nil, err
+	}
 	var out []maintenance.EnvironmentPreview
 	for _, env := range []string{"env-1", "env-2"} {
 		p, err := preview(env)
@@ -81,7 +92,10 @@ func (f *fakeMaintenance) Preview(context.Context) ([]maintenance.EnvironmentPre
 	return out, nil
 }
 
-func (f *fakeMaintenance) Run(_ context.Context, p authz.Principal, key string) ([]domain.Job, error) {
+func (f *fakeMaintenance) Run(_ context.Context, p authz.Principal, key string, permit maintenance.Permit) ([]domain.Job, error) {
+	if err := covered(permit); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if key == "busy" {

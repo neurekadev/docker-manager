@@ -37,9 +37,8 @@ const (
 type MaintenanceService interface {
 	Setup(ctx context.Context) (domain.MaintenanceSetup, error)
 	UpdateSetup(ctx context.Context, revision int64, p domain.MaintenanceSetupPatch) (before, after domain.MaintenanceSetup, err error)
-	Environments(ctx context.Context) ([]domain.Environment, error)
-	Preview(ctx context.Context) ([]maintenance.EnvironmentPreview, error)
-	Run(ctx context.Context, p authz.Principal, idempotencyKey string) ([]domain.Job, error)
+	Preview(ctx context.Context, permit maintenance.Permit) ([]maintenance.EnvironmentPreview, error)
+	Run(ctx context.Context, p authz.Principal, idempotencyKey string, permit maintenance.Permit) ([]domain.Job, error)
 	PreviewManual(ctx context.Context, envID string, rules []domain.MaintenanceRule) (protocol.PrunePreviewOutput, error)
 	RunManual(ctx context.Context, p authz.Principal, envID string, rules []domain.MaintenanceRule, idempotencyKey string) (domain.Job, error)
 	ScheduleStatus(ctx context.Context, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error)
@@ -267,6 +266,10 @@ func newPrunePreview(env string, p protocol.PrunePreviewOutput) PrunePreview {
 }
 
 func maintenanceError(err error) error {
+	var ae *Error
+	if errors.As(err, &ae) {
+		return ae
+	}
 	var fe *domain.FieldError
 	var ie *scheduler.InvalidError
 	var active *domain.MaintenanceRunActiveError
@@ -327,27 +330,25 @@ func (h *maintenanceAPI) checked(ctx context.Context, capability Capability) (Ma
 	return h.svc, c, p, st, authz.ViewOf(c, setupResource(st)), nil
 }
 
-// covering loads the setup like setup, and also refuses when a rule keeps
-// the caller from capability in one of the environments the setup covers
-// (a deny rule on the environment): a preview shows their objects and a
-// run prunes them.
-func (h *maintenanceAPI) covering(ctx context.Context, capability Capability) (MaintenanceService, authz.Principal, error) {
+// covering loads the setup like setup, and returns the check of every
+// environment the setup covers: the service refuses the preview or run
+// when a rule keeps the caller from capability in one of them (a deny
+// rule on the environment), checking the very environments it acts on (a
+// preview shows their objects, a run prunes them).
+func (h *maintenanceAPI) covering(ctx context.Context, capability Capability) (MaintenanceService, authz.Principal, maintenance.Permit, error) {
 	svc, c, p, st, _, err := h.checked(ctx, capability)
 	if err != nil {
-		return nil, p, err
+		return nil, p, nil, err
 	}
-	envs, err := svc.Environments(ctx)
-	if err != nil {
-		return nil, p, Internal(err)
-	}
-	for _, env := range envs {
+	permit := func(env domain.Environment) error {
 		in := authz.Resource{Type: catalog.TypeMaintenancePolicy, ID: st.ID, EnvironmentID: env.ID, Parents: []authz.ResourceRef{}}
 		if !c.Can(string(capability), in).Allowed {
-			return nil, p, Forbidden("not permitted: " + string(capability) + " in environment " + env.Name +
+			return Forbidden("not permitted: " + string(capability) + " in environment " + env.Name +
 				"; leave it out of maintenance or ask for access there")
 		}
+		return nil
 	}
-	return svc, p, nil
+	return svc, p, permit, nil
 }
 
 // flatSetup is the audit diff form of the setup (rules by category).
@@ -454,11 +455,11 @@ func (h *maintenanceAPI) update(ctx context.Context, in *updateMaintenanceSettin
 }
 
 func (h *maintenanceAPI) preview(ctx context.Context, _ *struct{}) (*maintenancePreviewOutput, error) {
-	svc, _, err := h.covering(ctx, CapMaintenancePreview)
+	svc, _, permit, err := h.covering(ctx, CapMaintenancePreview)
 	if err != nil {
 		return nil, err
 	}
-	previews, err := svc.Preview(ctx)
+	previews, err := svc.Preview(ctx, permit)
 	if err != nil {
 		return nil, maintenanceError(err)
 	}
@@ -485,7 +486,7 @@ func (h *maintenanceAPI) preview(ctx context.Context, _ *struct{}) (*maintenance
 }
 
 func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenanceInput) (*maintenanceJobsOutput, error) {
-	svc, principal, err := h.covering(ctx, CapMaintenanceRun)
+	svc, principal, permit, err := h.covering(ctx, CapMaintenanceRun)
 	if err != nil {
 		return nil, err
 	}
@@ -493,7 +494,7 @@ func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenanceInput) (*mai
 		return nil, Conflict(CodePruneConfirmationRequired,
 			"a prune run deletes its candidates and cannot be undone; review a preview and repeat the request with confirm: true")
 	}
-	jobs, err := svc.Run(ctx, principal, in.IdempotencyKey)
+	jobs, err := svc.Run(ctx, principal, in.IdempotencyKey, permit)
 	if err != nil {
 		return nil, maintenanceError(err)
 	}

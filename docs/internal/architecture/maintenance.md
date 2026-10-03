@@ -148,7 +148,10 @@ removed.
 (`{jobs}`; a repeated key replays the response, `IdempotencyStored`, and
 the jobs' own keys are `<key>/<environmentId>`). Every request is built
 before the first is enqueued; when an enqueue fails, the jobs already
-queued are cancelled, so a run starts everywhere or nowhere:
+queued are cancelled (also when the request itself was cancelled), so a
+run starts everywhere or nowhere, and its key is refused afterwards (409:
+replaying it would report the cancelled jobs). The caller's grant is
+checked on the very environments the run or preview acts on:
 
 - **Confirmation**: without `confirm: true` → `409
   prune_confirmation_required`.

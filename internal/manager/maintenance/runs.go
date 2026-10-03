@@ -283,13 +283,26 @@ type EnvironmentPreview struct {
 	Err           error
 }
 
-// Environments returns the environments the setup covers now.
-func (s *Service) Environments(ctx context.Context) ([]domain.Environment, error) {
-	st, err := s.Setup(ctx)
+// Permit refuses (with its error) an environment the caller may not act
+// on; nil permits every one.
+type Permit func(domain.Environment) error
+
+// permitted resolves the environments the setup covers now and refuses
+// all of them when permit refuses one: the caller is checked against the
+// very environments acted on.
+func (s *Service) permitted(ctx context.Context, st domain.MaintenanceSetup, permit Permit) ([]domain.Environment, error) {
+	envs, err := s.ScopeEnvironments(ctx, st)
 	if err != nil {
 		return nil, err
 	}
-	return s.ScopeEnvironments(ctx, st)
+	if permit != nil {
+		for _, env := range envs {
+			if err := permit(env); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return envs, nil
 }
 
 // previewParallel bounds the agents a preview asks at once.
@@ -298,13 +311,14 @@ const previewParallel = 8
 // Preview asks each environment the setup covers what a run would remove
 // now, several at once (each answers within PreviewTimeout). An
 // environment that cannot answer reports its error; the others are
-// previewed all the same. Nothing is stored or removed.
-func (s *Service) Preview(ctx context.Context) ([]EnvironmentPreview, error) {
+// previewed all the same. Nothing is stored or removed. permit refuses
+// the preview when the caller may not see one of the environments.
+func (s *Service) Preview(ctx context.Context, permit Permit) ([]EnvironmentPreview, error) {
 	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
 	}
-	envs, err := s.ScopeEnvironments(ctx, st)
+	envs, err := s.permitted(ctx, st, permit)
 	if err != nil {
 		return nil, err
 	}
@@ -329,8 +343,9 @@ func (s *Service) Preview(ctx context.Context) ([]EnvironmentPreview, error) {
 // presentation only. A second run while one is active is refused. Every
 // request is built before the first is enqueued, and when an enqueue
 // fails the jobs already queued are cancelled: a run starts everywhere or
-// nowhere.
-func (s *Service) Run(ctx context.Context, principal authz.Principal, key string) ([]domain.Job, error) {
+// nowhere. permit refuses the run when the caller may not prune one of
+// the environments.
+func (s *Service) Run(ctx context.Context, principal authz.Principal, key string, permit Permit) ([]domain.Job, error) {
 	st, err := s.Setup(ctx)
 	if err != nil {
 		return nil, err
@@ -338,7 +353,7 @@ func (s *Service) Run(ctx context.Context, principal authz.Principal, key string
 	if len(domain.EnabledRules(st.Rules)) == 0 {
 		return nil, domain.ErrMaintenanceEmpty
 	}
-	envs, err := s.ScopeEnvironments(ctx, st)
+	envs, err := s.permitted(ctx, st, permit)
 	if err != nil {
 		return nil, err
 	}
@@ -369,10 +384,18 @@ func (s *Service) Run(ctx context.Context, principal authz.Principal, key string
 	}
 	out := make([]domain.Job, 0, len(reqs))
 	for _, req := range reqs {
-		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
+		job, created, err := s.opts.Jobs.Enqueue(ctx, req)
+		if err == nil && !created && job.State.Terminal() {
+			// The key of a start that failed (its jobs were cancelled):
+			// replaying it would report cancelled jobs as a new run.
+			err = domain.ErrJobIdempotencyConflict
+		}
 		if err != nil {
+			// The request may be cancelled already: cancel what was
+			// queued regardless.
+			cctx := context.WithoutCancel(ctx)
 			for _, j := range out {
-				if _, cerr := s.opts.Jobs.Cancel(ctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+				if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
 					s.log.Warn("could not cancel a prune run of a failed start", "job_id", j.ID, "error", cerr)
 				}
 			}

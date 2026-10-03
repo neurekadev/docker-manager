@@ -189,7 +189,7 @@ func TestSetupStartsSafe(t *testing.T) {
 			t.Fatalf("suggested rule %+v", r)
 		}
 	}
-	if _, err := f.svc.Run(f.ctx, f.user, ""); !errors.Is(err, domain.ErrMaintenanceEmpty) {
+	if _, err := f.svc.Run(f.ctx, f.user, "", nil); !errors.Is(err, domain.ErrMaintenanceEmpty) {
 		t.Fatalf("run without rules: %v", err)
 	}
 	src := f.svc.PolicySource()
@@ -210,7 +210,7 @@ func TestSetupCoversEveryEnvironmentButTheLeftOut(t *testing.T) {
 	f := newFixture(t)
 	rule := domain.MaintenanceRule{Category: domain.PruneDanglingImages, Enabled: true, MinAge: time.Hour}
 	st := f.update(t, domain.MaintenanceSetupPatch{Enabled: &on, Rules: []domain.MaintenanceRule{rule}})
-	previews, err := f.svc.Preview(f.ctx)
+	previews, err := f.svc.Preview(f.ctx, nil)
 	if err != nil || len(previews) != 2 || previews[0].EnvironmentID == previews[1].EnvironmentID {
 		t.Fatalf("previews %+v: %v", previews, err)
 	}
@@ -230,12 +230,12 @@ func TestSetupCoversEveryEnvironmentButTheLeftOut(t *testing.T) {
 	if err != nil || len(reqs) != 1 || reqs[0].EnvironmentID != "env-1" {
 		t.Fatalf("requests with env-2 left out %+v: %v", reqs, err)
 	}
-	if previews, err := f.svc.Preview(f.ctx); err != nil || len(previews) != 1 || previews[0].EnvironmentID != "env-1" {
+	if previews, err := f.svc.Preview(f.ctx, nil); err != nil || len(previews) != 1 || previews[0].EnvironmentID != "env-1" {
 		t.Fatalf("previews with env-2 left out %+v: %v", previews, err)
 	}
 
 	f.update(t, domain.MaintenanceSetupPatch{ExcludeEnvironments: &[]string{"env-1", "env-2"}})
-	if _, err := f.svc.Run(f.ctx, f.user, ""); !errors.Is(err, domain.ErrMaintenanceNoEnvironments) {
+	if _, err := f.svc.Run(f.ctx, f.user, "", nil); !errors.Is(err, domain.ErrMaintenanceNoEnvironments) {
 		t.Fatalf("run with every environment left out: %v", err)
 	}
 	if c := class(f.svc.PolicySource().Validate(f.ctx, st.ID)); c != RejectNoEnvironments {
@@ -302,7 +302,7 @@ func TestRunInputCarriesRulesAndProtections(t *testing.T) {
 	f := newFixture(t)
 	st := f.update(t, domain.MaintenanceSetupPatch{ExcludeEnvironments: &[]string{"env-2"}, Rules: []domain.MaintenanceRule{{
 		Category: domain.PruneUnusedImages, Enabled: true, MinAge: 48 * time.Hour, ExcludeLabels: []string{"keep"}}}})
-	js, err := f.svc.Run(f.ctx, f.user, "k1")
+	js, err := f.svc.Run(f.ctx, f.user, "k1", nil)
 	if err != nil || len(js) != 1 {
 		t.Fatalf("run: %+v %v", js, err)
 	}
@@ -352,12 +352,12 @@ func TestRunOverlap(t *testing.T) {
 	f := newFixture(t)
 	f.update(t, domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{{Category: domain.PruneStoppedContainers, Enabled: true,
 		MinAge: time.Hour}}})
-	js, err := f.svc.Run(f.ctx, f.user, "")
+	js, err := f.svc.Run(f.ctx, f.user, "", nil)
 	if err != nil || len(js) != 2 {
 		t.Fatalf("run: %+v %v", js, err)
 	}
 	var active *domain.MaintenanceRunActiveError
-	if _, err := f.svc.Run(f.ctx, f.user, "k2"); !errors.As(err, &active) || (active.JobID != js[0].ID && active.JobID != js[1].ID) {
+	if _, err := f.svc.Run(f.ctx, f.user, "k2", nil); !errors.As(err, &active) || (active.JobID != js[0].ID && active.JobID != js[1].ID) {
 		t.Fatalf("overlap: %v", err)
 	}
 }
@@ -432,12 +432,58 @@ func TestFinishHookRecordsTheLatestRun(t *testing.T) {
 	}
 }
 
+// TestPermitChecksEveryCoveredEnvironment: a refused environment refuses
+// the whole preview or run, and nothing is enqueued.
+func TestPermitChecksEveryCoveredEnvironment(t *testing.T) {
+	f := newFixture(t)
+	f.update(t, domain.MaintenanceSetupPatch{Rules: []domain.MaintenanceRule{{Category: domain.PruneStoppedContainers, Enabled: true,
+		MinAge: time.Hour}}})
+	denied := errors.New("denied")
+	var seen []string
+	permit := func(env domain.Environment) error {
+		seen = append(seen, env.ID)
+		if env.ID == "env-2" {
+			return denied
+		}
+		return nil
+	}
+	if _, err := f.svc.Preview(f.ctx, permit); !errors.Is(err, denied) {
+		t.Fatalf("preview: %v", err)
+	}
+	if len(f.req.inputs) != 0 {
+		t.Fatalf("an agent was asked: %d", len(f.req.inputs))
+	}
+	if _, err := f.svc.Run(f.ctx, f.user, "k1", permit); !errors.Is(err, denied) {
+		t.Fatalf("run: %v", err)
+	}
+	if js, _ := f.eng.List(f.ctx, domain.JobFilter{Kinds: []domain.JobKind{jobspec.PruneRun}}); len(js) != 0 {
+		t.Fatalf("jobs after a refused run: %+v", js)
+	}
+	slices.Sort(seen)
+	if !slices.Contains(seen, "env-1") || !slices.Contains(seen, "env-2") {
+		t.Fatalf("checked %v", seen)
+	}
+	// A start whose jobs were cancelled is not replayed by its key.
+	js, err := f.svc.Run(f.ctx, f.user, "k2", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, j := range js {
+		if _, err := f.eng.Cancel(f.ctx, j.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := f.svc.Run(f.ctx, f.user, "k2", nil); !errors.Is(err, domain.ErrJobIdempotencyConflict) {
+		t.Fatalf("replay of a cancelled start: %v", err)
+	}
+}
+
 // TestPreviewReportsEachEnvironment: an environment whose agent cannot
 // answer reports a stable Docker error; the others are previewed.
 func TestPreviewReportsEachEnvironment(t *testing.T) {
 	f := newFixture(t)
 	f.req.errs = map[string]error{"env-2": jobs.ErrAgentOffline}
-	previews, err := f.svc.Preview(f.ctx)
+	previews, err := f.svc.Preview(f.ctx, nil)
 	if err != nil || len(previews) != 2 {
 		t.Fatalf("previews %+v: %v", previews, err)
 	}
