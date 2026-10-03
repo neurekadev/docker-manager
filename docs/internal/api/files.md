@@ -348,7 +348,9 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   `limits.editMaxBytes`, named in the notice), binary files as a
   download (images previewed up to 5 MiB). An external change keeps the
   unsaved buffer: "<file> changed on disk. Your edits are kept." with
-  Compare (line diff), Reload From Disk, Save As… and Overwrite (confirmed,
+  Compare (line diff on `DiffView`'s engine, `$lib/ui/diff`, any size;
+  rows render windowed),
+  Reload From Disk, Save As… and Overwrite (confirmed,
   `If-Match` of the version shown); Save stays off until one is chosen.
   Unsaved buffers, uploads and open terminals are `criticalWork` (#23).
 - **Live:** the open view declares its scope (`liveClient().setScopes`), so

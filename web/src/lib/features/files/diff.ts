@@ -1,7 +1,8 @@
 // Line diff for the external-change conflict's "Compare" (#15): what is on
-// disk now against the unsaved buffer. Myers' O((N+M)D) algorithm with a
-// bound on D; beyond it the comparison reports `tooLarge` instead of
-// freezing the tab.
+// disk now against the unsaved buffer. The edit script comes from the
+// shared linear-space Myers in $lib/ui/diff, which stays fast on any size
+// (a huge rewrite may show as larger replaced blocks, never a frozen tab).
+import { diffLines as editScript } from '$lib/ui/diff';
 
 export type DiffOp = { type: 'equal' | 'add' | 'remove'; text: string };
 
@@ -9,8 +10,6 @@ export interface LineDiff {
 	ops: DiffOp[];
 	added: number;
 	removed: number;
-	/** The edit distance exceeded the bound: no ops were computed. */
-	tooLarge: boolean;
 }
 
 export function splitLines(s: string): string[] {
@@ -21,69 +20,18 @@ export function splitLines(s: string): string[] {
 }
 
 /** Diff from `a` (disk) to `b` (buffer). */
-export function diffLines(a: string, b: string, maxEdits = 4000): LineDiff {
-	const x = splitLines(a);
-	const y = splitLines(b);
-	const n = x.length;
-	const m = y.length;
-	const max = Math.min(n + m, maxEdits);
-	const offset = max + 1;
-	const v = new Int32Array(2 * max + 3);
-	const trace: Int32Array[] = [];
-	let found = n === 0 && m === 0;
-	for (let d = 0; d <= max && !found; d++) {
-		trace.push(v.slice());
-		for (let k = -d; k <= d; k += 2) {
-			let px: number;
-			if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1]))
-				px = v[offset + k + 1];
-			else px = v[offset + k - 1] + 1;
-			let py = px - k;
-			while (px < n && py < m && x[px] === y[py]) {
-				px++;
-				py++;
-			}
-			v[offset + k] = px;
-			if (px >= n && py >= m) {
-				found = true;
-				break;
-			}
-		}
-	}
-	if (!found) return { ops: [], added: 0, removed: 0, tooLarge: true };
-	// Backtrack from the end through the frontiers saved before each step
-	// (trace[d] is the state before edit d).
-	const ops: DiffOp[] = [];
-	let px = n;
-	let py = m;
-	for (let d = trace.length - 1; d >= 0; d--) {
-		const vd = trace[d];
-		const k = px - py;
-		let prevK: number;
-		if (k === -d || (k !== d && vd[offset + k - 1] < vd[offset + k + 1])) prevK = k + 1;
-		else prevK = k - 1;
-		const prevX = d === 0 ? 0 : vd[offset + prevK];
-		const prevY = prevX - prevK;
-		while (px > prevX && py > prevY) {
-			ops.push({ type: 'equal', text: x[px - 1] });
-			px--;
-			py--;
-		}
-		if (d > 0) {
-			if (px === prevX) ops.push({ type: 'add', text: y[py - 1] });
-			else ops.push({ type: 'remove', text: x[px - 1] });
-		}
-		px = prevX;
-		py = prevY;
-	}
-	ops.reverse();
+export function diffLines(a: string, b: string): LineDiff {
 	let added = 0;
 	let removed = 0;
-	for (const o of ops) {
-		if (o.type === 'add') added++;
-		else if (o.type === 'remove') removed++;
-	}
-	return { ops, added, removed, tooLarge: false };
+	const ops = editScript(splitLines(a), splitLines(b)).map((l): DiffOp => {
+		if (l.kind === 'add') added++;
+		else if (l.kind === 'del') removed++;
+		return {
+			type: l.kind === 'same' ? 'equal' : l.kind === 'add' ? 'add' : 'remove',
+			text: l.text
+		};
+	});
+	return { ops, added, removed };
 }
 
 export interface DiffRow {

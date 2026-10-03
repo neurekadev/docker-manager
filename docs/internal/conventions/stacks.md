@@ -71,8 +71,10 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   import of a containerless project deployed nothing: its files are only
   observed (`observe`, `external`), no revision is applied and the stack
   stays `undeployed`, in place or by copy.
-- Revisions are immutable and sealed; record observed changes with
-  `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
+- Revisions are immutable and sealed (lists read metadata only:
+  `store.ListStackRevisions` never selects the sealed content); record
+  observed changes with `stacks.Service.RecordObserved` (#23) /
+  `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:
   `stacks.DefinitionPaths` (observed revision, creation names, every
   Compose and env file; clean project-relative paths), which

@@ -3,7 +3,7 @@
 	// with old and new line numbers, +/- markers (never colour alone) and
 	// collapsed unchanged regions that can be expanded. Logic in diff.ts.
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
-	import { diffText, type DiffLine } from './diff';
+	import { diffLines, hunkLines, splitLines, type DiffLine } from './diff';
 
 	interface Props {
 		/** File name shown in the header (also the region's name). */
@@ -26,7 +26,9 @@
 	}: Props = $props();
 
 	let expanded = $state(false);
-	const result = $derived(diffText(before, after, expanded ? Number.MAX_SAFE_INTEGER : context));
+	// Expanding only regroups the edit script; the diff itself runs once.
+	const script = $derived(diffLines(splitLines(before), splitLines(after)));
+	const result = $derived(hunkLines(script, expanded ? Number.MAX_SAFE_INTEGER : context));
 
 	const marker = (l: DiffLine) => (l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' ');
 	const srKind = (l: DiffLine) =>

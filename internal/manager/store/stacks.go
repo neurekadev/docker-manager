@@ -433,10 +433,11 @@ func FindStackRevisionByHash(ctx context.Context, db bun.IDB, stackID, hash stri
 }
 
 // ListStackRevisions returns a stack's revisions, newest first, with
-// sequence numbers below beforeSeq (0: from the newest).
+// sequence numbers below beforeSeq (0: from the newest). Metadata only:
+// the sealed content (up to the capture limit per row) is never read.
 func ListStackRevisions(ctx context.Context, db bun.IDB, stackID string, beforeSeq int64, limit int) ([]domain.StackRevision, error) {
 	var rows []stackRevisionRow
-	q := db.NewSelect().Model(&rows).Where("stack_id = ?", stackID).Order("seq DESC")
+	q := db.NewSelect().Model(&rows).ExcludeColumn("content").Where("stack_id = ?", stackID).Order("seq DESC")
 	if beforeSeq > 0 {
 		q = q.Where("seq < ?", beforeSeq)
 	}
