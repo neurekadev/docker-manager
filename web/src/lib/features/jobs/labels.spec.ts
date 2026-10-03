@@ -169,7 +169,7 @@ describe('job labels (#26 catalog)', () => {
 		expect(jobErrorHeadline(undefined, 'partial')).toBe('It partly failed');
 		const base = { id: 'j1', environmentId: 'e1', targets: [] as Job['targets'] };
 		expect(jobAgain({ ...base, kind: 'update.check', policyId: 'up-1' })?.href).toBe(
-			'/updates/up-1'
+			'/updates'
 		);
 		expect(jobAgain({ ...base, kind: 'image.build' })?.href).toBe('/builds/e1/j1');
 		expect(

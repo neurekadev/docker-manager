@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -308,6 +309,10 @@ func (s *Service) permitted(ctx context.Context, st domain.MaintenanceSetup, per
 // previewParallel bounds the agents a preview asks at once.
 const previewParallel = 8
 
+// rollbackTimeout bounds cancelling one job of a start that failed
+// part way.
+const rollbackTimeout = 10 * time.Second
+
 // Preview asks each environment the setup covers what a run would remove
 // now, several at once (each answers within PreviewTimeout). An
 // environment that cannot answer reports its error; the others are
@@ -392,10 +397,14 @@ func (s *Service) Run(ctx context.Context, principal authz.Principal, key string
 		}
 		if err != nil {
 			// The request may be cancelled already: cancel what was
-			// queued regardless.
-			cctx := context.WithoutCancel(ctx)
+			// queued regardless, each within a bound of its own so one
+			// slow cancel does not skip the others.
+			base := context.WithoutCancel(ctx)
 			for _, j := range out {
-				if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+				cctx, cancel := context.WithTimeout(base, rollbackTimeout)
+				_, cerr := s.opts.Jobs.Cancel(cctx, j.ID)
+				cancel()
+				if cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
 					s.log.Warn("could not cancel a prune run of a failed start", "job_id", j.ID, "error", cerr)
 				}
 			}
