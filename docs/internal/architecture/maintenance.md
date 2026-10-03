@@ -71,8 +71,10 @@ environment left out is refused with `maintenance_no_environments`
 **Authorization.** The settings need instance grants:
 `maintenance_policy.read` and `maintenance_policy.manage` are
 instance-only; the setup's previews and runs need `maintenance.preview` /
-`maintenance.run` on all environments. Those two can also be granted on one
-environment, for its one-off prunes. The setup is never one resource of a
+`maintenance.run` on all environments, and are refused (403, naming the
+environment) while a rule denies them in one of the covered environments:
+a preview would show its objects, a run would prune it. Those two can also
+be granted on one environment, for its one-off prunes. The setup is never one resource of a
 rule (`maintenance_policy` is not scopable).
 
 **Exclude label.** An object carrying the user-set label
@@ -126,8 +128,9 @@ unused).
 ## Previews
 
 `POST /maintenance-settings/previews` sends the enabled rules and the
-protections to the agent of every covered environment (`maintenance.preview`,
-3-minute timeout each: volume sizes are computed by the Engine) and returns
+protections to the agent of every covered environment, eight at a time
+(`maintenance.preview`, 3-minute timeout each: volume sizes are computed by
+the Engine), and returns
 one item per environment: its preview, or why it has none (`errorClass`,
 `errorMessage`: `environment_offline`, a timeout, ...) while the others are
 previewed all the same. The answer lists per category the
@@ -143,7 +146,9 @@ removed.
 `POST /maintenance-settings/runs {confirm: true}` with an optional
 `Idempotency-Key` enqueues one `prune.run` job per covered environment
 (`{jobs}`; a repeated key replays the response, `IdempotencyStored`, and
-the jobs' own keys are `<key>/<environmentId>`):
+the jobs' own keys are `<key>/<environmentId>`). Every request is built
+before the first is enqueued; when an enqueue fails, the jobs already
+queued are cancelled, so a run starts everywhere or nowhere:
 
 - **Confirmation**: without `confirm: true` → `409
   prune_confirmation_required`.
