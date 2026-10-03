@@ -192,7 +192,9 @@ describe('BackupSettingsDialog (#246)', () => {
 			renderDialog({ settings: { ...settings, enabled } });
 			await screen.findByRole('heading', { name: 'Where and When', level: 3 });
 			await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-			expect(await screen.findByRole('alert')).toHaveTextContent('Use five fields.');
+			// The notice, not the toast region (also an alert).
+			const title = await screen.findByText('The settings were not saved');
+			expect(title.closest('[role="alert"]')).toHaveTextContent('Use five fields.');
 		}
 	);
 });
