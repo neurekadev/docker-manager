@@ -135,57 +135,54 @@
 			padding="none"
 		>
 			<QueryView query={groups} errorTitle="The groups could not be loaded.">
-				{#snippet children()}
-					{#if !order.length}
-						<div class="empty">
-							<EmptyState
-								icon={resourceIcon('group').icon}
-								title="No Groups Yet"
-								description="New users can't do anything until you add them to a group. Create one and give it permissions."
-								level={3}
-								compact
-							>
-								{#snippet actions()}
-									<Button
-										variant="primary"
-										icon={Plus}
-										onclick={() => (createOpen = true)}>Create Group</Button
-									>
-								{/snippet}
-							</EmptyState>
-						</div>
-					{:else}
-						<ol class="groups" aria-label="Groups by Priority" aria-busy={saving}>
-							{#each order as g, i (g.id)}
-								<li class="row" {@attach sort.item(i)}>
-									<DragHandle
-										sortable={sort}
-										index={i}
+				{#if !order.length}
+					<div class="empty">
+						<EmptyState
+							icon={resourceIcon('group').icon}
+							title="No Groups Yet"
+							description="New users can't do anything until you add them to a group. Create one and give it permissions."
+							level={3}
+							compact
+						>
+							{#snippet actions()}
+								<Button
+									variant="primary"
+									icon={Plus}
+									onclick={() => (createOpen = true)}>Create Group</Button
+								>
+							{/snippet}
+						</EmptyState>
+					</div>
+				{:else}
+					<ol class="groups" aria-label="Groups by Priority" aria-busy={saving}>
+						{#each order as g, i (g.id)}
+							<li class="row" {@attach sort.item(i)}>
+								<DragHandle
+									sortable={sort}
+									index={i}
+									name={g.name}
+									disabled={order.length < 2}
+								/>
+								<span class="rank" title="Priority {i + 1}">{i + 1}</span>
+								<div class="name">
+									<NameCell
+										icon="group"
 										name={g.name}
-										disabled={order.length < 2}
+										href={routes.accessGroup(g.id)}
 									/>
-									<span class="rank" title="Priority {i + 1}">{i + 1}</span>
-									<div class="name">
-										<NameCell
-											icon="group"
-											name={g.name}
-											href={routes.accessGroup(g.id)}
-										/>
-									</div>
-									<span class="access">
-										{#if g.grantsAccess}<Badge tone="ok" dot
-												>Grants Access</Badge
-											>{:else}<Badge dot>No Access</Badge>{/if}
-									</span>
-									<span class="count">{membersText(g.memberCount)}</span>
-									<span class="count"
-										>{g.ruleCount} {g.ruleCount === 1 ? 'rule' : 'rules'}</span
-									>
-								</li>
-							{/each}
-						</ol>
-					{/if}
-				{/snippet}
+								</div>
+								<span class="access">
+									{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge
+										>{:else}<Badge dot>No Access</Badge>{/if}
+								</span>
+								<span class="count">{membersText(g.memberCount)}</span>
+								<span class="count"
+									>{g.ruleCount} {g.ruleCount === 1 ? 'rule' : 'rules'}</span
+								>
+							</li>
+						{/each}
+					</ol>
+				{/if}
 			</QueryView>
 		</Card>
 	{/if}

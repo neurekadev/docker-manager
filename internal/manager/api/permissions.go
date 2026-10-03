@@ -303,7 +303,7 @@ type groupsOutput struct {
 type reorderGroupsInput struct {
 	IfMatchParam
 	Body struct {
-		GroupIDs []string `json:"groupIds" maxItems:"256" doc:"Every group's ID once, the highest priority first."`
+		GroupIDs []string `json:"groupIds" maxItems:"256" example:"0190a6e0-0000-7000-8000-00000000000a" doc:"Every group's ID once, the highest priority first."`
 	}
 }
 type groupOutput struct {
