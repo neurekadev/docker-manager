@@ -20,12 +20,11 @@ ADR 0003 records why this is a small Go evaluator and not Casbin.
 ## Model
 
 - **Groups.** A user can be in any number of groups (`user_groups`, #233;
-  none means no group rule applies); exactly one group is the **default**
-  for new users (schema invariant, #16): invited users join it. The
-  initial default is **Restricted** with no rules. Groups can be renamed
-  (also the default), created (no rules, last in the order), made
-  default, reordered, and deleted when they are neither the default nor
-  have members.
+  none means no group rule applies). There is no default group: a new
+  instance has no groups, and an invited account joins none, so it is
+  denied everything until the owner adds it to a group or grants it user
+  overrides. Groups can be created (no rules, last in the order),
+  renamed, reordered, and deleted when they have no members.
 - **Group order.** Groups have a priority order (`groups.position`, 0
   first), like Discord's role hierarchy: for a member of several groups
   the first group with a rule matching the capability decides. The owner
@@ -249,8 +248,7 @@ changes); no session state caches permissions.
 
 Deleting a group requires it to be empty (`409 group_not_empty`): Docker Manager
 never changes memberships implicitly, so deleting a group never changes
-anyone's access. Selecting a default group that grants access answers with a
-`warning`.
+anyone's access.
 
 ## API
 
@@ -258,12 +256,12 @@ anyone's access. Selecting a default group that grants access answers with a
 | --- | --- |
 | `GET /api/v1/permission-catalog` | any signed-in principal |
 | `GET /api/v1/me/permissions` | any signed-in principal: effective entries + visible environments (empty for Restricted: show an empty state) |
-| `GET/POST /api/v1/groups` (in priority order), `GET/PATCH/DELETE /api/v1/groups/{groupId}`, `POST …/default-selection` | owner |
+| `GET/POST /api/v1/groups` (in priority order), `GET/PATCH/DELETE /api/v1/groups/{groupId}` | owner |
 | `PUT /api/v1/group-order` | owner: the groups' priority order (every group once, If-Match with the list's ETag) |
 | `GET/PUT /api/v1/groups/{groupId}/permissions`, `GET/PUT /api/v1/users/{userId}/permissions` | owner |
 | `GET /api/v1/users/{userId}/effective-permissions` | owner |
 | `POST /api/v1/permission-previews` | owner: view-as a user or a member of some groups (`groupIds`) with unsaved rules (`groupRules` for `rulesGroupId`), other groups or an API token scope; explains checks with the deciding rule and group. No session is impersonated. |
-| `PATCH /api/v1/users/{userId}` (`groupIds`) | owner: replaces the user's groups (`groupId`, deprecated, sets one) |
+| `PATCH /api/v1/users/{userId}` (`groupIds`) | owner: replaces the user's groups |
 
 ## Adding capabilities (feature workstreams)
 

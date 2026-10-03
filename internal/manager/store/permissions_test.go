@@ -19,16 +19,13 @@ type groupFixture struct {
 	t   *testing.T
 	ctx context.Context
 	db  *bun.DB
-	def string
+	def string // the first group, created by the fixture
 }
 
 func newGroupFixture(t *testing.T) *groupFixture {
 	t.Helper()
 	f := &groupFixture{t: t, ctx: testutil.Context(t), db: storetest.Migrated(t)}
-	var err error
-	if f.def, err = store.DefaultGroupID(f.ctx, f.db); err != nil {
-		t.Fatal(err)
-	}
+	f.def = f.group("Base").ID
 	return f
 }
 
@@ -84,10 +81,9 @@ func TestGroupMemberCountExcludesOwner(t *testing.T) {
 	}
 }
 
-// TestDeleteGroupNeedsAnEmptyNonDefaultGroup: members, the default group
-// and stale revisions refuse a deletion; the owner is in no group, so it
-// never blocks one.
-func TestDeleteGroupNeedsAnEmptyNonDefaultGroup(t *testing.T) {
+// TestDeleteGroupNeedsAnEmptyGroup: members and stale revisions refuse a
+// deletion; the owner is in no group, so it never blocks one.
+func TestDeleteGroupNeedsAnEmptyGroup(t *testing.T) {
 	f := newGroupFixture(t)
 	ops := f.group("Ops")
 	f.user("owner", ops.ID, true)
@@ -105,8 +101,8 @@ func TestDeleteGroupNeedsAnEmptyNonDefaultGroup(t *testing.T) {
 	if err := store.DeleteGroup(f.ctx, f.db, ops.ID, ops.Revision+1); !errors.Is(err, domain.ErrRevisionConflict) {
 		t.Fatalf("stale delete: %v", err)
 	}
-	if err := store.DeleteGroup(f.ctx, f.db, f.def, 1); !errors.Is(err, domain.ErrGroupIsDefault) {
-		t.Fatalf("delete the default: %v", err)
+	if err := store.DeleteGroup(f.ctx, f.db, f.def, 1); !errors.Is(err, domain.ErrGroupNotEmpty) {
+		t.Fatalf("delete a group with a member: %v", err)
 	}
 	if err := store.DeleteGroup(f.ctx, f.db, ops.ID, ops.Revision); err != nil {
 		t.Fatalf("delete: %v", err)

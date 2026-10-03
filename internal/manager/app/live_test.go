@@ -85,7 +85,7 @@ func TestLiveStreamThroughTheRealManager(t *testing.T) {
 	metrics := owner.createGroup("Metrics")
 	owner.putRules("/api/v1/groups/"+metrics.ID+"/permissions", "allow container.metrics.read @container:e1/web")
 	mia, _, ms := e.newUser(owner, "mia")
-	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ms.User.ID, map[string]string{"groupId": metrics.ID},
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ms.User.ID, map[string]any{"groupIds": []string{metrics.ID}},
 		header("If-Match", owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ms.User.ID, nil).header.Get("ETag")))
 
 	miaLines := mia.openLive("")

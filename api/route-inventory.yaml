@@ -539,15 +539,7 @@ routes:
     owner: 17
     kind: json
     status: implemented
-    notes: 409 while it is the default group.
-  - method: POST
-    path: "/api/v1/groups/{groupId}/default-selection"
-    operationId: create-group-default-selection
-    capability: owner
-    scope: instance
-    owner: 17
-    kind: json
-    status: implemented
+    notes: 409 while it has members.
   - method: GET
     path: "/api/v1/groups/{groupId}/permissions"
     operationId: get-group-permissions

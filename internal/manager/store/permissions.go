@@ -13,8 +13,8 @@ import (
 	"github.com/neurekadev/docker-manager/internal/domain"
 )
 
-// Authorization persistence (#17): groups, the default group, and the
-// group and user permission rules. internal/manager/permissions owns every
+// Authorization persistence (#17): groups, memberships and the group and
+// user permission rules. internal/manager/permissions owns every
 // state change; these functions map rows and enforce compare-and-set
 // updates on the permission documents' revisions.
 
@@ -211,14 +211,12 @@ type groupInfoRow struct {
 	PermissionsRevision int64     `bun:"permissions_revision"`
 	CreatedAt           time.Time `bun:"created_at"`
 	UpdatedAt           time.Time `bun:"updated_at"`
-	IsDefault           int       `bun:"is_default"`
 	Members             int       `bun:"members"`
 	Rules               int       `bun:"rules"`
 	Allows              int       `bun:"allows"`
 }
 
 const groupInfoSelect = `SELECT g.id, g.name, g.position, g.revision, g.permissions_revision, g.created_at, g.updated_at,
-	(SELECT count(*) FROM default_group d WHERE d.group_id = g.id) AS is_default,
 	(SELECT count(*) FROM user_groups m WHERE m.group_id = g.id) AS members,
 	(SELECT count(*) FROM group_permission_rules r WHERE r.group_id = g.id) AS rules,
 	(SELECT count(*) FROM group_permission_rules r WHERE r.group_id = g.id AND r.effect = 'allow') AS allows
@@ -226,7 +224,7 @@ const groupInfoSelect = `SELECT g.id, g.name, g.position, g.revision, g.permissi
 
 func (r groupInfoRow) toDomain() domain.GroupInfo {
 	return domain.GroupInfo{
-		Group: domain.Group{ID: r.ID, Name: r.Name, Position: r.Position, Default: r.IsDefault == 1, Revision: r.Revision,
+		Group: domain.Group{ID: r.ID, Name: r.Name, Position: r.Position, Revision: r.Revision,
 			CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()},
 		PermissionsRevision: r.PermissionsRevision, MemberCount: r.Members, RuleCount: r.Rules, AllowCount: r.Allows,
 	}
@@ -297,17 +295,14 @@ func RenameGroup(ctx context.Context, db bun.IDB, id string, expect int64, name 
 	return GetGroupInfo(ctx, db, id)
 }
 
-// DeleteGroup deletes a group that is not the default and has no members
-// (the database refuses the default and any member), if its revision is
-// still expect.
+// DeleteGroup deletes a group without members (the database refuses one
+// with members), if its revision is still expect.
 func DeleteGroup(ctx context.Context, db bun.IDB, id string, expect int64) error {
 	g, err := GetGroupInfo(ctx, db, id)
 	if err != nil {
 		return err
 	}
 	switch {
-	case g.Default:
-		return domain.ErrGroupIsDefault
 	case g.MemberCount > 0:
 		return domain.ErrGroupNotEmpty
 	case g.Revision != expect:
@@ -361,17 +356,6 @@ func ReorderGroups(ctx context.Context, db bun.IDB, order []string, now time.Tim
 			Exec(ctx); err != nil {
 			return fmt.Errorf("store: reorder groups: %w", err)
 		}
-	}
-	return nil
-}
-
-// SetDefaultGroup makes id the default group for new users.
-func SetDefaultGroup(ctx context.Context, db bun.IDB, id string) error {
-	if _, err := GetGroupInfo(ctx, db, id); err != nil {
-		return err
-	}
-	if _, err := db.NewUpdate().Model((*defaultGroupRow)(nil)).Set("group_id = ?", id).Where("singleton = 1").Exec(ctx); err != nil {
-		return fmt.Errorf("store: set default group: %w", err)
 	}
 	return nil
 }

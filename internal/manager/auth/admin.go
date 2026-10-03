@@ -266,13 +266,13 @@ func (s *Service) RedeemInvitation(ctx context.Context, in domain.InvitationRede
 		if err := store.ConsumeInvitation(ctx, tx, inv.ID, now); err != nil {
 			return err
 		}
-		group, err := store.DefaultGroupID(ctx, tx)
-		if err != nil {
-			return err
-		}
+		// A new account is in no group and has no overrides: it is denied
+		// everything until the owner adds it to a group or grants it
+		// overrides.
+		var err error
 		user, err = store.CreateUser(ctx, tx, domain.NewUser{
 			ID: newID(), Username: in.Username, DisplayName: strings.TrimSpace(in.DisplayName), Email: strings.TrimSpace(in.Email),
-			GroupID: group, PasswordHash: hash, WebAuthnHandle: newHandle(), EnrollmentDeadline: deadline,
+			PasswordHash: hash, WebAuthnHandle: newHandle(), EnrollmentDeadline: deadline,
 			InvitationID: inv.ID, CreatedAt: now,
 		})
 		if err != nil {

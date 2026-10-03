@@ -13,11 +13,7 @@ import (
 
 func (f *fixture) user(id, name string) {
 	f.t.Helper()
-	group, err := store.DefaultGroupID(f.ctx, f.db)
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	if _, err := store.CreateUser(f.ctx, f.db, domain.NewUser{ID: id, Username: id, DisplayName: name, GroupID: group,
+	if _, err := store.CreateUser(f.ctx, f.db, domain.NewUser{ID: id, Username: id, DisplayName: name,
 		WebAuthnHandle: []byte("h-" + id), CreatedAt: f.clk.Now().UTC()}); err != nil {
 		f.t.Fatal(err)
 	}

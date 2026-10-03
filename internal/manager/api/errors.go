@@ -154,9 +154,8 @@ const (
 	CodeAgentRevoked                = "agent_revoked"
 
 	// Authorization (#17).
-	CodeGroupNameTaken        = "group_name_taken"
-	CodeDefaultGroupProtected = "default_group_protected"
-	CodeGroupNotEmpty         = "group_not_empty"
+	CodeGroupNameTaken = "group_name_taken"
+	CodeGroupNotEmpty  = "group_not_empty"
 
 	// API tokens (#31).
 	CodeAPITokenNotAllowed = "api_token_not_allowed" //nolint:gosec // G101: an error code, not a credential

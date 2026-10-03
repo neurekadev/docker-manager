@@ -72,7 +72,7 @@ type fixture struct {
 	svc   *permissions.Service
 	guard *guard
 	inval *invalidations
-	def   string // the default (Restricted) group
+	def   string // a group without rules, created by the fixture
 	owner string
 }
 
@@ -85,9 +85,11 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.def, err = store.DefaultGroupID(f.ctx, f.db); err != nil {
+	g, err := store.CreateGroup(f.ctx, f.db, ids.New(), "Base", testutil.Epoch)
+	if err != nil {
 		t.Fatal(err)
 	}
+	f.def = g.ID
 	f.owner = f.user("owner", f.def, true)
 	f.guard.owner = f.owner
 	return f
@@ -156,22 +158,26 @@ func container(env, name string, parents ...authz.ResourceRef) authz.Resource {
 	return authz.Resource{Type: catalog.TypeContainer, ID: name, EnvironmentID: env, Parents: parents}
 }
 
-func TestRestrictedDefaultAndGroupDocuments(t *testing.T) {
+// TestNewUsersAreDeniedAndGroupDocuments: a user in no group (a new
+// account) or in a group without rules is denied everything; the owner is
+// allowed everything.
+func TestNewUsersAreDeniedAndGroupDocuments(t *testing.T) {
 	f := newFixture(t)
 	gs, err := f.svc.ListGroups(f.ctx)
-	if err != nil || len(gs) != 1 || !gs[0].Default || gs[0].Name != domain.RestrictedGroupName || gs[0].RuleCount != 0 || gs[0].MemberCount != 0 {
+	if err != nil || len(gs) != 1 || gs[0].RuleCount != 0 || gs[0].MemberCount != 0 {
 		t.Fatalf("groups %+v %v", gs, err)
 	}
-	rita := f.user("rita", f.def, false)
-	if f.can(rita, "container.metrics.read", container("e1", "web")) || f.can(rita, "environment.read", authz.EnvironmentResource("e1")) {
-		t.Fatal("a Restricted user is granted something")
+	for _, rita := range []string{f.user("rita", "", false), f.user("sam", f.def, false)} {
+		if f.can(rita, "container.metrics.read", container("e1", "web")) || f.can(rita, "environment.read", authz.EnvironmentResource("e1")) {
+			t.Fatal("a user without rules is granted something")
+		}
 	}
 	if !f.can(f.owner, "container.exec", container("e1", "web")) {
 		t.Fatal("owner bypass")
 	}
 
 	ops, err := f.svc.CreateGroup(f.ctx, "  Ops ")
-	if err != nil || ops.Name != "Ops" || ops.Default || ops.PermissionsRevision != 1 {
+	if err != nil || ops.Name != "Ops" || ops.PermissionsRevision != 1 {
 		t.Fatalf("create %+v %v", ops, err)
 	}
 	if _, err := f.svc.CreateGroup(f.ctx, "ops"); !errors.Is(err, domain.ErrGroupNameTaken) {
@@ -275,26 +281,15 @@ func TestUserOverridesAndResetToInherit(t *testing.T) {
 func TestGroupInvariantsAndStepUp(t *testing.T) {
 	f := newFixture(t)
 	ops, _ := f.svc.CreateGroup(f.ctx, "Ops")
-	if err := f.svc.DeleteGroup(f.ctx, f.def, 1); !errors.Is(err, domain.ErrGroupIsDefault) {
-		t.Fatalf("delete default: %v", err)
-	}
 	renamed, err := f.svc.RenameGroup(f.ctx, f.def, 1, "Newcomers")
-	if err != nil || renamed.Name != "Newcomers" || !renamed.Default || renamed.Revision != 2 {
-		t.Fatalf("rename default: %+v %v", renamed, err)
+	if err != nil || renamed.Name != "Newcomers" || renamed.Revision != 2 {
+		t.Fatalf("rename: %+v %v", renamed, err)
 	}
 	if _, err := f.svc.RenameGroup(f.ctx, f.def, 1, "Again"); !errors.Is(err, domain.ErrRevisionConflict) {
 		t.Fatalf("stale rename: %v", err)
 	}
 	f.setGroup(ops.ID, "allow stack.read @all")
-	g, err := f.svc.SelectDefaultGroup(f.ctx, ops.ID)
-	if err != nil || !g.Default || g.AllowCount != 1 {
-		t.Fatalf("select default: %+v %v", g, err)
-	}
-	if def, _ := store.DefaultGroupID(f.ctx, f.db); def != ops.ID {
-		t.Fatalf("default %s", def)
-	}
-	// A member keeps the old default from being deleted; the owner is in
-	// no group.
+	// A member keeps a group from being deleted; the owner is in no group.
 	rita := f.user("rita", f.def, false)
 	old, _ := f.svc.GetGroup(f.ctx, f.def)
 	if old.MemberCount != 1 {
@@ -334,13 +329,9 @@ func TestGroupInvariantsAndStepUp(t *testing.T) {
 	// Every change needs a recent step-up; reads do not.
 	f.guard.stale = true
 	for name, err := range map[string]error{
-		"create": func() error { _, err := f.svc.CreateGroup(f.ctx, "X"); return err }(),
-		"rename": func() error { _, err := f.svc.RenameGroup(f.ctx, ops.ID, 1, "X"); return err }(),
-		"delete": f.svc.DeleteGroup(f.ctx, ops.ID, 1),
-		"default": func() error {
-			_, err := f.svc.SelectDefaultGroup(f.ctx, f.def)
-			return err
-		}(),
+		"create":      func() error { _, err := f.svc.CreateGroup(f.ctx, "X"); return err }(),
+		"rename":      func() error { _, err := f.svc.RenameGroup(f.ctx, ops.ID, 1, "X"); return err }(),
+		"delete":      f.svc.DeleteGroup(f.ctx, ops.ID, 1),
 		"group rules": func() error { _, err := f.svc.ReplaceGroupPermissions(f.ctx, ops.ID, 2, nil); return err }(),
 		"group order": func() error {
 			order, _ := f.svc.GroupOrder(f.ctx)

@@ -44,11 +44,7 @@ func TestOwnerRecoveryCommand(t *testing.T) {
 	if code, _, stderr := runCmd([]string{"owner-recovery"}, vars); code != exitFail || !strings.Contains(stderr, "first-run setup") {
 		t.Fatalf("before setup: %d %q", code, stderr)
 	}
-	group, err := store.DefaultGroupID(ctx, m.DB())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.CreateUser(ctx, m.DB(), domain.NewUser{ID: ids.New(), Username: "owner", Owner: true, GroupID: group,
+	if _, err := store.CreateUser(ctx, m.DB(), domain.NewUser{ID: ids.New(), Username: "owner", Owner: true,
 		WebAuthnHandle: []byte("handle-0123456789"), CreatedAt: m.Identity().Now()}); err != nil {
 		t.Fatal(err)
 	}

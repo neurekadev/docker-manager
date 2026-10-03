@@ -453,8 +453,6 @@
 								<li>
 									<span class="rank" title="Priority {i + 1}">{i + 1}</span>
 									<a href={routes.accessGroup(g.id)}>{g.name}</a>
-									{#if g.default}<Badge tone="accent">Default for New Users</Badge
-										>{/if}
 									<IconButton
 										label="Remove {displayName(u)} from {g.name}"
 										icon={X}

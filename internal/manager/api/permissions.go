@@ -41,7 +41,6 @@ type PermissionService interface {
 	DeleteGroup(ctx context.Context, id string, revision int64) error
 	GroupOrder(ctx context.Context) ([]string, error)
 	ReorderGroups(ctx context.Context, expect, order []string) ([]domain.GroupInfo, error)
-	SelectDefaultGroup(ctx context.Context, id string) (domain.GroupInfo, error)
 	GroupPermissions(ctx context.Context, id string) (domain.PermissionDocument, error)
 	ReplaceGroupPermissions(ctx context.Context, id string, revision int64, rules []domain.PermissionRule) (domain.PermissionDocument, error)
 	UserPermissions(ctx context.Context, id string) (domain.PermissionDocument, error)
@@ -159,13 +158,12 @@ func newDocument(d domain.PermissionDocument, version int) PermissionDocument {
 
 // --- groups ---
 
-// Group is a permission group. A user can be in several groups; one group
-// is the default for new users. Groups are ordered by priority.
+// Group is a permission group. A user can be in several groups; new users
+// are in none. Groups are ordered by priority.
 type Group struct {
 	ID                  string    `json:"id" example:"0190a6e0-0000-7000-8000-00000000000a"`
 	Name                string    `json:"name" example:"Restricted"`
 	Position            int       `json:"position" doc:"Priority order, 0 first: for a member of several groups, the first group with a rule matching an action decides."`
-	Default             bool      `json:"default" doc:"New users join this group."`
 	MemberCount         int       `json:"memberCount" doc:"Accounts in the group (the owner is in none: group rules never apply to it)."`
 	RuleCount           int       `json:"ruleCount"`
 	GrantsAccess        bool      `json:"grantsAccess" doc:"The group has at least one allow rule."`
@@ -176,7 +174,7 @@ type Group struct {
 }
 
 func newGroup(g domain.GroupInfo) Group {
-	return Group{ID: g.ID, Name: g.Name, Position: g.Position, Default: g.Default, MemberCount: g.MemberCount, RuleCount: g.RuleCount,
+	return Group{ID: g.ID, Name: g.Name, Position: g.Position, MemberCount: g.MemberCount, RuleCount: g.RuleCount,
 		GrantsAccess: g.AllowCount > 0, Revision: g.Revision, PermissionsRevision: g.PermissionsRevision,
 		CreatedAt: g.CreatedAt, UpdatedAt: g.UpdatedAt}
 }
@@ -199,13 +197,12 @@ type EffectivePermissions struct {
 	UserID         string                `json:"userId,omitempty"`
 	Owner          bool                  `json:"owner" doc:"The instance owner may do everything; entries are empty."`
 	GroupIDs       []string              `json:"groupIds" doc:"The user's groups, highest priority first."`
-	GroupID        string                `json:"groupId,omitempty" deprecated:"true" doc:"Deprecated: the first of groupIds."`
 	CatalogVersion int                   `json:"catalogVersion"`
 	Entries        []EffectivePermission `json:"entries" doc:"One entry per capability and scope named by the user's or group's rules, with the effective decision there. Anything not listed is denied."`
 }
 
 func newEffective(e permissions.Effective, version int) EffectivePermissions {
-	out := EffectivePermissions{UserID: e.UserID, Owner: e.Owner, GroupIDs: groupIDs(e.GroupIDs), GroupID: firstGroup(e.GroupIDs),
+	out := EffectivePermissions{UserID: e.UserID, Owner: e.Owner, GroupIDs: groupIDs(e.GroupIDs),
 		CatalogVersion: version, Entries: []EffectivePermission{}}
 	for _, en := range e.Entries {
 		ep := EffectivePermission{Capability: en.Capability, Allowed: en.Allowed, Source: en.Source, GroupID: en.GroupID, Reason: en.Reason,
@@ -332,12 +329,6 @@ type deleteGroupInput struct {
 	GroupID string `path:"groupId" maxLength:"64" doc:"Group ID."`
 	IfMatchParam
 }
-type defaultSelectionOutput struct {
-	Body struct {
-		Group   Group  `json:"group"`
-		Warning string `json:"warning,omitempty" doc:"Set when the new default group grants access: every newly invited user gets it."`
-	}
-}
 type documentOutput struct {
 	ETagHeader
 	Body PermissionDocument
@@ -363,7 +354,6 @@ type previewInput struct {
 	Body struct {
 		UserID       string            `json:"userId,omitempty" maxLength:"64" doc:"Preview this user."`
 		GroupIDs     *[]string         `json:"groupIds,omitempty" maxItems:"256" doc:"Preview the user in exactly these groups (a membership change), or a member of these groups without overrides when userId is absent."`
-		GroupID      string            `json:"groupId,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated: the same as groupIds with this one group."`
 		RulesGroupID string            `json:"rulesGroupId,omitempty" maxLength:"64" doc:"The previewed group whose rules groupRules replace; default: the only previewed group."`
 		GroupRules   *[]PermissionRule `json:"groupRules,omitempty" maxItems:"2000" doc:"Unsaved group rules to preview instead of the stored ones."`
 		UserRules    *[]PermissionRule `json:"userRules,omitempty" maxItems:"2000" doc:"Unsaved user overrides to preview."`
@@ -408,8 +398,6 @@ func permissionError(err error) error {
 		return NotFound("user not found")
 	case errors.Is(err, domain.ErrGroupNameTaken):
 		return Conflict(CodeGroupNameTaken, "another group already uses this name")
-	case errors.Is(err, domain.ErrGroupIsDefault):
-		return Conflict(CodeDefaultGroupProtected, "the default group cannot be deleted; choose another default group first")
 	case errors.Is(err, domain.ErrGroupNotEmpty):
 		return Conflict(CodeGroupNotEmpty, "the group still has members; remove them from it first")
 	case errors.Is(err, domain.ErrGroupOrderStale):
@@ -581,7 +569,7 @@ func registerPermissions(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "update-group", Method: http.MethodPatch, Path: BasePath + "/groups/{groupId}",
-			Summary: "Rename a group", Description: "Renames the group (the default group too). Requires If-Match with the group's ETag." +
+			Summary: "Rename a group", Description: "Renames the group. Requires If-Match with the group's ETag." +
 				stepUp + " " + ownerOnly,
 			Tags: []string{tagGroups}, Security: cookieOnly, Errors: editErrs,
 		},
@@ -615,8 +603,7 @@ func registerPermissions(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "delete-group", Method: http.MethodDelete, Path: BasePath + "/groups/{groupId}",
 			Summary: "Delete a group", DefaultStatus: http.StatusNoContent,
-			Description: "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group " +
-				"(choose another default first); 409 group_not_empty while users are in it (remove them first: Docker Manager never changes " +
+			Description: "Deletes an empty group and its rules. 409 group_not_empty while users are in it (remove them first: Docker Manager never changes " +
 				"memberships implicitly, so deleting a group never changes anyone's access). Requires If-Match." + stepUp + " " + ownerOnly,
 			Tags: []string{tagGroups}, Security: cookieOnly, Errors: editErrs,
 		},
@@ -641,32 +628,6 @@ func registerPermissions(a huma.API, deps Deps) {
 			return nil, permissionError(err)
 		}
 		return &emptyOutput{}, nil
-	})
-
-	Register(a, Operation{
-		Operation: huma.Operation{
-			OperationID: "create-group-default-selection", Method: http.MethodPost, Path: BasePath + "/groups/{groupId}/default-selection",
-			Summary: "Make a group the default",
-			Description: "New users (invitation redemptions) join this group from now on; existing members are not moved. The response " +
-				"warns when the group grants access, because every newly invited user gets it." + stepUp + " " + ownerOnly,
-			Tags: []string{tagGroups}, Security: cookieOnly, Errors: ownerErrs,
-		},
-		Capability: CapabilityOwner, Scope: ScopeInstance,
-	}, func(ctx context.Context, in *groupIDInput) (*defaultSelectionOutput, error) {
-		svc, err := h.service()
-		if err != nil {
-			return nil, err
-		}
-		g, err := svc.SelectDefaultGroup(ctx, in.GroupID)
-		if err != nil {
-			return nil, permissionError(err)
-		}
-		out := &defaultSelectionOutput{}
-		out.Body.Group = newGroup(g)
-		if g.AllowCount > 0 {
-			out.Body.Warning = fmt.Sprintf("the default group %q grants access (%d allow rules): every newly invited user gets it", g.Name, g.AllowCount)
-		}
-		return out, nil
 	})
 
 	Register(a, Operation{
@@ -856,9 +817,6 @@ func (h *permissionsAPI) preview(ctx context.Context, in *previewInput) (*previe
 		return nil, err
 	}
 	req := permissions.PreviewRequest{UserID: in.Body.UserID, GroupIDs: in.Body.GroupIDs, RulesGroupID: in.Body.RulesGroupID}
-	if req.GroupIDs == nil && in.Body.GroupID != "" {
-		req.GroupIDs = &[]string{in.Body.GroupID}
-	}
 	opt := func(rs *[]PermissionRule) *[]domain.PermissionRule {
 		if rs == nil {
 			return nil

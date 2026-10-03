@@ -415,7 +415,6 @@ describe('StepUpDialog (#16, #186)', () => {
 		owner: true,
 		status: 'active',
 		groupIds: [],
-		groupId: '',
 		revision: 1,
 		createdAt: '',
 		updatedAt: '',

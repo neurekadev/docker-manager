@@ -2563,36 +2563,16 @@ export interface paths {
         post?: never;
         /**
          * Delete a group
-         * @description Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (remove them first: Docker Manager never changes memberships implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Deletes an empty group and its rules. 409 group_not_empty while users are in it (remove them first: Docker Manager never changes memberships implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         delete: operations["delete-group"];
         options?: never;
         head?: never;
         /**
          * Rename a group
-         * @description Renames the group (the default group too). Requires If-Match with the group's ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Renames the group. Requires If-Match with the group's ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         patch: operations["update-group"];
-        trace?: never;
-    };
-    "/api/v1/groups/{groupId}/default-selection": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Make a group the default
-         * @description New users (invitation redemptions) join this group from now on; existing members are not moved. The response warns when the group grants access, because every newly invited user gets it. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
-         */
-        post: operations["create-group-default-selection"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/groups/{groupId}/permissions": {
@@ -5726,12 +5706,7 @@ export interface components {
              */
             enrollmentDeadline?: string;
             factors: components["schemas"]["AccountFactors"];
-            /**
-             * @deprecated
-             * @description Deprecated: the first of groupIds, empty when the account is in no group.
-             */
-            groupId: string;
-            /** @description The account's permission groups (#17), highest priority first. New accounts join the default group (initially Restricted, no grants); the owner is in none. */
+            /** @description The account's permission groups (#17), highest priority first. New accounts are in none: they are denied everything until the owner adds them to a group or grants them overrides. The owner is in none and may do everything. */
             groupIds: string[];
             /** @example 0190a6e0-0000-7000-8000-000000000001 */
             id: string;
@@ -7839,11 +7814,6 @@ export interface components {
              */
             state: "completed" | "pending";
         };
-        DefaultSelectionOutputBody: {
-            group: components["schemas"]["Group"];
-            /** @description Set when the new default group grants access: every newly invited user gets it. */
-            warning?: string;
-        };
         DeletionStackInputBody: {
             /**
              * @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.
@@ -8270,11 +8240,6 @@ export interface components {
             catalogVersion: number;
             /** @description One entry per capability and scope named by the user's or group's rules, with the effective decision there. Anything not listed is denied. */
             entries: components["schemas"]["EffectivePermission"][];
-            /**
-             * @deprecated
-             * @description Deprecated: the first of groupIds.
-             */
-            groupId?: string;
             /** @description The user's groups, highest priority first. */
             groupIds: string[];
             /** @description The instance owner may do everything; entries are empty. */
@@ -9076,8 +9041,6 @@ export interface components {
         Group: {
             /** Format: date-time */
             createdAt: string;
-            /** @description New users join this group. */
-            default: boolean;
             /** @description The group has at least one allow rule. */
             grantsAccess: boolean;
             /** @example 0190a6e0-0000-7000-8000-00000000000a */
@@ -10200,11 +10163,6 @@ export interface components {
             entries: components["schemas"]["EffectivePermission"][];
             /** @description Environments visible to the caller (at most 500). A new Restricted user sees none: show an empty state, not an error. */
             environments: components["schemas"]["VisibleEnvironment"][];
-            /**
-             * @deprecated
-             * @description Deprecated: the first of groupIds.
-             */
-            groupId?: string;
             /** @description The user's groups, highest priority first. */
             groupIds: string[];
             /** @description The instance owner may do everything; entries are empty. */
@@ -10978,11 +10936,6 @@ export interface components {
             /** @example Ada Lovelace */
             displayName?: string;
             email?: string;
-            /**
-             * @deprecated
-             * @description Deprecated: the same as groupIds with this one group.
-             */
-            groupId?: string;
             /** @description Replace the account's groups (#17, any order; they are evaluated in the groups' priority order). Empty: in no group. */
             groupIds?: string[];
             /**
@@ -11083,11 +11036,6 @@ export interface components {
         PreviewInputBody: {
             /** @description Decisions to explain (capability + resource). */
             checks?: components["schemas"]["PreviewCheck"][];
-            /**
-             * @deprecated
-             * @description Deprecated: the same as groupIds with this one group.
-             */
-            groupId?: string;
             /** @description Preview the user in exactly these groups (a membership change), or a member of these groups without overrides when userId is absent. */
             groupIds?: string[];
             /** @description Unsaved group rules to preview instead of the stored ones. */
@@ -15788,7 +15736,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -15986,7 +15933,6 @@ export interface operations {
                      *             "recoveryCodesRemaining": 1,
                      *             "totp": false
                      *           },
-                     *           "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "groupIds": [
                      *             "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *           ],
@@ -16172,7 +16118,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -16293,7 +16238,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -16396,7 +16340,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -16571,7 +16514,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -16818,7 +16760,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -34437,7 +34378,6 @@ export interface operations {
                      *       "items": [
                      *         {
                      *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "default": false,
                      *           "grantsAccess": false,
                      *           "id": "0190a6e0-0000-7000-8000-00000000000a",
                      *           "memberCount": 1,
@@ -34531,7 +34471,6 @@ export interface operations {
                      *       "items": [
                      *         {
                      *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "default": false,
                      *           "grantsAccess": false,
                      *           "id": "0190a6e0-0000-7000-8000-00000000000a",
                      *           "memberCount": 1,
@@ -34605,7 +34544,6 @@ export interface operations {
                     /**
                      * @example {
                      *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "default": false,
                      *       "grantsAccess": false,
                      *       "id": "0190a6e0-0000-7000-8000-00000000000a",
                      *       "memberCount": 1,
@@ -34689,7 +34627,6 @@ export interface operations {
                     /**
                      * @example {
                      *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "default": false,
                      *       "grantsAccess": false,
                      *       "id": "0190a6e0-0000-7000-8000-00000000000a",
                      *       "memberCount": 1,
@@ -34881,7 +34818,6 @@ export interface operations {
                     /**
                      * @example {
                      *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "default": false,
                      *       "grantsAccess": false,
                      *       "id": "0190a6e0-0000-7000-8000-00000000000a",
                      *       "memberCount": 1,
@@ -34952,92 +34888,6 @@ export interface operations {
             };
             /** @description Precondition Required */
             428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-group-default-selection": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Group ID. */
-                groupId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "group": {
-                     *         "createdAt": "2026-09-25T12:00:00Z",
-                     *         "default": false,
-                     *         "grantsAccess": false,
-                     *         "id": "0190a6e0-0000-7000-8000-00000000000a",
-                     *         "memberCount": 1,
-                     *         "name": "Restricted",
-                     *         "permissionsRevision": 1,
-                     *         "position": 1,
-                     *         "revision": 1,
-                     *         "ruleCount": 1,
-                     *         "updatedAt": "2026-09-25T12:00:00Z"
-                     *       },
-                     *       "warning": "example"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["DefaultSelectionOutputBody"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -35601,7 +35451,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -39151,7 +39000,6 @@ export interface operations {
                      *         "recoveryCodesRemaining": 1,
                      *         "totp": false
                      *       },
-                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "groupIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
@@ -40010,7 +39858,6 @@ export interface operations {
                      *           "view": "minimal"
                      *         }
                      *       ],
-                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "groupIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
@@ -41480,7 +41327,6 @@ export interface operations {
                      *             "source": "owner"
                      *           }
                      *         ],
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -43780,7 +43626,6 @@ export interface operations {
                      *           "recoveryCodesRemaining": 1,
                      *           "totp": false
                      *         },
-                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "groupIds": [
                      *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *         ],
@@ -56438,7 +56283,6 @@ export interface operations {
                      *             "recoveryCodesRemaining": 1,
                      *             "totp": false
                      *           },
-                     *           "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "groupIds": [
                      *             "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *           ],
@@ -56527,7 +56371,6 @@ export interface operations {
                      *         "recoveryCodesRemaining": 1,
                      *         "totp": false
                      *       },
-                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "groupIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
@@ -56719,7 +56562,6 @@ export interface operations {
                      *         "recoveryCodesRemaining": 1,
                      *         "totp": false
                      *       },
-                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "groupIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
@@ -56855,7 +56697,6 @@ export interface operations {
                      *           "source": "owner"
                      *         }
                      *       ],
-                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "groupIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],
@@ -56953,7 +56794,6 @@ export interface operations {
                      *         "recoveryCodesRemaining": 1,
                      *         "totp": false
                      *       },
-                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "groupIds": [
                      *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       ],

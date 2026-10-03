@@ -22,10 +22,7 @@
 	import Fields from '$lib/features/common/Fields.svelte';
 	import { accessKeys } from './queries';
 
-	let {
-		open = $bindable(false),
-		defaultGroupName
-	}: { open?: boolean; defaultGroupName?: string } = $props();
+	let { open = $bindable(false) }: { open?: boolean } = $props();
 
 	const qc = useQueryClient();
 	let email = $state('');
@@ -75,7 +72,7 @@
 <Dialog
 	bind:open
 	title="Invite a User"
-	description="The new account joins {defaultGroupName ?? 'the default group'}."
+	description="The new account has no access until you add it to a group or give it overrides."
 	dismissible={!issued}
 >
 	{#if issued}

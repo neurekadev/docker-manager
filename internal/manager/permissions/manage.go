@@ -148,9 +148,8 @@ func (s *Service) RenameGroup(ctx context.Context, id string, revision int64, na
 	return g, nil
 }
 
-// DeleteGroup deletes a group (owner, step-up, revision). The current
-// default group cannot be deleted (choose another default first), and a
-// group with members cannot be deleted (remove them first): Docker Manager
+// DeleteGroup deletes a group (owner, step-up, revision). A group with
+// members cannot be deleted (remove them first): Docker Manager
 // never changes memberships implicitly, so deleting a group never changes
 // anyone's access.
 func (s *Service) DeleteGroup(ctx context.Context, id string, revision int64) error {
@@ -240,34 +239,6 @@ func (s *Service) ReorderGroups(ctx context.Context, expect, order []string) ([]
 	audit.SetDetail(ctx, "affectedUsers", len(users))
 	s.invalidate(ctx, users)
 	return groups, nil
-}
-
-// SelectDefaultGroup makes a group the default for new users (owner,
-// step-up). It returns the group and whether it grants anything (the
-// caller warns: new users will get access).
-func (s *Service) SelectDefaultGroup(ctx context.Context, id string) (domain.GroupInfo, error) {
-	if _, err := s.owner(ctx, true); err != nil {
-		return domain.GroupInfo{}, err
-	}
-	var prev string
-	var g domain.GroupInfo
-	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		var err error
-		if prev, err = store.DefaultGroupID(ctx, tx); err != nil {
-			return err
-		}
-		if err := store.SetDefaultGroup(ctx, tx, id); err != nil {
-			return err
-		}
-		g, err = store.GetGroupInfo(ctx, tx, id)
-		return err
-	})
-	if err != nil {
-		return domain.GroupInfo{}, err
-	}
-	audit.SetDiff(ctx, map[string]string{"defaultGroupId": prev}, map[string]string{"defaultGroupId": id})
-	audit.SetDetail(ctx, "grantsAccess", g.AllowCount > 0)
-	return g, nil
 }
 
 // GroupPermissions returns a group's rule document (owner).

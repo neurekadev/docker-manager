@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Groups (#17, #233): a user can be in several groups; new users join the
-	// default group (initially Restricted, without access). The list is the
+	// Groups (#17, #233): a user can be in several groups; new users are in
+	// none (denied everything until added to one or given overrides). The list is the
 	// groups' priority order: for a member of several groups the first group
 	// with a rule for an action decides. Drag a group's grip (or use the
 	// arrow keys on it) to reorder; the new order is saved at once.
@@ -144,11 +144,7 @@
 										icon="group"
 										name={g.name}
 										href={routes.accessGroup(g.id)}
-									>
-										{#snippet extra()}{#if g.default}<Badge tone="accent"
-													>Default for New Users</Badge
-												>{/if}{/snippet}
-									</NameCell>
+									/>
 								</div>
 								<span class="access">
 									{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge

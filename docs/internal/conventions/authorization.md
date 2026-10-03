@@ -65,6 +65,9 @@ group with a matching rule decides with its most specific rule), then deny.
 - Users are in any number of groups (`user_groups`; `domain.User.GroupIDs`
   and `PermissionSubject.Groups` in priority order, highest first); groups
   are ordered by `groups.position` (`store.ReorderGroups`, `PUT
-  /group-order`). The owner is in no group. Precedence cases across groups
+  /group-order`). The owner is in no group. There is no default group: new
+  instances start without groups and new accounts join none (deny by
+  default until a group or override grants something); never add a group
+  or rule that grants new accounts anything implicitly. Precedence cases across groups
   go in the corpus with `groups: [[…], […]]` (highest first);
   `authztest.Policy.Memberships(user, groups...)` sets several.

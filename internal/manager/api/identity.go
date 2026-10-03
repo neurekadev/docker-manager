@@ -101,8 +101,7 @@ type Account struct {
 	DisplayName        string         `json:"displayName"`
 	Email              string         `json:"email,omitempty"`
 	Owner              bool           `json:"owner" doc:"The instance owner: a protected principal that cannot be disabled, deleted or have its grants removed."`
-	GroupIDs           []string       `json:"groupIds" doc:"The account's permission groups (#17), highest priority first. New accounts join the default group (initially Restricted, no grants); the owner is in none."`
-	GroupID            string         `json:"groupId" deprecated:"true" doc:"Deprecated: the first of groupIds, empty when the account is in no group."`
+	GroupIDs           []string       `json:"groupIds" doc:"The account's permission groups (#17), highest priority first. New accounts are in none: they are denied everything until the owner adds them to a group or grants them overrides. The owner is in none and may do everything."`
 	Status             string         `json:"status" enum:"active,disabled"`
 	Factors            AccountFactors `json:"factors"`
 	EnrollmentDeadline *time.Time     `json:"enrollmentDeadline,omitempty" doc:"Until when the account may still sign in to enroll factors the policy requires."`
@@ -116,8 +115,7 @@ type Account struct {
 func newAccount(a domain.Account) Account {
 	return Account{
 		ID: a.ID, Username: a.Username, DisplayName: a.DisplayName, Email: a.Email, Owner: a.Owner, GroupIDs: groupIDs(a.GroupIDs),
-		GroupID: firstGroup(a.GroupIDs),
-		Status:  string(a.Status), Revision: a.Revision, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
+		Status: string(a.Status), Revision: a.Revision, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
 		DisabledAt: a.DisabledAt, LastSignInAt: a.LastSignInAt, EnrollmentDeadline: a.EnrollmentDeadline,
 		Factors: AccountFactors{Password: a.HasPassword, TOTP: a.TOTPEnabled, Passkeys: a.PasskeyCount, RecoveryCodesRemaining: a.RecoveryCodesRemaining},
 	}
@@ -128,13 +126,6 @@ func groupIDs(ids []string) []string {
 		return []string{}
 	}
 	return ids
-}
-
-func firstGroup(ids []string) string {
-	if len(ids) == 0 {
-		return ""
-	}
-	return ids[0]
 }
 
 // Session describes the caller's browser session.
@@ -506,7 +497,6 @@ type patchUserInput struct {
 		DisplayName *string   `json:"displayName,omitempty" example:"Ada Lovelace" maxLength:"128"`
 		Email       *string   `json:"email,omitempty" maxLength:"254"`
 		GroupIDs    *[]string `json:"groupIds,omitempty" maxItems:"256" doc:"Replace the account's groups (#17, any order; they are evaluated in the groups' priority order). Empty: in no group."`
-		GroupID     *string   `json:"groupId,omitempty" maxLength:"64" deprecated:"true" doc:"Deprecated: the same as groupIds with this one group."`
 		Status      *string   `json:"status,omitempty" enum:"active,disabled" doc:"disabled ends every session and stream of the account at once."`
 	}
 }

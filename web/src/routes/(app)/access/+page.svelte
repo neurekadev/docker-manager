@@ -39,7 +39,6 @@
 	const owner = $derived(!!perms.data?.owner);
 	const users = createQuery(() => ({ ...usersQuery(), enabled: owner }));
 	const groups = createQuery(() => ({ ...groupsQuery(), enabled: owner }));
-	const defaultGroup = $derived(groups.data?.find((g) => g.default));
 	let inviteOpen = $state(false);
 
 	const columns: Column<Account>[] = [
@@ -121,8 +120,7 @@
 							<EmptyState
 								icon={Users}
 								title="Only you so far."
-								description="Invite someone: they join {defaultGroup?.name ??
-									'the default group'}, which starts without access."
+								description="Invite someone. They have no access until you add them to a group."
 								level={3}
 								compact
 							>
@@ -139,7 +137,7 @@
 				{/snippet}
 			</QueryView>
 		</Card>
-		<InviteDialog bind:open={inviteOpen} defaultGroupName={defaultGroup?.name} />
+		<InviteDialog bind:open={inviteOpen} />
 	{/if}
 </Page>
 

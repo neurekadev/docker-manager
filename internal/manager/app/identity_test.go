@@ -249,12 +249,8 @@ func TestInvitations(t *testing.T) {
 	pw := e.secrets.New(canary.Password, "bob")
 	bob := e.client()
 	s := bob.must(http.StatusCreated, http.MethodPost, "/api/v1/invitations/redemptions", map[string]string{"code": code, "username": "bob", "password": pw}).session(t)
-	var groupID string
-	if err := e.m.DB().NewRaw("SELECT group_id FROM default_group").Scan(testutil.Context(t), &groupID); err != nil {
-		t.Fatal(err)
-	}
-	if s.State != "authenticated" || s.User.GroupID != groupID || s.User.Owner {
-		t.Fatalf("redeemed session %+v (default group %s)", s, groupID)
+	if s.State != "authenticated" || s.User.GroupIDs == nil || len(s.User.GroupIDs) != 0 || s.User.Owner {
+		t.Fatalf("redeemed session %+v, want an account in no group", s)
 	}
 	// Second redemption of the same code.
 	e.client().fail(http.StatusBadRequest, "invalid_code", http.MethodPost, "/api/v1/invitations/redemptions", map[string]string{"code": code, "username": "bob2", "password": pw})
@@ -350,7 +346,7 @@ func (e *env) ownerPassword(*client) string {
 	return ""
 }
 
-// TestRestrictedUserSeesNothing: a new account in the Restricted group
+// TestRestrictedUserSeesNothing: a new account (in no group, no overrides)
 // sees no jobs and cannot use owner routes; the owner sees everything.
 func TestRestrictedUserSeesNothing(t *testing.T) {
 	e := newEnv(t)

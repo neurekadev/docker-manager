@@ -184,9 +184,6 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 			return nil, err
 		}
 		p := domain.UserPatch{DisplayName: in.Body.DisplayName, Email: in.Body.Email, GroupIDs: in.Body.GroupIDs}
-		if p.GroupIDs == nil && in.Body.GroupID != nil {
-			p.GroupIDs = &[]string{*in.Body.GroupID}
-		}
 		if in.Body.Status != nil {
 			st := domain.UserStatus(*in.Body.Status)
 			p.Status = &st

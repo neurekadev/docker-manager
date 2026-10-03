@@ -307,13 +307,8 @@
           "factors": {
             "$ref": "#/components/schemas/AccountFactors"
           },
-          "groupId": {
-            "deprecated": true,
-            "description": "Deprecated: the first of groupIds, empty when the account is in no group.",
-            "type": "string"
-          },
           "groupIds": {
-            "description": "The account's permission groups (#17), highest priority first. New accounts join the default group (initially Restricted, no grants); the owner is in none.",
+            "description": "The account's permission groups (#17), highest priority first. New accounts are in none: they are denied everything until the owner adds them to a group or grants them overrides. The owner is in none and may do everything.",
             "items": {
               "type": "string"
             },
@@ -361,7 +356,6 @@
           "displayName",
           "owner",
           "groupIds",
-          "groupId",
           "status",
           "factors",
           "revision",
@@ -5957,22 +5951,6 @@
         ],
         "type": "object"
       },
-      "DefaultSelectionOutputBody": {
-        "additionalProperties": false,
-        "properties": {
-          "group": {
-            "$ref": "#/components/schemas/Group"
-          },
-          "warning": {
-            "description": "Set when the new default group grants access: every newly invited user gets it.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "group"
-        ],
-        "type": "object"
-      },
       "DeletionStackInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -6873,11 +6851,6 @@
               "$ref": "#/components/schemas/EffectivePermission"
             },
             "type": "array"
-          },
-          "groupId": {
-            "deprecated": true,
-            "description": "Deprecated: the first of groupIds.",
-            "type": "string"
           },
           "groupIds": {
             "description": "The user's groups, highest priority first.",
@@ -8941,10 +8914,6 @@
             "format": "date-time",
             "type": "string"
           },
-          "default": {
-            "description": "New users join this group.",
-            "type": "boolean"
-          },
           "grantsAccess": {
             "description": "The group has at least one allow rule.",
             "type": "boolean"
@@ -8994,7 +8963,6 @@
           "id",
           "name",
           "position",
-          "default",
           "memberCount",
           "ruleCount",
           "grantsAccess",
@@ -11909,11 +11877,6 @@
             },
             "type": "array"
           },
-          "groupId": {
-            "deprecated": true,
-            "description": "Deprecated: the first of groupIds.",
-            "type": "string"
-          },
           "groupIds": {
             "description": "The user's groups, highest priority first.",
             "items": {
@@ -13774,12 +13737,6 @@
             "maxLength": 254,
             "type": "string"
           },
-          "groupId": {
-            "deprecated": true,
-            "description": "Deprecated: the same as groupIds with this one group.",
-            "maxLength": 64,
-            "type": "string"
-          },
           "groupIds": {
             "description": "Replace the account's groups (#17, any order; they are evaluated in the groups' priority order). Empty: in no group.",
             "items": {
@@ -14100,12 +14057,6 @@
             },
             "maxItems": 500,
             "type": "array"
-          },
-          "groupId": {
-            "deprecated": true,
-            "description": "Deprecated: the same as groupIds with this one group.",
-            "maxLength": 64,
-            "type": "string"
           },
           "groupIds": {
             "description": "Preview the user in exactly these groups (a membership change), or a member of these groups without overrides when userId is absent.",
@@ -24819,7 +24770,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -25096,7 +25046,6 @@
                         "recoveryCodesRemaining": 1,
                         "totp": false
                       },
-                      "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "groupIds": [
                         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                       ],
@@ -25352,7 +25301,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -25578,7 +25526,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -25708,7 +25655,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -25881,7 +25827,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -26237,7 +26182,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -53646,7 +53590,6 @@
                   "items": [
                     {
                       "createdAt": "2026-09-25T12:00:00Z",
-                      "default": false,
                       "grantsAccess": false,
                       "id": "0190a6e0-0000-7000-8000-00000000000a",
                       "memberCount": 1,
@@ -53791,7 +53734,6 @@
                   "items": [
                     {
                       "createdAt": "2026-09-25T12:00:00Z",
-                      "default": false,
                       "grantsAccess": false,
                       "id": "0190a6e0-0000-7000-8000-00000000000a",
                       "memberCount": 1,
@@ -53899,7 +53841,6 @@
               "application/json": {
                 "example": {
                   "createdAt": "2026-09-25T12:00:00Z",
-                  "default": false,
                   "grantsAccess": false,
                   "id": "0190a6e0-0000-7000-8000-00000000000a",
                   "memberCount": 1,
@@ -54017,7 +53958,7 @@
     },
     "/api/v1/groups/{groupId}": {
       "delete": {
-        "description": "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (remove them first: Docker Manager never changes memberships implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
+        "description": "Deletes an empty group and its rules. 409 group_not_empty while users are in it (remove them first: Docker Manager never changes memberships implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
         "operationId": "delete-group",
         "parameters": [
           {
@@ -54202,7 +54143,6 @@
               "application/json": {
                 "example": {
                   "createdAt": "2026-09-25T12:00:00Z",
-                  "default": false,
                   "grantsAccess": false,
                   "id": "0190a6e0-0000-7000-8000-00000000000a",
                   "memberCount": 1,
@@ -54317,7 +54257,7 @@
         "x-docker-manager-scope": "instance"
       },
       "patch": {
-        "description": "Renames the group (the default group too). Requires If-Match with the group's ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
+        "description": "Renames the group. Requires If-Match with the group's ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
         "operationId": "update-group",
         "parameters": [
           {
@@ -54361,7 +54301,6 @@
               "application/json": {
                 "example": {
                   "createdAt": "2026-09-25T12:00:00Z",
-                  "default": false,
                   "grantsAccess": false,
                   "id": "0190a6e0-0000-7000-8000-00000000000a",
                   "memberCount": 1,
@@ -54518,140 +54457,6 @@
           "Groups"
         ],
         "x-docker-manager-audit": "group.update",
-        "x-docker-manager-capability": "owner",
-        "x-docker-manager-scope": "instance"
-      }
-    },
-    "/api/v1/groups/{groupId}/default-selection": {
-      "post": {
-        "description": "New users (invitation redemptions) join this group from now on; existing members are not moved. The response warns when the group grants access, because every newly invited user gets it. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
-        "operationId": "create-group-default-selection",
-        "parameters": [
-          {
-            "description": "Group ID.",
-            "in": "path",
-            "name": "groupId",
-            "required": true,
-            "schema": {
-              "description": "Group ID.",
-              "maxLength": 64,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "example": {
-                  "group": {
-                    "createdAt": "2026-09-25T12:00:00Z",
-                    "default": false,
-                    "grantsAccess": false,
-                    "id": "0190a6e0-0000-7000-8000-00000000000a",
-                    "memberCount": 1,
-                    "name": "Restricted",
-                    "permissionsRevision": 1,
-                    "position": 1,
-                    "revision": 1,
-                    "ruleCount": 1,
-                    "updatedAt": "2026-09-25T12:00:00Z"
-                  },
-                  "warning": "example"
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/DefaultSelectionOutputBody"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "401": {
-            "content": {
-              "application/problem+json": {
-                "examples": {
-                  "error": {
-                    "$ref": "#/components/examples/Error401"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/problem+json": {
-                "examples": {
-                  "error": {
-                    "$ref": "#/components/examples/Error403"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/problem+json": {
-                "examples": {
-                  "error": {
-                    "$ref": "#/components/examples/Error404"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "examples": {
-                  "error": {
-                    "$ref": "#/components/examples/Error422"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "examples": {
-                  "error": {
-                    "$ref": "#/components/examples/Error500"
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          }
-        },
-        "security": [
-          {
-            "cookieSession": []
-          }
-        ],
-        "summary": "Make a group the default",
-        "tags": [
-          "Groups"
-        ],
-        "x-docker-manager-audit": "group_default_selection.create",
         "x-docker-manager-capability": "owner",
         "x-docker-manager-scope": "instance"
       }
@@ -55454,7 +55259,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -60655,7 +60459,6 @@
                     "recoveryCodesRemaining": 1,
                     "totp": false
                   },
-                  "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "groupIds": [
                     "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                   ],
@@ -61954,7 +61757,6 @@
                       "view": "minimal"
                     }
                   ],
-                  "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "groupIds": [
                     "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                   ],
@@ -64158,7 +63960,6 @@
                         "source": "owner"
                       }
                     ],
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -67594,7 +67395,6 @@
                       "recoveryCodesRemaining": 1,
                       "totp": false
                     },
-                    "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "groupIds": [
                       "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                     ],
@@ -87173,7 +86973,6 @@
                         "recoveryCodesRemaining": 1,
                         "totp": false
                       },
-                      "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "groupIds": [
                         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                       ],
@@ -87448,7 +87247,6 @@
                     "recoveryCodesRemaining": 1,
                     "totp": false
                   },
-                  "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "groupIds": [
                     "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                   ],
@@ -87616,7 +87414,6 @@
                     "recoveryCodesRemaining": 1,
                     "totp": false
                   },
-                  "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "groupIds": [
                     "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                   ],
@@ -87826,7 +87623,6 @@
                       "source": "owner"
                     }
                   ],
-                  "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "groupIds": [
                     "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                   ],
@@ -87972,7 +87768,6 @@
                     "recoveryCodesRemaining": 1,
                     "totp": false
                   },
-                  "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "groupIds": [
                     "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                   ],

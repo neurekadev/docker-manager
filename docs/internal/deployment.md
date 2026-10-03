@@ -323,8 +323,8 @@ finish).
 
 - **No self-registration.** The owner invites users (`POST
   /api/v1/invitations`); the one-time link is shown once and expires
-  (default 72 h). New users join the default group, initially
-  **Restricted** with no access, until the owner grants permissions (#17).
+  (default 72 h). New users are in no group and have no access until the
+  owner adds them to a group or grants them overrides (#17, #233).
 - **Sign-In Policy** (owner, *Settings → Sign-In Policy*): strict passwords
   (default on: at least 15 characters, common and breached passwords
   refused, no composition rules or forced rotation) and the required

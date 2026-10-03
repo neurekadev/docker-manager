@@ -59,8 +59,7 @@ type GroupInfo struct {
 	// MemberCount counts the group's accounts (the owner, whom group rules
 	// never govern, is in no group).
 	MemberCount int
-	// RuleCount and AllowCount summarize its rules (the default-group
-	// warning: a default group with allow rules grants access to new users).
+	// RuleCount and AllowCount summarize its rules.
 	RuleCount  int
 	AllowCount int
 }
@@ -111,7 +110,6 @@ type PermissionChange struct {
 // Authorization errors.
 var (
 	ErrGroupNameTaken     = errors.New("group name taken")
-	ErrGroupIsDefault     = errors.New("the default group cannot be deleted")
 	ErrGroupNotEmpty      = errors.New("the group still has members")
 	ErrGroupOrderStale    = errors.New("the group order names other groups than exist")
 	ErrPermissionConflict = errors.New("permission document changed")

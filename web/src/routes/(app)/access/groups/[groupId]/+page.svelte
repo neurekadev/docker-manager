@@ -1,15 +1,13 @@
 <script lang="ts">
 	// One group (#17, #233): its members first (add accounts, remove them;
 	// an account can be in several groups), then its allow/deny rules in the
-	// permission editor (no rule = deny), rename, make it the default for
-	// new users (with a warning when it grants access) and delete.
+	// permission editor (no rule = deny), rename and delete.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Pencil from '@lucide/svelte/icons/pencil';
-	import Star from '@lucide/svelte/icons/star';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import UserMinus from '@lucide/svelte/icons/user-minus';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
@@ -118,7 +116,6 @@
 	let renameOpen = $state(false);
 	let newName = $state('');
 	let renameError = $state<string | null>(null);
-	let defaultOpen = $state(false);
 	let deleteOpen = $state(false);
 
 	// Adding members adds the group to each account's groups, one PATCH per
@@ -269,24 +266,6 @@
 		}
 	}
 
-	async function makeDefault(g: Group) {
-		try {
-			const out = await withStepUp(() =>
-				unwrap(
-					api.POST('/api/v1/groups/{groupId}/default-selection', {
-						params: { path: { groupId: g.id } }
-					})
-				)
-			);
-			if (out.warning)
-				toast.warn(`${g.name} is now the default group`, { body: out.warning, timeout: 0 });
-			else toast.success(`${g.name} is now the default group`);
-			await qc.invalidateQueries({ queryKey: accessKeys.groups() });
-		} catch (e) {
-			throw new Error(actionError(e), { cause: e });
-		}
-	}
-
 	async function remove(g: Group) {
 		try {
 			await withStepUp(() =>
@@ -302,8 +281,6 @@
 		} catch (e) {
 			throw new Error(
 				actionError(e, {
-					default_group_protected:
-						'This is the default group. Choose another default first.',
 					group_not_empty:
 						'Remove its members first; Docker Manager never changes memberships on its own.'
 				}),
@@ -327,13 +304,7 @@
 				}
 			}
 		];
-		if (!g.default)
-			items.push({
-				label: 'Make Default for New Users',
-				icon: Star,
-				onSelect: () => (defaultOpen = true)
-			});
-		if (!g.default && g.memberCount === 0) {
+		if (g.memberCount === 0) {
 			items.push({ separator: true });
 			items.push({
 				label: 'Delete Group',
@@ -389,7 +360,6 @@
 					]}
 				>
 					{#snippet status()}
-						{#if g.default}<Badge tone="accent">Default for New Users</Badge>{/if}
 						{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge>{:else}<Badge
 								dot>No Access</Badge
 							>{/if}
@@ -540,20 +510,6 @@
 						>
 					{/snippet}
 				</Dialog>
-				<ConfirmDialog
-					bind:open={defaultOpen}
-					title="Make {g.name} the default group?"
-					consequences={[
-						'Everyone who redeems an invitation from now on joins this group.',
-						g.grantsAccess
-							? `${g.name} grants access: every new user gets it before you look at their account.`
-							: `${g.name} grants no access, so new users start with none.`,
-						'Existing members of other groups are not moved.'
-					]}
-					confirmLabel="Make Default"
-					tone={g.grantsAccess ? 'danger' : 'default'}
-					onconfirm={() => makeDefault(g)}
-				/>
 				{#if removing}
 					{@const u = removing}
 					<ConfirmDialog

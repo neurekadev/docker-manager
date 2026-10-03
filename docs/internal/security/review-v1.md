@@ -82,13 +82,14 @@ checked.
   and count against the per-IP failure budget: `TestInvitations`,
   `TestConcurrentInvitationRedemptionIsOneUse` (F2).
 
-## Restricted default group
+## New accounts are denied by default
 
-- New accounts join the default group, initially **Restricted** with no
-  grants; the invariant that a default group always exists is enforced in
-  the store. Lists, counts, search and streams hide what a user may not
-  see: `TestRestrictedUserSeesNoResources`, `TestRestrictedUserSeesNothing`,
-  `TestRestrictedDefaultAndGroupDocuments`, `TestDefaultGroupInvariant`,
+- New accounts are in no group and have no overrides (#233: there is no
+  default group, a new instance has no groups), so every check is denied
+  until the owner grants access; the owner is allowed everything. Lists,
+  counts, search and streams hide what a user may not see:
+  `TestRestrictedUserSeesNoResources`, `TestRestrictedUserSeesNothing`,
+  `TestNewUsersAreDeniedAndGroupDocuments`, `TestNoGroupsAtFirst`,
   `TestSearchRestrictedUserFindsNothing`.
 
 ## Capability and override boundaries

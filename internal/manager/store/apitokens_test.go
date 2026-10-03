@@ -20,11 +20,7 @@ func TestAPITokenStore(t *testing.T) {
 	ctx := testutil.Context(t)
 	db := storetest.Migrated(t)
 	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
-	group, err := store.DefaultGroupID(ctx, db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	u, err := store.CreateUser(ctx, db, domain.NewUser{ID: ids.New(), Username: "rita", GroupID: group, WebAuthnHandle: []byte("h1"), CreatedAt: now})
+	u, err := store.CreateUser(ctx, db, domain.NewUser{ID: ids.New(), Username: "rita", WebAuthnHandle: []byte("h1"), CreatedAt: now})
 	if err != nil {
 		t.Fatal(err)
 	}
