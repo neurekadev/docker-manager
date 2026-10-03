@@ -349,14 +349,9 @@ func (s *Service) importHosts(ctx context.Context, src ImportSource, sec importS
 			rr := repositoryRefOf(sets, l.RepositoryID)
 			il := ImportLocation{Scope: l.Scope, EnvironmentID: l.EnvironmentID, EnvironmentName: l.EnvironmentName, EngineID: l.EngineID,
 				RepositoryID: l.RepositoryID, RepositoryName: rr.Name, Repository: l.Repository}
-			envName := l.EnvironmentName
-			if envName == "" {
-				envName = l.EnvironmentID
-			}
-			switch {
-			case l.RepositoryID == repoID:
+			if l.RepositoryID == repoID {
 				il.Reachable, il.Repository = true, src.Destination.Repository(l.Scope)
-			default:
+			} else {
 				il.Note = "Kept in another repository (" + rr.Name + "): its credentials are restored with the manager state; " +
 					"it is checked after the import."
 			}
