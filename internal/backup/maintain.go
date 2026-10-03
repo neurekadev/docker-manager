@@ -35,11 +35,27 @@ type RetentionResult struct {
 	Kept      int
 }
 
-// ApplyRetention forgets a policy's snapshots in one location that rules
+// RetentionScope selects the snapshots retention judges: those of
+// PolicyID, or with AnyPolicy every snapshot a backup run took (it carries
+// a policy tag), whichever policy took it.
+type RetentionScope struct {
+	PolicyID  string
+	AnyPolicy bool
+}
+
+func (r RetentionScope) covers(tags []string) bool {
+	p := PolicyOf(tags)
+	if r.AnyPolicy {
+		return p != ""
+	}
+	return p == r.PolicyID
+}
+
+// ApplyRetention forgets the snapshots of scope in one location that rules
 // do not keep, and every snapshot of the expired (deleted) items (the same
 // decision as the preview: Plan, then Expire), plus the manifests of the
-// policy's sets that have no data left there.
-func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rules RetentionRules, expire []string, tz string) (RetentionResult, error) {
+// covered sets that have no data left there.
+func ApplyRetention(ctx context.Context, repo restic.Repo, scope RetentionScope, rules RetentionRules, expire []string, tz string) (RetentionResult, error) {
 	out := RetentionResult{Forgotten: []string{}}
 	if rules.Empty() && len(expire) == 0 {
 		return out, nil
@@ -54,7 +70,7 @@ func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rule
 	}
 	var cands []RetentionSnapshot
 	for _, sn := range all {
-		if PolicyOf(sn.Tags) != policyID || sn.HasTag(TagManifest) {
+		if !scope.covers(sn.Tags) || sn.HasTag(TagManifest) {
 			continue
 		}
 		cands = append(cands, RetentionSnapshot{ID: sn.ID, Time: sn.Time, Item: ItemOf(sn.Tags)})
@@ -68,7 +84,7 @@ func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rule
 		if sn.HasTag(TagManifest) {
 			continue
 		}
-		if PolicyOf(sn.Tags) == policyID {
+		if scope.covers(sn.Tags) {
 			policySets[SetOf(sn.Tags)] = true
 		}
 		if !slices.Contains(remove, sn.ID) {

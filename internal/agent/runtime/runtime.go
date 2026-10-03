@@ -721,6 +721,8 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)
 		// Its backup.retention removes the backups of deleted items.
 		p.Features = append(p.Features, protocol.FeatureBackupExpire)
+		// ... and, when asked, every Docker Manager backup of a location (#246).
+		p.Features = append(p.Features, protocol.FeatureBackupAnyPolicy)
 		// It writes with the destination's compression mode (#10).
 		p.Features = append(p.Features, protocol.FeatureBackupCompression)
 	}

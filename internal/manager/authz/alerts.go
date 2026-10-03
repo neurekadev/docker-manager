@@ -57,6 +57,8 @@ func AlertVisible(c Checker, a domain.Alert) bool {
 		return c.Can(CapJobRead, alertJob(a)).Allowed
 	case domain.NotifyUpdates:
 		return c.Can("update_policy.read", alertPolicy(a)).Allowed
+	case domain.NotifyBackup:
+		return c.Can("backup_policy.read", Instance()).Allowed
 	}
 	return c.Can("groups.manage", Instance()).Allowed
 }

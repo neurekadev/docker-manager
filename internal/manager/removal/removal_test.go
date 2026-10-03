@@ -80,15 +80,11 @@ func (s *seed) seedEverything() {
 	}
 	s.must(store.UpsertBackupLocation(s.ctx, s.db, "repo-s3", backup.EnvironmentScope("nas"), store.LocationUpdate{Initialized: true}, s.now))
 	s.must(store.UpsertBackupLocation(s.ctx, s.db, "repo-s3", backup.EnvironmentScope("cloud"), store.LocationUpdate{Initialized: true}, s.now))
-	s.must(store.InsertBackupPolicy(s.ctx, s.db, &domain.BackupPolicy{ID: "bp-nightly", EnvironmentID: "nas", Name: "Nightly", RepositoryID: "repo-s3",
-		Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
-	s.must(store.InsertBackupPolicy(s.ctx, s.db, &domain.BackupPolicy{ID: "bp-cloud", EnvironmentID: "cloud", Name: "Cloud only", RepositoryID: "repo-s3",
-		Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
-	if _, err := store.InsertBackupSet(s.ctx, s.db, &domain.BackupSet{ID: "set-1", PolicyID: "bp-nightly", PolicyName: "Nightly",
+	if _, err := store.InsertBackupSet(s.ctx, s.db, &domain.BackupSet{ID: "set-1", PolicyID: "bs-1", PolicyName: "Backups",
 		Origin: domain.OriginScheduled, State: backup.StateComplete, StartedAt: s.now, UpdatedAt: s.now}); err != nil {
 		s.t.Fatal(err)
 	}
-	if _, err := store.InsertBackupSnapshot(s.ctx, s.db, &domain.BackupSnapshot{ID: ids.New(), SetID: "set-1", PolicyID: "bp-nightly",
+	if _, err := store.InsertBackupSnapshot(s.ctx, s.db, &domain.BackupSnapshot{ID: ids.New(), SetID: "set-1", PolicyID: "bs-1",
 		RepositoryID: "repo-s3", Scope: backup.EnvironmentScope("nas"), EnvironmentID: "nas", Kind: backup.MemberStack, Item: "stack:st-shop",
 		StackID: "st-shop", StackName: "shop", ResticSnapshotID: "abc123", SnapshotTime: s.now, State: "complete", CreatedAt: s.now}); err != nil {
 		s.t.Fatal(err)
@@ -123,9 +119,7 @@ func (s *seed) seedEverything() {
 	s.must(err)
 	for _, sc := range []domain.Schedule{
 		{ID: "sc-up", Kind: "update_check", PolicyID: "up-shop", Name: "Shop updates", EnvironmentID: "nas"},
-		{ID: "sc-bp", Kind: "backup", PolicyID: "bp-nightly", Name: "Nightly"},
 		{ID: "sc-verify", Kind: "backup_verification", PolicyID: "repo-s3", Name: "Offsite"},
-		{ID: "sc-cloud", Kind: "backup", PolicyID: "bp-cloud", Name: "Cloud only"},
 	} {
 		sc.Cron, sc.TimeZone, sc.Cursor, sc.CreatedAt, sc.UpdatedAt = "0 3 * * *", "UTC", s.now, s.now, s.now
 		s.must(store.InsertSchedule(s.ctx, s.db, &sc))
@@ -162,12 +156,11 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 	}
 	want := map[string][]string{
 		domain.DependentStack:              {"st-shop"},
-		domain.DependentBackupPolicy:       {"bp-nightly"},
 		domain.DependentBackupRepository:   {"repo-s3"},
 		domain.DependentBackupSet:          {"set-1"},
 		domain.DependentRegistryConnection: {"reg-env", "reg-stack"},
 		domain.DependentBuildDefinition:    {"bd-1"},
-		domain.DependentSchedule:           {"sc-bp", "sc-up", "sc-verify"},
+		domain.DependentSchedule:           {"sc-up", "sc-verify"},
 		domain.DependentJob:                {"job-queued"},
 	}
 	for _, k := range domain.DependentKinds() {
@@ -192,7 +185,6 @@ func TestPreviewListsEveryDependentKind(t *testing.T) {
 		t.Errorf("permission rules %d, want 2", n)
 	}
 	wantEffects := map[string]string{domain.DependentStack: domain.OnArchiveKept,
-		domain.DependentBackupPolicy:     domain.OnArchivePaused,
 		domain.DependentBackupRepository: domain.OnArchiveKept, domain.DependentBackupSet: domain.OnArchiveKept,
 		domain.DependentPermissionRule: domain.OnArchiveRemoved, domain.DependentJob: domain.OnArchiveInterrupted}
 	for k, e := range wantEffects {

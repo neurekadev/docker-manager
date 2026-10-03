@@ -151,7 +151,7 @@ func TestBackupStorageRemovedRepositoryStopsCounting(t *testing.T) {
 
 	removedAt := t0.Add(5 * time.Hour)
 	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := DeleteBackupRepository(ctx, tx, "r1", 1); err != nil {
+		if _, err := DeleteBackupRepository(ctx, tx, "r1", 1, removedAt); err != nil {
 			return err
 		}
 		return EndBackupStorage(ctx, tx, "r1", removedAt)

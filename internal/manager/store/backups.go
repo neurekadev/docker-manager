@@ -184,12 +184,6 @@ func compressionOrAuto(mode string) string {
 func InsertBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRepository, sealed BackupRepositorySealed) error {
 	row := fromBackupRepository(r, sealed)
 	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
-		if uniqueViolation(err, "backup_policy_scope") || uniqueViolation(err, "backup_policies.environment_id") {
-			return domain.ErrBackupScopeOverlap
-		}
-		if uniqueViolation(err, "backup_policies.environment_id") || uniqueViolation(err, "backup_policy_scope") {
-			return domain.ErrBackupScopeOverlap
-		}
 		if uniqueViolation(err, "backup_repositories.name_key") {
 			return domain.ErrBackupRepositoryNameUsed
 		}
@@ -306,20 +300,12 @@ func BackupRepositorySecrets(ctx context.Context, db bun.IDB, id string) (Backup
 }
 
 // DeleteBackupRepository removes a repository (its locations cascade)
-// when the revision matches and no policy uses it, together with its part
-// of the backup index: its snapshots and the sets whose members were all
-// in it (sets spanning other repositories stay). Nothing at the
-// destination changes. It returns the removed snapshot IDs; call it in a
-// transaction.
-func DeleteBackupRepository(ctx context.Context, db bun.IDB, id string, expectRevision int64) (snapshotIDs []string, err error) {
-	var n int
-	if n, err = db.NewSelect().Model((*backupPolicyRow)(nil)).
-		Where("repository_id = ? OR environment_repos LIKE ?", id, "%\""+id+"\"%").Count(ctx); err != nil {
-		return nil, fmt.Errorf("store: count policies: %w", err)
-	}
-	if n > 0 {
-		return nil, domain.ErrBackupRepositoryInUse
-	}
+// when the revision matches, together with its part of the backup index:
+// its snapshots and the sets whose members were all in it (sets spanning
+// other repositories stay). The setup stops using it: a removed Primary
+// promotes the Secondary. Nothing at the destination changes. It returns
+// the removed snapshot IDs; call it in a transaction.
+func DeleteBackupRepository(ctx context.Context, db bun.IDB, id string, expectRevision int64, now time.Time) (snapshotIDs []string, err error) {
 	res, err := db.NewDelete().Model((*backupRepositoryRow)(nil)).Where("id = ?", id).Where("revision = ?", expectRevision).Exec(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: delete backup repository: %w", err)
@@ -343,6 +329,16 @@ func DeleteBackupRepository(ctx context.Context, db bun.IDB, id string, expectRe
 		Where("NOT EXISTS (SELECT 1 FROM json_each(members) WHERE json_extract(json_each.value, '$.RepositoryID') IS NOT ?)", id).
 		Exec(ctx); err != nil {
 		return nil, fmt.Errorf("store: delete repository sets: %w", err)
+	}
+	// The setup stops using it: removing the Primary promotes the
+	// Secondary, removing the Secondary leaves none.
+	if _, err := db.NewRaw(`UPDATE backup_settings SET primary_repository_id = secondary_repository_id, secondary_repository_id = '',
+		revision = revision + 1, updated_at = ? WHERE primary_repository_id = ?`, now.UTC(), id).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("store: promote the secondary backup repository: %w", err)
+	}
+	if _, err := db.NewRaw(`UPDATE backup_settings SET secondary_repository_id = '', revision = revision + 1, updated_at = ?
+		WHERE secondary_repository_id = ?`, now.UTC(), id).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("store: clear the secondary backup repository: %w", err)
 	}
 	return snapshotIDs, nil
 }
@@ -467,32 +463,28 @@ func ListBackupLocations(ctx context.Context, db bun.IDB, repositoryID string) (
 
 // --- policies ---
 
-type backupPolicyRow struct {
-	bun.BaseModel `bun:"table:backup_policies"`
+// The backup setup (#246): one row.
 
-	ID               string    `bun:"id,pk"`
-	Name             string    `bun:"name,notnull"`
-	NameKey          string    `bun:"name_key,notnull"`
-	EnvironmentID    string    `bun:"environment_id,notnull"`
-	ExcludeStacks    string    `bun:"exclude_stacks,notnull"`
-	ExcludeVolumes   string    `bun:"exclude_volumes,notnull"`
-	AnonymousVolumes int       `bun:"anonymous_volumes,notnull"`
-	BuildxVolumes    int       `bun:"buildx_volumes,notnull"`
-	ExternalBinds    int       `bun:"external_binds,notnull"`
-	RepositoryID     string    `bun:"repository_id,notnull"`
-	EnvironmentRepos string    `bun:"environment_repos,notnull"`
-	IncludeManager   int       `bun:"include_manager,notnull"`
-	IncludeMetrics   int       `bun:"include_metrics,notnull"`
-	Stacks           string    `bun:"stacks,notnull"`
-	Volumes          string    `bun:"volumes,notnull"`
-	Shutdown         int       `bun:"shutdown,notnull"`
-	Cron             string    `bun:"cron,notnull"`
-	TimeZone         string    `bun:"time_zone,notnull"`
-	Enabled          int       `bun:"enabled,notnull"`
-	Retention        string    `bun:"retention,notnull"`
-	Revision         int64     `bun:"revision,notnull"`
-	CreatedAt        time.Time `bun:"created_at,notnull"`
-	UpdatedAt        time.Time `bun:"updated_at,notnull"`
+type backupSettingsRow struct {
+	bun.BaseModel         `bun:"table:backup_settings"`
+	Singleton             int       `bun:"singleton,pk"`
+	ID                    string    `bun:"id,notnull"`
+	Enabled               int       `bun:"enabled,notnull"`
+	PrimaryRepositoryID   string    `bun:"primary_repository_id,notnull"`
+	SecondaryRepositoryID string    `bun:"secondary_repository_id,notnull"`
+	ExcludeEnvironments   string    `bun:"exclude_environments,notnull"`
+	ExcludeStacks         string    `bun:"exclude_stacks,notnull"`
+	ExcludeVolumes        string    `bun:"exclude_volumes,notnull"`
+	AnonymousVolumes      int       `bun:"anonymous_volumes,notnull"`
+	BuildxVolumes         int       `bun:"buildx_volumes,notnull"`
+	ExternalBinds         int       `bun:"external_binds,notnull"`
+	IncludeMetrics        int       `bun:"include_metrics,notnull"`
+	Shutdown              int       `bun:"shutdown,notnull"`
+	Cron                  string    `bun:"cron,notnull"`
+	TimeZone              string    `bun:"time_zone,notnull"`
+	Retention             string    `bun:"retention,notnull"`
+	Revision              int64     `bun:"revision,notnull"`
+	UpdatedAt             time.Time `bun:"updated_at,notnull"`
 }
 
 func jsonText(v any) string {
@@ -503,122 +495,54 @@ func jsonText(v any) string {
 	return string(b)
 }
 
-func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
-	repos := p.EnvironmentRepos
-	if repos == nil {
-		repos = map[string]string{}
-	}
-	stacks, volumes := p.Stacks, p.Volumes
-	if stacks == nil {
-		stacks = []domain.BackupStackSelection{}
-	}
-	if volumes == nil {
-		volumes = []domain.BackupVolumeSelection{}
-	}
-	return backupPolicyRow{ID: p.ID, Name: p.Name, NameKey: NameKey(p.Name), EnvironmentID: p.EnvironmentID,
-		ExcludeStacks: jsonText(p.ExcludeStacks), ExcludeVolumes: jsonText(p.ExcludeVolumes), AnonymousVolumes: b2i(p.AnonymousVolumes), BuildxVolumes: b2i(p.BuildxVolumes), ExternalBinds: b2i(p.ExternalBinds), RepositoryID: p.RepositoryID,
-		EnvironmentRepos: jsonText(repos), IncludeManager: b2i(p.IncludeManager), IncludeMetrics: b2i(p.IncludeMetrics),
-		Stacks: jsonText(stacks), Volumes: jsonText(volumes), Shutdown: b2i(p.Shutdown), Cron: p.Cron, TimeZone: p.TimeZone,
-		Enabled: b2i(p.Enabled), Retention: jsonText(p.Retention), Revision: p.Revision, CreatedAt: p.CreatedAt.UTC(),
-		UpdatedAt: p.UpdatedAt.UTC()}
-}
-
-func (r backupPolicyRow) toDomain() domain.BackupPolicy {
-	p := domain.BackupPolicy{ID: r.ID, Name: r.Name, EnvironmentID: r.EnvironmentID, AnonymousVolumes: r.AnonymousVolumes == 1,
-		BuildxVolumes: r.BuildxVolumes == 1, ExternalBinds: r.ExternalBinds == 1, RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
-		IncludeMetrics: r.IncludeMetrics == 1, Shutdown: r.Shutdown == 1, Cron: r.Cron, TimeZone: r.TimeZone, Enabled: r.Enabled == 1,
-		Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
-	_ = json.Unmarshal([]byte(r.EnvironmentRepos), &p.EnvironmentRepos)
-	_ = json.Unmarshal([]byte(r.ExcludeStacks), &p.ExcludeStacks)
-	_ = json.Unmarshal([]byte(r.ExcludeVolumes), &p.ExcludeVolumes)
-	_ = json.Unmarshal([]byte(r.Stacks), &p.Stacks)
-	_ = json.Unmarshal([]byte(r.Volumes), &p.Volumes)
-	_ = json.Unmarshal([]byte(r.Retention), &p.Retention)
-	return p
-}
-
-// InsertBackupPolicy stores a new policy.
-func InsertBackupPolicy(ctx context.Context, db bun.IDB, p *domain.BackupPolicy) error {
-	row := fromBackupPolicy(p)
-	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
-		if uniqueViolation(err, "backup_policies.name_key") {
-			return domain.ErrBackupPolicyNameUsed
+func (r backupSettingsRow) toDomain() (domain.BackupSetup, error) {
+	s := domain.BackupSetup{ID: r.ID, Enabled: r.Enabled == 1, PrimaryRepositoryID: r.PrimaryRepositoryID,
+		SecondaryRepositoryID: r.SecondaryRepositoryID, AnonymousVolumes: r.AnonymousVolumes == 1, BuildxVolumes: r.BuildxVolumes == 1,
+		ExternalBinds: r.ExternalBinds == 1, IncludeMetrics: r.IncludeMetrics == 1, Shutdown: r.Shutdown == 1, Cron: r.Cron,
+		TimeZone: r.TimeZone, Revision: r.Revision, UpdatedAt: r.UpdatedAt.UTC()}
+	for _, l := range []struct {
+		raw string
+		to  *[]string
+	}{{r.ExcludeEnvironments, &s.ExcludeEnvironments}, {r.ExcludeStacks, &s.ExcludeStacks}, {r.ExcludeVolumes, &s.ExcludeVolumes}} {
+		if err := json.Unmarshal([]byte(l.raw), l.to); err != nil {
+			return s, fmt.Errorf("store: backup settings exclusions: %w", err)
 		}
-		if strings.Contains(err.Error(), "FOREIGN KEY") {
-			return domain.ErrBackupRepositoryNotFound
-		}
-		return fmt.Errorf("store: insert backup policy: %w", err)
+		*l.to = orEmpty(*l.to)
 	}
-	return nil
+	if err := json.Unmarshal([]byte(r.Retention), &s.Retention); err != nil {
+		return s, fmt.Errorf("store: backup settings retention: %w", err)
+	}
+	return s, nil
 }
 
-// UpdateBackupPolicy replaces a policy when the revision matches.
-func UpdateBackupPolicy(ctx context.Context, db bun.IDB, p *domain.BackupPolicy, expectRevision int64) error {
-	row := fromBackupPolicy(p)
-	res, err := db.NewUpdate().Model(&row).ExcludeColumn("id", "created_at").WherePK().Where("revision = ?", expectRevision).Exec(ctx)
+// GetBackupSetup returns the backup setup.
+func GetBackupSetup(ctx context.Context, db bun.IDB) (domain.BackupSetup, error) {
+	var row backupSettingsRow
+	if err := db.NewSelect().Model(&row).Where("singleton = 1").Scan(ctx); err != nil {
+		return domain.BackupSetup{}, fmt.Errorf("store: get backup setup: %w", err)
+	}
+	return row.toDomain()
+}
+
+// UpdateBackupSetup writes s (all but its ID) when the revision still
+// matches.
+func UpdateBackupSetup(ctx context.Context, db bun.IDB, s domain.BackupSetup, expectRevision int64) error {
+	res, err := db.NewUpdate().Model((*backupSettingsRow)(nil)).
+		Set("enabled = ?", b2i(s.Enabled)).
+		Set("primary_repository_id = ?", s.PrimaryRepositoryID).Set("secondary_repository_id = ?", s.SecondaryRepositoryID).
+		Set("exclude_environments = ?", mustJSON(orEmpty(s.ExcludeEnvironments))).
+		Set("exclude_stacks = ?", mustJSON(orEmpty(s.ExcludeStacks))).
+		Set("exclude_volumes = ?", mustJSON(orEmpty(s.ExcludeVolumes))).
+		Set("anonymous_volumes = ?", b2i(s.AnonymousVolumes)).Set("buildx_volumes = ?", b2i(s.BuildxVolumes)).
+		Set("external_binds = ?", b2i(s.ExternalBinds)).Set("include_metrics = ?", b2i(s.IncludeMetrics)).
+		Set("shutdown = ?", b2i(s.Shutdown)).Set("cron = ?", s.Cron).Set("time_zone = ?", s.TimeZone).
+		Set("retention = ?", jsonText(s.Retention)).
+		Set("revision = ?", s.Revision).Set("updated_at = ?", s.UpdatedAt.UTC()).
+		Where("singleton = 1").Where("revision = ?", expectRevision).Exec(ctx)
 	if err != nil {
-		if uniqueViolation(err, "backup_policies.name_key") {
-			return domain.ErrBackupPolicyNameUsed
-		}
-		if strings.Contains(err.Error(), "FOREIGN KEY") {
-			return domain.ErrBackupRepositoryNotFound
-		}
-		return fmt.Errorf("store: update backup policy: %w", err)
+		return fmt.Errorf("store: update backup setup: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n != 1 {
-		if _, gerr := GetBackupPolicy(ctx, db, p.ID); gerr != nil {
-			return gerr
-		}
-		return domain.ErrRevisionMismatch
-	}
-	return nil
-}
-
-// GetBackupPolicy returns one policy.
-func GetBackupPolicy(ctx context.Context, db bun.IDB, id string) (domain.BackupPolicy, error) {
-	var row backupPolicyRow
-	err := db.NewSelect().Model(&row).Where("id = ?", id).Scan(ctx)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.BackupPolicy{}, domain.ErrBackupPolicyNotFound
-	}
-	if err != nil {
-		return domain.BackupPolicy{}, fmt.Errorf("store: get backup policy: %w", err)
-	}
-	return row.toDomain(), nil
-}
-
-// ListBackupPolicies returns policies in ID order after afterID (limit 0 =
-// all).
-func ListBackupPolicies(ctx context.Context, db bun.IDB, afterID string, limit int) ([]domain.BackupPolicy, error) {
-	var rows []backupPolicyRow
-	q := db.NewSelect().Model(&rows).Order("id ASC")
-	if afterID != "" {
-		q = q.Where("id > ?", afterID)
-	}
-	if limit > 0 {
-		q = q.Limit(limit)
-	}
-	if err := q.Scan(ctx); err != nil {
-		return nil, fmt.Errorf("store: list backup policies: %w", err)
-	}
-	out := make([]domain.BackupPolicy, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.toDomain())
-	}
-	return out, nil
-}
-
-// DeleteBackupPolicy removes a policy when the revision matches (its sets
-// and snapshots stay as history).
-func DeleteBackupPolicy(ctx context.Context, db bun.IDB, id string, expectRevision int64) error {
-	res, err := db.NewDelete().Model((*backupPolicyRow)(nil)).Where("id = ?", id).Where("revision = ?", expectRevision).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("store: delete backup policy: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n != 1 {
-		if _, gerr := GetBackupPolicy(ctx, db, id); gerr != nil {
-			return gerr
-		}
 		return domain.ErrRevisionMismatch
 	}
 	return nil

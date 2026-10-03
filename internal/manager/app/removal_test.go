@@ -54,15 +54,11 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	env := b.agent.env
 	ctx := testutil.Context(t)
 
-	// A backup policy on the stack, run once by its schedule.
+	// Backups of the environment, run once by their schedule.
 	repo := b.createS3Repo(owner, "Offsite")
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+repo.Repository.ID+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "scope": "all", "repositoryId": repo.Repository.ID,
-		"schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC", "enabled": true}}).json(t, &pol)
+	b.settings(owner, map[string]any{"enabled": true, "schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC"}})
 	backupRuns := func() int {
 		t.Helper()
 		js, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"backup.run"}, EnvironmentID: env})
@@ -102,7 +98,7 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if prev.Action != "archive" || !prev.HostUntouched || prev.Migration.Stacks != 1 || len(prev.Dependents) != len(domain.DependentKinds()) {
 		t.Fatalf("preview %+v", prev)
 	}
-	for kind, atLeast := range map[string]int{domain.DependentStack: 1, domain.DependentBackupPolicy: 1,
+	for kind, atLeast := range map[string]int{domain.DependentStack: 1,
 		domain.DependentBackupRepository: 1, domain.DependentBackupSet: 1, domain.DependentPermissionRule: 2, domain.DependentSchedule: 1} {
 		if prev.count(kind) < atLeast {
 			t.Errorf("preview lists %d %s, want >= %d", prev.count(kind), kind, atLeast)

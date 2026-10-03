@@ -138,21 +138,11 @@ func TestStackMigrationThroughTheManager(t *testing.T) {
 	}
 	owner, _ := e.setupOwner()
 	base1 := "/api/v1/stacks/" + st.ID
-	// Policies targeting the stack (#20, #10): they must follow it.
+	// An update policy targeting the stack (#20): it must follow it.
 	upol := domain.UpdatePolicy{ID: ids.New(), EnvironmentID: nas.env, Name: "shop updates", TargetType: domain.UpdateTargetStack, TargetID: st.ID,
 		Check: domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC", Enabled: true}, Run: domain.UpdateSchedule{Cron: "0 4 * * *", TimeZone: "UTC"},
 		Revision: 1, CreatedAt: now, UpdatedAt: now}
 	if err := store.InsertUpdatePolicy(ctx, e.m.DB(), &upol); err != nil {
-		t.Fatal(err)
-	}
-	repo := domain.BackupRepository{ID: ids.New(), Name: "Offsite", Endpoint: "https://s3.example.com", Bucket: "backups", State: domain.BackupRepositoryReady,
-		VerifyCron: "0 5 * * 0", VerifyTimeZone: "UTC", Revision: 1, CreatedAt: now, UpdatedAt: now}
-	if err := store.InsertBackupRepository(ctx, e.m.DB(), &repo, store.BackupRepositorySealed{}); err != nil {
-		t.Fatal(err)
-	}
-	bpol := domain.BackupPolicy{ID: ids.New(), Name: "shop backups", RepositoryID: repo.ID, EnvironmentRepos: map[string]string{},
-		Stacks: []domain.BackupStackSelection{{StackID: st.ID}}, Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: now, UpdatedAt: now}
-	if err := store.InsertBackupPolicy(ctx, e.m.DB(), &bpol); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,26 +222,21 @@ func TestStackMigrationThroughTheManager(t *testing.T) {
 		t.Fatalf("audit: requested %v finished %v", requested, finished)
 	}
 	// The update policy moved with the stack (its scheduled check is no
-	// longer refused as target_not_found); the backup policy follows by
-	// stack ID.
+	// longer refused as target_not_found).
 	if got, err := e.m.Updates().Get(ctx, upol.ID); err != nil || got.EnvironmentID != cloud.env || got.TargetID != st.ID || !got.Check.Enabled {
 		t.Fatalf("update policy after the migration %+v %v", got, err)
 	}
 	if err := e.m.Updates().CheckSource().Validate(ctx, upol.ID); err != nil {
 		t.Fatalf("scheduled update check after the migration: %v", err)
 	}
-	var upMoved, bpMoved bool
+	upMoved := false
 	for _, row := range e.auditRows() {
 		if row.Action == "update_policy.move" && strings.Contains(row.Targets, upol.ID) {
 			upMoved = true
 		}
-		if row.Action == "backup_policy.stack_moved" && strings.Contains(row.Targets, bpol.ID) &&
-			strings.Contains(row.Details, `"repositoryId":"`+repo.ID+`"`) {
-			bpMoved = true
-		}
 	}
-	if !upMoved || !bpMoved {
-		t.Fatalf("policy hooks: update moved %v, backup recorded %v", upMoved, bpMoved)
+	if !upMoved {
+		t.Fatal("the update policy's move was not recorded")
 	}
 
 	// Confirm: the source is removed.

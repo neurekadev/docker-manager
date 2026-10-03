@@ -1,19 +1,20 @@
-// The backup policy page's running jobs: the policy's running backups and
-// retentions come back from GET /backup-activity as one steady line each
-// in "Running Now", the recent runs show the set being written with its
-// progress, and Back Up Now waits.
+// The Backups page (#10, #246): the running backups and retentions come
+// back from GET /backup-activity as one steady line each in "Running
+// Now", the recent runs show the set being written with its progress,
+// Back Up Now waits, and the settings name the Primary and Secondary
+// repositories. Without a Primary, backups are paused.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import type { Job } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
-import PolicyPage from '../../../routes/(app)/backups/policies/[policyId]/+page.svelte';
+import BackupsPage from '../../../routes/(app)/backups/+page.svelte';
 
 const nav = vi.hoisted(() => ({
 	page: {
-		params: { policyId: 'pol-1' } as Record<string, string>,
-		url: new URL('http://localhost/backups/policies/pol-1')
+		params: {} as Record<string, string>,
+		url: new URL('http://localhost/backups')
 	},
 	goto: vi.fn()
 }));
@@ -28,7 +29,7 @@ function job(id: string, p: Partial<Job> = {}): Job {
 		origin: 'scheduled',
 		executor: 'agent',
 		environmentId: 'env-1',
-		policyId: 'pol-1',
+		policyId: 'bs-1',
 		targets: [{ type: 'repository', id: 'repo-1' }],
 		attempt: 1,
 		progress: { percent: 30 },
@@ -44,43 +45,60 @@ function job(id: string, p: Partial<Job> = {}): Job {
 	} as Job;
 }
 
-const policy = {
-	id: 'pol-1',
-	name: 'Nightly',
-	scope: 'all',
-	enabled: true,
-	view: 'full',
-	revision: 1,
-	actions: ['backup.run', 'backup.retention'],
-	anonymousVolumes: false,
-	buildxVolumes: false,
-	externalBinds: false,
-	excludeStacks: [],
-	excludeVolumes: [],
-	includeManagerState: false,
-	includeMetrics: false,
-	shutdown: false,
-	stacks: [],
-	volumes: [],
-	repositoryId: 'repo-1',
-	recentSets: [
-		{
-			id: 'set-1',
-			state: 'pending',
-			origin: 'scheduled',
-			startedAt: '2026-09-28T10:00:00Z',
-			members: [
-				{
-					item: 'stack:st-1',
-					kind: 'stack',
-					scope: 'env:env-1',
-					state: 'pending',
-					environmentId: 'env-1'
-				}
-			]
-		}
-	]
-};
+let settings: Record<string, unknown>;
+
+function baseSettings(): Record<string, unknown> {
+	return {
+		id: 'bs-1',
+		enabled: true,
+		primaryRepositoryId: 'repo-1',
+		secondaryRepositoryId: 'repo-2',
+		schedule: { cron: '0 2 * * *', timeZone: 'UTC', nextRun: '2026-09-29T02:00:00Z' },
+		excludeEnvironments: [],
+		excludeStacks: [],
+		excludeVolumes: [],
+		anonymousVolumes: false,
+		buildxVolumes: false,
+		externalBinds: false,
+		includeMetrics: false,
+		shutdown: false,
+		retention: { daily: 7 },
+		revision: 3,
+		updatedAt: '2026-09-28T09:00:00Z',
+		actions: ['backup_policy.manage', 'backup.run', 'backup.retention'],
+		recentSets: [
+			{
+				id: 'set-1',
+				state: 'pending',
+				origin: 'scheduled',
+				startedAt: '2026-09-28T10:00:00Z',
+				members: [
+					{
+						item: 'stack:st-1',
+						kind: 'stack',
+						scope: 'env:env-1',
+						repositoryId: 'repo-1',
+						state: 'pending',
+						environmentId: 'env-1'
+					},
+					{
+						item: 'stack:st-1',
+						kind: 'stack',
+						scope: 'env:env-1',
+						repositoryId: 'repo-2',
+						state: 'pending',
+						environmentId: 'env-1'
+					}
+				]
+			}
+		]
+	};
+}
+
+const repositories = [
+	{ id: 'repo-1', name: 'B2', state: 'ready', role: 'primary', view: 'full', actions: [] },
+	{ id: 'repo-2', name: 'NAS', state: 'ready', role: 'secondary', view: 'full', actions: [] }
+];
 
 const environments = [
 	{ id: 'env-1', name: 'Silo', online: true, status: 'active' },
@@ -93,7 +111,7 @@ const activity = [
 		kind: 'backup.run',
 		state: 'running',
 		setId: 'set-1',
-		policyId: 'pol-1',
+		policyId: 'bs-1',
 		environmentId: 'env-1',
 		itemCount: 1,
 		stacks: 1,
@@ -106,7 +124,7 @@ const activity = [
 		kind: 'backup.retention',
 		state: 'running',
 		setId: '',
-		policyId: 'pol-1',
+		policyId: 'bs-1',
 		environmentId: 'env-2',
 		itemCount: 1,
 		stacks: 0,
@@ -114,19 +132,6 @@ const activity = [
 		cancellable: true,
 		percent: 40,
 		message: 'freeing the space of the removed backups'
-	},
-	{
-		jobId: '0190-9',
-		kind: 'backup.run',
-		state: 'running',
-		setId: 'set-9',
-		policyId: 'pol-9',
-		environmentId: 'env-1',
-		itemCount: 1,
-		stacks: 1,
-		volumes: 0,
-		cancellable: false,
-		percent: 10
 	}
 ];
 
@@ -134,6 +139,7 @@ let running: Job[] = [];
 
 beforeEach(() => {
 	running = [];
+	settings = baseSettings();
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -142,10 +148,13 @@ beforeEach(() => {
 				status,
 				headers: { 'Content-Type': 'application/json' }
 			});
-		if (url.pathname === '/api/v1/backup-policies/pol-1') return json(200, policy);
+		if (url.pathname === '/api/v1/backup-settings') return json(200, settings);
+		if (url.pathname === '/api/v1/backup-repositories')
+			return json(200, { items: repositories, total: repositories.length });
 		if (url.pathname === '/api/v1/backup-activity') return json(200, { jobs: activity });
 		if (url.pathname === '/api/v1/environments')
 			return json(200, { items: environments, total: environments.length });
+		if (url.pathname === '/api/v1/backups') return json(200, { items: [], total: 0 });
 		if (url.pathname === '/api/v1/jobs')
 			return json(200, { items: running, total: running.length });
 		const id = url.pathname.match(/^\/api\/v1\/jobs\/([^/]+)$/)?.[1];
@@ -167,38 +176,50 @@ function openPage() {
 	render(QueryHarness, {
 		props: {
 			client,
-			component: PolicyPage as unknown as Component<Record<string, unknown>>,
+			component: BackupsPage as unknown as Component<Record<string, unknown>>,
 			props: {}
 		}
 	});
 }
 
-describe('backup policy page: running jobs', () => {
+describe('Backups page', () => {
 	it('restores the running backup and retention lines and the running set after a reload', async () => {
 		running = [
-			job('0190-3', { policyId: 'pol-9' }),
 			job('0190-2', { kind: 'backup.retention', environmentId: 'env-2' }),
 			job('0190-1')
 		];
 		openPage();
 
 		expect(
-			await screen.findByRole('progressbar', { name: 'Backup Progress of Nightly, Silo' })
+			await screen.findByRole('progressbar', { name: 'Backup Progress of Backups, Silo' })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole('progressbar', { name: 'Retention Progress of Nightly, Rack' })
+			screen.getByRole('progressbar', { name: 'Retention Progress of Backups, Rack' })
 		).toBeInTheDocument();
 		expect(screen.getByText('Freeing the space of the removed backups')).toBeInTheDocument();
-		// Another policy's backup has no line here, and no generic job cards.
-		expect(screen.queryAllByRole('progressbar', { name: / Progress of / })).toHaveLength(2);
-		expect(screen.queryByRole('region', { name: 'Running Jobs of Nightly' })).toBeNull();
 		// The retention can be cancelled from its line.
-		expect(screen.getByRole('button', { name: 'Cancel Nightly, Rack' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Cancel Backups, Rack' })).toBeInTheDocument();
 
-		// The recent runs show the set being written, from this policy's activity.
+		// The recent runs show the set being written.
 		expect(
 			await screen.findByRole('progressbar', { name: /^Progress of the Set Started/ })
 		).toHaveAttribute('aria-valuenow', '40');
 		expect(screen.getByRole('button', { name: 'Backing Up…' })).toBeDisabled();
+	});
+
+	it('names where backups go', async () => {
+		openPage();
+		expect(
+			await screen.findByText(/Backs up every environment to B2, then to NAS/)
+		).toBeInTheDocument();
+		expect(screen.getByText('Primary Repository')).toBeInTheDocument();
+		expect(screen.getByText('Secondary Repository')).toBeInTheDocument();
+	});
+
+	it('says backups are paused without a Primary repository', async () => {
+		settings = { ...baseSettings(), primaryRepositoryId: '', secondaryRepositoryId: '' };
+		openPage();
+		expect(await screen.findByText('Backups Are Paused')).toBeInTheDocument();
+		expect(screen.getByText('Choose the Primary Repository')).toBeInTheDocument();
 	});
 });

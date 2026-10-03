@@ -1,10 +1,10 @@
 <script lang="ts">
-	// Retention of a backup policy (#10): a preset ("7 daily, 4 weekly, 12
+	// Retention of the backups (#10, #246): a preset ("7 daily, 4 weekly, 12
 	// monthly", the last 30, everything) or Custom, which reveals restic-like
 	// keep rules ("Last" keeps the newest N of each stack and volume whatever
 	// the others say). Removing the backups of deleted stacks and volumes is
 	// a separate switch (off by default). The rule reads as a live
-	// sentence, and a saved policy previews exactly which snapshots would go.
+	// sentence, and a preview shows exactly which snapshots would go.
 	// Docker Manager computes the decision, so the preview and the run agree.
 	import { untrack } from 'svelte';
 	import { RadioGroup, Switch, TextField } from '$lib/ui';
@@ -22,12 +22,12 @@
 
 	interface Props {
 		value: BackupRetention;
-		/** Saved policy to preview against (the unsaved rules are sent along). */
-		policyId?: string;
+		/** Offer the preview of the unsaved rules. */
+		preview?: boolean;
 		onchange?: () => void;
 	}
 
-	let { value = $bindable(), policyId, onchange }: Props = $props();
+	let { value = $bindable(), preview = false, onchange }: Props = $props();
 
 	// Editing opens on the preset the saved rules match (else Custom).
 	let preset = $state<RetentionPreset>(retentionPreset(untrack(() => value)));
@@ -109,8 +109,8 @@
 			onchange?.();
 		}}
 	/>
-	{#if policyId}
-		<RetentionPreviewPanel {policyId} retention={value} />
+	{#if preview}
+		<RetentionPreviewPanel retention={value} />
 	{/if}
 </div>
 

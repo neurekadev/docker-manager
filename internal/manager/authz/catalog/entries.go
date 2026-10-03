@@ -33,7 +33,9 @@ func resourceTypes() []ResourceType {
 			Minimal: "id, enabled"},
 		{Key: TypeBackupRepository, Label: "Backup Repositories", Scopable: true, Read: "backup_repository.read",
 			Minimal: "id, name, health"},
-		{Key: TypeBackupPolicy, Label: "Backup Policies", Scopable: true, Read: "backup_policy.read", Minimal: "id, name, enabled"},
+		// The one backup setup (#246): instance-wide, never one resource of
+		// a rule.
+		{Key: TypeBackupPolicy, Label: "Backup Settings", Read: "backup_policy.read", Minimal: "id, enabled"},
 		{Key: TypeBackup, Label: "Backups", Scopable: true, Parents: []string{TypeBackupRepository}, Read: "backup.read",
 			Minimal: "id, time, repository, status"},
 		{Key: TypeRegistry, Label: "Registry Connections", Scopable: true, Read: "registry.read",
@@ -239,23 +241,22 @@ func capabilities() []Capability {
 	// Schedules (#13).
 	add(adv(normal("schedule.read", TypeSchedule, "View Schedules", "See the cross-policy schedule overview (entries are still filtered by their policy's read capability).", instEnv)))
 
-	// Backups (#10): repositories, policies, snapshots and backup jobs are
+	// Backups (#10): repositories, the setup, snapshots and backup jobs are
 	// instance resources, never personal assets of their creator.
 	repoScope := instRes(TypeBackupRepository)
-	policyScope := instRes(TypeBackupPolicy)
 	snapScope := instRes(TypeBackupRepository, TypeBackup)
 	add(
 		normal("backup.read", TypeBackup, "View Backups", "See the backup list and snapshot metadata. Does not open snapshot contents.", snapScope),
-		normal("backup.run", TypeBackup, "Run Backups", "Run a backup now. Needs the capability on every stack, volume and repository the backup touches.", res(TypeBackupPolicy, TypeBackupRepository, TypeStack, TypeVolume)),
+		normal("backup.run", TypeBackup, "Run Backups", "Back up now (on all environments). Each backup job also needs it on the stacks, volumes and repository it touches.", res(TypeBackupRepository, TypeStack, TypeVolume)),
 		high("backup.restore", TypeBackup, "Restore Backups", "Restore stacks, volumes or files from a snapshot (overwrites data; needs the capability on every restored target).", res(TypeBackupRepository, TypeBackup, TypeStack, TypeVolume)),
 		adv(high("backup.contents.read", TypeBackup, "Browse Backup Contents", "List files inside snapshots. Snapshots can contain secrets.", snapScope)),
 		adv(high("backup.contents.download", TypeBackup, "Download From Backups", "Download single files from snapshots. Snapshots can contain secrets.", snapScope)),
 		adv(normal("backup.verify", TypeBackup, "Verify Backups", "Check repository and snapshot integrity.", snapScope)),
-		adv(high("backup.retention", TypeBackup, "Apply Retention", "Forget and prune old snapshots according to a policy.", instRes(TypeBackupPolicy, TypeBackupRepository))),
+		adv(high("backup.retention", TypeBackup, "Apply Retention", "Forget and prune old snapshots according to the retention rules.", instRes(TypeBackupRepository))),
 		adv(normal("backup_repository.read", TypeBackupRepository, "View Backup Repositories", "See repositories and their health (never credentials or the Recovery Key).", repoScope)),
 		adv(high("backup_repository.manage", TypeBackupRepository, "Manage Backup Repositories", "Create, edit, test and delete repositories and rotate their keys.", repoScope)),
-		adv(normal("backup_policy.read", TypeBackupPolicy, "View Backup Policies", "See backup policies and scope/retention previews.", policyScope)),
-		adv(normal("backup_policy.manage", TypeBackupPolicy, "Manage Backup Policies", "Create, edit and delete backup policies.", policyScope)),
+		adv(normal("backup_policy.read", TypeBackupPolicy, "View Backup Settings", "See the backup settings and what they back up and retain.", instanceOnly)),
+		adv(normal("backup_policy.manage", TypeBackupPolicy, "Manage Backup Settings", "Change the backup settings: repositories, schedule, what is backed up and retention.", instanceOnly)),
 	)
 
 	// Registries and Git credentials (#19, #33): metadata only; credential

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
-	"github.com/neurekadev/docker-manager/internal/manager/authz"
 )
 
 // TestDeprecatedMinKeepFoldsIntoLast: the former minimum recovery floor
@@ -28,8 +27,8 @@ func TestDeprecatedMinKeepFoldsIntoLast(t *testing.T) {
 			}
 		})
 	}
-	out := newBackupPolicy(domain.BackupPolicy{Retention: domain.BackupRetention{Daily: 7, Last: 3}}, authz.View{Level: authz.Full})
-	if out.Retention == nil || out.Retention.MinKeep != 0 || out.Retention.Last != 3 {
-		t.Errorf("response retention %+v", out.Retention)
+	out := newBackupRetention(domain.BackupRetention{Daily: 7, Last: 3})
+	if out.MinKeep != 0 || out.Last != 3 {
+		t.Errorf("response retention %+v", out)
 	}
 }

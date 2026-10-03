@@ -190,7 +190,8 @@ func enqueueTo(ctx context.Context, db bun.IDB, a domain.Alert, event string, no
 	// resolution goes to each told channel with an outcome it was sent
 	// (the alert's severity may have changed since: a later run that only
 	// partly failed lowers a failure to a warning).
-	m.toldOutcomes = event == domain.AlertEventResolved && m.kind != a.Kind
+	// So does the end of paused backups (backups have no resolved outcome).
+	m.toldOutcomes = event == domain.AlertEventResolved && (m.kind != a.Kind || a.Kind == domain.NotifyBackup)
 	return write(ctx, db, m, now, only, func() []domain.NotificationField {
 		return alertFields(a, environmentName(ctx, db, a.EnvironmentID), event)
 	})

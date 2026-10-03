@@ -75,7 +75,7 @@ describe('NameCell with a row icon', () => {
 		const { container } = render(NameCell, {
 			props: {
 				name: 'nightly',
-				href: '/backups/policies/p1',
+				href: '/backups',
 				sub: 'Manager',
 				icon: 'backupPolicy'
 			}
@@ -85,7 +85,7 @@ describe('NameCell with a row icon', () => {
 		expect(tile).toHaveAttribute('data-color', 'teal');
 		expect(tile?.classList.contains('xs')).toBe(true);
 		const link = screen.getByRole('link', { name: 'nightly' });
-		expect(link).toHaveAttribute('href', '/backups/policies/p1');
+		expect(link).toHaveAttribute('href', '/backups');
 		// The icon comes first; the name stays the only text of the link.
 		expect(tile!.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		expect(screen.getByText('Manager')).toBeInTheDocument();

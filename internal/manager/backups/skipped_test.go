@@ -79,7 +79,7 @@ func TestSkippedMembersCountNeitherWay(t *testing.T) {
 		t.Errorf("a skipped set was flagged for retention: %q", set.FollowUp)
 	}
 
-	if got := retryItems(cases[1].members); len(got) != 1 || !got[env+"\x00volume/db"] {
+	if got := retryItems(cases[1].members); len(got) != 1 || !got[memberKey("", env, "volume/db")] {
 		t.Errorf("retry items = %v, want only the failed volume", got)
 	}
 	if got := retryItems(cases[2].members); len(got) != 0 {
@@ -187,7 +187,7 @@ func TestStandaloneVolumesLeaveOutTemporaryObjects(t *testing.T) {
 			{ID: "recreated", Name: "app-cache-1", Labels: map[string]string{protocol.ComposeReplaceLabel: "0123456789abcdef"}},
 		},
 	}}
-	p := domain.BackupPolicy{EnvironmentID: "e1"}
+	var p domain.BackupSetup
 	got, err := s.standaloneVolumes(ctx, p, "e1", nil)
 	if err != nil {
 		t.Fatal(err)

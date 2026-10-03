@@ -72,7 +72,7 @@ func (offlineVolumes) ListVolumes(context.Context, string) ([]protocol.VolumeInf
 
 // TestExpiredItemsOnlyDeletedAndOldEnough: the expiry names a stack Docker
 // Manager no longer has and a volume its environment no longer has, once
-// their newest backup is older than the policy's days; never an item that
+// their newest backup is older than the setup's days; never an item that
 // still exists, a recent one, the manager's state, or anything of an
 // offline or archived environment.
 func TestExpiredItemsOnlyDeletedAndOldEnough(t *testing.T) {
@@ -90,7 +90,7 @@ func TestExpiredItemsOnlyDeletedAndOldEnough(t *testing.T) {
 		{Scope: scope, Kind: backup.MemberVolume, Item: backup.VolumeItem("fresh"), Volume: "fresh", SnapshotTime: old},
 		{Scope: scope, Kind: backup.MemberVolume, Item: backup.VolumeItem("fresh"), Volume: "fresh", SnapshotTime: recent},
 	}
-	p := domain.BackupPolicy{Retention: domain.BackupRetention{ExpireDeletedDays: 30}}
+	p := domain.BackupSetup{Retention: domain.BackupRetention{ExpireDeletedDays: 30}}
 	s := &Service{opts: Options{Clock: clk, Stacks: fakeStacks{"here": true}, Environments: fakeEnvironments{"env-1": domain.EnvironmentActive}},
 		volumes: scopeVolumes()} // has media and scratch, not fresh
 	if got := s.expiredItems(ctx, p, scope, snaps); !slices.Equal(got, []string{"stack/gone"}) {
@@ -101,7 +101,7 @@ func TestExpiredItemsOnlyDeletedAndOldEnough(t *testing.T) {
 		t.Errorf("expired %v, want the deleted stack and volume", got)
 	}
 	// Off, the manager's state, an offline agent or an archived environment.
-	if got := s.expiredItems(ctx, domain.BackupPolicy{}, scope, snaps); got != nil {
+	if got := s.expiredItems(ctx, domain.BackupSetup{}, scope, snaps); got != nil {
 		t.Errorf("expiry off: %v", got)
 	}
 	if got := s.expiredItems(ctx, p, backup.ScopeManager, snaps); got != nil {

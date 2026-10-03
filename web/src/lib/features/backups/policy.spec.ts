@@ -1,5 +1,5 @@
-// Backup policies, retention presets, coverage and repository wording
-// (#10): pure helpers of model.ts.
+// The backup settings, retention presets, coverage and repository wording
+// (#10, #246): pure helpers of model.ts.
 import { describe, expect, it } from 'vitest';
 import {
 	DEFAULT_RETENTION,
@@ -9,9 +9,6 @@ import {
 	coverageSummary,
 	groupBackupsByRun,
 	memberRuns,
-	nextPolicyRun,
-	policyCovers,
-	policySentence,
 	repositoryStatusLine,
 	restoreTargetName,
 	retentionActive,
@@ -19,36 +16,40 @@ import {
 	retentionShort,
 	retentionText,
 	scopeName,
+	settingsCover,
+	settingsSentence,
 	verificationText,
 	verifyReadOptions,
 	verifyReadText,
 	type Backup,
-	type BackupPolicy,
-	type BackupSet
+	type BackupSet,
+	type BackupSettings
 } from './model';
 
 const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const now = new Date('2026-09-27T03:00:00Z');
 const envName = (id: string) => ({ e1: 'prod', e2: 'edge' })[id] ?? id;
 
-function policy(over: Partial<BackupPolicy> = {}): BackupPolicy {
+function settings(over: Partial<BackupSettings> = {}): BackupSettings {
 	return {
-		id: 'p1',
-		name: 'Daily Backups',
-		scope: 'all',
+		id: 'bs1',
+		enabled: true,
+		primaryRepositoryId: 'r1',
+		secondaryRepositoryId: '',
+		schedule: { cron: '0 3 * * *', timeZone: viewerZone },
+		excludeEnvironments: [],
 		excludeStacks: [],
 		excludeVolumes: [],
 		anonymousVolumes: false,
 		buildxVolumes: false,
 		externalBinds: false,
-		enabled: true,
-		view: 'full',
-		actions: [],
-		includeManagerState: false,
 		includeMetrics: false,
-		stacks: [],
-		volumes: [],
 		shutdown: false,
+		retention: {},
+		recentSets: [],
+		actions: [],
+		revision: 1,
+		updatedAt: '2026-09-26T00:00:00Z',
 		...over
 	};
 }
@@ -128,198 +129,134 @@ describe('retention presets', () => {
 	});
 });
 
-describe('policy pages', () => {
-	it('says what, where, when and how the last run went', () => {
-		const p = policy({
-			schedule: { cron: '0 3 * * *', timeZone: viewerZone, enabled: true },
-			recentSets: [set()]
-		});
-		expect(policySentence(p, { repository: 'B2', environmentName: envName, now })).toBe(
-			'Backs up all environments to B2 daily at 03:00. Last run completed 17 hours ago.'
+describe('the backup settings', () => {
+	it('says whether, where and when, and how the last run went', () => {
+		const st = settings({ recentSets: [set()] });
+		expect(settingsSentence(st, { primary: 'B2', now })).toBe(
+			'Backs up every environment to B2 daily at 03:00. Last run completed 17 hours ago.'
 		);
 		expect(
-			policySentence(
-				{
-					...p,
-					scope: 'environment',
-					environmentId: 'e1',
-					includeManagerState: true,
-					recentSets: [set({ state: 'partial' })]
-				},
-				{ environmentName: envName, now }
+			settingsSentence(
+				{ ...st, excludeEnvironments: ['e2'], recentSets: [set({ state: 'partial' })] },
+				{ primary: 'B2', secondary: 'NAS', now }
 			)
 		).toBe(
-			'Backs up prod and the manager state daily at 03:00. Last run partly failed 17 hours ago.'
+			'Backs up the covered environments to B2, then to NAS, daily at 03:00. Last run partly failed 17 hours ago.'
 		);
 		expect(
-			policySentence(
-				{ ...p, recentSets: [set({ state: 'skipped' })] },
-				{ repository: 'B2', environmentName: envName, now }
+			settingsSentence(
+				{ ...st, recentSets: [set({ state: 'skipped' })] },
+				{ primary: 'B2', now }
 			)
 		).toBe(
-			'Backs up all environments to B2 daily at 03:00. Last run 17 hours ago had nothing to back up: everything was removed before its turn.'
+			'Backs up every environment to B2 daily at 03:00. Last run 17 hours ago had nothing to back up: everything was removed before its turn.'
 		);
-		expect(
-			policySentence({ ...p, schedule: { ...p.schedule!, enabled: false }, recentSets: [] })
-		).toBe('Backs up all environments when you start it. It has not run yet.');
-		expect(policySentence(p, { running: true })).toBe(
-			'Backs up all environments daily at 03:00. A backup is running now.'
+		expect(settingsSentence({ ...st, enabled: false, recentSets: [] }, { primary: 'B2' })).toBe(
+			'Backs up every environment to B2 when you start them. Nothing has been backed up yet.'
+		);
+		expect(settingsSentence(st, { primary: 'B2', running: true })).toBe(
+			'Backs up every environment to B2 daily at 03:00. A backup is running now.'
+		);
+		expect(settingsSentence(st, {})).toBe(
+			'Backups are paused: no repository is the Primary one.'
 		);
 		// Shapes without words never show the raw expression.
 		expect(
-			policySentence({
-				...p,
-				schedule: { cron: '*/7 2-4 * 1 *', timeZone: viewerZone, enabled: true },
-				recentSets: []
-			})
-		).toBe('Backs up all environments on its schedule. It has not run yet.');
+			settingsSentence(
+				{
+					...st,
+					schedule: { cron: '*/7 2-4 * 1 *', timeZone: viewerZone },
+					recentSets: []
+				},
+				{ primary: 'B2' }
+			)
+		).toBe('Backs up every environment to B2 on its schedule. Nothing has been backed up yet.');
 	});
 
-	it('finds the next scheduled run of several policies', () => {
-		expect(
-			nextPolicyRun([
-				{
-					schedule: {
-						cron: '',
-						timeZone: 'UTC',
-						enabled: true,
-						nextRun: '2026-09-28T03:00:00Z'
-					}
-				},
-				{
-					schedule: {
-						cron: '',
-						timeZone: 'UTC',
-						enabled: false,
-						nextRun: '2026-09-27T04:00:00Z'
-					}
-				},
-				{
-					schedule: {
-						cron: '',
-						timeZone: 'UTC',
-						enabled: true,
-						nextRun: '2026-09-27T05:00:00Z'
-					}
-				},
-				{}
-			])
-		).toBe('2026-09-27T05:00:00Z');
-		expect(nextPolicyRun([])).toBeUndefined();
-	});
-
-	it('sums up what a policy covers', () => {
-		expect(coverageSummary(policy(), envName)).toEqual({
+	it('sums up what the backups cover', () => {
+		const envs = [{ id: 'e1' }, { id: 'e2' }, { id: 'old', status: 'archived' }];
+		expect(coverageSummary(settings(), envs)).toEqual({
 			value: 'All Environments',
-			secondary: 'Every stack and volume'
+			secondary: 'Manager state too'
 		});
 		expect(
 			coverageSummary(
-				policy({
-					scope: 'environment',
-					environmentId: 'e2',
+				settings({
+					excludeEnvironments: ['e1'],
 					excludeStacks: ['a'],
-					excludeVolumes: ['v'],
-					includeManagerState: true
+					excludeVolumes: ['e2/v']
 				}),
-				envName
+				envs
 			)
-		).toEqual({ value: 'edge', secondary: 'Manager state too; 2 left out' });
-		expect(
-			coverageSummary(policy({ stacks: [{ stackId: 'a' }, { stackId: 'b' }] }), envName)
-		).toEqual({ value: '2 stacks', secondary: 'Chosen one by one' });
+		).toEqual({ value: '1 of 2 Environments', secondary: 'Manager state too; 2 left out' });
 	});
 });
 
 describe('coverage of a stack or volume', () => {
-	it('covers what is in scope and not left out', () => {
-		const all = policy();
-		expect(policyCovers(all, { environmentId: 'e1', stackId: 'st1' })).toBe(true);
+	it('covers what is not left out, nor its environment', () => {
+		const st = settings();
+		expect(settingsCover(st, { environmentId: 'e1', stackId: 'st1' })).toBe(true);
 		expect(
-			policyCovers(
-				{ ...all, excludeStacks: ['st1'] },
+			settingsCover(
+				{ ...st, excludeStacks: ['st1'] },
 				{ environmentId: 'e1', stackId: 'st1' }
 			)
 		).toBe(false);
 		expect(
-			policyCovers(
-				{ ...all, scope: 'environment', environmentId: 'e2' },
+			settingsCover(
+				{ ...st, excludeEnvironments: ['e1'] },
 				{ environmentId: 'e1', stackId: 'st1' }
 			)
 		).toBe(false);
-		// Volumes are left out by environment/name when a policy covers all environments.
+		// Volumes are left out by environment/name.
 		expect(
-			policyCovers(
-				{ ...all, excludeVolumes: ['e1/data'] },
+			settingsCover(
+				{ ...st, excludeVolumes: ['e1/data'] },
 				{ environmentId: 'e1', volume: 'data' }
 			)
 		).toBe(false);
 		expect(
-			policyCovers(
-				{ ...all, scope: 'environment', environmentId: 'e1', excludeVolumes: ['data'] },
+			settingsCover(
+				{ ...st, excludeVolumes: ['e2/data'] },
 				{ environmentId: 'e1', volume: 'data' }
 			)
-		).toBe(false);
-		expect(policyCovers(all, { environmentId: 'e1', volume: 'data' })).toBe(true);
+		).toBe(true);
 	});
 
-	it('covers only what an explicit selection lists', () => {
-		const p = policy({
-			stacks: [{ stackId: 'st1' }],
-			volumes: [{ environmentId: 'e1', volume: 'up' }]
+	it('lists the runs that included the stack, newest first, a copy per repository', () => {
+		const member = (repositoryId: string, state: 'complete' | 'failed') => ({
+			item: 'stack/st1',
+			kind: 'stack' as const,
+			scope: 'env:e1',
+			repositoryId,
+			stackId: 'st1',
+			state
 		});
-		expect(policyCovers(p, { environmentId: 'e1', stackId: 'st1' })).toBe(true);
-		expect(policyCovers(p, { environmentId: 'e1', stackId: 'st2' })).toBe(false);
-		expect(policyCovers(p, { environmentId: 'e1', volume: 'up' })).toBe(true);
-		expect(policyCovers(p, { environmentId: 'e2', volume: 'up' })).toBe(false);
-	});
-
-	it('lists the runs that included the stack, newest first', () => {
 		const runs = memberRuns(
-			[
-				policy({
-					recentSets: [
-						set({
-							id: 'old',
-							startedAt: '2026-09-25T03:00:00Z',
-							members: [
-								{
-									item: 'stack/st1',
-									kind: 'stack',
-									scope: 'env:e1',
-									stackId: 'st1',
-									state: 'failed'
-								}
-							]
-						}),
-						set({
-							id: 'new',
-							startedAt: '2026-09-26T03:00:00Z',
-							members: [
-								{
-									item: 'stack/st1',
-									kind: 'stack',
-									scope: 'env:e1',
-									stackId: 'st1',
-									state: 'complete'
-								},
-								{
-									item: 'stack/st2',
-									kind: 'stack',
-									scope: 'env:e1',
-									stackId: 'st2',
-									state: 'complete'
-								}
-							]
-						})
-					]
-				})
-			],
+			settings({
+				recentSets: [
+					set({
+						id: 'old',
+						startedAt: '2026-09-25T03:00:00Z',
+						members: [member('r1', 'failed')]
+					}),
+					set({
+						id: 'new',
+						startedAt: '2026-09-26T03:00:00Z',
+						members: [
+							member('r1', 'complete'),
+							member('r2', 'complete'),
+							{ ...member('r1', 'complete'), item: 'stack/st2', stackId: 'st2' }
+						]
+					})
+				]
+			}),
 			{ environmentId: 'e1', stackId: 'st1' }
 		);
-		expect(runs.map((r) => [r.setId, r.member.state, r.policyName])).toEqual([
-			['new', 'complete', 'Daily Backups'],
-			['old', 'failed', 'Daily Backups']
+		expect(runs.map((r) => [r.setId, r.member.repositoryId, r.member.state])).toEqual([
+			['new', 'r1', 'complete'],
+			['new', 'r2', 'complete'],
+			['old', 'r1', 'failed']
 		]);
 	});
 });

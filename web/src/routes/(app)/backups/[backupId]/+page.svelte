@@ -235,6 +235,8 @@
 					<SetMembers
 						members={b.set.members}
 						environmentName={envName}
+						repositoryName={(id) =>
+							repos.data?.find((x) => x.id === id)?.name ?? 'a removed repository'}
 						currentId={b.id}
 					/>
 				</Card>

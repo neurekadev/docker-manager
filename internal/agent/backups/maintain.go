@@ -24,10 +24,10 @@ import (
 func (s *Service) stepForget(ctx context.Context, sc *jobexec.StepContext) error {
 	var in protocol.BackupRetentionInput
 	if err := json.Unmarshal(sc.Input, &in); err != nil {
-		return backup.Refuse(domain.ErrorRejected, "invalid retention input", "Run retention again from the policy.")
+		return backup.Refuse(domain.ErrorRejected, "invalid retention input", "Run retention again from the backup settings.")
 	}
 	if errs := in.Rules.Validate(); len(errs) > 0 {
-		return backup.Refuse(domain.ErrorRejected, "invalid retention rules", "Fix the policy's retention rules.")
+		return backup.Refuse(domain.ErrorRejected, "invalid retention rules", "Fix the retention rules in the backup settings.")
 	}
 	sc.Progress(ctx, 5, "opening the backup repository")
 	o, err := s.openForJob(ctx, sc, in.Repository, false)
@@ -35,7 +35,8 @@ func (s *Service) stepForget(ctx context.Context, sc *jobexec.StepContext) error
 		return err
 	}
 	sc.Progress(ctx, 10, "removing the backups the rules no longer keep")
-	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, in.Expire, in.TimeZone)
+	res, err := backup.ApplyRetention(ctx, o.Repo, backup.RetentionScope{PolicyID: in.PolicyID, AnyPolicy: in.AnyPolicy}, in.Rules, in.Expire,
+		in.TimeZone)
 	out := protocol.RetentionOutput{ResticRepositoryID: o.ResticRepositoryID, KeyGeneration: in.Repository.KeyGeneration,
 		Forgotten: res.Forgotten, Kept: res.Kept}
 	if serr := sc.SetOutput(ctx, out); serr != nil {

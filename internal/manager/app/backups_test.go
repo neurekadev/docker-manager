@@ -331,6 +331,40 @@ func (b *backupEnv) runJobs(r response) []string {
 	return ids
 }
 
+// backupSettingsJSON is the part of the backup settings tests read.
+type backupSettingsJSON struct {
+	ID                    string `json:"id"`
+	Enabled               bool   `json:"enabled"`
+	PrimaryRepositoryID   string `json:"primaryRepositoryId"`
+	SecondaryRepositoryID string `json:"secondaryRepositoryId"`
+	Revision              int64  `json:"revision"`
+	Schedule              struct {
+		NextRun *time.Time `json:"nextRun"`
+	} `json:"schedule"`
+}
+
+const backupSettingsPath = "/api/v1/backup-settings"
+
+// settings returns the backup settings, after applying patch as c when
+// set (If-Match from a fresh read).
+func (b *backupEnv) settings(c *client, patch map[string]any) backupSettingsJSON {
+	b.t.Helper()
+	var st backupSettingsJSON
+	c.must(http.StatusOK, http.MethodGet, backupSettingsPath, nil).json(b.t, &st)
+	if patch != nil {
+		c.must(http.StatusOK, http.MethodPatch, backupSettingsPath, patch, etag(st.Revision)).json(b.t, &st)
+	}
+	return st
+}
+
+// settingsFail requires patching the backup settings as c to fail.
+func (b *backupEnv) settingsFail(c *client, status int, code string, patch map[string]any) {
+	b.t.Helper()
+	var st backupSettingsJSON
+	c.must(http.StatusOK, http.MethodGet, backupSettingsPath, nil).json(b.t, &st)
+	c.fail(status, code, http.MethodPatch, backupSettingsPath, patch, etag(st.Revision))
+}
+
 func TestBackupsThroughTheAPI(t *testing.T) {
 	b := newBackupEnv(t)
 	owner, _ := b.setupOwner()
@@ -354,11 +388,14 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories/"+id, nil)
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories", nil)
 
-	// Policies cannot be enabled before the key is confirmed.
-	policy := map[string]any{"name": "Nightly", "scope": "environment", "environmentId": env, "repositoryId": id, "includeManagerState": true,
-		"schedule":  map[string]any{"cron": "0 2 * * *", "timeZone": "UTC", "enabled": true},
+	// The first repository became the Primary one; backups cannot be
+	// turned on before its key is confirmed.
+	settings := map[string]any{"enabled": true, "schedule": map[string]any{"cron": "0 2 * * *", "timeZone": "UTC"},
 		"retention": map[string]any{"daily": 7, "minKeep": 2}}
-	owner.fail(http.StatusConflict, "recovery_key_not_confirmed", http.MethodPost, "/api/v1/backup-policies", policy)
+	if st := b.settings(owner, nil); st.PrimaryRepositoryID != id || st.SecondaryRepositoryID != "" || st.Enabled {
+		t.Fatalf("settings after the first repository %+v", st)
+	}
+	b.settingsFail(owner, http.StatusConflict, "recovery_key_not_confirmed", settings)
 
 	// The re-entry challenge.
 	confirm := "/api/v1/backup-repositories/" + id + "/recovery-confirmations"
@@ -396,33 +433,22 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 		t.Errorf("connection test %+v", test)
 	}
 
-	var pol struct {
-		ID       string `json:"id"`
-		Enabled  bool   `json:"enabled"`
-		Schedule struct {
-			NextRun *time.Time `json:"nextRun"`
-		} `json:"schedule"`
-	}
-	// The create wizard previews its draft before anything is saved.
+	// The edit dialog previews its draft before anything is saved.
 	var draft struct {
 		Environments []struct {
 			ErrorClass string `json:"errorClass"`
 			Items      []protocol.ScopePreviewItem
 		} `json:"environments"`
 	}
-	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-policy-scope-previews", policy).json(t, &draft)
-	if len(draft.Environments) != 1 || draft.Environments[0].ErrorClass != "" || len(draft.Environments[0].Items) != 2 {
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-settings/scope-previews",
+		map[string]any{"draft": map[string]any{"excludeStacks": []string{b.stackID}}}).json(t, &draft)
+	if len(draft.Environments) != 1 || draft.Environments[0].ErrorClass != "" || len(draft.Environments[0].Items) != 1 {
 		t.Fatalf("draft preview %+v", draft)
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", policy).json(t, &pol)
-	if !pol.Enabled {
-		t.Fatalf("policy %+v", pol)
+	pol := b.settings(owner, settings)
+	if !pol.Enabled || pol.Schedule.NextRun == nil {
+		t.Fatalf("settings %+v", pol)
 	}
-	owner.fail(http.StatusConflict, "backup_scope_overlap", http.MethodPost, "/api/v1/backup-policies",
-		map[string]any{"name": "Overlapping", "scope": "all", "repositoryId": id})
-	// A draft overlapping the saved policy is refused before it is saved.
-	owner.fail(http.StatusConflict, "backup_scope_overlap", http.MethodPost, "/api/v1/backup-policy-scope-previews",
-		map[string]any{"name": "Overlapping", "scope": "all", "repositoryId": id})
 
 	// Scope preview from the agent.
 	var pv struct {
@@ -435,14 +461,14 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 			Items         []protocol.ScopePreviewItem
 		} `json:"environments"`
 	}
-	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/scope-previews", nil).json(t, &pv)
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-settings/scope-previews", nil).json(t, &pv)
 	if pv.Manager == nil || pv.Manager.MetricsIncluded || len(pv.Environments) != 1 || pv.Environments[0].ErrorClass != "" ||
 		len(pv.Environments[0].Items) != 2 {
 		t.Fatalf("preview %+v", pv)
 	}
 
 	// Run it: one job for the environment, then the manager backup.
-	jobs := b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
+	jobs := b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil))
 	if len(jobs) != 2 {
 		t.Fatalf("jobs %v", jobs)
 	}
@@ -617,7 +643,7 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 			Forget int `json:"forget"`
 		} `json:"locations"`
 	}
-	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/retention-previews", nil).json(t, &rp)
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-settings/retention-previews", nil).json(t, &rp)
 	if len(rp.Locations) != 2 || rp.Locations[0].Forget != 0 {
 		t.Errorf("retention preview %+v", rp)
 	}
@@ -638,7 +664,7 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 
 	// Nothing secret reached audit, jobs or the index.
 	b.secrets.AssertClean(t, "stored rows", b.tableDump("audit_events", "jobs", "job_events", "backup_sets", "backup_snapshots",
-		"backup_locations", "backup_policies"))
+		"backup_locations", "backup_settings"))
 	// Key administration is audited by fingerprint.
 	var created, confirmed bool
 	for _, row := range b.auditRows() {
@@ -700,12 +726,8 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 	id := repo.Repository.ID
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Data", "scope": "all", "repositoryId": id,
-		"includeManagerState": true}).json(t, &pol)
-	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
+	b.settings(owner, nil)
+	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil))
 	var page struct {
 		Items []struct {
 			ID   string `json:"id"`
@@ -734,9 +756,8 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
 	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backup-repositories/"+id+"/key-rotations", nil)
-	// Including the manager state is owner-only.
-	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "X", "scope": "all", "repositoryId": id,
-		"includeManagerState": true})
+	// Viewing the backup settings is not changing them.
+	b.settingsFail(rita, http.StatusForbidden, "forbidden", map[string]any{"includeMetrics": true})
 	// And API tokens never reach Recovery Key administration.
 	_, secret := rita.createToken("ci", "allow backup_repository.manage @all")
 	b.secrets.Register(canary.APIToken, "token", secret)
@@ -794,7 +815,7 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 		}
 	}
 	// Old snapshots still open with the new key.
-	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
+	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil))
 }
 
 // TestRestoresThroughTheAPI: previews and restores of a volume, a stack's
@@ -808,12 +829,8 @@ func TestRestoresThroughTheAPI(t *testing.T) {
 	id := repo.Repository.ID
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "All", "scope": "all", "repositoryId": id,
-		"includeManagerState": true}).json(t, &pol)
-	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
+	b.settings(owner, nil)
+	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil))
 	var page struct {
 		Items []struct {
 			ID   string `json:"id"`
@@ -1044,11 +1061,7 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	id := repo.Repository.ID
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Vols", "scope": "environment", "environmentId": b.agent.env, "repositoryId": id,
-		"excludeStacks": []string{b.stackID}}).json(t, &pol)
+	b.settings(owner, map[string]any{"excludeStacks": []string{b.stackID}})
 	// The volume is discoverable, but its data path is unavailable until the retry.
 	b.fe.AddVolume("later", nil)
 	type run struct {
@@ -1066,14 +1079,14 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 		} `json:"jobs"`
 	}
 	var first, again run
-	r := owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil, header("Idempotency-Key", "nightly-1"))
+	r := owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil, header("Idempotency-Key", "nightly-1"))
 	r.json(t, &first)
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil, header("Idempotency-Key", "nightly-1")).json(t, &again)
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil, header("Idempotency-Key", "nightly-1")).json(t, &again)
 	if again.Set.ID != first.Set.ID || len(again.Jobs) != 1 || again.Jobs[0].ID != first.Jobs[0].ID {
 		t.Fatalf("repeated request: %+v vs %+v", again, first)
 	}
 	// Another run while this one is queued is refused, not queued behind it.
-	owner.fail(http.StatusConflict, "backup_run_active", http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)
+	owner.fail(http.StatusConflict, "backup_run_active", http.MethodPost, "/api/v1/backup-settings/runs", nil)
 	if got := b.runJob(first.Jobs[0].ID); got.State != domain.JobPartial {
 		t.Fatalf("job state %s", got.State)
 	}
@@ -1100,7 +1113,7 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	writeFile(t, filepath.Join(later, "x"), "x")
 	b.fe.SetVolumeMountpoint("later", filepath.ToSlash(later))
 	var retry run
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", map[string]any{"retrySetId": first.Set.ID}).json(t, &retry)
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", map[string]any{"retrySetId": first.Set.ID}).json(t, &retry)
 	if retry.Set.ID != first.Set.ID || len(retry.Jobs) != 1 {
 		t.Fatalf("retry %+v", retry)
 	}
@@ -1111,13 +1124,13 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	if set.Set.State != "complete" {
 		t.Fatalf("after retry: %s", set.Set.State)
 	}
-	owner.fail(http.StatusConflict, "nothing_to_retry", http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", map[string]any{"retrySetId": first.Set.ID})
+	owner.fail(http.StatusConflict, "nothing_to_retry", http.MethodPost, "/api/v1/backup-settings/runs", map[string]any{"retrySetId": first.Set.ID})
 }
 
-// TestScheduledBackupSurvivesCreatorRemoval (#10 Done-when 1): a policy
-// and its snapshots belong to the instance; the scheduled run proceeds as
-// the service identity after the user who created the policy is deleted,
-// and the history stays visible to users with the scope.
+// TestScheduledBackupSurvivesCreatorRemoval (#10 Done-when 1): the backup
+// settings and the snapshots belong to the instance; the scheduled run
+// proceeds as the service identity after the user who configured it is
+// deleted, and the history stays visible to users with the scope.
 func TestScheduledBackupSurvivesCreatorRemoval(t *testing.T) {
 	b := newBackupEnv(t)
 	owner, _ := b.setupOwner()
@@ -1128,12 +1141,8 @@ func TestScheduledBackupSurvivesCreatorRemoval(t *testing.T) {
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
 	rita, ritaID := b.opsUser(owner, "allow backup_policy.manage @all", "allow backup_policy.read @all", "allow backup.run @all",
 		"allow backup.read @all")
-	var pol struct {
-		ID string `json:"id"`
-	}
-	rita.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Rita's", "scope": "environment", "environmentId": b.agent.env, "repositoryId": id,
-		"excludeStacks": []string{b.stackID},
-		"schedule":      map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC", "enabled": true}}).json(t, &pol)
+	pol := b.settings(rita, map[string]any{"enabled": true, "excludeStacks": []string{b.stackID},
+		"schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC"}})
 	ctx := testutil.Context(t)
 	if err := b.m.Scheduler().Tick(ctx); err != nil {
 		t.Fatal(err)
@@ -1226,13 +1235,7 @@ func TestBackupCompressionPerRepository(t *testing.T) {
 				t.Errorf("default compression = %q", auto.Repository.Compression)
 			}
 
-			policy := map[string]any{"name": "Nightly", "scope": "environment", "environmentId": env, "repositoryId": id, "includeManagerState": true,
-				"schedule": map[string]any{"cron": "0 2 * * *", "timeZone": "UTC", "enabled": true}, "retention": map[string]any{"daily": 7, "minKeep": 2}}
-			var pol struct {
-				ID string `json:"id"`
-			}
-			owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", policy).json(t, &pol)
-			if jobs := b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 2 {
+			if jobs := b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil)); len(jobs) != 2 {
 				t.Fatalf("jobs %v", jobs)
 			}
 			var manager, agent int

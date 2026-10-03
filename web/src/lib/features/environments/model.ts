@@ -107,7 +107,6 @@ type Dependent = Schema<'RemovalDependentKind'>;
 const DEPENDENT_NOUNS: Record<Dependent['kind'], [string, string]> = {
 	stack: ['stack', 'stacks'],
 	managed_container: ['managed container', 'managed containers'],
-	backup_policy: ['backup policy', 'backup policies'],
 	backup_repository: ['backup repository', 'backup repositories'],
 	backup_set: ['backup set', 'backup sets'],
 	registry_connection: ['registry connection', 'registry connections'],

@@ -140,11 +140,8 @@ export const routes = {
 	/** restic's own snapshots (a repository page's "Raw snapshots"), optionally of one repository. */
 	backupSnapshots: (repositoryId?: string) =>
 		`/backups/snapshots${repositoryId ? `?repository=${e(repositoryId)}` : ''}`,
-	backupPolicies: () => '/backups/policies',
-	/** The Backups overview with the create-policy wizard open. */
-	backupPolicyNew: () => '/backups?create=1',
-	backupPolicy: (id: string) => `/backups/policies/${e(id)}`,
-	backupPolicyEdit: (id: string) => `/backups/policies/${e(id)}?edit=1`,
+	/** The Backups overview with the backup settings open. */
+	backupsEdit: () => '/backups?edit=1',
 	backupRepositories: () => '/backups/repositories',
 	backupRepositoryNew: () => '/backups/repositories/new',
 	backupRepository: (id: string) => `/backups/repositories/${e(id)}`,

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -247,23 +248,31 @@ type BackupRetention struct {
 	// once its newest backup is this many days old (0 = off, the default).
 	ExpireDeletedDays int
 	// AfterBackup applies retention automatically after every finished
-	// backup run of the policy.
+	// backup run.
 	AfterBackup bool
 }
 
 // MaxExpireDeletedDays bounds BackupRetention.ExpireDeletedDays.
 const MaxExpireDeletedDays = 3650
 
-// BackupPolicy is a backup policy (instance resource).
-type BackupPolicy struct {
-	ID   string
-	Name string
-	// EnvironmentID is empty for All Environments. Every managed stack and
-	// standalone volume in scope is selected at preview/run time.
-	EnvironmentID string
-	ExcludeStacks []string
-	// ExcludeVolumes contains names for a single environment and
-	// environmentID/volumeName for All Environments. It applies to
+// BackupSetup is the one backup setup (#246): it backs up every managed
+// stack and standalone volume of every environment it does not leave out,
+// and the manager state, to the Primary repository and then the Secondary
+// one. Sets, snapshots and jobs carry its ID as their policy ID (restic
+// tag policy:<id>).
+type BackupSetup struct {
+	ID      string
+	Enabled bool
+	// PrimaryRepositoryID is where every run backs up first ("" when none:
+	// runs are refused). SecondaryRepositoryID ("" for none) gets a second,
+	// independent copy afterwards.
+	PrimaryRepositoryID   string
+	SecondaryRepositoryID string
+	// ExcludeEnvironments are left out (unknown IDs are ignored); every
+	// other environment is covered, also ones added later.
+	ExcludeEnvironments []string
+	ExcludeStacks       []string
+	// ExcludeVolumes are environmentID/volumeName. They apply to
 	// standalone volumes and to the volumes of every selected stack.
 	ExcludeVolumes []string
 	// AnonymousVolumes also backs up anonymous volumes (default off): those
@@ -275,35 +284,69 @@ type BackupPolicy struct {
 	// ExternalBinds also backs up the selected stacks' bind sources outside
 	// their project directories (default off); each agent still backs up
 	// only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST.
-	ExternalBinds bool
-	// RepositoryID is the destination of every scope; EnvironmentRepos
-	// overrides it per environment.
-	RepositoryID     string
-	EnvironmentRepos map[string]string
-	IncludeManager   bool
-	IncludeMetrics   bool
-	Stacks           []BackupStackSelection
-	Volumes          []BackupVolumeSelection
+	ExternalBinds  bool
+	IncludeMetrics bool
 	// Shutdown stops the affected containers during backups (default off).
 	Shutdown  bool
 	Cron      string
 	TimeZone  string
-	Enabled   bool
 	Retention BackupRetention
 	Revision  int64
-	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// RepositoryFor returns the repository of a scope environment ("" for the
-// manager scope).
-func (p BackupPolicy) RepositoryFor(environmentID string) string {
-	if environmentID != "" {
-		if r, ok := p.EnvironmentRepos[environmentID]; ok && r != "" {
-			return r
+// Repositories returns the repositories runs write to, Primary first.
+func (s BackupSetup) Repositories() []string {
+	var out []string
+	for _, id := range []string{s.PrimaryRepositoryID, s.SecondaryRepositoryID} {
+		if id != "" {
+			out = append(out, id)
 		}
 	}
-	return p.RepositoryID
+	return out
+}
+
+// Excludes reports whether the setup leaves the environment out.
+func (s BackupSetup) Excludes(environmentID string) bool {
+	return slices.Contains(s.ExcludeEnvironments, environmentID)
+}
+
+// BackupSetupPatch edits the setup (nil = unchanged).
+type BackupSetupPatch struct {
+	Enabled               *bool
+	PrimaryRepositoryID   *string
+	SecondaryRepositoryID *string
+	ExcludeEnvironments   *[]string
+	ExcludeStacks         *[]string
+	ExcludeVolumes        *[]string
+	AnonymousVolumes      *bool
+	BuildxVolumes         *bool
+	ExternalBinds         *bool
+	IncludeMetrics        *bool
+	Shutdown              *bool
+	Cron                  *string
+	TimeZone              *string
+	Retention             *BackupRetention
+}
+
+// The roles of a repository in the setup.
+const (
+	BackupRolePrimary   = "primary"
+	BackupRoleSecondary = "secondary"
+)
+
+// RoleOf returns the repository's role ("" when the setup does not write
+// to it).
+func (s BackupSetup) RoleOf(repositoryID string) string {
+	switch repositoryID {
+	case "":
+		return ""
+	case s.PrimaryRepositoryID:
+		return BackupRolePrimary
+	case s.SecondaryRepositoryID:
+		return BackupRoleSecondary
+	}
+	return ""
 }
 
 // BackupSetMember is one planned snapshot of a set.
@@ -395,12 +438,11 @@ type BackupSnapshotFilter struct {
 var (
 	ErrBackupRepositoryNotFound = errors.New("backup repository not found")
 	ErrBackupRepositoryNameUsed = errors.New("backup repository name is taken")
-	ErrBackupRepositoryInUse    = errors.New("backup repository is used by a policy")
-	ErrBackupPolicyNotFound     = errors.New("backup policy not found")
-	ErrBackupPolicyNameUsed     = errors.New("backup policy name is taken")
-	ErrBackupScopeOverlap       = errors.New("a backup policy already covers this environment")
-	ErrBackupNotFound           = errors.New("backup not found")
-	ErrBackupSetNotFound        = errors.New("backup set not found")
+	// ErrBackupNoPrimary: the setup has no Primary repository, so nothing
+	// can be backed up.
+	ErrBackupNoPrimary   = errors.New("no Primary backup repository is set")
+	ErrBackupNotFound    = errors.New("backup not found")
+	ErrBackupSetNotFound = errors.New("backup set not found")
 	// ErrRecoveryKeyMismatch: the re-entered Recovery Key does not match.
 	ErrRecoveryKeyMismatch = errors.New("the Recovery Key does not match")
 	// ErrRecoveryKeyMalformed: the input is not a well-formed Recovery Key
@@ -413,12 +455,12 @@ var (
 	ErrKeyRotationInProgress = errors.New("a Recovery Key rotation is still in progress")
 )
 
-// BackupRunActiveError refuses a manual run while a run of the same policy
-// (manual or scheduled) is still queued or running: a second run would only
+// BackupRunActiveError refuses a manual run while a run (manual or
+// scheduled) is still queued or running: a second run would only
 // queue behind it and back up the same data again right after. Retrying a
 // set's failed members is still allowed.
 type BackupRunActiveError struct{ JobID string }
 
 func (e *BackupRunActiveError) Error() string {
-	return "a backup of this policy is still queued or running (job " + e.JobID + ")"
+	return "a backup is still queued or running (job " + e.JobID + ")"
 }

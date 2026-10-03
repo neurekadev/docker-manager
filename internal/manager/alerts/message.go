@@ -51,6 +51,8 @@ func Link(a domain.Alert) string {
 		}
 	case domain.NotifyUpdates:
 		return updatePolicyPath(a.Facts["policyId"])
+	case domain.NotifyBackup:
+		return "/backups"
 	}
 	return "/notifications?tab=alerts"
 }
@@ -478,7 +480,9 @@ func Detail(a domain.Alert) string {
 		}
 		return who + " did not finish successfully. " + why
 	case domain.NotifyUpdates:
-		return "A check found newer images. To install them, open the update policy and press Preview Updates, then Apply Updates."
+		return "A check found newer images. To install them, open Updates and press Preview Updates, then Apply Updates."
+	case domain.NotifyBackup:
+		return "Backups are on, but no repository is the Primary one, so nothing is backed up. Open Backups and make a repository the Primary one."
 	}
 	return ""
 }
@@ -517,6 +521,8 @@ func resolvedDetail(a domain.Alert) string {
 		return "The next run succeeded."
 	case domain.NotifyUpdates:
 		return "No update is left."
+	case domain.NotifyBackup:
+		return "Backups have a Primary repository again, or were turned off."
 	}
 	return "The problem is gone."
 }

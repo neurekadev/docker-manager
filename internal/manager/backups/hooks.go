@@ -161,7 +161,7 @@ func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, s
 	}
 	for i := range set.Members {
 		m := &set.Members[i]
-		if m.Scope != scope || !items[m.Item] {
+		if m.RepositoryID != repositoryID || m.Scope != scope || !items[m.Item] {
 			continue
 		}
 		m.JobID = j.ID
@@ -188,7 +188,9 @@ func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, s
 			m.State, m.ErrorClass = backup.StateFailed, jobClass(j)
 		}
 	}
-	if manifestID != "" {
+	// Each repository holds its own manifest of the set; the index keeps
+	// the first one written (the Primary's, unless it failed).
+	if manifestID != "" && set.ManifestSnapshotID == "" {
 		set.ManifestSnapshotID = manifestID
 	}
 	wasPending := set.State == backup.StatePending

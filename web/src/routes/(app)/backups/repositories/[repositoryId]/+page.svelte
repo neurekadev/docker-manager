@@ -11,11 +11,14 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Camera from '@lucide/svelte/icons/camera';
+	import CircleOff from '@lucide/svelte/icons/circle-off';
+	import Copy from '@lucide/svelte/icons/copy';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import PlugZap from '@lucide/svelte/icons/plug-zap';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
+	import Star from '@lucide/svelte/icons/star';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
@@ -69,6 +72,7 @@
 		ratioText,
 		repositoryLocation,
 		repositoryStatusLine,
+		roleLabel,
 		scopeName,
 		sentenceCase,
 		verificationText,
@@ -78,6 +82,7 @@
 	} from '$lib/features/backups/model';
 	import {
 		backupKeys,
+		backupSettingsQuery,
 		repositoryHealthQuery,
 		repositoryQuery
 	} from '$lib/features/backups/queries';
@@ -95,6 +100,67 @@
 	}));
 	const envs = createQuery(() => environmentsQuery());
 	const envName = (e: string) => environmentName(envs.data, e);
+	// The backup settings: the repository's role and the actions changing it.
+	const settings = createQuery(() => backupSettingsQuery());
+
+	/** Sets the Primary and Secondary repositories (one settings change). */
+	async function setRoles(r: BackupRepository, primary: string, secondary: string, done: string) {
+		const st = settings.data;
+		if (!st) return;
+		try {
+			const saved = await unwrap(
+				api.PATCH('/api/v1/backup-settings', {
+					params: { header: { 'If-Match': ifMatch(st.revision) } },
+					body: { primaryRepositoryId: primary, secondaryRepositoryId: secondary }
+				})
+			);
+			qc.setQueryData(backupKeys.settings(), saved);
+			await qc.invalidateQueries({ queryKey: ['backups'] });
+			toast.success(done);
+		} catch (e) {
+			toast.error(`The role of ${r.name} did not change`, {
+				body: actionError(e, {
+					recovery_key_not_confirmed:
+						'Confirm the Recovery Key of this repository first: backups are on.',
+					precondition_failed: 'The backup settings changed meanwhile. Try again.'
+				})
+			});
+		}
+	}
+
+	function roleActions(r: BackupRepository): MenuEntry[] {
+		const st = settings.data;
+		if (!st || !has(st, 'backup_policy.manage')) return [];
+		const p = st.primaryRepositoryId;
+		const s = st.secondaryRepositoryId;
+		const items: MenuEntry[] = [];
+		if (r.role !== 'primary')
+			items.push({
+				label: 'Make Primary',
+				icon: Star,
+				// The Primary becomes the Secondary when this one was it.
+				onSelect: () =>
+					setRoles(
+						r,
+						r.id,
+						r.role === 'secondary' ? p : s,
+						`${r.name} is the Primary repository now`
+					)
+			});
+		if (r.role !== 'secondary' && p && r.id !== p)
+			items.push({
+				label: 'Make Secondary',
+				icon: Copy,
+				onSelect: () => setRoles(r, p, r.id, `${r.name} is the Secondary repository now`)
+			});
+		if (r.role === 'secondary')
+			items.push({
+				label: 'Stop Using as Secondary',
+				icon: CircleOff,
+				onSelect: () => setRoles(r, p, '', `Backups no longer go to ${r.name}`)
+			});
+		return items;
+	}
 	// Verifications of the repository's locations.
 	const verifications = useTrackedJobs(() => (id ? verifyMatch(id) : null));
 
@@ -220,21 +286,17 @@
 				})
 			);
 		} catch (e) {
-			throw new Error(
-				actionError(e, {
-					backup_repository_in_use:
-						'A backup policy uses this repository. Change or delete that policy first.'
-				}),
-				{ cause: e }
-			);
+			throw new Error(actionError(e), { cause: e });
 		}
 		toast.success(`Removed backup repository ${r.name}`);
 		await qc.invalidateQueries({ queryKey: ['backups'] });
+		await qc.invalidateQueries({ queryKey: ['policies'] });
 		await goto(routes.backupRepositories());
 	}
 
 	function menuFor(r: BackupRepository): MenuEntry[] {
-		const items: MenuEntry[] = [];
+		const items: MenuEntry[] = [...roleActions(r)];
+		if (items.length) items.push({ separator: true });
 		if (has(r, 'backup_repository.manage'))
 			items.push({ label: 'Edit Repository', icon: Pencil, onSelect: () => openEdit(r) });
 		if (owner && r.state === 'ready')
@@ -328,6 +390,7 @@
 							tone="warn"
 							dot>Awaiting Key Confirmation</Badge
 						>{/if}
+					{#if roleLabel(r.role)}<Badge tone="accent">{roleLabel(r.role)}</Badge>{/if}
 				{/snippet}
 				{#snippet actions()}
 					{#if manage}
@@ -580,7 +643,15 @@
 					'Docker Manager stops using this destination and forgets its settings and S3 credentials.',
 					'Its backups leave the Backups lists: without the repository they can no longer be browsed or restored here.',
 					'The backups stored at the destination are left untouched.',
-					'Policies must not use it: change them first.'
+					...(r.role === 'primary'
+						? [
+								settings.data?.secondaryRepositoryId
+									? 'The Secondary repository becomes the Primary one.'
+									: 'Backups stop until you make another repository the Primary one.'
+							]
+						: r.role === 'secondary'
+							? ['Backups no longer make a second copy.']
+							: [])
 				]}
 				confirmText={r.name}
 				confirmLabel="Remove Repository"
