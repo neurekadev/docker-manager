@@ -295,17 +295,31 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// importRepositoryID is the Docker Manager repository the imported manager
-// state lives in (the manager member of the newest set manifest).
-func importRepositoryID(sets []backup.Manifest) string {
+// importRepositoryID is the Docker Manager repository at the destination:
+// the repository of the newest manager-state member whose snapshot the
+// destination's manager scope holds (snaps). A set backed up to a Primary
+// and a Secondary repository (#246) names both; the destination is one of
+// them. Without such a member, the first manager member's.
+func importRepositoryID(sets []backup.Manifest, snaps []restic.Snapshot) string {
+	here := map[string]bool{}
+	for _, sn := range snaps {
+		here[sn.ID] = true
+	}
+	first := ""
 	for _, m := range sets {
 		for _, mem := range m.Members {
-			if mem.Kind == backup.MemberManagerState && mem.RepositoryID != "" {
+			if mem.Kind != backup.MemberManagerState || mem.RepositoryID == "" {
+				continue
+			}
+			if here[mem.SnapshotID] {
 				return mem.RepositoryID
+			}
+			if first == "" {
+				first = mem.RepositoryID
 			}
 		}
 	}
-	return ""
+	return first
 }
 
 func repositoryRefOf(sets []backup.Manifest, id string) backup.RepositoryRef {
@@ -347,8 +361,7 @@ func (s *Service) listImportScopes(ctx context.Context, src ImportSource, sec im
 
 // importHosts lists the host locations the sets name, plus scopes found at
 // the destination, and opens the reachable ones.
-func (s *Service) importHosts(ctx context.Context, src ImportSource, sec importSecrets, sets []backup.Manifest) []ImportLocation {
-	repoID := importRepositoryID(sets)
+func (s *Service) importHosts(ctx context.Context, src ImportSource, sec importSecrets, sets []backup.Manifest, repoID string) []ImportLocation {
 	seen := map[string]bool{}
 	var out []ImportLocation
 	for _, m := range sets {
@@ -418,13 +431,14 @@ func (s *Service) TestImport(ctx context.Context, src ImportSource) (ImportConne
 	out.Manager = s.probeImportScope(ctx, src, sec, ImportLocation{Scope: backup.ScopeManager, Repository: src.Destination.Repository(backup.ScopeManager),
 		Reachable: true})
 	var sets []backup.Manifest
+	var managerSnaps []restic.Snapshot
 	switch {
 	case out.Manager.repo != nil:
 		scan, err := scanManifests(ctx, out.Manager.repo, importMaxSets, isSetManifest)
 		if err != nil {
 			problem("The manager repository's snapshots could not be listed (" + restic.CodeOf(err) + ").")
 		}
-		sets = scan.manifests
+		sets, managerSnaps = scan.manifests, scan.snaps
 		out.Sets = len(sets)
 		if len(scan.corrupt) > 0 {
 			note(fmt.Sprintf("%d backup set manifest(s) are damaged; those sets cannot be imported. %s", len(scan.corrupt), guideManifest))
@@ -443,7 +457,7 @@ func (s *Service) TestImport(ctx context.Context, src ImportSource) (ImportConne
 	default:
 		problem("The manager repository could not be read (" + out.Manager.ErrorClass + "): " + restic.RecoveryFor(out.Manager.ErrorClass))
 	}
-	out.Locations = s.importHosts(ctx, src, sec, sets)
+	out.Locations = s.importHosts(ctx, src, sec, sets, importRepositoryID(sets, managerSnaps))
 	for _, l := range out.Locations {
 		switch {
 		case !l.Reachable:
@@ -543,7 +557,8 @@ func (s *Service) previewImport(ctx context.Context, src ImportSource, setID str
 			return pv, sec, importFailure(err, pv.Manager.Repository)
 		}
 	}
-	pv.Locations = s.importHosts(ctx, src, sec, mscan.manifests)
+	repoID := importRepositoryID(mscan.manifests, mscan.snaps)
+	pv.Locations = s.importHosts(ctx, src, sec, mscan.manifests, repoID)
 	if pv.Manager.repo == nil {
 		switch pv.Manager.ErrorClass {
 		case restic.CodeKeyRejected:
@@ -586,7 +601,9 @@ func (s *Service) previewImport(ctx context.Context, src ImportSource, setID str
 			return LocatedNotBackedUp
 		}
 		if mem.Scope == backup.ScopeManager {
-			if pv.Manager.repo == nil {
+			if pv.Manager.repo == nil || mem.RepositoryID != repoID {
+				// The other copy of the manager state lives in another
+				// repository.
 				return LocatedUnverified
 			}
 			if managerSnaps[mem.SnapshotID] {
@@ -625,7 +642,7 @@ func (s *Service) previewImport(ctx context.Context, src ImportSource, setID str
 		}
 		for _, mem := range members {
 			im := ImportMember{Member: mem, EnvironmentName: envNames[mem.EnvironmentID], Located: located(mem)}
-			if mem.Kind == backup.MemberManagerState {
+			if mem.Kind == backup.MemberManagerState && (mem.RepositoryID == repoID || set.RepositoryID == "") {
 				set.RepositoryID, set.ManagerSnapshotID, set.ManagerSnapshotTime = mem.RepositoryID, mem.SnapshotID, mem.SnapshotTime
 				if im.Located != LocatedFound {
 					set.ManagerSnapshotID = ""
@@ -784,9 +801,10 @@ func snapshotPath(p string) string {
 	return p
 }
 
+// managerMember is the set's manager-state member at the destination.
 func managerMember(set ImportSet) (ImportMember, bool) {
 	for _, m := range set.Members {
-		if m.Kind == backup.MemberManagerState {
+		if m.Kind == backup.MemberManagerState && m.RepositoryID == set.RepositoryID {
 			return m, true
 		}
 	}

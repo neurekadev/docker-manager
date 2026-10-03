@@ -215,6 +215,11 @@ const FeatureBackupActivity = "backup.activity"
 // waits until the agent is updated.
 const FeatureBackupExpire = "backup.expire"
 
+// FeatureBackupAnyPolicy is the capabilities feature of agents that accept
+// BackupRetentionInput.AnyPolicy. Older agents apply retention to the
+// backups tagged with the setup's policy ID only.
+const FeatureBackupAnyPolicy = "backup.retention_any_policy"
+
 // FeatureBackupCompression is the capabilities feature of agents that
 // accept a destination's compression mode (backup.Destination.Compression)
 // in backup.run and backup.retention inputs (#10). The manager adds it at
@@ -321,6 +326,11 @@ type BackupRetentionInput struct {
 	// than the policy's expiry. Sent only to agents announcing
 	// FeatureBackupExpire.
 	Expire []string `json:"expire,omitempty"`
+	// AnyPolicy applies the rules to every Docker Manager backup of the
+	// location (any policy tag), not only PolicyID's: the backup setup
+	// (#246) also retires the backups of earlier policies. Sent only to
+	// agents announcing FeatureBackupAnyPolicy.
+	AnyPolicy bool `json:"anyPolicy,omitempty"`
 }
 
 // RetentionOutput is the result output of the retention kinds.

@@ -56,11 +56,16 @@ type CreatedRepository struct {
 	Repository  domain.BackupRepository
 	RecoveryKey *RecoveryKey
 	Key         domain.BackupKeyState
+	// Primary: the setup had no Primary repository; this one became it.
+	Primary bool
 }
 
 // CreateRepository stores a destination. While the instance has no
 // Recovery Key, creating the first repository generates one (owner only);
-// every repository starts awaiting confirmation of the key.
+// every repository starts awaiting confirmation of the key. While the setup
+// is off and has no Primary repository, the new one becomes it (with
+// backups on, a Primary must be ready: the user picks it once confirmed,
+// and backups stay paused until then).
 func (s *Service) CreateRepository(ctx context.Context, in domain.BackupRepositoryInput) (CreatedRepository, error) {
 	name, err := validName(in.Name)
 	if err != nil {
@@ -103,6 +108,7 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 	}
 	r.CredentialFingerprint = s.opts.Keyring.Fingerprint([]byte(in.AccessKeyID+"\x00"+in.SecretAccessKey), "backup_repositories/"+r.ID+"/credentials")
 	var out CreatedRepository
+	var setup domain.BackupSetup
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		rec, found, err := store.GetBackupKey(ctx, tx)
 		if err != nil {
@@ -123,10 +129,20 @@ func (s *Service) CreateRepository(ctx context.Context, in domain.BackupReposito
 			return err
 		}
 		out.Repository, out.Key = r, rec.State
-		return nil
+		if setup, err = store.GetBackupSetup(ctx, tx); err != nil || setup.PrimaryRepositoryID != "" || setup.Enabled {
+			return err
+		}
+		rev := setup.Revision
+		setup.PrimaryRepositoryID, setup.Revision, setup.UpdatedAt = r.ID, rev+1, now
+		out.Primary = true
+		return store.UpdateBackupSetup(ctx, tx, setup, rev)
 	})
 	if err != nil {
 		return CreatedRepository{}, err
+	}
+	if out.Primary {
+		audit.SetDetail(ctx, "role", domain.BackupRolePrimary)
+		s.primaryChanged(ctx, setup)
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeBackupRepository, ID: r.ID})
 	audit.SetDetail(ctx, "location", destination(r).Base())
@@ -238,15 +254,25 @@ func repositoryAuditView(r domain.BackupRepository) map[string]any {
 		"verifyCron":           r.VerifyCron, "verifyTimeZone": r.VerifyTimeZone, "verifyEnabled": r.VerifyEnabled, "verifyReadData": r.VerifyReadData}
 }
 
-// DeleteRepository removes a repository that no policy uses and the
-// backups indexed in it (they cannot be browsed or restored without it).
-// The restic repositories at the destination are left untouched; the
-// storage history stops counting it from now on.
+// DeleteRepository removes a repository and the backups indexed in it
+// (they cannot be browsed or restored without it). The setup stops using
+// it: a removed Primary promotes the Secondary. The restic repositories at
+// the destination are left untouched; the storage history stops counting
+// it from now on.
 func (s *Service) DeleteRepository(ctx context.Context, id string, revision int64) error {
 	var removed []string
+	var role string
+	var st domain.BackupSetup
 	if err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		var err error
-		if removed, err = store.DeleteBackupRepository(ctx, tx, id, revision); err != nil {
+		before, err := store.GetBackupSetup(ctx, tx)
+		if err != nil {
+			return err
+		}
+		role = before.RoleOf(id)
+		if removed, err = store.DeleteBackupRepository(ctx, tx, id, revision, s.now()); err != nil {
+			return err
+		}
+		if st, err = store.GetBackupSetup(ctx, tx); err != nil {
 			return err
 		}
 		return store.EndBackupStorage(ctx, tx, id, s.now())
@@ -254,6 +280,11 @@ func (s *Service) DeleteRepository(ctx context.Context, id string, revision int6
 		return err
 	}
 	audit.SetDetail(ctx, "backupCount", len(removed))
+	if role != "" {
+		audit.SetDetail(ctx, "role", role)
+		audit.SetDetail(ctx, "primaryRepositoryId", st.PrimaryRepositoryID)
+		s.primaryChanged(ctx, st)
+	}
 	if s.opts.ForgetResource != nil {
 		_, _ = s.opts.ForgetResource(ctx, authz.ResourceRef{Type: catalog.TypeBackupRepository, ID: id})
 		for _, sn := range removed {

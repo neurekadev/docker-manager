@@ -114,13 +114,9 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
 		map[string]any{"recoveryKey": key1, "backedUp": true})
 	_, token := owner.createToken("ci", "allow backup.read @all")
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "scope": "all", "repositoryId": id,
-		"includeManagerState": true,
-	}).json(t, &pol)
-	if jobs := old.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 3 {
+	// The first repository is the Primary one: Back Up Now covers both
+	// environments and the manager state.
+	if jobs := old.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-settings/runs", nil)); len(jobs) != 3 {
 		t.Fatalf("jobs %v", jobs)
 	}
 

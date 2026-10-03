@@ -13,8 +13,8 @@ the agent's smartctl runner for disk health, see
 | `internal/backup` | Shared by manager and agents: destinations and scopes, snapshot tags, the portable manifest, the retention algorithm, `OpenLocation` (key rotation per location), `ApplyRetention`, `Prune`, `Verify`. |
 | `internal/protocol` (`backup.go`) | Job inputs/outputs, the `backup.scope_preview`, `backup.snapshots`, `backup.contents` requests and the `backup.file` stream; `CommandSecrets.Repositories`. |
 | `internal/agent/backups` | Scope planning, the `backup.run`, `backup.retention`, `backup.verify` executors, requests and stream. |
-| `internal/manager/backups` | Repositories, the Recovery Key, policies, runs (backup sets), the snapshot index, the manager-state snapshot and set manifest, the `manager.backup`, `manager.retention`, `manager.verify` executors, finish hooks, scheduler sources, command secrets. `s3probe` tests S3 capabilities over a client that refuses loopback and link-local addresses. |
-| `internal/manager/api` (`backup_repositories.go`, `backup_policies.go`, `backups.go`) | The public routes. |
+| `internal/manager/backups` | Repositories, the Recovery Key, the backup setup (`setup.go`), runs (backup sets), the snapshot index, the manager-state snapshot and set manifest, the `manager.backup`, `manager.retention`, `manager.verify` executors, finish hooks, scheduler sources, command secrets. `s3probe` tests S3 capabilities over a client that refuses loopback and link-local addresses. |
+| `internal/manager/api` (`backup_repositories.go`, `backup_settings.go`, `backups.go`) | The public routes. |
 
 ## Model
 
@@ -41,18 +41,43 @@ the agent's smartctl runner for disk health, see
   `backup.Destination.Compression` carries it (`""` for auto, never
   written out, so manifests and older agents see the destination they
   know); `Destination.Location` sets `restic.Location.Compression`.
-- Removing a repository (refused while a policy uses it) also removes
-  its snapshots from the index and the sets held only by it: they cannot
-  be browsed or restored without it. Finish hooks do not index snapshots
-  of a removed repository; the restic data at the destination is kept.
-- A **policy** covers one environment or all environments. Overlap is
-  rejected (`backup_scope_overlap`). Every managed stack and standalone
-  volume in its scope is selected at preview and run time unless its stack
-  ID or volume name is excluded. Volume exclusions also apply to the
-  selected stacks' volumes (named and anonymous). All-environments volume
-  exclusions use `environmentID/volumeName`. Anonymous volumes (Engine
-  label `com.docker.volume.anonymous`, and a stack container's unnamed
-  mounts) are left out unless the policy's `anonymousVolumes` switch is on
+- Removing a repository also removes its snapshots from the index and the
+  sets held only by it: they cannot be browsed or restored without it.
+  Finish hooks do not index snapshots of a removed repository; the restic
+  data at the destination is kept. The setup stops using it in the same
+  transaction (`store.DeleteBackupRepository`): a removed Primary promotes
+  the Secondary, a removed Secondary leaves none.
+- The **backup setup** (#246, `domain.BackupSetup`, table
+  `backup_settings`, one row; `GET/PATCH /backup-settings`) replaces the
+  backup policies. Its ID is the policy ID sets, snapshots, jobs and the
+  restic tag `policy:<id>` carry. Migration
+  `20261002200000_backup_settings` adopted an all-environments policy as
+  it was (its per-environment repositories went: everything goes to the
+  Primary), else the only policy with every other environment left out,
+  else created it disabled with the oldest repository as the Primary;
+  permission rules on one environment or one policy went. The other
+  policies' sets and backups stay browsable and restorable. It has an **Enabled** switch (scheduled
+  runs), one schedule, retention, a **Primary** and an optional
+  **Secondary** repository (`primary_repository_id`,
+  `secondary_repository_id`; making the Secondary the Primary swaps them in
+  one patch), and **Environments to Leave Out** (unknown IDs are ignored;
+  every other environment is covered, also ones added later). Turning it
+  on needs a Primary; every repository it writes to must be `ready` while
+  it is on (`recovery_key_not_confirmed`). A repository created while
+  backups are off and have no Primary becomes it (with backups on, the
+  user picks a Primary once its key is confirmed). A patch validates and
+  writes in one transaction. Enabled without a Primary (its
+  removal promoted no Secondary), every run is refused (`backup_no_primary`;
+  scheduled: rejected `no_primary_repository`) and a critical alert
+  `backup/no_primary` fires until a Primary is chosen or backups are turned
+  off (`Options.OnPrimaryMissing`, `alerts.Service.BackupsPaused`, checked
+  at start and after every change of the setup or a role's repository).
+  Every managed stack and standalone volume of a covered, active
+  environment is selected at preview and run time unless its stack ID or
+  volume is excluded. Volume exclusions (`environmentID/volumeName`) also
+  apply to the selected stacks' volumes (named and anonymous). Anonymous
+  volumes (Engine label `com.docker.volume.anonymous`, and a stack
+  container's unnamed mounts) are left out unless `anonymousVolumes` is on
   (default off), and so are buildx builder volumes
   (`buildx_buildkit_<builder>_state`, `protocol.IsBuildxVolume`: rebuildable
   build cache) unless `buildxVolumes` is on (default off). The user-set
@@ -68,7 +93,7 @@ the agent's smartctl runner for disk health, see
   as a Compose label (`internal/agent/volumelabels`, see
   [docker-resources](docker-resources.md)) and `includeVolume` honors it
   (reason "the stack's Compose file gives the volume the label …"; a
-  declared `"false"` wins over the volume's `true`). The policy wizard
+  declared `"false"` wins over the volume's `true`). The settings dialog
   (`VolumeCoverage`) lists label-excluded volumes unchecked and locked with
   an (i) naming where the label is (`labeledBy`: volume, compose,
   container).
@@ -96,19 +121,30 @@ the agent's smartctl runner for disk health, see
   volumes as before (`VolumeReferences` uses the selection without these
   two rules). The UI's `coveredVolumes` repeats these rules, except the
   migration one (it cannot see how a migration ended: such a volume is
-  listed and left out at run time). The policy also configures manager state
-  (owner only), container shutdown (off by default), a schedule (#13,
-  starts disabled), and retention. A migrated stack is covered by the
-  destination environment's policy. Existing snapshots retain their source
-  location. Docker maintenance (#14) protects covered standalone volumes
+  listed and left out at run time). The setup also configures container
+  shutdown (off by default) and whether the metrics database joins the
+  manager state, which is always backed up. A migrated stack is covered
+  where it lands (the setup covers environments, not stacks); existing
+  snapshots retain their source location. While backups are on, Docker
+  maintenance (#14) protects the standalone volumes they select
   (`Maintenance().SetBackupReferences`); stack volumes are protected as part
   of Docker Manager stacks.
-- A **run** of a policy is one **backup set**: a `backup.run` job per
-  environment and, with the manager state, a `manager.backup` job queued
-  last. Each member (stack, volume, manager state) is its own snapshot with
-  its own time; multi-host sets are not atomic. A set with failed or
-  missing members is `partial`, never `complete`; `retrySetId` re-runs only
-  the members that did not complete. A member whose item no longer exists
+- A **run** is one **backup set**: for the Primary repository, a
+  `backup.run` job per environment and a `manager.backup` job, then the
+  same for the Secondary repository (`planRun`), each copy taken straight
+  from the source data (the jobs queue in that order; locks serialize a
+  host's two jobs). Set members are keyed by repository, scope and item
+  (`memberKey`): `recordMembers`, `markRetry`, `failPlanned`, the import
+  reconcile and the set manifest match on the repository too, and each
+  `manager.backup` writes its manager state and a set manifest to its own
+  repository (the index keeps the first manifest). A manual run by a
+  caller without the owner-only `manager.backup` leaves the manager state
+  out (`RunOptions.WithoutManager`); scheduled runs always include it. The
+  cap is `scheduler.MaxJobsPerRun` jobs. Each member (stack, volume,
+  manager state, per repository) is its own snapshot with its own time;
+  multi-host sets are not atomic. A set with failed or missing members is
+  `partial`, never `complete` (both copies count); `retrySetId` re-runs
+  only the members that did not complete, per repository. A member whose item no longer exists
   when its turn comes (a standalone volume the Engine answers Not Found
   for, e.g. a CI job's temporary volume removed after the run was planned;
   a stack whose project directory was deleted while its parent directory is
@@ -124,12 +160,12 @@ the agent's smartctl runner for disk health, see
   a retry never re-runs skipped members (`nothing_to_retry` when only they
   remain). A `backup.run` whose items were all skipped succeeds; one with
   failed and skipped items only still fails (`empty_scope`). An older agent
-  keeps failing such members (`volume_unavailable`), as before. One run per policy at a time: a
-  scheduled run is skipped while a `backup.run` or `manager.backup` job of
-  the policy is not finished (scheduler overlap), and a new manual run is
-  refused with 409 `backup_run_active` (a retry and an idempotent replay
-  are not). The UI spins the policy's **Back Up Now** button while
-  `/backup-activity` lists a job of the policy.
+  keeps failing such members (`volume_unavailable`), as before. One run at
+  a time: a scheduled run is skipped while a `backup.run` or
+  `manager.backup` job of the setup is not finished (scheduler overlap),
+  and a new manual run is refused with 409 `backup_run_active` (a retry and
+  an idempotent replay are not). The UI spins **Back Up Now** while
+  `/backup-activity` lists a backup job.
 - **Cancelling a run** (`POST /jobs/{jobId}/cancellations` on its
   `backup.run` or `manager.backup` job) does not wait for the snapshot
   step to end: the step runs restic under `StepContext.WatchCancel`, which
@@ -182,7 +218,7 @@ host repository would need to know which key belongs to which location.
   a checksum, so a typo is `recovery_key_malformed`, not a wrong key.
 - **Confirmation** (`POST .../recovery-confirmations`, owner, session only):
   the owner re-enters the key and states it is saved (`backedUp: true`).
-  Every repository needs it before policies can use or enable it; nothing
+  Every repository needs it before backups can use it; nothing
   is initialized before. The API and docs say plainly that confirming does
   not prove the key is stored safely.
 - **Rotation** (`POST .../key-rotations`, owner, session only, step-up):
@@ -273,11 +309,11 @@ covered by the check.
 
 A stack member backs up its **project directory** (Compose files, `.env`,
 workspace, every relative bind source inside it) and its **named volumes**
-(per-volume include/exclude). **Anonymous volumes** only with the policy's
+(per-volume include/exclude). **Anonymous volumes** only with the setup's
 toggle (default off). **Bind sources outside the project directory**
 (`../data`, `/srv/x`) are shown in the preview as `requires_opt_in`; they are
 included only when the stack's selection lists them in `externalPaths` **and** they lie
-below the agent's `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`. A policy's `externalBinds`
+below the agent's `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`. The setup's `externalBinds`
 switch (default off; UI: **Back Up Allowed Folders Outside Stacks**) fills
 each selected stack's `externalPaths` with its recorded outside bind sources
 (`StackBind.External`, `externalBindSources`: clean absolute paths, at most
@@ -288,11 +324,9 @@ stay in their root (a symlinked bind leading out is `blocked`); restic
 stores symlinks inside the tree as links. Docker Manager's own volumes are never
 selected (#32).
 
-The **scope preview** (`POST /backup-policies/{id}/scope-previews`, or
-`POST /backup-policy-scope-previews` with the create body for a policy the
-wizard has not saved yet: the UI saves a policy only at its last step, and
-the draft preview refuses a scope another policy covers) asks each
-agent for the effective sources with states and reasons, excludes, the
+The **scope preview** (`POST /backup-settings/scope-previews`; `draft`
+previews unsaved changes of the settings dialog) asks each covered
+environment's agent for the effective sources with states and reasons, excludes, the
 estimated size (bounded walk), and with shutdown on the containers that stop
 in their stop order, the downtime warning and the conflicts a shutdown
 cannot cover (a volume also used by another project's container, which is
@@ -330,7 +364,8 @@ migrations, instance, secret key ID, `templatesIncluded`) and
 `templates.tar.gz` (every template draft, `templates.WriteDrafts`;
 published versions are in the database), backs the directory up
 (`docker-manager-state` tag), then writes the **set manifest**. The
-metrics database is included only when the policy asks for it. The staging
+metrics database is included only when the setup asks for it
+(`includeMetrics`). The staging
 directory is removed after the run and at every start.
 
 ## Portable manifest (#24)
@@ -369,11 +404,18 @@ never shrink it; `last` keeps an item's newest N whatever the other rules
 say. (The former minimum recovery floor did exactly that; it was removed:
 migration `backup_retention_floor_into_last` raised `last` to it for
 policies with rules, and the API still accepts `minKeep` as a deprecated
-member folded into `last`, never returned.) Only the policy's snapshots of that location are considered; manifests of
-sets without remaining data there go too.
+member folded into `last`, never returned.) Retention judges every snapshot
+a backup run took in that location (`backup.RetentionScope.AnyPolicy`: any
+policy tag), so the backups of earlier backup policies expire too; an agent
+without `backup.retention_any_policy` (`protocol.FeatureBackupAnyPolicy`)
+judges the setup's own snapshots only (`policy:<id>`). Manifests of
+covered sets without remaining data there go too. A manual run (`POST
+/backup-settings/retention-runs`) and the preview cover every location of
+every repository in the index; the retention after a backup covers the
+set's locations.
 
-Because the rules keep a **deleted** item's last snapshots forever, a policy
-may expire them: with `retention.expireDeletedDays` > 0 (default 0, off), a
+Because the rules keep a **deleted** item's last snapshots forever, the
+setup may expire them: with `retention.expireDeletedDays` > 0 (default 0, off), a
 stack Docker Manager no longer has or a standalone volume its environment
 no longer has loses every snapshot once its newest one is older than that
 (`backups.Service.expiredItems`, then `RetentionPlan.Expire`, reason
@@ -415,9 +457,9 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
   `stacks` and `volumes` counts) and returns `currentFile` only with
   `stack.files.read` / `volume.files.read` on the item (the manager state:
   the owner), and `cancellable` when the caller holds `job.cancel` on the
-  job and no cancellation was requested yet. The overview and the policy
-  page poll it while something runs and show it in a "Running Now" card
-  (`RunningBackups`): one fixed-height line per job (policy, where, stacks
+  job and no cancellation was requested yet. The overview polls it while
+  something runs and shows it in a "Running Now" card
+  (`RunningBackups`): one fixed-height line per job (where, stacks
   and volumes, the item with its file and byte counts, a bar, the time
   left, **Cancel** with a confirmation) and one line with the file restic
   reads; never generic job cards, which appear, list every item and move
@@ -519,30 +561,29 @@ target (stack, volumes, repository). Manager-state snapshots answer
 `manager_restore_required`: the manager state is restored by importing it
 into a fresh manager (below), never over a running one.
 
-**UI.** The Backups section has three tabs: **Overview** (setup steps,
-KPIs, running backups, the policies as its main table, recent runs,
-storage and storage over time), **Backups** (every backup grouped by run, with Restore per run)
-and **Repositories**. `/backups/policies` redirects to the overview;
-restic's raw snapshots (`/backups/snapshots?repository=`) open from a
-repository page. The header's primary action is "Create Backup Policy"
-on every tab. Policy pages follow the shared policy layout (status
-sentence, Back Up Now / Edit / overflow, KPIs, what it covers, schedule
-with next runs, recent runs); creating a policy is a wizard, editing one
-screen. The policy list returns every policy shown in full with the
-detail's `recentSets` (the newest 5) and `schedule.nextRun`, looked up in
-one batch per page (`addPolicyRuns`: one query for the sets of all its
-policies, a `ROW_NUMBER()` window per policy, one for their members'
-backups and one for the next runs), so the UI reads only the list
-(`backupPoliciesQuery`). Set members carry `backupId`, the backup
-(`GET /backups/{id}`) they took, when it exists, is not forgotten and the
-caller can see it; `SetMembers` links to it.
+**UI.** The Backups section has three tabs: **Overview** (setup steps
+until a repository is ready and the Primary chosen; then the status
+sentence with Back Up Now / Edit / More Backup Actions, KPIs, running
+backups, the settings, recent runs, storage and storage over time;
+**Edit** opens `BackupSettingsDialog`, `?edit=1`), **Backups** (every
+backup grouped by run, each copy naming its repository, with Restore per
+run) and **Repositories** (a Role column; a repository's menu offers Make
+Primary, Make Secondary and Stop Using as Secondary, and its removal
+dialog says what happens to the roles). restic's raw snapshots
+(`/backups/snapshots?repository=`) open from a repository page. `GET
+/backup-settings` carries the newest 5 `recentSets` and
+`schedule.nextRun`; repositories carry their `role`. Set members carry
+`repositoryId` and `backupId`, the backup (`GET /backups/{id}`) they took,
+when it exists, is not forgotten and the caller can see it; `SetMembers`
+links to it and names the repository.
 Stacks and volumes have a **Backups** tab (volumes: right before
 Migrate; `$lib/features/backups/BackupsTab.svelte`, listed with
 `GET /backups?stackId=` or `?environmentId=&volume=`, which also returns
-the stack backups holding the volume); it names the policies that cover
-the stack or volume (`policyCovers`) with their next run and, without
-backups yet, those policies' recent runs that included it
-(`memberRuns`). *Restore All* restores the whole
+the stack backups holding the volume, each with the repository it is
+stored in); it says whether the backups cover the stack or volume
+(`settingsCover`) and when they run next and, without backups yet, the
+recent runs that included it (`memberRuns`). A stack's Policies tab shows
+Covered or Excluded (`BackupCoverageCard`). *Restore All* restores the whole
 backup (a volume's page: only that volume); *Choose Files* opens the
 shared file picker (`$lib/features/common/FilePicker.svelte`,
 `multiple`) on the backup's
@@ -618,7 +659,7 @@ Recovery Key; not the old volume, database or a running old manager.
    carries the counts.
 
 What survives: users, groups, permissions, TOTP and passkeys, registry and
-Git credentials, backup repositories, policies and the index, stacks and
+Git credentials, backup repositories, the backup setup and the index, stacks and
 their revisions, environments: all decrypt with the recovered secret key,
 so nothing must be re-entered except the S3 key pair of the import (which
 replaces the stored one). What does not: sessions, API tokens (revoked,
@@ -687,12 +728,14 @@ repository, so its manifest usually carries their results.
   confirmation and rotation additionally need the **instance owner** and a
   browser session (API tokens get `api_token_not_allowed`); rotation needs a
   step-up.
-- Policies: `backup_policy.read` / `.manage`; including the manager state
-  is owner-only (`manager.backup`).
-- Runs: `backup.run` on the policy, its repositories, stacks and volumes
-  (the job engine checks every job again at dispatch; scheduled runs use
-  the service identity and survive the removal of whoever configured
-  them).
+- The setup: `backup_policy.read` / `.manage` ("View/Manage Backup
+  Settings"), instance-only (#246: rules on one environment or one policy
+  were removed by the migration).
+- Runs: `backup.run` on the instance (the job engine checks every job
+  again at dispatch on its stacks, volumes and repository; scheduled runs
+  use the service identity and survive the removal of whoever configured
+  them). The manager state is owner-only (`manager.backup`): other callers'
+  runs leave it out. Retention: `backup.retention` on the instance.
 - Backups: `backup.read`; contents and downloads need
   `backup.contents.read` / `.download` **and** the capability that reads the
   same data live: `stack.definition.read` for stack snapshots (they hold

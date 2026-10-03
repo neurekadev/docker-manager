@@ -18,7 +18,6 @@ export type ContainerMetrics = Schema<'ContainerMetrics'>;
 export type EnvironmentCapacity = Schema<'EnvironmentCapacity'>;
 export type UpdatePolicy = Schema<'UpdatePolicy'>;
 export type UpdateCandidate = Schema<'UpdateCandidate'>;
-export type BackupPolicy = Schema<'BackupPolicy'>;
 export type AuditEvent = Schema<'AuditEvent'>;
 export type DiscoveredStack = Schema<'DiscoveredStack'>;
 
@@ -43,8 +42,7 @@ export const stackKeys = {
 	capacity: (environmentId: string) => liveKeys.metrics(environmentId, 'capacity'),
 	updatePolicies: (environmentId: string) => liveKeys.list('policies', 'update', environmentId),
 	updatePolicy: (id: string) => liveKeys.item('policies', id),
-	candidates: (policyId: string) => liveKeys.item('policies', policyId, 'candidates'),
-	backupPolicies: () => liveKeys.list('policies', 'backup')
+	candidates: (policyId: string) => liveKeys.item('policies', policyId, 'candidates')
 };
 
 /** Reads every page of a cursor-paged list. */
@@ -272,22 +270,6 @@ export function candidatesQuery(policyId: string, client: ApiClient = api) {
 				})
 			).then((p) => p.items),
 		staleTime: 10_000
-	});
-}
-
-export function backupPoliciesQuery(client: ApiClient = api) {
-	return queryOptions({
-		queryKey: stackKeys.backupPolicies(),
-		queryFn: ({ signal }): Promise<BackupPolicy[]> =>
-			allPages((cursor) =>
-				unwrap(
-					client.GET('/api/v1/backup-policies', {
-						params: { query: { limit: 200, cursor } },
-						signal
-					})
-				)
-			),
-		staleTime: 30_000
 	});
 }
 

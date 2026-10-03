@@ -1,5 +1,5 @@
 // Backups (#10) for Svelte Query. Repositories, snapshots and restores are
-// live topic 'backups'; backup policies are topic 'policies'.
+// live topic 'backups'; the backup settings (#246) are topic 'policies'.
 import { queryOptions } from '@tanstack/svelte-query';
 import { api, unwrap, type ApiClient } from '$lib/api/client';
 import { liveKeys } from '$lib/live/keys';
@@ -8,8 +8,8 @@ import type {
 	Backup,
 	BackupActivity,
 	BackupDetail,
-	BackupPolicy,
 	BackupRepository,
+	BackupSettings,
 	RepositoryHealth,
 	ResticLocation
 } from './model';
@@ -30,8 +30,7 @@ export const backupKeys = {
 	repositories: () => liveKeys.list('backups', 'repositories'),
 	repository: (id: string) => liveKeys.item('backups', id),
 	health: (id: string) => liveKeys.item('backups', id, 'health'),
-	policies: () => liveKeys.list('policies', 'backups'),
-	policy: (id: string) => liveKeys.item('policies', id),
+	settings: () => liveKeys.list('policies', 'backups'),
 	backups: (f: BackupFilter) => liveKeys.list('backups', 'snapshots', f),
 	backup: (id: string) => liveKeys.item('backups', id),
 	contents: (id: string, path: string) => liveKeys.item('backups', id, 'contents', path),
@@ -109,36 +108,13 @@ export function repositoryHealthQuery(id: string, client: ApiClient = api) {
 	});
 }
 
-/**
- * Every policy; those shown in full carry their recent sets and next run,
- * as the detail does (the backup history overview needs no more requests).
- */
-export function backupPoliciesQuery(client: ApiClient = api) {
+/** The one backup setup with its recent runs and next run. */
+export function backupSettingsQuery(client: ApiClient = api) {
 	return queryOptions({
-		queryKey: backupKeys.policies(),
-		queryFn: ({ signal }): Promise<BackupPolicy[]> =>
-			fetchAllPages((cursor) =>
-				unwrap(
-					client.GET('/api/v1/backup-policies', {
-						params: { query: { cursor, limit: 200 } },
-						signal
-					})
-				)
-			),
+		queryKey: backupKeys.settings(),
+		queryFn: ({ signal }): Promise<BackupSettings> =>
+			unwrap(client.GET('/api/v1/backup-settings', { signal })),
 		staleTime: 15_000
-	});
-}
-
-export function backupPolicyQuery(id: string, client: ApiClient = api) {
-	return queryOptions({
-		queryKey: backupKeys.policy(id),
-		queryFn: ({ signal }): Promise<BackupPolicy> =>
-			unwrap(
-				client.GET('/api/v1/backup-policies/{policyId}', {
-					params: { path: { policyId: id } },
-					signal
-				})
-			)
 	});
 }
 

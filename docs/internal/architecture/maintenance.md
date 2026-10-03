@@ -108,8 +108,9 @@ A candidate is never removed when it is:
   and image ID) or by a saved container specification (#6), or a volume or
   network a saved specification uses; Docker Manager-created standalone containers
   with a saved specification are protected too;
-- a backup destination or other object backups rely on: #10 installs
-  `maintenance.Service.SetBackupReferences` (volumes/networks by name);
+- a standalone volume the backups select while they are on (#10, #246):
+  the backup service installs `maintenance.Service.SetBackupReferences`
+  (volumes by name);
 - part of the stopped source of a migrated stack (#35) until the user
   confirms its removal: after the cut-over the source project is no
   longer a Docker Manager stack, so `app` installs

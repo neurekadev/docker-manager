@@ -9,6 +9,19 @@ and scopes `docker-manager` / `docker-manager-env-<id>`, tags, the portable
 manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
 (`app.Manager.Backups()`); agent: `internal/agent/backups`.
 
+- There is one backup setup (#246, `domain.BackupSetup`, one row): never
+  bring back per-policy scopes. A run writes every member to the Primary
+  repository and then to the Secondary one; anything matching set members
+  (hooks, retries, failures of jobs not queued, import reconcile, the set
+  manifest) keys them by repository, scope and item (`memberKey`). Roles
+  live on the setup row only; removing a repository updates them in its
+  transaction (`store.DeleteBackupRepository`), and every change that can
+  leave backups on without a Primary calls `primaryChanged` (the
+  backups-paused alert).
+- Retention judges every snapshot a backup run took in a location (any
+  policy tag, `backup.RetentionScope{AnyPolicy: true}`), sent to agents
+  only with `protocol.FeatureBackupAnyPolicy`; never narrow it back to the
+  setup's tag, or earlier policies' backups never expire.
 - One instance-wide Recovery Key (#25 Q7) opens every repository: never
   return, log, audit or put it in inputs; agents get it only in
   `CommandSecrets.Repositories` (jobs) or the request/stream `credential`.
@@ -24,8 +37,8 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `docker-manager.backup.exclude=true` (on the volume, as a Compose label
   of the volume, or on a container using it) and buildx builder volumes
   by default; change the rule in `standaloneVolumes`, `planStackVolumes`
-  (`includeVolume`) and the UI's `coveredVolumes` together. A policy lists
-  label-excluded volumes locked (unchecked, disabled, an (i) from
+  (`includeVolume`) and the UI's `coveredVolumes` together. The settings
+  dialog lists label-excluded volumes locked (unchecked, disabled, an (i) from
   `labelLockReason`), never as a choice.
 - Docker Manager's temporary objects never get into backups: temporary
   containers are recognized only by `protocol.IsHelperContainer` (UI:
@@ -89,11 +102,10 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   `state.json`) and is put back by `ApplyPendingRestore`, keeping the
   replaced copy in the pre-restore directory; every step stays
   repeatable.
-- The policy list carries what the detail shows (`recentSets`, the next
-  run) through `addPolicyRuns`, batched per page: never a query per
-  policy on the server or a detail request per policy in the UI. Set
-  members name their backup (`backupId`, only backups the caller sees);
-  the UI links by it and never matches members to backups itself.
+- The backup settings carry the recent sets and the next run; set
+  members name their repository and their backup (`backupId`, only
+  backups the caller sees); the UI links by it and never matches members
+  to backups itself.
 - Running backups and retentions show only through `RunningBackups` (GET
   `/backup-activity`, one fixed-height line per job), never as generic job
   cards on the Backups pages. A step that runs restic for long (a

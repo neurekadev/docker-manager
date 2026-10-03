@@ -32,11 +32,9 @@ import { degradedArray, failingDisk, offlineEdge, sampleAlert } from './test/sam
 
 describe('alerts in words (#159)', () => {
 	it('names the kinds in the notification channels’ order', () => {
-		// Backups, restores and prunes are notifications, never alerts.
+		// Restores and prunes are notifications, never alerts.
 		expect(ALERT_KINDS.map((k) => k.kind)).toEqual(
-			EVENT_KINDS.map((k) => k.kind).filter(
-				(k) => !['backup', 'restore', 'prune'].includes(k)
-			)
+			EVENT_KINDS.map((k) => k.kind).filter((k) => !['restore', 'prune'].includes(k))
 		);
 		expect(ALERT_KINDS.map((k) => k.label)).toEqual([
 			'Disk Health',
@@ -45,6 +43,7 @@ describe('alerts in words (#159)', () => {
 			'Disk Space',
 			'Memory',
 			'Environment Offline',
+			'Backups Paused',
 			'Updates Available',
 			'Failed Job'
 		]);

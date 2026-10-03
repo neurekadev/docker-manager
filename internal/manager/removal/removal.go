@@ -58,14 +58,6 @@ func (s *Service) Preview(ctx context.Context, environmentID string) (domain.Env
 		add(domain.EnvironmentDependent{Kind: domain.DependentManagedContainer, ID: m.ID, Name: m.Name, OnArchive: domain.OnArchiveKept,
 			Detail: "saved recreate specification kept", ResourceType: catalog.TypeContainer, ResourceID: m.Name})
 	}
-	backupPolicies, err := s.backupPolicies(ctx, env.ID, stackIDs)
-	if err != nil {
-		return p, err
-	}
-	for _, bp := range backupPolicies {
-		add(domain.EnvironmentDependent{Kind: domain.DependentBackupPolicy, ID: bp.ID, Name: bp.Name, OnArchive: domain.OnArchivePaused,
-			Detail: "this host's stacks and volumes are skipped while it is archived", ResourceType: catalog.TypeBackupPolicy, ResourceID: bp.ID})
-	}
 	repos, err := s.repositories(ctx, env.ID)
 	if err != nil {
 		return p, err
@@ -158,30 +150,6 @@ func ruleText(r domain.PermissionRule) string {
 	return string(r.Effect) + " " + r.Capability + " on " + scope
 }
 
-// backupPolicies are the policies selecting stacks or volumes of the
-// environment or naming a repository for it.
-func (s *Service) backupPolicies(ctx context.Context, envID string, stacks map[string]string) ([]domain.BackupPolicy, error) {
-	all, err := store.ListBackupPolicies(ctx, s.db, "", 0)
-	if err != nil {
-		return nil, err
-	}
-	var out []domain.BackupPolicy
-	for _, p := range all {
-		_, named := p.EnvironmentRepos[envID]
-		hit := named || p.EnvironmentID == "" || p.EnvironmentID == envID
-		for _, st := range p.Stacks {
-			hit = hit || stacks[st.StackID] != ""
-		}
-		for _, v := range p.Volumes {
-			hit = hit || v.EnvironmentID == envID
-		}
-		if hit {
-			out = append(out, p)
-		}
-	}
-	return out, nil
-}
-
 // repositories are the repositories holding a location (restic
 // repository) for the environment.
 func (s *Service) repositories(ctx context.Context, envID string) ([]domain.EnvironmentDependent, error) {
@@ -206,7 +174,7 @@ func (s *Service) repositories(ctx context.Context, envID string) ([]domain.Envi
 }
 
 // schedules are the schedules of the environment's policies and of the
-// backup policies and repositories listed above.
+// backup repositories listed above.
 func (s *Service) schedules(ctx context.Context, envID string, deps []domain.EnvironmentDependent) ([]domain.EnvironmentDependent, error) {
 	kinds := map[string]scheduler.Kind{}
 	for _, k := range scheduler.BuiltinKinds() {

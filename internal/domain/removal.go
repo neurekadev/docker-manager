@@ -11,7 +11,6 @@ package domain
 const (
 	DependentStack              = "stack"
 	DependentManagedContainer   = "managed_container"
-	DependentBackupPolicy       = "backup_policy"
 	DependentBackupRepository   = "backup_repository"
 	DependentBackupSet          = "backup_set"
 	DependentRegistryConnection = "registry_connection"
@@ -23,7 +22,7 @@ const (
 
 // DependentKinds lists every kind in preview order.
 func DependentKinds() []string {
-	return []string{DependentStack, DependentManagedContainer, DependentBackupPolicy,
+	return []string{DependentStack, DependentManagedContainer,
 		DependentBackupRepository, DependentBackupSet, DependentRegistryConnection,
 		DependentBuildDefinition, DependentPermissionRule, DependentSchedule, DependentJob}
 }

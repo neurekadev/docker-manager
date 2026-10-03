@@ -29,13 +29,11 @@ import {
 	normalizeRecoveryKey,
 	parentPath,
 	pathCrumbs,
-	recentSets,
 	repositoryLocation,
 	retentionText,
-	scopeText,
+	roleLabel,
 	setState,
 	volumeKey,
-	type BackupPolicy,
 	type BackupRepository,
 	type BackupSet
 } from './model';
@@ -72,64 +70,44 @@ describe('retention', () => {
 });
 
 describe('backup sets', () => {
-	const p = (id: string, sets: BackupPolicy['recentSets']) =>
-		({ id, name: id, recentSets: sets }) as BackupPolicy;
-
-	it('merges the recent sets of every policy, newest first, keeping partial sets partial', () => {
-		const sets = recentSets([
-			p('a', [
+	it('lists the members a retry re-runs: neither complete nor skipped', () => {
+		const s: BackupSet = {
+			id: 's2',
+			startedAt: '2026-09-25T02:00:00Z',
+			origin: 'manual',
+			state: 'partial',
+			members: [
 				{
-					id: 's1',
-					startedAt: '2026-09-24T02:00:00Z',
-					origin: 'scheduled',
-					state: 'complete',
-					members: []
-				}
-			]),
-			p('b', [
+					item: 'silo',
+					kind: 'stack',
+					scope: 'env:e1',
+					repositoryId: 'r2',
+					state: 'failed',
+					errorClass: 'restic_failed'
+				},
 				{
-					id: 's2',
-					startedAt: '2026-09-25T02:00:00Z',
-					origin: 'manual',
-					state: 'partial',
-					members: [
-						{
-							item: 'silo',
-							kind: 'stack',
-							scope: 'env:e1',
-							state: 'failed',
-							errorClass: 'restic_failed'
-						},
-						{
-							item: 'manager',
-							kind: 'manager_state',
-							scope: 'manager',
-							state: 'complete'
-						}
-					]
+					item: 'silo',
+					kind: 'stack',
+					scope: 'env:e1',
+					repositoryId: 'r1',
+					state: 'complete'
+				},
+				{
+					item: 'manager',
+					kind: 'manager_state',
+					scope: 'manager',
+					repositoryId: 'r1',
+					state: 'complete'
 				}
-			])
-		]);
-		expect(sets.map((s) => [s.id, s.policyName, s.state])).toEqual([
-			['s2', 'b', 'partial'],
-			['s1', 'a', 'complete']
-		]);
-		expect(incompleteMembers(sets[0]).map((m) => m.item)).toEqual(['silo']);
+			]
+		};
+		expect(incompleteMembers(s).map((m) => [m.item, m.repositoryId])).toEqual([['silo', 'r2']]);
 	});
 
-	it('describes what a policy backs up', () => {
-		expect(scopeText({ includeManagerState: true, scope: 'all' })).toBe(
-			'all environments and the manager state'
-		);
-		expect(scopeText({ includeManagerState: false, scope: 'environment' })).toBe(
-			'one environment'
-		);
-		expect(
-			scopeText(
-				{ includeManagerState: false, scope: 'environment', environmentId: 'e1' },
-				(id) => (id === 'e1' ? 'prod' : id)
-			)
-		).toBe('prod');
+	it('names the role of a repository', () => {
+		expect(roleLabel('primary')).toBe('Primary');
+		expect(roleLabel('secondary')).toBe('Secondary');
+		expect(roleLabel(undefined)).toBeUndefined();
 	});
 
 	it('groups volumes into standalone and stack volumes, named or anonymous', () => {
@@ -155,8 +133,7 @@ describe('backup sets', () => {
 			{ name: 'shop_cache', anonymous: false, stackId: 's1', ...plain },
 			{ name: 'shop_db', anonymous: false, stackId: 's1', ...plain }
 		]);
-		expect(volumeKey(true, 'e1', 'media')).toBe('e1/media');
-		expect(volumeKey(false, 'e1', 'media')).toBe('media');
+		expect(volumeKey('e1', 'media')).toBe('e1/media');
 	});
 
 	it('marks buildx builder volumes and volumes the backup exclude label leaves out', () => {

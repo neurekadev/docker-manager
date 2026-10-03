@@ -46,12 +46,12 @@ func TestStandaloneVolumesSkipAnonymousAndExcludedVolumes(t *testing.T) {
 	stacks := []domain.Stack{{ID: "s1", EnvironmentID: "e1", Name: "shop"}}
 	cases := []struct {
 		name string
-		p    domain.BackupPolicy
+		p    domain.BackupSetup
 		want []string
 	}{
-		{"anonymous volumes are off by default", domain.BackupPolicy{EnvironmentID: "e1", ExcludeVolumes: []string{"scratch"}}, []string{"media"}},
-		{"the switch includes them", domain.BackupPolicy{EnvironmentID: "e1", ExcludeVolumes: []string{"scratch"}, AnonymousVolumes: true}, []string{"media", "3f2a"}},
-		{"all environments key exclusions by environment", domain.BackupPolicy{ExcludeVolumes: []string{"e1/media", "e2/scratch"}}, []string{"scratch"}},
+		{"anonymous volumes are off by default", domain.BackupSetup{ExcludeVolumes: []string{"e1/scratch"}}, []string{"media"}},
+		{"the switch includes them", domain.BackupSetup{ExcludeVolumes: []string{"e1/scratch"}, AnonymousVolumes: true}, []string{"media", "3f2a"}},
+		{"exclusions are keyed by environment", domain.BackupSetup{ExcludeVolumes: []string{"e1/media", "e2/scratch"}}, []string{"scratch"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestStandaloneVolumesSkipAnonymousAndExcludedVolumes(t *testing.T) {
 // TestStandaloneVolumesSkipLabeledAndBuildxVolumes: the backup exclude
 // label on a volume or on a container using it leaves the volume out, and
 // buildx builder volumes (rebuildable build cache) are left out unless the
-// policy includes them.
+// setup includes them.
 func TestStandaloneVolumesSkipLabeledAndBuildxVolumes(t *testing.T) {
 	ctx := testutil.Context(t)
 	exclude := map[string]string{protocol.LabelBackupExclude: "true"}
@@ -82,7 +82,7 @@ func TestStandaloneVolumesSkipLabeledAndBuildxVolumes(t *testing.T) {
 		},
 		containers: []protocol.ContainerSummary{{ID: "c1", Labels: exclude}},
 	}}
-	p := domain.BackupPolicy{EnvironmentID: "e1"}
+	var p domain.BackupSetup
 	if got, err := s.standaloneVolumes(ctx, p, "e1", nil); err != nil || !slices.Equal(got, []string{"media"}) {
 		t.Errorf("volumes %v %v, want only media", got, err)
 	}
@@ -93,20 +93,16 @@ func TestStandaloneVolumesSkipLabeledAndBuildxVolumes(t *testing.T) {
 }
 
 func TestExcludedVolumesPerEnvironment(t *testing.T) {
-	one := domain.BackupPolicy{EnvironmentID: "e1", ExcludeVolumes: []string{"shop_db", "media"}}
-	if got := excludedVolumes(one, "e1"); !slices.Equal(got, []string{"shop_db", "media"}) {
-		t.Errorf("one environment: %v", got)
-	}
-	all := domain.BackupPolicy{ExcludeVolumes: []string{"e1/shop_db", "e2/media", "e1/cache"}}
+	all := domain.BackupSetup{ExcludeVolumes: []string{"e1/shop_db", "e2/media", "e1/cache"}}
 	if got := excludedVolumes(all, "e1"); !slices.Equal(got, []string{"shop_db", "cache"}) {
-		t.Errorf("all environments, e1: %v", got)
+		t.Errorf("e1: %v", got)
 	}
 	if got := excludedVolumes(all, "e3"); len(got) != 0 {
-		t.Errorf("all environments, e3: %v", got)
+		t.Errorf("e3: %v", got)
 	}
 }
 
-// TestExternalBindSources: a policy with ExternalBinds opts in each bind
+// TestExternalBindSources: the setup's ExternalBinds opts in each bind
 // source outside the project directory once, never inside ones or paths
 // the agent would refuse as rules.
 func TestExternalBindSources(t *testing.T) {

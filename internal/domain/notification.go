@@ -44,10 +44,11 @@ func NotificationEventKinds() []NotificationEventKind {
 		NotifyEnvironmentOffline, NotifyBackup, NotifyRestore, NotifyPrune, NotifyUpdates, NotifyJobFailed}
 }
 
-// AlertKinds returns the kinds alerts are raised with, in display order.
+// AlertKinds returns the kinds alerts are raised with, in display order
+// (backup: backups paused without a Primary repository, #246).
 func AlertKinds() []NotificationEventKind {
 	return []NotificationEventKind{NotifyDiskHealth, NotifyRAID, NotifyTemperature, NotifyDiskSpace, NotifyMemory,
-		NotifyEnvironmentOffline, NotifyUpdates, NotifyJobFailed}
+		NotifyEnvironmentOffline, NotifyBackup, NotifyUpdates, NotifyJobFailed}
 }
 
 // NotificationKinds returns the kinds of notifications (finished runs),

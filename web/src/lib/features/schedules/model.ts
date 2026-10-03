@@ -77,7 +77,7 @@ export function runReason(r: Run): string {
 export function policyHref(kind: string, policyId?: string): string {
 	switch (kind) {
 		case 'backup':
-			return policyId ? routes.backupPolicy(policyId) : routes.backupPolicies();
+			return routes.backups();
 		case 'backup_verification':
 			return policyId ? routes.backupRepository(policyId) : routes.backupRepositories();
 		case 'update_check':

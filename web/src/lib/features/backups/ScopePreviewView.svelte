@@ -1,5 +1,5 @@
 <script lang="ts">
-	// A backup policy's scope preview (#10), computed by each environment's
+	// The scope preview of the backups (#10), computed by each environment's
 	// agent. Per environment a short summary (items, estimated size), then
 	// one row per stack or volume: its name, estimated size and how many of
 	// its sources are included, left out or need attention. The sources
@@ -22,7 +22,7 @@
 
 	interface Props {
 		preview: ScopePreview;
-		/** External bind sources the policy opted in, per stack. */
+		/** External bind sources opted in, per stack. */
 		optedIn?: (stackId: string, path: string) => boolean;
 		onOptIn?: (stackId: string, path: string, on: boolean) => void;
 		/** Show the shutdown plan (affected containers). */

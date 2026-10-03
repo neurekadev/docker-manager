@@ -73,14 +73,14 @@ func TestDeleteBackupRepositoryRemovesItsIndex(t *testing.T) {
 		}
 	}
 
-	if _, err := DeleteBackupRepository(ctx, db, "r1", 7); !errors.Is(err, domain.ErrRevisionMismatch) {
+	if _, err := DeleteBackupRepository(ctx, db, "r1", 7, testutil.Epoch); !errors.Is(err, domain.ErrRevisionMismatch) {
 		t.Fatalf("stale revision: %v", err)
 	}
 	if got, _ := ListBackupSnapshots(ctx, db, domain.BackupSnapshotFilter{IncludeForgotten: true}); len(got) != 4 {
 		t.Fatalf("a refused delete removed snapshots: %d left", len(got))
 	}
 
-	removed, err := DeleteBackupRepository(ctx, db, "r1", 1)
+	removed, err := DeleteBackupRepository(ctx, db, "r1", 1, testutil.Epoch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,29 +114,66 @@ func TestDeleteBackupRepositoryRemovesItsIndex(t *testing.T) {
 	}
 }
 
-// TestDeleteBackupRepositoryInUse: a repository a policy uses is refused
-// and keeps its snapshots.
-func TestDeleteBackupRepositoryInUse(t *testing.T) {
+// TestDeleteBackupRepositoryRoles (#246): removing the Primary repository
+// promotes the Secondary one; removing the Secondary leaves none.
+func TestDeleteBackupRepositoryRoles(t *testing.T) {
 	ctx, db := backupTestDB(t)
-	r := testRepository("r1")
+	for _, id := range []string{"r1", "r2", "r3"} {
+		r := testRepository(id)
+		if err := InsertBackupRepository(ctx, db, &r, BackupRepositorySealed{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st, err := GetBackupSetup(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev := st.Revision
+	st.PrimaryRepositoryID, st.SecondaryRepositoryID, st.Revision = "r1", "r2", rev+1
+	if err := UpdateBackupSetup(ctx, db, st, rev); err != nil {
+		t.Fatal(err)
+	}
+	roles := func() (string, string) {
+		t.Helper()
+		st, err := GetBackupSetup(ctx, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st.PrimaryRepositoryID, st.SecondaryRepositoryID
+	}
+	if _, err := DeleteBackupRepository(ctx, db, "r3", 1, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	if p, sec := roles(); p != "r1" || sec != "r2" {
+		t.Fatalf("an unused repository changed the roles: %s %s", p, sec)
+	}
+	if _, err := DeleteBackupRepository(ctx, db, "r1", 1, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	if p, sec := roles(); p != "r2" || sec != "" {
+		t.Fatalf("after removing the Primary: %q %q, want the Secondary promoted", p, sec)
+	}
+	st, _ = GetBackupSetup(ctx, db)
+	rev = st.Revision
+	r := testRepository("r4")
 	if err := InsertBackupRepository(ctx, db, &r, BackupRepositorySealed{}); err != nil {
 		t.Fatal(err)
 	}
-	p := domain.BackupPolicy{ID: "p1", Name: "Nightly", RepositoryID: "r1", Cron: "0 3 * * *", TimeZone: "UTC", Revision: 1,
-		CreatedAt: testutil.Epoch, UpdatedAt: testutil.Epoch}
-	if err := InsertBackupPolicy(ctx, db, &p); err != nil {
+	st.SecondaryRepositoryID, st.Revision = "r4", rev+1
+	if err := UpdateBackupSetup(ctx, db, st, rev); err != nil {
 		t.Fatal(err)
 	}
-	sn := domain.BackupSnapshot{ID: "sn1", RepositoryID: "r1", Scope: "docker-manager", Kind: "manager_state", Item: "manager-state",
-		State: "complete", ResticSnapshotID: "a", SnapshotTime: testutil.Epoch, CreatedAt: testutil.Epoch}
-	if _, err := InsertBackupSnapshot(ctx, db, &sn); err != nil {
+	if _, err := DeleteBackupRepository(ctx, db, "r4", 1, testutil.Epoch); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DeleteBackupRepository(ctx, db, "r1", 1); !errors.Is(err, domain.ErrBackupRepositoryInUse) {
-		t.Fatalf("in use: %v", err)
+	if p, sec := roles(); p != "r2" || sec != "" {
+		t.Fatalf("after removing the Secondary: %q %q", p, sec)
 	}
-	if got, _ := ListBackupSnapshots(ctx, db, domain.BackupSnapshotFilter{}); len(got) != 1 {
-		t.Errorf("snapshots left %d, want 1", len(got))
+	if _, err := DeleteBackupRepository(ctx, db, "r2", 1, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	if p, sec := roles(); p != "" || sec != "" {
+		t.Fatalf("after removing the last one: %q %q", p, sec)
 	}
 }
 
@@ -350,21 +387,20 @@ func TestBackupRepositoryCompressionRoundTrip(t *testing.T) {
 // floor did what "last" does. A policy with rules and a floor above its
 // "last" keeps the same backups with last raised to the floor (and a new
 // revision); a policy without rules keeps everything and stays so.
-// backupPolicyColumnsAfterFold are the backup_policies columns migrations
-// after 20260928174844 added; the fold test inserts rows without them.
-var backupPolicyColumnsAfterFold = []string{"external_binds"}
-
 func TestMigrationFoldsRetentionFloorIntoLast(t *testing.T) {
-	const fold = "20260928174844"
+	const fold, setup = "20260928174844", "20261002200000"
 	ctx := testutil.Context(t)
 	db, dir := openTemp(t)
-	before := migrate.NewMigrations()
-	for _, m := range migrations.Migrations.Sorted() {
-		if m.Name < fold {
-			before.Add(m)
+	upTo := func(name string) *migrate.Migrations {
+		set := migrate.NewMigrations()
+		for _, m := range migrations.Migrations.Sorted() {
+			if m.Name < name {
+				set.Add(m)
+			}
 		}
+		return set
 	}
-	if _, err := Migrate(ctx, db, migrateOpts(t, dir, before)); err != nil {
+	if _, err := Migrate(ctx, db, migrateOpts(t, dir, upTo(fold))); err != nil {
 		t.Fatal(err)
 	}
 	r := testRepository("r1")
@@ -377,35 +413,31 @@ func TestMigrationFoldsRetentionFloorIntoLast(t *testing.T) {
 		"no-rules": `{"MinKeep":3}`,
 	}
 	for id, retention := range stored {
-		p := domain.BackupPolicy{ID: id, Name: id, EnvironmentID: "env-" + id, RepositoryID: "r1", Cron: "0 3 * * *", TimeZone: "UTC",
-			Revision: 1, CreatedAt: testutil.Epoch, UpdatedAt: testutil.Epoch}
-		// The table as it was before the fold: without the columns later
-		// migrations added.
-		row := fromBackupPolicy(&p)
-		if _, err := db.NewInsert().Model(&row).ExcludeColumn(backupPolicyColumnsAfterFold...).Exec(ctx); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.ExecContext(ctx, "UPDATE backup_policies SET retention = ? WHERE id = ?", retention, id); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO backup_policies (id, name, name_key, environment_id, repository_id, cron, time_zone,
+			retention, revision, created_at, updated_at) VALUES (?, ?, ?, ?, 'r1', '0 3 * * *', 'UTC', ?, 1, ?, ?)`,
+			id, id, id, "env-"+id, retention, testutil.Epoch, testutil.Epoch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := Migrate(ctx, db, migrateOpts(t, dir, migrations.Migrations)); err != nil {
+	// Up to the one backup setup, which replaces the policies.
+	if _, err := Migrate(ctx, db, migrateOpts(t, dir, upTo(setup))); err != nil {
 		t.Fatal(err)
 	}
 	for id, want := range map[string]struct {
 		last     int
 		revision int64
 	}{"raised": {3, 2}, "kept": {10, 1}, "no-rules": {0, 1}} {
-		p, err := GetBackupPolicy(ctx, db, id)
-		if err != nil {
+		var last, revision int64
+		var floor int
+		if err := db.NewRaw(`SELECT COALESCE(json_extract(retention, '$.Last'), 0), revision,
+			json_type(retention, '$.MinKeep') IS NOT NULL FROM backup_policies WHERE id = ?`, id).Scan(ctx, &last, &revision, &floor); err != nil {
 			t.Fatal(err)
 		}
-		if p.Retention.Last != want.last || p.Revision != want.revision {
-			t.Errorf("%s: last %d revision %d, want %d and %d", id, p.Retention.Last, p.Revision, want.last, want.revision)
+		if last != int64(want.last) || revision != want.revision {
+			t.Errorf("%s: last %d revision %d, want %d and %d", id, last, revision, want.last, want.revision)
 		}
-		var left int
-		if err := db.NewRaw("SELECT COUNT(*) FROM backup_policies WHERE id = ? AND json_type(retention, '$.MinKeep') IS NOT NULL", id).Scan(ctx, &left); err != nil || left != 0 {
-			t.Errorf("%s still stores the floor (%d, %v)", id, left, err)
+		if floor != 0 {
+			t.Errorf("%s still stores the floor", id)
 		}
 	}
 }

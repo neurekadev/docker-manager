@@ -1,7 +1,8 @@
 <script lang="ts">
-	// Backup repositories (#10): where backups are stored, whether the
-	// Recovery Key is confirmed for each, the last connection test and
-	// verification. Credentials and the key are never shown.
+	// Backup repositories (#10, #246): where backups are stored, which is
+	// the Primary and the Secondary one, whether the Recovery Key is
+	// confirmed for each, the last connection test and verification.
+	// Credentials and the key are never shown.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { myPermissionsQuery } from '$lib/api/queries';
@@ -25,6 +26,7 @@
 	import {
 		connectionTestText,
 		repositoryLocation,
+		roleLabel,
 		type BackupRepository
 	} from '$lib/features/backups/model';
 	import { repositoriesQuery } from '$lib/features/backups/queries';
@@ -46,6 +48,7 @@
 			maxWidth: '420px',
 			stack: 'title'
 		},
+		{ id: 'role', header: 'Role', cell: roleCell, width: '120px', stack: 'status' },
 		{ id: 'state', header: 'Recovery Key', cell: stateCell, width: '190px', stack: 'status' },
 		{ id: 'test', header: 'Connection', cell: testCell, width: '240px', stack: 'meta' },
 		{
@@ -65,6 +68,11 @@
 		href={routes.backupRepository(r.id)}
 		sub={repositoryLocation(r)}
 	/>
+{/snippet}
+{#snippet roleCell(r: BackupRepository)}
+	{#if roleLabel(r.role)}<Badge tone="accent">{roleLabel(r.role)}</Badge>{:else}<span
+			class="muted">Not Written To</span
+		>{/if}
 {/snippet}
 {#snippet stateCell(r: BackupRepository)}
 	{#if r.state === 'ready'}<Badge tone="ok" dot>Confirmed</Badge>{:else}<Badge tone="warn" dot

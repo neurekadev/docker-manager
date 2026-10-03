@@ -6,7 +6,7 @@ description: Back up and restore your stacks, volumes and Docker Manager itself.
 Docker Manager backs up your stacks (their folder and volumes), your other
 volumes and its own data. Backups are encrypted and stored in a
 **repository** on S3-compatible storage. The owner adds repositories;
-people with permission can create backup policies.
+people with permission choose what is backed up.
 
 ## 1. Add a repository
 
@@ -28,46 +28,62 @@ people with permission can create backup policies.
   the server it ran on. Without it, nobody can open your backups.
 </Callout>
 
-## 2. Create a backup policy
+## 2. Choose what to back up
 
-A **backup policy** says what to back up, where, when and for how long.
-Each server can be covered by one policy.
+The first repository you add becomes the **Primary** repository: every
+backup goes there.
 
-1. Press **Create Backup Policy**.
-2. **Destination**: a **Name**, the **Environments** and the
-   **Repository**.
-3. **What to Back Up**: every stack and volume is included, and stacks you
-   add later too. Untick what to leave out.
-   - Turn on **Back Up the Manager State** to back up Docker Manager itself.
+1. On **Backups**, press **Edit**.
+2. **Repositories**: the **Primary Repository**, and if you like a
+   **Secondary Repository**. Every backup is copied to the Secondary too,
+   as a second, independent copy.
+3. **What to Back Up**: every environment, stack and volume is included,
+   also the ones you add later. Untick what to leave out. Docker Manager
+   itself is always backed up.
    - **Stop Containers During Backups** is off: apps keep running. Turn it
      on for databases that need a clean copy.
 4. **Schedule**: turn on **Back Up Automatically** and pick when.
 5. **Retention**: how many backups to keep. **7 Daily, 4 Weekly, 12
    Monthly** is a good start.
-6. Press **Create Policy**.
+6. Press **Save Changes**.
 
 **Preview What Gets Backed Up** shows each stack and volume with its
 estimated size; open one to see its paths and why each is included or
-left out. **Back Up Now** on the policy runs it right away, and **Retry
-Missing** backs up only what failed.
+left out. **Back Up Now** runs a backup right away, and **Retry Missing**
+backs up only what failed.
 
-**Running Now**, on the **Backups** page and on the policy, shows one line
-per running backup: the stack or volume it is on, its files and bytes, the
-time left and the file it reads. To stop a backup, press **Cancel** on its
-line, then **Cancel Backup**. It stops shortly: what it already backed up
-is kept, the rest is left out until **Retry Missing**, and containers it
+**Running Now**, on the **Backups** page, shows one line per running
+backup: the stack or volume it is on, its files and bytes, the time left
+and the file it reads. To stop a backup, press **Cancel** on its line,
+then **Cancel Backup**. It stops shortly: what it already backed up is
+kept, the rest is left out until **Retry Missing**, and containers it
 stopped start again. Each server's backup is cancelled on its own.
 
-**Apply Retention Now** (the policy's **More Actions** menu, ⋯) shows which backups of
-each stack and volume the rules remove and keep; confirm with **Remove N
-Backups**. Its progress shows under **Running Now**, where you can cancel
-it too: backups it already removed stay removed, and the next retention
-frees the rest of the space.
+**Apply Retention Now** (the **More Backup Actions** menu, ⋯) shows which
+backups of each stack and volume the rules remove and keep; confirm with
+**Remove N Backups**. Its progress shows under **Running Now**, where you
+can cancel it too: backups it already removed stay removed, and the next
+retention frees the rest of the space.
 
-<Callout type="warn" title="Back up Docker Manager itself">
-  Turn on **Back Up the Manager State** in one policy, and use storage
-  away from the manager's server. Otherwise a lost server means a lost
-  Docker Manager.
+Good to know:
+
+- To change the roles, open a repository and choose **Make Primary**,
+  **Make Secondary** or **Stop Using as Secondary** in its menu (⋯).
+  Making the Secondary the Primary swaps the two.
+- Removing the Primary repository makes the Secondary the Primary.
+  Without a Secondary, backups pause and an alert says so until you make
+  another repository the Primary.
+- Backups in other repositories stay: you can still browse and restore
+  them, and **Apply Retention Now** covers them too.
+- **Back Up Now** by someone other than the owner leaves Docker Manager's
+  own data out; scheduled backups always include it.
+- With a Secondary repository and **Stop Containers During Backups** on,
+  containers stop once for each copy.
+
+<Callout type="warn" title="Keep a copy away from the server">
+  Use a repository away from the manager's server, for example a bucket in
+  the cloud. Otherwise a lost server means a lost Docker Manager and its
+  backups.
 </Callout>
 
 ## What is not backed up
@@ -76,7 +92,7 @@ frees the rest of the space.
   `/srv/media:/media`, unless you [allow them](#back-up-folders-outside-a-stack).
 - Anonymous volumes, unless you turn on **Back Up Anonymous Volumes**.
 - Volumes with the label `docker-manager.backup.exclude=true`, and the
-  volumes of a container with that label. In a policy they show unticked
+  volumes of a container with that label. In **Edit** they show unticked
   and can't be ticked; the (i) next to them says which label keeps them
   out.
 
@@ -106,14 +122,16 @@ as `/srv/media`. To back it up:
          - /srv/media:/srv/media
    ```
 
-2. In the backup policy, turn on **Back Up Allowed Folders Outside Stacks**.
+2. On **Backups**, press **Edit** and turn on **Back Up Allowed Folders
+   Outside Stacks**.
 
 System folders such as `/proc` or `/dev`, and Docker's own data folder, are
 never backed up.
 
 ## Restore
 
-Open the stack or volume and its **Backups** tab:
+Open the stack or volume and its **Backups** tab. Each backup is listed
+once for every repository it is stored in (**Stored In**); pick either.
 
 - **Restore All** puts back everything from a backup: for a stack, its
   folder and all its volumes. Type the name to confirm and press **Replace

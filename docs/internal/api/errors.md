@@ -153,13 +153,11 @@ same change.
 | `template_version_label_taken` | 409 | no | Another version of the template already uses this label. | #7 |
 | `template_registry_is_self` | 409 | no | The address is this instance's own: its templates are listed already. | #7 |
 | `template_registry_exists` | 409 | no | The template registry is added already. | #7 |
-| `backup_policy_name_taken` | 409 | no | Another backup policy already uses this name. | #10 |
-| `backup_scope_overlap` | 409 | no | A backup policy already covers this environment. | #10 |
-| `backup_repository_in_use` | 409 | no | A backup policy uses the repository; change or delete the policy first. | #10 |
-| `recovery_key_not_confirmed` | 409 | no | The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before policies can use or enable it. | #10 |
+| `backup_no_primary` | 409 | no | The backup settings have no Primary repository: nothing can be backed up until one is chosen. | #246 |
+| `recovery_key_not_confirmed` | 409 | no | The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before backups can use it. | #10 |
 | `key_rotation_in_progress` | 409 | no | A Recovery Key rotation is still moving repository locations to the new key; wait until no location is pending. | #10 |
 | `nothing_to_retry` | 409 | no | Every member of the backup set completed or was skipped; there is nothing to retry. | #10 |
-| `backup_run_active` | 409 | no | A backup of the policy is still queued or running; follow that job instead of starting another run. | #10 |
+| `backup_run_active` | 409 | no | A backup is still queued or running; follow that job instead of starting another run. | #10 |
 | `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
 | `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |
 | `manager_restore_required` | 409 | no | Manager-state backups are not restored like stack or volume data: import them into a fresh manager (first-run setup, backup import), which replaces the whole manager state. | #10 |

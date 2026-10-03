@@ -313,7 +313,7 @@ func (s *Service) buildSetManifest(ctx context.Context, setID string, manager *b
 		case backup.MemberVolume:
 			bm.RequiredCapabilities = []string{"files"}
 		}
-		if mem.Kind == backup.MemberManagerState && manager != nil {
+		if mem.Kind == backup.MemberManagerState && manager != nil && mem.RepositoryID == manager.RepositoryID {
 			bm = *manager
 		}
 		m.Members = append(m.Members, bm)
@@ -368,7 +368,9 @@ func (s *Service) stepManagerForget(ctx context.Context, sc *jobexec.StepContext
 		return err
 	}
 	sc.Progress(ctx, 10, "removing the backups the rules no longer keep")
-	res, err := backup.ApplyRetention(ctx, o.Repo, in.PolicyID, in.Rules, nil, in.TimeZone) // manager state is never a deleted item
+	// The manager state is never a deleted item.
+	res, err := backup.ApplyRetention(ctx, o.Repo, backup.RetentionScope{PolicyID: in.PolicyID, AnyPolicy: in.AnyPolicy}, in.Rules, nil,
+		in.TimeZone)
 	out := protocol.RetentionOutput{ResticRepositoryID: o.ResticRepositoryID, KeyGeneration: gen, Forgotten: res.Forgotten, Kept: res.Kept}
 	if serr := sc.SetOutput(ctx, out); serr != nil {
 		return serr

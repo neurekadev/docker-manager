@@ -1,8 +1,9 @@
 <script lang="ts">
 	// The members of a backup set (#10): each stack, volume or the manager
-	// state with its own state and snapshot time, in aligned columns.
-	// Multi-host sets are not atomic, so every member shows the time its
-	// environment took it. Members link to the backup they took (backupId).
+	// state with its own state and snapshot time, in aligned columns, one
+	// row per repository copy (#246) naming where it is stored. Multi-host
+	// sets are not atomic, so every member shows the time its environment
+	// took it. Members link to the backup they took (backupId).
 	import { Badge, formatDateTime } from '$lib/ui';
 	import { routes } from '$lib/routes';
 	import { itemName, memberReason, memberState, type SetMember } from './model';
@@ -10,10 +11,13 @@
 	let {
 		members,
 		environmentName,
+		repositoryName,
 		currentId
 	}: {
 		members: SetMember[];
 		environmentName?: (id: string) => string;
+		/** Names the repository each copy is stored in. */
+		repositoryName?: (id: string) => string;
 		/** The backup being shown (not linked). */
 		currentId?: string;
 	} = $props();
@@ -29,7 +33,7 @@
 		</tr>
 	</thead>
 	<tbody>
-		{#each members as m, i (`${m.scope}-${m.item}-${i}`)}
+		{#each members as m, i (`${m.repositoryId}-${m.scope}-${m.item}-${i}`)}
 			{@const s = memberState(m.state)}
 			{@const why = memberReason(m)}
 			{@const b = m.backupId}
@@ -46,6 +50,9 @@
 					{/if}
 					{#if m.environmentId && environmentName}<span class="muted sub"
 							>{environmentName(m.environmentId)}</span
+						>{/if}
+					{#if repositoryName && m.repositoryId}<span class="muted sub"
+							>Stored in {repositoryName(m.repositoryId)}</span
 						>{/if}
 					{#if why}<span class="sub" class:err={why.error} class:muted={!why.error}
 							>{why.text}</span

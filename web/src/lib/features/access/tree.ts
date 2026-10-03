@@ -1,6 +1,6 @@
 // The resource tree of the permission editor (#17): All Resources >
 // environment > stacks, containers, volumes, … and the instance-wide
-// resources (backup repositories and policies, registry connections, Git
+// resources (backup repositories, registry connections, Git
 // credentials). Each category lists its resources lazily with the API the
 // feature pages use; rules on resources that are not listed (deleted, or
 // the environment is offline) still appear from the rules themselves.
@@ -13,7 +13,7 @@ import {
 	stacksQuery,
 	volumesQuery
 } from '$lib/features/common/data';
-import { backupPoliciesQuery, repositoriesQuery } from '$lib/features/backups/queries';
+import { repositoriesQuery } from '$lib/features/backups/queries';
 import { updatePoliciesQuery } from '$lib/features/updates/queries';
 import { scopeKey, type Rule, type Scope, type ScopeNode } from './permissions';
 
@@ -191,15 +191,6 @@ export const CATEGORIES: Category[] = [
 		nodes: () =>
 			nodeQuery(repositoriesQuery(), (r: Named) =>
 				resourceNode('backup_repository', r.id, undefined, r.name)
-			)
-	},
-	{
-		type: 'backup_policy',
-		label: 'Backup Policies',
-		perEnvironment: false,
-		nodes: () =>
-			nodeQuery(backupPoliciesQuery(), (p: Named) =>
-				resourceNode('backup_policy', p.id, undefined, p.name)
 			)
 	},
 	{

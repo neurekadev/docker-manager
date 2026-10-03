@@ -1,9 +1,9 @@
 <script lang="ts">
-	// The volumes of one environment a backup policy (#10) covers: the
+	// The volumes of one environment the backups (#10, #246) cover: the
 	// volumes of the included stacks and the standalone ones, all included
-	// until unchecked (unchecking adds the volume to the policy's
-	// exclusions). Anonymous and buildx builder volumes appear only when the
-	// policy backs them up. Volumes left out by the backup exclude label (on
+	// until unchecked (unchecking adds the volume to the exclusions, keyed
+	// environmentID/name). Anonymous and buildx builder volumes appear only
+	// when they are backed up. Volumes left out by the backup exclude label (on
 	// the volume, in its Compose file or on a container using it) are listed
 	// unchecked and locked, with an (i) naming the label; standalone volumes
 	// only temporary containers of Docker Manager or Compose use are
@@ -19,7 +19,6 @@
 	let {
 		environmentId,
 		environmentName,
-		all,
 		excluded,
 		excludedStacks,
 		anonymous,
@@ -28,7 +27,6 @@
 	}: {
 		environmentId: string;
 		environmentName: string;
-		all: boolean;
 		excluded: string[];
 		excludedStacks: string[];
 		anonymous: boolean;
@@ -62,7 +60,7 @@
 	);
 	const standalone = $derived(shown.filter((v) => !v.stackId));
 	const item = (v: (typeof list)[number], withStack: boolean) => ({
-		key: volumeKey(all, environmentId, v.name),
+		key: volumeKey(environmentId, v.name),
 		label: v.name,
 		description:
 			[withStack && v.stackId ? stackTitle(v.stackId) : '', v.anonymous ? 'anonymous' : '']

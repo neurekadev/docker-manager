@@ -47,7 +47,7 @@ type AlertUser struct {
 // Alert is one alert.
 type Alert struct {
 	ID            string `json:"id" example:"0192f0c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f"`
-	Kind          string `json:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,updates,job_failed" example:"disk_health"`
+	Kind          string `json:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,backup,updates,job_failed" example:"disk_health"`
 	Severity      string `json:"severity" enum:"info,warning,critical" example:"critical"`
 	State         string `json:"state" enum:"firing,resolved" example:"firing"`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"The environment the problem is in (absent for manager jobs)."`
@@ -127,7 +127,7 @@ func alertError(err error) error {
 type listAlertsInput struct {
 	PageParams
 	State         string `query:"state" enum:"active,dismissed,firing,resolved" doc:"active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert."`
-	Kind          string `query:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,updates,job_failed" doc:"Only alerts of this kind."`
+	Kind          string `query:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,backup,updates,job_failed" doc:"Only alerts of this kind."`
 	EnvironmentID string `query:"environmentId" maxLength:"128" doc:"Only alerts of this environment."`
 }
 

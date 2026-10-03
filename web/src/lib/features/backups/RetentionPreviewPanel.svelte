@@ -4,10 +4,11 @@
 	// and environment by name) lists its stacks and volumes, one row each
 	// with how many backups go and stay, those losing backups first. A row
 	// opens to the backups with their dates and the rules keeping them.
-	// `retention` previews unsaved rules; without it the policy's saved
-	// rules are used. Once shown, the preview follows changes of the unsaved
-	// rules (after a short pause), so it never shows a decision the rules
-	// no longer make. Nothing is removed here.
+	// `retention` previews unsaved rules; without it the saved rules are
+	// used. It covers every Docker Manager backup, earlier policies' too.
+	// Once shown, the preview follows changes of the unsaved rules (after a
+	// short pause), so it never shows a decision the rules no longer make.
+	// Nothing is removed here.
 	import { untrack } from 'svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { api, unwrap } from '$lib/api/client';
@@ -22,7 +23,6 @@
 	} from './model';
 
 	interface Props {
-		policyId: string;
 		retention?: BackupRetention;
 		disabled?: boolean;
 		/** Load at once (confirmation dialogs). */
@@ -35,7 +35,6 @@
 	}
 
 	let {
-		policyId,
 		retention,
 		disabled = false,
 		auto = false,
@@ -63,8 +62,7 @@
 		error = null;
 		try {
 			const out = await unwrap(
-				api.POST('/api/v1/backup-policies/{policyId}/retention-previews', {
-					params: { path: { policyId } },
+				api.POST('/api/v1/backup-settings/retention-previews', {
 					body: retention ? { retention } : {}
 				})
 			);

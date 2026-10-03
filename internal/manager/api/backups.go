@@ -442,7 +442,7 @@ func (h *backupsAPI) restore(ctx context.Context, in *restoreInput) (*JobAccepte
 func registerBackups(a huma.API, deps Deps) {
 	h := &backupsAPI{svc: deps.Backups, authz: authz.OrDenyAll(deps.Authorizer), deps: deps}
 	registerBackupRepositories(a, h)
-	registerBackupPolicies(a, h)
+	registerBackupSettings(a, h)
 	registerBackupActivity(a, h)
 	registerResticSnapshots(a, h)
 	registerBackupStorage(a, h)

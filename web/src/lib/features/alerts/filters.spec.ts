@@ -45,6 +45,7 @@ describe('alerts list filters (#159)', () => {
 			'Disk Space',
 			'Memory',
 			'Environment Offline',
+			'Backups Paused',
 			'Updates Available',
 			'Failed Job'
 		]);

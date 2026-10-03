@@ -50,8 +50,7 @@ web `web/src/lib/features/notifications`.
   "Disk Health · Critical", "Backups · Success"; a resolution "…
   · Resolved", `deliveryLabel`); the title puts the subject first, then
   what happened ("Disk /dev/sda is failing", "Update of Paperless
-  succeeded"; a backup policy's run is its policy, "Daily Backups
-  succeeded"), names the environment only when it is the subject
+  succeeded"; a backup run is "Backups succeeded"), names the environment only when it is the subject
   ("homelab is offline") and never the instance (the footer does);
   resolutions are "Resolved: <title>"; digest entries put a problem's
   severity first and a finished run's title alone. Status lines and

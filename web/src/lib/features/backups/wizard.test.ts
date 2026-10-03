@@ -1,7 +1,7 @@
-// Backup policy form (#10): creating walks through the wizard's steps
-// (Cancel on each, visited steps reopen) and nothing is saved before the
-// last one; editing is one screen saved once with Save Changes. Retention
-// starts on a preset; Custom reveals the rules.
+// The backup settings dialog (#10, #246): one screen saved once with Save
+// Changes. The Primary and Secondary repositories are chosen from the
+// repositories; the Secondary must differ and backups need a Primary to be
+// turned on. Retention opens on the preset the rules match.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -9,8 +9,8 @@ import { choose } from '../../../test/select';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
-import PolicyWizard from './PolicyWizard.svelte';
-import type { BackupPolicy } from './model';
+import BackupSettingsDialog from './BackupSettingsDialog.svelte';
+import type { BackupSettings } from './model';
 
 function json(body: unknown, status = 200) {
 	return new Response(JSON.stringify(body), {
@@ -19,33 +19,30 @@ function json(body: unknown, status = 200) {
 	});
 }
 
-const policy: BackupPolicy = {
-	id: 'bp1',
-	name: 'Nightly',
-	scope: 'environment',
-	environmentId: 'e1',
+const settings: BackupSettings = {
+	id: 'bs1',
+	enabled: false,
+	primaryRepositoryId: 'r1',
+	secondaryRepositoryId: '',
+	schedule: { cron: '0 2 * * *', timeZone: 'UTC' },
+	excludeEnvironments: [],
 	excludeStacks: [],
 	excludeVolumes: [],
 	anonymousVolumes: false,
 	buildxVolumes: false,
 	externalBinds: false,
-	enabled: false,
-	view: 'full',
-	actions: ['backup_policy.manage'],
-	repositoryId: 'r1',
-	includeManagerState: false,
 	includeMetrics: false,
-	stacks: [],
-	volumes: [],
 	shutdown: false,
-	schedule: { cron: '0 2 * * *', timeZone: 'UTC', enabled: false },
 	retention: { daily: 7 },
-	revision: 3
+	recentSets: [],
+	actions: ['backup_policy.manage'],
+	revision: 3,
+	updatedAt: '2026-09-27T00:00:00Z'
 };
 
 /** Stubs the API; returns the writes (method and body) in order. */
-function stubApi(existing: BackupPolicy[] = []) {
-	const writes: { method: string; path: string; body: unknown }[] = [];
+function stubApi() {
+	const writes: { method: string; path: string; body: unknown; ifMatch: string | null }[] = [];
 	vi.stubGlobal(
 		'fetch',
 		vi.fn(async (input: Request) => {
@@ -61,28 +58,32 @@ function stubApi(existing: BackupPolicy[] = []) {
 				});
 			if (input.method !== 'GET') {
 				const body = await input.json().catch(() => undefined);
-				writes.push({ method: input.method, path: url.pathname, body });
-				return json({ ...policy, ...(body as object), id: 'bp1', revision: 4 });
+				writes.push({
+					method: input.method,
+					path: url.pathname,
+					body,
+					ifMatch: input.headers.get('If-Match')
+				});
+				return json({ ...settings, ...(body as object), revision: 4 });
 			}
 			switch (url.pathname) {
 				case '/api/v1/environments':
 					return json({
-						items: [{ id: 'e1', name: 'prod', status: 'active', online: true }],
+						items: [
+							{ id: 'e1', name: 'prod', status: 'active', online: true },
+							{ id: 'e2', name: 'lab', status: 'active', online: false }
+						],
 						nextCursor: null
 					});
 				case '/api/v1/backup-repositories':
 					return json({
 						items: [
-							{
-								id: 'r1',
-								name: 'Offsite',
-								state: 'ready'
-							}
+							{ id: 'r1', name: 'Offsite', state: 'ready', role: 'primary' },
+							{ id: 'r2', name: 'NAS', state: 'ready' },
+							{ id: 'r3', name: 'New', state: 'awaiting_confirmation' }
 						],
 						nextCursor: null
 					});
-				case '/api/v1/backup-policies':
-					return json({ items: existing, nextCursor: null });
 				case '/api/v1/schedule-defaults':
 					return json({ timeZone: 'UTC', kinds: [] });
 				default:
@@ -93,149 +94,65 @@ function stubApi(existing: BackupPolicy[] = []) {
 	return writes;
 }
 
-function renderWizard(props: ComponentProps<typeof PolicyWizard>) {
-	render(QueryHarness<ComponentProps<typeof PolicyWizard>>, {
+function renderDialog(props: ComponentProps<typeof BackupSettingsDialog>) {
+	render(QueryHarness<ComponentProps<typeof BackupSettingsDialog>>, {
 		props: {
 			client: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
-			component: PolicyWizard,
+			component: BackupSettingsDialog,
 			props
 		}
 	});
 }
 
-const heading = (name: string) => screen.findByRole('heading', { name, level: 2 });
-
 afterEach(() => vi.unstubAllGlobals());
 
-describe('PolicyWizard (#10)', () => {
-	it('editing shows every section on one screen and saves once with Save Changes', async () => {
+describe('BackupSettingsDialog (#246)', () => {
+	it('shows every section on one screen and saves once with Save Changes', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
-		const writes = stubApi([policy]);
-		const ondone = vi.fn();
-		const oncancel = vi.fn();
-		renderWizard({ policy, owner: false, ondone, oncancel });
-		for (const section of ['Name and Destination', 'What to Back Up', 'Schedule', 'Retention'])
+		const writes = stubApi();
+		renderDialog({ settings });
+		for (const section of ['Repositories', 'What to Back Up', 'Schedule', 'Retention'])
 			expect(
 				await screen.findByRole('heading', { name: section, level: 3 })
 			).toBeInTheDocument();
-		// No wizard steps when editing.
-		expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
-		expect(screen.getByRole('textbox', { name: /^Name/ })).toHaveValue('Nightly');
-		// The repositories load with the form: the policy's and the one for prod.
-		await vi.waitFor(() =>
-			expect(screen.getAllByRole('combobox', { name: /^Repository/ })).toHaveLength(2)
-		);
 		// Rules no preset matches open as Custom with their fields.
 		expect(screen.getByRole('radio', { name: /^Custom/ })).toBeChecked();
 		expect(screen.getByRole('spinbutton', { name: /^Daily/ })).toHaveValue(7);
-		await user.click(screen.getByRole('button', { name: 'Cancel' }));
-		expect(oncancel).toHaveBeenCalledTimes(1);
-		expect(writes).toEqual([]);
-		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-		await vi.waitFor(() => expect(ondone).toHaveBeenCalled());
-		expect(writes.map((w) => `${w.method} ${w.path}`)).toEqual([
-			'PATCH /api/v1/backup-policies/bp1'
-		]);
-		// A policy's scope is fixed: the update refuses it as an unexpected property.
-		expect(writes[0].body).not.toHaveProperty('scope');
-		expect(writes[0].body).toMatchObject({ name: 'Nightly', retention: { daily: 7 } });
-	});
+		// The manager state is always backed up: no switch for it.
+		expect(screen.queryByRole('switch', { name: /Back Up the Manager State/ })).toBeNull();
 
-	it('creating writes nothing until Create Policy, then creates it with every setting', async () => {
-		const user = userEvent.setup({ pointerEventsCheck: 0 });
-		const writes = stubApi();
-		const ondone = vi.fn();
-		const oncancel = vi.fn();
-		renderWizard({ owner: false, ondone, oncancel });
-		await heading('Destination');
-		expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
-		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
 		await choose(
 			user,
-			await screen.findByRole('combobox', { name: /^Repository/ }),
-			/^Offsite/
+			await screen.findByRole('combobox', { name: /^Secondary Repository/ }),
+			/^NAS/
 		);
-		await user.click(screen.getByRole('button', { name: 'Next' }));
-		expect(await heading('What to Back Up')).toBeInTheDocument();
-		// Consistency is part of this step now.
-		expect(
-			screen.getByRole('switch', { name: /Stop Containers During Backups/ })
-		).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
-		await user.click(screen.getByRole('switch', { name: /Back Up Anonymous Volumes/ }));
-		await user.click(
-			screen.getByRole('switch', { name: /Back Up Allowed Folders Outside Stacks/ })
-		);
-		for (const next of ['Schedule', 'Retention']) {
-			await user.click(screen.getByRole('button', { name: 'Next' }));
-			expect(await heading(next)).toBeInTheDocument();
-		}
-		// A visited step opens again from the step list.
-		await user.click(screen.getByRole('button', { name: /^Destination/ }));
-		expect(await heading('Destination')).toBeInTheDocument();
-		await user.click(screen.getByRole('button', { name: /^Retention/ }));
-		expect(await heading('Retention')).toBeInTheDocument();
-		// New policies start on the recommended preset; Custom reveals the rules.
-		expect(
-			screen.getByRole('radio', { name: /7 Daily, 4 Weekly, 12 Monthly \(Recommended\)/ })
-		).toBeChecked();
-		expect(screen.queryByRole('spinbutton', { name: /^Daily/ })).toBeNull();
-		await user.click(screen.getByRole('radio', { name: /^Custom/ }));
-		expect(screen.getByRole('spinbutton', { name: /^Daily/ })).toHaveValue(7);
-		await user.click(screen.getByRole('radio', { name: /^Keep the Last 30/ }));
-		expect(screen.getByText('Keep last 30.')).toBeInTheDocument();
+		await user.click(screen.getByRole('switch', { name: /Back Up Automatically/ }));
 		expect(writes).toEqual([]);
-		await user.click(screen.getByRole('button', { name: 'Cancel' }));
-		expect(oncancel).toHaveBeenCalledTimes(1);
-		await user.click(screen.getByRole('button', { name: 'Create Policy' }));
-		await vi.waitFor(() => expect(ondone).toHaveBeenCalled());
-		expect(writes).toHaveLength(1);
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+		await vi.waitFor(() => expect(writes).toHaveLength(1));
 		expect(writes[0]).toMatchObject({
-			method: 'POST',
-			path: '/api/v1/backup-policies',
+			method: 'PATCH',
+			path: '/api/v1/backup-settings',
+			ifMatch: '"3"',
 			body: {
-				name: 'Nightly',
-				scope: 'all',
-				repositoryId: 'r1',
-				anonymousVolumes: true,
-				externalBinds: true,
-				shutdown: false,
-				schedule: { enabled: false },
-				retention: {
-					last: 30,
-					hourly: 0,
-					daily: 0,
-					weekly: 0,
-					monthly: 0,
-					yearly: 0,
-					withinDays: 0
-				}
+				enabled: true,
+				primaryRepositoryId: 'r1',
+				secondaryRepositoryId: 'r2',
+				excludeEnvironments: [],
+				schedule: { cron: '0 2 * * *', timeZone: 'UTC' },
+				retention: { daily: 7 }
 			}
 		});
 	});
 
-	it('refuses a scope another policy covers before going on', async () => {
+	it('needs a Primary repository to turn backups on', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
-		const writes = stubApi([
-			{ ...policy, name: 'Everything', scope: 'all', environmentId: '' }
-		]);
-		renderWizard({ owner: false, ondone: vi.fn() });
-		await heading('Destination');
-		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
-		await choose(
-			user,
-			await screen.findByRole('combobox', { name: /^Repository/ }),
-			/^Offsite/
-		);
-		// The existing policies load with the page; Next stays on this step.
-		await screen.findByRole('button', { name: 'Next' });
-		await vi.waitFor(async () => {
-			await user.click(screen.getByRole('button', { name: 'Next' }));
-			expect(
-				screen.getByText(/Everything already covers all environments/)
-			).toBeInTheDocument();
-		});
-		expect(await heading('Destination')).toBeInTheDocument();
+		const writes = stubApi();
+		renderDialog({ settings: { ...settings, primaryRepositoryId: '' } });
+		await screen.findByRole('heading', { name: 'Repositories', level: 3 });
+		await user.click(screen.getByRole('switch', { name: /Back Up Automatically/ }));
+		expect(await screen.findByText(/Choose a Primary repository/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 		expect(writes).toEqual([]);
 	});
 });

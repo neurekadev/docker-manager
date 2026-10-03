@@ -6,7 +6,7 @@ description: Problems Docker Manager spots by itself, finished backups, restores
 Docker Manager watches your servers and raises an **alert** when something
 needs you: a failing disk, a degraded RAID array, a server that runs hot,
 is almost out of disk space or memory or went offline, a scheduled job
-that failed or new image updates. It also records a **notification**
+that failed, new image updates or paused backups. It also records a **notification**
 whenever a backup, a restore, a prune or an update finishes. Both show in
 the app and go to your [notification channels](/notifications).
 
@@ -22,6 +22,7 @@ the app and go to your [notification channels](/notifications).
 | **Environment Offline** | A server has been offline for 5 minutes (**Critical**). | The server is back online. |
 | **Failed Job** | A scheduled job, or one started with an API token, failed (**Critical**), partly failed or was interrupted (**Warning**). Jobs you start yourself show only in your bell. | The next run of the same job succeeds. |
 | **Updates Available** | An update check finds newer images (**Info**). | No update is left. |
+| **Backups Paused** | Backups are on but no repository is the Primary one, for example after removing the Primary without a Secondary (**Critical**). Nothing is backed up meanwhile. | A repository is the Primary one again, or backups are turned off. |
 
 A disk or array that is no longer reported for a day, a failed job that
 doesn't run again for 7 days, and the alerts of an archived environment
@@ -57,7 +58,7 @@ memory.
 - The **bell** at the top counts the alerts and job messages you haven't
   dismissed. The count stays until you dismiss them.
 - Click an alert or notification to open what it is about: the server's
-  **System** tab, the server, the job or **Updates**.
+  **System** tab, the server, the job, **Updates** or **Backups**.
 - The dashboard's **Needs Attention** shows how many disks and RAID arrays
   need attention, and an environment's page shows a notice with **View
   Disks**.
@@ -97,11 +98,11 @@ Every message looks the same way:
 - a top line with what it is about and how it went, named as under
   **What to Send** (for example **Disk Health · Critical**, **Backups ·
   Success** or **Image Updates · Applied**),
-- a title that names the disk, server, stack or backup policy first, then
-  what happened, for example "Disk /dev/sda is failing", "Daily Backups
-  succeeded" or "Update of Paperless succeeded",
-- what went wrong and what to do, and the numbers. The server, stack,
-  policy and services link to their pages; an update lists each service
+- a title that names the disk, server or stack first, then what
+  happened, for example "Disk /dev/sda is failing", "Backups succeeded"
+  or "Update of Paperless succeeded",
+- what went wrong and what to do, and the numbers. The server, stack
+  and services link to their pages; an update lists each service
   with its old and new image digest,
 - **Open in Docker Manager** at the end in chat apps (a button in
   email), and your Docker Manager's **Name** (**Settings → About This

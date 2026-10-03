@@ -2348,85 +2348,54 @@ routes:
     status: implemented
     notes: "Live restic snapshots of every location (per-location errorClass, newest first, bounded)."
   - method: GET
-    path: /api/v1/backup-policies
-    operationId: list-backup-policies
+    path: /api/v1/backup-settings
+    operationId: get-backup-settings
     capability: backup_policy.read
-    scope: resource
-    owner: 10
-    kind: json
-    status: implemented
-  - method: POST
-    path: /api/v1/backup-policies
-    operationId: create-backup-policy
-    capability: backup_policy.manage
     scope: instance
-    owner: 10
+    owner: 246
     kind: json
     status: implemented
-  - method: POST
-    path: /api/v1/backup-policy-scope-previews
-    operationId: create-backup-policy-draft-scope-preview
-    capability: backup_policy.manage
-    scope: instance
-    owner: 10
-    kind: json
-    status: implemented
-  - method: GET
-    path: "/api/v1/backup-policies/{policyId}"
-    operationId: get-backup-policy
-    capability: backup_policy.read
-    scope: resource
-    owner: 10
-    kind: json
-    status: implemented
+    notes: The one backup setup (Primary and Secondary repositories, schedule, what is backed up, retention) and its recent runs.
   - method: PATCH
-    path: "/api/v1/backup-policies/{policyId}"
-    operationId: update-backup-policy
+    path: /api/v1/backup-settings
+    operationId: update-backup-settings
     capability: backup_policy.manage
-    scope: resource
-    owner: 10
+    scope: instance
+    owner: 246
     kind: json
     status: implemented
     notes: If-Match.
-  - method: DELETE
-    path: "/api/v1/backup-policies/{policyId}"
-    operationId: delete-backup-policy
-    capability: backup_policy.manage
-    scope: resource
-    owner: 10
-    kind: json
-    status: implemented
   - method: POST
-    path: "/api/v1/backup-policies/{policyId}/scope-previews"
-    operationId: create-backup-policy-scope-preview
+    path: /api/v1/backup-settings/scope-previews
+    operationId: create-backup-scope-preview
     capability: backup_policy.read
-    scope: resource
-    owner: 10
+    scope: instance
+    owner: 246
     kind: json
     status: implemented
   - method: POST
-    path: "/api/v1/backup-policies/{policyId}/runs"
-    operationId: create-backup-policy-run
+    path: /api/v1/backup-settings/runs
+    operationId: create-backup-run
     capability: backup.run
-    scope: resource
-    owner: 10
+    scope: instance
+    owner: 246
     kind: json
     status: implemented
-    notes: "201 + backup set and its jobs (one per environment, plus manager.backup); Idempotency-Key."
+    notes: "201 + backup set and its jobs (per environment and manager.backup, Primary then Secondary); Idempotency-Key."
   - method: POST
-    path: "/api/v1/backup-policies/{policyId}/retention-previews"
-    operationId: create-backup-policy-retention-preview
+    path: /api/v1/backup-settings/retention-previews
+    operationId: create-backup-retention-preview
     capability: backup_policy.read
-    scope: resource
-    owner: 10
+    scope: instance
+    owner: 246
     kind: json
     status: implemented
   - method: POST
-    path: "/api/v1/backup-policies/{policyId}/retention-runs"
-    operationId: create-backup-policy-retention-run
+    path: /api/v1/backup-settings/retention-runs
+    operationId: create-backup-retention-run
     capability: backup.retention
-    scope: resource
-    owner: 10
+    scope: instance
+    owner: 246
     kind: json
     status: implemented
     notes: "201 + the retention jobs (one per location); Idempotency-Key; confirm: true."

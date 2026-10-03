@@ -202,10 +202,7 @@ export function policyPage(kind: string, policyId?: string): { href: string; lab
 			label: 'Backup Repository'
 		};
 	if (kind.startsWith('backup.') || kind.startsWith('manager.'))
-		return {
-			href: policyId ? routes.backupPolicy(policyId) : routes.backupPolicies(),
-			label: 'Backup Policy'
-		};
+		return { href: routes.backups(), label: 'Backups' };
 	return { href: routes.schedules(), label: 'Policy' };
 }
 

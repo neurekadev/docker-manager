@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -102,7 +101,7 @@ func policyPath(n domain.Notification) string {
 	case id == "":
 		return ""
 	case n.Kind == domain.NotifyBackup && n.Facts["jobKind"] == "backup.run":
-		return "/backups/policies/" + url.PathEscape(id)
+		return "/backups"
 	case n.Kind == domain.NotifyPrune:
 		return "/maintenance"
 	}
@@ -169,12 +168,11 @@ func memberName(m backup.Member) string {
 func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[string]string) (domain.NotificationOutcome, string) {
 	var in backupInput
 	_ = json.Unmarshal(j.Input, &in)
+	// Runs of the backup setup (#246) and of the earlier policies.
 	if in.PolicyName != "" {
 		f["policy"] = in.PolicyName
 	} else if j.PolicyID != "" {
-		if p, err := store.GetBackupPolicy(ctx, db, j.PolicyID); err == nil {
-			f["policy"] = p.Name
-		}
+		f["policy"] = "Backups"
 	}
 	if j.PolicyID != "" && f["policy"] != "" {
 		f["policyId"] = j.PolicyID
@@ -262,7 +260,7 @@ func backupNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[str
 	if warning {
 		outcome = domain.OutcomeWarning
 	}
-	// The policy's name is the subject ("Daily Backups succeeded").
+	// The setup or policy name is the subject ("Backups succeeded").
 	what := "Backup"
 	switch {
 	case j.Kind == "manager.backup":

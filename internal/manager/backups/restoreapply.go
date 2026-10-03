@@ -302,7 +302,7 @@ func (s *Service) stepImportIndex(ctx context.Context, sc *jobexec.StepContext) 
 	}
 	manifests := mscan.manifests
 	out.SetManifests = len(manifests)
-	for _, l := range s.importHosts(ctx, src, sec, mscan.manifests) {
+	for _, l := range s.importHosts(ctx, src, sec, mscan.manifests, in.RepositoryID) {
 		if l.repo == nil {
 			continue
 		}
@@ -721,7 +721,7 @@ func (s *Service) reconcile(ctx context.Context, tx bun.IDB, manifests []backup.
 					continue
 				}
 				for _, m := range members {
-					if m.Scope == cur.Scope && m.Item == cur.Item && m.SnapshotID != "" {
+					if m.RepositoryID == cur.RepositoryID && m.Scope == cur.Scope && m.Item == cur.Item && m.SnapshotID != "" {
 						jobID := cur.JobID
 						*cur = setMember(m)
 						cur.JobID = jobID

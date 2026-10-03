@@ -43,8 +43,7 @@ const (
 // Backup error codes.
 const (
 	CodeBackupRepositoryNameTaken = "backup_repository_name_taken"
-	CodeBackupPolicyNameTaken     = "backup_policy_name_taken"
-	CodeBackupRepositoryInUse     = "backup_repository_in_use"
+	CodeBackupNoPrimary           = "backup_no_primary"
 	CodeRecoveryKeyNotConfirmed   = "recovery_key_not_confirmed"
 	CodeRecoveryKeyMismatch       = "recovery_key_mismatch"
 	CodeRecoveryKeyMalformed      = "recovery_key_malformed"
@@ -77,15 +76,12 @@ type BackupService interface {
 	ConfirmKey(ctx context.Context, repositoryID, input string, backedUp bool) (backups.KeyConfirmation, error)
 	RotateKey(ctx context.Context) (backups.KeyRotation, error)
 
-	ListPolicies(ctx context.Context, afterID string, limit int) ([]domain.BackupPolicy, error)
-	GetPolicy(ctx context.Context, id string) (domain.BackupPolicy, error)
-	CreatePolicy(ctx context.Context, p domain.BackupPolicy) (domain.BackupPolicy, error)
-	UpdatePolicy(ctx context.Context, id string, revision int64, p backups.PolicyPatch) (before, after domain.BackupPolicy, err error)
-	DeletePolicy(ctx context.Context, id string, revision int64) error
-	PreviewScope(ctx context.Context, id string, draft *domain.BackupPolicy) (backups.ScopePreview, error)
-	PreviewRetention(ctx context.Context, id string, override *domain.BackupRetention) ([]backups.RetentionLocation, domain.BackupPolicy, error)
-	RunPolicy(ctx context.Context, policyID string, o backups.RunOptions) (backups.RunResult, error)
-	RetentionRun(ctx context.Context, policyID string, principal authz.Principal, idempotencyKey string) ([]domain.Job, error)
+	Setup(ctx context.Context) (domain.BackupSetup, error)
+	UpdateSetup(ctx context.Context, revision int64, p domain.BackupSetupPatch) (before, after domain.BackupSetup, err error)
+	PreviewScope(ctx context.Context, draft *domain.BackupSetup) (backups.ScopePreview, error)
+	PreviewRetention(ctx context.Context, override *domain.BackupRetention) ([]backups.RetentionLocation, domain.BackupSetup, error)
+	RunNow(ctx context.Context, o backups.RunOptions) (backups.RunResult, error)
+	RetentionRun(ctx context.Context, principal authz.Principal, idempotencyKey string) ([]domain.Job, error)
 	RecentSets(ctx context.Context, policyIDs []string, perPolicy int) (map[string][]domain.BackupSet, error)
 	SetBackups(ctx context.Context, setIDs []string) ([]domain.BackupSnapshot, error)
 	GetSet(ctx context.Context, id string) (domain.BackupSet, error)
@@ -124,20 +120,14 @@ func backupError(err error) error {
 		return nil
 	case errors.Is(err, domain.ErrBackupRepositoryNotFound):
 		return NotFound("backup repository not found")
-	case errors.Is(err, domain.ErrBackupPolicyNotFound):
-		return NotFound("backup policy not found")
 	case errors.Is(err, domain.ErrBackupNotFound):
 		return NotFound("backup not found")
 	case errors.Is(err, domain.ErrBackupSetNotFound):
 		return NotFound("backup set not found")
 	case errors.Is(err, domain.ErrBackupRepositoryNameUsed):
 		return Conflict(CodeBackupRepositoryNameTaken, "another backup repository already uses this name")
-	case errors.Is(err, domain.ErrBackupPolicyNameUsed):
-		return Conflict(CodeBackupPolicyNameTaken, "another backup policy already uses this name")
-	case errors.Is(err, domain.ErrBackupScopeOverlap):
-		return Conflict("backup_scope_overlap", "a backup policy already covers this environment")
-	case errors.Is(err, domain.ErrBackupRepositoryInUse):
-		return Conflict(CodeBackupRepositoryInUse, "a backup policy uses this repository; change or delete the policy first")
+	case errors.Is(err, domain.ErrBackupNoPrimary):
+		return Conflict(CodeBackupNoPrimary, "no Primary backup repository is set; choose one in the backup settings")
 	case errors.Is(err, domain.ErrRecoveryKeyNotConfirmed):
 		return Conflict(CodeRecoveryKeyNotConfirmed, "the Recovery Key has not been confirmed for this repository; confirm it first (recovery-confirmations)")
 	case errors.Is(err, domain.ErrRecoveryKeyMismatch):
@@ -183,7 +173,7 @@ func backupError(err error) error {
 	case errors.As(err, &classed):
 		return Conflict(CodeBackupRepositoryError, classed.Error())
 	case errors.Is(err, domain.ErrStackNotFound), errors.Is(err, domain.ErrEnvironmentNotFound):
-		return Invalid("the policy refers to a stack or environment that no longer exists")
+		return Invalid("a stack or environment of the backup no longer exists")
 	}
 	if je := JobErrorFor(err); !isInternal(je) {
 		return je
@@ -241,6 +231,7 @@ type BackupRepository struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name" example:"Offsite S3"`
 	State     string   `json:"state" enum:"awaiting_confirmation,ready" doc:"awaiting_confirmation until the owner re-enters the Recovery Key for it; nothing is initialized before."`
+	Role      string   `json:"role,omitempty" enum:"primary,secondary" doc:"Its role in the backup settings: every run backs up to the Primary repository and then to the Secondary one. Absent: runs do not write to it (its backups stay browsable and restorable)."`
 	View      string   `json:"view" enum:"minimal,full"`
 	Actions   []string `json:"actions"`
 	Location  string   `json:"location,omitempty" example:"https://s3.example.com/backups/docker-manager" doc:"Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>."`
@@ -338,8 +329,18 @@ func recoveryRequirements() []string {
 	return []string{"the Recovery Key", "the endpoint, bucket and prefix", "S3 credentials that can read the bucket (new credentials work)"}
 }
 
-func newBackupRepository(r domain.BackupRepository, v authz.View, locs []domain.BackupLocation) BackupRepository {
-	out := BackupRepository{ID: r.ID, Name: r.Name, State: r.State, View: v.Level.String(), Actions: Actions(v)}
+// repositoryRoles returns the role of each repository in the backup
+// settings ("" when unknown).
+func repositoryRoles(ctx context.Context, svc BackupService) func(id string) string {
+	st, err := svc.Setup(ctx)
+	if err != nil {
+		return func(string) string { return "" }
+	}
+	return st.RoleOf
+}
+
+func newBackupRepository(r domain.BackupRepository, v authz.View, locs []domain.BackupLocation, role func(string) string) BackupRepository {
+	out := BackupRepository{ID: r.ID, Name: r.Name, State: r.State, Role: role(r.ID), View: v.Level.String(), Actions: Actions(v)}
 	if !v.Full() {
 		return out
 	}
@@ -477,8 +478,9 @@ func (h *backupsAPI) listRepositories(ctx context.Context, in *struct{ PageParam
 		return nil, Internal(err)
 	}
 	out := make([]BackupRepository, 0, len(items))
+	role := repositoryRoles(ctx, svc)
 	for _, r := range items {
-		out = append(out, newBackupRepository(r, authz.ViewOf(c, backupRepositoryResource(r.ID)), locs))
+		out = append(out, newBackupRepository(r, authz.ViewOf(c, backupRepositoryResource(r.ID)), locs, role))
 	}
 	cursor, err := nextCursor(fp, next)
 	if err != nil {
@@ -524,7 +526,7 @@ func (h *backupsAPI) getRepository(ctx context.Context, in *backupRepositoryIDIn
 	if err != nil {
 		return nil, Internal(err)
 	}
-	body := newBackupRepository(r, v, locs)
+	body := newBackupRepository(r, v, locs, repositoryRoles(ctx, svc))
 	return &backupRepositoryOutput{ETagHeader: repositoryETag(body), Body: body}, nil
 }
 
@@ -579,12 +581,13 @@ func (h *backupsAPI) createRepository(ctx context.Context, in *createBackupRepos
 		return nil, backupError(err)
 	}
 	// A new repository has no measured location yet.
-	repo := newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(res.Repository.ID)), nil)
+	role := repositoryRoles(ctx, svc)
+	repo := newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(res.Repository.ID)), nil, role)
 	if !repo.ViewFull() {
-		repo = newBackupRepository(res.Repository, authz.View{Level: authz.Full, Actions: []string{string(CapBackupRepositoryRead)}}, nil)
+		repo = newBackupRepository(res.Repository, authz.View{Level: authz.Full, Actions: []string{string(CapBackupRepositoryRead)}}, nil, role)
 	}
 	out := CreatedBackupRepository{Repository: repo, KeyState: newRecoveryKeyState(res.Key, nil),
-		NextStep: "Confirm the Recovery Key for this repository (POST .../recovery-confirmations) before policies can use it."}
+		NextStep: "Confirm the Recovery Key for this repository (POST .../recovery-confirmations) before backups can use it."}
 	if res.RecoveryKey != nil {
 		out.RecoveryKey = newRecoveryKeyReveal(*res.RecoveryKey)
 	}
@@ -637,7 +640,7 @@ func (h *backupsAPI) updateRepository(ctx context.Context, in *updateBackupRepos
 	if err != nil {
 		return nil, Internal(err)
 	}
-	body := newBackupRepository(after, v, locs)
+	body := newBackupRepository(after, v, locs, repositoryRoles(ctx, svc))
 	return &backupRepositoryOutput{ETagHeader: repositoryETag(body), Body: body}, nil
 }
 
@@ -708,7 +711,8 @@ func (h *backupsAPI) confirmRecoveryKey(ctx context.Context, in *recoveryConfirm
 	}
 	pending, _ := svc.LocationKeyStatus(ctx)
 	locs, _ := svc.ListLocations(ctx, r.ID)
-	out := RecoveryConfirmation{Repository: newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(r.ID)), locs),
+	out := RecoveryConfirmation{Repository: newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(r.ID)), locs,
+		repositoryRoles(ctx, svc)),
 		KeyState: newRecoveryKeyState(res.Key, pending), Activated: res.Activated}
 	for _, j := range res.RotationJobs {
 		out.Jobs = append(out.Jobs, NewJob(j))
@@ -859,9 +863,9 @@ func registerBackupRepositories(a huma.API, h *backupsAPI) {
 		Operation: huma.Operation{
 			OperationID: "delete-backup-repository", Method: http.MethodDelete, Path: BasePath + "/backup-repositories/{repositoryId}",
 			Summary: "Remove a backup repository", DefaultStatus: http.StatusNoContent,
-			Description: "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it), with its " +
-				"backups and the backup sets held only by it from the index. The restic repositories at the destination are left " +
-				"untouched. Requires If-Match.",
+			Description: "Removes the repository from Docker Manager, with its backups and the backup sets held only by it from " +
+				"the index. Removing the Primary repository makes the Secondary one the Primary; without a Secondary, backups " +
+				"stop until a Primary is chosen. The restic repositories at the destination are left untouched. Requires If-Match.",
 			Tags: []string{tagBackups}, Errors: editErrs,
 		},
 		Capability: CapBackupRepositoryManage, Scope: ScopeResource,

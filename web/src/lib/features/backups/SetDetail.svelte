@@ -1,9 +1,8 @@
 <script lang="ts">
 	// One backup set in the details drawer (#10): when and how it ran, its
 	// size, the live progress while it runs, and every backup it holds
-	// grouped by environment with its own state and time, each linked to
-	// its backup.
-	import { routes } from '$lib/routes';
+	// grouped by environment with its own state, time and repository (a
+	// copy per repository, #246), each linked to its backup.
 	import { Badge, formatBytes, formatDateTime, formatDuration } from '$lib/ui';
 	import Facts from '$lib/features/common/Facts.svelte';
 	import RunningBackups from './RunningBackups.svelte';
@@ -19,15 +18,14 @@
 
 	interface Props {
 		set: BackupSet;
-		policyId?: string;
-		policyName?: string;
 		environmentName: (id: string) => string;
+		repositoryName?: (id: string) => string;
 		bytes?: number;
 		/** Running jobs of this set. */
 		activity?: BackupActivity[];
 	}
 
-	let { set: s, policyId, policyName, environmentName, bytes, activity = [] }: Props = $props();
+	let { set: s, environmentName, repositoryName, bytes, activity = [] }: Props = $props();
 	const st = $derived(setState(s.state));
 	const duration = $derived(setDuration(s));
 	const origin = $derived(
@@ -51,21 +49,17 @@
 				value: duration !== undefined ? formatDuration(duration) : 'Still running'
 			},
 			{ label: 'Origin', value: origin },
-			{ label: 'Size', value: bytes !== undefined ? formatBytes(bytes) : '—' },
-			...(policyId ? [{ label: 'Policy', render: policyFact }] : [])
+			{ label: 'Size', value: bytes !== undefined ? formatBytes(bytes) : '—' }
 		]}
 	/>
 	{#snippet stateFact()}<Badge tone={st.tone} dot>{st.label}</Badge>{/snippet}
-	{#snippet policyFact()}<a href={routes.backupPolicy(policyId ?? '')}
-			>{policyName ?? 'Open Policy'}</a
-		>{/snippet}
 
 	{#if activity.length}
 		<section aria-labelledby="set-{s.id}-running">
 			<h3 id="set-{s.id}-running">Running Now</h3>
 			<RunningBackups
 				jobs={activity}
-				policyName={() => policyName ?? 'Backup'}
+				policyName={() => 'Backups'}
 				{environmentName}
 				compact
 			/>
@@ -78,7 +72,7 @@
 				{env ? environmentName(env) : 'Manager'}
 				<span class="muted num">{members.length}</span>
 			</h3>
-			<SetMembers {members} />
+			<SetMembers {members} {repositoryName} />
 		</section>
 	{/each}
 </div>

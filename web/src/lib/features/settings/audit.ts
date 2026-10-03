@@ -199,7 +199,7 @@ export const TARGET_TYPES: Record<string, string> = {
 	git_credential: 'Git Credential',
 	backup: 'Backup',
 	backup_repository: 'Backup Repository',
-	backup_policy: 'Backup Policy',
+	backup_policy: 'Backups',
 	update_policy: 'Updates',
 	maintenance_policy: 'Maintenance',
 	build_definition: 'Build Definition',

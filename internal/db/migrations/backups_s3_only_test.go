@@ -66,7 +66,7 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 
 	t.Run("with an S3 repository", func(t *testing.T) {
 		ctx := testutil.Context(t)
-		db := backupsDB(t, ctx, append(common,
+		db := migratedFrom(t, ctx, "20261002190000", "20261002200000", append(common,
 			repo("s3-new", "s3", "2026-03-01"),
 			repo("s3-old", "s3", "2026-02-01"),
 			snapshot("sn-s3", "s3-old"),
@@ -109,7 +109,7 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 
 	t.Run("without one", func(t *testing.T) {
 		ctx := testutil.Context(t)
-		db := backupsDB(t, ctx, append(common, policy("p-disk", "", "disk", `{}`), rule("backup_policy", "p-disk")))
+		db := migratedFrom(t, ctx, "20261002190000", "20261002200000", append(common, policy("p-disk", "", "disk", `{}`), rule("backup_policy", "p-disk")))
 		expect(t, ctx, db, `SELECT id FROM backup_policies`)
 		expect(t, ctx, db, `SELECT id FROM backup_repositories`)
 		expect(t, ctx, db, `SELECT resource_id FROM group_permission_rules`)
@@ -117,9 +117,10 @@ func TestLocalBackupRepositoriesGo(t *testing.T) {
 	})
 }
 
-// backupsDB is a database just before the S3-only migration with stmts
-// applied, migrated to the latest version.
-func backupsDB(t *testing.T, ctx context.Context, stmts []string) *bun.DB {
+// migratedFrom is a database migrated to just before migration name, with
+// stmts applied, then migrated to just before until ("": the latest
+// version).
+func migratedFrom(t *testing.T, ctx context.Context, name, until string, stmts []string) *bun.DB {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := store.Open(ctx, filepath.Join(dir, "docker-manager.db"))
@@ -127,13 +128,13 @@ func backupsDB(t *testing.T, ctx context.Context, stmts []string) *bun.DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	migrateTo(t, db, "20261002190000", dir)
+	migrateTo(t, db, name, dir)
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {
 			t.Fatalf("%s: %v", s, err)
 		}
 	}
-	migrateTo(t, db, "", dir)
+	migrateTo(t, db, until, dir)
 	return db
 }
 

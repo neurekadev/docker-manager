@@ -1,15 +1,16 @@
 // Package backups is the manager side of Docker Manager backups (#10, #24):
 // repositories (destinations) and their physical locations, the instance
-// Recovery Key, policies, runs as backup sets, the snapshot index, the
-// manager-state snapshot and portable manifests, the scheduler sources of
-// backup and verification schedules, the manager-executed job kinds
-// (manager.backup, manager.retention, manager.verify) and the credentials
-// of the agent-executed ones (backup.run, backup.retention, backup.verify).
+// Recovery Key, the one backup setup (#246), runs as backup sets, the
+// snapshot index, the manager-state snapshot and portable manifests, the
+// scheduler sources of backup and verification schedules, the
+// manager-executed job kinds (manager.backup, manager.retention,
+// manager.verify) and the credentials of the agent-executed ones
+// (backup.run, backup.retention, backup.verify).
 //
-// Every repository, key, policy, set and snapshot belongs to the instance.
-// Scheduled work runs as the manager service identity and survives the
-// removal of the user who configured it; users appear only in audit
-// history.
+// Every repository, key, set and snapshot and the setup belong to the
+// instance. Scheduled work runs as the manager service identity and
+// survives the removal of the user who configured it; users appear only in
+// audit history.
 package backups
 
 import (
@@ -36,7 +37,6 @@ import (
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/manager/audit"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
-	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 	"github.com/neurekadev/docker-manager/internal/manager/jobs"
 	"github.com/neurekadev/docker-manager/internal/manager/scheduler"
 	"github.com/neurekadev/docker-manager/internal/manager/secrets"
@@ -160,6 +160,10 @@ type Options struct {
 	Build buildinfo.Info
 	// Random overrides crypto/rand (tests).
 	Random io.Reader
+	// OnPrimaryMissing learns whether the setup is enabled without a
+	// Primary repository (its runs are refused) after every change of the
+	// setup or the repositories; nil in focused tests.
+	OnPrimaryMissing func(ctx context.Context, missing bool)
 }
 
 // Service is the backup service.
@@ -298,43 +302,6 @@ func validCompression(mode string) bool {
 		return true
 	}
 	return false
-}
-
-// ActionPolicyStackMoved is the audit action recorded for a backup policy
-// whose selected stack migrated to another environment (#35).
-const ActionPolicyStackMoved = "backup_policy.stack_moved"
-
-// StackMoved is the Migrations().OnStackMoved hook (#35), run in the
-// transaction that completes a stack migration. Policies select stacks by
-// ID, so they follow the stack by construction: the next run backs it up in
-// its new environment (every repository holds every environment's data).
-// Existing snapshots keep their repository, scope and environment (the
-// source's) and stay restorable from there. The hook records the move per
-// policy selecting the stack.
-func (s *Service) StackMoved(ctx context.Context, db bun.IDB, stackID, from, to string) error {
-	if from == to {
-		return nil
-	}
-	pols, err := store.ListBackupPolicies(ctx, db, "", 0)
-	if err != nil {
-		return err
-	}
-	for _, p := range pols {
-		if !slices.ContainsFunc(p.Stacks, func(sel domain.BackupStackSelection) bool { return sel.StackID == stackID }) {
-			continue
-		}
-		repoID := p.RepositoryFor(to)
-		if s.opts.Audit == nil {
-			continue
-		}
-		if err := s.opts.Audit.RecordTx(ctx, db, domain.AuditEvent{Category: domain.AuditOperations, Action: ActionPolicyStackMoved,
-			Actor: audit.ServiceActor(), EnvironmentID: to, Outcome: domain.AuditSuccess,
-			Targets: []domain.AuditTarget{{Type: catalog.TypeBackupPolicy, ID: p.ID}, {Type: catalog.TypeStack, ID: stackID}},
-			Details: map[string]any{"fromEnvironmentId": from, "toEnvironmentId": to, "repositoryId": repoID}}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // repoTarget is the job target of a repository.

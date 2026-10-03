@@ -1,12 +1,11 @@
 <script lang="ts">
-	// Backup sets (#10): one line per run of a policy with its state
+	// Backup sets (#10, #246): one line per backup run with its state
 	// (partial when any backup failed or is missing, never complete), a
 	// summary of its backups, duration and size. Details opens a drawer
 	// with every backup and, while the set runs, its live progress.
 	// Partial and failed sets offer to retry only what did not complete.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-	import { routes } from '$lib/routes';
 	import {
 		Badge,
 		Button,
@@ -32,15 +31,16 @@
 		type BackupSet
 	} from './model';
 
-	type Row = BackupSet & { policyId?: string; policyName?: string };
+	type Row = BackupSet;
 
 	type Props = {
 		sets: Row[];
 		label: string;
-		/** Policy IDs the caller may run (retry). */
-		canRetry?: (policyId: string) => boolean;
+		/** The caller may back up (retry). */
+		canRetry?: boolean;
 		environmentName: (id: string) => string;
-		showPolicy?: boolean;
+		/** A repository's name by its ID (each backup has a copy per repository). */
+		repositoryName?: (id: string) => string;
 		/** Backups of the sets (their sizes). */
 		backups?: Backup[];
 		/** Running backup jobs (progress of pending sets). */
@@ -50,9 +50,9 @@
 	let {
 		sets,
 		label,
-		canRetry = () => false,
+		canRetry = false,
 		environmentName,
-		showPolicy = true,
+		repositoryName,
 		backups,
 		activity = []
 	}: Props = $props();
@@ -92,17 +92,6 @@
 			width: '190px',
 			stack: 'title'
 		},
-		...(showPolicy
-			? [
-					{
-						id: 'policy',
-						header: 'Policy',
-						cell: policyCell,
-						sortValue: (s: Row) => s.policyName ?? '',
-						stack: 'meta' as const
-					}
-				]
-			: []),
 		{ id: 'state', header: 'State', cell: stateCell, width: '170px', stack: 'status' },
 		{ id: 'backups', header: 'Backups', cell: backupsCell, stack: 'meta' },
 		{
@@ -147,11 +136,6 @@
 				: 'Started by Hand'}
 	/>
 {/snippet}
-{#snippet policyCell(s: Row)}
-	{#if s.policyId}<a href={routes.backupPolicy(s.policyId)}>{s.policyName}</a>{:else}<span
-			class="muted">{s.policyName ?? '—'}</span
-		>{/if}
-{/snippet}
 {#snippet stateCell(s: Row)}
 	{@const st = setState(s.state)}
 	{@const pct = s.state === 'pending' ? setPercent(s) : undefined}
@@ -178,7 +162,7 @@
 {#snippet sizeCell(s: Row)}<span class="num">{formatBytes(setBytes(backups, s.id))}</span>{/snippet}
 {#snippet actionsCell(s: Row)}
 	<div class="row-actions">
-		{#if (s.state === 'partial' || s.state === 'failed') && s.policyId && canRetry(s.policyId)}
+		{#if (s.state === 'partial' || s.state === 'failed') && canRetry}
 			<Button
 				size="sm"
 				variant="secondary"
@@ -208,9 +192,8 @@
 		{#key selected.id}
 			<SetDetail
 				set={selected}
-				policyId={selected.policyId}
-				policyName={selected.policyName}
 				{environmentName}
+				{repositoryName}
 				bytes={setBytes(backups, selected.id)}
 				activity={jobsOf(selected.id)}
 			/>
@@ -218,16 +201,11 @@
 	{/if}
 	{#snippet footer()}
 		{#if selected}
-			{#if (selected.state === 'partial' || selected.state === 'failed') && selected.policyId && canRetry(selected.policyId)}
+			{#if (selected.state === 'partial' || selected.state === 'failed') && canRetry}
 				<Button
 					icon={RotateCcw}
 					loading={retrying === selected.id}
 					onclick={() => selected && retry(selected)}>Retry Missing</Button
-				>
-			{/if}
-			{#if selected.policyId && showPolicy}
-				<Button variant="ghost" href={routes.backupPolicy(selected.policyId)}
-					>Open Policy</Button
 				>
 			{/if}
 		{/if}

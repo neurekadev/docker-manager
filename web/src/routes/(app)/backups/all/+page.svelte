@@ -1,9 +1,9 @@
 <script lang="ts">
-	// Backups (#10): every backup of a stack, volume or the manager state in
-	// the instance (or the selected environment), whoever configured the
-	// policy, one row per run: the policy, when it ran, how it went, the
-	// backups it took (each opens its page) and Restore. Backups without a
-	// run stand alone.
+	// Backups (#10, #246): every backup of a stack, volume or the manager
+	// state in the instance (or the selected environment), one row per run:
+	// when it ran, how it went, the backups it took (each opens its page;
+	// a copy per repository, naming where it is stored) and Restore.
+	// Backups without a run stand alone.
 	import { createQuery } from '@tanstack/svelte-query';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import History from '@lucide/svelte/icons/history';
@@ -40,7 +40,7 @@
 		type Backup,
 		type BackupRun
 	} from '$lib/features/backups/model';
-	import { backupPoliciesQuery, backupsQuery } from '$lib/features/backups/queries';
+	import { backupsQuery, repositoriesQuery } from '$lib/features/backups/queries';
 
 	usePage({
 		title: 'Backups',
@@ -53,12 +53,12 @@
 
 	const envs = createQuery(() => environmentsQuery());
 	const single = singleEnvironment();
-	const policies = createQuery(() => backupPoliciesQuery());
+	const repos = createQuery(() => repositoriesQuery());
 	const backups = createQuery(() =>
 		backupsQuery(environmentSelection.id ? { environmentId: environmentSelection.id } : {})
 	);
 	const envName = (id: string) => environmentName(envs.data, id);
-	const policyName = (id?: string) => policies.data?.find((p) => p.id === id)?.name;
+	const repoName = (id?: string) => repos.data?.find((r) => r.id === id)?.name;
 	const where = (b: Backup) =>
 		b.kind === 'manager_state' || !b.environmentId ? 'Manager' : envName(b.environmentId);
 
@@ -69,7 +69,7 @@
 		const all = backups.data ?? [];
 		if (!q) return all;
 		return all.filter((b) =>
-			[itemName(b), policyName(b.policyId) ?? '', where(b)]
+			[itemName(b), repoName(b.repositoryId) ?? '', where(b)]
 				.join(' ')
 				.toLowerCase()
 				.includes(q)
@@ -78,7 +78,7 @@
 	const runs = $derived(groupBackupsByRun(matching));
 
 	function runName(r: BackupRun): string {
-		if (r.setId) return policyName(r.policyId) ?? 'Backup Run';
+		if (r.setId) return 'Backup Run';
 		const b = r.backups[0];
 		return b ? itemName(b) : 'Backup';
 	}
@@ -137,11 +137,7 @@
 	<NameCell
 		icon="backup"
 		name={runName(r)}
-		href={r.setId && r.policyId && policyName(r.policyId)
-			? routes.backupPolicy(r.policyId)
-			: r.backups.length === 1
-				? routes.backup(r.backups[0].id)
-				: undefined}
+		href={r.backups.length === 1 ? routes.backup(r.backups[0].id) : undefined}
 		sub={formatDateTime(r.time)}
 	/>
 {/snippet}
@@ -158,10 +154,13 @@
 			<li>
 				<a href={routes.backup(b.id)}>{itemName(b)}</a>
 				<span class="muted"
-					>{b.kind && b.kind !== 'manager_state' ? KIND_LABEL[b.kind] : ''}{b.state !==
-					'complete'
-						? `${b.kind && b.kind !== 'manager_state' ? ', ' : ''}some files unreadable`
-						: ''}</span
+					>{[
+						b.kind && b.kind !== 'manager_state' ? KIND_LABEL[b.kind] : '',
+						repoName(b.repositoryId) ? `in ${repoName(b.repositoryId)}` : '',
+						b.state !== 'complete' ? 'some files unreadable' : ''
+					]
+						.filter(Boolean)
+						.join(', ')}</span
 				>
 			</li>
 		{/each}

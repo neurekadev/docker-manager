@@ -545,158 +545,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/backup-policies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List backup policies
-         * @description Filtered per item (#17); minimal view: id, name, enabled. Policies shown in full carry the recent sets (members with their backupId) and the next run, as get-backup-policy does.
-         */
-        get: operations["list-backup-policies"];
-        put?: never;
-        /**
-         * Create a backup policy
-         * @description A system backup policy: the manager state (owner only) and any managed stacks and standalone volumes across environments, with per-stack volume/path rules (anonymous volumes and container shutdown default off; bind sources outside a project directory only by explicit opt-in plus the agent's allowlist), a schedule (#13, starts disabled) and retention with a minimum recovery floor. Policies belong to the instance: scheduled runs continue after their creator is disabled or removed.
-         */
-        post: operations["create-backup-policy"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backup-policies/{policyId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a backup policy
-         * @description With the next run and the most recent sets (per-host snapshot times, partial sets).
-         */
-        get: operations["get-backup-policy"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a backup policy
-         * @description Its sets and snapshots stay (backup history). Requires If-Match.
-         */
-        delete: operations["delete-backup-policy"];
-        options?: never;
-        head?: never;
-        /**
-         * Update a backup policy
-         * @description Requires If-Match. Enabling needs every repository's Recovery Key confirmed.
-         */
-        patch: operations["update-backup-policy"];
-        trace?: never;
-    };
-    "/api/v1/backup-policies/{policyId}/retention-previews": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Preview a backup policy's retention
-         * @description Which of the policy's snapshots its retention (or the rules in the body) would forget, per location and stack/volume, with the rules that keep each one; the minimum recovery floor and the newest snapshot are always kept. Execution applies the same decision.
-         */
-        post: operations["create-backup-policy-retention-preview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backup-policies/{policyId}/retention-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Apply a backup policy's retention now
-         * @description Queues retention (forget, then prune) on every location holding the policy's snapshots, serialized with backups and restores on the repository. Requires confirm: true. The jobs report reclaimed space and failures (for example Object Lock refusing deletions).
-         */
-        post: operations["create-backup-policy-retention-run"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backup-policies/{policyId}/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run a backup policy now
-         * @description Starts one backup set: a backup.run job per environment and, with the manager state, a manager.backup job (owner only). Needs backup.run on the policy, its repositories, stacks and volumes. retrySetId re-runs only the members of that set that did not complete (409 nothing_to_retry). A new run is refused with 409 backup_run_active while a run of the policy (manual or scheduled) is still queued or running; a retry is not. Idempotency-Key covers every job of the run.
-         */
-        post: operations["create-backup-policy-run"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backup-policies/{policyId}/scope-previews": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Preview a backup policy's scope
-         * @description Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. Docker Manager's own containers and volumes are excluded (#32). Nothing is stored.
-         */
-        post: operations["create-backup-policy-scope-preview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backup-policy-scope-previews": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Preview the scope of an unsaved backup policy
-         * @description The scope preview of create-backup-policy-scope-preview for a policy that does not exist yet (the body of create-backup-policy): nothing is stored. Refuses a scope another policy already covers (409 backup_scope_overlap).
-         */
-        post: operations["create-backup-policy-draft-scope-preview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/backup-repositories": {
         parameters: {
             query?: never;
@@ -734,7 +582,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a backup repository
-         * @description Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it), with its backups and the backup sets held only by it from the index. The restic repositories at the destination are left untouched. Requires If-Match.
+         * @description Removes the repository from Docker Manager, with its backups and the backup sets held only by it from the index. Removing the Primary repository makes the Secondary one the Primary; without a Secondary, backups stop until a Primary is chosen. The restic repositories at the destination are left untouched. Requires If-Match.
          */
         delete: operations["delete-backup-repository"];
         options?: never;
@@ -840,6 +688,110 @@ export interface paths {
         get: operations["list-backup-repository-snapshots"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the backup settings
+         * @description The one backup setup (#246): what every environment it does not leave out backs up, the Primary and Secondary repositories, the schedule, retention and the recent runs (members with their backupId). Needs backup_policy.read on the instance.
+         */
+        get: operations["get-backup-settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the backup settings
+         * @description Requires If-Match. Turning backups on needs a Primary repository; every repository the setup writes to must have its Recovery Key confirmed while backups are on. Making the Secondary repository the Primary one swaps the two (send both).
+         */
+        patch: operations["update-backup-settings"];
+        trace?: never;
+    };
+    "/api/v1/backup-settings/retention-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview retention
+         * @description Which Docker Manager backups the retention (or the rules in the body) would forget, per location and stack/volume, with the rules that keep each one; the newest snapshot is always kept. It covers every backup run's backups, also those of earlier backup policies. Execution applies the same decision (agents too old for that apply it to the setup's own backups only).
+         */
+        post: operations["create-backup-retention-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-settings/retention-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply retention now
+         * @description Queues retention (forget, then prune) on every location holding Docker Manager backups, serialized with backups and restores on the repository. Requires confirm: true. The jobs report reclaimed space and failures (for example Object Lock refusing deletions).
+         */
+        post: operations["create-backup-retention-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-settings/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Back up now
+         * @description Starts one backup set: a backup.run job per environment and a manager.backup job, for the Primary repository and then for the Secondary one. The manager state is left out when the caller may not back it up (owner only). retrySetId re-runs only the members of that set that did not complete (409 nothing_to_retry). A new run is refused with 409 backup_run_active while a run is still queued or running (a retry is not), and with 409 backup_no_primary without a Primary repository. Idempotency-Key covers every job of the run.
+         */
+        post: operations["create-backup-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-settings/scope-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview what gets backed up
+         * @description Asks each covered environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. Docker Manager's own containers and volumes are excluded (#32). draft previews unsaved changes. Nothing is stored.
+         */
+        post: operations["create-backup-scope-preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5799,7 +5751,7 @@ export interface components {
              * @example disk_health
              * @enum {string}
              */
-            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "updates" | "job_failed";
+            kind: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "updates" | "job_failed";
             /**
              * @description Path of the page in Docker Manager the alert is about.
              * @example /environments/0190a6e0-7b1c-7cc3-9d52-4f3a2b1c0d9e?tab=system
@@ -6454,48 +6406,6 @@ export interface components {
             /** Format: int64 */
             uid: number;
         };
-        BackupPolicy: {
-            actions: string[];
-            /** @description Also back up anonymous volumes (default off). */
-            anonymousVolumes: boolean;
-            /** @description Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off). */
-            buildxVolumes: boolean;
-            /** Format: date-time */
-            createdAt?: string;
-            enabled: boolean;
-            environmentId?: string;
-            /** @description Per-environment repository, overriding repositoryId. */
-            environmentRepositories?: {
-                [key: string]: string;
-            };
-            excludeStacks: string[];
-            /** @description Volumes not backed up: standalone ones and those of the selected stacks. */
-            excludeVolumes: string[];
-            /** @description Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST. */
-            externalBinds: boolean;
-            id: string;
-            includeManagerState: boolean;
-            /** @description Include the metrics database (excluded by default). */
-            includeMetrics: boolean;
-            /** @example Nightly system backup */
-            name: string;
-            recentSets?: components["schemas"]["BackupSetSummary"][];
-            repositoryId?: string;
-            retention?: components["schemas"]["BackupRetention"];
-            /** Format: int64 */
-            revision?: number;
-            schedule?: components["schemas"]["BackupSchedule"];
-            /** @enum {string} */
-            scope: "all" | "environment";
-            /** @description Stop the affected containers during backups (default off). */
-            shutdown: boolean;
-            stacks: components["schemas"]["BackupStackSelection"][];
-            /** Format: date-time */
-            updatedAt?: string;
-            /** @enum {string} */
-            view: "minimal" | "full";
-            volumes: components["schemas"]["BackupVolumeSelection"][];
-        };
         BackupRepository: {
             actions: string[];
             bucket?: string;
@@ -6525,6 +6435,11 @@ export interface components {
             region?: string;
             /** Format: int64 */
             revision?: number;
+            /**
+             * @description Its role in the backup settings: every run backs up to the Primary repository and then to the Secondary one. Absent: runs do not write to it (its backups stay browsable and restorable).
+             * @enum {string}
+             */
+            role?: "primary" | "secondary";
             /**
              * @description awaiting_confirmation until the owner re-enters the Recovery Key for it; nothing is initialized before.
              * @enum {string}
@@ -6558,7 +6473,7 @@ export interface components {
             state: string;
         };
         BackupRetention: {
-            /** @description Apply retention automatically after every finished backup run of the policy. */
+            /** @description Apply retention automatically after every finished backup run. */
             afterBackup?: boolean;
             /**
              * Format: int64
@@ -6599,9 +6514,10 @@ export interface components {
         BackupSchedule: {
             /** @example 0 2 * * * */
             cron: string;
-            /** @description New policies start disabled; enabling needs every repository's Recovery Key confirmed. */
-            enabled: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description While backups are on.
+             */
             nextRun?: string;
             /** @example Europe/Berlin */
             timeZone: string;
@@ -6629,6 +6545,8 @@ export interface components {
             jobId?: string;
             /** @enum {string} */
             kind: "manager_state" | "stack" | "volume";
+            /** @description The repository this copy goes to: a run backs every item up to the Primary and to the Secondary repository. */
+            repositoryId: string;
             scope: string;
             /**
              * Format: date-time
@@ -6659,18 +6577,68 @@ export interface components {
              */
             state: "pending" | "complete" | "partial" | "failed" | "skipped";
         };
-        BackupStackSelection: {
+        BackupSettings: {
+            /** @description What the caller may do: backup_policy.manage, backup.run, backup.retention. */
+            actions: string[];
             /** @description Also back up anonymous volumes (default off). */
+            anonymousVolumes: boolean;
+            /** @description Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off). */
+            buildxVolumes: boolean;
+            /** @description Runs on the schedule. Needs a Primary repository with a confirmed Recovery Key; Back Up Now works either way. */
+            enabled: boolean;
+            /** @description IDs of the environments left out; every other environment is covered, also ones added later. */
+            excludeEnvironments: string[];
+            /** @description IDs of the stacks not backed up. */
+            excludeStacks: string[];
+            /** @description environmentID/volumeName of the volumes not backed up: standalone ones and those of the stacks. */
+            excludeVolumes: string[];
+            /** @description Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST. */
+            externalBinds: boolean;
+            /** @description The policy ID of the setup's runs: sets, backups and jobs carry it as policyId. */
+            id: string;
+            /** @description Include the metrics database in the manager state (excluded by default). */
+            includeMetrics: boolean;
+            /** @description Where every run backs up first; empty: runs are refused (409 backup_no_primary). */
+            primaryRepositoryId: string;
+            /** @description The newest runs, newest first. */
+            recentSets: components["schemas"]["BackupSetSummary"][];
+            retention: components["schemas"]["BackupRetention"];
+            /** Format: int64 */
+            revision: number;
+            schedule: components["schemas"]["BackupSchedule"];
+            /** @description Where every run backs up a second, independent copy afterwards (empty: none). Removing the Primary repository promotes it. */
+            secondaryRepositoryId: string;
+            /** @description Stop the affected containers during backups (default off; once per repository). */
+            shutdown: boolean;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        BackupSettingsBody: {
             anonymousVolumes?: boolean;
-            /** @description Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly. */
-            externalPaths?: string[];
-            /** @description Paths relative to the project directory that are not backed up (relative bind sources inside the project directory are included by default). */
-            pathExcludes?: string[];
-            stackId: string;
-            /** @description Named volumes not backed up. */
-            volumeExclude?: string[];
-            /** @description Back up only these named volumes (Compose keys or Docker names); default: every named volume of the stack. */
-            volumeInclude?: string[];
+            buildxVolumes?: boolean;
+            /** @description Run on the schedule. Needs a Primary repository with a confirmed Recovery Key. */
+            enabled?: boolean;
+            /** @description The environments to leave out (replaces the list). */
+            excludeEnvironments?: string[];
+            excludeStacks?: string[];
+            /** @description environmentID/volumeName. */
+            excludeVolumes?: string[];
+            externalBinds?: boolean;
+            includeMetrics?: boolean;
+            /** @description Making the Secondary repository the Primary one swaps the two (send both). */
+            primaryRepositoryId?: string;
+            /** @description Replaces the retention (send all of it). */
+            retention?: components["schemas"]["BackupRetention"];
+            schedule?: components["schemas"]["BackupSettingsBodyScheduleStruct"];
+            /** @description Empty: no Secondary repository. */
+            secondaryRepositoryId?: string;
+            shutdown?: boolean;
+        };
+        BackupSettingsBodyScheduleStruct: {
+            /** @description Five-field cron expression. */
+            cron?: string;
+            /** @description IANA time zone. */
+            timeZone?: string;
         };
         BackupStorage: {
             /**
@@ -6736,12 +6704,6 @@ export interface components {
             readDataSubset?: string;
             /** @example Europe/Berlin */
             timeZone: string;
-        };
-        BackupVolumeSelection: {
-            environmentId: string;
-            /** @description Paths relative to the volume root that are not backed up. */
-            pathExcludes?: string[];
-            volume: string;
         };
         BuildDefinition: {
             actions: string[];
@@ -10268,17 +10230,6 @@ export interface components {
              */
             total?: number;
         };
-        PageBackupPolicy: {
-            /** @description Items on this page (possibly empty, also when nextCursor is present). */
-            items: components["schemas"]["BackupPolicy"][];
-            /** @description Opaque cursor for the next page; absent on the last page. */
-            nextCursor?: string;
-            /**
-             * Format: int64
-             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
-             */
-            total?: number;
-        };
         PageBackupRepository: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["BackupRepository"][];
@@ -10743,34 +10694,6 @@ export interface components {
             resourceId?: string;
             /** @example container */
             resourceType?: string;
-        };
-        PolicyInputBody: {
-            /** @description Also back up anonymous volumes (default off). */
-            anonymousVolumes?: boolean;
-            /** @description Also back up buildx builder volumes (buildx_buildkit_<builder>_state: rebuildable build cache; default off). */
-            buildxVolumes?: boolean;
-            environmentId?: string;
-            environmentRepositories?: {
-                [key: string]: string;
-            };
-            excludeStacks?: string[];
-            /** @description Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks. */
-            excludeVolumes?: string[];
-            /** @description Also back up the stacks' bind mounts outside their project directories (default off). Each agent backs up only those below its DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST. */
-            externalBinds?: boolean;
-            /** @description Back up the manager's state (owner only: manager backups are owner-only). */
-            includeManagerState?: boolean;
-            includeMetrics?: boolean;
-            name: string;
-            repositoryId: string;
-            retention?: components["schemas"]["BackupRetention"];
-            /** @description Default: the instance default of the backup kind, disabled. */
-            schedule?: components["schemas"]["BackupSchedule"];
-            /** @enum {string} */
-            scope: "all" | "environment";
-            shutdown?: boolean;
-            stacks?: components["schemas"]["BackupStackSelection"][];
-            volumes?: components["schemas"]["BackupVolumeSelection"][];
         };
         PreviewCheck: {
             capability: string;
@@ -11400,7 +11323,7 @@ export interface components {
             count: number;
             items: components["schemas"]["RemovalDependent"][];
             /** @enum {string} */
-            kind: "stack" | "managed_container" | "backup_policy" | "backup_repository" | "backup_set" | "registry_connection" | "build_definition" | "permission_rule" | "schedule" | "job";
+            kind: "stack" | "managed_container" | "backup_repository" | "backup_set" | "registry_connection" | "build_definition" | "permission_rule" | "schedule" | "job";
             /**
              * @description kept: kept and hidden with the environment, working again after a re-attach; paused: kept, scheduled runs are refused until a re-attach; removed: deleted with an audit record (permission rules scoped to the environment); interrupted: unfinished jobs end by the offline rules once the agent is disconnected.
              * @enum {string}
@@ -11699,6 +11622,13 @@ export interface components {
             /** @example ci-bot */
             username?: string;
         };
+        RunBackupInputBody: {
+            /**
+             * @description Re-run only the members of this set that did not complete (the set keeps its ID).
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f
+             */
+            retrySetId?: string;
+        };
         RunMaintenanceInputBody: {
             /**
              * @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise).
@@ -11714,13 +11644,6 @@ export interface components {
             confirm?: boolean;
             /** @description The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled. */
             rules: components["schemas"]["MaintenanceRule"][];
-        };
-        RunPolicyInputBody: {
-            /**
-             * @description Re-run only the members of this set that did not complete (the set keeps its ID).
-             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f
-             */
-            retrySetId?: string;
         };
         Schedule: {
             /** @enum {string} */
@@ -11881,8 +11804,8 @@ export interface components {
             warnings?: string[];
         };
         ScopePreviewInputBody: {
-            /** @description Preview these unsaved settings instead of the stored policy. */
-            draft?: components["schemas"]["PolicyInputBody"];
+            /** @description Preview these unsaved changes instead of the stored settings. */
+            draft?: components["schemas"]["BackupSettingsBody"];
         };
         ScopePreviewItem: {
             affectedContainers?: components["schemas"]["AffectedContainer"][];
@@ -13045,26 +12968,6 @@ export interface components {
              * @example Rack 2, left
              */
             label?: string;
-        };
-        UpdateBackupPolicyInputBody: {
-            anonymousVolumes?: boolean;
-            buildxVolumes?: boolean;
-            environmentId?: string;
-            environmentRepositories?: {
-                [key: string]: string;
-            };
-            excludeStacks?: string[];
-            excludeVolumes?: string[];
-            externalBinds?: boolean;
-            includeManagerState?: boolean;
-            includeMetrics?: boolean;
-            name?: string;
-            repositoryId?: string;
-            retention?: components["schemas"]["BackupRetention"];
-            schedule?: components["schemas"]["BackupSchedule"];
-            shutdown?: boolean;
-            stacks?: components["schemas"]["BackupStackSelection"][];
-            volumes?: components["schemas"]["BackupVolumeSelection"][];
         };
         UpdateBackupRepositoryInputBody: {
             /** @description Replace the S3 credentials (both fields). */
@@ -14644,7 +14547,7 @@ export interface operations {
                 /** @description active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert. */
                 state?: "active" | "dismissed" | "firing" | "resolved";
                 /** @description Only alerts of this kind. */
-                kind?: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "updates" | "job_failed";
+                kind?: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "updates" | "job_failed";
                 /** @description Only alerts of this environment. */
                 environmentId?: string;
             };
@@ -16745,1575 +16648,6 @@ export interface operations {
             };
         };
     };
-    "list-backup-policies": {
-        parameters: {
-            query?: {
-                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
-                cursor?: string;
-                /** @description Maximum number of items to return. */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "items": [
-                     *         {
-                     *           "actions": [
-                     *             "example"
-                     *           ],
-                     *           "anonymousVolumes": false,
-                     *           "buildxVolumes": false,
-                     *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "enabled": false,
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "environmentRepositories": {},
-                     *           "excludeStacks": [
-                     *             "example"
-                     *           ],
-                     *           "excludeVolumes": [
-                     *             "example"
-                     *           ],
-                     *           "externalBinds": false,
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "includeManagerState": false,
-                     *           "includeMetrics": false,
-                     *           "name": "Nightly system backup",
-                     *           "recentSets": [
-                     *             {
-                     *               "finishedAt": "2026-09-25T12:00:00Z",
-                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "members": [
-                     *                 {
-                     *                   "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                   "errorClass": "example",
-                     *                   "item": "stack/0190a6e0-...",
-                     *                   "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                   "kind": "manager_state",
-                     *                   "scope": "example",
-                     *                   "snapshotTime": "2026-09-25T12:00:00Z",
-                     *                   "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                   "stackName": "web",
-                     *                   "state": "pending",
-                     *                   "volume": "example"
-                     *                 }
-                     *               ],
-                     *               "origin": "manual",
-                     *               "startedAt": "2026-09-25T12:00:00Z",
-                     *               "state": "pending"
-                     *             }
-                     *           ],
-                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "retention": {
-                     *             "afterBackup": false,
-                     *             "daily": 7,
-                     *             "expireDeletedDays": 1,
-                     *             "hourly": 1,
-                     *             "last": 1,
-                     *             "minKeep": 1,
-                     *             "monthly": 1,
-                     *             "weekly": 1,
-                     *             "withinDays": 1,
-                     *             "yearly": 1
-                     *           },
-                     *           "revision": 1,
-                     *           "schedule": {
-                     *             "cron": "0 2 * * *",
-                     *             "enabled": false,
-                     *             "nextRun": "2026-09-25T12:00:00Z",
-                     *             "timeZone": "Europe/Berlin"
-                     *           },
-                     *           "scope": "all",
-                     *           "shutdown": false,
-                     *           "stacks": [
-                     *             {
-                     *               "anonymousVolumes": false,
-                     *               "externalPaths": [
-                     *                 "config/app.conf"
-                     *               ],
-                     *               "pathExcludes": [
-                     *                 "example"
-                     *               ],
-                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "volumeExclude": [
-                     *                 "example"
-                     *               ],
-                     *               "volumeInclude": [
-                     *                 "example"
-                     *               ]
-                     *             }
-                     *           ],
-                     *           "updatedAt": "2026-09-25T12:00:00Z",
-                     *           "view": "minimal",
-                     *           "volumes": [
-                     *             {
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "pathExcludes": [
-                     *                 "example"
-                     *               ],
-                     *               "volume": "example"
-                     *             }
-                     *           ]
-                     *         }
-                     *       ],
-                     *       "nextCursor": "example",
-                     *       "total": 1
-                     *     }
-                     */
-                    "application/json": components["schemas"]["PageBackupPolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-backup-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "web",
-                 *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                 *       "retention": {
-                 *         "daily": 7
-                 *       },
-                 *       "schedule": {
-                 *         "cron": "0 2 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       },
-                 *       "scope": "all"
-                 *     }
-                 */
-                "application/json": components["schemas"]["PolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "anonymousVolumes": false,
-                     *       "buildxVolumes": false,
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "enabled": false,
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "environmentRepositories": {},
-                     *       "excludeStacks": [
-                     *         "example"
-                     *       ],
-                     *       "excludeVolumes": [
-                     *         "example"
-                     *       ],
-                     *       "externalBinds": false,
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "includeManagerState": false,
-                     *       "includeMetrics": false,
-                     *       "name": "Nightly system backup",
-                     *       "recentSets": [
-                     *         {
-                     *           "finishedAt": "2026-09-25T12:00:00Z",
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "members": [
-                     *             {
-                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "errorClass": "example",
-                     *               "item": "stack/0190a6e0-...",
-                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "kind": "manager_state",
-                     *               "scope": "example",
-                     *               "snapshotTime": "2026-09-25T12:00:00Z",
-                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "stackName": "web",
-                     *               "state": "pending",
-                     *               "volume": "example"
-                     *             }
-                     *           ],
-                     *           "origin": "manual",
-                     *           "startedAt": "2026-09-25T12:00:00Z",
-                     *           "state": "pending"
-                     *         }
-                     *       ],
-                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "retention": {
-                     *         "afterBackup": false,
-                     *         "daily": 7,
-                     *         "expireDeletedDays": 1,
-                     *         "hourly": 1,
-                     *         "last": 1,
-                     *         "minKeep": 1,
-                     *         "monthly": 1,
-                     *         "weekly": 1,
-                     *         "withinDays": 1,
-                     *         "yearly": 1
-                     *       },
-                     *       "revision": 1,
-                     *       "schedule": {
-                     *         "cron": "0 2 * * *",
-                     *         "enabled": false,
-                     *         "nextRun": "2026-09-25T12:00:00Z",
-                     *         "timeZone": "Europe/Berlin"
-                     *       },
-                     *       "scope": "all",
-                     *       "shutdown": false,
-                     *       "stacks": [
-                     *         {
-                     *           "anonymousVolumes": false,
-                     *           "externalPaths": [
-                     *             "config/app.conf"
-                     *           ],
-                     *           "pathExcludes": [
-                     *             "example"
-                     *           ],
-                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "volumeExclude": [
-                     *             "example"
-                     *           ],
-                     *           "volumeInclude": [
-                     *             "example"
-                     *           ]
-                     *         }
-                     *       ],
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal",
-                     *       "volumes": [
-                     *         {
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "pathExcludes": [
-                     *             "example"
-                     *           ],
-                     *           "volume": "example"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BackupPolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "get-backup-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "anonymousVolumes": false,
-                     *       "buildxVolumes": false,
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "enabled": false,
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "environmentRepositories": {},
-                     *       "excludeStacks": [
-                     *         "example"
-                     *       ],
-                     *       "excludeVolumes": [
-                     *         "example"
-                     *       ],
-                     *       "externalBinds": false,
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "includeManagerState": false,
-                     *       "includeMetrics": false,
-                     *       "name": "Nightly system backup",
-                     *       "recentSets": [
-                     *         {
-                     *           "finishedAt": "2026-09-25T12:00:00Z",
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "members": [
-                     *             {
-                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "errorClass": "example",
-                     *               "item": "stack/0190a6e0-...",
-                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "kind": "manager_state",
-                     *               "scope": "example",
-                     *               "snapshotTime": "2026-09-25T12:00:00Z",
-                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "stackName": "web",
-                     *               "state": "pending",
-                     *               "volume": "example"
-                     *             }
-                     *           ],
-                     *           "origin": "manual",
-                     *           "startedAt": "2026-09-25T12:00:00Z",
-                     *           "state": "pending"
-                     *         }
-                     *       ],
-                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "retention": {
-                     *         "afterBackup": false,
-                     *         "daily": 7,
-                     *         "expireDeletedDays": 1,
-                     *         "hourly": 1,
-                     *         "last": 1,
-                     *         "minKeep": 1,
-                     *         "monthly": 1,
-                     *         "weekly": 1,
-                     *         "withinDays": 1,
-                     *         "yearly": 1
-                     *       },
-                     *       "revision": 1,
-                     *       "schedule": {
-                     *         "cron": "0 2 * * *",
-                     *         "enabled": false,
-                     *         "nextRun": "2026-09-25T12:00:00Z",
-                     *         "timeZone": "Europe/Berlin"
-                     *       },
-                     *       "scope": "all",
-                     *       "shutdown": false,
-                     *       "stacks": [
-                     *         {
-                     *           "anonymousVolumes": false,
-                     *           "externalPaths": [
-                     *             "config/app.conf"
-                     *           ],
-                     *           "pathExcludes": [
-                     *             "example"
-                     *           ],
-                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "volumeExclude": [
-                     *             "example"
-                     *           ],
-                     *           "volumeInclude": [
-                     *             "example"
-                     *           ]
-                     *         }
-                     *       ],
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal",
-                     *       "volumes": [
-                     *         {
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "pathExcludes": [
-                     *             "example"
-                     *           ],
-                     *           "volume": "example"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BackupPolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "delete-backup-policy": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
-                "If-Match"?: string;
-            };
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Required */
-            428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "update-backup-policy": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
-                "If-Match"?: string;
-            };
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "retention": {
-                 *         "daily": 7
-                 *       },
-                 *       "schedule": {
-                 *         "cron": "0 2 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["UpdateBackupPolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "anonymousVolumes": false,
-                     *       "buildxVolumes": false,
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "enabled": false,
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "environmentRepositories": {},
-                     *       "excludeStacks": [
-                     *         "example"
-                     *       ],
-                     *       "excludeVolumes": [
-                     *         "example"
-                     *       ],
-                     *       "externalBinds": false,
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "includeManagerState": false,
-                     *       "includeMetrics": false,
-                     *       "name": "Nightly system backup",
-                     *       "recentSets": [
-                     *         {
-                     *           "finishedAt": "2026-09-25T12:00:00Z",
-                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "members": [
-                     *             {
-                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "errorClass": "example",
-                     *               "item": "stack/0190a6e0-...",
-                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "kind": "manager_state",
-                     *               "scope": "example",
-                     *               "snapshotTime": "2026-09-25T12:00:00Z",
-                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "stackName": "web",
-                     *               "state": "pending",
-                     *               "volume": "example"
-                     *             }
-                     *           ],
-                     *           "origin": "manual",
-                     *           "startedAt": "2026-09-25T12:00:00Z",
-                     *           "state": "pending"
-                     *         }
-                     *       ],
-                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "retention": {
-                     *         "afterBackup": false,
-                     *         "daily": 7,
-                     *         "expireDeletedDays": 1,
-                     *         "hourly": 1,
-                     *         "last": 1,
-                     *         "minKeep": 1,
-                     *         "monthly": 1,
-                     *         "weekly": 1,
-                     *         "withinDays": 1,
-                     *         "yearly": 1
-                     *       },
-                     *       "revision": 1,
-                     *       "schedule": {
-                     *         "cron": "0 2 * * *",
-                     *         "enabled": false,
-                     *         "nextRun": "2026-09-25T12:00:00Z",
-                     *         "timeZone": "Europe/Berlin"
-                     *       },
-                     *       "scope": "all",
-                     *       "shutdown": false,
-                     *       "stacks": [
-                     *         {
-                     *           "anonymousVolumes": false,
-                     *           "externalPaths": [
-                     *             "config/app.conf"
-                     *           ],
-                     *           "pathExcludes": [
-                     *             "example"
-                     *           ],
-                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "volumeExclude": [
-                     *             "example"
-                     *           ],
-                     *           "volumeInclude": [
-                     *             "example"
-                     *           ]
-                     *         }
-                     *       ],
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal",
-                     *       "volumes": [
-                     *         {
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "pathExcludes": [
-                     *             "example"
-                     *           ],
-                     *           "volume": "example"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BackupPolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Required */
-            428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-backup-policy-retention-preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "retention": {
-                 *         "daily": 7
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["RetentionPreviewInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "locations": [
-                     *         {
-                     *           "decisions": [
-                     *             {
-                     *               "item": "example",
-                     *               "keep": false,
-                     *               "reasons": [
-                     *                 "example"
-                     *               ],
-                     *               "snapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "time": "2026-09-25T12:00:00Z"
-                     *             }
-                     *           ],
-                     *           "forget": 1,
-                     *           "keep": 1,
-                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "scope": "example"
-                     *         }
-                     *       ],
-                     *       "retention": {
-                     *         "afterBackup": false,
-                     *         "daily": 7,
-                     *         "expireDeletedDays": 1,
-                     *         "hourly": 1,
-                     *         "last": 1,
-                     *         "minKeep": 1,
-                     *         "monthly": 1,
-                     *         "weekly": 1,
-                     *         "withinDays": 1,
-                     *         "yearly": 1
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["RetentionPreview"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-backup-policy-retention-run": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
-                "Idempotency-Key"?: string;
-            };
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "confirm": true
-                 *     }
-                 */
-                "application/json": components["schemas"]["RetentionRunInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "jobs": [
-                     *         {
-                     *           "attempt": 1,
-                     *           "blockedBy": {
-                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "reason": "lock"
-                     *           },
-                     *           "cancelRequested": false,
-                     *           "cancellable": false,
-                     *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "error": {
-                     *             "class": "agent_offline",
-                     *             "message": "example",
-                     *             "recovery": "example"
-                     *           },
-                     *           "executor": "agent",
-                     *           "finishedAt": "2026-09-25T12:00:00Z",
-                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
-                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "items": [
-                     *             {
-                     *               "message": "example",
-                     *               "name": "web",
-                     *               "status": "succeeded"
-                     *             }
-                     *           ],
-                     *           "kind": "stack.deploy",
-                     *           "locks": [
-                     *             {
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "mode": "shared",
-                     *               "name": "web",
-                     *               "scope": "host"
-                     *             }
-                     *           ],
-                     *           "locksHeld": false,
-                     *           "origin": "manual",
-                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "progress": {
-                     *             "message": "example",
-                     *             "percent": 1,
-                     *             "step": "example"
-                     *           },
-                     *           "retryOf": "example",
-                     *           "retryable": false,
-                     *           "startedAt": "2026-09-25T12:00:00Z",
-                     *           "state": "queued",
-                     *           "targets": [
-                     *             {
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "type": "stack"
-                     *             }
-                     *           ],
-                     *           "updatedAt": "2026-09-25T12:00:00Z"
-                     *         }
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["RetentionRun"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-backup-policy-run": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
-                "Idempotency-Key"?: string;
-            };
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "retrySetId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
-                 *     }
-                 */
-                "application/json": components["schemas"]["RunPolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "jobs": [
-                     *         {
-                     *           "attempt": 1,
-                     *           "blockedBy": {
-                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "reason": "lock"
-                     *           },
-                     *           "cancelRequested": false,
-                     *           "cancellable": false,
-                     *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "error": {
-                     *             "class": "agent_offline",
-                     *             "message": "example",
-                     *             "recovery": "example"
-                     *           },
-                     *           "executor": "agent",
-                     *           "finishedAt": "2026-09-25T12:00:00Z",
-                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
-                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "items": [
-                     *             {
-                     *               "message": "example",
-                     *               "name": "web",
-                     *               "status": "succeeded"
-                     *             }
-                     *           ],
-                     *           "kind": "stack.deploy",
-                     *           "locks": [
-                     *             {
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "mode": "shared",
-                     *               "name": "web",
-                     *               "scope": "host"
-                     *             }
-                     *           ],
-                     *           "locksHeld": false,
-                     *           "origin": "manual",
-                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "progress": {
-                     *             "message": "example",
-                     *             "percent": 1,
-                     *             "step": "example"
-                     *           },
-                     *           "retryOf": "example",
-                     *           "retryable": false,
-                     *           "startedAt": "2026-09-25T12:00:00Z",
-                     *           "state": "queued",
-                     *           "targets": [
-                     *             {
-                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "type": "stack"
-                     *             }
-                     *           ],
-                     *           "updatedAt": "2026-09-25T12:00:00Z"
-                     *         }
-                     *       ],
-                     *       "set": {
-                     *         "finishedAt": "2026-09-25T12:00:00Z",
-                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "members": [
-                     *           {
-                     *             "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "errorClass": "example",
-                     *             "item": "stack/0190a6e0-...",
-                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "kind": "manager_state",
-                     *             "scope": "example",
-                     *             "snapshotTime": "2026-09-25T12:00:00Z",
-                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *             "stackName": "web",
-                     *             "state": "pending",
-                     *             "volume": "example"
-                     *           }
-                     *         ],
-                     *         "origin": "manual",
-                     *         "startedAt": "2026-09-25T12:00:00Z",
-                     *         "state": "pending"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["BackupRun"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-backup-policy-scope-preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Backup policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                /**
-                 * @example {
-                 *       "draft": {
-                 *         "name": "web",
-                 *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                 *         "retention": {
-                 *           "daily": 7
-                 *         },
-                 *         "schedule": {
-                 *           "cron": "0 2 * * *",
-                 *           "enabled": false,
-                 *           "timeZone": "Europe/Berlin"
-                 *         },
-                 *         "scope": "all"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["ScopePreviewInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "environments": [
-                     *         {
-                     *           "downtime": "example",
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "environmentName": "nas",
-                     *           "errorClass": "example",
-                     *           "items": [
-                     *             {
-                     *               "affectedContainers": [
-                     *                 {
-                     *                   "name": "web",
-                     *                   "project": "example",
-                     *                   "protected": "example",
-                     *                   "running": false,
-                     *                   "service": "example",
-                     *                   "stopOrder": 1
-                     *                 }
-                     *               ],
-                     *               "conflicts": [
-                     *                 "example"
-                     *               ],
-                     *               "error": "example",
-                     *               "errorClass": "example",
-                     *               "estimateComplete": false,
-                     *               "estimatedBytes": 1,
-                     *               "estimatedFiles": 1,
-                     *               "excludes": [
-                     *                 "example"
-                     *               ],
-                     *               "item": "example",
-                     *               "kind": "example",
-                     *               "paths": [
-                     *                 "config/app.conf"
-                     *               ],
-                     *               "sources": [
-                     *                 {
-                     *                   "kind": "example",
-                     *                   "name": "web",
-                     *                   "path": "config/app.conf",
-                     *                   "reason": "example",
-                     *                   "service": "example",
-                     *                   "state": "example"
-                     *                 }
-                     *               ],
-                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "volume": "example",
-                     *               "volumes": [
-                     *                 "example"
-                     *               ],
-                     *               "warnings": [
-                     *                 "example"
-                     *               ]
-                     *             }
-                     *           ],
-                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
-                     *         }
-                     *       ],
-                     *       "manager": {
-                     *         "databaseBytes": 1,
-                     *         "metricsBytes": 1,
-                     *         "metricsIncluded": false,
-                     *         "notes": [
-                     *           "example"
-                     *         ],
-                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
-                     *       },
-                     *       "shutdown": false,
-                     *       "warnings": [
-                     *         "example"
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ScopePreview"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "create-backup-policy-draft-scope-preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "name": "web",
-                 *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                 *       "retention": {
-                 *         "daily": 7
-                 *       },
-                 *       "schedule": {
-                 *         "cron": "0 2 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       },
-                 *       "scope": "all"
-                 *     }
-                 */
-                "application/json": components["schemas"]["PolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "environments": [
-                     *         {
-                     *           "downtime": "example",
-                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "environmentName": "nas",
-                     *           "errorClass": "example",
-                     *           "items": [
-                     *             {
-                     *               "affectedContainers": [
-                     *                 {
-                     *                   "name": "web",
-                     *                   "project": "example",
-                     *                   "protected": "example",
-                     *                   "running": false,
-                     *                   "service": "example",
-                     *                   "stopOrder": 1
-                     *                 }
-                     *               ],
-                     *               "conflicts": [
-                     *                 "example"
-                     *               ],
-                     *               "error": "example",
-                     *               "errorClass": "example",
-                     *               "estimateComplete": false,
-                     *               "estimatedBytes": 1,
-                     *               "estimatedFiles": 1,
-                     *               "excludes": [
-                     *                 "example"
-                     *               ],
-                     *               "item": "example",
-                     *               "kind": "example",
-                     *               "paths": [
-                     *                 "config/app.conf"
-                     *               ],
-                     *               "sources": [
-                     *                 {
-                     *                   "kind": "example",
-                     *                   "name": "web",
-                     *                   "path": "config/app.conf",
-                     *                   "reason": "example",
-                     *                   "service": "example",
-                     *                   "state": "example"
-                     *                 }
-                     *               ],
-                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *               "volume": "example",
-                     *               "volumes": [
-                     *                 "example"
-                     *               ],
-                     *               "warnings": [
-                     *                 "example"
-                     *               ]
-                     *             }
-                     *           ],
-                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
-                     *         }
-                     *       ],
-                     *       "manager": {
-                     *         "databaseBytes": 1,
-                     *         "metricsBytes": 1,
-                     *         "metricsIncluded": false,
-                     *         "notes": [
-                     *           "example"
-                     *         ],
-                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
-                     *       },
-                     *       "shutdown": false,
-                     *       "warnings": [
-                     *         "example"
-                     *       ]
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ScopePreview"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
     "list-backup-repositories": {
         parameters: {
             query?: {
@@ -18383,6 +16717,7 @@ export interface operations {
                      *           ],
                      *           "region": "example",
                      *           "revision": 1,
+                     *           "role": "primary",
                      *           "state": "awaiting_confirmation",
                      *           "storage": {
                      *             "compressionProgress": 1,
@@ -18551,6 +16886,7 @@ export interface operations {
                      *         ],
                      *         "region": "example",
                      *         "revision": 1,
+                     *         "role": "primary",
                      *         "state": "awaiting_confirmation",
                      *         "storage": {
                      *           "compressionProgress": 1,
@@ -18700,6 +17036,7 @@ export interface operations {
                      *       ],
                      *       "region": "example",
                      *       "revision": 1,
+                     *       "role": "primary",
                      *       "state": "awaiting_confirmation",
                      *       "storage": {
                      *         "compressionProgress": 1,
@@ -18948,6 +17285,7 @@ export interface operations {
                      *       ],
                      *       "region": "example",
                      *       "revision": 1,
+                     *       "role": "primary",
                      *       "state": "awaiting_confirmation",
                      *       "storage": {
                      *         "compressionProgress": 1,
@@ -19537,6 +17875,7 @@ export interface operations {
                      *         ],
                      *         "region": "example",
                      *         "revision": 1,
+                     *         "role": "primary",
                      *         "state": "awaiting_confirmation",
                      *         "storage": {
                      *           "compressionProgress": 1,
@@ -19717,6 +18056,843 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-backup-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "anonymousVolumes": false,
+                     *       "buildxVolumes": false,
+                     *       "enabled": false,
+                     *       "excludeEnvironments": [
+                     *         "example"
+                     *       ],
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "excludeVolumes": [
+                     *         "example"
+                     *       ],
+                     *       "externalBinds": false,
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "includeMetrics": false,
+                     *       "primaryRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "recentSets": [
+                     *         {
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "members": [
+                     *             {
+                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "errorClass": "example",
+                     *               "item": "stack/0190a6e0-...",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "manager_state",
+                     *               "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "scope": "example",
+                     *               "snapshotTime": "2026-09-25T12:00:00Z",
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "stackName": "web",
+                     *               "state": "pending",
+                     *               "volume": "example"
+                     *             }
+                     *           ],
+                     *           "origin": "manual",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "expireDeletedDays": 1,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       },
+                     *       "revision": 1,
+                     *       "schedule": {
+                     *         "cron": "0 2 * * *",
+                     *         "nextRun": "2026-09-25T12:00:00Z",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "secondaryRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "shutdown": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BackupSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-backup-settings": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "retention": {
+                 *         "daily": 7
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["BackupSettingsBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "anonymousVolumes": false,
+                     *       "buildxVolumes": false,
+                     *       "enabled": false,
+                     *       "excludeEnvironments": [
+                     *         "example"
+                     *       ],
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "excludeVolumes": [
+                     *         "example"
+                     *       ],
+                     *       "externalBinds": false,
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "includeMetrics": false,
+                     *       "primaryRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "recentSets": [
+                     *         {
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "members": [
+                     *             {
+                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "errorClass": "example",
+                     *               "item": "stack/0190a6e0-...",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "manager_state",
+                     *               "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "scope": "example",
+                     *               "snapshotTime": "2026-09-25T12:00:00Z",
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "stackName": "web",
+                     *               "state": "pending",
+                     *               "volume": "example"
+                     *             }
+                     *           ],
+                     *           "origin": "manual",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "expireDeletedDays": 1,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       },
+                     *       "revision": 1,
+                     *       "schedule": {
+                     *         "cron": "0 2 * * *",
+                     *         "nextRun": "2026-09-25T12:00:00Z",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "secondaryRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "shutdown": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BackupSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-retention-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "retention": {
+                 *         "daily": 7
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["RetentionPreviewInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "locations": [
+                     *         {
+                     *           "decisions": [
+                     *             {
+                     *               "item": "example",
+                     *               "keep": false,
+                     *               "reasons": [
+                     *                 "example"
+                     *               ],
+                     *               "snapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "time": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "forget": 1,
+                     *           "keep": 1,
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "example"
+                     *         }
+                     *       ],
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "expireDeletedDays": 1,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["RetentionPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-retention-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "confirm": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["RetentionRunInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["RetentionRun"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "retrySetId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
+                "application/json": components["schemas"]["RunBackupInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "retryOf": "example",
+                     *           "retryable": false,
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "set": {
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "members": [
+                     *           {
+                     *             "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "errorClass": "example",
+                     *             "item": "stack/0190a6e0-...",
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "manager_state",
+                     *             "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "scope": "example",
+                     *             "snapshotTime": "2026-09-25T12:00:00Z",
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "stackName": "web",
+                     *             "state": "pending",
+                     *             "volume": "example"
+                     *           }
+                     *         ],
+                     *         "origin": "manual",
+                     *         "startedAt": "2026-09-25T12:00:00Z",
+                     *         "state": "pending"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BackupRun"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-scope-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "draft": {
+                 *         "retention": {
+                 *           "daily": 7
+                 *         }
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ScopePreviewInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "environments": [
+                     *         {
+                     *           "downtime": "example",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "errorClass": "example",
+                     *           "items": [
+                     *             {
+                     *               "affectedContainers": [
+                     *                 {
+                     *                   "name": "web",
+                     *                   "project": "example",
+                     *                   "protected": "example",
+                     *                   "running": false,
+                     *                   "service": "example",
+                     *                   "stopOrder": 1
+                     *                 }
+                     *               ],
+                     *               "conflicts": [
+                     *                 "example"
+                     *               ],
+                     *               "error": "example",
+                     *               "errorClass": "example",
+                     *               "estimateComplete": false,
+                     *               "estimatedBytes": 1,
+                     *               "estimatedFiles": 1,
+                     *               "excludes": [
+                     *                 "example"
+                     *               ],
+                     *               "item": "example",
+                     *               "kind": "example",
+                     *               "paths": [
+                     *                 "config/app.conf"
+                     *               ],
+                     *               "sources": [
+                     *                 {
+                     *                   "kind": "example",
+                     *                   "name": "web",
+                     *                   "path": "config/app.conf",
+                     *                   "reason": "example",
+                     *                   "service": "example",
+                     *                   "state": "example"
+                     *                 }
+                     *               ],
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "volume": "example",
+                     *               "volumes": [
+                     *                 "example"
+                     *               ],
+                     *               "warnings": [
+                     *                 "example"
+                     *               ]
+                     *             }
+                     *           ],
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         }
+                     *       ],
+                     *       "manager": {
+                     *         "databaseBytes": 1,
+                     *         "metricsBytes": 1,
+                     *         "metricsIncluded": false,
+                     *         "notes": [
+                     *           "example"
+                     *         ],
+                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       },
+                     *       "shutdown": false,
+                     *       "warnings": [
+                     *         "example"
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ScopePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19967,6 +19143,7 @@ export interface operations {
                      *             "item": "stack/0190a6e0-...",
                      *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "kind": "manager_state",
+                     *             "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "scope": "example",
                      *             "snapshotTime": "2026-09-25T12:00:00Z",
                      *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",

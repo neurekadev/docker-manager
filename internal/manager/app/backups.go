@@ -108,20 +108,32 @@ func (m *Manager) startBackups(ctx context.Context) error {
 			return err
 		},
 		RequestRestart: m.RequestRestart,
+		// Backups on without a Primary repository raise an alert (#246).
+		OnPrimaryMissing: func(ctx context.Context, missing bool) {
+			if m.alerts == nil {
+				return
+			}
+			if err := m.alerts.BackupsPaused(ctx, missing); err != nil {
+				log.Warn("could not update the backups-paused alert", "error", err)
+			}
+		},
 	})
 	if err != nil {
 		return err
 	}
-	// Docker maintenance (#14) never prunes volumes a backup policy selects.
+	if err := m.backups.CheckPrimary(ctx); err != nil {
+		return err
+	}
+	// Docker maintenance (#14) never prunes volumes the backups select.
 	if m.maint != nil {
 		m.maint.SetBackupReferences(func(ctx context.Context, environmentID string) ([]maintenance.BackupRef, error) {
-			refs, err := m.backups.VolumeReferences(ctx, environmentID)
+			names, err := m.backups.VolumeReferences(ctx, environmentID)
 			if err != nil {
 				return nil, err
 			}
-			out := make([]maintenance.BackupRef, 0, len(refs))
-			for _, r := range refs {
-				out = append(out, maintenance.BackupRef{Kind: "volume", Name: r.Volume, Reason: "selected by backup policy " + r.PolicyName})
+			out := make([]maintenance.BackupRef, 0, len(names))
+			for _, name := range names {
+				out = append(out, maintenance.BackupRef{Kind: "volume", Name: name, Reason: "selected by Backups"})
 			}
 			return out, nil
 		})
@@ -129,16 +141,6 @@ func (m *Manager) startBackups(ctx context.Context) error {
 	m.perms.RegisterLocator(catalog.TypeBackupRepository, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
 		_, err := m.backups.GetRepository(ctx, ref.ID)
 		if errors.Is(err, domain.ErrBackupRepositoryNotFound) {
-			return permissions.Location{}, nil
-		}
-		if err != nil {
-			return permissions.Location{}, err
-		}
-		return permissions.Location{Found: true, Parents: []authz.ResourceRef{}}, nil
-	}))
-	m.perms.RegisterLocator(catalog.TypeBackupPolicy, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
-		_, err := m.backups.GetPolicy(ctx, ref.ID)
-		if errors.Is(err, domain.ErrBackupPolicyNotFound) {
 			return permissions.Location{}, nil
 		}
 		if err != nil {

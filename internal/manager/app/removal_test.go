@@ -54,15 +54,11 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	env := b.agent.env
 	ctx := testutil.Context(t)
 
-	// A backup policy on the stack, run once by its schedule.
+	// Backups of the environment, run once by their schedule.
 	repo := b.createS3Repo(owner, "Offsite")
 	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+repo.Repository.ID+"/recovery-confirmations",
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
-	var pol struct {
-		ID string `json:"id"`
-	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "scope": "all", "repositoryId": repo.Repository.ID,
-		"schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC", "enabled": true}}).json(t, &pol)
+	b.settings(owner, map[string]any{"enabled": true, "schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC"}})
 	backupRuns := func() int {
 		t.Helper()
 		js, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"backup.run"}, EnvironmentID: env})
@@ -89,6 +85,21 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if got := b.runJob(js[0].ID); got.State != domain.JobSucceeded {
 		t.Fatalf("backup: %s %s", got.State, got.ErrorMessage)
 	}
+	// Every run also backs up the manager state; they finish so the next
+	// run starts.
+	runManagerState := func() {
+		t.Helper()
+		ms, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"manager.backup"}})
+		if err != nil || len(ms) == 0 {
+			t.Fatalf("manager state backups: %d %v", len(ms), err)
+		}
+		for _, m := range ms {
+			if got := b.runJob(m.ID); got.State != domain.JobSucceeded {
+				t.Fatalf("manager state backup: %s %s", got.State, got.ErrorMessage)
+			}
+		}
+	}
+	runManagerState()
 	// Rules of another user: two name the environment, one the stack.
 	sam, _, _ := b.newUser(owner, "sam")
 	samRules := "/api/v1/users/" + b.userID("sam") + "/permissions"
@@ -102,7 +113,7 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if prev.Action != "archive" || !prev.HostUntouched || prev.Migration.Stacks != 1 || len(prev.Dependents) != len(domain.DependentKinds()) {
 		t.Fatalf("preview %+v", prev)
 	}
-	for kind, atLeast := range map[string]int{domain.DependentStack: 1, domain.DependentBackupPolicy: 1,
+	for kind, atLeast := range map[string]int{domain.DependentStack: 1,
 		domain.DependentBackupRepository: 1, domain.DependentBackupSet: 1, domain.DependentPermissionRule: 2, domain.DependentSchedule: 1} {
 		if prev.count(kind) < atLeast {
 			t.Errorf("preview lists %d %s, want >= %d", prev.count(kind), kind, atLeast)
@@ -166,6 +177,7 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if n := backupRuns(); n != 1 {
 		t.Fatalf("scheduled backups while archived: %d", n)
 	}
+	runManagerState()
 
 	// Re-attach the same Engine: the environment, its stack and its
 	// policies come back.

@@ -15,11 +15,11 @@ import (
 )
 
 // TestPruneKeepsWhatBackupsRelyOn (#14 × #10, #32): the backup service
-// installs Maintenance().SetBackupReferences, so a standalone volume a
-// backup policy selects is never a prune candidate (shown as protected
-// with the policy's name, also while no container uses it), and a volume
-// mounted into the Docker Agent is never one either. Neither survives by accident: an equally old, unreferenced
-// volume is removed by the same run.
+// installs Maintenance().SetBackupReferences, so a standalone volume the
+// backups select is never a prune candidate (shown as protected, also
+// while no container uses it), and a volume mounted into the Docker Agent
+// is never one either. Neither survives by accident: an equally old
+// volume the backups leave out is removed by the same run.
 func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 	e := newEnv(t)
 	fe := maintenanceHost(e)
@@ -41,10 +41,13 @@ func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 	if err := store.InsertBackupRepository(ctx, e.m.DB(), &repo, store.BackupRepositorySealed{}); err != nil {
 		t.Fatal(err)
 	}
-	pol := domain.BackupPolicy{ID: ids.New(), Name: "Photos nightly", RepositoryID: repo.ID, EnvironmentRepos: map[string]string{},
-		Volumes: []domain.BackupVolumeSelection{{EnvironmentID: a.env, Volume: "photos"}}, Cron: "0 2 * * *", TimeZone: "UTC",
-		Revision: 1, CreatedAt: now, UpdatedAt: now}
-	if err := store.InsertBackupPolicy(ctx, e.m.DB(), &pol); err != nil {
+	setup, err := store.GetBackupSetup(ctx, e.m.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev := setup.Revision
+	setup.Enabled, setup.PrimaryRepositoryID, setup.ExcludeVolumes, setup.Revision = true, repo.ID, []string{a.env + "/olddata"}, rev+1
+	if err := store.UpdateBackupSetup(ctx, e.m.DB(), setup, rev); err != nil {
 		t.Fatal(err)
 	}
 
@@ -60,8 +63,8 @@ func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 			reasons[it.Decision+" "+it.Name] = it.Reason
 		}
 	}
-	if r, ok := reasons["protected photos"]; !ok || !strings.Contains(r, "Photos nightly") {
-		t.Errorf("the backed-up volume is not protected by its policy: %v", reasons)
+	if r, ok := reasons["protected photos"]; !ok || !strings.Contains(r, "Backups") {
+		t.Errorf("the backed-up volume is not protected by the backups: %v", reasons)
 	}
 	// The agent's volume is in use by Docker Manager's (protected) agent
 	// container: never a candidate.

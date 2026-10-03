@@ -78,6 +78,9 @@ const (
 	// AlertResourceFilesystem is a filesystem an agent reports usage of
 	// (its ID: "docker", "stacks", "bind-1", ...).
 	AlertResourceFilesystem = "filesystem"
+	// AlertResourceBackupSettings is the backup setup (backups without a
+	// Primary repository, #246).
+	AlertResourceBackupSettings = "backup_settings"
 )
 
 // Outcome is the outcome a message about the alert has: a resolution, or
@@ -90,6 +93,9 @@ func (a Alert) Outcome(event string) NotificationOutcome {
 	switch {
 	case a.Kind == NotifyUpdates:
 		return OutcomeAvailable
+	case a.Kind == NotifyBackup:
+		// Backups paused (#246): a backup failure to the channels.
+		return OutcomeFailure
 	case a.Kind == NotifyJobFailed && a.Severity == AlertCritical:
 		return OutcomeFailure
 	case a.Severity == AlertCritical:

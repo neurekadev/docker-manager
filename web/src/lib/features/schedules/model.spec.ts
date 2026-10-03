@@ -75,7 +75,7 @@ describe('schedules model (#13)', () => {
 		expect(policyHref('prune', 'mp-1')).toBe('/maintenance');
 		expect(policyHref('update_run')).toBe('/updates');
 		expect(policyHref('update_check', 'up-1')).toBe('/updates');
-		expect(policyHref('backup', 'bp-1')).toBe('/backups/policies/bp-1');
+		expect(policyHref('backup', 'bs-1')).toBe('/backups');
 		expect(policyHref('backup_verification', 'br-1')).toBe('/backups/repositories/br-1');
 		expect(policyHref('backup_verification')).toBe('/backups/repositories');
 		expect(scheduleState({ enabled: true })).toEqual({ status: 'running', label: 'Enabled' });

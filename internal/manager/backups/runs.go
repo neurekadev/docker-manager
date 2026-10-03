@@ -22,16 +22,17 @@ import (
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
-// A run of a policy is one backup set: one backup.run job per environment
-// (its agent snapshots every selected stack and volume there and writes a
-// host manifest into its repository) and, when the policy includes it, a
-// manager.backup job queued last (the manager-state snapshot and the set
-// manifest). Multi-host sets are not atomic: each member records its own
-// snapshot time, a set with failed members is partial, never complete,
-// and a retry re-runs only the members that did not complete. A member
-// whose stack or volume was removed before its turn is skipped: it counts
-// neither for nor against the set, and a set of skipped members only is
-// skipped.
+// A run of the setup is one backup set: one backup.run job per environment
+// and repository (its agent snapshots every selected stack and volume there
+// and writes a host manifest into the repository) and a manager.backup job
+// per repository (the manager-state snapshot and the set manifest), the
+// Primary's jobs first, then the Secondary's: each copy is taken straight
+// from the source data. Multi-host sets are not atomic: each member
+// records its own snapshot time, a set with failed members is partial,
+// never complete, and a retry re-runs only the members that did not
+// complete (per repository). A member whose stack or volume was removed
+// before its turn is skipped: it counts neither for nor against the set,
+// and a set of skipped members only is skipped.
 
 // managerBackupInput is the input of manager.backup.
 type managerBackupInput struct {
@@ -48,6 +49,8 @@ type managerRetentionInput struct {
 	PolicyID     string                `json:"policyId"`
 	Rules        backup.RetentionRules `json:"rules"`
 	TimeZone     string                `json:"timeZone"`
+	// AnyPolicy also retires the backups of earlier policies (#246).
+	AnyPolicy bool `json:"anyPolicy,omitempty"`
 }
 
 // managerVerifyInput is the input of manager.verify.
@@ -66,6 +69,9 @@ type RunOptions struct {
 	IdempotencyKey string
 	// RetrySetID re-runs the members of that set that did not complete.
 	RetrySetID string
+	// WithoutManager leaves the manager state out (the caller may not back
+	// it up: manager.backup is owner-only).
+	WithoutManager bool
 }
 
 // RunResult is a started run.
@@ -78,15 +84,15 @@ type RunResult struct {
 // (or was skipped: removed before its turn).
 var ErrNothingToRetry = errors.New("every member of the backup set completed or was skipped; nothing to retry")
 
-// RunPolicy starts a manual run of a policy (or retries a set's missing
-// members). The caller authorized backup.run on the policy and its
-// targets; the job engine authorizes every job again.
-func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) (RunResult, error) {
-	p, err := store.GetBackupPolicy(ctx, s.db, policyID)
+// RunNow starts a manual run of the setup (or retries a set's missing
+// members). The caller authorized backup.run; the job engine authorizes
+// every job again.
+func (s *Service) RunNow(ctx context.Context, o RunOptions) (RunResult, error) {
+	st, err := store.GetBackupSetup(ctx, s.db)
 	if err != nil {
 		return RunResult{}, err
 	}
-	if err := s.checkReady(ctx, p); err != nil {
+	if err := s.checkReady(ctx, st); err != nil {
 		return RunResult{}, err
 	}
 	now := s.now()
@@ -102,7 +108,7 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 	if !existing && o.RetrySetID == "" {
 		// One run at a time, like scheduled runs (which skip): a second
 		// run would queue behind the first and back up the same data again.
-		active, err := store.ActivePolicyJob(ctx, s.db, p.ID, []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup}, nil)
+		active, err := store.ActivePolicyJob(ctx, s.db, st.ID, []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup}, nil)
 		if err != nil {
 			return RunResult{}, err
 		}
@@ -116,7 +122,7 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 		if err != nil {
 			return RunResult{}, err
 		}
-		if prev.PolicyID != policyID {
+		if prev.PolicyID != st.ID {
 			return RunResult{}, domain.ErrBackupSetNotFound
 		}
 		only = retryItems(prev.Members)
@@ -125,7 +131,7 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 		}
 		setID = prev.ID
 	}
-	set, reqs, err := s.planRun(ctx, s.db, p, setID, now, only)
+	set, reqs, err := s.planRun(ctx, s.db, st, setID, now, only, !o.WithoutManager)
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -146,7 +152,7 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 	}
 	out := RunResult{Set: set}
 	for i, req := range reqs {
-		req.Principal, req.PolicyID = o.Principal, p.ID
+		req.Principal, req.PolicyID = o.Principal, st.ID
 		if o.IdempotencyKey != "" {
 			req.IdempotencyKey = fmt.Sprintf("%s#%d", o.IdempotencyKey, i)
 		}
@@ -166,14 +172,20 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 	return out, nil
 }
 
-// retryItems are the scope/item keys a retry of a set re-runs: the
-// members that did not complete, except skipped ones (removed before their
-// turn: nothing to retry).
+// memberKey identifies a member of a set: its repository, scope and item
+// (a run backs every item up to each repository).
+func memberKey(repositoryID, scope, item string) string {
+	return repositoryID + "\x00" + scope + "\x00" + item
+}
+
+// retryItems are the members a retry of a set re-runs: the ones that did
+// not complete, except skipped ones (removed before their turn: nothing to
+// retry).
 func retryItems(members []domain.BackupSetMember) map[string]bool {
 	only := map[string]bool{}
 	for _, m := range members {
 		if m.State != backup.StateComplete && m.State != backup.StatePending && m.State != backup.StateSkipped {
-			only[m.Scope+"\x00"+m.Item] = true
+			only[memberKey(m.RepositoryID, m.Scope, m.Item)] = true
 		}
 	}
 	return only
@@ -189,13 +201,13 @@ func originOf(p authz.Principal) domain.JobOrigin {
 	return domain.OriginManual
 }
 
-// checkReady refuses runs to repositories whose key is not confirmed.
-func (s *Service) checkReady(ctx context.Context, p domain.BackupPolicy) error {
-	ids := map[string]bool{p.RepositoryID: true}
-	for _, r := range p.EnvironmentRepos {
-		ids[r] = true
+// checkReady refuses runs without a Primary repository and to repositories
+// whose key is not confirmed.
+func (s *Service) checkReady(ctx context.Context, st domain.BackupSetup) error {
+	if st.PrimaryRepositoryID == "" {
+		return domain.ErrBackupNoPrimary
 	}
-	for id := range ids {
+	for _, id := range st.Repositories() {
 		r, err := store.GetBackupRepository(ctx, s.db, id)
 		if err != nil {
 			return err
@@ -208,78 +220,89 @@ func (s *Service) checkReady(ctx context.Context, p domain.BackupPolicy) error {
 }
 
 // planRun computes a run's set members and job requests (without
-// principal, policy ID and idempotency key). only limits it to the given
-// scope/item keys (retries).
-func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy, setID string, startedAt time.Time,
-	only map[string]bool) (domain.BackupSet, []jobs.Request, error) {
+// principal, policy ID and idempotency key): every environment's, then the
+// manager state's, for the Primary, then the same for the Secondary. only
+// limits it to the given members (retries).
+func (s *Service) planRun(ctx context.Context, db bun.IDB, st domain.BackupSetup, setID string, startedAt time.Time,
+	only map[string]bool, withManager bool) (domain.BackupSet, []jobs.Request, error) {
 	key, _, err := store.GetBackupKey(ctx, db)
 	if err != nil {
 		return domain.BackupSet{}, nil, err
 	}
-	set := domain.BackupSet{ID: setID, PolicyID: p.ID, PolicyName: p.Name, State: backup.StatePending, StartedAt: startedAt,
+	set := domain.BackupSet{ID: setID, PolicyID: st.ID, PolicyName: SetupName, State: backup.StatePending, StartedAt: startedAt,
 		UpdatedAt: startedAt}
-	plans, err := s.planItems(ctx, db, p)
+	plans, err := s.planItems(ctx, st)
 	if err != nil {
 		return set, nil, err
 	}
 	var reqs []jobs.Request
-	archived := 0
-	for _, e := range plans {
-		scope := backup.EnvironmentScope(e.EnvironmentID)
-		env, envErr := s.environment(ctx, e.EnvironmentID)
-		if envErr == nil && env.Status == domain.EnvironmentArchived {
-			// Archived hosts are hidden from operations (#34): their
-			// selections resume after a re-attach.
-			archived++
-			continue
+	archived, envs := 0, 0
+	for _, repoID := range st.Repositories() {
+		repo, err := store.GetBackupRepository(ctx, db, repoID)
+		if err != nil {
+			return set, nil, err
 		}
-		in := protocol.BackupRunInput{SetID: setID, PolicyID: p.ID, PolicyName: p.Name, InstanceID: s.opts.InstanceID,
-			Repository: repositoryRef(e.Repository, scope, key.State), Shutdown: p.Shutdown, StartedAt: startedAt}
-		if envErr == nil {
-			in.EnvironmentName = env.Name
-		}
-		// Agents reject unknown input fields: live activity is asked only
-		// of agents announcing it (#10; an older agent backs up without).
-		if fh, ok := s.opts.Agents.(FeatureHub); ok && fh.EnvironmentHasFeature(e.EnvironmentID, protocol.FeatureBackupActivity) {
-			in.Activity = true
-		}
-		targets := []domain.JobTarget{}
-		for _, it := range e.Items {
-			if only != nil && !only[scope+"\x00"+it.Key()] {
+		for _, e := range plans {
+			scope := backup.EnvironmentScope(e.EnvironmentID)
+			env, envErr := s.environment(ctx, e.EnvironmentID)
+			if envErr == nil && env.Status == domain.EnvironmentArchived {
+				// Archived hosts are hidden from operations (#34): their
+				// selections resume after a re-attach.
+				archived++
 				continue
 			}
-			in.Items = append(in.Items, it)
-			switch it.Kind {
-			case backup.MemberStack:
-				targets = append(targets, domain.JobTarget{Type: domain.TargetStack, ID: it.StackID})
-			case backup.MemberVolume:
-				targets = append(targets, domain.JobTarget{Type: domain.TargetVolume, ID: it.Volume})
+			in := protocol.BackupRunInput{SetID: setID, PolicyID: st.ID, PolicyName: SetupName, InstanceID: s.opts.InstanceID,
+				Repository: repositoryRef(repo, scope, key.State), Shutdown: st.Shutdown, StartedAt: startedAt}
+			if envErr == nil {
+				in.EnvironmentName = env.Name
 			}
-			set.Members = append(set.Members, domain.BackupSetMember{Item: it.Key(), Kind: it.Kind, Scope: scope,
-				RepositoryID: e.Repository.ID, EnvironmentID: e.EnvironmentID, StackID: it.StackID, StackName: it.StackName,
-				Volume: it.Volume, State: backup.StatePending})
+			// Agents reject unknown input fields: live activity is asked only
+			// of agents announcing it (#10; an older agent backs up without).
+			if fh, ok := s.opts.Agents.(FeatureHub); ok && fh.EnvironmentHasFeature(e.EnvironmentID, protocol.FeatureBackupActivity) {
+				in.Activity = true
+			}
+			targets := []domain.JobTarget{}
+			for _, it := range e.Items {
+				if only != nil && !only[memberKey(repo.ID, scope, it.Key())] {
+					continue
+				}
+				in.Items = append(in.Items, it)
+				switch it.Kind {
+				case backup.MemberStack:
+					targets = append(targets, domain.JobTarget{Type: domain.TargetStack, ID: it.StackID})
+				case backup.MemberVolume:
+					targets = append(targets, domain.JobTarget{Type: domain.TargetVolume, ID: it.Volume})
+				}
+				set.Members = append(set.Members, domain.BackupSetMember{Item: it.Key(), Kind: it.Kind, Scope: scope,
+					RepositoryID: repo.ID, EnvironmentID: e.EnvironmentID, StackID: it.StackID, StackName: it.StackName,
+					Volume: it.Volume, State: backup.StatePending})
+			}
+			if len(in.Items) == 0 {
+				continue
+			}
+			if repoID == st.PrimaryRepositoryID {
+				envs++
+			}
+			targets = append(targets, repoTarget(repo.ID))
+			reqs = append(reqs, jobs.Request{Kind: jobspec.BackupRun, EnvironmentID: e.EnvironmentID, Targets: targets, Input: in})
 		}
-		if len(in.Items) == 0 {
-			continue
+		if withManager && (only == nil || only[memberKey(repo.ID, backup.ScopeManager, backup.ItemManagerState)]) {
+			set.Members = append(set.Members, domain.BackupSetMember{Item: backup.ItemManagerState, Kind: backup.MemberManagerState,
+				Scope: backup.ScopeManager, RepositoryID: repo.ID, State: backup.StatePending})
+			reqs = append(reqs, jobs.Request{Kind: jobspec.ManagerBackup, Targets: []domain.JobTarget{repoTarget(repo.ID)},
+				Input: managerBackupInput{SetID: setID, PolicyID: st.ID, RepositoryID: repo.ID, IncludeMetrics: st.IncludeMetrics,
+					StartedAt: startedAt}})
 		}
-		targets = append(targets, repoTarget(e.Repository.ID))
-		reqs = append(reqs, jobs.Request{Kind: jobspec.BackupRun, EnvironmentID: e.EnvironmentID, Targets: targets, Input: in})
-	}
-	if p.IncludeManager && (only == nil || only[backup.ScopeManager+"\x00"+backup.ItemManagerState]) {
-		set.Members = append(set.Members, domain.BackupSetMember{Item: backup.ItemManagerState, Kind: backup.MemberManagerState,
-			Scope: backup.ScopeManager, RepositoryID: p.RepositoryID, State: backup.StatePending})
-		reqs = append(reqs, jobs.Request{Kind: jobspec.ManagerBackup, Targets: []domain.JobTarget{repoTarget(p.RepositoryID)},
-			Input: managerBackupInput{SetID: setID, PolicyID: p.ID, RepositoryID: p.RepositoryID, IncludeMetrics: p.IncludeMetrics,
-				StartedAt: startedAt}})
 	}
 	if len(reqs) == 0 && archived > 0 {
-		return set, nil, fieldErr("stacks", "the policy selects only stacks and volumes of archived environments")
+		return set, nil, fieldErr("excludeEnvironments", "only archived environments have stacks and volumes to back up")
 	}
 	if len(reqs) == 0 {
-		return set, nil, fieldErr("stacks", "the policy selects nothing to back up")
+		return set, nil, fieldErr("excludeEnvironments", "there is nothing to back up")
 	}
 	if len(reqs) > scheduler.MaxJobsPerRun {
-		return set, nil, fieldErr("stacks", "a run may span at most %d environments", scheduler.MaxJobsPerRun-1)
+		return set, nil, fieldErr("excludeEnvironments", "a run may span at most %d environments (%d now)",
+			scheduler.MaxJobsPerRun/len(st.Repositories())-1, envs)
 	}
 	return set, reqs, nil
 }
@@ -293,11 +316,12 @@ func (s *Service) markRetry(ctx context.Context, planned domain.BackupSet) error
 		}
 		retry := map[string]bool{}
 		for _, m := range planned.Members {
-			retry[m.Scope+"\x00"+m.Item] = true
+			retry[memberKey(m.RepositoryID, m.Scope, m.Item)] = true
 		}
 		for i := range set.Members {
-			if retry[set.Members[i].Scope+"\x00"+set.Members[i].Item] {
-				set.Members[i].State, set.Members[i].ErrorClass = backup.StatePending, ""
+			m := &set.Members[i]
+			if retry[memberKey(m.RepositoryID, m.Scope, m.Item)] {
+				m.State, m.ErrorClass = backup.StatePending, ""
 			}
 		}
 		set.State, set.FinishedAt, set.UpdatedAt = backup.StatePending, nil, s.now()
@@ -314,6 +338,7 @@ func (s *Service) failPlanned(ctx context.Context, setID string, req jobs.Reques
 	case errors.Is(cause, domain.ErrJobInvalid):
 		class = domain.ErrorRejected
 	}
+	repoID := repositoryOf(domain.Job{Targets: req.Targets})
 	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		set, err := store.GetBackupSet(ctx, tx, setID)
 		if err != nil {
@@ -324,8 +349,9 @@ func (s *Service) failPlanned(ctx context.Context, setID string, req jobs.Reques
 			scope = backup.EnvironmentScope(req.EnvironmentID)
 		}
 		for i := range set.Members {
-			if set.Members[i].Scope == scope && set.Members[i].State == backup.StatePending {
-				set.Members[i].State, set.Members[i].ErrorClass = backup.StateFailed, class
+			m := &set.Members[i]
+			if m.Scope == scope && m.RepositoryID == repoID && m.State == backup.StatePending {
+				m.State, m.ErrorClass = backup.StateFailed, class
 			}
 		}
 		wasPending := set.State == backup.StatePending
@@ -361,17 +387,18 @@ func (s *Service) settle(set *domain.BackupSet) {
 	}
 }
 
-// flagRetention marks a set that has just finished for its policy's
-// retention after the backup (RunFollowUps queues it): once per set, only
-// after every member settled, never for a failed set or a skipped one (it
-// wrote no snapshot). Retention therefore runs once per backup run and
-// location, never per stack or volume.
+// flagRetention marks a set that has just finished for retention after
+// the backup (RunFollowUps queues it): once per set, only after every
+// member settled, never for a failed set or a skipped one (it wrote no
+// snapshot). Retention therefore runs once per backup run and location,
+// never per stack or volume.
 func (s *Service) flagRetention(ctx context.Context, db bun.IDB, set *domain.BackupSet, wasPending bool) {
 	if !wasPending || set.State == backup.StatePending || set.State == backup.StateFailed || set.State == backup.StateSkipped ||
 		set.FollowUp != "" || set.PolicyID == "" {
 		return
 	}
-	if p, err := store.GetBackupPolicy(ctx, db, set.PolicyID); err == nil && p.Retention.AfterBackup && retentionActive(p.Retention) {
+	if st, err := store.GetBackupSetup(ctx, db); err == nil && st.ID == set.PolicyID && st.Retention.AfterBackup &&
+		retentionActive(st.Retention) {
 		set.FollowUp = "retention"
 		s.poke()
 	}
@@ -387,23 +414,23 @@ func scheduledSetID(dueKey string) string {
 
 // --- retention runs ---
 
-// RetentionRun queues the policy's retention on every location that holds
-// its snapshots (manual run; idempotency key per location).
-func (s *Service) RetentionRun(ctx context.Context, policyID string, principal authz.Principal, idempotencyKey string) ([]domain.Job, error) {
-	p, err := store.GetBackupPolicy(ctx, s.db, policyID)
+// RetentionRun queues retention on every location that holds Docker
+// Manager backups (manual run; idempotency key per location).
+func (s *Service) RetentionRun(ctx context.Context, principal authz.Principal, idempotencyKey string) ([]domain.Job, error) {
+	st, err := store.GetBackupSetup(ctx, s.db)
 	if err != nil {
 		return nil, err
 	}
-	if !retentionActive(p.Retention) {
-		return nil, fieldErr("retention", "the policy has no retention rules")
+	if !retentionActive(st.Retention) {
+		return nil, fieldErr("retention", "no retention rule is set")
 	}
-	reqs, err := s.retentionRequests(ctx, p, "")
+	reqs, err := s.retentionRequests(ctx, st, "")
 	if err != nil {
 		return nil, err
 	}
 	var out []domain.Job
 	for i, req := range reqs {
-		req.Principal, req.PolicyID = principal, p.ID
+		req.Principal, req.PolicyID = principal, st.ID
 		if idempotencyKey != "" {
 			req.IdempotencyKey = fmt.Sprintf("%s#%d", idempotencyKey, i)
 		}
@@ -412,7 +439,7 @@ func (s *Service) RetentionRun(ctx context.Context, policyID string, principal a
 			if i == 0 {
 				return nil, err
 			}
-			s.log.Warn("could not queue a retention job", "policy_id", p.ID, "error", err)
+			s.log.Warn("could not queue a retention job", "error", err)
 			continue
 		}
 		out = append(out, j)
@@ -421,19 +448,18 @@ func (s *Service) RetentionRun(ctx context.Context, policyID string, principal a
 	return out, nil
 }
 
-// retentionRequests builds one retention job per location that holds the
-// policy's snapshots (setID limits it to the set's locations). Each
+// retentionRequests builds one retention job per location that holds
+// Docker Manager backups (setID limits it to the set's locations). Each
 // environment location also names the deleted items whose backups expire,
-// judged from every snapshot of the policy there.
-func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, setID string) ([]jobs.Request, error) {
-	f := domain.BackupSnapshotFilter{PolicyID: p.ID, SetID: setID}
-	snaps, err := store.ListBackupSnapshots(ctx, s.db, f)
+// judged from every backup there.
+func (s *Service) retentionRequests(ctx context.Context, st domain.BackupSetup, setID string) ([]jobs.Request, error) {
+	snaps, err := s.retainedSnapshots(ctx, setID)
 	if err != nil {
 		return nil, err
 	}
 	all := snaps
-	if setID != "" && p.Retention.ExpireDeletedDays > 0 {
-		if all, err = store.ListBackupSnapshots(ctx, s.db, domain.BackupSnapshotFilter{PolicyID: p.ID}); err != nil {
+	if setID != "" && st.Retention.ExpireDeletedDays > 0 {
+		if all, err = s.retainedSnapshots(ctx, ""); err != nil {
 			return nil, err
 		}
 	}
@@ -443,7 +469,7 @@ func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, 
 	}
 	seen := map[[2]string]bool{}
 	var reqs []jobs.Request
-	rules := retentionRules(p.Retention)
+	rules := retentionRules(st.Retention)
 	for _, sn := range snaps {
 		k := [2]string{sn.RepositoryID, sn.Scope}
 		if seen[k] {
@@ -456,22 +482,27 @@ func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, 
 		}
 		if sn.Scope == backup.ScopeManager {
 			reqs = append(reqs, jobs.Request{Kind: jobspec.ManagerRetention, Targets: []domain.JobTarget{repoTarget(repo.ID)},
-				Input: managerRetentionInput{RepositoryID: repo.ID, PolicyID: p.ID, Rules: rules, TimeZone: p.TimeZone}})
+				Input: managerRetentionInput{RepositoryID: repo.ID, PolicyID: st.ID, Rules: rules, TimeZone: st.TimeZone, AnyPolicy: true}})
 			continue
 		}
 		env, _ := backup.ScopeEnvironment(sn.Scope)
-		in := protocol.BackupRetentionInput{Repository: repositoryRef(repo, sn.Scope, key.State), PolicyID: p.ID, Rules: rules,
-			TimeZone: p.TimeZone}
-		// Agents reject unknown input fields: the expiry is sent only to
-		// agents announcing it (an older one applies the rules alone).
-		if fh, ok := s.opts.Agents.(FeatureHub); ok && fh.EnvironmentHasFeature(env, protocol.FeatureBackupExpire) {
+		in := protocol.BackupRetentionInput{Repository: repositoryRef(repo, sn.Scope, key.State), PolicyID: st.ID, Rules: rules,
+			TimeZone: st.TimeZone}
+		// Agents reject unknown input fields: the expiry and the backups of
+		// earlier policies are sent only to agents announcing them (an older
+		// one applies the rules to the setup's own backups).
+		fh, _ := s.opts.Agents.(FeatureHub)
+		if fh != nil && fh.EnvironmentHasFeature(env, protocol.FeatureBackupAnyPolicy) {
+			in.AnyPolicy = true
+		}
+		if fh != nil && fh.EnvironmentHasFeature(env, protocol.FeatureBackupExpire) {
 			var here []domain.BackupSnapshot
 			for _, x := range all {
 				if x.RepositoryID == sn.RepositoryID && x.Scope == sn.Scope {
 					here = append(here, x)
 				}
 			}
-			in.Expire = s.expiredItems(ctx, p, sn.Scope, here)
+			in.Expire = s.expiredItems(ctx, st, sn.Scope, here)
 		}
 		reqs = append(reqs, jobs.Request{Kind: jobspec.BackupRetention, EnvironmentID: env, Targets: []domain.JobTarget{repoTarget(repo.ID)},
 			Input: in})
@@ -479,29 +510,30 @@ func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, 
 	return reqs, nil
 }
 
-// RunFollowUps queues the automatic retention of finished sets whose
-// policy applies retention after backups.
+// RunFollowUps queues the automatic retention of finished sets of the
+// setup when it applies retention after backups.
 func (s *Service) RunFollowUps(ctx context.Context) error {
 	sets, err := store.ListBackupSetsWithFollowUp(ctx, s.db, "retention", 50)
 	if err != nil {
 		return err
 	}
+	st, err := store.GetBackupSetup(ctx, s.db)
+	if err != nil {
+		return err
+	}
 	for _, set := range sets {
-		p, err := store.GetBackupPolicy(ctx, s.db, set.PolicyID)
-		if err == nil && p.Retention.AfterBackup && !retentionRules(p.Retention).Empty() {
-			reqs, err := s.retentionRequests(ctx, p, set.ID)
+		if set.PolicyID == st.ID && st.Retention.AfterBackup && retentionActive(st.Retention) {
+			reqs, err := s.retentionRequests(ctx, st, set.ID)
 			if err != nil {
 				return err
 			}
 			for _, req := range reqs {
-				req.Principal, req.PolicyID = authz.Service(), p.ID
+				req.Principal, req.PolicyID = authz.Service(), st.ID
 				req.IdempotencyKey = "retention:" + set.ID + ":" + repositoryOf(domain.Job{Targets: req.Targets}) + ":" + req.EnvironmentID
 				if _, _, err := s.opts.Jobs.Enqueue(ctx, req); err != nil {
 					s.log.Warn("could not queue retention after a backup", "set_id", set.ID, "error", err)
 				}
 			}
-		} else if err != nil && !errors.Is(err, domain.ErrBackupPolicyNotFound) {
-			return err
 		}
 		set.FollowUp = "done"
 		if err := store.UpdateBackupSet(ctx, s.db, &set); err != nil {
@@ -513,61 +545,59 @@ func (s *Service) RunFollowUps(ctx context.Context) error {
 
 // --- scheduler sources (#13) ---
 
+// RejectNoPrimary rejects a scheduled run of a setup without a Primary
+// repository.
+const RejectNoPrimary = "no_primary_repository"
+
 type policySource struct{ s *Service }
 
 func (ps policySource) Schedules(ctx context.Context) ([]scheduler.PolicySchedule, error) {
-	pols, err := store.ListBackupPolicies(ctx, ps.s.db, "", 0)
+	st, err := store.GetBackupSetup(ctx, ps.s.db)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]scheduler.PolicySchedule, 0, len(pols))
-	for _, p := range pols {
-		out = append(out, scheduler.PolicySchedule{PolicyID: p.ID, Name: p.Name, Cron: p.Cron, TimeZone: p.TimeZone, Enabled: p.Enabled})
-	}
-	return out, nil
+	return []scheduler.PolicySchedule{{PolicyID: st.ID, Name: SetupName, Cron: st.Cron, TimeZone: st.TimeZone, Enabled: st.Enabled}}, nil
 }
 
-// Validate revalidates a policy when due and at dispatch: present,
-// enabled, repositories confirmed, selected stacks still present. The
-// user who created the policy plays no part: scheduled runs belong to
-// the instance.
+// Validate revalidates the setup when due and at dispatch: enabled, a
+// Primary repository, repositories confirmed. The user who configured it
+// plays no part: scheduled runs belong to the instance.
 func (ps policySource) Validate(ctx context.Context, policyID string) error {
-	p, err := store.GetBackupPolicy(ctx, ps.s.db, policyID)
-	if errors.Is(err, domain.ErrBackupPolicyNotFound) {
-		return scheduler.Reject(scheduler.RejectPolicyNotFound, "the backup policy was deleted")
-	}
+	_, err := ps.setup(ctx, policyID)
+	return err
+}
+
+func (ps policySource) setup(ctx context.Context, policyID string) (domain.BackupSetup, error) {
+	st, err := store.GetBackupSetup(ctx, ps.s.db)
 	if err != nil {
-		return err
+		return st, err
 	}
-	if !p.Enabled {
-		return scheduler.Reject(scheduler.RejectPolicyDisabled, "the backup policy is disabled")
+	if st.ID != policyID {
+		return st, scheduler.Reject(scheduler.RejectPolicyNotFound, "the backup schedule no longer exists")
 	}
-	if err := ps.s.checkReady(ctx, p); err != nil {
-		if errors.Is(err, domain.ErrBackupRepositoryNotFound) {
-			return scheduler.Reject(scheduler.RejectTargetNotFound, "a repository of the policy was deleted")
+	if !st.Enabled {
+		return st, scheduler.Reject(scheduler.RejectPolicyDisabled, "backups are turned off")
+	}
+	if err := ps.s.checkReady(ctx, st); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrBackupNoPrimary):
+			return st, scheduler.Reject(RejectNoPrimary, "no Primary backup repository is set")
+		case errors.Is(err, domain.ErrBackupRepositoryNotFound):
+			return st, scheduler.Reject(scheduler.RejectTargetNotFound, "a backup repository was deleted")
+		case errors.Is(err, domain.ErrRecoveryKeyNotConfirmed):
+			return st, scheduler.Reject("recovery_key_not_confirmed", "the Recovery Key of a backup repository is not confirmed")
 		}
-		if errors.Is(err, domain.ErrRecoveryKeyNotConfirmed) {
-			return scheduler.Reject("recovery_key_not_confirmed", "the Recovery Key of a repository of the policy is not confirmed")
-		}
-		return err
+		return st, err
 	}
-	for _, sel := range p.Stacks {
-		if _, err := ps.s.stack(ctx, sel.StackID); err != nil {
-			if errors.Is(err, domain.ErrStackNotFound) {
-				return scheduler.Reject(scheduler.RejectTargetNotFound, "a stack of the policy no longer exists")
-			}
-			return err
-		}
-	}
-	return nil
+	return st, nil
 }
 
 func (ps policySource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Request, error) {
-	p, err := store.GetBackupPolicy(ctx, ps.s.db, due.PolicyID)
+	st, err := ps.setup(ctx, due.PolicyID)
 	if err != nil {
 		return nil, err
 	}
-	set, reqs, err := ps.s.planRun(ctx, ps.s.db, p, scheduledSetID(due.Key), due.ScheduledFor.UTC(), nil)
+	set, reqs, err := ps.s.planRun(ctx, ps.s.db, st, scheduledSetID(due.Key), due.ScheduledFor.UTC(), nil, true)
 	if err != nil {
 		var fe *domain.FieldError
 		if errors.As(err, &fe) {

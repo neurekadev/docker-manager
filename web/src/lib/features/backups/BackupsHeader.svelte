@@ -1,10 +1,9 @@
 <script lang="ts">
-	// Header of the Backups section: title, description, the section's
-	// primary action and route tabs (Overview with the policies, Backups,
-	// Repositories). The primary action is the same on every tab: "Create
-	// backup policy" (it opens the wizard in a dialog, ?create=1), or "Add
-	// backup repository" while no repository is ready to hold backups.
-	// restic's raw snapshots open from a repository's page, not a tab.
+	// Header of the Backups section: title, description, the tab's actions
+	// and route tabs (Overview with the settings, Backups, Repositories).
+	// While no repository is ready to hold backups, every tab offers "Add
+	// Backup Repository". restic's raw snapshots open from a repository's
+	// page, not a tab.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -14,19 +13,15 @@
 	import { accessOf } from '$lib/shell/nav';
 	import { Button, PageHeader, TabNav } from '$lib/ui';
 	import { can } from '$lib/features/common/access';
-	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
-	import BackupPolicyDialog from './BackupPolicyDialog.svelte';
 	import { repositoriesQuery } from './queries';
 
-	/** `actions`: secondary actions of a tab, before the primary one. */
+	/** `actions`: the tab's actions. */
 	let { actions: outerActions }: { actions?: Snippet } = $props();
 
 	const perms = createQuery(() => myPermissionsQuery());
 	const access = $derived(accessOf(perms.data));
 	const repos = createQuery(() => repositoriesQuery());
-	const createDialog = urlDialog('create');
 	const ready = $derived((repos.data ?? []).some((r) => r.state === 'ready'));
-	const canCreatePolicy = $derived(can(access, 'backup_policy.manage'));
 	const canAddRepository = $derived(access.owner || can(access, 'backup_repository.manage'));
 </script>
 
@@ -37,11 +32,7 @@
 >
 	{#snippet actions()}
 		{@render outerActions?.()}
-		{#if canCreatePolicy && ready}
-			<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
-				>Create Backup Policy</Button
-			>
-		{:else if canAddRepository && repos.isSuccess && !ready}
+		{#if canAddRepository && repos.isSuccess && !ready}
 			<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
 				>Add Backup Repository</Button
 			>
@@ -57,7 +48,3 @@
 		{ href: routes.backupRepositories(), label: 'Repositories' }
 	]}
 />
-
-{#if createDialog.open}
-	<BackupPolicyDialog bind:open={createDialog.open} owner={!!perms.data?.owner} />
-{/if}
