@@ -172,15 +172,26 @@
 	// Why the last untick changed nothing (its folder can't be split). The
 	// clicked box already cleared itself (Checkbox binds `checked`), so the
 	// boxes are drawn again from the selection and the clicked one keeps
-	// focus.
+	// focus. While a split waits for listings, confirming and other ticks
+	// wait too, so neither the folder nor a later click slips through.
 	let refused = $state('');
 	let redraw = $state(0);
+	let splitting = $state(false);
 
 	async function flip(path: string, focusId?: string) {
+		if (splitting) return resync(focusId);
 		const ancestor = selection.find((s) => s !== path && within(path, s));
 		const dirs = ancestor ? foldersBetween(ancestor, path) : [];
-		if (dirs.length)
-			await Promise.allSettled(dirs.map((d) => qc.ensureQueryData(listingOptions(d))));
+		if (ancestor && dirs.length) {
+			splitting = true;
+			try {
+				await Promise.allSettled(dirs.map((d) => qc.ensureQueryData(listingOptions(d))));
+			} finally {
+				splitting = false;
+			}
+			// Closed or cleared meanwhile: this untick no longer applies.
+			if (!open || !selection.includes(ancestor)) return resync(focusId);
+		}
 		const before = selection;
 		const next = toggle(before, path, children);
 		const unchanged = next.length === before.length && next.every((p, i) => p === before[i]);
@@ -193,11 +204,15 @@
 				? 'This folder is listed only in part, so it is chosen whole. Untick the folder to leave it out.'
 				: "This folder's contents could not be listed, so it is chosen whole. Untick the folder to leave it out.";
 		selection = next;
-		if (refused && focusId) {
-			redraw++;
-			await tick();
-			document.getElementById(focusId)?.focus();
-		}
+		if (refused) await resync(focusId);
+	}
+
+	/** Draws the boxes again from the selection and refocuses the clicked one. */
+	async function resync(focusId?: string) {
+		redraw++;
+		if (!focusId) return;
+		await tick();
+		document.getElementById(focusId)?.focus();
 	}
 
 	function boxId(path: string): string {
@@ -268,7 +283,7 @@
 		return `${uid}-${encodeURIComponent(path)}`;
 	}
 
-	const confirmDisabled = $derived(multiple ? selection.length === 0 : !picked);
+	const confirmDisabled = $derived(multiple ? splitting || selection.length === 0 : !picked);
 </script>
 
 {#snippet cells(n: PickerEntry)}

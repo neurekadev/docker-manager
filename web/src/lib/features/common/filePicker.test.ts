@@ -35,6 +35,8 @@ const listings: Record<string, PickerEntry[]> = {
 };
 // Listed only in part (more entries than the source returns).
 const partial = new Set(['/vol/db/big']);
+// Listings held back until the test releases them.
+const gates = new Map<string, Promise<void>>();
 
 const places = [
 	{ path: '/stacks/web', label: 'web Project Files', icon: Layers },
@@ -51,14 +53,16 @@ function setup(props: Partial<ComponentProps<typeof FilePicker>> = {}) {
 			queryKey: ['picker-test', dir],
 			queryFn: async () => {
 				listed.push(dir);
+				await gates.get(dir);
 				return { entries: listings[dir] ?? [], truncated: partial.has(dir) };
 			}
 		})
 	};
 	const onpick = vi.fn();
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	render(QueryHarness<ComponentProps<typeof FilePicker>>, {
 		props: {
-			client: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+			client,
 			component: FilePicker,
 			props: {
 				open: true,
@@ -72,7 +76,7 @@ function setup(props: Partial<ComponentProps<typeof FilePicker>> = {}) {
 			}
 		}
 	});
-	return { listed, onpick, user: userEvent.setup({ pointerEventsCheck: 0 }) };
+	return { client, listed, onpick, user: userEvent.setup({ pointerEventsCheck: 0 }) };
 }
 
 describe('FilePicker: one file', () => {
@@ -181,6 +185,33 @@ describe('FilePicker: several items', () => {
 		).toBeInTheDocument();
 		expect(screen.getByRole('checkbox', { name: '1.dat' })).toBeChecked();
 		expect(screen.getByText('1 item selected')).toBeInTheDocument();
+	});
+
+	it('lists a dropped folder before splitting it and holds the confirm meanwhile', async () => {
+		const { client, onpick, user } = setup({
+			multiple: true,
+			value: ['/stacks/web'],
+			confirmLabel: 'Review Restore'
+		});
+		await user.click(await screen.findByRole('button', { name: 'conf' }));
+		const app = await screen.findByRole('checkbox', { name: 'app.ini' });
+		// The cache dropped the place's listing; listing it again waits.
+		client.removeQueries({ queryKey: ['picker-test', '/stacks/web'] });
+		let release = () => {};
+		gates.set('/stacks/web', new Promise<void>((r) => (release = r)));
+		await user.click(app);
+		const review = screen.getByRole('button', { name: 'Review Restore' });
+		expect(review).toBeDisabled();
+		release();
+		gates.clear();
+		expect(await screen.findByText('3 items selected')).toBeInTheDocument();
+		await waitFor(() => expect(review).toBeEnabled());
+		await user.click(review);
+		expect(onpick).toHaveBeenCalledWith([
+			'/stacks/web/compose.yaml',
+			'/stacks/web/conf/site.ini',
+			'/stacks/web/current'
+		]);
 	});
 
 	it('starts with the given paths ticked and clears them', async () => {
