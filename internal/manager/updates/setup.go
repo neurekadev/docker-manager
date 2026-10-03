@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -524,11 +525,8 @@ func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key
 }
 
 // rollbackTimeout bounds cancelling one job of a start that failed part
-// way; rollbackBudget bounds cancelling all of them.
-const (
-	rollbackTimeout = 10 * time.Second
-	rollbackBudget  = 30 * time.Second
-)
+// way.
+const rollbackTimeout = 10 * time.Second
 
 // enqueueAll enqueues reqs for principal (job keys key#i) all or none:
 // when one fails, the jobs already queued are cancelled (also when the
@@ -544,19 +542,21 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 		}
 		if err != nil {
 			// The request may be cancelled already: cancel what was
-			// queued regardless, each within a bound of its own so one
-			// slow cancel does not skip the others, all within
-			// rollbackBudget.
-			base, stop := context.WithTimeout(context.WithoutCancel(ctx), rollbackBudget)
-			defer stop()
+			// queued regardless, all at once, each within a bound of its
+			// own (so the rollback takes about one bound, and one slow
+			// cancel does not skip the others).
+			base := context.WithoutCancel(ctx)
+			var wg sync.WaitGroup
 			for _, j := range out {
-				cctx, cancel := context.WithTimeout(base, rollbackTimeout)
-				_, cerr := s.opts.Jobs.Cancel(cctx, j.ID)
-				cancel()
-				if cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
-					s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
-				}
+				wg.Go(func() {
+					cctx, cancel := context.WithTimeout(base, rollbackTimeout)
+					defer cancel()
+					if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+						s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
+					}
+				})
 			}
+			wg.Wait()
 			return nil, err
 		}
 		out = append(out, job)
