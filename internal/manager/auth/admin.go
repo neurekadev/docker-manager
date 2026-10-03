@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -129,17 +130,12 @@ func (s *Service) SetupOwner(ctx context.Context, in domain.OwnerSetup) (domain.
 	}
 	var owner domain.User
 	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Every account is in a group (users.group_id is NOT NULL), the
-		// owner too; group rules never apply to the owner (owner bypass),
-		// so groups do not count the owner and never keep a deletion from
-		// happening (store.DeleteGroup moves the owner to the default).
-		group, err := store.DefaultGroupID(ctx, tx)
-		if err != nil {
-			return err
-		}
+		// The owner is in no group: group rules never apply to it (owner
+		// bypass).
+		var err error
 		owner, err = store.CreateUser(ctx, tx, domain.NewUser{
 			ID: newID(), Username: in.Username, DisplayName: strings.TrimSpace(in.DisplayName), Email: strings.TrimSpace(in.Email),
-			Owner: true, GroupID: group, PasswordHash: hash, WebAuthnHandle: newHandle(), CreatedAt: s.now(),
+			Owner: true, PasswordHash: hash, WebAuthnHandle: newHandle(), CreatedAt: s.now(),
 		})
 		return err
 	})
@@ -328,9 +324,10 @@ func (s *Service) GetUser(ctx context.Context, id string) (domain.Account, error
 
 // PatchUser edits an account (owner; optimistic revision). Disabling ends
 // all sessions and streams of the account; the owner cannot be disabled.
-// Moving the account to another group (#17: exactly one group per user)
-// needs a recent step-up, is audited with the before/after group, and
-// ends the account's open requests and streams (its access changed).
+// Changing the account's groups (#17, #233: any number of groups) needs a
+// recent step-up, is audited with the before/after groups, and ends the
+// account's open requests and streams (its access changed). The owner is
+// in no group.
 func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p domain.UserPatch) (domain.Account, error) {
 	cur, err := s.requireOwner(ctx, false)
 	if err != nil {
@@ -340,7 +337,16 @@ func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p do
 	if err != nil {
 		return domain.Account{}, err
 	}
-	moving := p.GroupID != nil && *p.GroupID != target.GroupID
+	if p.GroupIDs != nil {
+		groups := slices.Clone(*p.GroupIDs)
+		slices.Sort(groups)
+		groups = slices.Compact(groups)
+		p.GroupIDs = &groups
+	}
+	moving := p.GroupIDs != nil && !sameGroups(*p.GroupIDs, target.GroupIDs)
+	if moving && target.Owner {
+		return domain.Account{}, domain.ErrOwnerProtected
+	}
 	if moving {
 		if err := s.requireRecent(cur); err != nil {
 			return domain.Account{}, err
@@ -380,13 +386,21 @@ func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p do
 	case moving:
 		// A group move changes permissions (#17): end open streams and
 		// stored responses so nothing keeps the old access.
-		audit.SetDiff(ctx, map[string]string{"groupId": target.GroupID}, map[string]string{"groupId": u.GroupID})
+		audit.SetDiff(ctx, map[string][]string{"groupIds": target.GroupIDs}, map[string][]string{"groupIds": u.GroupIDs})
 		s.record(ctx, "user.group_change", OutcomeSuccess, cur.user.ID, "user", id, "")
 		s.AccessChanged(ctx, []string{id})
 	default:
 		s.record(ctx, "user.update", OutcomeSuccess, cur.user.ID, "user", id, "")
 	}
 	return s.account(ctx, u)
+}
+
+// sameGroups reports whether sorted and groups hold the same IDs (sorted
+// is sorted and without duplicates).
+func sameGroups(sorted, groups []string) bool {
+	other := slices.Clone(groups)
+	slices.Sort(other)
+	return slices.Equal(sorted, slices.Compact(other))
 }
 
 func deref(s *string) string {

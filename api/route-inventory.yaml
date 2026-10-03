@@ -388,7 +388,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
-    notes: "Assigns exactly one group (#17; a group move needs step-up and ends the user's streams); If-Match."
+    notes: "Sets the user's groups (#17, #233; a change needs step-up and ends the user's streams); If-Match."
   - method: DELETE
     path: "/api/v1/users/{userId}"
     operationId: delete-user
@@ -505,6 +505,15 @@ routes:
     owner: 17
     kind: json
     status: implemented
+  - method: PUT
+    path: /api/v1/group-order
+    operationId: replace-group-order
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: implemented
+    notes: "Priority order of the groups (#233); If-Match with the ETag of list-groups."
   - method: GET
     path: "/api/v1/groups/{groupId}"
     operationId: get-group

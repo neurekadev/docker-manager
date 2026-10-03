@@ -270,7 +270,7 @@ Implemented (#26). First `event: job` with the full `Job` (no id), then
 every retained event after `Last-Event-ID`: `id: <seq>`, `event: state |
 progress | item | log | warning`, `data: JobEvent`. The stream closes after
 the job's terminal events, or when the job is deleted by retention. When
-the caller's permissions change (#17: rule edit or group move) or the
+the caller's permissions change (#17: rule edit, group membership or group order) or the
 session ends, the stream ends with `event: close`, `data: {"reason":
 "permissions_changed"}` (or `"session_expired"`); reconnect to be filtered
 by the new permissions. Visibility is `job.read` on every target of the job,

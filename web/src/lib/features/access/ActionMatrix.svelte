@@ -17,12 +17,13 @@
 		capabilitiesAt,
 		effectAt,
 		groupCapabilities,
-		inheritedDecision,
+		inheritedFromGroups,
 		scopeConsequence,
 		setRule,
 		type Capability,
 		type CapabilityGroup,
 		type Catalog,
+		type InheritedGroup,
 		type Rule,
 		type ScopeNode
 	} from './permissions';
@@ -40,9 +41,8 @@
 		node: ScopeNode;
 		mode: 'group' | 'user' | 'token';
 		rules: Rule[];
-		/** User mode: the group's rules, for what is inherited. */
-		groupRules?: Rule[];
-		groupName?: string;
+		/** User mode: the user's groups, highest priority first, for what is inherited. */
+		groups?: InheritedGroup[];
 		/** Token mode: capabilities the caller holds. */
 		held?: ReadonlySet<string>;
 		readonly?: boolean;
@@ -55,8 +55,7 @@
 		node,
 		mode,
 		rules,
-		groupRules = [],
-		groupName,
+		groups: userGroups = [],
 		held,
 		readonly = false,
 		environmentName,
@@ -109,19 +108,24 @@
 	}
 
 	function inherited(c: Capability) {
-		return inheritedDecision(groupRules, c.key, node.scope, node.environmentId);
+		return inheritedFromGroups(userGroups, c.key, node.scope, node.environmentId);
 	}
 
 	function inheritedText(c: Capability): string {
 		const d = inherited(c);
-		if (d.at === 'none') return `group ${groupName ?? ''} (no rule)`.replace('  ', ' ');
+		if (d.at === 'none')
+			return userGroups.length === 1
+				? `group ${userGroups[0].name} (no rule)`
+				: userGroups.length
+					? 'its groups (no rule)'
+					: 'no group';
 		const where =
 			d.at === 'instance'
 				? 'everywhere'
 				: d.at === 'environment'
 					? 'this environment'
 					: 'this resource';
-		return `group ${groupName ?? ''}, rule for ${where}`.replace('  ', ' ');
+		return `group ${d.group}, rule for ${where}`;
 	}
 
 	const sectionActions = (g: CapabilityGroup) => [...g.common, ...g.advanced];

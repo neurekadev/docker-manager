@@ -3,6 +3,8 @@
 import type { Account, Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
 
+type Group = Schema<'Group'>;
+
 export function displayName(a: Pick<Account, 'displayName' | 'username'>): string {
 	return a.displayName?.trim() || a.username;
 }
@@ -33,14 +35,31 @@ export function factorsText(f: Account['factors']): string {
 
 /**
  * The members of a group as its page lists them: every account in it
- * except the owner, whose access never comes from a group (the API's
- * memberCount does not count the owner either).
+ * (the owner is in no group: its access never comes from one).
  */
-export function groupMembers<T extends Pick<Account, 'groupId' | 'owner'>>(
+export function groupMembers<T extends Pick<Account, 'groupIds' | 'owner'>>(
 	users: readonly T[] | undefined,
 	groupId: string
 ): T[] {
-	return (users ?? []).filter((u) => u.groupId === groupId && !u.owner);
+	return (users ?? []).filter((u) => u.groupIds.includes(groupId) && !u.owner);
+}
+
+/**
+ * The names of an account's groups in priority order ("Operators, Viewers");
+ * "No Group" without one.
+ */
+export function groupNames(
+	groupIds: readonly string[],
+	groups: readonly Pick<Group, 'id' | 'name'>[] | undefined
+): string {
+	const names = (groups ?? []).filter((g) => groupIds.includes(g.id)).map((g) => g.name);
+	return names.length ? names.join(', ') : 'No Group';
+}
+
+/** An account's groups with `groupId` added or removed (for PATCH /users). */
+export function withGroup(groupIds: readonly string[], groupId: string, member: boolean): string[] {
+	const rest = groupIds.filter((g) => g !== groupId);
+	return member ? [...rest, groupId] : rest;
 }
 
 /** "1 member", "2 members". */
@@ -101,15 +120,15 @@ export function exceedsMaxLifetime(days: number, maxDays: number | undefined): b
 }
 
 /**
- * Accounts that can be added to a group: everyone in another group except
- * the owner, matching the search (name, username or email), by name.
+ * Accounts that can be added to a group: everyone not in it except the
+ * owner, matching the search (name, username or email), by name.
  */
 export function memberCandidates<
-	T extends Pick<Account, 'groupId' | 'owner' | 'displayName' | 'username' | 'email'>
+	T extends Pick<Account, 'groupIds' | 'owner' | 'displayName' | 'username' | 'email'>
 >(users: readonly T[] | undefined, groupId: string, search = ''): T[] {
 	const q = search.trim().toLowerCase();
 	return (users ?? [])
-		.filter((u) => u.groupId !== groupId && !u.owner)
+		.filter((u) => !u.groupIds.includes(groupId) && !u.owner)
 		.filter(
 			(u) =>
 				!q || [u.displayName, u.username, u.email].some((t) => t?.toLowerCase().includes(q))

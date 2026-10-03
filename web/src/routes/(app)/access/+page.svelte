@@ -28,6 +28,7 @@
 		accountStatus,
 		displayName,
 		factorsText,
+		groupNames,
 		secondaryName
 	} from '$lib/features/access/model';
 	import { groupsQuery, usersQuery } from '$lib/features/access/queries';
@@ -38,8 +39,6 @@
 	const owner = $derived(!!perms.data?.owner);
 	const users = createQuery(() => ({ ...usersQuery(), enabled: owner }));
 	const groups = createQuery(() => ({ ...groupsQuery(), enabled: owner }));
-	const groupName = (id: string) =>
-		groups.data?.find((g) => g.id === id)?.name ?? 'Unknown group';
 	const defaultGroup = $derived(groups.data?.find((g) => g.default));
 	let inviteOpen = $state(false);
 
@@ -53,11 +52,13 @@
 		},
 		{ id: 'status', header: 'Status', cell: statusCell, width: '170px', stack: 'status' },
 		{
-			id: 'group',
-			header: 'Group',
+			id: 'groups',
+			header: 'Groups',
 			cell: groupCell,
-			sortValue: (u) => groupName(u.groupId),
-			width: '170px'
+			sortValue: (u) => (u.owner ? '' : groupNames(u.groupIds, groups.data)),
+			maxWidth: '240px',
+			truncate: true,
+			title: (u) => (u.owner ? undefined : groupNames(u.groupIds, groups.data))
 		},
 		{ id: 'factors', header: 'Signs In With', cell: factorsCell, width: '200px' },
 		{
@@ -86,7 +87,7 @@
 {/snippet}
 {#snippet groupCell(u: Account)}{u.owner
 		? 'Owner (Every Permission)'
-		: groupName(u.groupId)}{/snippet}
+		: groupNames(u.groupIds, groups.data)}{/snippet}
 {#snippet factorsCell(u: Account)}<span class="muted">{factorsText(u.factors)}</span>{/snippet}
 {#snippet lastCell(u: Account)}
 	{#if u.lastSignInAt}<span class="num" title={formatDateTime(u.lastSignInAt)}
@@ -96,11 +97,7 @@
 
 <Page>
 	{#if perms.data && !owner}
-		<DeniedState
-			level={1}
-			title="Only the owner manages access."
-			description="Users, groups and invitations are administered by the owner of this Docker Manager."
-		/>
+		<DeniedState level={1} title="Only the owner manages access." />
 	{:else}
 		<AccessHeader>
 			{#snippet actions()}

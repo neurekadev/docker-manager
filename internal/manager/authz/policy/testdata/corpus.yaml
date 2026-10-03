@@ -1,7 +1,8 @@
 # Decision corpus for the #17 evaluator (TestDecisionCorpus).
 #
-# Each case: a subject (owner / inactive flags, user rules, group rules,
-# optional API token scope), one check (capability + resource) and the
+# Each case: a subject (owner / inactive flags, user rules, group rules:
+# one group's (group) and several groups', the highest priority first
+# (groups), optional API token scope), one check (capability + resource) and the
 # expected decision: allow or deny, the deciding source and, for rule
 # decisions, the deciding rule.
 #
@@ -136,6 +137,40 @@ cases:
     subject: {group: ["allow stack.read @all"]}
     check: {capability: stack.deploy, resource: {type: stack, id: s1, env: e1}}
     want: {decision: deny, source: default_deny}
+
+  # --- Several groups, in priority order (#233) -------------------------------
+  - name: a higher group's allow beats a lower group's more specific deny
+    subject: {groups: [["allow container.restart @all"], ["deny container.restart @container:e1/web"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @all"}
+  - name: a higher group's deny beats a lower group's broader allow
+    subject: {groups: [["deny container.restart @env:e1"], ["allow container.restart @container:e1/web"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: group_rule, rule: "deny container.restart @env:e1"}
+  - name: a group without a rule for the capability leaves it to the next group
+    subject: {groups: [["allow container.logs.read @all"], ["allow container.restart @env:e1"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @env:e1"}
+  - name: a group whose rules do not match the resource leaves it to the next group
+    subject: {groups: [["deny container.restart @env:e2"], ["allow container.restart @all"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @all"}
+  - name: within the deciding group the most specific rule decides
+    subject: {groups: [["allow container.restart @all", "deny container.restart @container:e1/web"], ["allow container.restart @container:e1/web"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: group_rule, rule: "deny container.restart @container:e1/web"}
+  - name: a user override beats the highest group
+    subject: {user: ["deny container.restart @all"], groups: [["allow container.restart @container:e1/web"], ["allow container.restart @all"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: user_rule, rule: "deny container.restart @all"}
+  - name: several groups without a matching rule deny
+    subject: {groups: [["allow stack.read @all"], ["allow volume.read @all"]]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a stack rule of a higher group beats a lower group's container rule
+    subject: {groups: [["deny container.logs.read @stack:s1"], ["allow container.logs.read @container:e1/web"]]}
+    check: {capability: container.logs.read, resource: {type: container, id: web, env: e1, parents: ["service:s1/app", "stack:s1"]}}
+    want: {decision: deny, source: group_rule, rule: "deny container.logs.read @stack:s1"}
 
   # --- Wildcards and future resources / keys ---------------------------------
   - name: an all-resources rule applies to a resource created later

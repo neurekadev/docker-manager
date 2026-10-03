@@ -532,7 +532,7 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	if envs := rita.environments(); len(envs) != 0 {
 		t.Fatalf("after the user deny %+v", envs)
 	}
-	// Editing the owner's own group never cuts the owner's request.
+	// Editing a group never cuts the owner's request.
 	owner.putRules("/api/v1/groups/"+restricted.ID+"/permissions", "allow stack.read @all")
 
 	// A group with members cannot be deleted; users are never moved
@@ -545,12 +545,11 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	if r := owner.moveUser(rs.User.ID, viewers.ID); r.status != http.StatusOK {
 		t.Fatalf("move: %d %s", r.status, r.body)
 	}
-	// The owner, still in the old default group, is not counted and does
-	// not block the deletion: the owner's account moves to the default.
+	// The owner is in no group, so the emptied group is deleted.
 	var g groupBody
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil).json(t, &g)
 	if g.MemberCount != 0 {
-		t.Fatalf("old default with only the owner: %+v", g)
+		t.Fatalf("old default without members: %+v", g)
 	}
 	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+restricted.ID, nil)
 	owner.must(http.StatusNoContent, http.MethodDelete, "/api/v1/groups/"+restricted.ID, nil, header("If-Match", r.header.Get("ETag")))
@@ -558,17 +557,49 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 		t.Fatalf("groups after delete %+v", gs)
 	}
 	var acct struct {
-		GroupID string `json:"groupId"`
+		GroupIDs []string `json:"groupIds"`
 	}
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ownerID, nil).json(t, &acct)
-	if acct.GroupID != viewers.ID {
-		t.Fatalf("owner in %s after the delete, want %s", acct.GroupID, viewers.ID)
+	if acct.GroupIDs == nil || len(acct.GroupIDs) != 0 {
+		t.Fatalf("owner in %v, want no group", acct.GroupIDs)
 	}
+	owner.fail(http.StatusConflict, "owner_protected", http.MethodPatch, "/api/v1/users/"+ownerID, map[string]any{"groupIds": []string{viewers.ID}},
+		header("If-Match", owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+ownerID, nil).header.Get("ETag")))
+
+	// Several groups: the first group with a matching rule decides, and
+	// the owner reorders the groups by the order's ETag.
+	blocked := owner.createGroup("Blocked")
+	owner.putRules("/api/v1/groups/"+blocked.ID+"/permissions", "deny environment.read @env:e1")
+	cur := owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+vs.User.ID, nil)
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+vs.User.ID, map[string]any{"groupIds": []string{viewers.ID, blocked.ID}},
+		header("If-Match", cur.header.Get("ETag")))
+	if envs := vic.environments(); len(envs) != 1 {
+		t.Fatalf("with Viewers first %+v", envs)
+	}
+	list := owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups", nil)
+	owner.fail(http.StatusPreconditionRequired, "precondition_required", http.MethodPut, "/api/v1/group-order", map[string]any{"groupIds": []string{blocked.ID, viewers.ID}})
+	done = vic.openStream(streams.URL + "/api/v1/test/stream")
+	owner.must(http.StatusOK, http.MethodPut, "/api/v1/group-order", map[string]any{"groupIds": []string{blocked.ID, viewers.ID}},
+		header("If-Match", list.header.Get("ETag")))
+	waitClosed(t, done, "group order change (vic)")
+	if envs := vic.environments(); len(envs) != 0 {
+		t.Fatalf("with Blocked first %+v", envs)
+	}
+	owner.fail(http.StatusPreconditionFailed, "precondition_failed", http.MethodPut, "/api/v1/group-order", map[string]any{"groupIds": []string{viewers.ID, blocked.ID}},
+		header("If-Match", list.header.Get("ETag")))
+	if gs := owner.groups(); len(gs) != 2 || gs[0].ID != blocked.ID {
+		t.Fatalf("groups after the reorder %+v", gs)
+	}
+	cur = owner.must(http.StatusOK, http.MethodGet, "/api/v1/users/"+vs.User.ID, nil)
+	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+vs.User.ID, map[string]any{"groupIds": []string{viewers.ID}},
+		header("If-Match", cur.header.Get("ETag")))
+	r = owner.must(http.StatusOK, http.MethodGet, "/api/v1/groups/"+blocked.ID, nil)
+	owner.must(http.StatusNoContent, http.MethodDelete, "/api/v1/groups/"+blocked.ID, nil, header("If-Match", r.header.Get("ETag")))
 
 	// Every permission or group change needs a recent step-up.
 	e.clk.Advance(auth.StepUpWindow + time.Second)
 	path := "/api/v1/groups/" + viewers.ID + "/permissions"
-	cur := owner.must(http.StatusOK, http.MethodGet, path, nil)
+	cur = owner.must(http.StatusOK, http.MethodGet, path, nil)
 	owner.fail(http.StatusForbidden, "step_up_required", http.MethodPut, path, map[string]any{"rules": []any{}}, header("If-Match", cur.header.Get("ETag")))
 	owner.fail(http.StatusForbidden, "step_up_required", http.MethodPost, "/api/v1/groups", map[string]string{"name": "Late"})
 	other := owner.createGroupAfterStepUp(pw)
@@ -604,7 +635,7 @@ func TestGroupChangesPreserveInvariantsAndUpdateAccess(t *testing.T) {
 	moves := 0
 	for _, it := range page.Items {
 		d := string(mustJSON(t, it.Details))
-		if strings.Contains(d, `"event":"user.group_change"`) && strings.Contains(d, `"diff":{"after":{"groupId":`) {
+		if strings.Contains(d, `"event":"user.group_change"`) && strings.Contains(d, `"diff":{"after":{"groupIds":`) {
 			moves++
 		}
 	}

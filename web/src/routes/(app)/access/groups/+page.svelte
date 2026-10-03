@@ -1,7 +1,9 @@
 <script lang="ts">
-	// Groups (#17): every user belongs to one group; new users join the
-	// default group (initially Restricted, without access). New groups start
-	// without access too.
+	// Groups (#17, #233): a user can be in several groups; new users join the
+	// default group (initially Restricted, without access). The list is the
+	// groups' priority order: for a member of several groups the first group
+	// with a rule for an action decides. Drag a group's grip (or use the
+	// arrow keys on it) to reorder; the new order is saved at once.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -16,18 +18,25 @@
 		Card,
 		DeniedState,
 		Dialog,
+		DragHandle,
 		Notice,
-		Table,
+		Sortable,
 		TextField,
-		toast,
-		type Column
+		moveItem,
+		toast
 	} from '$lib/ui';
 	import { actionError, fieldErrors } from '$lib/features/common/errors';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import AccessHeader from '$lib/features/access/AccessHeader.svelte';
-	import { accessKeys, groupsQuery, type Group } from '$lib/features/access/queries';
+	import { membersText } from '$lib/features/access/model';
+	import {
+		accessKeys,
+		groupsQuery,
+		saveGroupOrder,
+		type Group
+	} from '$lib/features/access/queries';
 
 	usePage({
 		title: 'Groups',
@@ -38,6 +47,41 @@
 	const perms = createQuery(() => myPermissionsQuery());
 	const owner = $derived(!!perms.data?.owner);
 	const groups = createQuery(() => ({ ...groupsQuery(), enabled: owner }));
+
+	// The order shown while a reorder is saved (the server's afterwards).
+	let pending = $state<Group[] | null>(null);
+	let saving = $state(false);
+	const order = $derived(pending ?? groups.data ?? []);
+
+	const sort = new Sortable({ onmove: (from, to) => void reorder(from, to) });
+
+	async function reorder(from: number, to: number) {
+		const before = order;
+		const next = moveItem(before, from, to);
+		pending = next;
+		saving = true;
+		try {
+			const saved = await withStepUp(() =>
+				saveGroupOrder(
+					before.map((g) => g.id),
+					next.map((g) => g.id)
+				)
+			);
+			qc.setQueryData(accessKeys.groups(), saved);
+			toast.success(`Moved ${next[to].name} to priority ${to + 1}`);
+		} catch (err) {
+			toast.error('The order was not saved', {
+				body: actionError(err, {
+					precondition_failed:
+						'The groups changed meanwhile. Check the order and try again.'
+				})
+			});
+		} finally {
+			pending = null;
+			saving = false;
+			await qc.invalidateQueries({ queryKey: accessKeys.groups() });
+		}
+	}
 
 	let createOpen = $state(false);
 	let name = $state('');
@@ -65,49 +109,11 @@
 			busy = false;
 		}
 	}
-
-	const columns: Column<Group>[] = [
-		{ id: 'name', header: 'Group', cell: nameCell, sortValue: (g) => g.name, stack: 'title' },
-		{ id: 'access', header: 'Access', cell: accessCell, width: '170px', stack: 'status' },
-		{
-			id: 'members',
-			header: 'Members',
-			cell: membersCell,
-			numeric: true,
-			sortValue: (g) => g.memberCount,
-			width: '110px'
-		},
-		{
-			id: 'rules',
-			header: 'Rules',
-			cell: rulesCell,
-			numeric: true,
-			sortValue: (g) => g.ruleCount,
-			width: '100px'
-		}
-	];
 </script>
-
-{#snippet nameCell(g: Group)}
-	<NameCell icon="group" name={g.name} href={routes.accessGroup(g.id)}>
-		{#snippet extra()}{#if g.default}<Badge tone="accent">Default for New Users</Badge
-				>{/if}{/snippet}
-	</NameCell>
-{/snippet}
-{#snippet accessCell(g: Group)}
-	{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge>{:else}<Badge dot>No Access</Badge
-		>{/if}
-{/snippet}
-{#snippet membersCell(g: Group)}<span class="num">{g.memberCount}</span>{/snippet}
-{#snippet rulesCell(g: Group)}<span class="num">{g.ruleCount}</span>{/snippet}
 
 <Page>
 	{#if perms.data && !owner}
-		<DeniedState
-			level={1}
-			title="Only the owner manages groups."
-			description="Groups and permissions are administered by the owner of this Docker Manager."
-		/>
+		<DeniedState level={1} title="Only the owner manages groups." />
 	{:else}
 		<AccessHeader>
 			{#snippet actions()}
@@ -116,16 +122,45 @@
 				>
 			{/snippet}
 		</AccessHeader>
-		<Card title="Groups" padding="none">
+		<Card
+			title="Groups"
+			info="For members of several groups, the highest group with a rule for an action decides. Drag a group to change its priority."
+			padding="none"
+		>
 			<QueryView query={groups} errorTitle="The groups could not be loaded.">
-				{#snippet children(rows)}
-					<Table
-						label="Groups"
-						{rows}
-						{columns}
-						rowKey={(g) => g.id}
-						sort={{ column: 'name', direction: 'asc' }}
-					/>
+				{#snippet children()}
+					<ol class="groups" aria-label="Groups by Priority" aria-busy={saving}>
+						{#each order as g, i (g.id)}
+							<li class="row" {@attach sort.item(i)}>
+								<DragHandle
+									sortable={sort}
+									index={i}
+									name={g.name}
+									disabled={saving || order.length < 2}
+								/>
+								<span class="rank" title="Priority {i + 1}">{i + 1}</span>
+								<div class="name">
+									<NameCell
+										icon="group"
+										name={g.name}
+										href={routes.accessGroup(g.id)}
+									>
+										{#snippet extra()}{#if g.default}<Badge tone="accent"
+													>Default for New Users</Badge
+												>{/if}{/snippet}
+									</NameCell>
+								</div>
+								<span class="access">
+									{#if g.grantsAccess}<Badge tone="ok" dot>Grants Access</Badge
+										>{:else}<Badge dot>No Access</Badge>{/if}
+								</span>
+								<span class="count">{membersText(g.memberCount)}</span>
+								<span class="count"
+									>{g.ruleCount} {g.ruleCount === 1 ? 'rule' : 'rules'}</span
+								>
+							</li>
+						{/each}
+					</ol>
 				{/snippet}
 			</QueryView>
 		</Card>
@@ -135,7 +170,7 @@
 <Dialog
 	bind:open={createOpen}
 	title="Create a Group"
-	description="New groups start without access; choose their permissions next."
+	description="New groups start without access."
 	size="sm"
 >
 	<form id="group-form" onsubmit={create} novalidate>
@@ -165,3 +200,54 @@
 		>
 	{/snippet}
 </Dialog>
+
+<style>
+	.groups {
+		margin: 0;
+		padding: 0 0 var(--space-2);
+		list-style: none;
+	}
+
+	.row {
+		display: grid;
+		grid-template-columns: auto 1.5rem minmax(0, 1fr) 150px 110px 90px;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-5) var(--space-2) var(--space-3);
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.row:first-child {
+		border-top: none;
+	}
+
+	.rank {
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		font-variant-numeric: tabular-nums;
+		text-align: center;
+	}
+
+	.name {
+		min-width: 0;
+	}
+
+	.count {
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	@media (max-width: 767px) {
+		.row {
+			grid-template-columns: auto 1.25rem minmax(0, 1fr) auto;
+			padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+		}
+
+		.count {
+			display: none;
+		}
+	}
+</style>

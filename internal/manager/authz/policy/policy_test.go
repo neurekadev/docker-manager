@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 )
 
@@ -35,7 +37,10 @@ type corpusCase struct {
 		Inactive bool     `yaml:"inactive"`
 		User     []string `yaml:"user"`
 		Group    []string `yaml:"group"`
-		Token    []string `yaml:"token"`
+		// Groups are several groups' rules, the highest priority first
+		// (after Group when both are set).
+		Groups [][]string `yaml:"groups"`
+		Token  []string   `yaml:"token"`
 	} `yaml:"subject"`
 	Check struct {
 		Capability string `yaml:"capability"`
@@ -96,12 +101,22 @@ func TestDecisionCorpus(t *testing.T) {
 			if c.Catalog == "future" {
 				cat = futureCatalog(t)
 			}
-			s := Subject{Owner: c.Subject.Owner, Inactive: c.Subject.Inactive,
-				UserRules: parseRules(t, cat, c.Subject.User), GroupRules: parseRules(t, cat, c.Subject.Group)}
+			s := Subject{Owner: c.Subject.Owner, Inactive: c.Subject.Inactive, UserRules: parseRules(t, cat, c.Subject.User)}
+			if c.Subject.Group != nil {
+				s.Groups = append(s.Groups, Group{ID: "g0", Name: "g0", Rules: parseRules(t, cat, c.Subject.Group)})
+			}
+			for i, rules := range c.Subject.Groups {
+				id := fmt.Sprintf("g%d", len(s.Groups)+i)
+				s.Groups = append(s.Groups, Group{ID: id, Name: id, Rules: parseRules(t, cat, rules)})
+			}
 			if c.Subject.Token != nil {
 				s.Token = parseRules(t, cat, c.Subject.Token)
 			}
-			for _, set := range [][]Rule{s.UserRules, s.GroupRules, s.Token} {
+			sets := [][]Rule{s.UserRules, s.Token}
+			for _, g := range s.Groups {
+				sets = append(sets, g.Rules)
+			}
+			for _, set := range sets {
 				if errs := Validate(cat, set); len(errs) > 0 {
 					t.Fatalf("corpus rules invalid: %v", errs)
 				}
@@ -187,7 +202,7 @@ func TestEveryCapabilityScopeAndOverride(t *testing.T) {
 	checked := 0
 	for _, cp := range cat.Capabilities() {
 		if cp.OwnerOnly {
-			if d := Evaluate(cat, Subject{GroupRules: []Rule{{cp.Key, Instance(), Allow}}}, cp.Key, Target{Type: catalog.TypeInstance}); d.Allowed {
+			if d := Evaluate(cat, Subject{Groups: inGroup(Rule{cp.Key, Instance(), Allow})}, cp.Key, Target{Type: catalog.TypeInstance}); d.Allowed {
 				t.Errorf("owner-only %s granted by a rule", cp.Key)
 			}
 			if errs := Validate(cat, []Rule{{cp.Key, Instance(), Allow}}); len(errs) == 0 {
@@ -209,27 +224,27 @@ func TestEveryCapabilityScopeAndOverride(t *testing.T) {
 			if d := Evaluate(cat, Subject{}, cp.Key, tg); d.Allowed {
 				t.Errorf("%s: allowed without rules", name)
 			}
-			if d := Evaluate(cat, Subject{GroupRules: []Rule{allow}}, cp.Key, tg); !d.Allowed || d.Source != SourceGroup {
+			if d := Evaluate(cat, Subject{Groups: inGroup(allow)}, cp.Key, tg); !d.Allowed || d.Source != SourceGroup {
 				t.Errorf("%s: group allow not granted: %+v", name, d)
 			}
 			userDeny := Rule{cp.Key, widest(cp, tg), Deny}
-			if d := Evaluate(cat, Subject{GroupRules: []Rule{allow}, UserRules: []Rule{userDeny}}, cp.Key, tg); d.Allowed || d.Source != SourceUser {
+			if d := Evaluate(cat, Subject{Groups: inGroup(allow), UserRules: []Rule{userDeny}}, cp.Key, tg); d.Allowed || d.Source != SourceUser {
 				t.Errorf("%s: user deny %s did not override: %+v", name, userDeny, d)
 			}
 			groupDeny := Rule{cp.Key, sc, Deny}
 			userAllow := Rule{cp.Key, widest(cp, tg), Allow}
-			if d := Evaluate(cat, Subject{GroupRules: []Rule{groupDeny}, UserRules: []Rule{userAllow}}, cp.Key, tg); !d.Allowed || d.Source != SourceUser {
+			if d := Evaluate(cat, Subject{Groups: inGroup(groupDeny), UserRules: []Rule{userAllow}}, cp.Key, tg); !d.Allowed || d.Source != SourceUser {
 				t.Errorf("%s: user allow %s did not override the group deny: %+v", name, userAllow, d)
 			}
 			// Reset to inherit: without the user rule the group decides.
-			if d := Evaluate(cat, Subject{GroupRules: []Rule{groupDeny}}, cp.Key, tg); d.Allowed || d.Source != SourceGroup {
+			if d := Evaluate(cat, Subject{Groups: inGroup(groupDeny)}, cp.Key, tg); d.Allowed || d.Source != SourceGroup {
 				t.Errorf("%s: inherit did not restore the group decision: %+v", name, d)
 			}
 			for _, other := range cat.Capabilities() {
 				if other.Key == cp.Key {
 					continue
 				}
-				if d := Evaluate(cat, Subject{GroupRules: []Rule{allow}}, other.Key, tg); d.Allowed {
+				if d := Evaluate(cat, Subject{Groups: inGroup(allow)}, other.Key, tg); d.Allowed {
 					t.Errorf("%s also granted %s", name, other.Key)
 				}
 			}
@@ -317,12 +332,54 @@ func TestShorthandRoundTrip(t *testing.T) {
 	MustParseRules(cat, "allow users.manage @all")
 }
 
+// inGroup is one group holding rules.
+func inGroup(rules ...Rule) []Group { return []Group{{ID: "g", Name: "g", Rules: rules}} }
+
+// The first group (in priority order) with a rule matching the capability
+// decides with its most specific rule, even over a more specific rule of a
+// lower group; groups without a matching rule are skipped; user overrides
+// still come first.
+func TestGroupsDecideInPriorityOrder(t *testing.T) {
+	cat := catalog.Default()
+	web := Target{Type: "container", ID: "web", EnvironmentID: "e1"}
+	allowAll := Rule{"container.restart", Instance(), Allow}
+	denyWeb := Rule{"container.restart", Resource("container", "e1", "web"), Deny}
+	logs := Rule{"container.logs.read", Instance(), Allow}
+	admins := Group{ID: "admins", Name: "Admins", Rules: []Rule{allowAll}}
+	limited := Group{ID: "limited", Name: "Limited", Rules: []Rule{denyWeb}}
+	viewers := Group{ID: "viewers", Name: "Viewers", Rules: []Rule{logs}}
+	for _, c := range []struct {
+		name    string
+		subj    Subject
+		allowed bool
+		source  Source
+		group   string
+	}{
+		{"a higher allow beats a lower, more specific deny", Subject{Groups: []Group{admins, limited}}, true, SourceGroup, "admins"},
+		{"a higher deny beats a lower, broader allow", Subject{Groups: []Group{limited, admins}}, false, SourceGroup, "limited"},
+		{"a group without a matching rule is skipped", Subject{Groups: []Group{viewers, limited, admins}}, false, SourceGroup, "limited"},
+		{"no group decides: default deny", Subject{Groups: []Group{viewers}}, false, SourceDefault, ""},
+		{"a user override beats every group", Subject{Groups: []Group{admins}, UserRules: []Rule{denyWeb}}, false, SourceUser, ""},
+	} {
+		d := Evaluate(cat, c.subj, "container.restart", web)
+		if d.Allowed != c.allowed || d.Source != c.source || d.GroupID != c.group {
+			t.Errorf("%s: %+v", c.name, d)
+		}
+	}
+	// Reachability looks at every group's allow rules.
+	e2 := Group{ID: "e2", Name: "E2", Rules: []Rule{{"container.logs.read", Environment("e2"), Allow}}}
+	ch := NewChecker(cat, Subject{Groups: []Group{limited, e2}}, nil)
+	if !ch.Reaches(authz.Resource{Type: catalog.TypeEnvironment, ID: "e2", EnvironmentID: "e2"}) {
+		t.Error("a lower group's grant does not make its environment reachable")
+	}
+}
+
 func TestDecisionReasonsAreReadable(t *testing.T) {
 	cat := catalog.Default()
-	s := Subject{GroupRules: []Rule{{"container.restart", Resource("container", "e1", "web"), Allow}}}
+	s := Subject{Groups: []Group{{ID: "g1", Name: "Operators", Rules: []Rule{{"container.restart", Resource("container", "e1", "web"), Allow}}}}}
 	d := Evaluate(cat, s, "container.restart", Target{Type: "container", ID: "web", EnvironmentID: "e1"})
-	if d.Reason != "group rule: allow container.restart on container web in environment e1" {
-		t.Fatalf("reason %q", d.Reason)
+	if d.Reason != "rule of group Operators: allow container.restart on container web in environment e1" || d.GroupID != "g1" {
+		t.Fatalf("reason %q, group %q", d.Reason, d.GroupID)
 	}
 	if Instance().String() != "all resources" || Environment("e1").String() != "environment e1" {
 		t.Fatal("scope strings")

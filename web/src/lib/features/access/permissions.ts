@@ -225,6 +225,31 @@ export function inheritedDecision(
 	return { effect: 'deny', at: 'none' };
 }
 
+/** One of a user's groups for what the user inherits: its name and rules. */
+export interface InheritedGroup {
+	name: string;
+	rules: Rule[];
+}
+
+/**
+ * The decision a user inherits at a scope from their groups when they have
+ * no override (#233): the first group, in priority order, with a rule for
+ * the capability that applies there decides with its most specific rule;
+ * without one, deny. `group` names the deciding group.
+ */
+export function inheritedFromGroups(
+	groups: readonly InheritedGroup[],
+	capability: string,
+	scope: Scope,
+	environmentId?: string
+): { effect: Effect; at: 'resource' | 'environment' | 'instance' | 'none'; group?: string } {
+	for (const g of groups) {
+		const d = inheritedDecision(g.rules, capability, scope, environmentId);
+		if (d.at !== 'none') return { ...d, group: g.name };
+	}
+	return { effect: 'deny', at: 'none' };
+}
+
 /** Capabilities the caller holds anywhere (the token scope editor's limit, #31). */
 export function heldCapabilities(
 	entries: Effective[] | undefined,

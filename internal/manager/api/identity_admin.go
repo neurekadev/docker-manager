@@ -163,8 +163,9 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 		Operation: huma.Operation{
 			OperationID: "update-user", Method: http.MethodPatch, Path: BasePath + "/users/{userId}",
 			Summary: "Update a user",
-			Description: "Edit profile fields, move the account to exactly one group (#17), or disable/reactivate it. A group move needs a recent " +
-				"step-up (403 step_up_required), changes the account's access at once and ends its open requests and streams. Disabling ends " +
+			Description: "Edit profile fields, set the account's groups (#17), or disable/reactivate it. Changing the groups needs a recent " +
+				"step-up (403 step_up_required), changes the account's access at once and ends its open requests and streams; the owner is in " +
+				"no group (409 owner_protected). Disabling ends " +
 				"every session and open stream of the account immediately; the owner cannot be disabled (409 owner_protected). Requires If-Match. " + ownerOnly,
 			Tags: []string{tagUsers}, Security: cookieOnly,
 			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed, http.StatusPreconditionRequired, http.StatusUnprocessableEntity},
@@ -182,7 +183,10 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 		if err := in.CheckIfMatch(RevisionETag(cur.Revision)); err != nil {
 			return nil, err
 		}
-		p := domain.UserPatch{DisplayName: in.Body.DisplayName, Email: in.Body.Email, GroupID: in.Body.GroupID}
+		p := domain.UserPatch{DisplayName: in.Body.DisplayName, Email: in.Body.Email, GroupIDs: in.Body.GroupIDs}
+		if p.GroupIDs == nil && in.Body.GroupID != nil {
+			p.GroupIDs = &[]string{*in.Body.GroupID}
+		}
 		if in.Body.Status != nil {
 			st := domain.UserStatus(*in.Body.Status)
 			p.Status = &st

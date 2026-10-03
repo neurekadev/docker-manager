@@ -374,6 +374,7 @@ type groupRow struct {
 
 	ID        string    `bun:"id,pk"`
 	Name      string    `bun:"name,notnull"`
+	Position  int       `bun:"position,notnull"`
 	Revision  int64     `bun:"revision,notnull"`
 	CreatedAt time.Time `bun:"created_at,notnull"`
 	UpdatedAt time.Time `bun:"updated_at,notnull"`
@@ -409,7 +410,7 @@ func GetGroup(ctx context.Context, db bun.IDB, id string) (domain.Group, error) 
 	if err != nil {
 		return domain.Group{}, err
 	}
-	return domain.Group{ID: row.ID, Name: row.Name, Default: row.ID == def, Revision: row.Revision,
+	return domain.Group{ID: row.ID, Name: row.Name, Position: row.Position, Default: row.ID == def, Revision: row.Revision,
 		CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC()}, nil
 }
 

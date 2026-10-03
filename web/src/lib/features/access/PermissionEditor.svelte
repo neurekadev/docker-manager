@@ -9,29 +9,20 @@
 	import ActionMatrix from './ActionMatrix.svelte';
 	import ResourceTree from './ResourceTree.svelte';
 	import { instanceNode } from './tree';
-	import type { Catalog, Rule, ScopeNode } from './permissions';
+	import type { Catalog, InheritedGroup, Rule, ScopeNode } from './permissions';
 
 	type Props = {
 		catalog: Catalog;
 		mode: 'group' | 'user' | 'token';
 		rules: Rule[];
-		groupRules?: Rule[];
-		groupName?: string;
+		/** User mode: the user's groups, highest priority first. */
+		groups?: InheritedGroup[];
 		held?: ReadonlySet<string>;
 		readonly?: boolean;
 		onchange: (rules: Rule[]) => void;
 	};
 
-	let {
-		catalog,
-		mode,
-		rules,
-		groupRules,
-		groupName,
-		held,
-		readonly = false,
-		onchange
-	}: Props = $props();
+	let { catalog, mode, rules, groups, held, readonly = false, onchange }: Props = $props();
 
 	const envs = createQuery(() => environmentsQuery());
 	let selected = $state<ScopeNode>(instanceNode());
@@ -47,8 +38,7 @@
 			node={selected}
 			{mode}
 			{rules}
-			{groupRules}
-			{groupName}
+			{groups}
 			{held}
 			{readonly}
 			environmentName={(id) => environmentName(envs.data, id)}

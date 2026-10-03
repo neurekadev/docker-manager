@@ -21,7 +21,7 @@
 	} from '$lib/features/common/links';
 	import { deleteTemplate, patchTemplate } from '$lib/features/templates/actions';
 	import IconUpload from '$lib/features/templates/IconUpload.svelte';
-	import { parseTags, tagProblem } from '$lib/features/templates/model';
+	import { MAX_TAGS, normalizeTag, sameTags, tagProblem } from '$lib/features/templates/model';
 	import { templateKeys, templateQuery, type Template } from '$lib/features/templates/queries';
 	import VisibilityDialog from '$lib/features/templates/VisibilityDialog.svelte';
 	import { routes } from '$lib/routes';
@@ -31,6 +31,7 @@
 		Card,
 		DestructiveConfirm,
 		Notice,
+		TagInput,
 		TextArea,
 		TextField,
 		errorView,
@@ -56,7 +57,7 @@
 	let loadedRevision = -1;
 	let name = $state('');
 	let description = $state('');
-	let tagText = $state('');
+	let tags = $state<string[]>([]);
 	let links = $state<LinkRow[]>([]);
 	let showLinkProblems = $state(false);
 	let linkServerProblems = $state<{ rows: LinkRowProblem[]; list: string | null } | null>(null);
@@ -70,19 +71,18 @@
 		loadedRevision = cur.revision ?? 0;
 		name = cur.name;
 		description = cur.description ?? '';
-		tagText = (cur.tags ?? []).join(', ');
+		tags = [...(cur.tags ?? [])];
 		links = linkRows(cur.links);
 		showLinkProblems = false;
 		linkServerProblems = null;
 	}
 
-	const tags = $derived(parseTags(tagText));
 	const tagError = $derived(tags.map(tagProblem).find((p) => p) || null);
 	const dirty = $derived(
 		!!t &&
 			(name.trim() !== t.name ||
 				description.trim() !== (t.description ?? '') ||
-				tags.join(',') !== (t.tags ?? []).join(',') ||
+				!sameTags(tags, t.tags) ||
 				!sameLinks(cleanLinks(links), t.links))
 	);
 	let saving = $state(false);
@@ -154,11 +154,14 @@
 		>
 			<TextField label="Name" bind:value={name} required maxlength={100} />
 			<TextArea label="Description" bind:value={description} maxlength={1024} />
-			<TextField
+			<TagInput
 				label="Tags"
-				bind:value={tagText}
-				description="Separate tags with commas. People browse and filter templates by them."
-				error={tagError}
+				bind:values={tags}
+				normalize={normalizeTag}
+				validate={tagProblem}
+				max={MAX_TAGS}
+				description="People browse and filter templates by them."
+				disabled={saving}
 			/>
 			<LinksEditor
 				bind:rows={links}

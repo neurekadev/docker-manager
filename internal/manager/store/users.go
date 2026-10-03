@@ -24,7 +24,6 @@ type userRow struct {
 	DisplayName          string     `bun:"display_name,notnull"`
 	Email                *string    `bun:"email"`
 	IsOwner              int        `bun:"is_owner,notnull"`
-	GroupID              string     `bun:"group_id,notnull"`
 	Status               string     `bun:"status,notnull"`
 	PasswordHash         *string    `bun:"password_hash"`
 	PasswordChangedAt    *time.Time `bun:"password_changed_at"`
@@ -68,7 +67,7 @@ func nullable(s string) *string {
 func (r userRow) toDomain() domain.User {
 	return domain.User{
 		ID: r.ID, Username: r.Username, DisplayName: r.DisplayName, Email: deref(r.Email), Owner: r.IsOwner == 1,
-		GroupID: r.GroupID, Status: domain.UserStatus(r.Status), WebAuthnHandle: r.WebAuthnHandle,
+		Status: domain.UserStatus(r.Status), WebAuthnHandle: r.WebAuthnHandle,
 		SessionEpoch: r.SessionEpoch, HasPassword: r.PasswordHash != nil, PasswordChangedAt: utcPtr(r.PasswordChangedAt),
 		TOTPEnabled: r.TOTPSeed != nil, EnrollmentDeadline: utcPtr(r.EnrollmentDeadline), InvitationID: deref(r.InvitationID),
 		Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
@@ -89,14 +88,15 @@ func uniqueViolation(err error, column string) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: "+column)
 }
 
-// CreateUser inserts a user. It returns domain.ErrUsernameTaken for a
-// duplicate username and domain.ErrSetupComplete when an owner exists
-// already (the partial unique index makes concurrent setups race-safe).
+// CreateUser inserts a user, in u.GroupID unless it is the owner. It
+// returns domain.ErrUsernameTaken for a duplicate username and
+// domain.ErrSetupComplete when an owner exists already (the partial unique
+// index makes concurrent setups race-safe).
 func CreateUser(ctx context.Context, db bun.IDB, u domain.NewUser) (domain.User, error) {
 	now := u.CreatedAt.UTC()
 	row := userRow{
 		ID: u.ID, Username: u.Username, DisplayName: u.DisplayName, Email: nullable(u.Email), IsOwner: boolInt(u.Owner),
-		GroupID: u.GroupID, Status: string(domain.UserActive), PasswordHash: nullable(u.PasswordHash),
+		Status: string(domain.UserActive), PasswordHash: nullable(u.PasswordHash),
 		WebAuthnHandle: u.WebAuthnHandle, SessionEpoch: 1, EnrollmentDeadline: utcPtr(u.EnrollmentDeadline),
 		InvitationID: nullable(u.InvitationID), Revision: 1, CreatedAt: now, UpdatedAt: now,
 	}
@@ -112,7 +112,71 @@ func CreateUser(ctx context.Context, db bun.IDB, u domain.NewUser) (domain.User,
 		}
 		return domain.User{}, fmt.Errorf("store: create user: %w", err)
 	}
-	return row.toDomain(), nil
+	out := row.toDomain()
+	out.GroupIDs = []string{}
+	if u.GroupID != "" && !u.Owner {
+		if err := setUserGroups(ctx, db, u.ID, []string{u.GroupID}); err != nil {
+			return domain.User{}, err
+		}
+		out.GroupIDs = []string{u.GroupID}
+	}
+	return out, nil
+}
+
+// userGroups returns the groups of each of users, highest priority first.
+func userGroups(ctx context.Context, db bun.IDB, users []string) (map[string][]string, error) {
+	out := map[string][]string{}
+	if len(users) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		UserID  string `bun:"user_id"`
+		GroupID string `bun:"group_id"`
+	}
+	if err := db.NewRaw(`SELECT ug.user_id, ug.group_id FROM user_groups ug JOIN groups g ON g.id = ug.group_id
+		WHERE ug.user_id IN (?) ORDER BY g.position, g.id`, bun.List(users)).Scan(ctx, &rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: read group memberships: %w", err)
+	}
+	for _, r := range rows {
+		out[r.UserID] = append(out[r.UserID], r.GroupID)
+	}
+	return out, nil
+}
+
+// withGroups fills the users' GroupIDs.
+func withGroups(ctx context.Context, db bun.IDB, users ...*domain.User) error {
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.ID)
+	}
+	m, err := userGroups(ctx, db, ids)
+	if err != nil {
+		return err
+	}
+	for _, u := range users {
+		u.GroupIDs = m[u.ID]
+		if u.GroupIDs == nil {
+			u.GroupIDs = []string{}
+		}
+	}
+	return nil
+}
+
+// setUserGroups replaces a user's memberships (domain.ErrGroupNotFound
+// for a group that does not exist).
+func setUserGroups(ctx context.Context, db bun.IDB, userID string, groups []string) error {
+	if _, err := db.NewRaw(`DELETE FROM user_groups WHERE user_id = ?`, userID).Exec(ctx); err != nil {
+		return fmt.Errorf("store: clear group memberships: %w", err)
+	}
+	for _, g := range groups {
+		if _, err := db.NewRaw(`INSERT INTO user_groups (user_id, group_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, userID, g).Exec(ctx); err != nil {
+			if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+				return domain.ErrGroupNotFound
+			}
+			return fmt.Errorf("store: add group membership: %w", err)
+		}
+	}
+	return nil
 }
 
 func getUserWhere(ctx context.Context, db bun.IDB, where string, arg any) (userRow, error) {
@@ -127,28 +191,39 @@ func getUserWhere(ctx context.Context, db bun.IDB, where string, arg any) (userR
 	return row, nil
 }
 
+// getUser returns the user matching where with its groups.
+func getUser(ctx context.Context, db bun.IDB, where string, arg any) (domain.User, domain.UserCredentials, error) {
+	row, err := getUserWhere(ctx, db, where, arg)
+	if err != nil {
+		return domain.User{}, domain.UserCredentials{}, err
+	}
+	u := row.toDomain()
+	if err := withGroups(ctx, db, &u); err != nil {
+		return domain.User{}, domain.UserCredentials{}, err
+	}
+	return u, row.credentials(), nil
+}
+
 // GetUser returns a user by ID.
 func GetUser(ctx context.Context, db bun.IDB, id string) (domain.User, error) {
-	row, err := getUserWhere(ctx, db, "id = ?", id)
-	return row.toDomain(), err
+	u, _, err := getUser(ctx, db, "id = ?", id)
+	return u, err
 }
 
 // GetUserWithCredentials returns a user and its stored secrets.
 func GetUserWithCredentials(ctx context.Context, db bun.IDB, id string) (domain.User, domain.UserCredentials, error) {
-	row, err := getUserWhere(ctx, db, "id = ?", id)
-	return row.toDomain(), row.credentials(), err
+	return getUser(ctx, db, "id = ?", id)
 }
 
 // GetUserByUsername returns a user and its secrets by (case-insensitive) username.
 func GetUserByUsername(ctx context.Context, db bun.IDB, username string) (domain.User, domain.UserCredentials, error) {
-	row, err := getUserWhere(ctx, db, "username = ?", username)
-	return row.toDomain(), row.credentials(), err
+	return getUser(ctx, db, "username = ?", username)
 }
 
 // GetUserByHandle returns a user by WebAuthn user handle.
 func GetUserByHandle(ctx context.Context, db bun.IDB, handle []byte) (domain.User, error) {
-	row, err := getUserWhere(ctx, db, "webauthn_handle = ?", handle)
-	return row.toDomain(), err
+	u, _, err := getUser(ctx, db, "webauthn_handle = ?", handle)
+	return u, err
 }
 
 // OwnerID returns the owner's user ID, or ok=false before first-run setup.
@@ -175,8 +250,15 @@ func ListUsers(ctx context.Context, db bun.IDB, afterID string, limit int) ([]do
 		return nil, fmt.Errorf("store: list users: %w", err)
 	}
 	out := make([]domain.User, 0, len(rows))
+	ptrs := make([]*domain.User, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, r.toDomain())
+	}
+	for i := range out {
+		ptrs = append(ptrs, &out[i])
+	}
+	if err := withGroups(ctx, db, ptrs...); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -298,18 +380,27 @@ func SetLastSignIn(ctx context.Context, db bun.IDB, id string, now time.Time) er
 	return err
 }
 
-// PatchUser applies an owner edit if the revision still matches. It
-// returns domain.ErrRevisionConflict on a stale revision.
+// PatchUser applies an owner edit if the revision still matches, in one
+// transaction (a membership change replaces every membership). It returns
+// domain.ErrRevisionConflict on a stale revision and
+// domain.ErrGroupNotFound for a group that does not exist.
 func PatchUser(ctx context.Context, db bun.IDB, id string, revision int64, p domain.UserPatch, now time.Time) (domain.User, error) {
+	var out domain.User
+	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		var err error
+		out, err = patchUser(ctx, tx, id, revision, p, now)
+		return err
+	})
+	return out, err
+}
+
+func patchUser(ctx context.Context, db bun.IDB, id string, revision int64, p domain.UserPatch, now time.Time) (domain.User, error) {
 	var sets []setClause
 	if p.DisplayName != nil {
 		sets = append(sets, set("display_name = ?", *p.DisplayName))
 	}
 	if p.Email != nil {
 		sets = append(sets, set("email = ?", nullable(*p.Email)))
-	}
-	if p.GroupID != nil {
-		sets = append(sets, set("group_id = ?", *p.GroupID))
 	}
 	if p.Status != nil {
 		sets = append(sets, set("status = ?", string(*p.Status)))
@@ -321,9 +412,6 @@ func PatchUser(ctx context.Context, db bun.IDB, id string, revision int64, p dom
 	}
 	ok, err := updateUser(ctx, db, id, now, "revision = ?", []any{revision}, sets...)
 	if err != nil {
-		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-			return domain.User{}, domain.ErrGroupNotFound
-		}
 		if strings.Contains(err.Error(), "CHECK constraint failed") {
 			return domain.User{}, domain.ErrOwnerProtected
 		}
@@ -334,6 +422,11 @@ func PatchUser(ctx context.Context, db bun.IDB, id string, revision int64, p dom
 			return domain.User{}, err
 		}
 		return domain.User{}, domain.ErrRevisionConflict
+	}
+	if p.GroupIDs != nil {
+		if err := setUserGroups(ctx, db, id, *p.GroupIDs); err != nil {
+			return domain.User{}, err
+		}
 	}
 	return GetUser(ctx, db, id)
 }

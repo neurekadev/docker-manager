@@ -19,18 +19,21 @@ ADR 0003 records why this is a small Go evaluator and not Casbin.
 
 ## Model
 
-- **Groups.** Every user is in exactly one group; exactly one group is the
-  **default** for new users (schema invariant, #16). The initial default is
-  **Restricted** with no rules. Groups can be renamed (also the default),
-  created (no rules), made default, and deleted when they are neither the
-  default nor have members.
-- **The owner's group.** The owner's account is in a group too
-  (`users.group_id` is `NOT NULL`; setup puts it in the default group), but
-  group rules never apply to it (owner bypass). So `memberCount` never
-  counts the owner, and the owner never blocks deleting a group: when the
-  owner is in the group being deleted, the account moves to the default
-  group in the same transaction. Moving the owner with `PATCH
-  /users/{userId}` stays possible and changes nothing about its access.
+- **Groups.** A user can be in any number of groups (`user_groups`, #233;
+  none means no group rule applies); exactly one group is the **default**
+  for new users (schema invariant, #16): invited users join it. The
+  initial default is **Restricted** with no rules. Groups can be renamed
+  (also the default), created (no rules, last in the order), made
+  default, reordered, and deleted when they are neither the default nor
+  have members.
+- **Group order.** Groups have a priority order (`groups.position`, 0
+  first), like Discord's role hierarchy: for a member of several groups
+  the first group with a rule matching the capability decides. The owner
+  reorders them on the Groups page (`PUT /api/v1/group-order`).
+- **The owner** is in no group (setup puts it in none and `PATCH
+  /users/{userId}` refuses groups for it with `owner_protected`): group
+  rules never apply to it (owner bypass), so it never counts as a member
+  and never blocks deleting a group.
 - **Group rules** allow or deny one capability at one scope. No matching rule
   means deny.
 - **User rules** are overrides: allow or deny per capability and scope; a
@@ -60,13 +63,18 @@ ADR 0003 records why this is a small Go evaluator and not Casbin.
 3. Owner → allow.
 4. Unknown or owner-only capability → deny.
 5. The most specific matching **user** rule decides.
-6. Otherwise the most specific matching **group** rule decides.
+6. Otherwise the user's **groups** are asked in priority order: the first
+   group with a rule matching the capability (at the target or a scope
+   above it) decides with its most specific matching rule.
 7. Otherwise deny.
 
-Specificity within a tier: the exact resource > its parents (container >
-service > stack) > environment > instance. A user rule beats every group rule,
-even a more specific one. The decision carries the deciding rule and a
-plain-language reason (previews, effective permissions).
+Specificity within one rule set: the exact resource > its parents
+(container > service > stack) > environment > instance. A user rule beats
+every group rule, even a more specific one, and a higher group's rule beats
+a lower group's, even a more specific one (a higher `allow … @all` wins
+over a lower `deny … @container:web`). The decision carries the deciding
+rule, its group (`groupId`) and a plain-language reason (previews,
+effective permissions).
 
 - **Wildcards and future keys:** an instance or environment rule applies to
   resources created later, but rules name exactly one key, so a capability
@@ -214,18 +222,22 @@ restart job; start/stop/logs/terminal are denied.
 ## Changes and invalidation
 
 Every group or permission change (create, rename, delete, default selection,
-group rules, user rules, group move via `PATCH /users/{userId}`):
+group order, group rules, user rules, group memberships via `PATCH
+/users/{userId}`):
 
 - is owner-only and needs a **recent step-up** (`403 step_up_required`);
 - is compare-and-set on a revision (group ETag for name/delete; the
-  permission document's own ETag for rules; `412` with the current ETag when
-  stale, `428` without `If-Match`);
+  permission document's own ETag for rules; the ETag of `GET /groups`, a
+  digest of the order, for `PUT /group-order`; `412` with the current ETag
+  when stale, `428` without `If-Match`);
 - is audited with a before/after diff (`details.diff`, plus `rulesAdded` /
-  `rulesRemoved` in shorthand; group moves record `details.event:
-  user.group_change` and the group diff);
+  `rulesRemoved` in shorthand; membership changes record `details.event:
+  user.group_change` and the `groupIds` diff; a reorder the `groupOrder`
+  diff);
 - ends the **affected users'** in-flight requests and open streams (SSE,
   WebSocket) through the identity hub and forgets their stored idempotent
-  responses (`auth.Service.AccessChanged`). Clients reconnect and are
+  responses (`auth.Service.AccessChanged`; a reorder affects only members
+  of several groups). Clients reconnect and are
   filtered by the new rules. Rules are read on every check, so the next
   request already sees the change. The owner is never affected.
 
@@ -236,10 +248,8 @@ fixation (tokens are renewed at sign-in, step-up, enrollment and credential
 changes); no session state caches permissions.
 
 Deleting a group requires it to be empty (`409 group_not_empty`): Docker Manager
-never moves users implicitly, so deleting a group never changes anyone's
-access. The owner's account does not count; if it is in the group, it moves
-to the default group (the audit record of the deletion names the owner as a
-target and holds `ownerMovedToGroupId`). Selecting a default group that grants access answers with a
+never changes memberships implicitly, so deleting a group never changes
+anyone's access. Selecting a default group that grants access answers with a
 `warning`.
 
 ## API
@@ -248,11 +258,12 @@ target and holds `ownerMovedToGroupId`). Selecting a default group that grants a
 | --- | --- |
 | `GET /api/v1/permission-catalog` | any signed-in principal |
 | `GET /api/v1/me/permissions` | any signed-in principal: effective entries + visible environments (empty for Restricted: show an empty state) |
-| `GET/POST /api/v1/groups`, `GET/PATCH/DELETE /api/v1/groups/{groupId}`, `POST …/default-selection` | owner |
+| `GET/POST /api/v1/groups` (in priority order), `GET/PATCH/DELETE /api/v1/groups/{groupId}`, `POST …/default-selection` | owner |
+| `PUT /api/v1/group-order` | owner: the groups' priority order (every group once, If-Match with the list's ETag) |
 | `GET/PUT /api/v1/groups/{groupId}/permissions`, `GET/PUT /api/v1/users/{userId}/permissions` | owner |
 | `GET /api/v1/users/{userId}/effective-permissions` | owner |
-| `POST /api/v1/permission-previews` | owner: view-as a user or a group's member with unsaved rules, a group move or an API token scope; explains checks with the deciding rule. No session is impersonated. |
-| `PATCH /api/v1/users/{userId}` (`groupId`) | owner: moves the user to exactly one group |
+| `POST /api/v1/permission-previews` | owner: view-as a user or a member of some groups (`groupIds`) with unsaved rules (`groupRules` for `rulesGroupId`), other groups or an API token scope; explains checks with the deciding rule and group. No session is impersonated. |
+| `PATCH /api/v1/users/{userId}` (`groupIds`) | owner: replaces the user's groups (`groupId`, deprecated, sets one) |
 
 ## Adding capabilities (feature workstreams)
 

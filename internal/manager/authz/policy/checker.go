@@ -123,7 +123,7 @@ func (c *Checker) Reaches(r authz.Resource) bool {
 	if r.Type == catalog.TypeEnvironment {
 		env = r.ID
 	}
-	for _, rule := range slices.Concat(c.subj.UserRules, c.subj.GroupRules, c.subj.Token) {
+	for _, rule := range slices.Concat(c.subj.UserRules, c.subj.GroupRules(), c.subj.Token) {
 		if rule.Effect != Allow {
 			continue
 		}

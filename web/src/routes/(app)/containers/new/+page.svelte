@@ -32,6 +32,7 @@
 		PageHeader,
 		Select,
 		SuggestField,
+		TagInput,
 		TextArea,
 		TextField,
 		fieldError,
@@ -95,7 +96,7 @@
 	let start = $state(true);
 	type PortRow = { host: string; container: string; protocol: string; ip: string };
 	type MountRow = { type: string; source: string; target: string; readOnly: boolean };
-	type NetRow = { name: string; aliases: string };
+	type NetRow = { name: string; aliases: string[] };
 	let ports = $state<PortRow[]>([]);
 	let mounts = $state<MountRow[]>([]);
 	let nets = $state<NetRow[]>([]);
@@ -249,9 +250,7 @@
 									.filter((n) => n.name)
 									.map((n) => ({
 										name: n.name,
-										aliases: n.aliases.trim()
-											? n.aliases.split(/[\s,]+/).filter(Boolean)
-											: undefined
+										aliases: n.aliases.length ? [...n.aliases] : undefined
 									}))
 							: undefined,
 						restartPolicy: restart as 'no' | 'always' | 'on-failure' | 'unless-stopped',
@@ -553,11 +552,10 @@
 					{#each nets as n, i (i)}
 						<div class="row nets">
 							<Select label="Network" bind:value={n.name} options={networkOptions} />
-							<TextField
+							<TagInput
 								label="Aliases"
-								mono
-								bind:value={n.aliases}
-								placeholder="api, backend"
+								bind:values={n.aliases}
+								placeholder="backend"
 								description="Optional."
 							/>
 							<IconButton
@@ -574,7 +572,7 @@
 						variant="secondary"
 						size="sm"
 						icon={Plus}
-						onclick={() => nets.push({ name: '', aliases: '' })}>Add Network</Button
+						onclick={() => nets.push({ name: '', aliases: [] })}>Add Network</Button
 					>
 				</Card>
 

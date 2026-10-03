@@ -226,10 +226,15 @@ Viewer = every normal-risk `*.read`, Operator = Viewer plus the common
 normal-risk actions and container logs, Admin = everything the scope
 offers), derived from the catalog's key, risk and advanced flags, never
 from a key list; the select names the preset the scope's rules match, or
-Custom. A group's page lists its members first (every account in it but
-the owner, `groupMembers`; the groups list counts the same way because
-the API's `memberCount` includes the owner) and adds members from other
-groups with one `PATCH /users/{id}` (`groupId`) per account.
+Custom. The Groups page lists the groups in priority order: dragging a group's
+grip (`Sortable`, `DragHandle`) saves the new order at once
+(`saveGroupOrder`: `PUT /group-order` with the list's ETag, refused when the
+order changed meanwhile). A group's page lists its members first
+(`groupMembers`), adds members with one `PATCH /users/{id}` (`groupIds`,
+`withGroup`) per account and removes one from this group only. A user's
+page lists their groups in priority order (add, remove), and the
+permission editor shows what a user inherits from the first group with a
+rule (`inheritedFromGroups`).
 
 The caller's own things and instance administration are separate areas.
 **Profile** (`routes/(app)/profile`, opened from the user menu and ⌘K,

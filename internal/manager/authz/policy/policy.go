@@ -7,14 +7,17 @@
 //     ∩ the user's effective permissions).
 //  3. Owner-only and unknown capabilities are denied.
 //  4. The most specific matching user rule decides (allow or deny).
-//  5. Otherwise the most specific matching group rule decides.
+//  5. Otherwise the user's groups are asked in priority order (#233, like
+//     Discord's role hierarchy): the first group with a rule matching the
+//     capability decides with its most specific matching rule.
 //  6. Otherwise deny.
 //
-// Specificity within one tier: the exact resource beats its parents
+// Specificity within one rule set: the exact resource beats its parents
 // (container > service > stack), which beat the environment, which beats
 // instance-wide ("all resources") rules. A user rule always beats a group
-// rule, even a more specific one. Validate rejects duplicate rules for the
-// same capability and scope, so there is never a tie.
+// rule, even a more specific one, and a higher group's rule beats a lower
+// group's, even a more specific one. Validate rejects duplicate rules for
+// the same capability and scope, so there is never a tie.
 //
 // Rules name one capability key; there are no wildcard keys, so a rule on
 // all resources applies to future resources of that type but never grants
@@ -135,12 +138,31 @@ type Subject struct {
 	Inactive bool
 	// Ended: the API token no longer works (revoked, expired or deleted):
 	// everything is denied, like Inactive.
-	Ended      bool
-	UserRules  []Rule
-	GroupRules []Rule
+	Ended     bool
+	UserRules []Rule
+	// Groups are the user's groups with their rules, highest priority
+	// first.
+	Groups []Group
 	// Token is the scope of an API token (#31): allow-only grants. nil for
 	// sessions; an empty non-nil slice denies everything.
 	Token []Rule
+}
+
+// Group is one of a subject's groups.
+type Group struct {
+	ID    string
+	Name  string
+	Rules []Rule
+}
+
+// GroupRules returns the rules of every group of s, highest priority
+// first.
+func (s Subject) GroupRules() []Rule {
+	var out []Rule
+	for _, g := range s.Groups {
+		out = append(out, g.Rules...)
+	}
+	return out
 }
 
 // Source says which part of the evaluation decided.
@@ -165,6 +187,8 @@ type Decision struct {
 	Source  Source
 	// Rule is the deciding rule (user or group sources).
 	Rule *Rule
+	// GroupID is the group of the deciding rule (group source).
+	GroupID string
 	// Reason is a short, non-sensitive explanation for previews and logs.
 	Reason string
 }
@@ -261,8 +285,11 @@ func Evaluate(cat *catalog.Catalog, s Subject, capability string, t Target) Deci
 	if r := best(cat, s.UserRules, capability, t, c); r != nil {
 		return Decision{Allowed: r.Effect == Allow, Source: SourceUser, Rule: r, Reason: "user rule: " + r.String()}
 	}
-	if r := best(cat, s.GroupRules, capability, t, c); r != nil {
-		return Decision{Allowed: r.Effect == Allow, Source: SourceGroup, Rule: r, Reason: "group rule: " + r.String()}
+	for _, g := range s.Groups {
+		if r := best(cat, g.Rules, capability, t, c); r != nil {
+			return Decision{Allowed: r.Effect == Allow, Source: SourceGroup, Rule: r, GroupID: g.ID,
+				Reason: "rule of group " + g.Name + ": " + r.String()}
+		}
 	}
 	return Decision{Source: SourceDefault, Reason: "no rule grants " + capability + " here (default deny)"}
 }

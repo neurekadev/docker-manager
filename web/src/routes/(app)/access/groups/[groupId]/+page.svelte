@@ -1,8 +1,8 @@
 <script lang="ts">
-	// One group (#17): its members first (add accounts from other groups),
-	// then its allow/deny rules in the permission editor (no rule = deny),
-	// rename, make it the default for new users (with a warning when it
-	// grants access) and delete.
+	// One group (#17, #233): its members first (add accounts, remove them;
+	// an account can be in several groups), then its allow/deny rules in the
+	// permission editor (no rule = deny), rename, make it the default for
+	// new users (with a warning when it grants access) and delete.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -11,6 +11,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Star from '@lucide/svelte/icons/star';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import UserMinus from '@lucide/svelte/icons/user-minus';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import { ApiRequestError, api, unwrap, unwrapEmpty, type Account } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
@@ -48,9 +49,11 @@
 		accountStatus,
 		displayName,
 		groupMembers,
+		groupNames,
 		memberCandidates,
 		membersText,
-		secondaryName
+		secondaryName,
+		withGroup
 	} from '$lib/features/access/model';
 	import { diffRules, type Rule } from '$lib/features/access/permissions';
 	import {
@@ -72,12 +75,8 @@
 	const envName = (e: string) => environmentName(envs.data, e);
 
 	const group = $derived(groups.data?.find((g) => g.id === id));
-	// The owner's account may be in the group too; group rules never apply
-	// to it, so it is neither listed nor counted, and deleting the group
-	// moves it to the default group.
-	const ownerHere = $derived((users.data ?? []).some((u) => u.owner && u.groupId === id));
-	const groupName = (gid: string) =>
-		groups.data?.find((g) => g.id === gid)?.name ?? 'another group';
+	// Its place in the priority order (the list is in that order).
+	const rank = $derived((groups.data ?? []).findIndex((g) => g.id === id) + 1);
 	// A group missing from the loaded list reads as the standard not-found state.
 	const missing = new ApiRequestError('This group does not exist.', 404);
 	const groupState = $derived({
@@ -122,8 +121,8 @@
 	let defaultOpen = $state(false);
 	let deleteOpen = $state(false);
 
-	// Adding members moves accounts from their current group (every
-	// account belongs to exactly one), one PATCH per account.
+	// Adding members adds the group to each account's groups, one PATCH per
+	// account; removing a member takes it out of this group only.
 	let addOpen = $state(false);
 	let addSearch = $state('');
 	let picked = $state<string[]>([]);
@@ -155,7 +154,7 @@
 								path: { userId: u.id },
 								header: { 'If-Match': ifMatch(u.revision) }
 							},
-							body: { groupId: g.id }
+							body: { groupIds: withGroup(u.groupIds, g.id, true) }
 						})
 					)
 				);
@@ -189,8 +188,40 @@
 			sortValue: (u) => displayName(u),
 			stack: 'title'
 		},
-		{ id: 'status', header: 'Status', cell: memberStatusCell, width: '170px', stack: 'status' }
+		{ id: 'status', header: 'Status', cell: memberStatusCell, width: '170px', stack: 'status' },
+		{
+			id: 'actions',
+			header: 'Actions',
+			hideHeader: true,
+			cell: memberActionsCell,
+			width: '56px',
+			align: 'end',
+			stack: 'head'
+		}
 	];
+
+	let removing = $state<Account | null>(null);
+	let removeOpen = $state(false);
+
+	async function removeMember(u: Account, g: Group) {
+		try {
+			await withStepUp(() =>
+				unwrap(
+					api.PATCH('/api/v1/users/{userId}', {
+						params: {
+							path: { userId: u.id },
+							header: { 'If-Match': ifMatch(u.revision) }
+						},
+						body: { groupIds: withGroup(u.groupIds, g.id, false) }
+					})
+				)
+			);
+		} catch (e) {
+			throw new Error(actionError(e), { cause: e });
+		}
+		toast.success(`Removed ${displayName(u)} from ${g.name}`);
+		await qc.invalidateQueries({ queryKey: ['permissions'] });
+	}
 
 	async function saveRules() {
 		try {
@@ -274,7 +305,7 @@
 					default_group_protected:
 						'This is the default group. Choose another default first.',
 					group_not_empty:
-						'Move its members to another group first; Docker Manager never moves users on its own.'
+						'Remove its members first; Docker Manager never changes memberships on its own.'
 				}),
 				{ cause: e }
 			);
@@ -327,6 +358,17 @@
 	{@const st = accountStatus(u)}
 	<Badge tone={st.tone} dot>{st.label}</Badge>
 {/snippet}
+{#snippet memberActionsCell(u: Account)}
+	<IconButton
+		label="Remove {displayName(u)} from {group?.name ?? 'the group'}"
+		icon={UserMinus}
+		size="sm"
+		onclick={() => {
+			removing = u;
+			removeOpen = true;
+		}}
+	/>
+{/snippet}
 
 <Page>
 	<QueryView
@@ -340,10 +382,8 @@
 				<PageHeader
 					title={g.name}
 					{...resourceIcon('group')}
-					description={g.default
-						? 'New users join this group when they redeem an invitation.'
-						: 'Members get these rules; their own overrides win over them.'}
 					meta={[
+						{ label: `Priority ${rank} of ${groups.data?.length ?? rank}` },
 						{ label: membersText(g.memberCount) },
 						{ label: `${g.ruleCount} ${g.ruleCount === 1 ? 'rule' : 'rules'}` }
 					]}
@@ -368,11 +408,7 @@
 					{/snippet}
 				</PageHeader>
 
-				<Card
-					title="Members"
-					subtitle={g.memberCount ? membersText(g.memberCount) : undefined}
-					padding="none"
-				>
+				<Card title="Members" padding="none">
 					{#snippet actions()}
 						{#if anyCandidate}
 							<Button size="sm" icon={UserPlus} onclick={openAdd}>Add Members</Button>
@@ -391,11 +427,7 @@
 								/>
 							{:else}
 								<p class="none muted">
-									No members yet. {anyCandidate
-										? 'Add accounts from other groups'
-										: 'Invite someone'}{g.default
-										? '; new users join this group when they redeem an invitation.'
-										: '.'}
+									No members yet. {anyCandidate ? 'Add some.' : 'Invite someone.'}
 								</p>
 							{/if}
 						{/snippet}
@@ -404,7 +436,7 @@
 
 				<Card
 					title="Permissions"
-					subtitle="Allow grants an action at a scope; Deny blocks it there even if a broader rule allows it. Without a rule, an action is denied."
+					info="Allow grants an action at a scope; Deny blocks it even where a broader rule allows it. Without a rule, it is denied. For members of several groups, the highest group with a rule decides; their own overrides come first."
 				>
 					<QueryView
 						query={catalog}
@@ -444,7 +476,7 @@
 				<Dialog
 					bind:open={addOpen}
 					title="Add Members to {g.name}"
-					description="Every account belongs to exactly one group: the ones you pick move here from their current group, and their access changes at once."
+					description="The accounts you pick join this group and keep their other groups. Their access changes at once."
 				>
 					{#if memberCandidates(users.data, g.id).length > 6}
 						<TextField
@@ -455,13 +487,14 @@
 							bind:value={addSearch}
 						/>
 					{/if}
-					<ul class="pick" role="list" aria-label="Users in Other Groups">
+					<ul class="pick" role="list" aria-label="Users Not in {g.name}">
 						{#each candidates as u (u.id)}
 							<li>
 								<Checkbox
 									label={displayName(u)}
-									description="Now in {groupName(u.groupId)}{u.status ===
-									'disabled'
+									description="{u.groupIds.length
+										? `In ${groupNames(u.groupIds, groups.data)}`
+										: 'In no group'}{u.status === 'disabled'
 										? ' (disabled)'
 										: ''}"
 									checked={picked.includes(u.id)}
@@ -477,7 +510,7 @@
 					</ul>
 					{#if addError}<Notice
 							tone="danger"
-							title="Not every account was moved"
+							title="Not every account was added"
 							live="alert">{addError}</Notice
 						>{/if}
 					{#snippet footer()}
@@ -521,17 +554,28 @@
 					tone={g.grantsAccess ? 'danger' : 'default'}
 					onconfirm={() => makeDefault(g)}
 				/>
+				{#if removing}
+					{@const u = removing}
+					<ConfirmDialog
+						bind:open={removeOpen}
+						title="Remove {displayName(u)} from {g.name}?"
+						consequences={[
+							u.groupIds.length > 1
+								? `Their access becomes that of ${groupNames(withGroup(u.groupIds, g.id, false), groups.data)} plus their own overrides, at once.`
+								: 'They are in no group then: only their own overrides grant access.',
+							'Their open pages and streams restart.'
+						]}
+						confirmLabel="Remove Member"
+						tone="danger"
+						onconfirm={() => removeMember(u, g)}
+					/>
+				{/if}
 				<DestructiveConfirm
 					bind:open={deleteOpen}
 					title="Delete Group {g.name}"
 					consequences={[
 						'The group and its rules are removed.',
-						'It has no members, so nobody’s access changes.',
-						...(ownerHere
-							? [
-									'Your own account moves to the default group; as the owner you keep every permission.'
-								]
-							: [])
+						'It has no members, so nobody’s access changes.'
 					]}
 					confirmText={g.name}
 					confirmLabel="Delete Group"

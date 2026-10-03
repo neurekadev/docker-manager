@@ -57,6 +57,7 @@
 		DeniedState,
 		DestructiveConfirm,
 		Dialog,
+		DragHandle,
 		Drawer,
 		EmptyState,
 		ErrorState,
@@ -77,6 +78,7 @@
 		SecretReveal,
 		Select,
 		Skeleton,
+		Sortable,
 		Sparkline,
 		SplitButton,
 		StatusBadge,
@@ -84,6 +86,7 @@
 		Switch,
 		TabNav,
 		Table,
+		TagInput,
 		TextArea,
 		TextField,
 		Tooltip,
@@ -92,6 +95,7 @@
 		Uptime,
 		formatBytes,
 		formatPercent,
+		moveItem,
 		toast,
 		type Column,
 		type MenuEntry
@@ -284,6 +288,11 @@
 	let follow = $state(true);
 	let backups = $state(true);
 	let tri = $state<'inherit' | 'allow' | 'deny'>('inherit');
+	let tags = $state(['cloud', 'files', 'Media_Server']);
+	const tagCheck = (t: string) =>
+		/^[a-z0-9][a-z0-9-]*$/.test(t) ? '' : `${t}: use lowercase letters, digits and dashes.`;
+	let order = $state(['Documentation', 'Website', 'Repository']);
+	const orderSort = new Sortable({ onmove: (from, to) => (order = moveItem(order, from, to)) });
 	let wizardStep = $state(0);
 
 	// Job progress with a scripted stream (partial failure).
@@ -748,6 +757,25 @@
 						}
 					]}
 				/>
+				<TagInput
+					label="Tags"
+					bind:values={tags}
+					validate={tagCheck}
+					max={16}
+					description="Space, Enter or a comma ends a tag."
+					placeholder="cloud"
+				/>
+				<div class="sortable-demo">
+					<h3 class="subsection-title">Drag to Reorder</h3>
+					<ul aria-label="Links in Order">
+						{#each order as item, i (item)}
+							<li {@attach orderSort.item(i)}>
+								<DragHandle sortable={orderSort} index={i} name={item} />
+								<span>{item}</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
 				<TextArea label="Notes" bind:value={notes} description="Optional." />
 				<Switch
 					bind:checked={follow}
@@ -1149,6 +1177,24 @@
 		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 		gap: var(--space-5);
 		align-items: start;
+	}
+
+	.sortable-demo ul {
+		display: grid;
+		gap: var(--space-2);
+		margin: var(--space-2) 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.sortable-demo li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding-right: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		background: var(--surface-panel);
 	}
 
 	.states {
