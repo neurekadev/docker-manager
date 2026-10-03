@@ -205,7 +205,7 @@
 				header: 'Actions',
 				hideHeader: true,
 				cell: actionsCell,
-				stack: 'actions',
+				stack: 'head',
 				align: 'end',
 				width: '56px',
 				pin: 'end'

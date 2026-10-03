@@ -229,7 +229,7 @@
 			header: 'Actions',
 			cell: actionsCell,
 			hideHeader: true,
-			stack: 'actions',
+			stack: 'head',
 			align: 'end',
 			width: '64px'
 		}

@@ -52,7 +52,7 @@
 			header: 'Started',
 			cell: createdCell,
 			width: '150px',
-			stack: 'head'
+			stack: 'status'
 		});
 		if (!compact)
 			cols.push({

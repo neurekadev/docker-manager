@@ -10,7 +10,13 @@
 	const text = $derived(indicatorText(status.state));
 </script>
 
-<span class="live" role="status" aria-label="Live Updates" data-state={status.state}>
+<span
+	class="live"
+	role="status"
+	aria-label="Live Updates"
+	data-state={status.state}
+	title={text || undefined}
+>
 	{#if text}
 		<span class="dot" aria-hidden="true"></span>
 		<span class="text">{text}</span>
@@ -53,6 +59,20 @@
 	@media (prefers-reduced-motion: reduce) {
 		.dot {
 			animation: none;
+		}
+	}
+
+	/* Phones: the dot alone, so the breadcrumbs keep the top bar; the text
+	   stays for assistive technology and the tooltip, and the offline
+	   banner says it in words. */
+	@media (max-width: 767px) {
+		.text {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
 		}
 	}
 </style>

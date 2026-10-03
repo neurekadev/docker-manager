@@ -195,7 +195,7 @@ Variables</h3>`). Components use the size tokens, never one-off pixel sizes.
 | ≥ 1280 px | full sidebar (collapsible to the rail, remembered in `localStorage` as a UI preference) | table | centred |
 | 1024–1279 px | 64 px icon rail with tooltips; environment switcher as an icon button | table | centred |
 | 768–1023 px | off-canvas navigation drawer; breadcrumbs and search icon stay | table | centred |
-| < 768 px | drawer | **stacked row cards** (title and status first, key metrics as label/value pairs, actions last) | full screen |
+| < 768 px | drawer | **stacked row cards** (title and status first, the status below a title too long to share the line; key metrics as label/value pairs whose long values wrap; compact row actions on the first line, others last) | full screen |
 
 Pages use the full content width: side-by-side cards (`Columns`) keep
 their own height (aligned to the top; a one-line card is never stretched
@@ -266,17 +266,17 @@ disabled item uses it to say why it is off (only its label and icon dim).
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
 | `Chip` | `label`, `selected` (toggle: `aria-pressed`), `onclick`, `href`, `count`, `size: sm \| md`, `icon`, `hue`, `title`, `disabled` | A pill (`--radius-full`) for tags and filters: a link with `href`, a (toggle) button with `onclick` or `selected`, else a static tag. `hue` adds a colour swatch (e.g. `SERVICE_HEX`), a ring while the toggle is off. 40 px tall on coarse pointers. |
 | `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly Failed". |
-| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title. `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
-| `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed`, `href`, `onclick` | Every figure links to its list: with `href` the label is a link whose hit area covers the card (`onclick` runs first, e.g. to preset the list's filters; links in a snippet `secondary` stay clickable). Row of KPI cards: `KpiRow` (`$lib/features/common`; `repeat(auto-fit, minmax(210px, 1fr))`, equal heights, two per row below 768 px with an odd last card spanning the row, so five cards never leave an orphan). Label, value and a text `secondary` stay on one line each (ellipsis, the full text as tooltip). `tone` dots share one style (colour plus its soft ring). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value, 12 px label), so the stack overview's five cards (status, CPU, memory, uptime, last deploy) fit one row on 1440 px screens and phones show two per row. |
+| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title, and so does a `subtitle` that does not fit beside it (the title is never squeezed). `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
+| `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed`, `href`, `onclick` | Every figure links to its list: with `href` the label is a link whose hit area covers the card (`onclick` runs first, e.g. to preset the list's filters; links in a snippet `secondary` stay clickable). Row of KPI cards: `KpiRow` (`$lib/features/common`; `repeat(auto-fit, minmax(210px, 1fr))`, equal heights, two per row below 768 px with an odd last card spanning the row; where the row is too narrow for all its cards in one line they split evenly by the row's own width: four as two and two, five as three and two, six as three and three; so a card never sits beside empty space). Label, value and a text `secondary` stay on one line each (ellipsis, the full text as tooltip), except in the narrow layout below; a `unit` that does not fit beside the value goes below it instead of cutting the value. `tone` dots share one style (colour plus its soft ring). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value, 12 px label), so the stack overview's five cards (status, CPU, memory, uptime, last deploy) fit one row on 1440 px screens. At 200 px or less (two per row on phones) it switches to the narrow layout: a 28 px tile beside the label, the value, unit and secondary line across the card's width, label, value and secondary wrapping at spaces instead of being cut. |
 | `IconTile` | `icon`, `color: TileColor`, `size: xs \| sm \| md \| lg` | Decorative (the adjacent text names the thing). `xs` (24 px, 14 px glyph) is the row icon of lists ([Row icons](#row-icons)). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. The empty track is `--border-strong`, visible on cards. |
 | `Uptime` | `since` (ISO start; absent: "—"), `prefix` | Live duration ticking once a second (`formatUptime`: "5m 03s", "3h 12m 08s", "4d 3h 12m"), tabular numerals, `<time>` with the absolute start as title. Other live values read the shared `clock.now` (one interval, only while a component reads it). |
-| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` / `below` / `titleAction` / `titleEditor` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `below` is a row under the meta row: a stack's or template's links (`LinkList`, `$lib/features/common`), passed only when there are any. `titleAction` sits right after the title (a stack's rename pencil, an `IconButton size="sm"`); `titleEditor` replaces the visible title while it is edited in place (the h1 stays, `sr-only`; the stack's inline rename). `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
-| `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, head, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). Without rows and without `empty` it shows one row "Nothing here yet." The scroll box is `position: relative` (hidden `.sr-only` texts in cells cannot widen the page) and clips the last row's hover to a card's rounded corners. |
+| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` / `below` / `titleAction` / `titleEditor` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `below` is a row under the meta row: a stack's or template's links (`LinkList`, `$lib/features/common`), passed only when there are any. `titleAction` sits right after the title (a stack's rename pencil, an `IconButton size="sm"`); `titleEditor` replaces the visible title while it is edited in place (the h1 stays, `sr-only`; the stack's inline rename). A long title without spaces breaks rather than widening the page. `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it (below 768 px the status moves below the title instead). Below 768 px the meta row wraps with spacing instead of dividers. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
+| `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, head, hidden; the status columns share the title's line while both fit and move below it otherwise, meta values wrap), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). Without rows and without `empty` it shows one row "Nothing here yet." The scroll box is `position: relative` (hidden `.sr-only` texts in cells cannot widen the page) and clips the last row's hover to a card's rounded corners. |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
 | `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, an edge fades out where more tabs are cut off, and `after` gets its own line. |
 | `DiffView` | `title` (file), `before`, `after`, `beforeLabel`, `afterLabel`, `context` | Unified line diff (`diff.ts`, Myers) with old/new line numbers, `+`/`−` markers and screen-reader "Added:"/"Removed:" (never colour alone); unchanged regions collapse behind "Show N unchanged lines". |
-| `Breadcrumbs` | `items: Crumb[]` | The shell renders them from `usePage`. |
+| `Breadcrumbs` | `items: Crumb[]` | The shell renders them from `usePage`. Below 768 px only the parent and the current page show; the current page shortens, the parent keeps its width up to 40 % of the screen. |
 | `Skeleton`, `Spinner`, `Kbd` | | Loading regions set `aria-busy`. |
 
 `Column<T>` = `{ id, header, cell?: Snippet<[T]>, sortValue?, align?, width?, maxWidth?, truncate?, title?, pin?, numeric?, mono?, hideHeader?, stack? }`.
@@ -290,7 +290,13 @@ disabled item uses it to say why it is off (only its label and icon dim).
   sideways, on the row's background (hover and selection included): use it
   for the last (actions) column of wide lists.
 - `stack: 'head'` puts the column at the end of a stacked card's first
-  line (the row's "⋯" menu), so it does not take a line of its own.
+  line (the row's "⋯" menu, or a few icon buttons), so it does not take a
+  line of its own. Text buttons ("Details", "Revoke") stay `actions`, the
+  card's last line. A time or a badge column that belongs with the status
+  is `stack: 'status'` (a job's start time).
+- Cells that cut their own text on one line (an image reference, a
+  network name, an alert's detail) let it wrap below 768 px: the row card
+  has the room and a phone has no tooltip.
 
 ### Row icons
 
@@ -491,6 +497,8 @@ file names and values stay as they are.
    ```
 
    `environmentScoped` prepends the selected environment (the switcher).
+   A layout and its pages may each call it: the innermost mounted one is
+   shown, and the layout's comes back when a page without its own unmounts.
 3. Build the page from `$lib/ui`: `PageHeader` (h1) → `TabNav` or KPI row →
    `Card`s with `Table`s. Headers: section pages have no icon tile, object
    pages have the object's tile (`{...resourceIcon(kind)}`; stacks: the
@@ -524,7 +532,8 @@ file names and values stay as they are.
   `liveKeys` (`src/lib/live/keys.ts`; `docs/internal/web.md`, "Live data") and the
   tab's live client refreshes them; register unsaved work with
   `criticalWork`. The client reports its state in `liveStatus`, which
-  drives the top-bar indicator and the offline banner after 5 s down
+  drives the top-bar indicator (below 768 px its dot only, the text as
+  tooltip and for screen readers) and the offline banner after 5 s down
   (`src/lib/shell/live-banner.ts`).
 - **Permissions (#17):** render what the API says the user may do: resource
   DTOs carry `view` and `actions`; show an action only when

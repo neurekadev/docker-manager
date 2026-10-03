@@ -80,4 +80,17 @@
 	.addr {
 		color: var(--text-muted);
 	}
+
+	/* Phones list networks in a row card: wrap rather than cut the name. */
+	@media (max-width: 767px) {
+		.net {
+			flex-wrap: wrap;
+			column-gap: var(--space-2);
+		}
+
+		.name {
+			overflow-wrap: anywhere;
+			white-space: normal;
+		}
+	}
 </style>

@@ -391,6 +391,14 @@
 		white-space: nowrap;
 	}
 
+	/* A phone's row card shows the whole detail: it says what to do. */
+	@media (max-width: 767px) {
+		.detail,
+		.facts {
+			white-space: normal;
+		}
+	}
+
 	.title {
 		color: var(--text-strong);
 		font-weight: var(--weight-medium);

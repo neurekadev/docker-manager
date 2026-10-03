@@ -260,7 +260,9 @@
 			<Card title="Tags">
 				{#if im.repoTags.length}
 					<ul class="chips" role="list">
-						{#each im.repoTags as t (t)}<li><Chip label={t} size="sm" /></li>{/each}
+						{#each im.repoTags as t (t)}<li>
+								<Chip label={t} title={t} size="sm" />
+							</li>{/each}
 					</ul>
 				{:else}
 					<p class="muted">
@@ -302,6 +304,12 @@
 		margin: 0;
 		padding: 0;
 		list-style: none;
+	}
+
+	/* A long tag is cut at the card's edge (its full text is the tooltip). */
+	.chips li {
+		min-width: 0;
+		max-width: 100%;
 	}
 
 	/* The IDs below the facts, in the same two columns. */

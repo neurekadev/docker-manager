@@ -111,7 +111,7 @@
 			hideHeader: true,
 			align: 'end',
 			width: '64px',
-			stack: 'actions'
+			stack: 'head'
 		}
 	];
 

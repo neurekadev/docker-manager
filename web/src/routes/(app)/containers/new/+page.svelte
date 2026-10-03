@@ -684,14 +684,16 @@
 				<div class="submit">
 					<Checkbox label="Start It After Creating" bind:checked={start} />
 					{#if blocker}<p class="blocker" aria-live="polite">{blocker}</p>{/if}
-					<Button variant="ghost" href={routes.containers()}>Cancel</Button>
-					<Button
-						type="submit"
-						variant="primary"
-						icon={Plus}
-						loading={busy}
-						disabled={!valid}>Create Container</Button
-					>
+					<div class="buttons">
+						<Button variant="ghost" href={routes.containers()}>Cancel</Button>
+						<Button
+							type="submit"
+							variant="primary"
+							icon={Plus}
+							loading={busy}
+							disabled={!valid}>Create Container</Button
+						>
+					</div>
 				</div>
 			</form>
 		{/if}
@@ -787,6 +789,13 @@
 
 	.submit :global(> :first-child) {
 		margin-right: auto;
+	}
+
+	/* Cancel and Create wrap together (on a phone: below the switch). */
+	.buttons {
+		display: flex;
+		gap: var(--space-3);
+		margin-left: auto;
 	}
 
 	@media (max-width: 767px) {
