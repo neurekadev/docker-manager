@@ -27,8 +27,10 @@ func resourceTypes() []ResourceType {
 			Minimal: "id, name, environmentId"},
 		{Key: TypeUpdatePolicy, Label: "Update Policies", Scopable: true, EnvironmentBound: true, Read: "update_policy.read",
 			Parents: []string{TypeStack, TypeContainer}, Minimal: "id, name, environmentId, target"},
-		{Key: TypeMaintenancePolicy, Label: "Maintenance Policies", Scopable: true, EnvironmentBound: true,
-			Read: "maintenance_policy.read", Minimal: "id, name, enabled"},
+		// The one maintenance setup (#238): instance-wide, never one
+		// resource of a rule.
+		{Key: TypeMaintenancePolicy, Label: "Maintenance", EnvironmentBound: true, Read: "maintenance_policy.read",
+			Minimal: "id, enabled"},
 		{Key: TypeBackupRepository, Label: "Backup Repositories", Scopable: true, Read: "backup_repository.read",
 			Minimal: "id, name, health"},
 		{Key: TypeBackupPolicy, Label: "Backup Policies", Scopable: true, Read: "backup_policy.read", Minimal: "id, name, enabled"},
@@ -223,13 +225,14 @@ func capabilities() []Capability {
 		adv(normal("update.run", TypeUpdatePolicy, "Apply Updates", "Pull updated images and recreate services or containers (no automatic rollback).", updateScope)),
 	)
 
-	// Maintenance (#14).
-	maintScope := res(TypeMaintenancePolicy)
+	// Maintenance (#14, #238): the setup covers every environment, so its
+	// settings need instance grants; previews and runs on one environment
+	// are one-off prunes there (maintenance's own need instance grants).
 	add(
-		adv(normal("maintenance_policy.read", TypeMaintenancePolicy, "View Maintenance Policies", "See prune policies and their last results.", maintScope)),
-		adv(normal("maintenance_policy.manage", TypeMaintenancePolicy, "Manage Maintenance Policies", "Create, edit and delete prune policies.", maintScope)),
-		adv(normal("maintenance.preview", TypeMaintenancePolicy, "Preview Prune", "List what a prune would remove.", maintScope)),
-		adv(high("maintenance.run", TypeMaintenancePolicy, "Run Prune", "Remove unused containers, images, networks, volumes and build cache.", maintScope)),
+		adv(normal("maintenance_policy.read", TypeMaintenancePolicy, "View Maintenance", "See the maintenance settings and the last results.", instanceOnly)),
+		adv(normal("maintenance_policy.manage", TypeMaintenancePolicy, "Manage Maintenance", "Change the maintenance settings: rules, schedule and environments left out.", instanceOnly)),
+		adv(normal("maintenance.preview", TypeMaintenancePolicy, "Preview Prune", "List what a prune would remove: maintenance's on all environments, a one-off prune's on one environment.", instEnv)),
+		adv(high("maintenance.run", TypeMaintenancePolicy, "Run Prune", "Remove unused containers, images, networks, volumes and build cache: run maintenance on all environments, or a one-off prune on one environment.", instEnv)),
 	)
 
 	// Schedules (#13).
@@ -314,7 +317,6 @@ func capabilities() []Capability {
 		ownerOnly("api_tokens.manage", "Manage Other Users' API Tokens", "List and revoke API tokens of every user."),
 		ownerOnly("manager.backup", "Back Up the Manager", "Back up Docker Manager's own state (database, keys)."),
 		ownerOnly("update_policy.manage_all", "Manage Updates Across All Environments", "Create and change an update policy covering current and future environments."),
-		ownerOnly("maintenance_policy.manage_all", "Manage Maintenance Across All Environments", "Create and change a maintenance policy covering current and future environments."),
 		ownerOnly("backup.import", "Import Backup Repositories", "Import an existing repository into a fresh manager (first-run recovery)."),
 		ownerOnly("system.restore", "Restore the Manager", "Restore Docker Manager itself from a manager backup."),
 		ownerOnly("manager.move", "Move the Manager", "Move Docker Manager to a new server: create and cancel move codes; a fresh manager receives the moved state."),

@@ -77,18 +77,16 @@ func TestMigrationCutOverFollowUps(t *testing.T) {
 	}
 	srcEnv.Engine.SetVolumeCreated("shop_dbdata", old)
 	srcEnv.Engine.SetNetworkCreated("shop_default", old)
-	var pol maintPolicy
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/maintenance-policies",
-		map[string]any{"environmentId": nas.env, "name": "Cleanup"}).json(t, &pol)
-	polPath := "/api/v1/maintenance-policies/" + pol.ID
-	owner.must(http.StatusOK, http.MethodPatch, polPath, map[string]any{"rules": []maintRule{
+	// Maintenance on the source environment only.
+	var ms maintSettings
+	owner.must(http.StatusOK, http.MethodGet, maintPath, nil).json(t, &ms)
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"excludeEnvironments": []string{cloud.env}, "rules": []maintRule{
 		{Category: "stopped_containers", Enabled: true, MinAgeHours: 720},
 		{Category: "unused_networks", Enabled: true, MinAgeHours: 720},
 		{Category: "anonymous_volumes", Enabled: true, MinAgeHours: 720, VolumeOptIn: true},
 		{Category: "named_volumes", Enabled: true, MinAgeHours: 720, VolumeOptIn: true},
-	}}, etag(pol.Revision)).json(t, &pol)
-	var pv maintPreview
-	owner.must(http.StatusOK, http.MethodPost, polPath+"/previews", nil).json(t, &pv)
+	}}, etag(ms.Revision)).json(t, &ms)
+	pv := onlyPreview(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/previews", nil))
 	protected := map[string]string{}
 	for _, c := range pv.Categories {
 		for _, it := range c.Items {
@@ -105,7 +103,7 @@ func TestMigrationCutOverFollowUps(t *testing.T) {
 			t.Fatalf("%s is not protected as the migrated source: %v", n, protected)
 		}
 	}
-	pj := e.runJob(jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, polPath+"/runs", map[string]any{"confirm": true})))
+	pj := e.runJob(runJobs(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true}))[0])
 	if pj.State != domain.JobSucceeded {
 		t.Fatalf("prune run %+v", pj)
 	}

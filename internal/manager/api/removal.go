@@ -30,7 +30,7 @@ type RemovalDependent struct {
 
 // RemovalDependentKind groups the dependent records of one kind.
 type RemovalDependentKind struct {
-	Kind string `json:"kind" enum:"stack,managed_container,update_policy,backup_policy,maintenance_policy,backup_repository,backup_set,registry_connection,build_definition,permission_rule,schedule,job"`
+	Kind string `json:"kind" enum:"stack,managed_container,update_policy,backup_policy,backup_repository,backup_set,registry_connection,build_definition,permission_rule,schedule,job"`
 	// OnArchive is what archiving does to records of this kind.
 	OnArchive string             `json:"onArchive" enum:"kept,paused,removed,interrupted" doc:"kept: kept and hidden with the environment, working again after a re-attach; paused: kept, scheduled runs are refused until a re-attach; removed: deleted with an audit record (permission rules scoped to the environment); interrupted: unfinished jobs end by the offline rules once the agent is disconnected."`
 	Count     int                `json:"count" doc:"Records of this kind the caller can see (#17: records hidden from the caller are not counted)."`
@@ -67,8 +67,8 @@ type removalPreviewOutput struct{ Body EnvironmentRemovalPreview }
 var removalOnArchive = map[string]string{
 	domain.DependentStack: domain.OnArchiveKept, domain.DependentManagedContainer: domain.OnArchiveKept,
 	domain.DependentUpdatePolicy: domain.OnArchivePaused, domain.DependentBackupPolicy: domain.OnArchivePaused,
-	domain.DependentMaintenancePolicy: domain.OnArchivePaused, domain.DependentBackupRepository: domain.OnArchiveKept,
-	domain.DependentBackupSet: domain.OnArchiveKept, domain.DependentRegistryConnection: domain.OnArchiveKept,
+	domain.DependentBackupRepository: domain.OnArchiveKept,
+	domain.DependentBackupSet:        domain.OnArchiveKept, domain.DependentRegistryConnection: domain.OnArchiveKept,
 	domain.DependentBuildDefinition: domain.OnArchiveKept, domain.DependentPermissionRule: domain.OnArchiveRemoved,
 	domain.DependentSchedule: domain.OnArchivePaused, domain.DependentJob: domain.OnArchiveInterrupted,
 }

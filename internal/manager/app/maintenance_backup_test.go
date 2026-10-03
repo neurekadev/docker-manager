@@ -49,15 +49,12 @@ func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var mp maintPolicy
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/maintenance-policies",
-		map[string]any{"environmentId": a.env, "name": "Volumes"}).json(t, &mp)
-	base := "/api/v1/maintenance-policies/" + mp.ID
-	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"rules": []maintRule{
+	var st maintSettings
+	owner.must(http.StatusOK, http.MethodGet, maintPath, nil).json(t, &st)
+	owner.must(http.StatusOK, http.MethodPatch, maintPath, map[string]any{"rules": []maintRule{
 		{Category: "named_volumes", Enabled: true, MinAgeHours: 720, VolumeOptIn: true},
-	}}, etag(mp.Revision)).json(t, &mp)
-	var pv maintPreview
-	owner.must(http.StatusOK, http.MethodPost, base+"/previews", nil).json(t, &pv)
+	}}, etag(st.Revision)).json(t, &st)
+	pv := onlyPreview(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/previews", nil))
 	reasons := map[string]string{}
 	for _, c := range pv.Categories {
 		for _, it := range c.Items {
@@ -75,7 +72,7 @@ func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 	if _, ok := reasons["remove olddata"]; !ok {
 		t.Errorf("the unreferenced old volume is not a candidate: %v", reasons)
 	}
-	j := e.runJob(jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, base+"/runs", map[string]any{"confirm": true})))
+	j := e.runJob(runJobs(t, owner.must(http.StatusOK, http.MethodPost, maintPath+"/runs", map[string]any{"confirm": true}))[0])
 	if j.State != domain.JobSucceeded {
 		t.Fatalf("prune %+v", j)
 	}

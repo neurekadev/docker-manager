@@ -1,13 +1,13 @@
-// Docker maintenance (#14): presentation and editing helpers of prune
-// policies. Pure functions (model.spec.ts); the API validates rules.
+// Docker maintenance (#14, #238): presentation and editing helpers of the
+// maintenance settings and one-off prunes. Pure functions (model.spec.ts);
+// the API validates rules.
 import type { Schema } from '$lib/api/client';
 import type { BadgeTone } from '$lib/ui/Badge.svelte';
 import { describeCron } from '$lib/ui/cron';
 import { formatBytes } from '$lib/ui/format';
 
-export type MaintenancePolicy = Schema<'MaintenancePolicy'>;
+export type MaintenanceSettings = Schema<'MaintenanceSettings'>;
 export type MaintenanceRule = Schema<'MaintenanceRule'>;
-export type MaintenanceDefaults = Schema<'MaintenanceDefaults'>;
 export type CategoryInfo = Schema<'PruneCategoryInfo'>;
 export type PrunePreview = Schema<'PrunePreview'>;
 export type PruneItem = Schema<'PruneItemView'>;
@@ -24,7 +24,7 @@ export const CATEGORIES: Category[] = [
 	'named_volumes'
 ];
 
-/** Fallback labels when the defaults (with the manager's labels) are not readable. */
+/** Fallback labels when the settings (with the manager's labels) are not readable. */
 export const CATEGORY_LABELS: Record<Category, string> = {
 	stopped_containers: 'Stopped Containers',
 	dangling_images: 'Dangling Images',
@@ -91,12 +91,12 @@ export function ruleSummary(r: MaintenanceRule, info?: CategoryInfo[]): string {
 	return parts.join(', ');
 }
 
-export function enabledRules(p: Pick<MaintenancePolicy, 'rules'>): MaintenanceRule[] {
+export function enabledRules(p: Pick<MaintenanceSettings, 'rules'>): MaintenanceRule[] {
 	return normalizeRules(p.rules).filter((r) => r.enabled);
 }
 
 /** "3 of 7 rules on" (the rule count comes from normalizeRules, one per category). */
-export function rulesOnText(p: Pick<MaintenancePolicy, 'rules'>): string {
+export function rulesOnText(p: Pick<MaintenanceSettings, 'rules'>): string {
 	return `${enabledRules(p).length} of ${normalizeRules(p.rules).length} rules on`;
 }
 
@@ -146,38 +146,14 @@ export function runSummaryText(s: Schema<'MaintenanceRunSummary'>): string {
 	return parts.join(', ');
 }
 
-/** The categories a policy's turned-on rules clean, e.g. "Stopped containers and unused images". */
-export function rulesText(p: Pick<MaintenancePolicy, 'rules'>, info?: CategoryInfo[]): string {
+/** The categories the turned-on rules clean, e.g. "Stopped containers and unused images". */
+export function rulesText(p: Pick<MaintenanceSettings, 'rules'>, info?: CategoryInfo[]): string {
 	const labels = enabledRules(p).map((r, i) =>
 		categoryPhrase(categoryLabel(r.category, info), i === 0)
 	);
 	if (!labels.length) return 'Every rule is off';
 	if (labels.length === 1) return labels[0];
 	return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
-}
-
-/** Totals of the policies' last runs (Maintenance KPIs). */
-export function lastRunTotals(policies: Pick<MaintenancePolicy, 'lastRun'>[]): {
-	removed: number;
-	bytes: number;
-	failed: number;
-	latest?: Schema<'MaintenanceRunSummary'>;
-} {
-	const out = {
-		removed: 0,
-		bytes: 0,
-		failed: 0,
-		latest: undefined as Schema<'MaintenanceRunSummary'> | undefined
-	};
-	for (const p of policies) {
-		const r = p.lastRun;
-		if (!r) continue;
-		out.removed += r.removed;
-		out.bytes += r.bytesReclaimed;
-		out.failed += r.failed;
-		if (!out.latest || r.finishedAt > out.latest.finishedAt) out.latest = r;
-	}
-	return out;
 }
 
 /** What a resource page's one-off prune cleans (#14). */
@@ -262,21 +238,39 @@ export function manualPruneProblem(rules: MaintenanceRule[], forPreview: boolean
 }
 
 /**
- * The status sentence of a maintenance policy page: when it runs and what
- * its last run did. `viewer` is the viewer's zone (tests).
+ * The status sentence of the Maintenance page: when it runs and what its
+ * last run did. `viewer` is the viewer's zone (tests).
  */
 export function maintenanceStatusText(
-	p: Pick<MaintenancePolicy, 'rules' | 'schedule' | 'lastRun'>,
+	p: Pick<MaintenanceSettings, 'rules' | 'schedule' | 'lastRun' | 'enabled'>,
 	viewer?: string
 ): string {
-	if (!enabledRules(p).length) return 'Every rule is off: this policy removes nothing.';
+	if (!enabledRules(p).length) return 'Every rule is off: maintenance removes nothing.';
 	const s = p.schedule;
-	const words = s ? describeCron(s.cron, s.timeZone, viewer) : '';
+	const words = describeCron(s.cron, s.timeZone, viewer);
 	const when =
-		s?.enabled && !s.invalidReason && words
+		p.enabled && !s.invalidReason && words
 			? `Runs ${/^[A-Z][a-z]/.test(words) ? words[0].toLowerCase() + words.slice(1) : words}.`
 			: 'Runs only when you start it.';
 	const run = p.lastRun ? runSummaryText(p.lastRun) : '';
 	const last = run ? ` Last run: ${run[0].toLowerCase()}${run.slice(1)}.` : ' Not run yet.';
 	return when + last;
+}
+
+/**
+ * Which environments maintenance covers, for labels: "All Environments",
+ * or "2 of 3 Environments" when some are left out (counted among the
+ * environments that are not archived when they are known).
+ */
+export function coveredEnvironmentsText(
+	p: Pick<MaintenanceSettings, 'excludeEnvironments'>,
+	environments?: { id: string; status: string }[]
+): string {
+	if (!p.excludeEnvironments.length) return 'All Environments';
+	const n = p.excludeEnvironments.length;
+	if (!environments) return `All but ${n} ${n === 1 ? 'Environment' : 'Environments'}`;
+	const active = environments.filter((e) => e.status !== 'archived');
+	const covered = active.filter((e) => !p.excludeEnvironments.includes(e.id)).length;
+	if (covered === active.length) return 'All Environments';
+	return `${covered} of ${active.length} ${active.length === 1 ? 'Environment' : 'Environments'}`;
 }

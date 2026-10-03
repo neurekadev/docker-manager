@@ -40,7 +40,7 @@
 		type PrunePreview,
 		type PruneTarget
 	} from './model';
-	import { maintenanceDefaultsQuery } from './queries';
+	import { maintenanceSettingsQuery } from './queries';
 
 	let { target, scope }: { target: PruneTarget; scope: EnvironmentScope } = $props();
 
@@ -83,9 +83,14 @@
 		shown && !shown.active && isTerminal(shown.job?.state) ? shown.job : undefined
 	);
 
-	// Category descriptions and Engine limitations (needs settings.read;
-	// the editor falls back to plain labels without them).
-	const defaults = createQuery(() => ({ ...maintenanceDefaultsQuery(), enabled: open }));
+	// Category descriptions and Engine limitations (they come with the
+	// maintenance settings, maintenance_policy.read; the editor falls back
+	// to plain labels without them).
+	const settings = createQuery(() => ({
+		...maintenanceSettingsQuery(),
+		enabled: open,
+		retry: false
+	}));
 
 	function start() {
 		env =
@@ -201,7 +206,7 @@
 				</p>
 			{/if}
 		{:else if preview}
-			<PrunePreviewView {preview} info={defaults.data?.categories} />
+			<PrunePreviewView {preview} info={settings.data?.categories} />
 			{#if runProblem}
 				<Notice tone="warn" title="Not Ready to Prune" live="status">{runProblem}</Notice>
 			{/if}
@@ -214,11 +219,11 @@
 					onchange={() => (preview = null)}
 				/>
 			{/if}
-			{#if open && defaults.isPending && !defaults.isError}
+			{#if open && settings.isPending && !settings.isError}
 				<Skeleton lines={3} height="20px" />
 			{:else}
 				{#each rules as rule (rule.category)}
-					<RuleEditor {rule} info={defaults.data?.categories} onchange={setRule} />
+					<RuleEditor {rule} info={settings.data?.categories} onchange={setRule} />
 				{/each}
 				{#if !rules.some((r) => r.enabled)}
 					<p class="muted">Turn on at least one rule to preview the prune.</p>

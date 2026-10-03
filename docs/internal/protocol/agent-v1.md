@@ -902,8 +902,9 @@ Types in `internal/protocol/maintenance.go`; semantics in
 - `maintenance.preview` input and `prune.run` job input: `PruneInput
   {policyId, rules: [{category, minAgeSeconds, includeLabels, excludeLabels,
   exclude, containerStates, buildCacheAll, keepStorageBytes}], protect:
-  {projects, images, volumes, networks: [{ref, reason}]}}` — only the
-  policy's enabled rules (categories `stopped_containers`,
+  {projects, images, volumes, networks: [{ref, reason}]}}` — `policyId` is
+  the maintenance setup's ID (or `manual-<uuid>` for a one-off prune); only
+  the enabled rules (categories `stopped_containers`,
   `dangling_images`, `unused_images`, `unused_networks`,
   `anonymous_volumes`, `named_volumes`, `build_cache`; at most one rule
   each) and what the manager protects (Docker Manager stacks' Compose projects

@@ -105,7 +105,7 @@ func policyPath(n domain.Notification) string {
 	case n.Kind == domain.NotifyBackup && n.Facts["jobKind"] == "backup.run":
 		return "/backups/policies/" + url.PathEscape(id)
 	case n.Kind == domain.NotifyPrune:
-		return "/maintenance/" + url.PathEscape(id)
+		return "/maintenance"
 	}
 	return ""
 }
@@ -344,9 +344,8 @@ var pruneGroups = []struct {
 // in total and per kind of object.
 func pruneNotification(ctx context.Context, db bun.IDB, j domain.Job, f map[string]string) (domain.NotificationOutcome, string) {
 	if j.PolicyID != "" {
-		if p, err := store.GetMaintenancePolicy(ctx, db, j.PolicyID); err == nil {
-			f["policy"], f["policyId"] = p.Name, j.PolicyID
-		}
+		// Maintenance's run (one-off prunes have no policy).
+		f["policy"], f["policyId"] = "Maintenance", j.PolicyID
 	}
 	var out protocol.PruneRunOutput
 	known := json.Unmarshal(j.ResultOutput, &out) == nil && j.ResultOutput != nil

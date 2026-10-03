@@ -72,7 +72,7 @@ describe('schedules model (#13)', () => {
 
 	it('links each kind to where its policies are edited and words the state', () => {
 		expect(policyHref('prune')).toBe('/maintenance');
-		expect(policyHref('prune', 'mp-1')).toBe('/maintenance/mp-1');
+		expect(policyHref('prune', 'mp-1')).toBe('/maintenance');
 		expect(policyHref('update_run')).toBe('/updates');
 		expect(policyHref('update_check', 'up-1')).toBe('/updates/up-1');
 		expect(policyHref('backup', 'bp-1')).toBe('/backups/policies/bp-1');

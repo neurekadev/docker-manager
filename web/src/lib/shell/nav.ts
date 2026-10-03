@@ -176,7 +176,9 @@ export const NAV_ITEMS: NavItem[] = [
 		href: routes.maintenance(),
 		icon: RESOURCE_ICONS.maintenancePolicy.icon,
 		group: 'operations',
-		visible: (a) => hasAny(a, 'maintenance', 'maintenance_policy.')
+		// The settings need maintenance_policy.read on all environments;
+		// one-off prunes are on the resource pages.
+		visible: (a) => hasAny(a, 'maintenance_policy.read')
 	},
 	{
 		id: 'jobs',

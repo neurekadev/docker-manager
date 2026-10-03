@@ -17,8 +17,8 @@ import (
 
 // Instance settings (#4): the editable display name plus a read-only view
 // of the deployment configuration. The sign-in policy (/settings/security,
-// owner only), schedule defaults (/schedule-defaults) and maintenance
-// defaults (/maintenance-defaults) are separate revisioned resources.
+// owner only) and schedule defaults (/schedule-defaults) are separate
+// revisioned resources.
 
 // SettingsInstanceID is the audit target ID (type settings) of the instance
 // settings.
@@ -122,7 +122,7 @@ func registerSettings(a huma.API, deps Deps) {
 			Summary: "Get the instance settings",
 			Description: "The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, " +
 				"trusted proxies, stream heartbeat, file manager limits, metrics endpoint). The sign-in policy is GET /api/v1/settings/security " +
-				"(owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.",
+				"(owner only) and schedule defaults GET /api/v1/schedule-defaults.",
 			Tags: []string{tagSettings}, Errors: []int{http.StatusForbidden},
 		},
 		Capability: CapSettingsRead, Scope: ScopeInstance,

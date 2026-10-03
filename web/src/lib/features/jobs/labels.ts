@@ -105,7 +105,7 @@ const TARGET_NOUNS: Record<string, string> = {
 	path: 'path',
 	destination_path: 'destination',
 	build_definition: 'build',
-	maintenance_policy: 'prune policy'
+	maintenance_policy: 'maintenance'
 };
 
 /** Resolves IDs to names where the page knows them (stacks, policies). */
@@ -194,11 +194,7 @@ export function jobHeadline(
  * (`policyId`), else the section where policies of the kind are managed.
  */
 export function policyPage(kind: string, policyId?: string): { href: string; label: string } {
-	if (kind.startsWith('prune.'))
-		return {
-			href: policyId ? routes.maintenancePolicy(policyId) : routes.maintenance(),
-			label: 'Maintenance Policy'
-		};
+	if (kind.startsWith('prune.')) return { href: routes.maintenance(), label: 'Maintenance' };
 	if (kind.startsWith('update.'))
 		return {
 			href: policyId ? routes.updatePolicy(policyId) : routes.updates(),
@@ -387,7 +383,7 @@ export function targetHref(
 		case 'network':
 			return env ? routes.network(env, t.id) : undefined;
 		case 'maintenance_policy':
-			return routes.maintenancePolicy(t.id);
+			return routes.maintenance();
 		default:
 			return undefined;
 	}

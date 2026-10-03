@@ -22,7 +22,7 @@ or `replace:<agentId>` while the old agent is still active.
    | kind | on archive |
    | --- | --- |
    | `stack`, `managed_container` (saved recreate specification) | kept, hidden with the host |
-   | `update_policy`, `backup_policy`, `maintenance_policy`, `schedule` | kept; scheduled runs are refused (`environment_archived`) or skip this host until it is re-attached |
+   | `update_policy`, `backup_policy`, `schedule` | kept; scheduled runs are refused (`environment_archived`) or skip this host until it is re-attached |
    | `backup_repository` (local on the host, or holding its backups), `backup_set` | kept; snapshots stay restorable after a re-attach (#10, #24) |
    | `registry_connection` bound to the host or its stacks, `build_definition` (Git binding) | kept |
    | `permission_rule` scoped to the host (environment-scoped rules and rules on its containers, images, volumes and networks) | **removed**, audited as `environment.permission_rules_remove` with the removed rules |
