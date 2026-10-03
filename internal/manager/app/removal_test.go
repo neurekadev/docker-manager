@@ -85,14 +85,20 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if got := b.runJob(js[0].ID); got.State != domain.JobSucceeded {
 		t.Fatalf("backup: %s %s", got.State, got.ErrorMessage)
 	}
-	// The run's manager state, so the run finishes and the next one starts.
-	ms, _ := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"manager.backup"}})
-	if len(ms) != 1 {
-		t.Fatalf("manager state backups: %d", len(ms))
+	// Every run also backs up the manager state; it finishes so the next
+	// run starts.
+	runManagerState := func() {
+		t.Helper()
+		ms, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{"manager.backup"},
+			States: []domain.JobState{domain.JobQueued}})
+		if err != nil || len(ms) != 1 {
+			t.Fatalf("manager state backups: %d %v", len(ms), err)
+		}
+		if got := b.runJob(ms[0].ID); got.State != domain.JobSucceeded {
+			t.Fatalf("manager state backup: %s %s", got.State, got.ErrorMessage)
+		}
 	}
-	if got := b.runJob(ms[0].ID); got.State != domain.JobSucceeded {
-		t.Fatalf("manager state backup: %s %s", got.State, got.ErrorMessage)
-	}
+	runManagerState()
 	// Rules of another user: two name the environment, one the stack.
 	sam, _, _ := b.newUser(owner, "sam")
 	samRules := "/api/v1/users/" + b.userID("sam") + "/permissions"
@@ -170,6 +176,7 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if n := backupRuns(); n != 1 {
 		t.Fatalf("scheduled backups while archived: %d", n)
 	}
+	runManagerState()
 
 	// Re-attach the same Engine: the environment, its stack and its
 	// policies come back.

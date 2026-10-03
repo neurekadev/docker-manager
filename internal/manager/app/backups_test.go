@@ -1091,6 +1091,9 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	if got := b.runJob(first.Jobs[0].ID); got.State != domain.JobPartial {
 		t.Fatalf("job state %s", got.State)
 	}
+	if got := b.runJob(first.Jobs[1].ID); got.State != domain.JobSucceeded {
+		t.Fatalf("manager state job %s %s", got.State, got.ErrorMessage)
+	}
 	var set struct {
 		Set struct {
 			State string `json:"state"`
@@ -1102,7 +1105,8 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 		} `json:"items"`
 	}
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups?setId="+first.Set.ID, nil).json(t, &list)
-	if len(list.Items) != 1 {
+	// The volume that was there and the manager state.
+	if len(list.Items) != 2 {
 		t.Fatalf("backups of the partial set %+v", list.Items)
 	}
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups/"+list.Items[0].ID, nil).json(t, &set)
