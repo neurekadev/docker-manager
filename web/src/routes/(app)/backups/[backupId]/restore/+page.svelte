@@ -11,6 +11,7 @@
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import FolderOpen from '@lucide/svelte/icons/folder-open';
 	import History from '@lucide/svelte/icons/history';
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import { isTerminal } from '$lib/api/job-states';
@@ -43,7 +44,7 @@
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
-	import ContentsBrowser from '$lib/features/backups/ContentsBrowser.svelte';
+	import FilePicker from '$lib/features/common/FilePicker.svelte';
 	import RestorePreviewView from '$lib/features/backups/RestorePreviewView.svelte';
 	import {
 		itemName,
@@ -52,6 +53,7 @@
 		type RestorePreview
 	} from '$lib/features/backups/model';
 	import { restoreMatch } from '$lib/features/backups/jobs';
+	import { backupPlaces, backupSource, PICKER_LIMIT } from '$lib/features/backups/picker';
 	import { backupQuery } from '$lib/features/backups/queries';
 	import { toggleVolume, volumeChoiceError } from '$lib/features/backups/restore';
 
@@ -74,6 +76,7 @@
 	let scope = $state<'stack' | 'volume' | 'file'>('stack');
 	let volumes = $state<string[]>([]);
 	let filePath = $state('');
+	let choosing = $state(false);
 	let shutdown = $state(true);
 	let preview = $state<RestorePreview | null>(null);
 	let confirmText = $state('');
@@ -337,22 +340,41 @@
 											</p>{/if}
 									{/if}
 									{#if scope === 'file'}
-										<TextField
-											label="File in the Backup"
-											mono
-											bind:value={filePath}
-											placeholder="/…/compose.yaml"
-											description="Pick it below or paste its path."
-										/>
-										{#if has(b, 'backup.contents.read')}
-											<div class="browser">
-												<ContentsBrowser
-													backupId={b.id}
-													canDownload={false}
-													onrestorefile={(p) => (filePath = p)}
+										<div class="file">
+											<TextField
+												label="File in the Backup"
+												mono
+												bind:value={filePath}
+												placeholder="/…/compose.yaml"
+											/>
+											{#if has(b, 'backup.contents.read')}
+												<Button
+													icon={FolderOpen}
+													onclick={() => (choosing = true)}
+													>Choose File</Button
+												>
+												<FilePicker
+													bind:open={choosing}
+													title="Choose a File to Restore"
+													description="Backup of {formatDateTime(
+														b.snapshotTime
+													)}."
+													places={backupPlaces(b)}
+													source={backupSource(b.id)}
+													value={[filePath]}
+													unchoosableReason={(e) =>
+														e.type === 'symlink'
+															? 'A link cannot be restored on its own. Choose the file it points to.'
+															: undefined}
+													confirmLabel="Choose File"
+													truncatedHint="Only the first {PICKER_LIMIT} entries are listed. Paste the file's path instead."
+													onpick={([p]) => {
+														filePath = p;
+														preview = null;
+													}}
 												/>
-											</div>
-										{/if}
+											{/if}
+										</div>
 									{/if}
 									<Switch
 										label="Stop Containers While Restoring"
@@ -468,8 +490,15 @@
 		font-size: var(--text-caption);
 	}
 
-	.browser {
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
+	.file {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: var(--space-2);
+	}
+
+	.file > :global(:first-child) {
+		flex: 1 1 280px;
+		min-width: 0;
 	}
 </style>
