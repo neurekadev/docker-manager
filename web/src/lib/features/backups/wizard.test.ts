@@ -40,8 +40,9 @@ const settings: BackupSettings = {
 	updatedAt: '2026-09-27T00:00:00Z'
 };
 
-/** Stubs the API; returns the writes (method and body) in order. */
-function stubApi() {
+/** Stubs the API; returns the writes (method and body) in order. A write
+ * answers `reject` when given. */
+function stubApi(reject?: () => Response) {
 	const writes: { method: string; path: string; body: unknown; ifMatch: string | null }[] = [];
 	vi.stubGlobal(
 		'fetch',
@@ -64,7 +65,7 @@ function stubApi() {
 					body,
 					ifMatch: input.headers.get('If-Match')
 				});
-				return json({ ...settings, ...(body as object), revision: 4 });
+				return reject?.() ?? json({ ...settings, ...(body as object), revision: 4 });
 			}
 			switch (url.pathname) {
 				case '/api/v1/environments':
@@ -111,10 +112,14 @@ describe('BackupSettingsDialog (#246)', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const writes = stubApi();
 		renderDialog({ settings });
-		for (const section of ['Repositories', 'What to Back Up', 'Schedule', 'Retention'])
+		for (const section of ['What to Back Up', 'Where and When'])
 			expect(
 				await screen.findByRole('heading', { name: section, level: 3 })
 			).toBeInTheDocument();
+		for (const group of ['Repositories', 'Schedule', 'Retention'])
+			expect(screen.getByRole('group', { name: group })).toBeInTheDocument();
+		// The schedule shows only while backups run automatically.
+		expect(screen.queryByRole('group', { name: 'Backup Schedule' })).toBeNull();
 		// Rules no preset matches open as Custom with their fields.
 		expect(screen.getByRole('radio', { name: /^Custom/ })).toBeChecked();
 		expect(screen.getByRole('spinbutton', { name: /^Daily/ })).toHaveValue(7);
@@ -127,6 +132,7 @@ describe('BackupSettingsDialog (#246)', () => {
 			/^NAS/
 		);
 		await user.click(screen.getByRole('switch', { name: /Back Up Automatically/ }));
+		expect(screen.getByRole('group', { name: 'Backup Schedule' })).toBeInTheDocument();
 		expect(writes).toEqual([]);
 		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await vi.waitFor(() => expect(writes).toHaveLength(1));
@@ -149,10 +155,44 @@ describe('BackupSettingsDialog (#246)', () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const writes = stubApi();
 		renderDialog({ settings: { ...settings, primaryRepositoryId: '' } });
-		await screen.findByRole('heading', { name: 'Repositories', level: 3 });
+		await screen.findByRole('heading', { name: 'Where and When', level: 3 });
 		await user.click(screen.getByRole('switch', { name: /Back Up Automatically/ }));
 		expect(await screen.findByText(/Choose a Primary repository/)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 		expect(writes).toEqual([]);
 	});
+
+	it('saves with backups off and an emptied schedule, keeping the saved one', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const writes = stubApi();
+		renderDialog({ settings: { ...settings, schedule: { cron: '', timeZone: 'UTC' } } });
+		await screen.findByRole('heading', { name: 'Where and When', level: 3 });
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+		await vi.waitFor(() => expect(writes).toHaveLength(1));
+		expect(writes[0].body).not.toHaveProperty('schedule');
+	});
+
+	// The schedule field shows only its preview's errors, never the server's.
+	it.each([false, true])(
+		'shows a schedule error the server returns (on: %s)',
+		async (enabled) => {
+			const user = userEvent.setup({ pointerEventsCheck: 0 });
+			stubApi(() =>
+				json(
+					{
+						code: 'validation_failed',
+						message: 'invalid request',
+						requestId: 'r',
+						retryable: false,
+						details: [{ field: 'body.schedule.cron', message: 'Use five fields.' }]
+					},
+					422
+				)
+			);
+			renderDialog({ settings: { ...settings, enabled } });
+			await screen.findByRole('heading', { name: 'Where and When', level: 3 });
+			await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+			expect(await screen.findByRole('alert')).toHaveTextContent('Use five fields.');
+		}
+	);
 });
