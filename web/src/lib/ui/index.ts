@@ -42,7 +42,7 @@ export type { TabLink } from './TabNav.svelte';
 export { default as Breadcrumbs } from './Breadcrumbs.svelte';
 export type { Crumb } from './Breadcrumbs.svelte';
 export { default as DiffView } from './DiffView.svelte';
-export { diffText, diffLines, splitLines, type DiffResult, type DiffLine } from './diff';
+export { diffText, diffLines, hunkLines, splitLines, type DiffResult, type DiffLine } from './diff';
 export { default as DragHandle } from './DragHandle.svelte';
 export { Sortable, type SortableOptions } from './sortable.svelte';
 export { moveItem, dropIndex, shiftOf, keyTarget, movedMessage } from './sortable';

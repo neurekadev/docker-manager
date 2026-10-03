@@ -230,7 +230,6 @@ describe('conflicts', () => {
 describe('diff', () => {
 	it('computes a minimal line diff with numbered rows and context', () => {
 		const d = diffLines('a\nb\nc\nd\n', 'a\nB\nc\nd\ne\n');
-		expect(d.tooLarge).toBe(false);
 		expect(d.added).toBe(2);
 		expect(d.removed).toBe(1);
 		expect(d.ops.map((o) => `${o.type[0]}${o.text}`)).toEqual([
@@ -253,11 +252,13 @@ describe('diff', () => {
 		expect(diffLines('same\n', 'same\n').added).toBe(0);
 	});
 
-	it('gives up instead of freezing on huge differences', () => {
-		const a = Array.from({ length: 300 }, (_, i) => `a${i}`).join('\n');
-		const b = Array.from({ length: 300 }, (_, i) => `b${i}`).join('\n');
-		expect(diffLines(a, b, 100).tooLarge).toBe(true);
-		expect(diffLines(a, b).tooLarge).toBe(false);
+	it('compares huge differences instead of giving up', () => {
+		const a = Array.from({ length: 6000 }, (_, i) => `a${i}`);
+		const b = a.map((l, i) => (i % 500 === 0 ? l : `b${i}`));
+		const d = diffLines(a.join('\r\n'), b.join('\r'));
+		expect(d.ops.filter((o) => o.type !== 'add').map((o) => o.text)).toEqual(a);
+		expect(d.ops.filter((o) => o.type !== 'remove').map((o) => o.text)).toEqual(b);
+		expect(d.ops[0]).toEqual({ type: 'equal', text: 'a0' });
 	});
 });
 

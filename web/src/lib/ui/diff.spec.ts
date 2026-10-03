@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffLines, diffText, splitLines } from './diff';
+import { diffLines, diffText, hunkLines, splitLines } from './diff';
 
 // Rebuilds both sides from an edit script: the script is only correct if
 // it reproduces the old text (same + del) and the new one (same + add).
@@ -43,6 +43,53 @@ describe('diff', () => {
 			const out = diffLines(a, b);
 			expect(sides(out)).toEqual({ before: a, after: b });
 		}
+	});
+
+	it('reproduces both texts for longer edits that need several bisections', () => {
+		let seed = 7;
+		const rnd = (n: number) => {
+			seed = (seed * 1103515245 + 12345) % 2147483648;
+			return seed % n;
+		};
+		for (let run = 0; run < 50; run++) {
+			const a = Array.from({ length: 50 + rnd(300) }, () => `line ${rnd(40)}`);
+			const b = a.flatMap((l) => {
+				const r = rnd(10);
+				if (r === 0) return [];
+				if (r === 1) return [l, `new ${rnd(40)}`];
+				if (r === 2) return [`changed ${rnd(40)}`];
+				return [l];
+			});
+			expect(sides(diffLines(a, b))).toEqual({ before: a, after: b });
+		}
+	});
+
+	it('keeps the edit minimal across separate changes', () => {
+		const a = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+		const b = ['a', 'x', 'c', 'd', 'e', 'g', 'y'];
+		const out = diffLines(a, b);
+		// b → x, f removed, y added: 4 edits around the common a c d e g.
+		expect(out.filter((l) => l.kind !== 'same')).toHaveLength(4);
+		expect(sides(out)).toEqual({ before: a, after: b });
+	});
+
+	it('stays correct when a large rewrite exceeds the search bound', () => {
+		const a = Array.from({ length: 12000 }, (_, i) => `old ${i}`);
+		const b = a.map((l, i) => (i % 1000 === 0 ? l : `new ${i}`));
+		const out = diffLines(a, b);
+		expect(sides(out)).toEqual({ before: a, after: b });
+		expect(out[0]).toEqual({ kind: 'same', text: 'old 0', oldNo: 1, newNo: 1 });
+	});
+
+	it('regroups an edit script without diffing again', () => {
+		const before = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n');
+		const after = before.replace('line 15', 'line fifteen');
+		const script = diffLines(splitLines(before), splitLines(after));
+		expect(hunkLines(script, 3)).toEqual(diffText(before, after, 3));
+		const all = hunkLines(script, Number.MAX_SAFE_INTEGER);
+		expect(all.hunks).toHaveLength(1);
+		expect(all.hunks[0].lines).toHaveLength(31);
+		expect(all.skippedAfter).toBe(0);
 	});
 
 	it('groups changes into hunks with context and counts the hidden lines', () => {

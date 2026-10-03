@@ -13,7 +13,7 @@
 
 	let { open = $bindable(false), name, disk, buffer }: Props = $props();
 	const diff = $derived(open ? diffLines(disk, buffer) : null);
-	const rows = $derived(diff && !diff.tooLarge ? diffRows(diff.ops) : []);
+	const rows = $derived(diff ? diffRows(diff.ops) : []);
 </script>
 
 <Dialog
@@ -22,12 +22,7 @@
 	description="Lines marked − are on disk now; lines marked + are your unsaved edits."
 	size="lg"
 >
-	{#if diff?.tooLarge}
-		<p class="note">
-			The two versions differ in too many lines to compare here. Save your edits under another
-			name with Save As…, then compare the files.
-		</p>
-	{:else if diff && rows.length === 0}
+	{#if diff && rows.length === 0}
 		<p class="note">Your edits and the version on disk are identical.</p>
 	{:else if diff}
 		<p class="summary num">
