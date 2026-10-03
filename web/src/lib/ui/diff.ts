@@ -182,11 +182,15 @@ export function hunkLines(lines: DiffLine[], context = 3): DiffResult {
 	let added = 0;
 	let removed = 0;
 	const keep = new Uint8Array(lines.length);
+	// Marks each line once: a context range starts where the last one ended.
+	let keptTo = 0;
 	lines.forEach((l, i) => {
 		if (l.kind === 'same') return;
 		if (l.kind === 'add') added++;
 		else removed++;
-		keep.fill(1, Math.max(0, i - context), Math.min(lines.length, i + context + 1));
+		const to = Math.min(lines.length, i + context + 1);
+		keep.fill(1, Math.max(keptTo, i - context), to);
+		keptTo = Math.max(keptTo, to);
 	});
 	const hunks: DiffHunk[] = [];
 	let skipped = 0;

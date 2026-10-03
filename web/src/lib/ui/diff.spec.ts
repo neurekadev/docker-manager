@@ -79,6 +79,9 @@ describe('diff', () => {
 		const out = diffLines(a, b);
 		expect(sides(out)).toEqual({ before: a, after: b });
 		expect(out[0]).toEqual({ kind: 'same', text: 'old 0', oldNo: 1, newNo: 1 });
+		const all = hunkLines(out, Number.MAX_SAFE_INTEGER);
+		expect(all.hunks).toHaveLength(1);
+		expect(all.hunks[0].lines).toHaveLength(out.length);
 	});
 
 	it('regroups an edit script without diffing again', () => {
