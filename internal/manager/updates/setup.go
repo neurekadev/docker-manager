@@ -523,7 +523,7 @@ func (s *Service) CheckSetup(ctx context.Context, principal authz.Principal, key
 	return s.enqueueAll(ctx, principal, key, reqs)
 }
 
-// rollbackTimeout bounds cancelling the jobs of a start that failed
+// rollbackTimeout bounds cancelling one job of a start that failed
 // part way.
 const rollbackTimeout = 10 * time.Second
 
@@ -541,11 +541,14 @@ func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key
 		}
 		if err != nil {
 			// The request may be cancelled already: cancel what was
-			// queued regardless, within a bound of its own.
-			cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
-			defer cancel()
+			// queued regardless, each within a bound of its own so one
+			// slow cancel does not skip the others.
+			base := context.WithoutCancel(ctx)
 			for _, j := range out {
-				if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
+				cctx, cancel := context.WithTimeout(base, rollbackTimeout)
+				_, cerr := s.opts.Jobs.Cancel(cctx, j.ID)
+				cancel()
+				if cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
 					s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
 				}
 			}
