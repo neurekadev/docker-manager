@@ -310,7 +310,8 @@ an in-root symlink by another process in between is followed.
 roots): the stack's Files tab (`/stacks/{id}/files`) and the volume file
 manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
 
-- **Browsing:** breadcrumbs, sortable columns (name with folders first,
+- **Browsing:** breadcrumbs (one line that scrolls sideways on a deep
+  path, the current folder in view), sortable columns (name with folders first,
   size, modified; permissions and owners in the details view, off by
   default), filter (`q`), hidden (dot) files shown by default with a
   toggle to hide them, pages of 200 loaded as the list scrolls, rows

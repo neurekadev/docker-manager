@@ -552,8 +552,11 @@
 		background: var(--surface-panel);
 	}
 
+	/* The bar and the status line never shrink: on a short pane the
+	   document gives up the room, so the tools never overlap. */
 	.bar {
 		display: flex;
+		flex: none;
 		align-items: center;
 		gap: var(--space-2);
 		min-height: 48px;
@@ -662,6 +665,7 @@
 
 	.status {
 		display: flex;
+		flex: none;
 		align-items: center;
 		gap: var(--space-4);
 		min-height: 30px;

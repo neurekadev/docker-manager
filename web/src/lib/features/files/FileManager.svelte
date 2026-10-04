@@ -878,6 +878,21 @@
 	);
 	const cutSet = $derived(fileClipboard.cutPaths(key));
 	const pathCrumbs = $derived(crumbs(dir, rootLabel));
+	// A deep path stays on one line and scrolls sideways; each folder opens
+	// with its own name in view, also after the pill or its crumbs change
+	// size (rotation, the pill moving to its own row, the font loading).
+	let crumbList = $state<HTMLOListElement | null>(null);
+	$effect(() => {
+		void pathCrumbs;
+		const el = crumbList;
+		if (!el) return;
+		const toEnd = () => (el.scrollLeft = el.scrollWidth);
+		toEnd();
+		const ro = new ResizeObserver(toEnd);
+		ro.observe(el);
+		if (el.lastElementChild) ro.observe(el.lastElementChild);
+		return () => ro.disconnect();
+	});
 	const denied = $derived(!can('read'));
 	const listError = $derived(listing.error);
 </script>
@@ -903,7 +918,7 @@
 		<header class="head">
 			<h2 class="title">{title}</h2>
 			<nav class="crumbs" aria-label="Folder Path">
-				<ol role="list">
+				<ol role="list" bind:this={crumbList}>
 					{#each pathCrumbs as c, i (c.path)}
 						<li>
 							{#if i < pathCrumbs.length - 1}
@@ -1416,11 +1431,14 @@
 	}
 
 	.offline {
+		flex: none;
 		padding: var(--space-3) var(--space-3) 0;
 	}
 
+	/* Never shrinks: the list and the editor below give up the room. */
 	.head {
 		display: flex;
+		flex: none;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2) var(--space-3);
@@ -1436,18 +1454,25 @@
 		font-weight: var(--weight-semibold);
 	}
 
+	/* Beside the title while 240 px are left, else on a row of its own. */
 	.crumbs {
+		display: flex;
+		flex: 1 1 240px;
 		min-width: 0;
-		margin-right: auto;
 	}
 
-	/* The path pill beside the title (the mockup's "/opt/stacks/silo"). */
+	/* The path pill beside the title (the mockup's "/opt/stacks/silo"): one
+	   line that scrolls sideways when the path is deep. */
 	.crumbs ol {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
 		gap: 0;
+		min-width: 0;
 		margin: 0;
+		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
+		scrollbar-width: thin;
 		padding: 1px 4px;
 		border-radius: var(--radius-sm);
 		background: var(--surface-raised);
@@ -1461,8 +1486,16 @@
 		gap: var(--space-1);
 	}
 
+	/* A mouse needs the scrollbar to reach the parents; touch swipes. */
+	@media (pointer: coarse) {
+		.crumbs ol {
+			scrollbar-width: none;
+		}
+	}
+
 	.crumbs li {
 		display: flex;
+		flex: none;
 		align-items: center;
 		gap: 2px;
 	}
@@ -1473,6 +1506,7 @@
 		border-radius: var(--radius-sm);
 		color: var(--text-muted);
 		text-decoration: none;
+		white-space: nowrap;
 	}
 
 	.crumbs a:hover {
