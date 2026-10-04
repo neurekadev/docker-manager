@@ -15,7 +15,7 @@ import type { EditorLanguage } from '$lib/lazy';
 import { criticalWork } from '$lib/live';
 import { formatBytes } from '$lib/ui/format';
 import type { FileContent, FileEntry } from './api';
-import { detectLanguage } from './language';
+import { detectLanguage, type LanguageChoice } from './language';
 import { basename } from './paths';
 
 export type TabStatus = 'loading' | 'ready' | 'binary' | 'error';
@@ -31,7 +31,8 @@ export interface Conflict {
 
 export interface EditorTab {
 	path: string;
-	language: EditorLanguage;
+	/** Auto Detect (the default) or the language the user picked. */
+	language: LanguageChoice;
 	status: TabStatus;
 	/** Text and ETag last loaded from (or saved to) disk. */
 	base: string;
@@ -75,6 +76,14 @@ export function truncatedTitle(editMaxBytes: number | undefined, size: number): 
 	return editMaxBytes
 		? `Showing the first ${formatBytes(editMaxBytes)} of ${formatBytes(size)}`
 		: `Showing the start of ${formatBytes(size)}`;
+}
+
+/**
+ * The language a tab is highlighted with: the one the user picked, else
+ * what Auto Detect finds in its path and text (a shebang, a modeline, …).
+ */
+export function tabLanguage(t: Pick<EditorTab, 'path' | 'language' | 'buffer'>): EditorLanguage {
+	return t.language === 'auto' ? detectLanguage(t.path, t.buffer) : t.language;
 }
 
 export function isDirty(t: EditorTab): boolean {
@@ -128,7 +137,7 @@ export class EditorSession {
 				...this.tabs,
 				{
 					path,
-					language: detectLanguage(path),
+					language: 'auto',
 					status: 'loading',
 					base: '',
 					baseEtag: null,
@@ -165,7 +174,7 @@ export class EditorSession {
 		this.active = null;
 	}
 
-	setLanguage(path: string, language: EditorLanguage) {
+	setLanguage(path: string, language: LanguageChoice) {
 		this.#patch(path, { language });
 	}
 
@@ -341,7 +350,7 @@ export class EditorSession {
 			{
 				...t,
 				path: newPath,
-				language: detectLanguage(newPath),
+				language: 'auto',
 				status: 'ready',
 				base: text,
 				baseEtag: etag,

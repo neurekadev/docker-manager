@@ -11,7 +11,12 @@
 	import type { CodeEditorHandle } from '$lib/lazy';
 	import { Button, CodeEditor, EmptyState, ErrorState, Notice, formatBytes } from '$lib/ui';
 	import { contentQuery, type FilesApi } from './api';
-	import { truncatedTitle, type EditorSession, type EditorTab } from './editor.svelte';
+	import {
+		tabLanguage,
+		truncatedTitle,
+		type EditorSession,
+		type EditorTab
+	} from './editor.svelte';
 	import { imageType } from './language';
 	import MarkdownView from './MarkdownView.svelte';
 	import { basename } from './paths';
@@ -160,7 +165,7 @@
 			<CodeEditor
 				value={tab.buffer}
 				label="{path} Editor"
-				language={tab.language}
+				language={tabLanguage(tab)}
 				readOnly={readOnly || tab.truncated}
 				height="100%"
 				{wrap}

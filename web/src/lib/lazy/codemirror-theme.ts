@@ -97,7 +97,16 @@ const highlight = HighlightStyle.define([
 	{ tag: [t.comment, t.lineComment, t.blockComment], color: c.comment, fontStyle: 'italic' },
 	{ tag: [t.punctuation, t.separator, t.bracket, t.operator], color: c.punctuation },
 	{ tag: [t.keyword, t.typeName, t.labelName], color: c.keyword },
-	{ tag: t.invalid, color: c.url }
+	{ tag: t.invalid, color: c.url },
+	// Markdown and diffs.
+	{ tag: t.heading, color: c.textStrong, fontWeight: '600' },
+	{ tag: t.emphasis, fontStyle: 'italic' },
+	{ tag: t.strong, fontWeight: '600' },
+	{ tag: t.strikethrough, textDecoration: 'line-through' },
+	{ tag: [t.monospace, t.quote], color: c.string },
+	{ tag: t.inserted, color: c.inserted },
+	{ tag: t.deleted, color: c.deleted },
+	{ tag: t.meta, color: c.muted }
 ]);
 
 /** The theme and highlighting as one extension. */

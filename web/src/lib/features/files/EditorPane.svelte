@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The file editor (#15, the mockup's editor card): tabs of open files,
-	// language select, Format (YAML/JSON; its menu: Minify for JSON,
+	// language select (Auto Detect first), Format (YAML/JSON; its menu: Minify for JSON,
 	// Beautify), line wrap, Search, a Markdown
 	// preview toggle and Save. Saving a Compose source of a stack records a
 	// new revision and deploys nothing (#7, #25 Q1): the definition is then
@@ -20,7 +20,7 @@
 	import TextWrap from '@lucide/svelte/icons/text-wrap';
 	import X from '@lucide/svelte/icons/x';
 	import type { Schema } from '$lib/api/client';
-	import { EDITOR_LANGUAGES, formatDocument, minifyJson, type CodeEditorHandle } from '$lib/lazy';
+	import { formatDocument, minifyJson, type CodeEditorHandle } from '$lib/lazy';
 	import { liveKeys } from '$lib/live/keys';
 	import {
 		Button,
@@ -38,9 +38,15 @@
 	import { liveScopeOf, type FilesApi } from './api';
 	import CompareDialog from './CompareDialog.svelte';
 	import { definitionRefusal, isDefinitionFile, type StackFiles } from './definition';
-	import { isDirty, SaveBlockedError, type EditorSession, type EditorTab } from './editor.svelte';
+	import {
+		isDirty,
+		SaveBlockedError,
+		tabLanguage,
+		type EditorSession,
+		type EditorTab
+	} from './editor.svelte';
 	import EditorDocument from './EditorDocument.svelte';
-	import { formattable, LANGUAGE_LABELS, minifiable } from './language';
+	import { detectLanguage, formattable, languageOptions, minifiable } from './language';
 	import NameDialog from './NameDialog.svelte';
 	import { basename, join, parent } from './paths';
 
@@ -74,14 +80,17 @@
 	let previews = $state<Record<string, boolean>>({});
 	const tab = $derived(session.current);
 	const handle = $derived(tab ? (editors[tab.path] ?? null) : null);
-	const isMarkdown = $derived(tab?.language === 'markdown');
+	// The language highlighting uses (Auto Detect's or the picked one).
+	const language = $derived(tab ? tabLanguage(tab) : 'text');
+	const isMarkdown = $derived(language === 'markdown');
 	const isDefinition = (path: string) =>
 		!!stack && files.scope.kind === 'stack' && isDefinitionFile(path, stack.configFiles);
 	const definition = $derived(!!tab && isDefinition(tab.path));
 	const readOnly = $derived(!canWrite);
 	let wrap = $state(false);
 
-	const languageOptions = EDITOR_LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_LABELS[l] }));
+	// Auto Detect names what it finds; only a picked language shows itself.
+	const options = $derived(languageOptions(tab ? detectLanguage(tab.path, tab.buffer) : 'text'));
 
 	function refetchContent(path: string) {
 		void qc.invalidateQueries({
@@ -184,12 +193,12 @@
 	async function reformat(how: Reformat) {
 		const t = tab;
 		const h = handle;
-		if (!t || !h || !formattable(t.language)) return;
-		if (how === 'minify' && !minifiable(t.language)) return;
+		const l = t ? tabLanguage(t) : 'text';
+		if (!t || !h || !formattable(l)) return;
+		if (how === 'minify' && !minifiable(l)) return;
 		try {
 			const text = h.text();
-			const out =
-				how === 'minify' ? minifyJson(text) : await formatDocument(text, t.language);
+			const out = how === 'minify' ? minifyJson(text) : await formatDocument(text, l);
 			if (out !== h.text()) h.setText(out);
 		} catch (e) {
 			const [done, again] = REFORMAT_VERBS[how];
@@ -204,7 +213,7 @@
 			? [
 					{
 						label: 'Minify',
-						disabled: !minifiable(tab.language),
+						disabled: !minifiable(language),
 						onSelect: () => void reformat('minify')
 					},
 					{ label: 'Beautify', onSelect: () => void reformat('beautify') }
@@ -317,7 +326,7 @@
 					<Select
 						label="Language"
 						hideLabel
-						options={languageOptions}
+						{options}
 						value={tab.language}
 						onchange={(v) => session.setLanguage(tab.path, v as EditorTab['language'])}
 					/>
@@ -333,7 +342,7 @@
 						>{previews[tab.path] ? 'Edit' : 'Preview'}</Button
 					>
 				{/if}
-				{#if formattable(tab.language) && canWrite && !tab.truncated}
+				{#if formattable(language) && canWrite && !tab.truncated}
 					<SplitButton
 						label="Format"
 						menuLabel="More Format Options"
@@ -622,7 +631,7 @@
 	}
 
 	.lang {
-		width: 150px;
+		width: 200px;
 	}
 
 	.lang :global(.dy-input) {
@@ -708,7 +717,7 @@
 		}
 
 		.lang {
-			width: 124px;
+			width: 150px;
 		}
 
 		.hint {

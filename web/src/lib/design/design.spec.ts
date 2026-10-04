@@ -89,6 +89,9 @@ describe('design tokens (#22 brief)', () => {
 		expect(EDITOR_COLORS.key).toBe(token('code-key'));
 		expect(EDITOR_COLORS.string).toBe(token('code-string'));
 		expect(EDITOR_COLORS.selection).toBe(token('code-selection'));
+		expect(EDITOR_COLORS.inserted).toBe(token('ok'));
+		expect(EDITOR_COLORS.deleted).toBe(token('danger'));
+		expect(EDITOR_COLORS.textStrong).toBe(token('text-strong'));
 		expect(TERMINAL_THEME.background).toBe(token('code-bg'));
 		expect(CHART_COLORS.grid).toBe(token('border-subtle'));
 		expect(dockerManagerEchartsTheme.color[0]).toBe(token('info'));

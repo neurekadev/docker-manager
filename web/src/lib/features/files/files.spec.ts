@@ -1,6 +1,6 @@
 // File manager logic (#15): paths, selection semantics, keyboard mapping and
-// the typing guard, per-item conflict grouping, diff, Markdown safety,
-// language detection and Compose sources.
+// the typing guard, per-item conflict grouping, diff, language detection
+// and Compose sources (Markdown: markdown.spec.ts).
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { groupRequests, ConflictQueue, decisionSummary, type ConflictItem } from './conflicts';
@@ -10,7 +10,6 @@ import { directoriesOf } from './dropped';
 import { modeString, ownerText, ownerTitle } from './icons';
 import { commandFor, isTypingTarget } from './keyboard';
 import { archiveFormat, detectLanguage, formattable, minifiable } from './language';
-import { parseInline, parseMarkdown, safeHref } from './markdown';
 import * as p from './paths';
 import * as sel from './selection';
 import { nextSort, sortColumn, sortDirection } from './sort';
@@ -259,42 +258,6 @@ describe('diff', () => {
 		expect(d.ops.filter((o) => o.type !== 'add').map((o) => o.text)).toEqual(a);
 		expect(d.ops.filter((o) => o.type !== 'remove').map((o) => o.text)).toEqual(b);
 		expect(d.ops[0]).toEqual({ type: 'equal', text: 'a0' });
-	});
-});
-
-describe('markdown preview', () => {
-	it('parses the supported blocks and inlines', () => {
-		const blocks = parseMarkdown(
-			'# Silo\n\nPersonal **cloud** and *media*.\n\n- one\n- `two`\n\n1. first\n2. second\n\n```yaml\na: 1\n```\n\n> quote\n\n---\n'
-		);
-		expect(blocks.map((b) => b.type)).toEqual([
-			'heading',
-			'paragraph',
-			'list',
-			'list',
-			'code',
-			'quote',
-			'rule'
-		]);
-		expect(blocks[4]).toEqual({ type: 'code', language: 'yaml', text: 'a: 1' });
-		expect(parseInline('a **b** `c`')).toEqual([
-			{ type: 'text', text: 'a ' },
-			{ type: 'strong', children: [{ type: 'text', text: 'b' }] },
-			{ type: 'text', text: ' ' },
-			{ type: 'code', text: 'c' }
-		]);
-	});
-
-	it('never produces script links or raw HTML', () => {
-		expect(safeHref('javascript:alert(1)')).toBeNull();
-		expect(safeHref('https://docs.docker.com')).toBe('https://docs.docker.com');
-		const nodes = parseInline('[x](javascript:alert(1))');
-		expect(nodes.some((n) => n.type === 'link')).toBe(false);
-		expect(nodes[0]).toEqual({ type: 'text', text: 'x' });
-		// HTML stays text (rendered as text nodes by MarkdownView).
-		expect(parseInline('<img src=x onerror=alert(1)>')).toEqual([
-			{ type: 'text', text: '<img src=x onerror=alert(1)>' }
-		]);
 	});
 });
 

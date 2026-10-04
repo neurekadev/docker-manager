@@ -2,8 +2,9 @@
 // Post-build checks for web/build/app (run after `npm run build` by
 // scripts/check.sh and the build job of .github/workflows/CI.yaml):
 //
-//   1. Lazy loading: CodeMirror, ECharts and xterm.js modules live only in
-//      chunks that no entry chunk imports statically (dynamic import only).
+//   1. Lazy loading: CodeMirror, ECharts, xterm.js, YAML and marked modules
+//      live only in chunks that no entry chunk imports statically (dynamic
+//      import only).
 //   2. PWA: the service worker's injected precache list contains only
 //      versioned static files and the SPA shell (never /api or /agent), and
 //      covers every content-hashed build file; the manifest is installable
@@ -30,7 +31,9 @@ const LAZY = {
 	echarts: /node_modules\/(echarts|zrender|tslib)\//,
 	xterm: /node_modules\/@xterm\//,
 	// YAML (#15): loaded by the editor's formatDocument() and parseYaml() only.
-	yaml: /node_modules\/yaml\//
+	yaml: /node_modules\/yaml\//,
+	// The editor's Markdown preview: loaded by lexMarkdown() only.
+	marked: /node_modules\/marked\//
 };
 const TRACKED = {
 	...LAZY,
