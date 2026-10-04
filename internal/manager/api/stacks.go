@@ -813,7 +813,7 @@ type deployStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		Pull                string   `json:"pull,omitempty" example:"missing" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first."`
+		Pull                string   `json:"pull,omitempty" example:"missing" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first (with build, the build also pulls newer base images)."`
 		Build               bool     `json:"build,omitempty" doc:"Rebuild every build section (default: only missing images are built)."`
 		ForceRecreate       bool     `json:"forceRecreate,omitempty"`
 		RemoveOrphans       bool     `json:"removeOrphans,omitempty" doc:"Also remove the containers of services that are no longer in the Compose file (orphans, reported as drift unexpected_service). A deploy without it keeps them."`

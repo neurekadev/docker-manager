@@ -407,6 +407,23 @@ func TestDeployBuildsMissingImagesThroughTheSamePath(t *testing.T) {
 			t.Errorf("the redeploy runs %s, not the rebuilt %s", i.ImageID, e.eng.imageOf("shop-web"))
 		}
 	}
+	// The base images stay as they are on the host unless the deploy asks
+	// for newer ones (Pull, Build & Deploy).
+	for _, s := range e.eng.buildSpecs()[2:] {
+		if s.Pull {
+			t.Errorf("deploy with build pulled base images: %+v", s)
+		}
+	}
+	r = e.run(jobspec.StackDeploy, protocol.StackJobInput{Build: true, PullBase: true}, nil, nil)
+	specs := e.eng.buildSpecs()
+	if r.res.Outcome != jobexec.OutcomeSucceeded || len(specs) != 6 {
+		t.Fatalf("deploy with pullBase: %+v %d", r.res, len(specs))
+	}
+	for _, s := range specs[4:] {
+		if !s.Pull {
+			t.Errorf("deploy with pullBase did not pull base images: %+v", s)
+		}
+	}
 }
 
 func TestStackBuildCancelsCleanlyMidBuild(t *testing.T) {

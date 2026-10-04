@@ -88,7 +88,8 @@ func (s *Service) enqueue(ctx context.Context, p authz.Principal, st domain.Stac
 
 // Deploy enqueues a stack.deploy job. The agent deploys the definition on
 // disk at the time the job runs and reports it; the finish hook records it
-// as the applied revision.
+// as the applied revision. With pull "always" and a build, the build also
+// pulls newer base images, so the deploy refreshes every image.
 func (s *Service) Deploy(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackDeployOptions) (domain.Job, error) {
 	switch o.Pull {
 	case "", "missing", "always":
@@ -103,7 +104,7 @@ func (s *Service) Deploy(ctx context.Context, p authz.Principal, st domain.Stack
 		return domain.Job{}, err
 	}
 	return s.enqueue(ctx, p, st, jobspec.StackDeploy, r, protocol.StackJobInput{Pull: o.Pull, Build: o.Build,
-		ForceRecreate: o.ForceRecreate, RemoveOrphans: o.RemoveOrphans, BuildTimeoutSeconds: o.BuildTimeoutSeconds,
+		PullBase: o.Build && o.Pull == "always", ForceRecreate: o.ForceRecreate, RemoveOrphans: o.RemoveOrphans, BuildTimeoutSeconds: o.BuildTimeoutSeconds,
 		RegistryConnections: regs})
 }
 

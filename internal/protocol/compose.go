@@ -477,7 +477,8 @@ type StackJobInput struct {
 	ForceRecreate bool `json:"forceRecreate,omitempty"`
 	RemoveOrphans bool `json:"removeOrphans,omitempty"`
 	// NoCache builds without the build cache and PullBase pulls newer base
-	// images (stack.build, #33).
+	// images (stack.build, #33; PullBase also on a deploy with Pull
+	// "always" and Build).
 	NoCache  bool `json:"noCache,omitempty"`
 	PullBase bool `json:"pullBase,omitempty"`
 	// BuildTimeoutSeconds bounds the builds of a stack.build or a deploy's

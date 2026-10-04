@@ -97,7 +97,10 @@ agent's steps:
 3. `build_images`: builds the images of build sections that are missing
    on the host (every build section with `build: true`) through the
    Engine's BuildKit, with streamed progress and cancellation, exactly
-   like `stack.build` (builds.md, #33).
+   like `stack.build` (builds.md, #33). Base images on the host are used
+   as they are (unless the section sets `pull: true`); a deploy with both
+   `pull: always` and `build: true` sets `pullBase`, so the build pulls
+   newer base images too.
 4. `apply`: snapshot the definition files, **load the project from exactly
    those bytes**, re-read the files and retry when they changed meanwhile,
    then Compose `up` (dependency order and `depends_on` conditions by the

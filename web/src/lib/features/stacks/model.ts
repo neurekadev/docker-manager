@@ -669,7 +669,7 @@ export function pendingUpdates(images: Schema<'StackImageStatus'>[] | undefined)
 
 /** The kind of deploy a button or dialog started. */
 export interface DeployChoice {
-	/** Pull every image first ("Pull"). */
+	/** Pull every image first ("Pull"); with build, also newer base images. */
 	pull?: boolean;
 	/** Rebuild every build section. */
 	build?: boolean;
@@ -679,6 +679,7 @@ export interface DeployChoice {
 
 /** What runs while a deploy job is in the tray, e.g. "Pull Silo". */
 export function deployTitle(title: string, c: DeployChoice): string {
+	if (c.build && c.pull) return `Pull, Build and Deploy ${title}`;
 	if (c.build) return `Build and Deploy ${title}`;
 	if (c.pull) return `Pull and Deploy ${title}`;
 	if (c.removeOrphans) return `Deploy ${title} and Remove Orphans`;
@@ -687,6 +688,7 @@ export function deployTitle(title: string, c: DeployChoice): string {
 
 /** The failure toast title of a deploy. */
 export function deployFailure(title: string, c: DeployChoice): string {
+	if (c.build && c.pull) return `${title} was not pulled, built and deployed`;
 	return c.pull ? `${title} was not pulled and deployed` : `${title} was not deployed`;
 }
 
@@ -707,12 +709,13 @@ export function deploySuccess(
 			? `Removed the orphaned containers of ${title}; everything else already ran its definition`
 			: `Deployed ${title} and removed its orphaned containers`;
 	if (!unchanged) {
+		if (c.build && c.pull) return `Pulled newer images, built and deployed ${title}`;
 		if (c.build) return `Built and deployed ${title}`;
 		if (c.pull) return `Pulled newer images and redeployed ${title}`;
 		return `Deployed ${title}`;
 	}
-	if (c.pull) return `Nothing to update: ${title} already runs the newest images`;
 	if (c.build) return `Built the images of ${title}; nothing needed to be redeployed`;
+	if (c.pull) return `Nothing to update: ${title} already runs the newest images`;
 	return `Nothing to deploy: ${title} already runs its definition`;
 }
 

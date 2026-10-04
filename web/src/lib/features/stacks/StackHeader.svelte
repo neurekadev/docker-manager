@@ -5,9 +5,10 @@
 	// the stack's links below it (full view, when it has any), the rename
 	// pencil right of the name (the name turns into a field in place:
 	// RenameStackInline, which renames at once) and the actions: the Deploy
-	// split button (the one primary: Deploy, Build & Deploy for stacks that
-	// build an image, Pull & Deploy — which says when newer images are
-	// available — and Cleanup Orphans & Deploy), the lifecycle split button
+	// split button (the one primary; its menu groups Deploy and Pull & Deploy,
+	// which says when newer images are available, then Build & Deploy and
+	// Pull, Build & Deploy for stacks that build an image, then Cleanup
+	// Orphans & Deploy, with separators between), the lifecycle split button
 	// (LifecycleButton: Stop while anything runs, Start when stopped; its
 	// menu has Start, Restart and Stop) and overflow (Migrate with more than
 	// one environment, Edit Details, Save as Template, Delete). Each action
@@ -30,6 +31,7 @@
 	import Hammer from '@lucide/svelte/icons/hammer';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Rocket from '@lucide/svelte/icons/rocket';
 	import Eraser from '@lucide/svelte/icons/eraser';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -294,24 +296,33 @@
 	}
 
 	const deployItems = $derived.by((): MenuEntry[] => {
-		const items: MenuEntry[] = [{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) }];
+		// Three groups: plain deploys, rebuilds (stacks with a build section)
+		// and the cleanup.
+		const items: MenuEntry[] = [
+			{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) },
+			// Pulls every image first, then deploys (what the former Update did).
+			{ label: 'Pull & Deploy', icon: Download, onSelect: () => deploy({ pull: true }) }
+		];
 		if (hasBuild)
-			items.push({
-				label: 'Build & Deploy',
-				icon: Hammer,
-				onSelect: () => deploy({ build: true })
-			});
-		// Pulls every image first, then deploys (what the former Update did).
-		items.push({
-			label: 'Pull & Deploy',
-			icon: Download,
-			onSelect: () => deploy({ pull: true })
-		});
-		items.push({
-			label: 'Cleanup Orphans & Deploy',
-			icon: Eraser,
-			onSelect: () => removeOrphans.request()
-		});
+			items.push(
+				{ separator: true },
+				// Rebuilds with the base images already on the host.
+				{ label: 'Build & Deploy', icon: Hammer, onSelect: () => deploy({ build: true }) },
+				// Pulls every image and newer base images, rebuilds, then deploys.
+				{
+					label: 'Pull, Build & Deploy',
+					icon: RefreshCw,
+					onSelect: () => deploy({ pull: true, build: true })
+				}
+			);
+		items.push(
+			{ separator: true },
+			{
+				label: 'Cleanup Orphans & Deploy',
+				icon: Eraser,
+				onSelect: () => removeOrphans.request()
+			}
+		);
 		return items;
 	});
 

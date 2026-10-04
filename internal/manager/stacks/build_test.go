@@ -223,6 +223,29 @@ func TestStackBuildRegistryConnections(t *testing.T) {
 	}
 }
 
+func TestDeployPullsBaseImagesOnlyWithPullAndBuild(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", buildYAML, "API_KEY=x\n")
+	for _, c := range []struct {
+		o    domain.StackDeployOptions
+		want bool
+	}{
+		{domain.StackDeployOptions{}, false},
+		{domain.StackDeployOptions{Build: true}, false},
+		{domain.StackDeployOptions{Pull: "always"}, false},
+		{domain.StackDeployOptions{Pull: "missing", Build: true}, false},
+		{domain.StackDeployOptions{Pull: "always", Build: true}, true},
+	} {
+		j, err := h.svc.Deploy(h.ctx, alice, st, domain.StackJobRequest{}, c.o)
+		if err != nil {
+			t.Fatalf("%+v: %v", c.o, err)
+		}
+		if in := stackInput(t, j); in.PullBase != c.want || in.Pull != c.o.Pull || in.Build != c.o.Build {
+			t.Errorf("%+v: input %+v, want pullBase %v", c.o, in, c.want)
+		}
+	}
+}
+
 func TestStackBuildCancelsMidBuildThroughTheJobEngine(t *testing.T) {
 	h := newHarness(t)
 	st := h.create("shop", buildYAML, "API_KEY=x\n")
