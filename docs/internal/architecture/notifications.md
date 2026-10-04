@@ -3,7 +3,8 @@
 Owner-administered outgoing destinations for Docker Manager's messages:
 Discord, Slack, Microsoft Teams, Telegram, email (SMTP), ntfy, Gotify,
 Pushover, Matrix, a generic webhook, or any other Shoutrrr service
-([ADR 0004](../adr/0004-notification-library.md)). This feature stores and
+([ADR 0004](../adr/0004-notification-library.md)), and the built-in
+**In App** channel: the web UI's bell (below). This feature stores and
 tests channels and their subscriptions and renders each message for its
 service; alerts and notifications ([alerts.md](alerts.md)) send through
 them with `notify.Service.Send`. Binding rules:
@@ -20,8 +21,10 @@ them with `notify.Service.Send`. Binding rules:
 ## Model
 
 Migrations `20260930090000_create_notification_channels`,
-`20261001090000_notification_events` (subscriptions) and
-`20261002120000_restore_notifications` (restores split from backups):
+`20261001090000_notification_events` (subscriptions),
+`20261002120000_restore_notifications` (restores split from backups) and
+`20261003090000_in_app_channel` (the In App channel; both tables rebuilt
+for the address CHECK):
 
 - `notification_channels`: display name (unique, case-insensitive
   `name_key`), `service` (the URL's Shoutrrr service: `discord`, `smtp`,
@@ -32,6 +35,12 @@ Migrations `20260930090000_create_notification_channels`,
   (`secret_sealed`, context `notification_channels/<id>/url`), its keyed
   fingerprint, version and change time, `last_result` (`''`, `ok` or an
   error class), `last_attempt_at`, `last_success_at`, `revision`, times.
+  Every row has an address (`secret_sealed` not empty, version at least
+  1) except the In App channel's (`00000000-0000-0000-0000-000000000000`,
+  `domain.InAppChannelID`; name "In App", service `app`, `secret_sealed`
+  empty, version 0). The migration added it with every outcome of every
+  kind for every environment, and renamed a channel already named "In
+  App" to "In App (Renamed)"; down removes it.
 - `notification_channel_environments(channel_id, environment_id)`: the
   environments of a channel without `all_environments`. Both foreign keys
   cascade; a restricted channel that loses all its rows sends no
@@ -73,6 +82,26 @@ other outcomes stay, and `resolved` maps to no `success` (that would
 send every successful run). The down migration drops `restore` and
 leaves the carried outcomes (they can't be told from chosen ones).
 
+## The In App channel
+
+The bell in the web UI as a channel: always there, listed first (its ID
+sorts before every UUIDv7), never sending anything out. The owner edits
+what it shows like any channel's subscription (kinds and outcomes,
+environments, Enabled); it keeps its name and has no address, so it can't
+be renamed, given an address (422), deleted, tested or revealed (409
+`notification_channel_built_in`), and `Send` refuses it. `alerts.write`
+skips it and the dispatcher drops any message for it.
+
+What the bell lists is read with `inApp` (`list-alerts`,
+`list-notifications`): `NotificationChannel.ShowsAlert` keeps an alert
+the channel `Wants` with the kind and outcome of its firing message
+(`SentAs`); a resolved one only when the problem is gone (resolution
+`resolved`) and the channel also wants the resolution's outcome, as a
+resolution only goes to a channel that was told. `ShowsNotification`
+keeps a notification it `Wants`. A disabled channel shows nothing.
+Changing the subscription changes the bell at once (also for what
+happened before).
+
 ## Flows
 
 - **Create** (owner, recent step-up): name, address, subscription. The
@@ -107,7 +136,7 @@ leaves the carried outcomes (they can't be told from chosen ones).
   checks again before it sends (a deleted, disabled or unsubscribed
   channel's messages are dropped).
 - **Delete** (owner, If-Match): removes the channel, its filter rows and
-  its address.
+  its address (not the In App channel: 409).
 
 ## Delivery
 
@@ -151,30 +180,45 @@ over the error's words (SMTP); the error text never leaves the function.
 | `create-notification-channel` | `POST /notification-channels` | step-up; 409 `notification_channel_name_taken`; 422 `body.address` |
 | `get-notification-channel` | `GET /notification-channels/{channelId}` | ETag |
 | `update-notification-channel` | `PATCH /notification-channels/{channelId}` | If-Match; step-up for `address` |
-| `delete-notification-channel` | `DELETE /notification-channels/{channelId}` | If-Match |
-| `get-notification-channel-address` | `GET /notification-channels/{channelId}/address` | step-up; audited |
-| `create-notification-channel-test` | `POST /notification-channels/{channelId}/tests` | 429 `notification_test_rate_limited` |
+| `delete-notification-channel` | `DELETE /notification-channels/{channelId}` | If-Match; 409 `notification_channel_built_in` |
+| `get-notification-channel-address` | `GET /notification-channels/{channelId}/address` | step-up; audited; 409 `notification_channel_built_in` |
+| `create-notification-channel-test` | `POST /notification-channels/{channelId}/tests` | 429 `notification_test_rate_limited`; 409 `notification_channel_built_in` |
 
 All are `capability: owner` (the handler checks the owner-only catalog key
-`notification_channel.manage`), cookie sessions only. Changes are
-published as `resource.changed` (`notification_channel`, topic
-`settings`, visible to the owner).
+`notification_channel.manage`), cookie sessions only. A channel carries
+`builtIn` (the In App channel). Changes are published as
+`resource.changed` (`notification_channel`, topic `settings`, visible to
+the owner; the In App channel's to everyone, as it changes their bell).
 
 ## Web
 
 **Settings → Notifications** (owner only): a table (name with the channel
 tile and "service, target", status Working / Failing with the reason as
 tooltip / Not Tested / Off, what it sends, last sent) with the row menu
-Send Test, Edit, Delete, and the **Alert Thresholds** card (the defaults
-and per-environment overrides, `PUT /alert-settings`,
-[alerts.md](alerts.md#evaluators)). One dialog adds and edits: the
-service picker (icons from `serviceIcons.ts`), the service's friendly
-fields (secrets as `PasswordField`), the stored address masked until
-**Show Address**, "What to Send" (a row per kind, grouped Hosts and Jobs:
-a master checkbox and the kind's outcomes beside it; nothing ticked
-blocks Save; environments when there is a choice: "All Environments" is
-an explicit choice, the ticks list the active environments plus any
-archived or removed one the filter names, an emptied selection blocks
-Save) and **Enabled**. `services.ts` builds the Shoutrrr URL from the
+Send Test, Edit, Delete; the In App channel is always the first row
+(`channelRows`, whatever the sort), "Built In, the Notices bell", status
+On / Off, no last sent and only Edit. Below it **What to Send**
+(`SubscriptionMatrix.svelte`): every channel's subscription on one card,
+a column per channel (`channelColumns`: In App first, then by name;
+columns of channels that are off dimmed) and a row per kind (grouped
+Hosts and Jobs, its icon and (i)) with a row per outcome; each cell is a
+bell toggle (`BellToggle.svelte`, `aria-pressed`: empty off, filled on,
+half filled and `mixed` for a kind with some outcomes). A kind's bell
+turns every outcome on, or all off when all are on. Changes are a draft
+(`withDraft`: only channels that differ) behind a sticky bar (n channels
+changed, **Discard**, **Save Changes**: one `PATCH` of `events` per
+changed channel, If-Match); a channel left with nothing to send blocks
+the save. Then the **Alert Thresholds** card (the defaults and
+per-environment overrides, `PUT /alert-settings`,
+[alerts.md](alerts.md#evaluators)). One dialog adds and edits a
+channel's destination: the service picker (icons from
+`serviceIcons.ts`), the service's friendly fields (secrets as
+`PasswordField`), the stored address masked until **Show Address**, the
+environments when there is a choice ("All Environments" is an explicit
+choice, the ticks list the active environments plus any archived or
+removed one the filter names, an emptied selection blocks Save) and
+**Enabled**; a new channel sends every event. For the In App channel the
+dialog shows what it is instead of the name, service and address, and
+saves only the environments and Enabled. `services.ts` builds the Shoutrrr URL from the
 fields and parses it back (exact round trip, unknown query options kept,
 unreadable shapes edited as the raw URL).

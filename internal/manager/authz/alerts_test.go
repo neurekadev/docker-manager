@@ -144,3 +144,18 @@ func TestNotificationsFollowTheirJob(t *testing.T) {
 		t.Fatal("a bare notification event reached a non-owner")
 	}
 }
+
+// A change of the In App channel reaches everyone (it changes their
+// bell); other channels stay the owner's.
+func TestInAppChannelChangesReachEveryone(t *testing.T) {
+	ctx := context.Background()
+	member := authz.For(ctx, authztest.Only("u"), principal("u"))
+	inApp := events.Event{Type: events.ResourceChanged, ResourceType: "notification_channel", ResourceID: domain.InAppChannelID}
+	other := events.Event{Type: events.ResourceChanged, ResourceType: "notification_channel", ResourceID: "c-1"}
+	if !authz.EventVisible(member, inApp) || authz.EventVisible(member, other) {
+		t.Fatal("channel changes")
+	}
+	if !authz.EventVisible(authz.For(ctx, authztest.New().Owner("o"), principal("o")), other) {
+		t.Fatal("the owner's channel change")
+	}
+}

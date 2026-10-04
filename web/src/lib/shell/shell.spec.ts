@@ -14,6 +14,7 @@ import {
 import * as noticesModule from './notices.svelte';
 import {
 	alertDismissKey,
+	bellItems,
 	DISMISSED_KEY,
 	isGeneratedPolicyName,
 	jobNotices,
@@ -21,7 +22,9 @@ import {
 	noticeHref,
 	Notices,
 	parseDismissed,
-	policyLabel
+	policyLabel,
+	resolvedDismissKey,
+	runLabel
 } from './notices.svelte';
 import {
 	actionResults,
@@ -291,6 +294,82 @@ describe('notices', () => {
 		again.clear();
 		expect(again.count).toBe(0);
 		expect(again.isDismissed('job:1')).toBe(true);
+	});
+
+	it('lists resolved alerts and finished runs after the active alerts, newest first', () => {
+		const run = (
+			id: string,
+			o: Partial<{
+				kind: 'backup' | 'restore' | 'prune' | 'updates';
+				outcome: 'success' | 'warning' | 'failure';
+				jobId: string;
+				createdAt: string;
+			}> = {}
+		) => ({
+			id,
+			kind: o.kind ?? 'backup',
+			outcome: o.outcome ?? 'success',
+			jobId: o.jobId ?? `j-${id}`,
+			title: `Run ${id}`,
+			link: `/jobs/j-${id}`,
+			createdAt: o.createdAt ?? '2026-09-25T12:00:00Z'
+		});
+		const fixed = {
+			...alert('a9', { title: 'Disk /dev/sdb is failing' }),
+			resolvedAt: '2026-09-25T13:00:00Z'
+		};
+		const failedRun = {
+			...alert('a5', { severity: 'critical', title: 'Backup of Silo failed' }),
+			facts: { jobId: 'j-r3' }
+		};
+		const items = bellItems(
+			[failedRun],
+			[
+				// The user's own backup: its run replaces the job notice.
+				{
+					key: 'job:j-r1',
+					kind: 'job',
+					tone: 'ok',
+					title: 'Backup of Silo succeeded',
+					at: 1
+				},
+				{ key: 'job:j-x', kind: 'job', tone: 'ok', title: 'Deployed Media', at: 0 }
+			],
+			['job:j-r4'],
+			[fixed],
+			[
+				run('r1', { createdAt: '2026-09-25T14:00:00Z' }),
+				run('r2', {
+					kind: 'updates',
+					outcome: 'success',
+					createdAt: '2026-09-25T11:00:00Z'
+				}),
+				// Shown as its alert.
+				run('r3', { outcome: 'failure' }),
+				// Dismissed in this browser.
+				run('r4')
+			]
+		);
+		expect(items.map((x) => [x.key, x.tone, x.title, x.label])).toEqual([
+			['alert:a5', 'danger', 'Backup of Silo failed', 'Critical'],
+			['job:j-r1', 'ok', 'Run r1', 'Backups · Success'],
+			['resolved:a9', 'ok', 'Resolved: Disk /dev/sdb is failing', 'Resolved'],
+			['job:j-r2', 'ok', 'Run r2', 'Image Updates · Applied'],
+			['job:j-x', 'ok', 'Deployed Media', undefined]
+		]);
+		expect(items[2].dismissKey).toBe(resolvedDismissKey(fixed));
+		expect(items[2].serverDismiss).toBe(false);
+		expect(runLabel({ kind: 'restore', outcome: 'failure' })).toBe('Restores · Failure');
+
+		const n = new Notices(() => 1, null);
+		n.setResolved([fixed]);
+		n.setRuns([run('r1')]);
+		expect(n.count).toBe(2);
+		n.dismiss(resolvedDismissKey(fixed), 'job:j-r1');
+		expect(n.count).toBe(0);
+		n.setRuns([run('r2')]);
+		n.clear();
+		expect(n.count).toBe(0);
 	});
 
 	it('forgets alerts dismissed for everyone until the next list', () => {

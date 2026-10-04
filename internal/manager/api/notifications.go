@@ -18,7 +18,9 @@ import (
 // (Shoutrrr URLs). The address is a secret: list and get never return it;
 // the owner reads it again only through the audited reveal operation. The
 // flows live in internal/manager/notify; this file is the transport
-// contract.
+// contract. The built-in In App channel (builtIn, listed first) has no
+// address: it can't be deleted, tested or revealed (409
+// notification_channel_built_in).
 
 const tagNotifications = "Notifications"
 
@@ -51,7 +53,8 @@ type NotificationAddress struct {
 type NotificationChannel struct {
 	ID      string `json:"id"`
 	Name    string `json:"name" example:"Ops on Discord"`
-	Service string `json:"service" example:"discord" doc:"The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...)."`
+	Service string `json:"service" example:"discord" doc:"The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...); app for the In App channel."`
+	BuiltIn bool   `json:"builtIn" doc:"The In App channel: the bell in the web UI. Its subscription chooses what the bell shows; it has no address and can't be renamed, deleted or tested."`
 	Target  string `json:"target,omitempty" example:"mail.example.com" doc:"Where messages go when that is not secret: the host of a mail, push or chat server or of a generic webhook. Absent for services whose address holds only tokens."`
 	Enabled bool   `json:"enabled"`
 	// Subscription (what the channel sends).
@@ -108,7 +111,8 @@ func newNotificationChannel(c domain.NotificationChannel) NotificationChannel {
 		envs = []string{}
 	}
 	return NotificationChannel{
-		ID: c.ID, Name: c.Name, Service: c.Service, Target: c.Target, Enabled: c.Enabled, Events: newSubscriptions(c.Subscriptions),
+		ID: c.ID, Name: c.Name, Service: c.Service, BuiltIn: c.InApp(), Target: c.Target, Enabled: c.Enabled,
+		Events:          newSubscriptions(c.Subscriptions),
 		AllEnvironments: c.AllEnvironments, EnvironmentIDs: envs,
 		Address:    NotificationAddress{Fingerprint: c.AddressFingerprint, Version: c.AddressVersion, UpdatedAt: c.AddressUpdatedAt},
 		LastResult: c.LastResult, LastAttemptAt: c.LastAttemptAt, LastSuccessAt: c.LastSuccessAt, Revision: c.Revision,
@@ -150,6 +154,8 @@ func notificationError(err error) error {
 		return NotFound("notification channel not found")
 	case errors.Is(err, domain.ErrNotificationChannelNameTaken):
 		return Conflict(CodeNotificationChannelNameTaken, "another notification channel already uses this name")
+	case errors.Is(err, domain.ErrNotificationChannelBuiltIn):
+		return Conflict(CodeNotificationChannelBuiltIn, "the In App channel is built in: it has no address and can't be deleted or tested")
 	}
 	return identityError(err)
 }
@@ -389,9 +395,10 @@ func registerNotifications(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "list-notification-channels", Method: http.MethodGet, Path: path,
-			Summary:     "List notification channels",
-			Description: "Notification channels in creation order, with their subscription and last result. Addresses are never returned. " + ownerOnly,
-			Tags:        []string{tagNotifications}, Security: cookieOnly,
+			Summary: "List notification channels",
+			Description: "Notification channels in creation order, the built-in In App channel first, with their subscription and last result. " +
+				"Addresses are never returned. " + ownerOnly,
+			Tags: []string{tagNotifications}, Security: cookieOnly,
 			Errors: []int{http.StatusForbidden, http.StatusUnprocessableEntity},
 		},
 		Capability: CapabilityOwner, Scope: ScopeInstance,
@@ -427,7 +434,8 @@ func registerNotifications(a huma.API, deps Deps) {
 			Summary: "Update a notification channel",
 			Description: "Edits the name, whether it is enabled, its subscription (event kinds, environments, resolved problems) or " +
 				"its address. A new address is checked like on creation, needs a recent step-up (403 step_up_required) and resets " +
-				"the last result. Requires If-Match. 409 notification_channel_name_taken. " + ownerOnly,
+				"the last result. The In App channel keeps its name and has no address (422). Requires If-Match. " +
+				"409 notification_channel_name_taken. " + ownerOnly,
 			Tags: []string{tagNotifications}, Security: cookieOnly,
 			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed,
 				http.StatusPreconditionRequired, http.StatusUnprocessableEntity},
@@ -439,9 +447,11 @@ func registerNotifications(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "delete-notification-channel", Method: http.MethodDelete, Path: path + "/{channelId}",
 			Summary: "Delete a notification channel", DefaultStatus: http.StatusNoContent,
-			Description: "Removes the channel and its address. Requires If-Match. " + ownerOnly,
-			Tags:        []string{tagNotifications}, Security: cookieOnly,
-			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusPreconditionFailed, http.StatusPreconditionRequired},
+			Description: "Removes the channel and its address. The In App channel can't be deleted (409 notification_channel_built_in). " +
+				"Requires If-Match. " + ownerOnly,
+			Tags: []string{tagNotifications}, Security: cookieOnly,
+			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed,
+				http.StatusPreconditionRequired},
 		},
 		Capability: CapabilityOwner, Scope: ScopeInstance,
 	}, h.remove)
@@ -450,10 +460,10 @@ func registerNotifications(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "get-notification-channel-address", Method: http.MethodGet, Path: path + "/{channelId}/address",
 			Summary: "Reveal the address of a notification channel",
-			Description: "Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value)." +
-				stepUp + " " + ownerOnly,
+			Description: "Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value). " +
+				"The In App channel has none (409 notification_channel_built_in)." + stepUp + " " + ownerOnly,
 			Tags: []string{tagNotifications}, Security: cookieOnly,
-			Errors: []int{http.StatusForbidden, http.StatusNotFound},
+			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
 		},
 		Capability: CapabilityOwner, Scope: ScopeInstance, Audit: AuditAlways, AuditAction: "notification_channel.reveal",
 	}, h.reveal)
@@ -465,9 +475,9 @@ func registerNotifications(a huma.API, deps Deps) {
 			Description: "Sends a test message through the channel now (also while it is off) and records the result as its last " +
 				"result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the " +
 				"service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). " +
-				ownerOnly,
+				"The In App channel sends nothing out (409 notification_channel_built_in). " + ownerOnly,
 			Tags: []string{tagNotifications}, Security: cookieOnly,
-			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusTooManyRequests},
+			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusTooManyRequests},
 		},
 		Capability: CapabilityOwner, Scope: ScopeInstance, AuditAction: "notification_channel.test",
 	}, h.test)

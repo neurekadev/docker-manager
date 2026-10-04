@@ -55,8 +55,11 @@ memory.
   build cache, what a backup saved, which services an update recreated.
   **Alerts** lists the alerts: choose **Active**, **Dismissed** or
   **Resolved**, a kind or an environment.
-- The **bell** at the top counts the alerts and job messages you haven't
-  dismissed. The count stays until you dismiss them.
+- The **bell** at the top shows what the **In App** channel is set to
+  show (see [Choose what the bell shows](/notifications#choose-what-the-bell-shows)):
+  active alerts, alerts resolved and backups, restores, prunes and
+  updates finished in the last 7 days, and the jobs you start yourself.
+  It counts what you haven't dismissed, until you dismiss it.
 - Click an alert or notification to open what it is about: the server's
   **System** tab, the server, the job, **Updates** or **Backups**.
 - The dashboard's **Needs Attention** shows how many disks and RAID arrays
@@ -82,16 +85,16 @@ again.
 
 ## Get them as messages
 
-Add a [notification channel](/notifications) and tick what it should send
-under **What to Send**. A channel gets:
+Add a [notification channel](/notifications) and turn on its bells under
+**What to Send**. A channel gets:
 
 - a message when an alert starts, and again when it gets worse, for the
-  levels you ticked (**Warning**, **Critical**),
+  levels you turned on (**Warning**, **Critical**),
 - a **Resolved:** message when the problem is gone, if the channel got
-  the alert and you ticked **Resolved** (a failed job sent under
-  **Backups** or **Image Updates** needs no extra tick),
+  the alert and **Resolved** is on (a failed job sent under **Backups**
+  or **Image Updates** needs nothing more),
 - a message when a backup, restore, prune or update finishes, for the
-  outcomes you ticked.
+  outcomes you turned on.
 
 Every message looks the same way:
 

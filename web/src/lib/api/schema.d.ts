@@ -3197,7 +3197,7 @@ export interface paths {
         };
         /**
          * List notification channels
-         * @description Notification channels in creation order, with their subscription and last result. Addresses are never returned. Instance owner only (never delegable, never with an API token).
+         * @description Notification channels in creation order, the built-in In App channel first, with their subscription and last result. Addresses are never returned. Instance owner only (never delegable, never with an API token).
          */
         get: operations["list-notification-channels"];
         put?: never;
@@ -3228,14 +3228,14 @@ export interface paths {
         post?: never;
         /**
          * Delete a notification channel
-         * @description Removes the channel and its address. Requires If-Match. Instance owner only (never delegable, never with an API token).
+         * @description Removes the channel and its address. The In App channel can't be deleted (409 notification_channel_built_in). Requires If-Match. Instance owner only (never delegable, never with an API token).
          */
         delete: operations["delete-notification-channel"];
         options?: never;
         head?: never;
         /**
          * Update a notification channel
-         * @description Edits the name, whether it is enabled, its subscription (event kinds, environments, resolved problems) or its address. A new address is checked like on creation, needs a recent step-up (403 step_up_required) and resets the last result. Requires If-Match. 409 notification_channel_name_taken. Instance owner only (never delegable, never with an API token).
+         * @description Edits the name, whether it is enabled, its subscription (event kinds, environments, resolved problems) or its address. A new address is checked like on creation, needs a recent step-up (403 step_up_required) and resets the last result. The In App channel keeps its name and has no address (422). Requires If-Match. 409 notification_channel_name_taken. Instance owner only (never delegable, never with an API token).
          */
         patch: operations["update-notification-channel"];
         trace?: never;
@@ -3249,7 +3249,7 @@ export interface paths {
         };
         /**
          * Reveal the address of a notification channel
-         * @description Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value). Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value). The In App channel has none (409 notification_channel_built_in). Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         get: operations["get-notification-channel-address"];
         put?: never;
@@ -3271,7 +3271,7 @@ export interface paths {
         put?: never;
         /**
          * Send a test message
-         * @description Sends a test message through the channel now (also while it is off) and records the result as its last result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). Instance owner only (never delegable, never with an API token).
+         * @description Sends a test message through the channel now (also while it is off) and records the result as its last result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). The In App channel sends nothing out (409 notification_channel_built_in). Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-notification-channel-test"];
         delete?: never;
@@ -9998,6 +9998,8 @@ export interface components {
             address: components["schemas"]["NotificationAddress"];
             /** @description Sends events of every environment, including future ones. Otherwise only those of environmentIds (none once they are all removed: a filter never widens). */
             allEnvironments: boolean;
+            /** @description The In App channel: the bell in the web UI. Its subscription chooses what the bell shows; it has no address and can't be renamed, deleted or tested. */
+            builtIn: boolean;
             /** Format: date-time */
             createdAt: string;
             enabled: boolean;
@@ -10023,7 +10025,7 @@ export interface components {
              */
             revision: number;
             /**
-             * @description The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...).
+             * @description The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...); app for the In App channel.
              * @example discord
              */
             service: string;
@@ -14550,6 +14552,10 @@ export interface operations {
                 kind?: "disk_health" | "raid" | "temperature" | "disk_space" | "memory" | "environment_offline" | "backup" | "updates" | "job_failed";
                 /** @description Only alerts of this environment. */
                 environmentId?: string;
+                /** @description Only alerts the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments; a resolved one only when it also sends its resolution and the problem is gone. Nothing while it is off. */
+                inApp?: boolean;
+                /** @description Only alerts resolved at or after this time (RFC 3339); firing alerts never match. */
+                resolvedSince?: string;
             };
             header?: never;
             path?: never;
@@ -37227,6 +37233,7 @@ export interface operations {
                      *             "version": 1
                      *           },
                      *           "allEnvironments": false,
+                     *           "builtIn": false,
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "enabled": false,
                      *           "environmentIds": [
@@ -37338,6 +37345,7 @@ export interface operations {
                      *         "version": 1
                      *       },
                      *       "allEnvironments": false,
+                     *       "builtIn": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentIds": [
@@ -37439,6 +37447,7 @@ export interface operations {
                      *         "version": 1
                      *       },
                      *       "allEnvironments": false,
+                     *       "builtIn": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentIds": [
@@ -37562,6 +37571,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Error"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
             /** @description Precondition Failed */
             412: {
                 headers: {
@@ -37647,6 +37665,7 @@ export interface operations {
                      *         "version": 1
                      *       },
                      *       "allEnvironments": false,
+                     *       "builtIn": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentIds": [
@@ -37801,6 +37820,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Error"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
             /** @description Unprocessable Entity */
             422: {
                 headers: {
@@ -37877,6 +37905,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Error"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
             /** @description Unprocessable Entity */
             422: {
                 headers: {
@@ -37919,6 +37956,10 @@ export interface operations {
                 outcome?: "success" | "warning" | "failure";
                 /** @description Only notifications of this environment. */
                 environmentId?: string;
+                /** @description Only notifications the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments. Nothing while it is off. */
+                inApp?: boolean;
+                /** @description Only notifications recorded at or after this time (RFC 3339). */
+                since?: string;
             };
             header?: never;
             path?: never;

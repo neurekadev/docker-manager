@@ -229,6 +229,9 @@ type AlertFilter struct {
 	State         string
 	Kind          NotificationEventKind
 	EnvironmentID string
+	// ResolvedSince keeps only alerts resolved at or after it (zero: no
+	// limit; firing alerts never match a non-zero one).
+	ResolvedSince time.Time
 }
 
 // Alert list states.

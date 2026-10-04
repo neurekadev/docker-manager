@@ -117,6 +117,9 @@ func ListNotifications(ctx context.Context, db bun.IDB, f domain.NotificationFil
 	if f.EnvironmentID != "" {
 		q = q.Where("environment_id = ?", f.EnvironmentID)
 	}
+	if !f.Since.IsZero() {
+		q = q.Where("created_at >= ?", f.Since.UTC())
+	}
 	if beforeID != "" {
 		q = q.Where("id < ?", beforeID)
 	}

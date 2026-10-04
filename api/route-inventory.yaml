@@ -2764,7 +2764,7 @@ routes:
     owner: 142
     kind: json
     status: implemented
-    notes: If-Match.
+    notes: "If-Match; the In App channel can't be deleted (409 notification_channel_built_in)."
   - method: GET
     path: "/api/v1/notification-channels/{channelId}/address"
     operationId: get-notification-channel-address
@@ -2791,7 +2791,7 @@ routes:
     owner: 159
     kind: json
     status: implemented
-    notes: "Each alert filtered by its source's permission (environment.system.read, environment.metrics.read, the environment, job.read, update_policy.read)."
+    notes: "Each alert filtered by its source's permission (environment.system.read, environment.metrics.read, the environment, job.read, update_policy.read); inApp: only what the In App channel shows (the bell)."
   - method: POST
     path: /api/v1/alerts/dismissals
     operationId: create-alert-dismissals
@@ -2827,7 +2827,7 @@ routes:
     owner: 168
     kind: json
     status: implemented
-    notes: "Finished backups, restores, prunes and update runs; each filtered by job.read on its job."
+    notes: "Finished backups, restores, prunes and update runs; each filtered by job.read on its job; inApp: only what the In App channel shows (the bell)."
   - method: GET
     path: /api/v1/alert-settings
     operationId: get-alert-settings

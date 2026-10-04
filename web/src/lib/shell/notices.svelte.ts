@@ -1,20 +1,27 @@
 // In-app notices (#22 bell, #25 Q6, #159): what needs the user's eye until
-// they dismiss it. Two sources feed the bell: the manager's alerts that
-// fire and nobody dismissed (disks and RAID with problems, hosts running
-// hot or low on disk space or memory, environments offline, failed
-// scheduled jobs, available updates; setAlerts, from the
-// active alerts query), and this tab's notices of the user's own jobs
-// (push: a job they started finished or failed). The badge counts every
-// item not dismissed and stays until each is dismissed. A server alert the
-// user may dismiss is dismissed for everyone (through the API, by the
-// bell); the others and the job notices are dismissed for this browser:
-// their keys (`job:<id>`, `alert:<id>:<escalation>`: the manager counts
-// up an alert's escalation whenever it gets worse, at a higher severity or
-// with a new problem, so it shows again) are kept in localStorage, at most MAX_DISMISSED, UI
-// state only (never API data). Keys deduplicate: pushing the same key
-// again updates the notice instead of adding one.
+// they dismiss it. The manager's built-in In App channel chooses what of
+// its events the bell shows (its kinds, outcomes and environments; the
+// manager filters the lists with inApp): the alerts that fire and nobody
+// dismissed (disks and RAID with problems, hosts running hot or low on
+// disk space or memory, environments offline, failed scheduled jobs,
+// available updates; setAlerts), alerts resolved lately (setResolved) and
+// finished backups, restores, prunes and update runs (setRuns). This
+// tab's notices of the user's own jobs come on top (push: a job they
+// started finished or failed); a run's notification replaces the notice
+// of its job (same key), and a run whose failure shows as an alert is
+// shown once, as the alert. The badge counts every item not dismissed and
+// stays until each is dismissed. A server alert the user may dismiss is
+// dismissed for everyone (through the API, by the bell); the others are
+// dismissed for this browser: their keys (`job:<id>`,
+// `alert:<id>:<escalation>`: the manager counts up an alert's escalation
+// whenever it gets worse, at a higher severity or with a new problem, so
+// it shows again; `alert:<id>:resolved`) are kept in localStorage, at
+// most MAX_DISMISSED, UI state only (never API data). Keys deduplicate:
+// pushing the same key again updates the notice instead of adding one.
 
-import { severityTone, sortAlerts, type Alert } from '$lib/features/alerts/model';
+import { severityLabel, severityTone, sortAlerts, type Alert } from '$lib/features/alerts/model';
+import type { Notification } from '$lib/features/notification-history/model';
+import { eventKind } from '$lib/features/notifications/model';
 import { routes } from '$lib/routes';
 
 export type NoticeKind = 'job' | 'alert';
@@ -28,15 +35,24 @@ export interface AppNotice {
 	body?: string;
 	href?: string;
 	at: number;
+	/** How bad or how it went, in the tone's color ("Critical", "Backups · Success"). */
+	label?: string;
 }
 
 /** A server alert as the bell needs it. */
 export type BellAlert = Pick<
 	Alert,
 	'id' | 'severity' | 'escalation' | 'title' | 'detail' | 'link' | 'startedAt' | 'actions'
+> &
+	Partial<Pick<Alert, 'facts' | 'resolvedAt'>>;
+
+/** A finished run (a notification) as the bell needs it. */
+export type BellRun = Pick<
+	Notification,
+	'id' | 'kind' | 'outcome' | 'jobId' | 'title' | 'detail' | 'link' | 'createdAt'
 >;
 
-/** One line of the bell: a server alert or a job notice. */
+/** One line of the bell: a server alert, a finished run or a job notice. */
 export interface BellItem extends AppNotice {
 	/** The key a dismissal for this browser keeps. */
 	dismissKey: string;
@@ -48,8 +64,8 @@ export interface BellItem extends AppNotice {
 
 /** Where the dismissed keys are kept (localStorage, per browser). */
 export const DISMISSED_KEY = 'docker-manager:dismissed-notices';
-/** The newest dismissed keys kept. */
-export const MAX_DISMISSED = 200;
+/** The newest dismissed keys kept (more than the bell can list at once). */
+export const MAX_DISMISSED = 500;
 
 const KEY_RE = /^(job|alert):[\w.:-]{1,160}$/;
 
@@ -86,18 +102,40 @@ function browserStorage(): StorageLike | null {
 	}
 }
 
+/** The key of a resolved alert dismissed for this browser. */
+export function resolvedDismissKey(a: Pick<Alert, 'id'>): string {
+	return `alert:${a.id}:resolved`;
+}
+
+const RUN_TONES: Record<string, NoticeTone> = { success: 'ok', warning: 'warn', failure: 'danger' };
+
+/** A run's status line, as its message has it: "Backups · Success", "Image Updates · Applied". */
+export function runLabel(r: Pick<BellRun, 'kind' | 'outcome'>): string {
+	const k = eventKind(r.kind);
+	const o = k?.outcomes.find((x) => x.outcome === r.outcome)?.label ?? r.outcome;
+	return k ? `${k.label} · ${o}` : o;
+}
+
 /**
- * The bell's items: the alerts (critical first, then the newest), then the
- * job notices (newest first), without the dismissed ones.
+ * The bell's items: the active alerts (critical first, then the newest),
+ * then the resolved alerts, finished runs and job notices (newest first),
+ * without the dismissed ones. A run replaces the job notice of its job; a
+ * run whose job an alert names is left to the alert.
  */
 export function bellItems(
 	alerts: readonly BellAlert[],
 	notices: readonly AppNotice[],
-	dismissedKeys: readonly string[]
+	dismissedKeys: readonly string[],
+	resolved: readonly BellAlert[] = [],
+	runs: readonly BellRun[] = []
 ): BellItem[] {
-	// A plain lookup, rebuilt with each list.
+	// Plain lookups, rebuilt with each list.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const dismissed = new Set(dismissedKeys);
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const alertJobs = new Set(
+		[...alerts, ...resolved].map((a) => a.facts?.jobId).filter((id): id is string => !!id)
+	);
 	const out: BellItem[] = [];
 	for (const a of sortAlerts(alerts)) {
 		const dismissKey = alertDismissKey(a);
@@ -110,26 +148,70 @@ export function bellItems(
 			body: a.detail,
 			href: a.link,
 			at: Date.parse(a.startedAt),
+			label: severityLabel(a.severity),
 			dismissKey,
 			alert: a,
 			serverDismiss: a.actions.includes('alert.dismiss')
 		});
 	}
-	for (const n of notices) {
-		if (dismissed.has(n.key)) continue;
-		out.push({ ...n, dismissKey: n.key, serverDismiss: false });
+	const rest: BellItem[] = [];
+	for (const a of resolved) {
+		const dismissKey = resolvedDismissKey(a);
+		if (dismissed.has(dismissKey)) continue;
+		rest.push({
+			key: `resolved:${a.id}`,
+			kind: 'alert',
+			tone: 'ok',
+			title: `Resolved: ${a.title}`,
+			href: a.link,
+			at: Date.parse(a.resolvedAt ?? a.startedAt),
+			label: 'Resolved',
+			dismissKey,
+			serverDismiss: false
+		});
 	}
-	return out;
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const runKeys = new Set<string>();
+	for (const r of runs) {
+		const key = `job:${r.jobId}`;
+		if (alertJobs.has(r.jobId) || runKeys.has(key)) continue;
+		runKeys.add(key);
+		if (dismissed.has(key)) continue;
+		rest.push({
+			key,
+			kind: 'job',
+			tone: RUN_TONES[r.outcome] ?? 'info',
+			title: r.title,
+			body: r.detail,
+			href: r.link,
+			at: Date.parse(r.createdAt),
+			label: runLabel(r),
+			dismissKey: key,
+			serverDismiss: false
+		});
+	}
+	for (const n of notices) {
+		if (dismissed.has(n.key) || runKeys.has(n.key)) continue;
+		rest.push({ ...n, dismissKey: n.key, serverDismiss: false });
+	}
+	rest.sort((x, y) => (y.at || 0) - (x.at || 0));
+	return [...out, ...rest];
 }
 
 export class Notices {
 	/** This tab's job notices, newest first. */
 	items = $state<AppNotice[]>([]);
-	/** The server's active alerts (setAlerts). */
+	/** The server's active alerts the In App channel shows (setAlerts). */
 	alerts = $state<BellAlert[]>([]);
+	/** Alerts resolved lately that it shows (setResolved). */
+	resolved = $state<BellAlert[]>([]);
+	/** Finished runs it shows (setRuns). */
+	runs = $state<BellRun[]>([]);
 	#dismissed = $state<string[]>([]);
 	/** What the bell lists: everything not dismissed. */
-	readonly list = $derived(bellItems(this.alerts, this.items, this.#dismissed));
+	readonly list = $derived(
+		bellItems(this.alerts, this.items, this.#dismissed, this.resolved, this.runs)
+	);
 	/** The badge: items not dismissed. */
 	readonly count = $derived(this.list.length);
 	/** Newest first, at most this many job notices. */
@@ -159,6 +241,16 @@ export class Notices {
 	/** The active alerts from the server (replaces the previous list). */
 	setAlerts(alerts: readonly BellAlert[]) {
 		this.alerts = [...alerts];
+	}
+
+	/** The alerts resolved lately (replaces the previous list). */
+	setResolved(alerts: readonly BellAlert[]) {
+		this.resolved = [...alerts];
+	}
+
+	/** The finished runs (replaces the previous list). */
+	setRuns(runs: readonly BellRun[]) {
+		this.runs = [...runs];
 	}
 
 	/** Drops alerts dismissed for everyone until the next list arrives. */
@@ -203,10 +295,12 @@ export class Notices {
 		return () => window.removeEventListener('storage', on);
 	}
 
-	/** Forgets this tab's notices and alerts (sign-out); dismissals stay. */
+	/** Forgets this tab's notices, alerts and runs (sign-out); dismissals stay. */
 	clear() {
 		this.items = [];
 		this.alerts = [];
+		this.resolved = [];
+		this.runs = [];
 	}
 
 	#read(): string[] {

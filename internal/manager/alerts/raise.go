@@ -225,7 +225,9 @@ func write(ctx context.Context, db bun.IDB, m snapshot, now time.Time, only map[
 	outcomes := map[string]domain.NotificationOutcome{}
 	for _, c := range channels {
 		told, ok := only[c.ID]
-		if only != nil && !ok {
+		if (only != nil && !ok) || c.InApp() {
+			// The In App channel sends nothing: the bell reads the alerts
+			// and notifications themselves (ShowsAlert).
 			continue
 		}
 		outcome, wanted := m.outcome, c.Wants(m.kind, m.outcome, m.environmentID)

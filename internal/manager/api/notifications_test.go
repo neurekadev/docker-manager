@@ -129,6 +129,9 @@ func (f *fakeNotifications) Update(_ context.Context, id string, revision int64,
 func (f *fakeNotifications) Delete(_ context.Context, id string, _ int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if id == domain.InAppChannelID {
+		return domain.ErrNotificationChannelBuiltIn
+	}
 	delete(f.channels, id)
 	return nil
 }
@@ -136,6 +139,9 @@ func (f *fakeNotifications) Delete(_ context.Context, id string, _ int64) error 
 func (f *fakeNotifications) Reveal(_ context.Context, id string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if id == domain.InAppChannelID {
+		return "", domain.ErrNotificationChannelBuiltIn
+	}
 	a, ok := f.addresses[id]
 	if !ok {
 		return "", domain.ErrNotificationChannelNotFound
@@ -148,6 +154,9 @@ func (f *fakeNotifications) Test(_ context.Context, id string) (notify.Result, e
 	defer f.mu.Unlock()
 	if _, ok := f.channels[id]; !ok {
 		return notify.Result{}, domain.ErrNotificationChannelNotFound
+	}
+	if id == domain.InAppChannelID {
+		return notify.Result{}, domain.ErrNotificationChannelBuiltIn
 	}
 	if f.limited {
 		return notify.Result{}, &notify.TestRateLimitedError{RetryAfter: 3200 * time.Millisecond}
@@ -252,6 +261,33 @@ func TestNotificationRoutesAreOwnerOnly(t *testing.T) {
 	authztest.AssertOnly(t, f.h, "olga", mutations, nil)
 	if r := authztest.Do(t, f.h, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/notification-channels"}); r.Status != http.StatusUnauthorized {
 		t.Fatalf("anonymous: %d", r.Status)
+	}
+}
+
+// The In App channel is listed first and marked built in; deleting,
+// testing or revealing it is a conflict.
+func TestInAppChannelIsBuiltIn(t *testing.T) {
+	f := newNotificationsFixture(t, authztest.New().Owner("olga"))
+	f.svc.mu.Lock()
+	f.svc.channels[domain.InAppChannelID] = domain.NotificationChannel{ID: domain.InAppChannelID, Name: domain.InAppChannelName,
+		Service: domain.InAppService, Enabled: true, Subscriptions: domain.AllNotificationSubscriptions(), AllEnvironments: true, Revision: 1}
+	f.svc.mu.Unlock()
+	r := authztest.Do(t, f.h, "olga", authztest.Call{Method: http.MethodGet, Path: "/api/v1/notification-channels"})
+	var page Page[NotificationChannel]
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &page) != nil || len(page.Items) != 2 || !page.Items[0].BuiltIn ||
+		page.Items[0].Service != "app" || page.Items[1].BuiltIn {
+		t.Fatalf("list: %d %s", r.Status, r.Body)
+	}
+	path := "/api/v1/notification-channels/" + domain.InAppChannelID
+	for _, c := range []authztest.Call{
+		{Method: http.MethodDelete, Path: path, Headers: map[string]string{"If-Match": `"1"`}},
+		{Method: http.MethodPost, Path: path + "/tests"},
+		{Method: http.MethodGet, Path: path + "/address"},
+	} {
+		r := authztest.Do(t, f.h, "olga", c)
+		if r.Status != http.StatusConflict || !strings.Contains(string(r.Body), CodeNotificationChannelBuiltIn) {
+			t.Errorf("%s %s: %d %s", c.Method, c.Path, r.Status, r.Body)
+		}
 	}
 }
 

@@ -1,6 +1,8 @@
 // Notification channels (#142) in words: the kinds of events and their
-// outcomes a channel can send ("What to Send"), what a channel sends, its
-// status and why it fails. Pure (services.spec.ts).
+// outcomes a channel can send ("What to Send", a matrix of bells: a row
+// per kind and outcome, a column per channel), what a channel sends, its
+// status and why it fails, and the order of channels (the built-in In App
+// channel first). Pure (services.spec.ts).
 import Archive from '@lucide/svelte/icons/archive';
 import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 import ChartPie from '@lucide/svelte/icons/chart-pie';
@@ -13,6 +15,7 @@ import Wrench from '@lucide/svelte/icons/wrench';
 import type { Schema } from '$lib/api/client';
 import type { IconComponent } from '$lib/design/icons';
 import { resourceIcon } from '$lib/features/common/resourceIcons';
+import { sortRows, type Column, type SortState } from '$lib/ui/table';
 
 export type NotificationChannel = Schema<'NotificationChannel'>;
 export type NotificationTest = Schema<'NotificationChannelTest'>;
@@ -234,9 +237,62 @@ export function pickOutcome(
 	return out;
 }
 
-/** Whether nothing at all is picked (the dialog refuses to save). */
+/** Whether nothing at all is picked (a channel must send something). */
 export function noEvents(picks: EventPicks): boolean {
 	return eventsOf(picks).length === 0;
+}
+
+/** Whether two picks send the same outcomes (order and empty kinds aside). */
+export function samePicks(a: EventPicks, b: EventPicks): boolean {
+	return JSON.stringify(eventsOf(a)) === JSON.stringify(eventsOf(b));
+}
+
+/** A bell of "What to Send": on, off, or (a kind's bell) some of its outcomes on. */
+export type BellState = 'on' | 'some' | 'off';
+
+/** The bell of one outcome of a kind. */
+export function outcomeBell(picks: EventPicks, kind: EventKind, outcome: EventOutcome): BellState {
+	return (picks[kind] ?? []).includes(outcome) ? 'on' : 'off';
+}
+
+/** The bell of a kind: every, some or none of its outcomes. */
+export function kindBell(k: EventKindInfo, picks: EventPicks): BellState {
+	const s = kindState(k, picks);
+	return s === 'all' ? 'on' : s === 'some' ? 'some' : 'off';
+}
+
+/**
+ * The picks after a kind's bell is pressed: every outcome on, unless all
+ * already are (then none), like a mixed checkbox.
+ */
+export function toggleKind(picks: EventPicks, kind: EventKind): EventPicks {
+	const k = eventKind(kind);
+	return pickKind(picks, kind, !k || kindState(k, picks) !== 'all');
+}
+
+/** The picks after an outcome's bell is pressed. */
+export function toggleOutcome(
+	picks: EventPicks,
+	kind: EventKind,
+	outcome: EventOutcome
+): EventPicks {
+	return pickOutcome(picks, kind, outcome, outcomeBell(picks, kind, outcome) === 'off');
+}
+
+/**
+ * The unsaved "What to Send" of the channels: the picks of each channel
+ * that differ from what it sends. Setting picks equal to the stored ones
+ * drops the channel from the draft.
+ */
+export function withDraft(
+	draft: Readonly<Record<string, EventPicks>>,
+	c: Pick<NotificationChannel, 'id' | 'events'>,
+	picks: EventPicks
+): Record<string, EventPicks> {
+	const out = { ...draft };
+	if (samePicks(picks, picksOf(c.events))) delete out[c.id];
+	else out[c.id] = picks;
+	return out;
 }
 
 function capitalize(s: string): string {
@@ -330,19 +386,52 @@ export function errorText(errorClass: string | undefined): string {
 export interface ChannelStatus {
 	/** The StatusBadge state (its tone). */
 	status: 'healthy' | 'failed' | 'unknown' | 'stopped';
-	label: 'Working' | 'Failing' | 'Not Tested' | 'Off';
+	label: 'Working' | 'Failing' | 'Not Tested' | 'Off' | 'On';
 	/** Why it fails, in words (the badge's tooltip). */
 	reason?: string;
 }
 
-/** A channel's status: Off, Not Tested, Working or Failing (with the reason). */
+/**
+ * A channel's status: Off, Not Tested, Working or Failing (with the
+ * reason); the In App channel, which sends nothing out, is On or Off.
+ */
 export function channelStatus(
-	c: Pick<NotificationChannel, 'enabled' | 'lastResult'>
+	c: Pick<NotificationChannel, 'enabled' | 'lastResult'> & { builtIn?: boolean }
 ): ChannelStatus {
 	if (!c.enabled) return { status: 'stopped', label: 'Off' };
+	if (c.builtIn) return { status: 'healthy', label: 'On' };
 	if (!c.lastResult) return { status: 'unknown', label: 'Not Tested' };
 	if (c.lastResult === 'ok') return { status: 'healthy', label: 'Working' };
 	return { status: 'failed', label: 'Failing', reason: errorText(c.lastResult) };
+}
+
+/**
+ * The channel list in the table's sort, the built-in In App channel always
+ * first.
+ */
+export function channelRows<T extends { builtIn: boolean }>(
+	rows: readonly T[],
+	columns: readonly Column<T>[],
+	sort: SortState | null
+): T[] {
+	return [
+		...rows.filter((c) => c.builtIn),
+		...sortRows(
+			rows.filter((c) => !c.builtIn),
+			columns,
+			sort
+		)
+	];
+}
+
+/** The columns of "What to Send": the In App channel first, then the others by name. */
+export function channelColumns<T extends { builtIn: boolean; name: string }>(
+	rows: readonly T[]
+): T[] {
+	return [
+		...rows.filter((c) => c.builtIn),
+		...rows.filter((c) => !c.builtIn).sort((a, b) => a.name.localeCompare(b.name))
+	];
 }
 
 /** The toast of a test message. */

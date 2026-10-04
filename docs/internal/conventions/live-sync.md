@@ -41,14 +41,17 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   (owner only: `notification_channel.manage`); the web keys them with
   `notificationKeys` (`liveKeys.list('settings', 'notification-channels')`).
   A test's new last result arrives the same way (the test is an audited
-  POST).
+  POST). A change of the built-in In App channel (`IN_APP_CHANNEL_ID`)
+  reaches everyone and also refreshes every alerts and notifications list
+  (`keysForInvalidate`): it changes what the bell lists.
 - **Alerts** (#159) are published as `alert.updated` (carrying the alert:
   `authz.AlertVisible` decides who receives it) after the change is
   committed (job hooks: read back after `OnChange`); topic `alerts`, kind `alert`.
   The audited dismissal's own `resource.changed` (type `alert`) reaches
   nobody. The web keys every alerts query with `liveKeys.alerts(...)`
-  (`['alerts', 'list', …]`), so the bell, the Notifications page's Alerts
-  tab, the dashboard and the environment page refresh together.
+  (`['alerts', 'list', …]`), so the bell (`inApp` lists), the
+  Notifications page's Alerts tab, the dashboard and the environment page
+  refresh together.
   Notifications (finished runs) are published as `notification.created`
   (carrying the notification: `authz.NotificationVisible`), topic
   `alerts`, kind `notification`, once their job's change is committed;

@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Notices bell (#22, #25 Q6, #159): the count of items not dismissed and
-	// their list: the alerts that fire (disks and RAID, temperatures, disk
-	// space and memory, offline environments, failed scheduled jobs,
-	// available updates) and this tab's
+	// their list: what the In App channel shows (the alerts that fire: disks
+	// and RAID, temperatures, disk space and memory, offline environments,
+	// failed scheduled jobs, available updates; alerts resolved lately;
+	// finished backups, restores, prunes and update runs) and this tab's
 	// notices of the user's own jobs. The badge stays until every item is
 	// dismissed (closing the list changes nothing). Each item links to where
 	// to act (the whole row is the link's target, its title the link's
@@ -16,7 +17,6 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import X from '@lucide/svelte/icons/x';
 	import { dismissMany, dismissOne } from '$lib/features/alerts/actions';
-	import { severityLabel } from '$lib/features/alerts/model';
 	import Button from '$lib/ui/Button.svelte';
 	import IconButton from '$lib/ui/IconButton.svelte';
 	import Popover from '$lib/ui/Popover.svelte';
@@ -105,9 +105,10 @@
 						>
 						{#if n.body}<p class="body">{n.body}</p>{/if}
 						<span class="meta">
-							{#if n.alert}<span class="severity {n.tone}"
-									>{severityLabel(n.alert.severity)}</span
-								><span class="sep" aria-hidden="true">·</span>{/if}
+							{#if n.label}<span class="severity {n.tone}">{n.label}</span><span
+									class="sep"
+									aria-hidden="true">·</span
+								>{/if}
 							{#if Number.isFinite(n.at)}<time
 									datetime={new Date(n.at).toISOString()}
 									title={formatDateTime(new Date(n.at))}
@@ -264,6 +265,10 @@
 
 	.severity.info {
 		color: var(--info);
+	}
+
+	.severity.ok {
+		color: var(--ok);
 	}
 
 	.dismiss {

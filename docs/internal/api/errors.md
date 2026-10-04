@@ -103,6 +103,7 @@ same change.
 | `group_not_empty` | 409 | no | The group still has members; remove them from it first (memberships never change implicitly; the owner is in no group). | #17 |
 | `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
 | `notification_channel_name_taken` | 409 | no | Another notification channel already uses this name. | #142 |
+| `notification_channel_built_in` | 409 | no | The In App channel is built in: it can't be deleted, tested or revealed, as it has no address. | #142 |
 | `alert_not_firing` | 409 | no | The alert is resolved; only firing alerts can be dismissed. | #159 |
 | `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
 | `git_credential_name_taken` | 409 | no | Another Git credential already uses this name. | #33 |

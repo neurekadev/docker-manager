@@ -250,6 +250,9 @@ func ListAlerts(ctx context.Context, db bun.IDB, f domain.AlertFilter, beforeID 
 	if f.EnvironmentID != "" {
 		q = q.Where("environment_id = ?", f.EnvironmentID)
 	}
+	if !f.ResolvedSince.IsZero() {
+		q = q.Where("resolved_at >= ?", f.ResolvedSince.UTC())
+	}
 	if beforeID != "" {
 		q = q.Where("id < ?", beforeID)
 	}

@@ -85,6 +85,9 @@ type NotificationFilter struct {
 	Kind          NotificationEventKind
 	Outcome       NotificationOutcome
 	EnvironmentID string
+	// Since keeps only notifications recorded at or after it (zero: no
+	// limit).
+	Since time.Time
 }
 
 // ErrNotificationNotFound is returned when no notification has the ID.

@@ -155,6 +155,8 @@ func (s *Service) sendChannel(ctx context.Context, instance, channelID string, n
 	if err != nil && !gone {
 		return err
 	}
+	// The In App channel sends nothing out (write never queues for it).
+	gone = gone || ch.InApp()
 	var send, done []domain.AlertDelivery
 	for _, d := range batch {
 		d.UpdatedAt = now

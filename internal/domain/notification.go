@@ -12,7 +12,10 @@ import (
 // credentials (webhook tokens, passwords): it is sealed at rest, never
 // logged, audited or returned by list and get, and only the owner can
 // reveal it again. Each channel also stores what it is subscribed to
-// (the outcomes of each event kind, and environments).
+// (the outcomes of each event kind, and environments). One channel is
+// built in: In App (InAppChannelID), the bell in the web UI. It has no
+// address, sends nothing out and can't be deleted; its subscription
+// chooses what the bell shows (ShowsAlert, ShowsNotification).
 
 // NotificationEventKind is a kind of event a channel can be subscribed to:
 // an alert kind (a problem that fires and resolves) or a notification
@@ -201,6 +204,16 @@ func NotificationErrorClasses() []string {
 		NotifyErrHTTP5xx, NotifyErrRedirect, NotifyErrRejected, NotifyErrInvalidURL}
 }
 
+// The built-in In App channel: the bell in the web UI. Its ID sorts before
+// every other channel's (UUIDv7), so it is listed first.
+const (
+	InAppChannelID   = "00000000-0000-0000-0000-000000000000"
+	InAppChannelName = "In App"
+	// InAppService is the In App channel's service (no Shoutrrr service
+	// has this name, so no address can be for it).
+	InAppService = "app"
+)
+
 // NotificationChannel is one stored channel (never its address).
 type NotificationChannel struct {
 	ID   string
@@ -245,6 +258,35 @@ func (c NotificationChannel) Wants(kind NotificationEventKind, o NotificationOut
 		return false
 	}
 	return c.AllEnvironments || environmentID == "" || slices.Contains(c.EnvironmentIDs, environmentID)
+}
+
+// InApp reports whether c is the built-in In App channel.
+func (c NotificationChannel) InApp() bool { return c.ID == InAppChannelID }
+
+// ShowsAlert reports whether the channel (the In App channel: the bell)
+// shows alert a, as a channel would have been sent it: a firing alert
+// when it wants the outcome the alert is sent with; a resolved one (the
+// problem is gone, not removed, expired or archived) when it also wants
+// the resolution, like a resolution only goes to channels that were told.
+func (c NotificationChannel) ShowsAlert(a Alert) bool {
+	kind, outcome := a.SentAs(AlertEventFiring)
+	if !c.Wants(kind, outcome, a.EnvironmentID) {
+		return false
+	}
+	if a.State == AlertFiring {
+		return true
+	}
+	if a.Resolution != AlertResolvedFixed {
+		return false
+	}
+	kind, outcome = a.SentAs(AlertEventResolved)
+	return c.Wants(kind, outcome, a.EnvironmentID)
+}
+
+// ShowsNotification reports whether the channel (the In App channel: the
+// bell) shows notification n.
+func (c NotificationChannel) ShowsNotification(n Notification) bool {
+	return c.Wants(n.Kind, n.Outcome, n.EnvironmentID)
 }
 
 // NotificationChannelInput creates a channel.
@@ -354,4 +396,8 @@ type NotificationMessage struct {
 var (
 	ErrNotificationChannelNotFound  = errors.New("notification channel not found")
 	ErrNotificationChannelNameTaken = errors.New("notification channel name taken")
+	// ErrNotificationChannelBuiltIn refuses what the built-in In App
+	// channel can't do: be deleted, tested, sent through or have an
+	// address.
+	ErrNotificationChannelBuiltIn = errors.New("the In App notification channel is built in")
 )

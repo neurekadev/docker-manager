@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -34,6 +35,8 @@ type AlertService interface {
 	Get(ctx context.Context, id string) (domain.Alert, error)
 	Dismiss(ctx context.Context, id, userID string) (domain.Alert, error)
 	DismissMany(ctx context.Context, ids []string, userID string, strict bool) ([]domain.Alert, error)
+	// InAppChannel is the built-in In App channel (inApp lists).
+	InAppChannel(ctx context.Context) (domain.NotificationChannel, error)
 	// EnvironmentName names an environment ("" when unknown).
 	EnvironmentName(ctx context.Context, id string) string
 }
@@ -126,9 +129,11 @@ func alertError(err error) error {
 
 type listAlertsInput struct {
 	PageParams
-	State         string `query:"state" enum:"active,dismissed,firing,resolved" doc:"active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert."`
-	Kind          string `query:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,backup,updates,job_failed" doc:"Only alerts of this kind."`
-	EnvironmentID string `query:"environmentId" maxLength:"128" doc:"Only alerts of this environment."`
+	State         string    `query:"state" enum:"active,dismissed,firing,resolved" doc:"active: firing and not dismissed; dismissed: firing and dismissed; firing: both; resolved: no longer firing. Default: every alert."`
+	Kind          string    `query:"kind" enum:"disk_health,raid,temperature,disk_space,memory,environment_offline,backup,updates,job_failed" doc:"Only alerts of this kind."`
+	EnvironmentID string    `query:"environmentId" maxLength:"128" doc:"Only alerts of this environment."`
+	InApp         bool      `query:"inApp" doc:"Only alerts the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments; a resolved one only when it also sends its resolution and the problem is gone. Nothing while it is off."`
+	ResolvedSince time.Time `query:"resolvedSince" doc:"Only alerts resolved at or after this time (RFC 3339); firing alerts never match."`
 }
 
 type alertListOutput struct{ Body Page[Alert] }
@@ -169,13 +174,22 @@ func (h *alertsAPI) list(ctx context.Context, in *listAlertsInput) (*alertListOu
 	if err != nil {
 		return nil, err
 	}
-	f := domain.AlertFilter{State: in.State, Kind: domain.NotificationEventKind(in.Kind), EnvironmentID: in.EnvironmentID}
-	fp := QueryFingerprint("alerts", in.State, in.Kind, in.EnvironmentID)
+	f := domain.AlertFilter{State: in.State, Kind: domain.NotificationEventKind(in.Kind), EnvironmentID: in.EnvironmentID,
+		ResolvedSince: in.ResolvedSince}
+	fp := QueryFingerprint("alerts", in.State, in.Kind, in.EnvironmentID, strconv.FormatBool(in.InApp), timeKey(in.ResolvedSince))
 	var after alertCursor
 	if in.Cursor != "" {
 		if err := DecodeCursorFor(in.Cursor, fp, &after); err != nil {
 			return nil, err
 		}
+	}
+	shown := func(domain.Alert) bool { return true }
+	if in.InApp {
+		ch, err := svc.InAppChannel(ctx)
+		if err != nil {
+			return nil, Internal(err)
+		}
+		shown = ch.ShowsAlert
 	}
 	items, next, err := ScanPage(ctx, Scan[domain.Alert]{
 		Limit: in.PageLimit(), After: after.ID,
@@ -183,7 +197,7 @@ func (h *alertsAPI) list(ctx context.Context, in *listAlertsInput) (*alertListOu
 			return svc.List(ctx, f, before, n)
 		},
 		Position: func(a domain.Alert) string { return a.ID },
-		Visible:  func(a domain.Alert) bool { return authz.AlertVisible(c, a) },
+		Visible:  func(a domain.Alert) bool { return authz.AlertVisible(c, a) && shown(a) },
 	})
 	if err != nil {
 		return nil, Internal(err)
