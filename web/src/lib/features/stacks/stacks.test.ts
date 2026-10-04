@@ -467,22 +467,75 @@ describe('StackHeader', () => {
 		expect(seen.some((s) => s.path.endsWith('/pulls'))).toBe(false);
 	});
 
-	it('groups the build deploys and pulls newer base images with Pull, Build & Deploy', async () => {
+	it('keeps the builds out of the deploy menu and shows Build only for a build section', async () => {
+		const user = setup();
+		header(stack());
+		expect(screen.queryByRole('button', { name: 'Build' })).not.toBeInTheDocument();
+		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
+		expect(menuEntries(await screen.findByRole('menu'))).toEqual([
+			'Deploy',
+			expect.stringMatching(/^Pull & Deploy/),
+			'---',
+			'Cleanup Orphans & Deploy'
+		]);
+	});
+
+	it('builds without deploying from the Build button', async () => {
+		const user = setup();
+		const tray = header(
+			stack({
+				actions: [...ALL, 'stack.build'],
+				services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }]
+			})
+		);
+		await user.click(screen.getByRole('button', { name: 'Build' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Build Images of Silo'));
+		expect(tray.jobs[0]).toMatchObject({
+			kind: 'stack.build',
+			success: 'Built the images of Silo',
+			failure: 'The images of Silo were not built'
+		});
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/builds',
+			body: {}
+		});
+	});
+
+	it('pulls newer base images and builds with Pull & Build', async () => {
+		const user = setup();
+		const tray = header(
+			stack({
+				actions: [...ALL, 'stack.build'],
+				services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }]
+			})
+		);
+		await user.click(screen.getByRole('button', { name: 'More Build Options' }));
+		const menu = await screen.findByRole('menu');
+		expect(menuEntries(menu)).toEqual([
+			'Build',
+			'Pull & Build',
+			'---',
+			'Build & Deploy',
+			'Pull, Build & Deploy'
+		]);
+		await user.click(within(menu).getByRole('menuitem', { name: 'Pull & Build' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and Build Images of Silo'));
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/builds',
+			body: { pull: true }
+		});
+	});
+
+	it('offers the build deploys without stack.build and pulls newer base images with Pull, Build & Deploy', async () => {
 		const user = setup();
 		const tray = header(
 			stack({ services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }] })
 		);
-		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
+		// Without stack.build the main part builds and deploys.
+		expect(screen.getByRole('button', { name: 'Build & Deploy' })).toBeEnabled();
+		await user.click(screen.getByRole('button', { name: 'More Build Options' }));
 		const menu = await screen.findByRole('menu');
-		expect(menuEntries(menu)).toEqual([
-			'Deploy',
-			expect.stringMatching(/^Pull & Deploy/),
-			'---',
-			'Build & Deploy',
-			'Pull, Build & Deploy',
-			'---',
-			'Cleanup Orphans & Deploy'
-		]);
+		expect(menuEntries(menu)).toEqual(['Build & Deploy', 'Pull, Build & Deploy']);
 		await user.click(within(menu).getByRole('menuitem', { name: 'Pull, Build & Deploy' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull, Build and Deploy Silo'));
 		expect(tray.jobs[0]).toMatchObject({ failure: 'Silo was not pulled, built and deployed' });

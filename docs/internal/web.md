@@ -277,13 +277,17 @@ URL once read) finds them again: a tracked job's `successFor`
 computes the success toast once it ended, from data read again (a deploy
 whose `appliedRevision.at` did not move started no container: "Nothing to
 deploy"). Deploy is the header's one primary action (a split button that
-deploys at once); its menu has three groups, split by separators:
-"Deploy" and "Pull & Deploy" (one deploy with `pull: always`; the menu
-button's accessible label says "newer images are available" when
-`updateAvailable`); "Build & Deploy" (`build: true`) and "Pull, Build &
-Deploy" (`pull: always` and `build: true`, which also pulls newer base
-images), only for stacks with a `build:` section; and "Cleanup Orphans &
-Deploy", whose
+deploys at once); its menu has "Deploy" and "Pull & Deploy" (one deploy
+with `pull: always`; the menu button's accessible label says "newer
+images are available" when `updateAvailable`), then after a separator
+"Cleanup Orphans & Deploy". Stacks with a `build:` section get a
+secondary **Build** split button ("More Build Options"): "Build" and
+"Pull & Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
+for newer base images; a `stack.build` job that deploys nothing, words
+from `buildCopy`) with `stack.build`, then after a separator "Build &
+Deploy" (`build: true`) and "Pull, Build & Deploy" (`pull: always` and
+`build: true`, which also pulls newer base images) with `stack.deploy`;
+its main part runs the first entry it has. "Cleanup Orphans & Deploy", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
 context's `removeOrphans` request) the overview's drift notice ("Remove Old
 Containers…") opens too. There is no separate Update button; schedules and
@@ -553,6 +557,21 @@ the web refetches the list.)
   same cap (`streamedIds`) and, unlike `ActiveJobs`, drops a job when it
   ends: the toast reports the outcome (a failure's toast stays until
   closed, with the recovery advice and "Open Job").
+- **Builds** (`$lib/ui/build-progress.ts`): `JobWatcher.output` keeps a
+  job's progress messages in order (the newest 500). While the last one is
+  BuildKit's (`<image>: [<stage> 2/5] RUN make: started`, or a chunk of a
+  step's output after a line break), `JobProgress` shows the step in words
+  ("silo-web · Step 2/5: RUN make") and the bar follows the steps of the
+  image being built; it never shows raw output (`progressText` also keeps
+  `JobRow` and the stack's Activity tab to a message's first line).
+  **Show Output** (once a build step or output arrived) opens the Build
+  Output dialog: one per tab (`buildOutput` in `build-output.svelte.ts`,
+  `BuildOutputDialog` in the signed-in layout), so it stays when the tray
+  drops the job; it follows the job's own event stream (replayed from the
+  start) and writes the output into a read-only xterm.js terminal
+  (`OutputFormatter`: a "=> step" heading per step, CACHED and ERROR
+  lines). The Builds page's log (`BuildLog`) lists the same progress
+  messages with the job's log and warning lines.
 - **Top bar**: `RunningJobs` (`$lib/shell`) shows "N running" from the
   same list, linking to `/jobs?state=active` (the jobs list's "In
   Progress" filter); hidden while nothing runs and for restricted users.
