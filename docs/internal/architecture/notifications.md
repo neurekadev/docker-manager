@@ -40,7 +40,8 @@ for the address CHECK):
   `domain.InAppChannelID`; name "In App", service `app`, `secret_sealed`
   empty, version 0). The migration added it with every outcome of every
   kind for every environment, and renamed a channel already named "In
-  App" to "In App (Renamed)"; down removes it.
+  App" to "In App (Renamed <the first 8 characters of its ID>)"; down
+  removes it.
 - `notification_channel_environments(channel_id, environment_id)`: the
   environments of a channel without `all_environments`. Both foreign keys
   cascade; a restricted channel that loses all its rows sends no

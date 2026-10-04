@@ -13,8 +13,9 @@ import (
 )
 
 // The In App channel is added first in the list with every outcome, a
-// channel already named "In App" is renamed, and the other channels keep
-// their address and environments through the rebuild.
+// channel already named "In App" is renamed to a name no other channel has
+// (one is already "In App (Renamed)"), and the other channels keep their
+// address and environments through the rebuild.
 func TestInAppChannelIsBuiltIn(t *testing.T) {
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
@@ -37,10 +38,15 @@ func TestInAppChannelIsBuiltIn(t *testing.T) {
 	if err := store.InsertNotificationChannel(ctx, db, &c, "sealed-address"); err != nil {
 		t.Fatal(err)
 	}
+	taken := c
+	taken.ID, taken.Name, taken.EnvironmentIDs = "0192f0c4-1a2b-7c3d-8e4f-000000000002", "In App (Renamed)", nil
+	if err := store.InsertNotificationChannel(ctx, db, &taken, "sealed-other"); err != nil {
+		t.Fatal(err)
+	}
 
 	migrateTo(t, db, "", dir)
 	list, err := store.ListNotificationChannels(ctx, db, "", 0)
-	if err != nil || len(list) != 2 {
+	if err != nil || len(list) != 3 {
 		t.Fatalf("%+v %v", list, err)
 	}
 	in := list[0]
@@ -49,7 +55,7 @@ func TestInAppChannelIsBuiltIn(t *testing.T) {
 		t.Fatalf("in app %+v", in)
 	}
 	got, sealed, err := store.NotificationChannelWithSecret(ctx, db, c.ID)
-	if err != nil || got.Name != "In App (Renamed)" || sealed != "sealed-address" || got.AddressVersion != 2 || got.Revision != 3 ||
+	if err != nil || got.Name != "In App (Renamed 0192f0c4)" || sealed != "sealed-address" || got.AddressVersion != 2 || got.Revision != 3 ||
 		len(got.EnvironmentIDs) != 1 || got.EnvironmentIDs[0] != "env-1" {
 		t.Fatalf("%+v %q %v", got, sealed, err)
 	}
@@ -70,7 +76,8 @@ func TestInAppChannelIsBuiltIn(t *testing.T) {
 	if _, err := migrate.NewMigrator(db, Migrations).Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if list, err := store.ListNotificationChannels(ctx, db, "", 0); err != nil || len(list) != 1 || list[0].ID != c.ID {
+	if list, err := store.ListNotificationChannels(ctx, db, "", 0); err != nil || len(list) != 2 || list[0].ID != taken.ID ||
+		list[1].ID != c.ID {
 		t.Fatalf("down: %+v %v", list, err)
 	}
 }

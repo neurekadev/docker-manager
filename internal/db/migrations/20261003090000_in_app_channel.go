@@ -72,10 +72,12 @@ func init() {
 	// address (secret_sealed '', version 0, which only it may have), sends
 	// nothing out and starts with every outcome of every kind, for every
 	// environment. A channel already named "In App" is renamed "In App
-	// (Renamed)". Down removes the In App channel; a renamed channel keeps
+	// (Renamed <the first 8 characters of its ID>)", a name no other
+	// channel has. Down removes the In App channel; a renamed channel keeps
 	// its new name.
 	up := append([]string{
-		`UPDATE notification_channels SET name = 'In App (Renamed)', name_key = 'in app (renamed)'
+		`UPDATE notification_channels SET name = 'In App (Renamed ' || substr(id, 1, 8) || ')',
+			name_key = lower('in app (renamed ' || substr(id, 1, 8) || ')')
 		 WHERE name_key = 'in app'`,
 	}, rebuildChannels(addressUnlessBuiltIn)...)
 	up = append(up,
