@@ -86,6 +86,23 @@ web `web/src/lib/features/notifications`.
   `secret_version`): a replaced address is never marked Working or Failing
   by its predecessor's send. Log failures with the channel ID, service and
   class only.
+- **The In App channel is built in** (`domain.InAppChannelID`, the nil
+  UUID so it is listed first; name "In App", service `app`, migration
+  `20261003090000_in_app_channel`): the web UI's bell. It has no address
+  (the only row with `secret_sealed` empty and version 0, the table's
+  CHECK), sends nothing out (`alerts.write` never queues for it; the
+  dispatcher drops anything that names it) and refuses deletion, tests,
+  reveals and sends (`domain.ErrNotificationChannelBuiltIn`, 409
+  `notification_channel_built_in`), renaming and an address (422). Its
+  subscription, environments and Enabled are edited like any channel's
+  (a new installation: every outcome, every environment). What the bell
+  lists is read, not delivered: `list-alerts` and `list-notifications`
+  with `inApp` keep what `NotificationChannel.ShowsAlert` /
+  `ShowsNotification` say (an alert by `SentAs` of its firing; a resolved
+  one only when it was fixed and the channel also wants the resolution,
+  like the told-channels rule), on top of the caller's visibility; a
+  subscription change applies to the bell at once. Its changes reach
+  everyone live (`authz/events.go`).
 - **Owner only.** Every channel route and the alert thresholds are
   `capability: owner` (never with an API token); handlers check the
   owner-only catalog key `notification_channel.manage` before any lookup.
@@ -134,11 +151,16 @@ web `web/src/lib/features/notifications`.
   edited as the raw URL under "Other"); extra query options of a stored URL
   are kept. Email's **From Name** is written as `fromname` only when it
   is not the default. Secrets are `PasswordField`s; the stored address stays masked
-  until "Show Address" (`withStepUp`). "What to Send" is one row per kind
-  (a master checkbox, the kind's outcomes beside it; a kind whose label
-  does not say all it covers explains it in an (i) beside it (`InfoTip`,
-  `EventKindInfo.hint`: Backups, Image Updates, Other Jobs)). Channel changes
-  arrive on the live topic `settings` (`notificationKeys`).
+  until "Show Address" (`withStepUp`). "What to Send" is one card for
+  every channel on Settings → Notifications (`SubscriptionMatrix`), not
+  part of the dialog: a column per channel (In App first), a row per kind
+  and per outcome, each cell a bell toggle (`BellToggle`: empty off,
+  filled on, half filled for some of a kind's outcomes; never
+  checkboxes); a kind whose label does not say all it covers explains it
+  in an (i) beside it (`InfoTip`, `EventKindInfo.hint`: Backups, Image
+  Updates, Other Jobs). Changes are saved together (one `events` PATCH
+  per changed channel). Channel changes arrive on the live topic
+  `settings` (`notificationKeys`).
 
 ## Alerts (#159) and notifications
 
@@ -149,7 +171,7 @@ Package `internal/manager/alerts` (`app.Manager.Alerts()`), store
 `internal/manager/authz/alerts.go`, API `internal/manager/api/alerts.go`
 and `notification_events.go`, web `web/src/lib/features/alerts` (the
 Notifications page: tabs Notifications and Alerts) and the bell
-(`$lib/shell/notices.svelte.ts`).
+(`$lib/shell/notices.svelte.ts`: what the In App channel shows, above).
 
 - **One alert per problem.** Evaluators describe what they see as an
   `alerts.Observation` and call `raise`/`resolve`; never write the

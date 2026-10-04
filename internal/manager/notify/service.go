@@ -10,6 +10,11 @@
 // step-up) and inside one send: never in a domain value, log, audit
 // record, job input, error or stored result. Sends are reduced to stable
 // error classes (classify.go).
+//
+// The built-in In App channel (domain.InAppChannelID, the web UI's bell)
+// has no address: only its subscription, environments and Enabled can
+// change; it can't be deleted, tested, revealed or sent through
+// (domain.ErrNotificationChannelBuiltIn).
 package notify
 
 import (
@@ -287,6 +292,14 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, p domai
 	if cur.Revision != revision {
 		return domain.NotificationChannel{}, domain.ErrRevisionMismatch
 	}
+	if cur.InApp() {
+		if p.Address != nil {
+			return domain.NotificationChannel{}, fieldErr("address", "the In App channel has no address")
+		}
+		if p.Name != nil && strings.TrimSpace(*p.Name) != cur.Name {
+			return domain.NotificationChannel{}, fieldErr("name", "the In App channel keeps its name")
+		}
+	}
 	next := cur
 	if p.Name != nil {
 		if next.Name, err = validName(*p.Name); err != nil {
@@ -382,6 +395,9 @@ func (s *Service) Delete(ctx context.Context, id string, revision int64) error {
 	if err != nil {
 		return err
 	}
+	if cur.InApp() {
+		return domain.ErrNotificationChannelBuiltIn
+	}
 	if err := store.DeleteNotificationChannel(ctx, s.db, id, revision); err != nil {
 		return err
 	}
@@ -395,11 +411,15 @@ func (s *Service) Delete(ctx context.Context, id string, revision int64) error {
 // withAddress reads a channel and opens its address for one use, both from
 // one row read: the send, its recorded result and the audit details all
 // refer to the same address version, service and name even while the
-// address is replaced concurrently.
+// address is replaced concurrently. The In App channel has none
+// (domain.ErrNotificationChannelBuiltIn).
 func (s *Service) withAddress(ctx context.Context, id string) (domain.NotificationChannel, logging.Secret, error) {
 	c, sealed, err := store.NotificationChannelWithSecret(ctx, s.db, id)
 	if err != nil {
 		return domain.NotificationChannel{}, "", err
+	}
+	if c.InApp() {
+		return domain.NotificationChannel{}, "", domain.ErrNotificationChannelBuiltIn
 	}
 	pt, err := s.opts.Keyring.Open(sealed, sealContext(id))
 	if err != nil {

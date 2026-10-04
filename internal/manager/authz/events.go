@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 	"github.com/neurekadev/docker-manager/internal/manager/events"
 )
@@ -119,8 +120,10 @@ func changedVisible(c Checker, e events.Event) bool {
 		// Registries' cached templates are browsed with template.read.
 		return c.Can("template.read", Instance()).Allowed
 	case "notification_channel":
-		// Channels are the owner's (notification_channel.manage).
-		return c.Can("notification_channel.manage", Instance()).Allowed
+		// Channels are the owner's (notification_channel.manage). A
+		// change of the In App channel reaches everyone: it changes what
+		// their bell shows.
+		return e.ResourceID == domain.InAppChannelID || c.Can("notification_channel.manage", Instance()).Allowed
 	case "alert", "notification":
 		// A dismissal's own alert.updated event carries the alert and
 		// its visibility; the audited mutation adds nothing to it.

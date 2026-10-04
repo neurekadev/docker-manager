@@ -288,18 +288,25 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   shows when it was published when the registry says so (`publishedText`:
   "published 3 days ago", the date as tooltip).
 - **Notices and the bell** (`$lib/shell/notices.svelte.ts`,
-  `NoticesBell.svelte`, #159): the bell lists the firing, undismissed
-  alerts the caller sees (the active alerts query) and this tab's notices
-  of the user's own manual jobs; every item links somewhere
-  (`noticeHref`). The badge counts the items not dismissed and stays until
-  each is dismissed (closing the popover changes nothing). Dismiss (×) and
-  "Dismiss All" dismiss an alert for everyone when its `actions` hold
-  `alert.dismiss`, else for this browser only; job notices are dismissed
-  for this browser. Browser-local dismissals are keys only
-  (`job:<id>`, `alert:<id>:<escalation>`, so an alert that gets worse, at
-  any severity, shows again) in
-  `localStorage` `docker-manager:dismissed-notices` (at most 200; UI
-  state, never API data). Offline environments and available updates are
+  `NoticesBell.svelte`, #159): the bell lists what the built-in In App
+  channel shows (the manager filters with `inApp`): the firing,
+  undismissed alerts the caller sees (`inAppAlertsQuery`), alerts
+  resolved in the last 7 days (`inAppResolvedQuery`, "Resolved: <title>")
+  and finished runs of the last 7 days (`inAppRunsQuery`, labeled like
+  their message, "Backups · Success"), at most 50 of each
+  (`BELL_WINDOW_MS`, `BELL_LIMIT`), plus this tab's notices of the user's
+  own manual jobs. A run replaces the notice of its job (both `job:<id>`);
+  a run whose job an alert names (`facts.jobId`) is shown as the alert.
+  Every item links somewhere (`noticeHref`). The badge counts the items
+  not dismissed and stays until each is dismissed (closing the popover
+  changes nothing). Dismiss (×) and "Dismiss All" dismiss an active alert
+  for everyone when its `actions` hold `alert.dismiss`, else for this
+  browser only; resolved alerts, runs and job notices are dismissed for
+  this browser. Browser-local dismissals are keys only (`job:<id>`,
+  `alert:<id>:<escalation>`, so an alert that gets worse, at any severity,
+  shows again; `alert:<id>:resolved`) in `localStorage`
+  `docker-manager:dismissed-notices` (at most 500; UI state, never API
+  data). Offline environments and available updates are
   alerts now: never compute them in the browser again. Policies are named
   as users know them with `policyLabel` (the manager's `targetName`, the
   stack or container).

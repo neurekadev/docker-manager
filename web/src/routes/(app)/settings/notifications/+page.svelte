@@ -3,9 +3,12 @@
 	// Docker Manager sends messages, what each channel sends and whether
 	// its last message arrived. The owner adds ("Add Channel",
 	// ?create=1), edits, tests and deletes them; addresses stay sealed on
-	// the manager and are only shown in the edit dialog on request. Below
-	// them the alert thresholds: when a host's temperature, disk space or
-	// memory raises an alert, with overrides per environment.
+	// the manager and are only shown in the edit dialog on request. The
+	// built-in In App channel (the bell) is always listed first and can only
+	// be edited. Below them "What to Send": a bell per event and channel
+	// (SubscriptionMatrix), then the alert thresholds: when a host's
+	// temperature, disk space or memory raises an alert, with overrides per
+	// environment.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -27,7 +30,8 @@
 		formatRelative,
 		toast,
 		type Column,
-		type MenuEntry
+		type MenuEntry,
+		type SortState
 	} from '$lib/ui';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
@@ -36,7 +40,9 @@
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import { runTest } from '$lib/features/notifications/actions';
 	import ChannelDialog from '$lib/features/notifications/ChannelDialog.svelte';
+	import SubscriptionMatrix from '$lib/features/notifications/SubscriptionMatrix.svelte';
 	import {
+		channelRows,
 		channelStatus,
 		eventsDetail,
 		sendsSummary,
@@ -86,6 +92,9 @@
 	}
 
 	function menu(c: NotificationChannel): MenuEntry[] {
+		const edit = { label: 'Edit', onSelect: () => ((editing = c), (editOpen = true)) };
+		// The In App channel sends nothing out and can't be deleted.
+		if (c.builtIn) return [edit];
 		return [
 			{
 				label: 'Send Test',
@@ -93,7 +102,7 @@
 				disabled: testing === c.id,
 				onSelect: () => void test(c)
 			},
-			{ label: 'Edit', onSelect: () => ((editing = c), (editOpen = true)) },
+			edit,
 			{ separator: true },
 			{
 				label: 'Delete',
@@ -103,8 +112,12 @@
 		];
 	}
 
-	const subLine = (c: NotificationChannel) =>
-		c.target ? `${serviceLabel(c.service)}, ${c.target}` : serviceLabel(c.service);
+	const subLine = (c: NotificationChannel) => {
+		if (c.builtIn) return 'Built In, the Notices bell';
+		return c.target ? `${serviceLabel(c.service)}, ${c.target}` : serviceLabel(c.service);
+	};
+
+	let sort = $state<SortState | null>({ column: 'name', direction: 'asc' });
 
 	const columns: Column<NotificationChannel>[] = [
 		{
@@ -165,8 +178,10 @@
 	<span class="sends" title={eventsDetail(c.events)}>{sendsSummary(c, envName)}</span>
 {/snippet}
 {#snippet sentCell(c: NotificationChannel)}
-	<!-- The last message that arrived; a failed attempt since is named below. -->
-	{#if c.lastSuccessAt}<span class="muted" title={formatDateTime(c.lastSuccessAt)}
+	<!-- The last message that arrived; a failed attempt since is named below.
+	     The In App channel sends nothing out. -->
+	{#if c.builtIn}<span class="muted" aria-label="Not Applicable">—</span>
+	{:else if c.lastSuccessAt}<span class="muted" title={formatDateTime(c.lastSuccessAt)}
 			>{formatRelative(c.lastSuccessAt)}</span
 		>{:else}<span class="muted">Never</span>{/if}
 	{#if c.lastResult && c.lastResult !== 'ok' && c.lastAttemptAt}<span
@@ -201,10 +216,11 @@
 				{#snippet children(rows)}
 					<Table
 						label="Notification Channels"
-						{rows}
+						rows={channelRows(rows, columns, sort)}
 						{columns}
 						rowKey={(c) => c.id}
-						sort={{ column: 'name', direction: 'asc' }}
+						bind:sort
+						manualSort
 					>
 						{#snippet empty()}
 							<EmptyState
@@ -228,6 +244,7 @@
 				{/snippet}
 			</QueryView>
 		</Card>
+		{#if list.data?.length}<SubscriptionMatrix channels={list.data} />{/if}
 		{#if owner}<ThresholdsCard />{/if}
 	{/if}
 </Page>

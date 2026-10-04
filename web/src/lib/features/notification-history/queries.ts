@@ -1,14 +1,16 @@
 // Notifications (finished backups, restores, prunes and update runs)
 // for Svelte Query: GET /notifications page by page (the Notifications
-// tab's "Load more"). Keys are liveKeys.notifications(...): the manager
+// tab's "Load more"), and those of the last BELL_WINDOW_MS the In App
+// channel shows (the bell). Keys are liveKeys.notifications(...): the manager
 // publishes the topic `alerts` with the kind `notification` whenever it
 // records one, and the live client refreshes every notifications list.
 // Notifications are a history: nothing changes them, so there are no
 // mutations.
-import { infiniteQueryOptions } from '@tanstack/svelte-query';
+import { infiniteQueryOptions, queryOptions } from '@tanstack/svelte-query';
 import { api, unwrap, type ApiClient } from '$lib/api/client';
+import { BELL_LIMIT, BELL_WINDOW_MS } from '$lib/features/alerts/queries';
 import { liveKeys } from '$lib/live/keys';
-import type { NotificationKind, NotificationOutcome } from './model';
+import type { Notification, NotificationKind, NotificationOutcome } from './model';
 
 /** The server-side filters of GET /notifications (absent: every notification). */
 export interface NotificationFilter {
@@ -30,8 +32,27 @@ export const notificationKeys = {
 	/** Every notifications query (what a new notification refreshes). */
 	all: liveKeys.notifications(),
 	pages: (f: NotificationFilter = {}) =>
-		liveKeys.notifications('pages', normalizeNotificationFilter(f))
+		liveKeys.notifications('pages', normalizeNotificationFilter(f)),
+	inApp: liveKeys.notifications('in-app')
 };
+
+/** The newest finished runs of the last BELL_WINDOW_MS that the In App channel shows (the bell). */
+export function inAppRunsQuery(client: ApiClient = api, now: () => number = Date.now) {
+	return queryOptions({
+		queryKey: notificationKeys.inApp,
+		queryFn: async ({ signal }): Promise<Notification[]> => {
+			const since = new Date(now() - BELL_WINDOW_MS).toISOString();
+			const page = await unwrap(
+				client.GET('/api/v1/notifications', {
+					params: { query: { inApp: true, since, limit: BELL_LIMIT } },
+					signal
+				})
+			);
+			return page.items;
+		},
+		staleTime: 15_000
+	});
+}
 
 /** Notifications matching the filter, newest first, a page at a time. */
 export function notificationsInfiniteQuery(

@@ -23,8 +23,9 @@
 		myPermissionsQuery,
 		recentJobsQuery
 	} from '$lib/api/queries';
-	import { activeAlertsQuery } from '$lib/features/alerts/queries';
+	import { inAppAlertsQuery, inAppResolvedQuery } from '$lib/features/alerts/queries';
 	import { jobKindPhrase } from '$lib/features/jobs/labels';
+	import { inAppRunsQuery } from '$lib/features/notification-history/queries';
 	import MoveBanner from '$lib/features/managermove/MoveBanner.svelte';
 	import { liveStatus } from '$lib/live/status.svelte';
 	import { bannerDelay, bannerText } from './live-banner';
@@ -90,14 +91,23 @@
 		enabled: !!selected?.online && !!selected?.actions.includes('environment.system.read')
 	}));
 
-	// The bell (#25 Q6, #159): the manager's active alerts (disks and RAID,
-	// offline environments, failed scheduled jobs, available updates) and
-	// notices of the user's own jobs from the recent jobs, both refreshed
-	// by live events. Dismissals made in another tab apply here too.
+	// The bell (#25 Q6, #159): what the In App channel shows of the
+	// manager's alerts (active ones, and those resolved lately) and finished
+	// runs, and notices of the user's own jobs from the recent jobs, all
+	// refreshed by live events. Dismissals made in another tab apply here
+	// too.
 	const signedIn = $derived(!!perms.data && !isRestricted(access));
-	const activeAlerts = createQuery(() => ({ ...activeAlertsQuery(), enabled: signedIn }));
+	const inAppAlerts = createQuery(() => ({ ...inAppAlertsQuery(), enabled: signedIn }));
+	const inAppResolved = createQuery(() => ({ ...inAppResolvedQuery(), enabled: signedIn }));
+	const inAppRuns = createQuery(() => ({ ...inAppRunsQuery(), enabled: signedIn }));
 	$effect(() => {
-		notices.setAlerts(activeAlerts.data ?? []);
+		notices.setAlerts(inAppAlerts.data ?? []);
+	});
+	$effect(() => {
+		notices.setResolved(inAppResolved.data ?? []);
+	});
+	$effect(() => {
+		notices.setRuns(inAppRuns.data ?? []);
 	});
 	$effect(() => notices.listen());
 	const recentJobs = createQuery(() => ({ ...recentJobsQuery(20), enabled: signedIn }));

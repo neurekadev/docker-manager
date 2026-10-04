@@ -233,7 +233,7 @@ func TestCreateSealsTheAddressAndReturnsMetadataOnly(t *testing.T) {
 		t.Fatalf("%+v %v", got, err)
 	}
 	list, err := f.svc.List(f.ctx, "", 0)
-	if err != nil || len(list) != 1 {
+	if err != nil || len(list) != 2 || !list[0].InApp() || list[1].ID != c.ID {
 		t.Fatalf("%+v %v", list, err)
 	}
 	f.secrets.AssertClean(t, "get", got)
@@ -522,6 +522,53 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+// The In App channel has no address: its subscription, environments and
+// Enabled change; it keeps its name and can't be deleted, tested, revealed
+// or sent through.
+func TestInAppChannelIsBuiltIn(t *testing.T) {
+	f := newFixture(t, 0)
+	c, err := f.svc.Get(f.ctx, domain.InAppChannelID)
+	if err != nil || c.Name != domain.InAppChannelName || c.Service != domain.InAppService || !c.Enabled ||
+		!c.Subscriptions.Equal(domain.AllNotificationSubscriptions()) || !c.AllEnvironments {
+		t.Fatalf("%+v %v", c, err)
+	}
+	subs := domain.NotificationSubscriptions{domain.NotifyBackup: {domain.OutcomeFailure}}
+	off, name, envs := false, " In App ", []string{"env-1"}
+	next, err := f.svc.Update(f.ctx, c.ID, c.Revision, domain.NotificationChannelPatch{Name: &name, Enabled: &off,
+		Subscriptions: &subs, EnvironmentIDs: &envs})
+	if err != nil || next.Enabled || !next.Subscriptions.Equal(subs) || next.AllEnvironments || next.EnvironmentIDs[0] != "env-1" ||
+		next.Name != domain.InAppChannelName || next.Revision != c.Revision+1 {
+		t.Fatalf("%+v %v", next, err)
+	}
+	var fe *domain.FieldError
+	other, addr := "Bell", f.address("in app")
+	if _, err := f.svc.Update(f.ctx, c.ID, next.Revision, domain.NotificationChannelPatch{Name: &other}); !errors.As(err, &fe) ||
+		fe.Field != "name" {
+		t.Fatalf("rename: %v", err)
+	}
+	if _, err := f.svc.Update(f.ctx, c.ID, next.Revision, domain.NotificationChannelPatch{Address: &addr}); !errors.As(err, &fe) ||
+		fe.Field != "address" {
+		t.Fatalf("address: %v", err)
+	}
+	if err := f.svc.Delete(f.ctx, c.ID, next.Revision); !errors.Is(err, domain.ErrNotificationChannelBuiltIn) {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := f.svc.Test(f.ctx, c.ID); !errors.Is(err, domain.ErrNotificationChannelBuiltIn) {
+		t.Fatalf("test: %v", err)
+	}
+	if _, err := f.svc.Reveal(f.ctx, c.ID); !errors.Is(err, domain.ErrNotificationChannelBuiltIn) {
+		t.Fatalf("reveal: %v", err)
+	}
+	if _, err := f.svc.Send(f.ctx, c.ID, domain.NotificationMessage{Title: "x"}); !errors.Is(err, domain.ErrNotificationChannelBuiltIn) {
+		t.Fatalf("send: %v", err)
+	}
+	// Its name stays taken.
+	if _, err := f.svc.Create(f.ctx, domain.NotificationChannelInput{Name: "in app", Address: f.address("other"), Enabled: true,
+		AllEnvironments: true}); !errors.Is(err, domain.ErrNotificationChannelNameTaken) {
+		t.Fatalf("name: %v", err)
+	}
+}
+
 func TestTestSendsAndRecordsTheResult(t *testing.T) {
 	f := newFixture(t, 0)
 	c := f.channel("Ops")
@@ -647,6 +694,58 @@ func TestWants(t *testing.T) {
 	c.Enabled = false
 	if c.Wants(domain.NotifyJobFailed, failed, "env-2") {
 		t.Fatal("disabled")
+	}
+}
+
+// The bell shows what a channel would have been sent: a resolution only
+// with what it fired with, a failed job as its area.
+func TestShowsAlertAndNotification(t *testing.T) {
+	c := domain.NotificationChannel{ID: domain.InAppChannelID, Enabled: true, AllEnvironments: true,
+		Subscriptions: domain.NotificationSubscriptions{domain.NotifyDiskHealth: {domain.OutcomeCritical, domain.OutcomeResolved},
+			domain.NotifyBackup: {domain.OutcomeFailure}, domain.NotifyPrune: {domain.OutcomeSuccess}}}
+	disk := domain.Alert{Kind: domain.NotifyDiskHealth, Severity: domain.AlertCritical, State: domain.AlertFiring, EnvironmentID: "env-1"}
+	if !c.ShowsAlert(disk) {
+		t.Fatal("firing")
+	}
+	warn := disk
+	warn.Severity = domain.AlertWarning
+	if c.ShowsAlert(warn) {
+		t.Fatal("an outcome it does not send")
+	}
+	fixed := disk
+	fixed.State, fixed.Resolution = domain.AlertResolved, domain.AlertResolvedFixed
+	if !c.ShowsAlert(fixed) {
+		t.Fatal("resolved")
+	}
+	removed := fixed
+	removed.Resolution = domain.AlertResolvedRemoved
+	if c.ShowsAlert(removed) {
+		t.Fatal("removed: nothing to tell")
+	}
+	warn.State, warn.Resolution = domain.AlertResolved, domain.AlertResolvedFixed
+	if c.ShowsAlert(warn) {
+		t.Fatal("the resolution of what it never showed")
+	}
+	// A failed backup verification is a backup failure, its resolution too.
+	job := domain.Alert{Kind: domain.NotifyJobFailed, Severity: domain.AlertCritical, State: domain.AlertFiring, JobKind: "backup.verify"}
+	if !c.ShowsAlert(job) {
+		t.Fatal("failed job of an area")
+	}
+	job.State, job.Resolution = domain.AlertResolved, domain.AlertResolvedFixed
+	if !c.ShowsAlert(job) {
+		t.Fatal("resolved job of an area")
+	}
+	job.JobKind = "stack.deploy"
+	if c.ShowsAlert(job) {
+		t.Fatal("other jobs")
+	}
+	if !c.ShowsNotification(domain.Notification{Kind: domain.NotifyPrune, Outcome: domain.OutcomeSuccess, EnvironmentID: "env-1"}) ||
+		c.ShowsNotification(domain.Notification{Kind: domain.NotifyPrune, Outcome: domain.OutcomeFailure}) {
+		t.Fatal("notifications")
+	}
+	c.Enabled = false
+	if c.ShowsAlert(disk) || c.ShowsNotification(domain.Notification{Kind: domain.NotifyPrune, Outcome: domain.OutcomeSuccess}) {
+		t.Fatal("off")
 	}
 }
 

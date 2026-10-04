@@ -39,6 +39,11 @@
 //                                        every notifications list, and only
 //                                        those
 //
+// A change of the built-in In App channel (topic settings, kind
+// notification_channel, IN_APP_CHANNEL_ID; relayed to everyone) changes
+// what the bell lists: it also refreshes every alerts and notifications
+// list.
+//
 // Build keys with liveKeys so they stay consistent.
 import type { components } from '$lib/api/schema';
 
@@ -84,6 +89,9 @@ export const MOVE_LOCK_KIND = 'manager_move_lock';
  * prune or update run; topic alerts): the notifications lists refetch.
  */
 export const NOTIFICATION_KIND = 'notification';
+
+/** The ID of the built-in In App notification channel (the bell). */
+export const IN_APP_CHANNEL_ID = '00000000-0000-0000-0000-000000000000';
 
 /** Topics whose resource names are only unique within an environment. */
 const ENV_SCOPED = new Set<string>(['containers', 'images', 'volumes', 'networks', 'metrics']);
@@ -199,6 +207,11 @@ export function keysForInvalidate(e: LiveInvalidate): Invalidation[] {
 		out.push({ key: ['overview'], class: 'list' });
 	if (topic === 'containers') out.push({ key: ['stacks', 'services'], class: 'list' });
 	if (topic === 'permissions') out.push({ key: liveKeys.myPermissions, class: 'detail' });
+	if (topic === 'settings' && e.resourceId === IN_APP_CHANNEL_ID)
+		out.push(
+			{ key: liveKeys.alerts(), class: 'list' },
+			{ key: liveKeys.notifications(), class: 'list' }
+		);
 	return out;
 }
 

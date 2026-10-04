@@ -1,11 +1,12 @@
 // Notification channel dialog (#142): friendly fields per service (secrets
 // in password fields) become one Shoutrrr URL; switching the service
 // swaps the fields; editing keeps the stored address masked until "Show
-// Address" reads it back, and saves without it when it is unchanged.
-// "What to Send" is a grid: a checkbox per kind of event (mixed while some
-// of its outcomes are ticked) and one per outcome.
+// Address" reads it back, and saves without it when it is unchanged. What
+// a channel sends is chosen on the page (SubscriptionMatrix.test.ts): a new
+// channel sends everything. The built-in In App channel has no name or
+// address to edit.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/svelte';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
@@ -26,6 +27,7 @@ const channel: NotificationChannel = {
 	id: 'c-1',
 	name: 'Ops',
 	service: 'discord',
+	builtIn: false,
 	enabled: true,
 	events: [
 		{ kind: 'updates', outcomes: ['available', 'failure', 'success'] },
@@ -91,50 +93,9 @@ describe('ChannelDialog (#142)', () => {
 		const calls = stubApi();
 		show({ open: true });
 		expect(await screen.findByRole('heading', { name: 'Destination' })).toBeInTheDocument();
-		expect(screen.getByRole('heading', { name: 'What to Send' })).toBeInTheDocument();
-		for (const label of [
-			'Disk Health',
-			'RAID',
-			'Temperature',
-			'Disk Space',
-			'Memory',
-			'Environment Offline',
-			'Backups',
-			'Restores',
-			'Prune',
-			'Image Updates',
-			'Other Jobs',
-			'Disk Health: Warning',
-			'Environment Offline: Back Online',
-			'Image Updates: Applied',
-			'Restores: Success',
-			'Other Jobs: Resolved'
-		])
-			expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
-		// A row whose label does not say all it covers explains it in an (i).
-		const others = screen
-			.getByRole('checkbox', { name: 'Other Jobs' })
-			.closest('.event-kind') as HTMLElement;
-		expect(
-			within(others).getByRole('img', { name: /an API token started/ })
-		).toBeInTheDocument();
-		const prune = screen
-			.getByRole('checkbox', { name: 'Prune' })
-			.closest('.event-kind') as HTMLElement;
-		expect(within(prune).queryByRole('img')).toBeNull();
-		// Each kind leads with its icon (decorative); its outcomes have none.
-		expect(
-			screen.getByRole('checkbox', { name: 'RAID' }).closest('label')?.querySelector('svg')
-		).toHaveAttribute('aria-hidden', 'true');
-		expect(
-			screen
-				.getByRole('checkbox', { name: 'RAID: Warning' })
-				.closest('label')
-				?.querySelector('svg')
-		).toBeNull();
-		expect(screen.getByRole('group', { name: 'Hosts' })).toBeInTheDocument();
-		expect(screen.getByRole('group', { name: 'Jobs' })).toBeInTheDocument();
-		expect(screen.queryByRole('checkbox', { name: /^Also send when resolved/ })).toBeNull();
+		// What it sends is chosen on the page's bells, not here.
+		expect(screen.queryByRole('heading', { name: 'What to Send' })).toBeNull();
+		expect(screen.queryByRole('checkbox', { name: 'Backups' })).toBeNull();
 		expect(screen.getByRole('switch', { name: 'Enabled' })).toHaveAttribute(
 			'aria-checked',
 			'true'
@@ -156,7 +117,6 @@ describe('ChannelDialog (#142)', () => {
 			name: 'Ops',
 			address: STORED,
 			enabled: true,
-			events: allEvents(),
 			allEnvironments: true,
 			environmentIds: []
 		});
@@ -203,13 +163,6 @@ describe('ChannelDialog (#142)', () => {
 		show({ open: true, channel });
 		expect(await screen.findByText('The address is stored encrypted')).toBeInTheDocument();
 		expect(screen.queryByLabelText(/^Webhook URL/)).toBeNull();
-		// The channel's events: every update outcome, only failed jobs' failures.
-		expect(screen.getByRole('checkbox', { name: 'Image Updates' })).toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other Jobs' })).toBePartiallyChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other Jobs: Failure' })).toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'Other Jobs: Resolved' })).not.toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBeChecked();
-		expect(screen.getByRole('checkbox', { name: 'RAID' })).not.toBePartiallyChecked();
 		expect(calls).toEqual([]);
 
 		await user.click(screen.getByRole('button', { name: 'Show Address' }));
@@ -221,23 +174,48 @@ describe('ChannelDialog (#142)', () => {
 			{ method: 'GET', path: '/api/v1/notification-channels/c-1/address', body: undefined }
 		]);
 
-		await user.click(screen.getByRole('checkbox', { name: 'RAID' }));
+		await user.click(screen.getByRole('switch', { name: 'Enabled' }));
 		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
 		const patch = calls.find((c) => c.method === 'PATCH')!;
 		expect(patch.path).toBe('/api/v1/notification-channels/c-1');
+		// Its events are left as they are.
 		expect(patch.body).toEqual({
 			name: 'Ops',
-			enabled: true,
-			events: [
-				{ kind: 'raid', outcomes: ['warning', 'critical', 'resolved'] },
-				{ kind: 'updates', outcomes: ['available', 'failure', 'success'] },
-				{ kind: 'job_failed', outcomes: ['failure'] }
-			],
+			enabled: false,
 			allEnvironments: true,
 			environmentIds: []
 		});
 		await waitFor(() => expect(toast.items.map((t) => t.title)).toContain('Saved Ops'));
+	});
+
+	it('edits the In App channel without a name or an address', async () => {
+		const user = setup();
+		const calls = stubApi();
+		const inApp: NotificationChannel = {
+			...channel,
+			id: '00000000-0000-0000-0000-000000000000',
+			name: 'In App',
+			service: 'app',
+			builtIn: true,
+			events: allEvents(),
+			lastResult: undefined,
+			address: { fingerprint: '', version: 0, updatedAt: '2026-10-03T09:00:00Z' }
+		};
+		show({ open: true, channel: inApp });
+		expect(await screen.findByText('Notices in Docker Manager')).toBeInTheDocument();
+		expect(screen.queryByLabelText(/^Name/)).toBeNull();
+		expect(screen.queryByRole('combobox', { name: /Service/ })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Show Address' })).toBeNull();
+		await user.click(screen.getByRole('switch', { name: 'Enabled' }));
+		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+		await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+		const patch = calls.find((c) => c.method === 'PATCH')!;
+		expect(patch.path).toBe(
+			'/api/v1/notification-channels/00000000-0000-0000-0000-000000000000'
+		);
+		const body = patch.body as Record<string, unknown>;
+		expect(body).toEqual({ enabled: false, allEnvironments: true, environmentIds: [] });
 	});
 
 	it('sends a changed address after Show Address', async () => {
@@ -293,63 +271,5 @@ describe('ChannelDialog (#142)', () => {
 			allEnvironments: false,
 			environmentIds: ['e2']
 		});
-	});
-
-	it('ticks every outcome of a kind with its checkbox, mixed while only some are', async () => {
-		const user = setup();
-		const calls = stubApi();
-		show({ open: true });
-		const backups = await screen.findByRole('checkbox', { name: 'Backups' });
-		const success = screen.getByRole('checkbox', { name: 'Backups: Success' });
-
-		// One outcome off: the kind's checkbox is mixed.
-		await user.click(success);
-		expect(success).not.toBeChecked();
-		expect(backups).toBePartiallyChecked();
-
-		// The kind's checkbox ticks every outcome again, then none.
-		await user.click(backups);
-		expect(backups).toBeChecked();
-		expect(success).toBeChecked();
-		await user.click(backups);
-		expect(backups).not.toBeChecked();
-		for (const o of ['Failure', 'Warning', 'Success'])
-			expect(screen.getByRole('checkbox', { name: `Backups: ${o}` })).not.toBeChecked();
-
-		// Ticking one outcome of an unticked kind makes it mixed.
-		await user.click(screen.getByRole('checkbox', { name: 'Prune: Failure' }));
-		expect(screen.getByRole('checkbox', { name: 'Prune' })).toBePartiallyChecked();
-
-		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Ops');
-		await choose(user, screen.getByRole('combobox', { name: /^Service/ }), 'Discord');
-		await user.type(
-			screen.getByLabelText(/^Webhook URL/),
-			'https://discord.com/api/webhooks/123456789012345678/tok-123'
-		);
-		await user.click(screen.getByRole('checkbox', { name: 'Prune' }));
-		await user.click(screen.getByRole('checkbox', { name: 'Prune: Success' }));
-		await user.click(screen.getByRole('button', { name: 'Add Channel' }));
-		await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
-		const events = (calls.find((c) => c.method === 'POST')!.body as { events: unknown[] })
-			.events;
-		// Display order; backups left out; prune with its one outcome.
-		expect(events).toEqual(
-			allEvents()
-				.filter((e) => e.kind !== 'backup')
-				.map((e) => (e.kind === 'prune' ? { kind: 'prune', outcomes: ['failure'] } : e))
-		);
-	});
-
-	it('refuses to save with nothing to send', async () => {
-		const user = setup();
-		const calls = stubApi();
-		show({ open: true, channel });
-		await user.click(await screen.findByRole('checkbox', { name: 'Image Updates' }));
-		await user.click(screen.getByRole('checkbox', { name: 'Other Jobs' }));
-		// Mixed: the click ticks every outcome; a second one clears them.
-		await user.click(screen.getByRole('checkbox', { name: 'Other Jobs' }));
-		await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-		expect(await screen.findByText('Choose at least one event to send.')).toBeInTheDocument();
-		expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
 	});
 });

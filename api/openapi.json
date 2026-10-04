@@ -11683,6 +11683,10 @@
             "description": "Sends events of every environment, including future ones. Otherwise only those of environmentIds (none once they are all removed: a filter never widens).",
             "type": "boolean"
           },
+          "builtIn": {
+            "description": "The In App channel: the bell in the web UI. Its subscription chooses what the bell shows; it has no address and can't be renamed, deleted or tested.",
+            "type": "boolean"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -11744,7 +11748,7 @@
             "type": "integer"
           },
           "service": {
-            "description": "The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...).",
+            "description": "The Shoutrrr service of the address (discord, slack, teams, telegram, smtp, ntfy, gotify, pushover, matrix, generic, ...); app for the In App channel.",
             "examples": [
               "discord"
             ],
@@ -11766,6 +11770,7 @@
           "id",
           "name",
           "service",
+          "builtIn",
           "enabled",
           "events",
           "allEnvironments",
@@ -22721,6 +22726,27 @@
             "schema": {
               "description": "Only alerts of this environment.",
               "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only alerts the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments; a resolved one only when it also sends its resolution and the problem is gone. Nothing while it is off.",
+            "explode": false,
+            "in": "query",
+            "name": "inApp",
+            "schema": {
+              "description": "Only alerts the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments; a resolved one only when it also sends its resolution and the problem is gone. Nothing while it is off.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only alerts resolved at or after this time (RFC 3339); firing alerts never match.",
+            "explode": false,
+            "in": "query",
+            "name": "resolvedSince",
+            "schema": {
+              "description": "Only alerts resolved at or after this time (RFC 3339); firing alerts never match.",
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -57777,7 +57803,7 @@
     },
     "/api/v1/notification-channels": {
       "get": {
-        "description": "Notification channels in creation order, with their subscription and last result. Addresses are never returned. Instance owner only (never delegable, never with an API token).",
+        "description": "Notification channels in creation order, the built-in In App channel first, with their subscription and last result. Addresses are never returned. Instance owner only (never delegable, never with an API token).",
         "operationId": "list-notification-channels",
         "parameters": [
           {
@@ -57819,6 +57845,7 @@
                         "version": 1
                       },
                       "allEnvironments": false,
+                      "builtIn": false,
                       "createdAt": "2026-09-25T12:00:00Z",
                       "enabled": false,
                       "environmentIds": [
@@ -57962,6 +57989,7 @@
                     "version": 1
                   },
                   "allEnvironments": false,
+                  "builtIn": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentIds": [
@@ -58092,7 +58120,7 @@
     },
     "/api/v1/notification-channels/{channelId}": {
       "delete": {
-        "description": "Removes the channel and its address. Requires If-Match. Instance owner only (never delegable, never with an API token).",
+        "description": "Removes the channel and its address. The In App channel can't be deleted (409 notification_channel_built_in). Requires If-Match. Instance owner only (never delegable, never with an API token).",
         "operationId": "delete-notification-channel",
         "parameters": [
           {
@@ -58165,6 +58193,21 @@
               }
             },
             "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "412": {
             "content": {
@@ -58267,6 +58310,7 @@
                     "version": 1
                   },
                   "allEnvironments": false,
+                  "builtIn": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentIds": [
@@ -58394,7 +58438,7 @@
         "x-docker-manager-scope": "instance"
       },
       "patch": {
-        "description": "Edits the name, whether it is enabled, its subscription (event kinds, environments, resolved problems) or its address. A new address is checked like on creation, needs a recent step-up (403 step_up_required) and resets the last result. Requires If-Match. 409 notification_channel_name_taken. Instance owner only (never delegable, never with an API token).",
+        "description": "Edits the name, whether it is enabled, its subscription (event kinds, environments, resolved problems) or its address. A new address is checked like on creation, needs a recent step-up (403 step_up_required) and resets the last result. The In App channel keeps its name and has no address (422). Requires If-Match. 409 notification_channel_name_taken. Instance owner only (never delegable, never with an API token).",
         "operationId": "update-notification-channel",
         "parameters": [
           {
@@ -58451,6 +58495,7 @@
                     "version": 1
                   },
                   "allEnvironments": false,
+                  "builtIn": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentIds": [
@@ -58626,7 +58671,7 @@
     },
     "/api/v1/notification-channels/{channelId}/address": {
       "get": {
-        "description": "Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value). Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
+        "description": "Returns the channel's Shoutrrr URL so the owner can view or edit it. Every reveal is audited (never the value). The In App channel has none (409 notification_channel_built_in). Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
         "operationId": "get-notification-channel-address",
         "parameters": [
           {
@@ -58700,6 +58745,21 @@
             },
             "description": "Not Found"
           },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/problem+json": {
@@ -58747,7 +58807,7 @@
     },
     "/api/v1/notification-channels/{channelId}/tests": {
       "post": {
-        "description": "Sends a test message through the channel now (also while it is off) and records the result as its last result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). Instance owner only (never delegable, never with an API token).",
+        "description": "Sends a test message through the channel now (also while it is off) and records the result as its last result. A failed delivery is reported in the body (ok false, errorClass, message in words), never with the service's own error text. At most one test per channel every 5 seconds (429 notification_test_rate_limited). The In App channel sends nothing out (409 notification_channel_built_in). Instance owner only (never delegable, never with an API token).",
         "operationId": "create-notification-channel-test",
         "parameters": [
           {
@@ -58823,6 +58883,21 @@
               }
             },
             "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {
@@ -58953,6 +59028,27 @@
             "schema": {
               "description": "Only notifications of this environment.",
               "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only notifications the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments. Nothing while it is off.",
+            "explode": false,
+            "in": "query",
+            "name": "inApp",
+            "schema": {
+              "description": "Only notifications the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments. Nothing while it is off.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only notifications recorded at or after this time (RFC 3339).",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "Only notifications recorded at or after this time (RFC 3339).",
+              "format": "date-time",
               "type": "string"
             }
           }

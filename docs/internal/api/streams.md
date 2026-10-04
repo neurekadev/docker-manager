@@ -153,7 +153,8 @@ state, progress) → `job`; file-scope invalidations (#15/#23) →
 `files.changed`; every successful API mutation of other resources
 (policies, schedules, backups and repositories, registry and Git
 credentials, build definitions, settings, notification channels (kind
-`notification_channel`, owner only), groups, users, invitations, API
+`notification_channel`, owner only; the built-in In App channel's to
+everyone, as it changes their bell), groups, users, invitations, API
 tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
 `settings` or `permissions` with `kind` the resource type; the move of
 Docker Manager to a new server → `invalidate` topic `manager`: kind

@@ -1,8 +1,9 @@
 # Alerts and notifications (#159)
 
 **Alerts** are problems Docker Manager raises by itself, keeps until they
-are resolved, shows in the app (the bell, the Notifications page's Alerts
-tab, the dashboard's "Needs Attention", the environment's notice) and
+are resolved, shows in the app (the bell as the In App channel chooses,
+the Notifications page's Alerts tab, the dashboard's "Needs Attention",
+the environment's notice) and
 sends through the notification channels subscribed to their kind and
 outcome ([notifications.md](notifications.md)). **Notifications** are
 runs that finished (a backup, a restore, a prune, an update run): recorded
@@ -383,11 +384,11 @@ gets worse. Notifications are a history: not dismissed.
 
 | operation | route | notes |
 | --- | --- | --- |
-| `list-alerts` | `GET /alerts` | `state` `active`/`dismissed`/`firing`/`resolved`, `kind`, `environmentId`; newest first; filtered per alert |
+| `list-alerts` | `GET /alerts` | `state` `active`/`dismissed`/`firing`/`resolved`, `kind`, `environmentId`, `resolvedSince`, `inApp` (only what the In App channel shows: [notifications.md](notifications.md#the-in-app-channel)); newest first; filtered per alert |
 | `get-alert` | `GET /alerts/{alertId}` | 404 unless the source is visible |
 | `create-alert-dismissal` | `POST /alerts/{alertId}/dismissals` | `alert.dismiss`; 409 `alert_not_firing` |
 | `create-alert-dismissals` | `POST /alerts/dismissals` | "Dismiss All": the listed (or every active) alerts the caller may dismiss, at most 500 |
-| `list-notifications` | `GET /notifications` | `kind`, `outcome`, `environmentId`; newest first; filtered per notification |
+| `list-notifications` | `GET /notifications` | `kind`, `outcome`, `environmentId`, `since`, `inApp`; newest first; filtered per notification |
 | `get-alert-settings` | `GET /alert-settings` | owner; ETag |
 | `update-alert-settings` | `PUT /alert-settings` | owner; If-Match; replaces the thresholds and every override; audited (the values) |
 
@@ -416,4 +417,6 @@ Changes reach the live stream as `invalidate` topic `alerts`, kind
 | unique firing key, filters, retention, notifications, delivery fields, thresholds and overrides | `internal/manager/store/alerts_test.go`, `notifications_test.go` |
 | old subscriptions converted to outcomes; restores split from backups (rows, deliveries, subscriptions, down) | `internal/db/migrations/notification_events_test.go`, `restore_notifications_test.go` |
 | visibility per kind, the event rules | `internal/manager/authz/alerts_test.go` |
-| routes: shaping, dismissal authorization, audit, notifications per job, thresholds owner-only | `internal/manager/api/alerts_test.go`, `notification_events_test.go` |
+| routes: shaping, dismissal authorization, audit, notifications per job, thresholds owner-only, `inApp` lists | `internal/manager/api/alerts_test.go`, `notification_events_test.go` |
+| what the In App channel shows (`ShowsAlert`, `ShowsNotification`), its refusals | `internal/manager/notify/service_test.go` |
+| the In App channel added first, the rebuild keeps the other channels | `internal/db/migrations/in_app_channel_test.go` |

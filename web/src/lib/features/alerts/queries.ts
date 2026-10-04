@@ -1,6 +1,7 @@
 // Alerts (#159) for Svelte Query: the list with its filters (the Alerts
-// page, the environment page), the active alerts (the bell, the
-// dashboard), the dismissals and the alert thresholds (Settings →
+// page, the environment page), the active alerts (the dashboard), those
+// the In App channel shows (the bell: active, and resolved in the last
+// BELL_WINDOW_MS), the dismissals and the alert thresholds (Settings →
 // Notifications, owner only). Keys are liveKeys.alerts(filter): the
 // manager publishes the topic `alerts` whenever an alert is raised,
 // changes, is dismissed or resolved, and the live client refreshes every
@@ -22,6 +23,8 @@ export interface AlertFilter {
 	state?: 'active' | 'dismissed' | 'firing' | 'resolved';
 	kind?: AlertKind;
 	environmentId?: string;
+	/** Only what the In App channel shows (the bell). */
+	inApp?: boolean;
 }
 
 /** The filter without empty values (one key per distinct filter). */
@@ -30,6 +33,7 @@ export function normalizeFilter(f: AlertFilter): AlertFilter {
 	if (f.state) out.state = f.state;
 	if (f.kind) out.kind = f.kind;
 	if (f.environmentId) out.environmentId = f.environmentId;
+	if (f.inApp) out.inApp = true;
 	return out;
 }
 
@@ -60,9 +64,39 @@ export function alertsQuery(f: AlertFilter = {}, client: ApiClient = api) {
 	});
 }
 
-/** Firing alerts nobody dismissed: the bell and "Needs attention". */
+/** Firing alerts nobody dismissed: "Needs attention". */
 export function activeAlertsQuery(client: ApiClient = api) {
 	return alertsQuery({ state: 'active' }, client);
+}
+
+/** How far back the bell lists resolved alerts and finished runs. */
+export const BELL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** The most resolved alerts, and finished runs, the bell lists (the newest). */
+export const BELL_LIMIT = 50;
+
+/** Firing alerts nobody dismissed that the In App channel shows: the bell. */
+export function inAppAlertsQuery(client: ApiClient = api) {
+	return alertsQuery({ state: 'active', inApp: true }, client);
+}
+
+/** Alerts resolved in the last BELL_WINDOW_MS that the In App channel shows (the bell). */
+export function inAppResolvedQuery(client: ApiClient = api, now: () => number = Date.now) {
+	return queryOptions({
+		queryKey: liveKeys.alerts('in-app', 'resolved'),
+		queryFn: async ({ signal }): Promise<Alert[]> => {
+			const resolvedSince = new Date(now() - BELL_WINDOW_MS).toISOString();
+			const page = await unwrap(
+				client.GET('/api/v1/alerts', {
+					params: {
+						query: { state: 'resolved', inApp: true, resolvedSince, limit: BELL_LIMIT }
+					},
+					signal
+				})
+			);
+			return page.items;
+		},
+		staleTime: 15_000
+	});
 }
 
 /** Dismisses one firing alert for everyone. */

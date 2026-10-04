@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { flushSync } from 'svelte';
-import { TOPICS, keyInEnvironment, keysForFiles, keysForInvalidate, liveKeys } from './keys';
+import {
+	IN_APP_CHANNEL_ID,
+	TOPICS,
+	keyInEnvironment,
+	keysForFiles,
+	keysForInvalidate,
+	liveKeys
+} from './keys';
 import { CriticalWork } from './critical.svelte';
 
 describe('invalidation map', () => {
@@ -64,6 +71,17 @@ describe('invalidation map', () => {
 			['policies', 'item', 'p1']
 		]);
 		expect(inv('permissions', 'group', 'g1')).toContainEqual(['me', 'permissions']);
+		// A change of the In App channel changes what the bell lists.
+		expect(inv('settings', 'notification_channel', IN_APP_CHANNEL_ID)).toEqual([
+			['settings', 'list'],
+			['settings', 'item', IN_APP_CHANNEL_ID],
+			['alerts', 'list'],
+			['notifications', 'list']
+		]);
+		expect(inv('settings', 'notification_channel', 'c-1')).toEqual([
+			['settings', 'list'],
+			['settings', 'item', 'c-1']
+		]);
 		// New samples refresh the environment's charts and the dashboard's
 		// overview (its latest CPU and memory), throttled as metrics.
 		expect(inv('metrics', 'metrics', 'e1', 'e1')).toEqual([

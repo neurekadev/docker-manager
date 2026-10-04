@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+	channelColumns,
+	channelRows,
 	channelStatus,
+	kindBell,
+	outcomeBell,
+	samePicks,
+	toggleKind,
+	toggleOutcome,
+	withDraft,
 	errorText,
 	ERROR_TEXT,
 	kindsSummary,
@@ -405,6 +413,12 @@ describe('notification channels in words (#142)', () => {
 			label: 'Not Tested'
 		});
 		expect(channelStatus({ enabled: true, lastResult: 'ok' }).label).toBe('Working');
+		// The In App channel sends nothing out: On or Off.
+		expect(channelStatus({ enabled: true, builtIn: true })).toEqual({
+			status: 'healthy',
+			label: 'On'
+		});
+		expect(channelStatus({ enabled: false, builtIn: true }).label).toBe('Off');
 		expect(channelStatus({ enabled: true, lastResult: 'auth' })).toEqual({
 			status: 'failed',
 			label: 'Failing',
@@ -436,5 +450,64 @@ describe('notification channels in words (#142)', () => {
 			title: 'The test message to Ops failed',
 			body: ERROR_TEXT.timeout
 		});
+	});
+});
+
+describe('channelRows', () => {
+	type Row = { id: string; name: string; builtIn: boolean };
+	const rows: Row[] = [
+		{ id: 'c-2', name: 'Alerts', builtIn: false },
+		{ id: 'in-app', name: 'In App', builtIn: true },
+		{ id: 'c-1', name: 'Zulip', builtIn: false }
+	];
+	const columns = [{ id: 'name', header: 'Name', sortValue: (r: Row) => r.name }];
+
+	it('lists the In App channel first in every sort', () => {
+		const asc = channelRows(rows, columns, { column: 'name', direction: 'asc' });
+		expect(asc.map((r) => r.id)).toEqual(['in-app', 'c-2', 'c-1']);
+		const desc = channelRows(rows, columns, { column: 'name', direction: 'desc' });
+		expect(desc.map((r) => r.id)).toEqual(['in-app', 'c-1', 'c-2']);
+		expect(channelRows(rows, columns, null).map((r) => r.id)).toEqual(['in-app', 'c-2', 'c-1']);
+	});
+});
+
+describe('What to Send bells', () => {
+	const backups = eventKind('backup')!;
+
+	it('switches a kind like a mixed checkbox and an outcome on its own', () => {
+		let p = picksOf([{ kind: 'backup', outcomes: ['failure'] }]);
+		expect(kindBell(backups, p)).toBe('some');
+		expect(outcomeBell(p, 'backup', 'failure')).toBe('on');
+		expect(outcomeBell(p, 'backup', 'success')).toBe('off');
+		p = toggleKind(p, 'backup');
+		expect(kindBell(backups, p)).toBe('on');
+		p = toggleKind(p, 'backup');
+		expect(kindBell(backups, p)).toBe('off');
+		p = toggleOutcome(p, 'backup', 'success');
+		expect(eventsOf(p)).toEqual([{ kind: 'backup', outcomes: ['success'] }]);
+		p = toggleOutcome(p, 'backup', 'success');
+		expect(noEvents(p)).toBe(true);
+	});
+
+	it('keeps only channels whose picks differ from what they send', () => {
+		const c = {
+			id: 'c-1',
+			events: [{ kind: 'prune' as const, outcomes: ['failure' as const] }]
+		};
+		const off = toggleOutcome(picksOf(c.events), 'prune', 'failure');
+		let draft = withDraft({}, c, off);
+		expect(Object.keys(draft)).toEqual(['c-1']);
+		draft = withDraft(draft, c, toggleOutcome(off, 'prune', 'failure'));
+		expect(draft).toEqual({});
+		expect(samePicks({ prune: ['failure'], raid: [] }, { prune: ['failure'] })).toBe(true);
+	});
+
+	it('puts the In App channel first, then the others by name', () => {
+		const cols = channelColumns([
+			{ id: 'b', name: 'Zulip', builtIn: false },
+			{ id: 'a', name: 'Alerts', builtIn: false },
+			{ id: 'i', name: 'In App', builtIn: true }
+		]);
+		expect(cols.map((c) => c.id)).toEqual(['i', 'a', 'b']);
 	});
 });

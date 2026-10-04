@@ -49,8 +49,15 @@ func TestChannelSubscriptionsPickTheChannels(t *testing.T) {
 	jobsOnly := f.channel("jobs only", []domain.NotificationEventKind{domain.NotifyJobFailed}, true, nil, true)
 	quiet := f.channel("no resolved", nil, true, nil, false)
 	f.failDisk("env-1", "/dev/sda")
+	// The In App channel sends nothing: the bell reads the alert itself.
+	for _, d := range f.deliveries(f.one().ID) {
+		if d.ChannelID == domain.InAppChannelID {
+			t.Fatalf("queued for the In App channel: %+v", d)
+		}
+	}
 	got := channelsOf(f.dispatch())
-	if got[all.ID] != 1 || got[onlyEnv1.ID] != 1 || got[quiet.ID] != 1 || got[onlyEnv2.ID] != 0 || got[jobsOnly.ID] != 0 {
+	if got[all.ID] != 1 || got[onlyEnv1.ID] != 1 || got[quiet.ID] != 1 || got[onlyEnv2.ID] != 0 || got[jobsOnly.ID] != 0 ||
+		got[domain.InAppChannelID] != 0 {
 		t.Fatalf("firing: %+v", got)
 	}
 	f.health.set("env-1", []protocol.SMARTDevice{disk(protocol.DiskOK)}, nil, nil)

@@ -169,6 +169,7 @@ const (
 	// Notification channels (#142).
 	CodeNotificationChannelNameTaken = "notification_channel_name_taken"
 	CodeNotificationTestRateLimited  = "notification_test_rate_limited"
+	CodeNotificationChannelBuiltIn   = "notification_channel_built_in"
 
 	// Alerts (#159).
 	CodeAlertNotFiring = "alert_not_firing"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -27,6 +28,8 @@ type NotificationEventService interface {
 	UpdateSettings(ctx context.Context, revision int64, next domain.AlertSettings) (domain.AlertSettings, error)
 	// EnvironmentName names an environment ("" when unknown).
 	EnvironmentName(ctx context.Context, id string) string
+	// InAppChannel is the built-in In App channel (inApp lists).
+	InAppChannel(ctx context.Context) (domain.NotificationChannel, error)
 }
 
 // Notification is one finished run.
@@ -142,9 +145,11 @@ func (h *notificationEventsAPI) owner(ctx context.Context) (NotificationEventSer
 
 type listNotificationsInput struct {
 	PageParams
-	Kind          string `query:"kind" enum:"backup,restore,prune,updates" doc:"Only notifications of this kind."`
-	Outcome       string `query:"outcome" enum:"success,warning,failure" doc:"Only notifications with this outcome."`
-	EnvironmentID string `query:"environmentId" maxLength:"128" doc:"Only notifications of this environment."`
+	Kind          string    `query:"kind" enum:"backup,restore,prune,updates" doc:"Only notifications of this kind."`
+	Outcome       string    `query:"outcome" enum:"success,warning,failure" doc:"Only notifications with this outcome."`
+	EnvironmentID string    `query:"environmentId" maxLength:"128" doc:"Only notifications of this environment."`
+	InApp         bool      `query:"inApp" doc:"Only notifications the In App channel shows (the bell): those whose kind and outcome it is subscribed to, for its environments. Nothing while it is off."`
+	Since         time.Time `query:"since" doc:"Only notifications recorded at or after this time (RFC 3339)."`
 }
 
 type notificationListOutput struct{ Body Page[Notification] }
@@ -172,13 +177,21 @@ func (h *notificationEventsAPI) list(ctx context.Context, in *listNotificationsI
 		return nil, err
 	}
 	f := domain.NotificationFilter{Kind: domain.NotificationEventKind(in.Kind), Outcome: domain.NotificationOutcome(in.Outcome),
-		EnvironmentID: in.EnvironmentID}
-	fp := QueryFingerprint("notifications", in.Kind, in.Outcome, in.EnvironmentID)
+		EnvironmentID: in.EnvironmentID, Since: in.Since}
+	fp := QueryFingerprint("notifications", in.Kind, in.Outcome, in.EnvironmentID, strconv.FormatBool(in.InApp), timeKey(in.Since))
 	var after alertCursor
 	if in.Cursor != "" {
 		if err := DecodeCursorFor(in.Cursor, fp, &after); err != nil {
 			return nil, err
 		}
+	}
+	shown := func(domain.Notification) bool { return true }
+	if in.InApp {
+		ch, err := svc.InAppChannel(ctx)
+		if err != nil {
+			return nil, Internal(err)
+		}
+		shown = ch.ShowsNotification
 	}
 	items, next, err := ScanPage(ctx, Scan[domain.Notification]{
 		Limit: in.PageLimit(), After: after.ID,
@@ -186,7 +199,7 @@ func (h *notificationEventsAPI) list(ctx context.Context, in *listNotificationsI
 			return svc.Notifications(ctx, f, before, n)
 		},
 		Position: func(n domain.Notification) string { return n.ID },
-		Visible:  func(n domain.Notification) bool { return authz.NotificationVisible(c, n) },
+		Visible:  func(n domain.Notification) bool { return authz.NotificationVisible(c, n) && shown(n) },
 	})
 	if err != nil {
 		return nil, Internal(err)

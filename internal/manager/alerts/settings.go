@@ -2,6 +2,7 @@ package alerts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -20,6 +21,17 @@ import (
 // beforeID.
 func (s *Service) Notifications(ctx context.Context, f domain.NotificationFilter, beforeID string, limit int) ([]domain.Notification, error) {
 	return store.ListNotifications(ctx, s.db, f, beforeID, limit)
+}
+
+// InAppChannel returns the built-in In App channel: what the bell shows
+// (domain.NotificationChannel.ShowsAlert, ShowsNotification). Without it
+// (never after the migration) the bell shows nothing: a disabled channel.
+func (s *Service) InAppChannel(ctx context.Context) (domain.NotificationChannel, error) {
+	c, err := store.GetNotificationChannel(ctx, s.db, domain.InAppChannelID)
+	if errors.Is(err, domain.ErrNotificationChannelNotFound) {
+		return domain.NotificationChannel{ID: domain.InAppChannelID}, nil
+	}
+	return c, err
 }
 
 // EnvironmentName names an environment ("" when unknown).

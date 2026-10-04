@@ -7,8 +7,9 @@ A **notification channel** is a destination for Docker Manager's messages
 about [alerts and finished backups, restores, prunes and updates](/alerts): a
 Discord or Slack channel, Microsoft Teams,
 Telegram, email, ntfy, Gotify, Pushover, Matrix, a webhook of your own, or
-any other service Shoutrrr supports. Only the owner can see and change
-them.
+any other service Shoutrrr supports. The built-in **In App** channel
+chooses what the bell at the top of Docker Manager shows. Only the owner
+can see and change channels.
 
 ## Add a channel
 
@@ -16,18 +17,27 @@ them.
 2. Enter a **Name** and choose the **Service**.
 3. Fill in what the service asks for (see
    [What each service needs](#what-each-service-needs)).
-4. Under **What to Send**, tick what the channel is for (see
-   [What to send](#what-to-send)), and choose **All Environments** or
+4. If you have several environments, choose **All Environments** or
    **Some Environments**.
 5. Press **Add Channel**. Docker Manager may ask you to confirm your
    identity first.
 
-A channel that is not **Enabled** gets nothing but test messages.
+A new channel sends everything; choose what under
+[What to send](#what-to-send). A channel that is not **Enabled** gets
+nothing but test messages.
 
 ## What to send
 
-Each row is one kind of event. Tick the row to send all of it, or only
-the outcomes you want beside it. A new channel sends everything.
+**What to Send** on **Settings → Notifications** shows every channel
+side by side: a column per channel, **In App** first, and a row per kind
+of event with a row per outcome below it. A filled bell sends the event
+through that channel, an empty one doesn't. The bell of a kind turns all
+its outcomes on or off; it is half filled when only some are on.
+
+1. Press the bells you want to change.
+2. Press **Save Changes**, or **Discard** to undo them.
+
+Every channel must send at least one event.
 
 | Row | Outcomes |
 | --- | --- |
@@ -58,6 +68,22 @@ the colors or ask before they show the logo), and its subject starts
 with the environment's name in brackets, for example
 `[homelab] Disk /dev/sda is failing`; ntfy and Gotify arrive with a
 priority and a link.
+
+## Choose what the bell shows
+
+The **In App** channel is always first. It shows its events in the bell
+of everyone who may see them, instead of sending them out. It starts
+with everything.
+
+1. Under **What to Send**, set the bells of the **In App** column and
+   press **Save Changes**. The bell changes at once, also for earlier
+   events.
+2. To show only some environments, or to turn it off, press **Edit** in
+   its menu in the channel list.
+
+The In App channel can't be renamed, tested or deleted. Its status is
+**On** or **Off**; when it is off, the bell shows only the jobs you start
+yourself.
 
 ## Send a test
 

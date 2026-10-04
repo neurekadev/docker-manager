@@ -27,6 +27,8 @@ type fakeAlerts struct {
 	mu     sync.Mutex
 	alerts map[string]domain.Alert
 	by     []string
+	inApp  domain.NotificationChannel
+	filter domain.AlertFilter
 }
 
 var alertsAt = time.Date(2026, 9, 30, 9, 0, 0, 0, time.UTC)
@@ -49,7 +51,7 @@ func newFakeAlerts() *fakeAlerts {
 		mk("a-3", domain.NotifyDiskHealth, "env-2", domain.AlertResourceDisk, "/dev/sda"),
 		job, upd, resolved,
 	}
-	f := &fakeAlerts{alerts: map[string]domain.Alert{}}
+	f := &fakeAlerts{alerts: map[string]domain.Alert{}, inApp: inAppChannel()}
 	for _, a := range list {
 		f.alerts[a.ID] = a
 	}
@@ -59,6 +61,7 @@ func newFakeAlerts() *fakeAlerts {
 func (f *fakeAlerts) List(_ context.Context, flt domain.AlertFilter, before string, limit int) ([]domain.Alert, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.filter = flt
 	var out []domain.Alert
 	for _, a := range f.alerts {
 		switch flt.State {
@@ -82,6 +85,12 @@ func (f *fakeAlerts) List(_ context.Context, flt domain.AlertFilter, before stri
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+func (f *fakeAlerts) InAppChannel(context.Context) (domain.NotificationChannel, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.inApp, nil
 }
 
 func (f *fakeAlerts) Get(_ context.Context, id string) (domain.Alert, error) {
@@ -224,6 +233,65 @@ func TestAlertsAreShownThroughTheirSource(t *testing.T) {
 	}
 	if r := authztest.Do(t, f.h, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/alerts"}); r.Status != http.StatusUnauthorized {
 		t.Fatalf("anonymous: %d", r.Status)
+	}
+}
+
+// inApp lists only what the In App channel shows, still filtered by the
+// caller's view of each alert's source.
+func TestInAppAlertsFollowTheInAppChannel(t *testing.T) {
+	pol := authztest.New().Owner("olga").
+		Member("sam", "sys").Group("sys", "allow environment.system.read @env:env-1")
+	f := newAlertsFixture(t, pol)
+	list := func(user, query string) []string {
+		r := authztest.Do(t, f.h, user, authztest.Call{Method: http.MethodGet, Path: "/api/v1/alerts" + query})
+		if r.Status != http.StatusOK {
+			t.Fatalf("%s: %d %s", user, r.Status, r.Body)
+		}
+		return alertIDs(t, r.Body)
+	}
+	set := func(change func(c *domain.NotificationChannel)) {
+		f.svc.mu.Lock()
+		defer f.svc.mu.Unlock()
+		c := inAppChannel()
+		change(&c)
+		f.svc.inApp = c
+	}
+	all := func(*domain.NotificationChannel) {}
+	for _, c := range []struct {
+		name, user, query string
+		change            func(c *domain.NotificationChannel)
+		want              []string
+	}{
+		{"everything", "olga", "?state=active&inApp=true", all, []string{"a-1", "a-2", "a-3", "a-4", "a-5"}},
+		{"the caller's view", "sam", "?inApp=true", all, []string{"a-1", "a-2", "a-6"}},
+		{"disk warnings", "olga", "?inApp=true", func(c *domain.NotificationChannel) {
+			c.Subscriptions = domain.NotificationSubscriptions{domain.NotifyDiskHealth: {domain.OutcomeWarning}}
+		}, []string{"a-1", "a-3"}},
+		{"with resolutions", "olga", "?inApp=true", func(c *domain.NotificationChannel) {
+			c.Subscriptions = domain.NotificationSubscriptions{domain.NotifyDiskHealth: {domain.OutcomeWarning, domain.OutcomeResolved}}
+		}, []string{"a-1", "a-3", "a-6"}},
+		// A resolution only of what it was shown.
+		{"resolutions alone", "olga", "?inApp=true", func(c *domain.NotificationChannel) {
+			c.Subscriptions = domain.NotificationSubscriptions{domain.NotifyDiskHealth: {domain.OutcomeResolved}}
+		}, nil},
+		{"one environment", "olga", "?state=active&inApp=true", func(c *domain.NotificationChannel) {
+			c.AllEnvironments, c.EnvironmentIDs = false, []string{"env-2"}
+		}, []string{"a-3"}},
+		{"off", "olga", "?inApp=true", func(c *domain.NotificationChannel) { c.Enabled = false }, nil},
+		{"without inApp", "olga", "?state=active", func(c *domain.NotificationChannel) { c.Enabled = false },
+			[]string{"a-1", "a-2", "a-3", "a-4", "a-5"}},
+	} {
+		set(c.change)
+		if got := list(c.user, c.query); !slices.Equal(got, c.want) {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+	since := time.Date(2026, 9, 29, 9, 0, 0, 0, time.UTC)
+	list("olga", "?state=resolved&inApp=true&resolvedSince="+since.Format(time.RFC3339))
+	f.svc.mu.Lock()
+	defer f.svc.mu.Unlock()
+	if !f.svc.filter.ResolvedSince.Equal(since) {
+		t.Fatalf("resolvedSince: %v", f.svc.filter.ResolvedSince)
 	}
 }
 

@@ -65,8 +65,9 @@ func TestNotificationChannelsRoundTrip(t *testing.T) {
 		got.EnvironmentIDs[0] != "env-1" || got.AllEnvironments || got.AddressFingerprint != "fp_0000000000000001" || got.Revision != 1 {
 		t.Fatalf("%+v", got)
 	}
+	// The built-in In App channel comes first.
 	list, err := store.ListNotificationChannels(ctx, db, "", 0)
-	if err != nil || len(list) != 2 || list[0].ID != "c-1" || !list[1].AllEnvironments || len(list[1].EnvironmentIDs) != 0 {
+	if err != nil || len(list) != 3 || !list[0].InApp() || list[1].ID != "c-1" || !list[2].AllEnvironments || len(list[2].EnvironmentIDs) != 0 {
 		t.Fatalf("%+v %v", list, err)
 	}
 	if page, _ := store.ListNotificationChannels(ctx, db, "c-1", 1); len(page) != 1 || page[0].ID != "c-2" {

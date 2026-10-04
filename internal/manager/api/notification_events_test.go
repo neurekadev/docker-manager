@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/db/migrations"
@@ -19,6 +20,12 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
+
+// inAppChannel is the In App channel as a new installation has it.
+func inAppChannel() domain.NotificationChannel {
+	return domain.NotificationChannel{ID: domain.InAppChannelID, Name: domain.InAppChannelName, Service: domain.InAppService,
+		Enabled: true, Subscriptions: domain.AllNotificationSubscriptions(), AllEnvironments: true}
+}
 
 func (f *fakeAlerts) EnvironmentName(_ context.Context, id string) string {
 	if id == "" {
@@ -34,6 +41,8 @@ type fakeNotificationEvents struct {
 	list     []domain.Notification
 	settings domain.AlertSettings
 	updates  int
+	inApp    domain.NotificationChannel
+	filter   domain.NotificationFilter
 }
 
 func newFakeNotificationEvents() *fakeNotificationEvents {
@@ -52,12 +61,14 @@ func newFakeNotificationEvents() *fakeNotificationEvents {
 			mk("n-3", domain.NotifyUpdates, domain.OutcomeSuccess, "env-1", "update.run", domain.JobTarget{Type: domain.TargetStack, ID: "s1"}),
 		},
 		settings: domain.AlertSettings{Thresholds: domain.DefaultAlertThresholds(), Revision: 1, UpdatedAt: alertsAt},
+		inApp:    inAppChannel(),
 	}
 }
 
 func (f *fakeNotificationEvents) Notifications(_ context.Context, flt domain.NotificationFilter, before string, limit int) ([]domain.Notification, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.filter = flt
 	var out []domain.Notification
 	for _, n := range f.list {
 		if (flt.Kind != "" && n.Kind != flt.Kind) || (flt.Outcome != "" && n.Outcome != flt.Outcome) ||
@@ -92,6 +103,12 @@ func (f *fakeNotificationEvents) UpdateSettings(_ context.Context, revision int6
 	next.Revision, next.UpdatedAt = f.settings.Revision+1, alertsAt
 	f.settings = next
 	return next, nil
+}
+
+func (f *fakeNotificationEvents) InAppChannel(context.Context) (domain.NotificationChannel, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.inApp, nil
 }
 
 func (f *fakeNotificationEvents) EnvironmentName(_ context.Context, id string) string {
@@ -177,6 +194,51 @@ func TestNotificationsAreShownThroughTheirJob(t *testing.T) {
 	r := authztest.Do(t, h, "olga", authztest.Call{Method: http.MethodGet, Path: "/api/v1/notifications?kind=disk_health"})
 	if r.Status != http.StatusUnprocessableEntity {
 		t.Fatalf("an alert kind: %d", r.Status)
+	}
+}
+
+// inApp lists only the notifications the In App channel shows, still
+// filtered by job.read.
+func TestInAppNotificationsFollowTheInAppChannel(t *testing.T) {
+	pol := authztest.New().Owner("olga").Member("jo", "jobs").Group("jobs", "allow job.read @env:env-1")
+	h, svc, _ := newNotificationEventsFixture(t, pol)
+	ids := func(user, query string) string {
+		r := authztest.Do(t, h, user, authztest.Call{Method: http.MethodGet, Path: "/api/v1/notifications" + query})
+		var page struct {
+			Items []Notification `json:"items"`
+		}
+		if r.Status != http.StatusOK || json.Unmarshal(r.Body, &page) != nil {
+			t.Fatalf("%s: %d %s", user, r.Status, r.Body)
+		}
+		var out []string
+		for _, n := range page.Items {
+			out = append(out, n.ID)
+		}
+		return strings.Join(out, ",")
+	}
+	if got := ids("olga", "?inApp=true"); got != "n-3,n-2,n-1" {
+		t.Fatalf("everything: %s", got)
+	}
+	if got := ids("jo", "?inApp=true"); got != "n-3,n-1" {
+		t.Fatalf("jo: %s", got)
+	}
+	svc.mu.Lock()
+	svc.inApp.Subscriptions = domain.NotificationSubscriptions{domain.NotifyPrune: {domain.OutcomeSuccess},
+		domain.NotifyBackup: {domain.OutcomeFailure}}
+	svc.inApp.AllEnvironments, svc.inApp.EnvironmentIDs = false, []string{"env-1"}
+	svc.mu.Unlock()
+	if got := ids("olga", "?inApp=true"); got != "n-1" {
+		t.Fatalf("prune successes of env-1: %s", got)
+	}
+	if got := ids("olga", ""); got != "n-3,n-2,n-1" {
+		t.Fatalf("without inApp: %s", got)
+	}
+	since := alertsAt.Add(-time.Hour)
+	ids("olga", "?inApp=true&since="+since.Format(time.RFC3339))
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	if !svc.filter.Since.Equal(since) {
+		t.Fatalf("since: %v", svc.filter.Since)
 	}
 }
 
