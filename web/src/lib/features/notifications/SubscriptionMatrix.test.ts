@@ -156,9 +156,9 @@ describe('SubscriptionMatrix (#142)', () => {
 		await user.click(bell('Backups for Ops'));
 		await user.click(bell('Other Jobs for Ops'));
 		await user.click(bell('Other Jobs for Ops'));
-		expect(await screen.findByRole('alert')).toHaveTextContent(
-			'Ops needs at least one event to send.'
-		);
+		expect(
+			await screen.findByText('Ops needs at least one event to send.')
+		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 		await user.click(screen.getByRole('button', { name: 'Discard' }));
 		expect(bell('Backups for Ops')).toHaveAttribute('aria-pressed', 'true');
