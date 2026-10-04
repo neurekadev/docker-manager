@@ -21,6 +21,9 @@ export const EDITOR_COLORS = {
 	comment: '#596476', // --code-comment
 	punctuation: '#8392a8', // --code-punctuation
 	keyword: '#707ffc', // --tile-violet-fg
+	inserted: '#4cf683', // --ok
+	deleted: '#fd6b66', // --danger
+	textStrong: '#f2f4f7', // --text-strong
 	surfaceRaised: '#19222e', // --surface-raised
 	border: '#2b3747', // --border-strong
 	fontMono: "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Consolas, monospace",

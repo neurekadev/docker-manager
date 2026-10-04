@@ -7,9 +7,10 @@
 // CodeEditor, Sparkline, TerminalView), never the libraries. Every mount
 // applies Docker Manager's theme (#22): ./codemirror-theme.ts, ./echarts-theme.ts,
 // TERMINAL_THEME in ./palette.ts.
-import type { StreamParser } from '@codemirror/language';
-import type { Extension } from '@codemirror/state';
+import type { LanguageDescription, LanguageSupport, StreamParser } from '@codemirror/language';
+import type { Token } from 'marked';
 import { formatNumber } from '$lib/ui/format';
+import { languageByName, type EditorLanguage } from './languages';
 import { CHART_COLORS, TERMINAL_THEME, EDITOR_COLORS } from './palette';
 
 export interface Mounted {
@@ -40,23 +41,7 @@ export async function mountYamlEditor(
 	return mountCodeEditor(parent, doc, { ...opts, language: 'yaml' });
 }
 
-/**
- * Languages of the file editor (#15). Everything but YAML and JSON uses a
- * CodeMirror legacy stream mode; `markdown` and `text` are plain text.
- */
-export const EDITOR_LANGUAGES = [
-	'yaml',
-	'json',
-	'shell',
-	'dockerfile',
-	'nginx',
-	'properties',
-	'toml',
-	'xml',
-	'markdown',
-	'text'
-] as const;
-export type EditorLanguage = (typeof EDITOR_LANGUAGES)[number];
+export { EDITOR_LANGUAGES, languageByName, type EditorLanguage } from './languages';
 
 export interface CodeEditorOptions extends EditorOptions {
 	language?: EditorLanguage;
@@ -74,38 +59,96 @@ export interface CodeEditorHandle extends YamlEditor {
 	setWrap?(wrap: boolean): void;
 }
 
-async function languageSupport(language: EditorLanguage): Promise<Extension> {
-	const legacy = async (load: () => Promise<StreamParser<unknown>>) => {
-		const [{ StreamLanguage }, parser] = await Promise.all([
-			import('@codemirror/language'),
-			load()
-		]);
-		return StreamLanguage.define(parser);
-	};
+type Legacy = () => Promise<StreamParser<unknown>>;
+
+/** The legacy stream modes, each loaded on first use. */
+const LEGACY: Partial<Record<EditorLanguage, Legacy>> = {
+	shell: async () => (await import('@codemirror/legacy-modes/mode/shell')).shell,
+	dockerfile: async () => (await import('@codemirror/legacy-modes/mode/dockerfile')).dockerFile,
+	nginx: async () => (await import('@codemirror/legacy-modes/mode/nginx')).nginx,
+	properties: async () => (await import('@codemirror/legacy-modes/mode/properties')).properties,
+	toml: async () => (await import('@codemirror/legacy-modes/mode/toml')).toml,
+	xml: async () => (await import('@codemirror/legacy-modes/mode/xml')).xml,
+	scss: async () => (await import('@codemirror/legacy-modes/mode/css')).sCSS,
+	less: async () => (await import('@codemirror/legacy-modes/mode/css')).less,
+	python: async () => (await import('@codemirror/legacy-modes/mode/python')).python,
+	go: async () => (await import('@codemirror/legacy-modes/mode/go')).go,
+	rust: async () => (await import('@codemirror/legacy-modes/mode/rust')).rust,
+	ruby: async () => (await import('@codemirror/legacy-modes/mode/ruby')).ruby,
+	lua: async () => (await import('@codemirror/legacy-modes/mode/lua')).lua,
+	perl: async () => (await import('@codemirror/legacy-modes/mode/perl')).perl,
+	powershell: async () => (await import('@codemirror/legacy-modes/mode/powershell')).powerShell,
+	sql: async () => (await import('@codemirror/legacy-modes/mode/sql')).standardSQL,
+	diff: async () => (await import('@codemirror/legacy-modes/mode/diff')).diff,
+	c: async () => (await import('@codemirror/legacy-modes/mode/clike')).c,
+	cpp: async () => (await import('@codemirror/legacy-modes/mode/clike')).cpp,
+	csharp: async () => (await import('@codemirror/legacy-modes/mode/clike')).csharp,
+	java: async () => (await import('@codemirror/legacy-modes/mode/clike')).java,
+	kotlin: async () => (await import('@codemirror/legacy-modes/mode/clike')).kotlin,
+	groovy: async () => (await import('@codemirror/legacy-modes/mode/groovy')).groovy,
+	swift: async () => (await import('@codemirror/legacy-modes/mode/swift')).swift,
+	protobuf: async () => (await import('@codemirror/legacy-modes/mode/protobuf')).protobuf,
+	cmake: async () => (await import('@codemirror/legacy-modes/mode/cmake')).cmake,
+	jinja2: async () => (await import('@codemirror/legacy-modes/mode/jinja2')).jinja2
+};
+
+/** The language's CodeMirror support, or null for plain text. */
+async function languageSupport(language: EditorLanguage): Promise<LanguageSupport | null> {
 	switch (language) {
 		case 'yaml':
 			return (await import('@codemirror/lang-yaml')).yaml();
 		case 'json':
 			return (await import('@codemirror/lang-json')).json();
-		case 'shell':
-			return legacy(async () => (await import('@codemirror/legacy-modes/mode/shell')).shell);
-		case 'dockerfile':
-			return legacy(
-				async () => (await import('@codemirror/legacy-modes/mode/dockerfile')).dockerFile
-			);
-		case 'nginx':
-			return legacy(async () => (await import('@codemirror/legacy-modes/mode/nginx')).nginx);
-		case 'properties':
-			return legacy(
-				async () => (await import('@codemirror/legacy-modes/mode/properties')).properties
-			);
-		case 'toml':
-			return legacy(async () => (await import('@codemirror/legacy-modes/mode/toml')).toml);
-		case 'xml':
-			return legacy(async () => (await import('@codemirror/legacy-modes/mode/xml')).xml);
-		default:
-			return [];
+		case 'html':
+			return (await import('@codemirror/lang-html')).html();
+		case 'css':
+			return (await import('@codemirror/lang-css')).css();
+		case 'javascript':
+			return (await import('@codemirror/lang-javascript')).javascript({ jsx: true });
+		case 'typescript':
+			return (await import('@codemirror/lang-javascript')).javascript({
+				jsx: true,
+				typescript: true
+			});
+		case 'markdown': {
+			const [{ markdown, markdownLanguage }, { LanguageDescription: Description }] =
+				await Promise.all([
+					import('@codemirror/lang-markdown'),
+					import('@codemirror/language')
+				]);
+			// Fenced code is highlighted in the language its fence names. One
+			// description per language: lang-markdown uses its parser only once
+			// the description has loaded, so a new one per parse never would.
+			const fenced = new Map<EditorLanguage, LanguageDescription>();
+			return markdown({
+				base: markdownLanguage,
+				codeLanguages: (info) => {
+					const l = languageByName(info);
+					if (!l || l === 'text' || l === 'markdown') return null;
+					let d = fenced.get(l);
+					if (!d) {
+						d = Description.of({
+							name: l,
+							load: async () => {
+								const support = await languageSupport(l);
+								if (!support) throw new Error(`No highlighting for ${l}`);
+								return support;
+							}
+						});
+						fenced.set(l, d);
+					}
+					return d;
+				}
+			});
+		}
 	}
+	const load = LEGACY[language];
+	if (!load) return null;
+	const [{ StreamLanguage, LanguageSupport: Support }, parser] = await Promise.all([
+		import('@codemirror/language'),
+		load()
+	]);
+	return new Support(StreamLanguage.define(parser));
 }
 
 /**
@@ -144,7 +187,7 @@ export async function mountCodeEditor(
 	const extensions = [
 		basicSetup,
 		keymap.of([indentWithTab]),
-		language.of(lang),
+		language.of(lang ?? []),
 		theme.dockerManagerEditorTheme,
 		readOnly.of(EditorState.readOnly.of(!!opts.readOnly)),
 		wrapping.of(opts.wrap ? EditorView.lineWrapping : []),
@@ -164,7 +207,7 @@ export async function mountCodeEditor(
 		setLanguage: async (l) => {
 			const mine = ++version;
 			const ext = await languageSupport(l);
-			if (mine === version) view.dispatch({ effects: language.reconfigure(ext) });
+			if (mine === version) view.dispatch({ effects: language.reconfigure(ext ?? []) });
 		},
 		setReadOnly: (ro) =>
 			view.dispatch({ effects: readOnly.reconfigure(EditorState.readOnly.of(ro)) }),
@@ -225,6 +268,43 @@ export function minifyJson(text: string): string {
 export async function parseYaml(text: string): Promise<unknown> {
 	const { parse } = await import('yaml');
 	return parse(text) as unknown;
+}
+
+/** A run of highlighted code: its text and highlight classes ("tok-keyword"; empty when plain). */
+export interface CodeSpan {
+	text: string;
+	classes: string;
+}
+
+/**
+ * Highlights code for a static view (the Markdown preview's fenced code)
+ * with the editor's parser for `language`: one list of spans per line,
+ * classed by @lezer/highlight's classHighlighter (tok-keyword, tok-string,
+ * …) for the view to colour. Plain spans when the language has no parser.
+ */
+export async function highlightCode(code: string, language: EditorLanguage): Promise<CodeSpan[][]> {
+	const support = await languageSupport(language);
+	if (!support) return code.split('\n').map((text) => [{ text, classes: '' }]);
+	const { highlightCode: highlight, classHighlighter } = await import('@lezer/highlight');
+	const lines: CodeSpan[][] = [[]];
+	highlight(
+		code,
+		support.language.parser.parse(code),
+		classHighlighter,
+		(text, classes) => lines[lines.length - 1].push({ text, classes }),
+		() => lines.push([])
+	);
+	return lines;
+}
+
+/**
+ * Reads GitHub Flavored Markdown into marked's tokens (tables, task lists,
+ * strikethrough, autolinks). The caller renders them as elements, never as
+ * HTML ($lib/features/files/markdown.ts).
+ */
+export async function lexMarkdown(src: string): Promise<Token[]> {
+	const { Lexer } = await import('marked');
+	return Lexer.lex(src, { gfm: true });
 }
 
 export interface SeriesPoint {

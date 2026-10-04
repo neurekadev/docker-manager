@@ -9,6 +9,7 @@ import {
 	EditorSession,
 	isDirty,
 	SaveBlockedError,
+	tabLanguage,
 	truncatedTitle,
 	type EditorFiles
 } from './editor.svelte';
@@ -56,7 +57,8 @@ describe('EditorSession', () => {
 		const s = new EditorSession(files);
 		s.open('compose.yaml');
 		expect(s.current?.status).toBe('loading');
-		expect(s.current?.language).toBe('yaml');
+		expect(s.current?.language).toBe('auto');
+		expect(tabLanguage(s.current!)).toBe('yaml');
 		s.apply('compose.yaml', content('compose.yaml', 'a: 1\n'), e1);
 		expect(s.current?.status).toBe('ready');
 		const before = criticalWork.items.length;

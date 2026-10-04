@@ -751,7 +751,24 @@ only wire resources to it:
   root; listings and contents are keyed `liveKeys.files(...)`; the
   `EditorSession` keeps buffers, ETags and conflicts (never replacing
   unsaved text); selection, keyboard and conflict grouping are pure modules
-  with Node tests. The editor's Format (YAML, JSON) is a `SplitButton`:
+  with Node tests. A tab's language is a choice (`LanguageChoice`):
+  **Auto Detect** (`'auto'`, the default and the select's first option,
+  labelled with what it found, `languageOptions`) or the language the user
+  picked; `tabLanguage` resolves it with `detectLanguage(path, buffer)`
+  (`language.ts`: a vim/Emacs modeline in the first or last lines, file
+  names, extensions, the shebang, then the content of a file whose name
+  says nothing; only the first 4 KiB, so it runs on every edit). The
+  languages, extensions and fence names are `$lib/lazy/languages.ts`
+  (`EDITOR_LANGUAGES`, `languageByName`); YAML, JSON, Markdown, HTML, CSS,
+  JavaScript and TypeScript use CodeMirror parsers, the rest legacy stream
+  modes. The Markdown preview (`MarkdownView`) lexes GitHub Flavored
+  Markdown with marked (`lexMarkdown` in `$lib/lazy`) into the tree of
+  `markdown.ts` and renders it as elements, never HTML: GitHub's alerts,
+  heading slugs (`#heading` links scroll inside the preview), task lists,
+  tables, fenced code highlighted with the editor's parsers
+  (`highlightCode`, `HighlightedCode`); links only to http, https and
+  mailto, images as links, raw HTML reduced to text, `<br>` and `<img>`.
+  The editor's Format (YAML, JSON) is a `SplitButton`:
   Minify (JSON only, `minifiable` in `language.ts`, `minifyJson` in
   `$lib/lazy`; simply disabled for YAML) and Beautify (the same as Format); the
   result replaces the text through the editor handle (one undo step,
