@@ -71,17 +71,16 @@ export interface BuildProgress {
 	hasOutput: boolean;
 }
 
-/** Where a build stands, from its progress messages (oldest first). */
+/**
+ * Where a build stands, from its progress messages (oldest first). Reads
+ * back from the newest message to the last numbered step, so it stays
+ * cheap while a busy build reports.
+ */
 export function buildProgress(messages: readonly string[]): BuildProgress {
 	let step: BuildStep | null = null;
-	let hasOutput = false;
-	for (const message of messages) {
-		const s = parseBuildStep(message);
-		if (s) {
-			hasOutput = true;
-			step = s;
-		} else if (message.includes('\n')) hasOutput = true;
-	}
+	for (let i = messages.length - 1; i >= 0 && !step; i--) step = parseBuildStep(messages[i]);
+	// A step is output to show; without one, a chunk of output is.
+	const hasOutput = !!step || messages.some((m) => m.includes('\n'));
 	const last = messages.at(-1) ?? '';
 	const active =
 		!!step && (last.includes('\n') || !!parseBuildStep(last) || STATUS.test(firstLine(last)));
