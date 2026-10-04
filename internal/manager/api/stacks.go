@@ -203,6 +203,7 @@ type Stack struct {
 	SourceRevision    *StackRevisionRef   `json:"sourceRevision,omitempty" doc:"Newest revision observed on disk."`
 	FailedRevision    *StackRevisionRef   `json:"failedRevision,omitempty" doc:"Revision of the last failed deploy (cleared by a successful one)."`
 	UndeployedChanges bool                `json:"undeployedChanges,omitempty" doc:"The definition on disk differs from the last applied revision."`
+	SourceBuild       bool                `json:"sourceBuild,omitempty" doc:"The definition on disk (sourceRevision) has a service with a build section, as last validated. Builds use these files (#33); services follow the last deploy."`
 	Images            []StackImage        `json:"images,omitempty" doc:"Images applied by the last successful deploy."`
 	Engine            *StackEngineState   `json:"engine,omitempty" doc:"Live Engine state as last observed (compare with status and appliedRevision to see drift)."`
 	PreviousState     []StackServiceState `json:"previousState,omitempty" doc:"Engine state before the last deploy (recovery of a failed deploy)."`
@@ -282,6 +283,7 @@ func newStack(st domain.Stack, v authz.View, online bool) Stack {
 	out.SourceRevision = revRef(st.Observed, st.ObservedAt)
 	out.FailedRevision = revRef(st.Failed, nil)
 	out.UndeployedChanges = st.UndeployedChanges()
+	out.SourceBuild = st.SourceBuild
 	for _, i := range st.Images {
 		out.Images = append(out.Images, StackImage(i))
 	}

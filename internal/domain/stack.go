@@ -172,6 +172,10 @@ type Stack struct {
 	// Observed is the newest revision seen on disk.
 	Observed   *RevisionRef
 	ObservedAt *time.Time
+	// SourceBuild: the definition on disk (the observed revision) has a
+	// service with a build section (#33), as last validated. Services
+	// follow the last deploy; the Build actions follow the files.
+	SourceBuild bool
 	// Failed is the revision of the last failed deploy (cleared by a
 	// successful one).
 	Failed *RevisionRef

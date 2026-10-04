@@ -280,7 +280,8 @@ deploy"). Deploy is the header's one primary action (a split button that
 deploys at once); its menu has "Deploy" and "Pull & Deploy" (one deploy
 with `pull: always`; the menu button's accessible label says "newer
 images are available" when `updateAvailable`), then after a separator
-"Cleanup Orphans & Deploy". Stacks with a `build:` section get a
+"Cleanup Orphans & Deploy". Stacks whose files on disk have a `build:`
+section (`sourceBuild`, not the last deploy's `services`) get a
 secondary **Build** split button ("More Build Options"): "Build" and
 "Pull & Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
 for newer base images; a `stack.build` job that deploys nothing, words

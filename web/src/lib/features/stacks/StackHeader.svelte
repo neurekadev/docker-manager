@@ -135,7 +135,9 @@
 	const single = singleEnvironment();
 	const current = $derived(stackStatus(stack));
 	const stoppedLike = $derived(['stopped', 'down', 'missing', 'undeployed'].includes(current));
-	const hasBuild = $derived((stack.services ?? []).some((s) => s.build));
+	// Builds read the files on disk: their build sections count, not those of
+	// the last deploy (services).
+	const hasBuild = $derived(!!stack.sourceBuild);
 
 	const images = createQuery(() => ({
 		...stackImageStatusQuery(stack.id),

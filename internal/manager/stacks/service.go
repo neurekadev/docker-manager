@@ -409,6 +409,31 @@ func servicesFrom(in []protocol.ComposeService) []domain.StackServiceDef {
 	return out
 }
 
+// builds reports whether a service of a validated definition has a build
+// section (domain.Stack.SourceBuild).
+func builds(in []protocol.ComposeService) bool {
+	return slices.ContainsFunc(in, func(s protocol.ComposeService) bool { return s.Build })
+}
+
+// sourceBuild validates the stack's definition on disk and reports whether
+// it builds an image; nil when it cannot tell (an invalid definition or an
+// unreachable agent), so the last known answer stays.
+func sourceBuild(ctx context.Context, st domain.Stack, req requester) *bool {
+	var v protocol.ComposeValidateOutput
+	if err := req(ctx, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st)}, &v); err != nil || !v.Valid {
+		return nil
+	}
+	b := builds(v.Services)
+	return &b
+}
+
+// requesterOf sends requests to an environment's agent.
+func (s *Service) requesterOf(environmentID string) requester {
+	return func(ctx context.Context, name string, in, out any) error {
+		return s.call(ctx, environmentID, name, in, out)
+	}
+}
+
 func bindsFrom(in []protocol.ComposeBind) []domain.StackBind {
 	out := make([]domain.StackBind, 0, len(in))
 	for _, b := range in {

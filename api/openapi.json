@@ -17007,6 +17007,10 @@
             },
             "type": "array"
           },
+          "sourceBuild": {
+            "description": "The definition on disk (sourceRevision) has a service with a build section, as last validated. Builds use these files (#33); services follow the last deploy.",
+            "type": "boolean"
+          },
           "sourceRevision": {
             "$ref": "#/components/schemas/StackRevisionRef",
             "description": "Newest revision observed on disk."
@@ -43613,6 +43617,7 @@
                       "name": "web"
                     }
                   ],
+                  "sourceBuild": false,
                   "sourceRevision": {
                     "at": "2026-09-25T12:00:00Z",
                     "hash": "example",
@@ -63249,6 +63254,7 @@
                           "name": "web"
                         }
                       ],
+                      "sourceBuild": false,
                       "sourceRevision": {
                         "at": "2026-09-25T12:00:00Z",
                         "hash": "example",
@@ -63477,6 +63483,7 @@
                         "name": "web"
                       }
                     ],
+                    "sourceBuild": false,
                     "sourceRevision": {
                       "at": "2026-09-25T12:00:00Z",
                       "hash": "example",
@@ -63850,6 +63857,7 @@
                         "name": "web"
                       }
                     ],
+                    "sourceBuild": false,
                     "sourceRevision": {
                       "at": "2026-09-25T12:00:00Z",
                       "hash": "example",
@@ -64682,6 +64690,7 @@
                       "name": "web"
                     }
                   ],
+                  "sourceBuild": false,
                   "sourceRevision": {
                     "at": "2026-09-25T12:00:00Z",
                     "hash": "example",
@@ -64950,6 +64959,7 @@
                       "name": "web"
                     }
                   ],
+                  "sourceBuild": false,
                   "sourceRevision": {
                     "at": "2026-09-25T12:00:00Z",
                     "hash": "example",
@@ -71487,6 +71497,7 @@
                         "name": "web"
                       }
                     ],
+                    "sourceBuild": false,
                     "sourceRevision": {
                       "at": "2026-09-25T12:00:00Z",
                       "hash": "example",

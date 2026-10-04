@@ -154,7 +154,7 @@ func (s *Service) CreateFromTemplate(ctx context.Context, p authz.Principal, r d
 	now := s.now()
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.Name, DisplayName: r.DisplayName, Meta: r.Meta,
 		Root: domain.StackRootStacks, Dir: r.Name, Origin: domain.StackOriginCreated, Status: domain.StackUndeployed,
-		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), EngineState: domain.EngineStateMissing,
+		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), SourceBuild: builds(v.Services), EngineState: domain.EngineStateMissing,
 		Links: domain.SanitizeLinks(src.Links), Template: &src.Ref, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	importLabelMeta(&st, v.Services)
 	var read protocol.ComposeReadOutput

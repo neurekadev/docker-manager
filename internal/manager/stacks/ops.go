@@ -314,6 +314,7 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 		Files: files, ExpectHash: cur.Snapshot.Hash, Remove: remove}, &w); err != nil {
 		return domain.StackRestore{}, err
 	}
+	build := sourceBuild(ctx, st, s.requesterOf(st.EnvironmentID))
 	var res domain.StackRestore
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		if fresh, err = store.GetStack(ctx, tx, st.ID); err != nil {
@@ -322,6 +323,9 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 		rev, err := s.recordRevision(ctx, tx, &fresh, w.Snapshot, domain.RevisionRestore, p, "", src.ID)
 		if err != nil {
 			return err
+		}
+		if build != nil {
+			fresh.SourceBuild = *build
 		}
 		now := s.now()
 		fresh.Observed, fresh.ObservedAt, fresh.UpdatedAt = rev.Ref(), &now, now
@@ -352,22 +356,33 @@ func (s *Service) RecordObserved(ctx context.Context, stackID string, source dom
 	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &cur); err != nil {
 		return nil, err
 	}
-	return s.recordRead(ctx, st.ID, cur, source, author)
+	return s.recordRead(ctx, st, cur, source, author, s.requesterOf(st.EnvironmentID))
 }
 
-func (s *Service) recordRead(ctx context.Context, stackID string, cur protocol.ComposeReadOutput, source domain.RevisionSource, author authz.Principal) (*domain.StackRevision, error) {
+// recordRead records what compose.read found on disk. A changed definition
+// is validated first (outside the transaction) to learn whether it builds
+// an image (SourceBuild).
+func (s *Service) recordRead(ctx context.Context, read domain.Stack, cur protocol.ComposeReadOutput, source domain.RevisionSource,
+	author authz.Principal, req requester) (*domain.StackRevision, error) {
 	if cur.Missing && len(cur.Snapshot.Files) == 0 {
 		return nil, nil // nothing on disk to record
+	}
+	var build *bool
+	if read.Observed == nil || read.Observed.Hash != cur.Snapshot.Hash {
+		build = sourceBuild(ctx, read, req)
 	}
 	var rev *domain.StackRevision
 	var st domain.Stack
 	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		var err error
-		if st, err = store.GetStack(ctx, tx, stackID); err != nil {
+		if st, err = store.GetStack(ctx, tx, read.ID); err != nil {
 			return err
 		}
 		if rev, err = s.observe(ctx, tx, &st, cur.Snapshot, source, author); err != nil {
 			return err
+		}
+		if build != nil {
+			st.SourceBuild = *build
 		}
 		return store.UpdateStack(ctx, tx, &st)
 	})
@@ -468,7 +483,7 @@ func (s *Service) reconcile(ctx context.Context, env string, req requester) {
 		var cur protocol.ComposeReadOutput
 		if err := req(ctx, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &cur); err != nil {
 			s.log.Warn("stack reconciliation: read definition", "stack_id", st.ID, "error", err)
-		} else if _, err := s.recordRead(ctx, st.ID, cur, domain.RevisionExternal, authz.Service()); err != nil {
+		} else if _, err := s.recordRead(ctx, st, cur, domain.RevisionExternal, authz.Service(), req); err != nil {
 			s.log.Error("stack reconciliation: record revision", "stack_id", st.ID, "error", err)
 		}
 		var live protocol.ComposeServicesOutput
@@ -640,6 +655,7 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 					Digest: i.Digest, Platform: i.Platform, Build: i.Build})
 			}
 			st.Services, st.Binds, st.PreviousState = servicesFrom(out.Services), bindsFrom(out.Binds), statesFrom(out.Before)
+			st.SourceBuild = builds(out.Services)
 		}
 	case rev != nil: // failed while applying
 		st.Status = domain.StackFailed

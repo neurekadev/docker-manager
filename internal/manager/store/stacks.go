@@ -46,6 +46,7 @@ type stackRow struct {
 	ObservedSeq        int64      `bun:"observed_seq,notnull"`
 	ObservedHash       string     `bun:"observed_hash,notnull"`
 	ObservedAt         *time.Time `bun:"observed_at,nullzero"`
+	SourceBuild        bool       `bun:"source_build,notnull"`
 	FailedRevisionID   string     `bun:"failed_revision_id,notnull"`
 	FailedSeq          int64      `bun:"failed_seq,notnull"`
 	FailedHash         string     `bun:"failed_hash,notnull"`
@@ -163,7 +164,7 @@ func fromStack(s *domain.Stack) stackRow {
 		ID: s.ID, EnvironmentID: s.EnvironmentID, Name: s.Name, DisplayName: s.DisplayName, Description: s.Meta.Description,
 		ServiceMeta: mustJSON(meta), Links: linksJSON(s.Links), Root: s.Root, RootPath: s.RootPath, Dir: s.Dir,
 		ConfigFiles: mustJSON(nonNil(s.ConfigFiles)), EnvFiles: mustJSON(nonNil(s.EnvFiles)), Origin: s.Origin,
-		Status: string(s.Status), AppliedAt: utcPtr(s.AppliedAt), ObservedAt: utcPtr(s.ObservedAt),
+		Status: string(s.Status), AppliedAt: utcPtr(s.AppliedAt), ObservedAt: utcPtr(s.ObservedAt), SourceBuild: s.SourceBuild,
 		Images: mustJSON(images), Services: mustJSON(services), Binds: mustJSON(binds),
 		PreviousState: mustJSON(statesJSON(s.PreviousState)), EngineState: string(s.EngineState),
 		EngineServices: mustJSON(statesJSON(s.EngineServices)), EngineObservedAt: utcPtr(s.EngineObservedAt),
@@ -215,6 +216,7 @@ func (r stackRow) toDomain() domain.Stack {
 		Links: linksOf(r.Links), Root: r.Root, RootPath: r.RootPath, Dir: r.Dir, Origin: r.Origin, Status: domain.StackDeploymentStatus(r.Status),
 		Applied: refOf(r.AppliedRevisionID, r.AppliedSeq, r.AppliedHash), AppliedAt: utcPtr(r.AppliedAt),
 		Observed: refOf(r.ObservedRevisionID, r.ObservedSeq, r.ObservedHash), ObservedAt: utcPtr(r.ObservedAt),
+		SourceBuild:   r.SourceBuild,
 		Failed:        refOf(r.FailedRevisionID, r.FailedSeq, r.FailedHash),
 		PreviousState: statesOf(r.PreviousState), EngineState: domain.StackEngineState(r.EngineState),
 		EngineServices: statesOf(r.EngineServices), EngineObservedAt: utcPtr(r.EngineObservedAt),

@@ -213,7 +213,7 @@ func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackC
 	now := s.now()
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.Name, DisplayName: r.DisplayName, Meta: r.Meta,
 		Links: links, Root: domain.StackRootStacks, Dir: r.Name, Origin: domain.StackOriginCreated, Status: domain.StackUndeployed,
-		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), EngineState: domain.EngineStateMissing,
+		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), SourceBuild: builds(v.Services), EngineState: domain.EngineStateMissing,
 		Revision: 1, CreatedAt: now, UpdatedAt: now}
 	importLabelMeta(&st, v.Services)
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
@@ -387,7 +387,7 @@ func (s *Service) Import(ctx context.Context, principal authz.Principal, r domai
 		snap, source = w.Snapshot, domain.RevisionEditor
 	}
 	if v.Valid {
-		st.Services, st.Binds = servicesFrom(v.Services), bindsFrom(v.Binds)
+		st.Services, st.Binds, st.SourceBuild = servicesFrom(v.Services), bindsFrom(v.Binds), builds(v.Services)
 		importLabelMeta(&st, v.Services)
 	}
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {

@@ -467,9 +467,15 @@ describe('StackHeader', () => {
 		expect(seen.some((s) => s.path.endsWith('/pulls'))).toBe(false);
 	});
 
-	it('keeps the builds out of the deploy menu and shows Build only for a build section', async () => {
+	it('keeps the builds out of the deploy menu and shows Build only for a build section on disk', async () => {
 		const user = setup();
-		header(stack());
+		// The last deploy built web, but the build section was saved away since.
+		header(
+			stack({
+				actions: [...ALL, 'stack.build'],
+				services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }]
+			})
+		);
 		expect(screen.queryByRole('button', { name: 'Build' })).not.toBeInTheDocument();
 		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
 		expect(menuEntries(await screen.findByRole('menu'))).toEqual([
@@ -485,7 +491,7 @@ describe('StackHeader', () => {
 		const tray = header(
 			stack({
 				actions: [...ALL, 'stack.build'],
-				services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }]
+				sourceBuild: true
 			})
 		);
 		await user.click(screen.getByRole('button', { name: 'Build' }));
@@ -506,7 +512,7 @@ describe('StackHeader', () => {
 		const tray = header(
 			stack({
 				actions: [...ALL, 'stack.build'],
-				services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }]
+				sourceBuild: true
 			})
 		);
 		await user.click(screen.getByRole('button', { name: 'More Build Options' }));
@@ -528,9 +534,7 @@ describe('StackHeader', () => {
 
 	it('offers the build deploys without stack.build and pulls newer base images with Pull, Build & Deploy', async () => {
 		const user = setup();
-		const tray = header(
-			stack({ services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }] })
-		);
+		const tray = header(stack({ sourceBuild: true }));
 		// Without stack.build the main part builds and deploys.
 		expect(screen.getByRole('button', { name: 'Build & Deploy' })).toBeEnabled();
 		await user.click(screen.getByRole('button', { name: 'More Build Options' }));
