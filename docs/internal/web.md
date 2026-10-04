@@ -277,10 +277,13 @@ URL once read) finds them again: a tracked job's `successFor`
 computes the success toast once it ended, from data read again (a deploy
 whose `appliedRevision.at` did not move started no container: "Nothing to
 deploy"). Deploy is the header's one primary action (a split button that
-deploys at once); its menu has "Build & Deploy" (stacks with a `build:`
-section), "Pull & Deploy" (one deploy with `pull: always`; the menu
+deploys at once); its menu has three groups, split by separators:
+"Deploy" and "Pull & Deploy" (one deploy with `pull: always`; the menu
 button's accessible label says "newer images are available" when
-`updateAvailable`) and "Cleanup Orphans & Deploy", whose
+`updateAvailable`); "Build & Deploy" (`build: true`) and "Pull, Build &
+Deploy" (`pull: always` and `build: true`, which also pulls newer base
+images), only for stacks with a `build:` section; and "Cleanup Orphans &
+Deploy", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
 context's `removeOrphans` request) the overview's drift notice ("Remove Old
 Containers…") opens too. There is no separate Update button; schedules and

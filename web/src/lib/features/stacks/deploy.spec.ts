@@ -17,6 +17,12 @@ describe('deploy outcomes', () => {
 		expect(deployTitle('Silo', { pull: true })).toBe('Pull and Deploy Silo');
 		expect(deployFailure('Silo', {})).toBe('Silo was not deployed');
 		expect(deployFailure('Silo', { pull: true })).toBe('Silo was not pulled and deployed');
+		expect(deployTitle('Silo', { pull: true, build: true })).toBe(
+			'Pull, Build and Deploy Silo'
+		);
+		expect(deployFailure('Silo', { pull: true, build: true })).toBe(
+			'Silo was not pulled, built and deployed'
+		);
 	});
 
 	it('says when a deploy changed nothing (the last deploy time stayed)', () => {
@@ -31,6 +37,16 @@ describe('deploy outcomes', () => {
 			'Nothing to deploy: Silo already runs its definition'
 		);
 		expect(deploySuccess('Silo', { build: true }, t1, t2)).toBe('Built and deployed Silo');
+		expect(deploySuccess('Silo', { pull: true, build: true }, t1, t2)).toBe(
+			'Pulled newer images, built and deployed Silo'
+		);
+		// A pull and rebuild that changed nothing still built the images.
+		expect(deploySuccess('Silo', { pull: true, build: true }, t1, t1)).toBe(
+			'Built the images of Silo; nothing needed to be redeployed'
+		);
+		expect(deploySuccess('Silo', { pull: true }, t1, t1)).toBe(
+			'Nothing to update: Silo already runs the newest images'
+		);
 		expect(deploySuccess('Silo', { removeOrphans: true }, t1, t1)).toBe(
 			'Removed the orphaned containers of Silo; everything else already ran its definition'
 		);

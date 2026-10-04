@@ -7685,7 +7685,7 @@ export interface components {
             buildTimeoutSeconds?: number;
             forceRecreate?: boolean;
             /**
-             * @description missing (default): pull only images that are not on the host; always: pull every image first.
+             * @description missing (default): pull only images that are not on the host; always: pull every image first (with build, the build also pulls newer base images).
              * @example missing
              * @enum {string}
              */

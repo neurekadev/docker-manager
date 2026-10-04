@@ -188,6 +188,13 @@ function header(s: Stack, tray = new JobTray()) {
 	return tray;
 }
 
+/** A menu's items and separators ("---") in order. */
+function menuEntries(menu: HTMLElement): (string | undefined)[] {
+	return [...menu.querySelectorAll('[role="menuitem"], [role="separator"]')].map((e) =>
+		e.getAttribute('role') === 'separator' ? '---' : e.textContent?.trim()
+	);
+}
+
 describe('StackHeader', () => {
 	it('shows the mockup header: name, status, description, meta with the host path, and every permitted action', async () => {
 		const user = setup();
@@ -460,6 +467,31 @@ describe('StackHeader', () => {
 		expect(seen.some((s) => s.path.endsWith('/pulls'))).toBe(false);
 	});
 
+	it('groups the build deploys and pulls newer base images with Pull, Build & Deploy', async () => {
+		const user = setup();
+		const tray = header(
+			stack({ services: [{ name: 'web', image: 'silo-web', build: true, dependsOn: [] }] })
+		);
+		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
+		const menu = await screen.findByRole('menu');
+		expect(menuEntries(menu)).toEqual([
+			'Deploy',
+			expect.stringMatching(/^Pull & Deploy/),
+			'---',
+			'Build & Deploy',
+			'Pull, Build & Deploy',
+			'---',
+			'Cleanup Orphans & Deploy'
+		]);
+		await user.click(within(menu).getByRole('menuitem', { name: 'Pull, Build & Deploy' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull, Build and Deploy Silo'));
+		expect(tray.jobs[0]).toMatchObject({ failure: 'Silo was not pulled, built and deployed' });
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/deployments',
+			body: { pull: 'always', build: true }
+		});
+	});
+
 	it('hides the actions while the migration wizard is open', () => {
 		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		render(QueryHarness, {
@@ -479,11 +511,12 @@ describe('StackHeader', () => {
 		const tray = header(stack());
 		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
 		const menu = await screen.findByRole('menu');
-		expect(
-			within(menu)
-				.getAllByRole('menuitem')
-				.map((i) => i.textContent?.trim())
-		).toEqual(['Deploy', expect.stringMatching(/^Pull & Deploy/), 'Cleanup Orphans & Deploy']);
+		expect(menuEntries(menu)).toEqual([
+			'Deploy',
+			expect.stringMatching(/^Pull & Deploy/),
+			'---',
+			'Cleanup Orphans & Deploy'
+		]);
 		await user.click(within(menu).getByRole('menuitem', { name: 'Cleanup Orphans & Deploy' }));
 		const dialog = await screen.findByRole('alertdialog', {
 			name: 'Deploy Silo and remove orphaned containers?'

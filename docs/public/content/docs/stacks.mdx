@@ -42,10 +42,12 @@ settings changed are recreated. The menu next to it has:
 
 - **Pull & Deploy**: downloads every image of the stack first, so services
   get newer images.
+- **Build & Deploy** (stacks with a `build:` section): builds those images
+  first, from the base images already on the server.
+- **Pull, Build & Deploy** (stacks with a `build:` section): downloads
+  every image and newer base images, builds, then deploys.
 - **Cleanup Orphans & Deploy**: also removes containers of services you
   deleted from `compose.yaml`. Volumes and files are kept.
-- **Build & Deploy** (stacks with a `build:` section): builds those images
-  first.
 
 A failed deploy is not rolled back. Fix the files, or restore the last good
 [revision](#revisions), and deploy again.

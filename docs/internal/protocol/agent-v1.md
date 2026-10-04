@@ -1377,7 +1377,7 @@ The manager maps them to public errors: `not_found` → 404,
 | `files.watch` watch set, scoped filesystem watcher (inotify, debounce, rename handling, watch-limit accounting, bounded reconciliation), `rescan` | `internal/agent/watch`, `internal/manager/files` (`Watcher`), `agents.Session.Rescan` | implemented (#23) |
 | agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stub | not needed in v1 |
 | `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |
-| `stack.build` executor (input `noCache`, `pullBase`, `buildTimeoutSeconds`; output `built`) | `internal/agent/stacks`, `internal/agent/buildrun` | implemented (#33) |
+| `stack.build` executor (input `noCache`, `pullBase`, `buildTimeoutSeconds`; output `built`; a `stack.deploy` with `pull: always` and `build: true` also carries `pullBase`) | `internal/agent/stacks`, `internal/agent/buildrun` | implemented (#33) |
 | container logs (`container.logs` request and stream) and exec (`container.exec.create/resize/delete`, `container.exec` stream) | `internal/agent/containerio`, `internal/manager/containerio` | implemented (#8) |
 | `maintenance.preview` request and `prune.run` executor | `internal/protocol/maintenance.go`, `internal/agent/prune` | implemented (#14) |
 | backups and restores (`backup.snapshots/contents/scope_preview`, `restore.preview` requests, `backup.file` stream, backup/restore/verification executors) | `internal/protocol/backup.go`, `internal/agent/backups`, `internal/restic` | implemented (#10, #24, #28) |
