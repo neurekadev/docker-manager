@@ -16,6 +16,7 @@
 	import { notices } from '$lib/shell/notices.svelte';
 	import BootScreen from '$lib/shell/BootScreen.svelte';
 	import StepUpDialog from '$lib/auth/StepUpDialog.svelte';
+	import { BuildOutputDialog } from '$lib/ui';
 
 	let { children } = $props();
 	const qc = useQueryClient();
@@ -67,6 +68,7 @@
 		{@render children()}
 	</AppShell>
 	<StepUpDialog user={session.data.user} />
+	<BuildOutputDialog />
 {:else}
 	<BootScreen
 		error={session.isError ? session.error : null}

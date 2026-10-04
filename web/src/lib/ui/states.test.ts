@@ -7,6 +7,7 @@ import { demoJob, demoJobClient, demoJobEvents, ScriptedEventSource } from '$lib
 import DeniedState from './DeniedState.svelte';
 import ErrorState from './ErrorState.svelte';
 import JobProgress from './JobProgress.svelte';
+import { buildOutput } from './build-output.svelte';
 import OfflineEnvironment from './OfflineEnvironment.svelte';
 import SecretReveal from './SecretReveal.svelte';
 import StepWizard from './StepWizard.svelte';
@@ -143,6 +144,35 @@ describe('JobProgress', () => {
 				.getAllByRole('status')
 				.some((s) => s.textContent === 'Prune Stopped Containers on nas: partly failed')
 		).toBe(true);
+		watcher.stop();
+	});
+
+	it("shows a build's step instead of its output and opens the output on request", async () => {
+		const user = setup();
+		const es = new ScriptedEventSource();
+		const watcher = new JobWatcher('j2', { eventSource: () => es });
+		watcher.start();
+		render(JobProgress, { props: { watcher, title: 'Build Images of Silo' } });
+		es.emit('job', demoJob('running'));
+		const at = '2026-09-25T10:00:00Z';
+		const progress = (seq: number, message: string) =>
+			es.emit('progress', { seq, type: 'progress', at, percent: 20, message });
+		progress(1, 'silo-web: building');
+		expect(screen.queryByRole('button', { name: 'Show Output' })).toBeNull();
+		progress(2, 'silo-web: [builder 2/5] RUN make: started');
+		progress(3, 'silo-web: [builder 2/5] RUN make\ncc -o app main.c\nwarning: unused');
+		const step = await screen.findByText('silo-web · Step 2/5: RUN make');
+		expect(step).toBeInTheDocument();
+		expect(screen.queryByText(/cc -o app/)).toBeNull();
+		// The bar follows the steps: step 2 of 5 runs, one is done.
+		expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '20');
+		progress(4, 'silo-web: [builder 2/5] RUN make: done');
+		await waitFor(() =>
+			expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40')
+		);
+		await user.click(screen.getByRole('button', { name: 'Show Output' }));
+		expect(buildOutput.shown).toEqual({ jobId: 'j2', title: 'Build Images of Silo' });
+		buildOutput.close();
 		watcher.stop();
 	});
 });

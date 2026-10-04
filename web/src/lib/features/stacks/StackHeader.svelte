@@ -5,10 +5,12 @@
 	// the stack's links below it (full view, when it has any), the rename
 	// pencil right of the name (the name turns into a field in place:
 	// RenameStackInline, which renames at once) and the actions: the Deploy
-	// split button (the one primary; its menu groups Deploy and Pull & Deploy,
-	// which says when newer images are available, then Build & Deploy and
-	// Pull, Build & Deploy for stacks that build an image, then Cleanup
-	// Orphans & Deploy, with separators between), the lifecycle split button
+	// split button (the one primary; its menu has Deploy and Pull & Deploy,
+	// which says when newer images are available, then Cleanup Orphans &
+	// Deploy after a separator), the Build split button for stacks with a
+	// build section (Build and Pull & Build, which pulls newer base images,
+	// build without deploying, with stack.build; after a separator Build &
+	// Deploy and Pull, Build & Deploy, with stack.deploy), the lifecycle split button
 	// (LifecycleButton: Stop while anything runs, Start when stopped; its
 	// menu has Start, Restart and Stop) and overflow (Migrate with more than
 	// one environment, Edit Details, Save as Template, Delete). Each action
@@ -56,15 +58,23 @@
 		formatRelative,
 		toast,
 		type MenuEntry,
+		type MenuItem,
 		type MetaItem
 	} from '$lib/ui';
-	import { deleteStack, operateStack, volumeResults, type StackOperation } from './actions';
+	import {
+		buildStack,
+		deleteStack,
+		operateStack,
+		volumeResults,
+		type StackOperation
+	} from './actions';
 	import { RemoveOrphansRequest, startDeploy } from './deploy.svelte';
 	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import RemoveOrphansDialog from './RemoveOrphansDialog.svelte';
 	import EditDetailsDialog from './EditDetailsDialog.svelte';
 	import RenameStackInline from './RenameStackInline.svelte';
 	import {
+		buildCopy,
 		deployFailure,
 		serviceCounts,
 		stackStatus,
@@ -192,7 +202,7 @@
 	// The name is being edited in place (RenameStackInline).
 	let editingName = $state(false);
 	let savingTemplate = $state(false);
-	let starting = $state<'deploy' | 'build' | 'pull' | null>(null);
+	let starting = $state<'deploy' | 'build' | null>(null);
 
 	const OPS: Record<
 		Exclude<StackOperation, 'down'>,
@@ -239,6 +249,21 @@
 			await startDeploy(stack, choice, tray, queryClient);
 		} catch (e) {
 			toast.error(deployFailure(title, choice), { body: errorMessage(e) });
+		} finally {
+			starting = null;
+		}
+	}
+
+	// Builds the images without deploying them (Build, Pull & Build).
+	async function build(pull: boolean) {
+		if (starting) return;
+		starting = 'build';
+		const copy = buildCopy(title, pull);
+		try {
+			const job = await buildStack(stack.id, { pull });
+			tray.add(job, { ...copy, kind: 'stack.build' });
+		} catch (e) {
+			toast.error(copy.failure, { body: errorMessage(e) });
 		} finally {
 			starting = null;
 		}
@@ -295,36 +320,47 @@
 		});
 	}
 
-	const deployItems = $derived.by((): MenuEntry[] => {
-		// Three groups: plain deploys, rebuilds (stacks with a build section)
-		// and the cleanup.
-		const items: MenuEntry[] = [
-			{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) },
-			// Pulls every image first, then deploys (what the former Update did).
-			{ label: 'Pull & Deploy', icon: Download, onSelect: () => deploy({ pull: true }) }
-		];
-		if (hasBuild)
-			items.push(
-				{ separator: true },
+	const deployItems: MenuEntry[] = [
+		{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) },
+		// Pulls every image first, then deploys (what the former Update did).
+		{ label: 'Pull & Deploy', icon: Download, onSelect: () => deploy({ pull: true }) },
+		{ separator: true },
+		{
+			label: 'Cleanup Orphans & Deploy',
+			icon: Eraser,
+			onSelect: () => removeOrphans.request()
+		}
+	];
+
+	// The Build button (stacks with a build section): the builds that deploy
+	// nothing with stack.build, the build deploys with stack.deploy. Its main
+	// part runs the first entry (Build, else Build & Deploy).
+	const buildItems = $derived.by((): MenuItem[][] => {
+		if (!hasBuild || restoring) return [];
+		const groups: MenuItem[][] = [];
+		if (can('stack.build'))
+			groups.push([
 				// Rebuilds with the base images already on the host.
-				{ label: 'Build & Deploy', icon: Hammer, onSelect: () => deploy({ build: true }) },
+				{ label: 'Build', icon: Hammer, onSelect: () => void build(false) },
+				// Pulls newer base images first.
+				{ label: 'Pull & Build', icon: Download, onSelect: () => void build(true) }
+			]);
+		if (can('stack.deploy'))
+			groups.push([
+				{ label: 'Build & Deploy', icon: Rocket, onSelect: () => deploy({ build: true }) },
 				// Pulls every image and newer base images, rebuilds, then deploys.
 				{
 					label: 'Pull, Build & Deploy',
 					icon: RefreshCw,
 					onSelect: () => deploy({ pull: true, build: true })
 				}
-			);
-		items.push(
-			{ separator: true },
-			{
-				label: 'Cleanup Orphans & Deploy',
-				icon: Eraser,
-				onSelect: () => removeOrphans.request()
-			}
-		);
-		return items;
+			]);
+		return groups;
 	});
+	const buildMain = $derived(buildItems[0]?.[0]);
+	const buildMenu = $derived(
+		buildItems.flatMap((g, i): MenuEntry[] => (i ? [{ separator: true }, ...g] : g))
+	);
 
 	const overflow = $derived.by((): MenuEntry[] => {
 		const items: MenuEntry[] = [];
@@ -425,11 +461,24 @@
 					menuLabel={updateDot
 						? 'More Deploy Options (newer images are available)'
 						: 'More Deploy Options'}
-					loading={starting !== null}
-					disabled={offline || renaming}
+					loading={starting === 'deploy'}
+					disabled={offline || renaming || starting === 'build'}
 					title={renaming ? renamingReason : undefined}
 					onclick={() => deploy({})}
 					items={deployItems}
+				/>
+			{/if}
+			{#if buildMain}
+				<SplitButton
+					label={buildMain.label}
+					icon={Hammer}
+					variant="secondary"
+					menuLabel="More Build Options"
+					loading={starting === 'build'}
+					disabled={offline || renaming || starting === 'deploy'}
+					title={renaming ? renamingReason : undefined}
+					onclick={() => buildMain.onSelect?.()}
+					items={buildMenu}
 				/>
 			{/if}
 			<!-- A stopped stack starts; a down, missing or undeployed one deploys. -->

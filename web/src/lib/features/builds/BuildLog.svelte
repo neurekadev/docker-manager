@@ -1,6 +1,7 @@
 <script lang="ts">
 	// A build's log (#33): the BuildKit progress lines of the image.build
-	// job, streamed from the job's event stream (the server keeps the newest
+	// job (its progress messages, with its log and warning lines), streamed
+	// from the job's event stream (the server keeps the newest
 	// 500 events; replayed when the page opens). Follows the end while the
 	// user doesn't scroll up. Credentials never appear here: the agent
 	// scrubs the output before it leaves the host.
@@ -25,10 +26,12 @@
 	const stop = w.start();
 	onDestroy(stop);
 
+	const lines = $derived([...w.log, ...w.output].sort((a, b) => a.seq - b.seq));
+
 	let follow = $state(true);
 	let box = $state<HTMLElement>();
 	$effect(() => {
-		void w.log.length;
+		void lines.length;
 		if (!follow || !box) return;
 		void tick().then(() => box && (box.scrollTop = box.scrollHeight));
 	});
@@ -42,10 +45,10 @@
 	const gone = $derived(w.error instanceof ApiRequestError && w.error.status === 404 && !w.job);
 </script>
 
-{#if w.log.length}
+{#if lines.length}
 	<div class="log-head">
 		<span class="count muted num"
-			>{w.log.length} lines{w.log.length >= 500 ? ' (the newest 500)' : ''}</span
+			>{lines.length} lines{w.output.length >= 500 ? ' (the newest 500)' : ''}</span
 		>
 		<Switch label="Follow" bind:checked={follow} />
 	</div>
@@ -54,7 +57,7 @@
 	<p class="empty muted">This build's log is no longer kept.</p>
 {:else if w.error && !w.job}
 	<p class="empty muted">The log could not be loaded: {errorMessage(w.error)}</p>
-{:else if w.log.length === 0}
+{:else if lines.length === 0}
 	<p class="empty muted">
 		{w.terminal ? 'This build produced no output.' : 'Waiting for the first lines…'}
 	</p>
@@ -70,7 +73,7 @@
 		aria-live="off"
 		tabindex="0"
 	>
-		{#each w.log as line (line.seq)}
+		{#each lines as line (line.seq)}
 			<div class="line" class:warning={line.warning}>
 				<span class="at" title={formatDateTime(line.at)}>{clockTime(line.at)}</span><span
 					class="text">{line.message}</span

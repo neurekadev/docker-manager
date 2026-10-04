@@ -111,7 +111,8 @@ build path (#25: without buildx it falls back to the legacy builder and a
   `nothing_to_build` when the stack or a named service has no build
   section) and `build_images` (rebuild every selected build section, with
   `noCache` / `pull` for base images). It never deploys: the running
-  containers keep their images until the next deploy.
+  containers keep their images until the next deploy. The stack page's
+  **Build** split button starts it (Build; Pull & Build sets `pull`).
 - `stack.deploy`'s `build_images` step builds the images missing on the
   host (every build section with `build: true`) before `apply`, so a
   deploy's builds stream and cancel the same way.

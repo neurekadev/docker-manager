@@ -94,6 +94,24 @@ export function pullStack(stackId: string, client: ApiClient = api): Promise<Job
 	);
 }
 
+/**
+ * POST /stacks/{id}/builds: a stack.build job rebuilds the images of the
+ * stack's build sections without deploying them; with `pull`, BuildKit
+ * pulls newer base images first.
+ */
+export function buildStack(
+	stackId: string,
+	options: { pull?: boolean } = {},
+	client: ApiClient = api
+): Promise<Job> {
+	return unwrap(
+		client.POST('/api/v1/stacks/{stackId}/builds', {
+			params: { path: { stackId }, header: { 'Idempotency-Key': key() } },
+			body: options.pull ? { pull: true } : {}
+		})
+	);
+}
+
 /** Volumes a stack removal kept and removed (its job items). */
 export function volumeResults(items: { name: string; status: string }[] | undefined): {
 	removed: number;

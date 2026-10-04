@@ -27,9 +27,12 @@ export interface JobWatcherOptions {
 	onfinish?: (job: Job) => void;
 	/** Log lines kept (default 50; a build log keeps the server's 500). */
 	maxLog?: number;
+	/** Progress messages kept in `output` (default 500, the server's event limit). */
+	maxOutput?: number;
 }
 
 const MAX_LOG = 50;
+const MAX_OUTPUT = 500;
 
 export interface LogLine {
 	seq: number;
@@ -43,6 +46,11 @@ export class JobWatcher {
 	job = $state<Job | null>(null);
 	items = $state<JobItem[]>([]);
 	log = $state<LogLine[]>([]);
+	/**
+	 * The progress messages in order (a build's BuildKit steps and output,
+	 * $lib/ui/build-progress.ts); the job only keeps the latest.
+	 */
+	output = $state<LogLine[]>([]);
 	/** The stream is open (false while polling or after the end). */
 	streaming = $state(false);
 	error = $state<unknown>(null);
@@ -134,6 +142,11 @@ export class JobWatcher {
 				if (job && ev.state) this.job = { ...job, state: ev.state as Job['state'] };
 				break;
 			case 'progress':
+				if (ev.message)
+					this.output = [
+						...this.output,
+						{ seq: ev.seq, at: ev.at, message: ev.message, warning: false }
+					].slice(-(this.#opts.maxOutput ?? MAX_OUTPUT));
 				if (job)
 					this.job = {
 						...job,

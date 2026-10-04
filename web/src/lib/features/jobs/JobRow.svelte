@@ -5,7 +5,7 @@
 	// Views show it for running jobs beyond MAX_JOB_STREAMS.
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
-	import { StatusBadge, formatPercent } from '$lib/ui';
+	import { StatusBadge, formatPercent, progressText } from '$lib/ui';
 
 	interface Props {
 		job: Pick<Job, 'id' | 'state' | 'progress'>;
@@ -14,7 +14,8 @@
 
 	let { job, title }: Props = $props();
 	const percent = $derived(job.progress?.percent);
-	const step = $derived(job.progress?.message || job.progress?.step);
+	// A build's step in words, never a block of its output.
+	const step = $derived(progressText(job.progress?.message || job.progress?.step));
 </script>
 
 <div class="row" aria-busy="true">

@@ -719,6 +719,27 @@ export function deploySuccess(
 	return `Nothing to deploy: ${title} already runs its definition`;
 }
 
+/**
+ * The tray's words for a build that deploys nothing (the Build button's
+ * Build, and Pull & Build, which also pulls newer base images).
+ */
+export function buildCopy(
+	title: string,
+	pull = false
+): { title: string; success: string; failure: string } {
+	return pull
+		? {
+				title: `Pull and Build Images of ${title}`,
+				success: `Pulled newer base images and built the images of ${title}`,
+				failure: `The images of ${title} were not built`
+			}
+		: {
+				title: `Build Images of ${title}`,
+				success: `Built the images of ${title}`,
+				failure: `The images of ${title} were not built`
+			};
+}
+
 /** Services with containers on the host that the deployed definition no longer has. */
 export function orphanedServices(services: { name: string; drift: string[] }[] | undefined) {
 	return (services ?? [])

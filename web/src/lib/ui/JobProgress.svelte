@@ -4,15 +4,22 @@
 	// failure lists the failed items with their messages and the job's
 	// recovery advice. `inline` is one line for tables and headers; `panel`
 	// is the full view. Completion is announced in a polite live region and,
-	// for jobs it follows itself, added to the notices bell (#25 Q6).
+	// for jobs it follows itself, added to the notices bell (#25 Q6). An image
+	// build shows its BuildKit step ("Step 2/5: RUN make") with a bar that
+	// follows the steps, never the raw output; "Show Output" opens the Build
+	// Output dialog (build-output.svelte.ts) with the output in a terminal.
 	import { onDestroy, untrack } from 'svelte';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import CircleMinus from '@lucide/svelte/icons/circle-minus';
 	import CircleX from '@lucide/svelte/icons/circle-x';
+	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import { JobWatcher, type JobWatcherOptions } from '$lib/api/jobs.svelte';
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
 	import { notices as appNotices, type Notices } from '$lib/shell/notices.svelte';
+	import { buildOutput } from './build-output.svelte';
+	import { buildProgress, progressText, stepText } from './build-progress';
+	import Button from './Button.svelte';
 	import { formatPercent, titleCase } from './format';
 	import StatusBadge from './StatusBadge.svelte';
 	import { statusInfo } from './status';
@@ -81,7 +88,14 @@
 	const job = $derived(w?.job ?? null);
 	const state = $derived(job?.state ?? 'queued');
 	const label = $derived(title ?? kindLabel(job?.kind));
-	const percent = $derived(job?.progress?.percent);
+	// A build's steps (none for other jobs): the bar follows them.
+	const build = $derived(buildProgress((w?.output ?? []).map((l) => l.message)));
+	const percent = $derived(build.percent ?? job?.progress?.percent);
+	const stepLine = $derived(
+		build.active && build.step
+			? stepText(build.step)
+			: progressText(job?.progress?.message ?? job?.progress?.step)
+	);
 	const failed = $derived(w?.failedItems ?? []);
 	const items = $derived(w?.items ?? []);
 	const succeeded = $derived(items.filter((i) => i.status === 'succeeded').length);
@@ -123,8 +137,8 @@
 				style="width: {percent ?? 40}%"
 			></span>
 		</div>
-		{#if job?.progress?.step || job?.progress?.message}
-			<p class="step">{job?.progress?.message ?? job?.progress?.step}</p>
+		{#if stepLine}
+			<p class="step" title={stepLine}>{stepLine}</p>
 		{/if}
 		{#if job?.blockedBy}
 			<p class="step">
@@ -138,6 +152,16 @@
 	{/if}
 
 	{#if variant === 'panel'}
+		{#if build.hasOutput && w}
+			<div class="output">
+				<Button
+					size="sm"
+					variant="secondary"
+					icon={SquareTerminal}
+					onclick={() => w && buildOutput.show(w.id, label)}>Show Output</Button
+				>
+			</div>
+		{/if}
 		{#if summary && job?.error && w?.terminal}
 			<div class="outcome {state}">
 				<p class="message">{job.error.message}</p>
@@ -249,6 +273,13 @@
 	.step {
 		color: var(--text-muted);
 		font-size: var(--text-caption);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.output {
+		display: flex;
 	}
 
 	.outcome {

@@ -26,6 +26,7 @@
 		Table,
 		formatDateTime,
 		formatRelative,
+		progressText,
 		type Column
 	} from '$lib/ui';
 
@@ -130,7 +131,7 @@
 	<a class="link" href={routes.job(j.id)}>{h.title}</a>
 	{#if h.subtitle}<span class="muted"> {h.subtitle}</span>{/if}
 	{#if j.progress?.message && !['succeeded', 'failed', 'partial', 'cancelled', 'interrupted'].includes(j.state)}
-		<span class="muted"> {j.progress.message}</span>
+		<span class="muted"> {progressText(j.progress.message)}</span>
 	{/if}
 {/snippet}
 {#snippet stateCell(j: Job)}<StatusBadge status={j.state} kind="job" />{/snippet}
