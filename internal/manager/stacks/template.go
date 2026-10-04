@@ -173,6 +173,7 @@ func (s *Service) CreateFromTemplate(ctx context.Context, p authz.Principal, r d
 		if _, err := s.observe(ctx, tx, &st, read.Snapshot, domain.RevisionEditor, p); err != nil {
 			return err
 		}
+		setSourceBuild(&st, builds(v.Services))
 		return store.UpdateStack(ctx, tx, &st)
 	})
 	if err != nil {

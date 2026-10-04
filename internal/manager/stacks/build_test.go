@@ -14,6 +14,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/manager/authz"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 	"github.com/neurekadev/docker-manager/internal/testutil/canary"
 )
@@ -220,6 +221,62 @@ func TestStackBuildRegistryConnections(t *testing.T) {
 	j, err = h.svc.Deploy(h.ctx, alice, plain, domain.StackJobRequest{}, domain.StackDeployOptions{})
 	if err != nil || !slices.Equal(stackInput(t, j).RegistryConnections, []string{"reg-db"}) {
 		t.Errorf("plain deploy %+v %v", stackInput(t, j), err)
+	}
+}
+
+// SourceBuild follows the files on disk (saves, external edits, restores),
+// while the services stay those of the definition last deployed (here the
+// creation's) until the next deploy. An invalid definition keeps the last
+// known answer.
+func TestSourceBuildFollowsTheFilesOnDisk(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", buildYAML, "API_KEY=x\n")
+	if !st.SourceBuild {
+		t.Fatal("a created stack with a build section does not build")
+	}
+	imageYAML := strings.Replace(buildYAML, "build:\n      context: ./web\n      args:\n        API_KEY: ${API_KEY}", "image: shop-web:1", 1)
+	h.write(imageYAML, "shop", "compose.yaml")
+	plain, err := h.svc.RecordFileSave(h.ctx, st.ID, "compose.yaml", alice)
+	if err != nil || plain == nil {
+		t.Fatalf("save without build: %+v %v", plain, err)
+	}
+	st = h.get(st.ID)
+	if st.SourceBuild || !slices.ContainsFunc(st.Services, func(s domain.StackServiceDef) bool { return s.Build }) {
+		t.Fatalf("after removing the build section: sourceBuild %v services %+v", st.SourceBuild, st.Services)
+	}
+	// And back.
+	h.write(buildYAML, "shop", "compose.yaml")
+	if _, err := h.svc.RecordObserved(h.ctx, st.ID, domain.RevisionExternal, authz.Service()); err != nil || !h.get(st.ID).SourceBuild {
+		t.Fatalf("after adding it back: %v", err)
+	}
+	h.write("services:\n  web:\n    image: a\n    use_api_socket: true\n", "shop", "compose.yaml")
+	if _, err := h.svc.RecordFileSave(h.ctx, st.ID, "compose.yaml", alice); err != nil || !h.get(st.ID).SourceBuild {
+		t.Fatalf("an invalid definition changed the answer: %v", err)
+	}
+	if _, err := h.svc.Restore(h.ctx, alice, h.get(st.ID), plain.ID); err != nil || h.get(st.ID).SourceBuild {
+		t.Fatalf("restore of the definition without build: %v", err)
+	}
+	// Edited while the agent was away: the reconnect's reconciliation.
+	h.agents.setOnline(false)
+	h.write(buildYAML, "shop", "compose.yaml")
+	h.agents.setOnline(true)
+	h.svc.ReconcileForTest(h.ctx, env, h.agents)
+	if !h.get(st.ID).SourceBuild {
+		t.Error("the reconciliation did not re-validate the edited definition")
+	}
+	// A validation that times out records the revision and keeps the last
+	// answer; the next read of the same files validates them again.
+	restore := h.agents.fail(protocol.ReqComposeValidate)
+	h.write(imageYAML, "shop", "compose.yaml")
+	if rev, err := h.svc.RecordFileSave(h.ctx, st.ID, "compose.yaml", alice); err != nil || rev == nil || !h.get(st.ID).SourceBuild {
+		t.Fatalf("save while validation times out: %+v %v", rev, err)
+	}
+	restore()
+	if rev, err := h.svc.RecordObserved(h.ctx, st.ID, domain.RevisionExternal, authz.Service()); err != nil || rev != nil {
+		t.Fatalf("the same files recorded again: %+v %v", rev, err)
+	}
+	if got := h.get(st.ID); got.SourceBuild || got.SourceBuildHash != got.Observed.Hash {
+		t.Errorf("after validating again: sourceBuild %v hash %q, observed %q", got.SourceBuild, got.SourceBuildHash, got.Observed.Hash)
 	}
 }
 

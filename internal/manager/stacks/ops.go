@@ -314,6 +314,7 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 		Files: files, ExpectHash: cur.Snapshot.Hash, Remove: remove}, &w); err != nil {
 		return domain.StackRestore{}, err
 	}
+	build := sourceBuild(ctx, st, s.requesterOf(st.EnvironmentID))
 	var res domain.StackRestore
 	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		if fresh, err = store.GetStack(ctx, tx, st.ID); err != nil {
@@ -325,6 +326,9 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 		}
 		now := s.now()
 		fresh.Observed, fresh.ObservedAt, fresh.UpdatedAt = rev.Ref(), &now, now
+		if build != nil {
+			setSourceBuild(&fresh, *build)
+		}
 		res = domain.StackRestore{Stack: fresh, Revision: rev, DeployOffered: fresh.UndeployedChanges()}
 		return store.UpdateStack(ctx, tx, &fresh)
 	})
@@ -352,27 +356,46 @@ func (s *Service) RecordObserved(ctx context.Context, stackID string, source dom
 	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &cur); err != nil {
 		return nil, err
 	}
-	return s.recordRead(ctx, st.ID, cur, source, author)
+	return s.recordRead(ctx, st, cur, source, author, s.requesterOf(st.EnvironmentID))
 }
 
-func (s *Service) recordRead(ctx context.Context, stackID string, cur protocol.ComposeReadOutput, source domain.RevisionSource, author authz.Principal) (*domain.StackRevision, error) {
+// recordRead records what compose.read found on disk. A definition other
+// than the one SourceBuild was validated for (changed, or its validation
+// failed) is validated first, outside the transaction.
+func (s *Service) recordRead(ctx context.Context, read domain.Stack, cur protocol.ComposeReadOutput, source domain.RevisionSource,
+	author authz.Principal, req requester) (*domain.StackRevision, error) {
 	if cur.Missing && len(cur.Snapshot.Files) == 0 {
 		return nil, nil // nothing on disk to record
 	}
+	var build *bool
+	if read.SourceBuildHash != cur.Snapshot.Hash {
+		build = sourceBuild(ctx, read, req)
+	}
 	var rev *domain.StackRevision
 	var st domain.Stack
+	changed := false
 	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		var err error
-		if st, err = store.GetStack(ctx, tx, stackID); err != nil {
+		if st, err = store.GetStack(ctx, tx, read.ID); err != nil {
 			return err
 		}
 		if rev, err = s.observe(ctx, tx, &st, cur.Snapshot, source, author); err != nil {
 			return err
 		}
+		if build != nil {
+			changed = st.SourceBuild != *build
+			setSourceBuild(&st, *build)
+		}
 		return store.UpdateStack(ctx, tx, &st)
 	})
-	if err != nil || rev == nil {
-		return rev, err
+	if err != nil {
+		return nil, err
+	}
+	if rev == nil {
+		if changed { // the same files, validated after an earlier failure
+			s.publish(EventUpdated, st, map[string]string{"change": "source_build"})
+		}
+		return nil, nil
 	}
 	s.publish(EventRevision, st, map[string]string{"source": string(source), "seq": fmt.Sprint(rev.Seq)})
 	return rev, nil
@@ -468,7 +491,7 @@ func (s *Service) reconcile(ctx context.Context, env string, req requester) {
 		var cur protocol.ComposeReadOutput
 		if err := req(ctx, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &cur); err != nil {
 			s.log.Warn("stack reconciliation: read definition", "stack_id", st.ID, "error", err)
-		} else if _, err := s.recordRead(ctx, st.ID, cur, domain.RevisionExternal, authz.Service()); err != nil {
+		} else if _, err := s.recordRead(ctx, st, cur, domain.RevisionExternal, authz.Service(), req); err != nil {
 			s.log.Error("stack reconciliation: record revision", "stack_id", st.ID, "error", err)
 		}
 		var live protocol.ComposeServicesOutput
@@ -640,11 +663,18 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 					Digest: i.Digest, Platform: i.Platform, Build: i.Build})
 			}
 			st.Services, st.Binds, st.PreviousState = servicesFrom(out.Services), bindsFrom(out.Binds), statesFrom(out.Before)
+			if rev != nil { // the deployed files are the observed revision
+				setSourceBuild(&st, builds(out.Services))
+			}
 		}
 	case rev != nil: // failed while applying
 		st.Status = domain.StackFailed
 		st.Failed = rev
 		st.PreviousState = statesFrom(out.Before)
+		// The deployed files are the observed revision now.
+		if len(out.Services) > 0 {
+			setSourceBuild(&st, builds(out.Services))
+		}
 	}
 	if ok && out.After != nil {
 		s.setEngine(&st, statesFrom(out.After))

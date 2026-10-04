@@ -285,6 +285,20 @@ func (f *fakeAgents) RequestEnvironment(ctx context.Context, environmentID, name
 	return json.Marshal(out)
 }
 
+// fail makes the agent answer a request with a timeout until the returned
+// func restores it.
+func (f *fakeAgents) fail(name string) (restore func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	h := f.handlers[name]
+	f.handlers[name] = func(context.Context, json.RawMessage) (any, error) { return nil, agents.ErrRequestTimeout }
+	return func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.handlers[name] = h
+	}
+}
+
 func (f *fakeAgents) setOnline(on bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

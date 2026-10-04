@@ -223,6 +223,7 @@ func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackC
 		if _, err := s.observe(ctx, tx, &st, w.Snapshot, domain.RevisionEditor, p); err != nil {
 			return err
 		}
+		setSourceBuild(&st, builds(v.Services))
 		return store.UpdateStack(ctx, tx, &st)
 	})
 	if err != nil {
@@ -396,6 +397,9 @@ func (s *Service) Import(ctx context.Context, principal authz.Principal, r domai
 		}
 		if _, err := s.observe(ctx, tx, &st, snap, source, principal); err != nil {
 			return err
+		}
+		if v.Valid {
+			setSourceBuild(&st, builds(v.Services))
 		}
 		return store.UpdateStack(ctx, tx, &st)
 	})

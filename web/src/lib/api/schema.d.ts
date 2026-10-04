@@ -12067,6 +12067,8 @@ export interface components {
             revision?: number;
             /** @description Services of the last deploy (or of the definition before the first deploy). */
             services?: components["schemas"]["StackServiceDef"][];
+            /** @description The definition on disk (sourceRevision) has a service with a build section, as last validated. Builds use these files (#33); services follow the last deploy. */
+            sourceBuild?: boolean;
             /** @description Newest revision observed on disk. */
             sourceRevision?: components["schemas"]["StackRevisionRef"];
             /**
@@ -28029,6 +28031,7 @@ export interface operations {
                      *           "name": "web"
                      *         }
                      *       ],
+                     *       "sourceBuild": false,
                      *       "sourceRevision": {
                      *         "at": "2026-09-25T12:00:00Z",
                      *         "hash": "example",
@@ -40870,6 +40873,7 @@ export interface operations {
                      *               "name": "web"
                      *             }
                      *           ],
+                     *           "sourceBuild": false,
                      *           "sourceRevision": {
                      *             "at": "2026-09-25T12:00:00Z",
                      *             "hash": "example",
@@ -41070,6 +41074,7 @@ export interface operations {
                      *             "name": "web"
                      *           }
                      *         ],
+                     *         "sourceBuild": false,
                      *         "sourceRevision": {
                      *           "at": "2026-09-25T12:00:00Z",
                      *           "hash": "example",
@@ -41363,6 +41368,7 @@ export interface operations {
                      *             "name": "web"
                      *           }
                      *         ],
+                     *         "sourceBuild": false,
                      *         "sourceRevision": {
                      *           "at": "2026-09-25T12:00:00Z",
                      *           "hash": "example",
@@ -41810,6 +41816,7 @@ export interface operations {
                      *           "name": "web"
                      *         }
                      *       ],
+                     *       "sourceBuild": false,
                      *       "sourceRevision": {
                      *         "at": "2026-09-25T12:00:00Z",
                      *         "hash": "example",
@@ -42162,6 +42169,7 @@ export interface operations {
                      *           "name": "web"
                      *         }
                      *       ],
+                     *       "sourceBuild": false,
                      *       "sourceRevision": {
                      *         "at": "2026-09-25T12:00:00Z",
                      *         "hash": "example",
@@ -46277,6 +46285,7 @@ export interface operations {
                      *             "name": "web"
                      *           }
                      *         ],
+                     *         "sourceBuild": false,
                      *         "sourceRevision": {
                      *           "at": "2026-09-25T12:00:00Z",
                      *           "hash": "example",

@@ -42,8 +42,19 @@ The definition files on disk are authoritative. The manager keeps:
   a failed deploy (recovery), and the deployment status (`undeployed`,
   `deployed`, `stopped`, `down`, `failed`: what Docker Manager last did).
 - **Observed state**: the newest revision seen on disk (**source
-  revision**) and the Engine state last observed (`running`, `partial`,
-  `stopped`, `missing`, per-service container counts).
+  revision**), whether its definition has a build section
+  (`sourceBuild`) and the Engine state last observed (`running`,
+  `partial`, `stopped`, `missing`, per-service container counts).
+  `sourceBuild` comes from the definition validated with the services
+  (creation, adoption, import, deploy, rename, and a failed deploy that
+  reported them), stored with the hash it was validated for
+  (`SourceBuildHash`). Whenever the definition read from disk has another
+  hash (saves, external edits, the reconnect's reconciliation,
+  restores), it is validated again (`compose.validate`, outside the
+  transaction); an invalid definition or an unreachable agent keeps the
+  last answer and its hash, so the next read tries again. The web's
+  Build actions follow it: they build from the files, whose build
+  sections may differ from the last deploy's services.
 
 `undeployedChanges` = the source revision differs from the applied one (or
 Docker Manager never deployed it). The three states — applied revision, source
