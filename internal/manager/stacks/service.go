@@ -415,9 +415,21 @@ func builds(in []protocol.ComposeService) bool {
 	return slices.ContainsFunc(in, func(s protocol.ComposeService) bool { return s.Build })
 }
 
+// setSourceBuild records whether the stack's observed definition builds an
+// image, for the observed revision's hash: call it once Observed holds the
+// files the answer came from. While the hash differs from the files on
+// disk, recordRead validates them again.
+func setSourceBuild(st *domain.Stack, build bool) {
+	st.SourceBuild, st.SourceBuildHash = build, ""
+	if st.Observed != nil {
+		st.SourceBuildHash = st.Observed.Hash
+	}
+}
+
 // sourceBuild validates the stack's definition on disk and reports whether
 // it builds an image; nil when it cannot tell (an invalid definition or an
-// unreachable agent), so the last known answer stays.
+// unreachable agent), so the last known answer stays and the next read
+// validates again.
 func sourceBuild(ctx context.Context, st domain.Stack, req requester) *bool {
 	var v protocol.ComposeValidateOutput
 	if err := req(ctx, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st)}, &v); err != nil || !v.Valid {

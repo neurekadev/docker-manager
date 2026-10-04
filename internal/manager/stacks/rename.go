@@ -253,7 +253,10 @@ func (s *Service) onRenameFinished(ctx context.Context, db bun.IDB, j domain.Job
 	}
 	st.PreviousState = statesFrom(out.Before)
 	if len(out.Services) > 0 {
-		st.Services, st.Binds, st.SourceBuild = servicesFrom(out.Services), bindsFrom(out.Binds), builds(out.Services)
+		st.Services, st.Binds = servicesFrom(out.Services), bindsFrom(out.Binds)
+		if rev != nil {
+			setSourceBuild(&st, builds(out.Services))
+		}
 	}
 	if out.After != nil {
 		s.setEngine(&st, statesFrom(out.After))

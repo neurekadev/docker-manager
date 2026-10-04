@@ -324,11 +324,11 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 		if err != nil {
 			return err
 		}
-		if build != nil {
-			fresh.SourceBuild = *build
-		}
 		now := s.now()
 		fresh.Observed, fresh.ObservedAt, fresh.UpdatedAt = rev.Ref(), &now, now
+		if build != nil {
+			setSourceBuild(&fresh, *build)
+		}
 		res = domain.StackRestore{Stack: fresh, Revision: rev, DeployOffered: fresh.UndeployedChanges()}
 		return store.UpdateStack(ctx, tx, &fresh)
 	})
@@ -359,20 +359,21 @@ func (s *Service) RecordObserved(ctx context.Context, stackID string, source dom
 	return s.recordRead(ctx, st, cur, source, author, s.requesterOf(st.EnvironmentID))
 }
 
-// recordRead records what compose.read found on disk. A changed definition
-// is validated first (outside the transaction) to learn whether it builds
-// an image (SourceBuild).
+// recordRead records what compose.read found on disk. A definition other
+// than the one SourceBuild was validated for (changed, or its validation
+// failed) is validated first, outside the transaction.
 func (s *Service) recordRead(ctx context.Context, read domain.Stack, cur protocol.ComposeReadOutput, source domain.RevisionSource,
 	author authz.Principal, req requester) (*domain.StackRevision, error) {
 	if cur.Missing && len(cur.Snapshot.Files) == 0 {
 		return nil, nil // nothing on disk to record
 	}
 	var build *bool
-	if read.Observed == nil || read.Observed.Hash != cur.Snapshot.Hash {
+	if read.SourceBuildHash != cur.Snapshot.Hash {
 		build = sourceBuild(ctx, read, req)
 	}
 	var rev *domain.StackRevision
 	var st domain.Stack
+	changed := false
 	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		var err error
 		if st, err = store.GetStack(ctx, tx, read.ID); err != nil {
@@ -382,12 +383,19 @@ func (s *Service) recordRead(ctx context.Context, read domain.Stack, cur protoco
 			return err
 		}
 		if build != nil {
-			st.SourceBuild = *build
+			changed = st.SourceBuild != *build
+			setSourceBuild(&st, *build)
 		}
 		return store.UpdateStack(ctx, tx, &st)
 	})
-	if err != nil || rev == nil {
-		return rev, err
+	if err != nil {
+		return nil, err
+	}
+	if rev == nil {
+		if changed { // the same files, validated after an earlier failure
+			s.publish(EventUpdated, st, map[string]string{"change": "source_build"})
+		}
+		return nil, nil
 	}
 	s.publish(EventRevision, st, map[string]string{"source": string(source), "seq": fmt.Sprint(rev.Seq)})
 	return rev, nil
@@ -655,12 +663,18 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 					Digest: i.Digest, Platform: i.Platform, Build: i.Build})
 			}
 			st.Services, st.Binds, st.PreviousState = servicesFrom(out.Services), bindsFrom(out.Binds), statesFrom(out.Before)
-			st.SourceBuild = builds(out.Services)
+			if rev != nil { // the deployed files are the observed revision
+				setSourceBuild(&st, builds(out.Services))
+			}
 		}
 	case rev != nil: // failed while applying
 		st.Status = domain.StackFailed
 		st.Failed = rev
 		st.PreviousState = statesFrom(out.Before)
+		// The deployed files are the observed revision now.
+		if len(out.Services) > 0 {
+			setSourceBuild(&st, builds(out.Services))
+		}
 	}
 	if ok && out.After != nil {
 		s.setEngine(&st, statesFrom(out.After))

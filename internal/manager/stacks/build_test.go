@@ -264,6 +264,20 @@ func TestSourceBuildFollowsTheFilesOnDisk(t *testing.T) {
 	if !h.get(st.ID).SourceBuild {
 		t.Error("the reconciliation did not re-validate the edited definition")
 	}
+	// A validation that times out records the revision and keeps the last
+	// answer; the next read of the same files validates them again.
+	restore := h.agents.fail(protocol.ReqComposeValidate)
+	h.write(imageYAML, "shop", "compose.yaml")
+	if rev, err := h.svc.RecordFileSave(h.ctx, st.ID, "compose.yaml", alice); err != nil || rev == nil || !h.get(st.ID).SourceBuild {
+		t.Fatalf("save while validation times out: %+v %v", rev, err)
+	}
+	restore()
+	if rev, err := h.svc.RecordObserved(h.ctx, st.ID, domain.RevisionExternal, authz.Service()); err != nil || rev != nil {
+		t.Fatalf("the same files recorded again: %+v %v", rev, err)
+	}
+	if got := h.get(st.ID); got.SourceBuild || got.SourceBuildHash != got.Observed.Hash {
+		t.Errorf("after validating again: sourceBuild %v hash %q, observed %q", got.SourceBuild, got.SourceBuildHash, got.Observed.Hash)
+	}
 }
 
 func TestDeployPullsBaseImagesOnlyWithPullAndBuild(t *testing.T) {

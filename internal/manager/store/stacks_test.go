@@ -99,7 +99,8 @@ func TestMigrationClearsStackIcons(t *testing.T) {
 }
 
 // TestMigrationDerivesSourceBuild: existing stacks start with whether
-// their services have a build section, and the flag round-trips.
+// their services have a build section and no validated hash (their next
+// read validates them), and both round-trip.
 func TestMigrationDerivesSourceBuild(t *testing.T) {
 	ctx := testutil.Context(t)
 	db, dir := openTemp(t)
@@ -116,18 +117,18 @@ func TestMigrationDerivesSourceBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	built, err := GetStack(ctx, db, "built")
-	if err != nil || !built.SourceBuild {
+	if err != nil || !built.SourceBuild || built.SourceBuildHash != "" {
 		t.Errorf("built: %+v %v", built, err)
 	}
 	plain, err := GetStack(ctx, db, "plain")
 	if err != nil || plain.SourceBuild {
 		t.Fatalf("plain: %+v %v", plain, err)
 	}
-	plain.SourceBuild = true
+	plain.SourceBuild, plain.SourceBuildHash = true, "sha256:def"
 	if err := UpdateStack(ctx, db, &plain); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := GetStack(ctx, db, "plain"); err != nil || !got.SourceBuild {
+	if got, err := GetStack(ctx, db, "plain"); err != nil || !got.SourceBuild || got.SourceBuildHash != "sha256:def" {
 		t.Errorf("after update: %+v %v", got, err)
 	}
 }
