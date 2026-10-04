@@ -207,7 +207,9 @@ function sniff(head: string): EditorLanguage | null {
 	const start = head.trimStart();
 	if (!start) return null;
 	if (/^<\?xml\b/.test(start) || /^<svg\b/.test(start)) return 'xml';
-	if (/^(<!--[\s\S]*?-->\s*)*<(!doctype\s+html|html)\b/i.test(start)) return 'html';
+	// Leading comments first; a comment's body never spans a "-->", so
+	// many comments cannot make the match backtrack exponentially.
+	if (/^(?:<!--(?:(?!-->)[\s\S])*-->\s*)*<(!doctype\s+html|html)\b/i.test(start)) return 'html';
 	if (/^\{\s*("|\})/.test(start) || /^\[\s*([[{"\]\d-]|true|false|null)/.test(start))
 		return 'json';
 	if (/^(diff --git |diff -\w|--- \S[^\n]*\n\+\+\+ \S|Index: \S)/m.test(head)) return 'diff';

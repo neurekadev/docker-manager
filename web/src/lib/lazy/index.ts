@@ -7,7 +7,7 @@
 // CodeEditor, Sparkline, TerminalView), never the libraries. Every mount
 // applies Docker Manager's theme (#22): ./codemirror-theme.ts, ./echarts-theme.ts,
 // TERMINAL_THEME in ./palette.ts.
-import type { LanguageSupport, StreamParser } from '@codemirror/language';
+import type { LanguageDescription, LanguageSupport, StreamParser } from '@codemirror/language';
 import type { Token } from 'marked';
 import { formatNumber } from '$lib/ui/format';
 import { languageByName, type EditorLanguage } from './languages';
@@ -111,24 +111,33 @@ async function languageSupport(language: EditorLanguage): Promise<LanguageSuppor
 				typescript: true
 			});
 		case 'markdown': {
-			const [{ markdown, markdownLanguage }, { LanguageDescription }] = await Promise.all([
-				import('@codemirror/lang-markdown'),
-				import('@codemirror/language')
-			]);
-			// Fenced code is highlighted in the language its fence names.
+			const [{ markdown, markdownLanguage }, { LanguageDescription: Description }] =
+				await Promise.all([
+					import('@codemirror/lang-markdown'),
+					import('@codemirror/language')
+				]);
+			// Fenced code is highlighted in the language its fence names. One
+			// description per language: lang-markdown uses its parser only once
+			// the description has loaded, so a new one per parse never would.
+			const fenced = new Map<EditorLanguage, LanguageDescription>();
 			return markdown({
 				base: markdownLanguage,
 				codeLanguages: (info) => {
 					const l = languageByName(info);
 					if (!l || l === 'text' || l === 'markdown') return null;
-					return LanguageDescription.of({
-						name: l,
-						load: async () => {
-							const support = await languageSupport(l);
-							if (!support) throw new Error(`No highlighting for ${l}`);
-							return support;
-						}
-					});
+					let d = fenced.get(l);
+					if (!d) {
+						d = Description.of({
+							name: l,
+							load: async () => {
+								const support = await languageSupport(l);
+								if (!support) throw new Error(`No highlighting for ${l}`);
+								return support;
+							}
+						});
+						fenced.set(l, d);
+					}
+					return d;
 				}
 			});
 		}

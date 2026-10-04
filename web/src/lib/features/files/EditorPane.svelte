@@ -83,6 +83,10 @@
 	// The language highlighting uses (Auto Detect's or the picked one).
 	const language = $derived(tab ? tabLanguage(tab) : 'text');
 	const isMarkdown = $derived(language === 'markdown');
+	// A tab shows its preview only while it is Markdown: Auto Detect follows
+	// the text, so a tab can stop being Markdown while its preview is on.
+	const previewing = (t: EditorTab) => !!previews[t.path] && tabLanguage(t) === 'markdown';
+	const preview = $derived(!!tab && previewing(tab));
 	const isDefinition = (path: string) =>
 		!!stack && files.scope.kind === 'stack' && isDefinitionFile(path, stack.configFiles);
 	const definition = $derived(!!tab && isDefinition(tab.path));
@@ -359,7 +363,7 @@
 					size="sm"
 					label="Wrap Long Lines"
 					pressed={wrap}
-					disabled={!!previews[tab.path]}
+					disabled={preview}
 					onclick={() => (wrap = !wrap)}
 				/>
 				<IconButton
@@ -367,7 +371,7 @@
 					variant="secondary"
 					size="sm"
 					label="Search and Replace"
-					disabled={!handle || !!previews[tab.path]}
+					disabled={!handle || preview}
 					onclick={() => handle?.openSearch()}
 				/>
 				{#if canWrite && !tab.truncated}
@@ -448,7 +452,7 @@
 					{session}
 					tab={t}
 					{readOnly}
-					preview={!!previews[t.path]}
+					preview={previewing(t)}
 					{wrap}
 					bind:editor={editors[t.path]}
 					{ondownload}

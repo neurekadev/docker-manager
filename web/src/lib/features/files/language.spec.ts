@@ -67,6 +67,9 @@ describe('detectLanguage', () => {
 		);
 		expect(detectLanguage('LICENSE', 'MIT License\n\nCopyright (c) 2026\n')).toBe('text');
 		expect(detectLanguage('empty', '')).toBe('text');
+		// Many leading comments stay cheap (no exponential backtracking).
+		expect(detectLanguage('page', '<!-- c -->\n'.repeat(3) + '<html>')).toBe('html');
+		expect(detectLanguage('page', '<!-- c -->\n'.repeat(60) + '<div>')).toBe('text');
 	});
 
 	it('maps fence names and extensions to languages', () => {
