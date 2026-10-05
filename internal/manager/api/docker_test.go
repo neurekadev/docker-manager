@@ -940,7 +940,11 @@ func TestMovingATagNeedsImageTagOnItsHolder(t *testing.T) {
 	nginx, redis := f.imageID("env-1", "nginx:1.27"), f.imageID("env-1", "redis:7")
 	do := func(repo, tag string) authztest.Response {
 		path := "/api/v1/environments/env-1/images/" + nginx + "/tags"
-		return f.do("tina", authztest.Call{Method: http.MethodPost, Path: path, Body: map[string]any{"repository": repo, "tag": tag}})
+		body := map[string]any{"repository": repo}
+		if tag != "" {
+			body["tag"] = tag
+		}
+		return f.do("tina", authztest.Call{Method: http.MethodPost, Path: path, Body: body})
 	}
 	tag := func(repo, tag string) int { return do(repo, tag).Status }
 	pol.Group("taggers", "allow image.tag @image:env-1/"+nginx)
