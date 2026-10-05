@@ -3,7 +3,8 @@ import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
-import type { Environment, EnvironmentSystem } from '$lib/api/client';
+import type { Environment, EnvironmentSystem, MyPermissions } from '$lib/api/client';
+import { liveKeys } from '$lib/live/keys';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import ArchiveEnvironmentDialog from './ArchiveEnvironmentDialog.svelte';
 import EditEnvironmentDialog from './EditEnvironmentDialog.svelte';
@@ -41,8 +42,13 @@ const env: Environment = {
 	actions: ['environment.read', 'environment.manage', 'environment.remove']
 };
 
-function mount<P extends Record<string, unknown>>(component: Component<P>, props: P) {
+function mount<P extends Record<string, unknown>>(
+	component: Component<P>,
+	props: P,
+	seed?: (client: QueryClient) => void
+) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	seed?.(client);
 	return render(QueryHarness<P>, { props: { client, component, props } });
 }
 
@@ -307,15 +313,35 @@ describe('AgentsPanel (#3)', () => {
 		);
 	});
 
-	it('offers no Re-Attach without Add Environments', async () => {
+	it('offers no Re-Attach without Add Environments, in the notice or the empty table', async () => {
 		stubApi((req) => {
-			if (new URL(req.url).pathname === '/api/v1/me/permissions')
-				return json({ owner: false, entries: [] });
 			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
-				return json({ items: [] });
+				return json({
+					items: [
+						{
+							...agent,
+							status: 'revoked',
+							actions: [],
+							revokedAt: '2026-09-01T00:00:00Z'
+						}
+					]
+				});
 		});
-		mount(AgentsPanel, { env });
+		// The caller's permissions are known before the panel renders, so
+		// the gate is decided at once (no request to wait for).
+		const perms: MyPermissions = {
+			catalogVersion: 1,
+			owner: false,
+			userId: 'u1',
+			groupIds: [],
+			environments: [],
+			entries: [
+				{ capability: 'environment.read', scope: { kind: 'instance' }, allowed: true }
+			]
+		} as MyPermissions;
+		mount(AgentsPanel, { env }, (client) => client.setQueryData(liveKeys.myPermissions, perms));
 		await screen.findByRole('table', { name: 'Agents of homelab' });
+		expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
 		expect(screen.queryByRole('link', { name: 'Re-Attach' })).not.toBeInTheDocument();
 	});
 });
