@@ -264,12 +264,38 @@ func (h *dockerAPI) tagImage(ctx context.Context, in *tagImageInput) (*imageOutp
 	if in.Body.Tag != "" {
 		target += ":" + in.Body.Tag
 	}
+	// A tag another image holds moves to this one: whatever runs that
+	// reference next gets this image, so the holder's image.tag is needed
+	// too (#279). The holder is looked up by the repository:tag the tag
+	// sets (the repository may carry it, latest by default), never as an
+	// image ID, and an image the caller cannot see is not named in the
+	// refusal.
+	if holder, err := h.svc.InspectImage(ctx, sc.env.ID, taggedRef(target)); err == nil && holder.ID != im.ID {
+		res := imageResource(sc.env.ID, holder.ID)
+		if !sc.c.Can(string(CapImageTag), res).Allowed {
+			if !authz.ViewOf(sc.c, res).Visible() {
+				return nil, Forbidden("not permitted to tag this image as " + target)
+			}
+			return nil, Forbidden("not permitted to move " + target + ": it names another image now (image.tag is needed on that image too)")
+		}
+	} else if err != nil && !isNotFound(err) {
+		return nil, dockerErr(err)
+	}
 	updated, err := h.svc.TagImage(ctx, sc.env.ID, im, target)
 	if err != nil {
 		return nil, dockerErr(err)
 	}
 	audit.SetDetail(ctx, "tag", target)
 	return &imageOutput{Body: fullImage(sc.env.ID, updated, authz.ViewOf(sc.c, imageResource(sc.env.ID, updated.ID)))}, nil
+}
+
+// taggedRef is ref with ":latest" when its last path segment has no tag
+// (a host's port is in an earlier segment), the name a tag sets.
+func taggedRef(ref string) string {
+	if strings.Contains(ref[strings.LastIndex(ref, "/")+1:], ":") {
+		return ref
+	}
+	return ref + ":latest"
 }
 
 func (h *dockerAPI) deleteImage(ctx context.Context, in *deleteImageInput) (*JobAccepted, error) {

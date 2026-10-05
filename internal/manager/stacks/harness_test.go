@@ -336,7 +336,7 @@ func (f *fakeRegistries) BuildCredentials(context.Context, string) ([]string, []
 	return append([]string(nil), f.build...), nil, nil
 }
 
-func (f *fakeRegistries) Usable(_ context.Context, ids []string) error {
+func (f *fakeRegistries) Usable(_ context.Context, ids []string, _, _ string) error {
 	for _, id := range ids {
 		if !f.usable[id] {
 			return domain.ErrRegistryConnectionNotFound

@@ -46,7 +46,7 @@ type GitCredentials interface {
 // (registries.Service).
 type RegistryCredentials interface {
 	BuildCredentials(ctx context.Context, environmentID string) (ids, ambiguous []string, err error)
-	Usable(ctx context.Context, ids []string) error
+	Usable(ctx context.Context, ids []string, environmentID, stackID string) error
 }
 
 // Options configures the service.
@@ -198,7 +198,7 @@ func (s *Service) credentials(ctx context.Context, envID string, src domain.Buil
 	}
 	regs := src.RegistryConnectionIDs
 	if len(regs) > 0 {
-		if err := s.opts.Registries.Usable(ctx, regs); err != nil {
+		if err := s.opts.Registries.Usable(ctx, regs, envID, ""); err != nil {
 			return "", nil, err
 		}
 	} else {
@@ -394,8 +394,9 @@ func validDefinitionText(name, description string) (string, string, error) {
 }
 
 // checkSource validates a definition's source and its explicitly named
-// credentials (they must exist; matching happens at every run).
-func (s *Service) checkSource(ctx context.Context, src domain.BuildSource) (domain.BuildSource, error) {
+// credentials (they must exist and may be used in the definition's
+// environment; matching happens at every run).
+func (s *Service) checkSource(ctx context.Context, envID string, src domain.BuildSource) (domain.BuildSource, error) {
 	src, repo, err := normalize(src)
 	if err != nil {
 		return src, err
@@ -405,7 +406,7 @@ func (s *Service) checkSource(ctx context.Context, src domain.BuildSource) (doma
 			return src, err
 		}
 	}
-	if err := s.opts.Registries.Usable(ctx, src.RegistryConnectionIDs); err != nil {
+	if err := s.opts.Registries.Usable(ctx, src.RegistryConnectionIDs, envID, ""); err != nil {
 		return src, err
 	}
 	return src, nil
@@ -420,7 +421,7 @@ func (s *Service) CreateDefinition(ctx context.Context, envID, name, description
 	if err != nil {
 		return domain.BuildDefinition{}, err
 	}
-	if src, err = s.checkSource(ctx, src); err != nil {
+	if src, err = s.checkSource(ctx, envID, src); err != nil {
 		return domain.BuildDefinition{}, err
 	}
 	now := s.opts.Clock.Now().UTC()
@@ -477,7 +478,7 @@ func (s *Service) UpdateDefinition(ctx context.Context, id string, revision int6
 		return cur, err
 	}
 	if p.Source != nil {
-		if next.Source, err = s.checkSource(ctx, *p.Source); err != nil {
+		if next.Source, err = s.checkSource(ctx, cur.EnvironmentID, *p.Source); err != nil {
 			return cur, err
 		}
 	}

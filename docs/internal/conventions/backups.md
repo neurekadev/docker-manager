@@ -77,8 +77,9 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   private ranges (LAN/Docker MinIO), and run no restic in a connection
   test after a refused address.
 - Snapshot contents hold secrets: authorize browsing with
-  `backups.ContentsCapabilities` (stack.definition.read / volume.files.read,
-  manager state owner-only).
+  `backups.ContentsCapabilities` (stack snapshots: stack.files.read and
+  stack.definition.read; volume snapshots: volume.files.read; manager state
+  owner-only).
 - A repository's compression mode reaches restic only through
   `backup.Destination.Compression` → `restic.Location.Compression`
   (`--compression` on backup and prune only; dropped for repository

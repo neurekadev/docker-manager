@@ -177,15 +177,17 @@ func (h *backupsAPI) requireContents(c authz.Checker, sn domain.BackupSnapshot, 
 	if !v.Has(string(cp)) {
 		return Forbidden("not permitted: " + string(cp))
 	}
-	capability, res, ownerOnly := backups.ContentsCapabilities(sn)
+	capabilities, res, ownerOnly := backups.ContentsCapabilities(sn)
 	if ownerOnly {
 		if !c.Can("system.restore", authz.Instance()).Allowed {
 			return Forbidden("manager-state backups hold Docker Manager's own database: only the instance owner may open them")
 		}
 		return nil
 	}
-	if !c.Can(capability, res).Allowed {
-		return Forbidden("not permitted: " + capability + " (the backup holds the same data)")
+	for _, capability := range capabilities {
+		if !c.Can(capability, res).Allowed {
+			return Forbidden("not permitted: " + capability + " (the backup holds the same data)")
+		}
 	}
 	return nil
 }

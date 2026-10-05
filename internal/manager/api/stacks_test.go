@@ -459,6 +459,30 @@ func TestStackBuildNeedsItsOwnCapability(t *testing.T) {
 	}
 }
 
+// TestDeletingAStacksVolumesNeedsVolumeRemove: removing the volumes a
+// stack owns destroys data, so it also needs volume.remove on the stack;
+// stack.remove alone still deletes the stack and keeps them (#279).
+func TestDeletingAStacksVolumesNeedsVolumeRemove(t *testing.T) {
+	del := func(h http.Handler, user, query string) int {
+		return authztest.Do(t, h, user, authztest.Call{Method: http.MethodDelete, Path: "/api/v1/stacks/st-1" + query}).Status
+	}
+	h, svc := stacksAPIFor(t, authztest.Only("ops", "allow stack.remove @stack:st-1"))
+	svc.jobs = nil
+	if s := del(h, "ops", "?removeVolumes=true"); s != http.StatusForbidden {
+		t.Errorf("with volumes, without volume.remove: %d", s)
+	}
+	if s := del(h, "ops", ""); s != http.StatusAccepted {
+		t.Errorf("without volumes: %d", s)
+	}
+	h, _ = stacksAPIFor(t, authztest.Only("admin", "allow stack.remove @stack:st-1", "allow volume.remove @stack:st-1"))
+	if s := del(h, "admin", "?removeVolumes=true"); s != http.StatusAccepted {
+		t.Errorf("with volumes and volume.remove on the stack: %d", s)
+	}
+	if !slices.Equal(svc.jobs, []domain.JobKind{"stack.remove"}) {
+		t.Errorf("jobs %v", svc.jobs)
+	}
+}
+
 func TestRestrictedSeesNoStacks(t *testing.T) {
 	h, _ := stacksAPIFor(t, authztest.New().Member("rita", "restricted"))
 	authztest.AssertOnly(t, h, "rita", nil, stackRoutes(t))

@@ -131,3 +131,32 @@ func TestBackupStorageSums(t *testing.T) {
 		t.Error("storage without a measurement")
 	}
 }
+
+// TestStackSnapshotContentsNeedTheStacksFileAndDefinitionRead: a stack
+// snapshot holds the project directory (Compose files and .env included)
+// and the stack's volumes, so browsing it needs what the file manager
+// needs on the stack, not the Compose definition alone (#279).
+func TestStackSnapshotContentsNeedTheStacksFileAndDefinitionRead(t *testing.T) {
+	sn := domain.BackupSnapshot{Kind: backup.MemberStack, StackID: "st-1", EnvironmentID: "e1"}
+	view := authz.View{Level: authz.Full, Actions: []string{string(CapBackupContentsRead)}}
+	h := &backupsAPI{}
+	for _, c := range []struct {
+		name  string
+		rules []string
+		ok    bool
+	}{
+		{"definition only", []string{"allow stack.definition.read @stack:st-1"}, false},
+		{"files only", []string{"allow stack.files.read @stack:st-1"}, false},
+		{"files and definition", []string{"allow stack.files.read @stack:st-1", "allow stack.definition.read @env:e1"}, true},
+	} {
+		err := h.requireContents(activityChecker(t, authztest.Only("u1", c.rules...), "u1"), sn, view, CapBackupContentsRead)
+		if (err == nil) != c.ok {
+			t.Errorf("%s: %v", c.name, err)
+		}
+	}
+	vol := domain.BackupSnapshot{Kind: backup.MemberVolume, Volume: "media", EnvironmentID: "e1"}
+	if err := h.requireContents(activityChecker(t, authztest.Only("u2", "allow volume.files.read @volume:e1/media"), "u2"),
+		vol, view, CapBackupContentsRead); err != nil {
+		t.Errorf("volume snapshot with volume.files.read: %v", err)
+	}
+}

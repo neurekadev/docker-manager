@@ -792,13 +792,18 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 type deleteStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
-	RemoveVolumes bool `query:"removeVolumes" doc:"Also remove the volumes the stack owns: named volumes its definition declares (not external) that Compose created for the project, and the anonymous volumes of its containers. External volumes, other projects' volumes, volumes other containers use and Docker Manager's own are kept. Default false: every volume is kept."`
+	RemoveVolumes bool `query:"removeVolumes" doc:"Also remove the volumes the stack owns: named volumes its definition declares (not external) that Compose created for the project, and the anonymous volumes of its containers. External volumes, other projects' volumes, volumes other containers use and Docker Manager's own are kept. Default false: every volume is kept. Needs volume.remove on the stack too."`
 }
 
 func (h *stacksAPI) remove(ctx context.Context, in *deleteStackInput) (*JobAccepted, error) {
-	_, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackRemove)
+	_, p, st, v, err := h.requireStack(ctx, in.StackID, CapStackRemove)
 	if err != nil {
 		return nil, err
+	}
+	// The volumes' data goes too: that needs volume.remove on the stack
+	// (#279), not stack.remove alone.
+	if in.RemoveVolumes && !v.Has(string(CapVolumeRemove)) {
+		return nil, Forbidden("not permitted: " + string(CapVolumeRemove) + " on the stack (delete it without its volumes)")
 	}
 	j, err := h.svc.Delete(ctx, p, st, domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey},
 		domain.StackRemoveOptions{Volumes: in.RemoveVolumes})

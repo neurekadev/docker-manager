@@ -65,7 +65,7 @@ type Jobs interface {
 type Registries interface {
 	Select(ctx context.Context, req domain.RegistrySelectRequest) (domain.RegistrySelection, error)
 	BuildCredentials(ctx context.Context, environmentID string) (ids, ambiguous []string, err error)
-	Usable(ctx context.Context, ids []string) error
+	Usable(ctx context.Context, ids []string, environmentID, stackID string) error
 }
 
 // DefaultRequestTimeout bounds one agent request.

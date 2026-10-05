@@ -157,7 +157,7 @@ func capabilities() []Capability {
 		adv(normal("stack.manage", TypeStack, "Edit Stack Settings", "Edit a stack's display name, description, links and service descriptions.", stackScope)),
 		adv(normal("stack.build", TypeStack, "Build Stack Images", "Build the images of a stack's Compose build sections.", stackScope)),
 		adv(normal("stack.update", TypeStack, "Update Stack Images", "Pull a stack's images (Pull) and recreate the services whose image changed (image updates).", stackScope)),
-		adv(high("stack.remove", TypeStack, "Delete Stacks", "Remove a stack and its containers, optionally with the volumes it owns.", stackScope)),
+		adv(high("stack.remove", TypeStack, "Delete Stacks", "Remove a stack and its containers. Removing the volumes it owns too also needs Remove Volumes on the stack.", stackScope)),
 		adv(high("stack.rename", TypeStack, "Rename Stack Project", "Change a stack's Compose project name: it stops and starts again, its volumes and project directory move to the new name, and containers outside the stack that use those volumes are stopped and recreated.", stackScope)),
 		adv(high("stack.migrate", TypeStack, "Migrate Stacks", "Move a stack and its volumes to another environment (also needs stack.create on the target environment). Stack rules follow the stack; environment rules do not.", stackScope)),
 	)
@@ -186,7 +186,9 @@ func capabilities() []Capability {
 	add(
 		normal("image.read", TypeImage, "View Images", "See images, their tags, digests and build records.", imageScope),
 		normal("image.pull", TypeImage, "Pull Images", "Pull images, using a matching registry connection without revealing its credentials.", instEnv),
-		adv(normal("image.tag", TypeImage, "Tag Images", "Add tags to an image.", imageScope)),
+		// High risk (#279): a tag names what runs next; moving one that another
+		// image holds also needs image.tag on that image.
+		adv(high("image.tag", TypeImage, "Tag Images", "Add tags to an image. Moving a tag that another image holds also needs it on that image.", imageScope)),
 		adv(high("image.remove", TypeImage, "Remove Images", "Remove an image.", imageScope)),
 		adv(normal("image.build", TypeImage, "Build Images", "Build images from a Git URL, context or build definition.", res(TypeBuildDefinition))),
 	)
@@ -196,7 +198,9 @@ func capabilities() []Capability {
 	add(
 		normal("volume.read", TypeVolume, "View Volumes", "See volumes, their driver, size and users.", volumeScope),
 		adv(normal("volume.create", TypeVolume, "Create Volumes", "Create named volumes.", instEnv)),
-		adv(high("volume.remove", TypeVolume, "Remove Volumes", "Delete a volume and its data.", volumeScope)),
+		// On a stack: deleting the stack may also remove the volumes it owns
+		// (direct removal of a stack's volumes is refused as stack-managed).
+		adv(high("volume.remove", TypeVolume, "Remove Volumes", "Delete a volume and its data. On a stack, deleting the stack may also remove the volumes it owns.", res(TypeVolume, TypeStack))),
 		adv(high("volume.migrate", TypeVolume, "Migrate Volumes", "Copy a volume to another environment (also needs volume.create on the target environment).", volumeScope)),
 	)
 	add(fileCaps(TypeVolume, "the volume", volumeScope)...)

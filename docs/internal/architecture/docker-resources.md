@@ -99,7 +99,7 @@ Removing an object through Docker Manager drops its exact rules
 | `POST …/containers/{id}/recreate` | `container.recreate` (#273, see "Recreate" below) | managed stack container (`stack_managed`); another Compose project's container, a temporary container (`protocol.IsHelperContainer`) or one being removed (`conflict`); Docker Manager's own (`protected`); agent without `protocol.FeatureContainerRecreate` (501 `agent_unsupported`) |
 | `POST …/images/pulls` | `image.pull` | invalid reference/platform; unknown or mismatching `registryConnectionId` (422), ambiguous match (`ambiguous_registry_connection`), revoked connection (`registry_connection_revoked`) |
 | `DELETE …/images/{id}?force` | `image.remove` | used by any container (`image_in_use`); several tags without force (409) |
-| `POST …/images/{id}/tags` | — (bounded `image.tag` request, 200) | invalid target |
+| `POST …/images/{id}/tags` | — (bounded `image.tag` request, 200) | invalid target; a target another image holds needs `image.tag` on that image too (403, #279: the tag moves) |
 | `POST …/volumes` / `DELETE …/volumes/{name}` | `volume.create` / `volume.remove` | name in use; stack volume (`stack_managed`), mounted (`volume_in_use`) |
 | `POST …/networks` / `DELETE …/networks/{id}` | `network.create` / `network.remove` | name in use or predefined; predefined (`network_builtin`), stack network (`stack_managed`), attached containers (`network_in_use`) |
 

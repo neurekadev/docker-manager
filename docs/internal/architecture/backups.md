@@ -748,9 +748,10 @@ repository, so its manifest usually carries their results.
   runs leave it out. Retention: `backup.retention` on the instance.
 - Backups: `backup.read`; contents and downloads need
   `backup.contents.read` / `.download` **and** the capability that reads the
-  same data live: `stack.definition.read` for stack snapshots (they hold
-  `compose.yaml` and `.env`), `volume.files.read` for volume snapshots;
-  manager-state snapshots are owner-only. Downloads are audited.
+  same data live: `stack.files.read` **and** `stack.definition.read` for
+  stack snapshots (they hold the project directory with `compose.yaml` and
+  `.env`, and the stack's volumes), `volume.files.read` for volume
+  snapshots; manager-state snapshots are owner-only. Downloads are audited.
 
 ## Tests
 

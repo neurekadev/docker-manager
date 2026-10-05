@@ -930,3 +930,47 @@ func TestSelfProtectionRoutes(t *testing.T) {
 		t.Fatalf("stacks volume %+v", vol)
 	}
 }
+
+// TestMovingATagNeedsImageTagOnItsHolder: a tag another image holds moves
+// to the tagged image, so whatever runs that reference next gets it; that
+// needs image.tag on the holder too, a new tag only on the image (#279).
+func TestMovingATagNeedsImageTagOnItsHolder(t *testing.T) {
+	pol := authztest.New().Member("tina", "taggers")
+	f := newDockerFixture(t, pol)
+	nginx, redis := f.imageID("env-1", "nginx:1.27"), f.imageID("env-1", "redis:7")
+	do := func(repo, tag string) authztest.Response {
+		path := "/api/v1/environments/env-1/images/" + nginx + "/tags"
+		return f.do("tina", authztest.Call{Method: http.MethodPost, Path: path, Body: map[string]any{"repository": repo, "tag": tag}})
+	}
+	tag := func(repo, tag string) int { return do(repo, tag).Status }
+	pol.Group("taggers", "allow image.tag @image:env-1/"+nginx)
+	if s := tag("mirror/nginx", "stable"); s != http.StatusOK {
+		t.Errorf("new tag: %d", s)
+	}
+	// A repository of hex digits is a name (with latest), never an image ID.
+	if s := tag(strings.TrimPrefix(redis, "sha256:")[:12], ""); s != http.StatusOK {
+		t.Errorf("hex repository taken for an image ID: %d", s)
+	}
+	// The holder is hidden from tina: the refusal does not name it. The
+	// repository may carry the tag itself.
+	for _, c := range [][2]string{{"redis", "7"}, {"redis:7", ""}} {
+		if r := do(c[0], c[1]); r.Status != http.StatusForbidden || strings.Contains(string(r.Body), "another image") {
+			t.Errorf("moving redis:7 (%q, %q) without image.tag on its image: %d %s", c[0], c[1], r.Status, r.Body)
+		}
+	}
+	pol.Group("taggers", "allow image.tag @image:env-1/"+nginx, "allow image.tag @image:env-1/"+redis)
+	if s := tag("redis", "7"); s != http.StatusOK {
+		t.Errorf("moving redis:7 with image.tag on both: %d", s)
+	}
+}
+
+func TestTaggedRef(t *testing.T) {
+	for in, want := range map[string]string{
+		"redis": "redis:latest", "redis:7": "redis:7", "0123456789ab": "0123456789ab:latest",
+		"registry.lan:5000/team/app": "registry.lan:5000/team/app:latest", "registry.lan:5000/team/app:1.2": "registry.lan:5000/team/app:1.2",
+	} {
+		if got := taggedRef(in); got != want {
+			t.Errorf("taggedRef(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
