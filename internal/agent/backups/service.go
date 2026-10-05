@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/downvolumes"
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
@@ -65,6 +66,10 @@ type Options struct {
 	// VolumeLabels are the Compose labels of stack volumes: a backup
 	// exclude label declared there counts like one on the volume (nil: none).
 	VolumeLabels *volumelabels.Store
+	// DownVolumes are the anonymous volumes a stack's containers had when
+	// Docker Manager brought it down: while the stack has no containers,
+	// its backups include them (#276; nil: none).
+	DownVolumes *downvolumes.Store
 	// StateDir keeps the agent's pending-prune marks (backup.PrunePending;
 	// "": none).
 	StateDir string

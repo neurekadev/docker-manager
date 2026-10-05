@@ -9,7 +9,14 @@
 	import { operateStack, type StackOperation } from '$lib/features/stacks/actions';
 	import { useStackPage } from '$lib/features/stacks/context';
 	import { startDeploy } from '$lib/features/stacks/deploy.svelte';
-	import { driftNotes, stackUsage, stackTitle, upSince } from '$lib/features/stacks/model';
+	import {
+		deployFailure,
+		driftNotes,
+		recreateConsequences,
+		stackUsage,
+		stackTitle,
+		upSince
+	} from '$lib/features/stacks/model';
 	import {
 		capacityQuery,
 		stackMetricsQuery,
@@ -111,7 +118,7 @@
 		start: ['Start', 'Started', 'started'],
 		stop: ['Stop', 'Stopped', 'stopped'],
 		restart: ['Restart', 'Restarted', 'restarted'],
-		down: ['Take Down', 'Took down', 'taken down']
+		down: ['Stop', 'Stopped', 'stopped']
 	};
 	async function run() {
 		if (!op) return;
@@ -131,6 +138,24 @@
 				]
 			: []
 	);
+
+	// One service's force recreate: a deploy of that service that replaces
+	// its containers, confirmed first.
+	let recreate = $state<string | null>(null);
+	let recreating = $state(false);
+	function askRecreate(service: string) {
+		recreate = service;
+		recreating = true;
+	}
+	async function runRecreate() {
+		if (!recreate) return;
+		const choice = { forceRecreate: true, services: [recreate] };
+		try {
+			await startDeploy(stack, choice, ctx.tray, queryClient);
+		} catch (e) {
+			toast.error(deployFailure(title, choice), { body: errorMessage(e) });
+		}
+	}
 </script>
 
 {#if !full}
@@ -201,6 +226,7 @@
 				{usage}
 				serviceAddress={ctx.environment?.serviceAddress}
 				onoperate={ask}
+				onrecreate={askRecreate}
 				ondeploy={canDeploy ? deployNow : undefined}
 				{deploying}
 				{readOnly}
@@ -217,6 +243,17 @@
 		confirmLabel={VERB[op.action][0]}
 		tone="danger"
 		onconfirm={run}
+	/>
+{/if}
+
+{#if recreate}
+	<ConfirmDialog
+		bind:open={recreating}
+		title="Force Recreate {recreate}?"
+		consequences={recreateConsequences(title, recreate)}
+		confirmLabel="Force Recreate"
+		tone="danger"
+		onconfirm={runRecreate}
 	/>
 {/if}
 

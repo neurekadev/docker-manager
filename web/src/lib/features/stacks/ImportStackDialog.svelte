@@ -272,7 +272,8 @@
 							<div class="title">
 								<span class="name">{p.name}</span>
 								{#if p.containerless}
-									<Badge title="Never started, or taken down">No Containers</Badge
+									<Badge title="Never started, or stopped with Compose down"
+										>No Containers</Badge
 									>
 								{:else}
 									<StatusBadge

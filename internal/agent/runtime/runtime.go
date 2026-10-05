@@ -36,6 +36,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/compose"
 	"github.com/neurekadev/docker-manager/internal/agent/config"
 	"github.com/neurekadev/docker-manager/internal/agent/containerio"
+	"github.com/neurekadev/docker-manager/internal/agent/downvolumes"
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/files"
 	"github.com/neurekadev/docker-manager/internal/agent/health"
@@ -211,6 +212,10 @@ type Agent struct {
 	// Docker could not apply (recorded at deploys, honored by backups and
 	// maintenance, shown on volumes).
 	volumeLabels *volumelabels.Store
+	// downVolumes are the anonymous volumes a stack's containers had when
+	// Docker Manager brought it down (recorded by stack.down, backed up
+	// while the stack has no containers, #276).
+	downVolumes *downvolumes.Store
 	// self hands the agent's own Compose service to a helper container
 	// when Docker Manager redeploys or updates itself (#32).
 	self *selfupdate.Launcher
@@ -304,6 +309,7 @@ func New(opts Options) (*Agent, error) {
 		a.opts.Requests = reqs
 	}
 	a.volumeLabels = volumelabels.New(opts.Config.StateDir)
+	a.downVolumes = downvolumes.New(opts.Config.StateDir)
 	a.addResources()
 	a.enableRedirect()
 	if opts.Files {
@@ -314,7 +320,7 @@ func New(opts Options) (*Agent, error) {
 	a.self = selfupdate.New(selfupdate.Options{StateDir: opts.Config.StateDir, SelfContainerID: a.guard.SelfContainerID(),
 		Engine: a.Engine, DockerHost: opts.Config.DockerHost, Logger: opts.Logger})
 	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks"), Guard: a.guard,
-		Self: a.self, VolumeLabels: a.volumeLabels})
+		Self: a.self, VolumeLabels: a.volumeLabels, DownVolumes: a.downVolumes})
 	own := map[domain.JobKind]bool{}
 	for _, x := range a.opts.Executors {
 		own[x.Kind] = true
@@ -380,6 +386,7 @@ func (a *Agent) enableBackups() {
 		Storage:           func() *storage.Result { return a.Capabilities().Storage },
 		Guard:             a.guard,
 		VolumeLabels:      a.volumeLabels,
+		DownVolumes:       a.downVolumes,
 		StateDir:          cfg.StateDir,
 		Restic:            opener,
 		ExternalAllowlist: cfg.BackupExternalAllowlist,

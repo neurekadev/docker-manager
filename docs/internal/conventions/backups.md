@@ -33,6 +33,10 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   trigger must keep both (prune costs downloads at remote destinations).
   The rules and the deleted-item expiry are one decision (`backup.Plan`
   then `RetentionPlan.Expire`) shared by the preview and the executor.
+- A stack's anonymous volumes come from its containers; while it has none
+  (Docker Manager brought it down), from the volumes the down recorded
+  (`downvolumes`, source reason "left behind when it was stopped"), under
+  the same anonymous-volume rule and exclusions (`planStackVolumes`).
 - Volumes are left out by the user-set label
   `docker-manager.backup.exclude=true` (on the volume, as a Compose label
   of the volume, or on a container using it) and buildx builder volumes

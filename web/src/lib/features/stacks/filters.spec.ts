@@ -22,7 +22,9 @@ const rows = [
 	}),
 	stack({ id: 'shop', engine: { state: 'partial', services: [] }, environmentId: 'e2' }),
 	stack({ id: 'wiki', status: 'undeployed' }),
-	stack({ id: 'media', status: 'failed' })
+	stack({ id: 'media', status: 'failed' }),
+	stack({ id: 'docs', engine: { state: 'stopped', services: [] } }),
+	stack({ id: 'blog', status: 'down' })
 ];
 const updates = new Map([['shop', 'update_available']]);
 
@@ -42,12 +44,14 @@ describe('stack list filters (#7)', () => {
 		expect(run({ status: 'partial' })).toEqual(['shop']);
 		expect(run({ status: 'undeployed' })).toEqual(['wiki']);
 		expect(run({ status: 'failed' })).toEqual(['media']);
+		// Stopped also finds a stack whose Stop removed its containers.
+		expect(run({ status: 'stopped' })).toEqual(['docs', 'blog']);
 	});
 
 	it('filters by pending changes: undeployed, update available or none', () => {
 		expect(run({ changes: 'undeployed' })).toEqual(['silo']);
 		expect(run({ changes: 'update' })).toEqual(['shop']);
-		expect(run({ changes: 'none' })).toEqual(['wiki', 'media']);
+		expect(run({ changes: 'none' })).toEqual(['wiki', 'media', 'docs', 'blog']);
 	});
 
 	it('offers the environment only while every environment is shown', () => {

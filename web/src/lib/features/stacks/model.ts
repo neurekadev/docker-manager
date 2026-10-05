@@ -75,7 +75,7 @@ export function statusSummary(s: Pick<Stack, 'status' | 'engine' | 'services'>):
 		case 'undeployed':
 			return 'Never deployed by Docker Manager';
 		case 'down':
-			return 'Containers and networks removed';
+			return 'Containers removed; Deploy starts it again';
 		case 'stopped':
 			return 'Every service is stopped';
 		case 'missing':
@@ -557,7 +557,7 @@ const JOB_KINDS: Record<string, string> = {
 	'stack.start': 'Start',
 	'stack.stop': 'Stop',
 	'stack.restart': 'Restart',
-	'stack.down': 'Take Down',
+	'stack.down': 'Stop (Down)',
 	'stack.remove': 'Delete',
 	'stack.build': 'Build Images',
 	'stack.migrate': 'Migrate',
@@ -675,10 +675,19 @@ export interface DeployChoice {
 	build?: boolean;
 	/** Also remove the containers of services no longer in the Compose file. */
 	removeOrphans?: boolean;
+	/** Replace the containers even when nothing changed ("Force Recreate"). */
+	forceRecreate?: boolean;
+	/** Only these services (and their dependencies); empty = the whole stack. */
+	services?: string[];
 }
+
+/** What a force recreate replaces: the named services, else the stack. */
+const recreated = (title: string, c: DeployChoice) =>
+	c.services?.length ? c.services.join(', ') : title;
 
 /** What runs while a deploy job is in the tray, e.g. "Pull Silo". */
 export function deployTitle(title: string, c: DeployChoice): string {
+	if (c.forceRecreate) return `Force Recreate ${recreated(title, c)}`;
 	if (c.build && c.pull) return `Pull, Build and Deploy ${title}`;
 	if (c.build) return `Build and Deploy ${title}`;
 	if (c.pull) return `Pull and Deploy ${title}`;
@@ -688,6 +697,7 @@ export function deployTitle(title: string, c: DeployChoice): string {
 
 /** The failure toast title of a deploy. */
 export function deployFailure(title: string, c: DeployChoice): string {
+	if (c.forceRecreate) return `${recreated(title, c)} was not recreated`;
 	if (c.build && c.pull) return `${title} was not pulled, built and deployed`;
 	return c.pull ? `${title} was not pulled and deployed` : `${title} was not deployed`;
 }
@@ -703,6 +713,8 @@ export function deploySuccess(
 	before: string | undefined,
 	after: string | undefined
 ): string {
+	// A force recreate replaces every container it names, changed or not.
+	if (c.forceRecreate) return `Recreated ${recreated(title, c)}`;
 	const unchanged = before === after;
 	if (c.removeOrphans)
 		return unchanged
@@ -717,6 +729,79 @@ export function deploySuccess(
 	if (c.build) return `Built the images of ${title}; nothing needed to be redeployed`;
 	if (c.pull) return `Nothing to update: ${title} already runs the newest images`;
 	return `Nothing to deploy: ${title} already runs its definition`;
+}
+
+/**
+ * The confirmation of Force Recreate: of the whole stack (`title`), or of
+ * one service (`service`; Compose starts the services it needs when they
+ * are stopped and recreates them only when they changed).
+ */
+export function recreateConsequences(title: string, service?: string): string[] {
+	return [
+		service
+			? `Replaces the containers of ${service} with new ones, even if nothing changed. Services it needs start if they are stopped.`
+			: `Replaces every container of ${title} with a new one, even if nothing changed. Its services are briefly down.`,
+		'Volumes and files are kept. Changes made inside a container that are not in a volume are lost.'
+	];
+}
+
+/**
+ * What a stack's Stop runs (the header and the stack list): a down
+ * (containers and networks removed) with stack.down, else a plain stop.
+ * A service's Stop is always a plain stop: Compose takes down whole
+ * projects only.
+ */
+export function stackStopAction(actions: readonly string[]): 'down' | 'stop' | undefined {
+	if (actions.includes('stack.down')) return 'down';
+	return actions.includes('stack.stop') ? 'stop' : undefined;
+}
+
+/**
+ * The anonymous volumes of a stack's containers (distinct names); undefined
+ * while the services are unknown.
+ */
+export function anonymousVolumeCount(
+	services: StackServiceStatus[] | undefined
+): number | undefined {
+	if (!services) return undefined;
+	return new Set(
+		services.flatMap((s) =>
+			serviceVolumes(s)
+				.filter((v) => v.anonymous)
+				.map((v) => v.name)
+		)
+	).size;
+}
+
+/**
+ * The confirmation of a stack's Stop: `what` names the containers, e.g.
+ * "3 containers" (`stackStopAction` decides `down`). A down leaves the
+ * containers' anonymous volumes behind, like `docker compose down`: the
+ * next deploy creates new, empty ones (`anonymous`: how many there are;
+ * undefined when unknown).
+ */
+export function stopConsequences(what: string, down: boolean, anonymous?: number): string[] {
+	const word = (n: number) => `${n} anonymous ${n === 1 ? 'volume' : 'volumes'}`;
+	const left =
+		anonymous === undefined
+			? [
+					'Anonymous volumes, if it has any, are left behind: the next Deploy starts with new, empty ones.'
+				]
+			: anonymous > 0
+				? [
+						`Leaves its ${word(anonymous)} behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.`
+					]
+				: [];
+	return down
+		? [
+				`Stops and removes ${what} and the stack’s networks.`,
+				...left,
+				'Named volumes, images and files are kept; Deploy starts the stack again.'
+			]
+		: [
+				`Stops ${what}, the services that need others first.`,
+				'Containers, volumes and files are kept; Start brings them back.'
+			];
 }
 
 /**

@@ -91,6 +91,7 @@ Good to know:
 - Folders a stack mounts from outside its own folder, such as
   `/srv/media:/media`, unless you [allow them](#back-up-folders-outside-a-stack).
 - Anonymous volumes, unless you turn on **Back Up Anonymous Volumes**.
+  With it on, a stopped stack's anonymous volumes are backed up too.
 - Volumes with the label `docker-manager.backup.exclude=true`, and the
   volumes of a container with that label. In **Edit** they show unticked
   and can't be ticked; the (i) next to them says which label keeps them

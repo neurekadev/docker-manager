@@ -6,6 +6,10 @@ import {
 	driftNotes,
 	orphanedServices,
 	pendingUpdates,
+	anonymousVolumeCount,
+	recreateConsequences,
+	stackStopAction,
+	stopConsequences,
 	updateAvailable
 } from './model';
 
@@ -53,6 +57,67 @@ describe('deploy outcomes', () => {
 		expect(deploySuccess('Silo', { removeOrphans: true }, t1, t2)).toBe(
 			'Deployed Silo and removed its orphaned containers'
 		);
+	});
+
+	it('names a force recreate of the stack or of its services', () => {
+		const t1 = '2026-09-27T10:00:00Z';
+		const all = { forceRecreate: true };
+		const web = { forceRecreate: true, services: ['web'] };
+		expect(deployTitle('Silo', all)).toBe('Force Recreate Silo');
+		expect(deployTitle('Silo', web)).toBe('Force Recreate web');
+		expect(deployFailure('Silo', all)).toBe('Silo was not recreated');
+		expect(deployFailure('Silo', web)).toBe('web was not recreated');
+		// Recreated even when the last deploy time stayed.
+		expect(deploySuccess('Silo', all, t1, t1)).toBe('Recreated Silo');
+		expect(deploySuccess('Silo', web, t1, t1)).toBe('Recreated web');
+	});
+
+	it('lists the consequences of Force Recreate', () => {
+		expect(recreateConsequences('Silo')[0]).toBe(
+			'Replaces every container of Silo with a new one, even if nothing changed. Its services are briefly down.'
+		);
+		expect(recreateConsequences('Silo', 'web')[0]).toBe(
+			'Replaces the containers of web with new ones, even if nothing changed. Services it needs start if they are stopped.'
+		);
+		expect(recreateConsequences('Silo')[1]).toContain('Volumes and files are kept.');
+	});
+});
+
+describe('stack stop', () => {
+	it('counts distinct anonymous volumes', () => {
+		const vol = (name: string, anonymous = false) => ({ name, destination: '/d', anonymous });
+		const services = [
+			{ containers: [{ volumes: [vol('a1', true), vol('silo_data')] }] },
+			{ containers: [{ volumes: [vol('a1', true), vol('a2', true)] }] }
+		] as never;
+		expect(anonymousVolumeCount(services)).toBe(2);
+		expect(anonymousVolumeCount([])).toBe(0);
+		expect(anonymousVolumeCount(undefined)).toBeUndefined();
+	});
+
+	it('takes the stack down with stack.down, else only stops it', () => {
+		expect(stackStopAction(['stack.stop', 'stack.down'])).toBe('down');
+		expect(stackStopAction(['stack.down'])).toBe('down');
+		expect(stackStopAction(['stack.stop'])).toBe('stop');
+		expect(stackStopAction(['stack.start'])).toBeUndefined();
+	});
+
+	it('says what a stop removes and keeps, anonymous volumes included', () => {
+		expect(stopConsequences('3 containers', true, 0)).toEqual([
+			'Stops and removes 3 containers and the stack’s networks.',
+			'Named volumes, images and files are kept; Deploy starts the stack again.'
+		]);
+		expect(stopConsequences('3 containers', true, 2)[1]).toBe(
+			'Leaves its 2 anonymous volumes behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.'
+		);
+		// Unknown (services not loaded or not visible): said in general.
+		expect(stopConsequences('3 containers', true)[1]).toBe(
+			'Anonymous volumes, if it has any, are left behind: the next Deploy starts with new, empty ones.'
+		);
+		expect(stopConsequences('3 containers', false)).toEqual([
+			'Stops 3 containers, the services that need others first.',
+			'Containers, volumes and files are kept; Start brings them back.'
+		]);
 	});
 });
 

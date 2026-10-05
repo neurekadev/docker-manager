@@ -28,11 +28,14 @@ export function stackFilters(ctx: StackFilterContext): ListFilter<Stack>[] {
 				'stopped',
 				'missing',
 				'deployed',
-				'down',
 				'failed',
 				'undeployed'
 			]),
-			match: (s, v) => stackStatus(s) === v
+			// Stopped covers a stack whose Stop removed its containers (down).
+			match: (s, v) =>
+				v === 'stopped'
+					? ['stopped', 'down'].includes(stackStatus(s))
+					: stackStatus(s) === v
 		},
 		{
 			id: 'changes',

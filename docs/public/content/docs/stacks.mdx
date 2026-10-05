@@ -27,7 +27,8 @@ with that name already exists, it tells you and suggests importing it.
 
 - **Overview**: status, CPU, memory and the stack's services with their
   containers, images, volumes, networks and ports. Each service row can
-  start, restart or stop that service, or open its logs or a terminal.
+  start, restart, stop or force recreate that service, or open its logs or
+  a terminal.
 - **Files**: the stack's folder (see [File Manager](/file-manager)).
 - **Logs** and **Terminal**: see [Logs](/logs) and
   [Terminal](/terminal).
@@ -42,6 +43,9 @@ settings changed are recreated. The menu next to it has:
 
 - **Pull & Deploy**: downloads every image of the stack first, so services
   get newer images.
+- **Force Recreate**: replaces every container with a new one, even if
+  nothing changed. It asks first. Volumes and files are kept, but changes
+  made inside a container outside its volumes are lost.
 - **Cleanup Orphans & Deploy**: also removes containers of services you
   deleted from `compose.yaml`. Volumes and files are kept.
 
@@ -63,7 +67,15 @@ A failed deploy is not rolled back. Fix the files, or restore the last good
 
 The next button shows **Stop** while the stack runs and **Start** when it's
 stopped. Its menu has **Start**, **Restart** and **Stop**. **Stop** asks
-first and keeps the containers.
+first, then stops and removes the stack's containers and networks, like
+`docker compose down`. The stack shows **Stopped**, and **Deploy** starts it
+again. Named volumes, images and files are kept. Anonymous volumes are
+left behind, as with `docker compose down`: the next deploy starts with new,
+empty ones. Without the **Stop Stack (Down)** permission, **Stop** only
+stops the containers and **Start** brings them back.
+
+A service's **Stop**, in its row on the **Overview**, only stops that
+service's containers.
 
 **More Stack Actions → Delete** removes the stack from Docker Manager and
 the server. Type its name to confirm. Its volumes are kept unless you tick
@@ -132,8 +144,9 @@ services:
 
 Good to know:
 
-- Projects without containers (never started, or taken down) are found by
-  their Compose file in a folder Docker Manager manages or below `/import`,
+- Projects without containers (never started, or stopped with
+  `docker compose down`) are found by their Compose file in a folder
+  Docker Manager manages or below `/import`,
   and show **No Containers**. Importing one adds it as **Not Deployed**.
 - Copying a project is refused when its running containers don't match its
   files. Redeploy the project in the old tool first.
@@ -159,6 +172,6 @@ order.
 
 ## Docker Manager's own stack
 
-If you import Docker Manager's own project, **Deploy** and **Pull &
-Deploy** work, so you can upgrade Docker Manager from the app. Restart,
-Stop, Migrate, Rename and Delete are off for it.
+If you import Docker Manager's own project, **Deploy**, **Pull & Deploy**
+and **Force Recreate** work, so you can upgrade Docker Manager from the
+app. Restart, Stop, Migrate, Rename and Delete are off for it.

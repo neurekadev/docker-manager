@@ -5948,6 +5948,7 @@
             "type": "integer"
           },
           "forceRecreate": {
+            "description": "Recreate the containers even when their configuration and image did not change (with services, only theirs: dependencies are recreated only when they changed). Anonymous volumes are kept.",
             "type": "boolean"
           },
           "pull": {
@@ -6115,7 +6116,7 @@
             "type": "boolean"
           },
           "containerless": {
-            "description": "The project has no containers (never started, or taken down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy.",
+            "description": "The project has no containers (never started, or brought down with Compose down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy.",
             "type": "boolean"
           },
           "copyable": {
@@ -17001,7 +17002,7 @@
           },
           "protection": {
             "$ref": "#/components/schemas/ResourceProtection",
-            "description": "Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, take down, delete and migrate are refused with 409 protected."
+            "description": "Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected."
           },
           "readOnly": {
             "description": "The environment is offline: the last known revision and state are shown read-only.",
@@ -18122,7 +18123,7 @@
             "type": "string"
           },
           "drift": {
-            "description": "missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied).",
+            "description": "missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped, also with down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied).",
             "items": {
               "type": "string"
             },
@@ -64652,7 +64653,7 @@
     },
     "/api/v1/stacks/{stackId}": {
       "delete": {
-        "description": "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; the project directory is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an up-to-date, connected agent (501 agent_unsupported).",
+        "description": "Starts a stack.remove job (202): the stack is brought down (Compose down: containers and networks removed; the project directory is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an up-to-date, connected agent (501 agent_unsupported).",
         "operationId": "delete-stack",
         "parameters": [
           {
@@ -70800,7 +70801,7 @@
             "bearerToken": []
           }
         ],
-        "summary": "Start, stop, restart or take down a stack",
+        "summary": "Start, stop, restart or bring down a stack",
         "tags": [
           "Stacks"
         ],

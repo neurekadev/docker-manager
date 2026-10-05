@@ -33,8 +33,9 @@ them through the [stack](/stacks).
    row's menu in the list).
 2. Check what happens and press **Recreate**.
 
-- Only for containers outside a stack or Compose project; a stack's
-  containers are recreated through their [stack](/stacks).
+- Only for containers outside a stack or Compose project. For a stack's
+  container, use **Force Recreate** in its service's row on the
+  [stack](/stacks) page.
 - It uses the image as it is on the server now and downloads nothing. To
   run a newer version, pull the image on **Images** first.
 - Volumes are kept. Changes made inside the container outside a volume are

@@ -46,7 +46,7 @@ var kindNouns = map[domain.JobKind]string{
 	"backup.import": "Backup import", "manager.backup": "Docker Manager backup",
 	"manager.retention": "Docker Manager backup retention", "manager.verify": "Docker Manager backup verification",
 	"restore.run": "Restore", "update.check": "Update check", "update.run": "Update", "prune.run": "Prune",
-	"stack.deploy": "Deploy", "stack.start": "Start", "stack.stop": "Stop", "stack.restart": "Restart", "stack.down": "Take down",
+	"stack.deploy": "Deploy", "stack.start": "Start", "stack.stop": "Stop", "stack.restart": "Restart", "stack.down": "Stop",
 	"stack.pull": "Image pull", "stack.update": "Image update", "stack.build": "Build", "stack.remove": "Delete",
 	"stack.migrate": "Migration", "environment.migrate": "Migration", "volume.migrate": "Migration", "image.pull": "Image pull",
 	"image.build": "Image build", "image.remove": "Image removal", "container.start": "Start", "container.stop": "Stop",
@@ -63,7 +63,7 @@ func kindNoun(k domain.JobKind) string {
 }
 
 // kindLabel names what a job does as a label (the Job field): kindNoun in
-// Title Case ("Backup Retention", "Take Down").
+// Title Case ("Backup Retention", "Image Pull").
 func kindLabel(k domain.JobKind) string { return titleCase(kindNoun(k)) }
 
 // minorWords stay lowercase inside a Title Case label.
