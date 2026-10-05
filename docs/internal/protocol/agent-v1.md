@@ -523,6 +523,12 @@ rename for other agents. And `stack.pull` (`protocol.FeatureStackPull`):
 only those agents execute `stack.pull` (pull a stack's images, change no
 container; result output `pulled`: the services whose tag now names
 another image); the manager refuses a pull-only request for other agents.
+And `container.recreate` (`protocol.FeatureContainerRecreate`, #273): only
+those agents execute `container.recreate` (the `container.*` action input:
+`name`, `id`, optional `timeoutSeconds`; replaces a standalone container
+with a clone of its configuration on the image its reference names now;
+result output `wasRunning` and `containerId`, the new container); the
+manager refuses a recreate for other agents (501 `agent_unsupported`).
 And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
@@ -998,6 +1004,7 @@ enqueueing and again at dispatch for queued manual jobs.
 | `backup.verify` | command | `backup.verify` |
 | `container.create` | command | `container.create` |
 | `container.pause` | command | `container.pause` |
+| `container.recreate` | command | `container.recreate` |
 | `container.remove` | command | `container.remove` |
 | `container.restart` | command | `container.restart` |
 | `container.start` | command | `container.start` |

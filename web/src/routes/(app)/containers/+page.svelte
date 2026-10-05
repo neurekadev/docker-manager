@@ -148,7 +148,7 @@
 		// Start, Restart, Stop (the order of the header's lifecycle menu),
 		// then Pause or Unpause.
 		const lifecycle = acts
-			.filter((a) => a.verb !== 'remove')
+			.filter((a) => MENU_ORDER.includes(a.verb))
 			.sort((a, b) => MENU_ORDER.indexOf(a.verb) - MENU_ORDER.indexOf(b.verb));
 		if (lifecycle.length) entries.push({ separator: true });
 		for (const a of lifecycle)
@@ -157,12 +157,16 @@
 				tone: a.verb === 'stop' ? 'danger' : undefined,
 				onSelect: () => host?.request(c, a.verb)
 			});
-		// Destructive last, after a separator (one rule on every page).
-		if (acts.some((a) => a.verb === 'remove'))
-			entries.push(
-				{ separator: true },
-				{ label: 'Remove…', tone: 'danger', onSelect: () => host?.request(c, 'remove') }
-			);
+		// Destructive last, after a separator (one rule on every page):
+		// Recreate (standalone containers), then Remove.
+		const destructive = acts.filter((a) => a.verb === 'recreate' || a.verb === 'remove');
+		if (destructive.length) entries.push({ separator: true });
+		for (const a of destructive)
+			entries.push({
+				label: `${a.label}…`,
+				tone: 'danger',
+				onSelect: () => host?.request(c, a.verb)
+			});
 		return entries;
 	}
 

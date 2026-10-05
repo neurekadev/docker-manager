@@ -190,6 +190,7 @@ describe('backup sets', () => {
 		const replace = { 'com.docker.compose.replace': 'app-db-1' };
 		expect(isHelperContainer('web-docker-manager-update-0123456789ab', {})).toBe(true);
 		expect(isHelperContainer('/db-docker-manager-rename-abcdef012345', undefined)).toBe(true);
+		expect(isHelperContainer('web-docker-manager-recreate-abcdef012345', {})).toBe(true);
 		expect(isHelperContainer('0123456789ab_app-db-1', replace)).toBe(true);
 		expect(isHelperContainer('helper', { 'docker-manager.role': 'self-update' })).toBe(true);
 		// A helper started before the label prefix changed.

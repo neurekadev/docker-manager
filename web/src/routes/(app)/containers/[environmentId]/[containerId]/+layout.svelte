@@ -7,7 +7,8 @@
 	// on this container and why (#32 protection, managed stacks), its
 	// running jobs (from the running list: they come back after a reload),
 	// and the tabs: Overview here, Logs and Terminal (#8) as
-	// child routes. Removal is the last entry of the "More Actions" menu.
+	// child routes. Recreate (standalone containers, #273) and removal are
+	// the last entries of the "More Actions" menu.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -156,15 +157,24 @@
 		const out: MenuEntry[] = [];
 		if (c.imageId && c.view === 'full')
 			out.push({ label: 'Open Image', href: routes.image(env, c.imageId) });
-		// Docker Manager's own containers are never removed: no entry (the notice says why).
-		if (has('remove') && !c.protection) {
-			if (out.length) out.push({ separator: true });
-			out.push({
+		// Recreate (standalone containers only) and removal last, after a
+		// separator. Docker Manager's own containers are never recreated or
+		// removed: no entries (the notice says why).
+		const destructive: MenuEntry[] = [];
+		if (has('recreate'))
+			destructive.push({
+				label: 'Recreate…',
+				tone: 'danger',
+				onSelect: () => host?.request(c, 'recreate')
+			});
+		if (has('remove') && !c.protection)
+			destructive.push({
 				label: 'Remove…',
 				tone: 'danger',
 				onSelect: () => host?.request(c, 'remove')
 			});
-		}
+		if (destructive.length && out.length) out.push({ separator: true });
+		out.push(...destructive);
 		return out;
 	});
 </script>

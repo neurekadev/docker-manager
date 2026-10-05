@@ -206,9 +206,34 @@ func (c *Client) CloneContainer(ctx context.Context, id string, o CloneOptions) 
 	if len(r.ID) >= 12 && cfg.Hostname == r.ID[:12] {
 		cfg.Hostname = ""
 	}
-	// The image the container runs, also when its tag moved since.
-	if img, err := c.api.ImageInspect(ctx, cfg.Image); err != nil || img.ID != r.Image {
+	// The image the container runs, also when its tag moved since; with
+	// o.CurrentImage the image the tag names now.
+	switch img, err := c.api.ImageInspect(ctx, cfg.Image); {
+	case err != nil:
 		cfg.Image = r.Image
+	case img.ID == r.Image:
+	case !o.CurrentImage:
+		cfg.Image = r.Image
+	default:
+		// The old image's settings were merged into the configuration
+		// when the container was created: leave them to the new image.
+		old, err := c.api.ImageInspect(ctx, r.Image)
+		if err != nil {
+			return "", wrap("image.inspect", err)
+		}
+		if ic := old.Config; ic != nil {
+			withoutImageDefaults(&cfg, ic.ImageConfig)
+			if h, ch := ic.Healthcheck, cfg.Healthcheck; h != nil && ch != nil && slices.Equal(h.Test, ch.Test) && h.Interval == ch.Interval &&
+				h.Timeout == ch.Timeout && h.StartPeriod == ch.StartPeriod && h.StartInterval == ch.StartInterval && h.Retries == ch.Retries {
+				cfg.Healthcheck = nil
+			}
+			if slices.Equal(cfg.Shell, ic.Shell) {
+				cfg.Shell = nil
+			}
+			if slices.Equal(cfg.OnBuild, ic.OnBuild) {
+				cfg.OnBuild = nil
+			}
+		}
 	}
 	hc.Binds, hc.Mounts = slices.Clone(hc.Binds), slices.Clone(hc.Mounts)
 	configured := map[string]bool{}
@@ -265,6 +290,56 @@ func (c *Client) CloneContainer(ctx context.Context, id string, o CloneOptions) 
 		return "", wrap(op, err)
 	}
 	return created.ID, nil
+}
+
+// withoutImageDefaults drops from a container's configuration what equals
+// the image's own settings (the Engine merged them in at creation), so a
+// container created from it with another image takes that image's. A
+// value set to the image's default by hand goes too, like Watchtower.
+func withoutImageDefaults(cfg *container.Config, img ocispec.ImageConfig) {
+	cfg.Env = slices.DeleteFunc(slices.Clone(cfg.Env), func(e string) bool { return slices.Contains(img.Env, e) })
+	if slices.Equal(cfg.Cmd, img.Cmd) {
+		cfg.Cmd = nil
+	}
+	if slices.Equal(cfg.Entrypoint, img.Entrypoint) {
+		cfg.Entrypoint = nil
+	}
+	if cfg.WorkingDir == img.WorkingDir {
+		cfg.WorkingDir = ""
+	}
+	if cfg.User == img.User {
+		cfg.User = ""
+	}
+	if cfg.StopSignal == img.StopSignal {
+		cfg.StopSignal = ""
+	}
+	if len(cfg.Labels) > 0 && len(img.Labels) > 0 {
+		labels := make(map[string]string, len(cfg.Labels))
+		for k, v := range cfg.Labels {
+			if iv, ok := img.Labels[k]; !ok || iv != v {
+				labels[k] = v
+			}
+		}
+		cfg.Labels = labels
+	}
+	if len(cfg.ExposedPorts) > 0 && len(img.ExposedPorts) > 0 {
+		ports := network.PortSet{}
+		for p := range cfg.ExposedPorts {
+			if _, ok := img.ExposedPorts[p.String()]; !ok {
+				ports[p] = struct{}{}
+			}
+		}
+		cfg.ExposedPorts = ports
+	}
+	if len(cfg.Volumes) > 0 && len(img.Volumes) > 0 {
+		volumes := map[string]struct{}{}
+		for v := range cfg.Volumes {
+			if _, ok := img.Volumes[v]; !ok {
+				volumes[v] = struct{}{}
+			}
+		}
+		cfg.Volumes = volumes
+	}
 }
 
 func containerConfig(spec ContainerSpec) (*container.Config, *container.HostConfig, *network.NetworkingConfig, *ocispec.Platform, error) {

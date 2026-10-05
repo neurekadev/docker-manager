@@ -252,7 +252,8 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   never in the menu; on phones Settings shows only its cog
   (`Button iconOnPhones`) so the header stays one row. Detail pages: removal
   is the last entry of the header's "More Actions" menu after a separator
-  and absent for Docker Manager's own objects (the notice says why); no
+  (a standalone container's **Recreate…** right before it) and absent for
+  Docker Manager's own objects (the notice says why); no
   removal-preview card on the page (the removal dialog shows the
   server's preview); labels through `LabelsCard` (system labels such as
   `com.docker.compose.*` and Docker Manager's `docker-manager.*` and legacy

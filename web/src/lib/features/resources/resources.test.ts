@@ -104,6 +104,54 @@ describe('container actions on Docker Manager itself (#32)', () => {
 	});
 });
 
+describe('Recreate (#273)', () => {
+	const web: Container = {
+		id: 'c2',
+		name: 'web',
+		environmentId: 'e1',
+		state: 'running',
+		view: 'full',
+		image: 'nginx:1.27',
+		actions: ['container.recreate', 'container.details.read']
+	};
+
+	it('confirms with its consequences, then sends the recreate request', async () => {
+		const fetch = vi.fn(async () =>
+			json(501, {
+				code: 'agent_unsupported',
+				message:
+					"the environment's agent cannot recreate containers yet; upgrade the agent",
+				requestId: 'r1',
+				retryable: false,
+				details: []
+			})
+		);
+		vi.stubGlobal('fetch', fetch);
+		const user = setup();
+		render(ActionHostHarness, { props: { container: web, verb: 'recreate' } });
+		await user.click(screen.getByRole('button', { name: 'Request recreate' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Recreate web?' });
+		expect(dialog).toHaveTextContent(
+			'Replaces web with a new container from the same settings and image nginx:1.27.'
+		);
+		expect(dialog).toHaveTextContent(
+			'changes made inside the container that are not in a volume are lost'
+		);
+		expect(dialog).toHaveTextContent('It starts again only if it was running.');
+		expect(fetch).not.toHaveBeenCalled();
+		await user.click(within(dialog).getByRole('button', { name: 'Recreate' }));
+		const alert = await within(dialog).findByRole('alert');
+		expect(alert).toHaveTextContent("web couldn't be recreated.");
+		expect(alert).toHaveTextContent('upgrade the agent');
+		const req = fetch.mock.calls[0] as unknown as [Request];
+		expect(req[0].method).toBe('POST');
+		expect(new URL(req[0].url).pathname).toBe(
+			'/api/v1/environments/e1/containers/web/recreate'
+		);
+		expect(req[0].headers.get('Idempotency-Key')).toMatch(/.{8,}/);
+	});
+});
+
 describe('RemovalDialog (#6 deletion consequences)', () => {
 	it('lists consequences and needs the name typed before removing', async () => {
 		const user = setup();

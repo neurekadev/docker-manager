@@ -417,13 +417,13 @@ function backupExcluded(labels: Record<string, string> | undefined): boolean {
 	return (labels?.[BACKUP_EXCLUDE_LABEL] ?? '').toLowerCase() === 'true';
 }
 
-const HELPER_ASIDE_NAME = /.-docker-manager-(update|rename)-[0-9a-f]{12}$/;
+const HELPER_ASIDE_NAME = /.-docker-manager-(update|rename|recreate)-[0-9a-f]{12}$/;
 const COMPOSE_TEMP_NAME = /^[0-9a-f]{12}_./;
 
 /**
  * A temporary container of Docker Manager or Compose (the manager's rule,
- * protocol.IsHelperContainer): a container set aside during an image update
- * or a stack rename, Compose's replacement during a recreate (its label
+ * protocol.IsHelperContainer): a container set aside during an image update,
+ * a stack rename or a container recreate, Compose's replacement during a recreate (its label
  * stays after the rename, so only the temporary name counts), or the
  * agent's self-update helper. It never counts as a user of a volume.
  */

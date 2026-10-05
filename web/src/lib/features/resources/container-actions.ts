@@ -2,13 +2,16 @@
 // actions a container offers follows its state and the DTO's granted
 // actions (#17); Docker Manager's own containers (#32) still offer them so the
 // server's refusal and its reason are shown (the page also says up front
-// what is refused).
+// what is refused). Recreate (#273) is offered only for standalone
+// containers that are not Docker Manager's own: a stack's containers are
+// recreated through the stack.
 import { api, unwrap, type ApiClient, type Job } from '$lib/api/client';
 import type { Container } from '$lib/api/queries';
 import { idempotencyKey } from './jobs.svelte';
 import { can } from './permissions';
 
-export type ContainerVerb = 'start' | 'stop' | 'restart' | 'pause' | 'unpause' | 'remove';
+export type ContainerVerb =
+	'start' | 'stop' | 'restart' | 'pause' | 'unpause' | 'recreate' | 'remove';
 
 export interface ContainerAction {
 	verb: ContainerVerb;
@@ -24,11 +27,19 @@ const ACTIONS: Record<ContainerVerb, ContainerAction> = {
 	restart: { verb: 'restart', label: 'Restart', capability: 'container.restart' },
 	pause: { verb: 'pause', label: 'Pause', capability: 'container.pause' },
 	unpause: { verb: 'unpause', label: 'Unpause', capability: 'container.unpause' },
+	recreate: {
+		verb: 'recreate',
+		label: 'Recreate',
+		capability: 'container.recreate',
+		danger: true
+	},
 	remove: { verb: 'remove', label: 'Remove', capability: 'container.remove', danger: true }
 };
 
 /** The lifecycle actions that make sense in the container's state and are granted. */
-export function containerActions(c: Pick<Container, 'state' | 'actions'>): ContainerAction[] {
+export function containerActions(
+	c: Pick<Container, 'state' | 'actions' | 'stack' | 'protection'>
+): ContainerAction[] {
 	const verbs: ContainerVerb[] = [];
 	switch (c.state) {
 		case 'running':
@@ -45,7 +56,10 @@ export function containerActions(c: Pick<Container, 'state' | 'actions'>): Conta
 		default: // created, exited, dead
 			verbs.push('start');
 	}
-	if (c.state !== 'removing') verbs.push('remove');
+	if (c.state !== 'removing') {
+		if (!c.stack && !c.protection) verbs.push('recreate');
+		verbs.push('remove');
+	}
 	return verbs.map((v) => ACTIONS[v]).filter((a) => can(c.actions, a.capability));
 }
 
@@ -98,6 +112,16 @@ export function runContainerAction(
 					params: { path, header },
 					body: {}
 				})
+			);
+		case 'recreate':
+			return unwrap(
+				client.POST(
+					'/api/v1/environments/{environmentId}/containers/{containerId}/recreate',
+					{
+						params: { path, header },
+						body: {}
+					}
+				)
 			);
 		case 'start':
 			return unwrap(

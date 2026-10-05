@@ -346,6 +346,16 @@ first; Compose recreates the service's dependencies only when they
 changed. The container list's
 bulk bar stays separate buttons (a selection mixes states).
 
+**Recreate…** (`container.recreate`, #273) replaces a standalone container
+with a new one from the same settings. `containerActions` offers it only
+for containers without a stack or Compose project (`stack` absent) that
+are not Docker Manager's own; it sits before **Remove…** in the danger
+group at the end of the container page's "More Actions" menu and of the
+container list's row menu, never in the bulk bar. `ContainerActionHost`
+confirms it (`ConfirmDialog`: the image, volumes kept, changes outside
+volumes lost, started again only if it ran) before
+`POST …/containers/{id}/recreate`.
+
 There is no separate down action in the UI: a stack's Stop is one. Job
 and alert labels name the `stack.down` job "Stop (Down)" / "Stop Stack
 (Down)" (Compose's word in brackets), never "Take Down". A stack whose containers vanished

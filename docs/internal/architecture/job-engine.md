@@ -129,6 +129,7 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `backup.verify` | agent | `backup.verify` | `host` S (each environment)<br>`repository` S (repository targets) | `check` (i,c) | 1h | — | — | — |
 | `container.create` | agent | `container.create` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `create` (c) → `connect_networks` (i) → `start` (i) | 10m | — | — | — |
 | `container.pause` | agent | `container.pause` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `pause` (i,c) | 10m | — | — | — |
+| `container.recreate` | agent | `container.recreate` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `recreate` (i,c) | 10m | — | — | — |
 | `container.remove` | agent | `container.remove` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `remove` (i,c) | 10m | — | — | — |
 | `container.restart` | agent | `container.restart` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `restart` (i,c) | 10m | — | — | — |
 | `container.start` | agent | `container.start` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `start` (i,c) | 10m | — | — | — |

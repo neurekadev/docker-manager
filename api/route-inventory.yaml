@@ -920,6 +920,15 @@ routes:
     kind: json
     status: implemented
     notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/recreate"
+    operationId: recreate-container
+    capability: container.recreate
+    scope: resource
+    owner: 273
+    kind: json
+    status: implemented
+    notes: 202 + job; standalone containers only.
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/metrics"
     operationId: get-container-metrics
