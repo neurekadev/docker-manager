@@ -195,7 +195,7 @@
 						>
 					{/if}
 					{#if s.lastJob}
-						<Button size="sm" href={routes.job(s.lastJob.id)}>Open the Job</Button>
+						<Button size="sm" href={routes.job(s.lastJob.id)}>Open Job</Button>
 					{/if}
 				{/snippet}
 			</Notice>

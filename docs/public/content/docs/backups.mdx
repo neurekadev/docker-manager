@@ -33,7 +33,7 @@ people with permission choose what is backed up.
 The first repository you add becomes the **Primary** repository: every
 backup goes there.
 
-1. On **Backups**, press **Edit**.
+1. On **Backups**, press **Edit Backups**.
 2. **What to Back Up**: every environment, stack and volume is included,
    also the ones you add later. Untick what to leave out. Docker Manager
    itself is always backed up.
@@ -93,7 +93,7 @@ Good to know:
 - Anonymous volumes, unless you turn on **Back Up Anonymous Volumes**.
   With it on, a stopped stack's anonymous volumes are backed up too.
 - Volumes with the label `docker-manager.backup.exclude=true`, and the
-  volumes of a container with that label. In **Edit** they show unticked
+  volumes of a container with that label. In **Edit Backups** they show unticked
   and can't be ticked; the (i) next to them says which label keeps them
   out.
 
@@ -123,7 +123,7 @@ as `/srv/media`. To back it up:
          - /srv/media:/srv/media
    ```
 
-2. On **Backups**, press **Edit** and turn on **Back Up Allowed Folders
+2. On **Backups**, press **Edit Backups** and turn on **Back Up Allowed Folders
    Outside Stacks**.
 
 System folders such as `/proc` or `/dev`, and Docker's own data folder, are

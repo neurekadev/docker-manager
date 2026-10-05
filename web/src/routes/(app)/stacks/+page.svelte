@@ -298,7 +298,7 @@
 		const items: MenuEntry[] = [
 			{ label: `Open ${t}`, icon: SquareArrowOutUpRight, href: routes.stack(s.id) }
 		];
-		if (can('stack.deploy'))
+		if (can('stack.deploy') && lifecycle)
 			items.push({
 				label: 'Deploy',
 				icon: Rocket,
@@ -506,7 +506,7 @@
 				`the containers of ${stackTitle(stopping)}`,
 				anonymousVolumeCount(stopServices.data?.services)
 			)}
-			confirmLabel="Stop"
+			confirmLabel="Stop Stack"
 			tone="danger"
 			onconfirm={() => operate(stopping!, 'down')}
 		/>

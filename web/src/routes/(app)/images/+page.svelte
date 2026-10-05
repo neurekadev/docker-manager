@@ -100,7 +100,8 @@
 				label: 'Create Container',
 				href: routes.newContainer(im.environmentId, im.repoTags[0])
 			});
-		if (can(im.actions, 'image.remove'))
+		// Docker Manager's own images are never removed: no entry, like the image's page.
+		if (can(im.actions, 'image.remove') && !im.protection)
 			out.push(
 				{ separator: true },
 				{ label: 'Remove…', tone: 'danger', onSelect: () => host?.request(im, 'remove') }

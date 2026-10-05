@@ -13,7 +13,7 @@
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { api, unwrap, unwrapEmpty, type Agent, type Environment } from '$lib/api/client';
-	import { environmentAgentsQuery } from '$lib/api/queries';
+	import { environmentAgentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { liveKeys } from '$lib/live/keys';
 	import { routes } from '$lib/routes';
 	import {
@@ -37,6 +37,12 @@
 	import { COMPATIBILITY, agentContact, agentLabel } from './model';
 
 	let { env, now }: { env: Environment; now?: Date } = $props();
+	// Re-attaching creates an install command: Add Environments (#282).
+	const perms = createQuery(() => myPermissionsQuery());
+	const canEnroll = $derived(
+		!!perms.data?.owner ||
+			!!perms.data?.entries.some((e) => e.capability === 'agent.enroll' && e.allowed)
+	);
 
 	const qc = useQueryClient();
 	const agents = createQuery(() => environmentAgentsQuery(env.id));
@@ -209,7 +215,10 @@
 			<div class="pad">
 				<Notice tone="info" title="No agent is attached." live="none">
 					{#snippet actions()}
-						<Button size="sm" href={routes.addEnvironment(env.id)}>Re-Attach</Button>
+						{#if canEnroll}
+							<Button size="sm" href={routes.addEnvironment(env.id)}>Re-Attach</Button
+							>
+						{/if}
 					{/snippet}
 				</Notice>
 			</div>
@@ -223,7 +232,9 @@
 					compact
 				>
 					{#snippet actions()}
-						<Button href={routes.addEnvironment(env.id)}>Re-Attach</Button>
+						{#if canEnroll}
+							<Button href={routes.addEnvironment(env.id)}>Re-Attach</Button>
+						{/if}
 					{/snippet}
 				</EmptyState>
 			{/snippet}

@@ -546,7 +546,7 @@
 					</ul>
 				</section>
 			{/if}
-			{#if e.jobId}<a href={routes.job(e.jobId)}>Open the Job</a>{/if}
+			{#if e.jobId}<a href={routes.job(e.jobId)}>Open Job</a>{/if}
 			<Disclosure summary="Advanced">
 				<Facts
 					columns={1}

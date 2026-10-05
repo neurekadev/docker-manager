@@ -29,11 +29,13 @@
 		type RevisionGroup
 	} from '$lib/features/stacks/model';
 	import {
+		stackJobsQuery,
 		stackKeys,
 		stackRevisionQuery,
 		stackRevisionsQuery,
 		type StackRevision
 	} from '$lib/features/stacks/queries';
+	import { activeRestore } from '$lib/features/backups/restore';
 	import { criticalWork } from '$lib/live';
 	import {
 		Badge,
@@ -62,6 +64,10 @@
 	const title = $derived(stackTitle(stack));
 	const queryClient = useQueryClient();
 	const can = (a: string) => stack.actions.includes(a);
+	// A restore of the stack's data runs: no deploy meanwhile, like the
+	// header (#282).
+	const stackJobs = createQuery(() => stackJobsQuery(stack.id));
+	const canDeploy = $derived(can('stack.deploy') && !activeRestore(stackJobs.data));
 	const offline = $derived(stack.readOnly || stack.environmentOnline === false);
 
 	const revisions = createQuery(() => ({
@@ -291,7 +297,7 @@
 		<Notice tone="info" title="Revision {offerDeploy} is on disk now.">
 			Nothing was deployed yet.
 			{#snippet actions()}
-				{#if can('stack.deploy')}<Button size="sm" variant="primary" onclick={deployNow}
+				{#if canDeploy}<Button size="sm" variant="primary" onclick={deployNow}
 						>Deploy Now</Button
 					>{/if}
 				<Button size="sm" variant="ghost" onclick={() => (offerDeploy = null)}>Later</Button
@@ -350,7 +356,7 @@
 								>Restore Deployed Revision</Button
 							>
 						{/if}
-						{#if can('stack.deploy')}
+						{#if canDeploy}
 							<Button
 								variant="primary"
 								icon={Rocket}

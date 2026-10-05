@@ -75,6 +75,24 @@ describe('container actions (#6)', () => {
 		).not.toContain('recreate');
 		// Not granted: hidden.
 		expect(verbs({ actions: all })).not.toContain('recreate');
+		// Remove is refused for a managed stack's and Docker Manager's own
+		// containers (#282): not offered; another Compose project's is.
+		expect(verbs({ stack: { project: 'shop', service: 'web', managed: true } })).not.toContain(
+			'remove'
+		);
+		expect(verbs({ stack: { project: 'legacy', service: 'app', managed: false } })).toContain(
+			'remove'
+		);
+		expect(
+			verbs({
+				protection: {
+					role: 'agent',
+					reason: 'the agent',
+					self: true,
+					restartAllowed: false
+				}
+			})
+		).not.toContain('remove');
 		expect(
 			containerActions({ state: 'running', actions }).find((a) => a.verb === 'recreate')
 		).toEqual({

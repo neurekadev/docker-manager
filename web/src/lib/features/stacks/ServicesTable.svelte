@@ -78,6 +78,8 @@
 		ondeploy?: () => void;
 		deploying?: boolean;
 		readOnly?: boolean;
+		/** A restore of the stack runs: no Start, Restart, Stop or Force Recreate. */
+		restoring?: boolean;
 	}
 
 	let {
@@ -90,7 +92,8 @@
 		onrecreate,
 		ondeploy,
 		deploying = false,
-		readOnly = false
+		readOnly = false,
+		restoring = false
 	}: Props = $props();
 	const can = (a: string) => stack.actions.includes(a);
 	// What the caller may do with one service: Start, Stop and Restart may
@@ -129,7 +132,8 @@
 		const items: MenuEntry[] = [];
 		const running = runningOf(s).running > 0;
 		// Start, Restart, Stop: the order of the header's lifecycle menu.
-		if (!readOnly && onoperate) {
+		// A restore of the stack starts what ran before itself (#282).
+		if (!readOnly && !restoring && onoperate) {
 			if (!running && canOn(s, 'stack.start'))
 				items.push({
 					label: `Start ${s.name}`,
@@ -145,7 +149,7 @@
 				});
 			if (running && canOn(s, 'stack.stop'))
 				items.push({
-					label: `Stop ${s.name}`,
+					label: `Stop ${s.name}…`,
 					icon: Square,
 					tone: 'danger',
 					disabled: !!stack.protection,
@@ -153,9 +157,9 @@
 				});
 		}
 		// A deploy of the service: Docker Manager's own stack may (#32).
-		if (!readOnly && onrecreate && can('stack.deploy'))
+		if (!readOnly && !restoring && onrecreate && can('stack.deploy'))
 			items.push({
-				label: `Force Recreate ${s.name}`,
+				label: `Force Recreate ${s.name}…`,
 				icon: RefreshCcw,
 				onSelect: () => onrecreate(s.name)
 			});

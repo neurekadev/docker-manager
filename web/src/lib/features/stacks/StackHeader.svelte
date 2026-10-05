@@ -5,19 +5,19 @@
 	// the stack's links below it (full view, when it has any), the rename
 	// pencil right of the name (the name turns into a field in place:
 	// RenameStackInline, which renames at once) and the actions: the Deploy
-	// split button (the one primary; its menu has Deploy and Pull & Deploy,
+	// split button (the one primary; its menu has Deploy and Pull and Deploy,
 	// which says when newer images are available, then Force Recreate and
-	// Cleanup Orphans & Deploy after a separator), the Build split button
-	// for stacks with a build section (Build and Pull & Build, which pulls
+	// Deploy and Remove Old Containers after a separator), the Build split button
+	// for stacks with a build section (Build and Pull and Build, which pulls
 	// newer base images, build without deploying, with stack.build; after a
-	// separator Build & Deploy and Pull, Build & Deploy, with stack.deploy),
+	// separator Build and Deploy and Pull, Build and Deploy, with stack.deploy),
 	// the lifecycle split button (LifecycleButton: Stop while anything
 	// runs, Start when stopped; its menu has Start, Restart and Stop, and
 	// Stop runs Compose down with stack.stop) and
 	// overflow (Migrate with more than one environment, Edit Details, Save
 	// as Template, Delete). Each action is shown only with its capability
 	// (the server still decides). Start and Restart run at once; Stop,
-	// Delete, Force Recreate and Cleanup Orphans & Deploy confirm with their
+	// Delete, Force Recreate and Deploy and Remove Old Containers confirm with their
 	// exact consequences first. Docker Manager's own stack (#32) deploys and
 	// force recreates; Restart, Stop, Migrate, Rename and Delete stay
 	// visible but disabled, with the reason. While a rename of the
@@ -308,7 +308,7 @@
 		}
 	}
 
-	// Builds the images without deploying them (Build, Pull & Build).
+	// Builds the images without deploying them (Build, Pull and Build).
 	async function build(pull: boolean) {
 		if (starting) return;
 		starting = 'build';
@@ -377,14 +377,14 @@
 	const deployItems: MenuEntry[] = [
 		{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) },
 		// Pulls every image first, then deploys (what the former Update did).
-		{ label: 'Pull & Deploy', icon: Download, onSelect: () => deploy({ pull: true }) },
+		{ label: 'Pull and Deploy', icon: Download, onSelect: () => deploy({ pull: true }) },
 		// Downloads the images only: the next deploy runs them (#280).
 		{ label: 'Pull', icon: CloudDownload, onSelect: () => void pull() },
 		{ separator: true },
 		// Replaces every container, changed or not (confirmed first).
-		{ label: 'Force Recreate', icon: RefreshCcw, onSelect: () => (recreating = true) },
+		{ label: 'Force Recreate…', icon: RefreshCcw, onSelect: () => (recreating = true) },
 		{
-			label: 'Cleanup Orphans & Deploy',
+			label: 'Deploy and Remove Old Containers…',
 			icon: Eraser,
 			onSelect: () => removeOrphans.request()
 		}
@@ -392,7 +392,7 @@
 
 	// The Build button (stacks with a build section): the builds that deploy
 	// nothing with stack.build, the build deploys with stack.deploy. Its main
-	// part runs the first entry (Build, else Build & Deploy).
+	// part runs the first entry (Build, else Build and Deploy).
 	const buildItems = $derived.by((): MenuItem[][] => {
 		if (!hasBuild || restoring) return [];
 		const groups: MenuItem[][] = [];
@@ -401,14 +401,18 @@
 				// Rebuilds with the base images already on the host.
 				{ label: 'Build', icon: Hammer, onSelect: () => void build(false) },
 				// Pulls newer base images first.
-				{ label: 'Pull & Build', icon: Download, onSelect: () => void build(true) }
+				{ label: 'Pull and Build', icon: Download, onSelect: () => void build(true) }
 			]);
 		if (can('stack.deploy'))
 			groups.push([
-				{ label: 'Build & Deploy', icon: Rocket, onSelect: () => deploy({ build: true }) },
+				{
+					label: 'Build and Deploy',
+					icon: Rocket,
+					onSelect: () => deploy({ build: true })
+				},
 				// Pulls every image and newer base images, rebuilds, then deploys.
 				{
-					label: 'Pull, Build & Deploy',
+					label: 'Pull, Build and Deploy',
 					icon: RefreshCw,
 					onSelect: () => deploy({ pull: true, build: true })
 				}
@@ -446,7 +450,7 @@
 		if (can('stack.remove')) {
 			if (items.length) items.push({ separator: true });
 			items.push({
-				label: 'Delete',
+				label: 'Delete…',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleting = true),
@@ -568,7 +572,7 @@
 	bind:open={confirming}
 	title="Stop {title}?"
 	consequences={stopping}
-	confirmLabel="Stop"
+	confirmLabel="Stop Stack"
 	tone="danger"
 	onconfirm={() => operate('down')}
 />
@@ -577,7 +581,7 @@
 	bind:open={recreating}
 	title="Force Recreate {title}?"
 	consequences={recreateConsequences(title)}
-	confirmLabel="Force Recreate"
+	confirmLabel="Force Recreate Stack"
 	tone="danger"
 	onconfirm={() => deploy({ forceRecreate: true })}
 />

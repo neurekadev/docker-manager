@@ -169,10 +169,10 @@ describe('JobTray.adopt', () => {
 		const tray = new JobTray();
 		tray.add(
 			{ id: '0190-1' },
-			{ kind: 'stack.deploy', title: 'Pull & Deploy Silo', success: 'x', failure: 'y' }
+			{ kind: 'stack.deploy', title: 'Pull and Deploy Silo', success: 'x', failure: 'y' }
 		);
 		tray.adopt([job('0190-1')], describeJob);
-		expect(tray.jobs.map((t) => t.title)).toEqual(['Pull & Deploy Silo']);
+		expect(tray.jobs.map((t) => t.title)).toEqual(['Pull and Deploy Silo']);
 	});
 });
 

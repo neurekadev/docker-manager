@@ -87,6 +87,11 @@
 	let envFile = $state('');
 	let envTouched = $state(false);
 	let deployAfter = $state(false);
+	// Deploying the new stack needs Deploy Stacks in its environment (#282).
+	const mayDeploy = $derived(
+		!!environmentId && canInEnvironment(perms.data, 'stack.deploy', environmentId)
+	);
+	const deploying = $derived(deployAfter && mayDeploy);
 	let touched = $state(false);
 	let creating = $state(false);
 	let failure = $state<unknown>(null);
@@ -204,7 +209,7 @@
 			releaseWork();
 			toast.success(`Created ${title} from ${picked.name}`);
 			let job = '';
-			if (deployAfter) {
+			if (deploying) {
 				try {
 					job = (await deployStack(st.id, 'deploy')).id;
 				} catch (e) {
@@ -363,7 +368,9 @@
 					onblur={() => (touched = true)}
 				/>
 				<TextField label="Display Name" bind:value={displayName} optional />
-				<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
+				{#if mayDeploy}
+					<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
+				{/if}
 				{#if failure}
 					{@const v = errorView(failure)}
 					{#if v.code === 'invalid_definition'}
@@ -432,7 +439,7 @@
 				loading={creating}
 				disabled={!ready || (env && !env.online)}
 			>
-				{deployAfter ? 'Create and Deploy' : 'Create Stack'}
+				{deploying ? 'Create and Deploy' : 'Create Stack'}
 			</Button>
 		{/if}
 	{/snippet}

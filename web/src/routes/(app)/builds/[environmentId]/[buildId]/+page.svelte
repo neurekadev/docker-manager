@@ -125,8 +125,9 @@
 
 	const notFound = $derived(q.error instanceof ApiRequestError && q.error.status === 404);
 	const running = $derived(!!b && (b.status === 'queued' || b.status === 'running'));
+	// Only once the job says the caller may cancel it (#282).
 	const cancellable = $derived(
-		running && (watcher?.job?.cancellable ?? true) && !watcher?.job?.cancelRequested
+		running && !!watcher?.job?.cancellable && !watcher.job.cancelRequested
 	);
 
 	function finished(j: Job) {

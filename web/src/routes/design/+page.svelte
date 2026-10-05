@@ -453,12 +453,12 @@
 							onSelect: () => toast.success('Deployed Silo')
 						},
 						{
-							label: 'Pull & Deploy',
+							label: 'Pull and Deploy',
 							icon: Download,
 							onSelect: () => toast.success('Pulled newer images and redeployed Silo')
 						},
 						{
-							label: 'Cleanup Orphans & Deploy',
+							label: 'Deploy and Remove Old Containers…',
 							onSelect: () => (confirmOpen = true)
 						}
 					]}

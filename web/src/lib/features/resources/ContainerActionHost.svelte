@@ -152,7 +152,7 @@
 			'Volumes are kept and re-attached; changes made inside the container that are not in a volume are lost.',
 			'It starts again only if it was running.'
 		]}
-		confirmLabel="Recreate"
+		confirmLabel="Recreate Container"
 		tone="danger"
 		onconfirm={() => send(target!, 'recreate')}
 	/>

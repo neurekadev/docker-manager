@@ -168,7 +168,7 @@
 			{#if b.state === 'partial'}
 				<Notice tone="warn" title="Some Files Could Not Be Read" live="none">
 					This backup is usable but incomplete; its job lists the files that were skipped.
-					{#if b.jobId}<a href={routes.job(b.jobId)}>Open the Job</a>{/if}
+					{#if b.jobId}<a href={routes.job(b.jobId)}>Open Job</a>{/if}
 				</Notice>
 			{/if}
 			{#if b.kind === 'manager_state'}

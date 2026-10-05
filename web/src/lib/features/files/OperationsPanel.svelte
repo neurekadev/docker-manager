@@ -12,6 +12,7 @@
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import {
 		Button,
+		ConfirmDialog,
 		IconButton,
 		JobProgress,
 		formatBytes,
@@ -52,6 +53,17 @@
 		jobs.markFinished(job);
 		onfinish(job, titleFor(e));
 	}
+
+	// Cancel asks first (#282): what is done stays, the rest is not done.
+	let cancelling = $state<TrackedEntry | null>(null);
+	let cancelOpen = $state(false);
+
+	/**
+	 * Whether the caller may cancel the job: the server says so on the job
+	 * (job.cancel or the kind's own capability); a job started here before
+	 * it is loaded was started with the kind's capability.
+	 */
+	const cancellable = (e: TrackedEntry) => e.job?.cancellable ?? true;
 
 	async function cancelJob(e: TrackedEntry) {
 		const title = titleFor(e);
@@ -165,9 +177,16 @@
 				{/if}
 				<div class="job-actions">
 					{#if e.active}
-						<Button size="sm" variant="ghost" onclick={() => cancelJob(e)}
-							>Cancel</Button
-						>
+						{#if cancellable(e)}
+							<Button
+								size="sm"
+								variant="ghost"
+								onclick={() => {
+									cancelling = e;
+									cancelOpen = true;
+								}}>Cancel</Button
+							>
+						{/if}
 					{:else}
 						<IconButton
 							icon={X}
@@ -181,6 +200,16 @@
 		{/each}
 	</section>
 {/if}
+
+<ConfirmDialog
+	bind:open={cancelOpen}
+	title="Cancel {cancelling ? titleFor(cancelling) : 'the operation'}?"
+	consequences={['Items finished so far stay; the rest is not done.']}
+	confirmLabel="Cancel Operation"
+	cancelLabel="Keep Running"
+	tone="danger"
+	onconfirm={() => (cancelling ? cancelJob(cancelling) : undefined)}
+/>
 
 <style>
 	.ops {

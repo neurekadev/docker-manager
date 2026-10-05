@@ -624,7 +624,7 @@ export function updateAvailable(images: Schema<'StackImageStatus'>[] | undefined
 	return pendingUpdates(images).length > 0;
 }
 
-/** A service whose image has a newer version (Pull & Deploy says so, #20). */
+/** A service whose image has a newer version (Pull and Deploy says so, #20). */
 export interface PendingUpdate {
 	service: string;
 	/** The image reference with its tag, e.g. nginx:1.27 (never a digest). */
@@ -671,7 +671,7 @@ export function deployTitle(title: string, c: DeployChoice): string {
 	if (c.build && c.pull) return `Pull, Build and Deploy ${title}`;
 	if (c.build) return `Build and Deploy ${title}`;
 	if (c.pull) return `Pull and Deploy ${title}`;
-	if (c.removeOrphans) return `Deploy ${title} and Remove Orphans`;
+	if (c.removeOrphans) return `Deploy ${title} and Remove Old Containers`;
 	return `Deploy ${title}`;
 }
 
@@ -780,7 +780,7 @@ export function pullCopy(title: string): { title: string; success: string; failu
 
 /**
  * The tray's words for a build that deploys nothing (the Build button's
- * Build, and Pull & Build, which also pulls newer base images).
+ * Build, and Pull and Build, which also pulls newer base images).
  */
 export function buildCopy(
 	title: string,

@@ -63,6 +63,11 @@
 	let compose = $state(STARTER);
 	let envFile = $state('');
 	let deployAfter = $state(true);
+	// Deploying the new stack needs Deploy Stacks in its environment (#282).
+	const mayDeploy = $derived(
+		!!environmentId && canInEnvironment(perms.data, 'stack.deploy', environmentId)
+	);
+	const deploying = $derived(deployAfter && mayDeploy);
 	let touched = $state(false);
 	let validating = $state(false);
 	let creating = $state(false);
@@ -153,7 +158,7 @@
 					: undefined
 			});
 			let job = '';
-			if (deployAfter) {
+			if (deploying) {
 				try {
 					job = (await deployStack(out.stack.id, 'deploy')).id;
 				} catch (e) {
@@ -246,7 +251,9 @@
 				/>
 				<TextField label="Display Name" bind:value={displayName} optional />
 				<TextField label="Description" bind:value={description} optional />
-				<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
+				{#if mayDeploy}
+					<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
+				{/if}
 				{#if validation}<ValidationResult {validation} />{/if}
 				{#if failure}
 					{@const v = errorView(failure)}
@@ -309,7 +316,7 @@
 				loading={creating}
 				disabled={!ready || (env && !env.online) || validating}
 			>
-				{deployAfter ? 'Create and Deploy' : 'Create Stack'}
+				{deploying ? 'Create and Deploy' : 'Create Stack'}
 			</Button>
 		{/if}
 	{/snippet}
