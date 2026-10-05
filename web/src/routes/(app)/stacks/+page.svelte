@@ -42,6 +42,7 @@
 		canInEnvironment,
 		serviceCounts,
 		stackStatus,
+		anonymousVolumeCount,
 		stackStopAction,
 		stackTitle,
 		stopConsequences
@@ -58,6 +59,7 @@
 	import CreateFromTemplateDialog from '$lib/features/templates/CreateFromTemplateDialog.svelte';
 	import {
 		stackKeys,
+		stackServicesQuery,
 		stacksQuery,
 		updatePoliciesQuery,
 		type Stack
@@ -280,6 +282,11 @@
 	let stopping = $state<Stack | null>(null);
 	let stopOpen = $state(false);
 	const stopAction = $derived(stopping ? stackStopAction(stopping.actions) : undefined);
+	// A down leaves anonymous volumes behind: the confirmation counts them.
+	const stopServices = createQuery(() => ({
+		...stackServicesQuery(stopping?.id ?? ''),
+		enabled: stopOpen && stopping?.view === 'full' && stopAction === 'down'
+	}));
 
 	function rowMenu(s: Stack): MenuEntry[] {
 		const can = (a: string) => s.actions.includes(a);
@@ -497,7 +504,8 @@
 			title="Stop {stackTitle(stopping)}?"
 			consequences={stopConsequences(
 				`the containers of ${stackTitle(stopping)}`,
-				stopAction === 'down'
+				stopAction === 'down',
+				anonymousVolumeCount(stopServices.data?.services)
 			)}
 			confirmLabel="Stop"
 			tone="danger"

@@ -6,6 +6,7 @@ import {
 	driftNotes,
 	orphanedServices,
 	pendingUpdates,
+	anonymousVolumeCount,
 	recreateConsequences,
 	stackStopAction,
 	stopConsequences,
@@ -83,6 +84,17 @@ describe('deploy outcomes', () => {
 });
 
 describe('stack stop', () => {
+	it('counts distinct anonymous volumes', () => {
+		const vol = (name: string, anonymous = false) => ({ name, destination: '/d', anonymous });
+		const services = [
+			{ containers: [{ volumes: [vol('a1', true), vol('silo_data')] }] },
+			{ containers: [{ volumes: [vol('a1', true), vol('a2', true)] }] }
+		] as never;
+		expect(anonymousVolumeCount(services)).toBe(2);
+		expect(anonymousVolumeCount([])).toBe(0);
+		expect(anonymousVolumeCount(undefined)).toBeUndefined();
+	});
+
 	it('takes the stack down with stack.down, else only stops it', () => {
 		expect(stackStopAction(['stack.stop', 'stack.down'])).toBe('down');
 		expect(stackStopAction(['stack.down'])).toBe('down');
@@ -90,11 +102,18 @@ describe('stack stop', () => {
 		expect(stackStopAction(['stack.start'])).toBeUndefined();
 	});
 
-	it('says what a stop removes and keeps', () => {
-		expect(stopConsequences('3 containers', true)).toEqual([
+	it('says what a stop removes and keeps, anonymous volumes included', () => {
+		expect(stopConsequences('3 containers', true, 0)).toEqual([
 			'Stops and removes 3 containers and the stack’s networks.',
-			'Volumes, images and files are kept; Deploy brings the stack back.'
+			'Named volumes, images and files are kept; Deploy starts the stack again.'
 		]);
+		expect(stopConsequences('3 containers', true, 2)[1]).toBe(
+			'Leaves its 2 anonymous volumes behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.'
+		);
+		// Unknown (services not loaded or not visible): said in general.
+		expect(stopConsequences('3 containers', true)[1]).toBe(
+			'Anonymous volumes, if it has any, are left behind: the next Deploy starts with new, empty ones.'
+		);
 		expect(stopConsequences('3 containers', false)).toEqual([
 			'Stops 3 containers, the services that need others first.',
 			'Containers, volumes and files are kept; Start brings them back.'

@@ -29,6 +29,8 @@ let seen: Seen[] = [];
 // The stack's jobs (GET /jobs?target=stack:…) and the rename preview's extras.
 let jobList: { id: string; kind: string; state: string }[] = [];
 let previewExtra: Record<string, unknown> = {};
+// GET /stacks/{id}/services (404 when unset).
+let servicesBody: unknown;
 
 // The manager as seen by the components: image status with an update, the
 // stack's jobs, rename previews, and 202 jobs for every other mutation.
@@ -36,6 +38,7 @@ beforeEach(() => {
 	seen = [];
 	jobList = [];
 	previewExtra = {};
+	servicesBody = undefined;
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -75,6 +78,8 @@ beforeEach(() => {
 					}
 				]
 			});
+		if (req.method === 'GET' && url.pathname.endsWith('/services') && servicesBody)
+			return json(200, servicesBody);
 		if (req.method === 'GET' && url.pathname === '/api/v1/jobs')
 			return json(200, {
 				items: jobList.map((j) => ({ ...j, items: [], targets: [] }))
@@ -355,7 +360,7 @@ describe('StackHeader', () => {
 		);
 	});
 
-	it('stops (takes down) only after the confirmation that lists what happens, and tracks the job', async () => {
+	it('stops (Compose down) only after the confirmation that lists what happens, and tracks the job', async () => {
 		const user = setup();
 		const tray = header(stack());
 		await user.click(screen.getByRole('button', { name: 'Stop' }));
@@ -365,7 +370,7 @@ describe('StackHeader', () => {
 		).toBeInTheDocument();
 		expect(
 			within(dialog).getByText(
-				'Volumes, images and files are kept; Deploy brings the stack back.'
+				'Named volumes, images and files are kept; Deploy starts the stack again.'
 			)
 		).toBeInTheDocument();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
@@ -648,6 +653,38 @@ describe('StackHeader', () => {
 			'aria-disabled',
 			'true'
 		);
+	});
+
+	it('names the anonymous volumes a stop (Compose down) leaves behind', async () => {
+		const user = setup();
+		servicesBody = {
+			live: true,
+			services: [
+				{
+					name: 'web',
+					status: 'running',
+					drift: [],
+					containers: [
+						{
+							name: 'silo-web-1',
+							state: 'running',
+							volumes: [
+								{ name: 'a'.repeat(64), destination: '/cache', anonymous: true },
+								{ name: 'silo_data', destination: '/data' }
+							]
+						}
+					]
+				}
+			]
+		};
+		header(stack());
+		await user.click(screen.getByRole('button', { name: 'Stop' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
+		expect(
+			await within(dialog).findByText(
+				'Leaves its 1 anonymous volume behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.'
+			)
+		).toBeInTheDocument();
 	});
 
 	it('only stops the containers without stack.down', async () => {

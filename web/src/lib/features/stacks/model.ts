@@ -75,7 +75,7 @@ export function statusSummary(s: Pick<Stack, 'status' | 'engine' | 'services'>):
 		case 'undeployed':
 			return 'Never deployed by Docker Manager';
 		case 'down':
-			return 'Containers and networks removed';
+			return 'Containers removed; Deploy starts it again';
 		case 'stopped':
 			return 'Every service is stopped';
 		case 'missing':
@@ -557,7 +557,7 @@ const JOB_KINDS: Record<string, string> = {
 	'stack.start': 'Start',
 	'stack.stop': 'Stop',
 	'stack.restart': 'Restart',
-	'stack.down': 'Take Down',
+	'stack.down': 'Stop (Down)',
 	'stack.remove': 'Delete',
 	'stack.build': 'Build Images',
 	'stack.migrate': 'Migrate',
@@ -757,14 +757,40 @@ export function stackStopAction(actions: readonly string[]): 'down' | 'stop' | u
 }
 
 /**
- * The confirmation of a stack's Stop: `what` names the containers, e.g.
- * "3 containers" (`stackStopAction` decides `down`).
+ * The anonymous volumes of a stack's containers (distinct names); undefined
+ * while the services are unknown.
  */
-export function stopConsequences(what: string, down: boolean): string[] {
+export function anonymousVolumeCount(
+	services: StackServiceStatus[] | undefined
+): number | undefined {
+	if (!services) return undefined;
+	return new Set(services.flatMap((s) => serviceVolumes(s).filter((v) => v.anonymous))).size;
+}
+
+/**
+ * The confirmation of a stack's Stop: `what` names the containers, e.g.
+ * "3 containers" (`stackStopAction` decides `down`). A down leaves the
+ * containers' anonymous volumes behind, like `docker compose down`: the
+ * next deploy creates new, empty ones (`anonymous`: how many there are;
+ * undefined when unknown).
+ */
+export function stopConsequences(what: string, down: boolean, anonymous?: number): string[] {
+	const word = (n: number) => `${n} anonymous ${n === 1 ? 'volume' : 'volumes'}`;
+	const left =
+		anonymous === undefined
+			? [
+					'Anonymous volumes, if it has any, are left behind: the next Deploy starts with new, empty ones.'
+				]
+			: anonymous > 0
+				? [
+						`Leaves its ${word(anonymous)} behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.`
+					]
+				: [];
 	return down
 		? [
 				`Stops and removes ${what} and the stack’s networks.`,
-				'Volumes, images and files are kept; Deploy brings the stack back.'
+				...left,
+				'Named volumes, images and files are kept; Deploy starts the stack again.'
 			]
 		: [
 				`Stops ${what}, the services that need others first.`,

@@ -68,9 +68,11 @@ A failed deploy is not rolled back. Fix the files, or restore the last good
 The next button shows **Stop** while the stack runs and **Start** when it's
 stopped. Its menu has **Start**, **Restart** and **Stop**. **Stop** asks
 first, then stops and removes the stack's containers and networks, like
-`docker compose down`. Volumes, images and files are kept, and **Deploy**
-brings the stack back. Without the **Take Stack Down** permission, **Stop**
-only stops the containers and **Start** brings them back.
+`docker compose down`. The stack shows **Stopped**, and **Deploy** starts it
+again. Named volumes, images and files are kept. Anonymous volumes are
+left behind, as with `docker compose down`: the next deploy starts with new,
+empty ones. Without the **Stop Stack (Down)** permission, **Stop** only
+stops the containers and **Start** brings them back.
 
 A service's **Stop**, in its row on the **Overview**, only stops that
 service's containers.
@@ -142,8 +144,9 @@ services:
 
 Good to know:
 
-- Projects without containers (never started, or taken down) are found by
-  their Compose file in a folder Docker Manager manages or below `/import`,
+- Projects without containers (never started, or stopped with
+  `docker compose down`) are found by their Compose file in a folder
+  Docker Manager manages or below `/import`,
   and show **No Containers**. Importing one adds it as **Not Deployed**.
 - Copying a project is refused when its running containers don't match its
   files. Redeploy the project in the old tool first.

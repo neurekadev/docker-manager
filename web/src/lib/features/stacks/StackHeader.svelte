@@ -79,6 +79,7 @@
 	import {
 		buildCopy,
 		deployFailure,
+		anonymousVolumeCount,
 		recreateConsequences,
 		serviceCounts,
 		stackStatus,
@@ -88,7 +89,13 @@
 		updateAvailable,
 		type DeployChoice
 	} from './model';
-	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
+	import {
+		stackImageStatusQuery,
+		stackJobsQuery,
+		stackKeys,
+		stackServicesQuery,
+		type Stack
+	} from './queries';
 	import { activeRename } from './rename';
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
@@ -225,10 +232,16 @@
 	const containerWord = (n: number) => `${n} ${n === 1 ? 'container' : 'containers'}`;
 	// Stop takes the stack down with stack.down, else it only stops it.
 	const stopAction = $derived(stackStopAction(stack.actions));
+	// A down leaves anonymous volumes behind: the confirmation counts them.
+	const stopServices = createQuery(() => ({
+		...stackServicesQuery(stack.id),
+		enabled: confirming && full && stopAction === 'down'
+	}));
 	const stopping = $derived(
 		stopConsequences(
 			containerWord(stopAction === 'down' ? counts.containers : counts.containersRunning),
-			stopAction === 'down'
+			stopAction === 'down',
+			anonymousVolumeCount(stopServices.data?.services)
 		)
 	);
 

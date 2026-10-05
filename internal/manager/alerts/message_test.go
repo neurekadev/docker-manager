@@ -434,7 +434,7 @@ func TestFingerprintTokens(t *testing.T) {
 
 func TestLabelsAreTitleCaseAndSentencesAreNot(t *testing.T) {
 	for kind, want := range map[domain.JobKind]string{
-		"manager.retention": "Docker Manager Backup Retention", "stack.down": "Take Down",
+		"manager.retention": "Docker Manager Backup Retention", "stack.down": "Stop", "stack.pull": "Image Pull",
 		"update.check": "Update Check", "prune.run": "Prune", "unknown.kind": "A Job",
 	} {
 		if got := kindLabel(kind); got != want {

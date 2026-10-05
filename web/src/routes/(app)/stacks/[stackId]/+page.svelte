@@ -118,7 +118,7 @@
 		start: ['Start', 'Started', 'started'],
 		stop: ['Stop', 'Stopped', 'stopped'],
 		restart: ['Restart', 'Restarted', 'restarted'],
-		down: ['Take Down', 'Took down', 'taken down']
+		down: ['Stop', 'Stopped', 'stopped']
 	};
 	async function run() {
 		if (!op) return;

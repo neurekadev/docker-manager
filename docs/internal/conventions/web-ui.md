@@ -20,7 +20,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   optional fields set `optional` (a muted "Optional" after the label),
   never "Optional." in their description; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
-  for high impact), only for damaging actions (stop, take down, force
+  for high impact), only for damaging actions (stop, down, force
   recreate, delete, remove; start, restart and deploy run at once); Start,
   Restart and Stop of one stack or container are one `LifecycleButton`
   (`$lib/features/common`: Stop while anything runs, Start otherwise),

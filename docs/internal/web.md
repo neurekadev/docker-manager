@@ -321,10 +321,15 @@ Docker Manager's own containers keep them on (the server refuses with its
 reason; the page's notice says so up front). Start and Restart run at
 once; Stop confirms with its consequences. A stack's Stop (header and
 stack list) takes the stack down when the caller holds `stack.down`
-(`stackStopAction`: containers and networks removed, volumes, images and
-files kept; the stack is then `down` and the header offers Deploy, and
+(`stackStopAction`: containers and networks removed, named volumes,
+images and files kept; the stack is then `down`, which reads "Stopped"
+(`status.ts`; the stack list's Stopped filter matches it too), and the
+header offers Deploy, and
 a stopped stack's Stop stays on to remove its containers), else it only
-stops the containers; the confirmation says which
+stops the containers; the confirmation says which and, for a down,
+how many anonymous volumes are left behind (`anonymousVolumeCount` over
+the services, loaded when the dialog opens; said in general while
+unknown), since the next deploy creates new, empty ones
 (`stopConsequences`), and the tray uses Stop's words for both (also for
 an adopted `stack.down`, `adopt.ts`). A service's and a container's Stop
 are always a plain stop (Compose takes down whole projects only; the API
@@ -342,8 +347,11 @@ first; Compose recreates the service's dependencies only when they
 changed. The container list's
 bulk bar stays separate buttons (a selection mixes states).
 
-There is no separate Take Down in the UI: a stack's Stop is one. The
-header hides its actions while the migration wizard
+There is no separate down action in the UI: a stack's Stop is one. Job
+and alert labels name it "Stop (Down)" / "Stop Stack (Down)" (Compose's
+word in brackets), never "Take Down". A stack whose containers vanished
+outside Docker Manager reads "Missing" (the containers list keeps "Not
+Running" for every state but running). The header hides its actions while the migration wizard
 is open, and Migrate while the caller sees one environment.
 
 Rename (`stack.rename`) is the pencil right of the stack's name

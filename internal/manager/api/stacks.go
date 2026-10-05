@@ -210,7 +210,7 @@ type Stack struct {
 	Recovery          string              `json:"recovery,omitempty" doc:"How to recover from a failed deploy."`
 	Binds             []StackBind         `json:"binds,omitempty" doc:"Resolved bind sources (with stack.definition.read)."`
 	LastJob           *StackJobRef        `json:"lastJob,omitempty"`
-	Protection        *ResourceProtection `json:"protection,omitempty" doc:"Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, take down, delete and migrate are refused with 409 protected."`
+	Protection        *ResourceProtection `json:"protection,omitempty" doc:"Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected."`
 	EnvironmentOnline bool                `json:"environmentOnline,omitempty" doc:"The environment's agent is connected."`
 	ReadOnly          bool                `json:"readOnly,omitempty" doc:"The environment is offline: the last known revision and state are shown read-only."`
 	CreatedAt         time.Time           `json:"createdAt,omitzero"`
@@ -1079,7 +1079,7 @@ type StackServiceStatus struct {
 	Applied     *StackImage       `json:"applied,omitempty" doc:"Image applied by the last deploy."`
 	Status      string            `json:"status" enum:"running,partial,exited,created,missing"`
 	Containers  []StackContainer  `json:"containers"`
-	Drift       []string          `json:"drift" doc:"missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied)."`
+	Drift       []string          `json:"drift" doc:"missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped, also with down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied)."`
 	// Metrics are #5's (per-service metrics are not part of this response yet).
 }
 
@@ -1318,7 +1318,7 @@ type DiscoveredStack struct {
 	StackID    string                   `json:"stackId,omitempty" doc:"The Docker Manager stack already managing it."`
 	Protected  bool                     `json:"protected,omitempty" doc:"Docker Manager's own Compose project (#32): an import by copy copies it while it runs and restarts nothing; its next deploy moves it onto the copy."`
 	// Containerless and Volumes are absent from older agents.
-	Containerless bool     `json:"containerless,omitempty" doc:"The project has no containers (never started, or taken down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy."`
+	Containerless bool     `json:"containerless,omitempty" doc:"The project has no containers (never started, or brought down with Compose down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy."`
 	Volumes       []string `json:"volumes,omitempty" example:"[\"nextcloud_db\"]" doc:"The project's existing named Docker volumes (sorted, at most 100; Docker Manager's own left out). The import keeps the project name, so its first deploy reuses them."`
 }
 
@@ -1609,7 +1609,7 @@ func registerStacks(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "delete-stack", Method: http.MethodDelete, Path: one, Summary: "Delete a stack",
-		Description: "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; the project directory " +
+		Description: "Starts a stack.remove job (202): the stack is brought down (Compose down: containers and networks removed; the project directory " +
 			"is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming " +
 			"it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other " +
 			"projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an " +
@@ -1682,7 +1682,7 @@ func registerStacks(a huma.API, deps Deps) {
 	}, Capability: CapStackBuild, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.build)
 
 	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "create-stack-operation", Method: http.MethodPost, Path: one + "/operations", Summary: "Start, stop, restart or take down a stack",
+		OperationID: "create-stack-operation", Method: http.MethodPost, Path: one + "/operations", Summary: "Start, stop, restart or bring down a stack",
 		Description: "Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. Start, stop and restart " +
 			"follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their " +
 			"depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.",
