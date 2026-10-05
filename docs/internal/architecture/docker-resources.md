@@ -229,10 +229,12 @@ for a container's unnamed mounts), so once a Compose down removed a stack's
 containers nothing ties them to the stack. Before `stack.down` runs, the
 agent records the anonymous volumes of the project's containers (temporary
 containers left out) in `<state dir>/down-volumes.json`
-(`downvolumes.Store`, written atomically; each record names the down job
-that wrote it: a re-run of that job adds to it, so it keeps the volumes of
-the containers an earlier run removed, and any other down replaces it; a
-successful deploy and `stack.remove` forget it, `stack.rename` moves it). Backups of the stack
+(`downvolumes.Store`, written atomically; each record keeps the container
+IDs it was taken from: a later down adds to it while any of them is still
+there, so a down after one that failed having removed some containers
+keeps their volumes, and replaces it when every container is new (they
+came back through a deploy or Compose); a successful deploy and
+`stack.remove` forget it, `stack.rename` moves it). Backups of the stack
 use the record while it has no containers (#276, see
 [backups](backups.md)).
 

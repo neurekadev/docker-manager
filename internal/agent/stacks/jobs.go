@@ -667,16 +667,16 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 		timeout = &d
 	}
 	// The anonymous volumes of the containers a down removes: nothing ties
-	// them to the project afterwards (#276). Recorded before the down and
-	// per job, so a re-run of this job keeps those of the containers an
-	// earlier run removed, while a later down replaces the record; backups
-	// only use it while the project has no containers.
+	// them to the project afterwards (#276). Recorded before the down with
+	// the containers they come from, so a down after one that removed some
+	// of them keeps those volumes, while containers that came back replace
+	// the record; backups only use it while the project has no containers.
 	if len(before) > 0 && sc.Kind == jobspec.StackDown {
-		anonymous, err := anonymousVolumes(ctx, eng, in.Stack.ProjectName)
+		containers, anonymous, err := anonymousVolumes(ctx, eng, in.Stack.ProjectName)
 		if err != nil {
 			return err
 		}
-		if err := s.opts.DownVolumes.Record(in.Stack.ProjectName, sc.JobID, anonymous); err != nil {
+		if err := s.opts.DownVolumes.Record(in.Stack.ProjectName, containers, anonymous); err != nil {
 			s.log.Warn("could not record the anonymous volumes the down leaves behind", "project", in.Stack.ProjectName, "error", err)
 		}
 	}
@@ -705,15 +705,16 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	return err
 }
 
-// anonymousVolumes lists the anonymous volumes the project's containers
-// mount, by name (the Engine gives them a random 64-digit hex name).
-// Temporary containers of Docker Manager or Compose are left out
+// anonymousVolumes lists the project's containers (IDs) and the anonymous
+// volumes they mount, by name (the Engine gives them a random 64-digit hex
+// name). Temporary containers of Docker Manager or Compose are left out
 // (protocol.IsHelperContainer), like backups do.
-func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([]downvolumes.Volume, error) {
+func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([]string, []downvolumes.Volume, error) {
 	list, err := lifecycle.ProjectContainers(ctx, eng, project)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	var ids []string
 	var out []downvolumes.Volume
 	seen := map[string]bool{}
 	for _, c := range list {
@@ -724,6 +725,7 @@ func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([
 		if protocol.IsHelperContainer(name, c.Labels) {
 			continue
 		}
+		ids = append(ids, c.ID)
 		for _, m := range c.Mounts {
 			if m.Type != "volume" || !protocol.AnonymousVolumeName(m.Name) || seen[m.Name] {
 				continue
@@ -733,5 +735,5 @@ func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([
 		}
 	}
 	slices.SortFunc(out, func(a, b downvolumes.Volume) int { return strings.Compare(a.Name, b.Name) })
-	return out, nil
+	return ids, out, nil
 }

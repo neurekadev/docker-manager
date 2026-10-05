@@ -5,10 +5,12 @@
 // backups of the stopped stack would silently leave their data out. The
 // down step records them per project; a backup includes the recorded
 // volumes while the project has no containers (the next deploy creates new
-// ones, as with docker compose down). Each record names the down job that
-// wrote it: a re-run of that job adds to it (an earlier run may have
-// removed some containers already), another down replaces it. A successful
-// deploy and deleting the stack forget it and a rename moves it.
+// ones, as with docker compose down). Each record keeps the containers it
+// was taken from: a later down adds to it while any of them is still there
+// (a down that failed after removing some containers, run again or
+// repeated), and replaces it when every container is new (they came back
+// through a deploy or Compose). A successful deploy and deleting the stack
+// forget it and a rename moves it.
 //
 // The store is a JSON file in the agent's state directory, replaced
 // atomically; a nil *Store keeps nothing.
@@ -37,10 +39,11 @@ type Volume struct {
 	Destination string `json:"destination"`
 }
 
-// record is a project's entry: the down job that wrote it and the volumes.
+// record is a project's entry: the containers (IDs) it was taken from and
+// their anonymous volumes.
 type record struct {
-	Job     string   `json:"job,omitempty"`
-	Volumes []Volume `json:"volumes"`
+	Containers []string `json:"containers"`
+	Volumes    []Volume `json:"volumes"`
 }
 
 // Store is the recorded anonymous volumes per Compose project.
@@ -55,11 +58,12 @@ type Store struct {
 // New returns the store kept in dir ("" keeps it in memory only).
 func New(dir string) *Store { return &Store{dir: dir} }
 
-// Record records the volumes the down job is about to leave behind: a
-// re-run of the job that wrote the project's record adds to it (a name
-// already recorded keeps its entry), any other down replaces it. The
-// volumes stay sorted by name.
-func (s *Store) Record(project, job string, vols []Volume) error {
+// Record records the volumes a down is about to leave behind, with the
+// containers (IDs) it found: while one of them was in the project's record
+// already (the same containers, some removed by an earlier down), the
+// record grows (a name already recorded keeps its entry); otherwise it is
+// replaced. Containers and volumes stay sorted.
+func (s *Store) Record(project string, containers []string, vols []Volume) error {
 	if s == nil {
 		return nil
 	}
@@ -68,18 +72,24 @@ func (s *Store) Record(project, job string, vols []Volume) error {
 	if err := s.load(); err != nil {
 		return err
 	}
-	var merged []Volume
-	if cur, ok := s.projects[project]; ok && cur.Job == job {
-		merged = slices.Clone(cur.Volumes)
+	var rec record
+	if cur, ok := s.projects[project]; ok && slices.ContainsFunc(containers, func(id string) bool { return slices.Contains(cur.Containers, id) }) {
+		rec = record{Containers: slices.Clone(cur.Containers), Volumes: slices.Clone(cur.Volumes)}
 	}
-	for _, v := range vols {
-		if !slices.ContainsFunc(merged, func(x Volume) bool { return x.Name == v.Name }) {
-			merged = append(merged, v)
+	for _, id := range containers {
+		if !slices.Contains(rec.Containers, id) {
+			rec.Containers = append(rec.Containers, id)
 		}
 	}
-	slices.SortFunc(merged, func(a, b Volume) int { return strings.Compare(a.Name, b.Name) })
+	for _, v := range vols {
+		if !slices.ContainsFunc(rec.Volumes, func(x Volume) bool { return x.Name == v.Name }) {
+			rec.Volumes = append(rec.Volumes, v)
+		}
+	}
+	slices.Sort(rec.Containers)
+	slices.SortFunc(rec.Volumes, func(a, b Volume) int { return strings.Compare(a.Name, b.Name) })
 	next := maps.Clone(s.projects)
-	next[project] = record{Job: job, Volumes: merged}
+	next[project] = rec
 	return s.save(next)
 }
 

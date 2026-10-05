@@ -35,10 +35,11 @@ tests: `internal/agent/engine/enginefake`.
   after a Compose down nothing ties them to their stack: `stack.down`
   records the anonymous volumes of the containers it removes before it
   runs (`internal/agent/downvolumes`, `<state>/down-volumes.json`, keyed by
-  project; temporary containers left out). Each record names the down job
-  that wrote it: a re-run of that job adds to it (an earlier run may have
-  removed some containers), any other down replaces it; a successful
-  deploy and `stack.remove` forget it, a rename moves it. Backups use the record only while the
+  project; temporary containers left out). Each record keeps the
+  containers it was taken from: a later down adds to it while any of them
+  is still there (an earlier down removed the others), and replaces it
+  when every container is new; a successful deploy and `stack.remove`
+  forget it, a rename moves it. Backups use the record only while the
   project has no containers (#276); never treat it as a list of the
   stack's current volumes.
 - Write Docker Manager's labels only under the current keys; read them only

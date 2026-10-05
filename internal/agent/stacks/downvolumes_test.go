@@ -22,7 +22,7 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 	e, _ := deployFixture(t)
 	store := downvolumes.New(t.TempDir())
 	e.svc.opts.DownVolumes = store
-	anon, helper := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	anon, helper, webAnon := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
 	lbl := func(svc string) map[string]string {
 		return map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: svc}
 	}
@@ -37,6 +37,9 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 				{Type: "volume", Name: anon, Destination: "/scratch"},
 				{Type: "bind", Source: "/srv/html", Destination: "/html"},
 			}},
+			{ID: "web1", Names: []string{"/app-web-1"}, State: "running", Labels: lbl("web"), Mounts: []engine.Mount{
+				{Type: "volume", Name: webAnon, Destination: "/cache"},
+			}},
 			// Compose's replacement during a recreate: a temporary container.
 			{ID: "tmp1", Names: []string{"/0123456789ab_app-db-1"}, State: "exited", Labels: replacing, Mounts: []engine.Mount{
 				{Type: "volume", Name: helper, Destination: "/tmp"},
@@ -48,30 +51,28 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 		defer e.eng.mu.Unlock()
 		e.eng.containers = nil
 	}
-	// A record an earlier down left (another job): this down replaces it.
-	if err := store.Record("app", "job-0", []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/old"}}); err != nil {
+	// A record an earlier down left of containers since replaced: this down
+	// replaces it.
+	if err := store.Record("app", []string{"old1"}, []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/old"}}); err != nil {
 		t.Fatal(err)
 	}
 	running()
 	res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")})
-	want := []downvolumes.Volume{{Name: anon, Service: "db", Destination: "/scratch"}}
+	want := []downvolumes.Volume{{Name: anon, Service: "db", Destination: "/scratch"}, {Name: webAnon, Service: "web", Destination: "/cache"}}
 	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(store.Volumes("app"), want) {
 		t.Fatalf("down: %+v record %v", res, store.Volumes("app"))
 	}
-	// A re-run of the same down job (run uses one job ID) after a run that
-	// removed some containers (the db one is gone, the web one is left)
-	// keeps what it recorded.
-	webAnon := strings.Repeat("c", 64)
+	// A down after one that failed having removed some containers (the db
+	// one is gone, the web one is left) keeps the volumes of the removed.
+	running()
 	e.eng.mu.Lock()
-	e.eng.containers = []engine.Container{{ID: "web1", Names: []string{"/app-web-1"}, State: "running", Labels: lbl("web"),
-		Mounts: []engine.Mount{{Type: "volume", Name: webAnon, Destination: "/cache"}}}}
+	e.eng.containers = slices.DeleteFunc(e.eng.containers, func(c engine.Container) bool { return c.ID != "web1" })
 	e.eng.mu.Unlock()
 	if res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded {
-		t.Fatalf("retried down: %+v", res)
+		t.Fatalf("down of what was left: %+v", res)
 	}
-	want = []downvolumes.Volume{want[0], {Name: webAnon, Service: "web", Destination: "/cache"}}
 	if got := store.Volumes("app"); !slices.Equal(got, want) {
-		t.Fatalf("after the retried down: %v", got)
+		t.Fatalf("after the down of what was left: %v", got)
 	}
 	// Nothing left to bring down: the record stays.
 	if res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
@@ -85,7 +86,7 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 	}
 	// A removal brings the stack down and forgets it.
 	running()
-	if err := store.Record("app", "job-0", want); err != nil {
+	if err := store.Record("app", []string{"db1"}, want); err != nil {
 		t.Fatal(err)
 	}
 	if res, _ := run(t, e.svc, jobspec.StackRemove, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
