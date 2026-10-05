@@ -304,6 +304,10 @@ describe('error views', () => {
 		expect(v.retryable).toBe(true);
 		expect(v.message).toMatch(/could not reach the manager/);
 		expect(errorView(new Error('boom')).message).toBe('Boom.');
+		// Already sentences (a refusal naming a container): kept as written.
+		expect(errorView(new Error("web couldn't be recreated. Upgrade the agent.")).message).toBe(
+			"web couldn't be recreated. Upgrade the agent."
+		);
 		expect(errorView(new ApiRequestError('x', 503)).retryable).toBe(true);
 	});
 });

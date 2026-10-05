@@ -53,7 +53,14 @@ export function errorView(e: unknown): ErrorView {
 		};
 	}
 	return {
-		message: e instanceof Error ? sentence(e.message) : 'Something went wrong in the browser.',
+		// A message written as sentences (it ends like one, e.g. a refusal
+		// starting with a case-sensitive name) is shown as it is.
+		message:
+			e instanceof Error
+				? /[.!?]$/.test(e.message.trim())
+					? e.message.trim()
+					: sentence(e.message)
+				: 'Something went wrong in the browser.',
 		retryable: false,
 		network: false,
 		status: null,
