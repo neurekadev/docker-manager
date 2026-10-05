@@ -50,7 +50,7 @@
 		if (status === 403)
 			return {
 				status,
-				message: `You can't read these logs. Ask the owner of this Docker Manager for “View logs”.`
+				message: `You can't read these logs. Ask the owner of this Docker Manager for “View Container Logs”.`
 			};
 		if (status === 404) return { status, message: 'The container does not exist anymore.' };
 		if (status === 503)

@@ -205,18 +205,28 @@ controls that want an explicit trigger (`IconButton`).
 The permission editor of #17 (the design's "PermissionTree") is
 `$lib/features/access/PermissionEditor.svelte`: a searchable resource tree
 (`ResourceTree`, categories in `tree.ts`) beside the actions of the chosen
-scope (`ActionMatrix`), in three modes: `group` (No Rule / Allow / Deny),
-`user` (Inherit / Allow / Deny with the inherited decision explained) and
+scope (`ActionMatrix`), in three modes: `group` (No Rule / Allow / Deny;
+No Rule says what the group's broader rule decides there), `user`
+(Inherit / Allow / Deny with the inherited decision explained) and
 `token` (grants limited to what the caller holds, #31). Scopes carry
 `environmentId` only for the types named per environment (container,
 image, volume, network; `NAMED_PER_ENVIRONMENT` in `tree.ts`, mirroring
 the catalog); stacks, services, agents and policies have global IDs, so
 their nodes keep the environment on `ScopeNode.environmentId` for display
 only, and a rule on an unlisted stack or service shows under its stack's
-environment (from the stack list). Rule logic
-(scope keys, diffs, inheritance precedence) is in `permissions.ts`;
-`RulesSaveBar` lists every change before the revisioned, step-up save.
-`ActionMatrix` shows one collapsible section per resource type (open at
+environment (from the stack list). Nodes carry their parents
+(`ScopeNode.parents`: a service's stack, a stack container's service and
+stack), so the inherited hints follow the server's precedence (resource,
+parents nearest first, environment, instance). The tree also lists
+build definitions (per environment) and stack templates (shared). Rule
+logic (scope keys, diffs, inheritance precedence) is in `permissions.ts`;
+`RulesSaveBar` lists every change before the revisioned, step-up save,
+naming scopes in words (`scopeLabel`: "All Resources", "service web of
+stack Silo", resource names from the tree's cached lists, `cachedNames`).
+Catalog labels name what they act on and are shown as they are (#281).
+`ActionMatrix` shows one collapsible section per resource type (some
+merged: agents in Environments, the backup types in Backups, registry
+connections and Git credentials in Credentials; `SECTIONS`) (open at
 first only where the scope has rules, all while filtering), each with
 "Allow All" ("Grant All" for tokens) and "Clear" ("Inherit All" for users)
 that change the draft at once; the controls sit in one right-aligned

@@ -32,12 +32,13 @@ export const PRESETS: readonly Preset[] = [
 		id: 'operator',
 		label: 'Operator',
 		description:
-			'Viewer, plus start, stop, restart, recreate and deploy, pull images, run backups and read logs. Nothing is deleted or administered.'
+			'Viewer, plus deploy, start, stop, restart and recreate, pull images, check for image updates, run backups, read logs and dismiss alerts. Stopping a stack removes its containers but keeps its data; nothing else is deleted, and nothing is administered.'
 	},
 	{
 		id: 'admin',
 		label: 'Admin',
-		description: 'Every action offered here, high-risk ones included.'
+		description:
+			'Every action offered here, high-risk ones included (never what only the owner can do).'
 	}
 ];
 

@@ -53,7 +53,7 @@
 		switch (e.status) {
 			case 403:
 				return new Error(
-					`You can't open terminals in ${t.label}. Ask the owner of this Docker Manager for “Open terminal”.`
+					`You can't open terminals in ${t.label}. Ask the owner of this Docker Manager for “Open Container Terminals”.`
 				);
 			case 404:
 				return new Error(`${t.label} does not exist anymore.`);

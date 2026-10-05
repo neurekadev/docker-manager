@@ -198,6 +198,13 @@
 		);
 	});
 
+	// The read permission of each file root, by its catalog label.
+	const BROWSE: Record<FileScope['kind'], string> = {
+		stack: 'Browse Stack Files',
+		volume: 'Browse Volume Files',
+		template: 'Browse Template Files'
+	};
+
 	function refresh() {
 		void qc.invalidateQueries({ queryKey: liveKeys.files(liveScopeOf(scope)) });
 	}
@@ -911,7 +918,9 @@
 			<EmptyState
 				icon={LockKeyhole}
 				title="You Can't Browse These Files"
-				description="Ask the owner of this Docker Manager for the “Browse and View Files” permission on {rootLabel}."
+				description="Ask the owner of this Docker Manager for the “{BROWSE[
+					scope.kind
+				]}” permission on {rootLabel}."
 			/>
 		</div>
 	{:else}

@@ -4,7 +4,14 @@
 	// revisioned (If-Match), audited with the diff and needs a step-up; the
 	// affected users' open requests and streams end at once.
 	import { Button, ConfirmDialog } from '$lib/ui';
-	import { capabilityLabel, diffRules, scopeLabel, type Catalog, type Rule } from './permissions';
+	import {
+		capabilityLabel,
+		diffRules,
+		scopeLabel,
+		type Catalog,
+		type Rule,
+		type Scope
+	} from './permissions';
 
 	interface Props {
 		before: Rule[];
@@ -13,23 +20,36 @@
 		subject: string;
 		mode: 'group' | 'user';
 		environmentName?: (id: string) => string;
+		/** A resource's name where the page knows it (the tree's lists, #281). */
+		resourceName?: () => (s: Scope) => string | undefined;
 		ondiscard: () => void;
 		onsave: () => Promise<unknown>;
 	}
 
-	let { before, after, catalog, subject, mode, environmentName, ondiscard, onsave }: Props =
-		$props();
+	let {
+		before,
+		after,
+		catalog,
+		subject,
+		mode,
+		environmentName,
+		resourceName,
+		ondiscard,
+		onsave
+	}: Props = $props();
 	let open = $state(false);
 
 	const changes = $derived(diffRules(before, after));
 	const word = (e: 'allow' | 'deny' | null) =>
 		e === 'allow' ? 'Allow' : e === 'deny' ? 'Deny' : mode === 'user' ? 'Inherit' : 'No Rule';
-	const lines = $derived(
-		changes.map(
+	// Resources by name where the tree listed them (read when the list is shown).
+	const lines = $derived.by(() => {
+		const resource = open ? resourceName?.() : undefined;
+		return changes.map(
 			(c) =>
-				`${capabilityLabel(catalog, c.capability)} on ${scopeLabel(c.scope, { environment: environmentName })}: ${word(c.before)} → ${word(c.after)}`
-		)
-	);
+				`${capabilityLabel(catalog, c.capability)} on ${scopeLabel(c.scope, { environment: environmentName, resource })}: ${word(c.before)} → ${word(c.after)}`
+		);
+	});
 </script>
 
 {#if changes.length}

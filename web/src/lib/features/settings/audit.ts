@@ -159,18 +159,13 @@ interface LabelCatalog {
 	resourceTypes: { key: string; label: string }[];
 }
 
-/** An audit action in words ("Signed in", "Deploy (Stacks)", "Stack migrate preview"). */
+/** An audit action in words ("Signed in", "Deploy Stacks", "Stack migrate preview"). */
 export function auditActionLabel(action: string, catalog?: LabelCatalog): string {
 	const known = AUDIT_ACTION_LABELS[action];
 	if (known) return known;
+	// Catalog labels name what they act on ("Restart Containers", #281).
 	const c = catalog?.capabilities.find((x) => x.key === action);
-	if (c) {
-		const t = catalog?.resourceTypes.find((x) => x.key === c.resourceType);
-		return t && !c.label.toLowerCase().includes(t.label.toLowerCase().replace(/s$/, ''))
-			? `${c.label} (${t.label})`
-			: c.label;
-	}
-	return sentence(action);
+	return c ? c.label : sentence(action);
 }
 
 /** "stack.migrate.preview" → "Stack migrate preview". */

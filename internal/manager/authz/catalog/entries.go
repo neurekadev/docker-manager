@@ -97,22 +97,28 @@ func ownerOnly(key, label, desc string) Capability {
 // (current and future service containers), or one container.
 var containerScopes = res(TypeStack, TypeService, TypeContainer)
 
+// standaloneScopes: actions refused on the containers of a managed stack
+// (recreate, settings, remove) take no stack or service rules: such a rule
+// could never allow anything (#281).
+var standaloneScopes = res(TypeContainer)
+
 // fileCaps builds the file-manager capabilities of a root type (stack
 // project directories, volumes). Each root type has its own keys, so a
-// rule on "all stacks" never opens volume contents and vice versa.
-func fileCaps(root, what string, s scopes) []Capability {
+// rule on "all stacks" never opens volume contents and vice versa. noun
+// names the files in the labels ("Stack Files"), what in the descriptions.
+func fileCaps(root, noun, what string, s scopes) []Capability {
 	k := func(verb string) string { return root + ".files." + verb }
 	return []Capability{
-		high(k("read"), root, "Browse and View Files", "List directories and read file contents in "+what+". Files can hold secrets.", s),
-		high(k("download"), root, "Download Files", "Download files or streamed archives from "+what+".", s),
-		high(k("write"), root, "Edit and Upload Files", "Create, edit and upload files in "+what+".", s),
-		adv(normal(k("copy"), root, "Copy Files", "Copy files and directories within "+what+".", s)),
-		adv(normal(k("move"), root, "Move and Rename Files", "Move or rename files and directories within "+what+".", s)),
-		adv(high(k("delete"), root, "Delete Files", "Delete files and directories in "+what+".", s)),
-		adv(normal(k("archive"), root, "Create Archives", "Pack files into an archive inside "+what+".", s)),
-		adv(high(k("extract"), root, "Extract Archives", "Unpack an archive inside "+what+" (may overwrite files).", s)),
-		adv(high(k("chmod"), root, "Change File Permissions", "Change file modes (chmod), optionally recursively, in "+what+".", s)),
-		adv(high(k("chown"), root, "Change File Ownership", "Change file owners (chown), optionally recursively, in "+what+".", s)),
+		high(k("read"), root, "Browse "+noun, "List directories and read file contents in "+what+". Files can hold secrets.", s),
+		high(k("download"), root, "Download "+noun, "Download files or streamed archives from "+what+".", s),
+		high(k("write"), root, "Edit and Upload "+noun, "Create, edit and upload files in "+what+".", s),
+		adv(normal(k("copy"), root, "Copy "+noun, "Copy files and directories within "+what+".", s)),
+		adv(normal(k("move"), root, "Move and Rename "+noun, "Move or rename files and directories within "+what+".", s)),
+		adv(high(k("delete"), root, "Delete "+noun, "Delete files and directories in "+what+".", s)),
+		adv(normal(k("archive"), root, "Archive "+noun, "Pack files into an archive inside "+what+".", s)),
+		adv(high(k("extract"), root, "Extract Archives in "+noun, "Unpack an archive inside "+what+" (may overwrite files).", s)),
+		adv(high(k("chmod"), root, "Change Permissions of "+noun, "Change file modes (chmod), optionally recursively, in "+what+".", s)),
+		adv(high(k("chown"), root, "Change Owners of "+noun, "Change file owners (chown), optionally recursively, in "+what+".", s)),
 	}
 }
 
@@ -125,8 +131,8 @@ func capabilities() []Capability {
 		normal("environment.read", TypeEnvironment, "View Environment Details", "See the environment's full record (Engine ID, agent, addresses). Any other capability in an environment shows only its name and status.", instEnv),
 		normal("environment.metrics.read", TypeEnvironment, "View Host Stats", "Host CPU, memory, disk and capacity charts.", instEnv),
 		normal("environment.system.read", TypeEnvironment, "View System Information", "Engine and agent versions, transport, verified storage roots and diagnostics.", instEnv),
-		normal("environment.events.read", TypeEnvironment, "Watch Docker Events", "Stream Docker Engine events; each event is still filtered by the capability of its resource.", instEnv),
-		adv(normal("environment.manage", TypeEnvironment, "Rename and Edit Environments", "Change the server/display name and the service address.", instEnv)),
+		adv(normal("environment.events.read", TypeEnvironment, "Watch Docker Events", "Stream the Docker Engine events of an environment through the API (for API clients; the web UI does not use it). Each event is still filtered by the capability of its resource.", instEnv)),
+		adv(normal("environment.manage", TypeEnvironment, "Edit Environments", "Rename an environment and change its service address.", instEnv)),
 		adv(high("environment.remove", TypeEnvironment, "Archive Environments", "Archive an environment and revoke its agent's credential.", instEnv)),
 	)
 
@@ -134,8 +140,8 @@ func capabilities() []Capability {
 	agentScope := res(TypeAgent)
 	add(
 		normal("agent.read", TypeAgent, "View Agents", "See agents, their versions and connection state.", agentScope),
-		adv(high("agent.enroll", TypeAgent, "Enroll Agents", "Create one-use agent enrollment tokens (adds hosts to Docker Manager).", instanceOnly)),
-		adv(high("agent.manage", TypeAgent, "Manage Agents", "Edit agent labels and rotate agent credentials.", agentScope)),
+		adv(high("agent.enroll", TypeAgent, "Add Environments", "Create one-use install commands that add servers to Docker Manager or attach an agent again (enroll agents).", instanceOnly)),
+		adv(high("agent.manage", TypeAgent, "Rotate Agent Credentials", "Rotate an agent's credential (and edit its labels through the API).", agentScope)),
 		adv(high("agent.remove", TypeAgent, "Remove Agents", "Revoke an agent's credential and detach its environment.", agentScope)),
 	)
 
@@ -146,10 +152,10 @@ func capabilities() []Capability {
 	lifecycleScope := res(TypeStack, TypeService)
 	add(
 		normal("stack.read", TypeStack, "View Stacks", "See a stack's details, services and events. Does not open its containers, files or Compose definition.", stackScope),
-		normal("stack.deploy", TypeStack, "Deploy", "Apply a stack's Compose files from disk (Compose up): pull and build the images it needs and recreate what changed. Also Pull, Pull and Deploy, Build and Deploy, Force Recreate and removing old containers.", stackScope),
-		normal("stack.start", TypeStack, "Start Stack", "Start a stack or its services. A stopped stack comes back up from its last deployed files. On a service: that service and the services it depends on.", lifecycleScope),
-		normal("stack.stop", TypeStack, "Stop Stack", "Stop a stack: Compose down (containers and networks removed; volumes, images and files kept). On a service: only its containers stop.", lifecycleScope),
-		normal("stack.restart", TypeStack, "Restart Stack", "Restart a stack or its services. On a service: that service and the services that restart with it.", lifecycleScope),
+		normal("stack.deploy", TypeStack, "Deploy Stacks", "Apply a stack's Compose files from disk (Compose up): pull and build the images it needs and recreate what changed. Also Pull, Pull and Deploy, Build and Deploy, Force Recreate and removing old containers.", stackScope),
+		normal("stack.start", TypeStack, "Start Stacks", "Start a stack or its services. A stopped stack comes back up from its last deployed files. On a service: that service and the services it depends on.", lifecycleScope),
+		normal("stack.stop", TypeStack, "Stop Stacks", "Stop a stack: Compose down (containers and networks removed; volumes, images and files kept). On a service: only its containers stop.", lifecycleScope),
+		normal("stack.restart", TypeStack, "Restart Stacks", "Restart a stack or its services. On a service: that service and the services that restart with it.", lifecycleScope),
 		high("stack.definition.read", TypeStack, "View Compose Definition", "Read the stack's Compose files, override files, env files and revisions, also as part of a folder. They may contain secrets.", stackScope),
 		high("stack.definition.write", TypeStack, "Edit Compose Definition", "Change the stack's Compose files, override files and env files, also as part of a folder, and restore revisions.", stackScope),
 		// High risk (#12 security review): creating a stack writes its whole
@@ -157,29 +163,29 @@ func capabilities() []Capability {
 		// and run privileged containers once deployed.
 		adv(high("stack.create", TypeStack, "Create Stacks", "Create managed stacks in an environment from a Compose definition. Deployed, it can mount host paths and run privileged containers.", instEnv)),
 		adv(normal("stack.import", TypeStack, "Import Stacks", "Discover and adopt existing Compose projects.", instEnv)),
-		adv(normal("stack.manage", TypeStack, "Edit Stack Settings", "Edit a stack's display name, description, links and service descriptions.", stackScope)),
+		adv(normal("stack.manage", TypeStack, "Edit Stack Details", "Edit a stack's display name, description, links and service descriptions.", stackScope)),
 		adv(normal("stack.build", TypeStack, "Build Stack Images", "Build the images of a stack's Compose build sections.", stackScope)),
 		adv(high("stack.remove", TypeStack, "Delete Stacks", "Remove a stack and its containers. Removing the volumes it owns too also needs Remove Volumes on the stack.", stackScope)),
-		adv(high("stack.rename", TypeStack, "Rename Stack Project", "Change a stack's Compose project name: it stops and starts again, its volumes and project directory move to the new name, and containers outside the stack that use those volumes are stopped and recreated.", stackScope)),
+		adv(high("stack.rename", TypeStack, "Rename Stacks", "Change a stack's Compose project name: it stops and starts again, its volumes and project directory move to the new name, and containers outside the stack that use those volumes are stopped and recreated.", stackScope)),
 		adv(high("stack.migrate", TypeStack, "Migrate Stacks", "Move a stack and its volumes to another environment (also needs stack.create on the target environment). Stack rules follow the stack; environment rules do not.", stackScope)),
 	)
-	add(fileCaps(TypeStack, "the stack's project directory (its Compose files, override files and env files additionally need the Compose definition capabilities)", stackScope)...)
+	add(fileCaps(TypeStack, "Stack Files", "the stack's project directory (its Compose files, override files and env files additionally need the Compose definition capabilities)", stackScope)...)
 
 	// Containers: stack- and service-scoped rules apply to the stack's
 	// current and future service containers for the capabilities selected.
 	add(
-		normal("container.metrics.read", TypeContainer, "View Stats", "CPU, memory, network and I/O charts. Shows the container's name and state only.", containerScopes),
-		normal("container.details.read", TypeContainer, "View Details", "Inspect a container: configuration, environment variables, mounts and labels.", containerScopes),
-		high("container.logs.read", TypeContainer, "View Logs", "Read and follow container logs. Logs can contain secrets.", containerScopes),
-		normal("container.restart", TypeContainer, "Restart", "Restart a container. Does not allow start, stop, logs, terminal or files.", containerScopes),
-		normal("container.start", TypeContainer, "Start", "Start a stopped container.", containerScopes),
-		normal("container.stop", TypeContainer, "Stop", "Stop a running container.", containerScopes),
-		normal("container.recreate", TypeContainer, "Recreate", "Replace a standalone container with a new one from the same settings. Changes inside it that are not in a volume are lost.", containerScopes),
-		high("container.exec", TypeContainer, "Open Terminal", "Run an interactive shell inside a container (full access to its data).", containerScopes),
-		adv(normal("container.pause", TypeContainer, "Pause", "Freeze a container's processes.", containerScopes)),
-		adv(normal("container.unpause", TypeContainer, "Unpause", "Resume a paused container.", containerScopes)),
-		adv(normal("container.update", TypeContainer, "Change Resources", "Change a container's resource limits or restart policy.", containerScopes)),
-		adv(high("container.remove", TypeContainer, "Remove", "Remove a container.", containerScopes)),
+		normal("container.metrics.read", TypeContainer, "View Container Stats", "CPU, memory, network and I/O charts. Shows the container's name and state only.", containerScopes),
+		normal("container.details.read", TypeContainer, "View Container Details", "Inspect a container: configuration, ports, networks, mounts and labels (never its environment variables).", containerScopes),
+		high("container.logs.read", TypeContainer, "View Container Logs", "Read and follow container logs. Logs can contain secrets.", containerScopes),
+		normal("container.restart", TypeContainer, "Restart Containers", "Restart a container. Does not allow start, stop, logs, terminal or files.", containerScopes),
+		normal("container.start", TypeContainer, "Start Containers", "Start a stopped container.", containerScopes),
+		normal("container.stop", TypeContainer, "Stop Containers", "Stop a running container.", containerScopes),
+		normal("container.recreate", TypeContainer, "Recreate Containers", "Replace a standalone container with a new one from the same settings. Changes inside it that are not in a volume are lost. A stack's containers are recreated by deploying the stack.", standaloneScopes),
+		high("container.exec", TypeContainer, "Open Container Terminals", "Run an interactive shell inside a container (full access to its data).", containerScopes),
+		adv(normal("container.pause", TypeContainer, "Pause Containers", "Freeze a container's processes.", containerScopes)),
+		adv(normal("container.unpause", TypeContainer, "Unpause Containers", "Resume a paused container.", containerScopes)),
+		adv(normal("container.update", TypeContainer, "Edit Container Settings", "Change the resource limits and restart policy of a container outside a managed stack (a stack's containers follow its Compose files).", standaloneScopes)),
+		adv(high("container.remove", TypeContainer, "Remove Containers", "Remove a container outside a managed stack (a stack's containers go when the stack is stopped or deleted).", standaloneScopes)),
 		adv(high("container.create", TypeContainer, "Create Containers", "Create standalone containers in an environment. Bind mounts give them access to host files.", instEnv)),
 	)
 
@@ -205,7 +211,7 @@ func capabilities() []Capability {
 		adv(high("volume.remove", TypeVolume, "Remove Volumes", "Delete a volume and its data. On a stack, deleting the stack may also remove the volumes it owns.", res(TypeVolume, TypeStack))),
 		adv(high("volume.migrate", TypeVolume, "Migrate Volumes", "Copy a volume to another environment (also needs volume.create on the target environment).", volumeScope)),
 	)
-	add(fileCaps(TypeVolume, "the volume", volumeScope)...)
+	add(fileCaps(TypeVolume, "Volume Files", "the volume", volumeScope)...)
 
 	// Networks.
 	networkScope := res(TypeNetwork)
@@ -228,10 +234,10 @@ func capabilities() []Capability {
 	// environment, a stack or a container.
 	updateScope := res(TypeUpdatePolicy, TypeStack, TypeContainer)
 	add(
-		normal("update_policy.read", TypeUpdatePolicy, "View Updates", "See the update settings (on all environments) and the update state of stacks and containers.", res(TypeUpdatePolicy)),
-		adv(normal("update_policy.manage", TypeUpdatePolicy, "Manage Updates", "Change the update settings: schedules, window and what is left out.", instanceOnly)),
-		adv(normal("update.check", TypeUpdatePolicy, "Check for Updates", "Check registries for newer digests of fixed tags.", updateScope)),
-		adv(normal("update.run", TypeUpdatePolicy, "Apply Updates", "Pull updated images and recreate services or containers (no automatic rollback).", updateScope)),
+		normal("update_policy.read", TypeUpdatePolicy, "View Image Updates", "See the update settings (on all environments) and the update state of stacks and containers.", res(TypeUpdatePolicy)),
+		adv(normal("update_policy.manage", TypeUpdatePolicy, "Edit Update Settings", "Change the update settings: schedules, window and what is left out.", instanceOnly)),
+		normal("update.check", TypeUpdatePolicy, "Check for Image Updates", "Check registries for newer digests of fixed tags. Changes nothing.", updateScope),
+		adv(normal("update.run", TypeUpdatePolicy, "Apply Image Updates", "Pull updated images and recreate services or containers (no automatic rollback).", updateScope)),
 	)
 
 	// Maintenance (#14, #238): the setup covers every environment, so its
@@ -239,9 +245,9 @@ func capabilities() []Capability {
 	// are one-off prunes there (maintenance's own need instance grants).
 	add(
 		adv(normal("maintenance_policy.read", TypeMaintenancePolicy, "View Maintenance", "See the maintenance settings and the last results.", instanceOnly)),
-		adv(normal("maintenance_policy.manage", TypeMaintenancePolicy, "Manage Maintenance", "Change the maintenance settings: rules, schedule and environments left out.", instanceOnly)),
-		adv(normal("maintenance.preview", TypeMaintenancePolicy, "Preview Prune", "List what a prune would remove: maintenance's on all environments, a one-off prune's on one environment.", instEnv)),
-		adv(high("maintenance.run", TypeMaintenancePolicy, "Run Prune", "Remove unused containers, images, networks, volumes and build cache: run maintenance on all environments, or a one-off prune on one environment.", instEnv)),
+		adv(normal("maintenance_policy.manage", TypeMaintenancePolicy, "Edit Maintenance Settings", "Change the maintenance settings: rules, schedule and environments left out.", instanceOnly)),
+		adv(normal("maintenance.preview", TypeMaintenancePolicy, "Preview Prunes", "List what a prune would remove: maintenance's on all environments, a one-off prune's on one environment.", instEnv)),
+		adv(high("maintenance.run", TypeMaintenancePolicy, "Prune Docker Objects", "Remove unused containers, images, networks, volumes and build cache: run maintenance on all environments, or a one-off prune on one environment.", instEnv)),
 	)
 
 	// Schedules (#13).
@@ -256,13 +262,13 @@ func capabilities() []Capability {
 		normal("backup.run", TypeBackup, "Run Backups", "Back up now (on all environments). Each backup job also needs it on the stacks, volumes and repository it touches.", res(TypeBackupRepository, TypeStack, TypeVolume)),
 		high("backup.restore", TypeBackup, "Restore Backups", "Restore stacks, volumes or files from a snapshot (overwrites data; needs the capability on every restored target).", res(TypeBackupRepository, TypeBackup, TypeStack, TypeVolume)),
 		adv(high("backup.contents.read", TypeBackup, "Browse Backup Contents", "List files inside snapshots. Snapshots can contain secrets.", snapScope)),
-		adv(high("backup.contents.download", TypeBackup, "Download From Backups", "Download single files from snapshots. Snapshots can contain secrets.", snapScope)),
+		adv(high("backup.contents.download", TypeBackup, "Download Backup Contents", "Download single files from snapshots. Snapshots can contain secrets.", snapScope)),
 		adv(normal("backup.verify", TypeBackup, "Verify Backups", "Check repository and snapshot integrity.", snapScope)),
-		adv(high("backup.retention", TypeBackup, "Apply Retention", "Forget and prune old snapshots according to the retention rules.", instRes(TypeBackupRepository))),
+		adv(high("backup.retention", TypeBackup, "Apply Backup Retention", "Forget and prune old snapshots according to the retention rules.", instRes(TypeBackupRepository))),
 		adv(normal("backup_repository.read", TypeBackupRepository, "View Backup Repositories", "See repositories and their health (never credentials or the Recovery Key).", repoScope)),
-		adv(high("backup_repository.manage", TypeBackupRepository, "Manage Backup Repositories", "Create, edit, test and delete repositories and rotate their keys.", repoScope)),
+		adv(high("backup_repository.manage", TypeBackupRepository, "Manage Backup Repositories", "Add, edit, test and remove repositories (the Recovery Key stays the owner's).", repoScope)),
 		adv(normal("backup_policy.read", TypeBackupPolicy, "View Backup Settings", "See the backup settings and what they back up and retain.", instanceOnly)),
-		adv(normal("backup_policy.manage", TypeBackupPolicy, "Manage Backup Settings", "Change the backup settings: repositories, schedule, what is backed up and retention.", instanceOnly)),
+		adv(normal("backup_policy.manage", TypeBackupPolicy, "Edit Backup Settings", "Change the backup settings: repositories, schedule, what is backed up and retention.", instanceOnly)),
 	)
 
 	// Registries and Git credentials (#19, #33): metadata only; credential
@@ -279,12 +285,12 @@ func capabilities() []Capability {
 	add(
 		normal("template.read", TypeTemplate, "View Templates", "See templates, their tags and published versions (not their files).", tmplScope),
 		high("template.use", TypeTemplate, "Use Templates", "Read the files of published versions (.env included) and create stacks from them (also needs stack.create).", tmplScope),
-		normal("template.create", TypeTemplate, "Create Templates", "Create new templates (the creator still needs template capabilities to edit them).", instanceOnly),
-		normal("template.manage", TypeTemplate, "Edit Templates", "Change a template's name, description, tags and icon.", tmplScope),
+		adv(normal("template.create", TypeTemplate, "Create Templates", "Create new templates (the creator still needs template capabilities to edit them).", instanceOnly)),
+		adv(normal("template.manage", TypeTemplate, "Edit Templates", "Change a template's name, description, tags and icon.", tmplScope)),
 		high("template.publish", TypeTemplate, "Publish Templates", "Publish and delete versions and make templates public: every file of a public template, .env included, becomes readable by anyone with the registry URL.", tmplScope),
 		high("template.remove", TypeTemplate, "Delete Templates", "Delete templates with their draft and versions (stacks created from them keep working).", tmplScope),
 	)
-	add(fileCaps(TypeTemplate, "the template's draft (compose.yaml, .env and the files next to them)", tmplScope)...)
+	add(fileCaps(TypeTemplate, "Template Files", "the template's draft (compose.yaml, .env and the files next to them)", tmplScope)...)
 
 	// Jobs: job.read/job.cancel are evaluated on the job's targets. Holding
 	// the job kind's own capability on every target also shows and cancels
@@ -309,14 +315,14 @@ func capabilities() []Capability {
 		adv(high("audit.export", TypeAudit, "Export Audit Log", "Download audit records as NDJSON or CSV. All-or-nothing, like View Audit Log.", instanceOnly)),
 		adv(normal("api_tokens.create", TypeAPIToken, "Create API Tokens", "Create API tokens limited to a subset of one's own permissions (needs recent authentication).", instanceOnly)),
 		adv(normal("settings.read", TypeSettings, "View Settings", "See instance settings and schedule defaults.", instanceOnly)),
-		adv(high("settings.manage", TypeSettings, "Change Settings", "Change instance settings and schedule defaults (not the security policy).", instanceOnly)),
+		adv(high("settings.manage", TypeSettings, "Edit Settings", "Change instance settings and schedule defaults (not the security policy).", instanceOnly)),
 		adv(normal("system.metrics.read", TypeSystem, "Scrape Internal Metrics", "Read Docker Manager's own Prometheus metrics (job queue, agent sessions, streams, database size); meant for a monitoring API token. The endpoint is off unless DOCKER_MANAGER_METRICS_ENABLED is set.", instanceOnly)),
 	)
 
 	// Owner surface: never grantable (#16, #17, #31).
 	add(
 		ownerOnly("users.manage", "Manage Users", "Invite, edit, disable and delete users; reset their factors and passwords."),
-		ownerOnly("groups.manage", "Manage Groups and Permissions", "Create groups, edit group and user rules, choose the default group."),
+		ownerOnly("groups.manage", "Manage Groups and Permissions", "Create, order and delete groups and edit group and user rules."),
 		ownerOnly("security_settings.manage", "Change the Security Policy", "Password rules, required sign-in factors and enrollment grace."),
 		ownerOnly("registry.manage", "Manage Registry Credentials", "Create, rotate and delete registry connections."),
 		ownerOnly("git_credential.manage", "Manage Git Credentials", "Create, rotate and delete Git credentials."),

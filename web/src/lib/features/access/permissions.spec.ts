@@ -11,7 +11,9 @@ import {
 	ruleCounts,
 	scopeConsequence,
 	scopeKey,
+	scopeLabel,
 	setRule,
+	type Capability,
 	type Catalog,
 	type Rule,
 	type Scope
@@ -180,10 +182,41 @@ describe('scopes and capabilities (#17)', () => {
 		).toEqual(['container.exec']);
 	});
 
-	it('names capabilities in plain language', () => {
-		expect(capabilityLabel(catalog, 'container.restart')).toBe('Restart (Containers)');
+	it('names capabilities by their own label (labels name what they act on)', () => {
 		expect(capabilityLabel(catalog, 'stack.create')).toBe('Create stacks');
 		expect(capabilityLabel(catalog, 'nope.x')).toBe('nope.x');
+	});
+
+	it('puts related resource types in one section, in catalog order', () => {
+		const cap = (key: string, resourceType: string, advanced = false) =>
+			({ key, resourceType, advanced, label: key, description: '' }) as Capability;
+		const cat = {
+			...catalog,
+			resourceTypes: [
+				'environment',
+				'agent',
+				'backup_repository',
+				'backup',
+				'registry',
+				'git_credential'
+			].map((key) => ({ ...catalog.resourceTypes[0], key, label: key }))
+		} as Catalog;
+		const caps = [
+			cap('environment.read', 'environment'),
+			cap('agent.read', 'agent'),
+			cap('backup_repository.read', 'backup_repository', true),
+			cap('backup.read', 'backup'),
+			cap('registry.read', 'registry'),
+			cap('git_credential.read', 'git_credential')
+		];
+		const g = groupCapabilities(cat, caps);
+		expect(
+			g.map((x) => [x.label, x.common.map((c) => c.key), x.advanced.map((c) => c.key)])
+		).toEqual([
+			['Environments', ['environment.read', 'agent.read'], []],
+			['Backups', ['backup.read'], ['backup_repository.read']],
+			['Credentials', ['registry.read', 'git_credential.read'], []]
+		]);
 	});
 
 	it('explains what a rule at each scope reaches, including future resources', () => {
@@ -312,6 +345,62 @@ describe('rules', () => {
 		});
 	});
 
+	it('inherits a rule on the parents, nearest first, before the environment, like the server (#281)', () => {
+		const stack: Scope = { kind: 'resource', resourceType: 'stack', resourceId: 'st-1' };
+		const service: Scope = {
+			kind: 'resource',
+			resourceType: 'service',
+			resourceId: 'st-1/web'
+		};
+		const group: Rule[] = [
+			{ capability: 'container.restart', effect: 'allow', scope: E },
+			{ capability: 'container.restart', effect: 'deny', scope: stack }
+		];
+		expect(
+			inheritedDecision(group, 'container.restart', C, undefined, [service, stack])
+		).toEqual({
+			effect: 'deny',
+			at: 'parent',
+			parent: stack
+		});
+		const nearer: Rule[] = [
+			...group,
+			{ capability: 'container.restart', effect: 'allow', scope: service }
+		];
+		expect(
+			inheritedDecision(nearer, 'container.restart', C, undefined, [service, stack])
+		).toEqual({
+			effect: 'allow',
+			at: 'parent',
+			parent: service
+		});
+		// Without its parents the container only sees the environment.
+		expect(inheritedDecision(group, 'container.restart', C)).toEqual({
+			effect: 'allow',
+			at: 'environment'
+		});
+	});
+
+	it('names scopes in words, with names where known and short IDs otherwise', () => {
+		const names = {
+			environment: (id: string) => ({ e1: 'homelab' })[id],
+			resource: (s: Scope) => (s.resourceId === 'st-1' ? 'Silo' : undefined)
+		};
+		expect(scopeLabel(I, names)).toBe('All Resources');
+		expect(scopeLabel(E, names)).toBe('homelab');
+		expect(scopeLabel(C, names)).toBe('container web on homelab');
+		expect(
+			scopeLabel({ kind: 'resource', resourceType: 'service', resourceId: 'st-1/web' }, names)
+		).toBe('service web of stack Silo');
+		expect(
+			scopeLabel({
+				kind: 'resource',
+				resourceType: 'update_policy',
+				resourceId: '0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f'
+			})
+		).toBe('update target 0192f5e4…');
+	});
+
 	it('inherits the environment rule on a stack from the environment it is listed under', () => {
 		const group: Rule[] = [{ capability: 'stack.deploy', effect: 'allow', scope: E }];
 		expect(inheritedDecision(group, 'stack.deploy', S, 'e1')).toEqual({
@@ -415,6 +504,10 @@ describe('resource tree', () => {
 		});
 		expect(web.environmentId).toBe('e1');
 		expect(web.key).toBe(scopeKey(web.scope));
+		// Its stack's rules apply to it too (the editor's inherited hints).
+		expect(web.parents).toEqual([
+			{ kind: 'resource', resourceType: 'stack', resourceId: 's1' }
+		]);
 	});
 
 	it('puts the environment in the scope only for types named per environment', () => {
