@@ -14,15 +14,18 @@ import (
 // stack.stop at the same scope where no stack.stop rule exists there.
 //
 // Nobody gains a down that was denied to them (deny wins, even where that
-// costs a plain stop someone had):
+// costs a plain stop someone had), and nobody loses one that was allowed:
 //   - a stack.stop allow covered by a stack.down deny of the same group or
-//     user (the same scope or a narrower one) becomes a deny, unless the
-//     subject allows stack.down at exactly that scope;
+//     user (the same scope or a narrower one) becomes a deny, unless a
+//     stack.down allow of that subject, more specific than the deny, covers
+//     it (the most specific rule decided: down was allowed there);
 //   - a group's stack.down deny also becomes a stack.stop deny at its scope
 //     on every member's own rules (a user rule beats every group rule, and a
 //     higher group beats a lower one, so an allow elsewhere would otherwise
 //     win), with the member's narrower stack.stop allows turned into
-//     denies, unless the member allows stack.down at a scope covering it.
+//     denies, unless the member allows stack.down over the deny's scope or
+//     a group asked before the denying one does (it decided instead); a
+//     member's narrower stop allow under one of its own down allows stays.
 //
 // The documents that changed get a new permissions revision, so an editor
 // open on the old rules refuses to save over them. API token scopes (allow
@@ -98,7 +101,33 @@ func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
 	if err != nil {
 		return err
 	}
+	// Groups are asked highest first: by position, then ID.
+	type rank struct {
+		pos int
+		id  string
+	}
+	ranks := map[string]rank{}
+	rows, err = tx.QueryContext(ctx, `SELECT id, position FROM groups`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var r rank
+		if err := rows.Scan(&r.id, &r.pos); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		ranks[r.id] = r
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
+	before := func(a, b string) bool {
+		ra, rb := ranks[a], ranks[b]
+		return ra.pos < rb.pos || (ra.pos == rb.pos && ra.id < rb.id)
+	}
 	members := map[string][]string{}
+	memberOf := map[string][]string{}
 	rows, err = tx.QueryContext(ctx, `SELECT group_id, user_id FROM user_groups`)
 	if err != nil {
 		return err
@@ -110,6 +139,7 @@ func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
 			return err
 		}
 		members[g] = append(members[g], u)
+		memberOf[u] = append(memberOf[u], g)
 	}
 	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 		return err
@@ -126,13 +156,21 @@ func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
 		changed[t][r.subject] = true
 		return err
 	}
-	allowsDownAt := func(rules []permRule, subject string, s permScope) bool {
-		for _, r := range rules {
-			if r.subject == subject && r.capability == "stack.down" && r.effect == "allow" && r.scope == s {
-				return true
-			}
-		}
-		return false
+	// allowsDownOver reports whether the subject allows stack.down at a
+	// scope covering s and lying within (but not at) the deny's scope: that
+	// allow, more specific than the deny, decided there.
+	allowsDownOver := func(rules []permRule, subject string, s, deny permScope) bool {
+		return slices.ContainsFunc(rules, func(r permRule) bool {
+			return r.subject == subject && r.capability == "stack.down" && r.effect == "allow" &&
+				covers(r.scope, s) && covers(deny, r.scope) && r.scope != deny
+		})
+	}
+	// allowsDown reports whether the subject allows stack.down at a scope
+	// covering s.
+	allowsDown := func(rules []permRule, subject string, s permScope) bool {
+		return slices.ContainsFunc(rules, func(r permRule) bool {
+			return r.subject == subject && r.capability == "stack.down" && r.effect == "allow" && covers(r.scope, s)
+		})
 	}
 	// Same subject: a stack.stop allow under a stack.down deny becomes a deny.
 	for _, set := range []struct {
@@ -145,7 +183,7 @@ func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
 			}
 			for _, a := range set.rules {
 				if a.subject == d.subject && a.capability == "stack.stop" && a.effect == "allow" && covers(d.scope, a.scope) &&
-					!allowsDownAt(set.rules, a.subject, a.scope) {
+					!allowsDownOver(set.rules, a.subject, a.scope, d.scope) {
 					if err := deny(set.t, a); err != nil {
 						return err
 					}
@@ -159,14 +197,16 @@ func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
 			continue
 		}
 		for _, u := range members[d.subject] {
-			if slices.ContainsFunc(userRules, func(r permRule) bool {
-				return r.subject == u && r.capability == "stack.down" && r.effect == "allow" && covers(r.scope, d.scope)
+			// The member's own down allow, or a group asked before the
+			// denying one allowing down, decided over the whole scope.
+			if allowsDown(userRules, u, d.scope) || slices.ContainsFunc(memberOf[u], func(h string) bool {
+				return h != d.subject && before(h, d.subject) && allowsDown(groupRules, h, d.scope)
 			}) {
 				continue
 			}
 			for _, a := range userRules {
 				if a.subject == u && a.capability == "stack.stop" && a.effect == "allow" && covers(d.scope, a.scope) &&
-					!allowsDownAt(userRules, u, a.scope) {
+					!allowsDown(userRules, u, a.scope) {
 					if err := deny(users, a); err != nil {
 						return err
 					}
