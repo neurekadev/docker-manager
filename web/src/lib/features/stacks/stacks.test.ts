@@ -618,6 +618,38 @@ describe('StackHeader', () => {
 		});
 	});
 
+	it('takes a stopped stack down from the menu', async () => {
+		const user = setup();
+		const stopped = { engine: { state: 'stopped', services: [] } } as Partial<Stack>;
+		const tray = header(stack(stopped));
+		expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
+		const stop = await screen.findByRole('menuitem', { name: 'Stop' });
+		expect(stop).not.toHaveAttribute('aria-disabled', 'true');
+		await user.click(stop);
+		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
+		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
+		await waitFor(() => expect(tray.jobs).toHaveLength(1));
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			body: { action: 'down' }
+		});
+	});
+
+	it('turns Stop off for a stopped stack without stack.down', async () => {
+		const user = setup();
+		header(
+			stack({
+				actions: ALL.filter((a) => a !== 'stack.down'),
+				engine: { state: 'stopped', services: [] }
+			})
+		);
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
+		expect(await screen.findByRole('menuitem', { name: 'Stop' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+	});
+
 	it('only stops the containers without stack.down', async () => {
 		const user = setup();
 		const tray = header(stack({ actions: ALL.filter((a) => a !== 'stack.down') }));

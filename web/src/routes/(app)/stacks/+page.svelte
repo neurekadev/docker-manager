@@ -47,7 +47,11 @@
 		stopConsequences
 	} from '$lib/features/stacks/model';
 	import { stackJobGuidance } from '$lib/features/stacks/rename';
-	import { runningByStack, stackListMatch } from '$lib/features/stacks/list-jobs';
+	import {
+		restoringStacks,
+		runningByStack,
+		stackListMatch
+	} from '$lib/features/stacks/list-jobs';
 	import StackJobStatus from '$lib/features/stacks/StackJobStatus.svelte';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import StackIcon from '$lib/features/stacks/StackIcon.svelte';
@@ -112,6 +116,7 @@
 	// running list.
 	const stackJobs = useTrackedJobs(() => stackListMatch(envId));
 	const runningOf = $derived(runningByStack(stackJobs.entries));
+	const restoring = $derived(restoringStacks(stackJobs.entries));
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
@@ -282,6 +287,10 @@
 		const offline = !!s.readOnly || s.environmentOnline === false;
 		const st = stackStatus(s);
 		const stopped = ['stopped', 'down', 'missing', 'undeployed'].includes(st);
+		const stopAs = stackStopAction(s.actions);
+		// A restore starts what ran before itself: no start, restart or stop
+		// meanwhile (a Stop's down would remove those containers).
+		const lifecycle = !restoring.has(s.id);
 		const items: MenuEntry[] = [
 			{ label: `Open ${t}`, icon: SquareArrowOutUpRight, href: routes.stack(s.id) }
 		];
@@ -294,21 +303,22 @@
 			});
 		// Start, Restart, Stop: the order of the header's lifecycle menu.
 		// Start also starts the rest of a partially running stack.
-		if (can('stack.start') && (st === 'stopped' || (!stopped && st !== 'running')))
+		if (lifecycle && can('stack.start') && (st === 'stopped' || (!stopped && st !== 'running')))
 			items.push({
 				label: 'Start',
 				icon: Play,
 				disabled: offline,
 				onSelect: () => void operateNow(s, 'start')
 			});
-		if (can('stack.restart') && !stopped)
+		if (lifecycle && can('stack.restart') && !stopped)
 			items.push({
 				label: 'Restart',
 				icon: RotateCw,
 				disabled: offline || !!s.protection,
 				onSelect: () => void operateNow(s, 'restart')
 			});
-		if (stackStopAction(s.actions) && !stopped)
+		// A stop that takes the stack down also removes a stopped stack's containers.
+		if (lifecycle && stopAs && (!stopped || (stopAs === 'down' && st === 'stopped')))
 			items.push({
 				label: 'Stop…',
 				icon: Square,

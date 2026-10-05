@@ -322,14 +322,16 @@ reason; the page's notice says so up front). Start and Restart run at
 once; Stop confirms with its consequences. A stack's Stop (header and
 stack list) takes the stack down when the caller holds `stack.down`
 (`stackStopAction`: containers and networks removed, volumes, images and
-files kept; the stack is then `down` and the header offers Deploy), else
-it only stops the containers; the confirmation says which
+files kept; the stack is then `down` and the header offers Deploy, and
+a stopped stack's Stop stays on to remove its containers), else it only
+stops the containers; the confirmation says which
 (`stopConsequences`), and the tray uses Stop's words for both (also for
 an adopted `stack.down`, `adopt.ts`). A service's and a container's Stop
 are always a plain stop (Compose takes down whole projects only; the API
 refuses `services` on a down). A restore of the stack hides Start,
-Restart and Stop: it starts what ran before itself, and a down would
-remove those containers. Row menus (services table,
+Restart and Stop (header, and the stack list through `restoringStacks`):
+it starts what ran before itself, and a down would remove those
+containers. The list row of a running `stack.down` says "Stopping". Row menus (services table,
 stack and container lists) keep their own entries in the same order
 (Start, Restart, Stop…, Stop in the danger tone; the stack list's Start
 also starts the rest of a partially running stack). The services table's

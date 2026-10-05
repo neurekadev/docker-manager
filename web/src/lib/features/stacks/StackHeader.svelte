@@ -247,10 +247,12 @@
 				disabled: current === 'stopped' || protectedStack,
 				reason: locked
 			};
+		// A stop that takes the stack down also removes a stopped stack's
+		// containers.
 		if (stopAction && !restoring)
 			out.stop = {
 				run: () => (confirming = true),
-				disabled: current === 'stopped' || protectedStack,
+				disabled: (current === 'stopped' && stopAction !== 'down') || protectedStack,
 				reason: locked
 			};
 		return out;
