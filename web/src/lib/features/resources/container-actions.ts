@@ -4,7 +4,9 @@
 // server's refusal and its reason are shown (the page also says up front
 // what is refused). Recreate (#273) is offered only for standalone
 // containers that are not Docker Manager's own: a stack's containers are
-// recreated through the stack.
+// recreated through the stack. Remove is not offered where the server
+// always refuses it (#282): Docker Manager's own containers and those of a
+// managed stack (they go with the stack's Stop or Delete).
 import { api, unwrap, type ApiClient, type Job } from '$lib/api/client';
 import type { Container } from '$lib/api/queries';
 import { idempotencyKey } from './jobs.svelte';
@@ -58,7 +60,7 @@ export function containerActions(
 	}
 	if (c.state !== 'removing') {
 		if (!c.stack && !c.protection) verbs.push('recreate');
-		verbs.push('remove');
+		if (!c.protection && !c.stack?.managed) verbs.push('remove');
 	}
 	return verbs.map((v) => ACTIONS[v]).filter((a) => can(c.actions, a.capability));
 }

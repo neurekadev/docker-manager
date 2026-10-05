@@ -229,7 +229,7 @@ Backups now go to S3-compatible storage only. If you back up to a local
 folder, [add an S3 repository](/backups#1-add-a-repository) before you
 upgrade. The upgrade removes local-folder repositories and their backups
 from the app; the files stay in the folder. Then open **Backups**, check
-the settings with **Edit** and turn **Back Up Automatically** on again if
+the settings with **Edit Backups** and turn **Back Up Automatically** on again if
 it was turned off.
 
 Backup policies became one set of backup settings for every environment,
@@ -244,7 +244,7 @@ Good to know:
   `/var/lib/docker/volumes/docker-manager_stacks/_data/docker-manager`, and
   `/opt/docker-manager` is no longer used.
 - Upgrade the manager first, then your other servers: import each server's
-  `docker-manager` project the same way and use **Pull & Deploy** on it.
+  `docker-manager` project the same way and use **Pull and Deploy** on it.
 - To upgrade automatically, keep these stacks covered in the
   [update settings](/updates).
 - An agent you started with the single command is not a Compose project,

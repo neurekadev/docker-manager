@@ -287,21 +287,22 @@ URL once read) finds them again: a tracked job's `successFor`
 computes the success toast once it ended, from data read again (a deploy
 whose `appliedRevision.at` did not move started no container: "Nothing to
 deploy"). Deploy is the header's one primary action (a split button that
-deploys at once); its menu has "Deploy" and "Pull & Deploy" (one deploy
+deploys at once); its menu has "Deploy" and "Pull and Deploy" (one deploy
 with `pull: always`; the menu button's accessible label says "newer
-images are available" when `updateAvailable`), then after a separator
-"Force Recreate" (a deploy with `forceRecreate: true`: every container is
+images are available" when `updateAvailable`) and "Pull" (`pullStack`,
+a `stack.pull` job that deploys nothing), then after a separator
+"Force Recreate…" (a deploy with `forceRecreate: true`: every container is
 replaced even when unchanged; confirmed first with `recreateConsequences`,
 words from `deployTitle`/`deploySuccess`: "Force Recreate", "Recreated")
-and "Cleanup Orphans & Deploy". Stacks whose files on disk have a `build:`
+and "Deploy and Remove Old Containers…". Stacks whose files on disk have a `build:`
 section (`sourceBuild`, not the last deploy's `services`) get a
 secondary **Build** split button ("More Build Options"): "Build" and
-"Pull & Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
+"Pull and Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
 for newer base images; a `stack.build` job that deploys nothing, words
-from `buildCopy`) with `stack.build`, then after a separator "Build &
-Deploy" (`build: true`) and "Pull, Build & Deploy" (`pull: always` and
+from `buildCopy`) with `stack.build`, then after a separator "Build and
+Deploy" (`build: true`) and "Pull, Build and Deploy" (`pull: always` and
 `build: true`, which also pulls newer base images) with `stack.deploy`;
-its main part runs the first entry it has. "Cleanup Orphans & Deploy", whose
+its main part runs the first entry it has. "Deploy and Remove Old Containers…", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
 context's `removeOrphans` request) the overview's drift notice ("Remove Old
 Containers…") opens too. There is no separate Update button; schedules and

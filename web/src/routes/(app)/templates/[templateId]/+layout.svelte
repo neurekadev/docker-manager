@@ -15,6 +15,8 @@
 	import Tag from '@lucide/svelte/icons/tag';
 	import Upload from '@lucide/svelte/icons/upload';
 	import { ApiRequestError } from '$lib/api/client';
+	import { myPermissionsQuery } from '$lib/api/queries';
+	import { canAnywhere } from '$lib/features/stacks/model';
 	import LinkList from '$lib/features/common/LinkList.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import PublishDialog from '$lib/features/templates/PublishDialog.svelte';
@@ -65,7 +67,11 @@
 			out.push({ href: routes.template(id, 'settings'), label: 'Settings' });
 		return out;
 	});
-	const canCreateStack = $derived(can('template.use') && !!t?.latest);
+	// A stack from the template also needs Create Stacks in some environment (#282).
+	const perms = createQuery(() => myPermissionsQuery());
+	const canCreateStack = $derived(
+		can('template.use') && !!t?.latest && canAnywhere(perms.data, 'stack.create')
+	);
 	const meta = $derived.by((): MetaItem[] => {
 		if (!t || t.view !== 'full') return [];
 		const out: MetaItem[] = t.latest

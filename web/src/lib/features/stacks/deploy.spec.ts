@@ -16,7 +16,9 @@ describe('deploy outcomes', () => {
 	it('names what runs and what failed', () => {
 		expect(deployTitle('Silo', {})).toBe('Deploy Silo');
 		expect(deployTitle('Silo', { build: true })).toBe('Build and Deploy Silo');
-		expect(deployTitle('Silo', { removeOrphans: true })).toBe('Deploy Silo and Remove Orphans');
+		expect(deployTitle('Silo', { removeOrphans: true })).toBe(
+			'Deploy Silo and Remove Old Containers'
+		);
 		expect(deployTitle('Silo', { pull: true })).toBe('Pull and Deploy Silo');
 		expect(deployFailure('Silo', {})).toBe('Silo was not deployed');
 		expect(deployFailure('Silo', { pull: true })).toBe('Silo was not pulled and deployed');

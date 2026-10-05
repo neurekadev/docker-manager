@@ -149,12 +149,8 @@
 
 	function menu(v: Volume): MenuEntry[] {
 		const out: MenuEntry[] = [{ label: 'Open', href: routes.volume(v.environmentId, v.name) }];
-		if (
-			volumeAccess(v).local &&
-			!v.protection &&
-			!v.stack?.managed &&
-			can(v.actions, 'volume.files.read')
-		)
+		// Like the volume's page: a stack's volumes can be browsed too (#282).
+		if (volumeAccess(v).local && !v.protection && can(v.actions, 'volume.files.read'))
 			out.push({
 				label: 'Browse Files',
 				href: routes.volume(v.environmentId, v.name, 'files')
@@ -168,7 +164,8 @@
 				label: 'Migrate…',
 				href: routes.volume(v.environmentId, v.name, 'migrate')
 			});
-		if (can(v.actions, 'volume.remove'))
+		// Docker Manager's own volumes are never removed: no entry, like the volume's page.
+		if (can(v.actions, 'volume.remove') && !v.protection)
 			out.push(
 				{ separator: true },
 				{

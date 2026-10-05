@@ -150,7 +150,15 @@
 		return out;
 	});
 
-	const editable = $derived(!!c && c.view === 'full' && can(c.actions, 'container.update'));
+	// Settings: refused for Docker Manager's own containers and a managed
+	// stack's (they follow its Compose files), so not offered there (#282).
+	const editable = $derived(
+		!!c &&
+			c.view === 'full' &&
+			can(c.actions, 'container.update') &&
+			!c.protection &&
+			!c.stack?.managed
+	);
 
 	const overflow = $derived.by<MenuEntry[]>(() => {
 		if (!c) return [];
@@ -167,7 +175,7 @@
 				tone: 'danger',
 				onSelect: () => host?.request(c, 'recreate')
 			});
-		if (has('remove') && !c.protection)
+		if (has('remove'))
 			destructive.push({
 				label: 'Remove…',
 				tone: 'danger',

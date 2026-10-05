@@ -64,7 +64,7 @@ service of a deployed stack, a running service of a stopped stack, an
 unexpected service, a container running another image than the applied
 one). An unexpected service is usually an **orphan**: a service removed
 from the Compose file whose container is still on the host. A plain deploy
-keeps it; the UI's "Cleanup Orphans & Deploy" (the deploy
+keeps it; the UI's "Deploy and Remove Old Containers…" (the deploy
 body's `removeOrphans`, off by default) removes it. Its containers carry
 their image ID, networks and volume mounts (`volumes`: name, destination,
 read-only, anonymous; bind mounts are the stack's `binds`) in the full

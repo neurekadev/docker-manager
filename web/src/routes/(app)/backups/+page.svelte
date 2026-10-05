@@ -243,7 +243,9 @@
 					>
 				{/if}
 				{#if has(st, 'backup_policy.manage')}
-					<Button icon={Pencil} onclick={() => (editDialog.open = true)}>Edit</Button>
+					<Button icon={Pencil} onclick={() => (editDialog.open = true)}
+						>Edit Backups</Button
+					>
 				{/if}
 				{#if menu.length}
 					<Menu items={menu} label="More Backup Actions">

@@ -139,7 +139,7 @@ describe('Recreate (#273)', () => {
 		);
 		expect(dialog).toHaveTextContent('It starts again only if it was running.');
 		expect(fetch).not.toHaveBeenCalled();
-		await user.click(within(dialog).getByRole('button', { name: 'Recreate' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Recreate Container' }));
 		const alert = await within(dialog).findByRole('alert');
 		expect(alert).toHaveTextContent("web couldn't be recreated.");
 		expect(alert).toHaveTextContent('upgrade the agent');

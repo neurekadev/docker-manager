@@ -372,7 +372,7 @@ describe('StackHeader', () => {
 			)
 		).toBeInTheDocument();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Stop Stack' }));
 		await waitFor(() => expect(tray.jobs).toHaveLength(1));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/operations',
@@ -390,7 +390,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		const tray = header(stack());
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		expect(
 			within(dialog).getByText('Keeps its volumes and the project directory on the host.')
@@ -411,7 +411,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		header(stack());
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		expect(
 			within(dialog).queryByRole('checkbox', { name: /Also Remove the Stack’s Volumes/ })
@@ -422,7 +422,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		const tray = header(stack({ actions: [...ALL, 'volume.remove'] }));
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		const box = within(dialog).getByRole('checkbox', {
 			name: /Also Remove the Stack’s Volumes/
@@ -467,14 +467,14 @@ describe('StackHeader', () => {
 	it('pulls every image and deploys from the menu', async () => {
 		const user = setup();
 		const tray = header(stack());
-		// No separate Update button any more: Pull & Deploy replaces it.
+		// No separate Update button any more: Pull and Deploy replaces it.
 		expect(screen.queryByRole('button', { name: /^Update/ })).not.toBeInTheDocument();
 		await user.click(
 			await screen.findByRole('button', {
 				name: 'More Deploy Options (newer images are available)'
 			})
 		);
-		const item = await screen.findByRole('menuitem', { name: 'Pull & Deploy' });
+		const item = await screen.findByRole('menuitem', { name: 'Pull and Deploy' });
 		expect(item).not.toHaveAccessibleDescription();
 		await user.click(item);
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and Deploy Silo'));
@@ -532,11 +532,11 @@ describe('StackHeader', () => {
 		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
 		expect(menuEntries(await screen.findByRole('menu'))).toEqual([
 			'Deploy',
-			expect.stringMatching(/^Pull & Deploy/),
+			expect.stringMatching(/^Pull and Deploy/),
 			'Pull',
 			'---',
-			'Force Recreate',
-			'Cleanup Orphans & Deploy'
+			'Force Recreate…',
+			'Deploy and Remove Old Containers…'
 		]);
 	});
 
@@ -561,7 +561,7 @@ describe('StackHeader', () => {
 		});
 	});
 
-	it('pulls newer base images and builds with Pull & Build', async () => {
+	it('pulls newer base images and builds with Pull and Build', async () => {
 		const user = setup();
 		const tray = header(
 			stack({
@@ -573,12 +573,12 @@ describe('StackHeader', () => {
 		const menu = await screen.findByRole('menu');
 		expect(menuEntries(menu)).toEqual([
 			'Build',
-			'Pull & Build',
+			'Pull and Build',
 			'---',
-			'Build & Deploy',
-			'Pull, Build & Deploy'
+			'Build and Deploy',
+			'Pull, Build and Deploy'
 		]);
-		await user.click(within(menu).getByRole('menuitem', { name: 'Pull & Build' }));
+		await user.click(within(menu).getByRole('menuitem', { name: 'Pull and Build' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull and Build Images of Silo'));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/builds',
@@ -586,15 +586,15 @@ describe('StackHeader', () => {
 		});
 	});
 
-	it('offers the build deploys without stack.build and pulls newer base images with Pull, Build & Deploy', async () => {
+	it('offers the build deploys without stack.build and pulls newer base images with Pull, Build and Deploy', async () => {
 		const user = setup();
 		const tray = header(stack({ sourceBuild: true }));
 		// Without stack.build the main part builds and deploys.
-		expect(screen.getByRole('button', { name: 'Build & Deploy' })).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Build and Deploy' })).toBeEnabled();
 		await user.click(screen.getByRole('button', { name: 'More Build Options' }));
 		const menu = await screen.findByRole('menu');
-		expect(menuEntries(menu)).toEqual(['Build & Deploy', 'Pull, Build & Deploy']);
-		await user.click(within(menu).getByRole('menuitem', { name: 'Pull, Build & Deploy' }));
+		expect(menuEntries(menu)).toEqual(['Build and Deploy', 'Pull, Build and Deploy']);
+		await user.click(within(menu).getByRole('menuitem', { name: 'Pull, Build and Deploy' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull, Build and Deploy Silo'));
 		expect(tray.jobs[0]).toMatchObject({ failure: 'Silo was not pulled, built and deployed' });
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
@@ -624,19 +624,25 @@ describe('StackHeader', () => {
 		const menu = await screen.findByRole('menu');
 		expect(menuEntries(menu)).toEqual([
 			'Deploy',
-			expect.stringMatching(/^Pull & Deploy/),
+			expect.stringMatching(/^Pull and Deploy/),
 			'Pull',
 			'---',
-			'Force Recreate',
-			'Cleanup Orphans & Deploy'
+			'Force Recreate…',
+			'Deploy and Remove Old Containers…'
 		]);
-		await user.click(within(menu).getByRole('menuitem', { name: 'Cleanup Orphans & Deploy' }));
+		await user.click(
+			within(menu).getByRole('menuitem', { name: 'Deploy and Remove Old Containers…' })
+		);
 		const dialog = await screen.findByRole('alertdialog', {
-			name: 'Deploy Silo and remove orphaned containers?'
+			name: 'Deploy Silo and remove old containers?'
 		});
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(within(dialog).getByRole('button', { name: 'Deploy and Remove Orphans' }));
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Deploy Silo and Remove Orphans'));
+		await user.click(
+			within(dialog).getByRole('button', { name: 'Deploy and Remove Old Containers' })
+		);
+		await waitFor(() =>
+			expect(tray.jobs[0]?.title).toBe('Deploy Silo and Remove Old Containers')
+		);
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
 			body: { removeOrphans: true }
@@ -647,7 +653,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		const tray = header(stack());
 		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Force Recreate' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Force Recreate…' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Force Recreate Silo?' });
 		expect(
 			within(dialog).getByText(
@@ -655,7 +661,7 @@ describe('StackHeader', () => {
 			)
 		).toBeInTheDocument();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(within(dialog).getByRole('button', { name: 'Force Recreate' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Force Recreate Stack' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Force Recreate Silo'));
 		expect(tray.jobs[0]).toMatchObject({
 			success: 'Recreated Silo',
@@ -677,7 +683,7 @@ describe('StackHeader', () => {
 		expect(stop).not.toHaveAttribute('aria-disabled', 'true');
 		await user.click(stop);
 		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
-		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
+		await user.click(within(dialog).getByRole('button', { name: 'Stop Stack' }));
 		await waitFor(() => expect(tray.jobs).toHaveLength(1));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			body: { action: 'down' }
@@ -991,9 +997,9 @@ describe('ServicesTable', () => {
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
 			'Restart web',
-			'Stop web'
+			'Stop web…'
 		]);
-		await user.click(screen.getByRole('menuitem', { name: 'Stop web' }));
+		await user.click(screen.getByRole('menuitem', { name: 'Stop web…' }));
 		expect(onoperate).toHaveBeenCalledWith('web', 'stop');
 		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Start worker' }));
@@ -1016,7 +1022,7 @@ describe('ServicesTable', () => {
 		});
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
-			'Stop web'
+			'Stop web…'
 		]);
 		await user.keyboard('{Escape}');
 		expect(
@@ -1041,10 +1047,10 @@ describe('ServicesTable', () => {
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
 			'Restart web',
-			'Stop web',
-			'Force Recreate web'
+			'Stop web…',
+			'Force Recreate web…'
 		]);
-		const item = screen.getByRole('menuitem', { name: 'Force Recreate web' });
+		const item = screen.getByRole('menuitem', { name: 'Force Recreate web…' });
 		expect(item).not.toHaveAttribute('aria-disabled', 'true');
 		await user.click(item);
 		expect(onrecreate).toHaveBeenCalledWith('web');
@@ -1063,7 +1069,7 @@ describe('ServicesTable', () => {
 		});
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect(
-			screen.queryByRole('menuitem', { name: 'Force Recreate web' })
+			screen.queryByRole('menuitem', { name: 'Force Recreate web…' })
 		).not.toBeInTheDocument();
 		unmount();
 		render(ServicesTable, {
@@ -1281,7 +1287,7 @@ describe('ServicesTable', () => {
 			'aria-disabled',
 			'true'
 		);
-		expect(screen.getByRole('menuitem', { name: 'Stop web' })).toHaveAttribute(
+		expect(screen.getByRole('menuitem', { name: 'Stop web…' })).toHaveAttribute(
 			'aria-disabled',
 			'true'
 		);

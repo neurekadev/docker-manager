@@ -21,9 +21,11 @@
 		capacityQuery,
 		stackMetricsQuery,
 		stackImageStatusQuery,
+		stackJobsQuery,
 		stackServicesQuery
 	} from '$lib/features/stacks/queries';
 	import ServicesTable from '$lib/features/stacks/ServicesTable.svelte';
+	import { activeRestore } from '$lib/features/backups/restore';
 	import StackKpis from '$lib/features/stacks/StackKpis.svelte';
 	import { latestContainerMetricsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -86,7 +88,13 @@
 	const notes = $derived(driftNotes(services.data?.services));
 	const onlyOrphans = $derived(notes.length > 0 && notes.every((n) => n.orphan));
 	const hasOrphans = $derived(notes.some((n) => n.orphan));
-	const canDeploy = $derived(stack.actions.includes('stack.deploy') && !readOnly);
+	// A restore of the stack's data starts what ran before itself: no deploy,
+	// start, restart or stop meanwhile, like the header (#282).
+	const stackJobs = createQuery(() => stackJobsQuery(stack.id));
+	const restoreRunning = $derived(!!activeRestore(stackJobs.data));
+	const canDeploy = $derived(
+		stack.actions.includes('stack.deploy') && !readOnly && !restoreRunning
+	);
 	const queryClient = useQueryClient();
 	let deploying = $state(false);
 	async function deployNow() {
@@ -230,6 +238,7 @@
 				ondeploy={canDeploy ? deployNow : undefined}
 				{deploying}
 				{readOnly}
+				restoring={restoreRunning}
 			/>
 		{/if}
 	</Card>
@@ -240,7 +249,7 @@
 		bind:open={confirming}
 		title="{VERB[op.action][0]} {op.service}?"
 		consequences={consequence}
-		confirmLabel={VERB[op.action][0]}
+		confirmLabel="{VERB[op.action][0]} Service"
 		tone="danger"
 		onconfirm={run}
 	/>
@@ -251,7 +260,7 @@
 		bind:open={recreating}
 		title="Force Recreate {recreate}?"
 		consequences={recreateConsequences(title, recreate)}
-		confirmLabel="Force Recreate"
+		confirmLabel="Force Recreate Service"
 		tone="danger"
 		onconfirm={runRecreate}
 	/>

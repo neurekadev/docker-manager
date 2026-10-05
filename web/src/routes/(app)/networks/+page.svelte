@@ -104,7 +104,9 @@
 
 	function menu(n: Net): MenuEntry[] {
 		const out: MenuEntry[] = [{ label: 'Open', href: routes.network(n.environmentId, n.name) }];
-		if (can(n.actions, 'network.remove'))
+		// Predefined and Docker Manager's own networks are never removed: no
+		// entry, like the network's page.
+		if (can(n.actions, 'network.remove') && !n.builtin && !n.protection)
 			out.push(
 				{ separator: true },
 				{

@@ -296,7 +296,7 @@
 			{/if}
 			{#if canRun && preview && count > 0 && !preview.sourceDrift}
 				<Button variant="primary" loading={starting} onclick={apply}>
-					Update {count}
+					Apply Updates to {count}
 					{count === 1 ? 'Service' : 'Services'}
 				</Button>
 			{/if}

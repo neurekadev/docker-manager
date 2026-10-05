@@ -373,7 +373,8 @@
 {/snippet}
 {#snippet actionsCell(t: TargetRow)}
 	{@const p = byId.get(t.policyId)}
-	{#if p && p.view === 'full'}
+	<!-- The preview checks the registries: Check for Image Updates (#282). -->
+	{#if p && p.view === 'full' && p.actions.includes('update.check')}
 		<Button size="sm" variant="secondary" icon={Eye} onclick={() => previewTarget(t, p)}
 			>Preview Update</Button
 		>

@@ -3,7 +3,7 @@
 // the running jobs list (after a reload, or when the user returns to the
 // Files tab), Cancel works for it, and its end is announced once.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
@@ -109,6 +109,12 @@ describe('OperationsPanel', () => {
 		expect(screen.getAllByRole('progressbar')).toHaveLength(1);
 
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
+		// It asks first (#282).
+		const dialog = await screen.findByRole('alertdialog', {
+			name: 'Cancel Copy Files in config?'
+		});
+		expect(cancelled).toEqual([]);
+		await user.click(within(dialog).getByRole('button', { name: 'Cancel Operation' }));
 		await waitFor(() => expect(cancelled).toEqual(['0190-1']));
 		expect(await screen.findByText('Cancelling: Copy Files in config')).toBeInTheDocument();
 	});

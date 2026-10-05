@@ -38,9 +38,9 @@
 
 <ConfirmDialog
 	bind:open={request.open}
-	title="Deploy {title} and remove orphaned containers?"
+	title="Deploy {title} and remove old containers?"
 	{consequences}
-	confirmLabel="Deploy and Remove Orphans"
+	confirmLabel="Deploy and Remove Old Containers"
 	tone="danger"
 	onconfirm={() => startDeploy(stack, { removeOrphans: true }, tray, queryClient)}
 />

@@ -196,6 +196,21 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   that are sentences, toasts, errors, confirmations, empty-state bodies and
   anything ending in ".", "!" or "?". The manager's notification labels
   follow the same rule (`alerts/message.go`).
+- **Action wording** (#282): one name per action everywhere (menu, button,
+  confirmation, tray, docs); "and", never "&" ("Pull and Deploy"); a menu
+  item that opens a dialog or confirmation ends in "…" ("Delete…",
+  "Force Recreate…"), buttons do not; a confirmation's button names the
+  verb and the noun ("Stop Stack", "Recreate Container", "Force Recreate
+  Service").
+- **Gates** (#282): offer an action only with the capability the server
+  checks for it (a deploy after creating a stack: `stack.deploy` in the
+  environment; a stack from a template: `stack.create` somewhere; a
+  preview: `update.check`; re-attaching: `agent.enroll`; cancelling: the
+  job's `cancellable`), and never one the server always refuses for that
+  object (Docker Manager's own objects, a managed stack's containers for
+  Remove and Settings), on lists and detail pages alike. A restore of a
+  stack hides its Deploy, Start, Restart and Stop wherever they are
+  offered (`activeRestore`).
 - **Tests:** unit tests only: `*.spec.ts` (Node logic), `*.test.ts` (jsdom
   components with `@testing-library/svelte`: roles, labels, keyboard,
   focus). Components reading queries: `web/src/test/QueryHarness.svelte`
