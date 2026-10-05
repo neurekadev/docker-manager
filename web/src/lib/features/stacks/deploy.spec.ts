@@ -97,14 +97,14 @@ describe('stack stop', () => {
 	it('says what a stop removes and keeps, anonymous volumes included', () => {
 		expect(stopConsequences('3 containers', 0)).toEqual([
 			'Stops and removes 3 containers and the stack’s networks.',
-			'Named volumes, images and files are kept; Deploy starts the stack again.'
+			'Named volumes, images and files are kept; Start brings the stack up again from its last deployed files.'
 		]);
 		expect(stopConsequences('3 containers', 2)[1]).toBe(
-			'Leaves its 2 anonymous volumes behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.'
+			'Leaves its 2 anonymous volumes behind: the next Start or Deploy creates new, empty ones. Their data stays on the host until a prune removes it.'
 		);
 		// Unknown (services not loaded or not visible): said in general.
 		expect(stopConsequences('3 containers')[1]).toBe(
-			'Anonymous volumes, if it has any, are left behind: the next Deploy starts with new, empty ones.'
+			'Anonymous volumes, if it has any, are left behind: the next Start or Deploy creates new, empty ones.'
 		);
 	});
 });

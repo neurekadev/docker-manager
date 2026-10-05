@@ -141,12 +141,15 @@ func capabilities() []Capability {
 
 	// Stacks.
 	stackScope := res(TypeStack)
+	// Start, Stop and Restart also act on single services (#280): a rule on
+	// a service covers that service's operations, the stack's need the stack.
+	lifecycleScope := res(TypeStack, TypeService)
 	add(
 		normal("stack.read", TypeStack, "View Stacks", "See a stack's details, services and events. Does not open its containers, files or Compose definition.", stackScope),
-		normal("stack.deploy", TypeStack, "Deploy", "Deploy a stack from its current on-disk Compose sources.", stackScope),
-		normal("stack.start", TypeStack, "Start Stack", "Start all services of a stack.", stackScope),
-		normal("stack.stop", TypeStack, "Stop Stack", "Stop a stack: its Stop runs Compose down (containers and networks removed; named volumes, images and files kept). A service's Stop only stops its containers.", stackScope),
-		normal("stack.restart", TypeStack, "Restart Stack", "Restart all services of a stack.", stackScope),
+		normal("stack.deploy", TypeStack, "Deploy", "Apply a stack's Compose files from disk (Compose up): pull and build the images it needs and recreate what changed. Also Pull, Pull and Deploy, Build and Deploy, Force Recreate and removing old containers.", stackScope),
+		normal("stack.start", TypeStack, "Start Stack", "Start a stack or its services. A stopped stack comes back up from its last deployed files. On a service: that service and the services it depends on.", lifecycleScope),
+		normal("stack.stop", TypeStack, "Stop Stack", "Stop a stack: Compose down (containers and networks removed; volumes, images and files kept). On a service: only its containers stop.", lifecycleScope),
+		normal("stack.restart", TypeStack, "Restart Stack", "Restart a stack or its services. On a service: that service and the services that restart with it.", lifecycleScope),
 		high("stack.definition.read", TypeStack, "View Compose Definition", "Read the stack's Compose files, override files, env files and revisions, also as part of a folder. They may contain secrets.", stackScope),
 		high("stack.definition.write", TypeStack, "Edit Compose Definition", "Change the stack's Compose files, override files and env files, also as part of a folder, and restore revisions.", stackScope),
 		// High risk (#12 security review): creating a stack writes its whole
@@ -156,7 +159,6 @@ func capabilities() []Capability {
 		adv(normal("stack.import", TypeStack, "Import Stacks", "Discover and adopt existing Compose projects.", instEnv)),
 		adv(normal("stack.manage", TypeStack, "Edit Stack Settings", "Edit a stack's display name, description, links and service descriptions.", stackScope)),
 		adv(normal("stack.build", TypeStack, "Build Stack Images", "Build the images of a stack's Compose build sections.", stackScope)),
-		adv(normal("stack.update", TypeStack, "Update Stack Images", "Pull a stack's images (Pull) and recreate the services whose image changed (image updates).", stackScope)),
 		adv(high("stack.remove", TypeStack, "Delete Stacks", "Remove a stack and its containers. Removing the volumes it owns too also needs Remove Volumes on the stack.", stackScope)),
 		adv(high("stack.rename", TypeStack, "Rename Stack Project", "Change a stack's Compose project name: it stops and starts again, its volumes and project directory move to the new name, and containers outside the stack that use those volumes are stopped and recreated.", stackScope)),
 		adv(high("stack.migrate", TypeStack, "Migrate Stacks", "Move a stack and its volumes to another environment (also needs stack.create on the target environment). Stack rules follow the stack; environment rules do not.", stackScope)),

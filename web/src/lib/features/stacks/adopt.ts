@@ -58,11 +58,6 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		success: `Built images of ${t}`,
 		failure: `The images of ${t} were not built`
 	}),
-	'stack.update': (t) => ({
-		title: `Update ${t}`,
-		success: `Updated ${t}`,
-		failure: `${t} was not updated`
-	}),
 	// A stack's Stop runs Compose down: the words of Stop.
 	'stack.down': (t) => ({
 		title: `Stop ${t}`,

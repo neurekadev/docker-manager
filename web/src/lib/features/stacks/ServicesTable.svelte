@@ -93,6 +93,10 @@
 		readOnly = false
 	}: Props = $props();
 	const can = (a: string) => stack.actions.includes(a);
+	// What the caller may do with one service: Start, Stop and Restart may
+	// be granted on the service alone (#280); its actions also hold the
+	// stack's and its containers' capabilities.
+	const canOn = (s: StackServiceStatus, a: string) => (s.actions ?? stack.actions).includes(a);
 
 	/** Every service has the same tile: services have no icon of their own. */
 	const SERVICE_TILE = resourceIcon('service');
@@ -126,20 +130,20 @@
 		const running = runningOf(s).running > 0;
 		// Start, Restart, Stop: the order of the header's lifecycle menu.
 		if (!readOnly && onoperate) {
-			if (!running && can('stack.start'))
+			if (!running && canOn(s, 'stack.start'))
 				items.push({
 					label: `Start ${s.name}`,
 					icon: Play,
 					onSelect: () => onoperate(s.name, 'start')
 				});
-			if (running && can('stack.restart'))
+			if (running && canOn(s, 'stack.restart'))
 				items.push({
 					label: `Restart ${s.name}`,
 					icon: RotateCw,
 					disabled: !!stack.protection,
 					onSelect: () => onoperate(s.name, 'restart')
 				});
-			if (running && can('stack.stop'))
+			if (running && canOn(s, 'stack.stop'))
 				items.push({
 					label: `Stop ${s.name}`,
 					icon: Square,
@@ -156,15 +160,16 @@
 				onSelect: () => onrecreate(s.name)
 			});
 		const named = s.containers.filter((c) => c.name);
-		const more = can('container.logs.read') || (can('container.details.read') && named.length);
+		const more =
+			canOn(s, 'container.logs.read') || (canOn(s, 'container.details.read') && named.length);
 		if (more && items.length) items.push({ separator: true });
-		if (can('container.logs.read'))
+		if (canOn(s, 'container.logs.read'))
 			items.push({
 				label: `Logs of ${s.name}`,
 				icon: ScrollText,
 				href: routes.stackLogs(stack.id, s.name)
 			});
-		if (can('container.details.read'))
+		if (canOn(s, 'container.details.read'))
 			for (const c of named)
 				items.push({
 					label: named.length === 1 ? 'Container Details' : `Container ${c.name}`,

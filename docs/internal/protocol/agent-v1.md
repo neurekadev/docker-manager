@@ -523,6 +523,11 @@ rename for other agents. And `stack.pull` (`protocol.FeatureStackPull`):
 only those agents execute `stack.pull` (pull a stack's images, change no
 container; result output `pulled`: the services whose tag now names
 another image); the manager refuses a pull-only request for other agents.
+`stack.start` inputs carry `appliedHash` (#280, no feature): newer agents
+bring a project without containers (taken down) up with Compose up from
+its definition on disk when it still hashes to it, else fail with
+`stack_definition_changed` (`protocol.StackClassDefinitionChanged`); older
+agents ignore the field and refuse a project without containers.
 And `container.recreate` (`protocol.FeatureContainerRecreate`, #273): only
 those agents execute `container.recreate` (the `container.*` action input:
 `name`, `id`, optional `timeoutSeconds`; replaces a standalone container
@@ -1029,13 +1034,12 @@ enqueueing and again at dispatch for queued manual jobs.
 | `stack.down` | command | `stack.stop` |
 | `stack.import` | command | `stack.import` |
 | `stack.remove` | command | `stack.remove` |
-| `stack.pull` | command | `stack.update` |
+| `stack.pull` | command | `stack.deploy` |
 | `stack.remove_source` | command | `stack.migrate` |
 | `stack.rename` | command | `stack.rename` |
 | `stack.restart` | command | `stack.restart` |
 | `stack.start` | command | `stack.start` |
 | `stack.stop` | command | `stack.stop` |
-| `stack.update` | command | `stack.update` |
 | `update.run` | command | `update.run` |
 | `volume.create` | command | `volume.create` |
 | `volume.remove` | command | `volume.remove` |

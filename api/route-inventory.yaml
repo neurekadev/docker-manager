@@ -1370,7 +1370,7 @@ routes:
     owner: 7
     kind: json
     status: implemented
-    notes: "202 + job; the body's action selects the capability (down, Compose down, needs stack.stop)."
+    notes: "202 + job; the body's action selects the capability: stop without services is Compose down (down is its alias); with services the capability is needed on every service the operation acts on."
   - method: POST
     path: "/api/v1/stacks/{stackId}/revision-restores"
     operationId: create-stack-revision-restore
@@ -1407,7 +1407,7 @@ routes:
   - method: POST
     path: "/api/v1/stacks/{stackId}/pulls"
     operationId: create-stack-pull
-    capability: stack.update
+    capability: stack.deploy
     scope: resource
     owner: 20
     kind: json

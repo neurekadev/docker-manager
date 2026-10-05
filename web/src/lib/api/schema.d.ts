@@ -4230,8 +4230,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start, stop, restart or bring down a stack
-         * @description Starts a stack.start/stop/restart/down job (202); the body's action selects the capability (down, Compose down, needs stack.stop). Start, stop and restart follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.
+         * Start, stop or restart a stack or its services
+         * @description Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. A stack's stop (no services) is Compose down (a stack.down job; down is its alias, needs stack.stop): containers and networks removed, never volumes. With services, start, stop and restart act on those services and need the capability on every service the operation acts on (granted on the service, the stack, the environment or the instance): start starts dependencies first and waits for their depends_on conditions, restart propagates to restart: true dependents, stop only stops the services' containers. A start of a stack that was taken down brings it up from the files of its last deploy; 409 stack_definition_changed when they changed since (deploy it instead).
          */
         post: operations["create-stack-operation"];
         delete?: never;
@@ -4251,7 +4251,7 @@ export interface paths {
         put?: never;
         /**
          * Pull a stack's images
-         * @description Starts a stack.pull job (202): the agent pulls the images of the stack's definition on disk (with the registry connections a deploy would use; build-only services are skipped) and changes no container. Services whose reference now names another image than the one they run show it in image-status (pulledImageId) until the next deploy runs it. Needs stack.update and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).
+         * @description Starts a stack.pull job (202): the agent pulls the images of the stack's definition on disk (with the registry connections a deploy would use; build-only services are skipped) and changes no container. Services whose reference now names another image than the one they run show it in image-status (pulledImageId) until the next deploy runs it. Needs stack.deploy (a deploy pulls too) and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).
          */
         post: operations["create-stack-pull"];
         delete?: never;
@@ -10113,13 +10113,13 @@ export interface components {
         };
         OperateStackInputBody: {
             /**
-             * @description Required; selects the capability: stack.start, stack.stop or stack.restart (down, Compose down, needs stack.stop).
+             * @description Required; selects the capability: stack.start, stack.stop or stack.restart. stop without services is Compose down (down is its alias).
              * @example restart
              * @enum {string}
              */
             action?: "start" | "stop" | "restart" | "down";
             /**
-             * @description Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules.
+             * @description Only these services (start/stop/restart; stop then only stops their containers). The capability is needed on every service the operation acts on: a start also starts their dependencies, a restart their restart: true dependents.
              * @example [
              *       "web"
              *     ]
@@ -12500,6 +12500,8 @@ export interface components {
             service: string;
         };
         StackServiceStatus: {
+            /** @description The granted capabilities that apply to the service: stack.start, stack.stop and stack.restart granted on it (or on its stack, environment or instance) act on it alone, and the container capabilities its containers inherit. */
+            actions: string[];
             /** @description Image applied by the last deploy. */
             applied?: components["schemas"]["StackImage"];
             build: boolean;
@@ -46831,6 +46833,9 @@ export interface operations {
                      *       "observedAt": "2026-09-25T12:00:00Z",
                      *       "services": [
                      *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
                      *           "applied": {
                      *             "build": false,
                      *             "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",

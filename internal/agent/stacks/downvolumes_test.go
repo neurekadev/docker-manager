@@ -94,3 +94,34 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 		t.Fatalf("remove: %+v record %v", res, store.Volumes("app"))
 	}
 }
+
+// TestStartBringsATakenDownStackUpFromItsDeployedFiles: a start of a
+// project without containers (taken down) runs Compose up from the files
+// on disk when they still hash to the applied revision, and refuses with
+// stack_definition_changed when they changed; without the hash (an older
+// manager) it still asks for a deploy (#280).
+func TestStartBringsATakenDownStackUpFromItsDeployedFiles(t *testing.T) {
+	e, dir := deployFixture(t)
+	e.svc.opts.DownVolumes = downvolumes.New(t.TempDir())
+	deployed := protocol.NewSourceSnapshot([]protocol.SourceFile{
+		{Path: ".env", Content: []byte("DB_TAG=16\n")}, {Path: "compose.yaml", Content: []byte(appYAML)},
+		{Path: "db.env", Content: []byte("POSTGRES_PASSWORD=pw\n")}}).Hash
+
+	if res, _ := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app")}); res.Outcome == jobexec.OutcomeSucceeded {
+		t.Fatalf("start without containers nor hash: %+v", res)
+	}
+	res, out := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed, Services: []string{"web"}})
+	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(e.c.calls, []string{"up:app"}) ||
+		!slices.Equal(e.c.upServices[0], []string{"web"}) || len(out.After) != 2 {
+		t.Fatalf("start from the deployed files: %+v calls %v services %v after %+v", res, e.c.calls, e.c.upServices, out.After)
+	}
+
+	e.eng.mu.Lock()
+	e.eng.containers = nil
+	e.eng.mu.Unlock()
+	writeTree(t, dir, map[string]string{".env": "DB_TAG=17\n"})
+	res, _ = run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed})
+	if res.Outcome == jobexec.OutcomeSucceeded || res.ErrorClass != protocol.StackClassDefinitionChanged || len(e.c.calls) != 1 {
+		t.Fatalf("start after the files changed: %+v calls %v", res, e.c.calls)
+	}
+}

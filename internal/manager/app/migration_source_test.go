@@ -53,7 +53,7 @@ func TestMigrationCutOverFollowUps(t *testing.T) {
 		header("Idempotency-Key", "migrate-1")))
 	// A scheduled update run of the stack, queued against the source while
 	// the migration holds the stack lock.
-	upd, _, err := e.m.Jobs().Enqueue(ctx, jobs.Request{Kind: jobspec.StackUpdate, Principal: authz.Service(), EnvironmentID: nas.env,
+	upd, _, err := e.m.Jobs().Enqueue(ctx, jobs.Request{Kind: jobspec.UpdateRun, Principal: authz.Service(), EnvironmentID: nas.env,
 		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Input: map[string]any{"stackId": st.ID}})
 	if err != nil {
 		t.Fatal(err)

@@ -36,7 +36,6 @@ const (
 	StackDown    domain.JobKind = "stack.down"
 	StackRemove  domain.JobKind = "stack.remove"
 	StackBuild   domain.JobKind = "stack.build"
-	StackUpdate  domain.JobKind = "stack.update"
 	StackMigrate domain.JobKind = "stack.migrate"
 	// EnvironmentMigrate moves the stacks of an environment to another one,
 	// group by group, each as its own stack.migrate job (#35).
@@ -284,18 +283,11 @@ func catalogSpecs() []Spec {
 			s.ConcurrencyClass = ClassBuild
 			return s
 		}(),
-		func() Spec {
-			s := stackKind(StackUpdate, "Pull a stack's images and recreate changed services", deadlineLong,
-				idem("pull_images"), idem("apply"))
-			s.ConcurrencyClass = ClassPull
-			s.StartsContainers = true
-			return s
-		}(),
 		// Pull only: the images are downloaded, no container changes; the
-		// capability is stack.update's (pulling is its first half).
+		// capability is stack.deploy's (a deploy pulls too, #280).
 		func() Spec {
 			s := stackKind(StackPull, "Pull a stack's images without deploying them", deadlineLong, idem("pull_images"))
-			s.Capability = "stack.update"
+			s.Capability = "stack.deploy"
 			s.ConcurrencyClass = ClassPull
 			return retryable(s)
 		}(),

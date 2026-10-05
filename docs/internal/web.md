@@ -324,12 +324,14 @@ stack list) runs Compose down with `stack.stop` (the `down` operation;
 #274: there is no separate down permission): containers and networks
 removed, named volumes, images and files kept; the stack is then `down`,
 which reads "Stopped" (`status.ts`; the stack list's Stopped filter
-matches it too), and the header offers Deploy; a stopped stack's Stop
-stays on to remove its containers. The confirmation
+matches it too), and the header and list offer Start (#280: Compose up
+from the last deployed files; off with "The files changed since the last
+deploy…" when `undeployedChanges`, so Deploy starts it) and no Stop; a
+stopped stack's Stop stays on to remove its containers. The confirmation
 (`stopConsequences`) says how many anonymous volumes are left behind
 (`anonymousVolumeCount` over the services, loaded when the dialog opens;
-said in general while unknown), since the next deploy creates new, empty
-ones, and the tray uses Stop's words (also for an adopted `stack.down`,
+said in general while unknown), since the next start or deploy creates
+new, empty ones, and the tray uses Stop's words (also for an adopted `stack.down`,
 `adopt.ts`). A service's and a container's Stop
 are always a plain stop (Compose takes down whole projects only; the API
 refuses `services` on a down). A restore of the stack hides Start,
@@ -338,8 +340,10 @@ it starts what ran before itself, and a down would remove those
 containers. The list row of a running `stack.down` says "Stopping". Row menus (services table,
 stack and container lists) keep their own entries in the same order
 (Start, Restart, Stop…, Stop in the danger tone; the stack list's Start
-also starts the rest of a partially running stack). The services table's
-row menu adds "Force Recreate <service>" after them with `stack.deploy`
+also starts the rest of a partially running stack). The services table
+gates each row on the service's own `actions` (Start, Stop and Restart may
+be granted on one service, #280; they also hold the stack's and the
+containers' capabilities) and its row menu adds "Force Recreate <service>" after them with `stack.deploy`
 (on for Docker Manager's own stack, whose deploys work): a deploy with
 `forceRecreate` and `services: [<service>]`, confirmed on the stack page
 first; Compose recreates the service's dependencies only when they
@@ -356,9 +360,13 @@ confirms it (`ConfirmDialog`: the image, volumes kept, changes outside
 volumes lost, started again only if it ran) before
 `POST …/containers/{id}/recreate`.
 
-There is no separate down action in the UI: a stack's Stop is one. Job
-and alert labels name the `stack.down` job "Stop (Down)" / "Stop Stack
-(Down)" (Compose's word in brackets), never "Take Down". A stack whose containers vanished
+There is no separate down action in the UI: a stack's Stop is one. The
+job labels (`jobs/labels.ts`, one map for the Jobs page, the tray and the
+stack's Activity tab, whose audit rows fall back to it) name the
+`stack.down` job "Stop Stack" and the `stack.stop` job, now only a
+service's stop, "Stop Services"; never "Take Down". The deploy menu's
+**Pull** (`stack.deploy`, #280) pulls the images without deploying them
+(`stack.pull`). A stack whose containers vanished
 outside Docker Manager reads "Missing" (the containers list keeps "Not
 Running" for every state but running). The header hides its actions while the migration wizard
 is open, and Migrate while the caller sees one environment.

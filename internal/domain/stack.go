@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -231,6 +232,47 @@ func (s Stack) UndeployedChanges() bool {
 		return false
 	}
 	return s.Applied == nil || s.Applied.Hash != s.Observed.Hash
+}
+
+// TouchedServices returns the services an operation on services acts on in
+// the deployed definition's dependency graph, like the agent's lifecycle: a
+// start also starts the services they depend on (transitively), a restart
+// also restarts the services depending on them with restart: true
+// (transitively), a stop stops only them. Unknown names are kept.
+func (s Stack) TouchedServices(action string, services []string) []string {
+	deps := map[string][]StackDependency{}
+	for _, sv := range s.Services {
+		deps[sv.Name] = sv.DependsOn
+	}
+	seen := map[string]bool{}
+	var walk func(n string)
+	walk = func(n string) {
+		if seen[n] {
+			return
+		}
+		seen[n] = true
+		switch action {
+		case "start":
+			for _, d := range deps[n] {
+				walk(d.Service)
+			}
+		case "restart":
+			for other, ds := range deps {
+				if slices.ContainsFunc(ds, func(d StackDependency) bool { return d.Service == n && d.Restart }) {
+					walk(other)
+				}
+			}
+		}
+	}
+	for _, n := range services {
+		walk(n)
+	}
+	out := make([]string, 0, len(seen))
+	for n := range seen {
+		out = append(out, n)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // StackFile is one definition file of a revision.

@@ -2,6 +2,7 @@
 // into what the stack pages show. No Svelte, no fetch: tested in
 // model.spec.ts.
 import type { MyPermissions, Schema } from '$lib/api/client';
+import { JOB_KIND_LABELS } from '$lib/features/jobs/labels';
 import { networkEntries, type NetworkEntry } from '$lib/features/resources/model';
 import type {
 	ContainerMetrics,
@@ -552,32 +553,6 @@ export function spaceCheck(data: Schema<'MigrationData'>): 'ok' | 'short' | 'unk
 	return Math.min(...free) >= need ? 'ok' : 'short';
 }
 
-const JOB_KINDS: Record<string, string> = {
-	'stack.deploy': 'Deploy',
-	'stack.start': 'Start',
-	'stack.stop': 'Stop',
-	'stack.restart': 'Restart',
-	'stack.down': 'Stop (Down)',
-	'stack.remove': 'Delete',
-	'stack.build': 'Build Images',
-	'stack.migrate': 'Migrate',
-	'environment.migrate': 'Migrate Environment',
-	'stack.remove_source': 'Remove From Source',
-	'stack.rename': 'Rename',
-	'stack.pull': 'Pull Images',
-	'update.check': 'Update Check',
-	'update.run': 'Update',
-	'backup.run': 'Backup',
-	'backup.restore': 'Restore From Backup'
-};
-
-/** Plain-language name of a job kind ("stack.deploy" → "Deploy"). */
-export function jobKindLabel(kind: string): string {
-	if (JOB_KINDS[kind]) return JOB_KINDS[kind];
-	const s = kind.replaceAll('.', ' ').replaceAll('_', ' ');
-	return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 const AUDIT_ACTIONS: Record<string, string> = {
 	'stack.definition.read': 'Opened the Definition',
 	'stack.definition.write': 'Changed the Definition',
@@ -589,14 +564,19 @@ const AUDIT_ACTIONS: Record<string, string> = {
 	'job.queued': 'Job Queued',
 	'job.started': 'Job Started',
 	'job.finished': 'Job Finished',
-	'job.cancel_requested': 'Cancellation Requested'
+	'job.cancel_requested': 'Cancellation Requested',
+	// Operations audit their capability, the whole stack's or a service's.
+	'stack.start': 'Start Stack',
+	'stack.stop': 'Stop Stack',
+	'stack.restart': 'Restart Stack',
+	'backup.restore': 'Restore From Backup'
 };
 
-/** Plain-language audit action ("stack.deploy" → "Deploy"). */
+/** Plain-language audit action ("stack.deploy" → "Deploy Stack", like the job). */
 export function auditActionLabel(action: string): string {
 	const s =
 		AUDIT_ACTIONS[action] ??
-		JOB_KINDS[action] ??
+		JOB_KIND_LABELS[action] ??
 		action.replaceAll('.', ' ').replaceAll('_', ' ');
 	return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -775,18 +755,27 @@ export function stopConsequences(what: string, anonymous?: number): string[] {
 	const left =
 		anonymous === undefined
 			? [
-					'Anonymous volumes, if it has any, are left behind: the next Deploy starts with new, empty ones.'
+					'Anonymous volumes, if it has any, are left behind: the next Start or Deploy creates new, empty ones.'
 				]
 			: anonymous > 0
 				? [
-						`Leaves its ${word(anonymous)} behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.`
+						`Leaves its ${word(anonymous)} behind: the next Start or Deploy creates new, empty ones. Their data stays on the host until a prune removes it.`
 					]
 				: [];
 	return [
 		`Stops and removes ${what} and the stack’s networks.`,
 		...left,
-		'Named volumes, images and files are kept; Deploy starts the stack again.'
+		'Named volumes, images and files are kept; Start brings the stack up again from its last deployed files.'
 	];
+}
+
+/** Tray copy of a Pull: the images download, nothing is deployed (#280). */
+export function pullCopy(title: string): { title: string; success: string; failure: string } {
+	return {
+		title: `Pull Images of ${title}`,
+		success: `Pulled the images of ${title}: deploy to run them`,
+		failure: `The images of ${title} were not pulled`
+	};
 }
 
 /**

@@ -165,7 +165,12 @@ func (s *Service) buildCredentials(ctx context.Context, st domain.Stack) ([]stri
 	return ids, nil
 }
 
-// Operate enqueues start, stop, restart or down.
+// Operate enqueues start, stop, restart or down. A stack's Stop is Compose
+// down (#274, #280): stop without services is a down, and "down" stays
+// accepted as its alias; stop with services only stops their containers.
+// A start sends the applied revision's hash: a stack that was taken down
+// comes back up from its files when they still hash to it, and one whose
+// files changed since needs a deploy (stack_definition_changed).
 func (s *Service) Operate(ctx context.Context, p authz.Principal, st domain.Stack, action string, r domain.StackJobRequest) (domain.Job, error) {
 	kind, ok := operationKinds[action]
 	if !ok {
@@ -174,7 +179,20 @@ func (s *Service) Operate(ctx context.Context, p authz.Principal, st domain.Stac
 	if kind == jobspec.StackDown && len(r.Services) > 0 {
 		return domain.Job{}, &domain.InputError{Field: "services", Message: "down applies to the whole stack"}
 	}
-	return s.enqueue(ctx, p, st, kind, r, protocol.StackJobInput{})
+	if kind == jobspec.StackStop && len(r.Services) == 0 {
+		kind = jobspec.StackDown
+	}
+	var in protocol.StackJobInput
+	if kind == jobspec.StackStart {
+		if st.Status == domain.StackDown && st.UndeployedChanges() {
+			return domain.Job{}, &domain.StackError{Code: domain.StackErrDefinitionChanged,
+				Message: "the stack's files changed since its last deploy: deploy it to start it with them"}
+		}
+		if st.Applied != nil {
+			in.AppliedHash = st.Applied.Hash
+		}
+	}
+	return s.enqueue(ctx, p, st, kind, r, in)
 }
 
 // Delete enqueues stack.remove: the stack is taken down and forgotten when

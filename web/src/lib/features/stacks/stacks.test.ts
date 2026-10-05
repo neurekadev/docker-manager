@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/svelte';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
@@ -135,7 +135,6 @@ const ALL = [
 	'stack.remove',
 	'stack.migrate',
 	'stack.manage',
-	'stack.update',
 	'update.check'
 ];
 
@@ -369,7 +368,7 @@ describe('StackHeader', () => {
 		).toBeInTheDocument();
 		expect(
 			within(dialog).getByText(
-				'Named volumes, images and files are kept; Deploy starts the stack again.'
+				'Named volumes, images and files are kept; Start brings the stack up again from its last deployed files.'
 			)
 		).toBeInTheDocument();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
@@ -487,6 +486,39 @@ describe('StackHeader', () => {
 		expect(seen.some((s) => s.path.endsWith('/pulls'))).toBe(false);
 	});
 
+	it('pulls the images without deploying them from the deploy menu', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Pull' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull Images of Silo'));
+		expect(seen.find((s) => s.method === 'POST')?.path).toBe('/api/v1/stacks/st-1/pulls');
+	});
+
+	it('starts a stack its Stop took down, unless its files changed since the last deploy', async () => {
+		const user = setup();
+		const down = { status: 'down', engine: { state: 'missing', services: [] } } as const;
+		header(stack(down));
+		// A down stack has nothing to stop or restart: Start is the button.
+		const start = screen.getByRole('button', { name: 'Start' });
+		expect(start).toBeEnabled();
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
+		const entries = within(await screen.findByRole('menu')).getAllByRole('menuitem');
+		expect(entries.map((i) => i.textContent?.trim())).toEqual(['Start', 'Restart']);
+		expect(entries[1]).toHaveAttribute('aria-disabled', 'true');
+		await user.keyboard('{Escape}');
+		await user.click(start);
+		await waitFor(() =>
+			expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+				path: '/api/v1/stacks/st-1/operations',
+				body: { action: 'start' }
+			})
+		);
+		cleanup();
+		header(stack({ ...down, undeployedChanges: true }));
+		expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+	});
+
 	it('keeps the builds out of the deploy menu and shows Build only for a build section on disk', async () => {
 		const user = setup();
 		// The last deploy built web, but the build section was saved away since.
@@ -501,6 +533,7 @@ describe('StackHeader', () => {
 		expect(menuEntries(await screen.findByRole('menu'))).toEqual([
 			'Deploy',
 			expect.stringMatching(/^Pull & Deploy/),
+			'Pull',
 			'---',
 			'Force Recreate',
 			'Cleanup Orphans & Deploy'
@@ -592,6 +625,7 @@ describe('StackHeader', () => {
 		expect(menuEntries(menu)).toEqual([
 			'Deploy',
 			expect.stringMatching(/^Pull & Deploy/),
+			'Pull',
 			'---',
 			'Force Recreate',
 			'Cleanup Orphans & Deploy'
@@ -677,7 +711,7 @@ describe('StackHeader', () => {
 		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
 		expect(
 			await within(dialog).findByText(
-				'Leaves its 1 anonymous volume behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.'
+				'Leaves its 1 anonymous volume behind: the next Start or Deploy creates new, empty ones. Their data stays on the host until a prune removes it.'
 			)
 		).toBeInTheDocument();
 	});
@@ -964,6 +998,30 @@ describe('ServicesTable', () => {
 		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Start worker' }));
 		expect(onoperate).toHaveBeenCalledWith('worker', 'start');
+	});
+
+	it("follows each service's own actions: Stop granted on one service only", async () => {
+		const user = setup();
+		const only = services.map((sv) => ({
+			...sv,
+			actions: sv.name === 'web' ? ['stack.stop'] : []
+		}));
+		render(ServicesTable, {
+			props: {
+				stack: stack({ actions: ['stack.read'] }),
+				services: only,
+				usage: null,
+				onoperate: vi.fn()
+			}
+		});
+		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
+		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
+			'Stop web'
+		]);
+		await user.keyboard('{Escape}');
+		expect(
+			screen.queryByRole('button', { name: 'More Actions for worker' })
+		).not.toBeInTheDocument();
 	});
 
 	it('force recreates one service with stack.deploy, also in Docker Manager’s own stack', async () => {

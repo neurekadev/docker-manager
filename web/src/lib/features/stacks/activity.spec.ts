@@ -86,7 +86,7 @@ describe('auditRows', () => {
 		]);
 		expect(rows.map((r) => [r.label, r.status, r.denied])).toEqual([
 			['Restart Stack', 'running', false],
-			['Delete', 'failed', true]
+			['Delete Stack', 'failed', true]
 		]);
 	});
 });
