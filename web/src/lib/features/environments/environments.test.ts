@@ -313,36 +313,56 @@ describe('AgentsPanel (#3)', () => {
 		);
 	});
 
-	it('offers no Re-Attach without Add Environments, in the notice or the empty table', async () => {
-		stubApi((req) => {
-			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
-				return json({
-					items: [
-						{
-							...agent,
-							status: 'revoked',
-							actions: [],
-							revokedAt: '2026-09-01T00:00:00Z'
-						}
-					]
-				});
-		});
-		// The caller's permissions are known before the panel renders, so
-		// the gate is decided at once (no request to wait for).
-		const perms: MyPermissions = {
-			catalogVersion: 1,
-			owner: false,
-			userId: 'u1',
-			groupIds: [],
-			environments: [],
-			entries: [
-				{ capability: 'environment.read', scope: { kind: 'instance' }, allowed: true }
-			]
-		} as MyPermissions;
-		mount(AgentsPanel, { env }, (client) => client.setQueryData(liveKeys.myPermissions, perms));
-		await screen.findByRole('table', { name: 'Agents of homelab' });
-		expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
-		expect(screen.queryByRole('link', { name: 'Re-Attach' })).not.toBeInTheDocument();
+	it('offers Re-Attach in the detached notice exactly with Add Environments', async () => {
+		// The caller's permissions are known before the panel renders (and a
+		// refetch answers the same), so the gate is decided at once.
+		const perms = (enroll: boolean): MyPermissions =>
+			({
+				catalogVersion: 1,
+				owner: false,
+				userId: 'u1',
+				groupIds: [],
+				environments: [],
+				entries: [
+					{ capability: 'environment.read', scope: { kind: 'instance' }, allowed: true },
+					...(enroll
+						? [
+								{
+									capability: 'agent.enroll',
+									scope: { kind: 'instance' },
+									allowed: true
+								}
+							]
+						: [])
+				]
+			}) as MyPermissions;
+		for (const enroll of [true, false]) {
+			stubApi((req) => {
+				const path = new URL(req.url).pathname;
+				if (path === '/api/v1/me/permissions') return json(perms(enroll));
+				if (path === '/api/v1/environments/e1/agents')
+					return json({
+						items: [
+							{
+								...agent,
+								status: 'revoked',
+								actions: [],
+								revokedAt: '2026-09-01T00:00:00Z'
+							}
+						]
+					});
+			});
+			const { unmount } = mount(AgentsPanel, { env }, (client) =>
+				client.setQueryData(liveKeys.myPermissions, perms(enroll))
+			);
+			await screen.findByRole('table', { name: 'Agents of homelab' });
+			expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
+			const link = screen.queryByRole('link', { name: 'Re-Attach' });
+			if (enroll)
+				expect(link).toHaveAttribute('href', expect.stringContaining('reattach=e1'));
+			else expect(link).not.toBeInTheDocument();
+			unmount();
+		}
 	});
 });
 
