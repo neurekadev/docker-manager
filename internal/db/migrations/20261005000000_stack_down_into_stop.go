@@ -28,8 +28,10 @@ import (
 //
 // The documents that changed get a new permissions revision, so an editor
 // open on the old rules refuses to save over them. API token scopes (allow
-// only, intersected with the owner's permissions) carry over to stack.stop.
-// Nothing to undo: the capability is gone.
+// only, intersected with the owner's permissions) carry over to stack.stop:
+// a scope row never changes (trigger api_token_scopes_fixed), so the
+// stack.stop rows are inserted and the stack.down rows deleted (#286: an
+// UPDATE aborted the migration). Nothing to undo: the capability is gone.
 func init() {
 	Migrations.MustRegister(Tx(stackDownIntoStop), Tx(Exec()))
 }
@@ -351,7 +353,9 @@ func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
 		}
 	}
 	return Exec(
-		`UPDATE api_token_scopes AS r SET capability = 'stack.stop'
+		`INSERT INTO api_token_scopes (token_id, capability, scope_kind, environment_id, resource_type, resource_id, position)
+		 SELECT r.token_id, 'stack.stop', r.scope_kind, r.environment_id, r.resource_type, r.resource_id, r.position
+		 FROM api_token_scopes AS r
 		 WHERE r.capability = 'stack.down' AND NOT EXISTS (
 		   SELECT 1 FROM api_token_scopes AS o WHERE o.capability = 'stack.stop' AND o.token_id = r.token_id
 		     AND o.scope_kind = r.scope_kind AND o.environment_id = r.environment_id
