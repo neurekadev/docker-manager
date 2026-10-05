@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/downvolumes"
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
@@ -84,6 +85,11 @@ type Options struct {
 	// definition declares on its volumes that the volumes lack (Docker
 	// never relabels an existing volume). nil: nothing is recorded.
 	VolumeLabels *volumelabels.Store
+	// DownVolumes records the anonymous volumes of the containers a
+	// stack.down removes: nothing ties them to the project afterwards, and
+	// backups of the stopped stack include them (#276). nil: nothing is
+	// recorded.
+	DownVolumes *downvolumes.Store
 }
 
 // Service serves the compose.* requests and runs the stack.* jobs.
