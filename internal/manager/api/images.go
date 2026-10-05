@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"slices"
@@ -266,9 +267,16 @@ func (h *dockerAPI) tagImage(ctx context.Context, in *tagImageInput) (*imageOutp
 	}
 	// A tag another image holds moves to this one: whatever runs that
 	// reference next gets this image, so the holder's image.tag is needed
-	// too (#279).
-	if holder, err := h.svc.InspectImage(ctx, sc.env.ID, target); err == nil && holder.ID != im.ID {
-		if !sc.c.Can(string(CapImageTag), imageResource(sc.env.ID, holder.ID)).Allowed {
+	// too (#279). The holder is looked up by the full repository:tag the
+	// tag sets (latest by default), never as an image ID, and an image
+	// the caller cannot see is not named in the refusal.
+	ref := in.Body.Repository + ":" + cmp.Or(in.Body.Tag, "latest")
+	if holder, err := h.svc.InspectImage(ctx, sc.env.ID, ref); err == nil && holder.ID != im.ID {
+		res := imageResource(sc.env.ID, holder.ID)
+		if !sc.c.Can(string(CapImageTag), res).Allowed {
+			if !authz.ViewOf(sc.c, res).Visible() {
+				return nil, Forbidden("not permitted to tag this image as " + target)
+			}
 			return nil, Forbidden("not permitted to move " + target + ": it names another image now (image.tag is needed on that image too)")
 		}
 	} else if err != nil && !isNotFound(err) {
