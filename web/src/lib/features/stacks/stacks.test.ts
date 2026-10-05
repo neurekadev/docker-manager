@@ -243,7 +243,7 @@ describe('StackHeader', () => {
 			within(menu)
 				.getAllByRole('menuitem')
 				.map((i) => i.textContent?.trim())
-		).toEqual(['Migrate', 'Edit Details', 'Delete']);
+		).toEqual(['Migrate', 'Edit Details', 'Delete…']);
 	});
 
 	it('offers neither Take Down nor Rename in the overflow menu', async () => {

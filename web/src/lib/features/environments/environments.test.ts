@@ -276,8 +276,16 @@ describe('AgentsPanel (#3)', () => {
 		expect(requests.find((r) => r.method === 'DELETE')!.headers.get('If-Match')).toBe('"4"');
 	});
 
-	it('offers Re-Attach when only removed agents are left', async () => {
+	it('offers Re-Attach when only removed agents are left, with Add Environments', async () => {
 		stubApi((req) => {
+			// Re-attaching creates an install command: agent.enroll (#282).
+			if (new URL(req.url).pathname === '/api/v1/me/permissions')
+				return json({
+					owner: false,
+					entries: [
+						{ capability: 'agent.enroll', scope: { kind: 'instance' }, allowed: true }
+					]
+				});
 			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
 				return json({
 					items: [
@@ -293,10 +301,22 @@ describe('AgentsPanel (#3)', () => {
 		mount(AgentsPanel, { env });
 		await screen.findByRole('table', { name: 'Agents of homelab' });
 		expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Re-Attach' })).toHaveAttribute(
+		expect(await screen.findByRole('link', { name: 'Re-Attach' })).toHaveAttribute(
 			'href',
 			expect.stringContaining('reattach=e1')
 		);
+	});
+
+	it('offers no Re-Attach without Add Environments', async () => {
+		stubApi((req) => {
+			if (new URL(req.url).pathname === '/api/v1/me/permissions')
+				return json({ owner: false, entries: [] });
+			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
+				return json({ items: [] });
+		});
+		mount(AgentsPanel, { env });
+		await screen.findByRole('table', { name: 'Agents of homelab' });
+		expect(screen.queryByRole('link', { name: 'Re-Attach' })).not.toBeInTheDocument();
 	});
 });
 
