@@ -457,7 +457,8 @@ var _ engine.ConfigInspector = (*Engine)(nil)
 
 // CloneContainer implements engine.Cloner: the clone gets the original's
 // settings the fake keeps, its mounts (renamed volumes, anonymous ones by
-// name) and its first network.
+// name) and its first network. It runs the original's image, or with
+// o.CurrentImage the image its reference names now (when there is one).
 func (e *Engine) CloneContainer(_ context.Context, id string, o engine.CloneOptions) (string, error) {
 	const op = "container.clone"
 	e.mu.Lock()
@@ -491,7 +492,11 @@ func (e *Engine) CloneContainer(_ context.Context, id string, o engine.CloneOpti
 		return "", err
 	}
 	nc := e.containers[nid]
-	nc.Details.ImageID = d.ImageID
+	if im, ok := e.findImage(d.Image); !o.CurrentImage || !ok {
+		nc.Details.ImageID = d.ImageID
+	} else {
+		nc.Details.ImageID = im.ID
+	}
 	nc.Command = c.Command
 	e.containerEvent(nc, "create")
 	return nid, nil

@@ -173,6 +173,9 @@ const (
 	ClassNameTaken      = "resource_name_taken"
 	ClassRecreated      = "container_replaced"
 	ClassInvalidInput   = "invalid_input"
+	// ClassComposeProject: the container belongs to a Compose project
+	// Docker Manager does not manage (container.recreate).
+	ClassComposeProject = "compose_project"
 )
 
 func refuse(class, recovery, format string, args ...any) *OpError {

@@ -1,10 +1,11 @@
 <script lang="ts">
 	// Runs container lifecycle actions for a list or a detail page (#6):
-	// start, restart, pause and unpause go straight to the server; stop and
-	// remove confirm first with their consequences (the server's removal
-	// preview); restarting Docker Manager's own manager needs the explicit
-	// confirmation of #32. Refusals (protected, stack_managed, offline, ...)
-	// are shown with the server's reason, in the dialog or as a toast.
+	// start, restart, pause and unpause go straight to the server; stop,
+	// recreate (#273) and remove confirm first with their consequences (the
+	// server's removal preview); restarting Docker Manager's own manager
+	// needs the explicit confirmation of #32. Refusals (protected,
+	// stack_managed, offline, ...) are shown with the server's reason, in
+	// the dialog or as a toast.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { ApiRequestError, type Job, type Schema } from '$lib/api/client';
 	import { containerQuery, queryKeys, type Container } from '$lib/api/queries';
@@ -28,6 +29,7 @@
 
 	let target = $state<Container | null>(null);
 	let stopOpen = $state(false);
+	let recreateOpen = $state(false);
 	let removeOpen = $state(false);
 	let restartOpen = $state(false);
 	let removal = $state<Schema<'Removal'> | undefined>(undefined);
@@ -90,6 +92,9 @@
 			case 'stop':
 				stopOpen = true;
 				return;
+			case 'recreate':
+				recreateOpen = true;
+				return;
 			case 'restart':
 				if (c.protection?.restartAllowed) {
 					restartOpen = true;
@@ -135,6 +140,21 @@
 		confirmLabel="Stop Container"
 		tone="danger"
 		onconfirm={() => send(target!, 'stop')}
+	/>
+
+	<ConfirmDialog
+		bind:open={recreateOpen}
+		title="Recreate {target.name}?"
+		consequences={[
+			target.image
+				? `Replaces ${target.name} with a new container from the same settings and image ${target.image}.`
+				: `Replaces ${target.name} with a new container from the same settings.`,
+			'Volumes are kept and re-attached; changes made inside the container that are not in a volume are lost.',
+			'It starts again only if it was running.'
+		]}
+		confirmLabel="Recreate"
+		tone="danger"
+		onconfirm={() => send(target!, 'recreate')}
 	/>
 
 	<ConfirmDialog

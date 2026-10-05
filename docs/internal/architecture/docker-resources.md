@@ -96,6 +96,7 @@ Removing an object through Docker Manager drops its exact rules
 | `PATCH …/containers/{id}` | `container.update` | recreate fields (`recreate_required`), stack container (`stack_managed`) |
 | `DELETE …/containers/{id}?force&removeVolumes` | `container.remove` | stack container (`stack_managed`), running without force (`container_running`) |
 | `POST …/containers/{id}/{start,stop,restart,pause,unpause}` | `container.<verb>` | — (already in the target state: the job succeeds without change) |
+| `POST …/containers/{id}/recreate` | `container.recreate` (#273, see "Recreate" below) | managed stack container (`stack_managed`); another Compose project's container, a temporary container (`protocol.IsHelperContainer`) or one being removed (`conflict`); Docker Manager's own (`protected`); agent without `protocol.FeatureContainerRecreate` (501 `agent_unsupported`) |
 | `POST …/images/pulls` | `image.pull` | invalid reference/platform; unknown or mismatching `registryConnectionId` (422), ambiguous match (`ambiguous_registry_connection`), revoked connection (`registry_connection_revoked`) |
 | `DELETE …/images/{id}?force` | `image.remove` | used by any container (`image_in_use`); several tags without force (409) |
 | `POST …/images/{id}/tags` | — (bounded `image.tag` request, 200) | invalid target |
@@ -110,7 +111,8 @@ manager decided.
 Stack-managed means: the container's Compose working directory lies in one
 of the agent's verified stack roots (#28), or the #7 stack resolver knows
 the project. Runtime actions (start, stop, restart, pause, unpause) on stack
-containers are allowed; updates and removals must go through the stack.
+containers are allowed; updates, recreates and removals must go through
+the stack.
 
 ### Job error classes
 
@@ -120,8 +122,45 @@ error class, with operator guidance: `not_found`, `conflict`,
 `unsupported_api_version`, `engine_unavailable`, `timeout`,
 `invalid_argument`, `engine_error`. Agent refusals: `stack_managed`,
 `image_in_use`, `volume_in_use`, `network_in_use`, `network_builtin`,
-`resource_name_taken`, `container_replaced`, `invalid_input`. Executors
+`resource_name_taken`, `container_replaced`, `invalid_input`,
+`compose_project` (recreate of a Compose project's container). Executors
 return them as `jobexec.ClassedError`.
+
+### Recreate
+
+`container.recreate` (`internal/agent/resources/recreate.go`) replaces a
+standalone container (no `com.docker.compose.project` label) with a new one
+of the same name, like `docker compose up --force-recreate` for a service:
+
+1. The old container is renamed aside
+   (`<name>-docker-manager-recreate-<12 hex of its ID>`,
+   `protocol.RecreateAsideInfix`; `protocol.IsHelperContainer` knows it).
+2. `engine.Cloner.CloneContainer` with `CurrentImage` creates the new one
+   from the old one's whole configuration (environment values never leave
+   the agent), its networks and volumes (anonymous volumes and image
+   `VOLUME`s mounted again by name, so their data is kept) and Docker
+   Manager's labels under their current keys (`docker-manager.spec` stays,
+   so automatic updates keep the saved specification). The image is the
+   one the container's reference names on the host now; nothing is pulled.
+   When that is another image than the one the container runs, the
+   settings the old image supplied (environment entries, command,
+   entrypoint, working directory, user, stop signal, labels, exposed ports,
+   volumes, health check equal to the old image's) are left to the new
+   image. An image ID, or a reference that no longer names a local image,
+   keeps the image the container runs. A failed create renames the old
+   container back (it keeps running).
+3. The old container is stopped (`timeoutSeconds`, else its stop timeout)
+   and removed without its volumes; the new one is started only when the
+   old one was running (paused and restarting count as running).
+
+The step is idempotent: before it changes anything it records
+`protocol.ContainerRecreateOutput` (`wasRunning`, then `containerId`); a
+repeated attempt finds the container set aside and the new one, or only
+the start left. The agent refuses Docker Manager's own containers
+(`protection.Update`), Compose projects' containers (`stack_managed` /
+`compose_project`), temporary containers and a container being removed,
+whatever the manager decided. Stack containers are recreated through
+their stack.
 
 ## Create form and recreation
 
@@ -178,7 +217,8 @@ relabel an existing object, so:
 - **Writes** use only the current keys: created and recreated containers
   (`agent/resources.EngineSpec` writes ownership labels under their current
   keys whatever the input used), updates of standalone containers, clones
-  of a stack rename (`engine.CloneOptions.RenameLabels` with
+  of a stack rename and of a container recreate
+  (`engine.CloneOptions.RenameLabels` with
   `protocol.LegacyLabelRenames`), the Compose loader's `depends_on` label,
   migrated volumes, the self-update helper, the install command and the
   documented compose files.

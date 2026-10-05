@@ -29,6 +29,7 @@ const (
 	CapContainerRestart     Capability = "container.restart"
 	CapContainerPause       Capability = "container.pause"
 	CapContainerUnpause     Capability = "container.unpause"
+	CapContainerRecreate    Capability = "container.recreate"
 )
 
 // ContainerPort is a published or exposed container port.
@@ -406,6 +407,14 @@ type containerRestartInput struct {
 	}
 }
 
+type containerRecreateInput struct {
+	ContainerPath
+	IdempotencyKeyParam
+	Body *struct {
+		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" example:"10" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing the old container; default: the container's stop timeout."`
+	}
+}
+
 func (h *dockerAPI) listContainers(ctx context.Context, in *listContainersInput) (*listContainersOutput, error) {
 	sc, err := h.environment(ctx, in.EnvironmentID, false)
 	if err != nil {
@@ -677,6 +686,23 @@ func (h *dockerAPI) stopContainer(ctx context.Context, in *containerStopInput) (
 	return Accepted(j), nil
 }
 
+func (h *dockerAPI) recreateContainer(ctx context.Context, in *containerRecreateInput) (*JobAccepted, error) {
+	sc, d, err := h.action(ctx, in.EnvironmentID, in.ContainerID, CapContainerRecreate, true)
+	if err != nil {
+		return nil, err
+	}
+	var a protocol.ContainerActionInput
+	if in.Body != nil {
+		a.TimeoutSeconds = in.Body.TimeoutSeconds
+	}
+	j, err := h.svc.ContainerAction(ctx, sc.p, sc.env.ID, jobspec.ContainerRecreate, d, a, in.IdempotencyKey)
+	if err != nil {
+		return nil, dockerErr(err)
+	}
+	audit.SetDetail(ctx, "image", d.Image)
+	return Accepted(j), nil
+}
+
 func (h *dockerAPI) restartContainer(ctx context.Context, in *containerRestartInput) (*JobAccepted, error) {
 	sc, d, err := h.action(ctx, in.EnvironmentID, in.ContainerID, CapContainerRestart, true)
 	if err != nil {
@@ -787,4 +813,17 @@ func registerContainers(a huma.API, deps Deps) {
 		},
 		Capability: CapContainerRestart, Scope: ScopeResource, Idempotency: IdempotencyJob,
 	}, h.restartContainer)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "recreate-container", Method: http.MethodPost, Path: base + "/{containerId}/recreate", Summary: "Recreate a container",
+			Description: "Starts a container.recreate job (202): replaces a standalone container with a new one of the same name and " +
+				"configuration from the image its reference names on the host now (nothing is pulled), like docker compose up " +
+				"--force-recreate. Volumes are kept (anonymous ones are mounted again by name); the new container is started only when " +
+				"the old one was running; timeoutSeconds bounds the old one's graceful stop. Refused: containers of a Docker " +
+				"Manager-managed stack (409 stack_managed), of another Compose project, temporary or being removed (409 conflict), " +
+				"Docker Manager's own (409 protected), and agents that cannot recreate containers (501 agent_unsupported).",
+			Tags: []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: append(slices.Clone(dockerJobErrors), http.StatusNotImplemented),
+		},
+		Capability: CapContainerRecreate, Scope: ScopeResource, Idempotency: IdempotencyJob,
+	}, h.recreateContainer)
 }

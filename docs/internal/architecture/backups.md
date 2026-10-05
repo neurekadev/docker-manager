@@ -99,9 +99,10 @@ the agent's smartctl runner for disk health, see
   container).
   Docker Manager's temporary objects never get into a backup:
   **temporary containers** (`protocol.IsHelperContainer`: a container set
-  aside during a standalone image update or a stack rename,
-  `<name>-docker-manager-update-<12 hex>` / `<name>-docker-manager-rename-<12 hex>`
-  (`protocol.UpdateAsideInfix`, `RenameAsideInfix`), normally removed within
+  aside during a standalone image update, a stack rename or a container
+  recreate, `<name>-docker-manager-update-<12 hex>` /
+  `<name>-docker-manager-rename-<12 hex>` / `<name>-docker-manager-recreate-<12 hex>`
+  (`protocol.UpdateAsideInfix`, `RenameAsideInfix`, `RecreateAsideInfix`), normally removed within
   seconds and left behind only when removing it failed; Compose's
   temporary replacement during a recreate, `<12 hex>_<name>` with
   `com.docker.compose.replace` (Compose keeps the label after renaming the
@@ -547,7 +548,7 @@ again, dependencies first. `full` and `paths` reach only agents announcing
 
 While a restore has not ended (queued included), every job kind that
 starts containers (`jobspec.Spec.StartsContainers`: stack start, restart,
-deploy and update, container start, restart and unpause, update runs) is
+deploy and update, container start, restart, unpause and recreate, update runs) is
 **refused** on its data with 409 `restore_in_progress` instead of waiting
 behind it: the restore starts exactly the previously running containers
 itself. The restore locks its stacks, volumes and (lock-only targets) the

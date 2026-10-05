@@ -86,15 +86,23 @@ const (
 	// RoleSelfUpdate is the LabelRole value of the Docker Agent's
 	// self-update helper container.
 	RoleSelfUpdate = "self-update"
-	// UpdateAsideInfix and RenameAsideInfix name a container Docker Manager
-	// sets aside while it replaces it (standalone image update, stack
-	// rename): <name><infix><first 12 hex digits of its ID>.
-	UpdateAsideInfix = "-docker-manager-update-"
-	RenameAsideInfix = "-docker-manager-rename-"
+	// UpdateAsideInfix, RenameAsideInfix and RecreateAsideInfix name a
+	// container Docker Manager sets aside while it replaces it (standalone
+	// image update, stack rename, container recreate):
+	// <name><infix><first 12 hex digits of its ID>.
+	UpdateAsideInfix   = "-docker-manager-update-"
+	RenameAsideInfix   = "-docker-manager-rename-"
+	RecreateAsideInfix = "-docker-manager-recreate-"
+
+	// FeatureContainerRecreate is the capabilities feature of agents that
+	// execute container.recreate (replace a standalone container with a
+	// clone of its configuration).
+	FeatureContainerRecreate = "container.recreate"
 )
 
 var (
-	asideNameRE       = regexp.MustCompile(`.(` + regexp.QuoteMeta(UpdateAsideInfix) + `|` + regexp.QuoteMeta(RenameAsideInfix) + `)[0-9a-f]{12}$`)
+	asideNameRE = regexp.MustCompile(`.(` + regexp.QuoteMeta(UpdateAsideInfix) + `|` + regexp.QuoteMeta(RenameAsideInfix) + `|` +
+		regexp.QuoteMeta(RecreateAsideInfix) + `)[0-9a-f]{12}$`)
 	composeTempNameRE = regexp.MustCompile(`^[0-9a-f]{12}_.`)
 )
 
@@ -230,11 +238,11 @@ func WithoutOwnLabels(labels map[string]string) map[string]string {
 
 // IsHelperContainer reports whether a container is a temporary one of
 // Docker Manager or Compose: a container set aside during a standalone
-// image update or a stack rename (normally removed within seconds, left
-// behind only when its removal failed), Compose's temporary replacement
-// during a recreate, or the agent's self-update helper. They never count
-// as users of a volume when backups decide what to include. name may carry
-// the Engine's leading slash.
+// image update, a stack rename or a container recreate (normally removed
+// within seconds, left behind only when its removal failed), Compose's
+// temporary replacement during a recreate, or the agent's self-update
+// helper. They never count as users of a volume when backups decide what
+// to include. name may carry the Engine's leading slash.
 func IsHelperContainer(name string, labels map[string]string) bool {
 	name = strings.TrimPrefix(name, "/")
 	if HasRole(labels, RoleSelfUpdate) || asideNameRE.MatchString(name) {
@@ -633,13 +641,13 @@ type (
 		Ownership map[string]string `json:"ownership,omitempty"`
 	}
 	// ContainerActionInput is the input of container.start, .stop,
-	// .restart, .pause, .unpause and .remove. ID is the container ID the
-	// manager resolved when the job was requested: a container recreated
-	// under the same name since then is not touched.
+	// .restart, .pause, .unpause, .remove and .recreate. ID is the
+	// container ID the manager resolved when the job was requested: a
+	// container recreated under the same name since then is not touched.
 	ContainerActionInput struct {
 		Name string `json:"name"`
 		ID   string `json:"id"`
-		// Timeout (stop, restart) in seconds; nil uses the container's.
+		// Timeout (stop, restart, recreate) in seconds; nil uses the container's.
 		TimeoutSeconds *int `json:"timeoutSeconds,omitempty"`
 		// Force (remove) kills a running container first.
 		Force bool `json:"force,omitempty"`
@@ -647,6 +655,14 @@ type (
 		RemoveVolumes bool `json:"removeVolumes,omitempty"`
 		// Confirmed (restart of the co-located manager, #32).
 		Confirmed bool `json:"confirmed,omitempty"`
+	}
+	// ContainerRecreateOutput is the result output of container.recreate,
+	// recorded before the old container changes, so a repeated attempt
+	// finishes the same way: whether the old container ran (only then is
+	// the new one started) and the new container's ID once it exists.
+	ContainerRecreateOutput struct {
+		WasRunning  bool   `json:"wasRunning"`
+		ContainerID string `json:"containerId,omitempty"`
 	}
 	// ContainerUpdateInput is the input of container.update: in-place
 	// settings only.

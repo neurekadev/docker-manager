@@ -14,6 +14,7 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'backup.verify': 'Verify Backup Repository',
 	'container.create': 'Create Container',
 	'container.pause': 'Pause Container',
+	'container.recreate': 'Recreate Container',
 	'container.remove': 'Remove Container',
 	'container.restart': 'Restart Container',
 	'container.start': 'Start Container',

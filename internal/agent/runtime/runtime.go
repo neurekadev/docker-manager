@@ -710,6 +710,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "stack.rename") {
 		p.Features = append(p.Features, protocol.FeatureStackRename)
 	}
+	// It recreates standalone containers (#273).
+	if slices.Contains(p.Commands, "container.recreate") {
+		p.Features = append(p.Features, protocol.FeatureContainerRecreate)
+	}
 	// Its file service applies the manager's file manager limits (#15).
 	if slices.Contains(p.Commands, "files.extract") {
 		p.Features = append(p.Features, protocol.FeatureFileLimits)

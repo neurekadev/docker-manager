@@ -91,3 +91,72 @@ func TestCloneContainerKeepsTheConfiguration(t *testing.T) {
 		t.Errorf("networks %+v", body.NetworkingConfig)
 	}
 }
+
+// TestCloneContainerCurrentImage (#273): with CurrentImage the clone runs
+// the image the tag names now and leaves the old image's settings (merged
+// into the configuration at creation) to it, keeping its own; a tag that no
+// longer names a local image keeps the image the container runs.
+func TestCloneContainerCurrentImage(t *testing.T) {
+	fake := enginetest.Start(t, enginetest.Options{})
+	for id, ref := range map[string]string{"0123456789abcdef0001": "nginx:1.27", "0123456789abcdef0002": "gone:1"} {
+		fake.Handle(http.MethodGet, "/containers/"+id+"/json", func(w http.ResponseWriter, _ *http.Request) {
+			enginetest.JSON(w, http.StatusOK, map[string]any{
+				"Id": id, "Name": "/web", "Image": "sha256:old",
+				"Config": map[string]any{"Image": ref, "Env": []string{"PATH=/old/bin", "NGINX_VERSION=1.27.0", "TOKEN=s3cret"},
+					"Cmd": []string{"nginx", "-g", "daemon off;"}, "Entrypoint": []string{"/docker-entrypoint.sh"}, "StopSignal": "SIGQUIT",
+					"Labels": map[string]string{"maintainer": "NGINX", "team": "ops"}, "ExposedPorts": map[string]any{"80/tcp": map[string]any{}, "8443/tcp": map[string]any{}}},
+				"HostConfig": map[string]any{"NetworkMode": "bridge"},
+			})
+		})
+	}
+	fake.Handle(http.MethodGet, "/images/nginx:1.27/json", func(w http.ResponseWriter, _ *http.Request) {
+		enginetest.JSON(w, http.StatusOK, map[string]any{"Id": "sha256:new"})
+	})
+	fake.Handle(http.MethodGet, "/images/sha256:old/json", func(w http.ResponseWriter, _ *http.Request) {
+		enginetest.JSON(w, http.StatusOK, map[string]any{"Id": "sha256:old", "Config": map[string]any{
+			"Env": []string{"PATH=/old/bin", "NGINX_VERSION=1.27.0"}, "Cmd": []string{"nginx", "-g", "daemon off;"},
+			"Entrypoint": []string{"/docker-entrypoint.sh"}, "StopSignal": "SIGQUIT", "Labels": map[string]string{"maintainer": "NGINX"},
+			"ExposedPorts": map[string]any{"80/tcp": map[string]any{}}}})
+	})
+	fake.Handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, _ *http.Request) {
+		enginetest.JSON(w, http.StatusCreated, map[string]any{"Id": "clone"})
+	})
+	c := connect(t, fake)
+	type created struct {
+		Image        string
+		Env          []string
+		Cmd          []string
+		Entrypoint   []string
+		StopSignal   string
+		Labels       map[string]string
+		ExposedPorts map[string]struct{}
+	}
+	clone := func(id string) created {
+		t.Helper()
+		before := len(fake.Find(http.MethodPost, "/containers/create"))
+		if _, err := c.CloneContainer(testutil.Context(t), id, CloneOptions{Name: "web", CurrentImage: true}); err != nil {
+			t.Fatal(err)
+		}
+		reqs := fake.Find(http.MethodPost, "/containers/create")
+		if len(reqs) != before+1 {
+			t.Fatalf("create requests %+v", reqs)
+		}
+		var body created
+		if err := json.Unmarshal(reqs[len(reqs)-1].Body, &body); err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+	body := clone("0123456789abcdef0001")
+	if body.Image != "nginx:1.27" || !slices.Equal(body.Env, []string{"TOKEN=s3cret"}) || body.Cmd != nil || body.Entrypoint != nil ||
+		body.StopSignal != "" || len(body.Labels) != 1 || body.Labels["team"] != "ops" || len(body.ExposedPorts) != 1 {
+		t.Errorf("current image %+v", body)
+	}
+	if _, ok := body.ExposedPorts["8443/tcp"]; !ok {
+		t.Errorf("exposed ports %v", body.ExposedPorts)
+	}
+	body = clone("0123456789abcdef0002")
+	if body.Image != "sha256:old" || len(body.Env) != 3 || len(body.Cmd) != 3 || body.Labels["maintainer"] != "NGINX" {
+		t.Errorf("unresolved tag %+v", body)
+	}
+}

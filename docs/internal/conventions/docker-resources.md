@@ -53,3 +53,14 @@ tests: `internal/agent/engine/enginefake`.
   environment values). Anything that renames Docker objects a
   specification references updates it in the same transaction (stack
   renames: `resources.Service.StackRenamed`).
+- Recreate of a standalone container (`container.recreate`, #273) clones
+  it on the agent (`engine.Cloner` with `CurrentImage`: the image its
+  reference names now, never a pull) and keeps its labels, so the saved
+  specification stays attached. Only containers without a Compose project
+  label, never Docker Manager's own (`protection.Update`); the manager
+  refuses agents without `protocol.FeatureContainerRecreate`. Anything
+  that sets a container aside while replacing it names it with an infix
+  `protocol.IsHelperContainer` knows (`UpdateAsideInfix`,
+  `RenameAsideInfix`, `RecreateAsideInfix`; the web mirrors it in
+  `isHelperContainer`). Details:
+  [architecture/docker-resources.md](../architecture/docker-resources.md#recreate).

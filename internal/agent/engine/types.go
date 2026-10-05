@@ -228,6 +228,13 @@ type CloneOptions struct {
 	// carries instead (Docker Manager's legacy label keys); a label the
 	// original already carries under the new key keeps its value.
 	RenameLabels map[string]string
+	// CurrentImage runs the image the container's reference names on the
+	// host now (Compose's recreate) instead of the image the container
+	// runs: the settings the old image supplied (environment, command,
+	// labels, ...) are left to the new one. The image the container runs
+	// is kept when the reference no longer names a local image or is an
+	// image ID. Nothing is pulled.
+	CurrentImage bool
 }
 
 // Cloner is implemented by Engines that recreate a container from its
@@ -237,9 +244,10 @@ type CloneOptions struct {
 type Cloner interface {
 	// CloneContainer creates (never starts) a container with the whole
 	// configuration of id: Config, HostConfig and its networks, the image
-	// it runs, with the volumes of o.Volumes renamed and its anonymous
-	// volumes mounted by name (their data is kept). A hostname Docker
-	// derived from the old ID is left to Docker.
+	// it runs (o.CurrentImage: the image its reference names now), with
+	// the volumes of o.Volumes renamed and its anonymous volumes mounted by
+	// name (their data is kept). A hostname Docker derived from the old ID
+	// is left to Docker.
 	CloneContainer(ctx context.Context, id string, o CloneOptions) (string, error)
 }
 

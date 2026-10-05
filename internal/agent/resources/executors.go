@@ -34,6 +34,7 @@ func (s *Service) Executors() []jobexec.Executor {
 		action(jobspec.ContainerUnpause, "unpause", s.unpause),
 		action(jobspec.ContainerRemove, "remove", s.remove),
 		{Kind: jobspec.ContainerUpdate, Steps: map[string]jobexec.StepFunc{"update": s.update}},
+		{Kind: jobspec.ContainerRecreate, Steps: map[string]jobexec.StepFunc{"recreate": s.recreate}},
 		{Kind: jobspec.ImagePull, Steps: map[string]jobexec.StepFunc{"pull": s.pull}},
 		{Kind: jobspec.ImageRemove, Steps: map[string]jobexec.StepFunc{"remove": s.removeImage}},
 		{Kind: jobspec.VolumeCreate, Steps: map[string]jobexec.StepFunc{"create": s.createVolume}},
@@ -224,7 +225,7 @@ func (s *Service) containerStep(fn func(ctx context.Context, eng engine.Engine, 
 var containerAction = map[domain.JobKind]protection.Action{
 	jobspec.ContainerStart: protection.Start, jobspec.ContainerStop: protection.Stop, jobspec.ContainerRestart: protection.Restart,
 	jobspec.ContainerPause: protection.Pause, jobspec.ContainerUnpause: protection.Unpause, jobspec.ContainerRemove: protection.Remove,
-	jobspec.ContainerUpdate: protection.Update,
+	jobspec.ContainerUpdate: protection.Update, jobspec.ContainerRecreate: protection.Update,
 }
 
 func timeoutOf(in protocol.ContainerActionInput) *time.Duration {

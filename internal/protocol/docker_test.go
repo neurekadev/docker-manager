@@ -59,7 +59,7 @@ func TestBackupAndMaintenanceExcluded(t *testing.T) {
 }
 
 // TestIsHelperContainer: Docker Manager's set-aside containers (update,
-// rename), Compose's temporary replacement (label and temporary name) and
+// rename, recreate), Compose's temporary replacement (label and temporary name) and
 // the self-update helper are temporary; look-alikes are not.
 func TestIsHelperContainer(t *testing.T) {
 	replace := map[string]string{ComposeReplaceLabel: "0123456789abcdef"}
@@ -71,6 +71,7 @@ func TestIsHelperContainer(t *testing.T) {
 		{"web-docker-manager-update-0123456789ab", nil, true},
 		{"/web-docker-manager-update-0123456789ab", nil, true},
 		{"app-db-1-docker-manager-rename-abcdef012345", map[string]string{ComposeProjectLabel: "old"}, true},
+		{"web-docker-manager-recreate-abcdef012345", nil, true},
 		{"0123456789ab_app-db-1", replace, true},
 		{"/0123456789ab_app-db-1", replace, true},
 		{"helper", map[string]string{LabelRole: RoleSelfUpdate}, true},

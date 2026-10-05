@@ -86,7 +86,7 @@ func refusal(err error) error {
 var containerActions = map[domain.JobKind]protection.Action{
 	"container.start": protection.Start, "container.stop": protection.Stop, "container.restart": protection.Restart,
 	"container.pause": protection.Pause, "container.unpause": protection.Unpause, "container.remove": protection.Remove,
-	"container.update": protection.Update,
+	"container.update": protection.Update, "container.recreate": protection.Update,
 }
 
 // checkContainer refuses an action on one of Docker Manager's own containers.
