@@ -475,11 +475,11 @@ type StackJobInput struct {
 	Stack   ProjectRef `json:"stack"`
 	// Services narrows start/stop/restart/deploy (empty = all).
 	Services []string `json:"services,omitempty"`
-	// AppliedHash (stack.start) is the hash of the stack's last applied
-	// revision: a project without containers (taken down) is brought up
+	// AppliedHash (stack.start of a stack taken down) is the hash of the
+	// stack's last applied revision: the stack is brought up with Compose up
 	// from its definition on disk when it still hashes to it (#280), and
 	// refused with StackClassDefinitionChanged otherwise. Older agents ignore
-	// it and refuse a project without containers.
+	// it and start existing containers only.
 	AppliedHash string `json:"appliedHash,omitempty"`
 	// Pull is "missing" (default) or "always" (deploy).
 	Pull string `json:"pull,omitempty"`

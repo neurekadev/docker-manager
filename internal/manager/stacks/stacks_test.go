@@ -458,6 +458,14 @@ func TestStartOfAStackThatWasTakenDown(t *testing.T) {
 	if err := json.Unmarshal(h.job(j.ID).Input, &in); err != nil || in.AppliedHash != st.Applied.Hash {
 		t.Errorf("start input %+v %v", in, err)
 	}
+	// A stack that is not down starts its containers: no hash.
+	running := st
+	running.Status = domain.StackStopped
+	var plain protocol.StackJobInput
+	if j, err := h.svc.Operate(h.ctx, alice, running, "start", domain.StackJobRequest{}); err != nil ||
+		json.Unmarshal(h.job(j.ID).Input, &plain) != nil || plain.AppliedHash != "" {
+		t.Errorf("start of a stopped stack: %+v %v", plain, err)
+	}
 	// On some services the job targets every service it acts on (web
 	// depends on db), so it is authorized on them (#280).
 	j, err = h.svc.Operate(h.ctx, alice, st, "start", domain.StackJobRequest{Services: []string{"web"}})

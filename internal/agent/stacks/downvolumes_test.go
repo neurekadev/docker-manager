@@ -124,12 +124,12 @@ func TestStartBringsATakenDownStackUpFromItsDeployedFiles(t *testing.T) {
 	if got := store.Volumes("app"); !slices.Equal(got, left) {
 		t.Fatalf("record after starting web: %v", got)
 	}
-	e.eng.mu.Lock()
-	e.eng.containers = nil
-	e.eng.mu.Unlock()
+	// A start of every service of the stack that is still down (the manager
+	// sends the hash) runs Compose up again, so services that never came
+	// back are created too, and forgets the record.
 	if res, _ := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed}); res.Outcome != jobexec.OutcomeSucceeded ||
-		store.Volumes("app") != nil {
-		t.Fatalf("start of every service: %+v record %v", res, store.Volumes("app"))
+		!slices.Equal(e.c.calls, []string{"up:app", "up:app"}) || e.c.upServices[1] != nil || store.Volumes("app") != nil {
+		t.Fatalf("start of every service: %+v calls %v record %v", res, e.c.calls, store.Volumes("app"))
 	}
 	e.c.calls = e.c.calls[:1]
 

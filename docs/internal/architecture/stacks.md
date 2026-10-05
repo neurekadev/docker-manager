@@ -564,13 +564,15 @@ A stack's Stop is Compose down (#274, #280): `POST /stacks/{id}/operations`
 with `stop` and no services enqueues `stack.down` (`down` stays accepted as
 its alias); `stop` with services is a plain stop of their containers
 (`stack.stop`). A stack taken down has no containers, so its graph is
-gone: a `stack.start` carries the applied revision's hash
-(`StackJobInput.AppliedHash`), and the agent brings a project without
-containers up with Compose up from the definition on disk when it still
-hashes to that revision (`upFromDefinition`: nothing built, missing images
-pulled without registry connections; the down's anonymous-volume record is
-forgotten like after a deploy), else it fails with
-`stack_definition_changed`. The manager refuses that case before queuing
+gone: a `stack.start` of a stack whose status is `down` carries the
+applied revision's hash (`StackJobInput.AppliedHash`), and the agent
+brings it up with Compose up from the definition on disk when it still
+hashes to that revision (`upFromDefinition`: it creates the containers of
+every service it starts, also after an earlier start brought back only
+some services, since the stack stays `down` until a start of every
+service succeeds; nothing built, missing images pulled without registry
+connections; a start of every service forgets the down's anonymous-volume
+record like a deploy), else it fails with `stack_definition_changed`. The manager refuses that case before queuing
 (`409 stack_definition_changed`) when the stack is `down` with undeployed
 changes; the UI then offers Deploy instead of Start.
 

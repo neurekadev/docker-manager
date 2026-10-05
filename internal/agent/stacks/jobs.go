@@ -569,6 +569,13 @@ func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
 		if err != nil {
 			return err
 		}
+		// Taken down (#280; the manager sends the hash for a stack that is
+		// down): a start brings it up again from its files when they are
+		// still the last deployed ones, creating the containers of every
+		// service it starts, also after only some services came back.
+		if op == opStart && in.AppliedHash != "" {
+			return s.upFromDefinition(ctx, sc, in)
+		}
 		eng, err := s.engine()
 		if err != nil {
 			return err
@@ -578,11 +585,6 @@ func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
 			return err
 		}
 		if len(list) == 0 {
-			// Taken down (#280): a start brings it up again from its files
-			// when they are still the last deployed ones.
-			if op == opStart && in.AppliedHash != "" {
-				return s.upFromDefinition(ctx, sc, in)
-			}
 			return fmt.Errorf("project %s has no containers on this Engine; deploy the stack first", in.Stack.ProjectName)
 		}
 		before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
@@ -631,11 +633,13 @@ func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
 	}
 }
 
-// upFromDefinition is a stack.start of a project without containers (taken
-// down, #280): Compose up from the definition on disk, only when it still
-// hashes to the last applied revision (in.AppliedHash), so a start never
-// applies undeployed changes. Nothing is built; images missing on the host
-// are pulled like Compose up does, without registry connections.
+// upFromDefinition is a stack.start of a stack taken down (#280): Compose
+// up from the definition on disk, only when it still hashes to the last
+// applied revision (in.AppliedHash), so a start never applies undeployed
+// changes. It creates the containers the down removed (all, or those of
+// in.Services and their dependencies) and starts the stopped ones. Nothing
+// is built; images missing on the host are pulled like Compose up does,
+// without registry connections.
 func (s *Service) upFromDefinition(ctx context.Context, sc *jobexec.StepContext, in protocol.StackJobInput) error {
 	dir, err := s.resolve(in.Stack)
 	if err != nil {
@@ -666,7 +670,11 @@ func (s *Service) upFromDefinition(ctx context.Context, sc *jobexec.StepContext,
 			recovery: "Nothing was started. Deploy the stack to start it with the changed files, or restore the deployed " +
 				"revision to disk and start it again."}
 	}
-	if err := update(ctx, sc, func(o *protocol.StackJobOutput) { o.Before = []protocol.ServiceState{} }); err != nil {
+	before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	if err := update(ctx, sc, func(o *protocol.StackJobOutput) { o.Before = before }); err != nil {
 		return err
 	}
 	sc.Progress(ctx, 50, "starting "+short(snap.Hash))
