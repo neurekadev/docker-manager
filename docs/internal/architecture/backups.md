@@ -111,7 +111,16 @@ the agent's smartctl runner for disk health, see
   checks and leaves out a volume only they use, `planStackVolumes`
   discovers anonymous volumes only on the other containers (one only a
   temporary container mounts is listed as excluded, "only a temporary
-  container of Docker Manager or Compose uses it"). And a standalone volume
+  container of Docker Manager or Compose uses it"). A stack Docker Manager
+  brought down (Compose down, a stack's Stop) has no containers, and the
+  Engine's anonymous volumes carry no project label: `planStackVolumes`
+  then takes the anonymous volumes the `stack.down` recorded
+  (`internal/agent/downvolumes`, see
+  [docker-resources](docker-resources.md)), included under the same rules
+  with the reason "anonymous volume of the stack, left behind when it was
+  stopped (Compose down)", or excluded as "the stack was stopped and the
+  volume no longer exists" (#276). A down outside Docker Manager records
+  nothing. And a standalone volume
   an **environment migration** created (`docker-manager.migration=<migration ID>`
   or its legacy key,
   #35) is selected only when that migration succeeded (`completed` or

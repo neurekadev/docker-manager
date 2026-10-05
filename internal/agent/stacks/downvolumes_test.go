@@ -1,0 +1,76 @@
+package stacks
+
+import (
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/neurekadev/docker-manager/internal/agent/downvolumes"
+	"github.com/neurekadev/docker-manager/internal/agent/engine"
+	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
+	"github.com/neurekadev/docker-manager/internal/jobexec"
+	"github.com/neurekadev/docker-manager/internal/jobspec"
+	"github.com/neurekadev/docker-manager/internal/protocol"
+)
+
+// TestDownRecordsTheAnonymousVolumesItLeavesBehind: a down records the
+// anonymous volumes of the containers it removes (#276), not named
+// volumes nor those only a temporary container mounts; a down of a
+// project without containers keeps the record, a deploy and a removal
+// forget it.
+func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
+	e, _ := deployFixture(t)
+	store := downvolumes.New(t.TempDir())
+	e.svc.opts.DownVolumes = store
+	anon, helper := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	lbl := func(svc string) map[string]string {
+		return map[string]string{lifecycle.ComposeProjectLabel: "app", lifecycle.ComposeServiceLabel: svc}
+	}
+	replacing := lbl("db")
+	replacing[protocol.ComposeReplaceLabel] = "db1"
+	running := func() {
+		e.eng.mu.Lock()
+		defer e.eng.mu.Unlock()
+		e.eng.containers = []engine.Container{
+			{ID: "db1", Names: []string{"/app-db-1"}, State: "running", Labels: lbl("db"), Mounts: []engine.Mount{
+				{Type: "volume", Name: "app_data", Destination: "/var/lib/postgresql/data"},
+				{Type: "volume", Name: anon, Destination: "/scratch"},
+				{Type: "bind", Source: "/srv/html", Destination: "/html"},
+			}},
+			// Compose's replacement during a recreate: a temporary container.
+			{ID: "tmp1", Names: []string{"/0123456789ab_app-db-1"}, State: "exited", Labels: replacing, Mounts: []engine.Mount{
+				{Type: "volume", Name: helper, Destination: "/tmp"},
+			}},
+		}
+	}
+	e.c.onDown = func(string) {
+		e.eng.mu.Lock()
+		defer e.eng.mu.Unlock()
+		e.eng.containers = nil
+	}
+	running()
+	res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")})
+	want := []downvolumes.Volume{{Name: anon, Service: "db", Destination: "/scratch"}}
+	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(store.Volumes("app"), want) {
+		t.Fatalf("down: %+v record %v", res, store.Volumes("app"))
+	}
+	// Nothing left to bring down: the record stays.
+	if res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
+		!slices.Equal(store.Volumes("app"), want) {
+		t.Fatalf("second down: %+v record %v", res, store.Volumes("app"))
+	}
+	// A deploy gives the containers anonymous volumes of their own.
+	if res, _ := run(t, e.svc, jobspec.StackDeploy, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
+		store.Volumes("app") != nil {
+		t.Fatalf("deploy: %+v record %v", res, store.Volumes("app"))
+	}
+	// A removal brings the stack down and forgets it.
+	running()
+	if err := store.Record("app", want); err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := run(t, e.svc, jobspec.StackRemove, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
+		store.Volumes("app") != nil {
+		t.Fatalf("remove: %+v record %v", res, store.Volumes("app"))
+	}
+}

@@ -31,6 +31,15 @@ tests: `internal/agent/engine/enginefake`.
   (Compose labels win); volume details return them apart as
   `composeLabels` (the UI's Labels card groups them, with an (i)). Never
   write them onto a volume and never take any other label from the file.
+- The Engine creates anonymous volumes without a Compose project label, so
+  after a Compose down nothing ties them to their stack: `stack.down`
+  records the anonymous volumes of the containers it removes before it
+  runs (`internal/agent/downvolumes`, `<state>/down-volumes.json`, keyed by
+  project; temporary containers left out; a down of a project without
+  containers keeps the record), a successful deploy and `stack.remove`
+  forget it, a rename moves it. Backups use the record only while the
+  project has no containers (#276); never treat it as a list of the
+  stack's current volumes.
 - Write Docker Manager's labels only under the current keys; read them only
   with `protocol.LookupLabel` / `LabelValue` / `HasRole`, which also accept
   the legacy key (objects created before 2026-09-28 keep it forever;

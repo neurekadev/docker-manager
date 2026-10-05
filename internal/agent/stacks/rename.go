@@ -777,6 +777,10 @@ func (s *Service) renameRecreate(ctx context.Context, sc *jobexec.StepContext) e
 	if err := s.moveAnonymous(ctx, sc, eng, r); err != nil {
 		return renamedFailure(err)
 	}
+	// The anonymous volumes a down left behind follow the project (#276).
+	if err := s.opts.DownVolumes.Rename(r.From, r.To); err != nil {
+		s.log.Warn("could not move the recorded anonymous volumes to the new project name", "from", r.From, "to", r.To, "error", err)
+	}
 	// The old volumes are empty (moved) or replaced (recreated) now.
 	for _, v := range renameReport(sc).Volumes {
 		if !v.Done || v.NewName == v.Name {
