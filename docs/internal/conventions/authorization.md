@@ -13,14 +13,13 @@ group with a matching rule decides with its most specific rule), then deny.
   `adv(...)` for rare ones). Never add generic read/write keys; never rename
   a key. A key is retired only together with a migration that carries
   the group, user and API token rules naming it over to the key that
-  replaces it without granting anything a deny refused nor taking away
-  what an allow granted: an allow of the new key under a deny of the old
-  one (same subject, same or narrower scope, no more specific allow of
-  the old key covering it) becomes a deny, and a group's deny is copied
-  onto its members' own rules, which beat every group rule, unless the
-  member or a group asked before allows the old key there (`stack.down` into
-  `stack.stop`, `20261005000000_stack_down_into_stop.go`); a job kind
-  keeps its own key and borrows the capability (`Spec.Capability`). The web editor's presets derive from these flags
+  replaces it and keeps every decision an explicit rule made: it checks
+  the old and new decision at each scope point (instance, every
+  environment, every resource) with the evaluator's precedence, each group
+  on its own and then each member, and sets a rule at a point where they
+  differ (`stack.down` into `stack.stop`,
+  `20261005000000_stack_down_into_stop.go`); a job kind keeps its own key
+  and borrows the capability (`Spec.Capability`). The web editor's presets derive from these flags
   (`web/src/lib/features/access/presets.ts`): Viewer takes every
   normal-risk key ending in `.read`, Operator also every normal-risk
   common one (plus `*.logs.read`), so end read-only keys in `.read` and

@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/uptrace/bun"
@@ -11,21 +10,21 @@ import (
 
 // The permission catalog drops stack.down: a stack's Stop runs Compose down
 // and needs only stack.stop (#274). Rules naming stack.down carry over to
-// stack.stop at the same scope where no stack.stop rule exists there.
+// stack.stop at the same scope where no stack.stop rule exists there; the
+// others go.
 //
-// Nobody gains a down that was denied to them (deny wins, even where that
-// costs a plain stop someone had), and nobody loses one that was allowed:
-//   - a stack.stop allow covered by a stack.down deny of the same group or
-//     user (the same scope or a narrower one) becomes a deny, unless a
-//     stack.down allow of that subject, more specific than the deny, covers
-//     it (the most specific rule decided: down was allowed there);
-//   - a group's stack.down deny also becomes a stack.stop deny at its scope
-//     on every member's own rules (a user rule beats every group rule, and a
-//     higher group beats a lower one, so an allow elsewhere would otherwise
-//     win), with the member's narrower stack.stop allows turned into
-//     denies, unless the member allows stack.down over the deny's scope or
-//     a group asked before the denying one does (it decided instead); a
-//     member's narrower stop allow under one of its own down allows stays.
+// Nobody gains a down that was denied to them, and nobody loses one that
+// was allowed. stack.stop and stack.down are granted on the instance, an
+// environment or one stack, so the decision is checked at each of those
+// points, top-down, with the evaluator's precedence (the most specific
+// user rule, else the first group in priority order with a matching rule,
+// decided by its most specific one): where an explicit stack.down rule
+// decided before, the new stack.stop decision must say the same; elsewhere
+// it must equal the old stack.stop decision (a plain stop granted without
+// any down rule now brings the stack down, on purpose). Each group is
+// fixed on its own first, then each member, whose own rules beat every
+// group rule; a mismatch gets a stack.stop rule at that point (an existing
+// one there takes the right effect).
 //
 // The documents that changed get a new permissions revision, so an editor
 // open on the old rules refuses to save over them. API token scopes (allow
@@ -38,224 +37,317 @@ func init() {
 // permScope is a rule's scope: instance, an environment, or one stack.
 type permScope struct{ kind, env, typ, id string }
 
-// permRule is a stack.down or stack.stop rule of a group or user.
+// specificity orders scopes: a stack beats its environment beats instance.
+func (s permScope) specificity() int {
+	switch s.kind {
+	case "resource":
+		return 2
+	case "environment":
+		return 1
+	}
+	return 0
+}
+
+// permRule is a stack.down or stack.stop rule of a group or user
+// (position -1: a rule the migration adds).
 type permRule struct {
-	subject, capability, effect string
-	scope                       permScope
+	capability, effect string
+	scope              permScope
+	position           int
+}
+
+// permSet is one group's or user's stack.down and stack.stop rules.
+type permSet struct {
+	rules   []permRule
+	changed bool
 }
 
 func stackDownIntoStop(ctx context.Context, tx bun.Tx) error {
-	stackEnv := map[string]string{}
-	rows, err := tx.QueryContext(ctx, `SELECT id, environment_id FROM stacks`)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var id, env string
-		if err := rows.Scan(&id, &env); err != nil {
-			_ = rows.Close()
+	query := func(q string, scan func(scan func(...any) error) error) error {
+		rows, err := tx.QueryContext(ctx, q)
+		if err != nil {
 			return err
 		}
-		stackEnv[id] = env
-	}
-	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
-		return err
-	}
-	// covers reports whether rules at outer apply wherever rules at inner do.
-	covers := func(outer, inner permScope) bool {
-		switch outer.kind {
-		case "instance":
-			return true
-		case "environment":
-			return (inner.kind == "environment" && inner.env == outer.env) ||
-				(inner.kind == "resource" && inner.typ == "stack" && stackEnv[inner.id] == outer.env)
-		default:
-			return inner.kind == "resource" && inner.typ == outer.typ && inner.id == outer.id
-		}
-	}
-	type table struct{ name, subject, parent string }
-	groups := table{"group_permission_rules", "group_id", "groups"}
-	users := table{"user_permission_rules", "user_id", "users"}
-	load := func(t table) ([]permRule, error) {
-		rows, err := tx.QueryContext(ctx, `SELECT `+t.subject+`, capability, effect, scope_kind, environment_id, resource_type, resource_id
-			FROM `+t.name+` WHERE capability IN ('stack.down', 'stack.stop')`)
-		if err != nil {
-			return nil, err
-		}
-		var out []permRule
 		for rows.Next() {
-			var r permRule
-			if err := rows.Scan(&r.subject, &r.capability, &r.effect, &r.scope.kind, &r.scope.env, &r.scope.typ, &r.scope.id); err != nil {
+			if err := scan(rows.Scan); err != nil {
 				_ = rows.Close()
-				return nil, err
+				return err
 			}
-			out = append(out, r)
 		}
-		return out, errors.Join(rows.Err(), rows.Close())
+		return errors.Join(rows.Err(), rows.Close())
 	}
-	groupRules, err := load(groups)
-	if err != nil {
+	stackEnv := map[string]string{}
+	if err := query(`SELECT id, environment_id FROM stacks`, func(scan func(...any) error) error {
+		var id, env string
+		err := scan(&id, &env)
+		stackEnv[id] = env
+		return err
+	}); err != nil {
 		return err
 	}
-	userRules, err := load(users)
-	if err != nil {
+	var envs []string
+	if err := query(`SELECT id FROM environments`, func(scan func(...any) error) error {
+		var id string
+		err := scan(&id)
+		envs = append(envs, id)
+		return err
+	}); err != nil {
 		return err
 	}
-	// Groups are asked highest first: by position, then ID.
 	type rank struct {
 		pos int
 		id  string
 	}
-	ranks := map[string]rank{}
-	rows, err = tx.QueryContext(ctx, `SELECT id, position FROM groups`)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
+	var groupOrder []rank
+	if err := query(`SELECT id, position FROM groups`, func(scan func(...any) error) error {
 		var r rank
-		if err := rows.Scan(&r.id, &r.pos); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		ranks[r.id] = r
-	}
-	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		err := scan(&r.id, &r.pos)
+		groupOrder = append(groupOrder, r)
+		return err
+	}); err != nil {
 		return err
 	}
-	before := func(a, b string) bool {
-		ra, rb := ranks[a], ranks[b]
-		return ra.pos < rb.pos || (ra.pos == rb.pos && ra.id < rb.id)
-	}
-	members := map[string][]string{}
+	// Groups are asked highest first: by position, then ID.
+	slices.SortFunc(groupOrder, func(a, b rank) int {
+		if a.pos != b.pos {
+			return a.pos - b.pos
+		}
+		if a.id < b.id {
+			return -1
+		}
+		return 1
+	})
 	memberOf := map[string][]string{}
-	rows, err = tx.QueryContext(ctx, `SELECT group_id, user_id FROM user_groups`)
+	if err := query(`SELECT user_id, group_id FROM user_groups`, func(scan func(...any) error) error {
+		var u, g string
+		err := scan(&u, &g)
+		memberOf[u] = append(memberOf[u], g)
+		return err
+	}); err != nil {
+		return err
+	}
+	owners := map[string]bool{}
+	if err := query(`SELECT id FROM users WHERE is_owner = 1`, func(scan func(...any) error) error {
+		var id string
+		err := scan(&id)
+		owners[id] = true
+		return err
+	}); err != nil {
+		return err
+	}
+	type table struct{ name, subject, parent string }
+	groupsT := table{"group_permission_rules", "group_id", "groups"}
+	usersT := table{"user_permission_rules", "user_id", "users"}
+	load := func(t table) (map[string]*permSet, error) {
+		out := map[string]*permSet{}
+		err := query(`SELECT `+t.subject+`, capability, effect, scope_kind, environment_id, resource_type, resource_id, position
+			FROM `+t.name+` WHERE capability IN ('stack.down', 'stack.stop')`, func(scan func(...any) error) error {
+			var subject string
+			var r permRule
+			if err := scan(&subject, &r.capability, &r.effect, &r.scope.kind, &r.scope.env, &r.scope.typ, &r.scope.id, &r.position); err != nil {
+				return err
+			}
+			if out[subject] == nil {
+				out[subject] = &permSet{}
+			}
+			out[subject].rules = append(out[subject].rules, r)
+			return nil
+		})
+		return out, err
+	}
+	groupRules, err := load(groupsT)
 	if err != nil {
 		return err
 	}
-	for rows.Next() {
-		var g, u string
-		if err := rows.Scan(&g, &u); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		members[g] = append(members[g], u)
-		memberOf[u] = append(memberOf[u], g)
-	}
-	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+	userRules, err := load(usersT)
+	if err != nil {
 		return err
 	}
 
-	changed := map[table]map[string]bool{groups: {}, users: {}}
-	where := func(r permRule) (string, []any) {
-		return ` WHERE capability = 'stack.stop' AND scope_kind = ? AND environment_id = ? AND resource_type = ? AND resource_id = ?`,
-			[]any{r.scope.kind, r.scope.env, r.scope.typ, r.scope.id}
+	// The points the decision is checked at, top-down: instance, every
+	// environment, every stack (also those only rules still name).
+	stacks := map[string]bool{}
+	for id := range stackEnv {
+		stacks[id] = true
 	}
-	deny := func(t table, r permRule) error {
-		w, args := where(r)
-		_, err := tx.ExecContext(ctx, `UPDATE `+t.name+` SET effect = 'deny'`+w+` AND `+t.subject+` = ?`, append(args, r.subject)...)
-		changed[t][r.subject] = true
-		return err
-	}
-	// allowsDownOver reports whether the subject allows stack.down at a
-	// scope covering s and lying within (but not at) the deny's scope: that
-	// allow, more specific than the deny, decided there.
-	allowsDownOver := func(rules []permRule, subject string, s, deny permScope) bool {
-		return slices.ContainsFunc(rules, func(r permRule) bool {
-			return r.subject == subject && r.capability == "stack.down" && r.effect == "allow" &&
-				covers(r.scope, s) && covers(deny, r.scope) && r.scope != deny
-		})
-	}
-	// allowsDown reports whether the subject allows stack.down at a scope
-	// covering s.
-	allowsDown := func(rules []permRule, subject string, s permScope) bool {
-		return slices.ContainsFunc(rules, func(r permRule) bool {
-			return r.subject == subject && r.capability == "stack.down" && r.effect == "allow" && covers(r.scope, s)
-		})
-	}
-	// Same subject: a stack.stop allow under a stack.down deny becomes a deny.
-	for _, set := range []struct {
-		t     table
-		rules []permRule
-	}{{groups, groupRules}, {users, userRules}} {
-		for _, d := range set.rules {
-			if d.capability != "stack.down" || d.effect != "deny" {
-				continue
-			}
-			for _, a := range set.rules {
-				if a.subject == d.subject && a.capability == "stack.stop" && a.effect == "allow" && covers(d.scope, a.scope) &&
-					!allowsDownOver(set.rules, a.subject, a.scope, d.scope) {
-					if err := deny(set.t, a); err != nil {
-						return err
-					}
+	for _, sets := range []map[string]*permSet{groupRules, userRules} {
+		for _, ps := range sets {
+			for _, r := range ps.rules {
+				if r.scope.kind == "environment" && !slices.Contains(envs, r.scope.env) {
+					envs = append(envs, r.scope.env)
+				}
+				if r.scope.kind == "resource" {
+					stacks[r.scope.id] = true
 				}
 			}
 		}
 	}
-	// A group's stack.down deny on its members' own rules.
-	for _, d := range groupRules {
-		if d.capability != "stack.down" || d.effect != "deny" {
+	slices.Sort(envs)
+	points := []permScope{{kind: "instance"}}
+	for _, e := range envs {
+		points = append(points, permScope{kind: "environment", env: e})
+	}
+	stackIDs := make([]string, 0, len(stacks))
+	for id := range stacks {
+		stackIDs = append(stackIDs, id)
+	}
+	slices.Sort(stackIDs)
+	for _, id := range stackIDs {
+		points = append(points, permScope{kind: "resource", typ: "stack", id: id})
+	}
+	// matches reports whether a rule at s applies at the point p.
+	matches := func(s, p permScope) bool {
+		switch s.kind {
+		case "instance":
+			return true
+		case "environment":
+			return (p.kind == "environment" && p.env == s.env) || (p.kind == "resource" && s.env != "" && stackEnv[p.id] == s.env)
+		default:
+			return p.kind == "resource" && p.typ == s.typ && p.id == s.id
+		}
+	}
+	// decide is the most specific matching rule's effect ("" when none).
+	decide := func(rules []permRule, capability string, p permScope) string {
+		effect, best := "", -1
+		for _, r := range rules {
+			if r.capability == capability && matches(r.scope, p) && r.scope.specificity() > best {
+				effect, best = r.effect, r.scope.specificity()
+			}
+		}
+		return effect
+	}
+	// evaluate is the evaluator's decision for a member: its own rules, else
+	// the first of its groups (highest first) with a matching rule.
+	evaluate := func(own []permRule, groups []string, sets map[string]*permSet, capability string, p permScope) string {
+		if e := decide(own, capability, p); e != "" {
+			return e
+		}
+		for _, g := range groups {
+			if ps := sets[g]; ps != nil {
+				if e := decide(ps.rules, capability, p); e != "" {
+					return e
+				}
+			}
+		}
+		return ""
+	}
+	// want is the stack.stop decision that keeps the old one: an explicit
+	// stack.down decision, else the old stack.stop decision.
+	want := func(down, stop string) bool {
+		if down != "" {
+			return down == "allow"
+		}
+		return stop == "allow"
+	}
+	// carry renames stack.down to stack.stop where no stack.stop rule exists
+	// at the same scope and drops the other stack.down rules.
+	carry := func(rules []permRule) []permRule {
+		var out []permRule
+		for _, r := range rules {
+			if r.capability == "stack.stop" {
+				out = append(out, r)
+			}
+		}
+		for _, r := range rules {
+			if r.capability == "stack.down" && !slices.ContainsFunc(out, func(o permRule) bool { return o.scope == r.scope }) {
+				r.capability = "stack.stop"
+				out = append(out, r)
+			}
+		}
+		return out
+	}
+	// fix gives the subject's stack.stop rule at p the effect allow.
+	fix := func(ps *permSet, p permScope, allow bool) {
+		effect := map[bool]string{true: "allow", false: "deny"}[allow]
+		ps.changed = true
+		for i, r := range ps.rules {
+			if r.scope == p {
+				ps.rules[i].effect = effect
+				return
+			}
+		}
+		ps.rules = append(ps.rules, permRule{capability: "stack.stop", effect: effect, scope: p, position: -1})
+	}
+
+	// Groups on their own.
+	oldGroups := map[string]*permSet{}
+	for id, ps := range groupRules {
+		old := slices.Clone(ps.rules)
+		oldGroups[id] = &permSet{rules: old}
+		ps.changed = slices.ContainsFunc(old, func(r permRule) bool { return r.capability == "stack.down" })
+		ps.rules = carry(old)
+		for _, p := range points {
+			w := want(decide(old, "stack.down", p), decide(old, "stack.stop", p))
+			if decide(ps.rules, "stack.stop", p) == "allow" != w {
+				fix(ps, p, w)
+			}
+		}
+	}
+	// Members, with their groups in priority order.
+	ordered := func(gs []string) []string {
+		var out []string
+		for _, r := range groupOrder {
+			if slices.Contains(gs, r.id) {
+				out = append(out, r.id)
+			}
+		}
+		return out
+	}
+	var users []string
+	for u := range userRules {
+		users = append(users, u)
+	}
+	for u, gs := range memberOf {
+		if userRules[u] == nil && slices.ContainsFunc(gs, func(g string) bool { return groupRules[g] != nil }) {
+			users = append(users, u)
+		}
+	}
+	for _, u := range users {
+		if owners[u] {
 			continue
 		}
-		for _, u := range members[d.subject] {
-			// The member's own down allow, or a group asked before the
-			// denying one allowing down, decided over the whole scope.
-			if allowsDown(userRules, u, d.scope) || slices.ContainsFunc(memberOf[u], func(h string) bool {
-				return h != d.subject && before(h, d.subject) && allowsDown(groupRules, h, d.scope)
-			}) {
+		ps := userRules[u]
+		if ps == nil {
+			ps = &permSet{}
+			userRules[u] = ps
+		}
+		old := slices.Clone(ps.rules)
+		ps.changed = slices.ContainsFunc(old, func(r permRule) bool { return r.capability == "stack.down" })
+		ps.rules = carry(old)
+		groups := ordered(memberOf[u])
+		for _, p := range points {
+			w := want(evaluate(old, groups, oldGroups, "stack.down", p), evaluate(old, groups, oldGroups, "stack.stop", p))
+			if evaluate(ps.rules, groups, groupRules, "stack.stop", p) == "allow" != w {
+				fix(ps, p, w)
+			}
+		}
+	}
+
+	// Write the changed documents back.
+	for _, w := range []struct {
+		t    table
+		sets map[string]*permSet
+	}{{groupsT, groupRules}, {usersT, userRules}} {
+		for subject, ps := range w.sets {
+			if !ps.changed {
 				continue
 			}
-			for _, a := range userRules {
-				if a.subject == u && a.capability == "stack.stop" && a.effect == "allow" && covers(d.scope, a.scope) &&
-					!allowsDown(userRules, u, a.scope) {
-					if err := deny(users, a); err != nil {
-						return err
-					}
-				}
-			}
-			has := slices.ContainsFunc(userRules, func(r permRule) bool {
-				return r.subject == u && r.capability == "stack.stop" && r.scope == d.scope
-			})
-			if has {
-				continue
-			}
-			added := permRule{subject: u, capability: "stack.stop", effect: "deny", scope: d.scope}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO user_permission_rules
-				(user_id, capability, scope_kind, environment_id, resource_type, resource_id, effect, position)
-				VALUES (?, 'stack.stop', ?, ?, ?, ?, 'deny',
-				  (SELECT COALESCE(MAX(position), -1) + 1 FROM user_permission_rules WHERE user_id = ?))`,
-				u, d.scope.kind, d.scope.env, d.scope.typ, d.scope.id, u); err != nil {
-				return fmt.Errorf("deny stack.stop for a member of a group denying stack.down: %w", err)
-			}
-			userRules = append(userRules, added)
-			changed[users][u] = true
-		}
-	}
-	// Every subject with a stack.down rule changes too.
-	for _, r := range groupRules {
-		if r.capability == "stack.down" {
-			changed[groups][r.subject] = true
-		}
-	}
-	for _, r := range userRules {
-		if r.capability == "stack.down" {
-			changed[users][r.subject] = true
-		}
-	}
-	for _, t := range []table{groups, users} {
-		for subject := range changed[t] {
-			if _, err := tx.ExecContext(ctx, `UPDATE `+t.parent+` SET permissions_revision = permissions_revision + 1 WHERE id = ?`, subject); err != nil {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM `+w.t.name+` WHERE `+w.t.subject+` = ? AND capability IN ('stack.down', 'stack.stop')`,
+				subject); err != nil {
 				return err
 			}
-		}
-		same := `o.` + t.subject + ` = r.` + t.subject + ` AND o.scope_kind = r.scope_kind AND o.environment_id = r.environment_id
-			AND o.resource_type = r.resource_type AND o.resource_id = r.resource_id`
-		if err := Exec(
-			`UPDATE `+t.name+` AS r SET capability = 'stack.stop'
-			 WHERE r.capability = 'stack.down' AND NOT EXISTS (
-			   SELECT 1 FROM `+t.name+` AS o WHERE o.capability = 'stack.stop' AND `+same+`)`,
-			`DELETE FROM `+t.name+` WHERE capability = 'stack.down'`,
-		)(ctx, tx); err != nil {
-			return err
+			for _, r := range ps.rules {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO `+w.t.name+`
+					(`+w.t.subject+`, capability, scope_kind, environment_id, resource_type, resource_id, effect, position)
+					VALUES (?, 'stack.stop', ?, ?, ?, ?, ?,
+					  CASE WHEN ? >= 0 THEN ? ELSE (SELECT COALESCE(MAX(position), -1) + 1 FROM `+w.t.name+` WHERE `+w.t.subject+` = ?) END)`,
+					subject, r.scope.kind, r.scope.env, r.scope.typ, r.scope.id, r.effect, r.position, r.position, subject); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE `+w.t.parent+` SET permissions_revision = permissions_revision + 1 WHERE id = ?`, subject); err != nil {
+				return err
+			}
 		}
 	}
 	return Exec(
