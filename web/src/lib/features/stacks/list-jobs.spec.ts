@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Job } from '$lib/api/client';
 import { matchingJobs, trackedEntries } from '$lib/features/jobs/active';
-import { runningByStack, runningHint, runningLabel, stackListMatch } from './list-jobs';
+import {
+	restoringStacks,
+	runningByStack,
+	runningHint,
+	runningLabel,
+	stackListMatch
+} from './list-jobs';
 
 function job(id: string, p: Partial<Job> = {}): Job {
 	return {
@@ -68,10 +74,34 @@ describe('stack list jobs', () => {
 	it('says what runs', () => {
 		expect(runningLabel({ kind: 'stack.deploy', state: 'running' })).toBe('Deploying');
 		expect(runningLabel({ kind: 'stack.stop', state: 'cancelling' })).toBe('Stopping');
+		// A stack's Stop takes it down.
+		expect(runningLabel({ kind: 'stack.down', state: 'running' })).toBe('Stopping');
 		expect(runningLabel({ kind: 'stack.deploy', state: 'queued' })).toBe('Waiting');
 		expect(runningLabel({ kind: 'stack.deploy', state: 'blocked' })).toBe('Waiting');
 		expect(runningLabel({ kind: 'files.copy', state: 'running' })).toBe('Running');
 		expect(runningLabel({ kind: 'environment.migrate', state: 'running' })).toBe('Migrating');
 		expect(runningHint({ kind: 'stack.deploy' })).toBe('Deploy Stack: open the job');
+	});
+
+	it('finds the stacks a restore runs on, also behind a newer job', () => {
+		const stack = (id: string) => [{ type: 'stack', id }];
+		const restoring = restoringStacks([
+			{ active: true, job: { kind: 'stack.deploy', targets: stack('st-1') } },
+			{ active: true, job: { kind: 'restore.run', targets: stack('st-1') } },
+			{ active: false, job: { kind: 'restore.run', targets: stack('st-2') } },
+			{ active: true, job: { kind: 'backup.run', targets: stack('st-3') } },
+			{ active: true }
+		] as never);
+		expect([...restoring]).toEqual(['st-1']);
+	});
+
+	it('finds a restore in the running list through the list’s match', () => {
+		// A restore targets the stacks whose data it restores (newest first).
+		const list = [
+			job('0190-2', { kind: 'stack.deploy' }),
+			job('0190-1', { kind: 'restore.run', targets: [{ type: 'stack', id: 'st-1' }] })
+		];
+		const entries = trackedEntries([], matchingJobs(list, stackListMatch('e1')));
+		expect([...restoringStacks(entries)]).toEqual(['st-1']);
 	});
 });

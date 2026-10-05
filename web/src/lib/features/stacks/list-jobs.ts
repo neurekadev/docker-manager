@@ -30,11 +30,27 @@ export function runningByStack(
 	return out;
 }
 
+/**
+ * The stacks a restore runs on: their Start, Restart and Stop are hidden
+ * (the restore starts what ran before itself; a Stop's down would remove
+ * those containers).
+ */
+export function restoringStacks(
+	entries: readonly { active: boolean; job?: Pick<Job, 'kind' | 'targets'> }[]
+): Set<string> {
+	const out = new Set<string>();
+	for (const e of entries) {
+		if (!e.active || e.job?.kind !== 'restore.run') continue;
+		for (const t of e.job.targets ?? []) if (t.type === 'stack') out.add(t.id);
+	}
+	return out;
+}
+
 const RUNNING: Record<string, string> = {
 	'environment.migrate': 'Migrating',
 	'stack.build': 'Building',
 	'stack.deploy': 'Deploying',
-	'stack.down': 'Taking Down',
+	'stack.down': 'Stopping',
 	'stack.import': 'Importing',
 	'stack.migrate': 'Migrating',
 	'stack.pull': 'Pulling',

@@ -6,21 +6,23 @@
 	// pencil right of the name (the name turns into a field in place:
 	// RenameStackInline, which renames at once) and the actions: the Deploy
 	// split button (the one primary; its menu has Deploy and Pull & Deploy,
-	// which says when newer images are available, then Cleanup Orphans &
-	// Deploy after a separator), the Build split button for stacks with a
-	// build section (Build and Pull & Build, which pulls newer base images,
-	// build without deploying, with stack.build; after a separator Build &
-	// Deploy and Pull, Build & Deploy, with stack.deploy), the lifecycle split button
-	// (LifecycleButton: Stop while anything runs, Start when stopped; its
-	// menu has Start, Restart and Stop) and overflow (Migrate with more than
-	// one environment, Edit Details, Save as Template, Delete). Each action
-	// is shown only with its capability (the server still decides). Start
-	// and Restart run at once; Stop, Delete and Cleanup Orphans & Deploy
-	// confirm with their exact consequences first. Docker Manager's own stack
-	// (#32) deploys; Restart, Stop, Migrate, Rename and Delete stay visible
-	// but disabled, with the reason. While a rename of the stack runs (the
-	// tray's stack.rename job, or one in the stack's jobs after a reload)
-	// every action is off, with the reason.
+	// which says when newer images are available, then Force Recreate and
+	// Cleanup Orphans & Deploy after a separator), the Build split button
+	// for stacks with a build section (Build and Pull & Build, which pulls
+	// newer base images, build without deploying, with stack.build; after a
+	// separator Build & Deploy and Pull, Build & Deploy, with stack.deploy),
+	// the lifecycle split button (LifecycleButton: Stop while anything
+	// runs, Start when stopped; its menu has Start, Restart and Stop, and
+	// Stop takes the stack down with stack.down, else it only stops it) and
+	// overflow (Migrate with more than one environment, Edit Details, Save
+	// as Template, Delete). Each action is shown only with its capability
+	// (the server still decides). Start and Restart run at once; Stop,
+	// Delete, Force Recreate and Cleanup Orphans & Deploy confirm with their
+	// exact consequences first. Docker Manager's own stack (#32) deploys and
+	// force recreates; Restart, Stop, Migrate, Rename and Delete stay
+	// visible but disabled, with the reason. While a rename of the
+	// stack runs (the tray's stack.rename job, or one in the stack's jobs
+	// after a reload) every action is off, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
@@ -33,6 +35,7 @@
 	import Hammer from '@lucide/svelte/icons/hammer';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import RefreshCcw from '@lucide/svelte/icons/refresh-ccw';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Rocket from '@lucide/svelte/icons/rocket';
 	import Eraser from '@lucide/svelte/icons/eraser';
@@ -76,13 +79,23 @@
 	import {
 		buildCopy,
 		deployFailure,
+		anonymousVolumeCount,
+		recreateConsequences,
 		serviceCounts,
 		stackStatus,
+		stackStopAction,
 		stackTitle,
+		stopConsequences,
 		updateAvailable,
 		type DeployChoice
 	} from './model';
-	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
+	import {
+		stackImageStatusQuery,
+		stackJobsQuery,
+		stackKeys,
+		stackServicesQuery,
+		type Stack
+	} from './queries';
 	import { activeRename } from './rename';
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
@@ -182,6 +195,8 @@
 	// Only Stop confirms (it ends what runs); Start and Restart run at once,
 	// like a container's.
 	let confirming = $state(false);
+	// Force Recreate confirms: it replaces every container.
+	let recreating = $state(false);
 	let operating = $state<'start' | 'restart' | null>(null);
 	async function runNow(action: 'start' | 'restart') {
 		if (operating) return;
@@ -206,24 +221,34 @@
 	let savingTemplate = $state(false);
 	let starting = $state<'deploy' | 'build' | null>(null);
 
-	const OPS: Record<
-		Exclude<StackOperation, 'down'>,
-		{ done: string; failure: string; title: string }
-	> = {
+	const OPS: Record<StackOperation, { done: string; failure: string; title: string }> = {
 		start: { done: 'Started', failure: 'started', title: 'Start' },
 		stop: { done: 'Stopped', failure: 'stopped', title: 'Stop' },
-		restart: { done: 'Restarted', failure: 'restarted', title: 'Restart' }
+		restart: { done: 'Restarted', failure: 'restarted', title: 'Restart' },
+		// A stack's Stop with stack.down: the user sees a stop.
+		down: { done: 'Stopped', failure: 'stopped', title: 'Stop' }
 	};
 
 	const containerWord = (n: number) => `${n} ${n === 1 ? 'container' : 'containers'}`;
-	const stopConsequences = $derived([
-		`Stops ${containerWord(counts.containersRunning)}, the services that need others first.`,
-		'Containers, volumes and files are kept; Start brings them back.'
-	]);
+	// Stop takes the stack down with stack.down, else it only stops it.
+	const stopAction = $derived(stackStopAction(stack.actions));
+	// A down leaves anonymous volumes behind: the confirmation counts them.
+	const stopServices = createQuery(() => ({
+		...stackServicesQuery(stack.id),
+		enabled: confirming && full && stopAction === 'down'
+	}));
+	const stopping = $derived(
+		stopConsequences(
+			containerWord(stopAction === 'down' ? counts.containers : counts.containersRunning),
+			stopAction === 'down',
+			anonymousVolumeCount(stopServices.data?.services)
+		)
+	);
 
 	// Start, Restart and Stop as one split button: Stop while anything runs
 	// (a partially running stack too: Start in its menu starts the rest),
-	// Start when stopped. A restore hides Start and Restart.
+	// Start when stopped. A restore hides them all: it starts what ran
+	// before itself, and Stop's down would remove those containers.
 	const lifecycle = $derived.by((): LifecycleActions => {
 		const out: LifecycleActions = {};
 		const locked = protectedStack ? selfReason : undefined;
@@ -235,10 +260,12 @@
 				disabled: current === 'stopped' || protectedStack,
 				reason: locked
 			};
-		if (can('stack.stop'))
+		// A stop that takes the stack down also removes a stopped stack's
+		// containers.
+		if (stopAction && !restoring)
 			out.stop = {
 				run: () => (confirming = true),
-				disabled: current === 'stopped' || protectedStack,
+				disabled: (current === 'stopped' && stopAction !== 'down') || protectedStack,
 				reason: locked
 			};
 		return out;
@@ -271,7 +298,7 @@
 		}
 	}
 
-	async function operate(action: Exclude<StackOperation, 'down'>) {
+	async function operate(action: StackOperation) {
 		const op = OPS[action];
 		const job = await operateStack(stack.id, action);
 		tray.add(job, {
@@ -327,6 +354,8 @@
 		// Pulls every image first, then deploys (what the former Update did).
 		{ label: 'Pull & Deploy', icon: Download, onSelect: () => deploy({ pull: true }) },
 		{ separator: true },
+		// Replaces every container, changed or not (confirmed first).
+		{ label: 'Force Recreate', icon: RefreshCcw, onSelect: () => (recreating = true) },
 		{
 			label: 'Cleanup Orphans & Deploy',
 			icon: Eraser,
@@ -511,10 +540,19 @@
 <ConfirmDialog
 	bind:open={confirming}
 	title="Stop {title}?"
-	consequences={stopConsequences}
+	consequences={stopping}
 	confirmLabel="Stop"
 	tone="danger"
-	onconfirm={() => operate('stop')}
+	onconfirm={() => stopAction && operate(stopAction)}
+/>
+
+<ConfirmDialog
+	bind:open={recreating}
+	title="Force Recreate {title}?"
+	consequences={recreateConsequences(title)}
+	confirmLabel="Force Recreate"
+	tone="danger"
+	onconfirm={() => deploy({ forceRecreate: true })}
 />
 
 <DestructiveConfirm

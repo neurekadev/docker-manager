@@ -280,7 +280,10 @@ deploy"). Deploy is the header's one primary action (a split button that
 deploys at once); its menu has "Deploy" and "Pull & Deploy" (one deploy
 with `pull: always`; the menu button's accessible label says "newer
 images are available" when `updateAvailable`), then after a separator
-"Cleanup Orphans & Deploy". Stacks whose files on disk have a `build:`
+"Force Recreate" (a deploy with `forceRecreate: true`: every container is
+replaced even when unchanged; confirmed first with `recreateConsequences`,
+words from `deployTitle`/`deploySuccess`: "Force Recreate", "Recreated")
+and "Cleanup Orphans & Deploy". Stacks whose files on disk have a `build:`
 section (`sourceBuild`, not the last deploy's `services`) get a
 secondary **Build** split button ("More Build Options"): "Build" and
 "Pull & Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
@@ -316,14 +319,39 @@ main part's tooltip and an `sr-only` text (menu items carry no
 description);
 Docker Manager's own containers keep them on (the server refuses with its
 reason; the page's notice says so up front). Start and Restart run at
-once; Stop confirms with its consequences. Row menus (services table,
+once; Stop confirms with its consequences. A stack's Stop (header and
+stack list) takes the stack down when the caller holds `stack.down`
+(`stackStopAction`: containers and networks removed, named volumes,
+images and files kept; the stack is then `down`, which reads "Stopped"
+(`status.ts`; the stack list's Stopped filter matches it too), and the
+header offers Deploy, and
+a stopped stack's Stop stays on to remove its containers), else it only
+stops the containers; the confirmation says which and, for a down,
+how many anonymous volumes are left behind (`anonymousVolumeCount` over
+the services, loaded when the dialog opens; said in general while
+unknown), since the next deploy creates new, empty ones
+(`stopConsequences`), and the tray uses Stop's words for both (also for
+an adopted `stack.down`, `adopt.ts`). A service's and a container's Stop
+are always a plain stop (Compose takes down whole projects only; the API
+refuses `services` on a down). A restore of the stack hides Start,
+Restart and Stop (header, and the stack list through `restoringStacks`):
+it starts what ran before itself, and a down would remove those
+containers. The list row of a running `stack.down` says "Stopping". Row menus (services table,
 stack and container lists) keep their own entries in the same order
 (Start, Restart, Stop…, Stop in the danger tone; the stack list's Start
-also starts the rest of a partially running stack). The container list's
+also starts the rest of a partially running stack). The services table's
+row menu adds "Force Recreate <service>" after them with `stack.deploy`
+(on for Docker Manager's own stack, whose deploys work): a deploy with
+`forceRecreate` and `services: [<service>]`, confirmed on the stack page
+first; Compose recreates the service's dependencies only when they
+changed. The container list's
 bulk bar stays separate buttons (a selection mixes states).
 
-There is no Take Down in the UI (the `stack.down` operation and capability
-stay in the API). The header hides its actions while the migration wizard
+There is no separate down action in the UI: a stack's Stop is one. Job
+and alert labels name it "Stop (Down)" / "Stop Stack (Down)" (Compose's
+word in brackets), never "Take Down". A stack whose containers vanished
+outside Docker Manager reads "Missing" (the containers list keeps "Not
+Running" for every state but running). The header hides its actions while the migration wizard
 is open, and Migrate while the caller sees one environment.
 
 Rename (`stack.rename`) is the pencil right of the stack's name

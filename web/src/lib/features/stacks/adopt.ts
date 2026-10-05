@@ -63,10 +63,11 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		success: `Updated ${t}`,
 		failure: `${t} was not updated`
 	}),
+	// A stack's Stop takes it down (stackStopAction): the words of Stop.
 	'stack.down': (t) => ({
-		title: `Take Down ${t}`,
-		success: `Took down ${t}`,
-		failure: `${t} was not taken down`
+		title: `Stop ${t}`,
+		success: `Stopped ${t}`,
+		failure: `${t} was not stopped`
 	}),
 	'stack.remove': (t) => ({
 		title: `Delete ${t}`,

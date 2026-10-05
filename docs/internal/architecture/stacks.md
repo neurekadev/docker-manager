@@ -119,7 +119,11 @@ agent's steps:
    inherits its predecessor's anonymous volumes, like `docker compose up`
    (the adapter sets the SDK's `Inherit`, whose zero value would start it
    with empty ones; `compose.UpOptions.RenewAnonymousVolumes` is the
-   explicit `--renew-anon-volumes`, not exposed by the API). The result
+   explicit `--renew-anon-volumes`, not exposed by the API). With
+   `forceRecreate` every selected service is recreated even when unchanged
+   (the UI's "Force Recreate", of the stack or of one service with
+   `services`); dependencies outside `services` are recreated only when
+   they diverged, and inherit their anonymous volumes the same way. The result
    output (`protocol.StackJobOutput`) carries the
    sources (contents inline up to 96 KiB, hashes only above), the applied
    images, binds, warnings and the state before and after — also when `up`

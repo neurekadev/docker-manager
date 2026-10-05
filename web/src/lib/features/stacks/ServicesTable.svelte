@@ -12,8 +12,9 @@
 	// and the row actions, pinned to the right edge while the table scrolls
 	// sideways: open (only with a web port and an address), terminal (track
 	// B3's route with the service preselected) and a menu with the service's
-	// own start, restart and stop, its logs (the Logs tab filtered to the
-	// service) and its containers. Restart and stop of Docker Manager's own project
+	// own start, restart and stop, its force recreate (a deploy of the
+	// service that replaces its containers), its logs (the Logs tab filtered
+	// to the service) and its containers. Restart and stop of Docker Manager's own project
 	// (#32) are shown disabled, not hidden. Names, images, volumes and
 	// networks are capped so every row keeps one height.
 	import Box from '@lucide/svelte/icons/box';
@@ -21,6 +22,7 @@
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Play from '@lucide/svelte/icons/play';
+	import RefreshCcw from '@lucide/svelte/icons/refresh-ccw';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Rocket from '@lucide/svelte/icons/rocket';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
@@ -70,6 +72,8 @@
 		serviceAddress?: string;
 		/** Starts start/stop/restart of one service (stop confirms first). */
 		onoperate?: (service: string, action: StackOperation) => void;
+		/** Force recreates one service (confirms first). */
+		onrecreate?: (service: string) => void;
 		/** Deploys the stack (the empty state's action). */
 		ondeploy?: () => void;
 		deploying?: boolean;
@@ -83,6 +87,7 @@
 		usage,
 		serviceAddress,
 		onoperate,
+		onrecreate,
 		ondeploy,
 		deploying = false,
 		readOnly = false
@@ -143,6 +148,13 @@
 					onSelect: () => onoperate(s.name, 'stop')
 				});
 		}
+		// A deploy of the service: Docker Manager's own stack may (#32).
+		if (!readOnly && onrecreate && can('stack.deploy'))
+			items.push({
+				label: `Force Recreate ${s.name}`,
+				icon: RefreshCcw,
+				onSelect: () => onrecreate(s.name)
+			});
 		const named = s.containers.filter((c) => c.name);
 		const more = can('container.logs.read') || (can('container.details.read') && named.length);
 		if (more && items.length) items.push({ separator: true });

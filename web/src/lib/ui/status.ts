@@ -24,13 +24,15 @@ const STATUS: Record<string, StatusInfo> = {
 	created: { tone: 'neutral', label: 'Created', pulse: false },
 	dead: { tone: 'danger', label: 'Dead', pulse: false },
 	removing: { tone: 'warn', label: 'Removing', pulse: true },
-	missing: { tone: 'neutral', label: 'Not Running', pulse: false },
+	// A stack or service without its containers (removed outside Docker Manager).
+	missing: { tone: 'neutral', label: 'Missing', pulse: false },
 	partial: { tone: 'warn', label: 'Partially Running', pulse: false },
 	unknown: { tone: 'neutral', label: 'Unknown', pulse: false },
 	// Stack deployment status (#7).
 	deployed: { tone: 'ok', label: 'Deployed', pulse: false },
 	undeployed: { tone: 'neutral', label: 'Not Deployed', pulse: false },
-	down: { tone: 'neutral', label: 'Down', pulse: false },
+	// A stack's Stop runs Compose down: the user sees a stopped stack.
+	down: { tone: 'neutral', label: 'Stopped', pulse: false },
 	// Environments (#3).
 	online: { tone: 'ok', label: 'Online', pulse: false },
 	offline: { tone: 'offline', label: 'Offline', pulse: false },

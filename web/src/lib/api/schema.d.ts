@@ -3804,7 +3804,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a stack
-         * @description Starts a stack.remove job (202): the stack is taken down (containers and networks removed; the project directory is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an up-to-date, connected agent (501 agent_unsupported).
+         * @description Starts a stack.remove job (202): the stack is brought down (Compose down: containers and networks removed; the project directory is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an up-to-date, connected agent (501 agent_unsupported).
          */
         delete: operations["delete-stack"];
         options?: never;
@@ -4210,7 +4210,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start, stop, restart or take down a stack
+         * Start, stop, restart or bring down a stack
          * @description Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. Start, stop and restart follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.
          */
         post: operations["create-stack-operation"];
@@ -7683,6 +7683,7 @@ export interface components {
              * @description Bounds the images the deploy builds (default 3600).
              */
             buildTimeoutSeconds?: number;
+            /** @description Recreate the containers even when their configuration and image did not change (with services, only theirs: dependencies are recreated only when they changed). Anonymous volumes are kept. */
             forceRecreate?: boolean;
             /**
              * @description missing (default): pull only images that are not on the host; always: pull every image first (with build, the build also pulls newer base images).
@@ -7776,7 +7777,7 @@ export interface components {
         DiscoveredStack: {
             /** @description Can be imported in place from its real files. */
             adoptable: boolean;
-            /** @description The project has no containers (never started, or taken down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy. */
+            /** @description The project has no containers (never started, or brought down with Compose down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy. */
             containerless?: boolean;
             /** @description Not adoptable in place, but the agent reads its directory through an import mount (below /import): it can be imported by copy (POST .../stacks/import-copies). */
             copyable: boolean;
@@ -12054,7 +12055,7 @@ export interface components {
             origin?: "created" | "imported";
             /** @description Engine state before the last deploy (recovery of a failed deploy). */
             previousState?: components["schemas"]["StackServiceState"][];
-            /** @description Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, take down, delete and migrate are refused with 409 protected. */
+            /** @description Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description The environment is offline: the last known revision and state are shown read-only. */
             readOnly?: boolean;
@@ -12477,7 +12478,7 @@ export interface components {
             containers: components["schemas"]["StackContainer"][];
             dependsOn: components["schemas"]["StackDependency"][];
             description?: string;
-            /** @description missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied). */
+            /** @description missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped, also with down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied). */
             drift: string[];
             /**
              * @deprecated
