@@ -224,6 +224,22 @@ win, so a declared `"false"` reverses a `true` on the volume);
 API's `Volume.composeLabels` (full view), which the Labels card shows as
 their own group with an (i) explaining why.
 
+Anonymous volumes carry no Compose project label (the Engine creates them
+for a container's unnamed mounts), so once a Compose down removed a stack's
+containers nothing ties them to the stack. Before `stack.down` runs, the
+agent records the anonymous volumes of the project's containers (temporary
+containers left out) in `<state dir>/down-volumes.json`
+(`downvolumes.Store`, written atomically; each record keeps the container
+IDs it was taken from: a later down keeps the recorded volumes of every
+service without a new container, so a down after one that failed having
+removed some containers keeps their volumes, drops those of a service
+whose container came back through a deploy or Compose (its data is in new
+volumes) and adds what it finds; a down that finds no container changes
+nothing; a successful deploy and `stack.remove` forget the record,
+`stack.rename` moves it). Backups of the stack
+use the record while it has no containers (#276, see
+[backups](backups.md)).
+
 ## Hooks for other workstreams
 
 - **#19 registry connections:** pulls select the connection with

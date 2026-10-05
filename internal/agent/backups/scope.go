@@ -366,6 +366,31 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 				Service: c.Labels[lifecycle.ComposeServiceLabel], State: protocol.SourceExcluded, Reason: helperOnlyReason})
 		}
 	}
+	// A stack Docker Manager brought down (Compose down) has no containers:
+	// nothing else ties its anonymous volumes to it any more (#276).
+	if len(containers) > 0 {
+		return
+	}
+	for _, v := range s.opts.DownVolumes.Volumes(p.project) {
+		if seen[v.Name] {
+			continue
+		}
+		seen[v.Name] = true
+		ss := protocol.ScopeSource{Kind: protocol.SourceAnonymous, Name: v.Name, Service: v.Service}
+		switch {
+		case !it.Rules.AnonymousVolumes:
+			ss.State, ss.Reason = protocol.SourceExcluded, "anonymous volumes are off (enable them in the policy)"
+		case slices.Contains(it.Rules.VolumeExclude, v.Name):
+			ss.State, ss.Reason = protocol.SourceExcluded, "excluded by the policy"
+		default:
+			if missing := s.includeVolume(ctx, eng, p, &ss, v.Name); missing {
+				ss.Reason = "the stack was stopped and the volume no longer exists"
+			} else if ss.State == protocol.SourceIncluded {
+				ss.Reason = downVolumeReason
+			}
+		}
+		p.sources = append(p.sources, ss)
+	}
 }
 
 // Reasons of volumes left out by the backup exclude label.
@@ -378,6 +403,9 @@ const (
 	// helperOnlyReason: only temporary containers of Docker Manager or
 	// Compose mount the volume (protocol.IsHelperContainer).
 	helperOnlyReason = "only a temporary container of Docker Manager or Compose uses it"
+	// downVolumeReason: an anonymous volume the stack's containers had
+	// when Docker Manager brought the stack down (downvolumes).
+	downVolumeReason = "anonymous volume of the stack, left behind when it was stopped (Compose down)"
 )
 
 // includeVolume adds a volume's data directory when it is supported and

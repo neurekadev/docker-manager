@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/docker-manager/internal/agent/compose"
+	"github.com/neurekadev/docker-manager/internal/agent/downvolumes"
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/lifecycle"
 	"github.com/neurekadev/docker-manager/internal/agent/regauth"
@@ -356,6 +357,11 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		return upErr
 	}
 	s.recordVolumeLabels(ctx, eng, in.Stack.ProjectName, p)
+	// The deployed containers have anonymous volumes of their own now: a
+	// record of an earlier down no longer describes the stack (#276).
+	if err := s.opts.DownVolumes.Forget(in.Stack.ProjectName); err != nil {
+		s.log.Warn("could not forget the anonymous volumes of the last down", "project", in.Stack.ProjectName, "error", err)
+	}
 	if len(handoff) > 0 {
 		s.scheduleSelf(sc, in.Stack, dir, snap, handoff, in.ForceRecreate, in.TimeoutSeconds)
 	}
@@ -660,6 +666,21 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 		d := time.Duration(in.TimeoutSeconds) * time.Second
 		timeout = &d
 	}
+	// The anonymous volumes of the containers a down removes: nothing ties
+	// them to the project afterwards (#276). Recorded before the down with
+	// the containers they come from, so a down after one that removed some
+	// of them keeps those volumes, while a service whose container came back
+	// replaces its own; backups only use the record while the project has
+	// no containers.
+	if len(before) > 0 && sc.Kind == jobspec.StackDown {
+		containers, anonymous, err := anonymousVolumes(ctx, eng, in.Stack.ProjectName)
+		if err != nil {
+			return err
+		}
+		if err := s.opts.DownVolumes.Record(in.Stack.ProjectName, containers, anonymous); err != nil {
+			s.log.Warn("could not record the anonymous volumes the down leaves behind", "project", in.Stack.ProjectName, "error", err)
+		}
+	}
 	if len(before) > 0 {
 		if err := c.Down(ctx, in.Stack.ProjectName, nil, compose.DownOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc)},
 			RemoveOrphans: true, Timeout: timeout}); err != nil {
@@ -678,6 +699,42 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 		if ferr := s.opts.VolumeLabels.Forget(in.Stack.ProjectName); ferr != nil {
 			s.log.Warn("could not forget the volume labels of the removed stack", "project", in.Stack.ProjectName, "error", ferr)
 		}
+		if ferr := s.opts.DownVolumes.Forget(in.Stack.ProjectName); ferr != nil {
+			s.log.Warn("could not forget the anonymous volumes of the removed stack", "project", in.Stack.ProjectName, "error", ferr)
+		}
 	}
 	return err
+}
+
+// anonymousVolumes lists the project's containers and the anonymous
+// volumes they mount, by name (the Engine gives them a random 64-digit hex
+// name). Temporary containers of Docker Manager or Compose are left out
+// (protocol.IsHelperContainer), like backups do.
+func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([]downvolumes.Container, []downvolumes.Volume, error) {
+	list, err := lifecycle.ProjectContainers(ctx, eng, project)
+	if err != nil {
+		return nil, nil, err
+	}
+	var ids []downvolumes.Container
+	var out []downvolumes.Volume
+	seen := map[string]bool{}
+	for _, c := range list {
+		name := ""
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
+		if protocol.IsHelperContainer(name, c.Labels) {
+			continue
+		}
+		ids = append(ids, downvolumes.Container{ID: c.ID, Service: c.Labels[lifecycle.ComposeServiceLabel]})
+		for _, m := range c.Mounts {
+			if m.Type != "volume" || !protocol.AnonymousVolumeName(m.Name) || seen[m.Name] {
+				continue
+			}
+			seen[m.Name] = true
+			out = append(out, downvolumes.Volume{Name: m.Name, Service: c.Labels[lifecycle.ComposeServiceLabel], Destination: m.Destination})
+		}
+	}
+	slices.SortFunc(out, func(a, b downvolumes.Volume) int { return strings.Compare(a.Name, b.Name) })
+	return ids, out, nil
 }
