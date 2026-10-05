@@ -1026,7 +1026,7 @@ enqueueing and again at dispatch for queued manual jobs.
 | `restore.run` | command | `backup.restore` |
 | `stack.build` | command | `stack.build` |
 | `stack.deploy` | command | `stack.deploy` |
-| `stack.down` | command | `stack.down` |
+| `stack.down` | command | `stack.stop` |
 | `stack.import` | command | `stack.import` |
 | `stack.remove` | command | `stack.remove` |
 | `stack.pull` | command | `stack.update` |

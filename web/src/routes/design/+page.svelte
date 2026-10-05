@@ -1007,7 +1007,7 @@
 	bind:open={destroyOpen}
 	title="Delete Silo?"
 	consequences={[
-		'Takes the stack down: removes 5 containers and its network.',
+		'Stops and removes 5 containers and the stack’s network.',
 		'Volumes and the project directory are kept.'
 	]}
 	affected={demoServices.map((s) => ({ label: `silo-${s.name}-1`, detail: 'container' }))}

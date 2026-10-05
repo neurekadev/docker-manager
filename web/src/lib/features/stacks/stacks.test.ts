@@ -132,7 +132,6 @@ const ALL = [
 	'stack.start',
 	'stack.stop',
 	'stack.restart',
-	'stack.down',
 	'stack.remove',
 	'stack.migrate',
 	'stack.manage',
@@ -640,21 +639,6 @@ describe('StackHeader', () => {
 		});
 	});
 
-	it('turns Stop off for a stopped stack without stack.down', async () => {
-		const user = setup();
-		header(
-			stack({
-				actions: ALL.filter((a) => a !== 'stack.down'),
-				engine: { state: 'stopped', services: [] }
-			})
-		);
-		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
-		expect(await screen.findByRole('menuitem', { name: 'Stop' })).toHaveAttribute(
-			'aria-disabled',
-			'true'
-		);
-	});
-
 	it('names the anonymous volumes a stop (Compose down) leaves behind', async () => {
 		const user = setup();
 		servicesBody = {
@@ -687,21 +671,13 @@ describe('StackHeader', () => {
 		).toBeInTheDocument();
 	});
 
-	it('only stops the containers without stack.down', async () => {
+	it('offers no Stop without stack.stop', async () => {
 		const user = setup();
-		const tray = header(stack({ actions: ALL.filter((a) => a !== 'stack.down') }));
-		await user.click(screen.getByRole('button', { name: 'Stop' }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
-		expect(
-			within(dialog).getByText('Stops 3 containers, the services that need others first.')
-		).toBeInTheDocument();
-		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
-		await waitFor(() => expect(tray.jobs).toHaveLength(1));
-		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
-			path: '/api/v1/stacks/st-1/operations',
-			body: { action: 'stop' }
-		});
-		expect(tray.jobs[0]).toMatchObject({ title: 'Stop Silo', success: 'Stopped Silo' });
+		header(stack({ actions: ALL.filter((a) => a !== 'stack.stop') }));
+		// Restart is the main part while it runs; its menu has no Stop.
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
+		expect(await screen.findByRole('menuitem', { name: 'Restart' })).toBeInTheDocument();
+		expect(screen.queryByRole('menuitem', { name: 'Stop' })).not.toBeInTheDocument();
 	});
 
 	it('hides Start, Restart and Stop while a restore of the stack runs', async () => {

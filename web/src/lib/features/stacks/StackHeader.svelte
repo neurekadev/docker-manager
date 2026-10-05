@@ -13,7 +13,7 @@
 	// separator Build & Deploy and Pull, Build & Deploy, with stack.deploy),
 	// the lifecycle split button (LifecycleButton: Stop while anything
 	// runs, Start when stopped; its menu has Start, Restart and Stop, and
-	// Stop takes the stack down with stack.down, else it only stops it) and
+	// Stop runs Compose down with stack.stop) and
 	// overflow (Migrate with more than one environment, Edit Details, Save
 	// as Template, Delete). Each action is shown only with its capability
 	// (the server still decides). Start and Restart run at once; Stop,
@@ -83,7 +83,6 @@
 		recreateConsequences,
 		serviceCounts,
 		stackStatus,
-		stackStopAction,
 		stackTitle,
 		stopConsequences,
 		updateAvailable,
@@ -225,22 +224,20 @@
 		start: { done: 'Started', failure: 'started', title: 'Start' },
 		stop: { done: 'Stopped', failure: 'stopped', title: 'Stop' },
 		restart: { done: 'Restarted', failure: 'restarted', title: 'Restart' },
-		// A stack's Stop with stack.down: the user sees a stop.
+		// A stack's Stop runs Compose down: the user sees a stop.
 		down: { done: 'Stopped', failure: 'stopped', title: 'Stop' }
 	};
 
 	const containerWord = (n: number) => `${n} ${n === 1 ? 'container' : 'containers'}`;
-	// Stop takes the stack down with stack.down, else it only stops it.
-	const stopAction = $derived(stackStopAction(stack.actions));
-	// A down leaves anonymous volumes behind: the confirmation counts them.
+	// Stop runs Compose down (stack.stop, #274), which leaves anonymous
+	// volumes behind: the confirmation counts them.
 	const stopServices = createQuery(() => ({
 		...stackServicesQuery(stack.id),
-		enabled: confirming && full && stopAction === 'down'
+		enabled: confirming && full
 	}));
 	const stopping = $derived(
 		stopConsequences(
-			containerWord(stopAction === 'down' ? counts.containers : counts.containersRunning),
-			stopAction === 'down',
+			containerWord(counts.containers),
 			anonymousVolumeCount(stopServices.data?.services)
 		)
 	);
@@ -260,12 +257,11 @@
 				disabled: current === 'stopped' || protectedStack,
 				reason: locked
 			};
-		// A stop that takes the stack down also removes a stopped stack's
-		// containers.
-		if (stopAction && !restoring)
+		// Its down also removes a stopped stack's containers.
+		if (can('stack.stop') && !restoring)
 			out.stop = {
 				run: () => (confirming = true),
-				disabled: (current === 'stopped' && stopAction !== 'down') || protectedStack,
+				disabled: protectedStack,
 				reason: locked
 			};
 		return out;
@@ -543,7 +539,7 @@
 	consequences={stopping}
 	confirmLabel="Stop"
 	tone="danger"
-	onconfirm={() => stopAction && operate(stopAction)}
+	onconfirm={() => operate('down')}
 />
 
 <ConfirmDialog

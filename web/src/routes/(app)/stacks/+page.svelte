@@ -6,7 +6,7 @@
 	// what needs attention. Searched by name or description and filtered by
 	// status, changes and environment (ListCard, kept per list and browser
 	// tab). The whole row opens the stack; its menu deploys, restarts, stops
-	// (after a confirmation; a down with stack.down, else a plain stop) or
+	// (after a confirmation; Compose down, with stack.stop) or
 	// opens the logs, each with its capability.
 	// Each row shows the stack tile, or the image of the template the stack
 	// was created from. Create and import are shown only with stack.create /
@@ -43,7 +43,6 @@
 		serviceCounts,
 		stackStatus,
 		anonymousVolumeCount,
-		stackStopAction,
 		stackTitle,
 		stopConsequences
 	} from '$lib/features/stacks/model';
@@ -229,7 +228,7 @@
 		start: ['Started', 'started'],
 		stop: ['Stopped', 'stopped'],
 		restart: ['Restarted', 'restarted'],
-		// Stop with stack.down: the user sees a stop.
+		// A stack's Stop runs Compose down: the user sees a stop.
 		down: ['Stopped', 'stopped']
 	};
 
@@ -281,11 +280,10 @@
 
 	let stopping = $state<Stack | null>(null);
 	let stopOpen = $state(false);
-	const stopAction = $derived(stopping ? stackStopAction(stopping.actions) : undefined);
 	// A down leaves anonymous volumes behind: the confirmation counts them.
 	const stopServices = createQuery(() => ({
 		...stackServicesQuery(stopping?.id ?? ''),
-		enabled: stopOpen && stopping?.view === 'full' && stopAction === 'down'
+		enabled: stopOpen && stopping?.view === 'full'
 	}));
 
 	function rowMenu(s: Stack): MenuEntry[] {
@@ -294,7 +292,6 @@
 		const offline = !!s.readOnly || s.environmentOnline === false;
 		const st = stackStatus(s);
 		const stopped = ['stopped', 'down', 'missing', 'undeployed'].includes(st);
-		const stopAs = stackStopAction(s.actions);
 		// A restore starts what ran before itself: no start, restart or stop
 		// meanwhile (a Stop's down would remove those containers).
 		const lifecycle = !restoring.has(s.id);
@@ -324,8 +321,8 @@
 				disabled: offline || !!s.protection,
 				onSelect: () => void operateNow(s, 'restart')
 			});
-		// A stop that takes the stack down also removes a stopped stack's containers.
-		if (lifecycle && stopAs && (!stopped || (stopAs === 'down' && st === 'stopped')))
+		// Stop runs Compose down: it also removes a stopped stack's containers.
+		if (lifecycle && can('stack.stop') && (!stopped || st === 'stopped'))
 			items.push({
 				label: 'Stop…',
 				icon: Square,
@@ -504,12 +501,11 @@
 			title="Stop {stackTitle(stopping)}?"
 			consequences={stopConsequences(
 				`the containers of ${stackTitle(stopping)}`,
-				stopAction === 'down',
 				anonymousVolumeCount(stopServices.data?.services)
 			)}
 			confirmLabel="Stop"
 			tone="danger"
-			onconfirm={() => operate(stopping!, stopAction ?? 'stop')}
+			onconfirm={() => operate(stopping!, 'down')}
 		/>
 	{/if}
 

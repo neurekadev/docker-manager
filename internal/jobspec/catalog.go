@@ -269,10 +269,16 @@ func catalogSpecs() []Spec {
 		starts(stackKind(StackStart, "Start a stack", deadlineInteractive, idem("start"))),
 		stackKind(StackStop, "Stop a stack", deadlineInteractive, idem("stop")),
 		starts(stackKind(StackRestart, "Restart a stack", deadlineInteractive, idem("restart"))),
-		stackKind(StackDown, "Stop and remove a stack's containers and networks", deadlineInteractive, idem("down")),
+		// A stack's Stop runs Compose down (#274): the capability is
+		// stack.stop's.
+		func() Spec {
+			s := stackKind(StackDown, "Stop and remove a stack's containers and networks (Compose down)", deadlineInteractive, idem("down"))
+			s.Capability = "stack.stop"
+			return s
+		}(),
 		// Deleting a stack takes it down (volumes and the project directory
 		// are kept) and then forgets it in the manager (finish hook, #7).
-		stackKind(StackRemove, "Take a stack down and remove it from Docker Manager (files are kept; volumes too unless the removal asks to remove the stack's own)", deadlineInteractive, idem("down")),
+		stackKind(StackRemove, "Bring a stack down and remove it from Docker Manager (files are kept; volumes too unless the removal asks to remove the stack's own)", deadlineInteractive, idem("down")),
 		func() Spec {
 			s := stackKind(StackBuild, "Build a stack's images", deadlineLong, idem("fetch_sources"), idem("build_images"))
 			s.ConcurrencyClass = ClassBuild
