@@ -435,6 +435,21 @@ func TestContainerLifecycleRoutes(t *testing.T) {
 	if act.TimeoutSeconds == nil || *act.TimeoutSeconds != 5 {
 		t.Fatalf("stop input %+v", act)
 	}
+
+	// Recreate (#273): standalone containers only, with the stop timeout.
+	if r := post(base+"/web/recreate", map[string]any{"timeoutSeconds": 7}, "Idempotency-Key", "recreate-web"); r.Status != http.StatusAccepted ||
+		f.jobs.last(t).Kind != jobspec.ContainerRecreate || f.jobs.last(t).IdempotencyKey != "recreate-web" {
+		t.Fatalf("recreate: %d %s", r.Status, r.Body)
+	}
+	raw, _ = json.Marshal(f.jobs.last(t).Input)
+	act = protocol.ContainerActionInput{}
+	_ = json.Unmarshal(raw, &act)
+	if act.ID != web.ID || act.Name != "web" || act.TimeoutSeconds == nil || *act.TimeoutSeconds != 7 {
+		t.Fatalf("recreate input %+v", act)
+	}
+	if r := post(base+"/shop-web-1/recreate", nil); r.Status != http.StatusConflict || code(t, r) != CodeStackManaged {
+		t.Fatalf("recreate a stack container: %d %s", r.Status, r.Body)
+	}
 }
 
 // TestContainerListFiltersSortAndPages: filters, sort orders and cursors.
@@ -871,6 +886,8 @@ func TestSelfProtectionRoutes(t *testing.T) {
 		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-agent-1/restart", Body: map[string]any{"confirm": true}}, CodeProtected},
 		{authztest.Call{Method: http.MethodDelete, Path: base + "/docker-manager-docker-agent-1?force=true"}, CodeProtected},
 		{authztest.Call{Method: http.MethodPatch, Path: base + "/docker-manager-docker-agent-1", Body: map[string]any{"restartPolicy": "no"}}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-agent-1/recreate"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-manager-1/recreate"}, CodeProtected},
 		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-manager-1/stop"}, CodeProtected},
 		{authztest.Call{Method: http.MethodDelete, Path: base + "/docker-manager-docker-manager-1?force=true"}, CodeProtected},
 		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-manager-1/restart"}, CodeConfirmationRequired},

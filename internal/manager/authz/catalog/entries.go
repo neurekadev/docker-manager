@@ -173,6 +173,7 @@ func capabilities() []Capability {
 		normal("container.restart", TypeContainer, "Restart", "Restart a container. Does not allow start, stop, logs, terminal or files.", containerScopes),
 		normal("container.start", TypeContainer, "Start", "Start a stopped container.", containerScopes),
 		normal("container.stop", TypeContainer, "Stop", "Stop a running container.", containerScopes),
+		normal("container.recreate", TypeContainer, "Recreate", "Replace a standalone container with a new one from the same settings. Changes inside it that are not in a volume are lost.", containerScopes),
 		high("container.exec", TypeContainer, "Open Terminal", "Run an interactive shell inside a container (full access to its data).", containerScopes),
 		adv(normal("container.pause", TypeContainer, "Pause", "Freeze a container's processes.", containerScopes)),
 		adv(normal("container.unpause", TypeContainer, "Unpause", "Resume a paused container.", containerScopes)),

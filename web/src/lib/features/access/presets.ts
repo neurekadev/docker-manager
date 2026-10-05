@@ -32,7 +32,7 @@ export const PRESETS: readonly Preset[] = [
 		id: 'operator',
 		label: 'Operator',
 		description:
-			'Viewer, plus start, stop, restart and deploy, pull images, run backups and read logs. Nothing is deleted or administered.'
+			'Viewer, plus start, stop, restart, recreate and deploy, pull images, run backups and read logs. Nothing is deleted or administered.'
 	},
 	{
 		id: 'admin',

@@ -13,6 +13,7 @@ export type Verb =
 	| 'restart'
 	| 'pause'
 	| 'unpause'
+	| 'recreate'
 	| 'remove'
 	| 'update'
 	| 'create'
@@ -27,6 +28,7 @@ const PAST: Record<Verb, string> = {
 	restart: 'restarted',
 	pause: 'paused',
 	unpause: 'unpaused',
+	recreate: 'recreated',
 	remove: 'removed',
 	update: 'changed',
 	create: 'created',
@@ -50,6 +52,7 @@ export function progressTitle(verb: Verb, name: string): string {
 		restart: 'Restarting',
 		pause: 'Pausing',
 		unpause: 'Unpausing',
+		recreate: 'Recreating',
 		remove: 'Removing',
 		update: 'Changing',
 		create: 'Creating',

@@ -19,14 +19,15 @@ const (
 	ImageBuild  domain.JobKind = "image.build"
 	ImageRemove domain.JobKind = "image.remove"
 
-	ContainerCreate  domain.JobKind = "container.create"
-	ContainerStart   domain.JobKind = "container.start"
-	ContainerStop    domain.JobKind = "container.stop"
-	ContainerRestart domain.JobKind = "container.restart"
-	ContainerPause   domain.JobKind = "container.pause"
-	ContainerUnpause domain.JobKind = "container.unpause"
-	ContainerRemove  domain.JobKind = "container.remove"
-	ContainerUpdate  domain.JobKind = "container.update"
+	ContainerCreate   domain.JobKind = "container.create"
+	ContainerStart    domain.JobKind = "container.start"
+	ContainerStop     domain.JobKind = "container.stop"
+	ContainerRestart  domain.JobKind = "container.restart"
+	ContainerPause    domain.JobKind = "container.pause"
+	ContainerUnpause  domain.JobKind = "container.unpause"
+	ContainerRemove   domain.JobKind = "container.remove"
+	ContainerUpdate   domain.JobKind = "container.update"
+	ContainerRecreate domain.JobKind = "container.recreate"
 
 	StackDeploy  domain.JobKind = "stack.deploy"
 	StackStart   domain.JobKind = "stack.start"
@@ -256,6 +257,9 @@ func catalogSpecs() []Spec {
 		starts(containerKind(ContainerUnpause, "unpause", "Unpause a container")),
 		containerKind(ContainerRemove, "remove", "Remove a container"),
 		containerKind(ContainerUpdate, "update", "Update a container's resources or restart policy"),
+		// The recreate step is idempotent: its result output records how far
+		// it came (protocol.ContainerRecreateOutput).
+		starts(containerKind(ContainerRecreate, "recreate", "Replace a standalone container with a new one from the same settings")),
 
 		// Stacks.
 		// A retried deploy or pull gets its stack reference and registry

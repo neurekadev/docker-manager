@@ -48,6 +48,43 @@ describe('container actions (#6)', () => {
 		expect(verbs('running', [])).toEqual([]);
 	});
 
+	it('offers Recreate for standalone containers only (#273)', () => {
+		const actions = [...all, 'container.recreate'];
+		const verbs = (c: Partial<Parameters<typeof containerActions>[0]>) =>
+			containerActions({ state: 'running', actions, ...c }).map((a) => a.verb);
+		expect(verbs({})).toEqual(['stop', 'restart', 'pause', 'recreate', 'remove']);
+		expect(verbs({ state: 'exited' })).toEqual(['start', 'recreate', 'remove']);
+		expect(verbs({ state: 'removing' })).toEqual([]);
+		// A stack's containers are recreated through the stack.
+		expect(verbs({ stack: { project: 'shop', service: 'web', managed: true } })).not.toContain(
+			'recreate'
+		);
+		expect(
+			verbs({ stack: { project: 'legacy', service: 'app', managed: false } })
+		).not.toContain('recreate');
+		// Docker Manager's own containers never.
+		expect(
+			verbs({
+				protection: {
+					role: 'agent',
+					reason: 'the agent',
+					self: true,
+					restartAllowed: false
+				}
+			})
+		).not.toContain('recreate');
+		// Not granted: hidden.
+		expect(verbs({ actions: all })).not.toContain('recreate');
+		expect(
+			containerActions({ state: 'running', actions }).find((a) => a.verb === 'recreate')
+		).toEqual({
+			verb: 'recreate',
+			label: 'Recreate',
+			capability: 'container.recreate',
+			danger: true
+		});
+	});
+
 	it('sends each action to its route with an idempotency key', async () => {
 		const f = fakeFetch(() => ({ status: 202, body: { id: 'j1', state: 'queued' } }));
 		const client = createApiClient(f.impl, base);
@@ -55,7 +92,13 @@ describe('container actions (#6)', () => {
 		await runContainerAction('e1', 'web', 'restart', { confirm: true }, client);
 		await runContainerAction('e1', 'we b', 'remove', { force: true }, client);
 		await runContainerAction('e1', 'web', 'unpause', {}, client);
-		const [stop, restart, remove, unpause] = f.calls;
+		await runContainerAction('e1', 'web', 'recreate', {}, client);
+		const [stop, restart, remove, unpause, recreate] = f.calls;
+		expect(recreate.method).toBe('POST');
+		expect(new URL(recreate.url).pathname).toBe(
+			'/api/v1/environments/e1/containers/web/recreate'
+		);
+		expect(recreate.headers.get('Idempotency-Key')).toMatch(/.{8,}/);
 		expect(stop.method).toBe('POST');
 		expect(new URL(stop.url).pathname).toBe('/api/v1/environments/e1/containers/web/stop');
 		expect(stop.headers.get('Idempotency-Key')).toMatch(/.{8,}/);

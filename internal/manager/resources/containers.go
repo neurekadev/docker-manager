@@ -245,13 +245,17 @@ func (s *Service) Ownership(env string, own map[string]string) map[string]string
 }
 
 // ContainerAction starts a container lifecycle job (start, stop, restart,
-// pause, unpause, remove) on the inspected container d.
+// pause, unpause, remove, recreate) on the inspected container d.
 func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env string, kind domain.JobKind, d protocol.ContainerDetails, in protocol.ContainerActionInput, key string) (domain.Job, error) {
 	if err := s.checkContainer(d.ContainerSummary, kind, in.Confirmed); err != nil {
 		return domain.Job{}, err
 	}
 	switch kind {
 	case jobspec.ContainerStart, jobspec.ContainerStop, jobspec.ContainerRestart, jobspec.ContainerPause, jobspec.ContainerUnpause:
+	case jobspec.ContainerRecreate:
+		if err := s.recreatable(ctx, env, d); err != nil {
+			return domain.Job{}, err
+		}
 	case jobspec.ContainerRemove:
 		if s.StackManaged(ctx, env, d.Stack) {
 			return domain.Job{}, s.managedRefusal(ctx, env, "container "+d.Name, d.Stack)
@@ -280,6 +284,29 @@ func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env st
 		})
 	}
 	return j, nil
+}
+
+// recreatable refuses a recreate the agent would refuse (it checks again)
+// or cannot run: containers of a Compose project (a managed stack's with
+// stack_managed), temporary containers, a container being removed, and
+// agents without protocol.FeatureContainerRecreate.
+func (s *Service) recreatable(ctx context.Context, env string, d protocol.ContainerDetails) error {
+	switch {
+	case s.StackManaged(ctx, env, d.Stack):
+		return s.managedRefusal(ctx, env, "container "+d.Name, d.Stack)
+	case d.Stack != nil:
+		return dockerErr(domain.DockerConflict,
+			"container %s belongs to the Compose project %q, which Docker Manager does not manage; import the project as a stack, or recreate it with Compose",
+			d.Name, d.Stack.Project)
+	case protocol.IsHelperContainer(d.Name, d.Labels):
+		return dockerErr(domain.DockerConflict, "container %s is a temporary container of Docker Manager or Compose", d.Name)
+	case d.State == "removing":
+		return dockerErr(domain.DockerConflict, "container %s is being removed", d.Name)
+	}
+	if fh, ok := s.opts.Agents.(featureHub); ok && !fh.EnvironmentHasFeature(env, protocol.FeatureContainerRecreate) {
+		return dockerErr(domain.DockerAgentUnsupported, "the environment's agent cannot recreate containers yet; upgrade the agent")
+	}
+	return nil
 }
 
 // UpdateContainer starts a container.update job with in-place settings

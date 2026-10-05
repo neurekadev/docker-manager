@@ -162,7 +162,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 	want := []domain.JobKind{
 		"image.pull", "image.build", "image.remove",
 		"container.create", "container.start", "container.stop", "container.restart", "container.pause",
-		"container.unpause", "container.remove", "container.update",
+		"container.unpause", "container.remove", "container.update", "container.recreate",
 		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build", "stack.update",
 		"stack.migrate", "environment.migrate", "stack.remove_source", "stack.import", "stack.rename", "stack.pull", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
