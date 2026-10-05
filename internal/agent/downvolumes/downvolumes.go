@@ -6,11 +6,12 @@
 // down step records them per project; a backup includes the recorded
 // volumes while the project has no containers (the next deploy creates new
 // ones, as with docker compose down). Each record keeps the containers it
-// was taken from: a later down adds to it while any of them is still there
-// (a down that failed after removing some containers, run again or
-// repeated), and replaces it when every container is new (they came back
-// through a deploy or Compose). A successful deploy and deleting the stack
-// forget it and a rename moves it.
+// was taken from. A later down keeps the recorded volumes of every service
+// without a new container (a down that failed after removing some
+// containers, run again), drops those of a service that has a new one (it
+// came back through a deploy or Compose: its data is in new volumes) and
+// adds what it finds. A successful deploy and deleting the stack forget
+// the record and a rename moves it.
 //
 // The store is a JSON file in the agent's state directory, replaced
 // atomically; a nil *Store keeps nothing.
@@ -46,6 +47,12 @@ type record struct {
 	Volumes    []Volume `json:"volumes"`
 }
 
+// Container is a container of the project a down found.
+type Container struct {
+	ID      string
+	Service string
+}
+
 // Store is the recorded anonymous volumes per Compose project.
 type Store struct {
 	dir string
@@ -59,12 +66,13 @@ type Store struct {
 func New(dir string) *Store { return &Store{dir: dir} }
 
 // Record records the volumes a down is about to leave behind, with the
-// containers (IDs) it found: while one of them was in the project's record
-// already (the same containers, some removed by an earlier down), the
-// record grows (a name already recorded keeps its entry); otherwise it is
-// replaced. Containers and volumes stay sorted.
-func (s *Store) Record(project string, containers []string, vols []Volume) error {
-	if s == nil {
+// containers it found. The project's recorded volumes stay unless their
+// service has a container the record does not know (it came back: its
+// data is in new volumes); the containers and volumes found are added (a
+// name already recorded keeps its entry). A down that finds no container
+// changes nothing. Containers and volumes stay sorted.
+func (s *Store) Record(project string, containers []Container, vols []Volume) error {
+	if s == nil || len(containers) == 0 {
 		return nil
 	}
 	s.mu.Lock()
@@ -72,13 +80,22 @@ func (s *Store) Record(project string, containers []string, vols []Volume) error
 	if err := s.load(); err != nil {
 		return err
 	}
-	var rec record
-	if cur, ok := s.projects[project]; ok && slices.ContainsFunc(containers, func(id string) bool { return slices.Contains(cur.Containers, id) }) {
-		rec = record{Containers: slices.Clone(cur.Containers), Volumes: slices.Clone(cur.Volumes)}
+	cur := s.projects[project]
+	renewed := map[string]bool{}
+	for _, c := range containers {
+		if !slices.Contains(cur.Containers, c.ID) {
+			renewed[c.Service] = true
+		}
 	}
-	for _, id := range containers {
-		if !slices.Contains(rec.Containers, id) {
-			rec.Containers = append(rec.Containers, id)
+	rec := record{Containers: slices.Clone(cur.Containers)}
+	for _, v := range cur.Volumes {
+		if !renewed[v.Service] {
+			rec.Volumes = append(rec.Volumes, v)
+		}
+	}
+	for _, c := range containers {
+		if !slices.Contains(rec.Containers, c.ID) {
+			rec.Containers = append(rec.Containers, c.ID)
 		}
 	}
 	for _, v := range vols {

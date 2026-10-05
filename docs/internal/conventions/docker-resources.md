@@ -36,10 +36,11 @@ tests: `internal/agent/engine/enginefake`.
   records the anonymous volumes of the containers it removes before it
   runs (`internal/agent/downvolumes`, `<state>/down-volumes.json`, keyed by
   project; temporary containers left out). Each record keeps the
-  containers it was taken from: a later down adds to it while any of them
-  is still there (an earlier down removed the others), and replaces it
-  when every container is new; a successful deploy and `stack.remove`
-  forget it, a rename moves it. Backups use the record only while the
+  containers it was taken from: a later down keeps the recorded volumes of
+  every service without a new container (an earlier down removed some
+  containers), drops those of a service that has a new one and adds what
+  it finds; a down that finds no container changes nothing; a successful
+  deploy and `stack.remove` forget it, a rename moves it. Backups use the record only while the
   project has no containers (#276); never treat it as a list of the
   stack's current volumes.
 - Write Docker Manager's labels only under the current keys; read them only

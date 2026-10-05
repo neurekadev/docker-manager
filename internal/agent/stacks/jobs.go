@@ -669,8 +669,9 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	// The anonymous volumes of the containers a down removes: nothing ties
 	// them to the project afterwards (#276). Recorded before the down with
 	// the containers they come from, so a down after one that removed some
-	// of them keeps those volumes, while containers that came back replace
-	// the record; backups only use it while the project has no containers.
+	// of them keeps those volumes, while a service whose container came back
+	// replaces its own; backups only use the record while the project has
+	// no containers.
 	if len(before) > 0 && sc.Kind == jobspec.StackDown {
 		containers, anonymous, err := anonymousVolumes(ctx, eng, in.Stack.ProjectName)
 		if err != nil {
@@ -705,16 +706,16 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	return err
 }
 
-// anonymousVolumes lists the project's containers (IDs) and the anonymous
+// anonymousVolumes lists the project's containers and the anonymous
 // volumes they mount, by name (the Engine gives them a random 64-digit hex
 // name). Temporary containers of Docker Manager or Compose are left out
 // (protocol.IsHelperContainer), like backups do.
-func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([]string, []downvolumes.Volume, error) {
+func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([]downvolumes.Container, []downvolumes.Volume, error) {
 	list, err := lifecycle.ProjectContainers(ctx, eng, project)
 	if err != nil {
 		return nil, nil, err
 	}
-	var ids []string
+	var ids []downvolumes.Container
 	var out []downvolumes.Volume
 	seen := map[string]bool{}
 	for _, c := range list {
@@ -725,7 +726,7 @@ func anonymousVolumes(ctx context.Context, eng engine.Engine, project string) ([
 		if protocol.IsHelperContainer(name, c.Labels) {
 			continue
 		}
-		ids = append(ids, c.ID)
+		ids = append(ids, downvolumes.Container{ID: c.ID, Service: c.Labels[lifecycle.ComposeServiceLabel]})
 		for _, m := range c.Mounts {
 			if m.Type != "volume" || !protocol.AnonymousVolumeName(m.Name) || seen[m.Name] {
 				continue

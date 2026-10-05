@@ -51,9 +51,9 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 		defer e.eng.mu.Unlock()
 		e.eng.containers = nil
 	}
-	// A record an earlier down left of containers since replaced: this down
-	// replaces it.
-	if err := store.Record("app", []string{"old1"}, []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/old"}}); err != nil {
+	// A record an earlier down left of a db container since replaced: this
+	// down drops its volume (db's data is in new volumes now).
+	if err := store.Record("app", []downvolumes.Container{{ID: "old1", Service: "db"}}, []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/old"}}); err != nil {
 		t.Fatal(err)
 	}
 	running()
@@ -86,7 +86,7 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 	}
 	// A removal brings the stack down and forgets it.
 	running()
-	if err := store.Record("app", []string{"db1"}, want); err != nil {
+	if err := store.Record("app", []downvolumes.Container{{ID: "db1", Service: "db"}}, want); err != nil {
 		t.Fatal(err)
 	}
 	if res, _ := run(t, e.svc, jobspec.StackRemove, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||

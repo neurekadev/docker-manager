@@ -230,11 +230,13 @@ containers nothing ties them to the stack. Before `stack.down` runs, the
 agent records the anonymous volumes of the project's containers (temporary
 containers left out) in `<state dir>/down-volumes.json`
 (`downvolumes.Store`, written atomically; each record keeps the container
-IDs it was taken from: a later down adds to it while any of them is still
-there, so a down after one that failed having removed some containers
-keeps their volumes, and replaces it when every container is new (they
-came back through a deploy or Compose); a successful deploy and
-`stack.remove` forget it, `stack.rename` moves it). Backups of the stack
+IDs it was taken from: a later down keeps the recorded volumes of every
+service without a new container, so a down after one that failed having
+removed some containers keeps their volumes, drops those of a service
+whose container came back through a deploy or Compose (its data is in new
+volumes) and adds what it finds; a down that finds no container changes
+nothing; a successful deploy and `stack.remove` forget the record,
+`stack.rename` moves it). Backups of the stack
 use the record while it has no containers (#276, see
 [backups](backups.md)).
 

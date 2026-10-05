@@ -21,7 +21,7 @@ func TestStoppedStackBacksUpTheAnonymousVolumesItHad(t *testing.T) {
 	ctx := testutil.Context(t)
 	gone := strings.Repeat("f", 64)
 	store := downvolumes.New(t.TempDir())
-	if err := store.Record("app", []string{"db1"}, []downvolumes.Volume{
+	if err := store.Record("app", []downvolumes.Container{{ID: "db1", Service: "db"}}, []downvolumes.Volume{
 		{Name: e.anon, Service: "db", Destination: "/scratch"},
 		{Name: gone, Service: "web", Destination: "/cache"},
 	}); err != nil {

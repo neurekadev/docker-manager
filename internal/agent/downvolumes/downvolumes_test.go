@@ -8,61 +8,73 @@ import (
 )
 
 var (
-	cache = Volume{Name: "aaaa", Service: "web", Destination: "/cache"}
-	data  = Volume{Name: "bbbb", Service: "db", Destination: "/data"}
-	logs  = Volume{Name: "cccc", Service: "db", Destination: "/logs"}
+	webVol    = Volume{Name: "aaaa", Service: "web", Destination: "/cache"}
+	dbVol     = Volume{Name: "bbbb", Service: "db", Destination: "/data"}
+	newDBVol  = Volume{Name: "cccc", Service: "db", Destination: "/data"}
+	workerVol = Volume{Name: "dddd", Service: "worker", Destination: "/tmp"}
+
+	db1, web1, worker1 = Container{"db1", "db"}, Container{"web1", "web"}, Container{"worker1", "worker"}
 )
 
-// TestRecordFollowsTheContainers: a down that still finds a container the
-// project's record was taken from (an earlier down removed the others)
-// adds to it, sorted and without duplicates, keeping the volumes of the
-// removed containers; a down that finds only new containers replaces it;
-// other projects are never touched.
-func TestRecordFollowsTheContainers(t *testing.T) {
+// TestRecordFollowsTheServices: a later down keeps the recorded volumes of
+// every service without a new container (an earlier down removed some
+// containers already, or only temporary containers are left), drops those
+// of a service that has a new container (its data is in new volumes) and
+// adds what it finds; other projects are never touched.
+func TestRecordFollowsTheServices(t *testing.T) {
 	s := New(t.TempDir())
-	if err := s.Record("app", []string{"db1", "web1"}, []Volume{data}); err != nil {
+	if err := s.Record("app", []Container{db1, web1, worker1}, []Volume{dbVol, webVol, workerVol}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Record("shop", []string{"shop1"}, []Volume{logs}); err != nil {
+	if err := s.Record("shop", []Container{{"shop1", "db"}}, []Volume{newDBVol}); err != nil {
 		t.Fatal(err)
 	}
-	// db1 is gone (an earlier down removed it); web1 is left.
-	if err := s.Record("app", []string{"web1"}, []Volume{cache}); err != nil {
+	// An earlier down removed db1 and worker1; web1 is left.
+	if err := s.Record("app", []Container{web1}, []Volume{webVol}); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Volumes("app"); !slices.Equal(got, []Volume{cache, data}) {
+	if got := s.Volumes("app"); !slices.Equal(got, []Volume{webVol, dbVol, workerVol}) {
 		t.Errorf("down of what was left = %v", got)
 	}
-	// The containers came back (a deploy, Compose): new ones replace it.
-	if err := s.Record("app", []string{"db2"}, []Volume{logs}); err != nil {
+	// Only temporary containers were left: nothing found, nothing changes.
+	if err := s.Record("app", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Volumes("app"); !slices.Equal(got, []Volume{logs}) {
-		t.Errorf("down of new containers = %v", got)
+	if got := s.Volumes("app"); !slices.Equal(got, []Volume{webVol, dbVol, workerVol}) {
+		t.Errorf("down without containers = %v", got)
 	}
-	if got := s.Volumes("shop"); !slices.Equal(got, []Volume{logs}) {
+	// A deploy that failed recreated db (db2) and kept web1; worker has no
+	// container: db's old volume goes, web's and worker's stay.
+	if err := s.Record("app", []Container{{"db2", "db"}, web1}, []Volume{newDBVol, webVol}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Volumes("app"); !slices.Equal(got, []Volume{webVol, newDBVol, workerVol}) {
+		t.Errorf("down after db came back = %v", got)
+	}
+	if got := s.Volumes("shop"); !slices.Equal(got, []Volume{newDBVol}) {
 		t.Errorf("other project = %v", got)
 	}
 }
 
 // TestForgetAndRename: a deploy or a removal forgets a project's record, a
-// rename moves it; a project without a record is left alone.
+// rename moves it with its containers; a project without a record is left
+// alone.
 func TestForgetAndRename(t *testing.T) {
 	s := New(t.TempDir())
-	if err := s.Record("app", []string{"web1"}, []Volume{cache}); err != nil {
+	if err := s.Record("app", []Container{db1, web1}, []Volume{dbVol, webVol}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Rename("app", "media"); err != nil {
 		t.Fatal(err)
 	}
-	if s.Volumes("app") != nil || !slices.Equal(s.Volumes("media"), []Volume{cache}) {
+	if s.Volumes("app") != nil || !slices.Equal(s.Volumes("media"), []Volume{webVol, dbVol}) {
 		t.Errorf("rename: app %v media %v", s.Volumes("app"), s.Volumes("media"))
 	}
-	// The renamed record keeps its containers.
-	if err := s.Record("media", []string{"web1"}, []Volume{data}); err != nil {
+	// The renamed record keeps its containers: web1 is not new.
+	if err := s.Record("media", []Container{web1}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Volumes("media"); !slices.Equal(got, []Volume{cache, data}) {
+	if got := s.Volumes("media"); !slices.Equal(got, []Volume{webVol, dbVol}) {
 		t.Errorf("down after rename = %v", got)
 	}
 	if err := s.Forget("media"); err != nil {
@@ -84,29 +96,29 @@ func TestForgetAndRename(t *testing.T) {
 // unreadable file reads as empty but refuses writes.
 func TestRecordSurvivesARestart(t *testing.T) {
 	dir := t.TempDir()
-	if err := New(dir).Record("app", []string{"db1", "web1"}, []Volume{data}); err != nil {
+	if err := New(dir).Record("app", []Container{db1, web1}, []Volume{dbVol}); err != nil {
 		t.Fatal(err)
 	}
-	if got := New(dir).Volumes("app"); !slices.Equal(got, []Volume{data}) {
+	if got := New(dir).Volumes("app"); !slices.Equal(got, []Volume{dbVol}) {
 		t.Errorf("after a restart = %v", got)
 	}
-	// The containers survive the restart too: a down of what was left adds.
+	// The containers survive the restart too: web1 is not new.
 	restarted := New(dir)
-	if err := restarted.Record("app", []string{"web1"}, []Volume{cache}); err != nil {
+	if err := restarted.Record("app", []Container{web1}, []Volume{webVol}); err != nil {
 		t.Fatal(err)
 	}
-	if got := restarted.Volumes("app"); !slices.Equal(got, []Volume{cache, data}) {
+	if got := restarted.Volumes("app"); !slices.Equal(got, []Volume{webVol, dbVol}) {
 		t.Errorf("down after a restart = %v", got)
 	}
 	var none *Store
-	if err := none.Record("app", []string{"db1"}, []Volume{data}); err != nil || none.Volumes("app") != nil ||
+	if err := none.Record("app", []Container{db1}, []Volume{dbVol}); err != nil || none.Volumes("app") != nil ||
 		none.Rename("app", "b") != nil || none.Forget("app") != nil {
 		t.Error("a nil store keeps something")
 	}
 	if err := os.WriteFile(filepath.Join(dir, FileName), []byte("null"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := New(dir).Record("app", []string{"db1"}, []Volume{data}); err != nil {
+	if err := New(dir).Record("app", []Container{db1}, []Volume{dbVol}); err != nil {
 		t.Errorf("record over null: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, FileName), []byte("{"), 0o600); err != nil {
@@ -115,7 +127,7 @@ func TestRecordSurvivesARestart(t *testing.T) {
 	if got := New(dir).Volumes("app"); got != nil {
 		t.Errorf("unreadable file = %v", got)
 	}
-	if err := New(dir).Record("app", []string{"db1"}, nil); err == nil {
+	if err := New(dir).Record("app", []Container{db1}, nil); err == nil {
 		t.Error("recording over an unreadable file succeeded")
 	}
 }
