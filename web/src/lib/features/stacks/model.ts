@@ -764,7 +764,13 @@ export function anonymousVolumeCount(
 	services: StackServiceStatus[] | undefined
 ): number | undefined {
 	if (!services) return undefined;
-	return new Set(services.flatMap((s) => serviceVolumes(s).filter((v) => v.anonymous))).size;
+	return new Set(
+		services.flatMap((s) =>
+			serviceVolumes(s)
+				.filter((v) => v.anonymous)
+				.map((v) => v.name)
+		)
+	).size;
 }
 
 /**
