@@ -282,7 +282,7 @@ its own.
 | `update_policy.manage` | changes of the setup (instance-only) |
 | `update.check` | checks and previews |
 | `update.run` | runs |
-| `stack.update` | `POST /stacks/{id}/pulls`: a `stack.pull` job pulls the stack's images on demand without recreating anything (agents announcing `stack.pull`; 501 `agent_unsupported` otherwise). Its finish hook (`stacks.Service`) marks each applied image whose reference now names another image ID (`StackImage.PulledImageID`, shown by `image-status` as `pulledImageId`) until the next deploy; nothing else about the stack changes. |
+| `stack.deploy` | also `POST /stacks/{id}/pulls` (#280): a `stack.pull` job pulls the stack's images on demand without recreating anything (agents announcing `stack.pull`; 501 `agent_unsupported` otherwise). Its finish hook (`stacks.Service`) marks each applied image whose reference now names another image ID (`StackImage.PulledImageID`, shown by `image-status` as `pulledImageId`) until the next deploy; nothing else about the stack changes. |
 
 The setup's routes need their capability on all environments (an
 instance grant), and its checks, previews and runs are refused (403,

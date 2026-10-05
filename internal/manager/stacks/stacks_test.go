@@ -403,14 +403,16 @@ func TestOperationsFollowJobs(t *testing.T) {
 	if _, err := h.svc.Operate(h.ctx, alice, st, "explode", domain.StackJobRequest{}); err == nil {
 		t.Error("unknown action accepted")
 	}
+	// A stack's Stop is Compose down (#280): stop without services is a down.
 	j, err := h.svc.Operate(h.ctx, alice, st, "stop", domain.StackJobRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	h.run()
 	st = h.get(st.ID)
-	if h.job(j.ID).State != domain.JobSucceeded || st.Status != domain.StackStopped || st.EngineState != domain.EngineStateStopped {
-		t.Fatalf("after stop: job %s status %s engine %s", h.job(j.ID).State, st.Status, st.EngineState)
+	if j.Kind != jobspec.StackDown || h.job(j.ID).State != domain.JobSucceeded || st.Status != domain.StackDown ||
+		st.EngineState != domain.EngineStateMissing {
+		t.Fatalf("after stop: %s job %s status %s engine %s", j.Kind, h.job(j.ID).State, st.Status, st.EngineState)
 	}
 	// Drift: the stack is stopped but a container runs again.
 	h.engine.setProject("shop", []engine.Container{{ID: "x", Names: []string{"/shop-web-1"}, ImageID: "sha256:web", State: "running",
@@ -428,6 +430,59 @@ func TestOperationsFollowJobs(t *testing.T) {
 	h.run()
 	if st = h.get(st.ID); st.Status != domain.StackDown || st.EngineState != domain.EngineStateMissing {
 		t.Errorf("after down: %s %s", st.Status, st.EngineState)
+	}
+}
+
+// TestStartOfAStackThatWasTakenDown: a start sends the applied revision's
+// hash, so the agent brings a stack without containers up from its files
+// when they are still the deployed ones; files changed since need a
+// deploy, refused before anything is queued (#280).
+func TestStartOfAStackThatWasTakenDown(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	h.deploy(st)
+	h.run()
+	if _, err := h.svc.Operate(h.ctx, alice, h.get(st.ID), "stop", domain.StackJobRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	h.run()
+	st = h.get(st.ID)
+	if st.Status != domain.StackDown || st.Applied == nil {
+		t.Fatalf("after stop: %s %+v", st.Status, st.Applied)
+	}
+	j, err := h.svc.Operate(h.ctx, alice, st, "start", domain.StackJobRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var in protocol.StackJobInput
+	if err := json.Unmarshal(h.job(j.ID).Input, &in); err != nil || in.AppliedHash != st.Applied.Hash {
+		t.Errorf("start input %+v %v", in, err)
+	}
+	// A stack that is not down starts its containers: no hash.
+	running := st
+	running.Status = domain.StackStopped
+	var plain protocol.StackJobInput
+	if j, err := h.svc.Operate(h.ctx, alice, running, "start", domain.StackJobRequest{}); err != nil ||
+		json.Unmarshal(h.job(j.ID).Input, &plain) != nil || plain.AppliedHash != "" {
+		t.Errorf("start of a stopped stack: %+v %v", plain, err)
+	}
+	// On some services the job targets every service it acts on (web
+	// depends on db), so it is authorized on them (#280).
+	j, err = h.svc.Operate(h.ctx, alice, st, "start", domain.StackJobRequest{Services: []string{"web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}, {Type: domain.TargetService, ID: st.ID + "/db"},
+		{Type: domain.TargetService, ID: st.ID + "/web"}}
+	if got := h.job(j.ID).Targets; !slices.Equal(got, want) {
+		t.Errorf("targets %v, want %v", got, want)
+	}
+	changed := st
+	changed.Observed = &domain.RevisionRef{ID: "rev-x", Seq: st.Applied.Seq + 1, Hash: "changed"}
+	var se *domain.StackError
+	if _, err := h.svc.Operate(h.ctx, alice, changed, "start", domain.StackJobRequest{}); !errors.As(err, &se) ||
+		se.Code != domain.StackErrDefinitionChanged {
+		t.Errorf("start with undeployed changes: %v", err)
 	}
 }
 

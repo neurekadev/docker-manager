@@ -13,7 +13,6 @@ import {
 	findingTitle,
 	groupRevisions,
 	importCandidates,
-	jobKindLabel,
 	nameError,
 	openTarget,
 	revisionLabel,
@@ -456,11 +455,10 @@ describe('migration, updates and jobs', () => {
 	});
 
 	it('names job kinds and audit actions', () => {
-		expect(jobKindLabel('stack.deploy')).toBe('Deploy');
-		expect(jobKindLabel('volume.migrate')).toBe('Volume migrate');
+		expect(auditActionLabel('stack.deploy')).toBe('Deploy Stack');
 		expect(auditActionLabel('stack.definition.read')).toBe('Opened the Definition');
 		expect(auditActionLabel('stack.validate')).toBe('Validated the Definition');
-		expect(auditActionLabel('stack.restart')).toBe('Restart');
+		expect(auditActionLabel('stack.restart')).toBe('Restart Stack');
 		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
 	});
 });

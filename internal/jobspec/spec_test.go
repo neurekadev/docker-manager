@@ -163,7 +163,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 		"image.pull", "image.build", "image.remove",
 		"container.create", "container.start", "container.stop", "container.restart", "container.pause",
 		"container.unpause", "container.remove", "container.update", "container.recreate",
-		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build", "stack.update",
+		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build",
 		"stack.migrate", "environment.migrate", "stack.remove_source", "stack.import", "stack.rename", "stack.pull", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
 		"backup.import", "files.archive", "files.extract", "files.metadata", "files.copy", "files.move", "files.delete",
@@ -182,12 +182,37 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 }
 
 // TestBorrowedCapabilities: kinds that need another kind's capability (a
-// stack's Stop runs Compose down, #274; a pull is an update's first half).
+// stack's Stop runs Compose down, #274; a deploy pulls too, #280).
 func TestBorrowedCapabilities(t *testing.T) {
-	for kind, want := range map[domain.JobKind]string{StackDown: "stack.stop", StackPull: "stack.update", StackStop: "stack.stop"} {
+	for kind, want := range map[domain.JobKind]string{StackDown: "stack.stop", StackPull: "stack.deploy", StackStop: "stack.stop"} {
 		if s, ok := Lookup(kind); !ok || s.Capability != want {
 			t.Errorf("%s: capability %q, want %q", kind, s.Capability, want)
 		}
+	}
+}
+
+// TestStackOperationsOnServicesAreAuthorizedOnThem: with service targets,
+// a stack start, stop or restart is authorized on the services (#280); the
+// stack only takes the lock. Without them it is authorized on the stack.
+func TestStackOperationsOnServicesAreAuthorizedOnThem(t *testing.T) {
+	stack := domain.JobTarget{Type: domain.TargetStack, ID: "st-1"}
+	web := domain.JobTarget{Type: domain.TargetService, ID: "st-1/web"}
+	for _, k := range []domain.JobKind{StackStart, StackStop, StackRestart} {
+		s, _ := Lookup(k)
+		if got := s.AuthorizationTargets([]domain.JobTarget{stack, web}); !slices.Equal(got, []domain.JobTarget{web}) {
+			t.Errorf("%s with a service: %v", k, got)
+		}
+		if got := s.AuthorizationTargets([]domain.JobTarget{stack}); !slices.Equal(got, []domain.JobTarget{stack}) {
+			t.Errorf("%s of the stack: %v", k, got)
+		}
+		if locks, err := s.ComputeLocks("e1", []domain.JobTarget{stack, web}); err != nil ||
+			!slices.ContainsFunc(locks, func(l domain.JobLock) bool { return l.Scope == domain.LockStack && l.Name == "st-1" }) {
+			t.Errorf("%s locks %v %v", k, locks, err)
+		}
+	}
+	d, _ := Lookup(StackDeploy)
+	if got := d.AuthorizationTargets([]domain.JobTarget{stack, web}); len(got) != 2 {
+		t.Errorf("deploy: %v", got)
 	}
 }
 

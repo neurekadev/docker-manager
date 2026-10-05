@@ -60,7 +60,6 @@ const RUNNING: Record<string, string> = {
 	'stack.restart': 'Restarting',
 	'stack.start': 'Starting',
 	'stack.stop': 'Stopping',
-	'stack.update': 'Updating',
 	'update.run': 'Updating',
 	'backup.run': 'Backing Up',
 	'restore.run': 'Restoring'

@@ -58,6 +58,12 @@ describe('job labels (#26 catalog)', () => {
 		expect(jobTargetLabel({ targets: [policy] })).toBe('maintenance');
 		expect(jobTargetLabel({ targets: [ctr, policy] })).toBe('homeassistant and 1 more');
 		expect(jobTargetLabel({ targets: [] })).toBe('');
+		// A stack operation on some services is named by its stack (#280).
+		const web = { type: 'service' as const, id: `${stack.id}/web` };
+		expect(jobTargetLabel({ targets: [stack, web] }, names)).toBe('Silo');
+		expect(jobTitle({ kind: 'stack.stop', targets: [stack, web] }, names)).toBe(
+			'Stop Services Silo'
+		);
 		expect(targetName('volume', 'pgdata')).toBe('pgdata');
 		expect(jobTitle({ kind: 'stack.deploy', targets: [stack] }, names)).toBe(
 			'Deploy Stack Silo'

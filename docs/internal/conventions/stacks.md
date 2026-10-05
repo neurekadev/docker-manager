@@ -83,6 +83,11 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   #35, container actions #9) with `internal/agent/lifecycle`
   (`GraphFromContainers` + `EngineRuntime`, `Stop`/`Start`/`Restart`/`Resume`),
   never by looping over containers.
+- A stack's Stop is Compose down (`stop` without services enqueues
+  `stack.down`); a service's Stop is a plain stop. A start of a stack that
+  was taken down brings it up only from files that still hash to the
+  applied revision (`StackJobInput.AppliedHash`): never apply undeployed
+  changes outside a deploy (#280).
 - Job results: steps set output with `sc.SetOutput`; the manager reacts in
   `jobs.Engine.OnFinish` hooks (transactional, `j.ResultOutput`).
 - Recreated containers keep their anonymous volumes (`compose.Adapter.Up`

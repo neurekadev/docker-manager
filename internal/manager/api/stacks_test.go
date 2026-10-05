@@ -167,7 +167,10 @@ func (f *fakeStacks) Build(_ context.Context, _ authz.Principal, st domain.Stack
 	return f.job("stack.build", st)
 }
 
-func (f *fakeStacks) Operate(_ context.Context, _ authz.Principal, st domain.Stack, action string, _ domain.StackJobRequest) (domain.Job, error) {
+func (f *fakeStacks) Operate(_ context.Context, _ authz.Principal, st domain.Stack, action string, r domain.StackJobRequest) (domain.Job, error) {
+	if action == "stop" && len(r.Services) == 0 {
+		action = "down" // a stack's Stop is Compose down, like stacks.Service.Operate
+	}
 	return f.job(domain.JobKind("stack."+action), st)
 }
 
@@ -494,10 +497,11 @@ func TestStackOperationSelectsCapability(t *testing.T) {
 		return authztest.Do(t, h, "op", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/operations",
 			Body: map[string]any{"action": action}}).Status
 	}
+	// A stack's Stop is Compose down (#274, #280): stop without services
+	// is a down, and down stays accepted as its alias.
 	if s := do("stop"); s != http.StatusAccepted {
 		t.Errorf("stop: %d", s)
 	}
-	// Down (Compose down) is a stack's Stop: stack.stop allows it (#274).
 	if s := do("down"); s != http.StatusAccepted {
 		t.Errorf("down with stack.stop: %d", s)
 	}
@@ -507,7 +511,7 @@ func TestStackOperationSelectsCapability(t *testing.T) {
 	if s := do("explode"); s != http.StatusUnprocessableEntity {
 		t.Errorf("unknown action: %d", s)
 	}
-	if !slices.Equal(svc.jobs, []domain.JobKind{"stack.stop", "stack.down"}) {
+	if !slices.Equal(svc.jobs, []domain.JobKind{"stack.down", "stack.down"}) {
 		t.Errorf("jobs %v", svc.jobs)
 	}
 	h, _ = stacksAPIFor(t, authztest.Only("starter", "allow stack.start @stack:st-1"))
@@ -517,21 +521,64 @@ func TestStackOperationSelectsCapability(t *testing.T) {
 	}
 }
 
-// TestStackPullNeedsStackUpdate: pulling without deploying is stack.update's
-// (stack.deploy does not open it) and starts a stack.pull job.
-func TestStackPullNeedsStackUpdate(t *testing.T) {
-	h, svc := stacksAPIFor(t, authztest.Only("up", "allow stack.update @stack:st-1"))
-	allowed, denied := authztest.Split(stackRoutes(t), "stack.update")
-	allowed, denied = authztest.Discoverable(allowed, denied, "list-stacks", "get-stack")
-	authztest.AssertOnly(t, h, "up", allowed, denied)
+// TestStackPullNeedsDeploy: pulling without deploying is part of Deploy (a
+// deploy pulls too, #280) and starts a stack.pull job; stack.build does
+// not open it.
+func TestStackPullNeedsDeploy(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("dev", "allow stack.deploy @stack:st-1"))
 	svc.jobs = nil
-	r := authztest.Do(t, h, "up", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/pulls"})
+	r := authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/pulls"})
 	if r.Status != http.StatusAccepted || r.Header.Get("Location") != "/api/v1/jobs/job-1" || !slices.Equal(svc.jobs, []domain.JobKind{"stack.pull"}) {
 		t.Fatalf("pull %d %s %v", r.Status, r.Body, svc.jobs)
 	}
-	h, _ = stacksAPIFor(t, authztest.Only("dev", "allow stack.deploy @stack:st-1"))
-	if r := authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/pulls"}); r.Status != http.StatusForbidden {
-		t.Errorf("pull with stack.deploy: %d", r.Status)
+	h, _ = stacksAPIFor(t, authztest.Only("ci", "allow stack.build @stack:st-1"))
+	if r := authztest.Do(t, h, "ci", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/pulls"}); r.Status != http.StatusForbidden {
+		t.Errorf("pull with stack.build: %d", r.Status)
+	}
+}
+
+// TestServiceScopedLifecycle: Start, Stop and Restart granted on one
+// service act on that service; an operation needs the capability on every
+// service it acts on (a start also starts dependencies), and the whole
+// stack (its Stop is a down) needs it on the stack (#280).
+func TestServiceScopedLifecycle(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("op", "allow stack.read @stack:st-1",
+		"allow stack.start @service:st-1/web", "allow stack.stop @service:st-1/web", "allow stack.start @service:st-1/db"))
+	do := func(action string, services ...string) int {
+		return authztest.Do(t, h, "op", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/operations",
+			Body: map[string]any{"action": action, "services": services}}).Status
+	}
+	svc.jobs = nil
+	if s := do("stop", "web"); s != http.StatusAccepted {
+		t.Errorf("stop web: %d", s)
+	}
+	if s := do("stop"); s != http.StatusForbidden {
+		t.Errorf("stop the stack with service grants: %d", s)
+	}
+	if s := do("restart", "web"); s != http.StatusForbidden {
+		t.Errorf("restart web without stack.restart: %d", s)
+	}
+	// web depends on db: starting web starts db too.
+	if s := do("start", "web"); s != http.StatusAccepted {
+		t.Errorf("start web with start on web and db: %d", s)
+	}
+	if !slices.Equal(svc.jobs, []domain.JobKind{"stack.stop", "stack.start"}) {
+		t.Errorf("jobs %v", svc.jobs)
+	}
+	h2, _ := stacksAPIFor(t, authztest.Only("op", "allow stack.start @service:st-1/web"))
+	if s := authztest.Do(t, h2, "op", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/operations",
+		Body: map[string]any{"action": "start", "services": []string{"web"}}}).Status; s != http.StatusForbidden {
+		t.Errorf("start web without start on its dependency db: %d", s)
+	}
+	var list StackServices
+	r := authztest.Do(t, h, "op", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1/services"})
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &list) != nil {
+		t.Fatalf("services %d %s", r.Status, r.Body)
+	}
+	for _, sv := range list.Services {
+		if sv.Name == "web" && (!slices.Contains(sv.Actions, "stack.start") || !slices.Contains(sv.Actions, "stack.stop")) {
+			t.Errorf("web actions %v", sv.Actions)
+		}
 	}
 }
 

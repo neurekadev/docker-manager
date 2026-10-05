@@ -145,7 +145,7 @@ func TestJobAuditOriginsCancellationAndFailures(t *testing.T) {
 
 	// Scheduled work runs as the service identity; API tokens name the
 	// token and its owner.
-	sched := h.enqueue(jobs.Request{Kind: jobspec.StackUpdate, Principal: authz.Service(), PolicyID: "pol-1",
+	sched := h.enqueue(jobs.Request{Kind: jobspec.UpdateRun, Principal: authz.Service(), PolicyID: "pol-1",
 		EnvironmentID: "env-1", Targets: []domain.JobTarget{stack("s1")}})
 	tok := h.enqueue(jobs.Request{Kind: jobspec.StackDeploy, Principal: authz.Principal{Kind: authz.KindAPIToken, UserID: "bob", TokenID: "tok-1"},
 		EnvironmentID: "env-1", Targets: []domain.JobTarget{stack("s2")}})

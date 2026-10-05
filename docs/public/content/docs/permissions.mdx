@@ -31,6 +31,10 @@ The presets:
 Within a group, the most specific rule decides: a rule on one stack wins
 over its environment, which wins over **All Resources**.
 
+**Start Stack**, **Stop Stack** and **Restart Stack** can also be given on
+one service of a stack, under the stack in the tree. Starting a service
+also starts the services it depends on, so the rule must cover those too.
+
 For someone in several groups, the groups are checked from the top of the
 **Groups** list: the first group with a rule for the action decides, even
 if a lower group has a more specific rule. Drag the groups to change their

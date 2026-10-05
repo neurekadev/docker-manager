@@ -43,6 +43,7 @@ settings changed are recreated. The menu next to it has:
 
 - **Pull & Deploy**: downloads every image of the stack first, so services
   get newer images.
+- **Pull**: only downloads the images; the next deploy runs them.
 - **Force Recreate**: replaces every container with a new one, even if
   nothing changed. It asks first. Volumes and files are kept, but changes
   made inside a container outside its volumes are lost.
@@ -68,10 +69,12 @@ A failed deploy is not rolled back. Fix the files, or restore the last good
 The next button shows **Stop** while the stack runs and **Start** when it's
 stopped. Its menu has **Start**, **Restart** and **Stop**. **Stop** asks
 first, then stops and removes the stack's containers and networks, like
-`docker compose down`. The stack shows **Stopped**, and **Deploy** starts it
-again. Named volumes, images and files are kept. Anonymous volumes are
-left behind, as with `docker compose down`: the next deploy starts with new,
-empty ones.
+`docker compose down`. The stack shows **Stopped**. **Start** brings it up
+again from the files of its last deploy, like `docker compose up`. If you
+changed the files since, **Start** is off: **Deploy** starts the stack
+with them. Named volumes, images and files are kept. Anonymous volumes are
+left behind, as with `docker compose down`: the next start or deploy
+creates new, empty ones.
 
 A service's **Stop**, in its row on the **Overview**, only stops that
 service's containers.

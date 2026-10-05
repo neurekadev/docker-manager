@@ -30,6 +30,7 @@
 	import Package from '@lucide/svelte/icons/package';
 	import Workflow from '@lucide/svelte/icons/workflow';
 	import Download from '@lucide/svelte/icons/download';
+	import CloudDownload from '@lucide/svelte/icons/cloud-download';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Hammer from '@lucide/svelte/icons/hammer';
@@ -68,6 +69,7 @@
 		buildStack,
 		deleteStack,
 		operateStack,
+		pullStack,
 		volumeResults,
 		type StackOperation
 	} from './actions';
@@ -79,6 +81,7 @@
 	import {
 		buildCopy,
 		deployFailure,
+		pullCopy,
 		anonymousVolumeCount,
 		recreateConsequences,
 		serviceCounts,
@@ -244,21 +247,32 @@
 
 	// Start, Restart and Stop as one split button: Stop while anything runs
 	// (a partially running stack too: Start in its menu starts the rest),
-	// Start when stopped. A restore hides them all: it starts what ran
-	// before itself, and Stop's down would remove those containers.
+	// Start when stopped. A stack its Stop took down starts from its last
+	// deployed files; changed files need a deploy (#280). A restore hides
+	// them all: it starts what ran before itself, and Stop's down would
+	// remove those containers.
+	const down = $derived(current === 'down');
+	const changedReason =
+		'The files changed since the last deploy: deploy the stack to start it with them.';
 	const lifecycle = $derived.by((): LifecycleActions => {
 		const out: LifecycleActions = {};
 		const locked = protectedStack ? selfReason : undefined;
+		const changed = down && !!stack.undeployedChanges;
 		if (can('stack.start') && !restoring)
-			out.start = { run: () => void runNow('start'), disabled: current === 'running' };
+			out.start = {
+				run: () => void runNow('start'),
+				disabled: current === 'running' || changed,
+				reason: changed ? changedReason : undefined
+			};
 		if (can('stack.restart') && !restoring)
 			out.restart = {
 				run: () => void runNow('restart'),
-				disabled: current === 'stopped' || protectedStack,
+				disabled: current === 'stopped' || down || protectedStack,
 				reason: locked
 			};
-		// Its down also removes a stopped stack's containers.
-		if (can('stack.stop') && !restoring)
+		// Its down also removes a stopped stack's containers; a stack that
+		// is down already has nothing to stop.
+		if (can('stack.stop') && !restoring && !down)
 			out.stop = {
 				run: () => (confirming = true),
 				disabled: protectedStack,
@@ -274,6 +288,21 @@
 			await startDeploy(stack, choice, tray, queryClient);
 		} catch (e) {
 			toast.error(deployFailure(title, choice), { body: errorMessage(e) });
+		} finally {
+			starting = null;
+		}
+	}
+
+	// Pulls the images without deploying them (Pull).
+	async function pull() {
+		if (starting) return;
+		starting = 'deploy';
+		const copy = pullCopy(title);
+		try {
+			const job = await pullStack(stack.id);
+			tray.add(job, { ...copy, kind: 'stack.pull' });
+		} catch (e) {
+			toast.error(copy.failure, { body: errorMessage(e) });
 		} finally {
 			starting = null;
 		}
@@ -349,6 +378,8 @@
 		{ label: 'Deploy', icon: Rocket, onSelect: () => deploy({}) },
 		// Pulls every image first, then deploys (what the former Update did).
 		{ label: 'Pull & Deploy', icon: Download, onSelect: () => deploy({ pull: true }) },
+		// Downloads the images only: the next deploy runs them (#280).
+		{ label: 'Pull', icon: CloudDownload, onSelect: () => void pull() },
 		{ separator: true },
 		// Replaces every container, changed or not (confirmed first).
 		{ label: 'Force Recreate', icon: RefreshCcw, onSelect: () => (recreating = true) },
@@ -508,10 +539,10 @@
 					items={buildMenu}
 				/>
 			{/if}
-			<!-- A stopped stack starts; a down, missing or undeployed one deploys. -->
-			{#if !stoppedLike || current === 'stopped'}
+			<!-- A stopped or down stack starts; a missing or undeployed one deploys. -->
+			{#if !stoppedLike || current === 'stopped' || down}
 				<LifecycleButton
-					running={current !== 'stopped'}
+					running={current !== 'stopped' && !down}
 					actions={lifecycle}
 					busy={operating}
 					disabled={offline || renaming}

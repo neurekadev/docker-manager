@@ -35,7 +35,7 @@ func TestDispatchRefusesJobsOfAMovedStack(t *testing.T) {
 	h.disp.Connect("e2")
 	// Queued against e1 while the stack is there (a scheduled update run
 	// and a manual restart), then the migration cuts over to e2.
-	sched := h.enqueue(jobs.Request{Kind: jobspec.StackUpdate, Principal: authz.Service(), EnvironmentID: "e1",
+	sched := h.enqueue(jobs.Request{Kind: jobspec.UpdateRun, Principal: authz.Service(), EnvironmentID: "e1",
 		Targets: []domain.JobTarget{stack(st.ID)}})
 	manual := h.enqueue(jobs.Request{Kind: jobspec.StackRestart, Principal: user("alice"), EnvironmentID: "e1",
 		Targets: []domain.JobTarget{stack(st.ID)}})

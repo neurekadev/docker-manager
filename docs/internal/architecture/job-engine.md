@@ -159,14 +159,13 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `stack.down` | agent | `stack.stop` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
 | `stack.import` | agent | `stack.import` | `host` S (each environment)<br>`stack` **X** (stack targets) | `prepare` (i,c) → `stop_containers` (i,c) → `copy_files` (i,c) → `recreate` (i,c) → `start_containers` (i) | 10m | — | `start_containers`, `remove_import_copy` | — |
 | `stack.migrate` | manager | `stack.migrate` | `host` S (each environment)<br>`stack` **X** (stack targets)<br>`volume` **X** (volume targets, optional) | `prepare` (i,c) → `stop_source` (i,c) → `transfer` (i,c) → `deploy_destination` (i,c) → `finalize` (i) | — | — | `start_source` | interrupt |
-| `stack.pull` | agent | `stack.update` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) | 30m | pull | — | — |
+| `stack.pull` | agent | `stack.deploy` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) | 30m | pull | — | — |
 | `stack.remove` | agent | `stack.remove` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
 | `stack.remove_source` | agent | `stack.migrate` | `host` S (each environment)<br>`stack` **X** (stack targets)<br>`volume` **X** (volume targets, optional) | `down` (i,c) → `remove_volumes` (i,c) → `remove_files` (i) | 30m | — | — | — |
 | `stack.rename` | agent | `stack.rename` | `host` S (each environment)<br>`stack` **X** (stack targets) | `prepare` (i,c) → `stop_containers` (i,c) → `move` (i,c) → `recreate` (i) → `start_containers` (i) | 10m | — | `start_containers`, `undo_rename` | — |
 | `stack.restart` | agent | `stack.restart` | `host` S (each environment)<br>`stack` **X** (stack targets) | `restart` (i,c) | 10m | — | — | — |
 | `stack.start` | agent | `stack.start` | `host` S (each environment)<br>`stack` **X** (stack targets) | `start` (i,c) | 10m | — | — | — |
 | `stack.stop` | agent | `stack.stop` | `host` S (each environment)<br>`stack` **X** (stack targets) | `stop` (i,c) | 10m | — | — | — |
-| `stack.update` | agent | `stack.update` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) → `apply` (i,c) | 30m | pull | — | — |
 | `template.files.archive` | manager | `template.files.archive` | `template` **X** (template targets) | `archive` (i,c) | — | — | — | interrupt |
 | `template.files.copy` | manager | `template.files.copy` | `template` **X** (template targets) | `copy` (c) | — | — | — | interrupt |
 | `template.files.delete` | manager | `template.files.delete` | `template` **X** (template targets) | `delete` (i,c) | — | — | — | interrupt |
@@ -189,7 +188,11 @@ changing its spec (and regenerating this table) before it ships.
 between two agents, [migrations.md](migrations.md)); their volume targets
 and the destination's targets only take locks (`Spec.LockOnly`: the engine
 authorizes `stack.migrate`/`volume.migrate` on the source only, the
-executor checks the destination's capabilities).
+executor checks the destination's capabilities). `stack.start`,
+`stack.stop` and `stack.restart` on some services also target every
+service they act on (`service` targets, `<stackId>/<service>`), and their
+stack target then only takes the lock (`LockOnly.StackForServices`, #280):
+they are authorized, at request and at dispatch, on the services.
 
 ## Dispatch, fencing and agent recovery
 

@@ -463,6 +463,11 @@ type ComposeServicesOutput struct {
 // Stack job inputs (stack.deploy, stack.start, stack.stop, stack.restart,
 // stack.down, stack.remove).
 
+// StackClassDefinitionChanged is the error class of a stack.start that
+// would bring a project without containers up from files that changed
+// since its last deploy (StackJobInput.AppliedHash, #280).
+const StackClassDefinitionChanged = "stack_definition_changed"
+
 // StackJobInput is the input of every stack.* job kind.
 type StackJobInput struct {
 	// StackID is the Docker Manager stack (for logs; the agent does not need it).
@@ -470,6 +475,12 @@ type StackJobInput struct {
 	Stack   ProjectRef `json:"stack"`
 	// Services narrows start/stop/restart/deploy (empty = all).
 	Services []string `json:"services,omitempty"`
+	// AppliedHash (stack.start of a stack taken down) is the hash of the
+	// stack's last applied revision: the stack is brought up with Compose up
+	// from its definition on disk when it still hashes to it (#280), and
+	// refused with StackClassDefinitionChanged otherwise. Older agents ignore
+	// it and start existing containers only.
+	AppliedHash string `json:"appliedHash,omitempty"`
 	// Pull is "missing" (default) or "always" (deploy).
 	Pull string `json:"pull,omitempty"`
 	// Build rebuilds every build section (deploy; otherwise only missing images).

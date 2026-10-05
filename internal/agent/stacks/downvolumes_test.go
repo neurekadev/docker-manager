@@ -94,3 +94,51 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 		t.Fatalf("remove: %+v record %v", res, store.Volumes("app"))
 	}
 }
+
+// TestStartBringsATakenDownStackUpFromItsDeployedFiles: a start of a
+// project without containers (taken down) runs Compose up from the files
+// on disk when they still hash to the applied revision, and refuses with
+// stack_definition_changed when they changed; without the hash (an older
+// manager) it still asks for a deploy (#280).
+func TestStartBringsATakenDownStackUpFromItsDeployedFiles(t *testing.T) {
+	e, dir := deployFixture(t)
+	store := downvolumes.New(t.TempDir())
+	e.svc.opts.DownVolumes = store
+	left := []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/scratch"}}
+	if err := store.Record("app", []downvolumes.Container{{ID: "db1", Service: "db"}}, left); err != nil {
+		t.Fatal(err)
+	}
+	deployed := protocol.NewSourceSnapshot([]protocol.SourceFile{
+		{Path: ".env", Content: []byte("DB_TAG=16\n")}, {Path: "compose.yaml", Content: []byte(appYAML)},
+		{Path: "db.env", Content: []byte("POSTGRES_PASSWORD=pw\n")}}).Hash
+
+	if res, _ := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app")}); res.Outcome == jobexec.OutcomeSucceeded {
+		t.Fatalf("start without containers nor hash: %+v", res)
+	}
+	res, out := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed, Services: []string{"web"}})
+	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(e.c.calls, []string{"up:app"}) ||
+		!slices.Equal(e.c.upServices[0], []string{"web"}) || len(out.After) != 2 {
+		t.Fatalf("start from the deployed files: %+v calls %v services %v after %+v", res, e.c.calls, e.c.upServices, out.After)
+	}
+	// Only some services came back: the down's record of the others stays.
+	if got := store.Volumes("app"); !slices.Equal(got, left) {
+		t.Fatalf("record after starting web: %v", got)
+	}
+	// A start of every service of the stack that is still down (the manager
+	// sends the hash) runs Compose up again, so services that never came
+	// back are created too, and forgets the record.
+	if res, _ := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed}); res.Outcome != jobexec.OutcomeSucceeded ||
+		!slices.Equal(e.c.calls, []string{"up:app", "up:app"}) || e.c.upServices[1] != nil || store.Volumes("app") != nil {
+		t.Fatalf("start of every service: %+v calls %v record %v", res, e.c.calls, store.Volumes("app"))
+	}
+	e.c.calls = e.c.calls[:1]
+
+	e.eng.mu.Lock()
+	e.eng.containers = nil
+	e.eng.mu.Unlock()
+	writeTree(t, dir, map[string]string{".env": "DB_TAG=17\n"})
+	res, _ = run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed})
+	if res.Outcome == jobexec.OutcomeSucceeded || res.ErrorClass != protocol.StackClassDefinitionChanged || len(e.c.calls) != 1 {
+		t.Fatalf("start after the files changed: %+v calls %v", res, e.c.calls)
+	}
+}

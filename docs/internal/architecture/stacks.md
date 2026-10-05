@@ -153,12 +153,14 @@ environment run in parallel (shared `host` lock).
 
 ### Pull
 
-`POST /stacks/{id}/pulls` (202 + job) enqueues `stack.pull` (capability `stack.update`) only downloads the stack's images
+`POST /stacks/{id}/pulls` (202 + job) enqueues `stack.pull` (capability
+`stack.deploy`: a deploy pulls too, #280; the deploy menu's **Pull**) and
+only downloads the stack's images
 (Compose pull with the registry credentials of the command, #19); it never
 creates, recreates, stops or starts a container. Its output lists the
 services whose tag now names another image (`pulled`); the next deploy runs
-them. `stack.update` (#20) is the pull that also recreates changed services.
-A pull does not hide an update from an update policy: `update.check`
+them. Image updates that also recreate changed services are `update.run`'s
+(#20). A pull does not hide an update from an update policy: `update.check`
 compares the registry with the **applied** digest (what runs), not with the
 tag on the host, and `update.run` recreates a service whose pulled image
 differs from the one its container runs.
@@ -519,9 +521,10 @@ compose_project_exists`: import it instead).
 | `stack.definition.write` | revision restores, validation of the definition on disk (`POST /stacks/{id}/validations`), changing the definition files in the file manager |
 | `stack.create`, `stack.import` | creation/validation, discovery/import in an environment |
 | `stack.manage` | display metadata (never written to Compose files) |
-| `stack.deploy`, `stack.start/stop/restart/down`, `stack.remove` | the jobs |
+| `stack.deploy` | deploys (with pull, build, force recreate, orphan removal) and `POST /stacks/{id}/pulls` (pull the images without deploying, #280) |
+| `stack.start`, `stack.stop`, `stack.restart` | the operations: on the stack for the whole stack (its Stop is Compose down), on a service (scope `service`, #280) for that service; an operation on services needs the capability on every service it acts on (`domain.Stack.TouchedServices`: a start also starts dependencies, a restart its `restart: true` dependents); its job targets those services and the job engine authorizes it on them (the stack target only takes the lock). `GET /stacks/{id}/services` returns each service's `actions` |
+| `stack.remove` | deletion (removing its volumes too also needs `volume.remove` on the stack) |
 | `stack.build` | `POST /stacks/{id}/builds` (rebuild the build sections without deploying, #33) |
-| `stack.update` | `POST /stacks/{id}/pulls` (pull the images without deploying) and image updates (#20) |
 | `stack.rename` | rename previews and renames (outside containers also need `container.stop` and `container.remove`) |
 
 Any other capability on a stack shows it minimally (id, name, environment,
@@ -556,6 +559,22 @@ service; containers deployed before 2026-09-28 carry the legacy
 own label (no `required`: treated as required).
 Stack start/stop/restart jobs use it, so a stack whose files were edited
 but not deployed is operated as deployed.
+
+A stack's Stop is Compose down (#274, #280): `POST /stacks/{id}/operations`
+with `stop` and no services enqueues `stack.down` (`down` stays accepted as
+its alias); `stop` with services is a plain stop of their containers
+(`stack.stop`). A stack taken down has no containers, so its graph is
+gone: a `stack.start` of a stack whose status is `down` carries the
+applied revision's hash (`StackJobInput.AppliedHash`), and the agent
+brings it up with Compose up from the definition on disk when it still
+hashes to that revision (`upFromDefinition`: it creates the containers of
+every service it starts, also after an earlier start brought back only
+some services, since the stack stays `down` until a start of every
+service succeeds; nothing built, missing images pulled without registry
+connections; a start of every service forgets the down's anonymous-volume
+record like a deploy), else it fails with `stack_definition_changed`. The manager refuses that case before queuing
+(`409 stack_definition_changed`) when the stack is `down` with undeployed
+changes; the UI then offers Deploy instead of Start.
 
 ## For other workstreams
 

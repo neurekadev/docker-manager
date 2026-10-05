@@ -14,7 +14,7 @@ import (
 // stackActions are the stack job kinds that must not touch Docker Manager's own
 // Compose project (#32): stop, restart, down and remove would stop or delete
 // Docker Manager. Start is harmless; deploys and digest updates
-// (stack.deploy, stack.update, update.run) run: the stack executors hand the
+// (stack.deploy, update.run) run: the stack executors hand the
 // agent's own container to a helper container (internal/agent/selfupdate).
 // An import by copy (stack.import) copies Docker Manager's own project while
 // it runs and never stops it (its stop step refuses on its own).

@@ -30,7 +30,7 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKER_MANAGER_JOB_HISTORY_RETENTION` | `720h` | Finished jobs and their event logs older than this are deleted (Go duration, `1h`..`87600h`). Independent of audit retention (#30). See `docs/internal/architecture/job-engine.md`. |
 | `DOCKER_MANAGER_JOB_HISTORY_MAX` | `10000` | Keep at most this many finished jobs (100..10000000); the oldest are deleted first. Unfinished jobs are never deleted. |
 | `DOCKER_MANAGER_JOB_EVENTS_MAX` | `500` | Progress/event log entries kept per job (10..100000); older entries are trimmed. |
-| `DOCKER_MANAGER_JOB_MAX_CONCURRENT_PULLS` | `2` | Concurrent pull-class jobs (`image.pull`, `stack.update`, `update.run`) per environment (1..64). |
+| `DOCKER_MANAGER_JOB_MAX_CONCURRENT_PULLS` | `2` | Concurrent pull-class jobs (`image.pull`, `stack.pull`, `update.run`) per environment (1..64). |
 | `DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS` | `1` | Concurrent build-class jobs (`image.build`, `stack.build`) per environment (1..64). |
 | `DOCKER_MANAGER_AUDIT_RETENTION_DAYS` | `365` | Audit records older than this many days are deleted (1..36500). The purge is itself audited and keeps the hash chain verifiable. See `docs/internal/architecture/audit.md`. |
 | `DOCKER_MANAGER_AUDIT_MAX_SIZE_MB` | `1024` | Size cap of the retained audit records in MiB (16..1048576); above it the oldest records are purged down to 90% of the cap. |

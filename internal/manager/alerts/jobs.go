@@ -47,7 +47,7 @@ var kindNouns = map[domain.JobKind]string{
 	"manager.retention": "Docker Manager backup retention", "manager.verify": "Docker Manager backup verification",
 	"restore.run": "Restore", "update.check": "Update check", "update.run": "Update", "prune.run": "Prune",
 	"stack.deploy": "Deploy", "stack.start": "Start", "stack.stop": "Stop", "stack.restart": "Restart", "stack.down": "Stop",
-	"stack.pull": "Image pull", "stack.update": "Image update", "stack.build": "Build", "stack.remove": "Delete",
+	"stack.pull": "Image pull", "stack.build": "Build", "stack.remove": "Delete",
 	"stack.migrate": "Migration", "environment.migrate": "Migration", "volume.migrate": "Migration", "image.pull": "Image pull",
 	"image.build": "Image build", "image.remove": "Image removal", "container.start": "Start", "container.stop": "Stop",
 	"container.restart": "Restart", "container.remove": "Removal", "container.create": "Container creation",

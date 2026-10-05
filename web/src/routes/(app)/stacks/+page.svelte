@@ -306,12 +306,15 @@
 				onSelect: () => void deploy(s)
 			});
 		// Start, Restart, Stop: the order of the header's lifecycle menu.
-		// Start also starts the rest of a partially running stack.
-		if (lifecycle && can('stack.start') && (st === 'stopped' || (!stopped && st !== 'running')))
+		// Start also starts the rest of a partially running stack, and brings
+		// one its Stop took down up from its last deployed files (#280);
+		// changed files need a deploy.
+		const startable = st === 'stopped' || st === 'down' || (!stopped && st !== 'running');
+		if (lifecycle && can('stack.start') && startable)
 			items.push({
 				label: 'Start',
 				icon: Play,
-				disabled: offline,
+				disabled: offline || (st === 'down' && !!s.undeployedChanges),
 				onSelect: () => void operateNow(s, 'start')
 			});
 		if (lifecycle && can('stack.restart') && !stopped)

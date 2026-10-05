@@ -35,7 +35,6 @@ const (
 	CapStackDeploy          Capability = "stack.deploy"
 	CapStackBuild           Capability = "stack.build"
 	CapStackRename          Capability = "stack.rename"
-	CapStackUpdate          Capability = "stack.update"
 	CapStackDefinitionRead  Capability = "stack.definition.read"
 	CapStackDefinitionWrite Capability = "stack.definition.write"
 	capContainerDetailsRead            = "container.details.read"
@@ -219,6 +218,13 @@ type Stack struct {
 
 func stackResource(st domain.Stack) authz.Resource {
 	return authz.Resource{Type: catalog.TypeStack, ID: st.ID, EnvironmentID: st.EnvironmentID, Parents: []authz.ResourceRef{}}
+}
+
+// serviceResource is one service of a stack (rules on the service, the
+// stack, its environment or the instance apply).
+func serviceResource(st domain.Stack, service string) authz.Resource {
+	return authz.Resource{Type: catalog.TypeService, ID: authz.ServiceID(st.ID, service), EnvironmentID: st.EnvironmentID,
+		Parents: []authz.ResourceRef{{Type: catalog.TypeStack, ID: st.ID}}}
 }
 
 func revRef(r *domain.RevisionRef, at *time.Time) *StackRevisionRef {
@@ -855,7 +861,7 @@ type pullStackInput struct {
 }
 
 func (h *stacksAPI) pull(ctx context.Context, in *pullStackInput) (*JobAccepted, error) {
-	_, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackUpdate)
+	_, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackDeploy)
 	if err != nil {
 		return nil, err
 	}
@@ -905,8 +911,8 @@ type operateStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Action         string   `json:"action,omitempty" example:"restart" enum:"start,stop,restart,down" doc:"Required; selects the capability: stack.start, stack.stop or stack.restart (down, Compose down, needs stack.stop)."`
-		Services       []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules."`
+		Action         string   `json:"action,omitempty" example:"restart" enum:"start,stop,restart,down" doc:"Required; selects the capability: stack.start, stack.stop or stack.restart. stop without services is Compose down (down is its alias)."`
+		Services       []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Only these services (start/stop/restart; stop then only stops their containers). The capability is needed on every service the operation acts on: a start also starts their dependencies, a restart their restart: true dependents."`
 		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period."`
 	}
 }
@@ -924,16 +930,34 @@ func (h *stacksAPI) operate(ctx context.Context, in *operateStackInput) (*JobAcc
 		}
 		return nil, Invalid("action must be start, stop, restart or down", Field("body.action", "start, stop, restart or down"))
 	}
-	// Down (Compose down) is a stack's Stop: it needs stack.stop (#274).
+	// A stack's Stop is Compose down (#274, #280): stop without services
+	// and its alias down need stack.stop on the stack.
 	cp := Capability("stack." + in.Body.Action)
+	down := in.Body.Action == "down" || (in.Body.Action == "stop" && len(in.Body.Services) == 0)
 	if in.Body.Action == "down" {
 		cp = "stack.stop"
+	}
+	if down {
 		audit.SetDetail(ctx, "down", true)
 	}
 	audit.SetAction(ctx, string(cp))
-	_, p, st, _, err := h.requireStack(ctx, in.StackID, cp)
+	c, p, st, v, err := h.visibleStack(ctx, in.StackID)
 	if err != nil {
 		return nil, err
+	}
+	// The whole stack needs the capability on the stack; services need it
+	// on every service the operation acts on (a start also starts their
+	// dependencies, a restart their restart: true dependents).
+	if len(in.Body.Services) == 0 || in.Body.Action == "down" {
+		if !v.Has(string(cp)) {
+			return nil, Forbidden("not permitted: " + string(cp))
+		}
+	} else {
+		for _, svc := range st.TouchedServices(in.Body.Action, in.Body.Services) {
+			if !c.Can(string(cp), serviceResource(st, svc)).Allowed {
+				return nil, Forbidden("not permitted: " + string(cp) + " on service " + svc)
+			}
+		}
 	}
 	j, err := h.svc.Operate(ctx, p, st, in.Body.Action, domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey,
 		Services: in.Body.Services, TimeoutSeconds: in.Body.TimeoutSeconds})
@@ -1089,6 +1113,7 @@ type StackServiceStatus struct {
 	Applied     *StackImage       `json:"applied,omitempty" doc:"Image applied by the last deploy."`
 	Status      string            `json:"status" enum:"running,partial,exited,created,missing"`
 	Containers  []StackContainer  `json:"containers"`
+	Actions     []string          `json:"actions" doc:"The granted capabilities that apply to the service: stack.start, stack.stop and stack.restart granted on it (or on its stack, environment or instance) act on it alone, and the container capabilities its containers inherit."`
 	Drift       []string          `json:"drift" doc:"missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped, also with down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied)."`
 	// Metrics are #5's (per-service metrics are not part of this response yet).
 }
@@ -1115,6 +1140,7 @@ func (h *stacksAPI) services(ctx context.Context, in *stackIDInput) (*servicesOu
 	out := StackServices{Live: view.Live, ObservedAt: view.ObservedAt, Drift: view.Drift, Services: []StackServiceStatus{}}
 	for _, sv := range view.Services {
 		s := StackServiceStatus{Name: sv.Name, Description: sv.Meta.Description, Status: sv.Status,
+			Actions:    Actions(authz.ViewOf(c, serviceResource(st, sv.Name))),
 			Containers: []StackContainer{}, Drift: append([]string{}, sv.Drift...), DependsOn: []StackDependency{}}
 		if e := sv.Expected; e != nil {
 			s.Image, s.Build = e.Image, e.Build
@@ -1675,10 +1701,10 @@ func registerStacks(a huma.API, deps Deps) {
 		Description: "Starts a stack.pull job (202): the agent pulls the images of the stack's definition on disk (with the registry " +
 			"connections a deploy would use; build-only services are skipped) and changes no container. Services whose reference now " +
 			"names another image than the one they run show it in image-status (pulledImageId) until the next deploy runs it. Needs " +
-			"stack.update and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).",
+			"stack.deploy (a deploy pulls too) and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).",
 		Tags: []string{tagStacks}, Errors: append(slices.Clone(jobErrs), http.StatusNotImplemented, http.StatusServiceUnavailable),
 		DefaultStatus: http.StatusAccepted,
-	}, Capability: CapStackUpdate, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.pull)
+	}, Capability: CapStackDeploy, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.pull)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "create-stack-build", Method: http.MethodPost, Path: one + "/builds", Summary: "Build a stack's images",
@@ -1692,10 +1718,14 @@ func registerStacks(a huma.API, deps Deps) {
 	}, Capability: CapStackBuild, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.build)
 
 	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "create-stack-operation", Method: http.MethodPost, Path: one + "/operations", Summary: "Start, stop, restart or bring down a stack",
-		Description: "Starts a stack.start/stop/restart/down job (202); the body's action selects the capability (down, Compose down, needs stack.stop). Start, stop and restart " +
-			"follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their " +
-			"depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.",
+		OperationID: "create-stack-operation", Method: http.MethodPost, Path: one + "/operations", Summary: "Start, stop or restart a stack or its services",
+		Description: "Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. A stack's stop (no services) " +
+			"is Compose down (a stack.down job; down is its alias, needs stack.stop): containers and networks removed, never volumes. With " +
+			"services, start, stop and restart act on those services and need the capability on every service the operation acts on " +
+			"(granted on the service, the stack, the environment or the instance): start starts dependencies first and waits for their " +
+			"depends_on conditions, restart propagates to restart: true dependents, stop only stops the services' containers. A start of a " +
+			"stack that was taken down brings it up from the files of its last deploy; 409 stack_definition_changed when they changed since " +
+			"(deploy it instead).",
 		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
 	}, Capability: "stack.{action}", CapabilityValues: []Capability{"stack.start", "stack.stop", "stack.restart"},
 		Scope: ScopeResource, Idempotency: IdempotencyJob}, h.operate)

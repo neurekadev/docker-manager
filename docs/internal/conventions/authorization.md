@@ -18,7 +18,12 @@ group with a matching rule decides with its most specific rule), then deny.
   environment, every resource) with the evaluator's precedence, each group
   on its own and then each member, and sets a rule at a point where they
   differ (`stack.down` into `stack.stop`,
-  `20261005000000_stack_down_into_stop.go`); a job kind keeps its own key
+  `20261005000000_stack_down_into_stop.go`). When the replacing key is
+  broader (carrying an allow would grant more than the old key did, a deny
+  would block what it allowed), the migration drops the rules instead and
+  no decision of the replacing key changes (`stack.update`, which only
+  allowed the stack's Pull, into `stack.deploy`,
+  `20261006000000_retire_stack_update.go`); a job kind keeps its own key
   and borrows the capability (`Spec.Capability`). The web editor's presets derive from these flags
   (`web/src/lib/features/access/presets.ts`): Viewer takes every
   normal-risk key ending in `.read`, Operator also every normal-risk

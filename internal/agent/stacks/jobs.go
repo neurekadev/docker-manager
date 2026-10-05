@@ -357,11 +357,7 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		return upErr
 	}
 	s.recordVolumeLabels(ctx, eng, in.Stack.ProjectName, p)
-	// The deployed containers have anonymous volumes of their own now: a
-	// record of an earlier down no longer describes the stack (#276).
-	if err := s.opts.DownVolumes.Forget(in.Stack.ProjectName); err != nil {
-		s.log.Warn("could not forget the anonymous volumes of the last down", "project", in.Stack.ProjectName, "error", err)
-	}
+	forgetDownVolumes(s, in)
 	if len(handoff) > 0 {
 		s.scheduleSelf(sc, in.Stack, dir, snap, handoff, in.ForceRecreate, in.TimeoutSeconds)
 	}
@@ -573,6 +569,13 @@ func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
 		if err != nil {
 			return err
 		}
+		// Taken down (#280; the manager sends the hash for a stack that is
+		// down): a start brings it up again from its files when they are
+		// still the last deployed ones, creating the containers of every
+		// service it starts, also after only some services came back.
+		if op == opStart && in.AppliedHash != "" {
+			return s.upFromDefinition(ctx, sc, in)
+		}
 		eng, err := s.engine()
 		if err != nil {
 			return err
@@ -627,6 +630,87 @@ func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
 			return err
 		}
 		return aerr
+	}
+}
+
+// upFromDefinition is a stack.start of a stack taken down (#280): Compose
+// up from the definition on disk, only when it still hashes to the last
+// applied revision (in.AppliedHash), so a start never applies undeployed
+// changes. It creates the containers the down removed (all, or those of
+// in.Services and their dependencies) and starts the stopped ones. Nothing
+// is built; images missing on the host are pulled like Compose up does,
+// without registry connections.
+func (s *Service) upFromDefinition(ctx context.Context, sc *jobexec.StepContext, in protocol.StackJobInput) error {
+	dir, err := s.resolve(in.Stack)
+	if err != nil {
+		return err
+	}
+	c, err := s.composer()
+	if err != nil {
+		return err
+	}
+	eng, err := s.engine()
+	if err != nil {
+		return err
+	}
+	var p *compose.Project
+	var snap protocol.SourceSnapshot
+	for attempt := 0; ; attempt++ {
+		p, snap, err = s.loadSnapshot(ctx, c, in, dir)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, errSourcesChanged) || attempt+1 >= sourceRetries {
+			return err
+		}
+	}
+	if snap.Hash != in.AppliedHash {
+		return &stepError{class: protocol.StackClassDefinitionChanged,
+			err: fmt.Errorf("the files of %s changed since its last deploy", in.Stack.ProjectName),
+			recovery: "Nothing was started. Deploy the stack to start it with the changed files, or restore the deployed " +
+				"revision to disk and start it again."}
+	}
+	before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	if err := update(ctx, sc, func(o *protocol.StackJobOutput) { o.Before = before }); err != nil {
+		return err
+	}
+	sc.Progress(ctx, 50, "starting "+short(snap.Hash))
+	var timeout *time.Duration
+	if in.TimeoutSeconds > 0 {
+		d := time.Duration(in.TimeoutSeconds) * time.Second
+		timeout = &d
+	}
+	upErr := c.Up(ctx, p, compose.UpOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc)},
+		Services: in.Services, StopTimeout: timeout})
+	if upErr != nil && ctx.Err() != nil {
+		return upErr // shutdown: the attempt is recovered from the journal
+	}
+	after, aerr := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if err := update(ctx, sc, func(o *protocol.StackJobOutput) { o.After = after }); err != nil {
+		return errors.Join(upErr, err)
+	}
+	if upErr != nil {
+		return upErr
+	}
+	s.recordVolumeLabels(ctx, eng, in.Stack.ProjectName, p)
+	forgetDownVolumes(s, in)
+	return aerr
+}
+
+// forgetDownVolumes drops the record of the anonymous volumes the last
+// down left behind once a deploy or start brought every service back: the
+// new containers have anonymous volumes of their own (#276). After only
+// some services came back the record stays: the next down keeps the
+// entries of the services still down and replaces those of the others.
+func forgetDownVolumes(s *Service, in protocol.StackJobInput) {
+	if len(in.Services) > 0 {
+		return
+	}
+	if err := s.opts.DownVolumes.Forget(in.Stack.ProjectName); err != nil {
+		s.log.Warn("could not forget the anonymous volumes of the last down", "project", in.Stack.ProjectName, "error", err)
 	}
 }
 
