@@ -181,6 +181,16 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 	}
 }
 
+// TestBorrowedCapabilities: kinds that need another kind's capability (a
+// stack's Stop runs Compose down, #274; a pull is an update's first half).
+func TestBorrowedCapabilities(t *testing.T) {
+	for kind, want := range map[domain.JobKind]string{StackDown: "stack.stop", StackPull: "stack.update", StackStop: "stack.stop"} {
+		if s, ok := Lookup(kind); !ok || s.Capability != want {
+			t.Errorf("%s: capability %q, want %q", kind, s.Capability, want)
+		}
+	}
+}
+
 // TestAuthorizationTargets: migrations authorize their capability on the
 // source stack or volume only; the stack's volumes and the destination's
 // resources only take locks (#35).

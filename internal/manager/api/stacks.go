@@ -900,7 +900,7 @@ type operateStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Action         string   `json:"action,omitempty" example:"restart" enum:"start,stop,restart,down" doc:"Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down."`
+		Action         string   `json:"action,omitempty" example:"restart" enum:"start,stop,restart,down" doc:"Required; selects the capability: stack.start, stack.stop or stack.restart (down, Compose down, needs stack.stop)."`
 		Services       []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules."`
 		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period."`
 	}
@@ -914,12 +914,17 @@ func (h *stacksAPI) operate(ctx context.Context, in *operateStackInput) (*JobAcc
 		if err != nil {
 			return nil, err
 		}
-		if !v.Has("stack.start") && !v.Has("stack.stop") && !v.Has("stack.restart") && !v.Has("stack.down") {
+		if !v.Has("stack.start") && !v.Has("stack.stop") && !v.Has("stack.restart") {
 			return nil, Forbidden("not permitted to operate this stack")
 		}
 		return nil, Invalid("action must be start, stop, restart or down", Field("body.action", "start, stop, restart or down"))
 	}
+	// Down (Compose down) is a stack's Stop: it needs stack.stop (#274).
 	cp := Capability("stack." + in.Body.Action)
+	if in.Body.Action == "down" {
+		cp = "stack.stop"
+		audit.SetDetail(ctx, "down", true)
+	}
 	audit.SetAction(ctx, string(cp))
 	_, p, st, _, err := h.requireStack(ctx, in.StackID, cp)
 	if err != nil {
@@ -1683,11 +1688,11 @@ func registerStacks(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "create-stack-operation", Method: http.MethodPost, Path: one + "/operations", Summary: "Start, stop, restart or bring down a stack",
-		Description: "Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. Start, stop and restart " +
+		Description: "Starts a stack.start/stop/restart/down job (202); the body's action selects the capability (down, Compose down, needs stack.stop). Start, stop and restart " +
 			"follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their " +
 			"depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.",
 		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
-	}, Capability: "stack.{action}", CapabilityValues: []Capability{"stack.start", "stack.stop", "stack.restart", "stack.down"},
+	}, Capability: "stack.{action}", CapabilityValues: []Capability{"stack.start", "stack.stop", "stack.restart"},
 		Scope: ScopeResource, Idempotency: IdempotencyJob}, h.operate)
 
 	Register(a, Operation{Operation: huma.Operation{

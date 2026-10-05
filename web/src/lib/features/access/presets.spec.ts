@@ -27,10 +27,10 @@ const settingsRead = cap('settings.read', 'normal', true);
 const definition = cap('stack.definition.read', 'high');
 const logs = cap('container.logs.read', 'high');
 const deploy = cap('stack.deploy');
-const down = cap('stack.down', 'normal', true);
+const build = cap('stack.build', 'normal', true);
 const remove = cap('stack.remove', 'high', true);
 const exec = cap('container.exec', 'high');
-const all = [read, metrics, settingsRead, definition, logs, deploy, down, remove, exec];
+const all = [read, metrics, settingsRead, definition, logs, deploy, build, remove, exec];
 const instance: Scope = { kind: 'instance' };
 const env: Scope = { kind: 'environment', environmentId: 'e1' };
 
@@ -48,7 +48,7 @@ describe('permission presets', () => {
 		// Viewer: every normal-risk read, less common ones too; no secrets.
 		expect(keys('viewer')).toEqual(['stack.read', 'container.metrics.read', 'settings.read']);
 		// Operator: plus the common normal-risk actions and container logs;
-		// nothing high risk or rare (removal, stack down).
+		// nothing high risk or rare (removal, builds).
 		expect(keys('operator')).toEqual([
 			'stack.read',
 			'container.metrics.read',

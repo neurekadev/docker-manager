@@ -1356,12 +1356,12 @@ routes:
     path: "/api/v1/stacks/{stackId}/operations"
     operationId: create-stack-operation
     capability: "stack.{action}"
-    capabilityValues: [stack.start, stack.stop, stack.restart, stack.down]
+    capabilityValues: [stack.start, stack.stop, stack.restart]
     scope: resource
     owner: 7
     kind: json
     status: implemented
-    notes: "202 + job; the body's action selects the capability."
+    notes: "202 + job; the body's action selects the capability (down, Compose down, needs stack.stop)."
   - method: POST
     path: "/api/v1/stacks/{stackId}/revision-restores"
     operationId: create-stack-revision-restore

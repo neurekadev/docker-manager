@@ -473,14 +473,23 @@ func TestStackOperationSelectsCapability(t *testing.T) {
 	if s := do("stop"); s != http.StatusAccepted {
 		t.Errorf("stop: %d", s)
 	}
+	// Down (Compose down) is a stack's Stop: stack.stop allows it (#274).
+	if s := do("down"); s != http.StatusAccepted {
+		t.Errorf("down with stack.stop: %d", s)
+	}
 	if s := do("restart"); s != http.StatusForbidden {
 		t.Errorf("restart without stack.restart: %d", s)
 	}
 	if s := do("explode"); s != http.StatusUnprocessableEntity {
 		t.Errorf("unknown action: %d", s)
 	}
-	if len(svc.jobs) != 1 || svc.jobs[0] != "stack.stop" {
+	if !slices.Equal(svc.jobs, []domain.JobKind{"stack.stop", "stack.down"}) {
 		t.Errorf("jobs %v", svc.jobs)
+	}
+	h, _ = stacksAPIFor(t, authztest.Only("starter", "allow stack.start @stack:st-1"))
+	if s := authztest.Do(t, h, "starter", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/operations",
+		Body: map[string]any{"action": "down"}}).Status; s != http.StatusForbidden {
+		t.Errorf("down without stack.stop: %d", s)
 	}
 }
 

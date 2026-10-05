@@ -11,7 +11,11 @@ group with a matching rule decides with its most specific rule), then deny.
   plain-language label, description, compatible scopes via
   `res(...)`/`instEnv`/`instRes(...)`, `high(...)` for risky actions,
   `adv(...)` for rare ones). Never add generic read/write keys; never rename
-  a key. The web editor's presets derive from these flags
+  a key. A key is retired only together with a migration that carries
+  the group, user and API token rules naming it over to the key that
+  replaces it, deny winning over allow at the same scope (`stack.down`
+  into `stack.stop`, `20261005000000_stack_down_into_stop.go`); a job
+  kind keeps its own key and borrows the capability (`Spec.Capability`). The web editor's presets derive from these flags
   (`web/src/lib/features/access/presets.ts`): Viewer takes every
   normal-risk key ending in `.read`, Operator also every normal-risk
   common one (plus `*.logs.read`), so end read-only keys in `.read` and

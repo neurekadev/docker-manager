@@ -746,17 +746,6 @@ export function recreateConsequences(title: string, service?: string): string[] 
 }
 
 /**
- * What a stack's Stop runs (the header and the stack list): a down
- * (containers and networks removed) with stack.down, else a plain stop.
- * A service's Stop is always a plain stop: Compose takes down whole
- * projects only.
- */
-export function stackStopAction(actions: readonly string[]): 'down' | 'stop' | undefined {
-	if (actions.includes('stack.down')) return 'down';
-	return actions.includes('stack.stop') ? 'stop' : undefined;
-}
-
-/**
  * The anonymous volumes of a stack's containers (distinct names); undefined
  * while the services are unknown.
  */
@@ -764,17 +753,24 @@ export function anonymousVolumeCount(
 	services: StackServiceStatus[] | undefined
 ): number | undefined {
 	if (!services) return undefined;
-	return new Set(services.flatMap((s) => serviceVolumes(s).filter((v) => v.anonymous))).size;
+	return new Set(
+		services.flatMap((s) =>
+			serviceVolumes(s)
+				.filter((v) => v.anonymous)
+				.map((v) => v.name)
+		)
+	).size;
 }
 
 /**
- * The confirmation of a stack's Stop: `what` names the containers, e.g.
- * "3 containers" (`stackStopAction` decides `down`). A down leaves the
- * containers' anonymous volumes behind, like `docker compose down`: the
- * next deploy creates new, empty ones (`anonymous`: how many there are;
- * undefined when unknown).
+ * The confirmation of a stack's Stop (the header and the stack list), which
+ * runs Compose down with stack.stop (#274; a service's Stop only stops its
+ * containers: Compose brings down whole projects only). `what` names the
+ * containers, e.g. "3 containers". A down leaves the containers' anonymous
+ * volumes behind, like `docker compose down`: the next deploy creates new,
+ * empty ones (`anonymous`: how many there are; undefined when unknown).
  */
-export function stopConsequences(what: string, down: boolean, anonymous?: number): string[] {
+export function stopConsequences(what: string, anonymous?: number): string[] {
 	const word = (n: number) => `${n} anonymous ${n === 1 ? 'volume' : 'volumes'}`;
 	const left =
 		anonymous === undefined
@@ -786,16 +782,11 @@ export function stopConsequences(what: string, down: boolean, anonymous?: number
 						`Leaves its ${word(anonymous)} behind: the next Deploy starts with new, empty ones. Their data stays on the host until a prune removes it.`
 					]
 				: [];
-	return down
-		? [
-				`Stops and removes ${what} and the stack’s networks.`,
-				...left,
-				'Named volumes, images and files are kept; Deploy starts the stack again.'
-			]
-		: [
-				`Stops ${what}, the services that need others first.`,
-				'Containers, volumes and files are kept; Start brings them back.'
-			];
+	return [
+		`Stops and removes ${what} and the stack’s networks.`,
+		...left,
+		'Named volumes, images and files are kept; Deploy starts the stack again.'
+	];
 }
 
 /**

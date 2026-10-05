@@ -4211,7 +4211,7 @@ export interface paths {
         put?: never;
         /**
          * Start, stop, restart or bring down a stack
-         * @description Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. Start, stop and restart follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.
+         * @description Starts a stack.start/stop/restart/down job (202); the body's action selects the capability (down, Compose down, needs stack.stop). Start, stop and restart follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.
          */
         post: operations["create-stack-operation"];
         delete?: never;
@@ -10085,7 +10085,7 @@ export interface components {
         };
         OperateStackInputBody: {
             /**
-             * @description Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down.
+             * @description Required; selects the capability: stack.start, stack.stop or stack.restart (down, Compose down, needs stack.stop).
              * @example restart
              * @enum {string}
              */
