@@ -50,6 +50,25 @@ func TestRecordReplacesForgetsAndRenames(t *testing.T) {
 	}
 }
 
+// TestAddKeepsWhatEarlierAttemptsRecorded: a retried down adds the
+// volumes of the containers left to the record, sorted, without
+// duplicates; adding nothing changes nothing.
+func TestAddKeepsWhatEarlierAttemptsRecorded(t *testing.T) {
+	s := New(t.TempDir())
+	if err := s.Add("app", []Volume{data}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add("app", []Volume{data, cache}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Add("app", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Volumes("app"); !slices.Equal(got, []Volume{cache, data}) {
+		t.Errorf("record = %v", got)
+	}
+}
+
 // TestRecordSurvivesARestart: the record is a file in the state directory;
 // a nil store keeps nothing and an unreadable file reads as empty.
 func TestRecordSurvivesARestart(t *testing.T) {
@@ -63,6 +82,13 @@ func TestRecordSurvivesARestart(t *testing.T) {
 	var none *Store
 	if err := none.Record("app", []Volume{data}); err != nil || none.Volumes("app") != nil || none.Rename("app", "b") != nil {
 		t.Error("a nil store keeps something")
+	}
+	// A file holding null is an empty store, never a panic.
+	if err := os.WriteFile(filepath.Join(dir, FileName), []byte("null"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := New(dir).Record("app", []Volume{data}); err != nil {
+		t.Errorf("record over null: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, FileName), []byte("{"), 0o600); err != nil {
 		t.Fatal(err)

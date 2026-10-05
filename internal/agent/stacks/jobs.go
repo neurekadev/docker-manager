@@ -667,16 +667,16 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 		timeout = &d
 	}
 	// The anonymous volumes of the containers a down removes: nothing ties
-	// them to the project afterwards (#276). Recorded before the down, so
-	// a retried step (no containers left) still has them; backups only use
-	// the record while the project has no containers. A down of a project
-	// without containers keeps the last record.
+	// them to the project afterwards (#276). Added to the record before the
+	// down, so a retried step keeps those of the containers an earlier
+	// attempt removed; backups only use the record while the project has
+	// no containers, and a successful deploy forgets it.
 	if len(before) > 0 && sc.Kind == jobspec.StackDown {
 		anonymous, err := anonymousVolumes(ctx, eng, in.Stack.ProjectName)
 		if err != nil {
 			return err
 		}
-		if err := s.opts.DownVolumes.Record(in.Stack.ProjectName, anonymous); err != nil {
+		if err := s.opts.DownVolumes.Add(in.Stack.ProjectName, anonymous); err != nil {
 			s.log.Warn("could not record the anonymous volumes the down leaves behind", "project", in.Stack.ProjectName, "error", err)
 		}
 	}

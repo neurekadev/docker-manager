@@ -5,8 +5,10 @@
 // backups of the stopped stack would silently leave their data out. The
 // down step records them per project; a backup includes the recorded
 // volumes while the project has no containers (the next deploy creates new
-// ones, as with docker compose down). The next down replaces a project's
-// record, deleting the stack forgets it and a rename moves it.
+// ones, as with docker compose down). A down adds to a project's record (a
+// retried down that removed some containers keeps their volumes), a
+// successful deploy and deleting the stack forget it and a rename moves
+// it.
 //
 // The store is a JSON file in the agent's state directory, replaced
 // atomically; a nil *Store keeps nothing.
@@ -21,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -47,6 +50,7 @@ type Store struct {
 func New(dir string) *Store { return &Store{dir: dir} }
 
 // Record replaces the volumes recorded for a project (none forgets it).
+// A down adds to the record (Add).
 func (s *Store) Record(project string, vols []Volume) error {
 	if s == nil {
 		return nil
@@ -65,7 +69,30 @@ func (s *Store) Record(project string, vols []Volume) error {
 	return s.save(next)
 }
 
-// Forget drops a project's record (its stack was removed).
+// Add adds volumes to a project's record (a name already recorded keeps
+// its entry); the record stays sorted by name.
+func (s *Store) Add(project string, vols []Volume) error {
+	if s == nil || len(vols) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.load(); err != nil {
+		return err
+	}
+	merged := slices.Clone(s.projects[project])
+	for _, v := range vols {
+		if !slices.ContainsFunc(merged, func(x Volume) bool { return x.Name == v.Name }) {
+			merged = append(merged, v)
+		}
+	}
+	slices.SortFunc(merged, func(a, b Volume) int { return strings.Compare(a.Name, b.Name) })
+	next := maps.Clone(s.projects)
+	next[project] = merged
+	return s.save(next)
+}
+
+// Forget drops a project's record (its stack was removed or deployed).
 func (s *Store) Forget(project string) error { return s.Record(project, nil) }
 
 // Rename moves a project's record to its new name (stack rename).
@@ -117,6 +144,9 @@ func (s *Store) load() error {
 		default:
 			if err := json.Unmarshal(b, &s.projects); err != nil {
 				return fmt.Errorf("down volumes: %s is unreadable: %w", FileName, err)
+			}
+			if s.projects == nil { // the file holds null
+				s.projects = map[string][]Volume{}
 			}
 		}
 	}

@@ -54,6 +54,20 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(store.Volumes("app"), want) {
 		t.Fatalf("down: %+v record %v", res, store.Volumes("app"))
 	}
+	// A retried down after one that removed some containers (here: the db
+	// container is gone, the web one is left) keeps what it recorded.
+	webAnon := strings.Repeat("c", 64)
+	e.eng.mu.Lock()
+	e.eng.containers = []engine.Container{{ID: "web1", Names: []string{"/app-web-1"}, State: "running", Labels: lbl("web"),
+		Mounts: []engine.Mount{{Type: "volume", Name: webAnon, Destination: "/cache"}}}}
+	e.eng.mu.Unlock()
+	if res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("retried down: %+v", res)
+	}
+	want = []downvolumes.Volume{want[0], {Name: webAnon, Service: "web", Destination: "/cache"}}
+	if got := store.Volumes("app"); !slices.Equal(got, want) {
+		t.Fatalf("after the retried down: %v", got)
+	}
 	// Nothing left to bring down: the record stays.
 	if res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
 		!slices.Equal(store.Volumes("app"), want) {
