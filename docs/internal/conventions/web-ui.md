@@ -22,10 +22,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
   for high impact), only for damaging actions (stop, take down, force
   recreate, delete, remove; start, restart and deploy run at once); Start,
-  Restart and Stop of one stack or container (and a stack's Take Down) are
-  one `LifecycleButton` (`$lib/features/common`: Stop while anything runs,
-  Start otherwise), never separate buttons, and row menus list them in the
-  order Start, Restart, Stop, Take Down; status is `StatusBadge` (dot + text); tags and filter pills
+  Restart and Stop of one stack or container are one `LifecycleButton`
+  (`$lib/features/common`: Stop while anything runs, Start otherwise),
+  never separate buttons, and row menus list them in the order Start,
+  Restart, Stop; a stack's Stop takes it down with `stack.down`
+  (`stackStopAction`), a service's or container's Stop only stops; status is `StatusBadge` (dot + text); tags and filter pills
   are `Chip`; lists of short values (template tags, network aliases) are
   entered with `TagInput` (removable chips; Space, Enter, a comma or Tab
   ends one, a paste splits), never as comma-separated text; a list whose

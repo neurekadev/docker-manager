@@ -66,11 +66,14 @@ A failed deploy is not rolled back. Fix the files, or restore the last good
 [revision](#revisions), and deploy again.
 
 The next button shows **Stop** while the stack runs and **Start** when it's
-stopped. Its menu has **Start**, **Restart**, **Stop** and **Take Down**.
-Both **Stop** and **Take Down** ask first. **Stop** keeps the containers.
-**Take Down** removes the containers and the stack's networks, like
+stopped. Its menu has **Start**, **Restart** and **Stop**. **Stop** asks
+first, then stops and removes the stack's containers and networks, like
 `docker compose down`. Volumes, images and files are kept, and **Deploy**
-brings the stack back.
+brings the stack back. Without the **Take Stack Down** permission, **Stop**
+only stops the containers and **Start** brings them back.
+
+A service's **Stop**, in its row on the **Overview**, only stops that
+service's containers.
 
 **More Stack Actions → Delete** removes the stack from Docker Manager and
 the server. Type its name to confirm. Its volumes are kept unless you tick
@@ -168,4 +171,4 @@ order.
 
 If you import Docker Manager's own project, **Deploy**, **Pull & Deploy**
 and **Force Recreate** work, so you can upgrade Docker Manager from the
-app. Restart, Stop, Take Down, Migrate, Rename and Delete are off for it.
+app. Restart, Stop, Migrate, Rename and Delete are off for it.

@@ -2,14 +2,13 @@
 	// Start, Restart and Stop of a stack or container as one split button
 	// (#22). The main part is Stop (danger-soft, Square) while anything runs,
 	// a partially running stack included, and Start (ok-soft, Play) while
-	// nothing does; the menu lists Start, Restart, Stop and a stack's Take
-	// Down (PowerOff, danger) as the caller holds them, the ones that do not
+	// nothing does; the menu lists Start, Restart and Stop (secondary,
+	// RotateCw for Restart) as the caller holds them, the ones that do not
 	// apply in the state turned off (`lifecycle.ts`). With a single held
 	// action it is a plain button. The callbacks decide what runs at once
-	// (Start, Restart) and what confirms first (Stop, Take Down). While an
-	// action runs (`busy`) the main part shows it with a spinner.
+	// (Start, Restart) and what confirms first (Stop). While an action runs
+	// (`busy`) the main part shows it with a spinner.
 	import Play from '@lucide/svelte/icons/play';
-	import PowerOff from '@lucide/svelte/icons/power-off';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Square from '@lucide/svelte/icons/square';
 	import type { IconComponent } from '$lib/design/icons';
@@ -55,8 +54,7 @@
 	const LOOK: Record<LifecycleVerb, { icon: IconComponent; variant: SplitButtonVariant }> = {
 		start: { icon: Play, variant: 'ok-soft' },
 		restart: { icon: RotateCw, variant: 'secondary' },
-		stop: { icon: Square, variant: 'danger-soft' },
-		down: { icon: PowerOff, variant: 'danger-soft' }
+		stop: { icon: Square, variant: 'danger-soft' }
 	};
 
 	const main = $derived(busy ?? lifecycleMain(running, actions));
@@ -68,7 +66,7 @@
 		entries.map((e): MenuEntry => ({
 			label: e.label,
 			icon: LOOK[e.verb].icon,
-			tone: e.verb === 'stop' || e.verb === 'down' ? 'danger' : undefined,
+			tone: e.verb === 'stop' ? 'danger' : undefined,
 			disabled: e.disabled,
 			onSelect: () => actions[e.verb]?.run()
 		}))

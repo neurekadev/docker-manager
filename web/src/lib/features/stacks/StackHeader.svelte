@@ -12,14 +12,15 @@
 	// newer base images, build without deploying, with stack.build; after a
 	// separator Build & Deploy and Pull, Build & Deploy, with stack.deploy),
 	// the lifecycle split button (LifecycleButton: Stop while anything
-	// runs, Start when stopped; its menu has Start, Restart, Stop and Take
-	// Down) and overflow (Migrate with more than one environment, Edit
-	// Details, Save as Template, Delete). Each action is shown only with its capability (the server
-	// still decides). Start and Restart run at once; Stop, Take Down,
+	// runs, Start when stopped; its menu has Start, Restart and Stop, and
+	// Stop takes the stack down with stack.down, else it only stops it) and
+	// overflow (Migrate with more than one environment, Edit Details, Save
+	// as Template, Delete). Each action is shown only with its capability
+	// (the server still decides). Start and Restart run at once; Stop,
 	// Delete, Force Recreate and Cleanup Orphans & Deploy confirm with their
 	// exact consequences first. Docker Manager's own stack (#32) deploys and
-	// force recreates; Restart, Stop, Take Down, Migrate, Rename and Delete
-	// stay visible but disabled, with the reason. While a rename of the
+	// force recreates; Restart, Stop, Migrate, Rename and Delete stay
+	// visible but disabled, with the reason. While a rename of the
 	// stack runs (the tray's stack.rename job, or one in the stack's jobs
 	// after a reload) every action is off, with the reason.
 	import { goto } from '$app/navigation';
@@ -81,8 +82,9 @@
 		recreateConsequences,
 		serviceCounts,
 		stackStatus,
+		stackStopAction,
 		stackTitle,
-		takeDownConsequences,
+		stopConsequences,
 		updateAvailable,
 		type DeployChoice
 	} from './model';
@@ -124,7 +126,7 @@
 	// delete Docker Manager.
 	const protectedStack = $derived(!!stack.protection);
 	const selfReason =
-		'Docker Manager cannot stop, take down, restart, migrate, rename or delete its own stack. Deploy works.';
+		'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
 	// A restore of the stack's data starts what was running itself; the
 	// server refuses starts meanwhile (restore_in_progress), so hide them.
 	const jobs = createQuery(() => stackJobsQuery(stack.id));
@@ -183,10 +185,9 @@
 		return out;
 	});
 
-	// Stop and Take Down confirm (they end what runs); Start and Restart run
-	// at once, like a container's.
+	// Only Stop confirms (it ends what runs); Start and Restart run at once,
+	// like a container's.
 	let confirming = $state(false);
-	let takingDown = $state(false);
 	// Force Recreate confirms: it replaces every container.
 	let recreating = $state(false);
 	let operating = $state<'start' | 'restart' | null>(null);
@@ -217,18 +218,24 @@
 		start: { done: 'Started', failure: 'started', title: 'Start' },
 		stop: { done: 'Stopped', failure: 'stopped', title: 'Stop' },
 		restart: { done: 'Restarted', failure: 'restarted', title: 'Restart' },
-		down: { done: 'Took down', failure: 'taken down', title: 'Take Down' }
+		// A stack's Stop with stack.down: the user sees a stop.
+		down: { done: 'Stopped', failure: 'stopped', title: 'Stop' }
 	};
 
 	const containerWord = (n: number) => `${n} ${n === 1 ? 'container' : 'containers'}`;
-	const stopConsequences = $derived([
-		`Stops ${containerWord(counts.containersRunning)}, the services that need others first.`,
-		'Containers, volumes and files are kept; Start brings them back.'
-	]);
+	// Stop takes the stack down with stack.down, else it only stops it.
+	const stopAction = $derived(stackStopAction(stack.actions));
+	const stopping = $derived(
+		stopConsequences(
+			containerWord(stopAction === 'down' ? counts.containers : counts.containersRunning),
+			stopAction === 'down'
+		)
+	);
 
-	// Start, Restart, Stop and Take Down as one split button: Stop while
-	// anything runs (a partially running stack too: Start in its menu starts
-	// the rest), Start when stopped. A restore hides Start and Restart.
+	// Start, Restart and Stop as one split button: Stop while anything runs
+	// (a partially running stack too: Start in its menu starts the rest),
+	// Start when stopped. A restore hides them all: it starts what ran
+	// before itself, and Stop's down would remove those containers.
 	const lifecycle = $derived.by((): LifecycleActions => {
 		const out: LifecycleActions = {};
 		const locked = protectedStack ? selfReason : undefined;
@@ -240,14 +247,12 @@
 				disabled: current === 'stopped' || protectedStack,
 				reason: locked
 			};
-		if (can('stack.stop'))
+		if (stopAction && !restoring)
 			out.stop = {
 				run: () => (confirming = true),
 				disabled: current === 'stopped' || protectedStack,
 				reason: locked
 			};
-		if (can('stack.down'))
-			out.down = { run: () => (takingDown = true), disabled: protectedStack, reason: locked };
 		return out;
 	});
 
@@ -520,19 +525,10 @@
 <ConfirmDialog
 	bind:open={confirming}
 	title="Stop {title}?"
-	consequences={stopConsequences}
+	consequences={stopping}
 	confirmLabel="Stop"
 	tone="danger"
-	onconfirm={() => operate('stop')}
-/>
-
-<ConfirmDialog
-	bind:open={takingDown}
-	title="Take Down {title}?"
-	consequences={takeDownConsequences(title)}
-	confirmLabel="Take Down"
-	tone="danger"
-	onconfirm={() => operate('down')}
+	onconfirm={() => stopAction && operate(stopAction)}
 />
 
 <ConfirmDialog

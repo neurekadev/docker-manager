@@ -745,12 +745,31 @@ export function recreateConsequences(title: string, service?: string): string[] 
 	];
 }
 
-/** The confirmation of Take Down (the stack header and the stack list). */
-export function takeDownConsequences(title: string): string[] {
-	return [
-		`Stops and removes the containers of ${title} and its networks.`,
-		'Volumes, images and files are kept; Deploy brings it back.'
-	];
+/**
+ * What a stack's Stop runs (the header and the stack list): a down
+ * (containers and networks removed) with stack.down, else a plain stop.
+ * A service's Stop is always a plain stop: Compose takes down whole
+ * projects only.
+ */
+export function stackStopAction(actions: readonly string[]): 'down' | 'stop' | undefined {
+	if (actions.includes('stack.down')) return 'down';
+	return actions.includes('stack.stop') ? 'stop' : undefined;
+}
+
+/**
+ * The confirmation of a stack's Stop: `what` names the containers, e.g.
+ * "3 containers" (`stackStopAction` decides `down`).
+ */
+export function stopConsequences(what: string, down: boolean): string[] {
+	return down
+		? [
+				`Stops and removes ${what} and the stack’s networks.`,
+				'Volumes, images and files are kept; Deploy brings the stack back.'
+			]
+		: [
+				`Stops ${what}, the services that need others first.`,
+				'Containers, volumes and files are kept; Start brings them back.'
+			];
 }
 
 /**

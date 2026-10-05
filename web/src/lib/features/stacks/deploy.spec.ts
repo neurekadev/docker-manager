@@ -7,7 +7,8 @@ import {
 	orphanedServices,
 	pendingUpdates,
 	recreateConsequences,
-	takeDownConsequences,
+	stackStopAction,
+	stopConsequences,
 	updateAvailable
 } from './model';
 
@@ -70,7 +71,7 @@ describe('deploy outcomes', () => {
 		expect(deploySuccess('Silo', web, t1, t1)).toBe('Recreated web');
 	});
 
-	it('lists the consequences of Force Recreate and Take Down', () => {
+	it('lists the consequences of Force Recreate', () => {
 		expect(recreateConsequences('Silo')[0]).toBe(
 			'Replaces every container of Silo with a new one, even if nothing changed. Its services are briefly down.'
 		);
@@ -78,9 +79,25 @@ describe('deploy outcomes', () => {
 			'Replaces the containers of web with new ones, even if nothing changed. Services it needs start if they are stopped.'
 		);
 		expect(recreateConsequences('Silo')[1]).toContain('Volumes and files are kept.');
-		expect(takeDownConsequences('Silo')).toEqual([
-			'Stops and removes the containers of Silo and its networks.',
-			'Volumes, images and files are kept; Deploy brings it back.'
+	});
+});
+
+describe('stack stop', () => {
+	it('takes the stack down with stack.down, else only stops it', () => {
+		expect(stackStopAction(['stack.stop', 'stack.down'])).toBe('down');
+		expect(stackStopAction(['stack.down'])).toBe('down');
+		expect(stackStopAction(['stack.stop'])).toBe('stop');
+		expect(stackStopAction(['stack.start'])).toBeUndefined();
+	});
+
+	it('says what a stop removes and keeps', () => {
+		expect(stopConsequences('3 containers', true)).toEqual([
+			'Stops and removes 3 containers and the stack’s networks.',
+			'Volumes, images and files are kept; Deploy brings the stack back.'
+		]);
+		expect(stopConsequences('3 containers', false)).toEqual([
+			'Stops 3 containers, the services that need others first.',
+			'Containers, volumes and files are kept; Start brings them back.'
 		]);
 	});
 });

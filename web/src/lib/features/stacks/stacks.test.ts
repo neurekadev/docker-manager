@@ -220,12 +220,7 @@ describe('StackHeader', () => {
 		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 		const lifecycle = await screen.findByRole('menu');
 		const entries = within(lifecycle).getAllByRole('menuitem');
-		expect(entries.map((i) => i.textContent?.trim())).toEqual([
-			'Start',
-			'Restart',
-			'Stop',
-			'Take Down'
-		]);
+		expect(entries.map((i) => i.textContent?.trim())).toEqual(['Start', 'Restart', 'Stop']);
 		// Everything runs: nothing to start.
 		expect(entries[0]).toHaveAttribute('aria-disabled', 'true');
 		await user.keyboard('{Escape}');
@@ -301,7 +296,7 @@ describe('StackHeader', () => {
 			})
 		);
 		const reason =
-			'Docker Manager cannot stop, take down, restart, migrate, rename or delete its own stack. Deploy works.';
+			'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
 		const stop = screen.getByRole('button', { name: 'Stop' });
 		expect(stop).toBeDisabled();
 		expect(stop).toHaveAttribute('title', reason);
@@ -313,10 +308,6 @@ describe('StackHeader', () => {
 			'true'
 		);
 		expect(screen.getByRole('menuitem', { name: 'Stop' })).not.toHaveAccessibleDescription();
-		expect(screen.getByRole('menuitem', { name: 'Take Down' })).toHaveAttribute(
-			'aria-disabled',
-			'true'
-		);
 	});
 
 	it('hides what the caller may not do (the server still decides)', () => {
@@ -364,20 +355,25 @@ describe('StackHeader', () => {
 		);
 	});
 
-	it('stops only after the confirmation that lists what happens, and tracks the job', async () => {
+	it('stops (takes down) only after the confirmation that lists what happens, and tracks the job', async () => {
 		const user = setup();
 		const tray = header(stack());
 		await user.click(screen.getByRole('button', { name: 'Stop' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
 		expect(
-			within(dialog).getByText('Stops 3 containers, the services that need others first.')
+			within(dialog).getByText('Stops and removes 3 containers and the stack’s networks.')
+		).toBeInTheDocument();
+		expect(
+			within(dialog).getByText(
+				'Volumes, images and files are kept; Deploy brings the stack back.'
+			)
 		).toBeInTheDocument();
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
 		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
 		await waitFor(() => expect(tray.jobs).toHaveLength(1));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/operations',
-			body: { action: 'stop' }
+			body: { action: 'down' }
 		});
 		expect(tray.jobs[0]).toMatchObject({
 			id: 'job-1',
@@ -622,26 +618,33 @@ describe('StackHeader', () => {
 		});
 	});
 
-	it('takes the stack down only after a confirmation, also when it is stopped', async () => {
+	it('only stops the containers without stack.down', async () => {
 		const user = setup();
-		const tray = header(stack({ engine: { state: 'stopped', services: [] } }));
-		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Take Down' }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Take Down Silo?' });
+		const tray = header(stack({ actions: ALL.filter((a) => a !== 'stack.down') }));
+		await user.click(screen.getByRole('button', { name: 'Stop' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Stop Silo?' });
 		expect(
-			within(dialog).getByText('Volumes, images and files are kept; Deploy brings it back.')
+			within(dialog).getByText('Stops 3 containers, the services that need others first.')
 		).toBeInTheDocument();
-		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(within(dialog).getByRole('button', { name: 'Take Down' }));
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Take Down Silo'));
-		expect(tray.jobs[0]).toMatchObject({
-			success: 'Took down Silo',
-			failure: 'Silo was not taken down'
-		});
+		await user.click(within(dialog).getByRole('button', { name: 'Stop' }));
+		await waitFor(() => expect(tray.jobs).toHaveLength(1));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/operations',
-			body: { action: 'down' }
+			body: { action: 'stop' }
 		});
+		expect(tray.jobs[0]).toMatchObject({ title: 'Stop Silo', success: 'Stopped Silo' });
+	});
+
+	it('hides Start, Restart and Stop while a restore of the stack runs', async () => {
+		jobList = [{ id: 'job-restore', kind: 'restore.run', state: 'running' }];
+		header(stack());
+		// Stop's down would remove the containers the restore starts again.
+		await waitFor(() =>
+			expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
+		);
+		expect(
+			screen.queryByRole('button', { name: 'More Start and Stop Options' })
+		).not.toBeInTheDocument();
 	});
 });
 
