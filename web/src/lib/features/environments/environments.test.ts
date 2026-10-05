@@ -3,7 +3,8 @@ import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
-import type { Environment, EnvironmentSystem } from '$lib/api/client';
+import type { Environment, EnvironmentSystem, MyPermissions } from '$lib/api/client';
+import { liveKeys } from '$lib/live/keys';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import ArchiveEnvironmentDialog from './ArchiveEnvironmentDialog.svelte';
 import EditEnvironmentDialog from './EditEnvironmentDialog.svelte';
@@ -41,8 +42,13 @@ const env: Environment = {
 	actions: ['environment.read', 'environment.manage', 'environment.remove']
 };
 
-function mount<P extends Record<string, unknown>>(component: Component<P>, props: P) {
+function mount<P extends Record<string, unknown>>(
+	component: Component<P>,
+	props: P,
+	seed?: (client: QueryClient) => void
+) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	seed?.(client);
 	return render(QueryHarness<P>, { props: { client, component, props } });
 }
 
@@ -276,8 +282,16 @@ describe('AgentsPanel (#3)', () => {
 		expect(requests.find((r) => r.method === 'DELETE')!.headers.get('If-Match')).toBe('"4"');
 	});
 
-	it('offers Re-Attach when only removed agents are left', async () => {
+	it('offers Re-Attach when only removed agents are left, with Add Environments', async () => {
 		stubApi((req) => {
+			// Re-attaching creates an install command: agent.enroll (#282).
+			if (new URL(req.url).pathname === '/api/v1/me/permissions')
+				return json({
+					owner: false,
+					entries: [
+						{ capability: 'agent.enroll', scope: { kind: 'instance' }, allowed: true }
+					]
+				});
 			if (new URL(req.url).pathname === '/api/v1/environments/e1/agents')
 				return json({
 					items: [
@@ -293,10 +307,62 @@ describe('AgentsPanel (#3)', () => {
 		mount(AgentsPanel, { env });
 		await screen.findByRole('table', { name: 'Agents of homelab' });
 		expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Re-Attach' })).toHaveAttribute(
+		expect(await screen.findByRole('link', { name: 'Re-Attach' })).toHaveAttribute(
 			'href',
 			expect.stringContaining('reattach=e1')
 		);
+	});
+
+	it('offers Re-Attach in the detached notice exactly with Add Environments', async () => {
+		// The caller's permissions are known before the panel renders (and a
+		// refetch answers the same), so the gate is decided at once.
+		const perms = (enroll: boolean): MyPermissions =>
+			({
+				catalogVersion: 1,
+				owner: false,
+				userId: 'u1',
+				groupIds: [],
+				environments: [],
+				entries: [
+					{ capability: 'environment.read', scope: { kind: 'instance' }, allowed: true },
+					...(enroll
+						? [
+								{
+									capability: 'agent.enroll',
+									scope: { kind: 'instance' },
+									allowed: true
+								}
+							]
+						: [])
+				]
+			}) as MyPermissions;
+		for (const enroll of [true, false]) {
+			stubApi((req) => {
+				const path = new URL(req.url).pathname;
+				if (path === '/api/v1/me/permissions') return json(perms(enroll));
+				if (path === '/api/v1/environments/e1/agents')
+					return json({
+						items: [
+							{
+								...agent,
+								status: 'revoked',
+								actions: [],
+								revokedAt: '2026-09-01T00:00:00Z'
+							}
+						]
+					});
+			});
+			const { unmount } = mount(AgentsPanel, { env }, (client) =>
+				client.setQueryData(liveKeys.myPermissions, perms(enroll))
+			);
+			await screen.findByRole('table', { name: 'Agents of homelab' });
+			expect(screen.getByText('No agent is attached.')).toBeInTheDocument();
+			const link = screen.queryByRole('link', { name: 'Re-Attach' });
+			if (enroll)
+				expect(link).toHaveAttribute('href', expect.stringContaining('reattach=e1'));
+			else expect(link).not.toBeInTheDocument();
+			unmount();
+		}
 	});
 });
 

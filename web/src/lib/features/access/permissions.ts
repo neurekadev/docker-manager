@@ -74,6 +74,7 @@ export interface CapabilityGroup {
  * and Git credentials as Credentials. Other types are their own section.
  */
 const SECTIONS: Record<string, { key: string; label: string }> = {
+	environment: { key: 'environment', label: 'Environments' },
 	agent: { key: 'environment', label: 'Environments' },
 	backup_repository: { key: 'backup', label: 'Backups' },
 	backup_policy: { key: 'backup', label: 'Backups' },
