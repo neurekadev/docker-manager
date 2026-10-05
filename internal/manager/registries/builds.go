@@ -63,12 +63,25 @@ func (s *Service) BuildCredentials(ctx context.Context, environmentID string) (i
 	return ids, ambiguous, nil
 }
 
-// Usable checks that explicitly named connections exist and are active.
-func (s *Service) Usable(ctx context.Context, ids []string) error {
+// Usable checks that explicitly named connections exist, are active and
+// may be used in the build's context, like Match's binding rule: an
+// environment-bound connection only in its environment, a stack-bound one
+// only for its stack (stackID is empty for builds outside a stack).
+func (s *Service) Usable(ctx context.Context, ids []string, environmentID, stackID string) error {
 	for _, id := range ids {
 		c, err := store.GetRegistryConnection(ctx, s.db, id)
 		if err != nil {
 			return err
+		}
+		switch {
+		case c.StackID != "":
+			if c.StackID != stackID {
+				return domain.ErrRegistryConnectionMismatch
+			}
+		case c.EnvironmentID != "":
+			if c.EnvironmentID != environmentID {
+				return domain.ErrRegistryConnectionMismatch
+			}
 		}
 		if !c.Active() {
 			return domain.ErrRegistryConnectionRevoked

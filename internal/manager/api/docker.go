@@ -252,11 +252,17 @@ func membership(st *protocol.StackRef, stackIDs map[string]string, managed bool)
 // ambiguous identifier is reported like a missing object (404), so it
 // reveals nothing about objects the caller may not see.
 func lookupErr(err error, what string) error {
-	var de *domain.DockerError
-	if errors.As(err, &de) && (de.Code == domain.DockerInvalid || de.Code == domain.DockerConflict || de.Code == domain.DockerNotFound) {
+	if isNotFound(err) {
 		return NotFound(what + " not found")
 	}
 	return dockerErr(err)
+}
+
+// isNotFound reports whether a lookup found no such object (an invalid or
+// ambiguous name finds none either).
+func isNotFound(err error) bool {
+	var de *domain.DockerError
+	return errors.As(err, &de) && (de.Code == domain.DockerInvalid || de.Code == domain.DockerConflict || de.Code == domain.DockerNotFound)
 }
 
 // dockerErr maps service errors to API errors.

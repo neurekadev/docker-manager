@@ -343,6 +343,43 @@ func TestRotationAndRevocation(t *testing.T) {
 	}
 }
 
+// A build may name only connections whose binding allows its context,
+// like Match: an environment-bound one in its environment, a stack-bound
+// one for its stack (#279).
+func TestUsableRespectsTheBinding(t *testing.T) {
+	f := newFixture(t)
+	now := f.clk.Now().UTC()
+	for _, id := range []string{"env-1", "env-2"} {
+		e := domain.Environment{ID: id, Name: id, EngineID: "E-" + id, InstallID: "i-" + id, AgentID: "agent-" + id,
+			Status: domain.EnvironmentActive, Revision: 1, CreatedAt: now, UpdatedAt: now}
+		if err := store.InsertEnvironment(f.ctx, f.db, &e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unbound := f.create(domain.RegistryConnectionInput{Name: "Any", Host: "ghcr.io", Username: "u", Secret: "s"})
+	env := f.create(domain.RegistryConnectionInput{Name: "Env", Host: "ghcr.io", Username: "u", Secret: "s", EnvironmentID: "env-1"})
+	stack := f.create(domain.RegistryConnectionInput{Name: "Stack", Host: "ghcr.io", Username: "u", Secret: "s", StackID: "stack-1"})
+	cases := []struct {
+		name       string
+		id         string
+		env, stack string
+		want       error
+	}{
+		{"unbound anywhere", unbound.ID, "env-2", "", nil},
+		{"environment-bound in its environment", env.ID, "env-1", "stack-9", nil},
+		{"environment-bound elsewhere", env.ID, "env-2", "", domain.ErrRegistryConnectionMismatch},
+		{"stack-bound for its stack", stack.ID, "env-2", "stack-1", nil},
+		{"stack-bound for another stack", stack.ID, "env-1", "stack-2", domain.ErrRegistryConnectionMismatch},
+		{"stack-bound outside a stack", stack.ID, "env-1", "", domain.ErrRegistryConnectionMismatch},
+		{"unknown", "nope", "env-1", "", domain.ErrRegistryConnectionNotFound},
+	}
+	for _, c := range cases {
+		if err := f.svc.Usable(f.ctx, []string{c.id}, c.env, c.stack); !errors.Is(err, c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, err, c.want)
+		}
+	}
+}
+
 func TestSelectErrors(t *testing.T) {
 	f := newFixture(t)
 	a := f.create(domain.RegistryConnectionInput{Name: "quay a", Host: "quay.io", Username: "u", Secret: "token-a-123"})

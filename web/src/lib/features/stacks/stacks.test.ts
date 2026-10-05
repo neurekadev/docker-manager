@@ -408,9 +408,20 @@ describe('StackHeader', () => {
 		expect(del?.search).toBe('');
 	});
 
+	it('offers removing the volumes only with Remove Volumes on the stack', async () => {
+		const user = setup();
+		header(stack());
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
+		expect(
+			within(dialog).queryByRole('checkbox', { name: /Also Remove the Stack’s Volumes/ })
+		).not.toBeInTheDocument();
+	});
+
 	it('removes the stack’s own volumes only when the box is ticked', async () => {
 		const user = setup();
-		const tray = header(stack());
+		const tray = header(stack({ actions: [...ALL, 'volume.remove'] }));
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });

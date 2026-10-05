@@ -570,11 +570,14 @@
 	onconfirm={remove}
 >
 	{#snippet extra()}
-		<Checkbox
-			bind:checked={removeVolumes}
-			label="Also Remove the Stack’s Volumes"
-			description="Only the volumes this stack created: the named volumes its Compose file declares (not external) and the anonymous volumes of its containers. Their data is deleted."
-		/>
+		<!-- Removing the volumes also needs Remove Volumes on the stack (#279). -->
+		{#if can('volume.remove')}
+			<Checkbox
+				bind:checked={removeVolumes}
+				label="Also Remove the Stack’s Volumes"
+				description="Only the volumes this stack created: the named volumes its Compose file declares (not external) and the anonymous volumes of its containers. Their data is deleted."
+			/>
+		{/if}
 	{/snippet}
 </DestructiveConfirm>
 

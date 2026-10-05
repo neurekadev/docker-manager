@@ -930,3 +930,27 @@ func TestSelfProtectionRoutes(t *testing.T) {
 		t.Fatalf("stacks volume %+v", vol)
 	}
 }
+
+// TestMovingATagNeedsImageTagOnItsHolder: a tag another image holds moves
+// to the tagged image, so whatever runs that reference next gets it; that
+// needs image.tag on the holder too, a new tag only on the image (#279).
+func TestMovingATagNeedsImageTagOnItsHolder(t *testing.T) {
+	pol := authztest.New().Member("tina", "taggers")
+	f := newDockerFixture(t, pol)
+	nginx, redis := f.imageID("env-1", "nginx:1.27"), f.imageID("env-1", "redis:7")
+	tag := func(repo, tag string) int {
+		path := "/api/v1/environments/env-1/images/" + nginx + "/tags"
+		return f.do("tina", authztest.Call{Method: http.MethodPost, Path: path, Body: map[string]any{"repository": repo, "tag": tag}}).Status
+	}
+	pol.Group("taggers", "allow image.tag @image:env-1/"+nginx)
+	if s := tag("mirror/nginx", "stable"); s != http.StatusOK {
+		t.Errorf("new tag: %d", s)
+	}
+	if s := tag("redis", "7"); s != http.StatusForbidden {
+		t.Errorf("moving redis:7 without image.tag on its image: %d", s)
+	}
+	pol.Group("taggers", "allow image.tag @image:env-1/"+nginx, "allow image.tag @image:env-1/"+redis)
+	if s := tag("redis", "7"); s != http.StatusOK {
+		t.Errorf("moving redis:7 with image.tag on both: %d", s)
+	}
+}

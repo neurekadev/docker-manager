@@ -264,6 +264,16 @@ func (h *dockerAPI) tagImage(ctx context.Context, in *tagImageInput) (*imageOutp
 	if in.Body.Tag != "" {
 		target += ":" + in.Body.Tag
 	}
+	// A tag another image holds moves to this one: whatever runs that
+	// reference next gets this image, so the holder's image.tag is needed
+	// too (#279).
+	if holder, err := h.svc.InspectImage(ctx, sc.env.ID, target); err == nil && holder.ID != im.ID {
+		if !sc.c.Can(string(CapImageTag), imageResource(sc.env.ID, holder.ID)).Allowed {
+			return nil, Forbidden("not permitted to move " + target + ": it names another image now (image.tag is needed on that image too)")
+		}
+	} else if err != nil && !isNotFound(err) {
+		return nil, dockerErr(err)
+	}
 	updated, err := h.svc.TagImage(ctx, sc.env.ID, im, target)
 	if err != nil {
 		return nil, dockerErr(err)

@@ -49,7 +49,11 @@ arguments; timeout ≤ 6 h), selects:
   applies in the environment (environment binding over unbound, then
   priority; tied hosts are skipped and logged). Base-image references are
   only known inside BuildKit, so repository-specific and stack-bound
-  connections must be named explicitly.
+  connections must be named explicitly. A named connection must be active
+  and its binding must allow the build like a match (#279,
+  `registries.Service.Usable`): an environment-bound one only in its
+  environment, a stack-bound one only for that stack's builds (never for
+  image builds); otherwise 422, as for a mismatching connection.
 
 It enqueues an `image.build` job whose input names the credentials by ID
 (`jobspec.CredentialRefs`), never a secret, and answers **202 + job**. The

@@ -42097,7 +42097,7 @@ export interface operations {
     "delete-stack": {
         parameters: {
             query?: {
-                /** @description Also remove the volumes the stack owns: named volumes its definition declares (not external) that Compose created for the project, and the anonymous volumes of its containers. External volumes, other projects' volumes, volumes other containers use and Docker Manager's own are kept. Default false: every volume is kept. */
+                /** @description Also remove the volumes the stack owns: named volumes its definition declares (not external) that Compose created for the project, and the anonymous volumes of its containers. External volumes, other projects' volumes, volumes other containers use and Docker Manager's own are kept. Default false: every volume is kept. Needs volume.remove on the stack too. */
                 removeVolumes?: boolean;
             };
             header?: {

@@ -190,18 +190,21 @@ func agentFailure(err error) error {
 }
 
 // ContentsCapabilities returns what reading a snapshot's contents needs
-// besides backup.contents.read (#10, #17): stack snapshots contain
-// compose.yaml and .env, so they need stack.definition.read on the stack;
-// volume snapshots need volume.files.read on the volume; manager-state
-// snapshots are owner-only.
-func ContentsCapabilities(sn domain.BackupSnapshot) (capability string, res authz.Resource, ownerOnly bool) {
+// besides backup.contents.read (#10, #17, #279), all of them on res: stack
+// snapshots hold the project directory (compose.yaml and .env included)
+// and the stack's volumes, so they need both stack.files.read and
+// stack.definition.read on the stack, like the file manager; volume
+// snapshots need volume.files.read on the volume; manager-state snapshots
+// are owner-only.
+func ContentsCapabilities(sn domain.BackupSnapshot) (capabilities []string, res authz.Resource, ownerOnly bool) {
 	switch sn.Kind {
 	case backup.MemberStack:
-		return "stack.definition.read", authz.Resource{Type: "stack", ID: sn.StackID, EnvironmentID: sn.EnvironmentID}, false
+		return []string{"stack.files.read", "stack.definition.read"},
+			authz.Resource{Type: "stack", ID: sn.StackID, EnvironmentID: sn.EnvironmentID}, false
 	case backup.MemberVolume:
-		return "volume.files.read", authz.Resource{Type: "volume", ID: sn.Volume, EnvironmentID: sn.EnvironmentID}, false
+		return []string{"volume.files.read"}, authz.Resource{Type: "volume", ID: sn.Volume, EnvironmentID: sn.EnvironmentID}, false
 	}
-	return "", authz.Resource{}, true
+	return nil, authz.Resource{}, true
 }
 
 // VerifySnapshot queues a verification of the snapshot's location with a

@@ -179,7 +179,9 @@ the client to offer one.
 `stack.remove` takes the stack down (compose down: containers and networks)
 and forgets it when that succeeds; the project directory stays. Volumes stay
 too unless the request sets `removeVolumes` (the delete dialog's checkbox,
-off by default). Then the agent, inside the `down` step, records before
+off by default, shown with the grant), which also needs `volume.remove` on
+the stack (#279: the data goes, so `stack.remove` alone is not enough;
+403 otherwise). Then the agent, inside the `down` step, records before
 anything is stopped which volumes the stack owns: the top-level volumes its
 definition declares that are not external, and the anonymous volumes of its
 containers (the definition must load, else nothing changes,

@@ -130,7 +130,7 @@ func (s *Service) Build(ctx context.Context, p authz.Principal, st domain.Stack,
 	var regs []string
 	if s.opts.Registries != nil {
 		if len(o.RegistryIDs) > 0 {
-			if err := s.opts.Registries.Usable(ctx, o.RegistryIDs); err != nil {
+			if err := s.opts.Registries.Usable(ctx, o.RegistryIDs, st.EnvironmentID, st.ID); err != nil {
 				return domain.Job{}, err
 			}
 			regs = slices.Clone(o.RegistryIDs)
