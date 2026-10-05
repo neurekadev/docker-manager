@@ -167,18 +167,25 @@ type LockOnlyRule struct {
 	// OtherEnvironments: targets naming another environment than the job's
 	// only take locks.
 	OtherEnvironments bool
+	// StackForServices: a stack target only takes locks when the job also
+	// targets services (a stack operation on some services is authorized
+	// on the services it acts on, #280).
+	StackForServices bool
 }
 
 // AuthorizationTargets returns the targets the engine authorizes the
 // kind's capabilities on (and job visibility is evaluated against): all
 // targets except the LockOnly ones.
 func (s Spec) AuthorizationTargets(targets []domain.JobTarget) []domain.JobTarget {
-	if len(s.LockOnly.Types) == 0 && !s.LockOnly.OtherEnvironments {
+	services := s.LockOnly.StackForServices &&
+		slices.ContainsFunc(targets, func(t domain.JobTarget) bool { return t.Type == domain.TargetService })
+	if len(s.LockOnly.Types) == 0 && !s.LockOnly.OtherEnvironments && !services {
 		return targets
 	}
 	out := make([]domain.JobTarget, 0, len(targets))
 	for _, t := range targets {
-		if slices.Contains(s.LockOnly.Types, t.Type) || (s.LockOnly.OtherEnvironments && t.EnvironmentID != "") {
+		if slices.Contains(s.LockOnly.Types, t.Type) || (s.LockOnly.OtherEnvironments && t.EnvironmentID != "") ||
+			(services && t.Type == domain.TargetStack) {
 			continue
 		}
 		out = append(out, t)

@@ -188,7 +188,11 @@ changing its spec (and regenerating this table) before it ships.
 between two agents, [migrations.md](migrations.md)); their volume targets
 and the destination's targets only take locks (`Spec.LockOnly`: the engine
 authorizes `stack.migrate`/`volume.migrate` on the source only, the
-executor checks the destination's capabilities).
+executor checks the destination's capabilities). `stack.start`,
+`stack.stop` and `stack.restart` on some services also target every
+service they act on (`service` targets, `<stackId>/<service>`), and their
+stack target then only takes the lock (`LockOnly.StackForServices`, #280):
+they are authorized, at request and at dispatch, on the services.
 
 ## Dispatch, fencing and agent recovery
 

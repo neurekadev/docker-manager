@@ -357,11 +357,7 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		return upErr
 	}
 	s.recordVolumeLabels(ctx, eng, in.Stack.ProjectName, p)
-	// The deployed containers have anonymous volumes of their own now: a
-	// record of an earlier down no longer describes the stack (#276).
-	if err := s.opts.DownVolumes.Forget(in.Stack.ProjectName); err != nil {
-		s.log.Warn("could not forget the anonymous volumes of the last down", "project", in.Stack.ProjectName, "error", err)
-	}
+	forgetDownVolumes(s, in)
 	if len(handoff) > 0 {
 		s.scheduleSelf(sc, in.Stack, dir, snap, handoff, in.ForceRecreate, in.TimeoutSeconds)
 	}
@@ -692,12 +688,22 @@ func (s *Service) upFromDefinition(ctx context.Context, sc *jobexec.StepContext,
 		return upErr
 	}
 	s.recordVolumeLabels(ctx, eng, in.Stack.ProjectName, p)
-	// The new containers have anonymous volumes of their own: the record
-	// of the down no longer describes the stack (#276).
+	forgetDownVolumes(s, in)
+	return aerr
+}
+
+// forgetDownVolumes drops the record of the anonymous volumes the last
+// down left behind once a deploy or start brought every service back: the
+// new containers have anonymous volumes of their own (#276). After only
+// some services came back the record stays: the next down keeps the
+// entries of the services still down and replaces those of the others.
+func forgetDownVolumes(s *Service, in protocol.StackJobInput) {
+	if len(in.Services) > 0 {
+		return
+	}
 	if err := s.opts.DownVolumes.Forget(in.Stack.ProjectName); err != nil {
 		s.log.Warn("could not forget the anonymous volumes of the last down", "project", in.Stack.ProjectName, "error", err)
 	}
-	return aerr
 }
 
 // down stops and removes the project's containers and networks through the

@@ -191,6 +191,31 @@ func TestBorrowedCapabilities(t *testing.T) {
 	}
 }
 
+// TestStackOperationsOnServicesAreAuthorizedOnThem: with service targets,
+// a stack start, stop or restart is authorized on the services (#280); the
+// stack only takes the lock. Without them it is authorized on the stack.
+func TestStackOperationsOnServicesAreAuthorizedOnThem(t *testing.T) {
+	stack := domain.JobTarget{Type: domain.TargetStack, ID: "st-1"}
+	web := domain.JobTarget{Type: domain.TargetService, ID: "st-1/web"}
+	for _, k := range []domain.JobKind{StackStart, StackStop, StackRestart} {
+		s, _ := Lookup(k)
+		if got := s.AuthorizationTargets([]domain.JobTarget{stack, web}); !slices.Equal(got, []domain.JobTarget{web}) {
+			t.Errorf("%s with a service: %v", k, got)
+		}
+		if got := s.AuthorizationTargets([]domain.JobTarget{stack}); !slices.Equal(got, []domain.JobTarget{stack}) {
+			t.Errorf("%s of the stack: %v", k, got)
+		}
+		if locks, err := s.ComputeLocks("e1", []domain.JobTarget{stack, web}); err != nil ||
+			!slices.ContainsFunc(locks, func(l domain.JobLock) bool { return l.Scope == domain.LockStack && l.Name == "st-1" }) {
+			t.Errorf("%s locks %v %v", k, locks, err)
+		}
+	}
+	d, _ := Lookup(StackDeploy)
+	if got := d.AuthorizationTargets([]domain.JobTarget{stack, web}); len(got) != 2 {
+		t.Errorf("deploy: %v", got)
+	}
+}
+
 // TestAuthorizationTargets: migrations authorize their capability on the
 // source stack or volume only; the stack's volumes and the destination's
 // resources only take locks (#35).

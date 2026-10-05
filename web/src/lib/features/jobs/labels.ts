@@ -98,6 +98,7 @@ export const ORIGIN_LABELS: Record<Job['origin'], string> = {
 
 const TARGET_NOUNS: Record<string, string> = {
 	stack: 'stack',
+	service: 'service',
 	container: 'container',
 	volume: 'volume',
 	image: 'image',
@@ -114,10 +115,19 @@ export type NameOf = (type: string, id: string) => string | undefined;
 
 /** What the job acts on: "homeassistant", "Silo and 2 more", or "". */
 export function jobTargetLabel(job: Pick<Job, 'targets'>, nameOf?: NameOf): string {
-	const t = job.targets ?? [];
+	const t = shownTargets(job.targets);
 	if (!t.length) return '';
 	const first = targetName(t[0].type, t[0].id, nameOf);
 	return t.length === 1 ? first : `${first} and ${t.length - 1} more`;
+}
+
+/**
+ * The targets a job is named by: a stack operation on some services also
+ * targets those services (they authorize it, #280); the stack names it.
+ */
+function shownTargets(targets: Job['targets'] | undefined): NonNullable<Job['targets']> {
+	const t = targets ?? [];
+	return t.some((x) => x.type === 'stack') ? t.filter((x) => x.type !== 'service') : t;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -132,7 +142,7 @@ export function targetName(type: string, id: string, nameOf?: NameOf): string {
 
 /** "Restart Container homeassistant"; opaque targets (policy IDs) are left out. */
 export function jobTitle(job: Pick<Job, 'kind' | 'targets'>, nameOf?: NameOf): string {
-	const t = job.targets ?? [];
+	const t = shownTargets(job.targets);
 	const kind = jobKindLabel(job.kind);
 	if (t.length !== 1) return kind;
 	const n = nameOf?.(t[0].type, t[0].id) ?? (UUID.test(t[0].id) ? '' : t[0].id);

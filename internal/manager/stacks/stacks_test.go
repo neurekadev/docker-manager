@@ -458,6 +458,17 @@ func TestStartOfAStackThatWasTakenDown(t *testing.T) {
 	if err := json.Unmarshal(h.job(j.ID).Input, &in); err != nil || in.AppliedHash != st.Applied.Hash {
 		t.Errorf("start input %+v %v", in, err)
 	}
+	// On some services the job targets every service it acts on (web
+	// depends on db), so it is authorized on them (#280).
+	j, err = h.svc.Operate(h.ctx, alice, st, "start", domain.StackJobRequest{Services: []string{"web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}, {Type: domain.TargetService, ID: st.ID + "/db"},
+		{Type: domain.TargetService, ID: st.ID + "/web"}}
+	if got := h.job(j.ID).Targets; !slices.Equal(got, want) {
+		t.Errorf("targets %v, want %v", got, want)
+	}
 	changed := st
 	changed.Observed = &domain.RevisionRef{ID: "rev-x", Seq: st.Applied.Seq + 1, Hash: "changed"}
 	var se *domain.StackError

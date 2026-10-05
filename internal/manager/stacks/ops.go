@@ -65,8 +65,16 @@ func (s *Service) enqueue(ctx context.Context, p authz.Principal, st domain.Stac
 		}
 	}
 	in.StackID, in.Stack, in.Services, in.TimeoutSeconds = st.ID, Ref(st), r.Services, r.TimeoutSeconds
+	targets := []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}
+	// An operation on some services targets every service it acts on and
+	// is authorized on them (#280; the stack target only takes the lock).
+	if len(r.Services) > 0 && (kind == jobspec.StackStart || kind == jobspec.StackStop || kind == jobspec.StackRestart) {
+		for _, svc := range st.TouchedServices(strings.TrimPrefix(string(kind), "stack."), r.Services) {
+			targets = append(targets, domain.JobTarget{Type: domain.TargetService, ID: authz.ServiceID(st.ID, svc)})
+		}
+	}
 	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: kind, Principal: p, EnvironmentID: st.EnvironmentID,
-		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Input: in, IdempotencyKey: r.IdempotencyKey})
+		Targets: targets, Input: in, IdempotencyKey: r.IdempotencyKey})
 	if err != nil {
 		return domain.Job{}, err
 	}

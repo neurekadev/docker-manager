@@ -102,7 +102,12 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 // manager) it still asks for a deploy (#280).
 func TestStartBringsATakenDownStackUpFromItsDeployedFiles(t *testing.T) {
 	e, dir := deployFixture(t)
-	e.svc.opts.DownVolumes = downvolumes.New(t.TempDir())
+	store := downvolumes.New(t.TempDir())
+	e.svc.opts.DownVolumes = store
+	left := []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/scratch"}}
+	if err := store.Record("app", []downvolumes.Container{{ID: "db1", Service: "db"}}, left); err != nil {
+		t.Fatal(err)
+	}
 	deployed := protocol.NewSourceSnapshot([]protocol.SourceFile{
 		{Path: ".env", Content: []byte("DB_TAG=16\n")}, {Path: "compose.yaml", Content: []byte(appYAML)},
 		{Path: "db.env", Content: []byte("POSTGRES_PASSWORD=pw\n")}}).Hash
@@ -115,6 +120,18 @@ func TestStartBringsATakenDownStackUpFromItsDeployedFiles(t *testing.T) {
 		!slices.Equal(e.c.upServices[0], []string{"web"}) || len(out.After) != 2 {
 		t.Fatalf("start from the deployed files: %+v calls %v services %v after %+v", res, e.c.calls, e.c.upServices, out.After)
 	}
+	// Only some services came back: the down's record of the others stays.
+	if got := store.Volumes("app"); !slices.Equal(got, left) {
+		t.Fatalf("record after starting web: %v", got)
+	}
+	e.eng.mu.Lock()
+	e.eng.containers = nil
+	e.eng.mu.Unlock()
+	if res, _ := run(t, e.svc, jobspec.StackStart, protocol.StackJobInput{Stack: ref("app"), AppliedHash: deployed}); res.Outcome != jobexec.OutcomeSucceeded ||
+		store.Volumes("app") != nil {
+		t.Fatalf("start of every service: %+v record %v", res, store.Volumes("app"))
+	}
+	e.c.calls = e.c.calls[:1]
 
 	e.eng.mu.Lock()
 	e.eng.containers = nil

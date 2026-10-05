@@ -522,7 +522,7 @@ compose_project_exists`: import it instead).
 | `stack.create`, `stack.import` | creation/validation, discovery/import in an environment |
 | `stack.manage` | display metadata (never written to Compose files) |
 | `stack.deploy` | deploys (with pull, build, force recreate, orphan removal) and `POST /stacks/{id}/pulls` (pull the images without deploying, #280) |
-| `stack.start`, `stack.stop`, `stack.restart` | the operations: on the stack for the whole stack (its Stop is Compose down), on a service (scope `service`, #280) for that service; an operation on services needs the capability on every service it acts on (`domain.Stack.TouchedServices`: a start also starts dependencies, a restart its `restart: true` dependents). `GET /stacks/{id}/services` returns each service's `actions` |
+| `stack.start`, `stack.stop`, `stack.restart` | the operations: on the stack for the whole stack (its Stop is Compose down), on a service (scope `service`, #280) for that service; an operation on services needs the capability on every service it acts on (`domain.Stack.TouchedServices`: a start also starts dependencies, a restart its `restart: true` dependents); its job targets those services and the job engine authorizes it on them (the stack target only takes the lock). `GET /stacks/{id}/services` returns each service's `actions` |
 | `stack.remove` | deletion (removing its volumes too also needs `volume.remove` on the stack) |
 | `stack.build` | `POST /stacks/{id}/builds` (rebuild the build sections without deploying, #33) |
 | `stack.rename` | rename previews and renames (outside containers also need `container.stop` and `container.remove`) |

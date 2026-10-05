@@ -130,12 +130,16 @@ const (
 	// TargetManager is this manager instance itself (manager.move, a
 	// move of the manager to a new server; ID "instance").
 	TargetManager TargetType = "manager"
+	// TargetService is one service of a stack ("<stackId>/<service>"): a
+	// stack operation on some services is authorized on them (#280).
+	TargetService TargetType = "service"
 )
 
 // TargetTypes returns every target type.
 func TargetTypes() []TargetType {
 	return []TargetType{TargetStack, TargetContainer, TargetVolume, TargetImage, TargetNetwork,
-		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition, TargetMaintenancePolicy, TargetTemplate, TargetManager}
+		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition, TargetMaintenancePolicy, TargetTemplate, TargetManager,
+		TargetService}
 }
 
 // JobTarget is one resource a job acts on.

@@ -160,6 +160,10 @@ func containerKind(kind domain.JobKind, verb, summary string) Spec {
 	}
 }
 
+// forServices marks a stack kind that may act on some services only: with
+// service targets, the stack target only takes the lock (LockOnlyRule).
+func forServices(s Spec) Spec { s.LockOnly.StackForServices = true; return s }
+
 // starts marks a kind that starts containers (Spec.StartsContainers).
 func starts(s Spec) Spec { s.StartsContainers = true; return s }
 
@@ -265,9 +269,11 @@ func catalogSpecs() []Spec {
 		// connections refreshed by the stacks service (jobs.Engine.OnRetry).
 		retryable(starts(stackKind(StackDeploy, "Deploy a stack from its on-disk Compose sources", deadlineLong,
 			idem("resolve_sources"), idem("pull_images"), idem("build_images"), idem("apply")))),
-		starts(stackKind(StackStart, "Start a stack", deadlineInteractive, idem("start"))),
-		stackKind(StackStop, "Stop a stack", deadlineInteractive, idem("stop")),
-		starts(stackKind(StackRestart, "Restart a stack", deadlineInteractive, idem("restart"))),
+		// On some services they target those services too and are
+		// authorized on them, the stack only takes the lock (#280).
+		starts(forServices(stackKind(StackStart, "Start a stack or some of its services", deadlineInteractive, idem("start")))),
+		forServices(stackKind(StackStop, "Stop some services of a stack", deadlineInteractive, idem("stop"))),
+		starts(forServices(stackKind(StackRestart, "Restart a stack or some of its services", deadlineInteractive, idem("restart")))),
 		// A stack's Stop runs Compose down (#274): the capability is
 		// stack.stop's.
 		func() Spec {
