@@ -5,10 +5,10 @@
 // backups of the stopped stack would silently leave their data out. The
 // down step records them per project; a backup includes the recorded
 // volumes while the project has no containers (the next deploy creates new
-// ones, as with docker compose down). A down adds to a project's record (a
-// retried down that removed some containers keeps their volumes), a
-// successful deploy and deleting the stack forget it and a rename moves
-// it.
+// ones, as with docker compose down). Each record names the down job that
+// wrote it: a re-run of that job adds to it (an earlier run may have
+// removed some containers already), another down replaces it. A successful
+// deploy and deleting the stack forget it and a rename moves it.
 //
 // The store is a JSON file in the agent's state directory, replaced
 // atomically; a nil *Store keeps nothing.
@@ -37,21 +37,29 @@ type Volume struct {
 	Destination string `json:"destination"`
 }
 
+// record is a project's entry: the down job that wrote it and the volumes.
+type record struct {
+	Job     string   `json:"job,omitempty"`
+	Volumes []Volume `json:"volumes"`
+}
+
 // Store is the recorded anonymous volumes per Compose project.
 type Store struct {
 	dir string
 
 	mu       sync.Mutex
 	loaded   bool
-	projects map[string][]Volume
+	projects map[string]record
 }
 
 // New returns the store kept in dir ("" keeps it in memory only).
 func New(dir string) *Store { return &Store{dir: dir} }
 
-// Record replaces the volumes recorded for a project (none forgets it).
-// A down adds to the record (Add).
-func (s *Store) Record(project string, vols []Volume) error {
+// Record records the volumes the down job is about to leave behind: a
+// re-run of the job that wrote the project's record adds to it (a name
+// already recorded keeps its entry), any other down replaces it. The
+// volumes stay sorted by name.
+func (s *Store) Record(project, job string, vols []Volume) error {
 	if s == nil {
 		return nil
 	}
@@ -60,27 +68,10 @@ func (s *Store) Record(project string, vols []Volume) error {
 	if err := s.load(); err != nil {
 		return err
 	}
-	next := maps.Clone(s.projects)
-	if len(vols) == 0 {
-		delete(next, project)
-	} else {
-		next[project] = slices.Clone(vols)
+	var merged []Volume
+	if cur, ok := s.projects[project]; ok && cur.Job == job {
+		merged = slices.Clone(cur.Volumes)
 	}
-	return s.save(next)
-}
-
-// Add adds volumes to a project's record (a name already recorded keeps
-// its entry); the record stays sorted by name.
-func (s *Store) Add(project string, vols []Volume) error {
-	if s == nil || len(vols) == 0 {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.load(); err != nil {
-		return err
-	}
-	merged := slices.Clone(s.projects[project])
 	for _, v := range vols {
 		if !slices.ContainsFunc(merged, func(x Volume) bool { return x.Name == v.Name }) {
 			merged = append(merged, v)
@@ -88,12 +79,27 @@ func (s *Store) Add(project string, vols []Volume) error {
 	}
 	slices.SortFunc(merged, func(a, b Volume) int { return strings.Compare(a.Name, b.Name) })
 	next := maps.Clone(s.projects)
-	next[project] = merged
+	next[project] = record{Job: job, Volumes: merged}
 	return s.save(next)
 }
 
 // Forget drops a project's record (its stack was removed or deployed).
-func (s *Store) Forget(project string) error { return s.Record(project, nil) }
+func (s *Store) Forget(project string) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.load(); err != nil {
+		return err
+	}
+	if _, ok := s.projects[project]; !ok {
+		return nil
+	}
+	next := maps.Clone(s.projects)
+	delete(next, project)
+	return s.save(next)
+}
 
 // Rename moves a project's record to its new name (stack rename).
 func (s *Store) Rename(from, to string) error {
@@ -105,13 +111,13 @@ func (s *Store) Rename(from, to string) error {
 	if err := s.load(); err != nil {
 		return err
 	}
-	vols, ok := s.projects[from]
+	rec, ok := s.projects[from]
 	if !ok {
 		return nil
 	}
 	next := maps.Clone(s.projects)
 	delete(next, from)
-	next[to] = vols
+	next[to] = rec
 	return s.save(next)
 }
 
@@ -126,7 +132,7 @@ func (s *Store) Volumes(project string) []Volume {
 	if s.load() != nil {
 		return nil
 	}
-	return slices.Clone(s.projects[project])
+	return slices.Clone(s.projects[project].Volumes)
 }
 
 // load reads the file once (s.mu held); a missing file is an empty store.
@@ -134,7 +140,7 @@ func (s *Store) load() error {
 	if s.loaded {
 		return nil
 	}
-	s.projects = map[string][]Volume{}
+	s.projects = map[string]record{}
 	if s.dir != "" {
 		b, err := os.ReadFile(filepath.Join(s.dir, FileName))
 		switch {
@@ -146,7 +152,7 @@ func (s *Store) load() error {
 				return fmt.Errorf("down volumes: %s is unreadable: %w", FileName, err)
 			}
 			if s.projects == nil { // the file holds null
-				s.projects = map[string][]Volume{}
+				s.projects = map[string]record{}
 			}
 		}
 	}
@@ -155,7 +161,7 @@ func (s *Store) load() error {
 }
 
 // save writes next atomically and makes it current (s.mu held).
-func (s *Store) save(next map[string][]Volume) error {
+func (s *Store) save(next map[string]record) error {
 	if s.dir != "" {
 		b, err := json.MarshalIndent(next, "", "  ")
 		if err != nil {

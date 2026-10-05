@@ -48,14 +48,19 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 		defer e.eng.mu.Unlock()
 		e.eng.containers = nil
 	}
+	// A record an earlier down left (another job): this down replaces it.
+	if err := store.Record("app", "job-0", []downvolumes.Volume{{Name: strings.Repeat("d", 64), Service: "db", Destination: "/old"}}); err != nil {
+		t.Fatal(err)
+	}
 	running()
 	res, _ := run(t, e.svc, jobspec.StackDown, protocol.StackJobInput{Stack: ref("app")})
 	want := []downvolumes.Volume{{Name: anon, Service: "db", Destination: "/scratch"}}
 	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(store.Volumes("app"), want) {
 		t.Fatalf("down: %+v record %v", res, store.Volumes("app"))
 	}
-	// A retried down after one that removed some containers (here: the db
-	// container is gone, the web one is left) keeps what it recorded.
+	// A re-run of the same down job (run uses one job ID) after a run that
+	// removed some containers (the db one is gone, the web one is left)
+	// keeps what it recorded.
 	webAnon := strings.Repeat("c", 64)
 	e.eng.mu.Lock()
 	e.eng.containers = []engine.Container{{ID: "web1", Names: []string{"/app-web-1"}, State: "running", Labels: lbl("web"),
@@ -80,7 +85,7 @@ func TestDownRecordsTheAnonymousVolumesItLeavesBehind(t *testing.T) {
 	}
 	// A removal brings the stack down and forgets it.
 	running()
-	if err := store.Record("app", want); err != nil {
+	if err := store.Record("app", "job-0", want); err != nil {
 		t.Fatal(err)
 	}
 	if res, _ := run(t, e.svc, jobspec.StackRemove, protocol.StackJobInput{Stack: ref("app")}); res.Outcome != jobexec.OutcomeSucceeded ||
