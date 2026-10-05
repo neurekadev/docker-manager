@@ -94,4 +94,14 @@ describe('stack list jobs', () => {
 		] as never);
 		expect([...restoring]).toEqual(['st-1']);
 	});
+
+	it('finds a restore in the running list through the list’s match', () => {
+		// A restore targets the stacks whose data it restores (newest first).
+		const list = [
+			job('0190-2', { kind: 'stack.deploy' }),
+			job('0190-1', { kind: 'restore.run', targets: [{ type: 'stack', id: 'st-1' }] })
+		];
+		const entries = trackedEntries([], matchingJobs(list, stackListMatch('e1')));
+		expect([...restoringStacks(entries)]).toEqual(['st-1']);
+	});
 });
