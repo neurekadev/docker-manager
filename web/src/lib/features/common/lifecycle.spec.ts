@@ -36,6 +36,20 @@ describe('lifecycle button model', () => {
 		expect(lifecycleEntries({})).toEqual([]);
 	});
 
+	it("lists a stack's Take Down last and makes it the main action only when nothing else applies", () => {
+		expect(lifecycleEntries({ ...all, down: { run } }).map((e) => e.label)).toEqual([
+			'Start',
+			'Restart',
+			'Stop',
+			'Take Down'
+		]);
+		expect(lifecycleMain(true, { ...all, down: { run } })).toBe('stop');
+		expect(lifecycleMain(false, { ...all, down: { run } })).toBe('start');
+		expect(lifecycleMain(true, { down: { run } })).toBe('down');
+		expect(lifecycleMain(false, { down: { run } })).toBe('down');
+		expect(lifecycleMain(true, { down: { run, disabled: true } })).toBeUndefined();
+	});
+
 	it('turns off what does not apply', () => {
 		const entries = lifecycleEntries({
 			start: { run, disabled: true },

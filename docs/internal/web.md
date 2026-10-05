@@ -280,7 +280,10 @@ deploy"). Deploy is the header's one primary action (a split button that
 deploys at once); its menu has "Deploy" and "Pull & Deploy" (one deploy
 with `pull: always`; the menu button's accessible label says "newer
 images are available" when `updateAvailable`), then after a separator
-"Cleanup Orphans & Deploy". Stacks whose files on disk have a `build:`
+"Force Recreate" (a deploy with `forceRecreate: true`: every container is
+replaced even when unchanged; confirmed first with `recreateConsequences`,
+words from `deployTitle`/`deploySuccess`: "Force Recreate", "Recreated")
+and "Cleanup Orphans & Deploy". Stacks whose files on disk have a `build:`
 section (`sourceBuild`, not the last deploy's `services`) get a
 secondary **Build** split button ("More Build Options"): "Build" and
 "Pull & Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
@@ -296,34 +299,45 @@ automatic updates stay in the update settings.
 
 Start, Restart and Stop are one split button, `LifecycleButton`
 (`$lib/features/common`, pure rules in `lifecycle.ts`), next to Deploy in
-the stack header and on a container's page. The main part is **Stop**
+the stack header and on a container's page; a stack's adds **Take Down**
+(`stack.down`, PowerOff, danger) last in its menu. The main part is **Stop**
 (`danger-soft`, Square icon) while anything runs and **Start** (`ok-soft`,
 Play icon) while nothing does; soft tones, so Deploy stays the one
 primary. A partially running stack (and a `failed` or `deployed` one whose
 Engine state is unknown) counts as running: Stop is the default and Start
-in the menu starts the rest. The menu lists Start, Restart and Stop in
-that order, each only with its capability (`stack.start`/`restart`/`stop`,
-`container.*`; hidden, not disabled), the ones that do not apply in the
-state turned off (Start while everything runs, Restart and Stop while
-nothing does; a container's from `containerActions`). With one held
+in the menu starts the rest. The menu lists Start, Restart, Stop and Take
+Down in that order, each only with its capability (`stack.start`/`restart`/
+`stop`/`down`, `container.*`; hidden, not disabled), the ones that do not
+apply in the state turned off (Start while everything runs, Restart and
+Stop while nothing does; a container's from `containerActions`). Take
+Down applies while the stack has containers, running or stopped, and is
+the main part only when nothing else applies. With one held
 action it is a plain button; with none for the state it is not shown (a
 down, missing or undeployed stack deploys instead; a restore of the stack
 hides Start and Restart). Offline, a rename in
 progress or a running Start/Restart (`busy`: the main part shows that
 action with a spinner) turn the whole button off. Docker Manager's own
-stack keeps Restart and Stop visible but off, with the reason as the
+stack keeps Restart, Stop and Take Down visible but off, with the reason as the
 main part's tooltip and an `sr-only` text (menu items carry no
 description);
 Docker Manager's own containers keep them on (the server refuses with its
 reason; the page's notice says so up front). Start and Restart run at
-once; Stop confirms with its consequences. Row menus (services table,
-stack and container lists) keep their own entries in the same order
-(Start, Restart, Stop…, Stop in the danger tone; the stack list's Start
-also starts the rest of a partially running stack). The container list's
+once; Stop and Take Down confirm with their consequences (Take Down's
+from `takeDownConsequences`: containers and networks are removed,
+volumes, images and files kept). Row menus (services table, stack and
+container lists) keep their own entries in the same order (Start,
+Restart, Stop…, Stop in the danger tone; the stack list's Start also
+starts the rest of a partially running stack, and its "Take Down…"
+follows Stop for a stack with containers). The services table's row menu
+adds "Force Recreate <service>" after them with `stack.deploy` (on for
+Docker Manager's own stack, whose deploys work): a deploy with
+`forceRecreate` and `services: [<service>]`, confirmed on the stack page
+first; Compose recreates the service's dependencies only when they
+changed. There is no per-service Take Down (the API refuses `services`
+on a down). The container list's
 bulk bar stays separate buttons (a selection mixes states).
 
-There is no Take Down in the UI (the `stack.down` operation and capability
-stay in the API). The header hides its actions while the migration wizard
+The header hides its actions while the migration wizard
 is open, and Migrate while the caller sees one environment.
 
 Rename (`stack.rename`) is the pencil right of the stack's name

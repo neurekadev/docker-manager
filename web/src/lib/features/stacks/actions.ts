@@ -26,18 +26,29 @@ export function deployStack(
 
 /**
  * POST /stacks/{id}/deployments with options: pull every image first,
- * rebuild the build sections, and/or remove the containers of services no
- * longer in the Compose file (orphans; a plain deploy keeps them).
+ * rebuild the build sections, remove the containers of services no longer
+ * in the Compose file (orphans; a plain deploy keeps them), and/or replace
+ * the containers even when nothing changed (force recreate), of the whole
+ * stack or of the named services (their dependencies are only recreated
+ * when they changed).
  */
 export function deployStackWith(
 	stackId: string,
-	options: { pull?: boolean; build?: boolean; removeOrphans?: boolean },
+	options: {
+		pull?: boolean;
+		build?: boolean;
+		removeOrphans?: boolean;
+		forceRecreate?: boolean;
+		services?: string[];
+	},
 	client: ApiClient = api
 ): Promise<Job> {
 	const body: Schema<'DeployStackInputBody'> = {};
 	if (options.pull) body.pull = 'always';
 	if (options.build) body.build = true;
 	if (options.removeOrphans) body.removeOrphans = true;
+	if (options.forceRecreate) body.forceRecreate = true;
+	if (options.services?.length) body.services = options.services;
 	return unwrap(
 		client.POST('/api/v1/stacks/{stackId}/deployments', {
 			params: { path: { stackId }, header: { 'Idempotency-Key': key() } },

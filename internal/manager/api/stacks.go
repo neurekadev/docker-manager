@@ -817,7 +817,7 @@ type deployStackInput struct {
 	Body *struct {
 		Pull                string   `json:"pull,omitempty" example:"missing" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first (with build, the build also pulls newer base images)."`
 		Build               bool     `json:"build,omitempty" doc:"Rebuild every build section (default: only missing images are built)."`
-		ForceRecreate       bool     `json:"forceRecreate,omitempty"`
+		ForceRecreate       bool     `json:"forceRecreate,omitempty" doc:"Recreate the containers even when their configuration and image did not change (with services, only theirs: dependencies are recreated only when they changed). Anonymous volumes are kept."`
 		RemoveOrphans       bool     `json:"removeOrphans,omitempty" doc:"Also remove the containers of services that are no longer in the Compose file (orphans, reported as drift unexpected_service). A deploy without it keeps them."`
 		Services            []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Deploy only these services (and their dependencies)."`
 		TimeoutSeconds      int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period for recreated containers."`

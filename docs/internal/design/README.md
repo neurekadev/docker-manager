@@ -244,11 +244,12 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 
 **Start, Restart and Stop** of a stack or container are one split button,
 `LifecycleButton` (`$lib/features/common`; `running`, `actions:
-{ start?, restart?, stop? }` each `{ run, disabled?, reason? }`, `busy`,
+{ start?, restart?, stop?, down? }` each `{ run, disabled?, reason? }`, `busy`,
 `disabled`, `reason`). The main part is **Stop** (`danger-soft`, Square)
 while anything runs, a partially running stack included, and **Start**
 (`ok-soft`, Play) while nothing does; the menu ("More Start and Stop
-Options") lists Start, Restart (RotateCw) and Stop in that order, only the
+Options") lists Start, Restart (RotateCw), Stop and a stack's Take Down
+(PowerOff, danger) in that order, only the
 held ones, those that do not apply in the state turned off (a reason
 becomes the item's description and the main part's tooltip). With one held
 action it is a plain `Button`. Soft tones keep a page's one primary (Deploy)

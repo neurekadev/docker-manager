@@ -20,12 +20,12 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   optional fields set `optional` (a muted "Optional" after the label),
   never "Optional." in their description; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
-  for high impact), only for damaging actions (stop, take down, delete,
-  remove; start, restart and deploy run at once); Start, Restart and Stop
-  of one stack or container are one `LifecycleButton`
-  (`$lib/features/common`: Stop while anything runs, Start otherwise),
-  never separate buttons, and row menus list them in the order Start,
-  Restart, Stop; status is `StatusBadge` (dot + text); tags and filter pills
+  for high impact), only for damaging actions (stop, take down, force
+  recreate, delete, remove; start, restart and deploy run at once); Start,
+  Restart and Stop of one stack or container (and a stack's Take Down) are
+  one `LifecycleButton` (`$lib/features/common`: Stop while anything runs,
+  Start otherwise), never separate buttons, and row menus list them in the
+  order Start, Restart, Stop, Take Down; status is `StatusBadge` (dot + text); tags and filter pills
   are `Chip`; lists of short values (template tags, network aliases) are
   entered with `TagInput` (removable chips; Space, Enter, a comma or Tab
   ends one, a paste splits), never as comma-separated text; a list whose

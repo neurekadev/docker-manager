@@ -7683,6 +7683,7 @@ export interface components {
              * @description Bounds the images the deploy builds (default 3600).
              */
             buildTimeoutSeconds?: number;
+            /** @description Recreate the containers even when their configuration and image did not change (with services, only theirs: dependencies are recreated only when they changed). Anonymous volumes are kept. */
             forceRecreate?: boolean;
             /**
              * @description missing (default): pull only images that are not on the host; always: pull every image first (with build, the build also pulls newer base images).

@@ -6,6 +6,8 @@ import {
 	driftNotes,
 	orphanedServices,
 	pendingUpdates,
+	recreateConsequences,
+	takeDownConsequences,
 	updateAvailable
 } from './model';
 
@@ -53,6 +55,33 @@ describe('deploy outcomes', () => {
 		expect(deploySuccess('Silo', { removeOrphans: true }, t1, t2)).toBe(
 			'Deployed Silo and removed its orphaned containers'
 		);
+	});
+
+	it('names a force recreate of the stack or of its services', () => {
+		const t1 = '2026-09-27T10:00:00Z';
+		const all = { forceRecreate: true };
+		const web = { forceRecreate: true, services: ['web'] };
+		expect(deployTitle('Silo', all)).toBe('Force Recreate Silo');
+		expect(deployTitle('Silo', web)).toBe('Force Recreate web');
+		expect(deployFailure('Silo', all)).toBe('Silo was not recreated');
+		expect(deployFailure('Silo', web)).toBe('web was not recreated');
+		// Recreated even when the last deploy time stayed.
+		expect(deploySuccess('Silo', all, t1, t1)).toBe('Recreated Silo');
+		expect(deploySuccess('Silo', web, t1, t1)).toBe('Recreated web');
+	});
+
+	it('lists the consequences of Force Recreate and Take Down', () => {
+		expect(recreateConsequences('Silo')[0]).toBe(
+			'Replaces every container of Silo with a new one, even if nothing changed. Its services are briefly down.'
+		);
+		expect(recreateConsequences('Silo', 'web')[0]).toBe(
+			'Replaces the containers of web with new ones, even if nothing changed. Services it needs start if they are stopped.'
+		);
+		expect(recreateConsequences('Silo')[1]).toContain('Volumes and files are kept.');
+		expect(takeDownConsequences('Silo')).toEqual([
+			'Stops and removes the containers of Silo and its networks.',
+			'Volumes, images and files are kept; Deploy brings it back.'
+		]);
 	});
 });
 

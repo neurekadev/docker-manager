@@ -675,10 +675,19 @@ export interface DeployChoice {
 	build?: boolean;
 	/** Also remove the containers of services no longer in the Compose file. */
 	removeOrphans?: boolean;
+	/** Replace the containers even when nothing changed ("Force Recreate"). */
+	forceRecreate?: boolean;
+	/** Only these services (and their dependencies); empty = the whole stack. */
+	services?: string[];
 }
+
+/** What a force recreate replaces: the named services, else the stack. */
+const recreated = (title: string, c: DeployChoice) =>
+	c.services?.length ? c.services.join(', ') : title;
 
 /** What runs while a deploy job is in the tray, e.g. "Pull Silo". */
 export function deployTitle(title: string, c: DeployChoice): string {
+	if (c.forceRecreate) return `Force Recreate ${recreated(title, c)}`;
 	if (c.build && c.pull) return `Pull, Build and Deploy ${title}`;
 	if (c.build) return `Build and Deploy ${title}`;
 	if (c.pull) return `Pull and Deploy ${title}`;
@@ -688,6 +697,7 @@ export function deployTitle(title: string, c: DeployChoice): string {
 
 /** The failure toast title of a deploy. */
 export function deployFailure(title: string, c: DeployChoice): string {
+	if (c.forceRecreate) return `${recreated(title, c)} was not recreated`;
 	if (c.build && c.pull) return `${title} was not pulled, built and deployed`;
 	return c.pull ? `${title} was not pulled and deployed` : `${title} was not deployed`;
 }
@@ -703,6 +713,8 @@ export function deploySuccess(
 	before: string | undefined,
 	after: string | undefined
 ): string {
+	// A force recreate replaces every container it names, changed or not.
+	if (c.forceRecreate) return `Recreated ${recreated(title, c)}`;
 	const unchanged = before === after;
 	if (c.removeOrphans)
 		return unchanged
@@ -717,6 +729,28 @@ export function deploySuccess(
 	if (c.build) return `Built the images of ${title}; nothing needed to be redeployed`;
 	if (c.pull) return `Nothing to update: ${title} already runs the newest images`;
 	return `Nothing to deploy: ${title} already runs its definition`;
+}
+
+/**
+ * The confirmation of Force Recreate: of the whole stack (`title`), or of
+ * one service (`service`; Compose starts the services it needs when they
+ * are stopped and recreates them only when they changed).
+ */
+export function recreateConsequences(title: string, service?: string): string[] {
+	return [
+		service
+			? `Replaces the containers of ${service} with new ones, even if nothing changed. Services it needs start if they are stopped.`
+			: `Replaces every container of ${title} with a new one, even if nothing changed. Its services are briefly down.`,
+		'Volumes and files are kept. Changes made inside a container that are not in a volume are lost.'
+	];
+}
+
+/** The confirmation of Take Down (the stack header and the stack list). */
+export function takeDownConsequences(title: string): string[] {
+	return [
+		`Stops and removes the containers of ${title} and its networks.`,
+		'Volumes, images and files are kept; Deploy brings it back.'
+	];
 }
 
 /**

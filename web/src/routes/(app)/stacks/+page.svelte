@@ -6,7 +6,8 @@
 	// what needs attention. Searched by name or description and filtered by
 	// status, changes and environment (ListCard, kept per list and browser
 	// tab). The whole row opens the stack; its menu deploys, restarts, stops
-	// (after a confirmation) or opens the logs, each with its capability.
+	// or takes it down (both after a confirmation) or opens the logs, each
+	// with its capability.
 	// Each row shows the stack tile, or the image of the template the stack
 	// was created from. Create and import are shown only with stack.create /
 	// stack.import (the server still decides). The Create Stack button's
@@ -21,6 +22,7 @@
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Play from '@lucide/svelte/icons/play';
 	import Plus from '@lucide/svelte/icons/plus';
+	import PowerOff from '@lucide/svelte/icons/power-off';
 	import Rocket from '@lucide/svelte/icons/rocket';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
@@ -41,7 +43,8 @@
 		canInEnvironment,
 		serviceCounts,
 		stackStatus,
-		stackTitle
+		stackTitle,
+		takeDownConsequences
 	} from '$lib/features/stacks/model';
 	import { stackJobGuidance } from '$lib/features/stacks/rename';
 	import { runningByStack, stackListMatch } from '$lib/features/stacks/list-jobs';
@@ -214,7 +217,8 @@
 		return cols;
 	});
 
-	// Row actions: Deploy, Start and Restart run at once; Stop confirms.
+	// Row actions: Deploy, Start and Restart run at once; Stop and Take Down
+	// confirm.
 	const VERBS: Record<StackOperation, [string, string]> = {
 		start: ['Started', 'started'],
 		stop: ['Stopped', 'stopped'],
@@ -270,6 +274,8 @@
 
 	let stopping = $state<Stack | null>(null);
 	let stopOpen = $state(false);
+	let takingDown = $state<Stack | null>(null);
+	let downOpen = $state(false);
 
 	function rowMenu(s: Stack): MenuEntry[] {
 		const can = (a: string) => s.actions.includes(a);
@@ -312,6 +318,18 @@
 				onSelect: () => {
 					stopping = s;
 					stopOpen = true;
+				}
+			});
+		// Down removes the containers, also those of a stopped stack.
+		if (can('stack.down') && !['down', 'missing', 'undeployed'].includes(st))
+			items.push({
+				label: 'Take Down…',
+				icon: PowerOff,
+				tone: 'danger',
+				disabled: offline || !!s.protection,
+				onSelect: () => {
+					takingDown = s;
+					downOpen = true;
 				}
 			});
 		if (can('container.logs.read'))
@@ -487,6 +505,17 @@
 			confirmLabel="Stop"
 			tone="danger"
 			onconfirm={() => operate(stopping!, 'stop')}
+		/>
+	{/if}
+
+	{#if takingDown}
+		<ConfirmDialog
+			bind:open={downOpen}
+			title="Take Down {stackTitle(takingDown)}?"
+			consequences={takeDownConsequences(stackTitle(takingDown))}
+			confirmLabel="Take Down"
+			tone="danger"
+			onconfirm={() => operate(takingDown!, 'down')}
 		/>
 	{/if}
 

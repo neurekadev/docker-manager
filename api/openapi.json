@@ -5932,6 +5932,7 @@
             "type": "integer"
           },
           "forceRecreate": {
+            "description": "Recreate the containers even when their configuration and image did not change (with services, only theirs: dependencies are recreated only when they changed). Anonymous volumes are kept.",
             "type": "boolean"
           },
           "pull": {

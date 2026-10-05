@@ -3,6 +3,7 @@ import { QueryClient } from '@tanstack/svelte-query';
 import { createApiClient } from '$lib/api/client';
 import {
 	deployStack,
+	deployStackWith,
 	etag,
 	operateStack,
 	patchStack,
@@ -84,13 +85,27 @@ describe('stack actions', () => {
 		expect(keys.every((k) => k && k.length > 10)).toBe(true);
 	});
 
+	it('force recreates the whole stack or named services', async () => {
+		const m = fakeManager({ 'POST /api/v1/stacks/st-1/deployments': () => [202, job('j1')] });
+		await deployStackWith('st-1', { forceRecreate: true }, m.client);
+		await deployStackWith('st-1', { forceRecreate: true, services: ['web'] }, m.client);
+		await deployStackWith('st-1', { services: [] }, m.client);
+		expect(m.calls.map((c) => c.body)).toEqual([
+			{ forceRecreate: true },
+			{ forceRecreate: true, services: ['web'] },
+			{}
+		]);
+	});
+
 	it('operates on the whole stack or named services', async () => {
 		const m = fakeManager({ 'POST /api/v1/stacks/st-1/operations': () => [202, job('j2')] });
 		await operateStack('st-1', 'restart', undefined, m.client);
 		await operateStack('st-1', 'stop', ['db'], m.client);
+		await operateStack('st-1', 'down', undefined, m.client);
 		expect(m.calls.map((c) => c.body)).toEqual([
 			{ action: 'restart' },
-			{ action: 'stop', services: ['db'] }
+			{ action: 'stop', services: ['db'] },
+			{ action: 'down' }
 		]);
 	});
 

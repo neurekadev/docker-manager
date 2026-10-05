@@ -220,7 +220,12 @@ describe('StackHeader', () => {
 		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
 		const lifecycle = await screen.findByRole('menu');
 		const entries = within(lifecycle).getAllByRole('menuitem');
-		expect(entries.map((i) => i.textContent?.trim())).toEqual(['Start', 'Restart', 'Stop']);
+		expect(entries.map((i) => i.textContent?.trim())).toEqual([
+			'Start',
+			'Restart',
+			'Stop',
+			'Take Down'
+		]);
 		// Everything runs: nothing to start.
 		expect(entries[0]).toHaveAttribute('aria-disabled', 'true');
 		await user.keyboard('{Escape}');
@@ -296,7 +301,7 @@ describe('StackHeader', () => {
 			})
 		);
 		const reason =
-			'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
+			'Docker Manager cannot stop, take down, restart, migrate, rename or delete its own stack. Deploy works.';
 		const stop = screen.getByRole('button', { name: 'Stop' });
 		expect(stop).toBeDisabled();
 		expect(stop).toHaveAttribute('title', reason);
@@ -308,6 +313,10 @@ describe('StackHeader', () => {
 			'true'
 		);
 		expect(screen.getByRole('menuitem', { name: 'Stop' })).not.toHaveAccessibleDescription();
+		expect(screen.getByRole('menuitem', { name: 'Take Down' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
 	});
 
 	it('hides what the caller may not do (the server still decides)', () => {
@@ -482,6 +491,7 @@ describe('StackHeader', () => {
 			'Deploy',
 			expect.stringMatching(/^Pull & Deploy/),
 			'---',
+			'Force Recreate',
 			'Cleanup Orphans & Deploy'
 		]);
 	});
@@ -572,6 +582,7 @@ describe('StackHeader', () => {
 			'Deploy',
 			expect.stringMatching(/^Pull & Deploy/),
 			'---',
+			'Force Recreate',
 			'Cleanup Orphans & Deploy'
 		]);
 		await user.click(within(menu).getByRole('menuitem', { name: 'Cleanup Orphans & Deploy' }));
@@ -584,6 +595,52 @@ describe('StackHeader', () => {
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
 			body: { removeOrphans: true }
+		});
+	});
+
+	it('force recreates every container only after a confirmation', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Force Recreate' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Force Recreate Silo?' });
+		expect(
+			within(dialog).getByText(
+				'Volumes and files are kept. Changes made inside a container that are not in a volume are lost.'
+			)
+		).toBeInTheDocument();
+		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
+		await user.click(within(dialog).getByRole('button', { name: 'Force Recreate' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Force Recreate Silo'));
+		expect(tray.jobs[0]).toMatchObject({
+			success: 'Recreated Silo',
+			failure: 'Silo was not recreated'
+		});
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/deployments',
+			body: { forceRecreate: true }
+		});
+	});
+
+	it('takes the stack down only after a confirmation, also when it is stopped', async () => {
+		const user = setup();
+		const tray = header(stack({ engine: { state: 'stopped', services: [] } }));
+		await user.click(screen.getByRole('button', { name: 'More Start and Stop Options' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Take Down' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Take Down Silo?' });
+		expect(
+			within(dialog).getByText('Volumes, images and files are kept; Deploy brings it back.')
+		).toBeInTheDocument();
+		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
+		await user.click(within(dialog).getByRole('button', { name: 'Take Down' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Take Down Silo'));
+		expect(tray.jobs[0]).toMatchObject({
+			success: 'Took down Silo',
+			failure: 'Silo was not taken down'
+		});
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/operations',
+			body: { action: 'down' }
 		});
 	});
 });
@@ -848,6 +905,56 @@ describe('ServicesTable', () => {
 		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
 		await user.click(await screen.findByRole('menuitem', { name: 'Start worker' }));
 		expect(onoperate).toHaveBeenCalledWith('worker', 'start');
+	});
+
+	it('force recreates one service with stack.deploy, also in Docker Manager’s own stack', async () => {
+		const user = setup();
+		const onrecreate = vi.fn();
+		const own = stack({
+			protection: {
+				role: 'docker_manager_project',
+				reason: "Docker Manager's own Compose project",
+				self: true,
+				restartAllowed: false
+			}
+		});
+		render(ServicesTable, {
+			props: { stack: own, services, usage: null, onoperate: vi.fn(), onrecreate }
+		});
+		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
+		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
+			'Restart web',
+			'Stop web',
+			'Force Recreate web'
+		]);
+		const item = screen.getByRole('menuitem', { name: 'Force Recreate web' });
+		expect(item).not.toHaveAttribute('aria-disabled', 'true');
+		await user.click(item);
+		expect(onrecreate).toHaveBeenCalledWith('web');
+	});
+
+	it('offers no Force Recreate without stack.deploy or while read-only', async () => {
+		const user = setup();
+		const { unmount } = render(ServicesTable, {
+			props: {
+				stack: stack({ actions: ALL.filter((a) => a !== 'stack.deploy') }),
+				services,
+				usage: null,
+				onoperate: vi.fn(),
+				onrecreate: vi.fn()
+			}
+		});
+		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
+		expect(
+			screen.queryByRole('menuitem', { name: 'Force Recreate web' })
+		).not.toBeInTheDocument();
+		unmount();
+		render(ServicesTable, {
+			props: { stack: stack(), services, usage: null, onrecreate: vi.fn(), readOnly: true }
+		});
+		expect(
+			screen.queryByRole('button', { name: 'More Actions for web' })
+		).not.toBeInTheDocument();
 	});
 
 	it('orders the columns like the containers list and links the networks', () => {
