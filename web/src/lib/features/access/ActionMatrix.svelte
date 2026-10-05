@@ -26,14 +26,17 @@
 		capabilitiesAt,
 		effectAt,
 		groupCapabilities,
+		inheritedDecision,
 		inheritedFromGroups,
 		scopeConsequence,
 		setRule,
 		type Capability,
 		type CapabilityGroup,
 		type Catalog,
+		type InheritedAt,
 		type InheritedGroup,
 		type Rule,
+		type Scope,
 		type ScopeNode
 	} from './permissions';
 	import {
@@ -117,7 +120,21 @@
 	}
 
 	function inherited(c: Capability) {
-		return inheritedFromGroups(userGroups, c.key, node.scope, node.environmentId);
+		return inheritedFromGroups(userGroups, c.key, node.scope, node.environmentId, node.parents);
+	}
+
+	/** Where a broader rule is: "everywhere", "this environment", "its stack", … */
+	function whereOf(d: { at: InheritedAt; parent?: Scope }): string {
+		switch (d.at) {
+			case 'instance':
+				return 'everywhere';
+			case 'environment':
+				return 'this environment';
+			case 'parent':
+				return `its ${d.parent?.resourceType === 'service' ? 'service' : 'stack'}`;
+			default:
+				return 'this resource';
+		}
 	}
 
 	function inheritedText(c: Capability): string {
@@ -128,13 +145,20 @@
 				: userGroups.length
 					? 'its groups (no rule)'
 					: 'no group';
-		const where =
-			d.at === 'instance'
-				? 'everywhere'
-				: d.at === 'environment'
-					? 'this environment'
-					: 'this resource';
-		return `group ${d.group}, rule for ${where}`;
+		return `group ${d.group}, rule for ${whereOf(d)}`;
+	}
+
+	/**
+	 * A group's own decision where it has no rule here (#281): the most
+	 * specific broader rule of the group (its parents, the environment,
+	 * All Resources), else denied.
+	 */
+	function broader(c: Capability) {
+		const d = inheritedDecision(rules, c.key, node.scope, node.environmentId, node.parents);
+		return {
+			effect: d.effect,
+			text: d.at === 'none' ? undefined : `the rule for ${whereOf(d)}`
+		};
 	}
 
 	const sectionActions = (g: CapabilityGroup) => [...g.common, ...g.advanced];
@@ -176,6 +200,8 @@
 					label="{c.label} for {node.label}"
 					variant="rule"
 					value={value(c)}
+					inherited={broader(c).effect}
+					inheritedFrom={broader(c).text}
 					disabled={readonly}
 					onchange={(v) => set(c, v)}
 				/>

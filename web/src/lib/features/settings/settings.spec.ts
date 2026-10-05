@@ -79,14 +79,14 @@ describe('audit viewer (#30)', () => {
 	it('reads actions in words: known keys, catalog labels, then the key in words', () => {
 		const catalog = {
 			capabilities: [
-				{ key: 'stack.deploy', label: 'Deploy', resourceType: 'stack' },
+				{ key: 'stack.deploy', label: 'Deploy Stacks', resourceType: 'stack' },
 				{ key: 'stack.create', label: 'Create stacks', resourceType: 'stack' }
 			],
 			resourceTypes: [{ key: 'stack', label: 'Stacks' }]
 		};
 		expect(auditActionLabel('registry.use', catalog)).toBe('Used a registry connection');
 		expect(auditActionLabel('auth.sign_in')).toBe('Signed in');
-		expect(auditActionLabel('stack.deploy', catalog)).toBe('Deploy (Stacks)');
+		expect(auditActionLabel('stack.deploy', catalog)).toBe('Deploy Stacks');
 		expect(auditActionLabel('stack.create', catalog)).toBe('Create stacks');
 		expect(auditActionLabel('stack.migrate.preview')).toBe('Stack migrate preview');
 	});

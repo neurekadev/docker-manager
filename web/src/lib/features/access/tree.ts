@@ -4,7 +4,7 @@
 // credentials). Each category lists its resources lazily with the API the
 // feature pages use; rules on resources that are not listed (deleted, or
 // the environment is offline) still appear from the rules themselves.
-import { queryOptions } from '@tanstack/svelte-query';
+import { queryOptions, type QueryClient } from '@tanstack/svelte-query';
 import { api, unwrap } from '$lib/api/client';
 import { liveKeys } from '$lib/live/keys';
 import {
@@ -14,6 +14,7 @@ import {
 	volumesQuery
 } from '$lib/features/common/data';
 import { repositoriesQuery } from '$lib/features/backups/queries';
+import { templatesQuery } from '$lib/features/templates/queries';
 import { updatePoliciesQuery } from '$lib/features/updates/queries';
 import { scopeKey, type Rule, type Scope, type ScopeNode } from './permissions';
 
@@ -50,6 +51,27 @@ export function resourceNode(
 	const scope: Scope = { kind: 'resource', resourceType: type, resourceId: id };
 	if (environmentId && NAMED_PER_ENVIRONMENT.has(type)) scope.environmentId = environmentId;
 	return { key: scopeKey(scope), label, scope, type, detail, environmentId };
+}
+
+/**
+ * Names of the resources the tree has listed (its cached node lists, with
+ * their children), for scope labels outside the tree: the save
+ * confirmation and the effective access (#281).
+ */
+export function cachedNames(client: QueryClient): (s: Scope) => string | undefined {
+	const names = new Map<string, string>();
+	const add = (nodes: ScopeNode[]) => {
+		for (const n of nodes) {
+			names.set(n.key, n.label);
+			if (n.children) add(n.children);
+		}
+	};
+	for (const q of client
+		.getQueryCache()
+		.findAll({ predicate: (q) => q.queryKey.at(-1) === 'tree-nodes' })) {
+		if (Array.isArray(q.state.data)) add(q.state.data as ScopeNode[]);
+	}
+	return (s) => names.get(scopeKey(s));
 }
 
 /** Wraps a list query so the tree gets nodes; its own key keeps shapes apart. */
@@ -104,8 +126,23 @@ export const CATEGORIES: Category[] = [
 		label: 'Containers',
 		perEnvironment: true,
 		nodes: (env) =>
-			nodeQuery(containersQuery(env), (c: { name: string; image?: string }) =>
-				resourceNode('container', c.name, env, c.name, c.image)
+			nodeQuery(
+				containersQuery(env),
+				(c: {
+					name: string;
+					image?: string;
+					stack?: { stackId?: string; service?: string };
+				}) => {
+					const n = resourceNode('container', c.name, env, c.name, c.image);
+					// A stack's container also takes its service's and stack's rules.
+					const stackId = c.stack?.stackId;
+					if (stackId)
+						n.parents = [
+							...(c.stack?.service ? [serviceScope(stackId, c.stack.service)] : []),
+							{ kind: 'resource', resourceType: 'stack', resourceId: stackId }
+						];
+					return n;
+				}
 			)
 	},
 	{
@@ -176,6 +213,23 @@ export const CATEGORIES: Category[] = [
 			)
 	},
 	{
+		type: 'build_definition',
+		label: 'Build Definitions',
+		perEnvironment: true,
+		nodes: (env) =>
+			nodeQuery(
+				listQuery(liveKeys.list('images', 'b5-tree-definitions', env), (signal, cursor) =>
+					unwrap(
+						api.GET('/api/v1/environments/{environmentId}/build-definitions', {
+							params: { path: { environmentId: env }, query: { cursor, limit: 200 } },
+							signal
+						})
+					)
+				),
+				(d: Named) => resourceNode('build_definition', d.id, env, d.name)
+			)
+	},
+	{
 		type: 'update_policy',
 		label: 'Updates',
 		perEnvironment: true,
@@ -191,6 +245,15 @@ export const CATEGORIES: Category[] = [
 		nodes: () =>
 			nodeQuery(repositoriesQuery(), (r: Named) =>
 				resourceNode('backup_repository', r.id, undefined, r.name)
+			)
+	},
+	{
+		type: 'template',
+		label: 'Stack Templates',
+		perEnvironment: false,
+		nodes: () =>
+			nodeQuery(templatesQuery(), (t: Named) =>
+				resourceNode('template', t.id, undefined, t.name)
 			)
 	},
 	{
@@ -264,13 +327,21 @@ export function nodesFromRules(
 	return out;
 }
 
-/** Services of a stack as nodes (resource ID `<stackId>/<service>`). */
+/** A service of a stack as a scope (resource ID `<stackId>/<service>`). */
+function serviceScope(stackId: string, service: string): Scope {
+	return { kind: 'resource', resourceType: 'service', resourceId: `${stackId}/${service}` };
+}
+
+/** Services of a stack as nodes; their stack's rules apply to them too. */
 export function serviceNodes(
 	stackId: string,
 	services: { name: string }[],
 	env: string
 ): ScopeNode[] {
-	return services.map((s) => resourceNode('service', `${stackId}/${s.name}`, env, s.name));
+	return services.map((s) => ({
+		...resourceNode('service', `${stackId}/${s.name}`, env, s.name),
+		parents: [{ kind: 'resource', resourceType: 'stack', resourceId: stackId }]
+	}));
 }
 
 export function instanceNode(): ScopeNode {

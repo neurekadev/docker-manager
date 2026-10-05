@@ -11,7 +11,18 @@ group with a matching rule decides with its most specific rule), then deny.
   plain-language label, description, compatible scopes via
   `res(...)`/`instEnv`/`instRes(...)`, `high(...)` for risky actions,
   `adv(...)` for rare ones). Never add generic read/write keys; never rename
-  a key. A key is retired only together with a migration that carries
+  a key (labels may change).
+- **Labels** (#281) name what they act on, in Title Case, with the verb of
+  the button they allow and the plural noun: "Restart Containers", "Deploy
+  Stacks", "View Container Logs", "Browse Stack Files". Remove for Docker
+  objects and connections, Delete for what Docker Manager owns (stacks,
+  templates, files, build definitions), Edit for changing settings or
+  details, Manage only for create, edit and delete together. The web shows
+  labels as they are (no type suffix), also in the audit log.
+- **Scopes** only where a rule can take effect: an action the server
+  refuses on a managed stack's containers (recreate, settings, remove)
+  takes no stack or service scope (`standaloneScopes`); dropping a scope
+  needs a migration that removes the rules using it. A key is retired only together with a migration that carries
   the group, user and API token rules naming it over to the key that
   replaces it and keeps every decision an explicit rule made: it checks
   the old and new decision at each scope point (instance, every

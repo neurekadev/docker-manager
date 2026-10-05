@@ -42,6 +42,7 @@
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
 	import PermissionEditor from '$lib/features/access/PermissionEditor.svelte';
+	import { cachedNames } from '$lib/features/access/tree';
 	import RulesSaveBar from '$lib/features/access/RulesSaveBar.svelte';
 	import {
 		accountStatus,
@@ -439,6 +440,7 @@
 					subject={g.name}
 					mode="group"
 					environmentName={envName}
+					resourceName={() => cachedNames(qc)}
 					ondiscard={() => (draft = base)}
 					onsave={saveRules}
 				/>

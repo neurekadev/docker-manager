@@ -4,35 +4,40 @@ description: Decide what each group and person may see and do.
 ---
 
 Permissions are rules on a group: for each action, **Allow** or **Deny**.
-Without a rule, an action is denied, so a new account can't do anything
-until you add it to a group or give it overrides. The owner can always do
+**No Rule** leaves the action to a broader rule, such as one for the whole
+environment; without any rule, it is denied. So a new account can't do
+anything until you add it to a group or give it overrides. The owner can always do
 everything and is the only one who manages permissions.
 
 ## Give permissions
 
 1. Open **Access → Groups**, then a group.
 2. In the tree on the left, pick where the rules apply:
-   - **All Resources**: everything, including servers you add later,
+   - **All Resources**: everything, including environments you add later,
    - one environment, with everything on it,
-   - or one stack, container, volume, policy and so on.
-3. Pick a preset under **Start From**, or set single actions. Risky actions
-   are marked **High Risk**.
+   - or one stack, stack service, container, volume, template and so on.
+3. Pick a preset under **Start From**, or set single actions. Each action
+   names what it acts on, such as **Restart Containers**. Risky actions
+   are marked **High Risk**; rarely needed ones are folded away at the
+   end of each section.
 4. Press **Save Permissions** and confirm the list of changes.
 
 The presets:
 
 - **Viewer**: sees everything, changes nothing. Logs, files and secrets
   stay hidden.
-- **Operator**: also reads logs, starts, stops, restarts, recreates and
-  deploys, pulls images, runs backups and dismisses alerts. It can't
-  delete anything.
-- **Admin**: can do everything in that place.
+- **Operator**: also deploys, starts, stops, restarts and recreates, pulls
+  images, checks for image updates, runs backups, reads logs and dismisses
+  alerts. Stopping a stack removes its containers but keeps its data;
+  nothing else is deleted, and no settings change.
+- **Admin**: can do everything in that place, except what only the owner
+  can do.
 
 Within a group, the most specific rule decides: a rule on one stack wins
 over its environment, which wins over **All Resources**.
 
-**Start Stack**, **Stop Stack** and **Restart Stack** can also be given on
-one service of a stack, under the stack in the tree. Starting a service
+**Start Stacks**, **Stop Stacks** and **Restart Stacks** can also be given
+on one service of a stack, under the stack in the tree. Starting a service
 also starts the services it depends on, so the rule must cover those too.
 
 For someone in several groups, the groups are checked from the top of the
@@ -44,8 +49,8 @@ order.
 
 Open a person under **Access** to set **Overrides**: rules for just them,
 which win over the rules of all their groups. **Effective Access** shows what they
-may do in the end. **View as This User** checks their access again,
-including overrides you haven't saved yet.
+may do in the end. **View as This User** checks their access again; with
+unsaved overrides, the button reads **Preview with Unsaved Changes**.
 
 ## What only the owner can do
 

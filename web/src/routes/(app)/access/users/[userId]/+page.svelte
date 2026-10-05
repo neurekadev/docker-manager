@@ -48,6 +48,7 @@
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
 	import EffectiveTable from '$lib/features/access/EffectiveTable.svelte';
 	import PermissionEditor from '$lib/features/access/PermissionEditor.svelte';
+	import { cachedNames } from '$lib/features/access/tree';
 	import RulesSaveBar from '$lib/features/access/RulesSaveBar.svelte';
 	import SessionsTable from '$lib/features/access/SessionsTable.svelte';
 	import {
@@ -578,6 +579,7 @@
 					subject={displayName(u)}
 					mode="user"
 					environmentName={envName}
+					resourceName={() => cachedNames(qc)}
 					ondiscard={() => (draft = base)}
 					onsave={saveRules}
 				/>

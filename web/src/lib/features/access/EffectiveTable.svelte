@@ -3,12 +3,13 @@
 	// user's overrides or group rules, the decision and why (the deciding
 	// rule: user override, group rule or default deny). Anything not listed
 	// is denied.
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { Badge, Table, type Column } from '$lib/ui';
 	import { environmentName } from '$lib/features/common/data';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import { capabilityLabel, scopeLabel, type Catalog, type Effective } from './permissions';
+	import { cachedNames } from './tree';
 
 	interface Props {
 		entries: Effective[];
@@ -20,6 +21,12 @@
 
 	let { entries, catalog, label, changed }: Props = $props();
 	const envs = createQuery(() => environmentsQuery());
+	// Resources by name where the editor's tree listed them (#281).
+	const queryClient = useQueryClient();
+	const resource = $derived.by(() => {
+		void entries;
+		return cachedNames(queryClient);
+	});
 
 	const SOURCE: Record<string, string> = {
 		owner: 'Owner',
@@ -54,7 +61,10 @@
 {#snippet actionCell(r: Row)}
 	<NameCell
 		name={capabilityLabel(catalog, r.capability)}
-		sub="On {scopeLabel(r.scope, { environment: (id) => environmentName(envs.data, id) })}"
+		sub="On {scopeLabel(r.scope, {
+			environment: (id) => environmentName(envs.data, id),
+			resource
+		})}"
 	/>
 {/snippet}
 {#snippet decisionCell(r: Row)}

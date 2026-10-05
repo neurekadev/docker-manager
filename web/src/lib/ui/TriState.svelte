@@ -49,7 +49,9 @@
 	const explanation = $derived(
 		variant === 'rule'
 			? value === 'inherit'
-				? ''
+				? inheritedFrom
+					? `${inherited === 'allow' ? 'Allowed' : 'Denied'} by ${inheritedFrom}`
+					: 'Denied: no rule here or above'
 				: value === 'allow'
 					? 'Allowed for members'
 					: 'Denied for members, even where a broader rule allows it'

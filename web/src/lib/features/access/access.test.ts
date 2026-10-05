@@ -43,7 +43,7 @@ const catalog: Catalog = {
 	capabilities: [
 		{
 			key: 'container.restart',
-			label: 'Restart',
+			label: 'Restart Containers',
 			description: 'Restart a container.',
 			resourceType: 'container',
 			risk: 'normal',
@@ -137,7 +137,9 @@ describe('ActionMatrix', () => {
 		expect(containers).toHaveAttribute('aria-expanded', 'false');
 		expect(containers).toHaveTextContent('4 actions');
 		expect(
-			within(region).queryByRole('radiogroup', { name: 'Restart for All Resources' })
+			within(region).queryByRole('radiogroup', {
+				name: 'Restart Containers for All Resources'
+			})
 		).toBeNull();
 		await user.click(containers);
 		expect(containers).toHaveAttribute('aria-expanded', 'true');
@@ -185,12 +187,42 @@ describe('ActionMatrix', () => {
 		const onchange = vi.fn();
 		render(ActionMatrix, { props: { catalog, node: all, mode: 'group', rules: [], onchange } });
 		await user.click(screen.getByRole('button', { name: /^Containers/ }));
-		const restart = screen.getByRole('radiogroup', { name: 'Restart for All Resources' });
+		const restart = screen.getByRole('radiogroup', {
+			name: 'Restart Containers for All Resources'
+		});
 		expect(restart).toHaveTextContent('No Rule');
 		await user.click(within(restart).getByText('Allow'));
 		expect(onchange).toHaveBeenLastCalledWith([
 			{ capability: 'container.restart', scope: { kind: 'instance' }, effect: 'allow' }
 		]);
+	});
+
+	it('says what a broader rule of the group decides where it has no rule (#281)', async () => {
+		const user = setup();
+		const env = { kind: 'environment' as const, environmentId: 'e1' };
+		const node = { key: 'env:e1', label: 'homelab', scope: env, type: 'environment' };
+		render(ActionMatrix, {
+			props: {
+				catalog,
+				node,
+				mode: 'group',
+				rules: [
+					{
+						capability: 'container.restart',
+						scope: { kind: 'instance' },
+						effect: 'allow'
+					}
+				],
+				onchange: vi.fn()
+			}
+		});
+		await user.click(screen.getByRole('button', { name: /^Containers/ }));
+		expect(
+			screen.getByRole('radiogroup', { name: 'Restart Containers for homelab' })
+		).toHaveAccessibleDescription('Allowed by the rule for everywhere');
+		expect(
+			screen.getByRole('radiogroup', { name: 'Open terminal for homelab' })
+		).toHaveAccessibleDescription('Denied: no rule here or above');
 	});
 
 	it('allows or clears a whole section at once, without a confirmation', async () => {
@@ -290,7 +322,9 @@ describe('ActionMatrix', () => {
 		});
 		expect(screen.queryByRole('combobox', { name: 'Start From' })).toBeNull();
 		await user.click(screen.getByRole('button', { name: /^Containers/ }));
-		const restart = screen.getByRole('radiogroup', { name: 'Restart for All Resources' });
+		const restart = screen.getByRole('radiogroup', {
+			name: 'Restart Containers for All Resources'
+		});
 		expect(restart).toHaveAccessibleDescription(
 			/Inherits Allow from group Operators, rule for everywhere/
 		);
@@ -338,7 +372,7 @@ describe('ActionMatrix', () => {
 		});
 		await user.click(screen.getByRole('button', { name: /^Containers/ }));
 		expect(
-			screen.getByRole('radiogroup', { name: 'Restart for All Resources' })
+			screen.getByRole('radiogroup', { name: 'Restart Containers for All Resources' })
 		).toHaveAccessibleDescription(/Inherits Deny from group Limited, rule for everywhere/);
 		expect(
 			screen.getByRole('radiogroup', { name: 'Start for All Resources' })
@@ -491,7 +525,7 @@ describe('RulesSaveBar', () => {
 		const dialog = await screen.findByRole('alertdialog', {
 			name: 'Save the permissions of Operators?'
 		});
-		expect(dialog).toHaveTextContent('Restart (Containers) on everything: No Rule → Allow');
+		expect(dialog).toHaveTextContent('Restart Containers on All Resources: No Rule → Allow');
 		await user.click(within(dialog).getByRole('button', { name: 'Save Permissions' }));
 		expect(onsave).toHaveBeenCalled();
 	});
