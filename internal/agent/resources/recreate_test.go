@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -199,5 +200,41 @@ func TestContainerRecreateRefusals(t *testing.T) {
 	failed(t, "agent", res, protection.CodeProtected)
 	if c, _ := fe.Container(d.AgentID); c.Details.Name != "docker-manager-docker-agent-1" || !c.Details.State.Running {
 		t.Fatalf("agent %+v", c.Details)
+	}
+}
+
+// selfRemoving is an Engine on which the old container of a recreate
+// removes itself once stopped (AutoRemove, --rm): the explicit removal
+// meets a removal already in progress.
+type selfRemoving struct {
+	*enginefake.Engine
+	id string
+}
+
+func (e selfRemoving) RemoveContainer(ctx context.Context, id string, o engine.RemoveOptions) error {
+	if id != e.id {
+		return e.Engine.RemoveContainer(ctx, id, o)
+	}
+	if err := e.Engine.RemoveContainer(ctx, id, engine.RemoveOptions{Force: true}); err != nil {
+		return err
+	}
+	return engine.Errorf("container.remove", engine.CodeConflict, "removal of container %s is already in progress", id)
+}
+
+// TestRecreateOfAContainerRemovingItself: a --rm container removes itself
+// when the recreate stops it; the job still starts the new container.
+func TestRecreateOfAContainerRemovingItself(t *testing.T) {
+	_, fe := fixture(t)
+	oldID := fe.AddContainer(engine.ContainerSpec{Name: "once", Image: "nginx:1.27"}, true)
+	s := New(Options{Engine: func() engine.Engine { return selfRemoving{Engine: fe, id: oldID} }, Logger: testutil.Logger(t)})
+	res, _ := run(t, s, jobspec.ContainerRecreate, protocol.ContainerActionInput{Name: "once", ID: oldID})
+	ok(t, "recreate", res)
+	c, found := fe.Container("once")
+	if !found || c.Details.ID == oldID || !c.Details.State.Running {
+		t.Fatalf("new container %+v (%v)", c, found)
+	}
+	// Any other refusal of the removal still fails the job.
+	if removedAlready(testutil.Context(t), fe, c.Details.ID, engine.Errorf("container.remove", engine.CodeConflict, "busy")) {
+		t.Error("a conflict on a container still there counted as removed")
 	}
 }

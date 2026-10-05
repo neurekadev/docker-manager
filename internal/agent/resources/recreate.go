@@ -102,10 +102,25 @@ func (s *Service) recreate(ctx context.Context, sc *jobexec.StepContext) error {
 			return engineErr(err)
 		}
 	}
-	if err := eng.RemoveContainer(ctx, old.ID, engine.RemoveOptions{Force: true}); err != nil && engine.CodeOf(err) != engine.CodeNotFound {
+	if err := eng.RemoveContainer(ctx, old.ID, engine.RemoveOptions{Force: true}); err != nil && !removedAlready(ctx, eng, old.ID, err) {
 		return engineErr(err)
 	}
 	return s.startRecreated(ctx, eng, sc, in, out)
+}
+
+// removedAlready reports whether a failed removal of the old container
+// only met the container going away by itself: gone already, or (an
+// AutoRemove, --rm, container removing itself once stopped) the Engine
+// refusing a removal already in progress.
+func removedAlready(ctx context.Context, eng engine.Engine, id string, err error) bool {
+	switch engine.CodeOf(err) {
+	case engine.CodeNotFound:
+		return true
+	case engine.CodeConflict:
+		d, ierr := eng.InspectContainer(ctx, id)
+		return engine.CodeOf(ierr) == engine.CodeNotFound || (ierr == nil && d.State.Status == "removing")
+	}
+	return false
 }
 
 // startRecreated starts the new container when the old one ran.
