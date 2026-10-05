@@ -6,9 +6,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/engine/enginefake"
+	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
@@ -234,7 +236,89 @@ func TestRecreateOfAContainerRemovingItself(t *testing.T) {
 		t.Fatalf("new container %+v (%v)", c, found)
 	}
 	// Any other refusal of the removal still fails the job.
-	if removedAlready(testutil.Context(t), fe, c.Details.ID, engine.Errorf("container.remove", engine.CodeConflict, "busy")) {
+	if s.removedAlready(testutil.Context(t), fe, c.Details.ID, engine.Errorf("container.remove", engine.CodeConflict, "busy")) {
 		t.Error("a conflict on a container still there counted as removed")
 	}
+}
+
+// removing is an Engine on which the removal of one container is in
+// progress: it reports the container as removing until its state says
+// otherwise, then gone ("" ) or dead.
+type removing struct {
+	*enginefake.Engine
+	id    string
+	after string
+	seen  int
+}
+
+func (e *removing) InspectContainer(ctx context.Context, id string) (engine.ContainerDetails, error) {
+	d, err := e.Engine.InspectContainer(ctx, id)
+	if id != e.id || err != nil {
+		return d, err
+	}
+	e.seen++
+	switch {
+	case e.seen == 1:
+		d.State.Status = "removing"
+	case e.after == "":
+		return d, engine.Errorf("container.inspect", engine.CodeNotFound, "no such container %s", id)
+	default:
+		d.State.Status = e.after
+	}
+	return d, nil
+}
+
+// TestRemovedAlreadyWaitsForTheRemoval: a removal in progress counts once
+// the container is gone, never while it is still there; a container left
+// dead is not removed; the wait is bounded.
+func TestRemovedAlreadyWaitsForTheRemoval(t *testing.T) {
+	ctx := testutil.Context(t)
+	inProgress := engine.Errorf("container.remove", engine.CodeConflict, "removal of container is already in progress")
+	for _, c := range []struct {
+		after string
+		want  bool
+	}{{"", true}, {"dead", false}} {
+		_, fe := fixture(t)
+		id := fe.AddContainer(engine.ContainerSpec{Name: "once", Image: "nginx:1.27"}, false)
+		fc := clock.NewFake(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+		s := New(Options{Engine: func() engine.Engine { return fe }, Clock: fc, Logger: testutil.Logger(t)})
+		eng := &removing{Engine: fe, id: id, after: c.after}
+		go func() {
+			// The deadline and the first poll.
+			if fc.BlockUntilWaiters(ctx, 2) == nil {
+				fc.Advance(selfRemovePoll)
+			}
+		}()
+		if got := s.removedAlready(ctx, eng, id, inProgress); got != c.want {
+			t.Errorf("then %q: removed %v, want %v", c.after, got, c.want)
+		}
+	}
+	// Still removing when the wait ends: not removed.
+	_, fe := fixture(t)
+	id := fe.AddContainer(engine.ContainerSpec{Name: "slow", Image: "nginx:1.27"}, false)
+	fc := clock.NewFake(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	s := New(Options{Engine: func() engine.Engine { return fe }, Clock: fc, Logger: testutil.Logger(t)})
+	stuck := &stillRemoving{Engine: fe, id: id}
+	go func() {
+		if fc.BlockUntilWaiters(ctx, 2) == nil {
+			fc.Advance(selfRemoveTimeout)
+		}
+	}()
+	if s.removedAlready(ctx, stuck, id, inProgress) {
+		t.Error("a container still removing after the wait counted as removed")
+	}
+}
+
+// stillRemoving reports one container as removing forever.
+type stillRemoving struct {
+	*enginefake.Engine
+	id string
+}
+
+func (e *stillRemoving) InspectContainer(ctx context.Context, id string) (engine.ContainerDetails, error) {
+	d, err := e.Engine.InspectContainer(ctx, id)
+	if id == e.id && err == nil {
+		d.State.Status = "removing"
+	}
+	return d, err
 }

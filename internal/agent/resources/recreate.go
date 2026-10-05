@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
@@ -102,25 +103,50 @@ func (s *Service) recreate(ctx context.Context, sc *jobexec.StepContext) error {
 			return engineErr(err)
 		}
 	}
-	if err := eng.RemoveContainer(ctx, old.ID, engine.RemoveOptions{Force: true}); err != nil && !removedAlready(ctx, eng, old.ID, err) {
+	if err := eng.RemoveContainer(ctx, old.ID, engine.RemoveOptions{Force: true}); err != nil && !s.removedAlready(ctx, eng, old.ID, err) {
 		return engineErr(err)
 	}
 	return s.startRecreated(ctx, eng, sc, in, out)
 }
 
+// Waiting for an AutoRemove container to go (removedAlready).
+const (
+	selfRemoveTimeout = 30 * time.Second
+	selfRemovePoll    = 200 * time.Millisecond
+)
+
 // removedAlready reports whether a failed removal of the old container
 // only met the container going away by itself: gone already, or (an
 // AutoRemove, --rm, container removing itself once stopped) the Engine
-// refusing a removal already in progress.
-func removedAlready(ctx context.Context, eng engine.Engine, id string, err error) bool {
+// refusing a removal already in progress, in which case it waits, at most
+// selfRemoveTimeout, until the container is gone. A container left dead
+// or still there is not removed.
+func (s *Service) removedAlready(ctx context.Context, eng engine.Engine, id string, err error) bool {
 	switch engine.CodeOf(err) {
 	case engine.CodeNotFound:
 		return true
 	case engine.CodeConflict:
-		d, ierr := eng.InspectContainer(ctx, id)
-		return engine.CodeOf(ierr) == engine.CodeNotFound || (ierr == nil && d.State.Status == "removing")
+	default:
+		return false
 	}
-	return false
+	deadline := s.clock.NewTimer(selfRemoveTimeout)
+	defer deadline.Stop()
+	for {
+		d, ierr := eng.InspectContainer(ctx, id)
+		if engine.CodeOf(ierr) == engine.CodeNotFound {
+			return true
+		}
+		if ierr != nil || d.State.Status != "removing" {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-deadline.C():
+			return false
+		case <-s.clock.After(selfRemovePoll):
+		}
+	}
 }
 
 // startRecreated starts the new container when the old one ran.

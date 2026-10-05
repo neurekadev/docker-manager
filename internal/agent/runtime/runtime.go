@@ -449,6 +449,7 @@ func (a *Agent) addResources() {
 		ManagedStackDir: func(dir string) bool { return a.StackGuard(dir) == nil },
 		Guard:           a.guard,
 		VolumeLabels:    a.volumeLabels,
+		Clock:           a.opts.Clock,
 		Logger:          a.log,
 	})
 	reqs := svc.Requests()

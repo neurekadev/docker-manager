@@ -25,6 +25,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
 	"github.com/neurekadev/docker-manager/internal/agent/volumelabels"
+	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -43,7 +44,9 @@ type Options struct {
 	// VolumeLabels are the Compose labels of stack volumes (volumelabels;
 	// nil: none).
 	VolumeLabels *volumelabels.Store
-	Logger       *slog.Logger
+	// Clock paces waits (default clock.Real()).
+	Clock  clock.Clock
+	Logger *slog.Logger
 }
 
 // Service implements the requests and executors.
@@ -51,6 +54,7 @@ type Service struct {
 	opts  Options
 	log   *slog.Logger
 	guard *protect.Guard
+	clock clock.Clock
 }
 
 // New returns a Service.
@@ -63,7 +67,11 @@ func New(opts Options) *Service {
 	if guard == nil {
 		guard = protect.New(protect.Options{Logger: log})
 	}
-	return &Service{opts: opts, log: log.With("component", "resources"), guard: guard}
+	clk := opts.Clock
+	if clk == nil {
+		clk = clock.Real()
+	}
+	return &Service{opts: opts, log: log.With("component", "resources"), guard: guard, clock: clk}
 }
 
 // protected lists the Engine's containers and identifies Docker Manager's own
