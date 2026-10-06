@@ -43,7 +43,7 @@ check's documented socket exception).
   `manager_moves` itself. Read-only: `api.Register`'s `moveGuard` (every
   non-GET operation except `allowedWhileMoved`: sign-in, sign-out, the
   move routes; a new operation a moved manager must still serve goes in
-  that list), `jobs.Engine.Enqueue` (`jobs.ErrManagerMoved`) and
+  that list), `jobs.Engine.Enqueue` and `EnqueueAll` (`jobs.ErrManagerMoved`) and
   `DispatchPending`, `scheduler.Service.Tick`, the alerts' reconcile and
   dispatch loops (no alert is raised or sent). Agents refused: the agent
   handler (503 + `Retry-After: 60`, before any credential check) and the

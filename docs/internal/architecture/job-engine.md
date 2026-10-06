@@ -404,6 +404,16 @@ if err != nil {
 return api.Accepted(job), nil // register with DefaultStatus: http.StatusAccepted
 ```
 
+**Enqueue a batch** with `engine.EnqueueAll(ctx, reqs)` when one action
+starts several jobs that must start together (a run across
+environments): every request is validated and authorized first, then
+all the jobs are stored in one transaction, all of them or none, so the
+dispatcher never sees part of the batch. A repeated batch whose
+idempotency keys all match stored jobs returns them (`created` false);
+one that matches only some is `domain.ErrJobIdempotencyConflict`.
+Actions that queue per environment on purpose (backup runs, scheduled
+runs) keep `Enqueue` and record each failure.
+
 **Implement an agent executor** (`internal/agent/...`, wired into
 `agentjobs.Options.Executors`):
 
