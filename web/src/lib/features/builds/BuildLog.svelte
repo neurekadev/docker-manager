@@ -30,8 +30,10 @@
 
 	let follow = $state(true);
 	let box = $state<HTMLElement>();
+	// Keyed on the newest line, not the count: once the buffer is full every
+	// new line drops the oldest and the count stays the same.
 	$effect(() => {
-		void lines.length;
+		void lines.at(-1)?.seq;
 		if (!follow || !box) return;
 		void tick().then(() => box && (box.scrollTop = box.scrollHeight));
 	});
@@ -66,6 +68,7 @@
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		class="log mono"
+		class:following={follow}
 		bind:this={box}
 		{onscroll}
 		role="log"
@@ -105,6 +108,12 @@
 		background: var(--code-bg);
 		font-size: 12.5px;
 		line-height: 20px;
+	}
+
+	/* Dropping the oldest lines must not move the view (scroll anchoring),
+	   or the scroll reads as the user's and turns Follow off. */
+	.log.following {
+		overflow-anchor: none;
 	}
 
 	.line {
